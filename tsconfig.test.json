@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".test-dist",
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@openlimiter/core": ["packages/core/src/index.ts"],
+      "@openlimiter/connectors": ["packages/connectors/src/index.ts"],
+      "@openlimiter/adapters": ["packages/adapters/src/index.ts"],
+      "@openlimiter/cli": ["packages/cli/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"]
+}

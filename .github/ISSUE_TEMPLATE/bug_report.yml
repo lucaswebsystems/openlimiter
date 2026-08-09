@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a reproducible OpenLimiter problem using synthetic data.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for reporting a problem. Never include a real credential or account identifier.
+  - type: input
+    id: version
+    attributes:
+      label: OpenLimiter version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: operating_system
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: Describe the observed and expected result.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Synthetic reproduction
+      description: Provide the smallest reproduction with obviously fake values.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed all real secrets, accounts, emails, cookies, sessions, and machine paths.
+          required: true

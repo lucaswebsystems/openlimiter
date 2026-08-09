@@ -1,0 +1,47 @@
+name: Connector request
+description: Propose a provider response shape for an UNVERIFIED connector.
+title: "[Connector]: "
+labels: ["connector"]
+body:
+  - type: input
+    id: provider
+    attributes:
+      label: Provider
+      placeholder: Synthetic Provider
+    validations:
+      required: true
+  - type: dropdown
+    id: interface_status
+    attributes:
+      label: Interface status
+      options:
+        - Documented API
+        - Native local payload
+        - Internal endpoint
+        - Authenticated scrape
+        - Manual entry
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: Synthetic response shape
+      description: Include only synthetic fields and values. Never paste a real response.
+    validations:
+      required: true
+  - type: textarea
+    id: limits
+    attributes:
+      label: Honest limitations
+      description: Explain verification status, drift risk, credential origin, and automation risk.
+    validations:
+      required: true
+  - type: checkboxes
+    id: agreement
+    attributes:
+      label: Safety check
+      options:
+        - label: I understand the connector must ship UNVERIFIED and fail closed to unknown.
+          required: true
+        - label: I removed all real secrets, accounts, emails, cookies, sessions, and machine paths.
+          required: true
