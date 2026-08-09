@@ -1,0 +1,87 @@
+/**
+ * The OpenLimiter mark.
+ *
+ * A tapering segmented ring. Eight arcs sit on one radius of 72 inside a 200
+ * unit box. The first sweeps a quarter of the circle and every next one sweeps
+ * 0.7172 of the one before it, with equal eight degree gaps that close the
+ * circle exactly. The stroke is 34 units with flat butt caps. There is one
+ * blue in the whole system and the only variation between segments is alpha,
+ * which fades from 1 down to 0.25 as the segments shrink.
+ *
+ * The path data below is the approved artwork copied verbatim, so the header
+ * lockup, the icon routes, and the files in assets/brand are all the same
+ * shape. Nothing here derives a second colour: the segments paint in
+ * `currentColor` and the caller decides whether that is the brand blue on a
+ * light surface or white on a blue tile.
+ */
+
+/** Segments in draw order, largest first. Alpha falls as the arc shrinks. */
+export const MARK_SEGMENTS = [
+  { d: "M 100.000 28.000 A 72 72 0 0 1 172.000 100.000", opacity: 1 },
+  { d: "M 171.299 110.020 A 72 72 0 0 1 121.589 168.687", opacity: 0.893 },
+  { d: "M 111.819 171.023 A 72 72 0 0 1 56.819 157.614", opacity: 0.786 },
+  { d: "M 49.221 151.044 A 72 72 0 0 1 29.558 114.898", opacity: 0.679 },
+  { d: "M 28.170 104.949 A 72 72 0 0 1 32.289 75.521", opacity: 0.571 },
+  { d: "M 36.355 66.336 A 72 72 0 0 1 49.052 49.125", opacity: 0.464 },
+  { d: "M 56.628 42.529 A 72 72 0 0 1 69.813 34.634", opacity: 0.357 },
+  { d: "M 79.204 31.069 A 72 72 0 0 1 89.980 28.701", opacity: 0.25 },
+] as const;
+
+/** The artwork box. Every consumer scales this, none of them redraws it. */
+export const MARK_VIEWBOX = "0 0 200 200";
+
+/** Stroke weight in artwork units. */
+export const MARK_STROKE_WIDTH = 34;
+
+/** Number of segments, so the stagger scale in globals.css can be checked. */
+export const MARK_SEGMENT_COUNT = MARK_SEGMENTS.length;
+
+/** Set on the mark element that is allowed to draw itself in. */
+export const MARK_DRAW_ATTR = "data-brand-mark";
+
+/** Set on <html> once the draw has already played, or must not play at all. */
+export const MARK_DRAWN_ATTR = "data-mark-drawn";
+
+/** Session key that remembers the draw already happened. */
+export const MARK_DRAWN_KEY = "openlimiter-mark-drawn";
+
+/**
+ * Standalone markup for contexts with no stylesheet, which is every generated
+ * image route. The colour has to be passed in because `currentColor` has
+ * nothing to inherit from there.
+ */
+export function markSvgMarkup(color: string): string {
+  const paths = MARK_SEGMENTS.map(
+    (segment) =>
+      `<path d="${segment.d}" fill="none" stroke="${color}" stroke-opacity="${segment.opacity}"` +
+      ` stroke-width="${MARK_STROKE_WIDTH}" stroke-linecap="butt"/>`,
+  ).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${MARK_VIEWBOX}">${paths}</svg>`;
+}
+
+/**
+ * The same markup as a data URI, which is how satori accepts vector artwork in
+ * the icon and social card routes.
+ */
+export function markDataUri(color: string): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(markSvgMarkup(color))}`;
+}
+
+/**
+ * Runs in <head>, before the body paints.
+ *
+ * The mark draws itself in once per session. This script decides, ahead of the
+ * first frame, whether this load is that once. It only ever adds an attribute
+ * that turns the animation off, so a browser that blocks it, or a throw of any
+ * kind, leaves the pure CSS draw in place rather than hiding anything.
+ */
+export const markArmScript = [
+  "(function(){try{",
+  "var d=document.documentElement;",
+  'if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){',
+  `d.setAttribute("${MARK_DRAWN_ATTR}","1");return}`,
+  `if(window.sessionStorage.getItem("${MARK_DRAWN_KEY}")==="1"){`,
+  `d.setAttribute("${MARK_DRAWN_ATTR}","1");return}`,
+  `window.sessionStorage.setItem("${MARK_DRAWN_KEY}","1")`,
+  "}catch(e){}})();",
+].join("");

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { BrandLockup } from "./brand";
 import { GitHubMark } from "./ui";
 import { ThemeToggle } from "./theme-toggle";
 import { REPO_URL } from "@/lib/site";
@@ -19,16 +20,9 @@ export function Nav() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-hairline bg-canvas/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        <Link href="/" className="focus-ring group flex items-center gap-2.5 rounded-md">
-          <span
-            aria-hidden="true"
-            className="flex h-7 w-7 items-center justify-center rounded-md border border-hairline-strong bg-surface font-sans text-2xs font-semibold text-heading transition-colors group-hover:border-accent-solid"
-          >
-            OL
-          </span>
-          <span className="font-sans text-sm font-medium tracking-tight text-heading">
-            OpenLimiter
-          </span>
+        <Link href="/" aria-label="OpenLimiter, home" className="focus-ring flex rounded-md">
+          {/* The one instance allowed to play the draw in. See lib/brand.ts. */}
+          <BrandLockup draw markClassName="h-7 w-7 flex-none text-accent-solid" wordClassName="text-base" />
         </Link>
 
         <nav aria-label="Main" className="hidden items-center gap-6 md:flex">

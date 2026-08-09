@@ -20,10 +20,27 @@ export const imagePalette = {
   heading: "#f2f2f3",
   /** mirrors --ol-body, dark */
   body: "#adadb6",
-  /** mirrors --ol-accent-solid, both themes */
+  /** mirrors --ol-accent-solid, both themes, and is the one brand blue */
   accent: "#0866ff",
   /** mirrors --ol-on-accent, both themes */
   onAccent: "#ffffff",
+} as const;
+
+/**
+ * The app tile treatment: the mark inverted to white on a solid brand blue
+ * rounded square. It is the only place the mark is not painted in the blue,
+ * and it exists because a small icon needs a guaranteed background rather than
+ * whatever chrome it lands on.
+ *
+ * `radiusRatio` and `markRatio` are fractions of the tile edge, so one
+ * treatment scales from the 32 pixel favicon to the 1024 pixel PNG in
+ * assets/brand without a second set of numbers.
+ */
+export const tile = {
+  background: imagePalette.accent,
+  mark: imagePalette.onAccent,
+  radiusRatio: 0.22,
+  markRatio: 0.68,
 } as const;
 
 export type ImagePalette = typeof imagePalette;

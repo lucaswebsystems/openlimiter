@@ -1,6 +1,6 @@
-# `@openlimiter/adapters`
+# `@openlimiter/core`
 
-Agent adapters that render OpenLimiter quota guidance in supported tools.
+Shared types, quota models, cache handling, and forecasts for OpenLimiter.
 
 Most users should install the [`openlimiter`](https://www.npmjs.com/package/openlimiter) CLI.
 

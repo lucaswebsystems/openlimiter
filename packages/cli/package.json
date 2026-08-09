@@ -1,11 +1,21 @@
 {
-  "name": "@openlimiter/cli",
+  "name": "openlimiter",
   "version": "0.1.0",
+  "description": "A local command line meter for AI quota, usage, and reset times.",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "bin": {
     "openlimiter": "./dist/bin.js"
   },
-  "files": ["dist"],
+  "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -15,5 +25,22 @@
     "@openlimiter/connectors": "workspace:*",
     "@openlimiter/core": "workspace:*"
   },
-  "license": "Apache-2.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucaswebsystems/openlimiter.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://openlimiter.com",
+  "bugs": {
+    "url": "https://github.com/lucaswebsystems/openlimiter/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "Lucas Costa (https://lucaswebsystems.com)",
+  "keywords": ["ai", "quota", "cli", "usage", "meter", "agents", "claude", "codex"],
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

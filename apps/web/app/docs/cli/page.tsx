@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, Code, CodeBlock, DocLink, P, Sub, Table } from "@/components/docs/prose";
+import { CAPTURED_ON, demoCapture } from "@/lib/cli-capture";
 import { findDocPage } from "@/lib/docs";
 
 const page = findDocPage("/docs/cli");
@@ -68,8 +69,8 @@ Configuration saved. Detected: manual`} />
                 label="synthetic values"
                 code={`openlimiter snapshot
 PROVIDER METER USAGE STATE RESET
-CLAUDE FIVE_HOUR 87.50% fresh 2026-08-09T13:11:01.351Z
-CLAUDE SEVEN_DAY 41.25% fresh 2026-08-15T12:11:01.351Z`}
+CLAUDE FIVE_HOUR 42.00PERCENT fresh 2026-08-09T20:35:37.671Z
+CLAUDE SEVEN_DAY 64.00PERCENT fresh 2026-08-16T15:35:37.671Z`}
               />
 
               <Sub id="statusline">statusline</Sub>
@@ -108,8 +109,13 @@ Ingested 1 bounded meters. Cached meters: 3.`}
               <Sub id="demo">demo</Sub>
               <P>
                 Renders synthetic fixtures so you can see the output shape without any real
-                account. Every value it prints is invented.
+                account. Every value it prints is invented. The block below is the real output of
+                that command, pasted in unedited.
               </P>
+              <CodeBlock
+                label={`captured ${CAPTURED_ON}, synthetic fixtures`}
+                code={`${demoCapture.command}\n${demoCapture.output}`}
+              />
 
               <Sub id="export">export</Sub>
               <P>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLockup } from "./brand";
 import { docPages } from "@/lib/docs";
 import {
   AUTHOR_GITHUB,
@@ -83,16 +84,8 @@ export function Footer() {
       <div className="mx-auto max-w-6xl">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-5">
           <div className="lg:col-span-1">
-            <Link href="/" className="focus-ring inline-flex items-center gap-2.5 rounded-md">
-              <span
-                aria-hidden="true"
-                className="flex h-7 w-7 items-center justify-center rounded-md border border-hairline-strong bg-surface font-sans text-2xs font-semibold text-heading"
-              >
-                OL
-              </span>
-              <span className="font-sans text-sm font-medium tracking-tight text-heading">
-                OpenLimiter
-              </span>
+            <Link href="/" aria-label="OpenLimiter, home" className="focus-ring inline-flex rounded-md">
+              <BrandLockup markClassName="h-7 w-7 flex-none text-accent-solid" wordClassName="text-base" />
             </Link>
             <p className="mt-4 max-w-xs font-sans text-sm leading-relaxed text-body">
               An open source quota meter for the AI subscriptions you already pay for. It runs on

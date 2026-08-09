@@ -1,6 +1,11 @@
 import { ImageResponse } from "next/og";
-import { imagePalette } from "@/lib/image-palette";
+import { markDataUri } from "@/lib/brand";
+import { tile } from "@/lib/image-palette";
 
+/**
+ * The home screen icon. Same tile treatment as the favicon, at the size iOS
+ * and Android ask for: the real mark in white on solid brand blue.
+ */
 export const size = {
   width: 180,
   height: 180,
@@ -9,34 +14,23 @@ export const size = {
 export const contentType = "image/png";
 
 export default function AppleIcon() {
+  const mark = Math.round(size.width * tile.markRatio);
+
   return new ImageResponse(
     (
       <div
         style={{
           alignItems: "center",
-          background: imagePalette.canvas,
+          background: tile.background,
+          borderRadius: Math.round(size.width * tile.radiusRatio),
           display: "flex",
           height: "100%",
           justifyContent: "center",
           width: "100%",
         }}
       >
-        <div
-          style={{
-            alignItems: "center",
-            background: imagePalette.accent,
-            borderRadius: 40,
-            color: imagePalette.onAccent,
-            display: "flex",
-            fontSize: 88,
-            fontWeight: 700,
-            height: 136,
-            justifyContent: "center",
-            width: 136,
-          }}
-        >
-          O
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={markDataUri(tile.mark)} width={mark} height={mark} alt="" />
       </div>
     ),
     size,

@@ -1,14 +1,18 @@
 {
   "name": "@openlimiter/adapters",
   "version": "0.1.0",
+  "description": "Agent adapters that render OpenLimiter quota guidance in supported tools.",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -16,5 +20,22 @@
   "dependencies": {
     "@openlimiter/core": "workspace:*"
   },
-  "license": "Apache-2.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucaswebsystems/openlimiter.git",
+    "directory": "packages/adapters"
+  },
+  "homepage": "https://openlimiter.com",
+  "bugs": {
+    "url": "https://github.com/lucaswebsystems/openlimiter/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "Lucas Costa (https://lucaswebsystems.com)",
+  "keywords": ["ai", "quota", "usage", "meter", "agents", "claude", "statusline"],
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }

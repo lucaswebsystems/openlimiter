@@ -52,6 +52,8 @@
 @theme {
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* The wordmark face. Used by the lockup and by nothing else. */
+  --font-display: var(--font-baloo), var(--font-geist-sans), system-ui, sans-serif;
 
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
@@ -254,6 +256,46 @@ body {
 [data-reveal-step="6"] { --reveal-delay: 300ms; }
 [data-reveal-step="7"] { --reveal-delay: 350ms; }
 
+/* The mark draw.
+
+   The one signature moment on the site. The ring builds itself from its widest
+   arc down to its smallest, every segment taking 320ms and each starting 52ms
+   after the one before, so the whole gesture is finished in 684ms.
+
+   Every arc carries pathLength="1", so one dash length covers all eight
+   whatever their real geometry. `backwards` holds the hidden start state
+   through the delay and then hands the segment back to its ordinary style,
+   which is the fully drawn ring. Nothing but the mark itself is affected, and
+   the mark is decorative, so no reader ever waits on this. */
+@keyframes ol-mark-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+[data-brand-mark="draw"] path {
+  stroke-dasharray: 1;
+  animation: ol-mark-draw 320ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+
+[data-brand-mark="draw"] path:nth-child(1) { animation-delay: 0ms; }
+[data-brand-mark="draw"] path:nth-child(2) { animation-delay: 52ms; }
+[data-brand-mark="draw"] path:nth-child(3) { animation-delay: 104ms; }
+[data-brand-mark="draw"] path:nth-child(4) { animation-delay: 156ms; }
+[data-brand-mark="draw"] path:nth-child(5) { animation-delay: 208ms; }
+[data-brand-mark="draw"] path:nth-child(6) { animation-delay: 260ms; }
+[data-brand-mark="draw"] path:nth-child(7) { animation-delay: 312ms; }
+[data-brand-mark="draw"] path:nth-child(8) { animation-delay: 364ms; }
+
+/* Already played this session, so the mark is simply there. */
+:root[data-mark-drawn="1"] [data-brand-mark="draw"] path {
+  stroke-dasharray: none;
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
@@ -268,5 +310,12 @@ body {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
+  }
+
+  /* Same for the mark. It renders complete and still, with no dash state and
+     no animation at all, whatever the arming script managed to do. */
+  [data-brand-mark="draw"] path {
+    stroke-dasharray: none !important;
+    animation: none !important;
   }
 }

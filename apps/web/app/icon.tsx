@@ -1,6 +1,14 @@
 import { ImageResponse } from "next/og";
-import { imagePalette } from "@/lib/image-palette";
+import { markDataUri } from "@/lib/brand";
+import { tile } from "@/lib/image-palette";
 
+/**
+ * The favicon: the real mark, inverted to white on the brand blue tile.
+ *
+ * The tile treatment wins over the mark on bare canvas because a favicon has
+ * no control over the browser chrome behind it, and the ring has to stay
+ * legible on light tabs and dark tabs alike.
+ */
 export const size = {
   width: 32,
   height: 32,
@@ -9,34 +17,23 @@ export const size = {
 export const contentType = "image/png";
 
 export default function Icon() {
+  const mark = Math.round(size.width * tile.markRatio);
+
   return new ImageResponse(
     (
       <div
         style={{
           alignItems: "center",
-          background: imagePalette.canvas,
+          background: tile.background,
+          borderRadius: Math.round(size.width * tile.radiusRatio),
           display: "flex",
           height: "100%",
           justifyContent: "center",
           width: "100%",
         }}
       >
-        <div
-          style={{
-            alignItems: "center",
-            background: imagePalette.accent,
-            borderRadius: 7,
-            color: imagePalette.onAccent,
-            display: "flex",
-            fontSize: 16,
-            fontWeight: 700,
-            height: 22,
-            justifyContent: "center",
-            width: 22,
-          }}
-        >
-          O
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={markDataUri(tile.mark)} width={mark} height={mark} alt="" />
       </div>
     ),
     size,

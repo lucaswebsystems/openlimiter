@@ -1,6 +1,6 @@
-# `@openlimiter/adapters`
+# `@openlimiter/connectors`
 
-Agent adapters that render OpenLimiter quota guidance in supported tools.
+Provider connectors that collect quota and usage data for OpenLimiter.
 
 Most users should install the [`openlimiter`](https://www.npmjs.com/package/openlimiter) CLI.
 

@@ -1,14 +1,18 @@
 {
   "name": "@openlimiter/connectors",
   "version": "0.1.0",
+  "description": "Provider connectors that collect quota and usage data for OpenLimiter.",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -16,5 +20,22 @@
   "dependencies": {
     "@openlimiter/core": "workspace:*"
   },
-  "license": "Apache-2.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucaswebsystems/openlimiter.git",
+    "directory": "packages/connectors"
+  },
+  "homepage": "https://openlimiter.com",
+  "bugs": {
+    "url": "https://github.com/lucaswebsystems/openlimiter/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "Lucas Costa (https://lucaswebsystems.com)",
+  "keywords": ["ai", "quota", "usage", "meter", "claude", "codex", "openrouter"],
+  "engines": {
+    "node": ">=24"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
