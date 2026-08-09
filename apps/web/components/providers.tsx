@@ -1,94 +1,100 @@
-import {
-  Brain,
-  Browser,
-  Cloud,
-  Code,
-  Compass,
-  DotsThreeOutline,
-  Hand,
-} from "@phosphor-icons/react/dist/ssr";
-import { ScrollReveal } from "@/components/scroll-reveal";
-import { IconChip, SectionIntro } from "@/components/ui";
-
-const providers = [
-  {
-    name: "Claude",
-    icon: Brain,
-    badge: "native payload",
-    tone: "badge-native",
-    body: "Parses a native quota payload you provide into bounded local state.",
-  },
-  {
-    name: "Codex",
-    icon: Code,
-    badge: "internal endpoint, may break",
-    tone: "badge-warning",
-    body: "Parses data shaped like an unofficial interface and fails safe when its shape changes.",
-  },
-  {
-    name: "Antigravity",
-    icon: Compass,
-    badge: "internal endpoint, may break",
-    tone: "badge-warning",
-    body: "Parses Gemini Antigravity data shaped like an interface that may change.",
-  },
-  {
-    name: "OpenCode",
-    icon: Browser,
-    badge: "session based, may break",
-    tone: "badge-warning",
-    body: "Parses session shaped quota data you provide without mutating provider files.",
-  },
-  {
-    name: "OpenRouter",
-    icon: Cloud,
-    badge: "documented API",
-    tone: "badge-native",
-    body: "Normalizes a documented API payload you provide into the shared snapshot schema.",
-  },
-  {
-    name: "Manual",
-    icon: Hand,
-    badge: "user entered",
-    tone: "badge-manual",
-    body: "Normalizes user entered values supplied to the connector.",
-  },
-] as const;
+import { ScrollReveal } from "./scroll-reveal";
 
 export function Providers() {
-  return (
-    <section id="providers" className="section section-tinted" aria-labelledby="providers-title">
-      <ScrollReveal className="wide-container">
-        <div data-reveal-item>
-          <SectionIntro
-            eyebrow="Honest connectors"
-            title="One view across the tools you use"
-          >
-            <p>
-              Every connector says how it gets its data. Unofficial paths are
-              labeled clearly because provider interfaces can change.
-            </p>
-          </SectionIntro>
-        </div>
+  const providersList = [
+    {
+      name: "Claude",
+      badge: "native payload",
+      description:
+        "Reads OAuth session state and rate limit headers from active Anthropic CLI installations.",
+    },
+    {
+      name: "OpenRouter",
+      badge: "documented API",
+      description:
+        "Queries key credit balance and usage windows via public management endpoints.",
+    },
+    {
+      name: "Codex",
+      badge: "internal endpoint, may break",
+      description:
+        "Extracts local environment authentication tokens to query session rate limit headers.",
+    },
+    {
+      name: "Antigravity",
+      badge: "internal endpoint, may break",
+      description:
+        "Reads local CLI token store and internal telemetry headers for active quota thresholds.",
+    },
+    {
+      name: "OpenCode",
+      badge: "session based, may break",
+      description:
+        "Parses active local session workspace stores for model token usage limits.",
+    },
+    {
+      name: "Manual",
+      badge: "user entered",
+      description:
+        "Static budget definitions for self hosted models or custom provider configurations.",
+    },
+  ];
 
-        <div className="provider-grid">
-          {providers.map((provider) => (
-            <article key={provider.name} className="provider-card" data-reveal-item>
-              <IconChip icon={provider.icon} />
-              <h3>{provider.name}</h3>
-              <span className={`honesty-badge ${provider.tone}`}>{provider.badge}</span>
-              <p>{provider.body}</p>
-            </article>
+  return (
+    <section id="providers" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-hairline">
+      <div className="mx-auto max-w-6xl">
+        <ScrollReveal>
+          <div className="mb-12">
+            <h2 className="font-sans text-2xl font-medium tracking-tight text-heading sm:text-3xl">
+              Providers
+            </h2>
+            <p className="mt-2 font-sans text-sm text-body">
+              Honest integration statuses across supported AI services.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {providersList.map((item, idx) => (
+            <ScrollReveal key={item.name} delay={idx * 0.05}>
+              <div className="h-full rounded-xl border border-hairline bg-surface/40 p-5 transition-colors hover:border-hairline-strong hover:bg-surface/70 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <h3 className="font-sans text-lg font-medium text-heading">
+                      {item.name}
+                    </h3>
+                    <span className="rounded border border-hairline bg-canvas px-2 py-0.5 font-mono text-[10px] font-medium text-accent">
+                      {item.badge}
+                    </span>
+                  </div>
+                  <p className="font-sans text-xs text-body leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
+              </div>
+            </ScrollReveal>
           ))}
 
-          <article className="provider-card provider-card-ghost" data-reveal-item>
-            <IconChip icon={DotsThreeOutline} />
-            <h3>More coming</h3>
-            <span className="honesty-badge badge-manual">planned</span>
-            <p>Cursor, Copilot, Devin, Grok, and Z.ai are on the horizon.</p>
-          </article>
+          {/* Ghost Card: More Coming */}
+          <ScrollReveal delay={0.35}>
+            <div className="h-full rounded-xl border border-dashed border-hairline bg-surface/20 p-5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <h3 className="font-sans text-lg font-medium text-label">
+                    More coming
+                  </h3>
+                  <span className="rounded border border-hairline bg-canvas px-2 py-0.5 font-mono text-[10px] font-medium text-label">
+                    planned
+                  </span>
+                </div>
+                <p className="font-sans text-xs text-label leading-relaxed">
+                  Connectors planned for Cursor, Copilot, Devin, Grok, and Z.ai.
+                </p>
+              </div>
+            </div>
+          </ScrollReveal>
         </div>
-      </ScrollReveal>
+      </div>
     </section>
   );
 }

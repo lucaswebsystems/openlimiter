@@ -1,25 +1,25 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Outfit } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 
-const outfit = Outfit({
+const geistSans = Geist({
   subsets: ["latin"],
-  variable: "--font-outfit",
-  weight: ["400", "600", "800"],
+  variable: "--font-geist-sans",
+  weight: ["400", "500", "600"],
   display: "swap",
 });
 
-const jetBrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  variable: "--font-geist-mono",
   weight: ["400", "500"],
   display: "swap",
 });
 
 const title = "OpenLimiter, quota awareness for AI coding agents";
 const description =
-  "OpenLimiter gives AI coding agents bounded quota context and routing advice across your subscriptions.";
+  "OpenLimiter reads every AI subscription you hold and tells your coding agents which one still has budget, right inside their own context. Open source, local first, cross platform.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://openlimiter.com"),
@@ -44,6 +44,7 @@ export const metadata: Metadata = {
     "Codex CLI",
     "OpenCode",
     "open source",
+    "local first",
   ],
   openGraph: {
     type: "website",
@@ -72,8 +73,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" className={`${outfit.variable} ${jetBrainsMono.variable}`}>
-      <body>{children}</body>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} bg-canvas text-body antialiased`}>
+      <body className="min-h-screen bg-canvas font-sans text-body selection:bg-accent/20 selection:text-heading">
+        {children}
+      </body>
     </html>
   );
 }
+

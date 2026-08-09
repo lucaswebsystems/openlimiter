@@ -13,8 +13,8 @@ export default function OpenGraphImage() {
       <div
         style={{
           alignItems: "flex-start",
-          background: "#0a0e1a",
-          color: "white",
+          background: "#0a0a0b",
+          color: "#ededed",
           display: "flex",
           flexDirection: "column",
           height: "100%",
@@ -27,45 +27,46 @@ export default function OpenGraphImage() {
           <div
             style={{
               alignItems: "center",
-              background: "#9ee7ff",
+              background: "#ededed",
               borderRadius: "50%",
-              color: "#0a0e1a",
+              color: "#0a0a0b",
               display: "flex",
-              fontSize: 62,
-              fontWeight: 800,
-              height: 96,
+              fontSize: 58,
+              fontWeight: 700,
+              height: 90,
               justifyContent: "center",
-              width: 96,
+              width: 90,
             }}
           >
             O
           </div>
-          <div style={{ fontSize: 76, fontWeight: 800, letterSpacing: -2 }}>
+          <div style={{ fontSize: 72, fontWeight: 600, letterSpacing: -2, color: "#ededed" }}>
             OpenLimiter
           </div>
         </div>
         <div
           style={{
-            color: "#9ee7ff",
-            fontSize: 42,
-            fontWeight: 600,
-            marginTop: 52,
+            color: "#ededed",
+            fontSize: 40,
+            fontWeight: 500,
+            marginTop: 48,
           }}
         >
-          Quota awareness for AI coding agents
+          Know your limits. Route around them.
         </div>
         <div
           style={{
-            color: "#a9b4cc",
-            fontSize: 25,
-            letterSpacing: 1,
-            marginTop: 28,
+            color: "#8a8a92",
+            fontSize: 24,
+            letterSpacing: 0.5,
+            marginTop: 24,
           }}
         >
-          open source, local first
+          Open source, local first, cross platform
         </div>
       </div>
     ),
     size,
   );
 }
+

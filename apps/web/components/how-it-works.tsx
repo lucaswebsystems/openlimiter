@@ -1,58 +1,65 @@
-import {
-  ArrowsClockwise,
-  Database,
-  Signpost,
-} from "@phosphor-icons/react/dist/ssr";
-import { ScrollReveal } from "@/components/scroll-reveal";
-import { IconChip, SectionIntro } from "@/components/ui";
-
-const steps = [
-  {
-    icon: Database,
-    number: "01",
-    title: "Read",
-    body: "Detect installed AI tools and parse quota data locally. Current source accepts caller supplied payloads while live fetching remains unwired.",
-  },
-  {
-    icon: ArrowsClockwise,
-    number: "02",
-    title: "Normalize",
-    body: "Create one freshness aware snapshot. Unknown data never becomes a fake zero.",
-  },
-  {
-    icon: Signpost,
-    number: "03",
-    title: "Advise",
-    body: "Render a statusline for you and bounded context for your agents. The choice stays with the agent.",
-  },
-] as const;
+import { ScrollReveal } from "./scroll-reveal";
 
 export function HowItWorks() {
-  return (
-    <section id="how-it-works" className="section" aria-labelledby="how-title">
-      <ScrollReveal className="content-container">
-        <div data-reveal-item>
-          <SectionIntro
-            eyebrow="A small local loop"
-            title="Three steps to quota awareness"
-          >
-            <p>Read what is available, make it comparable, then surface careful advice.</p>
-          </SectionIntro>
-        </div>
+  const steps = [
+    {
+      title: "Read",
+      subtitle: "Detects your installed AI tools and reads quota locally",
+      description:
+        "OpenLimiter inspects local session stores, configuration files, and key credentials to read active budget windows directly.",
+    },
+    {
+      title: "Normalize",
+      subtitle:
+        "One snapshot schema, freshness aware, unknown never becomes a fake zero",
+      description:
+        "Standardizes disparate quota metrics into a single snapshot model. If a provider endpoint is unreachable, status remains unknown rather than zero.",
+    },
+    {
+      title: "Advise",
+      subtitle: "A statusline for you, bounded context for your agents",
+      description:
+        "Exposes a lightweight statusline string for your terminal and injects bounded JSON context into agent prompt environments.",
+    },
+  ];
 
-        <div className="card-grid card-grid-three">
-          {steps.map((step) => (
-            <article key={step.title} className="feature-card" data-reveal-item>
-              <div className="card-topline">
-                <IconChip icon={step.icon} />
-                <span className="step-number">{step.number}</span>
+  return (
+    <section id="how-it-works" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-hairline">
+      <div className="mx-auto max-w-6xl">
+        <ScrollReveal>
+          <div className="mb-12">
+            <h2 className="font-sans text-2xl font-medium tracking-tight text-heading sm:text-3xl">
+              How it works
+            </h2>
+            <p className="mt-2 font-sans text-sm text-body">
+              Three quiet steps from local credentials to agent awareness.
+            </p>
+          </div>
+        </ScrollReveal>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {steps.map((step, idx) => (
+            <ScrollReveal key={step.title} delay={idx * 0.1}>
+              <div className="h-full rounded-xl border border-hairline bg-surface/40 p-6 transition-colors hover:border-hairline-strong hover:bg-surface/70 flex flex-col justify-between">
+                <div>
+                  <div className="font-mono text-xs font-medium text-accent mb-4">
+                    0{idx + 1}
+                  </div>
+                  <h3 className="font-sans text-xl font-medium tracking-tight text-heading">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 font-sans text-xs font-semibold text-heading/90 leading-snug">
+                    {step.subtitle}
+                  </p>
+                  <p className="mt-3 font-sans text-xs text-body leading-relaxed">
+                    {step.description}
+                  </p>
+                </div>
               </div>
-              <h3>{step.title}</h3>
-              <p>{step.body}</p>
-            </article>
+            </ScrollReveal>
           ))}
         </div>
-      </ScrollReveal>
+      </div>
     </section>
   );
 }

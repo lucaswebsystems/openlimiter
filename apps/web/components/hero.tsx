@@ -1,168 +1,78 @@
-"use client";
-
-import { ArrowRight, GithubLogo } from "@phosphor-icons/react";
-import { motion, useReducedMotion } from "motion/react";
-import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
-import { links } from "@/components/links";
-import { DemoChip } from "@/components/ui";
-
-const MeshGradient = dynamic(
-  () => import("@paper-design/shaders-react").then((module) => module.MeshGradient),
-  {
-    loading: () => <div className="orb-fallback" />,
-    ssr: false,
-  },
-);
-
-function Orb() {
-  const reduceMotion = Boolean(useReducedMotion());
-  const [compact, setCompact] = useState(true);
-  const [colors, setColors] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 767px)");
-    const update = () => setCompact(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-
-  useEffect(() => {
-    const styles = getComputedStyle(document.documentElement);
-    setColors([
-      styles.getPropertyValue("--color-shader-blue").trim(),
-      styles.getPropertyValue("--color-shader-violet").trim(),
-      styles.getPropertyValue("--color-shader-white").trim(),
-      styles.getPropertyValue("--color-shader-navy").trim(),
-    ]);
-  }, []);
-
-  const showShader = !reduceMotion && !compact && colors?.every(Boolean);
-
-  return (
-    <div className="orb-stage" aria-hidden="true">
-      <div className="orb-glow" />
-      <div className="orb-shell">
-        {showShader && colors ? (
-          <MeshGradient
-            colors={colors}
-            distortion={0.4}
-            swirl={0.28}
-            speed={0.1}
-            style={{ width: "100%", height: "100%" }}
-          />
-        ) : (
-          <div className="orb-fallback" />
-        )}
-      </div>
-      <div className="orb-ring" />
-    </div>
-  );
-}
+import { ScrollReveal } from "./scroll-reveal";
 
 export function Hero() {
-  const reduceMotion = Boolean(useReducedMotion());
-  const initial = reduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 };
-  const transition = (delay: number) => ({
-    duration: reduceMotion ? 0.2 : 0.7,
-    delay: reduceMotion ? 0 : delay,
-    ease: "easeOut" as const,
-  });
-
   return (
-    <section id="top" className="hero-section" aria-labelledby="hero-title">
-      <div className="hero-stars" aria-hidden="true" />
-      <div className="wide-container hero-content">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={transition(0)}
-        >
-          <Orb />
-        </motion.div>
+    <section className="relative px-4 pt-16 pb-12 sm:px-6 md:pt-24 md:pb-16 lg:px-8">
+      <div className="mx-auto max-w-6xl">
+        <ScrollReveal>
+          <div className="max-w-3xl text-left">
+            <h1 className="font-sans text-4xl font-medium tracking-tight text-heading sm:text-5xl md:text-6xl md:leading-[1.08]">
+              Know your limits.
+              <br />
+              Route around them.
+            </h1>
+            <p className="mt-6 font-sans text-base font-normal leading-relaxed text-body sm:text-lg">
+              OpenLimiter reads every AI subscription you hold and tells your
+              coding agents which one still has budget, right inside their own
+              context. Open source, local first, cross platform.
+            </p>
 
-        <motion.p
-          className="hero-kicker"
-          initial={initial}
-          animate={{ opacity: 1, y: 0 }}
-          transition={transition(0.08)}
-        >
-          Open source prelaunch. Windows first. Cross platform.
-        </motion.p>
+            {/* Button Row */}
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <a
+                href="https://github.com/lucaswebsystems/openlimiter"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-btn-primary-bg px-5 py-2.5 font-sans text-xs font-semibold text-btn-primary-text transition-colors hover:bg-btn-primary-hover"
+              >
+                <svg
+                  className="h-4 w-4 fill-current"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                Star on GitHub
+              </a>
+              <a
+                href="https://github.com/lucaswebsystems/openlimiter#readme"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg border border-hairline bg-surface/40 px-5 py-2.5 font-sans text-xs font-medium text-heading transition-colors hover:border-hairline-strong hover:bg-surface"
+              >
+                Read the docs
+              </a>
+            </div>
 
-        <motion.div
-          className="hero-title-wrap"
-          initial={initial}
-          animate={{ opacity: 1, y: 0 }}
-          transition={transition(0.16)}
-        >
-          <h1 id="hero-title">
-            Know your limits. <span>Route around them.</span>
-          </h1>
-        </motion.div>
-
-        <motion.p
-          className="hero-copy"
-          initial={initial}
-          animate={{ opacity: 1, y: 0 }}
-          transition={transition(0.24)}
-        >
-          OpenLimiter reads every AI subscription you hold and tells your coding
-          agents which one still has budget, right inside their own context.
-        </motion.p>
-
-        <motion.div
-          className="hero-actions"
-          initial={initial}
-          animate={{ opacity: 1, y: 0 }}
-          transition={transition(0.32)}
-        >
-          <motion.a
-            className="button button-primary"
-            href={links.github}
-            target="_blank"
-            rel="noreferrer"
-            whileHover={reduceMotion ? undefined : { y: -2 }}
-            whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-          >
-            <GithubLogo size={20} weight="regular" aria-hidden="true" />
-            Star on GitHub
-          </motion.a>
-          <motion.a
-            className="button button-ghost"
-            href="#how-it-works"
-            whileHover={reduceMotion ? undefined : { y: -2 }}
-            whileTap={reduceMotion ? undefined : { scale: 0.98 }}
-          >
-            How it works
-            <ArrowRight size={18} weight="regular" aria-hidden="true" />
-          </motion.a>
-        </motion.div>
-
-        <motion.div
-          className="status-strip"
-          initial={initial}
-          animate={{ opacity: 1, y: 0 }}
-          transition={transition(0.4)}
-          aria-label="Synthetic statusline example"
-        >
-          <div className="status-strip-top">
-            <span className="terminal-dots" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-            </span>
-            <span>openlimiter statusline</span>
-            <DemoChip />
+            {/* Supports Row */}
+            <div className="mt-10 flex flex-wrap items-center gap-2.5 pt-4 border-t border-hairline/50">
+              <span className="font-mono text-xs font-medium text-label uppercase tracking-wider">
+                Supports
+              </span>
+              <span className="h-3.5 w-px bg-hairline" />
+              <div className="flex flex-wrap items-center gap-2 font-mono text-xs text-body">
+                <span className="rounded border border-hairline bg-surface/60 px-2 py-0.5 text-heading">
+                  Claude
+                </span>
+                <span className="rounded border border-hairline bg-surface/60 px-2 py-0.5 text-heading">
+                  Codex
+                </span>
+                <span className="rounded border border-hairline bg-surface/60 px-2 py-0.5 text-heading">
+                  Antigravity
+                </span>
+                <span className="rounded border border-hairline bg-surface/60 px-2 py-0.5 text-heading">
+                  OpenCode
+                </span>
+                <span className="rounded border border-hairline bg-surface/60 px-2 py-0.5 text-heading">
+                  OpenRouter
+                </span>
+                <span className="rounded border border-hairline bg-accent-subtle px-2 py-0.5 text-accent text-[11px]">
+                  plus more
+                </span>
+              </div>
+            </div>
           </div>
-          <code>
-            <span className="status-good">CLAUDE 42%</span>
-            <span className="status-warn">CODEX 81%</span>
-            <span className="status-muted">GEMINI UNKNOWN</span>
-            <span className="status-advice">ADVICE: PREFER CLAUDE</span>
-          </code>
-        </motion.div>
+        </ScrollReveal>
       </div>
     </section>
   );

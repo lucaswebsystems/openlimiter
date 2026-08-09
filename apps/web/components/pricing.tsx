@@ -1,95 +1,108 @@
-import { Check, GithubLogo, Sparkle } from "@phosphor-icons/react/dist/ssr";
-import { links } from "@/components/links";
-import { ScrollReveal } from "@/components/scroll-reveal";
-import { ExternalLink, SectionIntro } from "@/components/ui";
-
-const freeFeatures = [
-  "All connectors",
-  "Statusline",
-  "Bounded agent context",
-  "Doctor checks",
-  "Unlimited local use",
-] as const;
-
-const proFeatures = [
-  "Encrypted sync",
-  "Mobile access",
-  "Push and email alerts",
-  "Longer retention",
-  "Team views later",
-] as const;
-
-function FeatureList({ items }: { items: readonly string[] }) {
-  return (
-    <ul className="feature-list">
-      {items.map((item) => (
-        <li key={item}>
-          <Check size={17} weight="regular" aria-hidden="true" />
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
+import { ScrollReveal } from "./scroll-reveal";
 
 export function Pricing() {
   return (
-    <section id="pricing" className="section" aria-labelledby="pricing-title">
-      <ScrollReveal className="content-container">
-        <div data-reveal-item>
-          <SectionIntro
-            eyebrow="Simple pricing"
-            title="Local power stays free"
-            align="center"
-          >
-            <p>Use every local feature forever. Cloud convenience will remain optional.</p>
-          </SectionIntro>
-        </div>
+    <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-hairline">
+      <div className="mx-auto max-w-6xl">
+        <ScrollReveal>
+          <div className="mb-12 text-left">
+            <h2 className="font-sans text-2xl font-medium tracking-tight text-heading sm:text-3xl">
+              Pricing
+            </h2>
+            <p className="mt-2 font-sans text-sm text-body">
+              Local core is free forever. Cloud sync features coming later.
+            </p>
+          </div>
+        </ScrollReveal>
 
-        <div className="pricing-grid">
-          <article className="price-card" data-reveal-item>
-            <div className="price-card-heading">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Card 1: Free */}
+          <ScrollReveal delay={0.05}>
+            <div className="h-full rounded-2xl border border-hairline bg-surface/40 p-8 flex flex-col justify-between transition-colors hover:border-hairline-strong">
               <div>
-                <p className="price-name">Free</p>
-                <p className="price-value">$0</p>
-              </div>
-              <span className="honesty-badge badge-native">forever</span>
-            </div>
-            <p className="price-description">Everything local, with no account required.</p>
-            <FeatureList items={freeFeatures} />
-            <ExternalLink href={links.github} className="button button-ghost button-full">
-              <GithubLogo size={19} weight="regular" aria-hidden="true" />
-              View on GitHub
-            </ExternalLink>
-          </article>
-
-          <article className="price-card price-card-pro" data-reveal-item>
-            <div className="price-card-heading">
-              <div>
-                <p className="price-name">Pro</p>
-                <p className="price-value">
-                  $4.99 <span>monthly</span>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-sans text-xl font-medium text-heading">
+                    Free
+                  </h3>
+                  <span className="rounded border border-hairline bg-canvas px-2.5 py-0.5 font-mono text-[10px] font-medium text-emerald-400">
+                    FOREVER
+                  </span>
+                </div>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="font-sans text-4xl font-medium tracking-tight text-heading">
+                    $0
+                  </span>
+                </div>
+                <p className="mt-4 font-sans text-xs text-body leading-relaxed">
+                  Everything local forever: all connectors, statusline, agent context, doctor, unlimited.
                 </p>
               </div>
-              <span className="coming-badge">COMING SOON</span>
+
+              <div className="mt-8 pt-6 border-t border-hairline">
+                <a
+                  href="https://github.com/lucaswebsystems/openlimiter"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full text-center rounded-lg border border-hairline bg-btn-primary-bg px-4 py-2.5 font-sans text-xs font-semibold text-btn-primary-text transition-colors hover:bg-btn-primary-hover"
+                >
+                  Star on GitHub
+                </a>
+              </div>
             </div>
-            <p className="price-description">Cloud convenience for people who want it.</p>
-            <FeatureList items={proFeatures} />
-            <ExternalLink href={links.issues} className="button waitlist-button button-full">
-              <Sparkle size={19} weight="regular" aria-hidden="true" />
-              Join the waitlist
-            </ExternalLink>
-          </article>
+          </ScrollReveal>
+
+          {/* Card 2: Pro */}
+          <ScrollReveal delay={0.15}>
+            <div className="h-full rounded-2xl border border-hairline bg-surface/20 p-8 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-sans text-xl font-medium text-heading">
+                    Pro
+                  </h3>
+                  <span className="rounded border border-hairline bg-accent-subtle px-2.5 py-0.5 font-mono text-[10px] font-medium text-accent">
+                    COMING SOON
+                  </span>
+                </div>
+                <div className="mt-4 flex items-baseline gap-1">
+                  <span className="font-sans text-4xl font-medium tracking-tight text-heading">
+                    $4.99
+                  </span>
+                  <span className="font-sans text-xs text-body">/ month</span>
+                </div>
+                <p className="mt-4 font-sans text-xs text-body leading-relaxed">
+                  Encrypted sync, mobile access, push and email alerts, longer retention, team views later.
+                </p>
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-hairline">
+                <a
+                  href="https://github.com/lucaswebsystems/openlimiter/issues"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full text-center rounded-lg border border-hairline bg-surface/50 px-4 py-2.5 font-sans text-xs font-medium text-label transition-colors hover:border-hairline-strong hover:text-heading"
+                >
+                  Join the waitlist
+                </a>
+              </div>
+            </div>
+          </ScrollReveal>
         </div>
 
-        <p className="sponsor-line" data-reveal-item>
-          Want to support the open source work?
-          <ExternalLink href={links.sponsors}>
-            <GithubLogo size={17} weight="regular" aria-hidden="true" />
-            Support the build
-          </ExternalLink>
-        </p>
-      </ScrollReveal>
+        {/* Support the build quiet line */}
+        <ScrollReveal delay={0.25}>
+          <div className="mt-10 text-center font-sans text-xs text-body">
+            Support the build at{" "}
+            <a
+              href="https://github.com/sponsors/lucaswebsystems"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent transition-colors hover:text-accent-hover underline underline-offset-4"
+            >
+              https://github.com/sponsors/lucaswebsystems
+            </a>
+          </div>
+        </ScrollReveal>
+      </div>
     </section>
   );
 }

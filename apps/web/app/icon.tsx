@@ -13,7 +13,7 @@ export default function Icon() {
       <div
         style={{
           alignItems: "center",
-          background: "#0a0e1a",
+          background: "#0a0a0b",
           display: "flex",
           height: "100%",
           justifyContent: "center",
@@ -23,15 +23,15 @@ export default function Icon() {
         <div
           style={{
             alignItems: "center",
-            background: "#9ee7ff",
+            background: "#ededed",
             borderRadius: "50%",
-            color: "#0a0e1a",
+            color: "#0a0a0b",
             display: "flex",
-            fontSize: 17,
-            fontWeight: 800,
-            height: 24,
+            fontSize: 16,
+            fontWeight: 700,
+            height: 22,
             justifyContent: "center",
-            width: 24,
+            width: 22,
           }}
         >
           O
@@ -41,3 +41,4 @@ export default function Icon() {
     size,
   );
 }
+

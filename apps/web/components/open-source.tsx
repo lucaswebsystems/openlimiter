@@ -1,69 +1,71 @@
-import {
-  ArrowUpRight,
-  EyeSlash,
-  FolderOpen,
-  LockKey,
-} from "@phosphor-icons/react/dist/ssr";
-import { links } from "@/components/links";
-import { ScrollReveal } from "@/components/scroll-reveal";
-import { ExternalLink, IconChip } from "@/components/ui";
-
-const principles = [
-  {
-    icon: FolderOpen,
-    title: "Apache 2.0",
-    body: "Use it, inspect it, and contribute to it.",
-  },
-  {
-    icon: EyeSlash,
-    title: "Zero telemetry",
-    body: "No usage analytics leave your machine.",
-  },
-  {
-    icon: LockKey,
-    title: "No account",
-    body: "Local features need no OpenLimiter account.",
-  },
-] as const;
+import { ScrollReveal } from "./scroll-reveal";
 
 export function OpenSource() {
-  return (
-    <section className="section section-tinted" aria-labelledby="source-title">
-      <ScrollReveal className="content-container source-grid">
-        <div data-reveal-item>
-          <p className="eyebrow">Transparent by default</p>
-          <h2 id="source-title" className="section-title">
-            Local first. Open source. Yours to inspect.
-          </h2>
-          <p className="section-copy">
-            OpenLimiter keeps the free workflow on your machine, ships with zero
-            telemetry, and asks for no account. The architecture and security
-            model are public.
-          </p>
-          <div className="text-links">
-            <ExternalLink href={links.security}>
-              SECURITY.md
-              <ArrowUpRight size={16} weight="regular" aria-hidden="true" />
-            </ExternalLink>
-            <ExternalLink href={links.architecture}>
-              ARCHITECTURE.md
-              <ArrowUpRight size={16} weight="regular" aria-hidden="true" />
-            </ExternalLink>
-          </div>
-        </div>
+  const badges = [
+    "Apache 2.0",
+    "zero telemetry",
+    "local first",
+    "no accounts",
+  ];
 
-        <div className="principle-list" data-reveal-item>
-          {principles.map((principle) => (
-            <article key={principle.title} className="principle-item">
-              <IconChip icon={principle.icon} />
-              <div>
-                <h3>{principle.title}</h3>
-                <p>{principle.body}</p>
+  return (
+    <section className="py-20 px-4 sm:px-6 lg:px-8 border-t border-hairline">
+      <div className="mx-auto max-w-6xl">
+        <ScrollReveal>
+          <div className="rounded-2xl border border-hairline bg-surface/40 p-8 sm:p-10">
+            <div className="max-w-3xl">
+              <h2 className="font-sans text-2xl font-medium tracking-tight text-heading sm:text-3xl">
+                Open source and transparent
+              </h2>
+              <p className="mt-4 font-sans text-sm text-body leading-relaxed">
+                OpenLimiter runs entirely on your machine. There are no tracking scripts,
+                no remote log aggregation, and no account requirements. Your quota status data
+                never leaves your local network interface.
+              </p>
+
+              {/* Badges */}
+              <div className="mt-6 flex flex-wrap gap-2">
+                {badges.map((b) => (
+                  <span
+                    key={b}
+                    className="rounded-full border border-hairline bg-canvas px-3 py-1 font-mono text-xs text-heading"
+                  >
+                    {b}
+                  </span>
+                ))}
               </div>
-            </article>
-          ))}
-        </div>
-      </ScrollReveal>
+
+              {/* Links to Docs */}
+              <div className="mt-8 flex flex-wrap items-center gap-6 pt-6 border-t border-hairline">
+                <a
+                  href="https://github.com/lucaswebsystems/openlimiter/blob/main/ARCHITECTURE.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-xs font-medium text-accent transition-colors hover:text-accent-hover"
+                >
+                  Architecture docs &rarr;
+                </a>
+                <a
+                  href="https://github.com/lucaswebsystems/openlimiter/blob/main/SECURITY.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-xs font-medium text-accent transition-colors hover:text-accent-hover"
+                >
+                  Security model &rarr;
+                </a>
+                <a
+                  href="https://github.com/lucaswebsystems/openlimiter/blob/main/THREAT_MODEL.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-xs font-medium text-accent transition-colors hover:text-accent-hover"
+                >
+                  Threat model &rarr;
+                </a>
+              </div>
+            </div>
+          </div>
+        </ScrollReveal>
+      </div>
     </section>
   );
 }
