@@ -7,9 +7,21 @@ import { reveal, revealGroup } from "@/lib/motion";
  * JavaScript, keeps the keyboard and screen reader behaviour the browser
  * already provides, and never renders an answer at zero opacity waiting to be
  * revealed. A closed answer is simply not painted.
+ *
+ * The list below is exported because the home page also emits it as FAQPage
+ * structured data. Both readings come from this one array, so the answer a
+ * person opens and the answer a machine parses are the same string and cannot
+ * drift apart. Answers are plain text for the same reason: structured data
+ * carries no markup, so an answer that needed a link would have to be written
+ * twice.
  */
 
-const items = [
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+export const faqItems: readonly FaqItem[] = [
   {
     question: "What actually leaves my machine?",
     answer:
@@ -48,7 +60,7 @@ const items = [
   {
     question: "Is there a desktop or phone app?",
     answer:
-      "The desktop tray application is built and packaged for Windows, and that installer is attached to the release on GitHub. There is no macOS or Linux package of it yet. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state.",
+      "The desktop tray application is built and packaged for Windows, macOS and Linux, and every build is attached to the release on GitHub. None of them are code signed yet, so Windows SmartScreen and macOS Gatekeeper warn the first time you open one, and the download page says how to get past that. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state.",
   },
   {
     question: "Is it free?",
@@ -64,7 +76,7 @@ export function Faq() {
         FAQ
       </h2>
       <div className="space-y-6" {...revealGroup}>
-        {items.map((item) => (
+        {faqItems.map((item) => (
           <details key={item.question} className="group" {...reveal}>
             <summary className="focus-ring flex cursor-pointer list-none items-start gap-2 rounded text-sm font-medium text-heading transition-colors duration-200 hover:text-accent">
               <span

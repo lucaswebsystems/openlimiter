@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { JsonLd } from "@/components/json-ld";
 import { PageShell } from "@/components/page-shell";
 import { findPost, formatPostDate, posts, type Block } from "@/lib/blog";
+import { blogPostingSchema } from "@/lib/jsonld";
+import { pageMetadata } from "@/lib/metadata";
 
 /**
  * /blog/[slug]
@@ -17,7 +20,11 @@ import { findPost, formatPostDate, posts, type Block } from "@/lib/blog";
  *
  * The title tag is set absolute rather than through the root template, because
  * this post's own title already opens with the product name and the template
- * would append it a second time.
+ * would append it a second time. The social card is told the same thing, so it
+ * carries the post's title rather than the home page's.
+ *
+ * The BlogPosting block is built from the same post record the page renders, so
+ * a headline or a date can only be wrong in lib/blog.ts.
  */
 
 export async function generateStaticParams() {
@@ -33,11 +40,13 @@ export async function generateMetadata({
   const post = findPost(slug);
   if (post === undefined) return { title: "Post not found" };
 
-  return {
-    title: { absolute: post.title },
+  return pageMetadata({
+    title: post.title,
     description: post.description,
-    alternates: { canonical: `/blog/${slug}` },
-  };
+    path: `/blog/${slug}`,
+    absoluteTitle: true,
+    published: post.date,
+  });
 }
 
 /** The whole formatting vocabulary a post is allowed to use. */
@@ -92,6 +101,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
   return (
     <PageShell title={post.title} lead={post.description}>
+      <JsonLd data={blogPostingSchema(post)} />
       {/* 576 pixels, which is the reading column the whole post sits in. */}
       <div className="max-w-xl">
         <time dateTime={post.date} className="block text-sm text-muted">

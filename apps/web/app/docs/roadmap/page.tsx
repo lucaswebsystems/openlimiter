@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, DocLink, ExternalLink, P } from "@/components/docs/prose";
-import { findDocPage } from "@/lib/docs";
+import { docMetadata } from "@/lib/metadata";
 import { ISSUES_URL } from "@/lib/site";
 
-const page = findDocPage("/docs/roadmap");
-
-export const metadata: Metadata = {
-  title: page?.title,
-  description: page?.description,
-  alternates: { canonical: "/docs/roadmap" },
-};
+export const metadata: Metadata = docMetadata("/docs/roadmap");
 
 export default function RoadmapPage() {
   return (
@@ -33,21 +27,24 @@ export default function RoadmapPage() {
         },
         {
           id: "desktop",
-          title: "Shipped: the desktop application, on Windows",
+          title: "Shipped: the desktop application",
           body: (
             <>
               <P>
                 A small desktop application with a tray icon next to the system clock, reading the
                 same local cache the command line tool writes, so quota is glanceable without a
-                terminal open. It is built, and the Windows installer is attached to the release on
-                GitHub.
+                terminal open. It is built, and packaged builds for Windows, macOS and Linux are
+                all attached to the release on GitHub.
               </P>
               <Bullets
                 items={[
-                  <>Status: shipped on Windows. The installer is on the releases page.</>,
                   <>
-                    Planned: packages for macOS and Linux. Neither is produced yet, so neither can
-                    be installed.
+                    Status: shipped on Windows, macOS and Linux. Every build is on the releases
+                    page, and the download page links each file directly.
+                  </>,
+                  <>
+                    Planned: code signing on Windows and notarisation on macOS. Until those are
+                    done, SmartScreen and Gatekeeper warn on first run.
                   </>,
                   <>Planned: an automatic update channel. There is none today.</>,
                 ]}

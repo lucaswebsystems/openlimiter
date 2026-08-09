@@ -5,32 +5,40 @@ import { Nav } from "@/components/nav";
 import { Reveal } from "@/components/reveal";
 import { markArmScript } from "@/lib/brand";
 import { motionArmScript } from "@/lib/motion";
+import {
+  AUTHOR_NAME,
+  AUTHOR_SITE,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL,
+  TITLE_SUFFIX,
+} from "@/lib/site";
 import { themeArmScript } from "@/lib/theme";
 import "./globals.css";
 
-const title = "OpenLimiter, quota awareness for AI coding agents";
-const description =
-  "OpenLimiter reads the quota of your AI subscriptions on your own machine and hands your coding agents bounded budget state plus routing advice. Open source, local first, zero telemetry.";
+const title = SITE_TITLE;
+const description = SITE_DESCRIPTION;
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://openlimiter.com"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: title,
-    template: "%s, OpenLimiter",
+    template: `%s${TITLE_SUFFIX}`,
   },
   description,
-  applicationName: "OpenLimiter",
+  applicationName: SITE_NAME,
   alternates: {
     canonical: "/",
   },
   authors: [
     {
-      name: "Lucas Costa",
-      url: "https://lucaswebsystems.com",
+      name: AUTHOR_NAME,
+      url: AUTHOR_SITE,
     },
   ],
-  creator: "Lucas Costa",
-  publisher: "OpenLimiter",
+  creator: AUTHOR_NAME,
+  publisher: SITE_NAME,
   keywords: [
     "AI coding agents",
     "quota awareness",

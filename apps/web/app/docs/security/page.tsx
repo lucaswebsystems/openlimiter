@@ -9,16 +9,10 @@ import {
   P,
   Sub,
 } from "@/components/docs/prose";
-import { findDocPage } from "@/lib/docs";
+import { docMetadata } from "@/lib/metadata";
 import { REPO_URL } from "@/lib/site";
 
-const page = findDocPage("/docs/security");
-
-export const metadata: Metadata = {
-  title: page?.title,
-  description: page?.description,
-  alternates: { canonical: "/docs/security" },
-};
+export const metadata: Metadata = docMetadata("/docs/security");
 
 export default function SecurityPage() {
   return (

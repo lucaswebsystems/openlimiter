@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://github.com/lucaswebsystems/openlimiter/actions/workflows/ci.yml"><img src="https://github.com/lucaswebsystems/openlimiter/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="https://www.npmjs.com/package/openlimiter"><img src="https://img.shields.io/badge/npm-coming%20soon-lightgrey.svg" alt="npm"></a>
+  <a href="https://www.npmjs.com/package/openlimiter"><img src="https://img.shields.io/badge/npm-v0.1.0-blue.svg" alt="npm"></a>
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
 </p>
 
@@ -62,17 +62,14 @@ unknown=NONE
 
 ## Quick start
 
-OpenLimiter is not published yet, so it only runs from source today. Node 24 and pnpm 9 are required.
+Install OpenLimiter globally from npm, then run the demo with synthetic fixtures. Node 24 or newer is required.
 
 ```bash
-pnpm install
-pnpm build
-pnpm typecheck
-pnpm test
-pnpm openlimiter demo
+npm install -g openlimiter
+openlimiter demo
 ```
 
-The build has to run before the type check, because each package resolves its neighbours through the declaration files that the build produces. Once the package is published, `npm install -g openlimiter` will install it globally; until then, use `pnpm openlimiter <command>` or `node packages/cli/dist/bin.js <command>` from the repository root. Wiring the statusline and hook into Claude Code's `settings.json` is covered in the [docs](https://openlimiter.com/docs).
+Wiring the statusline and hook into Claude Code's `settings.json` is covered in the [docs](https://openlimiter.com/docs).
 
 ## How it works
 
@@ -117,6 +114,20 @@ If OpenLimiter is useful to you, support keeps it maintained: [GitHub Sponsors](
 ## Contributing
 
 Contributions are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.md). Every commit needs a Developer Certificate of Origin sign off line, and a new provider integration starts from the [connector request issue template](.github/ISSUE_TEMPLATE/connector_request.yml), synthetic values only.
+
+### From source
+
+Node 24 and pnpm 9 are required to work from a clone.
+
+```bash
+pnpm install
+pnpm build
+pnpm typecheck
+pnpm test
+node packages/cli/dist/bin.js demo
+```
+
+The build has to run before the type check, because each package resolves its neighbours through the declaration files that the build produces.
 
 ## License
 

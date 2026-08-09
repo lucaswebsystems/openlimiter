@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { Card } from "@/components/ui";
 import { COMPARISON_NOTE, alternatives } from "@/lib/alternatives";
+import { pageMetadata } from "@/lib/metadata";
 
 /**
  * /alternatives
@@ -17,12 +18,12 @@ import { COMPARISON_NOTE, alternatives } from "@/lib/alternatives";
  * that before they read the comparison, not after.
  */
 
-export const metadata: Metadata = {
-  title: "Alternatives",
+export const metadata: Metadata = pageMetadata({
+  title: "Alternatives: other AI quota tools compared",
   description:
     "Honest comparisons between OpenLimiter and the other tools that read AI subscription quota, each one read off its own repository or store listing.",
-  alternates: { canonical: "/alternatives" },
-};
+  path: "/alternatives",
+});
 
 export default function AlternativesPage() {
   return (

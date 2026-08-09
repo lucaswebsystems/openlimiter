@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, Code, CodeBlock, DocLink, P, Steps, Sub } from "@/components/docs/prose";
-import { findDocPage } from "@/lib/docs";
+import { docMetadata } from "@/lib/metadata";
 
-const page = findDocPage("/docs");
-
-export const metadata: Metadata = {
-  title: page?.title,
-  description: page?.description,
-  alternates: { canonical: "/docs" },
-};
+export const metadata: Metadata = docMetadata("/docs");
 
 export default function GettingStartedPage() {
   return (
@@ -25,12 +19,8 @@ export default function GettingStartedPage() {
             <>
               <Bullets
                 items={[
-                  <>Node 24 or newer, which the workspace declares in its engines field.</>,
-                  <>pnpm 9.15.0, the package manager the repository pins.</>,
-                  <>
-                    A git clone of the repository. OpenLimiter is not published to npm yet, so
-                    there is no global <Code>openlimiter</Code> command to install.
-                  </>,
+                  <>Node 24 or newer.</>,
+                  <>npm, which ships with Node.</>,
                 ]}
               />
               <P>
@@ -42,30 +32,14 @@ export default function GettingStartedPage() {
         },
         {
           id: "install",
-          title: "Install the workspace",
+          title: "Install OpenLimiter",
           body: (
             <>
-              <P>Run these in order on a clean clone.</P>
+              <P>Install the command line tool globally, then run its synthetic demo.</P>
               <CodeBlock
                 label="terminal"
-                code={`pnpm install
-pnpm build
-pnpm typecheck
-pnpm test
-pnpm openlimiter demo`}
-              />
-              <P>
-                The build has to run before the type check, because each package resolves its
-                neighbours through the declaration files the build produces.
-              </P>
-              <P>
-                <Code>pnpm openlimiter</Code> is a thin wrapper around the built entry point.
-                Anywhere these pages write <Code>openlimiter &lt;command&gt;</Code>, you can run
-                either of these from the repository root.
-              </P>
-              <CodeBlock
-                code={`pnpm openlimiter <command>
-node packages/cli/dist/bin.js <command>`}
+                code={`npm install -g openlimiter
+openlimiter demo`}
               />
               <P>
                 <Code>openlimiter demo</Code> renders synthetic fixtures. It proves the binary
@@ -93,7 +67,7 @@ node packages/cli/dist/bin.js <command>`}
               </P>
               <CodeBlock
                 label="terminal"
-                code={`node packages/cli/dist/bin.js statusline < session.json
+                code={`openlimiter statusline < session.json
 OpenLimiter NEAR_CAP CLAUDE 87.5% UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL`}
               />
               <P>
@@ -111,15 +85,15 @@ OpenLimiter NEAR_CAP CLAUDE 87.5% UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,
           body: (
             <>
               <P>
-                Add this to your Claude Code <Code>settings.json</Code>, using the absolute path to
-                your clone. Forward slashes work on every platform.
+                Add this to your Claude Code <Code>settings.json</Code>. The global install makes
+                the <Code>openlimiter</Code> command available to Claude Code.
               </P>
               <CodeBlock
                 label="settings.json"
                 code={`{
   "statusLine": {
     "type": "command",
-    "command": "node /absolute/path/to/openlimiter/packages/cli/dist/bin.js statusline"
+    "command": "openlimiter statusline"
   },
   "hooks": {
     "UserPromptSubmit": [
@@ -127,7 +101,7 @@ OpenLimiter NEAR_CAP CLAUDE 87.5% UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,
         "hooks": [
           {
             "type": "command",
-            "command": "node /absolute/path/to/openlimiter/packages/cli/dist/bin.js hook"
+            "command": "openlimiter hook"
           }
         ]
       }
@@ -140,6 +114,29 @@ OpenLimiter NEAR_CAP CLAUDE 87.5% UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,
                 network request of any kind, injects nothing when every provider is unknown, and
                 exits 0 whatever happens.
               </Callout>
+            </>
+          ),
+        },
+        {
+          id: "from-source",
+          title: "Contribute from source",
+          body: (
+            <>
+              <P>Use the repository toolchain when you want to contribute.</P>
+              <CodeBlock
+                label="terminal"
+                code={`git clone https://github.com/lucaswebsystems/openlimiter
+cd openlimiter
+pnpm install
+pnpm build
+pnpm typecheck
+pnpm test
+node packages/cli/dist/bin.js demo`}
+              />
+              <P>
+                The build has to run before the type check, because each package resolves its
+                neighbours through the declaration files the build produces.
+              </P>
             </>
           ),
         },

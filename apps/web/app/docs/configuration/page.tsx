@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, Code, CodeBlock, DocLink, P, Sub, Table } from "@/components/docs/prose";
-import { findDocPage } from "@/lib/docs";
+import { docMetadata } from "@/lib/metadata";
 
-const page = findDocPage("/docs/configuration");
-
-export const metadata: Metadata = {
-  title: page?.title,
-  description: page?.description,
-  alternates: { canonical: "/docs/configuration" },
-};
+export const metadata: Metadata = docMetadata("/docs/configuration");
 
 export default function ConfigurationPage() {
   return (

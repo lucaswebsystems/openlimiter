@@ -11,6 +11,13 @@ export interface DocPage {
   href: string;
   /** Sidebar label and page heading. */
   title: string;
+  /**
+   * The title tag, when a search result needs more words than a sidebar label
+   * can spare. A short label like "CLI reference" is right in the navigation
+   * and far too thin in a result page, so the two are allowed to differ. Left
+   * unset, the label is the title.
+   */
+  metaTitle?: string;
   /** Meta description, and the lead paragraph under the heading. */
   description: string;
 }
@@ -27,6 +34,7 @@ export const docGroups: readonly DocGroup[] = [
       {
         href: "/docs",
         title: "Getting started",
+        metaTitle: "Getting started: install and meter your quota",
         description:
           "Install the workspace, run the demo, and wire OpenLimiter into Claude Code in a few minutes.",
       },
@@ -73,6 +81,7 @@ export const docGroups: readonly DocGroup[] = [
       {
         href: "/docs/cli",
         title: "CLI reference",
+        metaTitle: "CLI reference: commands, flags and exit codes",
         description:
           "Every command the CLI accepts today, with its flags, its output, and its exit codes.",
       },
@@ -86,7 +95,7 @@ export const docGroups: readonly DocGroup[] = [
         href: "/docs/roadmap",
         title: "Roadmap",
         description:
-          "What is planned and not yet built: macOS and Linux packages of the desktop application, mobile applications, and encrypted sync.",
+          "What is planned and not yet built: mobile applications, encrypted sync, and signed builds with an automatic update channel.",
       },
     ],
   },

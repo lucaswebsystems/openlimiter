@@ -7,6 +7,26 @@
  */
 
 export const SITE_URL = "https://openlimiter.com";
+
+/** The project's name, as a publisher, an organisation and a social site name. */
+export const SITE_NAME = "OpenLimiter";
+
+/**
+ * The one title and the one description every surface starts from: the root
+ * metadata, the social cards, and the structured data. Written once so a schema
+ * can never describe the site differently from the tag next to it.
+ */
+export const SITE_TITLE = "OpenLimiter, quota awareness for AI coding agents";
+export const SITE_DESCRIPTION =
+  "OpenLimiter reads the quota of your AI subscriptions on your own machine and hands your coding agents bounded budget state plus routing advice. Open source, local first, zero telemetry.";
+
+/**
+ * What the title template appends to a page's own title. Kept here so a social
+ * title can be made to match the rendered title tag exactly, rather than being
+ * typed out a second time next to it.
+ */
+export const TITLE_SUFFIX = ", OpenLimiter";
+
 export const REPO_OWNER = "lucaswebsystems";
 export const REPO_NAME = "openlimiter";
 export const REPO_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`;
@@ -16,6 +36,22 @@ export const RELEASES_URL = `${REPO_URL}/releases`;
 /** Where a reader gets the packaged Windows build. */
 export const RELEASES_LATEST_URL = `${REPO_URL}/releases/latest`;
 export const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE`;
+
+/** The licence itself, by name and by the canonical text of the licence. */
+export const LICENSE_NAME = "Apache 2.0";
+export const LICENSE_SPDX_URL = "https://www.apache.org/licenses/LICENSE-2.0";
+
+/** The published command line package. */
+export const NPM_PACKAGE = "openlimiter";
+export const NPM_URL = `https://www.npmjs.com/package/${NPM_PACKAGE}`;
+
+/**
+ * A square logo that lives at a fixed path, unlike the generated icon routes,
+ * which is what structured data and any third party card needs. It is the same
+ * file the installed web application already ships.
+ */
+export const LOGO_URL = `${SITE_URL}/icons/openlimiter-512.png`;
+export const LOGO_SIZE = 512;
 export const CONTRIBUTING_URL = `${REPO_URL}/blob/main/CONTRIBUTING.md`;
 export const SECURITY_URL = `${REPO_URL}/blob/main/SECURITY.md`;
 

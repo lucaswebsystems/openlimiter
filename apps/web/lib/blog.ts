@@ -92,7 +92,7 @@ export const posts: readonly Post[] = [
       },
       {
         kind: "p",
-        text: "The command line tool, the web app and a Windows build of the desktop tray application exist and can be used today. The desktop application has no macOS or Linux package yet, there is no npm release, and the iOS and Android applications are not built, are in no store, and have no waiting list. Every button on this site leads to the thing it names, or to the download page where each row says plainly which state it is in.",
+        text: "The command line tool on npm, the web app, and packaged desktop builds for Windows, macOS and Linux all exist and can be used today. None of the desktop builds are code signed yet, so Windows SmartScreen and macOS Gatekeeper warn the first time you open one. The iOS and Android applications are not built, are in no store, and have no waiting list. Every button on this site leads to the thing it names, or to the download page where each row says plainly which state it is in.",
       },
       {
         kind: "quote",
@@ -105,12 +105,12 @@ export const posts: readonly Post[] = [
       },
       {
         kind: "p",
-        text: "It is not on npm yet, so today it runs from a clone. Build the workspace, run the demo against the bundled fixtures, and look at what comes out before you point it at anything real. The demo touches no cache and no network.",
+        text: "Install the published package from npm, run the demo against its bundled fixtures, and look at what comes out before you point it at anything real. The demo touches no cache and no network.",
       },
       {
         kind: "code",
-        caption: "From a clean clone",
-        text: "git clone https://github.com/lucaswebsystems/openlimiter\ncd openlimiter\npnpm install\npnpm build\npnpm openlimiter demo",
+        caption: "Install from npm",
+        text: "npm install -g openlimiter\nopenlimiter demo",
       },
       {
         kind: "p",

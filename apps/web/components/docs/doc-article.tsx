@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { JsonLd } from "@/components/json-ld";
 import { docNeighbours } from "@/lib/docs";
+import { docsBreadcrumbSchema } from "@/lib/jsonld";
 
 export interface DocSection {
   /** Anchor id. Also the target of the on this page list. */
@@ -16,6 +18,10 @@ export interface DocSection {
  * this page list are generated from the same source and cannot drift apart.
  * Heading order is fixed here: one h1 for the page, one h2 per section, and any
  * h3 lives inside a section body.
+ *
+ * The BreadcrumbList structured data is emitted here rather than on each page,
+ * beside the trail a reader can see, and both are built from the `href` this
+ * component already receives. A page cannot show one trail and declare another.
  */
 export function DocArticle({
   href,
@@ -33,6 +39,7 @@ export function DocArticle({
   return (
     <div className="flex gap-12">
       <article className="min-w-0 max-w-3xl flex-1 pb-20">
+        <JsonLd data={docsBreadcrumbSchema(href)} />
         <nav aria-label="Breadcrumb">
           <ol className="flex items-center gap-2 font-mono text-2xs uppercase tracking-widest text-muted">
             <li>

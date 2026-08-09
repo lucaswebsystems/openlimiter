@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, Code, CodeBlock, DocLink, P, Sub } from "@/components/docs/prose";
-import { findDocPage } from "@/lib/docs";
+import { docMetadata } from "@/lib/metadata";
 
-const page = findDocPage("/docs/ingestion");
-
-export const metadata: Metadata = {
-  title: page?.title,
-  description: page?.description,
-  alternates: { canonical: "/docs/ingestion" },
-};
+export const metadata: Metadata = docMetadata("/docs/ingestion");
 
 export default function IngestionPage() {
   return (

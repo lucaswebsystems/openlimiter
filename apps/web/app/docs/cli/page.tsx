@@ -2,15 +2,9 @@ import type { Metadata } from "next";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, Code, CodeBlock, DocLink, P, Sub, Table } from "@/components/docs/prose";
 import { CAPTURED_ON, demoCapture } from "@/lib/cli-capture";
-import { findDocPage } from "@/lib/docs";
+import { docMetadata } from "@/lib/metadata";
 
-const page = findDocPage("/docs/cli");
-
-export const metadata: Metadata = {
-  title: page?.title,
-  description: page?.description,
-  alternates: { canonical: "/docs/cli" },
-};
+export const metadata: Metadata = docMetadata("/docs/cli");
 
 export default function CliPage() {
   return (
@@ -39,9 +33,8 @@ statusline and ingest read JSON from standard input when it is piped in.
 Exit codes: 0 success, 1 failure, 2 usage, 3 no bounded quota data.`}
               />
               <P>
-                The package is not published yet, so run these as{" "}
-                <Code>pnpm openlimiter &lt;command&gt;</Code> or{" "}
-                <Code>node packages/cli/dist/bin.js &lt;command&gt;</Code> from the repository root.
+                Install the global command with <Code>npm install -g openlimiter</Code>, then run
+                each example exactly as shown.
               </P>
             </>
           ),

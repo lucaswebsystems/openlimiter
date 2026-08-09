@@ -19,13 +19,19 @@ import { RELEASES_URL, REPO_URL } from "@/lib/site";
  * what does not exist. A command and a download control render only for a row
  * that is already available, and that is checked here rather than trusted from
  * the data, so a row that gains either before it ships still cannot be made to
- * look installable.
+ * look installable. The middle section renders only when something is actually
+ * in that state, so the page never carries a heading with nothing under it.
+ *
+ * A platform with several packaged files lists every one of them, pointing at
+ * the artifact itself rather than at a releases page the reader then has to
+ * read. The caveat that comes with an unsigned build renders under those
+ * controls, never instead of them.
  */
 
 export const metadata: Metadata = {
   title: "Download",
   description:
-    "Get OpenLimiter: a packaged Windows installer, the web app in any browser, or the command line tool built from a clone on macOS and Linux. Mobile applications are not built.",
+    "Get OpenLimiter: packaged desktop builds for Windows, macOS and Linux, the command line tool from npm, or the web app in any browser. Mobile applications are not built.",
   alternates: { canonical: "/download" },
 };
 
@@ -40,6 +46,7 @@ function TargetCard({ target }: { target: DownloadTarget }) {
   const shipped = target.state === "available";
   const command = shipped ? target.command : undefined;
   const href = shipped ? target.href : undefined;
+  const assets = shipped ? target.assets : undefined;
 
   return (
     <article
@@ -53,6 +60,25 @@ function TargetCard({ target }: { target: DownloadTarget }) {
       </div>
 
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">{target.summary}</p>
+
+      {assets !== undefined && assets.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-3">
+          {assets.map((asset) => (
+            <ButtonLink
+              key={asset.href}
+              href={asset.href}
+              tone={asset.primary === true ? "primary" : "ghost"}
+              external
+            >
+              {asset.label}
+            </ButtonLink>
+          ))}
+        </div>
+      )}
+
+      {target.note !== undefined && (
+        <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">{target.note}</p>
+      )}
 
       {href !== undefined && target.hrefLabel !== undefined && (
         <div className="mt-4">
@@ -86,10 +112,10 @@ export default function DownloadPage() {
             Available now
           </h2>
           <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-            Windows has a packaged installer. The web app needs nothing installed at all. On every
-            platform the command line tool is one clone and the same five lines, because it is plain
-            Node.js with no third party runtime dependencies, and that is the path every capture on
-            this site was taken from.
+            Windows, macOS and Linux each have a packaged desktop build, and every link below goes
+            straight to the file. The command line tool is one npm install on any of them, or one
+            clone if you would rather build it, because it is plain Node.js with no third party
+            runtime dependencies. The web app needs nothing installed at all.
           </p>
           <div className="mt-8 space-y-4" {...revealGroup}>
             {available.map((target) => (
@@ -98,21 +124,23 @@ export default function DownloadPage() {
           </div>
         </section>
 
-        <section>
-          <h2 className="text-2xl font-medium text-heading" {...reveal}>
-            Built, not packaged for you yet
-          </h2>
-          <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-            This exists and it runs. What is missing is a build you can install on your own
-            platform, and until that is produced this section says so rather than pointing you at
-            something that is not there.
-          </p>
-          <div className="mt-8 space-y-4" {...revealGroup}>
-            {building.map((target) => (
-              <TargetCard key={target.id} target={target} />
-            ))}
-          </div>
-        </section>
+        {building.length > 0 && (
+          <section>
+            <h2 className="text-2xl font-medium text-heading" {...reveal}>
+              Built, not packaged for you yet
+            </h2>
+            <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
+              This exists and it runs. What is missing is a build you can install on your own
+              platform, and until that is produced this section says so rather than pointing you at
+              something that is not there.
+            </p>
+            <div className="mt-8 space-y-4" {...revealGroup}>
+              {building.map((target) => (
+                <TargetCard key={target.id} target={target} />
+              ))}
+            </div>
+          </section>
+        )}
 
         <section>
           <h2 className="text-2xl font-medium text-heading" {...reveal}>

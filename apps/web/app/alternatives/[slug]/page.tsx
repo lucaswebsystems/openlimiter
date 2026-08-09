@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { PageShell, ShellSections } from "@/components/page-shell";
 import { ButtonLink, Card, SectionHeading } from "@/components/ui";
 import { COMPARISON_NOTE, alternatives, findAlternative } from "@/lib/alternatives";
+import { pageMetadata } from "@/lib/metadata";
 
 /**
  * /alternatives/[slug]
@@ -30,11 +31,11 @@ export async function generateMetadata({
   const entry = findAlternative(slug);
   if (entry === undefined) return { title: "Comparison not found" };
 
-  return {
+  return pageMetadata({
     title: `${entry.name} compared`,
     description: entry.summary,
-    alternates: { canonical: `/alternatives/${slug}` },
-  };
+    path: `/alternatives/${slug}`,
+  });
 }
 
 export default async function AlternativePage({

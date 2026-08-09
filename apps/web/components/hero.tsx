@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { providerMarks } from "./provider-marks";
 import { ButtonLink, IconButtonLink, SHELL } from "./ui";
-import { DOWNLOAD_DISCLAIMER } from "@/lib/downloads";
+import {
+  DOWNLOAD_DISCLAIMER,
+  MACOS_APPLE_SILICON_URL,
+  WINDOWS_SETUP_URL,
+} from "@/lib/downloads";
 import { reveal } from "@/lib/motion";
-import { RELEASES_LATEST_URL } from "@/lib/site";
 
 /**
  * The hero.
@@ -13,11 +16,13 @@ import { RELEASES_LATEST_URL } from "@/lib/site";
  * actually reach, and the row of provider marks.
  *
  * Each button leads to the thing it names, and only where that thing exists.
- * Windows goes to the packaged installer on the releases page and the globe
- * opens the web app, because both are real. The two mobile buttons lead to the
- * download page rather than to a store, because there is nothing in a store,
- * and each says so in its accessible name. The line under the row says the same
- * thing in the open.
+ * Windows and the Apple mark go straight to the packaged file on the release,
+ * not to a page listing releases, and the globe opens the web app. The Play
+ * mark leads to the download page rather than to a store, because there is
+ * nothing in a store, and it says so in its accessible name. The terminal mark
+ * goes to the CLI reference, which is where somebody reaching for it is headed.
+ * The line under the row says the same thing in the open, including that the
+ * desktop builds are not code signed yet.
  */
 
 function AppleGlyph() {
@@ -104,10 +109,10 @@ export function Hero() {
       <div className="pt-10" {...reveal}>
         <div className="flex flex-row flex-wrap gap-3">
           <ButtonLink
-            href={RELEASES_LATEST_URL}
+            href={WINDOWS_SETUP_URL}
             tone="primary"
             external
-            label="Download the Windows installer from the releases page on GitHub"
+            label="Download the OpenLimiter installer for Windows, 64 bit"
           >
             <WindowsGlyph />
             Download for Windows
@@ -116,13 +121,16 @@ export function Hero() {
             <GlobeGlyph />
             Open the web app
           </ButtonLink>
-          <IconButtonLink href="/download#ios" label="iOS, not built, see the download page">
+          <IconButtonLink
+            href={MACOS_APPLE_SILICON_URL}
+            label="Download OpenLimiter for macOS, Apple silicon"
+          >
             <AppleGlyph />
           </IconButtonLink>
           <IconButtonLink href="/download#android" label="Android, not built, see the download page">
             <PlayGlyph />
           </IconButtonLink>
-          <IconButtonLink href="/download#source" label="Command line tool, available now">
+          <IconButtonLink href="/docs/cli" label="Command line reference in the docs">
             <TerminalGlyph />
           </IconButtonLink>
         </div>

@@ -2,14 +2,21 @@ import { AboutCard } from "@/components/about-card";
 import { AgentContext } from "@/components/agent-context";
 import { BrandMark } from "@/components/brand";
 import { DeviceFrame } from "@/components/device-frame";
-import { Faq } from "@/components/faq";
+import { Faq, faqItems } from "@/components/faq";
 import { Hero } from "@/components/hero";
 import { IntegrationStrip } from "@/components/integration-strip";
+import { JsonLd } from "@/components/json-ld";
 import { RunsWhere } from "@/components/runs-where";
 import { Scriptable } from "@/components/scriptable";
 import { SHELL } from "@/components/ui";
 import { WebApp } from "@/components/web-app";
 import { WorksWith } from "@/components/works-with";
+import {
+  faqPageSchema,
+  organizationSchema,
+  softwareApplicationSchema,
+  websiteSchema,
+} from "@/lib/jsonld";
 import { reveal } from "@/lib/motion";
 
 /**
@@ -23,6 +30,12 @@ import { reveal } from "@/lib/motion";
  * A row that needs to run wider than its text, namely the sliding strip, uses
  * FULL_BLEED to cancel the shell's padding rather than inventing a width of its
  * own. There is no other exception anywhere on the page.
+ *
+ * Four structured data blocks open the page: who publishes it, what site it is,
+ * what the software is, and the questions further down. They are built in
+ * lib/jsonld.ts from the same constants the rest of the site reads, and the
+ * questions are the very array the FAQ section renders, so nothing here can
+ * describe a page that is not the one below it.
  */
 
 function BridgeBand() {
@@ -42,6 +55,10 @@ function BridgeBand() {
 export default function Home() {
   return (
     <main id="main">
+      <JsonLd data={organizationSchema()} />
+      <JsonLd data={websiteSchema()} />
+      <JsonLd data={softwareApplicationSchema()} />
+      <JsonLd data={faqPageSchema(faqItems)} />
       <Hero />
       <DeviceFrame />
       <BridgeBand />

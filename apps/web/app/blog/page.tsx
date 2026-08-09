@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { formatPostDate, posts } from "@/lib/blog";
+import { pageMetadata } from "@/lib/metadata";
 
 /**
  * /blog
@@ -12,12 +13,12 @@ import { formatPostDate, posts } from "@/lib/blog";
  * the sentence cannot go stale the moment a second post lands.
  */
 
-export const metadata: Metadata = {
-  title: "Blog",
+export const metadata: Metadata = pageMetadata({
+  title: "Blog: notes on quota, agents and local tools",
   description:
     "Notes on how OpenLimiter reads quota locally, what it deliberately does not do, and why the line is drawn where it is.",
-  alternates: { canonical: "/blog" },
-};
+  path: "/blog",
+});
 
 const countLine =
   posts.length === 1 ? "There is one post so far." : `There are ${posts.length} posts so far.`;

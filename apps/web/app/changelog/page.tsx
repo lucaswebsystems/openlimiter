@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageShell } from "@/components/page-shell";
 import { formatReleaseDate, readChangelog } from "@/lib/changelog";
+import { pageMetadata } from "@/lib/metadata";
 import { REPO_URL } from "@/lib/site";
 
 /**
@@ -19,12 +20,12 @@ import { REPO_URL } from "@/lib/site";
  * opens with a digit is awkward to select and awkward to escape later.
  */
 
-export const metadata: Metadata = {
-  title: "Changelog",
+export const metadata: Metadata = pageMetadata({
+  title: "Changelog: every release and what changed",
   description:
     "Every released version of OpenLimiter, rendered from the CHANGELOG.md at the root of the repository.",
-  alternates: { canonical: "/changelog" },
-};
+  path: "/changelog",
+});
 
 const linkClass = "focus-ring rounded text-accent transition-colors hover:text-heading";
 

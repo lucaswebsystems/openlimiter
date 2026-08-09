@@ -6,11 +6,11 @@ import { reveal } from "@/lib/motion";
 /**
  * The one large product visual.
  *
- * The desktop application is built and packaged for Windows, but no capture of
- * it has been taken yet, and this site does not mock up a screenshot of
- * something it has not photographed. So the frame holds the thing that has been
- * captured: three verbatim runs of the command line tool, printed exactly as
- * they came off standard output.
+ * The desktop application is built and packaged for Windows, macOS and Linux,
+ * but no capture of it has been taken yet, and this site does not mock up a
+ * screenshot of something it has not photographed. So the frame holds the thing
+ * that has been captured: three verbatim runs of the command line tool, printed
+ * exactly as they came off standard output.
  *
  * SCREENSHOT below is the entire swap. Put a real capture of the running
  * desktop application in public/, point this constant at it with its natural
