@@ -68,39 +68,40 @@
   --radius-phone: 2.5rem;
 }
 
-/* Light palette. Also the fallback for every browser and every theme state. */
+/* Dark palette. The product is dark first, so this is the default for every
+   browser and every theme state, whatever the system preference says. Light is
+   available only when a visitor asks for it through the toggle. */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  --ol-canvas: #f7f9f8;
-  --ol-surface: #f0f2f1;
-  --ol-raised: #ebedec;
-  --ol-code: #eef1f0;
-  --ol-frame: #eceeed;
-  --ol-track: #d5d9d7;
+  --ol-canvas: #101615;
+  --ol-surface: #171d1c;
+  --ol-raised: #1c2221;
+  --ol-code: #0d1211;
+  --ol-frame: #181b1a;
+  --ol-track: #333a38;
 
-  --ol-hairline: #dee0df;
-  --ol-hairline-strong: #c6c7c6;
+  --ol-hairline: #272d2c;
+  --ol-hairline-strong: #3f4544;
 
-  --ol-heading: #101615;
-  --ol-body: #101615;
-  --ol-soft: #464d4b;
-  --ol-muted: #55605d;
+  --ol-heading: #fafafa;
+  --ol-body: #fafafa;
+  --ol-soft: #b4b6b5;
+  --ol-muted: #a8adac;
 
-  --ol-accent: #115e59;
-  --ol-accent-hover: #134e4a;
-  --ol-accent-subtle: #dcf1ed;
-  --ol-accent-solid: #0f766e;
-  --ol-accent-solid-hover: #115e59;
-  --ol-on-accent: #ffffff;
+  --ol-accent: #5eead4;
+  --ol-accent-hover: #99f6e4;
+  --ol-accent-subtle: #14302b;
+  --ol-accent-solid: #2dd4bf;
+  --ol-accent-solid-hover: #5eead4;
+  --ol-on-accent: #101615;
 
-  --ol-solid: #101615;
-  --ol-solid-hover: #232d2b;
-  --ol-on-solid: #fafafa;
+  --ol-solid: #fafafa;
+  --ol-solid-hover: #e4e4e4;
+  --ol-on-solid: #101615;
 }
 
-/* Dark palette, for a visitor whose system asks for it and who has not
-   explicitly chosen light. */
+/* Kept so the cascade below still resolves; the dark values already apply. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
@@ -164,8 +165,35 @@
   --ol-on-solid: #101615;
 }
 
+/* Light, only when a visitor explicitly asks for it through the toggle. */
 :root[data-theme="light"] {
   color-scheme: light;
+
+  --ol-canvas: #f7f9f8;
+  --ol-surface: #f0f2f1;
+  --ol-raised: #ebedec;
+  --ol-code: #eef1f0;
+  --ol-frame: #eceeed;
+  --ol-track: #d5d9d7;
+
+  --ol-hairline: #dee0df;
+  --ol-hairline-strong: #c6c7c6;
+
+  --ol-heading: #101615;
+  --ol-body: #101615;
+  --ol-soft: #464d4b;
+  --ol-muted: #55605d;
+
+  --ol-accent: #115e59;
+  --ol-accent-hover: #134e4a;
+  --ol-accent-subtle: #dcf1ed;
+  --ol-accent-solid: #0f766e;
+  --ol-accent-solid-hover: #115e59;
+  --ol-on-accent: #ffffff;
+
+  --ol-solid: #101615;
+  --ol-solid-hover: #232d2b;
+  --ol-on-solid: #fafafa;
 }
 
 *,
