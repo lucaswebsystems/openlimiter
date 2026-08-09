@@ -1,0 +1,113 @@
+name: Desktop release
+
+# Builds the desktop application for Windows, macOS and Linux and attaches the
+# installers to the matching GitHub release.
+#
+# macOS and Linux artifacts cannot be produced on a Windows workstation, because
+# Tauri compiles native code and each target needs its own operating system and
+# toolchain. Running the build on one runner per platform is what makes a real
+# download exist for all three.
+#
+# Builds here are UNSIGNED. Windows SmartScreen and macOS Gatekeeper will warn
+# on first run until signing certificates are bought and wired in. The download
+# page says so plainly rather than pretending otherwise.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to attach the installers to"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS (Apple silicon)
+            target: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin"
+          - os: macos-latest
+            label: macOS (Intel)
+            target: x86_64-apple-darwin
+            args: "--target x86_64-apple-darwin"
+          - os: ubuntu-22.04
+            label: Linux
+            target: x86_64-unknown-linux-gnu
+            args: ""
+          - os: windows-latest
+            label: Windows
+            target: x86_64-pc-windows-msvc
+            args: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux system dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+          key: ${{ matrix.target }}
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the packages the desktop engine mirrors
+        run: pnpm build
+
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: pnpm install --ignore-workspace
+
+      - name: Generate icons
+        working-directory: apps/desktop
+        run: node scripts/icons.mjs
+
+      - name: Assemble the desktop user interface
+        working-directory: apps/desktop
+        run: node scripts/build-ui.mjs
+
+      - name: Build and publish the installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: OpenLimiter ${{ inputs.tag || github.ref_name }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: false
+          args: ${{ matrix.args }}
