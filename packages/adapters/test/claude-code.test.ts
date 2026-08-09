@@ -85,6 +85,29 @@ describe("Claude adapter", () => {
     })).toBe("");
   });
 
+  it("never claims a cap that was not reached", () => {
+    const nearlyFull: Advice = {
+      ...advice,
+      providers: [{ ...advice.providers[0]!, usagePercent: 99.99 }]
+    };
+    const line = renderClaudeStatusline(nearlyFull);
+    expect(line).toContain("CLAUDE 99.9%");
+    expect(line).not.toContain("100%");
+    expect(renderClaudeStatusline({
+      ...advice,
+      providers: [{ ...advice.providers[0]!, usagePercent: 79.99 }]
+    })).toContain("CLAUDE 79.9%");
+    expect(buildAgentContext(nearlyFull)).toContain("usage_percent=99.99");
+  });
+
+  it("reports a cap that was actually reached", () => {
+    expect(renderClaudeStatusline({
+      ...advice,
+      reason: "AT_CAP",
+      providers: [{ ...advice.providers[0]!, usagePercent: 100 }]
+    })).toContain("CLAUDE 100.0%");
+  });
+
   it("reads only the cache within the hook budget", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-adapter-test-"));
     created.push(directory);

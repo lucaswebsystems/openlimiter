@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
 import { runCli } from "./cli.js";
+import { readStandardInputText } from "./ingest.js";
 
 async function promptForSecret(): Promise<string> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) return "";
@@ -15,7 +16,10 @@ async function promptForSecret(): Promise<string> {
   }
 }
 
-const result = await runCli(process.argv.slice(2), { promptForSecret });
+const result = await runCli(process.argv.slice(2), {
+  promptForSecret,
+  readStandardInput: () => readStandardInputText()
+});
 if (result.stdout !== "") process.stdout.write(result.stdout + "\n");
 if (result.stderr !== "") process.stderr.write(result.stderr + "\n");
 process.exitCode = result.exitCode;

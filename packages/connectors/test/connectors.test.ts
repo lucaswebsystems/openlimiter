@@ -2,6 +2,8 @@ import { freshness, normalizeMeters, type RawMeter } from "@openlimiter/core";
 import { describe, expect, it } from "vitest";
 import {
   FIXTURE_NOW,
+  MANUAL_FILE_MARKER,
+  MANUAL_FILE_NAME,
   antigravityConnector,
   antigravityFixture,
   claudeConnector,
@@ -36,7 +38,7 @@ const cases: readonly {
   {
     name: "claude",
     parser: parseClaudePayload,
-    fixture: claudeFixture,
+    fixture: claudeFixture(FIXTURE_NOW),
     provider: "CLAUDE",
     huge: {
       rate_limits: {
@@ -50,14 +52,14 @@ const cases: readonly {
   {
     name: "openrouter",
     parser: parseOpenrouterPayload,
-    fixture: openrouterFixture,
+    fixture: openrouterFixture(),
     provider: "OPENROUTER",
     huge: { data: { total_credits: 9e300, total_usage: 1 } }
   },
   {
     name: "codex",
     parser: parseCodexPayload,
-    fixture: codexFixture,
+    fixture: codexFixture(FIXTURE_NOW),
     provider: "CODEX",
     huge: {
       rate_limits: {
@@ -71,7 +73,7 @@ const cases: readonly {
   {
     name: "antigravity",
     parser: parseAntigravityPayload,
-    fixture: antigravityFixture,
+    fixture: antigravityFixture(FIXTURE_NOW),
     provider: "ANTIGRAVITY",
     huge: {
       quota: {
@@ -83,7 +85,7 @@ const cases: readonly {
   {
     name: "opencode",
     parser: parseOpencodePayload,
-    fixture: opencodeFixture,
+    fixture: opencodeFixture(FIXTURE_NOW),
     provider: "OPENCODE",
     huge: {
       usage: {
@@ -95,7 +97,7 @@ const cases: readonly {
   {
     name: "manual",
     parser: parseManualPayload,
-    fixture: manualFixture,
+    fixture: manualFixture(FIXTURE_NOW),
     provider: "MANUAL",
     huge: {
       meters: [{
@@ -165,8 +167,14 @@ describe("connector contracts", () => {
     expect(codexConnector.detect({ CODEX_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(antigravityConnector.detect({ ANTIGRAVITY_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(opencodeConnector.detect({ OPENCODE_SESSION_PRESENT: "1" })).toBe(true);
-    expect(manualConnector.detect({})).toBe(true);
-    expect(connectors.slice(0, 5).every((connector) => !connector.detect({}))).toBe(true);
+    expect(manualConnector.detect({ [MANUAL_FILE_MARKER]: "available" })).toBe(true);
+    expect(connectors.every((connector) => !connector.detect({}))).toBe(true);
+  });
+
+  it("reports the manual connector as undetected without a manual document", () => {
+    expect(manualConnector.detect({})).toBe(false);
+    expect(manualConnector.detect({ [MANUAL_FILE_MARKER]: "missing" })).toBe(false);
+    expect(MANUAL_FILE_NAME).toBe("manual.json");
   });
 
   it("returns unknown for missing input", async () => {
@@ -179,21 +187,44 @@ describe("connector contracts", () => {
   });
 
   it("rejects expired provider windows", () => {
-    expect(
-      parseClaudePayload(claudeFixture, "2027-01-01T00:00:00.000Z")
-    ).toBeNull();
-    expect(
-      parseCodexPayload(codexFixture, "2027-01-01T00:00:00.000Z")
-    ).toBeNull();
-    expect(
-      parseAntigravityPayload(antigravityFixture, "2027-01-01T00:00:00.000Z")
-    ).toBeNull();
-    expect(
-      parseOpencodePayload(opencodeFixture, "2027-01-01T00:00:00.000Z")
-    ).toBeNull();
-    expect(
-      parseManualPayload(manualFixture, "2027-01-01T00:00:00.000Z")
-    ).toBeNull();
+    const later = "2027-01-01T00:00:00.000Z";
+    expect(parseClaudePayload(claudeFixture(FIXTURE_NOW), later)).toBeNull();
+    expect(parseCodexPayload(codexFixture(FIXTURE_NOW), later)).toBeNull();
+    expect(parseAntigravityPayload(antigravityFixture(FIXTURE_NOW), later)).toBeNull();
+    expect(parseOpencodePayload(opencodeFixture(FIXTURE_NOW), later)).toBeNull();
+    expect(parseManualPayload(manualFixture(FIXTURE_NOW), later)).toBeNull();
+  });
+
+  it("keeps every fixture valid against the real clock", () => {
+    const now = new Date().toISOString();
+    expect(parseClaudePayload(claudeFixture(now), now)).toHaveLength(2);
+    expect(parseCodexPayload(codexFixture(now), now)).toHaveLength(1);
+    expect(parseAntigravityPayload(antigravityFixture(now), now)).toHaveLength(1);
+    expect(parseOpencodePayload(opencodeFixture(now), now)).toHaveLength(1);
+    expect(parseManualPayload(manualFixture(now), now)).toHaveLength(1);
+    expect(parseOpenrouterPayload(openrouterFixture(), now)).toHaveLength(1);
+  });
+
+  it("keeps the readable window when the other window is unusable", () => {
+    const payload = claudeFixture(FIXTURE_NOW) as {
+      rate_limits: { five_hour: { resets_at: string } };
+    };
+    payload.rate_limits.five_hour.resets_at = "2020-01-01T00:00:00.000Z";
+    const parsed = parseClaudePayload(payload, FIXTURE_NOW);
+    expect(parsed).toHaveLength(1);
+    expect(parsed?.[0]?.meter).toBe("SEVEN_DAY");
+  });
+
+  it("drops one unusable manual row and keeps the rest", () => {
+    const parsed = parseManualPayload({
+      meters: [
+        { name: "MONTHLY", used_percent: 35, reset_at: "2026-02-01T00:00:00.000Z" },
+        { name: "not a meter", used_percent: 10, reset_at: "2026-02-01T00:00:00.000Z" },
+        { name: "WEEKLY", used_percent: 900, reset_at: "2026-02-01T00:00:00.000Z" },
+        { name: "DAILY", used_percent: 5, reset_at: "2026-02-01T00:00:00.000Z" }
+      ]
+    }, FIXTURE_NOW);
+    expect(parsed?.map((meter) => meter.meter)).toEqual(["MONTHLY", "DAILY"]);
   });
 
   it("rejects unicode manual meter names", () => {

@@ -46,20 +46,34 @@ function parseWindow(
   });
 }
 
+const windows = [
+  { key: "five_hour", meter: "FIVE_HOUR", durationSeconds: 18_000 },
+  { key: "seven_day", meter: "SEVEN_DAY", durationSeconds: 604_800 }
+] as const;
+
+/**
+ * Parse the rate limit block of a Claude Code statusline payload.
+ *
+ * Shape: { "rate_limits": { "five_hour": { "utilization": 42,
+ * "resets_at": "2026-09-01T05:00:00.000Z" }, "seven_day": { ... } } }
+ *
+ * A window that fails validation is dropped and the other window still counts,
+ * because one expired window is not a reason to forget the whole session.
+ */
 export function parseClaudePayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const limits = record(root?.["rate_limits"]);
   if (limits === null) return null;
   const meters: RawMeter[] = [];
-  if ("five_hour" in limits) {
-    const parsed = parseWindow(limits["five_hour"], now, "FIVE_HOUR", 18_000);
-    if (parsed === null) return null;
-    meters.push(parsed);
-  }
-  if ("seven_day" in limits) {
-    const parsed = parseWindow(limits["seven_day"], now, "SEVEN_DAY", 604_800);
-    if (parsed === null) return null;
-    meters.push(parsed);
+  for (const window of windows) {
+    if (!(window.key in limits)) continue;
+    const parsed = parseWindow(
+      limits[window.key],
+      now,
+      window.meter,
+      window.durationSeconds
+    );
+    if (parsed !== null) meters.push(parsed);
   }
   return meters.length === 0 ? null : meters;
 }

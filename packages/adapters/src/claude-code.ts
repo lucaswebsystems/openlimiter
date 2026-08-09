@@ -1,6 +1,7 @@
 import {
   PROVIDER_CODES,
   buildAdvice,
+  floorFixed,
   readSnapshotCache,
   type Advice,
   type AdviceProvider,
@@ -40,7 +41,7 @@ function renderProvider(provider: AdviceProvider): string {
   return [
     "provider=" + provider.provider,
     "state=" + provider.state,
-    "usage_percent=" + provider.usagePercent.toFixed(2),
+    "usage_percent=" + floorFixed(provider.usagePercent, 2),
     "reset_at=" + reset
   ].join(" ");
 }
@@ -78,10 +79,16 @@ export function buildUserPromptSubmitPayload(advice: Advice): {
       };
 }
 
+/**
+ * Render the human facing statusline.
+ *
+ * Usage is truncated, never rounded upward, so a meter at 99.99 percent reads
+ * as 99.9 percent and a cap is only ever claimed once it is actually reached.
+ */
 export function renderClaudeStatusline(advice: Advice): string {
   if (!validAdvice(advice) || !advice.inject) return "OpenLimiter UNKNOWN";
   const meters = advice.providers
-    .map((provider) => provider.provider + " " + provider.usagePercent.toFixed(0) + "%")
+    .map((provider) => provider.provider + " " + floorFixed(provider.usagePercent, 1) + "%")
     .join(" ");
   const unknown = advice.unknownProviders.length === 0
     ? ""

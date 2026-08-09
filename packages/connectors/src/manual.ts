@@ -13,23 +13,42 @@ export const manualLabels = {
   verification: "UNVERIFIED"
 } as const satisfies ConnectorLabels;
 
+/** File name the manual connector reads inside the state directory. */
+export const MANUAL_FILE_NAME = "manual.json";
+
+/**
+ * Environment marker the CLI sets when that file is present.
+ *
+ * Detection stays pure: the connector only reads the supplied environment map,
+ * and the caller is the one that looks at the disk.
+ */
+export const MANUAL_FILE_MARKER = "OPENLIMITER_MANUAL_FILE";
+
 export const manualInput = {
   kind: "user_input",
-  pathTemplate: "{openlimiterState}/manual.json",
+  pathTemplate: "{openlimiterState}/" + MANUAL_FILE_NAME,
   readMode: "read_only"
 } as const;
 
 const safeName = /^[A-Z][A-Z0-9_]{0,31}$/u;
+const MAX_ENTRIES = 10;
 
+/**
+ * Parse a manual quota document.
+ *
+ * Shape: { "version": 1, "meters": [ { "name": "MONTHLY",
+ * "used_percent": 35, "reset_at": "2026-09-01T00:00:00.000Z" } ] }
+ *
+ * A row that fails validation is dropped, the remaining rows still count, and
+ * a document where nothing survives returns null. Nothing is repaired.
+ */
 export function parseManualPayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const entries = root?.["meters"];
   const expiresAt = shortExpiry(now);
-  if (!Array.isArray(entries) || entries.length === 0 || entries.length > 10 || expiresAt === null) {
-    return null;
-  }
+  if (!Array.isArray(entries) || entries.length === 0 || expiresAt === null) return null;
   const meters: RawMeter[] = [];
-  for (const entry of entries) {
+  for (const entry of entries.slice(0, MAX_ENTRIES)) {
     const input = record(entry);
     const name = input?.["name"];
     const percent = boundedNumber(input?.["used_percent"]);
@@ -39,7 +58,7 @@ export function parseManualPayload(payload: unknown, now: string): RawMeter[] | 
       !safeName.test(name) ||
       percent === null ||
       resetAt === null
-    ) return null;
+    ) continue;
     meters.push(rawMeter({
       provider: "MANUAL",
       meter: name,
@@ -53,15 +72,15 @@ export function parseManualPayload(payload: unknown, now: string): RawMeter[] | 
       labels: manualLabels
     }));
   }
-  return meters;
+  return meters.length === 0 ? null : meters;
 }
 
 export const manualConnector: ConnectorContract = {
   id: "manual",
   displayName: "Manual",
   labels: manualLabels,
-  detect() {
-    return true;
+  detect(environment) {
+    return environment[MANUAL_FILE_MARKER] === "available";
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseManualPayload(context.payload, context.now);

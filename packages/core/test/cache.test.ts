@@ -1,9 +1,21 @@
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  symlink,
+  utimes,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CACHE_FILE_NAME,
+  CACHE_LOCK_NAME,
+  LOCK_STALE_MILLISECONDS,
+  mergeSnapshotCache,
   readSnapshotCache,
   resolveStateDirectory,
   writeSnapshotCache
@@ -49,24 +61,107 @@ describe("snapshot cache", () => {
     await writeSnapshotCache([snapshot()], directory);
     expect(await readSnapshotCache(directory)).toEqual({
       ok: true,
-      snapshots: [snapshot()]
+      snapshots: [snapshot()],
+      dropped: 0
     });
     const raw = await readFile(path.join(directory, CACHE_FILE_NAME), "utf8");
     expect(raw).toContain('"version":1');
     expect(raw.indexOf('"snapshots"')).toBeLessThan(raw.indexOf('"version"'));
   });
 
-  it("rejects corrupt and out of bounds cache data", async () => {
+  it("rejects corrupt cache data and out of bounds writes", async () => {
     const directory = await temporaryDirectory();
     await writeFile(path.join(directory, CACHE_FILE_NAME), "{broken", "utf8");
     expect(await readSnapshotCache(directory)).toEqual({ ok: false, reason: "corrupt" });
     await writeFile(
       path.join(directory, CACHE_FILE_NAME),
-      JSON.stringify({ snapshots: [snapshot({ value: 101 })], version: 1 }),
+      JSON.stringify({ snapshots: "not an array", version: 1 }),
       "utf8"
     );
     expect(await readSnapshotCache(directory)).toEqual({ ok: false, reason: "corrupt" });
     await expect(writeSnapshotCache([snapshot({ value: -1 })], directory)).rejects.toThrow();
+  });
+
+  it("drops one out of bounds row and keeps every other row", async () => {
+    const directory = await temporaryDirectory();
+    await writeFile(
+      path.join(directory, CACHE_FILE_NAME),
+      JSON.stringify({
+        snapshots: [
+          snapshot({ value: 101 }),
+          snapshot({ meter: "SEVEN_DAY", value: 64 })
+        ],
+        version: 1
+      }),
+      "utf8"
+    );
+    expect(await readSnapshotCache(directory)).toEqual({
+      ok: true,
+      snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64 })],
+      dropped: 1
+    });
+  });
+
+  it("reclaims a stale lock instead of freezing the cache", async () => {
+    const directory = await temporaryDirectory();
+    const lockPath = path.join(directory, CACHE_LOCK_NAME);
+    await writeFile(
+      lockPath,
+      JSON.stringify({ at: Date.now() - LOCK_STALE_MILLISECONDS - 60_000, pid: 1 }),
+      "utf8"
+    );
+    await writeSnapshotCache([snapshot()], directory);
+    const result = await readSnapshotCache(directory);
+    expect(result.ok).toBe(true);
+    await expect(access(lockPath)).rejects.toThrow();
+  });
+
+  it("reclaims a stale lock that carries no owner stamp", async () => {
+    const directory = await temporaryDirectory();
+    const lockPath = path.join(directory, CACHE_LOCK_NAME);
+    await writeFile(lockPath, "", "utf8");
+    const stale = new Date(Date.now() - LOCK_STALE_MILLISECONDS - 60_000);
+    await utimes(lockPath, stale, stale);
+    await writeSnapshotCache([snapshot()], directory);
+    expect((await readSnapshotCache(directory)).ok).toBe(true);
+  });
+
+  it("lets several concurrent writers through", async () => {
+    const directory = await temporaryDirectory();
+    const writers = Array.from({ length: 8 }, (_unused, index) =>
+      writeSnapshotCache([snapshot({ value: index + 1 })], directory));
+    const settled = await Promise.allSettled(writers);
+    expect(settled.filter((entry) => entry.status === "fulfilled")).toHaveLength(8);
+    const result = await readSnapshotCache(directory);
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.snapshots : []).toHaveLength(1);
+  });
+
+  it("keeps every concurrent merge instead of losing rows", async () => {
+    const directory = await temporaryDirectory();
+    const merges = Array.from({ length: 8 }, (_unused, index) =>
+      mergeSnapshotCache(
+        [snapshot({ meter: "W_" + String(index), value: index })],
+        directory
+      ));
+    const settled = await Promise.allSettled(merges);
+    expect(settled.filter((entry) => entry.status === "fulfilled")).toHaveLength(8);
+    const result = await readSnapshotCache(directory);
+    expect(result.ok ? result.snapshots : []).toHaveLength(8);
+  });
+
+  it("skips the write when a merge changes nothing", async () => {
+    const directory = await temporaryDirectory();
+    expect((await mergeSnapshotCache([snapshot()], directory)).written).toBe(true);
+    expect((await mergeSnapshotCache([snapshot()], directory)).written).toBe(false);
+    expect((await mergeSnapshotCache([snapshot({ value: 51 })], directory)).written)
+      .toBe(true);
+  });
+
+  it("refuses a cache path that is not a regular file", async () => {
+    const directory = await temporaryDirectory();
+    await mkdir(path.join(directory, CACHE_FILE_NAME));
+    expect((await readSnapshotCache(directory)).ok).toBe(false);
   });
 
   it("rejects a symbolic state directory", async () => {

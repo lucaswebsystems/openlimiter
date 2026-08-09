@@ -8,7 +8,7 @@ Connectors translate a known response shape into raw meters. They perform no net
 
 Adapters translate bounded advice into an agent specific representation. The Claude Code hook reads the cache only.
 
-The CLI coordinates detection, cache reads, caller supplied refresh payloads, diagnostics, demos, and exports.
+The CLI coordinates detection, cache reads, ingestion, diagnostics, demos, and exports. Three ingestion paths feed the cache and none of them reaches the network: a Claude Code statusline payload arriving on standard input, a manual document in the state directory, and the generic ingest command.
 
 ## Snapshot schema
 
@@ -20,11 +20,15 @@ Provider codes, units, sources, precision values, and label values are closed en
 
 Freshness is derived from observedAt, expiresAt, and an injected current time. Pure policy code never reads the system clock.
 
+Displayed percentages are truncated rather than rounded, so no surface can report a cap that was not reached.
+
 ## Connector contract
 
-A connector exposes id, displayName, labels, detect, and read. Detection is pure and uses only the supplied environment map. Read accepts a caller supplied context and returns either meters or a closed failure reason.
+A connector exposes id, displayName, labels, detect, and read. Detection is pure and uses only the supplied environment map. Facts that only the CLI can observe, such as the presence of a manual document, reach detection as explicit environment markers set by the CLI.
 
-Every connector is read only. Missing or unrecognized input returns unknown.
+Read accepts a caller supplied context and returns either meters or a closed failure reason.
+
+Every connector is read only. Missing or unrecognized input returns unknown. A single unusable row is dropped and the remaining rows still count, because one bad window is not a reason to forget a whole provider.
 
 ## One binary, one schema, one cache
 
@@ -33,3 +37,17 @@ One binary gives agent tools and people the same commands.
 One schema prevents provider text from crossing into policy or agent context.
 
 One cache avoids competing state files and keeps the hook path fast. The cache uses one state directory, one file name, one lock name, atomic replacement, strict validation, symbolic link rejection, and restrictive permissions where supported.
+
+## Concurrency and durability
+
+Readers never take the lock. A reader opens the cache file, validates that open descriptor, and reads through it, so a path swapped after the check cannot redirect the bytes. Because every write lands through an atomic rename, a lock free reader still observes either the previous content or the new content and never a partial file.
+
+Writers take one lock file in the state directory. The lock carries the owner process id and a timestamp. A lock older than five seconds is treated as abandoned and reclaimed, and a writer that finds a live lock retries with a bounded backoff instead of failing. A writer only removes a lock that still carries its own stamp.
+
+The read, the merge, and the write of a cache update all happen inside that one lock, so two writers observing different providers cannot silently drop each other's rows.
+
+Every file replacement flushes the payload to stable storage before the rename and retries the transient replacement failures that Windows reports while another process briefly holds the destination open. The configuration file is written the same way. It does not take the cache lock, because it is a different file with a single writer.
+
+## Failure posture
+
+The hook and statusline paths are invoked by another tool, so they exit zero whatever happens and report unknown instead of breaking their host. Every other command returns a distinct exit code: zero for success, one for a genuine failure, two for a usage error, and three when no bounded quota data exists. Messages on standard error are drawn from a fixed set of strings and never carry provider text, paths from a payload, or secrets.
