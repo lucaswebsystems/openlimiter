@@ -1,10 +1,13 @@
-"use client";
+/**
+ * Frequently asked questions.
+ *
+ * Native `details` elements, so the whole block ships without a line of
+ * JavaScript, keeps the keyboard and screen reader behaviour the browser
+ * already provides, and never renders an answer at zero opacity waiting to be
+ * revealed. A closed answer is simply not painted.
+ */
 
-import { useId, useState } from "react";
-import { ScrollReveal } from "./scroll-reveal";
-import { SectionHeading } from "./ui";
-
-const faqItems = [
+const items = [
   {
     question: "What actually leaves my machine?",
     answer:
@@ -13,7 +16,7 @@ const faqItems = [
   {
     question: "Is it safe to point at my tools?",
     answer:
-      "OpenLimiter opens what your installed tools already store, read only, and never rewrites, repairs, or migrates them. Every parser keeps bounded numbers and timestamps and discards provider text before anything reaches your agent.",
+      "OpenLimiter opens what your installed tools already store, read only, and never rewrites, repairs or migrates them. Every parser keeps bounded numbers and timestamps and discards provider text before anything reaches your agent.",
   },
   {
     question: "Can the prompt hook break my session?",
@@ -41,73 +44,45 @@ const faqItems = [
       "Unofficial shapes change without notice. When one does, parsing fails closed: that provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap. Unknown never becomes zero.",
   },
   {
-    question: "What is the paid plan for?",
+    question: "Is there a desktop or phone app?",
     answer:
-      "Everything that runs locally is free and always will be. The only thing that would ever cost money is a hosted service, namely encrypted synchronisation, mobile access, and push alerts, because servers cost money to run. It does not exist yet, there is no checkout, and no feature has been withheld to create it.",
+      "Not yet. A desktop tray application is being built now and the web, iOS and Android builds are planned. None of them can be downloaded, none is in a store, and there is no waiting list. The download page lists every platform with its real state.",
+  },
+  {
+    question: "Is it free?",
+    answer:
+      "Everything that runs locally is free and always will be, under Apache 2.0. The only thing that would ever cost money is a hosted service, namely encrypted synchronisation and push alerts, because servers cost money to run. It does not exist, there is no checkout, and no local feature has been withheld to create it.",
   },
 ];
 
 export function Faq() {
-  const [openIndex, setOpenIndex] = useState<number | null>(0);
-  const baseId = useId();
-
   return (
-    <section id="faq" className="border-t border-hairline px-4 py-20 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl">
-        <ScrollReveal>
-          <SectionHeading
-            eyebrow="Questions"
-            title="Frequently asked questions"
-            lead="Safety, privacy, scope, and what is honestly not built yet."
-          />
-        </ScrollReveal>
-
-        <div className="mt-10 space-y-3">
-          {faqItems.map((item, index) => {
-            const isOpen = openIndex === index;
-            const triggerId = `${baseId}-trigger-${index}`;
-            const panelId = `${baseId}-panel-${index}`;
-            return (
-              <ScrollReveal key={item.question} step={index}>
-                <div className="overflow-hidden rounded-xl border border-hairline bg-surface transition-colors hover:border-hairline-strong">
-                  <h3 className="font-sans text-sm font-medium">
-                    <button
-                      type="button"
-                      id={triggerId}
-                      aria-controls={panelId}
-                      aria-expanded={isOpen}
-                      onClick={() => setOpenIndex(isOpen ? null : index)}
-                      className="focus-ring-inset flex w-full items-center justify-between gap-4 rounded-xl p-5 text-left text-heading"
-                    >
-                      <span>{item.question}</span>
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        strokeWidth="1.8"
-                        className={`h-4 w-4 flex-none stroke-current text-muted transition-transform ${
-                          isOpen ? "rotate-180" : ""
-                        }`}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
-                  </h3>
-                  <div
-                    id={panelId}
-                    role="region"
-                    aria-labelledby={triggerId}
-                    hidden={!isOpen}
-                    className="border-t border-hairline px-5 pb-5 pt-4 font-sans text-sm leading-relaxed text-body"
-                  >
-                    {item.answer}
-                  </div>
-                </div>
-              </ScrollReveal>
-            );
-          })}
-        </div>
+    <div id="faq" className="space-y-6">
+      <h2 className="text-3xl font-medium text-heading">FAQ</h2>
+      <div className="space-y-6">
+        {items.map((item) => (
+          <details key={item.question} className="group">
+            <summary className="focus-ring flex cursor-pointer list-none items-start gap-2 rounded text-sm font-medium text-heading">
+              <span
+                aria-hidden="true"
+                className="mt-px w-3 flex-none font-mono text-muted group-open:hidden"
+              >
+                +
+              </span>
+              <span
+                aria-hidden="true"
+                className="mt-px hidden w-3 flex-none font-mono text-muted group-open:block"
+              >
+                &minus;
+              </span>
+              <span>{item.question}</span>
+            </summary>
+            <div className="mt-2 max-w-xl pl-5 text-sm leading-relaxed text-muted">
+              {item.answer}
+            </div>
+          </details>
+        ))}
       </div>
-    </section>
+    </div>
   );
 }

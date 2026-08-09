@@ -2,11 +2,11 @@
 
 ## Reporting
 
-Report a suspected vulnerability privately to security@openlimiter.com.
+Report a suspected vulnerability with [GitHub private vulnerability reporting](https://github.com/lucaswebsystems/openlimiter/security/advisories/new). Open the repository Security tab, then select Report a vulnerability.
 
 Include a concise description, affected version, reproduction steps using synthetic data, and the expected impact. Do not include real credentials or provider account data.
 
-This address is a project placeholder until the public security intake is activated.
+Do not open a public issue for a suspected vulnerability.
 
 ## Scope
 

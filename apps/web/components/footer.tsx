@@ -1,19 +1,24 @@
 import Link from "next/link";
-import { BrandLockup } from "./brand";
-import { docPages } from "@/lib/docs";
+import { alternatives } from "@/lib/alternatives";
+import { downloadTargets } from "@/lib/downloads";
 import {
-  AUTHOR_GITHUB,
-  AUTHOR_LINKEDIN,
   AUTHOR_NAME,
   AUTHOR_SITE,
-  COFFEE_URL,
   DISCUSSIONS_URL,
   ISSUES_URL,
   LICENSE_URL,
-  RELEASES_URL,
   REPO_URL,
   SPONSORS_URL,
 } from "@/lib/site";
+
+/**
+ * Five columns on a wide screen, two on a narrow one, over a single hairline.
+ *
+ * The Alternatives and Download columns are generated from the same data the
+ * pages themselves render, so a row can never exist in the footer and be
+ * missing from the page it points at. There is no Discord link anywhere on this
+ * site, by instruction.
+ */
 
 interface FooterLink {
   label: string;
@@ -22,120 +27,85 @@ interface FooterLink {
 }
 
 const product: FooterLink[] = [
-  { label: "How it works", href: "/#how-it-works" },
-  { label: "Providers", href: "/#providers" },
-  { label: "Pricing", href: "/#pricing" },
-  { label: "Roadmap", href: "/#roadmap" },
-  { label: "Frequently asked questions", href: "/#faq" },
+  { label: "Documentation", href: "/docs" },
+  { label: "Changelog", href: "/changelog" },
+  { label: "Blog", href: "/blog" },
+  { label: "Roadmap", href: "/docs/roadmap" },
+  { label: "Security", href: "/docs/security" },
 ];
 
-const docs: FooterLink[] = docPages.slice(0, 5).map((page) => ({
-  label: page.title,
-  href: page.href,
+const agents: FooterLink[] = [
+  { label: "Claude Code", href: "/docs/agent-context" },
+  { label: "Codex CLI", href: "/docs/providers" },
+  { label: "OpenCode", href: "/docs/providers" },
+  { label: "Antigravity", href: "/docs/providers" },
+  { label: "All providers", href: "/docs/providers" },
+];
+
+const alternativeLinks: FooterLink[] = alternatives.map((entry) => ({
+  label: entry.name,
+  href: `/alternatives/${entry.slug}`,
 }));
 
 const community: FooterLink[] = [
-  { label: "Repository", href: REPO_URL, external: true },
+  { label: "GitHub", href: REPO_URL, external: true },
   { label: "Issues", href: ISSUES_URL, external: true },
   { label: "Discussions", href: DISCUSSIONS_URL, external: true },
-  { label: "Releases", href: RELEASES_URL, external: true },
+  { label: "Sponsor", href: SPONSORS_URL, external: true },
   { label: "Apache 2.0 licence", href: LICENSE_URL, external: true },
 ];
 
-const support: FooterLink[] = [
-  { label: "GitHub Sponsors", href: SPONSORS_URL, external: true },
-  { label: "Buy me a coffee", href: COFFEE_URL, external: true },
-];
+const download: FooterLink[] = downloadTargets
+  .filter((target) => target.state === "available")
+  .map((target) => ({ label: target.name, href: `/download#${target.id}` }));
+
+const linkClass = "focus-ring rounded text-muted transition-colors hover:text-heading";
 
 function Column({ title, links }: { title: string; links: readonly FooterLink[] }) {
   return (
-    <div>
-      <h2 className="mb-4 font-mono text-2xs uppercase tracking-widest text-muted">{title}</h2>
-      <ul className="space-y-2.5">
+    <div className="space-y-3">
+      <p className="font-medium text-heading">{title}</p>
+      <div className="space-y-2">
         {links.map((link) => (
-          <li key={link.label}>
+          <div key={`${link.label}-${link.href}`}>
             {link.external === true ? (
-              <a
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="focus-ring rounded font-sans text-sm text-body transition-colors hover:text-heading"
-              >
+              <a href={link.href} target="_blank" rel="noopener noreferrer" className={linkClass}>
                 {link.label}
               </a>
             ) : (
-              <Link
-                href={link.href}
-                className="focus-ring rounded font-sans text-sm text-body transition-colors hover:text-heading"
-              >
+              <Link href={link.href} className={linkClass}>
                 {link.label}
               </Link>
             )}
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
 
 export function Footer() {
   return (
-    <footer className="border-t border-hairline bg-canvas px-4 py-16 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-5">
-          <div className="lg:col-span-1">
-            <Link href="/" aria-label="OpenLimiter, home" className="focus-ring inline-flex rounded-md">
-              <BrandLockup markClassName="h-7 w-7 flex-none text-accent-solid" wordClassName="text-base" />
-            </Link>
-            <p className="mt-4 max-w-xs font-sans text-sm leading-relaxed text-body">
-              An open source quota meter for the AI subscriptions you already pay for. It runs on
-              your machine and reports to nobody.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4 lg:col-span-4">
-            <Column title="Product" links={product} />
-            <Column title="Docs" links={docs} />
-            <Column title="Community" links={community} />
-            <Column title="Support" links={support} />
-          </div>
-        </div>
-
-        <div className="mt-14 flex flex-col gap-4 border-t border-hairline pt-8 sm:flex-row sm:items-center sm:justify-between">
-          <p className="font-mono text-2xs text-muted">
-            Apache 2.0. Local first. Zero telemetry. No accounts.
-          </p>
-          <p className="flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-2xs text-muted">
-            <span>
-              Built by{" "}
-              <a
-                href={AUTHOR_SITE}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
-              >
-                {AUTHOR_NAME}
-              </a>
-            </span>
-            <a
-              href={AUTHOR_GITHUB}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="focus-ring rounded transition-colors hover:text-heading"
-            >
-              GitHub
-            </a>
-            <a
-              href={AUTHOR_LINKEDIN}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="focus-ring rounded transition-colors hover:text-heading"
-            >
-              LinkedIn
-            </a>
-          </p>
-        </div>
+    <footer className="mx-auto max-w-5xl p-6 md:p-20 md:pt-0">
+      <div className="grid grid-cols-2 gap-8 border-t border-hairline pb-4 pt-8 text-sm sm:grid-cols-5">
+        <Column title="Product" links={product} />
+        <Column title="Agents" links={agents} />
+        <Column title="Alternatives" links={alternativeLinks} />
+        <Column title="Community" links={community} />
+        <Column title="Download" links={download} />
       </div>
+      <p className="pt-6 text-xs text-muted">
+        Apache 2.0. Local first. Zero telemetry. No accounts. Built by{" "}
+        <a
+          href={AUTHOR_SITE}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+        >
+          {AUTHOR_NAME}
+        </a>
+        .
+      </p>
     </footer>
   );
 }

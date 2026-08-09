@@ -7,11 +7,11 @@ All notable project changes appear in this file.
 ### Added
 
 - The strict snapshot core: bounded validation, an atomic cache, freshness, forecast, and the advice policy.
-- Six read only connectors, every one marked UNVERIFIED, each with synthetic fixtures: Claude Code's native statusline payload, OpenRouter's documented credits API, unofficial internal endpoints for Codex and Antigravity, a session based interface for OpenCode, and manual entry.
+- Six read only bounded payload parsers, every one marked UNVERIFIED and covered by synthetic fixtures. Claude arrives through native statusline input. Manual arrives from a local document or explicit ingest. OpenRouter, Codex, Antigravity, and OpenCode currently arrive only through explicit ingest payloads.
 - A CLI with eight commands: init, snapshot, statusline, hook, doctor, demo, export, and ingest.
 - Three offline ingestion paths: the Claude Code statusline payload on standard input, a manual JSON document on disk, and the generic ingest command.
 - A Claude Code adapter: a compact statusline and a UserPromptSubmit hook that injects bounded budget state and routing advice.
-- 100 tests, with continuous integration running on Windows and Linux.
+- The full test suite runs in continuous integration on Windows and Linux for pull requests and pushes to `main`.
 - The openlimiter.com site, with documentation.
 
 ### Security
@@ -23,6 +23,6 @@ All notable project changes appear in this file.
 
 ### Notes
 
-- The Codex, Antigravity, and OpenCode connectors describe unofficial interfaces that can change or disappear without notice. All three currently accept data only through `openlimiter ingest --provider <id>`.
-- The OpenRouter connector uses a documented API, but its credential store driver is intentionally stubbed in this release, so `openlimiter init` cannot store a key yet.
+- The Codex, Antigravity, and OpenCode connectors describe unofficial interfaces that can change or disappear without notice. They currently accept data only through `openlimiter ingest --provider <id>`.
+- The OpenRouter connector parses its documented API response, but no API client or local reader ships. It currently accepts data only through `openlimiter ingest --provider openrouter`.
 - Desktop, mobile, and encrypted sync are planned, not built. See the roadmap: https://openlimiter.com/docs/roadmap

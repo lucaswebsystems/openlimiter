@@ -41,6 +41,12 @@ import {
   UnavailableCredentialStore,
   type CredentialStore
 } from "./credentials.js";
+import {
+  DEFAULT_SERVE_PORT,
+  serveBanner,
+  startQuotaServer,
+  type QuotaServerHandle
+} from "./serve.js";
 
 export interface CliDependencies {
   environment: Readonly<Record<string, string | undefined>>;
@@ -57,6 +63,21 @@ export interface CliDependencies {
    * process by a test or another tool.
    */
   readStandardInput: () => Promise<string | null>;
+  /**
+   * Whether output may carry terminal colour.
+   *
+   * The QR symbol the serve command prints has to state its own black and
+   * white, because a dark themed terminal would otherwise invert it and no
+   * camera would read it.
+   */
+  colorOutput: boolean;
+  /**
+   * Called once the serve command is listening.
+   *
+   * The serve command never returns on its own, so this is the seam a test or
+   * a parent process uses to reach the handle and close it again.
+   */
+  onListening?: (handle: QuotaServerHandle) => void;
 }
 
 export interface CliResult {
@@ -78,7 +99,8 @@ function defaults(): CliDependencies {
     promptForSecret: async () => "",
     now: () => new Date().toISOString(),
     payloads: {},
-    readStandardInput: async () => null
+    readStandardInput: async () => null,
+    colorOutput: process.stdout.isTTY === true
   };
 }
 
@@ -197,8 +219,11 @@ const help = [
   "openlimiter doctor",
   "openlimiter demo",
   "openlimiter export",
+  "openlimiter serve [--port <n>] [--host <address>] [--no-qr]",
   "",
   "statusline and ingest read JSON from standard input when it is piped in.",
+  "serve publishes read only quota on your local network, behind a token that",
+  "changes on every start. It is for a trusted network, not the internet.",
   "Exit codes: 0 success, 1 failure, 2 usage, 3 no bounded quota data."
 ].join("\n");
 
@@ -380,6 +405,55 @@ async function ingestCommand(
   }
 }
 
+/**
+ * Publish the cached quota on the local network, read only.
+ *
+ * This is the one command that does not finish. It returns its banner as soon
+ * as the socket is bound, and the listening socket is what keeps the process
+ * alive afterwards, so the caller writes the banner exactly once and then gets
+ * out of the way.
+ */
+async function serveCommand(
+  dependencies: CliDependencies,
+  argumentsList: readonly string[]
+): Promise<CliResult> {
+  const portText = flagValue(argumentsList, "--port");
+  if (argumentsList.includes("--port") && portText === undefined) {
+    return fail(EXIT_USAGE, "openlimiter serve: the port flag needs a value.");
+  }
+  const port = portText === undefined ? DEFAULT_SERVE_PORT : Number(portText);
+  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+    return fail(
+      EXIT_USAGE,
+      "openlimiter serve: the port must be a whole number from 0 to 65535."
+    );
+  }
+  const host = flagValue(argumentsList, "--host");
+  if (argumentsList.includes("--host") && host === undefined) {
+    return fail(EXIT_USAGE, "openlimiter serve: the host flag needs a value.");
+  }
+  try {
+    const handle = await startQuotaServer({
+      port,
+      ...(host === undefined ? {} : { host }),
+      stateDirectory: dependencies.stateDirectory,
+      now: dependencies.now
+    });
+    dependencies.onListening?.(handle);
+    return succeed(
+      serveBanner(handle, {
+        color: dependencies.colorOutput,
+        withoutQr: argumentsList.includes("--no-qr")
+      })
+    );
+  } catch {
+    return fail(
+      EXIT_FAILURE,
+      "openlimiter serve: that address and port could not be opened."
+    );
+  }
+}
+
 export async function runCli(
   argumentsList: readonly string[],
   overrides: Partial<CliDependencies> = {}
@@ -412,6 +486,7 @@ export async function runCli(
     if (command === "ingest") {
       return await ingestCommand(dependencies, argumentsList, now);
     }
+    if (command === "serve") return await serveCommand(dependencies, argumentsList);
     if (command === "help" || command === "--help" || command === "-h") {
       return succeed(help);
     }

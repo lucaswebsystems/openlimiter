@@ -34,3 +34,5 @@ Document any future egress host in THREAT_MODEL.md before adding network behavio
 ## Prose rule
 
 Project prose does not use dash characters. Reword prose with commas, periods, parentheses, or colons. Technical identifiers, package names, paths, flags, and URLs keep their required spelling.
+
+Legal text is permanently exempt from this prose rule and must remain verbatim.

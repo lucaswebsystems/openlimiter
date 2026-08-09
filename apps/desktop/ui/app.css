@@ -1,0 +1,244 @@
+/*
+ * The window, in the site's own palette.
+ *
+ * Every value here mirrors a token in apps/web/app/globals.css by name, so the
+ * window and the web application read as one product in both themes. There is
+ * no font file and no image: the system typeface and the OpenLimiter blue are
+ * the whole design, which keeps the bundle small and the first paint instant.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --canvas: #ffffff;
+  --surface: #f6f6f7;
+  --raised: #efeff1;
+  --code: #f4f4f5;
+  --track: #e2e2e6;
+  --hairline: #e5e5e8;
+  --hairline-strong: #d2d2d8;
+  --heading: #0d0d0f;
+  --body: #53535c;
+  --muted: #62626c;
+  --accent: #0866ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #0a0a0b;
+    --surface: #121214;
+    --raised: #1a1a1d;
+    --code: #0e0e10;
+    --track: #26262b;
+    --hairline: #232327;
+    --hairline-strong: #33333a;
+    --heading: #f2f2f3;
+    --body: #adadb6;
+    --muted: #94949e;
+    --accent: #6ba6ff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--body);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* A window is dragged by its title bar, never by selecting its contents. */
+  user-select: none;
+}
+
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--canvas) 90%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--hairline);
+}
+
+h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--heading);
+}
+
+h2 {
+  margin: 0 0 8px;
+  font: 500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sub {
+  margin: 2px 0 0;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--surface);
+  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+button {
+  padding: 5px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--heading);
+  font: 500 12px/1.4 inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+button:hover {
+  background: var(--raised);
+  border-color: var(--hairline-strong);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+main {
+  padding: 14px 16px 24px;
+}
+
+.cards {
+  display: grid;
+  gap: 8px;
+}
+
+.card {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 12px 14px;
+}
+
+.card.unknown {
+  border-style: dashed;
+  border-color: var(--hairline-strong);
+  background: var(--canvas);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--heading);
+}
+
+.value {
+  font: 600 18px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.value.none {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.bar-track {
+  margin-top: 9px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.bar-fill.stale {
+  background: var(--hairline-strong);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+}
+
+.block {
+  margin-top: 18px;
+}
+
+pre {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--code);
+  font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--body);
+  white-space: pre-wrap;
+  word-break: break-word;
+  /* The one thing worth copying out of this window. */
+  user-select: text;
+}
+
+footer {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+footer p {
+  margin: 0 0 6px;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+  word-break: break-all;
+}

@@ -16,6 +16,9 @@ function resolveTheme(): Theme {
  * on the first server rendered paint and reads no browser global during render.
  * The state below exists only to describe the control to assistive technology
  * once it has mounted, which is why it starts as null.
+ *
+ * It is drawn as a bare 18 pixel icon, the same size and colour as the GitHub
+ * mark beside it, so the header row stays 28 pixels tall.
  */
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const [theme, setTheme] = useState<Theme | null>(null);
@@ -42,14 +45,14 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       aria-pressed={theme === null ? undefined : theme === "dark"}
       aria-label="Switch between the light and dark theme"
       title="Switch between the light and dark theme"
-      className={`focus-ring flex h-8 w-8 items-center justify-center rounded-md border border-hairline bg-surface text-muted transition-colors hover:border-hairline-strong hover:text-heading ${className}`}
+      className={`focus-ring inline-flex items-center justify-center rounded text-muted transition-colors hover:text-heading ${className}`}
     >
       {/* Moon, offered while the light theme is active. */}
       <svg
-        className="icon-to-dark h-4 w-4 stroke-current"
+        className="icon-to-dark h-[18px] w-[18px] stroke-current"
         viewBox="0 0 24 24"
         fill="none"
-        strokeWidth="1.6"
+        strokeWidth="1.8"
         aria-hidden="true"
       >
         <path
@@ -60,10 +63,10 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       </svg>
       {/* Sun, offered while the dark theme is active. */}
       <svg
-        className="icon-to-light h-4 w-4 stroke-current"
+        className="icon-to-light h-[18px] w-[18px] stroke-current"
         viewBox="0 0 24 24"
         fill="none"
-        strokeWidth="1.6"
+        strokeWidth="1.8"
         aria-hidden="true"
       >
         <circle cx="12" cy="12" r="4" />

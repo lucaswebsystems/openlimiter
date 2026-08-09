@@ -87,6 +87,18 @@ export interface ConnectorContract {
 
 export type AdviceReason = "HEALTHY" | "NEAR_CAP" | "AT_CAP" | "UNKNOWN";
 
+export type AdviceRecommendation =
+  | {
+      code: "PREFER";
+      provider: ProviderCode;
+      reason: "LOWEST_USAGE" | "ORDERED_TIE_BREAK";
+    }
+  | {
+      code: "NONE";
+      provider: null;
+      reason: "NO_KNOWN_PROVIDER" | "NO_FRESH_DATA" | "NO_HEALTHY_PROVIDER";
+    };
+
 export interface AdviceProvider {
   provider: ProviderCode;
   state: "fresh" | "stale";
@@ -97,6 +109,7 @@ export interface AdviceProvider {
 export interface Advice {
   inject: boolean;
   reason: AdviceReason;
+  recommendation: AdviceRecommendation;
   providers: readonly AdviceProvider[];
   unknownProviders: readonly ProviderCode[];
 }

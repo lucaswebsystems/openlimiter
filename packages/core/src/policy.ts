@@ -3,6 +3,7 @@ import {
   PROVIDER_CODES,
   type Advice,
   type AdviceProvider,
+  type AdviceRecommendation,
   type ProviderCode,
   type Snapshot
 } from "./types.js";
@@ -19,6 +20,29 @@ const priority: Record<Advice["reason"], number> = {
   NEAR_CAP: 2,
   AT_CAP: 3
 };
+
+function recommendationFor(known: readonly AdviceProvider[]): AdviceRecommendation {
+  const fresh = known.filter((provider) => provider.state === "fresh");
+  if (fresh.length === 0) {
+    return { code: "NONE", provider: null, reason: "NO_FRESH_DATA" };
+  }
+  const usable = fresh.filter((provider) => provider.usagePercent < 80);
+  if (usable.length === 0) {
+    return { code: "NONE", provider: null, reason: "NO_HEALTHY_PROVIDER" };
+  }
+  let best = usable[0]!;
+  for (const candidate of usable.slice(1)) {
+    if (candidate.usagePercent < best.usagePercent) best = candidate;
+  }
+  const tied = usable.filter(
+    (candidate) => candidate.usagePercent === best.usagePercent
+  ).length > 1;
+  return {
+    code: "PREFER",
+    provider: best.provider,
+    reason: tied ? "ORDERED_TIE_BREAK" : "LOWEST_USAGE"
+  };
+}
 
 export function buildAdvice(
   snapshots: readonly Snapshot[],
@@ -52,6 +76,11 @@ export function buildAdvice(
     return {
       inject: false,
       reason: "UNKNOWN",
+      recommendation: {
+        code: "NONE",
+        provider: null,
+        reason: "NO_KNOWN_PROVIDER"
+      },
       providers: [],
       unknownProviders: [...expectedProviders]
     };
@@ -65,5 +94,11 @@ export function buildAdvice(
       (worst, current) => priority[current] > priority[worst] ? current : worst,
       "HEALTHY" as Advice["reason"]
     );
-  return { inject: true, reason, providers: known, unknownProviders };
+  return {
+    inject: true,
+    reason,
+    recommendation: recommendationFor(known),
+    providers: known,
+    unknownProviders
+  };
 }

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the OpenLimiter window is allowed to do. Nothing beyond the core set: no file system plugin, no shell, no network plugin, no clipboard. The three commands this application defines are its own and need no permission entry.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

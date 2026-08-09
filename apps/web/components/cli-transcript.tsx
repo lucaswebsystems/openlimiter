@@ -1,3 +1,4 @@
+import { DemoDataChip } from "./ui";
 import type { CliCapture } from "@/lib/cli-capture";
 
 /**
@@ -7,6 +8,9 @@ import type { CliCapture } from "@/lib/cli-capture";
  * per whole line, chosen by matching the line's own prefix, so no character is
  * ever added, dropped, or rewritten on the way to the screen. The `$` in front
  * of the command is the shell prompt, not part of any captured output.
+ *
+ * The chip in the caption row is not decoration. Every capture on this site was
+ * taken against synthetic fixtures, so every rendering of one says so.
  */
 
 function lineTone(line: string): string {
@@ -21,17 +25,22 @@ export function CliTranscript({ capture }: { capture: CliCapture }) {
   const lines = capture.output.split("\n");
 
   return (
-    <div>
-      <p className="mb-3 font-mono text-2xs uppercase tracking-widest text-muted">
-        {capture.caption}
-      </p>
-      <div className="overflow-x-auto rounded-xl border border-hairline bg-code px-4 py-3">
+    /* min-w-0 so a wide capture scrolls inside its own box rather than
+       stretching whatever grid or flex row holds it. */
+    <div className="min-w-0">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="font-mono text-2xs uppercase tracking-widest text-muted">
+          {capture.caption}
+        </p>
+        <DemoDataChip />
+      </div>
+      <div className="overflow-x-auto rounded-lg border border-hairline bg-code px-4 py-3">
         <pre className="font-mono text-2xs leading-6">
           <code>
             <span aria-hidden="true" className="select-none text-accent">
               {"$ "}
             </span>
-            <span className="text-body">{capture.command}</span>
+            <span className="text-soft">{capture.command}</span>
             {"\n"}
             {lines.map((line, index) => (
               <span key={line} className={lineTone(line)}>

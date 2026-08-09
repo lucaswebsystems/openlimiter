@@ -1,0 +1,22 @@
+{
+  "generatedBy": "app/app/engine/sync.mjs",
+  "sources": {
+    "core/types.ts": "0997908e23de6692",
+    "core/format.ts": "060178a0ef47ac5d",
+    "core/forecast.ts": "5155cb1a6fde4a0e",
+    "core/freshness.ts": "ac39aeaff84f6eda",
+    "core/merge.ts": "dd744cdda50d9dde",
+    "core/normalizer.ts": "39923e7d13ea21d5",
+    "core/policy.ts": "19e9302f94e60c47",
+    "connectors/shared.ts": "fd2d170dd9ce3700",
+    "connectors/antigravity.ts": "a7d733d9f634dedf",
+    "connectors/claude.ts": "7df4e73d1eefc35e",
+    "connectors/codex.ts": "4b789b44954e7955",
+    "connectors/fixtures.ts": "db3f660be0321236",
+    "connectors/manual.ts": "6f78cc480072b7b7",
+    "connectors/opencode.ts": "a05d3bee2eebe63a",
+    "connectors/openrouter.ts": "99ce8f3971f76865",
+    "connectors/index.ts": "5d3d9d51c917208f",
+    "adapters/claude-code.ts": "fad517bcf4d12f10"
+  }
+}

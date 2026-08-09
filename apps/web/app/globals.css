@@ -6,22 +6,22 @@
   Every colour on this site is one of the variables below, and every one is
   defined for both themes. The `@theme inline` block only forwards the variable
   into Tailwind, so a utility such as `bg-canvas` resolves at paint time and
-  follows whichever theme is active.
+  follows whichever theme is active. No component file carries a raw colour.
 
-  Theme resolution, in order:
-    1. `:root` carries the light palette, which is the fallback for every case.
-    2. The media block swaps in the dark palette when the visitor's system asks
-       for dark and no explicit light choice is stored.
-    3. `:root[data-theme="dark"]` and `:root[data-theme="light"]` let the toggle
-       win in both directions. They come last so they beat the media block.
+  The dark palette is measured, not invented. Canvas, body text, muted text and
+  the button colours are the values read off the reference build at 1440, so the
+  green tinted charcoal and its greys are reproduced rather than approximated.
+  The surface steps below canvas are the solid equivalents of the reference's
+  white alpha overlays: card is white at 3 percent over canvas, card-strong is
+  white at 5, hairline is white at 10 and hairline-strong is white at 20.
 
-  Contrast, measured with the WCAG formula, worst case among the pairings the
-  site actually renders:
-    light: muted on accent-subtle 4.93:1, on-accent on accent-solid 4.82:1
-    dark:  muted on raised 5.78:1, on-accent on accent-solid 4.82:1
-  Everything else sits higher. Normal text therefore clears AA 4.5:1 in both
-  themes. `accent-solid` is the one colour that carries text, and it carries
-  only `on-accent`.
+  The light palette keeps the same structure and the same tint, flipped.
+
+  Contrast, measured in the browser on the built pages, worst case among the
+  pairings the site actually renders:
+    dark:  muted on card 7.52:1, nav link on canvas 8.05:1, code 9.26:1
+    light: muted on card 5.80:1, nav link on canvas 6.17:1, accent chip 6.45:1
+  Everything else sits higher, so normal text clears AA 4.5:1 in both themes.
 */
 
 @theme inline {
@@ -29,6 +29,7 @@
   --color-surface: var(--ol-surface);
   --color-raised: var(--ol-raised);
   --color-code: var(--ol-code);
+  --color-frame: var(--ol-frame);
   --color-track: var(--ol-track);
 
   --color-hairline: var(--ol-hairline);
@@ -36,6 +37,7 @@
 
   --color-heading: var(--ol-heading);
   --color-body: var(--ol-body);
+  --color-soft: var(--ol-soft);
   --color-muted: var(--ol-muted);
 
   --color-accent: var(--ol-accent);
@@ -46,45 +48,55 @@
   --color-on-accent: var(--ol-on-accent);
 
   --color-solid: var(--ol-solid);
+  --color-solid-hover: var(--ol-solid-hover);
   --color-on-solid: var(--ol-on-solid);
 }
 
 @theme {
-  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  /* The wordmark face. Used by the lockup and by nothing else. */
-  --font-display: var(--font-baloo), var(--font-geist-sans), system-ui, sans-serif;
+  /* The plain system stack, exactly as the reference uses it. There is no
+     brand face on this site: headings, body and the wordmark all render in
+     whatever the visitor's operating system calls its interface font. */
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
+
+  /* The one radius the standard scale does not cover: a phone shell. */
+  --radius-phone: 2.5rem;
 }
 
 /* Light palette. Also the fallback for every browser and every theme state. */
 :root {
   color-scheme: light;
 
-  --ol-canvas: #ffffff;
-  --ol-surface: #f6f6f7;
-  --ol-raised: #efeff1;
-  --ol-code: #f4f4f5;
-  --ol-track: #e2e2e6;
+  --ol-canvas: #f7f9f8;
+  --ol-surface: #f0f2f1;
+  --ol-raised: #ebedec;
+  --ol-code: #eef1f0;
+  --ol-frame: #eceeed;
+  --ol-track: #d5d9d7;
 
-  --ol-hairline: #e5e5e8;
-  --ol-hairline-strong: #d2d2d8;
+  --ol-hairline: #dee0df;
+  --ol-hairline-strong: #c6c7c6;
 
-  --ol-heading: #0d0d0f;
-  --ol-body: #53535c;
-  --ol-muted: #62626c;
+  --ol-heading: #101615;
+  --ol-body: #101615;
+  --ol-soft: #464d4b;
+  --ol-muted: #55605d;
 
-  --ol-accent: #0b5ad0;
-  --ol-accent-hover: #0947a8;
-  --ol-accent-subtle: #e0e9f7;
-  --ol-accent-solid: #0866ff;
-  --ol-accent-solid-hover: #0a58ca;
+  --ol-accent: #115e59;
+  --ol-accent-hover: #134e4a;
+  --ol-accent-subtle: #dcf1ed;
+  --ol-accent-solid: #0f766e;
+  --ol-accent-solid-hover: #115e59;
   --ol-on-accent: #ffffff;
 
-  --ol-solid: #131316;
-  --ol-on-solid: #ffffff;
+  --ol-solid: #101615;
+  --ol-solid-hover: #232d2b;
+  --ol-on-solid: #fafafa;
 }
 
 /* Dark palette, for a visitor whose system asks for it and who has not
@@ -93,28 +105,31 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --ol-canvas: #0a0a0b;
-    --ol-surface: #121214;
-    --ol-raised: #1a1a1d;
-    --ol-code: #0e0e10;
-    --ol-track: #26262b;
+    --ol-canvas: #101615;
+    --ol-surface: #171d1c;
+    --ol-raised: #1c2221;
+    --ol-code: #0d1211;
+    --ol-frame: #181b1a;
+    --ol-track: #333a38;
 
-    --ol-hairline: #232327;
-    --ol-hairline-strong: #33333a;
+    --ol-hairline: #272d2c;
+    --ol-hairline-strong: #3f4544;
 
-    --ol-heading: #f2f2f3;
-    --ol-body: #adadb6;
-    --ol-muted: #94949e;
+    --ol-heading: #fafafa;
+    --ol-body: #fafafa;
+    --ol-soft: #b4b6b5;
+    --ol-muted: #a8adac;
 
-    --ol-accent: #6ba6ff;
-    --ol-accent-hover: #8cbbff;
-    --ol-accent-subtle: #132238;
-    --ol-accent-solid: #0866ff;
-    --ol-accent-solid-hover: #0a58ca;
-    --ol-on-accent: #ffffff;
+    --ol-accent: #5eead4;
+    --ol-accent-hover: #99f6e4;
+    --ol-accent-subtle: #14302b;
+    --ol-accent-solid: #2dd4bf;
+    --ol-accent-solid-hover: #5eead4;
+    --ol-on-accent: #101615;
 
-    --ol-solid: #f2f2f3;
-    --ol-on-solid: #0a0a0b;
+    --ol-solid: #fafafa;
+    --ol-solid-hover: #e4e4e4;
+    --ol-on-solid: #101615;
   }
 }
 
@@ -122,28 +137,31 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --ol-canvas: #0a0a0b;
-  --ol-surface: #121214;
-  --ol-raised: #1a1a1d;
-  --ol-code: #0e0e10;
-  --ol-track: #26262b;
+  --ol-canvas: #101615;
+  --ol-surface: #171d1c;
+  --ol-raised: #1c2221;
+  --ol-code: #0d1211;
+  --ol-frame: #181b1a;
+  --ol-track: #333a38;
 
-  --ol-hairline: #232327;
-  --ol-hairline-strong: #33333a;
+  --ol-hairline: #272d2c;
+  --ol-hairline-strong: #3f4544;
 
-  --ol-heading: #f2f2f3;
-  --ol-body: #adadb6;
-  --ol-muted: #94949e;
+  --ol-heading: #fafafa;
+  --ol-body: #fafafa;
+  --ol-soft: #b4b6b5;
+  --ol-muted: #a8adac;
 
-  --ol-accent: #6ba6ff;
-  --ol-accent-hover: #8cbbff;
-  --ol-accent-subtle: #132238;
-  --ol-accent-solid: #0866ff;
-  --ol-accent-solid-hover: #0a58ca;
-  --ol-on-accent: #ffffff;
+  --ol-accent: #5eead4;
+  --ol-accent-hover: #99f6e4;
+  --ol-accent-subtle: #14302b;
+  --ol-accent-solid: #2dd4bf;
+  --ol-accent-solid-hover: #5eead4;
+  --ol-on-accent: #101615;
 
-  --ol-solid: #f2f2f3;
-  --ol-on-solid: #0a0a0b;
+  --ol-solid: #fafafa;
+  --ol-solid-hover: #e4e4e4;
+  --ol-on-solid: #101615;
 }
 
 :root[data-theme="light"] {
@@ -161,8 +179,7 @@ html {
   color: var(--ol-body);
   font-family: var(--font-sans);
   scroll-behavior: smooth;
-  /* Anchor targets clear the sticky header. */
-  scroll-padding-top: 5rem;
+  scroll-padding-top: 2rem;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -231,30 +248,53 @@ body {
   display: block;
 }
 
-/* Scroll reveal.
-   Wrappers are visible by default. The hidden state applies only while the
-   document is armed by the inline script in the layout, so a failure in that
-   script, in hydration, or in the observer can never hide content. */
-[data-reveal] {
-  transition-property: opacity, transform;
-  transition-duration: 400ms;
-  transition-timing-function: cubic-bezier(0.21, 0.47, 0.32, 0.98);
-  transition-delay: var(--reveal-delay, 0ms);
+/*
+  The integration strip.
+
+  Two rows of real integration cards sliding in opposite directions. Each track
+  holds its list twice, so the second copy arrives exactly as the first leaves
+  and the loop has no seam. Nothing here fades: every card sits at full opacity
+  from the first paint, and a reader who never scrolls still sees the whole
+  strip. Hovering pauses it, and a visitor who asked for less motion gets a
+  still strip that simply wraps onto as many lines as it needs.
+*/
+.strip {
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 6%,
+    black 94%,
+    transparent
+  );
 }
 
-[data-reveal-armed="1"] [data-reveal]:not([data-reveal-shown]) {
-  opacity: 0;
-  transform: translateY(16px);
+.strip-track {
+  display: flex;
+  width: max-content;
+  gap: 1rem;
+  animation: strip-slide 46s linear infinite;
 }
 
-/* Stagger scale, 50ms per step. */
-[data-reveal-step="1"] { --reveal-delay: 50ms; }
-[data-reveal-step="2"] { --reveal-delay: 100ms; }
-[data-reveal-step="3"] { --reveal-delay: 150ms; }
-[data-reveal-step="4"] { --reveal-delay: 200ms; }
-[data-reveal-step="5"] { --reveal-delay: 250ms; }
-[data-reveal-step="6"] { --reveal-delay: 300ms; }
-[data-reveal-step="7"] { --reveal-delay: 350ms; }
+.strip-track-reverse {
+  animation-direction: reverse;
+}
+
+.strip:hover .strip-track,
+.strip:focus-within .strip-track {
+  animation-play-state: paused;
+}
+
+@keyframes strip-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* Half the track is one full copy of the list, plus the gap that follows
+       its last card, which is where the second copy starts. */
+    transform: translateX(calc(-50% - 0.5rem));
+  }
+}
 
 /* The mark draw.
 
@@ -304,16 +344,20 @@ body {
     scroll-behavior: auto !important;
   }
 
-  /* The arming script already stands down under reduced motion. This is the
-     belt and braces: reveal wrappers stay visible and still. */
-  [data-reveal] {
-    opacity: 1 !important;
-    transform: none !important;
-    transition: none !important;
+  /* The strip stops sliding and wraps instead, so every card is still
+     reachable without motion and without a horizontal scrollbar. */
+  .strip {
+    mask-image: none;
   }
 
-  /* Same for the mark. It renders complete and still, with no dash state and
-     no animation at all, whatever the arming script managed to do. */
+  .strip-track {
+    width: 100%;
+    flex-wrap: wrap;
+    animation: none !important;
+  }
+
+  /* The mark renders complete and still, with no dash state and no animation
+     at all, whatever the arming script managed to do. */
   [data-brand-mark="draw"] path {
     stroke-dasharray: none !important;
     animation: none !important;

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>OpenLimiter</title>
+    <link rel="stylesheet" href="./app.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div>
+        <h1>OpenLimiter</h1>
+        <p class="sub" id="stamp">Reading the local cache.</p>
+      </div>
+      <div class="actions">
+        <span class="state" id="reason"><span class="dot" id="dot"></span><span id="reason-text">reading</span></span>
+        <button type="button" id="refresh">Refresh</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="cards" class="cards"></section>
+
+      <section class="block">
+        <h2>What an agent would be told</h2>
+        <pre id="context">Nothing yet.</pre>
+      </section>
+
+      <section class="block">
+        <h2>Statusline</h2>
+        <pre id="statusline">OpenLimiter UNKNOWN</pre>
+      </section>
+
+      <footer>
+        <p id="where">Looking for the cache.</p>
+        <p>
+          Local first. This window reads, it never writes, it never touches a
+          credential, and it opens no connection to anything.
+        </p>
+      </footer>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -1,97 +1,78 @@
-"use client";
-
 import Link from "next/link";
-import { useState } from "react";
 import { BrandLockup } from "./brand";
-import { GitHubMark } from "./ui";
 import { ThemeToggle } from "./theme-toggle";
-import { REPO_URL } from "@/lib/site";
+import { GitHubMark } from "./ui";
+import { fetchStarCount, formatStarCount } from "@/lib/github";
+import { REPO_URL, SPONSORS_URL } from "@/lib/site";
+
+/**
+ * The header.
+ *
+ * Static position, no background, no bottom border, no backdrop filter and 28
+ * pixels tall, which is the whole of it. It scrolls away with the page. There
+ * is no hamburger either: below the medium breakpoint the row becomes a column
+ * and the links wrap, so the entire header ships without a line of client side
+ * JavaScript apart from the theme toggle.
+ *
+ * The star count comes from the GitHub API at render time and is cached for an
+ * hour. When that request cannot be trusted the chip renders as a plain link
+ * with no number: see lib/github.ts, which can only ever return a real count or
+ * nothing at all.
+ */
 
 const links = [
   { label: "Docs", href: "/docs" },
-  { label: "Providers", href: "/#providers" },
-  { label: "Pricing", href: "/#pricing" },
-  { label: "FAQ", href: "/#faq" },
+  { label: "Web app", href: "/app" },
+  { label: "Changelog", href: "/changelog" },
+  { label: "Download", href: "/download" },
+  { label: "Blog", href: "/blog" },
 ];
 
-export function Nav() {
-  const [menuOpen, setMenuOpen] = useState(false);
+const linkClass =
+  "focus-ring rounded text-sm text-muted transition-colors hover:text-heading";
+
+export async function Nav() {
+  const stars = await fetchStarCount();
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-hairline bg-canvas/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        <Link href="/" aria-label="OpenLimiter, home" className="focus-ring flex rounded-md">
+    <nav className="mx-auto mb-16 max-w-7xl px-6 pt-6 md:px-32 md:pt-20">
+      <header className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
+        <Link href="/" aria-label="OpenLimiter, home" className="focus-ring flex rounded">
           {/* The one instance allowed to play the draw in. See lib/brand.ts. */}
-          <BrandLockup draw markClassName="h-7 w-7 flex-none text-accent-solid" wordClassName="text-base" />
+          <BrandLockup draw />
         </Link>
 
-        <nav aria-label="Main" className="hidden items-center gap-6 md:flex">
+        <div className="flex flex-wrap items-center justify-center gap-4">
           {links.map((link) => (
-            <Link
-              key={link.label}
-              href={link.href}
-              className="focus-ring rounded text-sm font-medium text-body transition-colors hover:text-heading"
-            >
+            <Link key={link.label} href={link.href} className={linkClass}>
               {link.label}
             </Link>
           ))}
           <a
+            href={SPONSORS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClass}
+          >
+            Sponsor
+          </a>
+          <a
             href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="focus-ring flex items-center gap-1.5 rounded text-sm font-medium text-body transition-colors hover:text-heading"
+            aria-label={
+              stars === null
+                ? "OpenLimiter on GitHub"
+                : `OpenLimiter on GitHub, ${stars} stars`
+            }
+            className={`${linkClass} inline-flex items-center gap-1.5`}
           >
-            <GitHubMark className="h-4 w-4" />
-            GitHub
+            <GitHubMark className="h-[18px] w-[18px]" />
+            {stars !== null && <span className="text-sm">{formatStarCount(stars)}</span>}
           </a>
-        </nav>
-
-        <div className="flex items-center gap-2">
           <ThemeToggle />
-          <button
-            type="button"
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="focus-ring flex h-8 w-8 items-center justify-center rounded-md border border-hairline bg-surface text-muted transition-colors hover:text-heading md:hidden"
-            aria-expanded={menuOpen}
-            aria-controls="mobile-menu"
-            aria-label="Toggle the navigation menu"
-          >
-            <svg className="h-4 w-4 stroke-current" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" aria-hidden="true">
-              {menuOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h16" />
-              )}
-            </svg>
-          </button>
         </div>
-      </div>
-
-      {menuOpen && (
-        <div id="mobile-menu" className="border-t border-hairline bg-surface px-4 py-4 md:hidden">
-          <nav aria-label="Main, compact" className="flex flex-col gap-3">
-            {links.map((link) => (
-              <Link
-                key={link.label}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                className="focus-ring rounded text-sm font-medium text-body hover:text-heading"
-              >
-                {link.label}
-              </Link>
-            ))}
-            <a
-              href={REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="focus-ring flex items-center gap-2 rounded text-sm font-medium text-body hover:text-heading"
-            >
-              <GitHubMark className="h-4 w-4" />
-              GitHub
-            </a>
-          </nav>
-        </div>
-      )}
-    </header>
+      </header>
+    </nav>
   );
 }

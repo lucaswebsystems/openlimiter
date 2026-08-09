@@ -1,56 +1,156 @@
-import { ScrollReveal } from "./scroll-reveal";
-import { ButtonLink, GitHubMark } from "./ui";
-import { REPO_URL } from "@/lib/site";
+import Link from "next/link";
+import { providerMarks } from "./provider-marks";
+import { ButtonLink, IconButtonLink } from "./ui";
+import { DOWNLOAD_DISCLAIMER } from "@/lib/downloads";
 
-const supports = ["Claude", "OpenRouter", "Codex", "Antigravity", "OpenCode", "Manual"];
+/**
+ * The hero.
+ *
+ * Left aligned, 48 pixel medium headline on two lines, a two line lead capped
+ * at 512 pixels, one row of buttons, the honest line about what those buttons
+ * actually reach, and the row of provider marks.
+ *
+ * The five buttons match the reference slot for slot. Their destinations do
+ * not: the mobile and web buttons lead to the download page rather than to a
+ * store, because there is nothing in a store, and each one says so in its
+ * accessible name. The line under the row says the same thing in the open.
+ */
+
+function AppleGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
+      <path d="M16.36 12.72c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.83-.81-3.01-.79-1.55.02-2.98.9-3.77 2.29-1.61 2.79-.41 6.92 1.15 9.18.77 1.11 1.68 2.35 2.87 2.3 1.15-.05 1.59-.74 2.98-.74 1.39 0 1.78.74 3 .72 1.24-.02 2.02-1.12 2.78-2.24.88-1.28 1.24-2.53 1.26-2.6-.03-.01-2.4-.92-2.42-3.69ZM14.1 5.98c.63-.77 1.06-1.83.94-2.9-.91.04-2.02.61-2.67 1.37-.58.68-1.09 1.77-.95 2.81 1.02.08 2.05-.52 2.68-1.28Z" />
+    </svg>
+  );
+}
+
+function PlayGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 3.2v17.6a.8.8 0 0 0 1.22.68l14.3-8.8a.8.8 0 0 0 0-1.36L5.22 2.52A.8.8 0 0 0 4 3.2Z" />
+      <path d="m4.4 2.9 10.4 10.4M4.4 21.1 14.8 10.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TerminalGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m4 6 5 6-5 6M12 18h8" />
+    </svg>
+  );
+}
+
+function GlobeGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M3.5 12h17M12 3.5c2.2 2.4 3.3 5.3 3.3 8.5s-1.1 6.1-3.3 8.5c-2.2-2.4-3.3-5.3-3.3-8.5S9.8 5.9 12 3.5Z" />
+    </svg>
+  );
+}
+
+function WindowsGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M3 5.4 10.6 4.3v7.2H3V5.4Zm0 13.2 7.6 1.1v-7.1H3v6Zm8.7 1.3L21 21V12.6h-9.3v7.3Zm0-15.8v7.4H21V3l-9.3 1.1Z" />
+    </svg>
+  );
+}
 
 export function Hero() {
   return (
-    <section className="px-4 pb-14 pt-16 sm:px-6 md:pb-16 md:pt-24 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <ScrollReveal>
-          <div className="max-w-3xl">
-            <h1 className="font-sans text-4xl font-medium tracking-tight text-heading sm:text-5xl md:text-6xl md:leading-[1.06]">
-              Know which subscription
-              <br />
-              still has room.
-            </h1>
-            <p className="mt-6 max-w-2xl font-sans text-base leading-relaxed text-body sm:text-lg">
-              OpenLimiter reads the quota of your AI subscriptions on your own machine and hands
-              your coding agents a bounded picture of what budget is left. Open source, local
-              first, zero telemetry, no accounts.
-            </p>
+    <section className="mx-auto max-w-7xl px-6 pb-10 md:px-32 md:pb-12">
+      <div className="space-y-6">
+        <h1 className="text-3xl font-medium tracking-tight text-heading md:text-5xl">
+          Know your limits.
+          <br />
+          Route around them.
+        </h1>
+        <p className="max-w-lg text-lg leading-relaxed text-soft">
+          Read your AI subscription quota locally. Give agents bounded budget state and advice.
+          Open source, local first, cross platform.
+        </p>
+      </div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <ButtonLink href="/docs" tone="primary">
-                Read the docs
-              </ButtonLink>
-              <ButtonLink href={REPO_URL} tone="secondary" external>
-                <GitHubMark className="h-4 w-4" />
-                View on GitHub
-              </ButtonLink>
-            </div>
-          </div>
-        </ScrollReveal>
+      <div className="pt-10">
+        <div className="flex flex-row flex-wrap gap-3">
+          <ButtonLink href="/download#windows" tone="primary">
+            <WindowsGlyph />
+            Download for Windows
+          </ButtonLink>
+          <ButtonLink
+            href="/download#web-app"
+            tone="ghost"
+            label="Web app, planned, see the download page"
+          >
+            <GlobeGlyph />
+            Web app
+          </ButtonLink>
+          <IconButtonLink href="/download#ios" label="iOS, planned, see the download page">
+            <AppleGlyph />
+          </IconButtonLink>
+          <IconButtonLink href="/download#android" label="Android, planned, see the download page">
+            <PlayGlyph />
+          </IconButtonLink>
+          <IconButtonLink href="/download#source" label="Command line tool, available now">
+            <TerminalGlyph />
+          </IconButtonLink>
+        </div>
 
-        <ScrollReveal step={2}>
-          <div className="mt-12 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-hairline pt-6">
-            <span className="font-mono text-2xs uppercase tracking-widest text-muted">
-              Supports
-            </span>
-            <span aria-hidden="true" className="h-3.5 w-px bg-hairline-strong" />
-            <ul className="flex flex-wrap items-center gap-2">
-              {supports.map((name) => (
-                <li
-                  key={name}
-                  className="rounded-md border border-hairline bg-surface px-2 py-0.5 font-mono text-2xs text-heading"
-                >
-                  {name}
-                </li>
-              ))}
-            </ul>
+        <div className="space-y-1 pt-3">
+          <p className="max-w-lg text-xs leading-relaxed text-muted">{DOWNLOAD_DISCLAIMER}</p>
+          <Link
+            href="/download"
+            className="focus-ring inline-block rounded text-sm text-muted transition-colors hover:text-heading"
+          >
+            All download options
+          </Link>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-6">
+          <span className="text-xs text-muted">Supports</span>
+          <div className="flex items-center gap-1">
+            {providerMarks.map(({ name, Mark }) => (
+              <span
+                key={name}
+                className="inline-flex items-center justify-center rounded-full p-1.5 text-muted"
+              >
+                <Mark />
+              </span>
+            ))}
           </div>
-        </ScrollReveal>
+          <Link
+            href="/docs/providers"
+            className="focus-ring rounded text-xs text-muted transition-colors hover:text-heading"
+          >
+            and manual entry
+          </Link>
+        </div>
       </div>
     </section>
   );

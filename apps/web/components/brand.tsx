@@ -9,7 +9,7 @@ import { MARK_DRAW_ATTR, MARK_SEGMENTS, MARK_STROKE_WIDTH, MARK_VIEWBOX } from "
  */
 
 export function BrandMark({
-  className = "h-7 w-7",
+  className = "h-6 w-6",
   draw = false,
 }: {
   className?: string;
@@ -44,13 +44,12 @@ export function BrandMark({
 }
 
 /**
- * Mark plus wordmark. The wordmark is Baloo 2 SemiBold, which is the only
- * place on the site that font is used, and it takes the heading colour so it
- * reads near black on light and near white on dark.
+ * Mark plus wordmark, both in the heading colour and both in the interface
+ * font. There is no separate display face on this site.
  */
 export function BrandLockup({
-  markClassName = "h-7 w-7 flex-none text-accent-solid",
-  wordClassName = "text-base",
+  markClassName = "h-6 w-6 flex-none text-heading",
+  wordClassName = "text-lg",
   draw = false,
 }: {
   markClassName?: string;
@@ -58,11 +57,9 @@ export function BrandLockup({
   draw?: boolean;
 }) {
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex items-center gap-3">
       <BrandMark className={markClassName} draw={draw} />
-      <span className={`font-display font-semibold text-heading ${wordClassName}`}>
-        OpenLimiter
-      </span>
+      <span className={`font-medium text-heading ${wordClassName}`}>OpenLimiter</span>
     </span>
   );
 }

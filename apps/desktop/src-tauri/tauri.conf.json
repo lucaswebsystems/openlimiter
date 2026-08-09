@@ -1,0 +1,58 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "OpenLimiter",
+  "version": "0.1.0",
+  "identifier": "com.openlimiter.desktop",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "beforeDevCommand": "node scripts/build-ui.mjs",
+    "beforeBuildCommand": "node scripts/build-ui.mjs"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "OpenLimiter",
+        "width": 520,
+        "height": 720,
+        "minWidth": 380,
+        "minHeight": 480,
+        "resizable": true,
+        "visible": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; base-uri 'none'; form-action 'none'",
+      "assetProtocol": {
+        "enable": false
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "copyright": "Copyright 2026 Lucas Costa. Apache License 2.0.",
+    "shortDescription": "Quota for the AI subscriptions you already pay for.",
+    "longDescription": "OpenLimiter reads the quota of your AI subscriptions on your own machine and shows it in a window and beside the clock. It is local first: no account, no telemetry, and nothing leaves the machine.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
+  }
+}

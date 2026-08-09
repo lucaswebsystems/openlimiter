@@ -1,0 +1,28 @@
+{
+  "name": "@openlimiter/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenLimiter in a window and beside the clock, on Windows, macOS and Linux.",
+  "license": "Apache-2.0",
+  "author": "Lucas Costa (https://lucaswebsystems.com)",
+  "homepage": "https://openlimiter.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lucaswebsystems/openlimiter.git",
+    "directory": "apps/desktop"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "icons": "node scripts/icons.mjs",
+    "build:ui": "node scripts/build-ui.mjs",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.9.6"
+  }
+}

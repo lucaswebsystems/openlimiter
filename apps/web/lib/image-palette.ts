@@ -11,25 +11,25 @@
  */
 export const imagePalette = {
   /** mirrors --ol-canvas, dark */
-  canvas: "#0a0a0b",
+  canvas: "#101615",
   /** mirrors --ol-surface, dark */
-  surface: "#121214",
+  surface: "#171d1c",
   /** mirrors --ol-hairline, dark */
-  hairline: "#232327",
+  hairline: "#272d2c",
   /** mirrors --ol-heading, dark */
-  heading: "#f2f2f3",
-  /** mirrors --ol-body, dark */
-  body: "#adadb6",
-  /** mirrors --ol-accent-solid, both themes, and is the one brand blue */
-  accent: "#0866ff",
-  /** mirrors --ol-on-accent, both themes */
-  onAccent: "#ffffff",
+  heading: "#fafafa",
+  /** mirrors --ol-soft, dark */
+  body: "#b4b6b5",
+  /** mirrors --ol-accent-solid, dark */
+  accent: "#2dd4bf",
+  /** mirrors --ol-on-accent, dark */
+  onAccent: "#101615",
 } as const;
 
 /**
- * The app tile treatment: the mark inverted to white on a solid brand blue
- * rounded square. It is the only place the mark is not painted in the blue,
- * and it exists because a small icon needs a guaranteed background rather than
+ * The app tile treatment: the mark inverted onto a solid accent rounded square.
+ * It is the only place the mark is not painted in the foreground colour, and it
+ * exists because a small icon needs a guaranteed background rather than
  * whatever chrome it lands on.
  *
  * `radiusRatio` and `markRatio` are fractions of the tile edge, so one

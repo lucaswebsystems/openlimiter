@@ -1,38 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Baloo_2, Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import { Footer } from "@/components/footer";
 import { Nav } from "@/components/nav";
-import { RevealController } from "@/components/reveal-controller";
 import { markArmScript } from "@/lib/brand";
-import { revealArmScript } from "@/lib/reveal";
 import { themeArmScript } from "@/lib/theme";
 import "./globals.css";
-
-const geistSans = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
-  weight: ["400", "500", "600"],
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  weight: ["400", "500"],
-  display: "swap",
-});
-
-/**
- * The wordmark face, and nothing else. Body copy, headings and code all keep
- * the two Geist families above.
- */
-const baloo = Baloo_2({
-  subsets: ["latin"],
-  variable: "--font-baloo",
-  weight: ["600"],
-  display: "swap",
-});
 
 const title = "OpenLimiter, quota awareness for AI coding agents";
 const description =
@@ -93,11 +65,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${baloo.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* Applies a stored theme choice before first paint. See lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: themeArmScript }} />
@@ -105,18 +73,15 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <script dangerouslySetInnerHTML={{ __html: markArmScript }} />
       </head>
       <body className="min-h-screen bg-canvas font-sans text-body antialiased selection:bg-accent-subtle selection:text-heading">
-        {/* Arms the scroll reveal before first paint. See lib/reveal.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: revealArmScript }} />
         <a
           href="#main"
-          className="focus-ring sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:border focus:border-hairline focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-heading"
+          className="focus-ring sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:border focus:border-hairline focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:text-heading"
         >
           Skip to content
         </a>
         <Nav />
         {children}
         <Footer />
-        <RevealController />
       </body>
     </html>
   );
