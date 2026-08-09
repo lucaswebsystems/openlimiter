@@ -28,6 +28,7 @@ openlimiter ingest [--provider <id>] [--payload <json>]
 openlimiter doctor
 openlimiter demo
 openlimiter export
+openlimiter serve [--port <n>] [--host <address>] [--no-qr]
 
 statusline and ingest read JSON from standard input when it is piped in.
 Exit codes: 0 success, 1 failure, 2 usage, 3 no bounded quota data.`}
@@ -114,6 +115,15 @@ Ingested 1 bounded meters. Cached meters: 3.`}
               <P>
                 Prints the cache as canonical JSON, suitable for a script to parse. Exits 3 when the
                 cache holds no bounded quota data.
+              </P>
+
+              <Sub id="serve">serve</Sub>
+              <P>
+                Serves a read only snapshot of your quota on your own local network, so a phone on
+                the same network can see it. Prints the address and a QR code to scan, and every
+                request needs the single use token baked into that address. It is meant for a
+                trusted home or office network, never for the open internet, and it exposes only the
+                bounded fields the agent context carries.
               </P>
             </>
           ),

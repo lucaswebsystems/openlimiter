@@ -8,7 +8,7 @@ All notable project changes appear in this file.
 
 - The strict snapshot core: bounded validation, an atomic cache, freshness, forecast, and the advice policy.
 - Six read only bounded payload parsers, every one marked UNVERIFIED and covered by synthetic fixtures. Claude arrives through native statusline input. Manual arrives from a local document or explicit ingest. OpenRouter, Codex, Antigravity, and OpenCode currently arrive only through explicit ingest payloads.
-- A CLI with eight commands: init, snapshot, statusline, hook, doctor, demo, export, and ingest.
+- A CLI with nine commands: init, snapshot, statusline, hook, doctor, demo, export, ingest, and serve.
 - Three offline ingestion paths: the Claude Code statusline payload on standard input, a manual JSON document on disk, and the generic ingest command.
 - A Claude Code adapter: a compact statusline and a UserPromptSubmit hook that injects bounded budget state and routing advice.
 - The full test suite runs in continuous integration on Windows and Linux for pull requests and pushes to `main`.

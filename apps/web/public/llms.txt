@@ -1,0 +1,70 @@
+# OpenLimiter
+
+> OpenLimiter is a local first quota meter for AI coding subscriptions. It reads the quota your own machine already knows about, keeps every number bounded, and gives coding agents a budget context block they can act on.
+
+Version 0.1.0. Licence: Apache 2.0. Site: https://openlimiter.com
+
+When you hold several AI coding subscriptions at once, the scarce resource stops being money and becomes quota. You have already paid. The question is which of the windows you paid for still has room in it, and OpenLimiter puts that answer in front of the agent that is spending it, as bounded state rather than prose.
+
+## What it is
+
+OpenLimiter reads quota data that already exists on your disk or is piped to it, normalises it, caches it locally, and exposes it three ways: to a person on a command line or a screen, and to an agent as a structured budget block injected into that agent's own context. The block carries enum codes, bounded percentages and timestamps only, and it declares itself as untrusted data in its own opening tag.
+
+## What ships today
+
+- Command line tool, published on npm as `openlimiter`. Install it with `npm install -g openlimiter`. Commands include init, snapshot, statusline, hook, ingest, doctor, demo, export and serve.
+- Desktop tray application for Windows, macOS and Linux, built on continuous integration and attached to the GitHub release. The builds are not code signed, so Windows SmartScreen and macOS Gatekeeper warn on first run.
+- Web app at https://openlimiter.com/app. It runs the same engine inside a browser tab, on a document you paste or drop. Nothing is uploaded and there is no account.
+- Progressive web app. The web app installs to a phone or desktop home screen from the browser and keeps working offline. There is no iOS or Android application, nothing is in a store, and there is no waiting list.
+- LAN serving with `openlimiter serve`, which publishes read only quota on your local network behind a token that is generated on every start and never written to disk. It is meant for a trusted home or office network, not for the internet.
+- A Claude Code adapter: a compact statusline and a UserPromptSubmit prompt hook that injects bounded budget state and routing advice.
+
+## What it never does
+
+- No telemetry, no analytics, and no OpenLimiter server to receive anything.
+- No account, no sign up, and no checkout.
+- No collection, storage or forwarding of provider credentials. The one connector that needs a key of your own expects it in your operating system credential store, and OpenLimiter never reads a provider authentication file.
+- No writing to what it reads. Every parser opens what your installed tools already stored, read only, and never rewrites, repairs or migrates them.
+- No automatic routing. OpenLimiter produces advice. It does not switch a request, bypass a limit, or touch how an agent authenticates. The decision stays with the person.
+- No invented numbers. When a shape changes, parsing fails closed: that provider returns to unknown, the others are unaffected, and unknown never becomes zero.
+
+## Connectors
+
+Six ship in 0.1.0. Every one is marked UNVERIFIED, which means no explicit verifier has confirmed its shape against a live account. In this release no connector performs network access: each one is a parser, and something else has to hand it a document.
+
+- `claude`: reads the rate limit block of the Claude Code statusline payload. Native payload from a local tool. Low automation risk.
+- `openrouter`: reads a credits response shape from OpenRouter's documented API. Documented API. Low automation risk.
+- `codex`: reads a usage payload the Codex tooling produces. Internal endpoint. May break without notice.
+- `antigravity`: reads a quota payload the Antigravity tooling produces. Internal endpoint. May break without notice.
+- `opencode`: reads a usage view behind a session you already signed in to. Authenticated page. High automation risk. May break.
+- `manual`: reads numbers you write yourself. Manual entry. Never breaks, never guesses.
+
+## Documentation
+
+- [Getting started](https://openlimiter.com/docs): install the tool, run the demo, and wire it into Claude Code.
+- [Why OpenLimiter](https://openlimiter.com/docs/why-openlimiter): the problem it addresses, and why quota rather than cost.
+- [Supported providers](https://openlimiter.com/docs/providers): the six connectors, what each reads, and how likely each is to break.
+- [Ingestion](https://openlimiter.com/docs/ingestion): the three offline paths that put quota data in front of the tool.
+- [Agent context](https://openlimiter.com/docs/agent-context): what the statusline and the prompt hook inject, and the boundary that keeps provider text out.
+- [Configuration](https://openlimiter.com/docs/configuration): the state directory, the configuration file, the cache, and the Claude Code settings.
+- [CLI reference](https://openlimiter.com/docs/cli): every command, with its flags, its output and its exit codes.
+- [Security and privacy](https://openlimiter.com/docs/security): what is guaranteed, what is deliberately not done, and how to report a problem.
+- [Roadmap](https://openlimiter.com/docs/roadmap): what is planned and not yet built.
+
+## Other pages
+
+- [Home](https://openlimiter.com): what the tool is, what it reads, and what reaches an agent.
+- [Web app](https://openlimiter.com/app): the browser dashboard, which runs entirely on your device.
+- [Download](https://openlimiter.com/download): every way to get it, each row carrying its real state.
+- [Blog](https://openlimiter.com/blog): occasional writing about the design and its limits.
+- [Changelog](https://openlimiter.com/changelog): every released version, rendered from the repository's own file.
+- [Alternatives](https://openlimiter.com/alternatives): comparisons with other tools that read AI subscription quota.
+
+## Project
+
+- [Source repository](https://github.com/lucaswebsystems/openlimiter): the code, the issues, and the discussions.
+- [Releases](https://github.com/lucaswebsystems/openlimiter/releases): packaged builds for every platform.
+- [npm package](https://www.npmjs.com/package/openlimiter): the published command line tool.
+- [Licence](https://www.apache.org/licenses/LICENSE-2.0): Apache 2.0.
+
+Author: Lucas Costa, https://lucaswebsystems.com

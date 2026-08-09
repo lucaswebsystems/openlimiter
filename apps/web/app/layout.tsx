@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: "/",
-    siteName: "OpenLimiter",
+    siteName: SITE_NAME,
     title,
     description,
     locale: "en_US",
