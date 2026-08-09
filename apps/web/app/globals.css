@@ -1,31 +1,151 @@
 @import "tailwindcss";
 
-@theme {
-  --color-canvas: #0a0a0b;
-  --color-surface: #111113;
-  --color-surface-hover: #17171a;
-  /* Text tokens. Every one of these clears WCAG AA 4.5:1 at small sizes
-     against the lightest background it can land on (--color-surface-hover). */
-  --color-heading: #ededed;
-  --color-body: #8a8a92;
-  --color-label: #86868e;
-  --color-hairline: rgba(255, 255, 255, 0.1);
-  --color-hairline-strong: rgba(255, 255, 255, 0.18);
-  --color-accent: #7c8cff;
-  --color-accent-hover: #96a3ff;
-  --color-accent-subtle: rgba(124, 140, 255, 0.12);
-  --color-btn-primary-bg: #ededed;
-  --color-btn-primary-text: #0a0a0b;
-  --color-btn-primary-hover: #ffffff;
-  --color-glow-start: rgba(124, 140, 255, 0.18);
-  --color-glow-end: rgba(180, 140, 255, 0.05);
+/*
+  Design tokens.
 
-  --font-sans: var(--font-geist-sans), "Space Grotesk", system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-geist-mono), "JetBrains Mono", ui-monospace, monospace;
+  Every colour on this site is one of the variables below, and every one is
+  defined for both themes. The `@theme inline` block only forwards the variable
+  into Tailwind, so a utility such as `bg-canvas` resolves at paint time and
+  follows whichever theme is active.
+
+  Theme resolution, in order:
+    1. `:root` carries the light palette, which is the fallback for every case.
+    2. The media block swaps in the dark palette when the visitor's system asks
+       for dark and no explicit light choice is stored.
+    3. `:root[data-theme="dark"]` and `:root[data-theme="light"]` let the toggle
+       win in both directions. They come last so they beat the media block.
+
+  Contrast, measured with the WCAG formula, worst case among the pairings the
+  site actually renders:
+    light: muted on accent-subtle 4.93:1, on-accent on accent-solid 4.82:1
+    dark:  muted on raised 5.78:1, on-accent on accent-solid 4.82:1
+  Everything else sits higher. Normal text therefore clears AA 4.5:1 in both
+  themes. `accent-solid` is the one colour that carries text, and it carries
+  only `on-accent`.
+*/
+
+@theme inline {
+  --color-canvas: var(--ol-canvas);
+  --color-surface: var(--ol-surface);
+  --color-raised: var(--ol-raised);
+  --color-code: var(--ol-code);
+  --color-track: var(--ol-track);
+
+  --color-hairline: var(--ol-hairline);
+  --color-hairline-strong: var(--ol-hairline-strong);
+
+  --color-heading: var(--ol-heading);
+  --color-body: var(--ol-body);
+  --color-muted: var(--ol-muted);
+
+  --color-accent: var(--ol-accent);
+  --color-accent-hover: var(--ol-accent-hover);
+  --color-accent-subtle: var(--ol-accent-subtle);
+  --color-accent-solid: var(--ol-accent-solid);
+  --color-accent-solid-hover: var(--ol-accent-solid-hover);
+  --color-on-accent: var(--ol-on-accent);
+
+  --color-solid: var(--ol-solid);
+  --color-on-solid: var(--ol-on-solid);
 }
 
+@theme {
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+}
+
+/* Light palette. Also the fallback for every browser and every theme state. */
 :root {
+  color-scheme: light;
+
+  --ol-canvas: #ffffff;
+  --ol-surface: #f6f6f7;
+  --ol-raised: #efeff1;
+  --ol-code: #f4f4f5;
+  --ol-track: #e2e2e6;
+
+  --ol-hairline: #e5e5e8;
+  --ol-hairline-strong: #d2d2d8;
+
+  --ol-heading: #0d0d0f;
+  --ol-body: #53535c;
+  --ol-muted: #62626c;
+
+  --ol-accent: #0b5ad0;
+  --ol-accent-hover: #0947a8;
+  --ol-accent-subtle: #e0e9f7;
+  --ol-accent-solid: #0866ff;
+  --ol-accent-solid-hover: #0a58ca;
+  --ol-on-accent: #ffffff;
+
+  --ol-solid: #131316;
+  --ol-on-solid: #ffffff;
+}
+
+/* Dark palette, for a visitor whose system asks for it and who has not
+   explicitly chosen light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --ol-canvas: #0a0a0b;
+    --ol-surface: #121214;
+    --ol-raised: #1a1a1d;
+    --ol-code: #0e0e10;
+    --ol-track: #26262b;
+
+    --ol-hairline: #232327;
+    --ol-hairline-strong: #33333a;
+
+    --ol-heading: #f2f2f3;
+    --ol-body: #adadb6;
+    --ol-muted: #94949e;
+
+    --ol-accent: #6ba6ff;
+    --ol-accent-hover: #8cbbff;
+    --ol-accent-subtle: #132238;
+    --ol-accent-solid: #0866ff;
+    --ol-accent-solid-hover: #0a58ca;
+    --ol-on-accent: #ffffff;
+
+    --ol-solid: #f2f2f3;
+    --ol-on-solid: #0a0a0b;
+  }
+}
+
+/* The toggle. Last, so an explicit choice beats the system preference. */
+:root[data-theme="dark"] {
   color-scheme: dark;
+
+  --ol-canvas: #0a0a0b;
+  --ol-surface: #121214;
+  --ol-raised: #1a1a1d;
+  --ol-code: #0e0e10;
+  --ol-track: #26262b;
+
+  --ol-hairline: #232327;
+  --ol-hairline-strong: #33333a;
+
+  --ol-heading: #f2f2f3;
+  --ol-body: #adadb6;
+  --ol-muted: #94949e;
+
+  --ol-accent: #6ba6ff;
+  --ol-accent-hover: #8cbbff;
+  --ol-accent-subtle: #132238;
+  --ol-accent-solid: #0866ff;
+  --ol-accent-solid-hover: #0a58ca;
+  --ol-on-accent: #ffffff;
+
+  --ol-solid: #f2f2f3;
+  --ol-on-solid: #0a0a0b;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 *,
@@ -35,47 +155,29 @@
 }
 
 html {
-  background-color: var(--color-canvas);
-  color: var(--color-body);
+  background-color: var(--ol-canvas);
+  color: var(--ol-body);
   font-family: var(--font-sans);
   scroll-behavior: smooth;
+  /* Anchor targets clear the sticky header. */
+  scroll-padding-top: 5rem;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   min-height: 100vh;
-  background-color: var(--color-canvas);
-  color: var(--color-body);
+  background-color: var(--ol-canvas);
+  color: var(--ol-body);
   overflow-x: hidden;
 }
 
-/* Base custom utility styles */
-.hero-glow-container {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 100%;
-  max-width: 900px;
-  height: 450px;
-  background: radial-gradient(
-    ellipse 65% 55% at 50% 45%,
-    var(--color-glow-start),
-    var(--color-glow-end) 60%,
-    transparent 80%
-  );
-  filter: blur(50px);
-  pointer-events: none;
-  z-index: 0;
-}
-
 /* Keyboard focus. Interactive elements never drop the indicator, they replace
-   it with an accent outline that reads clearly on the dark canvas. Use the
-   inset variant inside clipped containers, where an outset ring gets cut off. */
+   it with an accent outline that reads clearly on either theme. Use the inset
+   variant inside clipped containers, where an outset ring gets cut off. */
 .focus-ring:focus-visible,
 .focus-ring-inset:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--ol-accent);
 }
 
 .focus-ring:focus-visible {
@@ -84,6 +186,47 @@ body {
 
 .focus-ring-inset:focus-visible {
   outline-offset: -3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/*
+  Theme toggle icon.
+
+  The button offers the theme you are not in, and the swap is pure CSS, so the
+  correct icon is right on the very first paint with no hydration step and no
+  browser globals read during render.
+*/
+.icon-to-light {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .icon-to-dark {
+    display: none;
+  }
+
+  :root:not([data-theme="light"]) .icon-to-light {
+    display: block;
+  }
+}
+
+:root[data-theme="dark"] .icon-to-dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .icon-to-light {
+  display: block;
 }
 
 /* Scroll reveal.

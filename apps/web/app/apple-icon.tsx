@@ -24,9 +24,9 @@ export default function AppleIcon() {
         <div
           style={{
             alignItems: "center",
-            background: imagePalette.heading,
-            borderRadius: "50%",
-            color: imagePalette.canvas,
+            background: imagePalette.accent,
+            borderRadius: 40,
+            color: imagePalette.onAccent,
             display: "flex",
             fontSize: 88,
             fontWeight: 700,

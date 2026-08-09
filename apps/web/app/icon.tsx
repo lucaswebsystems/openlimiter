@@ -24,9 +24,9 @@ export default function Icon() {
         <div
           style={{
             alignItems: "center",
-            background: imagePalette.heading,
-            borderRadius: "50%",
-            color: imagePalette.canvas,
+            background: imagePalette.accent,
+            borderRadius: 7,
+            color: imagePalette.onAccent,
             display: "flex",
             fontSize: 16,
             fontWeight: 700,

@@ -1,73 +1,54 @@
 import { ScrollReveal } from "./scroll-reveal";
+import { ButtonLink, GitHubMark, Section, SectionHeading } from "./ui";
+import { LICENSE_URL, REPO_URL } from "@/lib/site";
+
+const facts = [
+  { label: "Licence", value: "Apache 2.0" },
+  { label: "Telemetry", value: "none, anywhere" },
+  { label: "Accounts", value: "none required" },
+  { label: "Egress in this release", value: "none at all" },
+  { label: "Stack", value: "TypeScript monorepo" },
+  { label: "Continuous integration", value: "Windows and Linux" },
+];
 
 export function OpenSource() {
-  const badges = [
-    "Apache 2.0",
-    "zero telemetry",
-    "local first",
-    "no accounts",
-  ];
-
   return (
-    <section className="py-20 px-4 sm:px-6 lg:px-8 border-t border-hairline">
-      <div className="mx-auto max-w-6xl">
-        <ScrollReveal>
-          <div className="rounded-2xl border border-hairline bg-surface/40 p-8 sm:p-10">
-            <div className="max-w-3xl">
-              <h2 className="font-sans text-2xl font-medium tracking-tight text-heading sm:text-3xl">
-                Open source and transparent
-              </h2>
-              <p className="mt-4 font-sans text-sm text-body leading-relaxed">
-                OpenLimiter runs on your machine. There are no tracking scripts, no
-                remote log collection, no accounts, and no OpenLimiter server to
-                receive anything. The only requests it makes go to a provider&apos;s
-                own endpoint to read your quota, with credentials you already have.
-                Your quota state is written locally and stays there.
-              </p>
+    <Section id="open-source">
+      <ScrollReveal>
+        <SectionHeading
+          eyebrow="Open source"
+          title="Local first, and there is nothing to trust us with."
+          lead="OpenLimiter runs on your machine. There are no tracking scripts, no remote logs, no accounts, and no OpenLimiter server to receive anything, because none exists. Quota state is written locally and stays there."
+        />
+      </ScrollReveal>
 
-              {/* Badges */}
-              <div className="mt-6 flex flex-wrap gap-2">
-                {badges.map((b) => (
-                  <span
-                    key={b}
-                    className="rounded-full border border-hairline bg-canvas px-3 py-1 font-mono text-xs text-heading"
-                  >
-                    {b}
-                  </span>
-                ))}
+      <ScrollReveal step={2}>
+        <div className="mt-10 rounded-2xl border border-hairline bg-surface p-6 sm:p-8">
+          <dl className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+            {facts.map((fact) => (
+              <div key={fact.label} className="border-t border-hairline pt-4">
+                <dt className="font-mono text-2xs uppercase tracking-widest text-muted">
+                  {fact.label}
+                </dt>
+                <dd className="mt-1.5 font-sans text-sm font-medium text-heading">{fact.value}</dd>
               </div>
+            ))}
+          </dl>
 
-              {/* Links to Docs */}
-              <div className="mt-8 flex flex-wrap items-center gap-6 pt-6 border-t border-hairline">
-                <a
-                  href="https://github.com/lucaswebsystems/openlimiter/blob/main/ARCHITECTURE.md"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-xs font-medium text-accent transition-colors hover:text-accent-hover"
-                >
-                  Architecture docs &rarr;
-                </a>
-                <a
-                  href="https://github.com/lucaswebsystems/openlimiter/blob/main/SECURITY.md"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-xs font-medium text-accent transition-colors hover:text-accent-hover"
-                >
-                  Security model &rarr;
-                </a>
-                <a
-                  href="https://github.com/lucaswebsystems/openlimiter/blob/main/THREAT_MODEL.md"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-xs font-medium text-accent transition-colors hover:text-accent-hover"
-                >
-                  Threat model &rarr;
-                </a>
-              </div>
-            </div>
+          <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-hairline pt-6">
+            <ButtonLink href={REPO_URL} tone="secondary" external>
+              <GitHubMark className="h-4 w-4" />
+              Read the source
+            </ButtonLink>
+            <ButtonLink href="/docs/security" tone="secondary">
+              Security and privacy
+            </ButtonLink>
+            <ButtonLink href={LICENSE_URL} tone="secondary" external>
+              Apache 2.0 licence
+            </ButtonLink>
           </div>
-        </ScrollReveal>
-      </div>
-    </section>
+        </div>
+      </ScrollReveal>
+    </Section>
   );
 }

@@ -1,109 +1,126 @@
 import { ScrollReveal } from "./scroll-reveal";
+import { ButtonLink, Chip, GitHubMark, Section, SectionHeading } from "./ui";
+import { COFFEE_URL, REPO_URL, SPONSORS_URL } from "@/lib/site";
+
+const freeIncludes = [
+  "Every connector, with no provider locked behind a tier",
+  "The statusline and the Claude Code prompt hook",
+  "All eight CLI commands, including doctor and export",
+  "All three ingestion paths",
+  "No usage limit, no seat count, no account",
+];
+
+const cloudIncludes = [
+  "Encrypted synchronisation across your own devices",
+  "Mobile access to the same quota state",
+  "Push alerts when a window is close to its cap",
+];
 
 export function Pricing() {
   return (
-    <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-hairline">
-      <div className="mx-auto max-w-6xl">
-        <ScrollReveal>
-          <div className="mb-12 text-left">
-            <h2 className="font-sans text-2xl font-medium tracking-tight text-heading sm:text-3xl">
-              Pricing
-            </h2>
-            <p className="mt-2 font-sans text-sm text-body">
-              Local core is free forever. Cloud sync features coming later.
+    <Section id="pricing">
+      <ScrollReveal>
+        <SectionHeading
+          eyebrow="Pricing"
+          title="The software is free. A hosted service would not be."
+          lead="Everything that runs on your machine is free and stays free. No feature is locked, and there is no tier that unlocks one."
+        />
+      </ScrollReveal>
+
+      <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ScrollReveal step={1}>
+          <div className="flex h-full flex-col rounded-2xl border border-hairline bg-surface p-6 sm:p-8">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-sans text-lg font-medium text-heading">Free, and always free</h3>
+              <Chip tone="strong">available now</Chip>
+            </div>
+            <p className="mt-5 font-sans text-4xl font-medium tracking-tight text-heading">
+              $0
             </p>
+            <p className="mt-4 font-sans text-sm leading-relaxed text-body">
+              Everything that runs locally. Open source under Apache 2.0, so this is not a trial
+              and cannot be taken away.
+            </p>
+            <ul className="mt-6 space-y-2.5">
+              {freeIncludes.map((item) => (
+                <li key={item} className="flex gap-3 font-sans text-sm leading-6 text-body">
+                  <span
+                    aria-hidden="true"
+                    className="mt-2.5 h-1 w-1 flex-none rounded-full bg-accent-solid"
+                  />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-8 border-t border-hairline pt-6">
+              <ButtonLink href="/docs" tone="primary" className="w-full">
+                Read the docs
+              </ButtonLink>
+            </div>
           </div>
         </ScrollReveal>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card 1: Free */}
-          <ScrollReveal step={1}>
-            <div className="h-full rounded-2xl border border-hairline bg-surface/40 p-8 flex flex-col justify-between transition-colors hover:border-hairline-strong">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-sans text-xl font-medium text-heading">
-                    Free
-                  </h3>
-                  <span className="rounded border border-hairline bg-canvas px-2.5 py-0.5 font-mono text-[10px] font-medium text-emerald-400">
-                    FOREVER
-                  </span>
-                </div>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="font-sans text-4xl font-medium tracking-tight text-heading">
-                    $0
-                  </span>
-                </div>
-                <p className="mt-4 font-sans text-xs text-body leading-relaxed">
-                  Everything local forever: all connectors, statusline, agent context, doctor, unlimited.
-                </p>
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-hairline">
-                <a
-                  href="https://github.com/lucaswebsystems/openlimiter"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full text-center rounded-lg border border-hairline bg-btn-primary-bg px-4 py-2.5 font-sans text-xs font-semibold text-btn-primary-text transition-colors hover:bg-btn-primary-hover"
-                >
-                  Star on GitHub
-                </a>
-              </div>
+        <ScrollReveal step={3}>
+          <div className="flex h-full flex-col rounded-2xl border border-dashed border-hairline-strong bg-canvas p-6 sm:p-8">
+            <div className="flex items-start justify-between gap-3">
+              <h3 className="font-sans text-lg font-medium text-heading">OpenLimiter Sync</h3>
+              <Chip tone="accent">coming soon</Chip>
             </div>
-          </ScrollReveal>
-
-          {/* Card 2: Pro */}
-          <ScrollReveal step={3}>
-            <div className="h-full rounded-2xl border border-hairline bg-surface/20 p-8 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="font-sans text-xl font-medium text-heading">
-                    Pro
-                  </h3>
-                  <span className="rounded border border-hairline bg-accent-subtle px-2.5 py-0.5 font-mono text-[10px] font-medium text-accent">
-                    COMING SOON
-                  </span>
-                </div>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="font-sans text-4xl font-medium tracking-tight text-heading">
-                    $4.99
-                  </span>
-                  <span className="font-sans text-xs text-body">/ month</span>
-                </div>
-                <p className="mt-4 font-sans text-xs text-body leading-relaxed">
-                  Encrypted sync, mobile access, push and email alerts, longer retention, team views later.
-                  Nothing to buy yet, and there is no waitlist to join.
-                </p>
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-hairline">
-                <a
-                  href="https://github.com/lucaswebsystems/openlimiter/issues"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="focus-ring block w-full text-center rounded-lg border border-hairline bg-surface/50 px-4 py-2.5 font-sans text-xs font-medium text-body transition-colors hover:border-hairline-strong hover:text-heading"
-                >
-                  Follow Pro on the issue tracker
-                </a>
-              </div>
+            <p className="mt-5 font-sans text-4xl font-medium tracking-tight text-heading">
+              $5
+              <span className="ml-1.5 font-sans text-sm font-normal text-body">per month</span>
+            </p>
+            <p className="mt-4 font-sans text-sm leading-relaxed text-body">
+              An optional hosted add on. You would be paying for servers that cost money to run,
+              not for software that was withheld from you. The local tool would not change in any
+              way if you never bought it.
+            </p>
+            <ul className="mt-6 space-y-2.5">
+              {cloudIncludes.map((item) => (
+                <li key={item} className="flex gap-3 font-sans text-sm leading-6 text-body">
+                  <span
+                    aria-hidden="true"
+                    className="mt-2.5 h-1 w-1 flex-none rounded-full bg-hairline-strong"
+                  />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-8 border-t border-hairline pt-6">
+              <p className="font-sans text-sm text-body">
+                There is nothing to buy. No checkout exists, no waitlist is open, and no
+                synchronisation service is running anywhere yet.
+              </p>
             </div>
-          </ScrollReveal>
-        </div>
-
-        {/* Support the build quiet line */}
-        <ScrollReveal step={5}>
-          <div className="mt-10 text-center font-sans text-xs text-body">
-            Support the build at{" "}
-            <a
-              href="https://github.com/sponsors/lucaswebsystems"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent transition-colors hover:text-accent-hover underline underline-offset-4"
-            >
-              https://github.com/sponsors/lucaswebsystems
-            </a>
           </div>
         </ScrollReveal>
       </div>
-    </section>
+
+      <ScrollReveal step={5}>
+        <div className="mt-8 rounded-2xl border border-hairline bg-surface p-6 sm:p-8">
+          <h3 className="font-sans text-base font-medium text-heading">
+            If you want to support the work
+          </h3>
+          <p className="mt-2 max-w-2xl font-sans text-sm leading-relaxed text-body">
+            Sponsorship is entirely optional and buys no feature. It funds the time that goes into
+            the connectors and the docs.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <ButtonLink href={SPONSORS_URL} tone="secondary" external>
+              <GitHubMark className="h-4 w-4" />
+              GitHub Sponsors
+            </ButtonLink>
+            {/* Placeholder link. The Buy Me a Coffee account may not exist yet, so
+                confirm the page has been claimed before promoting this anywhere. */}
+            <ButtonLink href={COFFEE_URL} tone="secondary" external>
+              Buy me a coffee
+            </ButtonLink>
+            <ButtonLink href={REPO_URL} tone="quiet" external>
+              Or just star the repository
+            </ButtonLink>
+          </div>
+        </div>
+      </ScrollReveal>
+    </Section>
   );
 }

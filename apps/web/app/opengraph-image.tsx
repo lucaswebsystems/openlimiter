@@ -24,27 +24,27 @@ export default function OpenGraphImage() {
           width: "100%",
         }}
       >
-        <div style={{ alignItems: "center", display: "flex", gap: 28 }}>
+        <div style={{ alignItems: "center", display: "flex", gap: 24 }}>
           <div
             style={{
               alignItems: "center",
-              background: imagePalette.heading,
-              borderRadius: "50%",
-              color: imagePalette.canvas,
+              background: imagePalette.accent,
+              borderRadius: 20,
+              color: imagePalette.onAccent,
               display: "flex",
-              fontSize: 58,
-              fontWeight: 700,
-              height: 90,
+              fontSize: 44,
+              fontWeight: 600,
+              height: 84,
               justifyContent: "center",
-              width: 90,
+              width: 84,
             }}
           >
-            O
+            OL
           </div>
           <div
             style={{
               color: imagePalette.heading,
-              fontSize: 72,
+              fontSize: 60,
               fontWeight: 600,
               letterSpacing: -2,
             }}
@@ -55,22 +55,22 @@ export default function OpenGraphImage() {
         <div
           style={{
             color: imagePalette.heading,
-            fontSize: 40,
+            fontSize: 46,
             fontWeight: 500,
-            marginTop: 48,
+            letterSpacing: -1,
+            marginTop: 52,
           }}
         >
-          Know your limits. Route around them.
+          Know which subscription still has room.
         </div>
         <div
           style={{
             color: imagePalette.body,
             fontSize: 24,
-            letterSpacing: 0.5,
-            marginTop: 24,
+            marginTop: 22,
           }}
         >
-          Open source, local first, cross platform
+          Open source, local first, zero telemetry
         </div>
       </div>
     ),

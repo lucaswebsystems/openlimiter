@@ -2,77 +2,95 @@
 
 import { useId, useState } from "react";
 import { ScrollReveal } from "./scroll-reveal";
+import { SectionHeading } from "./ui";
+
+const faqItems = [
+  {
+    question: "What actually leaves my machine?",
+    answer:
+      "Nothing. There is no telemetry, no analytics, and no OpenLimiter server to receive anything. This release performs no provider egress at all: every connector is a parser over data that something else already wrote to your disk or piped to standard input.",
+  },
+  {
+    question: "Is it safe to point at my tools?",
+    answer:
+      "OpenLimiter opens what your installed tools already store, read only, and never rewrites, repairs, or migrates them. Every parser keeps bounded numbers and timestamps and discards provider text before anything reaches your agent.",
+  },
+  {
+    question: "Can the prompt hook break my session?",
+    answer:
+      "No. The hook reads the local cache, makes no network request, injects nothing when every provider is unknown, and exits 0 whatever happens. The statusline behaves the same way: if input is absent or malformed it falls back to the cache and reports unknown.",
+  },
+  {
+    question: "Which providers work today?",
+    answer:
+      "Six connectors ship: Claude through the native statusline payload, OpenRouter through its documented shape, Codex and Antigravity through internal shapes that may break, OpenCode through an existing session that may break, and manual entry. Every one is marked UNVERIFIED until an explicit verifier exists.",
+  },
+  {
+    question: "Do I need an API key?",
+    answer:
+      "Not to start. The Claude path reads a payload Claude Code already hands your statusline, and the manual path needs nothing at all. OpenRouter is the one connector that expects a key of your own, and that key belongs in your operating system credential store.",
+  },
+  {
+    question: "Does it route my requests for me?",
+    answer:
+      "No, and it is not going to. OpenLimiter provides advice. It does not route requests automatically, does not bypass a limit, and does not touch how your agent authenticates. The decision stays with you.",
+  },
+  {
+    question: "What happens when a connector breaks?",
+    answer:
+      "Unofficial shapes change without notice. When one does, parsing fails closed: that provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap. Unknown never becomes zero.",
+  },
+  {
+    question: "What is the paid plan for?",
+    answer:
+      "Everything that runs locally is free and always will be. The only thing that would ever cost money is a hosted service, namely encrypted synchronisation, mobile access, and push alerts, because servers cost money to run. It does not exist yet, there is no checkout, and no feature has been withheld to create it.",
+  },
+];
 
 export function Faq() {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
   const baseId = useId();
 
-  const faqItems = [
-    {
-      question: "Is it safe?",
-      answer:
-        "OpenLimiter reads what your installed tools already store on your machine: local session state, quota files the provider CLIs write themselves, and any key you chose to add. It opens them read only and never rewrites, repairs, or migrates them. Every parser keeps bounded numbers and timestamps and drops provider text before anything reaches an agent.",
-    },
-    {
-      question: "What leaves my machine?",
-      answer:
-        "No telemetry, no analytics, and no OpenLimiter server, so nothing is ever sent to us. The only network requests OpenLimiter makes go to a provider's own endpoint to read your quota, using credentials that are already on your machine. Connectors that read a local file, or the payload Claude Code hands to your statusline, make no request at all.",
-    },
-    {
-      question: "Which agents are supported?",
-      answer:
-        "Claude Code is supported first class. Codex CLI and OpenCode follow closely. Each connector carries its own status in the providers list above, including the ones still marked unverified.",
-    },
-    {
-      question: "Does it need an API key?",
-      answer:
-        "No API keys are needed for the tools OpenLimiter can detect on its own, because it reads session state those tools already wrote. OpenRouter is the exception: it uses a key you add to your operating system credential store. You can also enter a budget by hand for anything else.",
-    },
-    {
-      question: "When is Pro coming?",
-      answer:
-        "Pro encrypted sync and alerts are in development. There is no checkout and no waitlist yet, so the honest answer is to follow the work on the GitHub issue tracker.",
-    },
-  ];
-
   return (
-    <section id="faq" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-hairline">
+    <section id="faq" className="border-t border-hairline px-4 py-20 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
         <ScrollReveal>
-          <div className="mb-10 text-left">
-            <h2 className="font-sans text-2xl font-medium tracking-tight text-heading sm:text-3xl">
-              Frequently asked questions
-            </h2>
-            <p className="mt-2 font-sans text-sm text-body">
-              Everything you need to know about safety, privacy, and roadmap.
-            </p>
-          </div>
+          <SectionHeading
+            eyebrow="Questions"
+            title="Frequently asked questions"
+            lead="Safety, privacy, scope, and what is honestly not built yet."
+          />
         </ScrollReveal>
 
-        <div className="space-y-3">
-          {faqItems.map((item, idx) => {
-            const isOpen = openIndex === idx;
-            const triggerId = `${baseId}-trigger-${idx}`;
-            const panelId = `${baseId}-panel-${idx}`;
+        <div className="mt-10 space-y-3">
+          {faqItems.map((item, index) => {
+            const isOpen = openIndex === index;
+            const triggerId = `${baseId}-trigger-${index}`;
+            const panelId = `${baseId}-panel-${index}`;
             return (
-              <ScrollReveal key={item.question} step={idx}>
-                <div className="rounded-xl border border-hairline bg-surface/40 overflow-hidden transition-colors hover:border-hairline-strong">
+              <ScrollReveal key={item.question} step={index}>
+                <div className="overflow-hidden rounded-xl border border-hairline bg-surface transition-colors hover:border-hairline-strong">
                   <h3 className="font-sans text-sm font-medium">
                     <button
                       type="button"
                       id={triggerId}
                       aria-controls={panelId}
                       aria-expanded={isOpen}
-                      onClick={() => setOpenIndex(isOpen ? null : idx)}
-                      className="focus-ring-inset flex w-full items-center justify-between rounded-xl p-5 text-left text-heading"
+                      onClick={() => setOpenIndex(isOpen ? null : index)}
+                      className="focus-ring-inset flex w-full items-center justify-between gap-4 rounded-xl p-5 text-left text-heading"
                     >
                       <span>{item.question}</span>
-                      <span
+                      <svg
                         aria-hidden="true"
-                        className="ml-4 flex h-5 w-5 flex-shrink-0 items-center justify-center text-label"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        strokeWidth="1.8"
+                        className={`h-4 w-4 flex-none stroke-current text-muted transition-transform ${
+                          isOpen ? "rotate-180" : ""
+                        }`}
                       >
-                        {isOpen ? "−" : "+"}
-                      </span>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                      </svg>
                     </button>
                   </h3>
                   <div
@@ -80,7 +98,7 @@ export function Faq() {
                     role="region"
                     aria-labelledby={triggerId}
                     hidden={!isOpen}
-                    className="px-5 pb-5 pt-1 font-sans text-xs text-body leading-relaxed border-t border-hairline/40"
+                    className="border-t border-hairline px-5 pb-5 pt-4 font-sans text-sm leading-relaxed text-body"
                   >
                     {item.answer}
                   </div>

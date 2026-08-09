@@ -1,125 +1,89 @@
 import { ScrollReveal } from "./scroll-reveal";
+import { Chip, Section, SectionHeading } from "./ui";
+
+const providers = [
+  {
+    name: "Claude",
+    badge: "native payload",
+    reads: "the Claude Code statusline payload",
+    detail:
+      "Reads the rate limit block Claude Code already hands to your statusline command. It asks nothing of Anthropic on its own.",
+  },
+  {
+    name: "OpenRouter",
+    badge: "documented API",
+    reads: "a documented credits response",
+    detail:
+      "Parses the credits shape OpenRouter documents. The key it would use belongs in your operating system credential store, never in a file.",
+  },
+  {
+    name: "Codex",
+    badge: "internal, may break",
+    reads: "a Codex usage payload",
+    detail:
+      "Parses the usage shape the Codex tooling produces. The shape is internal, so it can change without notice.",
+  },
+  {
+    name: "Antigravity",
+    badge: "internal, may break",
+    reads: "an Antigravity quota payload",
+    detail:
+      "Parses the quota shape the Antigravity tooling produces. The shape is internal, so it can change without notice.",
+  },
+  {
+    name: "OpenCode",
+    badge: "session based, may break",
+    reads: "a session you already signed in to",
+    detail:
+      "Describes the usage view behind an existing session. It carries the highest automation risk of the six and stops the moment that session expires.",
+  },
+  {
+    name: "Manual",
+    badge: "user entered",
+    reads: "numbers you write yourself",
+    detail:
+      "Budgets you maintain by hand, for a self hosted model or any subscription without a connector. It never breaks and never guesses.",
+  },
+];
 
 export function Providers() {
-  const providersList = [
-    {
-      name: "Claude",
-      badge: "native payload",
-      origin: "local statusline payload",
-      description:
-        "Reads the rate limit payload Claude Code already hands to your statusline. It asks nothing of Anthropic on its own.",
-    },
-    {
-      name: "OpenRouter",
-      badge: "documented API",
-      origin: "openrouter.ai",
-      description:
-        "Reads your credit balance and usage window from OpenRouter's documented management API, using a key you keep in your operating system credential store.",
-    },
-    {
-      name: "Codex",
-      badge: "internal endpoint, may break",
-      origin: "local Codex usage file",
-      description:
-        "Reads the usage file the Codex CLI keeps in its own state directory. The shape is internal, so it can change without notice.",
-    },
-    {
-      name: "Antigravity",
-      badge: "internal endpoint, may break",
-      origin: "local Antigravity quota file",
-      description:
-        "Reads the quota file the Antigravity CLI keeps in its own state directory. The shape is internal, so it can change without notice.",
-    },
-    {
-      name: "OpenCode",
-      badge: "session based, may break",
-      origin: "your existing OpenCode session",
-      description:
-        "Reads the usage view behind a session you already signed into. Unverified, and it stops the moment that session expires.",
-    },
-    {
-      name: "Manual",
-      badge: "user entered",
-      origin: "your own entries, no network",
-      description:
-        "Budgets you write yourself, for self hosted models or any provider without a connector yet.",
-    },
-  ];
-
   return (
-    <section id="providers" className="py-20 px-4 sm:px-6 lg:px-8 border-t border-hairline">
-      <div className="mx-auto max-w-6xl">
-        <ScrollReveal>
-          <div className="mb-12">
-            <h2 className="font-sans text-2xl font-medium tracking-tight text-heading sm:text-3xl">
-              Providers
-            </h2>
-            <p className="mt-2 font-sans text-sm text-body">
-              Honest status for every supported connector, including what each
-              one reads from.
-            </p>
-            <p className="mt-3 max-w-2xl font-sans text-sm text-body leading-relaxed">
-              There is no OpenLimiter server in this picture. A connector either
-              reads something already sitting on your machine, or calls that
-              provider&apos;s own endpoint with credentials you already hold.
-            </p>
-          </div>
-        </ScrollReveal>
+    <Section id="providers">
+      <ScrollReveal>
+        <SectionHeading
+          eyebrow="Providers"
+          title="Six connectors, each labelled with how much to trust it."
+          lead="There is no OpenLimiter server in this picture. A connector reads something already sitting on your machine, and in this release not one of them touches the network."
+        />
+      </ScrollReveal>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {providersList.map((item, idx) => (
-            <ScrollReveal key={item.name} step={idx}>
-              <div className="h-full rounded-xl border border-hairline bg-surface/40 p-5 transition-colors hover:border-hairline-strong hover:bg-surface/70 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <h3 className="font-sans text-lg font-medium text-heading">
-                      {item.name}
-                    </h3>
-                    <span className="rounded border border-hairline bg-canvas px-2 py-0.5 font-mono text-[10px] font-medium text-accent">
-                      {item.badge}
-                    </span>
-                  </div>
-                  <p className="font-sans text-xs text-body leading-relaxed">
-                    {item.description}
-                  </p>
-                </div>
-                <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-hairline/60 pt-3 font-mono text-[10px]">
-                  <span className="uppercase tracking-wider text-label">
-                    reads
-                  </span>
-                  <span className="text-body">{item.origin}</span>
-                </div>
-              </div>
-            </ScrollReveal>
-          ))}
-
-          {/* Ghost Card: More Coming */}
-          <ScrollReveal step={7}>
-            <div className="h-full rounded-xl border border-dashed border-hairline bg-surface/20 p-5 flex flex-col justify-between">
+      <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {providers.map((provider, index) => (
+          <ScrollReveal key={provider.name} step={index}>
+            <div className="flex h-full flex-col justify-between rounded-xl border border-hairline bg-surface p-5 transition-colors hover:border-hairline-strong hover:bg-raised">
               <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <h3 className="font-sans text-lg font-medium text-label">
-                    More coming
-                  </h3>
-                  <span className="rounded border border-hairline bg-canvas px-2 py-0.5 font-mono text-[10px] font-medium text-label">
-                    planned
-                  </span>
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <h3 className="font-sans text-base font-medium text-heading">{provider.name}</h3>
+                  <Chip tone="accent">{provider.badge}</Chip>
                 </div>
-                <p className="font-sans text-xs text-label leading-relaxed">
-                  Connectors planned for Cursor, Copilot, Devin, Grok, and Z.ai.
-                  Planned means not built yet.
-                </p>
+                <p className="font-sans text-sm leading-relaxed text-body">{provider.detail}</p>
               </div>
-              <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-hairline/60 pt-3 font-mono text-[10px]">
-                <span className="uppercase tracking-wider text-label">
-                  reads
-                </span>
-                <span className="text-label">nothing yet</span>
-              </div>
+              <p className="mt-4 flex flex-wrap items-baseline gap-x-2 border-t border-hairline pt-3 font-mono text-2xs">
+                <span className="uppercase tracking-widest text-muted">reads</span>
+                <span className="text-body">{provider.reads}</span>
+              </p>
             </div>
           </ScrollReveal>
-        </div>
+        ))}
       </div>
-    </section>
+
+      <ScrollReveal step={7}>
+        <p className="mt-6 font-sans text-sm text-body">
+          Every connector ships marked{" "}
+          <span className="font-mono text-2xs text-heading">UNVERIFIED</span>, which is the honest
+          default: no explicit verifier has confirmed a shape against a live account yet.
+        </p>
+      </ScrollReveal>
+    </Section>
   );
 }
