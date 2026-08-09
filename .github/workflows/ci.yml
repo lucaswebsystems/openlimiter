@@ -29,9 +29,11 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # Build first: packages resolve each other through their published
+      # declaration output, which does not exist in a clean checkout.
+      - name: Build
+        run: pnpm build
       - name: Type check
         run: pnpm typecheck
       - name: Test
         run: pnpm test
-      - name: Build
-        run: pnpm build
