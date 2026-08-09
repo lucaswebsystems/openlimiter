@@ -34,10 +34,34 @@
  *
  * Only opacity and a transform ever change, so nothing here can move the
  * layout by a pixel.
+ *
+ * The numbers, and where they come from.
+ *
+ * The entrance was tuned against paseo.sh, read from its live bundle rather
+ * than guessed at. That site animates opacity 0 to 1 and translateY 20px to 0
+ * over 500ms on a plain `ease-out`, triggers on an IntersectionObserver 60
+ * pixels inside the viewport, and never replays. Ours is the same shape: 20
+ * pixels of travel, the same `cubic-bezier(0, 0, 0.58, 1)` that `ease-out`
+ * expands to, 560ms rather than 500 because a group here staggers and the
+ * slightly longer arc keeps the last card in the same breath as the first, and
+ * the same observer margin and one shot behaviour.
+ *
+ * The one deliberate departure: paseo hides its start state in the server
+ * markup, so a visitor whose JavaScript fails is served a hero with
+ * `style="opacity:0"` on it and reads nothing. Everything above exists so that
+ * cannot happen here.
  */
 
 /** Set on any element that should fade and rise into view. */
 export const REVEAL_ATTR = "data-reveal";
+
+/**
+ * The value `data-reveal` takes on a small element that should travel less:
+ * a breadcrumb, a chip row, a one line note. Twelve pixels instead of twenty,
+ * on the same curve and the same duration, so it still belongs to the group it
+ * arrives with.
+ */
+export const REVEAL_SMALL = "sm";
 
 /** Set by the observer on an element that has been seen. */
 export const REVEALED_ATTR = "data-revealed";
@@ -80,6 +104,9 @@ export const motionArmScript = [
  *   <section {...reveal}>
  */
 export const reveal = { [REVEAL_ATTR]: "" } as const;
+
+/** The same entrance over a shorter distance. See `REVEAL_SMALL`. */
+export const revealSm = { [REVEAL_ATTR]: REVEAL_SMALL } as const;
 
 /**
  * Spread onto a grid or a list whose direct children carry `reveal`, so they

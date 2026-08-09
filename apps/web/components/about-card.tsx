@@ -26,7 +26,7 @@ const commitments = [
   {
     title: "It reports to nobody",
     detail:
-      "No telemetry, no analytics, and no OpenLimiter server for any of it to reach. There is nothing to opt out of.",
+      "The software has no telemetry, no analytics, and no OpenLimiter server for anything to reach. This website keeps cookieless page counts only, with no cookies and nothing personal.",
   },
   {
     title: "Unknown stays unknown",

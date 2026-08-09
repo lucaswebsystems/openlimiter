@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageShell } from "@/components/page-shell";
 import { formatReleaseDate, readChangelog } from "@/lib/changelog";
 import { pageMetadata } from "@/lib/metadata";
+import { reveal, revealGroup, revealSm } from "@/lib/motion";
 import { REPO_URL } from "@/lib/site";
 
 /**
@@ -38,7 +39,7 @@ export default async function ChangelogPage() {
       lead="Every released version of OpenLimiter, read straight from the file the repository itself keeps, in the order that file lists them."
     >
       {releases.length === 0 ? (
-        <div className="max-w-xl rounded-xl border border-hairline bg-surface p-6">
+        <div className="max-w-xl rounded-xl border border-hairline bg-surface p-6" {...reveal}>
           <p className="text-sm leading-relaxed text-muted">
             No CHANGELOG.md was found in this checkout, so there is nothing to show here. The file
             this page reads sits at the root of the{" "}
@@ -49,7 +50,7 @@ export default async function ChangelogPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-12">
+        <div className="space-y-12" {...revealGroup}>
           {releases.map((release) => {
             const date = formatReleaseDate(release.date);
             return (
@@ -57,6 +58,7 @@ export default async function ChangelogPage() {
                 key={release.version}
                 id={`v${release.version}`}
                 className="max-w-xl scroll-mt-8 border-t border-hairline pt-6 first:border-t-0 first:pt-0"
+                {...reveal}
               >
                 <h2 className="text-xl font-medium text-heading">{release.version}</h2>
                 {date !== null && <p className="mt-1 text-sm text-muted">{date}</p>}
@@ -84,7 +86,7 @@ export default async function ChangelogPage() {
         </div>
       )}
 
-      <p className="mt-16 max-w-xl text-sm leading-relaxed text-muted">
+      <p className="mt-16 max-w-xl text-sm leading-relaxed text-muted" {...revealSm}>
         This page is rendered from the{" "}
         <a
           href={`${REPO_URL}/blob/main/CHANGELOG.md`}

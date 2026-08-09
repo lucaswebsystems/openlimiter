@@ -4,6 +4,7 @@ import { PageShell } from "@/components/page-shell";
 import { Card } from "@/components/ui";
 import { COMPARISON_NOTE, alternatives } from "@/lib/alternatives";
 import { pageMetadata } from "@/lib/metadata";
+import { reveal, revealGroup } from "@/lib/motion";
 
 /**
  * /alternatives
@@ -38,12 +39,13 @@ export default function AlternativesPage() {
         <p className="mt-2 text-sm leading-relaxed text-body">{COMPARISON_NOTE}</p>
       </Card>
 
-      <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2" {...revealGroup}>
         {alternatives.map((entry) => (
           <Link
             key={entry.slug}
             href={`/alternatives/${entry.slug}`}
             className="focus-ring flex h-full flex-col rounded-xl border border-hairline bg-surface p-6 transition-colors hover:bg-raised"
+            {...reveal}
           >
             <h2 className="text-xl font-medium text-heading">{entry.name}</h2>
             <p className="mt-3 text-sm leading-relaxed text-muted">{entry.summary}</p>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CliTranscript } from "./cli-transcript";
 import { SectionHeading } from "./ui";
 import { demoCapture, hookCapture, statuslineCapture, type CliCapture } from "@/lib/cli-capture";
+import { reveal, revealGroup, revealSm } from "@/lib/motion";
 
 /**
  * Fully scriptable.
@@ -25,7 +26,10 @@ export function Scriptable() {
   const current = tabs[active];
 
   return (
-    <section id="scriptable">
+    /* The heading, the tabs, the panel and the note arrive in that order, 70ms
+       apart. The panel keeps its own reveal across a tab change: the observer
+       marks the element, React only ever swaps the transcript inside it. */
+    <section id="scriptable" {...revealGroup}>
       <SectionHeading
         title="Fully scriptable"
         lead="Everything the tool knows, it will print. A table for you, one line for a statusline, a bounded block for an agent, or plain JSON for anything else."
@@ -35,6 +39,7 @@ export function Scriptable() {
         role="tablist"
         aria-label="Command line examples"
         className="mb-3 flex flex-wrap gap-2"
+        {...revealSm}
       >
         {tabs.map((tab, index) => {
           const selected = index === active;
@@ -64,11 +69,12 @@ export function Scriptable() {
         role="tabpanel"
         aria-labelledby={`scriptable-tab-${active}`}
         className="mb-3"
+        {...reveal}
       >
         <CliTranscript capture={current.capture} />
       </div>
 
-      <p className="max-w-lg text-xs leading-relaxed text-muted">
+      <p className="max-w-lg text-xs leading-relaxed text-muted" {...revealSm}>
         Every block above is verbatim standard output, captured against the project&apos;s synthetic
         fixtures. Add <span className="font-mono text-2xs text-heading">export</span> for the same
         state as JSON, and <span className="font-mono text-2xs text-heading">doctor</span> when a

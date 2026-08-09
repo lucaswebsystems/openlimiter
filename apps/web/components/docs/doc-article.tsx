@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { JsonLd } from "@/components/json-ld";
 import { docNeighbours } from "@/lib/docs";
 import { docsBreadcrumbSchema } from "@/lib/jsonld";
+import { reveal, revealGroup, revealSm } from "@/lib/motion";
 
 export interface DocSection {
   /** Anchor id. Also the target of the on this page list. */
@@ -40,25 +41,38 @@ export function DocArticle({
     <div className="flex gap-12">
       <article className="min-w-0 max-w-3xl flex-1 pb-20">
         <JsonLd data={docsBreadcrumbSchema(href)} />
-        <nav aria-label="Breadcrumb">
-          <ol className="flex items-center gap-2 font-mono text-2xs uppercase tracking-widest text-muted">
-            <li>
-              <Link href="/docs" className="focus-ring rounded transition-colors hover:text-heading">
-                Docs
-              </Link>
-            </li>
-            <li aria-hidden="true">/</li>
-            <li className="text-heading">{title}</li>
-          </ol>
-        </nav>
+        {/* The page header arrives as one group: trail, title, lead, 70ms
+            apart. The wrapper carries no styling of its own, so the rhythm the
+            margins below set is untouched. */}
+        <div {...revealGroup}>
+          <nav aria-label="Breadcrumb" {...revealSm}>
+            <ol className="flex items-center gap-2 font-mono text-2xs uppercase tracking-widest text-muted">
+              <li>
+                <Link
+                  href="/docs"
+                  className="focus-ring rounded transition-colors hover:text-heading"
+                >
+                  Docs
+                </Link>
+              </li>
+              <li aria-hidden="true">/</li>
+              <li className="text-heading">{title}</li>
+            </ol>
+          </nav>
 
-        <h1 className="mt-5 font-sans text-3xl font-medium tracking-tight text-heading sm:text-4xl">
-          {title}
-        </h1>
-        <p className="mt-4 font-sans text-base leading-8 text-body">{lead}</p>
+          <h1
+            className="mt-5 font-sans text-3xl font-medium tracking-tight text-heading sm:text-4xl"
+            {...reveal}
+          >
+            {title}
+          </h1>
+          <p className="mt-4 font-sans text-base leading-8 text-body" {...reveal}>
+            {lead}
+          </p>
+        </div>
 
         {sections.map((section) => (
-          <section key={section.id} className="mt-14">
+          <section key={section.id} className="mt-14" {...reveal}>
             <h2
               id={section.id}
               className="scroll-mt-24 border-t border-hairline pt-8 font-sans text-xl font-medium tracking-tight text-heading"
@@ -73,11 +87,13 @@ export function DocArticle({
           <nav
             aria-label="Documentation pages"
             className="mt-16 grid grid-cols-1 gap-4 border-t border-hairline pt-8 sm:grid-cols-2"
+            {...revealGroup}
           >
             {previous !== null ? (
               <Link
                 href={previous.href}
                 className="focus-ring rounded-xl border border-hairline bg-surface p-4 transition-colors hover:border-hairline-strong hover:bg-raised"
+                {...reveal}
               >
                 <span className="font-mono text-2xs uppercase tracking-widest text-muted">
                   Previous
@@ -93,6 +109,7 @@ export function DocArticle({
               <Link
                 href={next.href}
                 className="focus-ring rounded-xl border border-hairline bg-surface p-4 text-right transition-colors hover:border-hairline-strong hover:bg-raised sm:col-start-2"
+                {...reveal}
               >
                 <span className="font-mono text-2xs uppercase tracking-widest text-muted">Next</span>
                 <span className="mt-1 block font-sans text-sm font-medium text-heading">

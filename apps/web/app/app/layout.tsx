@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { RegisterServiceWorker } from "./register-service-worker";
 import { imagePalette } from "@/lib/image-palette";
+/* The pressure scale and the segmented meter, which only this route uses. */
+import "./theme.css";
 
 /**
  * The application shell.

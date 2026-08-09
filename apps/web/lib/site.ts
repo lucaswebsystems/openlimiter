@@ -69,6 +69,24 @@ export const AUTHOR_SITE = "https://lucaswebsystems.com";
 export const AUTHOR_GITHUB = "https://github.com/lucaswebsystems";
 export const AUTHOR_LINKEDIN = "https://www.linkedin.com/in/lucas-costa-t/";
 
+/**
+ * THE HERO BACKDROP OFF SWITCH.
+ *
+ * The one flag that controls the video behind the hero. Set it to `false` and
+ * the hero returns to exactly the look it had before the experiment: the
+ * component is never rendered, so no video element, no poster and no veil reach
+ * the page, and the hero section does not even take the class that would give
+ * them somewhere to sit. There is nothing else to undo and no second place to
+ * look.
+ *
+ * Typed as `boolean` rather than left to infer the literal, so both branches
+ * stay type checked and flipping this value can never turn the other one into
+ * dead code the compiler has already discarded.
+ *
+ * See components/hero-backdrop.tsx for what it switches on.
+ */
+export const HERO_BACKDROP_ENABLED: boolean = true;
+
 /** The version this site describes. Kept in step with the root CHANGELOG. */
 export const CURRENT_VERSION = "0.1.0";
 

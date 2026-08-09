@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { formatPostDate, posts } from "@/lib/blog";
 import { pageMetadata } from "@/lib/metadata";
+import { reveal, revealGroup, revealSm } from "@/lib/motion";
 
 /**
  * /blog
@@ -31,12 +32,13 @@ export default function BlogIndexPage() {
       title="Blog"
       lead={`Occasional writing about what OpenLimiter does, what it refuses to do, and why. ${countLine}`}
     >
-      <div className="space-y-4">
+      <div className="space-y-4" {...revealGroup}>
         {posts.map((post) => (
           <Link
             key={post.slug}
             href={`/blog/${post.slug}`}
             className="focus-ring block max-w-xl rounded-xl border border-hairline bg-surface p-6 transition-colors hover:bg-raised"
+            {...reveal}
           >
             <h2 className="text-xl font-medium text-heading">{post.title}</h2>
             <time dateTime={post.date} className="mt-2 block text-sm text-muted">
@@ -47,7 +49,7 @@ export default function BlogIndexPage() {
         ))}
       </div>
 
-      <p className="mt-16 max-w-xl text-sm leading-relaxed text-muted">
+      <p className="mt-16 max-w-xl text-sm leading-relaxed text-muted" {...revealSm}>
         Released changes are listed on the{" "}
         <Link href="/changelog" className={linkClass}>
           changelog

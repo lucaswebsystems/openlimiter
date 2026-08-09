@@ -1,0 +1,240 @@
+/*
+  The dashboard's own layer.
+
+  Everything the marketing pages need already lives in app/globals.css, and not
+  one value here replaces one of those. This file adds the single thing the
+  product surface needs and the site does not: a pressure scale, and the
+  segmented meter drawn in it.
+
+  The pressure scale has three steps and they are read off the same thresholds
+  the engine already uses, so a colour can never disagree with a reason code:
+
+    healthy   below 60 percent      teal
+    watch     60 to 79 percent      amber
+    critical  80 percent and above  red
+
+  Eighty is the number policy.ts calls NEAR_CAP, so the moment a bar turns red
+  is the same moment the advice engine stops recommending that provider. Sixty
+  is a warning step ahead of it, which is a display decision and nothing else:
+  no number, no reason code and no recommendation is derived from it.
+
+  Contrast, measured with the ratio formula against the three backgrounds these
+  colours ever land on (canvas, surface, raised):
+
+    dark   teal 11.12 / 10.53 / 9.94   amber 10.60 / 10.05 / 9.48
+           red  8.51 / 8.06 / 7.61
+    light  teal 5.89 / 5.54 / 5.25     amber 6.14 / 5.78 / 5.47
+           red  6.19 / 5.83 / 5.52
+
+  The lowest of those is 5.25, so every pressure colour clears AA for normal
+  text in both themes, which it has to: the percentage next to a bar is painted
+  in the same colour as the bar.
+
+  The theme cascade mirrors globals.css exactly, in the same four blocks and
+  the same order, so an explicit choice still beats the system preference.
+*/
+
+:root {
+  /* Pressure. */
+  --ol-meter-healthy: #3ddbb8;
+  --ol-meter-watch: #f2b544;
+  --ol-meter-critical: #ff8a80;
+
+  /* The unfilled part of a bar, and the outline a hollow bar is drawn with. */
+  --ol-meter-empty: #2a2a30;
+  --ol-meter-ghost: #3c3c44;
+
+  /* One pixel of light along the top edge of a card. */
+  --ol-card-sheen: rgb(255 255 255 / 0.045);
+
+  /* How much of the pressure colour a stale bar keeps. Fading means mixing
+     toward the surface, which on a dark surface means darker and on a light
+     one means lighter, so the two themes need different amounts to leave the
+     faded bar above 3 to 1 against the card behind it. Measured on the built
+     page: 3.82 in dark, 3.98 in light, both for the worst of the three. */
+  --ol-meter-stale-mix: 55%;
+
+  /* Bar geometry, so every surface renders the same block. */
+  --ol-meter-height: 0.75rem;
+  --ol-meter-gap: 0.1875rem;
+  --ol-meter-radius: 0.125rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ol-meter-healthy: #3ddbb8;
+    --ol-meter-watch: #f2b544;
+    --ol-meter-critical: #ff8a80;
+    --ol-meter-empty: #2a2a30;
+    --ol-meter-ghost: #3c3c44;
+    --ol-card-sheen: rgb(255 255 255 / 0.045);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ol-meter-healthy: #3ddbb8;
+  --ol-meter-watch: #f2b544;
+  --ol-meter-critical: #ff8a80;
+  --ol-meter-empty: #2a2a30;
+  --ol-meter-ghost: #3c3c44;
+  --ol-card-sheen: rgb(255 255 255 / 0.045);
+}
+
+:root[data-theme="light"] {
+  --ol-meter-healthy: #0a6d5d;
+  --ol-meter-watch: #845309;
+  --ol-meter-critical: #b42318;
+  --ol-meter-empty: #dcdce1;
+  --ol-meter-ghost: #c6c6cb;
+  --ol-card-sheen: rgb(13 13 15 / 0.04);
+  --ol-meter-stale-mix: 82%;
+}
+
+/*
+  The meter.
+
+  Ten blocks, because a terminal statusline draws ten blocks and this product
+  is read in a terminal more often than anywhere else. A block is full at every
+  whole ten percent and half at every five, so a reading is only ever shown
+  rounded down: 73 percent lights seven blocks and half of the eighth, never
+  eight. The same arithmetic runs in the desktop window and in the command line
+  tool, so the three cannot draw the same number differently.
+*/
+.ol-meter {
+  display: flex;
+  align-items: stretch;
+  gap: var(--ol-meter-gap);
+  width: 100%;
+  min-width: 0;
+}
+
+.ol-meter[data-pressure="healthy"] {
+  --ol-pressure-base: var(--ol-meter-healthy);
+}
+
+.ol-meter[data-pressure="watch"] {
+  --ol-pressure-base: var(--ol-meter-watch);
+}
+
+.ol-meter[data-pressure="critical"] {
+  --ol-pressure-base: var(--ol-meter-critical);
+}
+
+.ol-meter[data-pressure="none"] {
+  --ol-pressure-base: var(--ol-meter-ghost);
+}
+
+/* Fresh paints the pressure colour itself. A stale bar keeps the hue and fades
+   toward the surface, so it still reads as a reading and still reads as an old
+   one. The number beside it is never faded: a percentage has to stay legible,
+   and the hollow dot and the word STALE already carry the state. */
+.ol-meter {
+  --ol-pressure: var(--ol-pressure-base);
+}
+
+.ol-meter[data-state="stale"] {
+  --ol-pressure: color-mix(
+    in srgb,
+    var(--ol-pressure-base) var(--ol-meter-stale-mix),
+    var(--ol-surface)
+  );
+}
+
+.ol-meter-block {
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--ol-meter-height);
+  border-radius: var(--ol-meter-radius);
+  background-color: var(--ol-meter-empty);
+}
+
+.ol-meter-block[data-fill="full"] {
+  background-color: var(--ol-pressure);
+}
+
+.ol-meter-block[data-fill="half"] {
+  background-image: linear-gradient(
+    to right,
+    var(--ol-pressure) 0 50%,
+    var(--ol-meter-empty) 50% 100%
+  );
+}
+
+/* Unknown is drawn, not blanked. Ten empty outlines say the same thing the
+   word next to them says: this was never read, and it is not a zero. */
+.ol-meter[data-state="unknown"] .ol-meter-block {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: inset 0 0 0 1px var(--ol-meter-ghost);
+}
+
+.ol-meter-sm {
+  --ol-meter-height: 0.5rem;
+  --ol-meter-gap: 0.125rem;
+}
+
+/* The number beside a bar, painted in the bar's own colour. */
+.ol-pressure-text[data-pressure="healthy"] {
+  color: var(--ol-meter-healthy);
+}
+
+.ol-pressure-text[data-pressure="watch"] {
+  color: var(--ol-meter-watch);
+}
+
+.ol-pressure-text[data-pressure="critical"] {
+  color: var(--ol-meter-critical);
+}
+
+.ol-pressure-text[data-pressure="none"] {
+  color: var(--ol-muted);
+}
+
+/* The dot on the state chip in the header strip. */
+.ol-pressure-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: var(--ol-muted);
+}
+
+.ol-pressure-dot[data-pressure="healthy"] {
+  background-color: var(--ol-meter-healthy);
+}
+
+.ol-pressure-dot[data-pressure="watch"] {
+  background-color: var(--ol-meter-watch);
+}
+
+.ol-pressure-dot[data-pressure="critical"] {
+  background-color: var(--ol-meter-critical);
+}
+
+/*
+  Freshness, which is a different question from pressure and is never painted
+  in a pressure colour. Solid means read just now, a hollow ring means the
+  reading has aged past its own expiry, and a dimmed ring means there was never
+  a reading at all.
+*/
+.ol-fresh-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background-color: var(--ol-soft);
+}
+
+.ol-fresh-dot[data-state="stale"] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ol-muted);
+}
+
+.ol-fresh-dot[data-state="unknown"] {
+  background-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ol-hairline-strong);
+}
+
+/* One pixel of light along the top of a card, which is the only thing that
+   separates a card from the surface behind it beyond its hairline. */
+.ol-sheen {
+  box-shadow: inset 0 1px 0 0 var(--ol-card-sheen);
+}

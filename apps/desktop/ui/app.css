@@ -1,41 +1,74 @@
 /*
- * The window, in the site's own palette.
+ * The window, in the product's one design language.
  *
- * Every value here mirrors a token in apps/web/app/globals.css by name, so the
- * window and the web application read as one product in both themes. There is
- * no font file and no image: the system typeface and the OpenLimiter blue are
- * the whole design, which keeps the bundle small and the first paint instant.
+ * Every value here mirrors a token in apps/web/app/globals.css or in
+ * apps/web/app/app/theme.css by name, so the window, the web dashboard and the
+ * statusline read as one product. There is no font file, no image and no
+ * dependency: the system typeface, the OpenLimiter blue and the three pressure
+ * colours are the whole design, which keeps the bundle small and the first
+ * paint instant.
+ *
+ * The pressure scale is the same one the dashboard uses and is read off the
+ * same thresholds the engine already applies:
+ *
+ *   healthy   below 60 percent      teal
+ *   watch     60 to 79 percent      amber
+ *   critical  80 percent and above  red
+ *
+ * Contrast against the three backgrounds these colours land on is at worst
+ * 5.25 to 1 in light and 7.61 to 1 in dark, so every one of them clears AA for
+ * normal text, which it must: the number beside a bar is painted in the bar's
+ * own colour.
  */
 
 :root {
   color-scheme: light dark;
 
-  --canvas: #ffffff;
-  --surface: #f6f6f7;
-  --raised: #efeff1;
-  --code: #f4f4f5;
-  --track: #e2e2e6;
-  --hairline: #e5e5e8;
-  --hairline-strong: #d2d2d8;
+  --canvas: #f8f8f9;
+  --surface: #f1f1f3;
+  --raised: #ebebed;
+  --code: #eeeef0;
+  --hairline: #e0e0e3;
+  --hairline-strong: #c6c6cb;
   --heading: #0d0d0f;
-  --body: #53535c;
-  --muted: #62626c;
+  --body: #46464d;
+  --soft: #46464d;
+  --muted: #55555e;
   --accent: #0866ff;
+
+  --meter-healthy: #0a6d5d;
+  --meter-watch: #845309;
+  --meter-critical: #b42318;
+  --meter-empty: #dcdce1;
+  --meter-ghost: #c6c6cb;
+  --sheen: rgb(13 13 15 / 0.04);
+  /* How much colour a stale bar keeps. Fading means mixing toward the surface,
+     which is lighter here and darker in the dark theme, so the two need
+     different amounts to stay above 3 to 1 against the card behind them. */
+  --stale-mix: 82%;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #0a0a0b;
-    --surface: #121214;
+    --canvas: #0d0d0f;
+    --surface: #141416;
     --raised: #1a1a1d;
-    --code: #0e0e10;
-    --track: #26262b;
-    --hairline: #232327;
-    --hairline-strong: #33333a;
-    --heading: #f2f2f3;
-    --body: #adadb6;
-    --muted: #94949e;
-    --accent: #6ba6ff;
+    --code: #0a0a0c;
+    --hairline: #24242a;
+    --hairline-strong: #3c3c44;
+    --heading: #fafafa;
+    --body: #b6b6bd;
+    --soft: #b6b6bd;
+    --muted: #aaaab2;
+    --accent: #7db4ff;
+
+    --meter-healthy: #3ddbb8;
+    --meter-watch: #f2b544;
+    --meter-critical: #ff8a80;
+    --meter-empty: #2a2a30;
+    --meter-ghost: #3c3c44;
+    --sheen: rgb(255 255 255 / 0.045);
+    --stale-mix: 55%;
   }
 }
 
@@ -43,33 +76,64 @@
   box-sizing: border-box;
 }
 
+/* The grid and flex rules below would otherwise out specify the hidden
+   attribute, and a hidden panel has to actually be hidden. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--canvas);
   color: var(--body);
-  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   /* A window is dragged by its title bar, never by selecting its contents. */
   user-select: none;
 }
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* ------------------------------------------------------------------- chrome */
 
 .bar {
   position: sticky;
   top: 0;
   z-index: 2;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
-  background: color-mix(in srgb, var(--canvas) 90%, transparent);
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--canvas) 88%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--hairline);
 }
 
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.logo {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--accent);
+  flex: none;
+}
+
 h1 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--heading);
@@ -77,54 +141,27 @@ h1 {
 
 h2 {
   margin: 0 0 8px;
-  font: 500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.12em;
+  font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .sub {
-  margin: 2px 0 0;
-  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 1px 0 0;
+  font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--muted);
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.state {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px solid var(--hairline);
-  border-radius: 7px;
-  background: var(--surface);
-  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
 }
 
 button {
-  padding: 5px 10px;
+  padding: 6px 11px;
   border: 1px solid var(--hairline);
   border-radius: 8px;
   background: var(--surface);
   color: var(--heading);
   font: 500 12px/1.4 inherit;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 button:hover {
@@ -137,13 +174,127 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-main {
-  padding: 14px 16px 24px;
+button[disabled] {
+  opacity: 0.5;
+  cursor: default;
 }
+
+main {
+  padding: 12px 16px 22px;
+}
+
+/* -------------------------------------------------------------------- strip */
+
+.strip {
+  display: grid;
+  gap: 10px;
+  margin: 12px 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 0 var(--sheen);
+}
+
+.strip-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--raised);
+  font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  color: var(--heading);
+  flex: none;
+}
+
+.pressure-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.pressure-dot[data-pressure="healthy"] { background: var(--meter-healthy); }
+.pressure-dot[data-pressure="watch"] { background: var(--meter-watch); }
+.pressure-dot[data-pressure="critical"] { background: var(--meter-critical); }
+
+.strip-line {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.strip-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+.rec {
+  margin: 0;
+  font: 500 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.1em;
+  color: var(--heading);
+}
+
+.rec-sub {
+  margin: 0;
+  font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------------------- tabs */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 12px 16px 0;
+  padding: 4px;
+  border: 1px solid var(--hairline);
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.tabs button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.tabs button:hover {
+  background: transparent;
+  color: var(--heading);
+}
+
+.tabs button[aria-selected="true"] {
+  background: var(--raised);
+  color: var(--heading);
+}
+
+/* -------------------------------------------------------------------- cards */
 
 .cards {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .card {
@@ -151,69 +302,281 @@ main {
   border-radius: 12px;
   background: var(--surface);
   padding: 12px 14px;
+  box-shadow: inset 0 1px 0 0 var(--sheen);
 }
 
 .card.unknown {
   border-style: dashed;
   border-color: var(--hairline-strong);
-  background: var(--canvas);
 }
 
-.row {
+.card-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+}
+
+.card-id {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.card-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--soft);
+  flex: none;
 }
 
 .name {
   font-size: 13px;
   font-weight: 600;
   color: var(--heading);
+  line-height: 1.2;
 }
 
-.value {
-  font: 600 18px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--heading);
+.code {
+  margin-top: 2px;
+  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+.peak {
+  text-align: right;
+  flex: none;
+}
+
+.peak-value {
+  font: 600 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 
-.value.none {
+/* A card with no reading says so quietly. There is no number to shout. */
+.peak-value.none {
   font-size: 13px;
   font-weight: 400;
+}
+
+.peak-note {
+  margin-top: 4px;
+  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--muted);
 }
 
-.bar-track {
-  margin-top: 9px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--track);
-  overflow: hidden;
+.meters {
+  margin-top: 11px;
+  border-top: 1px solid var(--hairline);
 }
 
-.bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
-  transition: width 0.4s ease;
+.meter-row {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline);
 }
 
-.bar-fill.stale {
-  background: var(--hairline-strong);
+.meter-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 2px;
 }
 
-.meta {
+.meter-head {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.meter-name {
+  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  color: var(--soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  flex: none;
+}
+
+.fresh-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--soft);
+}
+
+.fresh-dot[data-state="stale"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--muted);
+}
+
+.fresh-dot[data-state="unknown"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--hairline-strong);
+}
+
+.meter-line {
+  display: flex;
+  align-items: center;
   gap: 10px;
   margin-top: 8px;
-  font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.meter-value {
+  width: 58px;
+  flex: none;
+  text-align: right;
+  font: 600 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
+}
+
+/* The word unknown is not a reading, so it is not typeset like one. */
+.meter-value.none {
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.meter-reset {
+  margin: 8px 0 0;
+  font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+}
+
+.origin {
+  margin: 11px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+  font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+}
+
+/* -------------------------------------------------------------------- meter */
+
+.meter {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  --pressure-base: var(--meter-ghost);
+  --pressure: var(--pressure-base);
+}
+
+.meter[data-pressure="healthy"] { --pressure-base: var(--meter-healthy); }
+.meter[data-pressure="watch"] { --pressure-base: var(--meter-watch); }
+.meter[data-pressure="critical"] { --pressure-base: var(--meter-critical); }
+
+.meter[data-state="stale"] {
+  --pressure: color-mix(in srgb, var(--pressure-base) var(--stale-mix), var(--surface));
 }
 
 .block {
-  margin-top: 18px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 12px;
+  border-radius: 2px;
+  background-color: var(--meter-empty);
+}
+
+.block[data-fill="full"] {
+  background-color: var(--pressure);
+}
+
+.block[data-fill="half"] {
+  background-image: linear-gradient(
+    to right,
+    var(--pressure) 0 50%,
+    var(--meter-empty) 50% 100%
+  );
+}
+
+.meter[data-state="unknown"] .block {
+  background-color: transparent;
+  background-image: none;
+  box-shadow: inset 0 0 0 1px var(--meter-ghost);
+}
+
+/* The number keeps its full colour whatever its freshness: a percentage has to
+   stay legible, and the hollow dot and the word STALE carry the state. */
+.value[data-pressure="healthy"] { color: var(--meter-healthy); }
+.value[data-pressure="watch"] { color: var(--meter-watch); }
+.value[data-pressure="critical"] { color: var(--meter-critical); }
+
+/* -------------------------------------------------------------------- empty */
+
+.empty {
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 28px 20px;
+  text-align: center;
+}
+
+.empty .meter {
+  max-width: 180px;
+  margin: 0 auto 18px;
+}
+
+.empty h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--heading);
+}
+
+.empty p {
+  margin: 8px auto 0;
+  max-width: 34em;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--body);
+}
+
+.ways {
+  list-style: none;
+  margin: 16px auto 0;
+  padding: 0;
+  max-width: 34em;
+  text-align: left;
+  display: grid;
+  gap: 7px;
+}
+
+.ways li {
+  display: flex;
+  gap: 8px;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--muted);
+}
+
+.ways b {
+  color: var(--heading);
+  font-weight: 500;
+  flex: none;
+}
+
+/* ------------------------------------------------------------------- blocks */
+
+.block-section + .block-section {
+  margin-top: 16px;
 }
 
 pre {
@@ -240,5 +603,15 @@ footer p {
   margin: 0 0 6px;
   font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--muted);
+}
+
+/* Only the path breaks anywhere. A sentence breaks between its words. */
+#where {
   word-break: break-all;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }

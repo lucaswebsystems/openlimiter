@@ -9,27 +9,101 @@
   </head>
   <body>
     <header class="bar">
-      <div>
-        <h1>OpenLimiter</h1>
-        <p class="sub" id="stamp">Reading the local cache.</p>
+      <div class="identity">
+        <span class="logo" aria-hidden="true">
+          <!-- The mark, four segment variant, the shape used below 48 pixels. -->
+          <svg viewBox="0 0 200 200" width="17" height="17" focusable="false">
+            <path d="M 100.000 28.000 A 72 72 0 0 1 146.281 155.155" fill="none" stroke="currentColor" stroke-opacity="1" stroke-width="44" stroke-linecap="butt" />
+            <path d="M 131.563 164.713 A 72 72 0 0 1 39.071 138.362" fill="none" stroke="currentColor" stroke-opacity="0.8" stroke-width="44" stroke-linecap="butt" />
+            <path d="M 31.600 122.483 A 72 72 0 0 1 38.921 61.877" fill="none" stroke="currentColor" stroke-opacity="0.6" stroke-width="44" stroke-linecap="butt" />
+            <path d="M 49.958 48.233 A 72 72 0 0 1 82.582 30.139" fill="none" stroke="currentColor" stroke-opacity="0.4" stroke-width="44" stroke-linecap="butt" />
+          </svg>
+        </span>
+        <div>
+          <h1>OpenLimiter</h1>
+          <p class="sub" id="stamp">Reading the local cache.</p>
+        </div>
       </div>
-      <div class="actions">
-        <span class="state" id="reason"><span class="dot" id="dot"></span><span id="reason-text">reading</span></span>
-        <button type="button" id="refresh">Refresh</button>
-      </div>
+      <button type="button" id="refresh">Refresh</button>
     </header>
 
-    <main>
-      <section id="cards" class="cards"></section>
+    <section class="strip" aria-label="Overall state">
+      <div class="strip-main">
+        <span class="chip">
+          <span class="pressure-dot" id="state-dot" aria-hidden="true"></span>
+          <span id="reason-code">UNKNOWN</span>
+        </span>
+        <p class="strip-line" id="reason-line">Nothing readable has been found yet.</p>
+      </div>
+      <div class="strip-side">
+        <p class="rec" id="rec-code">NO RECOMMENDATION</p>
+        <p class="rec-sub" id="rec-reason">Nothing has been read yet.</p>
+      </div>
+    </section>
 
-      <section class="block">
-        <h2>What an agent would be told</h2>
-        <pre id="context">Nothing yet.</pre>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button
+        type="button"
+        role="tab"
+        id="tab-meters"
+        aria-selected="true"
+        aria-controls="panel-meters"
+      >
+        Meters
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="tab-context"
+        aria-selected="false"
+        aria-controls="panel-context"
+        tabindex="-1"
+      >
+        Agent context
+      </button>
+    </nav>
+
+    <main>
+      <section id="panel-meters" role="tabpanel" aria-labelledby="tab-meters" tabindex="-1">
+        <div id="cards" class="cards"></div>
+
+        <div id="empty" class="empty" hidden>
+          <div class="meter" data-state="unknown" data-pressure="none" aria-hidden="true">
+            <span class="block"></span><span class="block"></span><span class="block"></span>
+            <span class="block"></span><span class="block"></span><span class="block"></span>
+            <span class="block"></span><span class="block"></span><span class="block"></span>
+            <span class="block"></span>
+          </div>
+          <h3>No reading yet</h3>
+          <p>
+            Nothing readable was found on this machine, so every provider is
+            unknown. It stays that way until something writes a reading: a
+            missing quota is never shown as a zero and never as an exhausted
+            one.
+          </p>
+          <ul class="ways">
+            <li><b>1</b><span>Run openlimiter refresh in a terminal, which writes the cache this window reads.</span></li>
+            <li><b>2</b><span>Write a manual quota document into the state directory named below.</span></li>
+            <li><b>3</b><span>Install the command line tool if it is not on this machine yet.</span></li>
+          </ul>
+        </div>
       </section>
 
-      <section class="block">
-        <h2>Statusline</h2>
-        <pre id="statusline">OpenLimiter UNKNOWN</pre>
+      <section
+        id="panel-context"
+        role="tabpanel"
+        aria-labelledby="tab-context"
+        tabindex="-1"
+        hidden
+      >
+        <div class="block-section">
+          <h2>What an agent would be told</h2>
+          <pre id="context">Nothing yet.</pre>
+        </div>
+        <div class="block-section">
+          <h2>Statusline</h2>
+          <pre id="statusline">OpenLimiter UNKNOWN</pre>
+        </div>
       </section>
 
       <footer>

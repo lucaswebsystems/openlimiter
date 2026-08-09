@@ -12,10 +12,14 @@ import {
   Button,
   CodeBlock,
   DemoDataChip,
+  EmptyState,
+  HeaderStrip,
   Panel,
   ProviderCard,
-  providerName,
+  Tabs,
+  type TabDefinition,
 } from "./pieces";
+import { providerName } from "./language";
 
 /**
  * The dashboard.
@@ -37,6 +41,12 @@ const STORAGE_SAMPLE_KEY = "openlimiter-app-sample";
 
 /** How often the clock advances, which is what ages a reading to stale. */
 const TICK_MILLISECONDS = 10_000;
+
+const TABS: readonly TabDefinition[] = [
+  { id: "meters", label: "Meters" },
+  { id: "context", label: "Agent context" },
+  { id: "ingest", label: "Ingest" },
+];
 
 const messages = {
   empty: "Nothing was pasted, so there is nothing to read.",
@@ -75,7 +85,9 @@ export function Dashboard() {
   const [note, setNote] = useState<{ tone: "ok" | "bad"; message: string } | null>(null);
   const [now, setNow] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [tab, setTab] = useState<string>("meters");
   const fileInput = useRef<HTMLInputElement | null>(null);
+  const textArea = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     const stored = loadStored();
@@ -123,6 +135,7 @@ export function Dashboard() {
           result.recognised.join(", ") +
           ".",
       });
+      setTab("meters");
     },
     [persist],
   );
@@ -139,6 +152,7 @@ export function Dashboard() {
       message:
         "Loaded the project's synthetic fixtures. No account, no credential and no real usage is involved.",
     });
+    setTab("meters");
   }, [persist]);
 
   const clear = useCallback(() => {
@@ -170,141 +184,238 @@ export function Dashboard() {
     [read],
   );
 
+  const openIngest = useCallback(() => {
+    setTab("ingest");
+    window.setTimeout(() => {
+      textArea.current?.focus();
+    }, 0);
+  }, []);
+
   const view = useMemo(
     () => (now === null ? null : dashboardView(snapshots, now)),
     [snapshots, now],
   );
 
   const hasReadings = snapshots.length > 0;
+  const readable =
+    view === null
+      ? 0
+      : view.providers.reduce(
+          (total, provider) =>
+            total +
+            provider.meters.filter((meter) => meter.state !== "unknown").length,
+          0,
+        );
+  const asOf = useMemo(() => {
+    if (now === null) return null;
+    const parsed = Date.parse(now);
+    return Number.isFinite(parsed) ? new Date(parsed).toLocaleTimeString() : null;
+  }, [now]);
 
   return (
-    <div className="space-y-6">
-      <Panel
-        title="Give it a document"
-        description="Paste a Claude Code statusline payload, a manual quota document, or the output of openlimiter export. Drop a JSON file on the box if that is easier."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={loadSample}>Load sample data</Button>
-            <Button tone="quiet" onClick={clear} disabled={!hasReadings && text === ""}>
-              Clear
-            </Button>
-          </div>
-        }
-      >
-        <div
-          onDragOver={(event) => {
-            event.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => {
-            setDragging(false);
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragging(false);
-            acceptFile(event.dataTransfer.files[0]);
-          }}
-        >
-          <label htmlFor="quota-input" className="sr-only">
-            Quota document
-          </label>
-          <textarea
-            id="quota-input"
-            value={text}
-            onChange={(event) => {
-              setText(event.target.value);
-            }}
-            spellCheck={false}
-            rows={6}
-            placeholder={'{ "rate_limits": { "seven_day": { "utilization": 64, "resets_at": "..." } } }'}
-            className={`focus-ring-inset w-full resize-y rounded-lg border bg-code p-3.5 font-mono text-xs leading-relaxed text-body outline-none transition-colors ${
-              dragging ? "border-accent-solid" : "border-hairline"
-            }`}
-          />
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button
-            tone="primary"
-            onClick={() => {
-              read(text);
-            }}
-          >
-            Read it
-          </Button>
-          <Button
-            onClick={() => {
-              fileInput.current?.click();
-            }}
-          >
-            Choose a file
-          </Button>
-          <input
-            ref={fileInput}
-            type="file"
-            accept="application/json,.json,.txt"
-            className="sr-only"
-            onChange={(event) => {
-              acceptFile(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-          />
-        </div>
-        {note !== null && (
-          <p
-            role="status"
-            className={`mt-3 font-sans text-sm leading-relaxed ${
-              note.tone === "bad" ? "text-heading" : "text-body"
-            }`}
-          >
-            {note.message}
-          </p>
-        )}
-      </Panel>
+    <div className="space-y-5">
+      <HeaderStrip
+        advice={view?.advice ?? null}
+        asOf={asOf}
+        sample={sample}
+        readable={readable}
+      />
 
-      <section aria-labelledby="readings">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 id="readings" className="font-sans text-base font-medium text-heading">
-            Readings
-          </h2>
-          {sample && <DemoDataChip />}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs tabs={TABS} active={tab} onSelect={setTab} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={loadSample}>Load sample data</Button>
+          <Button tone="quiet" onClick={clear} disabled={!hasReadings && text === ""}>
+            Clear
+          </Button>
         </div>
-        {view === null ? (
-          <p className="font-sans text-sm text-body">Reading the clock on this device.</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {view.providers.map((provider) => (
-              <ProviderCard key={provider.provider} view={provider} />
-            ))}
-          </div>
-        )}
-      </section>
+      </div>
 
-      {view !== null && (
-        <Panel
-          title="What an agent would be told"
-          description="This is the block the prompt hook injects, built here by the same adapter the command line tool uses. It carries bounded numbers, enum codes and timestamps, inside a boundary that tells the agent to treat the contents as untrusted."
-          action={sample ? <DemoDataChip /> : undefined}
-        >
-          {view.agentContext === "" ? (
-            <p className="font-sans text-sm leading-relaxed text-body">
-              Nothing at all. Every provider is unknown, and silence beats noise, so
-              the hook injects no block rather than a block full of guesses.
+      {tab === "meters" && (
+        <div id="panel-meters" role="tabpanel" aria-labelledby="tab-meters" tabIndex={-1}>
+          {view === null ? (
+            <p className="font-sans text-sm text-body">
+              Reading the clock on this device.
             </p>
+          ) : hasReadings ? (
+            <>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {view.providers.map((provider) => (
+                  <ProviderCard key={provider.provider} view={provider} now={now ?? ""} />
+                ))}
+              </div>
+              {view.unknown.length > 0 && (
+                <p className="mt-4 font-sans text-xs leading-relaxed text-muted">
+                  Unknown, and left that way on purpose:{" "}
+                  {view.unknown.map((code) => providerName(code)).join(", ")}. A
+                  missing reading never becomes a zero and never becomes an
+                  exhausted quota.
+                </p>
+              )}
+            </>
           ) : (
-            <div className="space-y-4">
-              <CodeBlock label="UserPromptSubmit hook" text={view.agentContext} />
-              <CodeBlock label="Statusline" text={view.statusline} />
-            </div>
+            <EmptyState onPaste={openIngest} onSample={loadSample} />
           )}
-        </Panel>
+        </div>
       )}
 
-      {view !== null && view.unknown.length > 0 && (
-        <p className="font-sans text-sm leading-relaxed text-body">
-          Unknown, and left that way on purpose:{" "}
-          {view.unknown.map((code) => providerName(code)).join(", ")}. A missing
-          reading never becomes a zero and never becomes an exhausted quota.
-        </p>
+      {tab === "context" && (
+        <div
+          id="panel-context"
+          role="tabpanel"
+          aria-labelledby="tab-context"
+          tabIndex={-1}
+        >
+          <Panel
+            title="What an agent would be told"
+            description="This is the block the prompt hook injects, built here by the same adapter the command line tool uses. It carries bounded numbers, enum codes and timestamps, inside a boundary that tells the agent to treat the contents as untrusted."
+            action={sample ? <DemoDataChip /> : undefined}
+          >
+            {view === null || view.agentContext === "" ? (
+              <p className="font-sans text-sm leading-relaxed text-body">
+                Nothing at all. Every provider is unknown, and silence beats
+                noise, so the hook injects no block rather than a block full of
+                guesses.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                <CodeBlock label="UserPromptSubmit hook" text={view.agentContext} />
+                <CodeBlock label="Statusline" text={view.statusline} />
+              </div>
+            )}
+          </Panel>
+        </div>
+      )}
+
+      {tab === "ingest" && (
+        <div
+          id="panel-ingest"
+          role="tabpanel"
+          aria-labelledby="tab-ingest"
+          tabIndex={-1}
+          className="space-y-5"
+        >
+          <Panel
+            title="Give it a document"
+            description="Paste a Claude Code statusline payload, a manual quota document, or the output of openlimiter export. Drop a JSON file on the box if that is easier."
+          >
+            <div
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+              onDragLeave={() => {
+                setDragging(false);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragging(false);
+                acceptFile(event.dataTransfer.files[0]);
+              }}
+            >
+              <label htmlFor="quota-input" className="sr-only">
+                Quota document
+              </label>
+              <textarea
+                id="quota-input"
+                ref={textArea}
+                value={text}
+                onChange={(event) => {
+                  setText(event.target.value);
+                }}
+                spellCheck={false}
+                rows={8}
+                placeholder={
+                  '{ "rate_limits": { "seven_day": { "utilization": 64, "resets_at": "..." } } }'
+                }
+                className={`focus-ring-inset w-full resize-y rounded-lg border bg-code p-3.5 font-mono text-xs leading-relaxed text-body outline-none transition-colors ${
+                  dragging ? "border-accent-solid" : "border-hairline"
+                }`}
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button
+                tone="primary"
+                onClick={() => {
+                  read(text);
+                }}
+              >
+                Read it
+              </Button>
+              <Button
+                onClick={() => {
+                  fileInput.current?.click();
+                }}
+              >
+                Choose a file
+              </Button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="application/json,.json,.txt"
+                className="sr-only"
+                onChange={(event) => {
+                  acceptFile(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+            </div>
+            {note !== null && (
+              <p
+                role="status"
+                className={`mt-3 font-sans text-sm leading-relaxed ${
+                  note.tone === "bad" ? "text-heading" : "text-body"
+                }`}
+              >
+                {note.message}
+              </p>
+            )}
+          </Panel>
+
+          <Panel title="Where a document comes from">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              <div>
+                <h3 className="font-mono text-2xs uppercase tracking-widest text-muted">
+                  From the tool
+                </h3>
+                <p className="mt-2 font-sans text-sm leading-relaxed text-body">
+                  Run{" "}
+                  <code className="font-mono text-xs text-heading">
+                    openlimiter export
+                  </code>{" "}
+                  and paste what it prints. That is the whole cache, already
+                  validated once.
+                </p>
+              </div>
+              <div>
+                <h3 className="font-mono text-2xs uppercase tracking-widest text-muted">
+                  From your agent
+                </h3>
+                <p className="mt-2 font-sans text-sm leading-relaxed text-body">
+                  A Claude Code statusline payload works as it is, including the
+                  rate limit block it already carries.
+                </p>
+              </div>
+              <div>
+                <h3 className="font-mono text-2xs uppercase tracking-widest text-muted">
+                  From your own notes
+                </h3>
+                <p className="mt-2 font-sans text-sm leading-relaxed text-body">
+                  A manual quota document covers a provider with no interface at
+                  all. You write down what you know, it does the arithmetic.
+                </p>
+              </div>
+            </div>
+            <p className="mt-5 font-sans text-sm leading-relaxed text-body">
+              On the same network as the machine doing the work? Run{" "}
+              <code className="font-mono text-xs text-heading">
+                openlimiter serve
+              </code>{" "}
+              there and scan the code it prints. Your phone then reads the live
+              quota on that machine directly, with no cloud in the middle.
+            </p>
+          </Panel>
+        </div>
       )}
     </div>
   );

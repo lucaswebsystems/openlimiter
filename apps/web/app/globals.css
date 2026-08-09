@@ -32,6 +32,18 @@
   Nothing measured below those, so normal text clears AA 4.5:1 in both themes
   on the home page, the download page and the documentation. The numbers above
   are re-measured whenever a value here changes.
+
+  The hero video backdrop is measured separately, because the surface behind
+  that text is a moving picture rather than a token. Every one of the 901
+  frames was composited under the veil declared further down this file, at the
+  hero's real geometry, and the worst result any piece of hero text reaches
+  over any frame is:
+    dark:   12px disclaimer 6.10:1, 18px lead 7.20:1, headline 14.10:1
+    light:  12px disclaimer 5.22:1, 18px lead 6.58:1, headline 13.76:1
+  The tightest of those clears AA 4.5:1 by a factor of 1.16. The two pieces of
+  hero text sitting on the filled primary button are on an opaque token and are
+  covered by the figures above instead. Re-measure if the veil, the footage or
+  the hero's copy changes.
 */
 
 @theme inline {
@@ -409,8 +421,8 @@ body {
 
 :root[data-motion] [data-reveal] {
   transition:
-    opacity 640ms cubic-bezier(0.22, 0.61, 0.36, 1) var(--reveal-delay, 0ms),
-    transform 640ms cubic-bezier(0.22, 0.61, 0.36, 1) var(--reveal-delay, 0ms),
+    opacity 560ms cubic-bezier(0, 0, 0.58, 1) var(--reveal-delay, 0ms),
+    transform 560ms cubic-bezier(0, 0, 0.58, 1) var(--reveal-delay, 0ms),
     color 200ms ease,
     background-color 200ms ease,
     border-color 200ms ease,
@@ -420,7 +432,12 @@ body {
 
 :root[data-motion] [data-reveal]:not([data-revealed]) {
   opacity: 0;
-  transform: translate3d(0, 18px, 0);
+  transform: translate3d(0, 20px, 0);
+}
+
+/* A small element travels less. See REVEAL_SMALL in lib/motion.ts. */
+:root[data-motion] [data-reveal="sm"]:not([data-revealed]) {
+  transform: translate3d(0, 12px, 0);
 }
 
 /* The stagger, inside a group only. Direct children step 70ms apart; the
@@ -468,6 +485,92 @@ body {
   translate: 0 0;
 }
 
+/*
+  The hero video backdrop. An experiment, and switchable off in one place:
+  HERO_BACKDROP_ENABLED in lib/site.ts. When that flag is false none of the
+  markup below is rendered and none of these rules match anything.
+
+  Three rules and a pseudo element:
+
+  `.hero-backdrop-host` is the hero section itself. All it does is become a
+  stacking context, so the layer underneath can sit at a negative index without
+  sliding behind the page background, and a positioning parent, so the layer
+  can be pinned to the hero's own top and bottom. It changes no layout.
+
+  `.hero-backdrop` is that layer. It is pinned to the hero block vertically and
+  stretched to the viewport horizontally, the same breakout the sliding strip
+  uses, because a band that stops at the content column leaves dead gutters on
+  a wide screen. It clips its own overflow, so the video cannot reach the rest
+  of the page, and the poster is its background, which means the still frame is
+  painted the moment the stylesheet lands whether or not any video ever loads.
+
+  `::after` is the contrast veil, and it is the reason any of this is legible.
+  Two gradients of the canvas token, so both themes veil in their own colour
+  and neither has to be written twice. The first fades the band into the page
+  at the top and the bottom. The second is the reading scrim: heaviest on the
+  left, where every word in the hero sits, thinning to the right, where there
+  is nothing but picture. Their opacities multiply where they overlap, and the
+  effective figures were measured on the composite rather than chosen: see the
+  contrast note in this file's header.
+*/
+.hero-backdrop-host {
+  position: relative;
+  isolation: isolate;
+}
+
+.hero-backdrop {
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  z-index: -1;
+  width: 100vw;
+  overflow: hidden;
+  transform: translateX(-50%);
+  background-image: url("/backdrop/hero-backdrop.jpg");
+  background-position: center;
+  background-size: cover;
+  pointer-events: none;
+}
+
+.hero-backdrop video {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* A phone gets the still frame and never the file. Same story as the reduced
+   motion rule below: the component is what stops the fetch, this is the
+   backstop for a viewport that crosses the breakpoint afterwards. */
+@media (max-width: 767px) {
+  .hero-backdrop video {
+    display: none;
+  }
+}
+
+.hero-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to bottom,
+      var(--ol-canvas) 0%,
+      transparent 20%,
+      transparent 66%,
+      var(--ol-canvas) 100%
+    ),
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--ol-canvas) 90%, transparent) 0%,
+      color-mix(in srgb, var(--ol-canvas) 87%, transparent) 46%,
+      color-mix(in srgb, var(--ol-canvas) 44%, transparent) 80%,
+      color-mix(in srgb, var(--ol-canvas) 64%, transparent) 100%
+    );
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
@@ -487,6 +590,14 @@ body {
   .lift:hover,
   .lift-sm:hover {
     translate: none;
+  }
+
+  /* The hero keeps its still frame and loses the moving picture. The video is
+     never mounted under this preference in the first place, which is what
+     stops the file being fetched at all; this rule is only the backstop for a
+     preference that changes after the component has already decided. */
+  .hero-backdrop video {
+    display: none;
   }
 
   /* The strip stops sliding and wraps instead, so every card is still

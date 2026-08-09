@@ -52,7 +52,12 @@ export function Reveal() {
           observer.unobserve(entry.target);
         }
       },
-      { rootMargin: "0px 0px -6% 0px", threshold: 0 },
+      /* Sixty pixels inside the bottom edge, the same trigger point paseo.sh
+         uses, so an element starts its entrance just after it has cleared the
+         fold rather than the instant its first pixel appears. Only the bottom
+         edge is inset: insetting the top as well would hold back anything that
+         loads already sitting above the fold. */
+      { rootMargin: "0px 0px -60px 0px", threshold: 0 },
     );
 
     for (const target of targets) observer.observe(target);

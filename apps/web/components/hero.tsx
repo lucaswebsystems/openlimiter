@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HeroBackdrop } from "./hero-backdrop";
 import { providerMarks } from "./provider-marks";
 import { ButtonLink, IconButtonLink, SHELL } from "./ui";
 import {
@@ -7,6 +8,7 @@ import {
   WINDOWS_SETUP_URL,
 } from "@/lib/downloads";
 import { reveal } from "@/lib/motion";
+import { HERO_BACKDROP_ENABLED } from "@/lib/site";
 
 /**
  * The hero.
@@ -92,8 +94,15 @@ function WindowsGlyph() {
 }
 
 export function Hero() {
+  /* The experiment, and its off switch. When HERO_BACKDROP_ENABLED is false the
+     section does not take the class either, so the markup below is exactly what
+     it was before the backdrop existed. See lib/site.ts. */
+  const backdropClass = HERO_BACKDROP_ENABLED ? " hero-backdrop-host" : "";
+
   return (
-    <section className={`${SHELL} pb-10 md:pb-12`}>
+    <section className={`${SHELL} pb-10 md:pb-12${backdropClass}`}>
+      {HERO_BACKDROP_ENABLED && <HeroBackdrop />}
+
       <div className="space-y-6" {...reveal}>
         <h1 className="text-3xl font-medium tracking-tight text-heading md:text-5xl">
           Know your limits.

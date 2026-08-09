@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/react";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Footer } from "@/components/footer";
@@ -96,6 +97,10 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <Footer />
         {/* The one client component the motion system has. See lib/motion.ts. */}
         <Reveal />
+        {/* Cookieless, first party page counting. No cookies, no cross site
+            tracking, no personal identifiers: the open source card's telemetry
+            claim stays about the product, and the footer discloses this. */}
+        <Analytics />
       </body>
     </html>
   );

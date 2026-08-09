@@ -192,7 +192,8 @@ export function Footer() {
       </div>
 
       <p className="pt-10 text-xs text-muted" {...reveal}>
-        Apache 2.0. Local first. Zero telemetry. No accounts.{" "}
+        Apache 2.0. Local first. Zero telemetry in the software. No accounts. This site keeps
+        cookieless page counts only.{" "}
         <a
           href={LICENSE_URL}
           target="_blank"
