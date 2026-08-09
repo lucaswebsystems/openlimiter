@@ -35,7 +35,7 @@ export function CrossPlatform() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {osTiles.map((tile, idx) => (
-            <ScrollReveal key={tile.name} delay={idx * 0.1}>
+            <ScrollReveal key={tile.name} step={idx * 2}>
               <div className="h-full rounded-xl border border-hairline bg-surface/40 p-6 transition-colors hover:border-hairline-strong hover:bg-surface/70">
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <h3 className="font-sans text-lg font-medium text-heading">

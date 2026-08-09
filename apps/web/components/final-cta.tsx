@@ -21,7 +21,7 @@ export function FinalCta() {
             Give your agents budget sense.
           </h2>
           <p className="mt-3 font-sans text-sm text-body">
-            Local first quota awareness for your entire agent toolchain.
+            Local first quota awareness for the agent tools you already run.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -48,7 +48,7 @@ export function FinalCta() {
               <button
                 type="button"
                 onClick={handleCopy}
-                className="ml-3 rounded border border-hairline bg-canvas px-2 py-0.5 text-[10px] text-label transition-colors hover:text-heading"
+                className="focus-ring ml-3 rounded border border-hairline bg-canvas px-2 py-0.5 text-[10px] text-label transition-colors hover:text-heading"
                 aria-label="Copy install command"
               >
                 {copied ? "Copied" : "Copy"}

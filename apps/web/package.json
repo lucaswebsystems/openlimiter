@@ -10,14 +10,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint app components --max-warnings=0"
+    "lint": "eslint app components lib --max-warnings=0"
   },
   "dependencies": {
-    "@paper-design/shaders": "0.0.77",
-    "@paper-design/shaders-react": "0.0.77",
-    "@phosphor-icons/react": "2.1.10",
-    "gsap": "3.15.0",
-    "motion": "12.42.2",
     "next": "15.5.20",
     "react": "19.2.8",
     "react-dom": "19.2.8"

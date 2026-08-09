@@ -17,7 +17,7 @@ export function Pricing() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Card 1: Free */}
-          <ScrollReveal delay={0.05}>
+          <ScrollReveal step={1}>
             <div className="h-full rounded-2xl border border-hairline bg-surface/40 p-8 flex flex-col justify-between transition-colors hover:border-hairline-strong">
               <div>
                 <div className="flex items-center justify-between gap-2">
@@ -52,7 +52,7 @@ export function Pricing() {
           </ScrollReveal>
 
           {/* Card 2: Pro */}
-          <ScrollReveal delay={0.15}>
+          <ScrollReveal step={3}>
             <div className="h-full rounded-2xl border border-hairline bg-surface/20 p-8 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between gap-2">
@@ -71,6 +71,7 @@ export function Pricing() {
                 </div>
                 <p className="mt-4 font-sans text-xs text-body leading-relaxed">
                   Encrypted sync, mobile access, push and email alerts, longer retention, team views later.
+                  Nothing to buy yet, and there is no waitlist to join.
                 </p>
               </div>
 
@@ -79,9 +80,9 @@ export function Pricing() {
                   href="https://github.com/lucaswebsystems/openlimiter/issues"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block w-full text-center rounded-lg border border-hairline bg-surface/50 px-4 py-2.5 font-sans text-xs font-medium text-label transition-colors hover:border-hairline-strong hover:text-heading"
+                  className="focus-ring block w-full text-center rounded-lg border border-hairline bg-surface/50 px-4 py-2.5 font-sans text-xs font-medium text-body transition-colors hover:border-hairline-strong hover:text-heading"
                 >
-                  Join the waitlist
+                  Follow Pro on the issue tracker
                 </a>
               </div>
             </div>
@@ -89,7 +90,7 @@ export function Pricing() {
         </div>
 
         {/* Support the build quiet line */}
-        <ScrollReveal delay={0.25}>
+        <ScrollReveal step={5}>
           <div className="mt-10 text-center font-sans text-xs text-body">
             Support the build at{" "}
             <a

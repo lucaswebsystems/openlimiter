@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { imagePalette } from "@/lib/image-palette";
 
 export const alt = "OpenLimiter, quota awareness for AI coding agents";
 export const size = {
@@ -13,8 +14,8 @@ export default function OpenGraphImage() {
       <div
         style={{
           alignItems: "flex-start",
-          background: "#0a0a0b",
-          color: "#ededed",
+          background: imagePalette.canvas,
+          color: imagePalette.heading,
           display: "flex",
           flexDirection: "column",
           height: "100%",
@@ -27,9 +28,9 @@ export default function OpenGraphImage() {
           <div
             style={{
               alignItems: "center",
-              background: "#ededed",
+              background: imagePalette.heading,
               borderRadius: "50%",
-              color: "#0a0a0b",
+              color: imagePalette.canvas,
               display: "flex",
               fontSize: 58,
               fontWeight: 700,
@@ -40,13 +41,20 @@ export default function OpenGraphImage() {
           >
             O
           </div>
-          <div style={{ fontSize: 72, fontWeight: 600, letterSpacing: -2, color: "#ededed" }}>
+          <div
+            style={{
+              color: imagePalette.heading,
+              fontSize: 72,
+              fontWeight: 600,
+              letterSpacing: -2,
+            }}
+          >
             OpenLimiter
           </div>
         </div>
         <div
           style={{
-            color: "#ededed",
+            color: imagePalette.heading,
             fontSize: 40,
             fontWeight: 500,
             marginTop: 48,
@@ -56,7 +64,7 @@ export default function OpenGraphImage() {
         </div>
         <div
           style={{
-            color: "#8a8a92",
+            color: imagePalette.body,
             fontSize: 24,
             letterSpacing: 0.5,
             marginTop: 24,
@@ -69,4 +77,3 @@ export default function OpenGraphImage() {
     size,
   );
 }
-

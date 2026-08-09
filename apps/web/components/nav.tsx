@@ -71,7 +71,7 @@ export function Nav() {
         <button
           type="button"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="flex h-8 w-8 items-center justify-center rounded-md border border-hairline text-body hover:text-heading md:hidden"
+          className="focus-ring flex h-8 w-8 items-center justify-center rounded-md border border-hairline text-body hover:text-heading md:hidden"
           aria-expanded={mobileMenuOpen}
           aria-label="Toggle navigation menu"
         >

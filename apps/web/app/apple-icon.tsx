@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { imagePalette } from "@/lib/image-palette";
 
 export const size = {
   width: 180,
@@ -13,7 +14,7 @@ export default function AppleIcon() {
       <div
         style={{
           alignItems: "center",
-          background: "#0a0a0b",
+          background: imagePalette.canvas,
           display: "flex",
           height: "100%",
           justifyContent: "center",
@@ -23,9 +24,9 @@ export default function AppleIcon() {
         <div
           style={{
             alignItems: "center",
-            background: "#ededed",
+            background: imagePalette.heading,
             borderRadius: "50%",
-            color: "#0a0a0b",
+            color: imagePalette.canvas,
             display: "flex",
             fontSize: 88,
             fontWeight: 700,
@@ -41,4 +42,3 @@ export default function AppleIcon() {
     size,
   );
 }
-

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
+import { RevealController } from "@/components/reveal-controller";
+import { revealArmScript } from "@/lib/reveal";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,7 +21,7 @@ const geistMono = Geist_Mono({
 
 const title = "OpenLimiter, quota awareness for AI coding agents";
 const description =
-  "OpenLimiter reads every AI subscription you hold and tells your coding agents which one still has budget, right inside their own context. Open source, local first, cross platform.";
+  "OpenLimiter reads your supported AI subscriptions and tells your coding agents which one still has budget, right inside their own context. Open source, local first, cross platform.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://openlimiter.com"),
@@ -75,7 +77,10 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} bg-canvas text-body antialiased`}>
       <body className="min-h-screen bg-canvas font-sans text-body selection:bg-accent/20 selection:text-heading">
+        {/* Arms the scroll reveal before first paint. See lib/reveal.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: revealArmScript }} />
         {children}
+        <RevealController />
       </body>
     </html>
   );

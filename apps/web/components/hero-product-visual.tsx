@@ -7,7 +7,7 @@ export function HeroProductVisual() {
       <div className="hero-glow-container" aria-hidden="true" />
 
       <div className="relative mx-auto max-w-5xl">
-        <ScrollReveal delay={0.1}>
+        <ScrollReveal step={2}>
           {/* Polished Mock App Window (Terminal / Editor Panel) */}
           <div className="relative overflow-hidden rounded-xl border border-hairline bg-surface/90 shadow-2xl backdrop-blur-xl">
             {/* Window Header / Title Bar */}
@@ -118,7 +118,7 @@ export function HeroProductVisual() {
               <div className="rounded border border-hairline bg-surface-hover/80 px-3 py-2 text-[11px] sm:text-xs text-body flex flex-wrap items-center gap-2">
                 <span className="text-emerald-400 font-semibold">[OpenLimiter]</span>
                 <span>Active: Claude Pro (82% remaining)</span>
-                <span className="text-hairline">|</span>
+                <span aria-hidden="true" className="text-label">|</span>
                 <span className="text-accent font-medium">Advice: PREFER_CLAUDE</span>
               </div>
             </div>

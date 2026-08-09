@@ -39,7 +39,7 @@ export function HowItWorks() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {steps.map((step, idx) => (
-            <ScrollReveal key={step.title} delay={idx * 0.1}>
+            <ScrollReveal key={step.title} step={idx * 2}>
               <div className="h-full rounded-xl border border-hairline bg-surface/40 p-6 transition-colors hover:border-hairline-strong hover:bg-surface/70 flex flex-col justify-between">
                 <div>
                   <div className="font-mono text-xs font-medium text-accent mb-4">

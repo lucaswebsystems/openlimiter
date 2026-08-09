@@ -5,38 +5,44 @@ export function Providers() {
     {
       name: "Claude",
       badge: "native payload",
+      origin: "local statusline payload",
       description:
-        "Reads OAuth session state and rate limit headers from active Anthropic CLI installations.",
+        "Reads the rate limit payload Claude Code already hands to your statusline. It asks nothing of Anthropic on its own.",
     },
     {
       name: "OpenRouter",
       badge: "documented API",
+      origin: "openrouter.ai",
       description:
-        "Queries key credit balance and usage windows via public management endpoints.",
+        "Reads your credit balance and usage window from OpenRouter's documented management API, using a key you keep in your operating system credential store.",
     },
     {
       name: "Codex",
       badge: "internal endpoint, may break",
+      origin: "local Codex usage file",
       description:
-        "Extracts local environment authentication tokens to query session rate limit headers.",
+        "Reads the usage file the Codex CLI keeps in its own state directory. The shape is internal, so it can change without notice.",
     },
     {
       name: "Antigravity",
       badge: "internal endpoint, may break",
+      origin: "local Antigravity quota file",
       description:
-        "Reads local CLI token store and internal telemetry headers for active quota thresholds.",
+        "Reads the quota file the Antigravity CLI keeps in its own state directory. The shape is internal, so it can change without notice.",
     },
     {
       name: "OpenCode",
       badge: "session based, may break",
+      origin: "your existing OpenCode session",
       description:
-        "Parses active local session workspace stores for model token usage limits.",
+        "Reads the usage view behind a session you already signed into. Unverified, and it stops the moment that session expires.",
     },
     {
       name: "Manual",
       badge: "user entered",
+      origin: "your own entries, no network",
       description:
-        "Static budget definitions for self hosted models or custom provider configurations.",
+        "Budgets you write yourself, for self hosted models or any provider without a connector yet.",
     },
   ];
 
@@ -49,14 +55,20 @@ export function Providers() {
               Providers
             </h2>
             <p className="mt-2 font-sans text-sm text-body">
-              Honest integration statuses across supported AI services.
+              Honest status for every supported connector, including what each
+              one reads from.
+            </p>
+            <p className="mt-3 max-w-2xl font-sans text-sm text-body leading-relaxed">
+              There is no OpenLimiter server in this picture. A connector either
+              reads something already sitting on your machine, or calls that
+              provider&apos;s own endpoint with credentials you already hold.
             </p>
           </div>
         </ScrollReveal>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {providersList.map((item, idx) => (
-            <ScrollReveal key={item.name} delay={idx * 0.05}>
+            <ScrollReveal key={item.name} step={idx}>
               <div className="h-full rounded-xl border border-hairline bg-surface/40 p-5 transition-colors hover:border-hairline-strong hover:bg-surface/70 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
@@ -71,12 +83,18 @@ export function Providers() {
                     {item.description}
                   </p>
                 </div>
+                <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-hairline/60 pt-3 font-mono text-[10px]">
+                  <span className="uppercase tracking-wider text-label">
+                    reads
+                  </span>
+                  <span className="text-body">{item.origin}</span>
+                </div>
               </div>
             </ScrollReveal>
           ))}
 
           {/* Ghost Card: More Coming */}
-          <ScrollReveal delay={0.35}>
+          <ScrollReveal step={7}>
             <div className="h-full rounded-xl border border-dashed border-hairline bg-surface/20 p-5 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between gap-2 mb-3">
@@ -89,7 +107,14 @@ export function Providers() {
                 </div>
                 <p className="font-sans text-xs text-label leading-relaxed">
                   Connectors planned for Cursor, Copilot, Devin, Grok, and Z.ai.
+                  Planned means not built yet.
                 </p>
+              </div>
+              <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-hairline/60 pt-3 font-mono text-[10px]">
+                <span className="uppercase tracking-wider text-label">
+                  reads
+                </span>
+                <span className="text-label">nothing yet</span>
               </div>
             </div>
           </ScrollReveal>

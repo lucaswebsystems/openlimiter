@@ -18,9 +18,11 @@ export function OpenSource() {
                 Open source and transparent
               </h2>
               <p className="mt-4 font-sans text-sm text-body leading-relaxed">
-                OpenLimiter runs entirely on your machine. There are no tracking scripts,
-                no remote log aggregation, and no account requirements. Your quota status data
-                never leaves your local network interface.
+                OpenLimiter runs on your machine. There are no tracking scripts, no
+                remote log collection, no accounts, and no OpenLimiter server to
+                receive anything. The only requests it makes go to a provider&apos;s
+                own endpoint to read your quota, with credentials you already have.
+                Your quota state is written locally and stays there.
               </p>
 
               {/* Badges */}

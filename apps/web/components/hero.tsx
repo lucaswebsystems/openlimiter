@@ -12,7 +12,7 @@ export function Hero() {
               Route around them.
             </h1>
             <p className="mt-6 font-sans text-base font-normal leading-relaxed text-body sm:text-lg">
-              OpenLimiter reads every AI subscription you hold and tells your
+              OpenLimiter reads your supported AI subscriptions and tells your
               coding agents which one still has budget, right inside their own
               context. Open source, local first, cross platform.
             </p>

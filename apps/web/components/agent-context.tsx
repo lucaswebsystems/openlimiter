@@ -15,7 +15,7 @@ export function AgentContextExample() {
           </div>
         </ScrollReveal>
 
-        <ScrollReveal delay={0.1}>
+        <ScrollReveal step={2}>
           <div className="overflow-hidden rounded-xl border border-hairline bg-surface/90 shadow-xl">
             {/* Header bar */}
             <div className="flex items-center justify-between border-b border-hairline px-4 py-3 bg-canvas/60">
@@ -63,9 +63,9 @@ export function AgentContextExample() {
                 <div className="rounded-lg border border-hairline bg-canvas/90 p-3 text-[11px] sm:text-xs text-body flex items-center gap-2 overflow-x-auto">
                   <span className="text-emerald-400 font-semibold">[OL]</span>
                   <span className="text-heading">Claude: 82%</span>
-                  <span className="text-hairline">|</span>
+                  <span aria-hidden="true" className="text-label">|</span>
                   <span className="text-heading">Codex: 98%</span>
-                  <span className="text-hairline">|</span>
+                  <span aria-hidden="true" className="text-label">|</span>
                   <span className="text-accent">Route: Claude</span>
                 </div>
               </div>

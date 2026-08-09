@@ -4,9 +4,11 @@
   --color-canvas: #0a0a0b;
   --color-surface: #111113;
   --color-surface-hover: #17171a;
+  /* Text tokens. Every one of these clears WCAG AA 4.5:1 at small sizes
+     against the lightest background it can land on (--color-surface-hover). */
   --color-heading: #ededed;
   --color-body: #8a8a92;
-  --color-label: #6a6a72;
+  --color-label: #86868e;
   --color-hairline: rgba(255, 255, 255, 0.1);
   --color-hairline-strong: rgba(255, 255, 255, 0.18);
   --color-accent: #7c8cff;
@@ -68,11 +70,60 @@ body {
   z-index: 0;
 }
 
+/* Keyboard focus. Interactive elements never drop the indicator, they replace
+   it with an accent outline that reads clearly on the dark canvas. Use the
+   inset variant inside clipped containers, where an outset ring gets cut off. */
+.focus-ring:focus-visible,
+.focus-ring-inset:focus-visible {
+  outline: 2px solid var(--color-accent);
+}
+
+.focus-ring:focus-visible {
+  outline-offset: 2px;
+}
+
+.focus-ring-inset:focus-visible {
+  outline-offset: -3px;
+}
+
+/* Scroll reveal.
+   Wrappers are visible by default. The hidden state applies only while the
+   document is armed by the inline script in the layout, so a failure in that
+   script, in hydration, or in the observer can never hide content. */
+[data-reveal] {
+  transition-property: opacity, transform;
+  transition-duration: 400ms;
+  transition-timing-function: cubic-bezier(0.21, 0.47, 0.32, 0.98);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+[data-reveal-armed="1"] [data-reveal]:not([data-reveal-shown]) {
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+/* Stagger scale, 50ms per step. */
+[data-reveal-step="1"] { --reveal-delay: 50ms; }
+[data-reveal-step="2"] { --reveal-delay: 100ms; }
+[data-reveal-step="3"] { --reveal-delay: 150ms; }
+[data-reveal-step="4"] { --reveal-delay: 200ms; }
+[data-reveal-step="5"] { --reveal-delay: 250ms; }
+[data-reveal-step="6"] { --reveal-delay: 300ms; }
+[data-reveal-step="7"] { --reveal-delay: 350ms; }
+
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* The arming script already stands down under reduced motion. This is the
+     belt and braces: reveal wrappers stay visible and still. */
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
   }
 }
