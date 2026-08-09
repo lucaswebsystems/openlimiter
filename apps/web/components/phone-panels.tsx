@@ -6,14 +6,12 @@ import { humanise, parseDemoRows, worstPerProvider } from "@/lib/snapshot";
 /**
  * Three phone sized panels.
  *
- * The web app is planned and not built, so there is no screenshot of it and
- * nothing here pretends otherwise. What these frames hold instead is the real
- * snapshot at phone width: every provider, meter and percentage below is parsed
- * out of the verbatim `openlimiter demo` capture in lib/cli-capture.ts, and the
- * two transcript panels are that file's statusline and hook captures printed
- * character for character. Nothing was drawn to fill the space.
- *
- * When the web app exists, these three become screenshots of it.
+ * These are not screenshots of the web app, and nothing here pretends they are.
+ * What they hold is the real snapshot at phone width: every provider, meter and
+ * percentage below is parsed out of the verbatim `openlimiter demo` capture in
+ * lib/cli-capture.ts, and the two transcript panels are that file's statusline
+ * and hook captures printed character for character. Nothing was drawn to fill
+ * the space, and every panel carries a demo data chip.
  */
 
 function Phone({ children, label }: { children: ReactNode; label: string }) {

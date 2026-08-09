@@ -1,16 +1,22 @@
 import { CliTranscript } from "./cli-transcript";
+import { SHELL } from "./ui";
 import { CAPTURED_ON, demoCapture, hookCapture, statuslineCapture } from "@/lib/cli-capture";
+import { reveal } from "@/lib/motion";
 
 /**
  * The one large product visual.
  *
- * The desktop application is being built by another hand and no screenshot of
- * it exists, so rather than mock one up this frame holds the thing that does
- * exist: three verbatim captures of the command line tool, printed exactly as
+ * The desktop application is built and packaged for Windows, but no capture of
+ * it has been taken yet, and this site does not mock up a screenshot of
+ * something it has not photographed. So the frame holds the thing that has been
+ * captured: three verbatim runs of the command line tool, printed exactly as
  * they came off standard output.
  *
- * Swapping in the real screenshot later is one line. Point SCREENSHOT at the
- * file and the frame renders the image instead, with no other change anywhere.
+ * SCREENSHOT below is the entire swap. Put a real capture of the running
+ * desktop application in public/, point this constant at it with its natural
+ * width and height, and the frame renders that image instead. Nothing else on
+ * the site changes, and nothing anywhere claims a screenshot exists while this
+ * constant is null.
  */
 
 interface Screenshot {
@@ -41,8 +47,8 @@ function WindowChrome() {
 
 export function DeviceFrame() {
   return (
-    <div className="relative px-6 pb-8 md:px-8 md:pb-16">
-      <div className="mx-auto max-w-7xl">
+    <div className={`${SHELL} relative pb-8 md:pb-16`}>
+      <div {...reveal}>
         <div className="overflow-hidden rounded-xl bg-frame p-2 ring-1 ring-hairline sm:rounded-2xl sm:p-3">
           {SCREENSHOT !== null ? (
             /* eslint-disable-next-line @next/next/no-img-element */

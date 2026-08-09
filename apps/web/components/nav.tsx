@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BrandLockup } from "./brand";
 import { ThemeToggle } from "./theme-toggle";
-import { GitHubMark } from "./ui";
+import { GitHubMark, SHELL } from "./ui";
 import { fetchStarCount, formatStarCount } from "@/lib/github";
 import { REPO_URL, SPONSORS_URL } from "@/lib/site";
 
@@ -23,19 +23,20 @@ import { REPO_URL, SPONSORS_URL } from "@/lib/site";
 const links = [
   { label: "Docs", href: "/docs" },
   { label: "Web app", href: "/app" },
-  { label: "Changelog", href: "/changelog" },
   { label: "Download", href: "/download" },
+  { label: "Changelog", href: "/changelog" },
   { label: "Blog", href: "/blog" },
+  { label: "Alternatives", href: "/alternatives" },
 ];
 
 const linkClass =
-  "focus-ring rounded text-sm text-muted transition-colors hover:text-heading";
+  "focus-ring rounded text-sm text-muted transition-colors duration-200 hover:text-heading";
 
 export async function Nav() {
   const stars = await fetchStarCount();
 
   return (
-    <nav className="mx-auto mb-16 max-w-7xl px-6 pt-6 md:px-32 md:pt-20">
+    <nav className={`${SHELL} mb-16 pt-6 md:pt-16`}>
       <header className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
         <Link href="/" aria-label="OpenLimiter, home" className="focus-ring flex rounded">
           {/* The one instance allowed to play the draw in. See lib/brand.ts. */}

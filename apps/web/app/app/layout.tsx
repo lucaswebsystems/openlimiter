@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { RegisterServiceWorker } from "./register-service-worker";
+import { imagePalette } from "@/lib/image-palette";
 
 /**
  * The application shell.
@@ -47,9 +48,11 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  /* The installed application's chrome, which cannot read a CSS variable, so
+     it reads the same literals the icon routes do. See lib/image-palette.ts. */
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0b" },
+    { media: "(prefers-color-scheme: light)", color: imagePalette.canvasLight },
+    { media: "(prefers-color-scheme: dark)", color: imagePalette.canvas },
   ],
 };
 

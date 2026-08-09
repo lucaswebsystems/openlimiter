@@ -7,6 +7,7 @@ import {
   OpenRouterMark,
 } from "./provider-marks";
 import { SectionHeading } from "./ui";
+import { reveal, revealGroup } from "@/lib/motion";
 
 /**
  * The agent grid.
@@ -25,7 +26,7 @@ const tools = [
 ] as const;
 
 const tile =
-  "flex items-center justify-center gap-3 rounded-xl border border-hairline bg-surface px-5 py-4";
+  "lift flex items-center justify-center gap-3 rounded-xl border border-hairline bg-surface px-5 py-4 hover:border-hairline-strong hover:bg-raised";
 
 export function WorksWith() {
   return (
@@ -34,9 +35,9 @@ export function WorksWith() {
         title="Works with your tools"
         lead="One meter over every subscription you already hold. Each connector reads a shape that something on your machine already wrote, and in this release not one of them touches the network."
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" {...revealGroup}>
         {tools.map(({ name, Mark }) => (
-          <div key={name} className={tile}>
+          <div key={name} className={tile} {...reveal}>
             <span className="text-muted">
               <Mark />
             </span>
@@ -45,12 +46,13 @@ export function WorksWith() {
         ))}
         <Link
           href="/docs/providers"
-          className={`focus-ring border-dashed text-sm font-medium text-muted transition-colors hover:text-heading ${tile}`}
+          className={`focus-ring border-dashed text-sm font-medium text-muted hover:text-heading ${tile}`}
+          {...reveal}
         >
           and manual entry
         </Link>
       </div>
-      <p className="mt-6 max-w-lg text-sm leading-relaxed text-muted">
+      <p className="mt-6 max-w-2xl text-sm leading-relaxed text-muted" {...reveal}>
         Every connector ships marked{" "}
         <span className="font-mono text-2xs text-heading">UNVERIFIED</span>, which is the honest
         default: no explicit verifier has confirmed a shape against a live account yet. Three of

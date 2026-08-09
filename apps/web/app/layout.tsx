@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Footer } from "@/components/footer";
 import { Nav } from "@/components/nav";
+import { Reveal } from "@/components/reveal";
 import { markArmScript } from "@/lib/brand";
+import { motionArmScript } from "@/lib/motion";
 import { themeArmScript } from "@/lib/theme";
 import "./globals.css";
 
@@ -71,6 +73,8 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <script dangerouslySetInnerHTML={{ __html: themeArmScript }} />
         {/* Decides whether the mark draws itself in on this load. See lib/brand.ts. */}
         <script dangerouslySetInnerHTML={{ __html: markArmScript }} />
+        {/* Arms the scroll reveal, but only where it is safe. See lib/motion.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: motionArmScript }} />
       </head>
       <body className="min-h-screen bg-canvas font-sans text-body antialiased selection:bg-accent-subtle selection:text-heading">
         <a
@@ -82,6 +86,8 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <Nav />
         {children}
         <Footer />
+        {/* The one client component the motion system has. See lib/motion.ts. */}
+        <Reveal />
       </body>
     </html>
   );

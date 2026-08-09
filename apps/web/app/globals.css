@@ -8,20 +8,30 @@
   into Tailwind, so a utility such as `bg-canvas` resolves at paint time and
   follows whichever theme is active. No component file carries a raw colour.
 
-  The dark palette is measured, not invented. Canvas, body text, muted text and
-  the button colours are the values read off the reference build at 1440, so the
-  green tinted charcoal and its greys are reproduced rather than approximated.
-  The surface steps below canvas are the solid equivalents of the reference's
-  white alpha overlays: card is white at 3 percent over canvas, card-strong is
-  white at 5, hairline is white at 10 and hairline-strong is white at 20.
+  The system is near monochrome with one accent. Canvas, surfaces, hairlines
+  and every step of grey are neutral: no hue at all beyond a single point of
+  blue in the darkest steps, which keeps them from reading warm next to the
+  accent. The surface steps hold the same luminance rhythm the layout was built
+  on: surface is white at roughly 3 percent over canvas, raised is white at 5,
+  hairline is white at 10 and hairline-strong is white at 20.
 
-  The light palette keeps the same structure and the same tint, flipped.
+  There is exactly one accent, and it is the brand blue #0866ff, the same blue
+  the mark is drawn in and the same blue the desktop application uses. On the
+  near black canvas a lighter step of that blue carries text and links, because
+  #0866ff itself only reaches 3.8:1 there, and the pure blue is kept for filled
+  controls, which put white on top of it. The light theme mirrors that: a
+  darker blue for text, the pure blue for fills.
 
-  Contrast, measured in the browser on the built pages, worst case among the
-  pairings the site actually renders:
-    dark:  muted on card 7.52:1, nav link on canvas 8.05:1, code 9.26:1
-    light: muted on card 5.80:1, nav link on canvas 6.17:1, accent chip 6.45:1
-  Everything else sits higher, so normal text clears AA 4.5:1 in both themes.
+  The light palette keeps the same structure, flipped.
+
+  Contrast, measured in the browser on the built pages at 1440, worst case
+  among every text and background pairing the site actually renders:
+    dark:  muted on raised 7.53:1, accent on accent-subtle 8.06:1
+    light: accent on raised 5.21:1, accent on accent-subtle 5.23:1
+    both:  on-accent white on accent-solid 4.82:1
+  Nothing measured below those, so normal text clears AA 4.5:1 in both themes
+  on the home page, the download page and the documentation. The numbers above
+  are re-measured whenever a value here changes.
 */
 
 @theme inline {
@@ -39,6 +49,8 @@
   --color-body: var(--ol-body);
   --color-soft: var(--ol-soft);
   --color-muted: var(--ol-muted);
+
+  --color-brand: var(--ol-brand);
 
   --color-accent: var(--ol-accent);
   --color-accent-hover: var(--ol-accent-hover);
@@ -74,31 +86,33 @@
 :root {
   color-scheme: dark;
 
-  --ol-canvas: #101615;
-  --ol-surface: #171d1c;
-  --ol-raised: #1c2221;
-  --ol-code: #0d1211;
-  --ol-frame: #181b1a;
-  --ol-track: #333a38;
+  --ol-canvas: #0d0d0f;
+  --ol-surface: #141416;
+  --ol-raised: #1a1a1d;
+  --ol-code: #0a0a0c;
+  --ol-frame: #131315;
+  --ol-track: #34343a;
 
-  --ol-hairline: #272d2c;
-  --ol-hairline-strong: #3f4544;
+  --ol-hairline: #24242a;
+  --ol-hairline-strong: #3c3c44;
+
+  --ol-brand: #0866ff;
 
   --ol-heading: #fafafa;
   --ol-body: #fafafa;
-  --ol-soft: #b4b6b5;
-  --ol-muted: #a8adac;
+  --ol-soft: #b6b6bd;
+  --ol-muted: #aaaab2;
 
-  --ol-accent: #5eead4;
-  --ol-accent-hover: #99f6e4;
-  --ol-accent-subtle: #14302b;
-  --ol-accent-solid: #2dd4bf;
-  --ol-accent-solid-hover: #5eead4;
-  --ol-on-accent: #101615;
+  --ol-accent: #7db4ff;
+  --ol-accent-hover: #a3caff;
+  --ol-accent-subtle: #0d1b33;
+  --ol-accent-solid: #0866ff;
+  --ol-accent-solid-hover: #0552d6;
+  --ol-on-accent: #ffffff;
 
   --ol-solid: #fafafa;
   --ol-solid-hover: #e4e4e4;
-  --ol-on-solid: #101615;
+  --ol-on-solid: #0d0d0f;
 }
 
 /* Kept so the cascade below still resolves; the dark values already apply. */
@@ -106,31 +120,33 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --ol-canvas: #101615;
-    --ol-surface: #171d1c;
-    --ol-raised: #1c2221;
-    --ol-code: #0d1211;
-    --ol-frame: #181b1a;
-    --ol-track: #333a38;
+    --ol-canvas: #0d0d0f;
+    --ol-surface: #141416;
+    --ol-raised: #1a1a1d;
+    --ol-code: #0a0a0c;
+    --ol-frame: #131315;
+    --ol-track: #34343a;
 
-    --ol-hairline: #272d2c;
-    --ol-hairline-strong: #3f4544;
+    --ol-hairline: #24242a;
+    --ol-hairline-strong: #3c3c44;
+
+    --ol-brand: #0866ff;
 
     --ol-heading: #fafafa;
     --ol-body: #fafafa;
-    --ol-soft: #b4b6b5;
-    --ol-muted: #a8adac;
+    --ol-soft: #b6b6bd;
+    --ol-muted: #aaaab2;
 
-    --ol-accent: #5eead4;
-    --ol-accent-hover: #99f6e4;
-    --ol-accent-subtle: #14302b;
-    --ol-accent-solid: #2dd4bf;
-    --ol-accent-solid-hover: #5eead4;
-    --ol-on-accent: #101615;
+    --ol-accent: #7db4ff;
+    --ol-accent-hover: #a3caff;
+    --ol-accent-subtle: #0d1b33;
+    --ol-accent-solid: #0866ff;
+    --ol-accent-solid-hover: #0552d6;
+    --ol-on-accent: #ffffff;
 
     --ol-solid: #fafafa;
     --ol-solid-hover: #e4e4e4;
-    --ol-on-solid: #101615;
+    --ol-on-solid: #0d0d0f;
   }
 }
 
@@ -138,61 +154,65 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --ol-canvas: #101615;
-  --ol-surface: #171d1c;
-  --ol-raised: #1c2221;
-  --ol-code: #0d1211;
-  --ol-frame: #181b1a;
-  --ol-track: #333a38;
+  --ol-canvas: #0d0d0f;
+  --ol-surface: #141416;
+  --ol-raised: #1a1a1d;
+  --ol-code: #0a0a0c;
+  --ol-frame: #131315;
+  --ol-track: #34343a;
 
-  --ol-hairline: #272d2c;
-  --ol-hairline-strong: #3f4544;
+  --ol-hairline: #24242a;
+  --ol-hairline-strong: #3c3c44;
+
+  --ol-brand: #0866ff;
 
   --ol-heading: #fafafa;
   --ol-body: #fafafa;
-  --ol-soft: #b4b6b5;
-  --ol-muted: #a8adac;
+  --ol-soft: #b6b6bd;
+  --ol-muted: #aaaab2;
 
-  --ol-accent: #5eead4;
-  --ol-accent-hover: #99f6e4;
-  --ol-accent-subtle: #14302b;
-  --ol-accent-solid: #2dd4bf;
-  --ol-accent-solid-hover: #5eead4;
-  --ol-on-accent: #101615;
+  --ol-accent: #7db4ff;
+  --ol-accent-hover: #a3caff;
+  --ol-accent-subtle: #0d1b33;
+  --ol-accent-solid: #0866ff;
+  --ol-accent-solid-hover: #0552d6;
+  --ol-on-accent: #ffffff;
 
   --ol-solid: #fafafa;
   --ol-solid-hover: #e4e4e4;
-  --ol-on-solid: #101615;
+  --ol-on-solid: #0d0d0f;
 }
 
 /* Light, only when a visitor explicitly asks for it through the toggle. */
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --ol-canvas: #f7f9f8;
-  --ol-surface: #f0f2f1;
-  --ol-raised: #ebedec;
-  --ol-code: #eef1f0;
-  --ol-frame: #eceeed;
-  --ol-track: #d5d9d7;
+  --ol-canvas: #f8f8f9;
+  --ol-surface: #f1f1f3;
+  --ol-raised: #ebebed;
+  --ol-code: #eeeef0;
+  --ol-frame: #ececee;
+  --ol-track: #d6d6da;
 
-  --ol-hairline: #dee0df;
-  --ol-hairline-strong: #c6c7c6;
+  --ol-hairline: #e0e0e3;
+  --ol-hairline-strong: #c6c6cb;
 
-  --ol-heading: #101615;
-  --ol-body: #101615;
-  --ol-soft: #464d4b;
-  --ol-muted: #55605d;
+  --ol-brand: #0866ff;
 
-  --ol-accent: #115e59;
-  --ol-accent-hover: #134e4a;
-  --ol-accent-subtle: #dcf1ed;
-  --ol-accent-solid: #0f766e;
-  --ol-accent-solid-hover: #115e59;
+  --ol-heading: #0d0d0f;
+  --ol-body: #0d0d0f;
+  --ol-soft: #46464d;
+  --ol-muted: #55555e;
+
+  --ol-accent: #0b5ad0;
+  --ol-accent-hover: #08429e;
+  --ol-accent-subtle: #e3ecff;
+  --ol-accent-solid: #0866ff;
+  --ol-accent-solid-hover: #0552d6;
   --ol-on-accent: #ffffff;
 
-  --ol-solid: #101615;
-  --ol-solid-hover: #232d2b;
+  --ol-solid: #0d0d0f;
+  --ol-solid-hover: #26262c;
   --ol-on-solid: #fafafa;
 }
 
@@ -364,12 +384,109 @@ body {
   animation: none;
 }
 
+/*
+  Scroll reveal. The whole system, and its one governing rule.
+
+  Content is visible by default. `[data-reveal]` on its own paints an element
+  normally, and the hidden start state below only exists under
+  `:root[data-motion]`, an attribute nothing but the arming script in
+  lib/motion.ts ever sets, and only once it knows JavaScript runs, that
+  IntersectionObserver exists and that the visitor has not asked for less
+  motion. That script also carries two failsafes; see the file for both.
+
+  Only opacity and transform move, so a reveal cannot shift the layout.
+
+  The entrance owns `transform` and the pointer response owns `translate`, the
+  standalone property. They compose rather than overwrite, which is what lets an
+  element that both arrives and lifts keep a 640ms entrance with a stagger and
+  still answer a hover in 200ms. Writing both into one property put the
+  entrance's delay in front of every hover on the page.
+*/
+[data-reveal] {
+  opacity: 1;
+  transform: none;
+}
+
+:root[data-motion] [data-reveal] {
+  transition:
+    opacity 640ms cubic-bezier(0.22, 0.61, 0.36, 1) var(--reveal-delay, 0ms),
+    transform 640ms cubic-bezier(0.22, 0.61, 0.36, 1) var(--reveal-delay, 0ms),
+    color 200ms ease,
+    background-color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    translate 200ms ease;
+}
+
+:root[data-motion] [data-reveal]:not([data-revealed]) {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+}
+
+/* The stagger, inside a group only. Direct children step 70ms apart; the
+   eighth onwards share a delay rather than making a reader wait longer. */
+[data-reveal-group] > *:nth-child(1) { --reveal-delay: 0ms; }
+[data-reveal-group] > *:nth-child(2) { --reveal-delay: 70ms; }
+[data-reveal-group] > *:nth-child(3) { --reveal-delay: 140ms; }
+[data-reveal-group] > *:nth-child(4) { --reveal-delay: 210ms; }
+[data-reveal-group] > *:nth-child(5) { --reveal-delay: 280ms; }
+[data-reveal-group] > *:nth-child(6) { --reveal-delay: 350ms; }
+[data-reveal-group] > *:nth-child(7) { --reveal-delay: 420ms; }
+[data-reveal-group] > *:nth-child(n + 8) { --reveal-delay: 490ms; }
+
+/*
+  Pointer response.
+
+  Every colour in a hover state is a token applied in the markup. All that
+  lives here is the movement and the timing, so one rule covers the whole site
+  and nothing drifts: a card rises two pixels, a control rises one, and both
+  return to the surface while they are pressed. A device without a hover
+  capable pointer never sees any of it.
+*/
+.lift,
+.lift-sm {
+  transition:
+    color 200ms ease,
+    background-color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    translate 200ms ease;
+}
+
+@media (hover: hover) {
+  .lift:hover {
+    translate: 0 -2px;
+  }
+
+  .lift-sm:hover {
+    translate: 0 -1px;
+  }
+}
+
+.lift:active,
+.lift-sm:active {
+  translate: 0 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Every reveal target renders complete and still, whatever the arming
+     script managed to do before this preference was read. */
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Nothing rises under a pointer either. */
+  .lift:hover,
+  .lift-sm:hover {
+    translate: none;
   }
 
   /* The strip stops sliding and wraps instead, so every card is still

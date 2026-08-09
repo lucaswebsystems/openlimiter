@@ -17,33 +17,39 @@ export default function RoadmapPage() {
     <DocArticle
       href="/docs/roadmap"
       title="Roadmap"
-      lead="Everything on this page is planned and not yet built. None of it can be downloaded, bought, or waited for on a list. It is written down so the shape of the project is honest about where it is going."
+      lead="What is on this page is not yet built, with one exception noted at the top so nothing here reads as a promise about something that already ships. None of the planned work can be downloaded, bought, or waited for on a list. It is written down so the shape of the project is honest about where it is going."
       sections={[
         {
           id: "not-available",
           title: "Read this first",
           body: (
             <Callout tone="key" title="Planned means not built">
-              Nothing below exists today. There is no desktop application to install, no mobile
-              application in any store, and no synchronisation service running anywhere. What
-              works today is documented on the rest of this site, and the difference between the
-              two is deliberate.
+              Everything called planned below does not exist today. There is no mobile application
+              in any store and no synchronisation service running anywhere. What works today is
+              documented on the rest of this site, and the difference between the two is
+              deliberate.
             </Callout>
           ),
         },
         {
           id: "desktop",
-          title: "Planned: a desktop application",
+          title: "Shipped: the desktop application, on Windows",
           body: (
             <>
               <P>
-                A small desktop application with a tray icon next to the system clock on Windows,
-                macOS, and Linux, so quota is glanceable without a terminal open.
+                A small desktop application with a tray icon next to the system clock, reading the
+                same local cache the command line tool writes, so quota is glanceable without a
+                terminal open. It is built, and the Windows installer is attached to the release on
+                GitHub.
               </P>
               <Bullets
                 items={[
-                  <>Status: planned. No build exists.</>,
-                  <>It would read the same local cache the CLI already writes.</>,
+                  <>Status: shipped on Windows. The installer is on the releases page.</>,
+                  <>
+                    Planned: packages for macOS and Linux. Neither is produced yet, so neither can
+                    be installed.
+                  </>,
+                  <>Planned: an automatic update channel. There is none today.</>,
                 ]}
               />
             </>
@@ -51,19 +57,20 @@ export default function RoadmapPage() {
         },
         {
           id: "mobile",
-          title: "Planned: mobile applications",
+          title: "Planned: native mobile applications",
           body: (
             <>
               <P>
                 Applications for iOS and Android, so a long running window can be checked away from
-                the desk.
+                the desk. The web app already installs to a phone home screen and works offline,
+                which is the part of this that exists.
               </P>
               <Bullets
                 items={[
                   <>Status: planned. Nothing is submitted to any store.</>,
                   <>
-                    A phone cannot read a file on your laptop, so this depends on the
-                    synchronisation work below.
+                    A phone cannot read a file on your laptop, so a native application that shows
+                    the numbers on your desk machine depends on the synchronisation work below.
                   </>,
                 ]}
               />

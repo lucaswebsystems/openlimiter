@@ -43,7 +43,7 @@ export default function OpenGraphImage() {
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={markDataUri(imagePalette.accent)} width={500} height={500} alt="" />
+          <img src={markDataUri(imagePalette.brand)} width={500} height={500} alt="" />
         </div>
 
         <div
@@ -59,7 +59,7 @@ export default function OpenGraphImage() {
         >
           <div style={{ alignItems: "center", display: "flex", gap: 22 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={markDataUri(imagePalette.accent)} width={84} height={84} alt="" />
+            <img src={markDataUri(imagePalette.brand)} width={84} height={84} alt="" />
             <div
               style={{
                 color: imagePalette.heading,

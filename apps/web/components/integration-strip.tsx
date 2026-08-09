@@ -1,4 +1,5 @@
-import { SectionHeading } from "./ui";
+import { FULL_BLEED, SectionHeading } from "./ui";
+import { reveal } from "@/lib/motion";
 
 /**
  * The strip that sits where a reference site of this shape puts a wall of user
@@ -9,6 +10,13 @@ import { SectionHeading } from "./ui";
  * it puts the result. Every card names a real connector or a real surface that
  * ships in this release. Nobody is quoted, no avatar appears, and no count of
  * anything is claimed.
+ *
+ * Both rows run the full width of the shell rather than the width of the text
+ * beside them: a sliding row reads as a row only when it is wider than a card
+ * is, and the earlier version cut its cards off inside a column narrower than
+ * the sections around it. The mask at each end is what makes the two partial
+ * cards read as a strip that continues rather than as content clipped by a
+ * container.
  */
 
 interface StripCard {
@@ -97,7 +105,7 @@ const surfaces: readonly StripCard[] = [
 
 function Card({ card }: { card: StripCard }) {
   return (
-    <div className="flex h-[150px] w-[340px] flex-none flex-col justify-between rounded-2xl border border-hairline bg-surface p-4">
+    <div className="lift flex h-[150px] w-[340px] flex-none flex-col justify-between rounded-2xl border border-hairline bg-surface p-4 hover:border-hairline-strong hover:bg-raised">
       <div>
         <p className="text-sm font-medium text-heading">{card.name}</p>
         <p className="mt-2 text-sm leading-relaxed text-muted">{card.detail}</p>
@@ -126,7 +134,7 @@ export function IntegrationStrip() {
         title="What it reads, where it lands"
         lead="No testimonials, no avatar wall, no user count. Every card below is a connector or a surface that ships in this release."
       />
-      <div className="space-y-4">
+      <div className={`${FULL_BLEED} space-y-4`} {...reveal}>
         <Row cards={connectors} />
         <Row cards={surfaces} reverse />
       </div>

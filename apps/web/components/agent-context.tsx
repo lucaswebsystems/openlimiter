@@ -1,6 +1,7 @@
 import { CliTranscript } from "./cli-transcript";
 import { DemoDataChip, SectionHeading } from "./ui";
 import { CAPTURED_ON, hookCapture } from "@/lib/cli-capture";
+import { reveal } from "@/lib/motion";
 
 /**
  * How the agent context is bounded.
@@ -42,7 +43,7 @@ export function AgentContext() {
         lead="A block injected into a prompt is an injection surface. This one carries enum codes, bounded numbers and timestamps, and it says so about itself in its own opening tag."
       />
 
-      <div className="overflow-hidden rounded-2xl border border-hairline bg-surface">
+      <div className="overflow-hidden rounded-2xl border border-hairline bg-surface" {...reveal}>
         <div className="flex flex-col gap-3 border-b border-hairline px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2.5">
             <span className="font-mono text-2xs text-muted">openlimiter hook</span>
@@ -57,7 +58,10 @@ export function AgentContext() {
           <CliTranscript capture={hookCapture} />
           <div className="min-w-0 space-y-4">
             {guarantees.map((item) => (
-              <div key={item.title} className="rounded-xl border border-hairline bg-canvas px-4 py-3">
+              <div
+                key={item.title}
+                className="lift rounded-xl border border-hairline bg-canvas px-4 py-3 hover:border-hairline-strong hover:bg-raised"
+              >
                 <p className="text-sm font-medium text-heading">{item.title}</p>
                 <p className="mt-1.5 text-sm leading-relaxed text-muted">{item.detail}</p>
               </div>

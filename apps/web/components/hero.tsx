@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { providerMarks } from "./provider-marks";
-import { ButtonLink, IconButtonLink } from "./ui";
+import { ButtonLink, IconButtonLink, SHELL } from "./ui";
 import { DOWNLOAD_DISCLAIMER } from "@/lib/downloads";
+import { reveal } from "@/lib/motion";
+import { RELEASES_LATEST_URL } from "@/lib/site";
 
 /**
  * The hero.
@@ -10,10 +12,12 @@ import { DOWNLOAD_DISCLAIMER } from "@/lib/downloads";
  * at 512 pixels, one row of buttons, the honest line about what those buttons
  * actually reach, and the row of provider marks.
  *
- * The five buttons match the reference slot for slot. Their destinations do
- * not: the mobile and web buttons lead to the download page rather than to a
- * store, because there is nothing in a store, and each one says so in its
- * accessible name. The line under the row says the same thing in the open.
+ * Each button leads to the thing it names, and only where that thing exists.
+ * Windows goes to the packaged installer on the releases page and the globe
+ * opens the web app, because both are real. The two mobile buttons lead to the
+ * download page rather than to a store, because there is nothing in a store,
+ * and each says so in its accessible name. The line under the row says the same
+ * thing in the open.
  */
 
 function AppleGlyph() {
@@ -84,8 +88,8 @@ function WindowsGlyph() {
 
 export function Hero() {
   return (
-    <section className="mx-auto max-w-7xl px-6 pb-10 md:px-32 md:pb-12">
-      <div className="space-y-6">
+    <section className={`${SHELL} pb-10 md:pb-12`}>
+      <div className="space-y-6" {...reveal}>
         <h1 className="text-3xl font-medium tracking-tight text-heading md:text-5xl">
           Know your limits.
           <br />
@@ -97,24 +101,25 @@ export function Hero() {
         </p>
       </div>
 
-      <div className="pt-10">
+      <div className="pt-10" {...reveal}>
         <div className="flex flex-row flex-wrap gap-3">
-          <ButtonLink href="/download#windows" tone="primary">
+          <ButtonLink
+            href={RELEASES_LATEST_URL}
+            tone="primary"
+            external
+            label="Download the Windows installer from the releases page on GitHub"
+          >
             <WindowsGlyph />
             Download for Windows
           </ButtonLink>
-          <ButtonLink
-            href="/download#web-app"
-            tone="ghost"
-            label="Web app, planned, see the download page"
-          >
+          <ButtonLink href="/app" tone="ghost" label="Open the web app, live now">
             <GlobeGlyph />
-            Web app
+            Open the web app
           </ButtonLink>
-          <IconButtonLink href="/download#ios" label="iOS, planned, see the download page">
+          <IconButtonLink href="/download#ios" label="iOS, not built, see the download page">
             <AppleGlyph />
           </IconButtonLink>
-          <IconButtonLink href="/download#android" label="Android, planned, see the download page">
+          <IconButtonLink href="/download#android" label="Android, not built, see the download page">
             <PlayGlyph />
           </IconButtonLink>
           <IconButtonLink href="/download#source" label="Command line tool, available now">

@@ -47,10 +47,10 @@ export function Scriptable() {
               aria-selected={selected}
               aria-controls="scriptable-panel"
               onClick={() => setActive(index)}
-              className={`focus-ring rounded-full border px-3 py-1.5 text-xs transition-colors ${
+              className={`lift-sm focus-ring rounded-full border px-3 py-1.5 text-xs ${
                 selected
                   ? "border-hairline-strong bg-surface text-heading"
-                  : "border-hairline text-muted hover:text-heading"
+                  : "border-hairline text-muted hover:border-hairline-strong hover:text-heading"
               }`}
             >
               {tab.label}

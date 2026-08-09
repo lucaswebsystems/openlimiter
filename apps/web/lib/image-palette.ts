@@ -11,34 +11,53 @@
  */
 export const imagePalette = {
   /** mirrors --ol-canvas, dark */
-  canvas: "#101615",
+  canvas: "#0d0d0f",
   /** mirrors --ol-surface, dark */
-  surface: "#171d1c",
+  surface: "#141416",
   /** mirrors --ol-hairline, dark */
-  hairline: "#272d2c",
+  hairline: "#24242a",
   /** mirrors --ol-heading, dark */
   heading: "#fafafa",
   /** mirrors --ol-soft, dark */
-  body: "#b4b6b5",
-  /** mirrors --ol-accent-solid, dark */
-  accent: "#2dd4bf",
-  /** mirrors --ol-on-accent, dark */
-  onAccent: "#101615",
+  body: "#b6b6bd",
+  /** mirrors --ol-accent-solid, both themes */
+  accent: "#0866ff",
+  /** mirrors --ol-on-accent, both themes */
+  onAccent: "#ffffff",
+  /** mirrors --ol-brand. The one blue in assets/brand, unchanged by theme. */
+  brand: "#0866ff",
+  /** mirrors --ol-canvas, light */
+  canvasLight: "#f8f8f9",
 } as const;
 
 /**
- * The app tile treatment: the mark inverted onto a solid accent rounded square.
- * It is the only place the mark is not painted in the foreground colour, and it
- * exists because a small icon needs a guaranteed background rather than
- * whatever chrome it lands on.
+ * The two icon treatments, and why there are two.
  *
- * `radiusRatio` and `markRatio` are fractions of the tile edge, so one
- * treatment scales from the 32 pixel favicon to the 1024 pixel PNG in
- * assets/brand without a second set of numbers.
+ * `favicon` is the browser tab. It is the ring itself, in the brand blue, on
+ * the site's own near black, filling as much of the square as the artwork
+ * allows, because at 16 pixels the only thing that can survive is the mark and
+ * it has to be recognisably the mark from the header. The background is there
+ * only so the ring has a guaranteed ground rather than whatever chrome it lands
+ * in.
+ *
+ * `tile` is a home screen. That is a large icon on somebody's own wallpaper, so
+ * it takes the approved tile artwork instead: the ring reversed out of a solid
+ * brand blue square, which is exactly assets/brand/openlimiter-tile-1024.png
+ * and exactly the PNGs in public/icons, so every home screen surface agrees.
+ *
+ * `radiusRatio` and `markRatio` are fractions of the icon edge, so one
+ * treatment scales to any size without a second set of numbers.
  */
+export const favicon = {
+  background: imagePalette.canvas,
+  mark: imagePalette.brand,
+  radiusRatio: 0.22,
+  markRatio: 0.86,
+} as const;
+
 export const tile = {
-  background: imagePalette.accent,
-  mark: imagePalette.onAccent,
+  background: imagePalette.brand,
+  mark: "#ffffff",
   radiusRatio: 0.22,
   markRatio: 0.68,
 } as const;

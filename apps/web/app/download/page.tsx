@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageShell, ShellSections } from "@/components/page-shell";
-import { Chip } from "@/components/ui";
+import { ButtonLink, Chip } from "@/components/ui";
 import { DOWNLOAD_DISCLAIMER, downloadTargets, type DownloadTarget } from "@/lib/downloads";
+import { reveal, revealGroup } from "@/lib/motion";
 import { RELEASES_URL, REPO_URL } from "@/lib/site";
 
 /**
@@ -13,38 +14,53 @@ import { RELEASES_URL, REPO_URL } from "@/lib/site";
  * footer. Each row keeps its own id, which is what the footer's deep links and
  * /download#windows land on.
  *
- * The page is split in two on purpose: what a reader can run today, and what is
- * not built. A command renders only for a row that is already available, and
- * that is checked here rather than trusted from the data, so a row that gains a
- * command before it ships still cannot be made to look installable.
+ * The page is in three parts, and the parts are the ship states themselves:
+ * what a reader can use today, what is built but not packaged for them yet, and
+ * what does not exist. A command and a download control render only for a row
+ * that is already available, and that is checked here rather than trusted from
+ * the data, so a row that gains either before it ships still cannot be made to
+ * look installable.
  */
 
 export const metadata: Metadata = {
   title: "Download",
   description:
-    "Install the OpenLimiter command line tool on Windows, macOS or Linux, or build it from a clone. Desktop, web and mobile are not built yet.",
+    "Get OpenLimiter: a packaged Windows installer, the web app in any browser, or the command line tool built from a clone on macOS and Linux. Mobile applications are not built.",
   alternates: { canonical: "/download" },
 };
 
 const available = downloadTargets.filter((target) => target.state === "available");
-const notBuilt = downloadTargets.filter((target) => target.state !== "available");
+const building = downloadTargets.filter((target) => target.state === "in development");
+const notBuilt = downloadTargets.filter((target) => target.state === "planned");
 
 function TargetCard({ target }: { target: DownloadTarget }) {
   /* The one rule this page exists to keep. Anything that is not available today
-     gets no command, whatever the data happens to carry. */
-  const command = target.state === "available" ? target.command : undefined;
+     gets no command and no download control, whatever the data happens to
+     carry. */
+  const shipped = target.state === "available";
+  const command = shipped ? target.command : undefined;
+  const href = shipped ? target.href : undefined;
 
   return (
     <article
       id={target.id}
-      className="scroll-mt-8 rounded-xl border border-hairline bg-surface p-6"
+      className="lift scroll-mt-8 rounded-xl border border-hairline bg-surface p-6 hover:border-hairline-strong hover:bg-raised"
+      {...reveal}
     >
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="text-xl font-medium text-heading">{target.name}</h3>
-        <Chip tone={target.state === "available" ? "accent" : "neutral"}>{target.state}</Chip>
+        <Chip tone={shipped ? "accent" : "neutral"}>{target.state}</Chip>
       </div>
 
-      <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">{target.summary}</p>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">{target.summary}</p>
+
+      {href !== undefined && target.hrefLabel !== undefined && (
+        <div className="mt-4">
+          <ButtonLink href={href} tone="primary" external={target.hrefExternal === true}>
+            {target.hrefLabel}
+          </ButtonLink>
+        </div>
+      )}
 
       {command !== undefined && (
         <pre className="mt-4 overflow-x-auto rounded-lg border border-hairline bg-code p-4 font-mono text-2xs leading-6 text-soft">
@@ -59,20 +75,23 @@ function TargetCard({ target }: { target: DownloadTarget }) {
   );
 }
 
-const linkClass = "focus-ring rounded text-accent transition-colors hover:text-heading";
+const linkClass = "focus-ring rounded text-accent transition-colors hover:text-accent-hover";
 
 export default function DownloadPage() {
   return (
     <PageShell title="Download" lead={DOWNLOAD_DISCLAIMER}>
       <ShellSections>
         <section>
-          <h2 className="text-2xl font-medium text-heading">Available now</h2>
-          <p className="mt-2 max-w-lg text-base text-muted">
-            One clone, one build, the same five lines on every platform, because the tool is plain
-            Node.js with no third party runtime dependencies. This is the path every capture on
+          <h2 className="text-2xl font-medium text-heading" {...reveal}>
+            Available now
+          </h2>
+          <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
+            Windows has a packaged installer. The web app needs nothing installed at all. On every
+            platform the command line tool is one clone and the same five lines, because it is plain
+            Node.js with no third party runtime dependencies, and that is the path every capture on
             this site was taken from.
           </p>
-          <div className="mt-8 space-y-4">
+          <div className="mt-8 space-y-4" {...revealGroup}>
             {available.map((target) => (
               <TargetCard key={target.id} target={target} />
             ))}
@@ -80,20 +99,38 @@ export default function DownloadPage() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-medium text-heading">Not built yet</h2>
-          <p className="mt-2 max-w-lg text-base text-muted">
+          <h2 className="text-2xl font-medium text-heading" {...reveal}>
+            Built, not packaged for you yet
+          </h2>
+          <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
+            This exists and it runs. What is missing is a build you can install on your own
+            platform, and until that is produced this section says so rather than pointing you at
+            something that is not there.
+          </p>
+          <div className="mt-8 space-y-4" {...revealGroup}>
+            {building.map((target) => (
+              <TargetCard key={target.id} target={target} />
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-medium text-heading" {...reveal}>
+            Not built yet
+          </h2>
+          <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
             Everything below is written down so the direction is clear. None of it exists today,
             none of it can be installed or opened, there is no waiting list, and no date is being
             promised for any of it.
           </p>
-          <div className="mt-8 space-y-4">
+          <div className="mt-8 space-y-4" {...revealGroup}>
             {notBuilt.map((target) => (
               <TargetCard key={target.id} target={target} />
             ))}
           </div>
         </section>
 
-        <p className="max-w-xl text-sm leading-relaxed text-muted">
+        <p className="max-w-2xl text-sm leading-relaxed text-muted" {...reveal}>
           Every tagged version lives on the{" "}
           <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className={linkClass}>
             releases page

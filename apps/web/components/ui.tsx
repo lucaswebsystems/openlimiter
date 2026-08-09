@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { reveal } from "@/lib/motion";
 
 /**
  * The small shared vocabulary the whole site is built from.
@@ -10,6 +11,27 @@ import type { ReactNode } from "react";
  * Every colour is a token, so both themes follow.
  */
 
+/**
+ * The one content column on the site.
+ *
+ * Every band on every page renders inside this and nothing else: the header,
+ * the hero, the product frame, each home page section, the documentation
+ * layout and the footer. That is the whole width system, and it is deliberate
+ * rather than incidental, so no section can end up narrower than the one above
+ * it and no horizontal row can be clipped by a container its siblings do not
+ * share. At 1440 it measures 1152 pixels with a 144 pixel gutter each side.
+ *
+ * A row that is meant to run wider than the text, such as the sliding strip,
+ * cancels this padding with FULL_BLEED rather than inventing its own width.
+ */
+export const SHELL = "mx-auto w-full max-w-7xl px-6 md:px-12 lg:px-16";
+
+/**
+ * Cancels exactly the padding SHELL applies, so a child spans the full column
+ * and no more. The negative margins mirror SHELL's padding step for step.
+ */
+export const FULL_BLEED = "-mx-6 md:-mx-12 lg:-mx-16";
+
 export function GitHubMark({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg className={`${className} fill-current`} viewBox="0 0 24 24" aria-hidden="true">
@@ -19,11 +41,12 @@ export function GitHubMark({ className = "h-4 w-4" }: { className?: string }) {
 }
 
 const buttonBase =
-  "focus-ring inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors";
+  "lift-sm focus-ring inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium";
 
 const buttonTone = {
   primary: "border-transparent bg-solid text-on-solid hover:bg-solid-hover",
-  ghost: "border-hairline-strong bg-transparent text-heading hover:bg-surface",
+  ghost:
+    "border-hairline-strong bg-transparent text-heading hover:border-heading hover:bg-surface",
   quiet: "border-transparent text-muted hover:text-heading",
 } as const;
 
@@ -78,7 +101,7 @@ export function IconButtonLink({
       href={href}
       aria-label={label}
       title={label}
-      className="focus-ring inline-flex items-center justify-center rounded-lg border border-hairline-strong px-3 py-2 text-heading transition-colors hover:bg-surface"
+      className="lift-sm focus-ring inline-flex items-center justify-center rounded-lg border border-hairline-strong px-3 py-2 text-heading hover:border-heading hover:bg-surface"
     >
       {children}
     </a>
@@ -141,7 +164,7 @@ export function SectionHeading({
   status?: string;
 }) {
   return (
-    <div className="mb-12 space-y-2">
+    <div className="mb-12 space-y-2" {...reveal}>
       <div className="flex flex-wrap items-center gap-3">
         <h2 id={id} className="text-3xl font-medium text-heading">
           {title}
@@ -154,8 +177,8 @@ export function SectionHeading({
 }
 
 /**
- * A plain content card. One radius, one border, one fill, used by every grid on
- * the site so nothing drifts.
+ * A plain content card. One radius, one border, one fill, one hover response,
+ * used by every grid on the site so nothing drifts.
  */
 export function Card({
   className = "",
@@ -165,8 +188,15 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <div className={`rounded-xl border border-hairline bg-surface px-5 py-4 ${className}`}>
+    <div className={`${CARD} ${className}`} {...reveal}>
       {children}
     </div>
   );
 }
+
+/**
+ * The card surface as a class, for the places that need the element itself to
+ * be a link or a grid child rather than a wrapper.
+ */
+export const CARD =
+  "lift rounded-xl border border-hairline bg-surface px-5 py-4 hover:border-hairline-strong hover:bg-raised";

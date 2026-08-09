@@ -1,3 +1,5 @@
+import { reveal, revealGroup } from "@/lib/motion";
+
 /**
  * Frequently asked questions.
  *
@@ -46,7 +48,7 @@ const items = [
   {
     question: "Is there a desktop or phone app?",
     answer:
-      "Not yet. A desktop tray application is being built now and the web, iOS and Android builds are planned. None of them can be downloaded, none is in a store, and there is no waiting list. The download page lists every platform with its real state.",
+      "The desktop tray application is built and packaged for Windows, and that installer is attached to the release on GitHub. There is no macOS or Linux package of it yet. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state.",
   },
   {
     question: "Is it free?",
@@ -58,11 +60,13 @@ const items = [
 export function Faq() {
   return (
     <div id="faq" className="space-y-6">
-      <h2 className="text-3xl font-medium text-heading">FAQ</h2>
-      <div className="space-y-6">
+      <h2 className="text-3xl font-medium text-heading" {...reveal}>
+        FAQ
+      </h2>
+      <div className="space-y-6" {...revealGroup}>
         {items.map((item) => (
-          <details key={item.question} className="group">
-            <summary className="focus-ring flex cursor-pointer list-none items-start gap-2 rounded text-sm font-medium text-heading">
+          <details key={item.question} className="group" {...reveal}>
+            <summary className="focus-ring flex cursor-pointer list-none items-start gap-2 rounded text-sm font-medium text-heading transition-colors duration-200 hover:text-accent">
               <span
                 aria-hidden="true"
                 className="mt-px w-3 flex-none font-mono text-muted group-open:hidden"

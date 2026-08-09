@@ -1,7 +1,12 @@
 import Link from "next/link";
-import { alternatives } from "@/lib/alternatives";
-import { downloadTargets } from "@/lib/downloads";
+import { BrandLockup } from "./brand";
+import { GitHubMark, SHELL } from "./ui";
+import { platformTargets } from "@/lib/downloads";
+import { reveal } from "@/lib/motion";
 import {
+  AUTHOR_EMAIL,
+  AUTHOR_GITHUB,
+  AUTHOR_LINKEDIN,
   AUTHOR_NAME,
   AUTHOR_SITE,
   DISCUSSIONS_URL,
@@ -12,12 +17,17 @@ import {
 } from "@/lib/site";
 
 /**
- * Five columns on a wide screen, two on a narrow one, over a single hairline.
+ * The footer.
  *
- * The Alternatives and Download columns are generated from the same data the
- * pages themselves render, so a row can never exist in the footer and be
- * missing from the page it points at. There is no Discord link anywhere on this
- * site, by instruction.
+ * A brand block that says who made this and how to reach him, then three
+ * columns of links that all point at something that exists. The columns are
+ * short on purpose: a footer that lists every provider and every comparison
+ * page is a sitemap, not a footer, and the two columns that did that are gone.
+ * Comparisons live in the header, where a reader looking for them will be.
+ *
+ * The Download column is generated from the same data the download page renders,
+ * so a platform cannot be listed here and missing from the page it points at.
+ * There is no Discord link anywhere on this site, by instruction.
  */
 
 interface FooterLink {
@@ -27,24 +37,16 @@ interface FooterLink {
 }
 
 const product: FooterLink[] = [
-  { label: "Documentation", href: "/docs" },
+  { label: "Docs", href: "/docs" },
   { label: "Changelog", href: "/changelog" },
   { label: "Blog", href: "/blog" },
   { label: "Roadmap", href: "/docs/roadmap" },
   { label: "Security", href: "/docs/security" },
 ];
 
-const agents: FooterLink[] = [
-  { label: "Claude Code", href: "/docs/agent-context" },
-  { label: "Codex CLI", href: "/docs/providers" },
-  { label: "OpenCode", href: "/docs/providers" },
-  { label: "Antigravity", href: "/docs/providers" },
-  { label: "All providers", href: "/docs/providers" },
-];
-
-const alternativeLinks: FooterLink[] = alternatives.map((entry) => ({
-  label: entry.name,
-  href: `/alternatives/${entry.slug}`,
+const download: FooterLink[] = platformTargets.map((target) => ({
+  label: target.name,
+  href: `/download#${target.id}`,
 }));
 
 const community: FooterLink[] = [
@@ -52,18 +54,17 @@ const community: FooterLink[] = [
   { label: "Issues", href: ISSUES_URL, external: true },
   { label: "Discussions", href: DISCUSSIONS_URL, external: true },
   { label: "Sponsor", href: SPONSORS_URL, external: true },
-  { label: "Apache 2.0 licence", href: LICENSE_URL, external: true },
 ];
 
-const download: FooterLink[] = downloadTargets
-  .filter((target) => target.state === "available")
-  .map((target) => ({ label: target.name, href: `/download#${target.id}` }));
+const linkClass =
+  "focus-ring rounded text-muted transition-colors duration-200 hover:text-heading";
 
-const linkClass = "focus-ring rounded text-muted transition-colors hover:text-heading";
+const contactClass =
+  "focus-ring inline-flex items-center gap-2 rounded text-muted transition-colors duration-200 hover:text-heading";
 
 function Column({ title, links }: { title: string; links: readonly FooterLink[] }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" {...reveal}>
       <p className="font-medium text-heading">{title}</p>
       <div className="space-y-2">
         {links.map((link) => (
@@ -84,25 +85,121 @@ function Column({ title, links }: { title: string; links: readonly FooterLink[] 
   );
 }
 
+function LinkedInMark({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={`${className} fill-current`} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5ZM3 9h4v12H3V9Zm6.5 0h3.8v1.64h.05c.53-.95 1.83-1.95 3.76-1.95 4.02 0 4.76 2.5 4.76 5.76V21h-4v-5.66c0-1.35-.03-3.09-1.94-3.09-1.94 0-2.24 1.47-2.24 2.99V21h-3.99V9Z" />
+    </svg>
+  );
+}
+
+function GlobeMark({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z" />
+    </svg>
+  );
+}
+
+function MailMark({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="2.75" y="4.75" width="18.5" height="14.5" rx="2.5" />
+      <path d="m3.5 7.5 7.4 5.1a2 2 0 0 0 2.2 0l7.4-5.1" />
+    </svg>
+  );
+}
+
 export function Footer() {
   return (
-    <footer className="mx-auto max-w-5xl p-6 md:p-20 md:pt-0">
-      <div className="grid grid-cols-2 gap-8 border-t border-hairline pb-4 pt-8 text-sm sm:grid-cols-5">
+    <footer className={`${SHELL} pb-8 pt-4 md:pb-16`}>
+      <div className="grid gap-10 border-t border-hairline pt-10 text-sm lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
+        <div className="max-w-sm space-y-4" {...reveal}>
+          <Link href="/" aria-label="OpenLimiter, home" className="focus-ring inline-flex rounded">
+            <BrandLockup
+              markClassName="h-8 w-8 flex-none text-brand"
+              wordClassName="text-xl"
+            />
+          </Link>
+          <p className="leading-relaxed text-muted">
+            Quota awareness for AI coding agents. It reads what your subscriptions have left on your
+            own machine, hands your agents a bounded block of that state, and never invents a number
+            it does not have.
+          </p>
+          <div className="space-y-2">
+            <p className="text-muted">
+              Built by <span className="text-heading">{AUTHOR_NAME}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+              <a
+                href={AUTHOR_SITE}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={contactClass}
+              >
+                <GlobeMark />
+                lucaswebsystems.com
+              </a>
+              <a href={`mailto:${AUTHOR_EMAIL}`} className={contactClass}>
+                <MailMark />
+                {AUTHOR_EMAIL}
+              </a>
+              <a
+                href={AUTHOR_LINKEDIN}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={contactClass}
+              >
+                <LinkedInMark />
+                LinkedIn
+              </a>
+              <a
+                href={AUTHOR_GITHUB}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={contactClass}
+              >
+                <GitHubMark />
+                GitHub
+              </a>
+            </div>
+          </div>
+        </div>
+
         <Column title="Product" links={product} />
-        <Column title="Agents" links={agents} />
-        <Column title="Alternatives" links={alternativeLinks} />
-        <Column title="Community" links={community} />
         <Column title="Download" links={download} />
+        <Column title="Community" links={community} />
       </div>
-      <p className="pt-6 text-xs text-muted">
-        Apache 2.0. Local first. Zero telemetry. No accounts. Built by{" "}
+
+      <p className="pt-10 text-xs text-muted" {...reveal}>
+        Apache 2.0. Local first. Zero telemetry. No accounts.{" "}
         <a
-          href={AUTHOR_SITE}
+          href={LICENSE_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
         >
-          {AUTHOR_NAME}
+          Read the licence
         </a>
         .
       </p>

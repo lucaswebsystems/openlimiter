@@ -3,8 +3,16 @@ import { markDataUri } from "@/lib/brand";
 import { tile } from "@/lib/image-palette";
 
 /**
- * The home screen icon. Same tile treatment as the favicon, at the size iOS
- * and Android ask for: the real mark in white on solid brand blue.
+ * The home screen icon, at the size iOS asks for.
+ *
+ * This is the approved tile artwork, the ring reversed out of a solid brand
+ * blue square, which is the same treatment as assets/brand and the same as the
+ * PNGs the web application manifest points at, so every home screen surface
+ * carries one icon. The browser tab is the one place that departs from it, and
+ * app/icon.tsx says why.
+ *
+ * 180 pixels is far above the size where the arcs close up, so this one draws
+ * the full eight segment ring with its whole taper intact.
  */
 export const size = {
   width: 180,

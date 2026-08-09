@@ -7,27 +7,28 @@ import { Hero } from "@/components/hero";
 import { IntegrationStrip } from "@/components/integration-strip";
 import { RunsWhere } from "@/components/runs-where";
 import { Scriptable } from "@/components/scriptable";
+import { SHELL } from "@/components/ui";
 import { WebApp } from "@/components/web-app";
 import { WorksWith } from "@/components/works-with";
+import { reveal } from "@/lib/motion";
 
 /**
  * The home page.
  *
- * Three bands, in this order and at these widths, which is the whole layout:
+ * One column, one width, top to bottom. The header, the hero, the product
+ * frame, every section below it and the footer all render inside SHELL, so the
+ * page has a single left edge and a single right edge and no band is narrower
+ * than the one above it. Sections sit 96 pixels apart.
  *
- *   1. The hero and the product frame run to 1280 pixels, the wide measure.
- *   2. A short centred band bridges into the content.
- *   3. Everything after it runs to 1024 pixels with 80 pixels of padding, so
- *      the reading column is 864 wide, and sections sit 96 pixels apart.
- *
- * The header above renders inside the same 1280 column, so the wordmark, the
- * headline and the frame all start on the same left edge.
+ * A row that needs to run wider than its text, namely the sliding strip, uses
+ * FULL_BLEED to cancel the shell's padding rather than inventing a width of its
+ * own. There is no other exception anywhere on the page.
  */
 
 function BridgeBand() {
   return (
-    <div className="flex flex-col items-center gap-1.5 px-6 pb-16 pt-4">
-      <BrandMark className="h-6 w-6 text-muted" />
+    <div className="flex flex-col items-center gap-1.5 px-6 pb-16 pt-4" {...reveal}>
+      <BrandMark className="h-7 w-7 text-brand" />
       <p className="text-center text-lg text-soft">
         When you step away from the desk, the numbers are still on your own disk.
       </p>
@@ -44,7 +45,7 @@ export default function Home() {
       <Hero />
       <DeviceFrame />
       <BridgeBand />
-      <div className="mx-auto max-w-5xl p-6 md:p-20 md:pt-40">
+      <div className={`${SHELL} pb-6 pt-4 md:pb-20 md:pt-16`}>
         <div className="space-y-24">
           <IntegrationStrip />
           <WorksWith />

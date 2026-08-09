@@ -27,11 +27,32 @@ export const MARK_SEGMENTS = [
   { d: "M 79.204 31.069 A 72 72 0 0 1 89.980 28.701", opacity: 0.25 },
 ] as const;
 
+/**
+ * The same ring, resolved for small sizes.
+ *
+ * Eight arcs separated by eight degree gaps turn to mush once the whole mark is
+ * 16 pixels across: at that size a gap is a fifth of a pixel. This variant is
+ * the identical construction with four segments instead of eight, a first sweep
+ * of 140 degrees, 14 degree gaps and a heavier stroke, solved by the same
+ * geometry so it closes the circle exactly and sits on the same radius. It is
+ * the same shape and the same colour, simply told with fewer words, and it is
+ * used only where the artwork is rendered below roughly 48 pixels.
+ */
+export const MARK_SEGMENTS_SMALL = [
+  { d: "M 100.000 28.000 A 72 72 0 0 1 146.281 155.155", opacity: 1 },
+  { d: "M 131.563 164.713 A 72 72 0 0 1 39.071 138.362", opacity: 0.8 },
+  { d: "M 31.600 122.483 A 72 72 0 0 1 38.921 61.877", opacity: 0.6 },
+  { d: "M 49.958 48.233 A 72 72 0 0 1 82.582 30.139", opacity: 0.4 },
+] as const;
+
 /** The artwork box. Every consumer scales this, none of them redraws it. */
 export const MARK_VIEWBOX = "0 0 200 200";
 
 /** Stroke weight in artwork units. */
 export const MARK_STROKE_WIDTH = 34;
+
+/** Stroke weight for the four segment variant, heavier so it holds at 16px. */
+export const MARK_STROKE_WIDTH_SMALL = 44;
 
 /** Number of segments, so the stagger scale in globals.css can be checked. */
 export const MARK_SEGMENT_COUNT = MARK_SEGMENTS.length;
@@ -50,21 +71,28 @@ export const MARK_DRAWN_KEY = "openlimiter-mark-drawn";
  * image route. The colour has to be passed in because `currentColor` has
  * nothing to inherit from there.
  */
-export function markSvgMarkup(color: string): string {
-  const paths = MARK_SEGMENTS.map(
-    (segment) =>
-      `<path d="${segment.d}" fill="none" stroke="${color}" stroke-opacity="${segment.opacity}"` +
-      ` stroke-width="${MARK_STROKE_WIDTH}" stroke-linecap="butt"/>`,
-  ).join("");
+export function markSvgMarkup(color: string, variant: MarkVariant = "full"): string {
+  const segments = variant === "small" ? MARK_SEGMENTS_SMALL : MARK_SEGMENTS;
+  const width = variant === "small" ? MARK_STROKE_WIDTH_SMALL : MARK_STROKE_WIDTH;
+  const paths = segments
+    .map(
+      (segment) =>
+        `<path d="${segment.d}" fill="none" stroke="${color}" stroke-opacity="${segment.opacity}"` +
+        ` stroke-width="${width}" stroke-linecap="butt"/>`,
+    )
+    .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${MARK_VIEWBOX}">${paths}</svg>`;
 }
+
+/** Which telling of the ring a consumer wants. See MARK_SEGMENTS_SMALL. */
+export type MarkVariant = "full" | "small";
 
 /**
  * The same markup as a data URI, which is how satori accepts vector artwork in
  * the icon and social card routes.
  */
-export function markDataUri(color: string): string {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(markSvgMarkup(color))}`;
+export function markDataUri(color: string, variant: MarkVariant = "full"): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(markSvgMarkup(color, variant))}`;
 }
 
 /**

@@ -88,11 +88,11 @@ export const posts: readonly Post[] = [
       {
         kind: "h2",
         id: "not-built",
-        text: "Not built yet, and said so on the page",
+        text: "What ships, what does not, and said so on the page",
       },
       {
         kind: "p",
-        text: "A desktop tray application is being built now. A web app, an iOS app and an Android app are planned. None of them exists, none can be downloaded, and there is no waiting list for any of them. Every button on this site that points at one of them lands on the download page, where each row says plainly which state it is in.",
+        text: "The command line tool, the web app and a Windows build of the desktop tray application exist and can be used today. The desktop application has no macOS or Linux package yet, there is no npm release, and the iOS and Android applications are not built, are in no store, and have no waiting list. Every button on this site leads to the thing it names, or to the download page where each row says plainly which state it is in.",
       },
       {
         kind: "quote",

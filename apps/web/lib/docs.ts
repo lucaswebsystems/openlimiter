@@ -86,7 +86,7 @@ export const docGroups: readonly DocGroup[] = [
         href: "/docs/roadmap",
         title: "Roadmap",
         description:
-          "What is planned and not yet built: a desktop tray application, mobile applications, and encrypted sync.",
+          "What is planned and not yet built: macOS and Linux packages of the desktop application, mobile applications, and encrypted sync.",
       },
     ],
   },

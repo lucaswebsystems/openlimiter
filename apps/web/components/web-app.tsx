@@ -1,31 +1,35 @@
 import { ButtonLink, SectionHeading } from "./ui";
+import { reveal, revealGroup } from "@/lib/motion";
 
 /**
- * The web app.
+ * The web app, which is live.
  *
- * This is the slot a reference site of this shape gives to its newest product,
- * with a status chip beside the heading. Ours carries the word `planned` in that
- * chip because that is what it is. Every tile is drawn dashed and empty, the
- * prose says there is nothing to open, and the only button leads to the page
- * that explains what planned means here. Nothing on this section can be clicked
- * to reach a product.
+ * This section used to say `planned`, and that stopped being true: /app ships
+ * the same engine, the same connectors and the same adapter the command line
+ * tool uses, mirrored into the browser bundle, and it installs to a home screen
+ * through the manifest and service worker in app/app. Every claim below is a
+ * property of that route as it stands today.
+ *
+ * The one thing it is careful not to promise is synchronisation. A browser tab
+ * cannot reach into your file system on its own, so the page reads a document
+ * you hand it. That is stated rather than glossed over.
  */
 
-const intent = [
+const facts = [
   {
-    title: "The same local snapshot",
+    title: "The same engine, in the tab",
     detail:
-      "A browser view over the cache the command line tool already writes. No new source of truth, no account, no server holding your numbers.",
+      "Not a second implementation. The core, the connectors and the adapter are mirrored from the command line tool into the browser bundle, so a reading here and a reading in a terminal cannot disagree.",
   },
   {
-    title: "Installable to a home screen",
+    title: "You hand it the document",
     detail:
-      "A progressive web app, so a long window can be checked away from the desk without anything being submitted to a store.",
+      "Paste or drop what openlimiter export prints. A browser tab cannot read your disk by itself, and nothing is uploaded to make up for that: parsing happens in the tab and no request leaves it.",
   },
   {
-    title: "Optional, always",
+    title: "Installs, and works offline",
     detail:
-      "The command line tool would keep working with no browser, no network and no synchronisation, exactly as it does today.",
+      "Add it to a phone or desktop home screen and it opens like an application. A service worker keeps it working with no network at all, because it never needed one.",
   },
 ];
 
@@ -34,22 +38,26 @@ export function WebApp() {
     <section id="web-app">
       <SectionHeading
         title="Web app"
-        status="planned"
-        lead="Written down, not built. There is no build, no preview link and no waiting list, and this section will keep saying so until that changes."
+        status="live"
+        lead="A browser is the one surface every device already has. This one runs the same engine as the command line tool, on a document you give it, with nothing uploaded and no account anywhere."
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {intent.map((item) => (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3" {...revealGroup}>
+        {facts.map((item) => (
           <div
             key={item.title}
-            className="rounded-xl border border-dashed border-hairline-strong bg-canvas px-5 py-4"
+            className="lift rounded-xl border border-hairline bg-surface px-5 py-4 hover:border-hairline-strong hover:bg-raised"
+            {...reveal}
           >
             <p className="text-sm font-medium text-heading">{item.title}</p>
             <p className="mt-2 text-sm leading-relaxed text-muted">{item.detail}</p>
           </div>
         ))}
       </div>
-      <div className="mt-6">
-        <ButtonLink href="/docs/roadmap">What planned means here</ButtonLink>
+      <div className="mt-6 flex flex-wrap gap-3" {...reveal}>
+        <ButtonLink href="/app" tone="primary">
+          Open the web app
+        </ButtonLink>
+        <ButtonLink href="/docs/cli">How to produce a document</ButtonLink>
       </div>
     </section>
   );
