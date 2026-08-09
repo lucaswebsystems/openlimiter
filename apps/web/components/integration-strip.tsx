@@ -1,4 +1,4 @@
-import { FULL_BLEED, SectionHeading } from "./ui";
+import { SectionHeading, VIEWPORT_BLEED } from "./ui";
 import { reveal } from "@/lib/motion";
 
 /**
@@ -11,12 +11,11 @@ import { reveal } from "@/lib/motion";
  * ships in this release. Nobody is quoted, no avatar appears, and no count of
  * anything is claimed.
  *
- * Both rows run the full width of the shell rather than the width of the text
- * beside them: a sliding row reads as a row only when it is wider than a card
- * is, and the earlier version cut its cards off inside a column narrower than
- * the sections around it. The mask at each end is what makes the two partial
- * cards read as a strip that continues rather than as content clipped by a
- * container.
+ * Both rows run the full width of the viewport, not the shell: on any screen
+ * wider than the content column, stopping at the column edge left dead gutters
+ * either side and the strip read as clipped. The mask at each end now fades at
+ * the true screen edge, so the two partial cards read as a strip that
+ * continues past the glass rather than as content cut by a container.
  */
 
 interface StripCard {
@@ -134,7 +133,7 @@ export function IntegrationStrip() {
         title="What it reads, where it lands"
         lead="No testimonials, no avatar wall, no user count. Every card below is a connector or a surface that ships in this release."
       />
-      <div className={`${FULL_BLEED} space-y-4`} {...reveal}>
+      <div className={`${VIEWPORT_BLEED} space-y-4`} {...reveal}>
         <Row cards={connectors} />
         <Row cards={surfaces} reverse />
       </div>

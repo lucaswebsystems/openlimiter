@@ -32,6 +32,17 @@ export const SHELL = "mx-auto w-full max-w-7xl px-6 md:px-12 lg:px-16";
  */
 export const FULL_BLEED = "-mx-6 md:-mx-12 lg:-mx-16";
 
+/**
+ * Breaks out of SHELL entirely and spans the whole viewport, edge to edge.
+ * SHELL is a centred max width column, so cancelling its padding still leaves
+ * a strip stopping at the column edge on any screen wider than the column,
+ * with dead gutters either side. A sliding row wants the viewport, not the
+ * column: centre it on the column, then stretch it a full screen wide. The
+ * body already clips horizontal overflow, so the breakout cannot cause a
+ * sideways scrollbar.
+ */
+export const VIEWPORT_BLEED = "relative left-1/2 w-screen -translate-x-1/2";
+
 export function GitHubMark({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg className={`${className} fill-current`} viewBox="0 0 24 24" aria-hidden="true">
