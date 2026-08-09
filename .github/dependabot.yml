@@ -1,26 +1,57 @@
 version: 2
 updates:
+  # Workspace packages (core, connectors, cli, adapters).
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      # One PR for routine updates instead of a wall of separate ones.
-      dev-dependencies:
+      # Routine updates arrive as one pull request instead of a wall of them.
+      development:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+      production:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+  # Toolchain majors land deliberately, on their own slower cadence, so they
+  # stay visible instead of being silently ignored.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - major
+    allow:
+      - dependency-name: typescript
+      - dependency-name: vitest
+      - dependency-name: "@types/node"
+
+  # The marketing site keeps its own lockfile, so it needs its own entry or it
+  # would never receive a security update.
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      web:
         patterns:
           - "*"
         update-types:
           - minor
           - patch
-    ignore:
-      # Major bumps of the toolchain land deliberately, not automatically.
-      - dependency-name: typescript
-        update-types: ["version-update:semver-major"]
-      - dependency-name: vitest
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/node"
-        update-types: ["version-update:semver-major"]
+    labels:
+      - dependencies
+      - web
 
   - package-ecosystem: github-actions
     directory: /
@@ -30,3 +61,6 @@ updates:
       github-actions:
         patterns:
           - "*"
+    labels:
+      - dependencies
+      - ci
