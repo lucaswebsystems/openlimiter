@@ -12,7 +12,7 @@
     "test": "pnpm test:compile && pnpm vitest:safe run --configLoader runner --config vitest.config.mjs"
   },
   "devDependencies": {
-    "@types/node": "24.13.3",
+    "@types/node": "26.1.2",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
   },
