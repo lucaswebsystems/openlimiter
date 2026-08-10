@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { PageShell } from "@/components/page-shell";
 import { reveal } from "@/lib/motion";
+import { SITE_URL } from "@/lib/site";
 
 /**
  * The 404, in the reader's language.
@@ -19,6 +21,14 @@ import { reveal } from "@/lib/motion";
  * locale still in hand. Without it, an unknown path would fall through to the
  * document root and be answered in English.
  */
+
+/* The boundary renders outside the layout's own metadata pass, so it states the
+   base for relative URLs itself rather than inheriting one, and it declines to be
+   indexed the way the root 404 does. */
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  robots: { index: false, follow: true },
+};
 
 const linkClass =
   "focus-ring rounded text-accent transition-colors hover:text-accent-hover";

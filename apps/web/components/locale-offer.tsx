@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LOCALE_FACES, type Locale, isLocale } from "@/i18n/locales";
 import { LOCALE_COOKIE, LOCALE_HINT_COOKIE, localePath } from "@/i18n/routing";
@@ -38,6 +39,13 @@ function readCookie(name: string): string | null {
 
 export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOfferCopy }) {
   const [offered, setOffered] = useState<Locale | null>(null);
+  /* Next's `usePathname` rather than next-intl's, because this one needs the
+     locale segment: it is stripped off below and replaced with the offered one.
+     Reading it as state also matters more here than anywhere else on the site.
+     This component is mounted once by the root layout and survives every client
+     side navigation, so a link built from `window.location` at first render would
+     still point at the first page a reader landed on three pages later. */
+  const pathname = usePathname();
 
   useEffect(() => {
     /* Already answered, in either direction. The question is closed. */
@@ -58,17 +66,11 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
   const face = LOCALE_FACES[offered];
   const words = copy[offered];
 
-  /* The same page, in the offered language, never the home page. `location`
-     rather than a router link because the pathname has to be read at click time:
-     this component is mounted once by the root layout and outlives any single
-     page. The locale segment, if there is one, is dropped before the new one
-     goes on. */
-  const target = () => {
-    const segments = window.location.pathname.split("/");
-    if (isLocale(segments[1])) segments.splice(1, 1);
-    const route = segments.join("/") || "/";
-    return `${localePath(offered, route)}${window.location.search}${window.location.hash}`;
-  };
+  /* The same page, in the offered language, never the home page. The locale
+     segment, if there is one, comes off before the new one goes on. */
+  const segments = pathname.split("/");
+  if (isLocale(segments[1])) segments.splice(1, 1);
+  const target = localePath(offered, segments.join("/") || "/");
 
   return (
     <div
@@ -88,7 +90,7 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
         </span>
         <p className="min-w-0 text-soft">{words.title}</p>
         <a
-          href={target()}
+          href={target}
           hrefLang={offered}
           onClick={() => rememberLocale(offered)}
           className="focus-ring inline-flex flex-none items-center rounded-lg bg-accent-solid px-3 py-1.5 text-sm font-medium text-on-accent transition-colors duration-200 hover:bg-accent-solid-hover"

@@ -1,10 +1,10 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { preload } from "react-dom";
 import { HeroFoldMedia } from "./hero-backdrop";
+import { SiteLink } from "./site-link";
 import { heroMarks, toolTitle } from "./tool-marks";
 import { ButtonLink, IconButtonLink, SHELL } from "./ui";
 import {
-  DOWNLOAD_DISCLAIMER,
   MACOS_APPLE_SILICON_URL,
   WINDOWS_SETUP_URL,
 } from "@/lib/downloads";
@@ -170,6 +170,12 @@ const FOLD_SYNC_SCRIPT = [
 ].join("");
 
 export function Hero() {
+  const t = useTranslations("hero");
+  /* toolTitle's hover text lives in its own namespace, shared with every
+     surface that renders a tool mark, so this is a translator for the
+     `tools.title` catalog entries rather than for `hero` itself. */
+  const tToolTitle = useTranslations("tools.title");
+
   /* The poster would otherwise be discovered only when the stylesheet lays
      the media layer out, which measured 991 to 1491ms into the load. The
      preload puts the request in the document head with high priority, so the
@@ -201,14 +207,13 @@ export function Hero() {
         <div className={`${SHELL} w-full`}>
           <div className="max-w-2xl">
             <h1 className="fold-enter fold-enter-title text-4xl font-medium leading-tight tracking-tight text-heading sm:text-5xl lg:text-6xl">
-              Know your limits.
+              {t("title.limits")}
               <br />
-              Route around them.
+              {t("title.route")}
             </h1>
 
             <p className="fold-enter fold-enter-lead mt-6 max-w-xl text-lg leading-relaxed text-body">
-              Read your AI subscription quota locally. Give agents bounded budget state and
-              advice. Open source, local first, cross platform.
+              {t("lead")}
             </p>
 
             <div className="fold-enter fold-enter-row mt-9 flex flex-wrap items-center gap-3">
@@ -216,72 +221,72 @@ export function Hero() {
                 href={WINDOWS_SETUP_URL}
                 tone="primary"
                 external
-                label="Download the OpenLimiter installer for Windows, 64 bit"
+                label={t("downloads.windows.aria")}
               >
                 <WindowsGlyph />
-                Download for Windows
+                {t("downloads.windows.label")}
               </ButtonLink>
-              <ButtonLink href="/app" tone="solid" label="Open the web app, live now">
+              <ButtonLink href="/app" tone="solid" label={t("downloads.webApp.aria")}>
                 <GlobeGlyph />
-                Open the web app
+                {t("downloads.webApp.label")}
               </ButtonLink>
               <IconButtonLink
                 href={MACOS_APPLE_SILICON_URL}
                 external
                 solid
-                label="Download OpenLimiter for macOS, Apple silicon"
+                label={t("downloads.macos.aria")}
               >
                 <AppleGlyph />
               </IconButtonLink>
               <IconButtonLink
                 href="/download#iphone"
                 solid
-                label="iPhone: the web app installs to your home screen, there is no App Store app"
+                label={t("downloads.iphone.aria")}
               >
                 <IphoneGlyph />
               </IconButtonLink>
               <IconButtonLink
                 href="/download#android"
                 solid
-                label="Android: the web app installs to your home screen, there is no Play Store app"
+                label={t("downloads.android.aria")}
               >
                 <AndroidGlyph />
               </IconButtonLink>
-              <IconButtonLink href="/docs/cli" solid label="Command line reference in the docs">
+              <IconButtonLink href="/docs/cli" solid label={t("downloads.cli.aria")}>
                 <TerminalGlyph />
               </IconButtonLink>
             </div>
 
             <div className="fold-enter fold-enter-note space-y-1.5 pt-4">
-              <p className="max-w-xl text-xs leading-relaxed text-body">{DOWNLOAD_DISCLAIMER}</p>
-              <Link
+              <p className="max-w-xl text-xs leading-relaxed text-body">{t("disclaimer")}</p>
+              <SiteLink
                 href="/download"
                 className="focus-ring inline-block rounded text-sm text-heading underline decoration-1 underline-offset-4 transition-colors hover:text-accent"
               >
-                All download options
-              </Link>
+                {t("downloads.allOptions")}
+              </SiteLink>
             </div>
 
             <div className="fold-enter fold-enter-marks flex flex-wrap items-center gap-2 pt-7">
-              <span className="text-xs text-body">Supports</span>
+              <span className="text-xs text-body">{t("supports.label")}</span>
               <div className="flex items-center gap-3">
                 {heroMarks.map((tool) => (
                   <span
                     key={tool.name}
-                    title={toolTitle(tool)}
+                    title={toolTitle(tool, tToolTitle)}
                     className="inline-flex items-center justify-center text-heading"
                   >
                     <tool.Mark className="h-[18px] w-[18px]" />
-                    <span className="sr-only">{toolTitle(tool)}</span>
+                    <span className="sr-only">{toolTitle(tool, tToolTitle)}</span>
                   </span>
                 ))}
               </div>
-              <Link
+              <SiteLink
                 href="/docs/providers"
                 className="focus-ring rounded text-xs text-heading underline decoration-1 underline-offset-4 transition-colors hover:text-accent"
               >
-                and manual entry
-              </Link>
+                {t("supports.manualEntry")}
+              </SiteLink>
             </div>
           </div>
         </div>
@@ -296,7 +301,13 @@ export function Hero() {
       {/* The one flag from lib/site.ts switches the footage alone: with it
           off, the fold is the same dark island on its plain canvas, and no
           poster, video or pause control reaches the page. */}
-      {HERO_BACKDROP_ENABLED ? <HeroFoldMedia>{inner}</HeroFoldMedia> : inner}
+      {HERO_BACKDROP_ENABLED ? (
+        <HeroFoldMedia playLabel={t("backdrop.play")} pauseLabel={t("backdrop.pause")}>
+          {inner}
+        </HeroFoldMedia>
+      ) : (
+        inner
+      )}
     </section>
   );
 }

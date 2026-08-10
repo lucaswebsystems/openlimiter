@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { ButtonLink, IconChip, SectionHeading, SectionPanel } from "./ui";
 import { reveal, revealGroup } from "@/lib/motion";
@@ -75,40 +76,31 @@ function BoltGlyph() {
   );
 }
 
-const facts: readonly { title: string; detail: string; Glyph: () => ReactNode }[] = [
-  {
-    title: "The same engine, in the tab",
-    Glyph: BrowserGlyph,
-    detail:
-      "Not a second implementation. The core, the connectors and the adapter are mirrored from the command line tool into the browser bundle, so a reading here and a reading in a terminal cannot disagree.",
-  },
-  {
-    title: "You hand it the document",
-    Glyph: DropGlyph,
-    detail:
-      "Paste or drop what openlimiter export prints. A browser tab cannot read your disk by itself, and nothing is uploaded to make up for that: parsing happens in the tab and no request leaves it.",
-  },
-  {
-    title: "Installs, and works offline",
-    Glyph: BoltGlyph,
-    detail:
-      "Add it to a phone or desktop home screen and it opens like an application. A service worker keeps it working with no network at all, because it never needed one.",
-  },
-];
+/** One stable slug per fact, keyed rather than indexed, matching the catalog. */
+const factSlugs = ["sameEngine", "handDocument", "offline"] as const;
+
+const factGlyphs: Record<(typeof factSlugs)[number], () => ReactNode> = {
+  sameEngine: BrowserGlyph,
+  handDocument: DropGlyph,
+  offline: BoltGlyph,
+};
 
 export function WebApp() {
+  const t = useTranslations("webApp");
+  const facts = factSlugs.map((slug) => ({
+    slug,
+    title: t(`facts.${slug}.title`),
+    detail: t(`facts.${slug}.detail`),
+    Glyph: factGlyphs[slug],
+  }));
   return (
     <section id="web-app">
-      <SectionHeading
-        title="Web app"
-        status="live"
-        lead="A browser is the one surface every device already has. This one runs the same engine as the command line tool, on a document you give it, with nothing uploaded and no account anywhere."
-      />
+      <SectionHeading title={t("title")} status={t("status")} lead={t("lead")} />
       <SectionPanel>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" {...revealGroup}>
-          {facts.map(({ title, detail, Glyph }) => (
+          {facts.map(({ slug, title, detail, Glyph }) => (
             <div
-              key={title}
+              key={slug}
               className="lift elev-1 rounded-xl border border-hairline bg-canvas px-5 py-5 hover:border-hairline-strong hover:bg-raised"
               {...reveal}
             >
@@ -122,9 +114,9 @@ export function WebApp() {
         </div>
         <div className="mt-6 flex flex-wrap gap-3" {...reveal}>
           <ButtonLink href="/app" tone="primary">
-            Open the web app
+            {t("openApp")}
           </ButtonLink>
-          <ButtonLink href="/docs/cli">How to produce a document</ButtonLink>
+          <ButtonLink href="/docs/cli">{t("howToProduce")}</ButtonLink>
         </div>
       </SectionPanel>
     </section>

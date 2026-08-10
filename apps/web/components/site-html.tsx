@@ -90,6 +90,12 @@ export async function SiteHtml({
        class on each one, and what lets the dashboard's own stylesheet reach
        the same loaded file. See lib/fonts.ts: it is loaded once. */
     <html lang={locale} className={wordmarkFont.variable} suppressHydrationWarning>
+      {/* eslint-disable-next-line @next/next/no-head-element --
+          This IS a root layout's head, which is where the App Router expects a
+          literal `<head>`; the rule only fires because the element now lives in a
+          component rather than directly in the layout file. `next/head` is the
+          Pages Router's API and would be wrong here. The element moved because
+          four root layouts share one document. */}
       <head>
         {/* Applies a stored theme choice before first paint. See lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: themeArmScript }} />

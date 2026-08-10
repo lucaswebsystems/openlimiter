@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import registry from "../lib/provider-specs.generated.json";
 import {
   ClaudeMark,
@@ -64,6 +65,9 @@ import { reveal } from "@/lib/motion";
  * quietly dropped.
  */
 
+/** Shorthand for the translator this whole file threads through its helpers. */
+type Translate = ReturnType<typeof useTranslations>;
+
 /* ------------------------------------------------------------- the registry */
 
 /**
@@ -103,13 +107,27 @@ interface CellValue {
   affirmative: boolean;
 }
 
-const UNSTATED: CellValue = { word: "Unstated", affirmative: false };
+/**
+ * A cell's loudness and its catalog key, kept apart from the word itself.
+ *
+ * The word only exists once translated, so these tables carry the catalog key
+ * (`support.ready`, `verification.beta`, ...) and the loudness flag, and
+ * `cellFor` resolves the two into the `CellValue` a cell actually renders.
+ */
+interface CellMeta {
+  key: string;
+  affirmative: boolean;
+}
 
-/** The registry's three support values, in the words the page uses. */
-const SUPPORT_WORD: Record<string, CellValue> = {
-  implemented: { word: "Ready", affirmative: true },
-  not_required: { word: "Not required", affirmative: false },
-  absent: { word: "None", affirmative: false },
+function unstatedCell(t: Translate): CellValue {
+  return { word: t("cells.unstated"), affirmative: false };
+}
+
+/** The registry's three support values, in the catalog keys the page uses. */
+const SUPPORT_META: Record<string, CellMeta> = {
+  implemented: { key: "support.ready", affirmative: true },
+  not_required: { key: "support.notRequired", affirmative: false },
+  absent: { key: "support.none", affirmative: false },
 };
 
 /**
@@ -118,14 +136,14 @@ const SUPPORT_WORD: Record<string, CellValue> = {
  * Only `verified` is affirmative, and nothing in the registry is verified
  * today. Every other value is a state on the way there and is drawn quiet.
  */
-const VERIFICATION_WORD: Record<string, CellValue> = {
-  unverified: { word: "Unverified", affirmative: false },
-  beta: { word: "Beta", affirmative: false },
-  verified: { word: "Verified", affirmative: true },
-  import_only: { word: "Import only", affirmative: false },
-  manual: { word: "Manual", affirmative: false },
-  experimental: { word: "Experimental", affirmative: false },
-  planned: { word: "Planned", affirmative: false },
+const VERIFICATION_META: Record<string, CellMeta> = {
+  unverified: { key: "verification.unverified", affirmative: false },
+  beta: { key: "verification.beta", affirmative: false },
+  verified: { key: "verification.verified", affirmative: true },
+  import_only: { key: "verification.importOnly", affirmative: false },
+  manual: { key: "verification.manual", affirmative: false },
+  experimental: { key: "verification.experimental", affirmative: false },
+  planned: { key: "verification.planned", affirmative: false },
 };
 
 /**
@@ -133,10 +151,14 @@ const VERIFICATION_WORD: Record<string, CellValue> = {
  *
  * It can only happen if the spec schema grows a value and this file is not
  * taught it, and the honest rendering of that is the raw code rather than a
- * guess at which of the existing words it resembles.
+ * guess at which of the existing words it resembles, so this one case stays
+ * an untranslated literal on purpose.
  */
-function cellFor(table: Record<string, CellValue>, value: string): CellValue {
-  return table[value] ?? { word: value, affirmative: false };
+function cellFor(t: Translate, table: Record<string, CellMeta>, value: string): CellValue {
+  const meta = table[value];
+  return meta === undefined
+    ? { word: value, affirmative: false }
+    : { word: t(meta.key), affirmative: meta.affirmative };
 }
 
 /** Readers that run on the machine the person is already sitting at. */
@@ -154,14 +176,14 @@ const LOCAL_READERS = new Set([
  * keeping the two columns apart. A product with no reader is an import however
  * complete its parser is.
  */
-function stateOf(entry: RegistryEntry | undefined): string {
-  if (entry === undefined) return "No spec";
+function stateOf(t: Translate, entry: RegistryEntry | undefined): string {
+  if (entry === undefined) return t("state.noSpec");
   /* A product whose only reader is the person typing is Manual whether or not
      anything is implemented, because there is nothing for a reader to do. */
-  if (entry.readers.every((reader) => reader === "manual")) return "Manual";
-  if (entry.support.reader !== "implemented") return "Import only";
-  if (entry.readers.some((reader) => LOCAL_READERS.has(reader))) return "Local CLI";
-  return "Connected";
+  if (entry.readers.every((reader) => reader === "manual")) return t("state.manual");
+  if (entry.support.reader !== "implemented") return t("state.importOnly");
+  if (entry.readers.some((reader) => LOCAL_READERS.has(reader))) return t("state.localCli");
+  return t("state.connected");
 }
 
 /**
@@ -171,30 +193,32 @@ function stateOf(entry: RegistryEntry | undefined): string {
  * carried the support claim a second time ("Nothing here requests it") and
  * would have had to be found and edited on the day that stopped being true.
  */
-function readerLine(entry: RegistryEntry | undefined): string {
+function readerLine(t: Translate, entry: RegistryEntry | undefined): string {
   if (entry === undefined) {
-    return "No reviewed spec in the registry yet, so nothing here claims a state for it.";
+    return t("readerLine.noSpec");
   }
   return entry.support.reader === "implemented"
-    ? "OpenLimiter reads this one itself."
-    : "Nothing here fetches it, so the document comes from you.";
+    ? t("readerLine.implemented")
+    : t("readerLine.notImplemented");
 }
 
 /* --------------------------------------------------------------- the layout */
 
 /**
- * Name, logo, and one fact about the provider.
+ * Name, logo, and the catalog key for one fact about the provider.
  *
  * Nothing in this list is a support level, a state or a stage. It is what the
  * registry cannot carry: which artwork a row wears and what the provider itself
  * does. `specId` is the only link between the two, and a row whose id is not in
- * the registry renders as unstated rather than as anything invented.
+ * the registry renders as unstated rather than as anything invented. The fact
+ * sentence itself lives in the message catalog under `providers.<factKey>.fact`,
+ * so this file carries only the pointer to it.
  */
 interface Presentation {
   specId: string;
   name: string;
   Mark: (props: ToolMarkProps) => React.ReactNode;
-  fact: string;
+  factKey: string;
 }
 
 const PRESENTATION: readonly Presentation[] = [
@@ -202,37 +226,37 @@ const PRESENTATION: readonly Presentation[] = [
     specId: "anthropic/claude-code",
     name: "Claude",
     Mark: ClaudeMark,
-    fact: "Claude Code writes a rate limit block to its statusline command.",
+    factKey: "claude",
   },
   {
     specId: "openrouter/api",
     name: "OpenRouter",
     Mark: OpenRouterMark,
-    fact: "The credits endpoint is documented and its response parses.",
+    factKey: "openrouter",
   },
   {
     specId: "openai/codex",
     name: "Codex",
     Mark: CodexMark,
-    fact: "An internal payload shape, which can change without notice.",
+    factKey: "codex",
   },
   {
     specId: "google/antigravity",
     name: "Antigravity",
     Mark: GoogleMark,
-    fact: "An internal payload shape, which can change without notice.",
+    factKey: "antigravity",
   },
   {
     specId: "opencode/opencode",
     name: "OpenCode",
     Mark: OpenCodeMark,
-    fact: "A usage view behind a session you already hold.",
+    factKey: "opencode",
   },
   {
     specId: "openlimiter/manual",
     name: "Manual entry",
     Mark: ManualMark,
-    fact: "Numbers you keep yourself, for anything with no interface.",
+    factKey: "manual",
   },
 ];
 
@@ -240,7 +264,7 @@ interface Row {
   key: string;
   name: string;
   Mark: (props: ToolMarkProps) => React.ReactNode;
-  fact: string;
+  factKey: string;
   entry: RegistryEntry | undefined;
 }
 
@@ -258,7 +282,7 @@ const rows: readonly Row[] = PRESENTATION.map((presented) => ({
   key: presented.specId,
   name: presented.name,
   Mark: presented.Mark,
-  fact: presented.fact,
+  factKey: presented.factKey,
   entry: byId.get(presented.specId),
 }));
 
@@ -281,7 +305,8 @@ function Cell({ value }: { value: CellValue }) {
   );
 }
 
-const COLUMNS = ["Parser", "Reader", "Auth", "Verification"] as const;
+/** Stable, untranslated keys. The header labels come from the catalog. */
+const COLUMN_KEYS = ["parser", "reader", "auth", "verification"] as const;
 
 /**
  * A row's four stages, resolved once.
@@ -289,13 +314,16 @@ const COLUMNS = ["Parser", "Reader", "Auth", "Verification"] as const;
  * Both layouts below read this, so the narrow one and the wide one cannot
  * disagree about a cell: there is one derivation and two ways of drawing it.
  */
-function stagesOf(entry: RegistryEntry | undefined): readonly CellValue[] {
-  if (entry === undefined) return [UNSTATED, UNSTATED, UNSTATED, UNSTATED];
+function stagesOf(t: Translate, entry: RegistryEntry | undefined): readonly CellValue[] {
+  if (entry === undefined) {
+    const unstated = unstatedCell(t);
+    return [unstated, unstated, unstated, unstated];
+  }
   return [
-    cellFor(SUPPORT_WORD, entry.support.parser),
-    cellFor(SUPPORT_WORD, entry.support.reader),
-    cellFor(SUPPORT_WORD, entry.support.auth),
-    cellFor(VERIFICATION_WORD, entry.support.verification),
+    cellFor(t, SUPPORT_META, entry.support.parser),
+    cellFor(t, SUPPORT_META, entry.support.reader),
+    cellFor(t, SUPPORT_META, entry.support.auth),
+    cellFor(t, VERIFICATION_META, entry.support.verification),
   ];
 }
 
@@ -310,7 +338,10 @@ function stagesOf(entry: RegistryEntry | undefined): readonly CellValue[] {
  * their own labels, in the reading order the columns had.
  */
 function StageCard({ row }: { row: Row }) {
-  const stages = stagesOf(row.entry);
+  const t = useTranslations("connections");
+  const stages = stagesOf(t, row.entry);
+  const fallback = unstatedCell(t);
+  const columns = COLUMN_KEYS.map((key) => ({ key, label: t(`columns.${key}`) }));
   return (
     <li className="rounded-xl border border-hairline bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
@@ -321,7 +352,7 @@ function StageCard({ row }: { row: Row }) {
           <span className="heading-face truncate text-sm text-heading">{row.name}</span>
         </span>
         <Chip tone="neutral" className="flex-none whitespace-nowrap">
-          {stateOf(row.entry)}
+          {stateOf(t, row.entry)}
         </Chip>
       </div>
 
@@ -329,13 +360,13 @@ function StageCard({ row }: { row: Row }) {
           the words are short and the labels are 11 pixel mono: stacking them
           two by two doubled the card's height for no gain. */}
       <dl className="mt-3 grid grid-cols-4 gap-x-2 border-t border-hairline pt-3">
-        {COLUMNS.map((column, index) => (
-          <div key={column} className="flex min-w-0 flex-col gap-0.5">
+        {columns.map((column, index) => (
+          <div key={column.key} className="flex min-w-0 flex-col gap-0.5">
             <dt className="font-mono text-2xs uppercase tracking-wider text-muted">
-              {column}
+              {column.label}
             </dt>
             <dd className="leading-tight">
-              <Cell value={stages[index] ?? UNSTATED} />
+              <Cell value={stages[index] ?? fallback} />
             </dd>
           </div>
         ))}
@@ -343,22 +374,25 @@ function StageCard({ row }: { row: Row }) {
 
       {/* The provider fact only. The reader sentence the table carries would
           repeat what the Reader cell two lines above already says. */}
-      <p className="mt-3 text-xs leading-relaxed text-muted">{row.fact}</p>
+      <p className="mt-3 text-xs leading-relaxed text-muted">
+        {t(`providers.${row.factKey}.fact`)}
+      </p>
     </li>
   );
 }
 
 export function ConnectionMatrix() {
+  const t = useTranslations("connections");
+  const columns = COLUMN_KEYS.map((key) => ({ key, label: t(`columns.${key}`) }));
+
   return (
     <div className="mt-10" {...reveal}>
       <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
         <h3 className="font-mono text-2xs uppercase tracking-widest text-heading">
-          What each one actually does
+          {t("heading.title")}
         </h3>
         <span aria-hidden="true" className="hidden h-px flex-1 bg-hairline sm:block" />
-        <p className="w-full text-xs text-muted sm:w-auto">
-          A parser is not a connection
-        </p>
+        <p className="w-full text-xs text-muted sm:w-auto">{t("heading.note")}</p>
       </div>
 
       {/* One card per provider below the medium breakpoint. Same data, same
@@ -374,31 +408,28 @@ export function ConnectionMatrix() {
           sideways on the widths in between. */}
       <div className="hidden overflow-x-auto rounded-xl border border-hairline bg-surface md:block">
         <table className="w-full min-w-[44rem] border-collapse text-left">
-          <caption className="sr-only">
-            Every provider, and which of the four stages of support it has
-            reached today, read from the reviewed provider registry
-          </caption>
+          <caption className="sr-only">{t("table.caption")}</caption>
           <thead>
             <tr className="border-b border-hairline">
               <th
                 scope="col"
                 className="px-5 py-3 font-mono text-2xs font-normal uppercase tracking-widest text-muted"
               >
-                Provider
+                {t("table.provider")}
               </th>
               <th
                 scope="col"
                 className="px-5 py-3 font-mono text-2xs font-normal uppercase tracking-widest text-muted"
               >
-                State
+                {t("table.state")}
               </th>
-              {COLUMNS.map((column) => (
+              {columns.map((column) => (
                 <th
-                  key={column}
+                  key={column.key}
                   scope="col"
                   className="px-5 py-3 font-mono text-2xs font-normal uppercase tracking-widest text-muted"
                 >
-                  {column}
+                  {column.label}
                 </th>
               ))}
             </tr>
@@ -414,20 +445,20 @@ export function ConnectionMatrix() {
                     <span className="heading-face text-sm text-heading">{row.name}</span>
                   </span>
                   <span className="mt-1 block text-xs leading-relaxed text-muted">
-                    {row.fact} {readerLine(row.entry)}
+                    {t(`providers.${row.factKey}.fact`)} {readerLine(t, row.entry)}
                   </span>
                 </th>
                 <td className="px-5 py-3.5 align-top">
                   <Chip tone="neutral" className="whitespace-nowrap">
-                    {stateOf(row.entry)}
+                    {stateOf(t, row.entry)}
                   </Chip>
                 </td>
                 {/* Parser, Reader, Auth, then the registry's own verification
                     status, which is the only place a human records that a shape
                     was confirmed against a live account. Nothing here can raise
                     any of the four. */}
-                {stagesOf(row.entry).map((stage, index) => (
-                  <td key={COLUMNS[index]} className="px-5 py-3.5 align-top">
+                {stagesOf(t, row.entry).map((stage, index) => (
+                  <td key={COLUMN_KEYS[index]} className="px-5 py-3.5 align-top">
                     <Cell value={stage} />
                   </td>
                 ))}
@@ -438,25 +469,18 @@ export function ConnectionMatrix() {
       </div>
 
       <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted">
-        Reader means something in OpenLimiter goes and fetches the number. Auth
-        means a credential is held and used. Every cell above is read at build
-        time from the reviewed provider registry rather than written into this
-        page, so a stage cannot be claimed here without a human changing a spec
-        first.{" "}
+        {t("footnote.lead")}{" "}
         {unspecified > 0 && (
           <>
-            {unspecified} of the {rows.length} connectors have no reviewed spec
-            yet, and every one of their cells reads Unstated rather than
-            guessing.{" "}
+            {t("footnote.unspecified", { count: unspecified, total: rows.length })}{" "}
           </>
         )}
         {elsewhere > 0 && (
           <>
-            The registry describes {elsewhere} further products with no connector
-            at all, which is why they are not rows here.{" "}
+            {t("footnote.elsewhere", { count: elsewhere })}{" "}
           </>
         )}
-        Nothing on this page is called connected.
+        {t("footnote.tail")}
       </p>
     </div>
   );

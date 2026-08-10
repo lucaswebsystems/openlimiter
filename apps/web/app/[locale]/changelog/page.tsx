@@ -4,6 +4,8 @@ import { formatReleaseDate, readChangelog } from "@/lib/changelog";
 import { pageMetadata } from "@/lib/metadata";
 import { reveal, revealGroup, revealSm } from "@/lib/motion";
 import { REPO_URL } from "@/lib/site";
+import { getTranslations } from "next-intl/server";
+import { type LocaleParams, pageLocale } from "@/i18n/params";
 
 /**
  * /changelog
@@ -11,6 +13,12 @@ import { REPO_URL } from "@/lib/site";
  * A rendering of the repository's own CHANGELOG.md, parsed by lib/changelog.ts
  * at build time. There is deliberately no second copy of this text on the site,
  * so a release note cannot say one thing in the repository and another here.
+ *
+ * Which is also why only the page's own chrome is translated. The heading, the
+ * lead, the empty state and the closing note come from the catalog; every
+ * version number, group heading and release note below comes from that one file
+ * and stays in the language it was written in. Translating it here would create
+ * exactly the second copy this page exists to avoid.
  *
  * A checkout without that file still renders, empty and honest, rather than
  * failing the build, which is why the empty branch below exists at all. Release
@@ -21,38 +29,44 @@ import { REPO_URL } from "@/lib/site";
  * opens with a digit is awkward to select and awkward to escape later.
  */
 
-export const metadata: Metadata = pageMetadata({
-  title: "Changelog: every release and what changed",
-  description:
-    "Every released version of OpenLimiter, rendered from the CHANGELOG.md at the root of the repository.",
-  path: "/changelog",
-});
+export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
+  const locale = await pageLocale(params);
+  const t = await getTranslations({ locale, namespace: "changelog" });
+
+  return pageMetadata({
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+    route: "/changelog",
+    locale,
+  });
+}
 
 const linkClass = "focus-ring rounded text-accent transition-colors hover:text-heading";
 
-export default async function ChangelogPage() {
+export default async function ChangelogPage({ params }: LocaleParams) {
+  const locale = await pageLocale(params);
+  const t = await getTranslations("changelog");
+
   const releases = await readChangelog();
 
   return (
-    <PageShell
-      title="Changelog"
-      lead="Every released version of OpenLimiter, read straight from the file the repository itself keeps, in the order that file lists them."
-    >
+    <PageShell title={t("title")} lead={t("lead")}>
       {releases.length === 0 ? (
         <div className="max-w-xl rounded-xl border border-hairline bg-surface p-6" {...reveal}>
           <p className="text-sm leading-relaxed text-muted">
-            No CHANGELOG.md was found in this checkout, so there is nothing to show here. The file
-            this page reads sits at the root of the{" "}
-            <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={linkClass}>
-              repository
-            </a>
-            , and it is the only copy of these notes there is.
+            {t.rich("empty", {
+              repo: (chunks) => (
+                <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                  {chunks}
+                </a>
+              ),
+            })}
           </p>
         </div>
       ) : (
         <div className="space-y-12" {...revealGroup}>
           {releases.map((release) => {
-            const date = formatReleaseDate(release.date);
+            const date = formatReleaseDate(release.date, locale);
             return (
               <section
                 key={release.version}
@@ -86,18 +100,21 @@ export default async function ChangelogPage() {
         </div>
       )}
 
+      {/* One sentence with the file's own name linked inside it, so it stays one
+          message with one tag rather than three fragments. */}
       <p className="mt-16 max-w-xl text-sm leading-relaxed text-muted" {...revealSm}>
-        This page is rendered from the{" "}
-        <a
-          href={`${REPO_URL}/blob/main/CHANGELOG.md`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={linkClass}
-        >
-          CHANGELOG.md
-        </a>{" "}
-        at the root of the repository. Nothing here is written twice, so there is no second copy to
-        drift out of step with the released code.
+        {t.rich("sourceNote", {
+          file: (chunks) => (
+            <a
+              href={`${REPO_URL}/blob/main/CHANGELOG.md`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={linkClass}
+            >
+              {chunks}
+            </a>
+          ),
+        })}
       </p>
     </PageShell>
   );

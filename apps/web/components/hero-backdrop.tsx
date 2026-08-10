@@ -36,6 +36,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
  * content that starts by itself, lasts over five seconds and runs in
  * parallel needs a way to stop, and it is a solid fill like every other
  * control in the fold, never a ghost over footage.
+ *
+ * `playLabel` and `pauseLabel` arrive as props rather than from a translator
+ * called in here: this is a Client Component, and `useTranslations` needs the
+ * request scoped context a Server Component render has and this one does not.
+ * `hero.tsx`, the Server Component that renders this one, reads the two
+ * strings from the `hero` catalog and hands them down already resolved.
  */
 
 const WIDE_ENOUGH = "(min-width: 768px)";
@@ -50,7 +56,17 @@ const ASKED_FOR_CALM = "(prefers-reduced-motion: reduce)";
  * scenery. Paint order does not depend on any of this: the copy carries z-10
  * and the pill z-20.
  */
-export function HeroFoldMedia({ children }: { children: ReactNode }) {
+export function HeroFoldMedia({
+  children,
+  playLabel,
+  pauseLabel,
+}: {
+  children: ReactNode;
+  /** Accessible name and visible text when the pill offers to resume. */
+  playLabel: string;
+  /** Accessible name and visible text when the pill offers to stop. */
+  pauseLabel: string;
+}) {
   const [streaming, setStreaming] = useState(false);
   const [ready, setReady] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -145,7 +161,7 @@ export function HeroFoldMedia({ children }: { children: ReactNode }) {
               <path d="M6.5 4h3.4v16H6.5zM14.1 4h3.4v16h-3.4z" />
             </svg>
           )}
-          {paused ? "Play video" : "Pause video"}
+          {paused ? playLabel : pauseLabel}
         </button>
       )}
     </>

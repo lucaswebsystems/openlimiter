@@ -1,9 +1,11 @@
+import type { Metadata } from "next";
 import { setRequestLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { PageShell } from "@/components/page-shell";
 import { SiteHtml } from "@/components/site-html";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { reveal } from "@/lib/motion";
+import { SITE_URL } from "@/lib/site";
 
 /**
  * The last resort 404, for a miss that belongs to no locale.
@@ -18,6 +20,13 @@ import { reveal } from "@/lib/motion";
  * requires exactly this of a root `not-found` when a project has more than one
  * root layout.
  */
+
+/* It is its own root, so nothing above it declares a base for relative URLs, and
+   a page nobody should ever land on is a page nobody should index either. */
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  robots: { index: false, follow: true },
+};
 
 const linkClass =
   "focus-ring rounded text-accent transition-colors hover:text-accent-hover";

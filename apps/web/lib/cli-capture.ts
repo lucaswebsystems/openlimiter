@@ -32,12 +32,21 @@
  */
 
 export interface CliCapture {
+  /**
+   * Catalog key for the label above the block. `cliTranscript.captions.<id>`
+   * holds the words.
+   *
+   * The label used to be an English string on this object. It is the one part of
+   * a capture that a person wrote rather than a command printed, so it is the one
+   * part that gets translated, and it lives in the catalogs now. Everything else
+   * here is byte for byte what came back on standard output and is identical in
+   * every language.
+   */
+  readonly id: string;
   /** Exactly what was typed. */
   readonly command: string;
   /** Exactly what came back on standard output. */
   readonly output: string;
-  /** A short label above the block. Rendered in caps, so keep it to a phrase. */
-  readonly caption: string;
 }
 
 /** The day the captures below were taken. */
@@ -54,6 +63,7 @@ export const CAPTURED_ON = "10 August 2026";
  * rather than priced, and states the money for the one that is priced.
  */
 export const demoCapture: CliCapture = {
+  id: "demo",
   command: "NO_COLOR=1 node packages/cli/dist/bin.js demo",
   output: `PROVIDER METER BAR USAGE AMOUNT STATE RESET IN
 CLAUDE FIVE_HOUR ####...... 42.00PERCENT NONE fresh 2026-08-10T09:12:01.000Z 4h59m
@@ -63,7 +73,6 @@ CODEX PRIMARY ########.. 84.00PERCENT NONE fresh 2026-08-10T09:12:01.658Z 5h0m
 ANTIGRAVITY PRIMARY ##........ 28.00PERCENT NONE fresh 2026-08-11T04:12:01.658Z 1d0h
 OPENCODE PRIMARY #########. 92.00PERCENT NONE fresh 2026-08-11T04:12:01.658Z 1d0h
 MANUAL MONTHLY ###....... 35.00PERCENT NONE fresh 2026-09-10T04:12:01.658Z 31d0h`,
-  caption: "All six connectors, one schema",
 };
 
 /**
@@ -79,10 +88,10 @@ MANUAL MONTHLY ###....... 35.00PERCENT NONE fresh 2026-09-10T04:12:01.658Z 31d0h
  * block characters in a terminal.
  */
 export const statuslineCapture: CliCapture = {
+  id: "statusline",
   command: "NO_COLOR=1 node packages/cli/dist/bin.js statusline",
   output: `OpenLimiter NEAR_CAP PREFER ANTIGRAVITY  CLAUDE ###.. 64.0%  CODEX ####. 84.0%  ANTIGRAVITY #.... 28.0%  OPENCODE ####. 92.0%
 MANUAL #.... 35.0%  OPENROUTER ###.. 62.3%`,
-  caption: "Statusline, bars where you already look",
 };
 
 /**
@@ -93,11 +102,11 @@ MANUAL #.... 35.0%  OPENROUTER ###.. 62.3%`,
  * many it could not show.
  */
 export const statuslineNarrowCapture: CliCapture = {
+  id: "statuslineNarrow",
   command:
     "openlimiter config set statusline.rows 1 && NO_COLOR=1 node packages/cli/dist/bin.js statusline",
   output:
     "OpenLimiter NEAR_CAP PREFER ANTIGRAVITY  CODEX ####. 84.0%  OPENCODE ####. 92.0%  +4 more",
-  caption: "One row, worst providers kept",
 };
 
 /**
@@ -107,11 +116,11 @@ export const statuslineNarrowCapture: CliCapture = {
  * parsing this output. A test pins this exact string.
  */
 export const statuslinePlainCapture: CliCapture = {
+  id: "statuslinePlain",
   command:
     "openlimiter config set statusline.bars false && node packages/cli/dist/bin.js statusline",
   output:
     "OpenLimiter NEAR_CAP CLAUDE 64.0% OPENROUTER 62.3% CODEX 84.0% ANTIGRAVITY 28.0% OPENCODE 92.0% MANUAL 35.0% PREFER ANTIGRAVITY",
-  caption: "The 0.1.0 line, on request",
 };
 
 /**
@@ -121,15 +130,16 @@ export const statuslinePlainCapture: CliCapture = {
  * window first.
  */
 export const statuslineAllMetersCapture: CliCapture = {
+  id: "statuslineAllMeters",
   command:
     "openlimiter config set statusline.meters all && NO_COLOR=1 node packages/cli/dist/bin.js statusline",
   output: `OpenLimiter NEAR_CAP PREFER ANTIGRAVITY  CLAUDE:FIVE_HOUR ##... 42.0%  CLAUDE:SEVEN_DAY ###.. 64.0%  CODEX:PRIMARY ####. 84.0%
 ANTIGRAVITY:PRIMARY #.... 28.0%  OPENCODE:PRIMARY ####. 92.0%  MANUAL:MONTHLY #.... 35.0%  OPENROUTER:CREDITS ###.. 62.3%`,
-  caption: "Every meter, one cell each",
 };
 
 /** `openlimiter config get statusline` on a machine with no changes made. */
 export const configCapture: CliCapture = {
+  id: "config",
   command: "openlimiter config get statusline",
   output: `statusline.order=NONE
 statusline.meters=worst
@@ -137,7 +147,6 @@ statusline.width=140
 statusline.rows=2
 statusline.bars=true
 statusline.color=auto`,
-  caption: "The statusline section, as it ships",
 };
 
 /**
@@ -146,6 +155,7 @@ statusline.color=auto`,
  * that tells the agent to treat the contents as untrusted.
  */
 export const hookCapture: CliCapture = {
+  id: "hook",
   command: "node packages/cli/dist/bin.js hook",
   output: `<openlimiter_untrusted_data>
 schema=2
@@ -162,5 +172,4 @@ provider=OPENCODE state=fresh usage_percent=92.00 reset_at=2026-08-11T04:12:00.7
 provider=MANUAL state=fresh usage_percent=35.00 reset_at=2026-09-10T04:12:00.786Z
 unknown=NONE
 </openlimiter_untrusted_data>`,
-  caption: "Agent context, bounded by construction",
 };

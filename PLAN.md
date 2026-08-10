@@ -274,7 +274,70 @@ skipped retranslation. Same philosophy as `test:specs`.
 8. Placeholder locale files from `en.json`.
 9. `OL_DIST_DIR=.next-i18n pnpm --dir apps/web run build`.
 
-## 11. Left out on purpose
+## 11. What the build added to this plan
+
+Nine things the plan did not anticipate and the code needed. Written down here
+rather than only in the commits, because each one is a rule somebody will have to
+keep.
+
+**`components/site-link.tsx`, the one internal link.** An internal `<a href>`
+loses the locale, and there are three right answers depending on the
+destination: a localised route needs next-intl's `Link`, an English only tree
+needs a plain one because a prefix in front of it is a 404, and a bare `#anchor`
+is not a route at all. That was a bug waiting to be written at every call site,
+so it is one decision made once, from the same list the middleware reads.
+`ButtonLink` and `IconButtonLink` in `components/ui.tsx` route through it too:
+they used to render a bare anchor for every destination, which was right when the
+site had one language.
+
+**`i18n/params.ts`, one call per page.** Validating the segment, calling
+`setRequestLocale` and narrowing the string are three obligations that arrive
+together and fail quietly apart. Missing the second one costs static rendering
+with no error to show for it. `const locale = await pageLocale(params)` does all
+three.
+
+**`app/[locale]/[...rest]/page.tsx`, so a 404 knows its language.** A
+`not-found` file cannot read `params`. Without a catch all to route through, an
+unknown path under `/pt-BR` would reach the document root with no locale in scope
+and be answered in English inside a `lang="en"` document.
+
+**`DocArticle` takes an identifier, not a title.** Each documentation page used to
+hand in its own `href`, `title` and `lead`, and the title also existed in the map
+that draws the sidebar. In five languages that is ten copies of every heading.
+The route now comes from the map and the words from the catalog.
+
+**The announcement bar's copy shape changed, as the plan predicted, and one more
+did.** `lib/site.ts` also held `PRO_PRICE_NOTE`, the one sentence allowed to name
+the planned regular price. It moved to `pricing.pro.priceNote` and takes both
+numbers as ICU arguments, so a translation cannot edit a price. The numbers stay
+in `lib/site.ts` and only there.
+
+**`localeOffer` is seeded in all five languages, not left English.** Three short
+strings per locale. The banner appears on a page in a different language from
+itself, so an English placeholder would have made the feature meaningless on day
+one. They are seeded and flagged for the translation lane to review rather than
+write.
+
+**`scripts/seed-locales.mjs`.** Creates a catalog from English, and with `--fill`
+adds only the keys a catalog lacks while leaving translated values alone. That is
+the tool the next English copy change needs.
+
+**next-intl's typed message augmentation was tried and dropped.** Declaring
+`AppConfig` would have given typed locales and compile checked message keys,
+which is a real guarantee worth having. It does not work here: next-intl
+re-exports the interface from `use-intl` as a type alias, and declaration merging
+does not cross a re-export, so the augmentation compiles and does nothing.
+Silently doing nothing is worse than absent, so the file was removed.
+`scripts/check-i18n.mjs` remains the guarantee, and one `hasLocale` narrowing in
+`components/docs/doc-article.tsx` covers the one place that needed the type.
+
+**`tsconfig.json` lost five stale include entries.** Next appends one per
+`OL_DIST_DIR` it builds into, so the list had grown a line per finished agent
+lane, each describing routes at their old paths. After the move they stopped
+compiling and would have failed the build on artifacts nobody was using. A lane
+that needs its entry gets it written back on its next build.
+
+## 12. Left out on purpose
 
 The blog, the admin console and the web application dashboard: English, by
 decision or by risk, all three stated above.
@@ -285,5 +348,8 @@ Localised routing segments. `/pt-BR/download` keeps the English segment rather
 than becoming `/pt-BR/baixar`. next-intl supports the translated variant and it
 would be a second wave with its own redirect obligations for URLs already
 indexed. Not this one.
+
+Compile checked message keys. See section 11: the mechanism does not work in this
+version and the runtime gate covers the same ground.
 
 Translation. Four files, ready, untouched.

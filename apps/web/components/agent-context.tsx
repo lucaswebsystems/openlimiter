@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { CliTranscript } from "./cli-transcript";
 import { CodeChip, IconChip, SectionHeading } from "./ui";
@@ -87,40 +88,33 @@ function CompassGlyph() {
   );
 }
 
-const guarantees: readonly { title: string; detail: string; Glyph: () => ReactNode }[] = [
-  {
-    title: "Provider text never crosses",
-    Glyph: ShieldGlyph,
-    detail:
-      "Parsers keep known numbers and known timestamps. Labels, messages, account text, markup and unknown fields are discarded before anything reaches policy code, so no provider's prose can become an instruction to your agent.",
-  },
-  {
-    title: "Enum codes only",
-    Glyph: EnumGlyph,
-    detail:
-      "The advice engine emits provider codes, reason codes, bounded percentages, freshness codes and timestamps. The adapter validates every one of them again on the way out.",
-  },
-  {
-    title: "Silence beats a guess",
-    Glyph: SilenceGlyph,
-    detail:
-      "If every provider is unknown, the hook injects nothing at all. It reads the local cache, makes no network request, and exits 0 whatever happens.",
-  },
-  {
-    title: "Advice, not routing",
-    Glyph: CompassGlyph,
-    detail:
-      "OpenLimiter tells your agent what is left and what that suggests. It does not switch providers for you, does not bypass a limit, and does not touch how anything authenticates. The decision stays yours.",
-  },
-];
+/** One stable slug per guarantee, keyed rather than indexed, matching the catalog. */
+const guaranteeSlugs = [
+  "providerTextNeverCrosses",
+  "enumCodesOnly",
+  "silenceBeatsGuess",
+  "adviceNotRouting",
+] as const;
+
+const guaranteeGlyphs: Record<(typeof guaranteeSlugs)[number], () => ReactNode> = {
+  providerTextNeverCrosses: ShieldGlyph,
+  enumCodesOnly: EnumGlyph,
+  silenceBeatsGuess: SilenceGlyph,
+  adviceNotRouting: CompassGlyph,
+};
 
 export function AgentContext() {
+  const t = useTranslations("agentContext");
+  const guarantees = guaranteeSlugs.map((slug) => ({
+    slug,
+    title: t(`guarantees.${slug}.title`),
+    detail: t(`guarantees.${slug}.detail`),
+    Glyph: guaranteeGlyphs[slug],
+  }));
+
   return (
     <section id="agent-context">
-      <SectionHeading
-        title="Read, bound, hand over"
-        lead="A block injected into a prompt is an injection surface. This one carries enum codes, bounded numbers and timestamps, and it says so about itself in its own opening tag."
-      />
+      <SectionHeading title={t("title")} lead={t("lead")} />
 
       <div
         className="elev-1 relative overflow-hidden rounded-2xl border border-hairline bg-surface"
@@ -130,16 +124,16 @@ export function AgentContext() {
         <div className="flex flex-col gap-3 border-b border-hairline px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <CodeChip>openlimiter hook</CodeChip>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-            <span>Captured {CAPTURED_ON}</span>
+            <span>{t("captured", { date: CAPTURED_ON })}</span>
           </div>
         </div>
 
         <div className="grid gap-4 p-4 md:grid-cols-[1.1fr_0.9fr] md:p-5">
           <CliTranscript capture={hookCapture} />
           <div className="grid min-w-0 gap-3 sm:grid-cols-2 md:grid-cols-1">
-            {guarantees.map(({ title, detail, Glyph }) => (
+            {guarantees.map(({ slug, title, detail, Glyph }) => (
               <div
-                key={title}
+                key={slug}
                 className="lift elev-1 flex gap-3.5 rounded-xl border border-hairline bg-canvas px-4 py-3.5 hover:border-hairline-strong hover:bg-raised"
               >
                 <IconChip>

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { DemoDataChip } from "./ui";
 
 /**
@@ -23,45 +24,40 @@ import { DemoDataChip } from "./ui";
  * the theme in CSS. The hidden one is lazy, the visible one is not, and because
  * both are in the layout at the same size the swap cannot shift anything.
  *
- * The entries below are the whole contract with the files. Retake them with
+ * The entries below are the whole contract with the files, except for the label
+ * and the accessible description of each: those are prose and live in the
+ * message catalog under `phonePanels.shots.<id>`, keyed by the same `id` this
+ * file uses to pick the right basename. Retake the pictures with
  * scripts/capture-screenshots.mjs; nothing in this component knows or cares
  * what is inside a picture.
  */
 
 interface PhoneShot {
+  /** The catalog slug: `phonePanels.shots.<id>.label` and `.alt`. */
+  id: "meters" | "agentContext" | "connections";
   /** Basename under public/screenshots. The light file adds `-light`. */
   name: string;
   width: number;
   height: number;
-  label: string;
-  alt: string;
 }
 
 const shots: readonly PhoneShot[] = [
-  {
-    name: "phone-1",
-    width: 1170,
-    height: 2532,
-    label: "Meters",
-    alt: "The web app on a phone, showing the overall verdict at the top and one card per provider below it, each with a meter bar, a percentage, a freshness state and a reset countdown.",
-  },
-  {
-    name: "phone-2",
-    width: 1170,
-    height: 2532,
-    label: "Agent context",
-    alt: "The web app on a phone, showing the bounded block of budget state a coding agent receives, fenced in an untrusted data boundary.",
-  },
-  {
-    name: "phone-3",
-    width: 1170,
-    height: 2532,
-    label: "Connections",
-    alt: "The web app on a phone, showing what each provider can be read from today and the box a quota document is pasted or dropped into.",
-  },
+  { id: "meters", name: "phone-1", width: 1170, height: 2532 },
+  { id: "agentContext", name: "phone-2", width: 1170, height: 2532 },
+  { id: "connections", name: "phone-3", width: 1170, height: 2532 },
 ];
 
-function Phone({ shot, className = "" }: { shot: PhoneShot; className?: string }) {
+function Phone({
+  shot,
+  label,
+  alt,
+  className = "",
+}: {
+  shot: PhoneShot;
+  label: string;
+  alt: string;
+  className?: string;
+}) {
   const common = { width: shot.width, height: shot.height };
   return (
     <div className={`flex-none ${className}`}>
@@ -74,7 +70,7 @@ function Phone({ shot, className = "" }: { shot: PhoneShot; className?: string }
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             {...common}
-            alt={shot.alt}
+            alt={alt}
             src={`/screenshots/${shot.name}.png`}
             className="shot-dark"
             loading="lazy"
@@ -82,7 +78,7 @@ function Phone({ shot, className = "" }: { shot: PhoneShot; className?: string }
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             {...common}
-            alt={shot.alt}
+            alt={alt}
             src={`/screenshots/${shot.name}-light.png`}
             className="shot-light"
             loading="lazy"
@@ -93,7 +89,7 @@ function Phone({ shot, className = "" }: { shot: PhoneShot; className?: string }
       {/* Outside the frame, always. A watermark inside the screen would be part
           of the picture, and the picture is a capture, not a composite. */}
       <div className="mt-3 flex items-center justify-between gap-2 px-1">
-        <span className="text-xs font-medium text-heading">{shot.label}</span>
+        <span className="text-xs font-medium text-heading">{label}</span>
         <DemoDataChip />
       </div>
     </div>
@@ -101,15 +97,26 @@ function Phone({ shot, className = "" }: { shot: PhoneShot; className?: string }
 }
 
 export function PhonePanels() {
+  const t = useTranslations("phonePanels");
   return (
     /* Below the medium breakpoint only the first shell is on the screen, and
        it is the meters view rather than whichever one happened to be in the
        middle: three phones do not fit on a phone, and the one that survives
        should be the one that shows what the product is for. */
     <div className="flex items-start justify-center gap-4 md:gap-3 lg:gap-6 xl:gap-7">
-      <Phone shot={shots[0]} />
-      <Phone shot={shots[1]} className="hidden md:block" />
-      <Phone shot={shots[2]} className="hidden md:block" />
+      <Phone shot={shots[0]} label={t("shots.meters.label")} alt={t("shots.meters.alt")} />
+      <Phone
+        shot={shots[1]}
+        label={t("shots.agentContext.label")}
+        alt={t("shots.agentContext.alt")}
+        className="hidden md:block"
+      />
+      <Phone
+        shot={shots[2]}
+        label={t("shots.connections.label")}
+        alt={t("shots.connections.alt")}
+        className="hidden md:block"
+      />
     </div>
   );
 }

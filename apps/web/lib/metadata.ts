@@ -35,9 +35,11 @@ import { AUTHOR_NAME, SITE_NAME, TITLE_SUFFIX } from "./site";
  * engine serves a reader whose language matches none of the five, and pointing
  * it at the default is what stops that reader being sent somewhere arbitrary.
  *
- * Every alternate is absolute, because a `hreflang` map of relative paths is the
- * one thing Google's report calls invalid rather than merely suboptimal, and
- * Next only makes `alternates.canonical` absolute for you.
+ * The values are routes rather than absolute URLs, which is what Next wants:
+ * every URL in a metadata block is resolved against `metadataBase` before it is
+ * rendered, so the tag in the head carries the full origin. A `hreflang` map of
+ * relative paths would be invalid rather than merely untidy, so the rendered
+ * output is what this has to be judged on and it is checked in the build.
  */
 export function localeAlternates(route: string, locale: Locale): Metadata["alternates"] {
   const languages: Record<string, string> = {};
@@ -46,6 +48,39 @@ export function localeAlternates(route: string, locale: Locale): Metadata["alter
 
   return { canonical: localePath(locale, route), languages };
 }
+
+/**
+ * The social card, declared rather than inherited.
+ *
+ * `app/opengraph-image.tsx` normally injects these tags for every page under it,
+ * and for a page that declares no `openGraph` block of its own it does. Every
+ * page that goes through this helper declares one, and a declared `openGraph`
+ * replaces what the file convention contributed, images included. The result was
+ * that the home page had a social card and the documentation, the blog, the
+ * changelog and the comparisons had none, silently, on main, before this file was
+ * ever touched by internationalisation.
+ *
+ * So the images are stated here. The values match what the file convention
+ * emitted, read from the route's own `alt` and `size` exports, and the route is
+ * addressed without the content hash Next appends, which is a cache buster rather
+ * than part of the address.
+ *
+ * The cards stay English this wave, by decision. A card in five languages is a
+ * generator change, not a catalog change.
+ */
+const SOCIAL_IMAGE = {
+  url: "/opengraph-image",
+  width: 1200,
+  height: 630,
+  alt: SITE_NAME,
+  type: "image/png",
+} as const;
+
+const TWITTER_IMAGE = {
+  url: "/twitter-image",
+  alt: SITE_NAME,
+  type: "image/png",
+} as const;
 
 export interface PageMetadataInput {
   /** The page's own title, before the template appends the site name. */
@@ -96,6 +131,7 @@ export function pageMetadata(input: PageMetadataInput): Metadata {
       card: "summary_large_image" as const,
       title: social,
       description,
+      images: [TWITTER_IMAGE],
     },
   };
 
@@ -111,6 +147,7 @@ export function pageMetadata(input: PageMetadataInput): Metadata {
         title: social,
         description,
         locale: ogLocale,
+        images: [SOCIAL_IMAGE],
         publishedTime: published,
         authors: [AUTHOR_NAME],
       },
@@ -126,6 +163,7 @@ export function pageMetadata(input: PageMetadataInput): Metadata {
       title: social,
       description,
       locale: ogLocale,
+      images: [SOCIAL_IMAGE],
     },
   };
 }

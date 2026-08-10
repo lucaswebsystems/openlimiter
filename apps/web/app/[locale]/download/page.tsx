@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { PageShell, ShellSections } from "@/components/page-shell";
+import { SiteLink } from "@/components/site-link";
 import { ButtonLink, Chip } from "@/components/ui";
-import { DOWNLOAD_DISCLAIMER, downloadTargets, type DownloadTarget } from "@/lib/downloads";
+import { downloadTargets, type DownloadTarget } from "@/lib/downloads";
 import { reveal, revealGroup } from "@/lib/motion";
-import { RELEASES_URL, REPO_URL, SITE_URL } from "@/lib/site";
+import { RELEASES_URL, REPO_URL, SITE_URL, type ShipState } from "@/lib/site";
+import { getTranslations } from "next-intl/server";
+import { type LocaleParams, pageLocale } from "@/i18n/params";
+import { pageMetadata } from "@/lib/metadata";
 
 /**
  * /download
@@ -12,7 +15,8 @@ import { RELEASES_URL, REPO_URL, SITE_URL } from "@/lib/site";
  * One row per way of getting OpenLimiter, read straight from lib/downloads.ts,
  * so a platform cannot be advertised here and missing from the hero or the
  * footer. Each row keeps its own id, which is what the footer's deep links and
- * /download#windows land on.
+ * /download#windows land on, and which is also the key its words are under in
+ * the catalog.
  *
  * The page is in three parts, and the parts are the ship states themselves:
  * what a reader can use today, what is built but not packaged for them yet, and
@@ -28,18 +32,38 @@ import { RELEASES_URL, REPO_URL, SITE_URL } from "@/lib/site";
  * controls, never instead of them.
  */
 
-export const metadata: Metadata = {
-  title: "Download",
-  description:
-    "Get OpenLimiter: packaged desktop builds for Windows, macOS and Linux, the command line tool from npm, or the web app in any browser. Mobile applications are not built.",
-  alternates: { canonical: "/download" },
-};
+export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
+  const locale = await pageLocale(params);
+  const t = await getTranslations({ locale, namespace: "download" });
+
+  return pageMetadata({
+    title: t("metaTitle"),
+    description: t("metaDescription"),
+    route: "/download",
+    locale,
+  });
+}
 
 const available = downloadTargets.filter((target) => target.state === "available");
 const building = downloadTargets.filter((target) => target.state === "in development");
 const notBuilt = downloadTargets.filter((target) => target.state === "planned");
 
-function TargetCard({ target }: { target: DownloadTarget }) {
+/**
+ * The word in the chip, from the one vocabulary the whole product shares.
+ *
+ * The chip says the row's real ship state, so the three states are three
+ * catalog entries rather than a label repeated on every row. The map exists
+ * because `in development` carries a space and a catalog leaf does not.
+ */
+const stateKeys: Record<ShipState, string> = {
+  available: "available",
+  "in development": "inDevelopment",
+  planned: "planned",
+};
+
+async function TargetCard({ target }: { target: DownloadTarget }) {
+  const t = await getTranslations("download");
+
   /* The one rule this page exists to keep. Anything that is not available today
      gets no command and no download control, whatever the data happens to
      carry. */
@@ -48,6 +72,11 @@ function TargetCard({ target }: { target: DownloadTarget }) {
   const href = shipped ? target.href : undefined;
   const assets = shipped ? target.assets : undefined;
 
+  /* Every word this row shows sits under the row's own id, so no row can borrow
+     another row's prose. A row with no note and no requirement has no such key,
+     which is the question `t.has` asks rather than a flag in the data. */
+  const words = (key: string) => `targets.${target.id}.${key}`;
+
   return (
     <article
       id={target.id}
@@ -55,11 +84,11 @@ function TargetCard({ target }: { target: DownloadTarget }) {
       {...reveal}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <h3 className="text-xl font-medium text-heading">{target.name}</h3>
-        <Chip tone={shipped ? "accent" : "neutral"}>{target.state}</Chip>
+        <h3 className="text-xl font-medium text-heading">{t(words("name"))}</h3>
+        <Chip tone={shipped ? "accent" : "neutral"}>{t(`states.${stateKeys[target.state]}`)}</Chip>
       </div>
 
-      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">{target.summary}</p>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">{t(words("summary"))}</p>
 
       {assets !== undefined && assets.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-3">
@@ -70,20 +99,20 @@ function TargetCard({ target }: { target: DownloadTarget }) {
               tone={asset.primary === true ? "primary" : "ghost"}
               external
             >
-              {asset.label}
+              {t(words(`assets.${asset.id}`))}
             </ButtonLink>
           ))}
         </div>
       )}
 
-      {target.note !== undefined && (
-        <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">{target.note}</p>
+      {t.has(words("note")) && (
+        <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">{t(words("note"))}</p>
       )}
 
-      {href !== undefined && target.hrefLabel !== undefined && (
+      {href !== undefined && (
         <div className="mt-4">
           <ButtonLink href={href} tone="primary" external={target.hrefExternal === true}>
-            {target.hrefLabel}
+            {t(words("hrefLabel"))}
           </ButtonLink>
         </div>
       )}
@@ -94,8 +123,8 @@ function TargetCard({ target }: { target: DownloadTarget }) {
         </pre>
       )}
 
-      {command !== undefined && target.requirement !== undefined && (
-        <p className="mt-3 text-xs text-muted">{target.requirement}</p>
+      {command !== undefined && t.has(words("requirement")) && (
+        <p className="mt-3 text-xs text-muted">{t(words("requirement"))}</p>
       )}
     </article>
   );
@@ -103,19 +132,19 @@ function TargetCard({ target }: { target: DownloadTarget }) {
 
 const linkClass = "focus-ring rounded text-accent transition-colors hover:text-accent-hover";
 
-export default function DownloadPage() {
+export default async function DownloadPage({ params }: LocaleParams) {
+  await pageLocale(params);
+  const t = await getTranslations("download");
+
   return (
-    <PageShell title="Download" lead={DOWNLOAD_DISCLAIMER}>
+    <PageShell title={t("title")} lead={t("lead")}>
       <ShellSections>
         <section>
           <h2 className="text-2xl font-medium text-heading" {...reveal}>
-            Available now
+            {t("available.title")}
           </h2>
           <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-            Windows, macOS and Linux each have a packaged desktop build, and every link below goes
-            straight to the file. The command line tool is one npm install on any of them, or one
-            clone if you would rather build it, because it is plain Node.js with no third party
-            runtime dependencies. The web app needs nothing installed at all.
+            {t("available.lead")}
           </p>
           <div className="mt-8 space-y-4" {...revealGroup}>
             {available.map((target) => (
@@ -126,11 +155,10 @@ export default function DownloadPage() {
 
         <section>
           <h2 className="text-2xl font-medium text-heading" {...reveal}>
-            On your phone
+            {t("phone.title")}
           </h2>
           <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-            This installs the web app to your home screen. No native iOS or Android
-            application is built.
+            {t("phone.lead")}
           </p>
           <div
             className="mt-8 flex flex-col items-start gap-5 rounded-xl border border-hairline bg-surface p-6 sm:flex-row sm:items-center"
@@ -140,28 +168,23 @@ export default function DownloadPage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/qr/openlimiter-app.svg"
-                alt={`QR code linking to ${SITE_URL}/app`}
+                alt={t("phone.qrAlt", { url: `${SITE_URL}/app` })}
                 width={180}
                 height={180}
                 className="block h-[180px] w-[180px]"
               />
             </span>
-            <p className="text-sm leading-relaxed text-muted">
-              Scan this with your phone&apos;s camera. The web app opens, and you install it to
-              the home screen from there.
-            </p>
+            <p className="text-sm leading-relaxed text-muted">{t("phone.scan")}</p>
           </div>
         </section>
 
         {building.length > 0 && (
           <section>
             <h2 className="text-2xl font-medium text-heading" {...reveal}>
-              Built, not packaged for you yet
+              {t("building.title")}
             </h2>
             <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-              This exists and it runs. What is missing is a build you can install on your own
-              platform, and until that is produced this section says so rather than pointing you at
-              something that is not there.
+              {t("building.lead")}
             </p>
             <div className="mt-8 space-y-4" {...revealGroup}>
               {building.map((target) => (
@@ -173,12 +196,10 @@ export default function DownloadPage() {
 
         <section>
           <h2 className="text-2xl font-medium text-heading" {...reveal}>
-            Not built yet
+            {t("notBuilt.title")}
           </h2>
           <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-            Everything below is written down so the direction is clear. None of it exists today,
-            none of it can be installed or opened, there is no waiting list, and no date is being
-            promised for any of it.
+            {t("notBuilt.lead")}
           </p>
           <div className="mt-8 space-y-4" {...revealGroup}>
             {notBuilt.map((target) => (
@@ -187,20 +208,32 @@ export default function DownloadPage() {
           </div>
         </section>
 
+        {/* One sentence with three links inside it, so it stays one message with
+            three tags rather than seven fragments a translator would have to
+            reassemble. The word order around the links is theirs to change. */}
         <p className="max-w-2xl text-sm leading-relaxed text-muted" {...reveal}>
-          Every tagged version lives on the{" "}
-          <a href={RELEASES_URL} target="_blank" rel="noopener noreferrer" className={linkClass}>
-            releases page
-          </a>{" "}
-          of the{" "}
-          <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={linkClass}>
-            repository
-          </a>
-          , and what changed in each one is on the{" "}
-          <Link href="/changelog" className={linkClass}>
-            changelog
-          </Link>
-          .
+          {t.rich("releasesNote", {
+            releases: (chunks) => (
+              <a
+                href={RELEASES_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={linkClass}
+              >
+                {chunks}
+              </a>
+            ),
+            repo: (chunks) => (
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                {chunks}
+              </a>
+            ),
+            changelog: (chunks) => (
+              <SiteLink href="/changelog" className={linkClass}>
+                {chunks}
+              </SiteLink>
+            ),
+          })}
         </p>
       </ShellSections>
     </PageShell>

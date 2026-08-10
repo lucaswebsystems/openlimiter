@@ -1,5 +1,6 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { PhonePanels } from "./phone-panels";
+import { SiteLink } from "./site-link";
 import { SectionHeading } from "./ui";
 import { reveal } from "@/lib/motion";
 
@@ -17,27 +18,24 @@ import { reveal } from "@/lib/motion";
  * than a third time here.
  */
 export function RunsWhere() {
+  const t = useTranslations("runsWhere");
   return (
     <section id="runs-where">
-      <SectionHeading
-        title="Runs where you work"
-        lead="Windows, macOS and Linux, from a terminal, a statusline, a prompt hook or a script, and in any browser through the web app. One local cache, read by whatever you point at it."
-      />
+      <SectionHeading title={t("title")} lead={t("lead")} />
       <div {...reveal}>
         <PhonePanels />
       </div>
       <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-relaxed text-muted" {...reveal}>
-        Those are screenshots of the web app running at phone size, against the project&apos;s
-        synthetic fixtures, declared here in words rather than stamped over the pictures. The same reading opens
-        in any browser at the{" "}
-        <Link
-          href="/app"
-          className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
-        >
-          web app
-        </Link>
-        , which installs to a home screen. Native iOS and Android applications are planned and not
-        built.
+        {t.rich("screenshotsNote", {
+          webApp: (chunks) => (
+            <SiteLink
+              href="/app"
+              className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+            >
+              {chunks}
+            </SiteLink>
+          ),
+        })}
       </p>
     </section>
   );

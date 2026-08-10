@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { CliTranscript } from "./cli-transcript";
 import { SectionHeading } from "./ui";
 import { demoCapture, hookCapture, statuslineCapture, type CliCapture } from "@/lib/cli-capture";
@@ -13,15 +13,45 @@ import { reveal, revealGroup, revealSm } from "@/lib/motion";
  * at all, so nothing on this section is ever rendered at zero opacity waiting
  * to be revealed, and a reader who never touches the tabs still sees a complete
  * panel on first paint.
+ *
+ * THIS IS A CLIENT COMPONENT, SO ITS COPY ARRIVES AS PROPS
+ * -----------------------------------------------------------
+ * `useTranslations` needs the request scoped context a Server Component render
+ * has and a Client Component does not, so every string a reader sees here,
+ * the heading, the tab labels and the closing note, is read from the `scriptable`
+ * catalog by whichever Server Component renders `<Scriptable>` and handed down
+ * already resolved. `note` in particular is a `t.rich` result: the message
+ * carries two `<code>` spans (`export`, `doctor`), so the caller resolves it to
+ * a finished node with `t.rich("note", { code: (chunks) => <span
+ * className="font-mono text-2xs text-heading">{chunks}</span> })` and passes
+ * the node down whole, rather than this file assembling it from parts.
+ *
+ * No Server Component in this pass's file list renders `<Scriptable>`, so the
+ * call site that supplies these props belongs to another lane's edit.
  */
 
-const tabs: readonly { label: string; capture: CliCapture }[] = [
-  { label: "Snapshot", capture: demoCapture },
-  { label: "Statusline", capture: statuslineCapture },
-  { label: "Agent context", capture: hookCapture },
-];
+interface ScriptableTabLabels {
+  snapshot: string;
+  statusline: string;
+  agentContext: string;
+}
 
-export function Scriptable() {
+export interface ScriptableProps {
+  title: string;
+  lead: string;
+  tablistAriaLabel: string;
+  tabLabels: ScriptableTabLabels;
+  /** The closing note, already resolved rich text (see the note above). */
+  note: ReactNode;
+}
+
+export function Scriptable({ title, lead, tablistAriaLabel, tabLabels, note }: ScriptableProps) {
+  const tabs: readonly { key: keyof ScriptableTabLabels; label: string; capture: CliCapture }[] = [
+    { key: "snapshot", label: tabLabels.snapshot, capture: demoCapture },
+    { key: "statusline", label: tabLabels.statusline, capture: statuslineCapture },
+    { key: "agentContext", label: tabLabels.agentContext, capture: hookCapture },
+  ];
+
   const [active, setActive] = useState(0);
   const current = tabs[active];
 
@@ -30,14 +60,11 @@ export function Scriptable() {
        apart. The panel keeps its own reveal across a tab change: the observer
        marks the element, React only ever swaps the transcript inside it. */
     <section id="scriptable" {...revealGroup}>
-      <SectionHeading
-        title="Fully scriptable"
-        lead="Everything the tool knows, it will print. A table for you, one line for a statusline, a bounded block for an agent, or plain JSON for anything else."
-      />
+      <SectionHeading title={title} lead={lead} />
 
       <div
         role="tablist"
-        aria-label="Command line examples"
+        aria-label={tablistAriaLabel}
         className="mb-3 flex flex-wrap gap-2"
         {...revealSm}
       >
@@ -45,7 +72,7 @@ export function Scriptable() {
           const selected = index === active;
           return (
             <button
-              key={tab.label}
+              key={tab.key}
               type="button"
               role="tab"
               id={`scriptable-tab-${index}`}
@@ -75,10 +102,7 @@ export function Scriptable() {
       </div>
 
       <p className="max-w-lg text-xs leading-relaxed text-muted" {...revealSm}>
-        Every block above is verbatim standard output, captured against the project&apos;s synthetic
-        fixtures. Add <span className="font-mono text-2xs text-heading">export</span> for the same
-        state as JSON, and <span className="font-mono text-2xs text-heading">doctor</span> when a
-        connector stops parsing.
+        {note}
       </p>
     </section>
   );

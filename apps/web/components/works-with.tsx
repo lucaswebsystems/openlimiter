@@ -1,12 +1,7 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ConnectionMatrix } from "./connection-matrix";
-import {
-  MANUAL_TODAY_NOTE,
-  plannedTools,
-  todayTools,
-  toolTitle,
-  type Tool,
-} from "./tool-marks";
+import { SiteLink } from "./site-link";
+import { plannedTools, todayTools, toolTitle, type Tool } from "./tool-marks";
 import { Chip, SectionHeading } from "./ui";
 import { reveal, revealGroup, revealSm } from "@/lib/motion";
 
@@ -40,10 +35,14 @@ import { reveal, revealGroup, revealSm } from "@/lib/motion";
  * `Connector`. `planned` stays, because that is the exception.
  */
 function ToolTile({ tool }: { tool: Tool }) {
+  const t = useTranslations("worksWith");
+  /* The hover sentence is shared with every other surface that draws a tool
+     mark, so it has its own namespace rather than living in this section's. */
+  const tToolTitle = useTranslations("tools.title");
   const planned = tool.state === "planned";
   return (
     <div
-      title={toolTitle(tool)}
+      title={toolTitle(tool, tToolTitle)}
       className={`lift elev-1 flex items-center gap-3.5 rounded-xl border px-4 py-3.5 ${
         planned
           ? "border-hairline bg-canvas hover:border-hairline-strong hover:bg-surface"
@@ -57,12 +56,12 @@ function ToolTile({ tool }: { tool: Tool }) {
       <span className="min-w-0 flex-1">
         <span className="heading-face block truncate text-sm text-heading">{tool.name}</span>
         <span className="mt-0.5 block text-xs text-muted">
-          {planned ? "No connector yet" : "Connector"}
+          {planned ? t("tile.noConnector") : t("tile.connector")}
         </span>
       </span>
       {planned && (
         <Chip tone="neutral" className="flex-none">
-          planned
+          {t("tile.plannedChip")}
         </Chip>
       )}
     </div>
@@ -83,9 +82,11 @@ function ToolTile({ tool }: { tool: Tool }) {
  * text carries the whole sentence including any former product name.
  */
 function PlannedTile({ tool }: { tool: Tool }) {
+  const t = useTranslations("worksWith");
+  const tToolTitle = useTranslations("tools.title");
   return (
     <div
-      title={toolTitle(tool)}
+      title={toolTitle(tool, tToolTitle)}
       className="lift elev-1 flex flex-col items-center gap-1.5 rounded-xl border border-hairline bg-canvas px-2 py-3 text-center hover:border-hairline-strong hover:bg-surface sm:flex-row sm:gap-3.5 sm:px-4 sm:py-3.5 sm:text-left"
       {...reveal}
     >
@@ -97,11 +98,11 @@ function PlannedTile({ tool }: { tool: Tool }) {
           {tool.name}
         </span>
         <span className="mt-0.5 block text-2xs leading-tight text-muted sm:text-xs">
-          No connector yet
+          {t("tile.noConnector")}
         </span>
       </span>
       <Chip tone="neutral" className="flex-none">
-        planned
+        {t("tile.plannedChip")}
       </Chip>
     </div>
   );
@@ -121,14 +122,12 @@ function GroupLabel({ title, note }: { title: string; note: string }) {
 }
 
 export function WorksWith() {
+  const t = useTranslations("worksWith");
   return (
     <section id="providers">
-      <SectionHeading
-        title="Works with your tools"
-        lead="One meter over every subscription you already hold. Each connector reads a shape that something on your machine already wrote, and in this release not one of them touches the network."
-      />
+      <SectionHeading title={t("title")} lead={t("lead")} />
 
-      <GroupLabel title="Ships today" note="Six connectors ship in this release" />
+      <GroupLabel title={t("groups.today.label")} note={t("groups.today.note")} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" {...revealGroup}>
         {todayTools.map((tool) => (
           <ToolTile key={tool.name} tool={tool} />
@@ -140,7 +139,7 @@ export function WorksWith() {
       <ConnectionMatrix />
 
       <div className="mt-10">
-        <GroupLabel title="Planned" note="Known, named, and not written yet" />
+        <GroupLabel title={t("groups.planned.label")} note={t("groups.planned.note")} />
         <div
           className="grid grid-cols-3 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4"
           {...revealGroup}
@@ -155,29 +154,28 @@ export function WorksWith() {
         className="lift elev-1 mt-6 flex flex-col gap-4 rounded-xl border border-accent-subtle bg-accent-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
         {...reveal}
       >
-        <p className="max-w-2xl text-sm leading-relaxed text-accent">{MANUAL_TODAY_NOTE}</p>
-        <Link
+        <p className="max-w-2xl text-sm leading-relaxed text-accent">{t("manualNote")}</p>
+        <SiteLink
           href="/docs/ingestion"
           className="focus-ring inline-flex flex-none items-center gap-1.5 rounded text-sm font-medium text-accent hover:text-accent-hover"
         >
-          How to feed one in
+          {t("feedIn")}
           <span aria-hidden="true">&rarr;</span>
-        </Link>
+        </SiteLink>
       </div>
 
       <p className="mt-6 max-w-2xl text-sm leading-relaxed text-muted" {...reveal}>
-        Every connector ships marked{" "}
-        <span className="font-mono text-2xs text-heading">UNVERIFIED</span>, which is the honest
-        default: no explicit verifier has confirmed a shape against a live account yet. Three of
-        them read interfaces that are internal to somebody else&apos;s tooling and can change without
-        notice, and when one does, that provider fails closed to unknown rather than guessing.{" "}
-        <Link
-          href="/docs/providers"
-          className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
-        >
-          Every connector and its real state
-        </Link>
-        .
+        {t.rich("footnote", {
+          code: (chunks) => <span className="font-mono text-2xs text-heading">{chunks}</span>,
+          link: (chunks) => (
+            <SiteLink
+              href="/docs/providers"
+              className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+            >
+              {chunks}
+            </SiteLink>
+          ),
+        })}
       </p>
     </section>
   );

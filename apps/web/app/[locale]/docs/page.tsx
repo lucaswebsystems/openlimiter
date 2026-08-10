@@ -1,92 +1,89 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, Code, CodeBlock, DocLink, P, Steps, Sub } from "@/components/docs/prose";
 import { docMetadata } from "@/lib/metadata";
+import { type LocaleParams, pageLocale } from "@/i18n/params";
 
-export const metadata: Metadata = docMetadata("/docs");
+export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
+  return docMetadata("/docs", await pageLocale(params));
+}
 
-export default function GettingStartedPage() {
+export default async function GettingStartedPage({ params }: LocaleParams) {
+  await pageLocale(params);
+  /* Every sentence on this page comes from the catalog, keyed by the section
+     anchor it renders under. What stays in this file is what a translator must
+     never touch: the shell commands, the settings.json body, and the command
+     names inside them. */
+  const t = await getTranslations("docs.pages.index.sections");
+
   return (
     <DocArticle
-      href="/docs"
-      title="Getting started"
-      lead="OpenLimiter is a quota meter for the AI subscriptions you already pay for. It runs on your machine, reads what your tools already wrote there, and hands your coding agents a bounded picture of what budget is left."
+      id="index"
       sections={[
         {
           id: "what-you-need",
-          title: "What you need",
+          title: t("what-you-need.title"),
           body: (
             <>
               <Bullets
                 items={[
-                  <>Node 24 or newer.</>,
-                  <>npm, which ships with Node.</>,
+                  t("what-you-need.bullets.node"),
+                  t("what-you-need.bullets.npm"),
                 ]}
               />
-              <P>
-                Everything runs locally. No account is created, no key is required to start, and
-                no request leaves your machine during any of the steps below.
-              </P>
+              <P>{t("what-you-need.local")}</P>
             </>
           ),
         },
         {
           id: "install",
-          title: "Install OpenLimiter",
+          title: t("install.title"),
           body: (
             <>
-              <P>Install the command line tool globally, then run its synthetic demo.</P>
+              <P>{t("install.intro")}</P>
               <CodeBlock
-                label="terminal"
+                label={t("install.terminalLabel")}
                 code={`npm install -g openlimiter
 openlimiter demo`}
               />
               <P>
-                <Code>openlimiter demo</Code> renders synthetic fixtures. It proves the binary
-                works without touching any real account, and every number it prints is invented.
+                {t.rich("install.demo", {
+                  code: (chunks) => <Code>{chunks}</Code>,
+                })}
               </P>
             </>
           ),
         },
         {
           id: "first-data",
-          title: "Give it something to meter",
+          title: t("first-data.title"),
           body: (
             <>
-              <P>
-                OpenLimiter never contacts a provider in this release. It parses data that
-                something else already put in front of it. Until one of the ingestion paths runs,
-                every command honestly reports unknown.
-              </P>
-              <P>
-                The path that needs no extra work is the Claude Code statusline. Claude Code runs
-                your statusline command on every render and writes a JSON object describing the
-                current session to that command&apos;s standard input. When that object carries a
-                rate limit block, OpenLimiter validates it, caches it, and renders the fresh
-                numbers in the same call.
-              </P>
+              <P>{t("first-data.parser")}</P>
+              <P>{t("first-data.statusline")}</P>
               <CodeBlock
-                label="terminal"
+                label={t("first-data.terminalLabel")}
                 code={`openlimiter statusline < session.json
 OpenLimiter NEAR_CAP NONE UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL  CLAUDE ####. 87.5%`}
               />
               <P>
-                Not every Claude Code version sends rate limit fields. If yours does not, this path
-                stays quiet and the two manual paths still work. The{" "}
-                <DocLink href="/docs/ingestion">ingestion page</DocLink>{" "}
-                covers all three.
+                {t.rich("first-data.fallback", {
+                  docs: (chunks) => <DocLink href="/docs/ingestion">{chunks}</DocLink>,
+                })}
               </P>
             </>
           ),
         },
         {
           id: "claude-code",
-          title: "Wire Claude Code",
+          title: t("claude-code.title"),
           body: (
             <>
               <P>
-                Add this to your Claude Code <Code>settings.json</Code>. The global install makes
-                the <Code>openlimiter</Code> command available to Claude Code.
+                {t.rich("claude-code.intro", {
+                  code: (chunks) => <Code>{chunks}</Code>,
+                })}
               </P>
               <CodeBlock
                 label="settings.json"
@@ -109,22 +106,20 @@ OpenLimiter NEAR_CAP NONE UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL  
   }
 }`}
               />
-              <Callout tone="key" title="The hook cannot break your session">
-                The statusline is the only path that writes. The hook reads the cache, makes no
-                network request of any kind, injects nothing when every provider is unknown, and
-                exits 0 whatever happens.
+              <Callout tone="key" title={t("claude-code.calloutTitle")}>
+                {t("claude-code.calloutBody")}
               </Callout>
             </>
           ),
         },
         {
           id: "from-source",
-          title: "Contribute from source",
+          title: t("from-source.title"),
           body: (
             <>
-              <P>Use the repository toolchain when you want to contribute.</P>
+              <P>{t("from-source.intro")}</P>
               <CodeBlock
-                label="terminal"
+                label={t("from-source.terminalLabel")}
                 code={`git clone https://github.com/lucaswebsystems/openlimiter
 cd openlimiter
 pnpm install
@@ -133,37 +128,35 @@ pnpm typecheck
 pnpm test
 node packages/cli/dist/bin.js demo`}
               />
-              <P>
-                The build has to run before the type check, because each package resolves its
-                neighbours through the declaration files the build produces.
-              </P>
+              <P>{t("from-source.buildOrder")}</P>
             </>
           ),
         },
         {
           id: "where-next",
-          title: "Where next",
+          title: t("where-next.title"),
           body: (
             <>
-              <Sub id="reading-order">A reasonable reading order</Sub>
+              <Sub id="reading-order">{t("where-next.reading-order.title")}</Sub>
+              {/* Each step is one sentence that happens to open with a link, so the
+                  link text travels with the sentence rather than being pasted in
+                  front of it. */}
               <Steps
                 items={[
-                  <>
-                    <DocLink href="/docs/why-openlimiter">Why OpenLimiter</DocLink>{" "}
-                    for the problem this solves.
-                  </>,
-                  <>
-                    <DocLink href="/docs/providers">Supported providers</DocLink>{" "}
-                    for what each connector reads and how fragile it is.
-                  </>,
-                  <>
-                    <DocLink href="/docs/agent-context">Agent context</DocLink>{" "}
-                    for exactly what reaches your agent.
-                  </>,
-                  <>
-                    <DocLink href="/docs/cli">CLI reference</DocLink>{" "}
-                    for every command and exit code.
-                  </>,
+                  t.rich("where-next.reading-order.steps.why", {
+                    docs: (chunks) => (
+                      <DocLink href="/docs/why-openlimiter">{chunks}</DocLink>
+                    ),
+                  }),
+                  t.rich("where-next.reading-order.steps.providers", {
+                    docs: (chunks) => <DocLink href="/docs/providers">{chunks}</DocLink>,
+                  }),
+                  t.rich("where-next.reading-order.steps.agentContext", {
+                    docs: (chunks) => <DocLink href="/docs/agent-context">{chunks}</DocLink>,
+                  }),
+                  t.rich("where-next.reading-order.steps.cli", {
+                    docs: (chunks) => <DocLink href="/docs/cli">{chunks}</DocLink>,
+                  }),
                 ]}
               />
             </>

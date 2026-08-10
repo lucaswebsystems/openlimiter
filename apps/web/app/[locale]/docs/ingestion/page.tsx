@@ -1,31 +1,35 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+import type { ReactNode } from "react";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, Code, CodeBlock, DocLink, P, Sub } from "@/components/docs/prose";
 import { docMetadata } from "@/lib/metadata";
+import { type LocaleParams, pageLocale } from "@/i18n/params";
 
-export const metadata: Metadata = docMetadata("/docs/ingestion");
+export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
+  return docMetadata("/docs/ingestion", await pageLocale(params));
+}
 
-export default function IngestionPage() {
+export default async function IngestionPage({ params }: LocaleParams) {
+  await pageLocale(params);
+  /* Sentences come from the catalog, keyed by the anchor they render under. The
+     payload bodies, the field names inside them, and the commands stay here:
+     they are the shapes this page documents, not words about them. */
+  const t = await getTranslations("docs.pages.ingestion.sections");
+  const code = (chunks: ReactNode) => <Code>{chunks}</Code>;
+
   return (
     <DocArticle
-      href="/docs/ingestion"
-      title="Ingestion"
-      lead="Three paths put quota data in front of OpenLimiter. All three are offline. None of them reaches the network, and until one of them runs, every command honestly reports unknown."
+      id="ingestion"
       sections={[
         {
           id: "statusline",
-          title: "1. The Claude Code statusline payload",
+          title: t("statusline.title"),
           body: (
             <>
-              <P>
-                This is the path that needs no extra work once Claude Code is wired up. Claude Code
-                runs your statusline command on every render and writes a JSON object describing
-                the current session to that command&apos;s standard input. When that object carries
-                a rate limit block, <Code>openlimiter statusline</Code> validates it, writes it to
-                the cache, and renders the fresh numbers in the same call.
-              </P>
+              <P>{t.rich("statusline.intro", { code })}</P>
               <CodeBlock
-                label="the block it reads, from Anthropic's own statusline documentation"
+                label={t("statusline.blockLabel")}
                 code={`{
   "rate_limits": {
     "five_hour": { "used_percentage": 23.5, "resets_at": 1738425600 },
@@ -33,51 +37,30 @@ export default function IngestionPage() {
   }
 }`}
               />
-              <P>
-                <Code>used_percentage</Code> is the share of the window already used, from 0 to
-                100. <Code>resets_at</Code> is a Unix epoch number in seconds, not a date string.
-                Both field names and the epoch encoding come from Anthropic&apos;s published
-                statusline documentation rather than from this project, and each window is
-                independently optional: a payload naming only one of them is one complete meter,
-                not a partial one.
-              </P>
+              <P>{t.rich("statusline.fields", { code })}</P>
               <Bullets
                 items={[
-                  <>
-                    <Code>rate_limits</Code> appears only for Claude.ai subscribers on a Pro or Max
-                    plan, and only after the first API response of a session. A payload with no{" "}
-                    <Code>rate_limits</Code> block is the ordinary shape of a free account or a
-                    session that has not called the API yet, not an error.
-                  </>,
-                  <>
-                    A reset implausibly far out for its own window, a five hour window resetting
-                    days away, is dropped on its own rather than trusted. The other window still
-                    counts.
-                  </>,
+                  t.rich("statusline.bullets.rateLimits", { code }),
+                  t("statusline.bullets.implausibleReset"),
                 ]}
               />
-              <P>
-                Anything else in the session object is ignored. A window that fails validation is
-                dropped and the other window still counts.
-              </P>
-              <Callout tone="key" title="This path can never break your statusline">
-                If standard input is absent, empty, malformed, or carries no recognisable rate
-                limit field, the statusline falls back to the cache and reports unknown. It never
-                blocks and never fails. Not every Claude Code version sends rate limit fields; if
-                yours does not, this path simply stays quiet.
+              <P>{t("statusline.ignored")}</P>
+              <Callout tone="key" title={t("statusline.calloutTitle")}>
+                {t("statusline.calloutBody")}
               </Callout>
             </>
           ),
         },
         {
           id: "manual-document",
-          title: "2. A manual document on disk",
+          title: t("manual-document.title"),
           body: (
             <>
               <P>
-                Write <Code>manual.json</Code> inside the state directory and every command picks
-                it up. See <DocLink href="/docs/configuration">configuration</DocLink> for where
-                that directory lives on each platform.
+                {t.rich("manual-document.intro", {
+                  code,
+                  docs: (chunks) => <DocLink href="/docs/configuration">{chunks}</DocLink>,
+                })}
               </P>
               <CodeBlock
                 label="manual.json"
@@ -88,97 +71,56 @@ export default function IngestionPage() {
   ]
 }`}
               />
-              <Sub id="manual-rules">The rules each row must satisfy</Sub>
+              <Sub id="manual-rules">{t("manual-document.manual-rules.title")}</Sub>
               <Bullets
                 items={[
-                  <>
-                    <Code>name</Code> is one uppercase identifier of up to 32 characters, starting
-                    with a letter.
-                  </>,
-                  <>
-                    <Code>used_percent</Code> is a number from 0 to 100.
-                  </>,
-                  <>
-                    <Code>reset_at</Code> is an ISO instant in the future.
-                  </>,
-                  <>Up to ten meters are read. Rows past the tenth are ignored.</>,
-                  <>
-                    A row that breaks any of those rules is dropped, and the remaining rows still
-                    count. Nothing is repaired.
-                  </>,
+                  t.rich("manual-document.manual-rules.bullets.name", { code }),
+                  t.rich("manual-document.manual-rules.bullets.usedPercent", { code }),
+                  t.rich("manual-document.manual-rules.bullets.resetAt", { code }),
+                  t("manual-document.manual-rules.bullets.ten"),
+                  t("manual-document.manual-rules.bullets.dropped"),
                 ]}
               />
-              <P>
-                Run <Code>openlimiter snapshot --refresh</Code> to fold the file into the cache.
-              </P>
+              <P>{t.rich("manual-document.refresh", { code })}</P>
             </>
           ),
         },
         {
           id: "ingest-command",
-          title: "3. The generic ingest command",
+          title: t("ingest-command.title"),
           body: (
             <>
-              <P>
-                Any script or agent can hand OpenLimiter a document without a provider integration.
-                The command reads standard input, or an inline document passed with{" "}
-                <Code>--payload</Code>.
-              </P>
+              <P>{t.rich("ingest-command.intro", { code })}</P>
               <CodeBlock
-                label="terminal"
+                label={t("ingest-command.terminalLabel")}
                 code={`echo '{"meters":[{"name":"AGENT_BUDGET","used_percent":12.5,"reset_at":"2026-08-09T13:11:30.141Z"}]}' | openlimiter ingest
 
 openlimiter ingest --payload '{"meters":[{"name":"AGENT_BUDGET","used_percent":12.5,"reset_at":"2026-08-09T13:11:30.141Z"}]}'`}
               />
-              <P>
-                Without a provider flag the document is treated as a manual document, so the
-                resulting snapshot is labelled with manual precision. With{" "}
-                <Code>--provider &lt;id&gt;</Code> the document is handed to that connector&apos;s
-                own parser and keeps that connector&apos;s labels.
-              </P>
+              <P>{t.rich("ingest-command.provider", { code })}</P>
               <CodeBlock
-                label="terminal"
+                label={t("ingest-command.terminalLabel")}
                 code={`openlimiter ingest --provider codex --payload '{"rate_limits":{"primary_window":{"used_percent":33,"reset_at":"2026-08-09T14:11:30.264Z"}}}'`}
               />
-              <P>
-                Valid provider ids are <Code>claude</Code>, <Code>openrouter</Code>,{" "}
-                <Code>codex</Code>, <Code>antigravity</Code>, <Code>opencode</Code>, and{" "}
-                <Code>manual</Code>. An unknown id is a usage error and exits 2.
-              </P>
+              <P>{t.rich("ingest-command.validIds", { code })}</P>
             </>
           ),
         },
         {
           id: "merging",
-          title: "What happens to the data",
+          title: t("merging.title"),
           body: (
             <>
-              <P>
-                Ingested rows merge into one cache under the same lock every other writer uses, so
-                nothing already cached is lost and two writers observing different providers cannot
-                silently drop each other&apos;s rows.
-              </P>
+              <P>{t("merging.intro")}</P>
               <Bullets
                 items={[
-                  <>Values are validated against the snapshot schema before anything is written.</>,
-                  <>
-                    Percentages stay between 0 and 100. A value outside that range is not clamped,
-                    it is dropped.
-                  </>,
-                  <>
-                    Every write lands through an atomic replacement, so a reader observes either the
-                    previous content or the new content and never a partial file.
-                  </>,
-                  <>
-                    Freshness is derived from when a reading was observed and when it expires, so
-                    stale data is labelled rather than silently reused as current.
-                  </>,
+                  t("merging.bullets.validated"),
+                  t("merging.bullets.bounds"),
+                  t("merging.bullets.atomic"),
+                  t("merging.bullets.freshness"),
                 ]}
               />
-              <P>
-                Nothing survives validation? The command reports that no bounded meter survived and
-                exits with a failure, rather than writing a placeholder.
-              </P>
+              <P>{t("merging.nothingSurvives")}</P>
             </>
           ),
         },

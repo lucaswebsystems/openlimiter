@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { DocArticle } from "@/components/docs/doc-article";
 import { Bullets, Callout, Code, DocLink, P, Sub, Table } from "@/components/docs/prose";
 import { docMetadata } from "@/lib/metadata";
+import { type LocaleParams, pageLocale } from "@/i18n/params";
 
-export const metadata: Metadata = docMetadata("/docs/connections");
+export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
+  return docMetadata("/docs/connections", await pageLocale(params));
+}
 
 /**
  * Source chip vocabulary: what the dashboard actually renders today.
@@ -13,23 +17,22 @@ export const metadata: Metadata = docMetadata("/docs/connections");
  * sits inside the dashboard's own module graph and is out of scope for this
  * page to depend on. If this table and language.ts ever disagree, language.ts
  * is right and this table is the bug.
+ *
+ * What is left here is the chip word itself, which is the label the dashboard
+ * paints on screen, and the provider names beside it. Each meaning is a
+ * sentence and now lives in the catalog under this row's `key`, so the English
+ * value there is what a diff against `sourceStateSentence` compares.
  */
 const SOURCE_CHIPS = [
+  { key: "localCli", chip: "Local CLI", providers: "Claude" },
   {
-    chip: "Local CLI",
-    providers: "Claude",
-    meaning: "A tool on this machine writes the payload, and OpenLimiter reads what it wrote.",
-  },
-  {
+    key: "importOnly",
     chip: "Import only",
     providers: "OpenRouter, Codex, Antigravity, OpenCode",
-    meaning: "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document.",
   },
-  {
-    chip: "Manual",
-    providers: "Manual entries",
-    meaning: "Figures you keep yourself. Nothing is read from an account.",
-  },
+  /* Manual is the one row whose provider cell is a phrase rather than a list of
+     product names, so that cell comes from the catalog like the meanings do. */
+  { key: "manual", chip: "Manual", providers: null },
 ] as const;
 
 /**
@@ -43,138 +46,108 @@ const SOURCE_CHIPS = [
  * connection-state.ts, is generated for that dashboard specifically and is out
  * of scope for a docs page to depend on. If this table and the core module
  * ever disagree, the core module is right and this table is the bug: diff
- * against connectionSentence to fix it.
+ * `connectionSentence` against the English catalog values these keys point at.
+ *
+ * The state names are values the whole product shares and never translate, so
+ * they stay here. Their sentences are prose and live in the catalog.
  */
 const CONNECTION_STATE_ROWS = [
-  { state: "NOT_CONFIGURED", sentence: "Not connected." },
-  { state: "DETECTED", sentence: "Found on this machine but not collecting yet." },
-  { state: "NEEDS_AUTH", sentence: "Waiting for a credential." },
-  { state: "READY_TO_ENABLE", sentence: "Ready to start collecting." },
-  { state: "CONNECTING", sentence: "Connecting." },
-  { state: "CONNECTED", sentence: "Connected and collecting." },
-  { state: "DEGRADED", sentence: "The provider is refusing reads for now." },
-  { state: "STALE", sentence: "The last reading is older than it should be." },
-  { state: "AUTH_EXPIRED", sentence: "The stored credential stopped working." },
-  {
-    state: "IMPORT_ONLY",
-    sentence: "Reads only what you import. Nothing is collected automatically.",
-  },
-  { state: "MANUAL", sentence: "Shows the plan you entered yourself." },
-  { state: "UNSUPPORTED", sentence: "No safe automatic source exists for this product yet." },
-  { state: "ERROR", sentence: "This connection failed and needs a look." },
+  { state: "NOT_CONFIGURED", key: "notConfigured" },
+  { state: "DETECTED", key: "detected" },
+  { state: "NEEDS_AUTH", key: "needsAuth" },
+  { state: "READY_TO_ENABLE", key: "readyToEnable" },
+  { state: "CONNECTING", key: "connecting" },
+  { state: "CONNECTED", key: "connected" },
+  { state: "DEGRADED", key: "degraded" },
+  { state: "STALE", key: "stale" },
+  { state: "AUTH_EXPIRED", key: "authExpired" },
+  { state: "IMPORT_ONLY", key: "importOnly" },
+  { state: "MANUAL", key: "manual" },
+  { state: "UNSUPPORTED", key: "unsupported" },
+  { state: "ERROR", key: "error" },
 ] as const;
 
-export default function ConnectionsPage() {
+export default async function ConnectionsPage({ params }: LocaleParams) {
+  await pageLocale(params);
+  /* Sentences come from the catalog, keyed by the anchor they render under, and
+     each table row's prose by the row's own key above. */
+  const t = await getTranslations("docs.pages.connections.sections");
+
   return (
     <DocArticle
-      href="/docs/connections"
-      title="Connections"
-      lead="Every provider shows two things: a chip naming where its numbers came from, and, underneath, a state drawn from one vocabulary the whole product shares. This page names every state in it, says plainly what Import only means, and says what changes once a live connection exists."
+      id="connections"
       sections={[
         {
           id: "chips",
-          title: "The chip on a provider today",
+          title: t("chips.title"),
           body: (
             <>
-              <P>
-                A parser existing is not a connection, so no card in the dashboard is ever
-                labelled connected on the strength of one. Every provider instead carries a chip
-                naming how its numbers actually reached this device. There are three, today.
-              </P>
+              <P>{t("chips.intro")}</P>
               <Table
-                caption="The three source chips shown in the dashboard today"
+                caption={t("chips.caption")}
                 columns={[
-                  { key: "chip", header: "chip" },
-                  { key: "providers", header: "providers" },
-                  { key: "meaning", header: "meaning" },
+                  { key: "chip", header: t("chips.columns.chip") },
+                  { key: "providers", header: t("chips.columns.providers") },
+                  { key: "meaning", header: t("chips.columns.meaning") },
                 ]}
                 rows={SOURCE_CHIPS.map((row) => ({
                   chip: <Code>{row.chip}</Code>,
-                  providers: row.providers,
-                  meaning: row.meaning,
+                  providers: row.providers ?? t(`chips.rows.${row.key}.providers`),
+                  meaning: t(`chips.rows.${row.key}.meaning`),
                 }))}
               />
-              <Callout tone="key" title="What Import only actually means">
-                A parser exists for that provider&apos;s document, and OpenLimiter understands the
-                shape when it sees one. Nothing here signs in, holds a key, or fetches anything on
-                its own. A reading arrives only once you hand OpenLimiter that document yourself,
-                by pasting it or by running <Code>openlimiter ingest --provider &lt;id&gt;</Code>.
-                See <DocLink href="/docs/ingestion">ingestion</DocLink> for the exact paths.
+              <Callout tone="key" title={t("chips.calloutTitle")}>
+                {t.rich("chips.calloutBody", {
+                  code: (chunks) => <Code>{chunks}</Code>,
+                  docs: (chunks) => <DocLink href="/docs/ingestion">{chunks}</DocLink>,
+                })}
               </Callout>
             </>
           ),
         },
         {
           id: "vocabulary",
-          title: "The full connection vocabulary",
+          title: t("vocabulary.title"),
           body: (
             <>
-              <P>
-                Underneath the three chips sits a larger vocabulary: thirteen named states, one
-                module in the core package the whole product is built from, each with one plain
-                sentence rather than a log line. It exists so a connection&apos;s state is a value
-                every surface reads the same way, never a sentence each one is free to invent for
-                itself.
-              </P>
+              <P>{t("vocabulary.intro")}</P>
               <Table
-                caption="Every state in the connection vocabulary, and what each one means"
+                caption={t("vocabulary.caption")}
                 columns={[
-                  { key: "state", header: "state" },
-                  { key: "meaning", header: "meaning" },
+                  { key: "state", header: t("vocabulary.columns.state") },
+                  { key: "meaning", header: t("vocabulary.columns.meaning") },
                 ]}
                 rows={CONNECTION_STATE_ROWS.map((row) => ({
                   state: <Code>{row.state}</Code>,
-                  meaning: row.sentence,
+                  meaning: t(`vocabulary.rows.${row.key}.meaning`),
                 }))}
               />
               <Bullets
                 items={[
-                  <>
-                    <Code>IMPORT_ONLY</Code>, <Code>MANUAL</Code> and <Code>UNSUPPORTED</Code> are
-                    declared rather than attempted, by design: the product states them outright,
-                    and nothing that happens afterward, a response, a failure, a timeout, is
-                    allowed to quietly promote one of them to <Code>CONNECTED</Code>. Only
-                    OpenLimiter itself declaring otherwise moves a connection out of one.
-                  </>,
-                  <>
-                    The rest name a lifecycle a live reader would move a connection through: found
-                    but not yet collecting, waiting on a credential, connecting, connected, and,
-                    when something goes wrong, degraded, stale, expired, or needing a look.
-                  </>,
+                  t.rich("vocabulary.bullets.declared", {
+                    code: (chunks) => <Code>{chunks}</Code>,
+                  }),
+                  t("vocabulary.bullets.lifecycle"),
                 ]}
               />
-              <Sub id="what-this-is-not-claiming">What this page is not claiming</Sub>
-              <P>
-                Not that all thirteen are on screen. What the dashboard actually renders today is
-                the simpler, three chip vocabulary above, built for a release where nothing
-                performs a network read. The thirteen states are real and tested in the core
-                package this product is built from, and they name the general lifecycle any
-                connection follows once a live reader exists. No surface renders those words yet,
-                because nothing today does the thing that would put a connection into one of them:
-                no reader, no request, nothing to fail, expire, or need a credential for.
-              </P>
+              <Sub id="what-this-is-not-claiming">
+                {t("vocabulary.what-this-is-not-claiming.title")}
+              </Sub>
+              <P>{t("vocabulary.what-this-is-not-claiming.body")}</P>
             </>
           ),
         },
         {
           id: "what-changes",
-          title: "What changes when a live connection ships",
+          title: t("what-changes.title"),
           body: (
             <>
+              <P>{t("what-changes.intro")}</P>
               <P>
-                Nothing on this page is a date or a promise. When a provider gains a real reader,
-                the honest description of it stops being a fixed chip and starts being whichever
-                of the thirteen states above actually fits at that moment: detected, waiting on a
-                credential, connecting, connected, or, when something goes wrong, degraded, stale,
-                or needing a look. That is the reason to name the whole vocabulary now, before any
-                of it is reachable, so the sentence a person reads does not change on the day the
-                state underneath it starts moving.
-              </P>
-              <P>
-                No provider has that reader today. See the{" "}
-                <DocLink href="/docs/roadmap">roadmap</DocLink> for what is planned and what is
-                not, and <DocLink href="/docs/providers">supported providers</DocLink> for what
-                each connector can actually do right now.
+                {t.rich("what-changes.noReader", {
+                  roadmap: (chunks) => <DocLink href="/docs/roadmap">{chunks}</DocLink>,
+                  providers: (chunks) => <DocLink href="/docs/providers">{chunks}</DocLink>,
+                })}
               </P>
             </>
           ),

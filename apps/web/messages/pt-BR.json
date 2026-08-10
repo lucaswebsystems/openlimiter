@@ -1,0 +1,1409 @@
+{
+  "_status": "UNTRANSLATED PLACEHOLDER. Every value below is still English, copied from en.json so the site builds and the key check passes. Read messages/GLOSSARY.md before translating, and delete this note when the file is done.",
+  "meta": {
+    "title": "OpenLimiter, quota awareness for AI coding agents",
+    "description": "OpenLimiter reads the quota of your AI subscriptions on your own machine and hands your coding agents bounded budget state plus routing advice. Open source, local first, zero telemetry."
+  },
+  "common": {
+    "skipToContent": "Skip to content",
+    "backToTop": "Back to top",
+    "homeAria": "OpenLimiter, home",
+    "demoData": "Demo data",
+    "theme": {
+      "label": "Theme",
+      "toggle": "Switch between the light and dark theme"
+    },
+    "routes": {
+      "docs": "Docs",
+      "webApp": "Web app",
+      "download": "Download",
+      "changelog": "Changelog",
+      "alternatives": "Alternatives",
+      "blog": "Blog"
+    }
+  },
+  "nav": {
+    "getPro": "Get Pro",
+    "sponsor": "Sponsor",
+    "githubAria": "OpenLimiter on GitHub",
+    "githubStarsAria": "OpenLimiter on GitHub, {count, plural, one {# star} other {# stars}}",
+    "menu": "Menu",
+    "closeMenu": "Close menu"
+  },
+  "announce": {
+    "message": "Founding promo: OpenLimiter Pro at 50% OFF for early supporters",
+    "short": "Promo: OpenLimiter Pro at 50% OFF for early supporters",
+    "dismiss": "Close this announcement"
+  },
+  "footer": {
+    "blurb": "Quota awareness for AI coding agents. It reads what your subscriptions have left on your own machine, hands your agents a bounded block of that state, and never invents a number it does not have.",
+    "builtBy": "Built by <name>{author}</name>",
+    "product": "Product",
+    "community": "Community",
+    "issues": "Issues",
+    "licenceNote": "Apache 2.0. Local first. Zero telemetry in the software. No accounts. This site keeps cookieless page counts only.",
+    "licenceRead": "Read the licence",
+    "security": "Security"
+  },
+  "localeSwitcher": {
+    "label": "Language"
+  },
+  "localeOffer": {
+    "title": "Este site está disponível em português.",
+    "action": "Ler em português",
+    "dismiss": "Fechar"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "lead": "That address does not match anything on this site. It may have moved, or it may never have existed.",
+    "home": "Back to the home page",
+    "docs": "Read the documentation"
+  },
+  "hero": {
+    "title": {
+      "limits": "Know your limits.",
+      "route": "Route around them."
+    },
+    "lead": "Read your AI subscription quota locally. Give agents bounded budget state and advice. Open source, local first, cross platform.",
+    "downloads": {
+      "windows": {
+        "aria": "Download the OpenLimiter installer for Windows, 64 bit",
+        "label": "Download for Windows"
+      },
+      "webApp": {
+        "aria": "Open the web app, live now",
+        "label": "Open the web app"
+      },
+      "macos": {
+        "aria": "Download OpenLimiter for macOS, Apple silicon"
+      },
+      "iphone": {
+        "aria": "iPhone: the web app installs to your home screen, there is no App Store app"
+      },
+      "android": {
+        "aria": "Android: the web app installs to your home screen, there is no Play Store app"
+      },
+      "cli": {
+        "aria": "Command line reference in the docs"
+      },
+      "allOptions": "All download options"
+    },
+    "supports": {
+      "label": "Supports",
+      "manualEntry": "and manual entry"
+    },
+    "backdrop": {
+      "play": "Play video",
+      "pause": "Pause video"
+    },
+    "disclaimer": "Windows, macOS and Linux all have packaged desktop builds on the release, and npm is the recommended command line install. The web app needs nothing installed. The desktop builds are not code signed yet, so Windows and macOS warn on first run. The mobile applications are not built."
+  },
+  "home": {
+    "docsLine": "Both of those are written up in full: <agentContext>what an agent is told</agentContext> and <cli>every command it ships with</cli>.",
+    "bridge": {
+      "line": "When you step away from the desk, the numbers are still on your own disk.",
+      "note": "Nothing had to be uploaded to make that true."
+    }
+  },
+  "deviceFrame": {
+    "title": "Every plan on one screen",
+    "lead": "A card per provider: the meter, how fresh that reading is, and when the window resets. What you see here is what installs.",
+    "screenshot": {
+      "alt": "The OpenLimiter desktop application, showing one card per provider with a meter, a percentage, a freshness state and a reset countdown, over synthetic demo data."
+    },
+    "caption": "The packaged desktop application, captured on a real machine against the project's synthetic demo fixtures. No account, credential or real usage figure appears in it."
+  },
+  "phonePanels": {
+    "shots": {
+      "meters": {
+        "label": "Meters",
+        "alt": "The web app on a phone, showing the overall verdict at the top and one card per provider below it, each with a meter bar, a percentage, a freshness state and a reset countdown."
+      },
+      "agentContext": {
+        "label": "Agent context",
+        "alt": "The web app on a phone, showing the bounded block of budget state a coding agent receives, fenced in an untrusted data boundary."
+      },
+      "connections": {
+        "label": "Connections",
+        "alt": "The web app on a phone, showing what each provider can be read from today and the box a quota document is pasted or dropped into."
+      }
+    }
+  },
+  "integrations": {
+    "title": "What it reads, where it lands",
+    "lead": "No testimonials, no avatar wall, no user count. Every card below either ships a connector in this release or says plainly that it does not have one yet.",
+    "plannedChip": "planned",
+    "plannedLine": "Planned connector. Meter it today through manual entry or ingest.",
+    "connectors": {
+      "claude": {
+        "tag": "reads the native statusline payload",
+        "detail": "Parses the rate limit block Claude Code already hands to your statusline command. It asks nothing of Anthropic on its own."
+      },
+      "openRouter": {
+        "tag": "reads a documented credits response",
+        "detail": "Parses the credits shape OpenRouter documents. The key belongs in your operating system credential store, never in a file."
+      },
+      "codex": {
+        "tag": "reads an internal usage payload",
+        "detail": "Parses the usage shape the Codex tooling produces. The shape is internal, so it can change without notice, and it fails closed when it does."
+      },
+      "antigravity": {
+        "tag": "reads an internal quota payload",
+        "detail": "Parses the quota shape the Antigravity tooling produces. Internal too, marked as such, and never repaired or rewritten."
+      },
+      "openCode": {
+        "tag": "reads a session you already opened",
+        "detail": "Describes the usage view behind an existing session. It carries the highest automation risk of the six and stops the moment that session expires."
+      },
+      "manualEntry": {
+        "name": "Manual entry",
+        "tag": "reads numbers you write yourself",
+        "detail": "Budgets you maintain by hand, for a self hosted model or any subscription without a connector. It never breaks and never guesses."
+      }
+    },
+    "surfaces": {
+      "statusline": {
+        "name": "Claude Code statusline",
+        "detail": "One line beside your prompt: the worst meter per provider with a reason code in front. It falls back to the cache and never blocks the tool that called it."
+      },
+      "promptHook": {
+        "name": "Claude Code prompt hook",
+        "detail": "A bounded block on prompt submit, fenced in an explicit untrusted data boundary. When every provider is unknown it injects nothing at all."
+      },
+      "shell": {
+        "name": "Any shell",
+        "detail": "The whole snapshot as a table for you or as JSON for a script. No network call, no account, no daemon in the middle."
+      },
+      "fileWriter": {
+        "name": "Any tool that can write a file",
+        "detail": "One generic command takes a payload for any connector, so a provider without an integration can still be fed from a script you control."
+      },
+      "ci": {
+        "name": "Continuous integration",
+        "detail": "Export the cache as JSON and assert on it in a pipeline. Every release is tested on Windows and Linux on every push."
+      },
+      "ownFrontend": {
+        "name": "Your own front end",
+        "tag": "one JSON document",
+        "detail": "The cache is a plain document on your disk with a versioned schema. Read it and build whatever view you want."
+      }
+    }
+  },
+  "worksWith": {
+    "title": "Works with your tools",
+    "lead": "One meter over every subscription you already hold. Each connector reads a shape that something on your machine already wrote, and in this release not one of them touches the network.",
+    "groups": {
+      "today": {
+        "label": "Ships today",
+        "note": "Six connectors ship in this release"
+      },
+      "planned": {
+        "label": "Planned",
+        "note": "Known, named, and not written yet"
+      }
+    },
+    "tile": {
+      "connector": "Connector",
+      "noConnector": "No connector yet",
+      "plannedChip": "planned"
+    },
+    "feedIn": "How to feed one in",
+    "footnote": "Every connector ships marked <code>UNVERIFIED</code>, which is the honest default: no explicit verifier has confirmed a shape against a live account yet. Three of them read interfaces that are internal to somebody else's tooling and can change without notice, and when one does, that provider fails closed to unknown rather than guessing. <link>Every connector and its real state</link>.",
+    "manualNote": "Every tool on this page can be metered today. Write the numbers down with manual entry, or pipe a payload in with ingest from any script you control, and it lands in the same snapshot as a connector."
+  },
+  "runsWhere": {
+    "title": "Runs where you work",
+    "lead": "Windows, macOS and Linux, from a terminal, a statusline, a prompt hook or a script, and in any browser through the web app. One local cache, read by whatever you point at it.",
+    "screenshotsNote": "Those are screenshots of the web app running at phone size, against the project's synthetic fixtures, declared here in words rather than stamped over the pictures. The same reading opens in any browser at the <webApp>web app</webApp>, which installs to a home screen. Native iOS and Android applications are planned and not built."
+  },
+  "webApp": {
+    "title": "Web app",
+    "status": "live",
+    "lead": "A browser is the one surface every device already has. This one runs the same engine as the command line tool, on a document you give it, with nothing uploaded and no account anywhere.",
+    "facts": {
+      "sameEngine": {
+        "title": "The same engine, in the tab",
+        "detail": "Not a second implementation. The core, the connectors and the adapter are mirrored from the command line tool into the browser bundle, so a reading here and a reading in a terminal cannot disagree."
+      },
+      "handDocument": {
+        "title": "You hand it the document",
+        "detail": "Paste or drop what openlimiter export prints. A browser tab cannot read your disk by itself, and nothing is uploaded to make up for that: parsing happens in the tab and no request leaves it."
+      },
+      "offline": {
+        "title": "Installs, and works offline",
+        "detail": "Add it to a phone or desktop home screen and it opens like an application. A service worker keeps it working with no network at all, because it never needed one."
+      }
+    },
+    "openApp": "Open the web app",
+    "howToProduce": "How to produce a document"
+  },
+  "connections": {
+    "heading": {
+      "title": "What each one actually does",
+      "note": "A parser is not a connection"
+    },
+    "columns": {
+      "parser": "Parser",
+      "reader": "Reader",
+      "auth": "Auth",
+      "verification": "Verification"
+    },
+    "table": {
+      "caption": "Every provider, and which of the four stages of support it has reached today, read from the reviewed provider registry",
+      "provider": "Provider",
+      "state": "State"
+    },
+    "cells": {
+      "unstated": "Unstated"
+    },
+    "support": {
+      "ready": "Ready",
+      "notRequired": "Not required",
+      "none": "None"
+    },
+    "verification": {
+      "unverified": "Unverified",
+      "beta": "Beta",
+      "verified": "Verified",
+      "importOnly": "Import only",
+      "manual": "Manual",
+      "experimental": "Experimental",
+      "planned": "Planned"
+    },
+    "state": {
+      "noSpec": "No spec",
+      "manual": "Manual",
+      "importOnly": "Import only",
+      "localCli": "Local CLI",
+      "connected": "Connected"
+    },
+    "readerLine": {
+      "noSpec": "No reviewed spec in the registry yet, so nothing here claims a state for it.",
+      "implemented": "OpenLimiter reads this one itself.",
+      "notImplemented": "Nothing here fetches it, so the document comes from you."
+    },
+    "providers": {
+      "claude": {
+        "fact": "Claude Code writes a rate limit block to its statusline command."
+      },
+      "openrouter": {
+        "fact": "The credits endpoint is documented and its response parses."
+      },
+      "codex": {
+        "fact": "An internal payload shape, which can change without notice."
+      },
+      "antigravity": {
+        "fact": "An internal payload shape, which can change without notice."
+      },
+      "opencode": {
+        "fact": "A usage view behind a session you already hold."
+      },
+      "manual": {
+        "fact": "Numbers you keep yourself, for anything with no interface."
+      }
+    },
+    "footnote": {
+      "lead": "Reader means something in OpenLimiter goes and fetches the number. Auth means a credential is held and used. Every cell above is read at build time from the reviewed provider registry rather than written into this page, so a stage cannot be claimed here without a human changing a spec first.",
+      "unspecified": "{count} of the {total} connectors have no reviewed spec yet, and every one of their cells reads Unstated rather than guessing.",
+      "elsewhere": "The registry describes {count} further products with no connector at all, which is why they are not rows here.",
+      "tail": "Nothing on this page is called connected."
+    }
+  },
+  "cliTranscript": {
+    "captions": {
+      "demo": "All six connectors, one schema",
+      "statusline": "Statusline, bars where you already look",
+      "statuslineNarrow": "One row, worst providers kept",
+      "statuslinePlain": "The 0.1.0 line, on request",
+      "statuslineAllMeters": "Every meter, one cell each",
+      "config": "The statusline section, as it ships",
+      "hook": "Agent context, bounded by construction"
+    }
+  },
+  "scriptable": {
+    "title": "Fully scriptable",
+    "lead": "Everything the tool knows, it will print. A table for you, one line for a statusline, a bounded block for an agent, or plain JSON for anything else.",
+    "tablistAriaLabel": "Command line examples",
+    "tabs": {
+      "snapshot": "Snapshot",
+      "statusline": "Statusline",
+      "agentContext": "Agent context"
+    },
+    "note": "Every block above is verbatim standard output, captured against the project's synthetic fixtures. Add <code>export</code> for the same state as JSON, and <code>doctor</code> when a connector stops parsing."
+  },
+  "tools": {
+    "title": {
+      "formerly": "{name}, formerly {formerly}",
+      "formerlyPlanned": "{name}, formerly {formerly}, planned",
+      "planned": "{name}, planned"
+    }
+  },
+  "agentContext": {
+    "title": "Read, bound, hand over",
+    "lead": "A block injected into a prompt is an injection surface. This one carries enum codes, bounded numbers and timestamps, and it says so about itself in its own opening tag.",
+    "captured": "Captured {date}",
+    "guarantees": {
+      "providerTextNeverCrosses": {
+        "title": "Provider text never crosses",
+        "detail": "Parsers keep known numbers and known timestamps. Labels, messages, account text, markup and unknown fields are discarded before anything reaches policy code, so no provider's prose can become an instruction to your agent."
+      },
+      "enumCodesOnly": {
+        "title": "Enum codes only",
+        "detail": "The advice engine emits provider codes, reason codes, bounded percentages, freshness codes and timestamps. The adapter validates every one of them again on the way out."
+      },
+      "silenceBeatsGuess": {
+        "title": "Silence beats a guess",
+        "detail": "If every provider is unknown, the hook injects nothing at all. It reads the local cache, makes no network request, and exits 0 whatever happens."
+      },
+      "adviceNotRouting": {
+        "title": "Advice, not routing",
+        "detail": "OpenLimiter tells your agent what is left and what that suggests. It does not switch providers for you, does not bypass a limit, and does not touch how anything authenticates. The decision stays yours."
+      }
+    }
+  },
+  "faq": {
+    "title": "FAQ",
+    "items": {
+      "whatLeaves": {
+        "question": "What actually leaves my machine?",
+        "answer": "Nothing. There is no telemetry, no analytics, and no OpenLimiter server to receive anything. This release performs no provider egress at all: every connector is a parser over data that something else already wrote to your disk or piped to standard input."
+      },
+      "safeToPoint": {
+        "question": "Is it safe to point at my tools?",
+        "answer": "OpenLimiter opens what your installed tools already store, read only, and never rewrites, repairs or migrates them. Every parser keeps bounded numbers and timestamps and discards provider text before anything reaches your agent."
+      },
+      "promptHook": {
+        "question": "Can the prompt hook break my session?",
+        "answer": "No. The hook reads the local cache, makes no network request, injects nothing when every provider is unknown, and exits 0 whatever happens. The statusline behaves the same way: if input is absent or malformed it falls back to the cache and reports unknown."
+      },
+      "providersToday": {
+        "question": "Which providers work today?",
+        "answer": "Six connectors ship: Claude through the native statusline payload, OpenRouter through its documented shape, Codex and Antigravity through internal shapes that may break, OpenCode through an existing session that may break, and manual entry. Every one is marked UNVERIFIED until an explicit verifier exists."
+      },
+      "apiKey": {
+        "question": "Do I need an API key?",
+        "answer": "Not to start. The Claude path reads a payload Claude Code already hands your statusline, and the manual path needs nothing at all. OpenRouter is the one connector that expects a key of your own, and that key belongs in your operating system credential store."
+      },
+      "routing": {
+        "question": "Does it route my requests for me?",
+        "answer": "No, and it is not going to. OpenLimiter provides advice. It does not route requests automatically, does not bypass a limit, and does not touch how your agent authenticates. The decision stays with you."
+      },
+      "connectorBreaks": {
+        "question": "What happens when a connector breaks?",
+        "answer": "Unofficial shapes change without notice. When one does, parsing fails closed: that provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap. Unknown never becomes zero."
+      },
+      "desktopOrPhone": {
+        "question": "Is there a desktop or phone app?",
+        "answer": "The desktop tray application is built and packaged for Windows, macOS and Linux, and every build is attached to the release on GitHub. None of them are code signed yet, so Windows SmartScreen and macOS Gatekeeper warn the first time you open one, and the download page says how to get past that. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
+      },
+      "free": {
+        "question": "Is it free?",
+        "answer": "Everything that runs locally is free and always will be, under Apache 2.0: every connector, the agent context block, themes, the whole command line tool, and all three ingestion paths, with no usage limit and no account. Desktop notifications are not built yet and will be free too."
+      },
+      "pro": {
+        "question": "What is OpenLimiter Pro?",
+        "answer": "A planned paid tier at $5 a month, founding price, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, a smart limiter that routes between your models from live budget state, email alerts and a weekly digest, delivery rules, hosted history and burn trends, priority connector requests, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it."
+      }
+    }
+  },
+  "pricing": {
+    "title": "Pricing",
+    "lead": "Everything that runs on your machine is free, and that is not a launch offer. The only thing that could ever cost money is a service running on servers, because servers cost money to run.",
+    "plannedChip": "planned",
+    "free": {
+      "status": "available",
+      "price": "Free",
+      "priceNote": "forever, and in the licence",
+      "lead": "The whole local product, for everybody, with no account anywhere in it.",
+      "footnote": "Open source under <licence>Apache 2.0</licence>, so this cannot be taken away later. The licence is the promise.",
+      "lines": {
+        "connectors": "Every connector, and every one added later",
+        "agentContext": "The bounded agent context block and its routing advice",
+        "notifications": "Desktop notifications and sounds when a window nears its cap",
+        "themes": "Themes, in the desktop application and in the browser",
+        "cli": "The full command line tool and every statusline setting",
+        "ingestion": "All three ingestion paths: a connector, ingest, or manual entry",
+        "noLimits": "No usage limit, no account, no feature locked behind anything"
+      }
+    },
+    "pro": {
+      "status": "not built",
+      "perMonth": "a month",
+      "foundingChip": "founding price",
+      "priceNote": "{regular} is the planned regular price. Early supporters keep {founding}.",
+      "lead": "Services that run on servers rather than on your machine. Every line below is coming and none of it exists yet: there is no checkout, no card form and no waiting list.",
+      "footnote": "Nothing local ever moves behind this plan. Pro sells servers and service, not switches.",
+      "lines": {
+        "sync": "Encrypted synchronisation of quota state across your own devices",
+        "push": "Push notifications to your phone when a window nears its cap",
+        "smartLimiter": "Smart limiter: quota aware routing between your models, driven by live budget state",
+        "email": "Email alerts and a weekly digest",
+        "deliveryRules": "Alert delivery rules, so a quiet hour stays quiet",
+        "history": "Hosted usage history and burn trends across every device",
+        "priority": "Priority connector requests, so your provider gets built first",
+        "team": "A team dashboard tier, later than the rest"
+      }
+    },
+    "roadmapCta": "What is actually planned",
+    "sourceCta": "Read the source"
+  },
+  "about": {
+    "lead": "OpenLimiter is an independent open source project for people who hold several AI coding subscriptions at once and would rather know which one still has room than find out the hard way, mid task.",
+    "description": "It is built around three commitments that are easy to state and awkward to keep. If it saves you an afternoon, sponsorship is the best way to keep the connectors working as the shapes underneath them shift. Reporting a connector that broke is worth just as much.",
+    "commitments": {
+      "runsLocal": {
+        "title": "It runs on your machine",
+        "detail": "Every connector in this release is a parser over something already on your disk. No provider egress, no daemon, no account."
+      },
+      "reportsNobody": {
+        "title": "It reports to nobody",
+        "detail": "The software has no telemetry, no analytics, and no OpenLimiter server for anything to reach. This website keeps cookieless page counts only, with no cookies and nothing personal."
+      },
+      "unknownStaysUnknown": {
+        "title": "Unknown stays unknown",
+        "detail": "A missing number never becomes a confident one. When a shape changes underneath a connector, that provider fails closed."
+      }
+    },
+    "signature": {
+      "role": "Author and maintainer."
+    },
+    "readSource": "Read the source"
+  },
+  "download": {
+    "metaTitle": "Download",
+    "metaDescription": "Get OpenLimiter: packaged desktop builds for Windows, macOS and Linux, the command line tool from npm, or the web app in any browser. Mobile applications are not built.",
+    "title": "Download",
+    "lead": "Windows, macOS and Linux all have packaged desktop builds on the release, and npm is the recommended command line install. The web app needs nothing installed. The desktop builds are not code signed yet, so Windows and macOS warn on first run. The mobile applications are not built.",
+    "states": {
+      "available": "available",
+      "inDevelopment": "in development",
+      "planned": "planned"
+    },
+    "available": {
+      "title": "Available now",
+      "lead": "Windows, macOS and Linux each have a packaged desktop build, and every link below goes straight to the file. The command line tool is one npm install on any of them, or one clone if you would rather build it, because it is plain Node.js with no third party runtime dependencies. The web app needs nothing installed at all."
+    },
+    "phone": {
+      "title": "On your phone",
+      "lead": "This installs the web app to your home screen. No native iOS or Android application is built.",
+      "qrAlt": "QR code linking to {url}",
+      "scan": "Scan this with your phone's camera. The web app opens, and you install it to the home screen from there."
+    },
+    "building": {
+      "title": "Built, not packaged for you yet",
+      "lead": "This exists and it runs. What is missing is a build you can install on your own platform, and until that is produced this section says so rather than pointing you at something that is not there."
+    },
+    "notBuilt": {
+      "title": "Not built yet",
+      "lead": "Everything below is written down so the direction is clear. None of it exists today, none of it can be installed or opened, there is no waiting list, and no date is being promised for any of it."
+    },
+    "releasesNote": "Every tagged version lives on the <releases>releases page</releases> of the <repo>repository</repo>, and what changed in each one is on the <changelog>changelog</changelog>.",
+    "targets": {
+      "npm": {
+        "name": "Global install from npm",
+        "summary": "Recommended for the command line tool. Install the published package globally, then run openlimiter from any directory.",
+        "requirement": "Node 24 or newer and npm.",
+        "hrefLabel": "View the npm package"
+      },
+      "source": {
+        "name": "From source",
+        "summary": "The command line tool, on any platform, and the path every capture on this site was taken from. Clone the repository, build the workspace, and the tool is ready.",
+        "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins."
+      },
+      "windows": {
+        "name": "Windows",
+        "summary": "The desktop application is packaged for Windows two ways, and both are attached to the release: an installer for a normal machine, and an MSI for anyone putting it on several. The command line tool installs from npm on Windows like anywhere else, and all one hundred tests run on Windows in continuous integration on every commit.",
+        "assets": {
+          "setup": "Windows installer",
+          "msi": "Windows MSI"
+        },
+        "note": "Neither Windows build is code signed yet, so SmartScreen warns the first time you run it. Choose More info, then Run anyway.",
+        "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins. PowerShell or any terminal you like."
+      },
+      "macos": {
+        "name": "macOS",
+        "summary": "The desktop application is packaged for macOS as a disk image for each chip family, Apple silicon and Intel, and both are attached to the release. The command line tool runs on either from npm, because it is plain Node.js with no third party runtime dependencies.",
+        "assets": {
+          "appleSilicon": "Apple silicon DMG",
+          "intel": "Intel DMG"
+        },
+        "note": "The disk images are not notarised yet, so Gatekeeper refuses to open the application on a double click. Right click it and choose Open the first time, then confirm.",
+        "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins."
+      },
+      "linux": {
+        "name": "Linux",
+        "summary": "The desktop application is packaged for Linux three ways, all attached to the release: an AppImage that runs on anything, a deb for Debian and Ubuntu, and an rpm for Fedora and openSUSE. The command line tool installs from npm and is tested on Linux alongside Windows on every push.",
+        "assets": {
+          "appImage": "AppImage",
+          "deb": "deb for Debian and Ubuntu",
+          "rpm": "rpm for Fedora and openSUSE"
+        },
+        "note": "The AppImage needs its executable bit set before it will run. Tick that box in your file manager, or run chmod +x on the file you downloaded.",
+        "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins."
+      },
+      "web-app": {
+        "name": "Web app",
+        "summary": "Nothing to install. The web app runs the same engine as the command line tool inside the browser tab, on a document you paste or drop, and it installs to a phone or desktop home screen and keeps working offline. Nothing is uploaded and there is no account.",
+        "hrefLabel": "Open the web app"
+      },
+      "desktop": {
+        "name": "Desktop application",
+        "summary": "A tray icon beside the system clock, reading the same local cache the command line tool writes, so quota is glanceable with no terminal open. It is packaged for Windows, macOS and Linux, and every build is attached to the same release. There is no automatic update channel yet, so a new version means downloading it again.",
+        "note": "None of the desktop builds are code signed yet. Windows SmartScreen and macOS Gatekeeper both warn on first run, and each platform row above says how to get past it."
+      },
+      "iphone": {
+        "name": "iOS",
+        "summary": "Planned. Nothing has been submitted to the App Store, there is no build, and there is no waiting list. The web app installs to an iPhone home screen today, which is the nearest thing that exists."
+      },
+      "android": {
+        "name": "Android",
+        "summary": "Planned. Nothing has been submitted to Google Play, there is no build, and there is no waiting list. The web app installs to an Android home screen today, which is the nearest thing that exists."
+      }
+    }
+  },
+  "changelog": {
+    "metaTitle": "Changelog: every release and what changed",
+    "metaDescription": "Every released version of OpenLimiter, rendered from the CHANGELOG.md at the root of the repository.",
+    "title": "Changelog",
+    "lead": "Every released version of OpenLimiter, read straight from the file the repository itself keeps, in the order that file lists them.",
+    "empty": "No CHANGELOG.md was found in this checkout, so there is nothing to show here. The file this page reads sits at the root of the <repo>repository</repo>, and it is the only copy of these notes there is.",
+    "sourceNote": "This page is rendered from the <file>CHANGELOG.md</file> at the root of the repository. Nothing here is written twice, so there is no second copy to drift out of step with the released code."
+  },
+  "alternatives": {
+    "metaTitle": "Alternatives: other AI quota tools compared",
+    "metaDescription": "Honest comparisons between OpenLimiter and the other tools that read AI subscription quota, each one read off its own repository or store listing.",
+    "title": "Alternatives",
+    "lead": "Other tools solve a problem that overlaps this one. Each page below says what that tool does well before it says where OpenLimiter differs, and the difference described is scope rather than quality.",
+    "checkedTitle": "How these were checked",
+    "note": "These notes were read off each project's own repository, README or store listing in August 2026. Software moves, so check the source before you rely on any of it, and open an issue if something here has gone stale or is simply wrong.",
+    "readComparison": "Read the comparison",
+    "facts": {
+      "platform": "Platform",
+      "licence": "Licence",
+      "coverage": "Coverage",
+      "source": "Source"
+    },
+    "comparison": {
+      "title": "{name} and OpenLimiter",
+      "metaTitle": "{name} compared",
+      "notFound": "Comparison not found",
+      "visit": "Visit {name}",
+      "whatItDoes": "What it does",
+      "strength": "What it does well",
+      "difference": "Where OpenLimiter differs",
+      "caveatTitle": "Before you go looking",
+      "nav": {
+        "label": "Other comparisons",
+        "previous": "Previous",
+        "next": "Next",
+        "back": "Back",
+        "all": "All comparisons"
+      }
+    },
+    "entries": {
+      "ccusage": {
+        "summary": "The broadest local log reader, and the only genuinely cross platform tool here.",
+        "what": "It reads the JSONL session logs that coding agent command line tools already write to your disk and turns them into daily, weekly, monthly and per session token and cost reports. Its own description is analysing coding agent token usage and costs from local data.",
+        "platform": "Command line, Node based, run with npx. Windows, macOS and Linux.",
+        "licence": "MIT",
+        "coverage": "Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI and Gemini CLI, as its site lists them.",
+        "source": "Local files only. It uploads nothing and calls no provider API.",
+        "strength": "The breadth of its log parsers is unmatched: more than fifteen agent tools from one binary, with no credentials and no setup at all. It also emits structured JSON and ships a Claude Code statusline hook.",
+        "difference": "It reports what you already spent, not what you have left. Its only quota notion is a token limit you supply yourself on the blocks report, so it never reads a real remaining figure from a provider. OpenLimiter starts from the provider's own remaining percentage and hands that to an agent as a bounded block."
+      },
+      "openusage": {
+        "summary": "The closest overlap, and the only other tool that designs for machine consumers.",
+        "what": "It is a native Swift menu bar application that shows session limits, weekly limits, credits and spend for your AI coding subscriptions in one popover. It also publishes those limits as JSON on a local port so other software can read them.",
+        "platform": "macOS menu bar only. Requires macOS 15 Sequoia or later.",
+        "licence": "MIT",
+        "coverage": "Antigravity, Claude, Codex, Copilot, Cursor, Devin, Grok, OpenCode, OpenRouter and Z.ai.",
+        "source": "Both. Most providers are read from credentials already on your machine, some need a key you supply, and consumption is computed from local command line logs or an exported usage file.",
+        "strength": "It is the only tool in this list whose documentation explicitly targets other programs: other applications read machine friendly limits from a local endpoint, and agents read stable limit JSON through the same cache. That is the same instinct OpenLimiter is built on, and OpenUsage got there first.",
+        "difference": "It stops at exposing the numbers and leaves every decision to whatever reads them. OpenLimiter turns the same numbers into an explicit advice policy with reason codes and injects them into an agent's prompt inside a declared untrusted data boundary. It also runs on Windows and Linux, which OpenUsage no longer does since its Swift rewrite.",
+        "caveat": "Four active repositories share this name. The one linked here is the project behind openusage.ai. A cross platform community fork, a terminal dashboard, and two Windows tray ports all exist separately."
+      },
+      "claudebar": {
+        "summary": "The clearest per provider documentation, and explicit remaining quota bands.",
+        "what": "It is a macOS menu bar application that monitors the usage quotas of AI coding assistants. For most providers it runs that vendor's own installed command line tool and reads the result.",
+        "platform": "macOS 15 or later. Installed with Homebrew, a release download, or from source.",
+        "licence": "MIT",
+        "coverage": "Claude, Codex, Gemini, GitHub Copilot, Antigravity, Z.ai, Kimi, Kiro, Amp, OpenCode Go, Oh My Pi and Grok.",
+        "source": "Mixed, and documented per provider: mostly by running each vendor's command line tool, plus a local database for OpenCode Go, local credentials for Grok, and an optional browser cookie path for Kimi.",
+        "strength": "It documents exactly how every single provider is read, which is rarer than it should be, and it publishes explicit remaining quota bands: healthy above 50%, warning between 20 and 50, critical below 20, depleted at zero.",
+        "difference": "There is no documented command line tool, JSON export or local endpoint, so nothing downstream can consume what it shows. It is a display surface for human eyes. Its per provider reliance on each vendor tool being installed also means coverage quietly shrinks on a machine that lacks them.",
+        "caveat": "A second repository carries a near identical description. Whether it is a fork, a mirror or an independent project was not confirmed, so use the repository linked here."
+      },
+      "codexbar": {
+        "summary": "The widest provider coverage anywhere, and a real scriptable command line tool.",
+        "what": "It is a small macOS menu bar application that keeps every AI coding provider's usage window, credits and reset countdown visible without a login step. A companion command line tool ships alongside it.",
+        "platform": "macOS 14 Sonoma or later for the application, with command line builds for macOS and Linux. Community integrations exist for Waybar, GNOME, KDE Plasma and Cinnamon.",
+        "licence": "MIT",
+        "coverage": "Its README claims 69 providers, among them Codex, OpenAI, Claude, Cursor, Gemini, Copilot, Grok, AWS Bedrock and LiteLLM.",
+        "source": "Both, and opt in. It reuses provider sessions you already have, whether OAuth, a device flow, an API key, a browser cookie or a local file, with on device parsing by default and cookies only when you ask.",
+        "strength": "Nothing else here comes close on coverage, and it is the only tool with a genuine scriptable interface: configuration, cost reporting and a serve command, with JSON output and Linux builds, so it runs in continuous integration.",
+        "difference": "That command line tool is built for configuration, cost reporting and feeding a status bar, not for handing an agent a bounded budget. Nothing in it turns a remaining percentage into advice a coding agent acts on. The visual product is macOS only.",
+        "caveat": "An unrelated project of the same name exists: a Bash widget for Waybar on Linux. It is a different program by a different author."
+      },
+      "usagemaster": {
+        "summary": "The only one that recommends a next action, and the only one that is not open source.",
+        "what": "It is a macOS menu bar application that brings usage and reset times for several coding tools into one view and then makes a recommendation. Its store listing says it compares your current quota state and helps you decide whether to keep running, wait for a reset, or switch tools.",
+        "platform": "macOS 15 or later, from the Mac App Store. Mac only.",
+        "licence": "Not stated, and no public source repository was found. Free to download with a one time paid tier.",
+        "coverage": "Claude Code, Codex, Gemini CLI, OpenCode Go and Cursor.",
+        "source": "Both. It states that Claude Code, Codex and OpenCode Go usage is read from local files and not sent anywhere, while Cursor is fetched with a cookie you save in the keychain yourself.",
+        "strength": "It acts on the numbers rather than only rendering them. Comparing providers side by side and recommending which tool to use right now is the same problem OpenLimiter's advice policy exists to solve, and UsageMaster shipped a polished version of it first.",
+        "difference": "It is closed source, single platform, and covers five providers, with no documented programmatic output at all, so its recommendation lives inside its own window. OpenLimiter's advice is a machine readable block a running agent consumes, and the whole thing is Apache 2.0 and auditable.",
+        "caveat": "This is the one entry here that is not open source, so the claims above come from its store listing rather than from code anyone can read."
+      }
+    }
+  },
+  "docs": {
+    "groups": {
+      "start": "Start here",
+      "using": "Using it",
+      "reference": "Reference"
+    },
+    "sidebar": {
+      "label": "Documentation",
+      "menu": "Documentation menu"
+    },
+    "article": {
+      "breadcrumb": "Breadcrumb",
+      "pagesNav": "Documentation pages",
+      "previous": "Previous",
+      "next": "Next",
+      "onThisPage": "On this page",
+      "home": "Home"
+    },
+    "pages": {
+      "index": {
+        "title": "Getting started",
+        "metaTitle": "Getting started: install and meter your quota",
+        "description": "Install the workspace, run the demo, and wire OpenLimiter into Claude Code in a few minutes.",
+        "lead": "OpenLimiter is a quota meter for the AI subscriptions you already pay for. It runs on your machine, reads what your tools already wrote there, and hands your coding agents a bounded picture of what budget is left.",
+        "sections": {
+          "what-you-need": {
+            "title": "What you need",
+            "bullets": {
+              "node": "Node 24 or newer.",
+              "npm": "npm, which ships with Node."
+            },
+            "local": "Everything runs locally. No account is created, no key is required to start, and no request leaves your machine during any of the steps below."
+          },
+          "install": {
+            "title": "Install OpenLimiter",
+            "intro": "Install the command line tool globally, then run its synthetic demo.",
+            "terminalLabel": "terminal",
+            "demo": "<code>openlimiter demo</code> renders synthetic fixtures. It proves the binary works without touching any real account, and every number it prints is invented."
+          },
+          "first-data": {
+            "title": "Give it something to meter",
+            "parser": "OpenLimiter never contacts a provider in this release. It parses data that something else already put in front of it. Until one of the ingestion paths runs, every command honestly reports unknown.",
+            "statusline": "The path that needs no extra work is the Claude Code statusline. Claude Code runs your statusline command on every render and writes a JSON object describing the current session to that command's standard input. When that object carries a rate limit block, OpenLimiter validates it, caches it, and renders the fresh numbers in the same call.",
+            "terminalLabel": "terminal",
+            "fallback": "Not every Claude Code version sends rate limit fields. If yours does not, this path stays quiet and the two manual paths still work. The <docs>ingestion page</docs> covers all three."
+          },
+          "claude-code": {
+            "title": "Wire Claude Code",
+            "intro": "Add this to your Claude Code <code>settings.json</code>. The global install makes the <code>openlimiter</code> command available to Claude Code.",
+            "calloutTitle": "The hook cannot break your session",
+            "calloutBody": "The statusline is the only path that writes. The hook reads the cache, makes no network request of any kind, injects nothing when every provider is unknown, and exits 0 whatever happens."
+          },
+          "from-source": {
+            "title": "Contribute from source",
+            "intro": "Use the repository toolchain when you want to contribute.",
+            "terminalLabel": "terminal",
+            "buildOrder": "The build has to run before the type check, because each package resolves its neighbours through the declaration files the build produces."
+          },
+          "where-next": {
+            "title": "Where next",
+            "reading-order": {
+              "title": "A reasonable reading order",
+              "steps": {
+                "why": "<docs>Why OpenLimiter</docs> for the problem this solves.",
+                "providers": "<docs>Supported providers</docs> for what each connector reads and how fragile it is.",
+                "agentContext": "<docs>Agent context</docs> for exactly what reaches your agent.",
+                "cli": "<docs>CLI reference</docs> for every command and exit code."
+              }
+            }
+          }
+        }
+      },
+      "why-openlimiter": {
+        "title": "Why OpenLimiter",
+        "description": "When you hold several AI coding subscriptions the scarce resource stops being money and becomes quota.",
+        "lead": "When you hold several AI coding subscriptions, the scarce resource stops being money and becomes quota. You already paid. The question that decides your afternoon is which of those plans still has room left.",
+        "sections": {
+          "the-problem": {
+            "title": "The problem",
+            "interruption": "A developer running two or three coding agents ends the week with the same recurring interruption. One plan hits its window, the agent stops mid task, and the work pauses while a human goes hunting through dashboards to find out which other subscription is still usable.",
+            "scattered": "The information exists. It is scattered across a statusline payload, a local usage file, a billing page, and a credit balance, in four different shapes, none of which the agent can see."
+          },
+          "what-it-does": {
+            "title": "What OpenLimiter does about it",
+            "intro": "OpenLimiter reads quota for supported AI subscriptions on your own machine, normalises every reading into one schema, and feeds bounded budget state plus routing advice into the coding agents' own context. The first adapter is a Claude Code statusline and prompt hook.",
+            "bullets": {
+              "read": "<strong>Read.</strong> Connectors parse shapes that a provider or a local tool already produced. They perform no network access in this release.",
+              "normalise": "<strong>Normalise.</strong> One snapshot schema with closed enums, bounded percentages, and derived freshness. Unknown stays unknown and never becomes a fabricated zero.",
+              "advise": "<strong>Advise.</strong> A compact statusline for you, and a bounded context block for your agent that carries enum codes, numbers, and timestamps only."
+            }
+          },
+          "what-it-is-not": {
+            "title": "What it deliberately is not",
+            "calloutTitle": "Advice, never automatic routing",
+            "calloutBody": "OpenLimiter provides routing advice. It does not route requests for you, it does not bypass a limit, and it never mutates a provider's authentication artifacts. The decision stays with you and your agent.",
+            "bullets": {
+              "proxy": "It is not a proxy. Your requests keep going straight to your provider.",
+              "dashboard": "It is not a dashboard service. There is no OpenLimiter server, no account, and no telemetry.",
+              "billing": "It is not a billing tool. It reports how much of a window you have consumed, not what you will be charged."
+            }
+          },
+          "design-rules": {
+            "title": "The rules the code follows",
+            "unknown-stays-unknown": {
+              "title": "Unknown stays unknown",
+              "body": "Missing, expired, malformed, and unrecognised input all resolve to unknown. A connector that cannot read something says so. Nothing in the codebase turns an absent reading into a zero, because a fake zero would make an agent behave as though a plan were exhausted."
+            },
+            "truncated-not-rounded": {
+              "title": "Percentages are truncated, never rounded up",
+              "body": "A meter at 99.99% renders as 99.9%. A cap is only ever claimed once it has actually been reached."
+            },
+            "one-bad-row": {
+              "title": "One bad row does not lose a provider",
+              "body": "A row that fails validation is dropped and the remaining rows still count. One expired window is not a reason to forget a whole subscription."
+            },
+            "local-first": {
+              "title": "Local first, with no server to trust",
+              "body": "Everything is written to a local state directory under your own user account. See <config>configuration</config> for where that is, and <security>security and privacy</security> for what that buys you. The licence is Apache 2.0 and the whole thing is <code>UNVERIFIED</code> by its own labels until a verifier exists."
+            }
+          }
+        }
+      },
+      "providers": {
+        "title": "Supported providers",
+        "description": "The six connectors that ship today, what each one reads, and how likely it is to break.",
+        "lead": "Six connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
+        "sections": {
+          "the-six": {
+            "title": "The six connectors",
+            "caption": "Connectors that ship today, with what each one reads and how stable it is",
+            "columns": {
+              "id": "id",
+              "reads": "reads",
+              "status": "interface status"
+            },
+            "rows": {
+              "claude": {
+                "reads": "The rate limit block of the Claude Code statusline payload",
+                "status": "Native payload from a local tool. Low automation risk."
+              },
+              "openrouter": {
+                "reads": "A credits response shape from OpenRouter's documented API",
+                "status": "Documented API. Low automation risk."
+              },
+              "codex": {
+                "reads": "A usage payload the Codex tooling produces",
+                "status": "Internal endpoint. May break without notice."
+              },
+              "antigravity": {
+                "reads": "A quota payload the Antigravity tooling produces",
+                "status": "Internal endpoint. May break without notice."
+              },
+              "opencode": {
+                "reads": "A usage view behind a session you already signed in to",
+                "status": "Authenticated page. High automation risk. May break."
+              },
+              "manual": {
+                "reads": "Numbers you write yourself",
+                "status": "Manual entry. Never breaks, never guesses."
+              }
+            },
+            "calloutTitle": "Every connector ships marked UNVERIFIED",
+            "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good."
+          },
+          "how-data-arrives": {
+            "title": "How data actually arrives",
+            "intro": "This is the part that surprises people, so it is worth stating plainly. In this release no connector performs network access. Every one of them is a parser, and something else has to hand it a document.",
+            "bullets": {
+              "claude": "<code>claude</code> is fed by the statusline payload arriving on standard input. That path is automatic once Claude Code is wired up.",
+              "manual": "<code>manual</code> is fed by a document you place in the state directory.",
+              "ingestOnly": "<code>codex</code>, <code>antigravity</code>, <code>opencode</code> and <code>openrouter</code> have no local reader yet. They accept data through <code>openlimiter ingest --provider '<id>'</code> and nothing else."
+            },
+            "exactShapes": "The <docs>ingestion page</docs> documents all three paths and the exact shapes they accept."
+          },
+          "labels": {
+            "title": "Reading the labels",
+            "intro": "Every snapshot carries four labels, so a surface can always tell a reader how much to trust a number.",
+            "caption": "The four connector labels and their meaning",
+            "columns": {
+              "label": "label",
+              "values": "values you will see"
+            },
+            "rows": {
+              "automationRisk": {
+                "values": "<code>low</code> or <code>high</code>"
+              }
+            },
+            "drift": {
+              "title": "What drift looks like",
+              "body": "Unofficial interfaces change without notice. When a shape moves, parsing fails closed: the affected provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap."
+            }
+          },
+          "openrouter-key": {
+            "title": "The OpenRouter credential",
+            "intro": "OpenRouter is the one connector that expects a key of your own. That key belongs in your operating system credential store and nowhere else. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs.",
+            "calloutTitle": "Stubbed in this release",
+            "calloutBody": "The credential library adapter is deliberately stubbed, so <code>openlimiter init</code> cannot store a key until you supply a driver. Until then, feed OpenRouter through the ingest command like any other provider.",
+            "terminalLabel": "terminal"
+          },
+          "not-yet": {
+            "title": "Connectors that do not exist yet",
+            "body": "Only the six above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
+          }
+        }
+      },
+      "connections": {
+        "title": "Connections",
+        "metaTitle": "Connections: source chips and the state vocabulary",
+        "description": "What each connection state and source chip actually means, stated honestly, including what Import only does and does not do.",
+        "lead": "Every provider shows two things: a chip naming where its numbers came from, and, underneath, a state drawn from one vocabulary the whole product shares. This page names every state in it, says plainly what Import only means, and says what changes once a live connection exists.",
+        "sections": {
+          "chips": {
+            "title": "The chip on a provider today",
+            "intro": "A parser existing is not a connection, so no card in the dashboard is ever labelled connected on the strength of one. Every provider instead carries a chip naming how its numbers actually reached this device. There are three, today.",
+            "caption": "The three source chips shown in the dashboard today",
+            "columns": {
+              "chip": "chip",
+              "providers": "providers",
+              "meaning": "meaning"
+            },
+            "rows": {
+              "localCli": {
+                "meaning": "A tool on this machine writes the payload, and OpenLimiter reads what it wrote."
+              },
+              "importOnly": {
+                "meaning": "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document."
+              },
+              "manual": {
+                "providers": "Manual entries",
+                "meaning": "Figures you keep yourself. Nothing is read from an account."
+              }
+            },
+            "calloutTitle": "What Import only actually means",
+            "calloutBody": "A parser exists for that provider's document, and OpenLimiter understands the shape when it sees one. Nothing here signs in, holds a key, or fetches anything on its own. A reading arrives only once you hand OpenLimiter that document yourself, by pasting it or by running <code>openlimiter ingest --provider '<id>'</code>. See <docs>ingestion</docs> for the exact paths."
+          },
+          "vocabulary": {
+            "title": "The full connection vocabulary",
+            "intro": "Underneath the three chips sits a larger vocabulary: thirteen named states, one module in the core package the whole product is built from, each with one plain sentence rather than a log line. It exists so a connection's state is a value every surface reads the same way, never a sentence each one is free to invent for itself.",
+            "caption": "Every state in the connection vocabulary, and what each one means",
+            "columns": {
+              "state": "state",
+              "meaning": "meaning"
+            },
+            "rows": {
+              "notConfigured": {
+                "meaning": "Not connected."
+              },
+              "detected": {
+                "meaning": "Found on this machine but not collecting yet."
+              },
+              "needsAuth": {
+                "meaning": "Waiting for a credential."
+              },
+              "readyToEnable": {
+                "meaning": "Ready to start collecting."
+              },
+              "connecting": {
+                "meaning": "Connecting."
+              },
+              "connected": {
+                "meaning": "Connected and collecting."
+              },
+              "degraded": {
+                "meaning": "The provider is refusing reads for now."
+              },
+              "stale": {
+                "meaning": "The last reading is older than it should be."
+              },
+              "authExpired": {
+                "meaning": "The stored credential stopped working."
+              },
+              "importOnly": {
+                "meaning": "Reads only what you import. Nothing is collected automatically."
+              },
+              "manual": {
+                "meaning": "Shows the plan you entered yourself."
+              },
+              "unsupported": {
+                "meaning": "No safe automatic source exists for this product yet."
+              },
+              "error": {
+                "meaning": "This connection failed and needs a look."
+              }
+            },
+            "bullets": {
+              "declared": "<code>IMPORT_ONLY</code>, <code>MANUAL</code> and <code>UNSUPPORTED</code> are declared rather than attempted, by design: the product states them outright, and nothing that happens afterward, a response, a failure, a timeout, is allowed to quietly promote one of them to <code>CONNECTED</code>. Only OpenLimiter itself declaring otherwise moves a connection out of one.",
+              "lifecycle": "The rest name a lifecycle a live reader would move a connection through: found but not yet collecting, waiting on a credential, connecting, connected, and, when something goes wrong, degraded, stale, expired, or needing a look."
+            },
+            "what-this-is-not-claiming": {
+              "title": "What this page is not claiming",
+              "body": "Not that all thirteen are on screen. What the dashboard actually renders today is the simpler, three chip vocabulary above, built for a release where nothing performs a network read. The thirteen states are real and tested in the core package this product is built from, and they name the general lifecycle any connection follows once a live reader exists. No surface renders those words yet, because nothing today does the thing that would put a connection into one of them: no reader, no request, nothing to fail, expire, or need a credential for."
+            }
+          },
+          "what-changes": {
+            "title": "What changes when a live connection ships",
+            "intro": "Nothing on this page is a date or a promise. When a provider gains a real reader, the honest description of it stops being a fixed chip and starts being whichever of the thirteen states above actually fits at that moment: detected, waiting on a credential, connecting, connected, or, when something goes wrong, degraded, stale, or needing a look. That is the reason to name the whole vocabulary now, before any of it is reachable, so the sentence a person reads does not change on the day the state underneath it starts moving.",
+            "noReader": "No provider has that reader today. See the <roadmap>roadmap</roadmap> for what is planned and what is not, and <providers>supported providers</providers> for what each connector can actually do right now."
+          }
+        }
+      },
+      "ingestion": {
+        "title": "Ingestion",
+        "description": "The three offline paths that put quota data in front of OpenLimiter, and what each one expects.",
+        "lead": "Three paths put quota data in front of OpenLimiter. All three are offline. None of them reaches the network, and until one of them runs, every command honestly reports unknown.",
+        "sections": {
+          "statusline": {
+            "title": "1. The Claude Code statusline payload",
+            "intro": "This is the path that needs no extra work once Claude Code is wired up. Claude Code runs your statusline command on every render and writes a JSON object describing the current session to that command's standard input. When that object carries a rate limit block, <code>openlimiter statusline</code> validates it, writes it to the cache, and renders the fresh numbers in the same call.",
+            "blockLabel": "the block it reads, from Anthropic's own statusline documentation",
+            "fields": "<code>used_percentage</code> is the share of the window already used, from 0 to 100. <code>resets_at</code> is a Unix epoch number in seconds, not a date string. Both field names and the epoch encoding come from Anthropic's published statusline documentation rather than from this project, and each window is independently optional: a payload naming only one of them is one complete meter, not a partial one.",
+            "bullets": {
+              "rateLimits": "<code>rate_limits</code> appears only for Claude.ai subscribers on a Pro or Max plan, and only after the first API response of a session. A payload with no <code>rate_limits</code> block is the ordinary shape of a free account or a session that has not called the API yet, not an error.",
+              "implausibleReset": "A reset implausibly far out for its own window, a five hour window resetting days away, is dropped on its own rather than trusted. The other window still counts."
+            },
+            "ignored": "Anything else in the session object is ignored. A window that fails validation is dropped and the other window still counts.",
+            "calloutTitle": "This path can never break your statusline",
+            "calloutBody": "If standard input is absent, empty, malformed, or carries no recognisable rate limit field, the statusline falls back to the cache and reports unknown. It never blocks and never fails. Not every Claude Code version sends rate limit fields; if yours does not, this path simply stays quiet."
+          },
+          "manual-document": {
+            "title": "2. A manual document on disk",
+            "intro": "Write <code>manual.json</code> inside the state directory and every command picks it up. See <docs>configuration</docs> for where that directory lives on each platform.",
+            "manual-rules": {
+              "title": "The rules each row must satisfy",
+              "bullets": {
+                "name": "<code>name</code> is one uppercase identifier of up to 32 characters, starting with a letter.",
+                "usedPercent": "<code>used_percent</code> is a number from 0 to 100.",
+                "resetAt": "<code>reset_at</code> is an ISO instant in the future.",
+                "ten": "Up to ten meters are read. Rows past the tenth are ignored.",
+                "dropped": "A row that breaks any of those rules is dropped, and the remaining rows still count. Nothing is repaired."
+              }
+            },
+            "refresh": "Run <code>openlimiter snapshot --refresh</code> to fold the file into the cache."
+          },
+          "ingest-command": {
+            "title": "3. The generic ingest command",
+            "intro": "Any script or agent can hand OpenLimiter a document without a provider integration. The command reads standard input, or an inline document passed with <code>--payload</code>.",
+            "terminalLabel": "terminal",
+            "provider": "Without a provider flag the document is treated as a manual document, so the resulting snapshot is labelled with manual precision. With <code>--provider '<id>'</code> the document is handed to that connector's own parser and keeps that connector's labels.",
+            "validIds": "Valid provider ids are <code>claude</code>, <code>openrouter</code>, <code>codex</code>, <code>antigravity</code>, <code>opencode</code>, and <code>manual</code>. An unknown id is a usage error and exits 2."
+          },
+          "merging": {
+            "title": "What happens to the data",
+            "intro": "Ingested rows merge into one cache under the same lock every other writer uses, so nothing already cached is lost and two writers observing different providers cannot silently drop each other's rows.",
+            "bullets": {
+              "validated": "Values are validated against the snapshot schema before anything is written.",
+              "bounds": "Percentages stay between 0 and 100. A value outside that range is not clamped, it is dropped.",
+              "atomic": "Every write lands through an atomic replacement, so a reader observes either the previous content or the new content and never a partial file.",
+              "freshness": "Freshness is derived from when a reading was observed and when it expires, so stale data is labelled rather than silently reused as current."
+            },
+            "nothingSurvives": "Nothing survives validation? The command reports that no bounded meter survived and exits with a failure, rather than writing a placeholder."
+          }
+        }
+      },
+      "agent-context": {
+        "title": "Agent context",
+        "description": "What the Claude Code statusline and prompt hook inject, and the boundary that keeps provider text out.",
+        "lead": "Two surfaces reach your agent: a one line statusline for you to read, and a bounded context block for the model. This page documents exactly what each one contains and the boundary that keeps provider text out of both.",
+        "sections": {
+          "statusline": {
+            "title": "The statusline",
+            "intro": "One line, rendered on every Claude Code statusline call. It names the worst state across your providers, lists the providers with a usable reading, and names the ones that are unknown.",
+            "exampleLabel": "example output, synthetic values",
+            "truncation": "Usage is truncated, never rounded upward, so a meter at 99.99% reads as 99.9%. When nothing usable is cached the whole line reduces to <code>OpenLimiter UNKNOWN</code>."
+          },
+          "context-block": {
+            "title": "The context block",
+            "intro": "The prompt hook emits a small block on <code>UserPromptSubmit</code>. It is plain text with one field per line, wrapped in an explicit untrusted data boundary.",
+            "exampleLabel": "example block, synthetic values",
+            "fields": {
+              "title": "Every field it can contain",
+              "caption": "Fields in the agent context block",
+              "columns": {
+                "field": "field",
+                "meaning": "meaning"
+              },
+              "rows": {
+                "schema": {
+                  "meaning": "Format version. Currently 2."
+                },
+                "recommendationCode": {
+                  "meaning": "<code>PREFER</code> when a provider is worth routing to, or <code>NONE</code> when nothing usable stands out."
+                },
+                "recommendationProvider": {
+                  "meaning": "The provider code the advice points at. Present only when the code is PREFER."
+                },
+                "recommendationReason": {
+                  "meaning": "Why that provider: <code>LOWEST_USAGE</code> today. An enum, never prose."
+                },
+                "notice": {
+                  "meaning": "A fixed sentence telling the model to treat the block as untrusted data."
+                },
+                "reason": {
+                  "meaning": "The worst state across providers: <code>HEALTHY</code>, <code>NEAR_CAP</code> at 80% or above, or <code>AT_CAP</code> at 100%."
+                },
+                "provider": {
+                  "meaning": "One line per provider with a usable reading, carrying <code>state</code> of <code>fresh</code> or <code>stale</code>, a bounded <code>usage_percent</code>, and a <code>reset_at</code> instant or <code>NONE</code>."
+                },
+                "unknown": {
+                  "meaning": "The providers with no usable reading, or <code>NONE</code> when every provider was read."
+                }
+              }
+            }
+          },
+          "boundary": {
+            "title": "The safety boundary",
+            "calloutTitle": "Provider text never reaches your agent",
+            "calloutBody": "Provider responses are untrusted data. Connector parsers select known numeric fields and known timestamps, then discard labels, messages, account text, markup, and every unknown field. The advice engine emits only provider enum codes, reason enum codes, bounded percentages, freshness enum codes, and timestamps. The Claude Code adapter validates all of those again before writing the block.",
+            "injectionSurface": "This matters because a block injected into a prompt is an injection surface. If a provider could put arbitrary text into your agent's context through a billing message or an account name, that text would arrive with the authority of your own tooling. Nothing in this pipeline can carry it.",
+            "silence": {
+              "title": "When it injects nothing",
+              "bullets": {
+                "unknown": "If every provider is unknown, the adapter injects nothing at all.",
+                "validation": "If the advice fails its own validation, the adapter injects nothing.",
+                "cache": "If the cache cannot be read, the hook returns an empty result rather than guessing."
+              }
+            }
+          },
+          "hook-behaviour": {
+            "title": "How the hook behaves",
+            "bullets": {
+              "readsOnly": "It reads the cache only. It performs no network request of any kind and writes nothing.",
+              "exitsZero": "It exits 0 whatever happens, including on internal failure, so it cannot break a session.",
+              "inspect": "Running <code>openlimiter hook</code> in a terminal prints exactly what would be injected, which is a safe way to inspect it before wiring it into a real session."
+            },
+            "writes": "The statusline is the only path that writes. See <config>configuration</config> for the exact Claude Code settings, and <cli>the CLI reference</cli> for the commands."
+          }
+        }
+      },
+      "configuration": {
+        "title": "Configuration",
+        "description": "The state directory, the configuration file, the cache, and the settings Claude Code needs.",
+        "lead": "OpenLimiter keeps everything in one state directory under your own user account: a configuration file, a cache, a lock, and the optional manual document. This page says where that is and what each file does.",
+        "sections": {
+          "state-directory": {
+            "title": "The state directory",
+            "caption": "Where the state directory lives on each platform",
+            "columns": {
+              "platform": "platform",
+              "path": "path"
+            },
+            "permissions": "The directory is created with restrictive permissions where the platform supports them. A path that turns out to be a symbolic link is rejected rather than followed."
+          },
+          "files": {
+            "title": "What lives in it",
+            "caption": "Files inside the state directory",
+            "columns": {
+              "file": "file",
+              "role": "role"
+            },
+            "rows": {
+              "config": {
+                "role": "Written by <code>openlimiter init</code>. Records the connector list, whether each one was detected, and the statusline layout."
+              },
+              "cache": {
+                "role": "The one cache every command reads and every writer merges into."
+              },
+              "lock": {
+                "role": "Held by writers only. Readers never take it."
+              },
+              "manual": {
+                "role": "Optional. Quota you maintain by hand. See <docs>ingestion</docs> for the shape."
+              }
+            }
+          },
+          "cache-behaviour": {
+            "title": "How the cache behaves",
+            "bullets": {
+              "oneFile": "One schema, one file, one lock. There are no competing state files to reconcile.",
+              "readers": "Readers never take the lock. A reader opens the file, validates that open descriptor, and reads through it, so a path swapped after the check cannot redirect the bytes.",
+              "writers": "Writers take the lock, and the read, the merge, and the write all happen inside it. A lock older than five seconds is treated as abandoned and reclaimed.",
+              "atomic": "Every replacement flushes to stable storage before the rename, so a reader observes either the previous content or the new content and never a partial file."
+            },
+            "doctor": "Cache health is visible at any time through <code>openlimiter doctor</code>, which prints the cache status and how many rows were dropped for failing validation."
+          },
+          "statusline": {
+            "title": "The statusline layout",
+            "intro": "The statusline draws one compact cell per provider: a name, a five block bar, and the percentage, with the overall reason code and the routing recommendation leading the row. Six keys in the configuration file decide how that row is built, and <code>openlimiter config</code> is how they are read and changed.",
+            "capturedFixturesLabel": "captured {date}, synthetic fixtures",
+            "capturedLabel": "captured {date}",
+            "statusline-keys": {
+              "title": "Every key",
+              "caption": "The statusline keys and what each one accepts",
+              "columns": {
+                "key": "key",
+                "accepts": "accepts",
+                "meaning": "meaning"
+              },
+              "rows": {
+                "order": {
+                  "accepts": "provider ids, comma separated, or <code>NONE</code>",
+                  "meaning": "The order the cells appear in. Whatever you list comes first; every provider you leave out follows the built in order behind it, which is the subscription plans and then the credit and API meters. <code>NONE</code> is the way back to that built in order. Default <code>NONE</code>."
+                },
+                "meters": {
+                  "accepts": "<code>worst</code> or <code>all</code>",
+                  "meaning": "A provider with several meters shows the one closest to its cap, or all of them as separate cells named <code>PROVIDER:METER</code>. Meters order session, daily, weekly, monthly, credits. Default <code>worst</code>."
+                },
+                "width": {
+                  "accepts": "a whole number from 40 to 400",
+                  "meaning": "The columns one row may spend before the line stacks. Nothing measures your terminal: a statusline host runs the command with no terminal attached, so the number here is the number honoured. Default <code>140</code>."
+                },
+                "rows": {
+                  "accepts": "<code>1</code> or <code>2</code>",
+                  "meaning": "How many rows the layout may use. Default <code>2</code>."
+                },
+                "bars": {
+                  "accepts": "<code>true</code> or <code>false</code>",
+                  "meaning": "False restores the single plain line from 0.1.0, byte for byte. Default <code>true</code>."
+                },
+                "color": {
+                  "accepts": "<code>auto</code>, <code>always</code>, or <code>never</code>",
+                  "meaning": "<code>auto</code> follows the terminal, which for a statusline host usually means no colour, because the host captures the output rather than handing the command a terminal. <code>always</code> is how you say the host understands escape codes. Default <code>auto</code>."
+                }
+              }
+            },
+            "calloutTitle": "NO_COLOR beats always",
+            "calloutBody": "The environment variable is the one setting a person makes once for every tool on the machine, so a configuration file inside one tool does not overrule it. With <code>NO_COLOR</code> set, the bars are drawn in <code>#</code> and <code>.</code> and no escape code is emitted at all.",
+            "statusline-commands": {
+              "title": "Reading and writing them",
+              "oneKey": "One key at a time, validated before it is written. A value the key cannot use exits 2 and names what it wanted, and nothing partial is written, because the whole document is replaced atomically. Statusline keys are the only thing this command mutates: the connector list belongs to <code>openlimiter init</code>, and any other key exits 2.",
+              "reinit": "Re running <code>openlimiter init</code> keeps whatever is configured here and only redetects the connectors. A statusline key this version cannot read falls back to its default rather than stopping the draw, so a hand edited typo in one field never costs you the other five."
+            },
+            "statusline-stacking": {
+              "title": "When the row runs out of room",
+              "body": "The line stacks instead of truncating. A break lands between two cells and never inside one, and two rows is the ceiling. Past that the providers closest to their caps are the ones kept, and the last row ends by saying how many it could not show."
+            },
+            "statusline-plain": {
+              "title": "The 0.1.0 line, on request",
+              "body": "The format before this layout was one plain line with no bars. If you wrote a script against it, <code>bars false</code> returns it exactly, and a test pins that exact string so it cannot drift."
+            }
+          },
+          "claude-code": {
+            "title": "Claude Code settings",
+            "intro": "Use the absolute path to your clone. Forward slashes work on every platform, including Windows.",
+            "which-writes": {
+              "title": "Which of the two writes",
+              "body": "Only the statusline. It is the path that receives the session payload, so it is the path that updates the cache. The hook reads and never writes."
+            }
+          },
+          "credentials": {
+            "title": "Credentials",
+            "calloutTitle": "Keys belong in the operating system credential store",
+            "calloutBody": "The only credential OpenLimiter has any concept of is an OpenRouter key, and it belongs in your operating system credential store. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs. Provider authentication artifacts are opened read only and are never rewritten, backed up, repaired, or migrated.",
+            "stub": "The credential library call sits behind an interface, and the adapter is stubbed in this release, so <code>openlimiter init</code> cannot store a key until a driver is supplied. Nothing else on your machine is touched."
+          },
+          "detection": {
+            "title": "Connector detection",
+            "intro": "Detection is a pure function of the environment the CLI hands a connector. Facts only the CLI can observe, such as a manual document sitting in the state directory, arrive as explicit markers, which is why <code>openlimiter doctor</code> never claims a connector is ready when it could not receive data.",
+            "terminalLabel": "terminal",
+            "corrupt": "A cache that would not parse, or one that parsed with rows thrown out, adds one more line in red saying so. It reports against the cache rather than against a provider, because a corrupt file cannot be trusted to say whose reading it held."
+          }
+        }
+      },
+      "cli": {
+        "title": "CLI reference",
+        "metaTitle": "CLI reference: commands, flags and exit codes",
+        "description": "Every command the CLI accepts today, with its flags, its output, and its exit codes.",
+        "lead": "Ten commands, one binary. Agent tools and people get the same interface, and every command reports a genuine failure rather than inventing a number.",
+        "sections": {
+          "overview": {
+            "title": "Overview",
+            "install": "Install the global command with <code>npm install -g openlimiter</code>, then run each example exactly as shown."
+          },
+          "commands": {
+            "title": "The commands",
+            "capturedFixturesLabel": "captured {date}, synthetic fixtures",
+            "capturedLabel": "captured {date}",
+            "init": {
+              "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
+            },
+            "snapshot": {
+              "intro": "Prints the cached quota as a table. With <code>--refresh</code> it first asks every connector for meters, folds what survives validation into the cache, and then prints. Exits 3 when no bounded quota data exists.",
+              "columns": "Eight columns, always eight, separated by one space, so a script can split a row without guessing. <code>BAR</code> is a ten block meter, drawn in colour when the terminal supports it and in <code>#</code> and <code>.</code> when it does not or when <code>NO_COLOR</code> is set. <code>AMOUNT</code> carries the money for a plan that is priced rather than rationed. <code>RESET</code> is the instant the window turns over and <code>IN</code> is how long that is from now. A column with nothing to say reads <code>NONE</code> rather than disappearing.",
+              "syntheticLabel": "synthetic values",
+              "failures": "A connector that was handed a payload and could not read it, or a reading the validator threw out, adds one line under the table in red, naming the provider and one fixed sentence. That sentence is always one of ours: no text a provider sent ever reaches your terminal."
+            },
+            "statusline": {
+              "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
+              "cells": "The overall reason code leads, then the routing recommendation, then one compact cell per provider: a name, a five block bar, and the percentage. Five blocks rather than the ten the table draws, because a status row is shared with a model name, a branch and a directory, and it has to read at a glance. The percentage is truncated like everywhere else, so a bar never lights a block the reading has not earned.",
+              "order": "Subscription providers come first and credit or API providers last, so a window that refills on a clock is never read next to a balance that does not come back. Within a provider the meters order session, daily, weekly, monthly, credits, and the cell shows the meter closest to its cap. The full set is one <code>openlimiter snapshot</code> away, or set <code>statusline.meters all</code> to put every meter in the row as its own cell.",
+              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
+              "calloutTitle": "The old line is still one setting away",
+              "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
+            },
+            "config": {
+              "body": "Reads and changes the statusline layout in the configuration file. Every key is validated before it is written, a rejected value exits 2 and names what it wanted, and nothing outside the statusline section can be changed by this command. See <docs>configuration</docs> for what each key accepts."
+            },
+            "hook": {
+              "body": "Emits the agent context block from the cache. It performs no network access, writes nothing, and injects nothing when every provider is unknown. See <docs>agent context</docs> for the exact format."
+            },
+            "ingest": {
+              "body": "Accepts a quota document from any script or agent, on standard input or inline with <code>--payload</code>. Without <code>--provider</code> the document is a manual document. With it, the document goes to that connector's parser and keeps that connector's labels."
+            },
+            "doctor": {
+              "body": "Reports connector detection, freshness, drift, and cache health. Drift stays <code>UNVERIFIED</code> until an explicit verifier exists, and the output is redacted by design."
+            },
+            "demo": {
+              "body": "Renders synthetic fixtures so you can see the output shape without any real account. Every value it prints is invented. The block below is the real output of that command, pasted in unedited."
+            },
+            "export": {
+              "body": "Prints the cache as canonical JSON, suitable for a script to parse. Exits 3 when the cache holds no bounded quota data."
+            },
+            "serve": {
+              "body": "Serves a read only snapshot of your quota on your own local network, so a phone on the same network can see it. Prints the address and a QR code to scan. A fresh token is generated every time the command starts, and it rides in the URL fragment after <code>#t=</code>, which a server never receives. The page moves that token into the tab's own <code>sessionStorage</code> and cleans the address bar on first load, so no browser history anywhere keeps the capability. Every refetch after that sends the token as an <code>Authorization: Bearer</code> header instead of a URL parameter. An address printed by last release, with the token as a query parameter, still answers for this one release, so nothing already scanned or saved breaks.",
+              "calloutTitle": "Anyone who can see the screen can read the quota",
+              "calloutBody": "The address and the code ARE the key: anyone who can see this screen, or a photograph of it, can read your quota for as long as the command keeps running. This listens on every interface on the machine, so do not port forward this port and do not open it on a firewall. It is meant for a trusted home or office network, never for the open internet, and it exposes only the bounded fields the agent context carries."
+            }
+          },
+          "exit-codes": {
+            "title": "Exit codes",
+            "caption": "Exit codes and what they mean",
+            "columns": {
+              "code": "code",
+              "meaning": "meaning"
+            },
+            "rows": {
+              "success": "Success.",
+              "failure": "A genuine failure.",
+              "usage": "A usage error, such as an unknown provider id.",
+              "noData": "No bounded quota data is available."
+            },
+            "calloutTitle": "hook and statusline always exit 0",
+            "calloutBody": "Both are invoked by another tool, so they report unknown instead of breaking their host. Every other command surfaces a failure on standard error using a fixed set of strings that never carry provider text, paths taken from a payload, or secrets."
+          },
+          "notes": {
+            "title": "Behaviour worth knowing",
+            "bullets": {
+              "stdin": "Standard input is bounded and time limited, so a command never waits on a stream that does not end.",
+              "truncated": "Displayed percentages are truncated rather than rounded, so no surface can report a cap that was not reached.",
+              "flags": "<code>--provider</code> and <code>--payload</code> each need a value. Passing the flag without one is a usage error.",
+              "noNetwork": "In this release no command reaches the network. Every path is a parser over something already on your machine."
+            }
+          }
+        }
+      },
+      "security": {
+        "title": "Security and privacy",
+        "description": "What OpenLimiter guarantees, what it deliberately does not do, and how to report a problem.",
+        "lead": "OpenLimiter runs on your machine and reads things that are already there. This page states what that guarantees, what it deliberately does not do, and how to report a problem.",
+        "sections": {
+          "guarantees": {
+            "title": "The guarantees",
+            "calloutTitle": "What OpenLimiter guarantees",
+            "bullets": {
+              "noServer": "<strong>There is no OpenLimiter server.</strong> Nothing is sent to the project authors, because there is nowhere to send it.",
+              "noTelemetry": "<strong>There is no telemetry.</strong> No command sends usage, diagnostics, identifiers, prompts, or quota state anywhere.",
+              "hookNoNetwork": "<strong>The hook makes no network request.</strong> It reads the local cache and nothing else.",
+              "noEgress": "<strong>This release performs no egress at all.</strong> No connector contacts a provider. Every one of them is a parser over data something else already produced.",
+              "unknownNeverZero": "<strong>Unknown never becomes zero.</strong> Missing, expired, malformed, and unrecognised input all resolve to unknown.",
+              "readOnlyArtifacts": "<strong>Provider authentication artifacts are read only.</strong> They are never rewritten, backed up, repaired, or migrated."
+            }
+          },
+          "injection-boundary": {
+            "title": "The agent context boundary",
+            "intro": "Provider text is untrusted data. A block injected into a prompt is an injection surface, so the pipeline is built so that no provider supplied text can reach it.",
+            "bullets": {
+              "parsers": "Connector parsers select known numeric fields and known timestamps. They discard labels, messages, account text, markup, and every unknown field.",
+              "advice": "The advice engine emits only provider enum codes, reason enum codes, bounded percentages, freshness enum codes, and timestamps.",
+              "adapter": "The Claude Code adapter validates all of those again and wraps them in an explicit untrusted data boundary before anything is written.",
+              "unknown": "If every provider is unknown, the adapter injects nothing."
+            },
+            "exactBlock": "The exact block, field by field, is on the <docs>agent context page</docs>."
+          },
+          "secrets": {
+            "title": "Secret handling",
+            "intro": "The only credential the project has a concept of is an OpenRouter key, and it belongs in your operating system credential store. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs. The credential library call sits behind an interface, and the tests use only a memory implementation with a synthetic key.",
+            "local-state": {
+              "title": "Local state",
+              "body": "The state directory is created with restrictive permissions where the platform supports them, a path that turns out to be a symbolic link is rejected rather than followed, and every file replacement is atomic. See <docs>configuration</docs> for the paths."
+            }
+          },
+          "honest-limits": {
+            "title": "Honest limitations",
+            "calloutTitle": "Read this before you rely on a number",
+            "bullets": {
+              "noOfficialApi": "Most consumer subscription providers offer no official quota API. Several connectors therefore describe unofficial interfaces that can change or disappear without notice.",
+              "unverified": "Every connector ships marked <code>UNVERIFIED</code>. Nothing here has been confirmed against a live account by an explicit verifier.",
+              "opencode": "The OpenCode connector describes an authenticated page shape and carries high automation risk. Treat it as the most fragile of the six.",
+              "adviceOnly": "OpenLimiter provides routing advice. It does not route requests automatically, bypass limits, or change how your agent authenticates."
+            }
+          },
+          "future-egress": {
+            "title": "If a future connector goes to the network",
+            "intro": "This release performs no provider egress. A future connector that does would have to satisfy all of the following before it could ship.",
+            "bullets": {
+              "oneHost": "Declare one exact provider host.",
+              "transport": "Use secure transport and reject any redirect outside that host.",
+              "bounds": "Set a short timeout and bound the response size.",
+              "status": "Document its interface status honestly.",
+              "sendNothing": "Send no cache content, no other provider state, no prompts, no source code, and no diagnostics."
+            }
+          },
+          "reporting": {
+            "title": "Reporting a problem",
+            "address": "Report a suspected vulnerability privately to <code>security@openlimiter.com</code>. Include a concise description, the affected version, reproduction steps using synthetic data, and the expected impact. Do not include real credentials or provider account data. That address is a project placeholder until the public security intake is activated.",
+            "scope": "In scope: secret disclosure, provider artifact mutation, unsafe cache behaviour, symbolic link bypass, parser bounds bypass, agent context injection, and unexpected network egress. Connector drift with no security impact is a compatibility issue, so please open a connector request instead. The full policy lives in <policy>SECURITY.md</policy> and the reasoning in <threat>THREAT_MODEL.md</threat>.",
+            "supported": "Only the latest released version receives security fixes during the initial development period."
+          }
+        }
+      },
+      "roadmap": {
+        "title": "Roadmap",
+        "description": "What is planned and not yet built: mobile applications, encrypted sync, and signed builds with an automatic update channel.",
+        "lead": "What is on this page is not yet built, with one exception noted at the top so nothing here reads as a promise about something that already ships. None of the planned work can be downloaded, bought, or waited for on a list. It is written down so the shape of the project is honest about where it is going.",
+        "sections": {
+          "not-available": {
+            "title": "Read this first",
+            "calloutTitle": "Planned means not built",
+            "calloutBody": "Everything called planned below does not exist today. There is no mobile application in any store and no synchronisation service running anywhere. What works today is documented on the rest of this site, and the difference between the two is deliberate."
+          },
+          "desktop": {
+            "title": "Shipped: the desktop application",
+            "intro": "A small desktop application with a tray icon next to the system clock, reading the same local cache the command line tool writes, so quota is glanceable without a terminal open. It is built, and packaged builds for Windows, macOS and Linux are all attached to the release on GitHub.",
+            "bullets": {
+              "status": "Status: shipped on Windows, macOS and Linux. Every build is on the releases page, and the download page links each file directly.",
+              "signing": "Planned: code signing on Windows and notarisation on macOS. Until those are done, SmartScreen and Gatekeeper warn on first run.",
+              "updates": "Planned: an automatic update channel. There is none today."
+            }
+          },
+          "mobile": {
+            "title": "Planned: native mobile applications",
+            "intro": "Applications for iOS and Android, so a long running window can be checked away from the desk. The web app already installs to a phone home screen and works offline, which is the part of this that exists.",
+            "bullets": {
+              "status": "Status: planned. Nothing is submitted to any store.",
+              "dependsOnSync": "A phone cannot read a file on your laptop, so a native application that shows the numbers on your desk machine depends on the synchronisation work below."
+            }
+          },
+          "sync": {
+            "title": "Planned: OpenLimiter Pro",
+            "intro": "Everything that can only run on a server, gathered into one planned paid tier at $5 a month, founding price. Nothing that runs locally today moves behind it: Pro sells servers and service, not switches. See <pricing>pricing</pricing> for the card as it stands.",
+            "bullets": {
+              "status": "Status: planned. No service exists, there is no checkout and no waiting list.",
+              "sync": "Encrypted synchronisation of quota state across your own devices.",
+              "push": "Push notifications to your phone when a window nears its cap.",
+              "smartLimiter": "A smart limiter: quota aware routing between your models, driven by live budget state.",
+              "email": "Email alerts and a weekly digest, with delivery rules for quiet hours.",
+              "history": "Hosted usage history and burn trends across every device.",
+              "priority": "Priority connector requests, so your provider gets built first.",
+              "team": "A team dashboard tier, later than the rest.",
+              "localFirst": "The local first guarantee does not change: the CLI would keep working with no account and no network."
+            }
+          },
+          "following": {
+            "title": "Following the work",
+            "body": "There is no waitlist and no email capture. The honest place to watch is the <issues>issue tracker</issues>, where the work is planned in public."
+          }
+        }
+      }
+    }
+  }
+}

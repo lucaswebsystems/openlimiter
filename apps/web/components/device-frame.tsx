@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { DemoDataChip, SectionHeading, SHELL } from "./ui";
 import { reveal } from "@/lib/motion";
 
@@ -14,6 +15,10 @@ import { reveal } from "@/lib/motion";
  * from public/ at its natural pixel size, and only its width and height are
  * written here, so the capture can be retaken at any time and the frame follows
  * it. Nothing in this component depends on what is inside the picture.
+ *
+ * The accessible description of what is inside it does depend on it, though,
+ * and that string lives in the message catalog (`deviceFrame.screenshot.alt`)
+ * rather than on this object, so a locale change does not need a new capture.
  */
 
 interface Screenshot {
@@ -21,17 +26,17 @@ interface Screenshot {
   name: string;
   width: number;
   height: number;
-  alt: string;
 }
 
 const SCREENSHOT: Screenshot = {
   name: "desktop-app",
   width: 2560,
   height: 1600,
-  alt: "The OpenLimiter desktop application, showing one card per provider with a meter, a percentage, a freshness state and a reset countdown, over synthetic demo data.",
 };
 
 export function DeviceFrame() {
+  const t = useTranslations("deviceFrame");
+  const alt = t("screenshot.alt");
   const common = {
     width: SCREENSHOT.width,
     height: SCREENSHOT.height,
@@ -43,10 +48,7 @@ export function DeviceFrame() {
        (2026-08-10) after the fold shipped with the image butted straight
        against the footage. */
     <section className={`${SHELL} relative pb-8 pt-16 md:pb-16 md:pt-24`}>
-      <SectionHeading
-        title="Every plan on one screen"
-        lead="A card per provider: the meter, how fresh that reading is, and when the window resets. What you see here is what installs."
-      />
+      <SectionHeading title={t("title")} lead={t("lead")} />
       <div {...reveal}>
         <div className="elev-2 overflow-hidden rounded-xl border border-hairline bg-frame p-2 sm:rounded-2xl sm:p-3">
           {/* The pair. Same file name, same dimensions, one of them hidden by
@@ -55,7 +57,7 @@ export function DeviceFrame() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             {...common}
-            alt={SCREENSHOT.alt}
+            alt={alt}
             src={`/screenshots/${SCREENSHOT.name}.png`}
             fetchPriority="high"
             className={`shot-dark ${common.className}`}
@@ -63,17 +65,14 @@ export function DeviceFrame() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             {...common}
-            alt={SCREENSHOT.alt}
+            alt={alt}
             src={`/screenshots/${SCREENSHOT.name}-light.png`}
             loading="lazy"
             className={`shot-light ${common.className}`}
           />
         </div>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-2xl text-xs leading-relaxed text-muted">
-            The packaged desktop application, captured on a real machine against the project&apos;s
-            synthetic demo fixtures. No account, credential or real usage figure appears in it.
-          </p>
+          <p className="max-w-2xl text-xs leading-relaxed text-muted">{t("caption")}</p>
           <span className="flex-none">
             <DemoDataChip />
           </span>

@@ -41,6 +41,24 @@ export const LOCALE_FACES: Record<Locale, LocaleFace> = {
 };
 
 /**
+ * The tag each locale hands to `Intl`, for the few things a language reshapes
+ * rather than rewords.
+ *
+ * A date is the only one of those on this site today. Four of the five rows are
+ * the locale itself; `en` maps to `en-GB` because that is the tag the changelog
+ * has always formatted with, and it renders "10 August 2026". Plain `en` would
+ * quietly reorder that to "August 10, 2026", which is a change to the English
+ * site nobody asked for in a wave about the other four languages.
+ */
+export const INTL_LOCALE_TAG: Record<Locale, string> = {
+  en: "en-GB",
+  "pt-BR": "pt-BR",
+  es: "es-ES",
+  de: "de-DE",
+  ja: "ja-JP",
+};
+
+/**
  * Which locale a browser language tag lands on.
  *
  * The middleware negotiates Accept-Language against this rather than against

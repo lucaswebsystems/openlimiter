@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { INTL_LOCALE_TAG, type Locale } from "@/i18n/locales";
 
 /**
  * The changelog page is rendered from the repository's own CHANGELOG.md.
@@ -12,6 +13,19 @@ import path from "node:path";
  * a Changelog: `## [version] (date)` for a release and `### Group` for the
  * headings under it. Anything it does not recognise is carried through as a
  * paragraph rather than dropped, so no line of the real file can go missing.
+ *
+ * NOTHING HERE IS TRANSLATED, AND THAT IS THE POINT
+ * -------------------------------------------------
+ * Every version number, group heading and note this returns is a quotation from
+ * one file in the repository, so it reaches the page in the language it was
+ * written in. The page's own chrome, its heading, its lead, its empty state and
+ * its closing note, comes from the `changelog` catalog instead.
+ *
+ * The one word this file contributes itself is the fallback heading below, for
+ * bullets that appear under a release before any `### Group` does. It stays a
+ * literal because it is rendered in the same list as the headings quoted from
+ * the file, and a translated heading standing among untranslated ones would read
+ * as a bug rather than as a courtesy.
  */
 
 export interface ChangelogEntry {
@@ -94,11 +108,16 @@ export async function readChangelog(): Promise<readonly ChangelogRelease[]> {
 }
 
 /** Long form date, so the page never prints a bare numeric string. */
-export function formatReleaseDate(date: string | null): string | null {
+export function formatReleaseDate(date: string | null, locale: Locale): string | null {
   if (date === null) return null;
   const parsed = new Date(`${date}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleDateString("en-GB", {
+  /* A release date is one of the few things on the page that a language changes
+     the shape of rather than the words of, so it is formatted per locale rather
+     than translated. The `en` row of the tag map is `en-GB`, which is what this
+     function always passed: 10 August 2026 is the English the site already
+     shipped, and `en` on its own would have silently reordered it. */
+  return parsed.toLocaleDateString(INTL_LOCALE_TAG[locale], {
     day: "numeric",
     month: "long",
     year: "numeric",

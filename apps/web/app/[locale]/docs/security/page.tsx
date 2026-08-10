@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
+import type { ReactNode } from "react";
 import { DocArticle } from "@/components/docs/doc-article";
 import {
   Bullets,
@@ -11,51 +13,39 @@ import {
 } from "@/components/docs/prose";
 import { docMetadata } from "@/lib/metadata";
 import { REPO_URL } from "@/lib/site";
+import { type LocaleParams, pageLocale } from "@/i18n/params";
 
-export const metadata: Metadata = docMetadata("/docs/security");
+export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
+  return docMetadata("/docs/security", await pageLocale(params));
+}
 
-export default function SecurityPage() {
+export default async function SecurityPage({ params }: LocaleParams) {
+  await pageLocale(params);
+  /* Sentences come from the catalog, keyed by the anchor they render under. Each
+     guarantee opens on an emphasised clause, so the bullet stays one message
+     with a tag rather than a bold fragment glued to a sentence. */
+  const t = await getTranslations("docs.pages.security.sections");
+  const code = (chunks: ReactNode) => <Code>{chunks}</Code>;
+  const strong = (chunks: ReactNode) => <strong className="font-medium">{chunks}</strong>;
+
   return (
     <DocArticle
-      href="/docs/security"
-      title="Security and privacy"
-      lead="OpenLimiter runs on your machine and reads things that are already there. This page states what that guarantees, what it deliberately does not do, and how to report a problem."
+      id="security"
       sections={[
         {
           id: "guarantees",
-          title: "The guarantees",
+          title: t("guarantees.title"),
           body: (
             <>
-              <Callout tone="key" title="What OpenLimiter guarantees">
+              <Callout tone="key" title={t("guarantees.calloutTitle")}>
                 <Bullets
                   items={[
-                    <>
-                      <strong className="font-medium">There is no OpenLimiter server.</strong>{" "}
-                      Nothing is sent to the project authors, because there is nowhere to send it.
-                    </>,
-                    <>
-                      <strong className="font-medium">There is no telemetry.</strong> No command
-                      sends usage, diagnostics, identifiers, prompts, or quota state anywhere.
-                    </>,
-                    <>
-                      <strong className="font-medium">The hook makes no network request.</strong>{" "}
-                      It reads the local cache and nothing else.
-                    </>,
-                    <>
-                      <strong className="font-medium">This release performs no egress at all.</strong>{" "}
-                      No connector contacts a provider. Every one of them is a parser over data
-                      something else already produced.
-                    </>,
-                    <>
-                      <strong className="font-medium">Unknown never becomes zero.</strong> Missing,
-                      expired, malformed, and unrecognised input all resolve to unknown.
-                    </>,
-                    <>
-                      <strong className="font-medium">
-                        Provider authentication artifacts are read only.
-                      </strong>{" "}
-                      They are never rewritten, backed up, repaired, or migrated.
-                    </>,
+                    t.rich("guarantees.bullets.noServer", { strong }),
+                    t.rich("guarantees.bullets.noTelemetry", { strong }),
+                    t.rich("guarantees.bullets.hookNoNetwork", { strong }),
+                    t.rich("guarantees.bullets.noEgress", { strong }),
+                    t.rich("guarantees.bullets.unknownNeverZero", { strong }),
+                    t.rich("guarantees.bullets.readOnlyArtifacts", { strong }),
                   ]}
                 />
               </Callout>
@@ -64,84 +54,53 @@ export default function SecurityPage() {
         },
         {
           id: "injection-boundary",
-          title: "The agent context boundary",
+          title: t("injection-boundary.title"),
           body: (
             <>
-              <P>
-                Provider text is untrusted data. A block injected into a prompt is an injection
-                surface, so the pipeline is built so that no provider supplied text can reach it.
-              </P>
+              <P>{t("injection-boundary.intro")}</P>
               <Bullets
                 items={[
-                  <>
-                    Connector parsers select known numeric fields and known timestamps. They discard
-                    labels, messages, account text, markup, and every unknown field.
-                  </>,
-                  <>
-                    The advice engine emits only provider enum codes, reason enum codes, bounded
-                    percentages, freshness enum codes, and timestamps.
-                  </>,
-                  <>
-                    The Claude Code adapter validates all of those again and wraps them in an
-                    explicit untrusted data boundary before anything is written.
-                  </>,
-                  <>If every provider is unknown, the adapter injects nothing.</>,
+                  t("injection-boundary.bullets.parsers"),
+                  t("injection-boundary.bullets.advice"),
+                  t("injection-boundary.bullets.adapter"),
+                  t("injection-boundary.bullets.unknown"),
                 ]}
               />
               <P>
-                The exact block, field by field, is on the{" "}
-                <DocLink href="/docs/agent-context">agent context page</DocLink>.
+                {t.rich("injection-boundary.exactBlock", {
+                  docs: (chunks) => <DocLink href="/docs/agent-context">{chunks}</DocLink>,
+                })}
               </P>
             </>
           ),
         },
         {
           id: "secrets",
-          title: "Secret handling",
+          title: t("secrets.title"),
           body: (
             <>
+              <P>{t("secrets.intro")}</P>
+              <Sub id="local-state">{t("secrets.local-state.title")}</Sub>
               <P>
-                The only credential the project has a concept of is an OpenRouter key, and it
-                belongs in your operating system credential store. It must never appear in
-                repository files, cache files, exports, diagnostics, fixtures, or logs. The
-                credential library call sits behind an interface, and the tests use only a memory
-                implementation with a synthetic key.
-              </P>
-              <Sub id="local-state">Local state</Sub>
-              <P>
-                The state directory is created with restrictive permissions where the platform
-                supports them, a path that turns out to be a symbolic link is rejected rather than
-                followed, and every file replacement is atomic. See{" "}
-                <DocLink href="/docs/configuration">configuration</DocLink> for the paths.
+                {t.rich("secrets.local-state.body", {
+                  docs: (chunks) => <DocLink href="/docs/configuration">{chunks}</DocLink>,
+                })}
               </P>
             </>
           ),
         },
         {
           id: "honest-limits",
-          title: "Honest limitations",
+          title: t("honest-limits.title"),
           body: (
             <>
-              <Callout tone="note" title="Read this before you rely on a number">
+              <Callout tone="note" title={t("honest-limits.calloutTitle")}>
                 <Bullets
                   items={[
-                    <>
-                      Most consumer subscription providers offer no official quota API. Several
-                      connectors therefore describe unofficial interfaces that can change or
-                      disappear without notice.
-                    </>,
-                    <>
-                      Every connector ships marked <Code>UNVERIFIED</Code>. Nothing here has been
-                      confirmed against a live account by an explicit verifier.
-                    </>,
-                    <>
-                      The OpenCode connector describes an authenticated page shape and carries high
-                      automation risk. Treat it as the most fragile of the six.
-                    </>,
-                    <>
-                      OpenLimiter provides routing advice. It does not route requests
-                      automatically, bypass limits, or change how your agent authenticates.
-                    </>,
+                    t("honest-limits.bullets.noOfficialApi"),
+                    t.rich("honest-limits.bullets.unverified", { code }),
+                    t("honest-limits.bullets.opencode"),
+                    t("honest-limits.bullets.adviceOnly"),
                   ]}
                 />
               </Callout>
@@ -150,23 +109,17 @@ export default function SecurityPage() {
         },
         {
           id: "future-egress",
-          title: "If a future connector goes to the network",
+          title: t("future-egress.title"),
           body: (
             <>
-              <P>
-                This release performs no provider egress. A future connector that does would have
-                to satisfy all of the following before it could ship.
-              </P>
+              <P>{t("future-egress.intro")}</P>
               <Bullets
                 items={[
-                  <>Declare one exact provider host.</>,
-                  <>Use secure transport and reject any redirect outside that host.</>,
-                  <>Set a short timeout and bound the response size.</>,
-                  <>Document its interface status honestly.</>,
-                  <>
-                    Send no cache content, no other provider state, no prompts, no source code, and
-                    no diagnostics.
-                  </>,
+                  t("future-egress.bullets.oneHost"),
+                  t("future-egress.bullets.transport"),
+                  t("future-egress.bullets.bounds"),
+                  t("future-egress.bullets.status"),
+                  t("future-egress.bullets.sendNothing"),
                 ]}
               />
             </>
@@ -174,32 +127,23 @@ export default function SecurityPage() {
         },
         {
           id: "reporting",
-          title: "Reporting a problem",
+          title: t("reporting.title"),
           body: (
             <>
+              <P>{t.rich("reporting.address", { code })}</P>
               <P>
-                Report a suspected vulnerability privately to{" "}
-                <Code>security@openlimiter.com</Code>. Include a concise description, the affected
-                version, reproduction steps using synthetic data, and the expected impact. Do not
-                include real credentials or provider account data. That address is a project
-                placeholder until the public security intake is activated.
+                {t.rich("reporting.scope", {
+                  policy: (chunks) => (
+                    <ExternalLink href={`${REPO_URL}/blob/main/SECURITY.md`}>{chunks}</ExternalLink>
+                  ),
+                  threat: (chunks) => (
+                    <ExternalLink href={`${REPO_URL}/blob/main/THREAT_MODEL.md`}>
+                      {chunks}
+                    </ExternalLink>
+                  ),
+                })}
               </P>
-              <P>
-                In scope: secret disclosure, provider artifact mutation, unsafe cache behaviour,
-                symbolic link bypass, parser bounds bypass, agent context injection, and unexpected
-                network egress. Connector drift with no security impact is a compatibility issue,
-                so please open a connector request instead. The full policy lives in{" "}
-                <ExternalLink href={`${REPO_URL}/blob/main/SECURITY.md`}>SECURITY.md</ExternalLink>{" "}
-                and the reasoning in{" "}
-                <ExternalLink href={`${REPO_URL}/blob/main/THREAT_MODEL.md`}>
-                  THREAT_MODEL.md
-                </ExternalLink>
-                .
-              </P>
-              <P>
-                Only the latest released version receives security fixes during the initial
-                development period.
-              </P>
+              <P>{t("reporting.supported")}</P>
             </>
           ),
         },

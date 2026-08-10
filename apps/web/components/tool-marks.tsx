@@ -251,10 +251,37 @@ export interface Tool {
   readonly formerly?: string;
 }
 
-/** What a tool's hover text says, in one place, for every surface. */
-export function toolTitle(tool: Tool): string {
-  const named = tool.formerly === undefined ? tool.name : `${tool.name}, formerly ${tool.formerly}`;
-  return tool.state === "planned" ? `${named}, planned` : named;
+/**
+ * What a tool's hover text says, in one place, for every surface.
+ *
+ * A tool's name is a proper noun and is the same in every language. What is
+ * around it is a sentence: this one is planned, this one used to be called
+ * something else. So the name arrives as an argument and the sentence comes from
+ * `tools.title` in the catalogs, which every surface rendering a tool mark reads.
+ *
+ * The translator is required rather than optional. It was briefly optional, with
+ * an English fallback, while two lanes converted these callers at once; keeping
+ * that would have left a second copy of the same three sentences in code, and a
+ * caller that forgot to pass one would render untranslated text with nothing to
+ * show it had gone wrong.
+ */
+export function toolTitle(
+  tool: Tool,
+  t: (
+    key: "formerly" | "formerlyPlanned" | "planned",
+    values: { name: string; formerly?: string },
+  ) => string,
+): string {
+  if (tool.formerly !== undefined && tool.state === "planned") {
+    return t("formerlyPlanned", { name: tool.name, formerly: tool.formerly });
+  }
+  if (tool.formerly !== undefined) {
+    return t("formerly", { name: tool.name, formerly: tool.formerly });
+  }
+  if (tool.state === "planned") {
+    return t("planned", { name: tool.name });
+  }
+  return tool.name;
 }
 
 /** The six that ship. Order matches the connector table in the docs. */
@@ -338,9 +365,9 @@ export const heroMarks: readonly Tool[] = [
   ...plannedTools.filter((tool) => ["Perplexity", "Grok", "Gemini CLI"].includes(tool.name)),
 ];
 
-/**
- * The one sentence that makes a planned chip fair rather than a tease, and the
- * one place it is written. Every surface showing planned tools renders this.
+/*
+ * The one sentence that makes a planned chip fair rather than a tease used to be
+ * written here, as `MANUAL_TODAY_NOTE`. It renders on the agent grid and nowhere
+ * else, so it moved to `worksWith.manualNote` in the catalogs with the rest of
+ * that section's copy. This note records where it went.
  */
-export const MANUAL_TODAY_NOTE =
-  "Every tool on this page can be metered today. Write the numbers down with manual entry, or pipe a payload in with ingest from any script you control, and it lands in the same snapshot as a connector.";

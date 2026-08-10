@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import {
   ClaudeMark,
@@ -53,115 +54,121 @@ interface StripCard {
   Mark: (props: ToolMarkProps) => ReactNode;
 }
 
-/** One short line, written once, for every card with no connector behind it. */
-const PLANNED_LINE = "Planned connector. Meter it today through manual entry or ingest.";
-
-const connectors: readonly StripCard[] = [
-  {
-    name: "Claude",
-    Mark: ClaudeMark,
-    state: "today",
-    tag: "reads the native statusline payload",
-    detail:
-      "Parses the rate limit block Claude Code already hands to your statusline command. It asks nothing of Anthropic on its own.",
-  },
-  {
-    name: "OpenRouter",
-    Mark: OpenRouterMark,
-    state: "today",
-    tag: "reads a documented credits response",
-    detail:
-      "Parses the credits shape OpenRouter documents. The key belongs in your operating system credential store, never in a file.",
-  },
-  {
-    name: "Codex",
-    Mark: CodexMark,
-    state: "today",
-    tag: "reads an internal usage payload",
-    detail:
-      "Parses the usage shape the Codex tooling produces. The shape is internal, so it can change without notice, and it fails closed when it does.",
-  },
-  {
-    name: "Antigravity",
-    Mark: GoogleMark,
-    state: "today",
-    tag: "reads an internal quota payload",
-    detail:
-      "Parses the quota shape the Antigravity tooling produces. Internal too, marked as such, and never repaired or rewritten.",
-  },
-  {
-    name: "OpenCode",
-    Mark: OpenCodeMark,
-    state: "today",
-    tag: "reads a session you already opened",
-    detail:
-      "Describes the usage view behind an existing session. It carries the highest automation risk of the six and stops the moment that session expires.",
-  },
-  {
-    name: "Perplexity",
-    Mark: PerplexityMark,
-    state: "planned",
-    tag: "openlimiter ingest",
-    detail: PLANNED_LINE,
-  },
-  {
-    name: "Grok",
-    Mark: XaiMark,
-    state: "planned",
-    tag: "openlimiter ingest",
-    detail: PLANNED_LINE,
-  },
-  {
-    name: "Gemini CLI",
-    Mark: GeminiMark,
-    state: "planned",
-    tag: "openlimiter ingest",
-    detail: PLANNED_LINE,
-  },
-  {
-    name: "GitHub Copilot",
-    Mark: CopilotMark,
-    state: "planned",
-    tag: "openlimiter ingest",
-    detail: PLANNED_LINE,
-  },
-  {
-    name: "Cursor",
-    Mark: CursorMark,
-    state: "planned",
-    tag: "openlimiter ingest",
-    detail: PLANNED_LINE,
-  },
-  {
-    name: "Ollama",
-    Mark: OllamaMark,
-    state: "planned",
-    tag: "openlimiter ingest",
-    detail: PLANNED_LINE,
-  },
-  {
-    name: "DeepSeek",
-    Mark: DeepSeekMark,
-    state: "planned",
-    tag: "openlimiter ingest",
-    detail: PLANNED_LINE,
-  },
-  {
-    name: "Mistral",
-    Mark: MistralMark,
-    state: "planned",
-    tag: "openlimiter ingest",
-    detail: PLANNED_LINE,
-  },
-  {
-    name: "Manual entry",
-    Mark: ManualMark,
-    state: "today",
-    tag: "reads numbers you write yourself",
-    detail:
-      "Budgets you maintain by hand, for a self hosted model or any subscription without a connector. It never breaks and never guesses.",
-  },
-];
+/**
+ * The card data, built from the catalog.
+ *
+ * `t` is the `integrations` namespace translator, passed in rather than called
+ * at module scope: `useTranslations` only works inside the component. Provider
+ * names (Claude, OpenRouter, Codex, Antigravity, OpenCode and the rest of the
+ * catalogue) stay plain string literals rather than catalog entries, the same
+ * way footer.tsx leaves GitHub as a literal: they are proper nouns, identical in
+ * every language. "Manual entry" is not a brand and does go through the
+ * catalog. The `openlimiter ingest` tag is the real command name, so it stays a
+ * literal too rather than a translated sentence.
+ */
+function getConnectors(t: ReturnType<typeof useTranslations<"integrations">>): StripCard[] {
+  const plannedLine = t("plannedLine");
+  return [
+    {
+      name: "Claude",
+      Mark: ClaudeMark,
+      state: "today",
+      tag: t("connectors.claude.tag"),
+      detail: t("connectors.claude.detail"),
+    },
+    {
+      name: "OpenRouter",
+      Mark: OpenRouterMark,
+      state: "today",
+      tag: t("connectors.openRouter.tag"),
+      detail: t("connectors.openRouter.detail"),
+    },
+    {
+      name: "Codex",
+      Mark: CodexMark,
+      state: "today",
+      tag: t("connectors.codex.tag"),
+      detail: t("connectors.codex.detail"),
+    },
+    {
+      name: "Antigravity",
+      Mark: GoogleMark,
+      state: "today",
+      tag: t("connectors.antigravity.tag"),
+      detail: t("connectors.antigravity.detail"),
+    },
+    {
+      name: "OpenCode",
+      Mark: OpenCodeMark,
+      state: "today",
+      tag: t("connectors.openCode.tag"),
+      detail: t("connectors.openCode.detail"),
+    },
+    {
+      name: "Perplexity",
+      Mark: PerplexityMark,
+      state: "planned",
+      tag: "openlimiter ingest",
+      detail: plannedLine,
+    },
+    {
+      name: "Grok",
+      Mark: XaiMark,
+      state: "planned",
+      tag: "openlimiter ingest",
+      detail: plannedLine,
+    },
+    {
+      name: "Gemini CLI",
+      Mark: GeminiMark,
+      state: "planned",
+      tag: "openlimiter ingest",
+      detail: plannedLine,
+    },
+    {
+      name: "GitHub Copilot",
+      Mark: CopilotMark,
+      state: "planned",
+      tag: "openlimiter ingest",
+      detail: plannedLine,
+    },
+    {
+      name: "Cursor",
+      Mark: CursorMark,
+      state: "planned",
+      tag: "openlimiter ingest",
+      detail: plannedLine,
+    },
+    {
+      name: "Ollama",
+      Mark: OllamaMark,
+      state: "planned",
+      tag: "openlimiter ingest",
+      detail: plannedLine,
+    },
+    {
+      name: "DeepSeek",
+      Mark: DeepSeekMark,
+      state: "planned",
+      tag: "openlimiter ingest",
+      detail: plannedLine,
+    },
+    {
+      name: "Mistral",
+      Mark: MistralMark,
+      state: "planned",
+      tag: "openlimiter ingest",
+      detail: plannedLine,
+    },
+    {
+      name: t("connectors.manualEntry.name"),
+      Mark: ManualMark,
+      state: "today",
+      tag: t("connectors.manualEntry.tag"),
+      detail: t("connectors.manualEntry.detail"),
+    },
+  ];
+}
 
 /* The second row is surfaces rather than brands, so its glyphs are objects:
    a statusline, a hook, a shell, a file, a pipeline, a document. */
@@ -277,56 +284,57 @@ function JsonGlyph({ className = "h-5 w-5" }: ToolMarkProps) {
   );
 }
 
-const surfaces: readonly StripCard[] = [
-  {
-    name: "Claude Code statusline",
-    Mark: StatuslineGlyph,
-    state: "today",
-    tag: "openlimiter statusline",
-    detail:
-      "One line beside your prompt: the worst meter per provider with a reason code in front. It falls back to the cache and never blocks the tool that called it.",
-  },
-  {
-    name: "Claude Code prompt hook",
-    Mark: HookGlyph,
-    state: "today",
-    tag: "openlimiter hook",
-    detail:
-      "A bounded block on prompt submit, fenced in an explicit untrusted data boundary. When every provider is unknown it injects nothing at all.",
-  },
-  {
-    name: "Any shell",
-    Mark: ShellGlyph,
-    state: "today",
-    tag: "openlimiter snapshot",
-    detail:
-      "The whole snapshot as a table for you or as JSON for a script. No network call, no account, no daemon in the middle.",
-  },
-  {
-    name: "Any tool that can write a file",
-    Mark: FileGlyph,
-    state: "today",
-    tag: "openlimiter ingest",
-    detail:
-      "One generic command takes a payload for any connector, so a provider without an integration can still be fed from a script you control.",
-  },
-  {
-    name: "Continuous integration",
-    Mark: PipelineGlyph,
-    state: "today",
-    tag: "openlimiter export",
-    detail:
-      "Export the cache as JSON and assert on it in a pipeline. Every release is tested on Windows and Linux on every push.",
-  },
-  {
-    name: "Your own front end",
-    Mark: JsonGlyph,
-    state: "today",
-    tag: "one JSON document",
-    detail:
-      "The cache is a plain document on your disk with a versioned schema. Read it and build whatever view you want.",
-  },
-];
+/* The second row's tags are the exact command names (`openlimiter statusline`,
+   `openlimiter hook`, `openlimiter snapshot`, `openlimiter ingest`,
+   `openlimiter export`), so they stay literals for the same reason the CLI
+   reference never translates a command. Only "one JSON document", a
+   description rather than a command, comes from the catalog. */
+function getSurfaces(t: ReturnType<typeof useTranslations<"integrations">>): StripCard[] {
+  return [
+    {
+      name: t("surfaces.statusline.name"),
+      Mark: StatuslineGlyph,
+      state: "today",
+      tag: "openlimiter statusline",
+      detail: t("surfaces.statusline.detail"),
+    },
+    {
+      name: t("surfaces.promptHook.name"),
+      Mark: HookGlyph,
+      state: "today",
+      tag: "openlimiter hook",
+      detail: t("surfaces.promptHook.detail"),
+    },
+    {
+      name: t("surfaces.shell.name"),
+      Mark: ShellGlyph,
+      state: "today",
+      tag: "openlimiter snapshot",
+      detail: t("surfaces.shell.detail"),
+    },
+    {
+      name: t("surfaces.fileWriter.name"),
+      Mark: FileGlyph,
+      state: "today",
+      tag: "openlimiter ingest",
+      detail: t("surfaces.fileWriter.detail"),
+    },
+    {
+      name: t("surfaces.ci.name"),
+      Mark: PipelineGlyph,
+      state: "today",
+      tag: "openlimiter export",
+      detail: t("surfaces.ci.detail"),
+    },
+    {
+      name: t("surfaces.ownFrontend.name"),
+      Mark: JsonGlyph,
+      state: "today",
+      tag: t("surfaces.ownFrontend.tag"),
+      detail: t("surfaces.ownFrontend.detail"),
+    },
+  ];
+}
 
 /**
  * One card, and two deliberate absences.
@@ -343,6 +351,7 @@ const surfaces: readonly StripCard[] = [
  * and the support matrix under the provider grid states the rest.
  */
 function Card({ card }: { card: StripCard }) {
+  const t = useTranslations("integrations");
   const planned = card.state === "planned";
   return (
     <div className="lift elev-1 flex h-[192px] w-[280px] flex-none flex-col justify-between gap-3 rounded-2xl border border-hairline bg-surface p-4 hover:border-hairline-strong hover:bg-raised sm:w-[330px]">
@@ -359,7 +368,7 @@ function Card({ card }: { card: StripCard }) {
           </div>
           {planned && (
             <Chip tone="neutral" className="flex-none">
-              planned
+              {t("plannedChip")}
             </Chip>
           )}
         </div>
@@ -392,12 +401,12 @@ function Row({ cards, reverse = false }: { cards: readonly StripCard[]; reverse?
 }
 
 export function IntegrationStrip() {
+  const t = useTranslations("integrations");
+  const connectors = getConnectors(t);
+  const surfaces = getSurfaces(t);
   return (
     <section>
-      <SectionHeading
-        title="What it reads, where it lands"
-        lead="No testimonials, no avatar wall, no user count. Every card below either ships a connector in this release or says plainly that it does not have one yet."
-      />
+      <SectionHeading title={t("title")} lead={t("lead")} />
       <div className={`${VIEWPORT_BLEED} space-y-4`} {...reveal}>
         <Row cards={connectors} />
         <Row cards={surfaces} reverse />
