@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * The phone header's menu.
@@ -142,7 +143,15 @@ export function NavSheet({
         </svg>
       </button>
 
-      {open && (
+      {/* The overlay is PORTALED to the body, and that is a correctness rule,
+          not a styling preference: the trigger lives inside the header's
+          scope, which re declares every token in dark island values while the
+          header floats over the footage. Rendered in place, the sheet would
+          inherit that darkness in the light theme. As a child of body it
+          resolves the page's real theme, always: a sheet is a reading panel,
+          never part of the scenery behind it. It only renders after a press,
+          so document is always there to receive it. */}
+      {open && createPortal(
         <>
           {/* The scrim closes on a press, which is what a finger expects, and it
               is not focusable, because Escape is the keyboard's way out. */}
@@ -182,7 +191,8 @@ export function NavSheet({
               {themeToggle}
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );

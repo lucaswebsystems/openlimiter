@@ -20,3 +20,6 @@ openlimiter-cache.json
 openlimiter.lock
 *.tmp
 vendor/offline-seed/
+
+# Per lane Next build dirs (see apps/web/next.config.ts, OL_DIST_DIR)
+.next-*/

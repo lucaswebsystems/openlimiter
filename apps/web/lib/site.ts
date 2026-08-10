@@ -81,9 +81,9 @@ export const COFFEE_URL = "https://buymeacoffee.com/lucaswebsystems";
  * pricing card. Every other surface, the FAQ and the roadmap included, names
  * the founding price alone.
  */
-export const PRO_PRICE = "5 USD";
-export const PRO_REGULAR_PRICE = "10 USD";
-export const PRO_PRICE_NOTE = "10 USD is the planned regular price. Early supporters keep 5.";
+export const PRO_PRICE = "$5";
+export const PRO_REGULAR_PRICE = "$10";
+export const PRO_PRICE_NOTE = "$10 is the planned regular price. Early supporters keep $5.";
 
 export const AUTHOR_NAME = "Lucas Costa";
 export const AUTHOR_EMAIL = "lucas@lucaswebsystems.com";
@@ -92,14 +92,14 @@ export const AUTHOR_GITHUB = "https://github.com/lucaswebsystems";
 export const AUTHOR_LINKEDIN = "https://www.linkedin.com/in/lucas-costa-t/";
 
 /**
- * THE HERO BACKDROP OFF SWITCH.
+ * THE FOLD FOOTAGE OFF SWITCH.
  *
- * The one flag that controls the video behind the hero. Set it to `false` and
- * the hero returns to exactly the look it had before the experiment: the
- * component is never rendered, so no video element, no poster and no veil reach
- * the page, and the hero section does not even take the class that would give
- * them somewhere to sit. There is nothing else to undo and no second place to
- * look.
+ * The one flag that controls the footage inside the first fold. Set it to
+ * `false` and the media component is never rendered, so no poster, no video
+ * and no pause control reach the page; the fold itself stays what it now is,
+ * the full height dark island with its scrims over the plain dark canvas,
+ * because the fold's shape is the design rather than an experiment riding a
+ * flag.
  *
  * Typed as `boolean` rather than left to infer the literal, so both branches
  * stay type checked and flipping this value can never turn the other one into

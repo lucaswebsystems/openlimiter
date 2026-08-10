@@ -170,7 +170,10 @@ export const downloadTargets: readonly DownloadTarget[] = [
       "None of the desktop builds are code signed yet. Windows SmartScreen and macOS Gatekeeper both warn on first run, and each platform row above says how to get past it.",
   },
   {
-    id: "ios",
+    /* `iphone` rather than `ios`: this id is the anchor on /download, and the
+       fold's iPhone button points at /download#iphone by the founder's order.
+       The row below is where the real install flow lives. */
+    id: "iphone",
     name: "iOS",
     state: "planned",
     summary:

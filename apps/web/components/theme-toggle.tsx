@@ -6,7 +6,10 @@ import { THEME_ATTR, THEME_STORAGE_KEY, isTheme, type Theme } from "@/lib/theme"
 function resolveTheme(): Theme {
   const explicit = document.documentElement.getAttribute(THEME_ATTR);
   if (isTheme(explicit)) return explicit;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  /* No attribute renders the dark palette whatever the system says: the site
+     is dark first by declaration in globals.css, and this answer has to
+     describe the page that is actually on screen, not the visitor's OS. */
+  return "dark";
 }
 
 /**
@@ -17,20 +20,33 @@ function resolveTheme(): Theme {
  * The state below exists only to describe the control to assistive technology
  * once it has mounted, which is why it starts as null.
  *
- * It is drawn as a bare 18 pixel icon, the same size and colour as the GitHub
- * mark beside it, so the header row stays 28 pixels tall.
+ * It is a real bordered icon button now (founder's order, 2026-08-10), the
+ * same family as the sheet trigger and the fold's icon buttons rather than a
+ * bare glyph: 36 pixel square, hairline border, the site's one control
+ * radius. 36 fits inside the 52 pixel desktop bar with air to spare and
+ * clears the 24 pixel target floor with room.
  */
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const [theme, setTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
     setTheme(resolveTheme());
+    /* Two instances of this control exist at once on a phone, the hidden
+       desktop row's and the sheet's. Each subscribes to the attribute itself,
+       so pressing either one updates BOTH descriptions: the attribute on the
+       root element is the single truth, and aria-pressed only ever reports
+       it. */
+    const observer = new MutationObserver(() => setTheme(resolveTheme()));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: [THEME_ATTR],
+    });
+    return () => observer.disconnect();
   }, []);
 
   const toggle = () => {
     const next: Theme = resolveTheme() === "dark" ? "light" : "dark";
     document.documentElement.setAttribute(THEME_ATTR, next);
-    setTheme(next);
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, next);
     } catch {
@@ -45,7 +61,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       aria-pressed={theme === null ? undefined : theme === "dark"}
       aria-label="Switch between the light and dark theme"
       title="Switch between the light and dark theme"
-      className={`focus-ring inline-flex items-center justify-center rounded text-muted transition-colors hover:text-heading ${className}`}
+      className={`focus-ring inline-flex h-9 w-9 flex-none items-center justify-center rounded-lg border border-hairline-strong text-heading transition-colors hover:border-heading hover:bg-surface ${className}`}
     >
       {/* Moon, offered while the light theme is active. */}
       <svg

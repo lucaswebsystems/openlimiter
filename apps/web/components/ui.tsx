@@ -58,6 +58,11 @@ const buttonTone = {
   primary: "border-transparent bg-solid text-on-solid hover:bg-solid-hover",
   ghost:
     "border-hairline-strong bg-transparent text-heading hover:border-heading hover:bg-surface",
+  /* A real surface fill for a button that sits on footage: a ghost outline
+     over a moving picture is whatever the frame behind it says it is, so the
+     fold's secondary controls are solid. Same border, same metrics, one
+     property apart from the ghost. */
+  solid: "border-hairline-strong bg-surface text-heading hover:border-heading hover:bg-raised",
   quiet: "border-transparent text-muted hover:text-heading",
 } as const;
 
@@ -105,22 +110,28 @@ export function IconButtonLink({
   href,
   label,
   external = false,
+  solid = false,
   children,
 }: {
   href: string;
   /** Always required here: the control carries no visible text. */
   label: string;
   external?: boolean;
+  /** The fold's rule: on footage the button is a surface fill, not a ghost. */
+  solid?: boolean;
   children: ReactNode;
 }) {
   const externalProps = external ? { target: "_blank", rel: "noopener noreferrer" } : {};
+  const fill = solid
+    ? "bg-surface hover:border-heading hover:bg-raised"
+    : "bg-transparent hover:border-heading hover:bg-surface";
   return (
     <a
       href={href}
       {...externalProps}
       aria-label={label}
       title={label}
-      className="lift-sm focus-ring inline-flex items-center justify-center rounded-lg border border-hairline-strong px-3 py-2 text-heading hover:border-heading hover:bg-surface"
+      className={`lift-sm focus-ring inline-flex items-center justify-center rounded-lg border border-hairline-strong px-3 py-2 text-heading ${fill}`}
     >
       {children}
     </a>

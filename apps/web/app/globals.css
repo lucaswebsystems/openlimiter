@@ -33,18 +33,18 @@
   on the home page, the download page and the documentation. The numbers above
   are re-measured whenever a value here changes.
 
-  The hero video backdrop is measured separately, because the surface behind
-  that text is a moving picture rather than a token. 2026-08-10: after four
-  founder rounds the hero settled as a dark island in both themes (see the
-  band comment further down), footage under one flat black coat at 0.40,
-  white words in both themes, and the fold's paragraph on the body colour
-  because alpha grey has no contrast of its own over footage. The 901 frame
-  composite measurement that blessed the old heavy veil predates all of
-  this, so its figures are history, not evidence. Re-run that composite
-  against the flat coat before the next release gate, and re-measure again
-  whenever the coat, the footage or the hero's copy changes. Interim
-  evidence: visual checks at 1440 and 390 in both themes, in the session
-  log.
+  The fold is measured separately, because the surface behind its text is a
+  moving picture rather than a token. 2026-08-10: the fold became the full
+  Perpeta pattern, a 100svh dark island in both themes with the footage
+  graded down to brightness 0.6 and the pattern's two measured scrims on top
+  of it, replacing the old flat 0.40 coat (see the fold block further down).
+  Every word inside the fold rides the near white of the dark palette:
+  alpha grey and the muted step have no contrast of their own over footage,
+  so size alone carries the hierarchy. The composed pixels under the fold's
+  smallest text were sampled again in the round that shipped this file, in
+  both themes, against the darkest and the brightest region that text can
+  sit on; the numbers live in the session log, and they are re-measured
+  whenever the scrims, the grade, the footage or the fold's copy changes.
 */
 
 @theme inline {
@@ -135,6 +135,26 @@
 
   --ol-announce: #0866ff;
   --ol-announce-fg: #ffffff;
+
+  /* The frosted header's fixed dark coat. Its own tokens rather than a read of
+     the surface tokens, because the header's tint layers sit OUTSIDE the dark
+     island scope on purpose: the page tint must resolve to the real page theme
+     while this pair stays dark whatever the theme says. Same values in both
+     themes, declared once here and never overridden. */
+  --ol-nav-dark-surface: #0d0d0f;
+  --ol-nav-dark-line: #24242a;
+
+  /* The header bar's height, the one number the sticky bar, the row inside it
+     and the fold's pull under it all read. 56px where the sheet trigger sets
+     the row, 52px where the desktop controls do: the same 52 to 56 band the
+     bar has always measured at. */
+  --ol-header-h: 3.5rem;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --ol-header-h: 3.25rem;
+  }
 }
 
 /* Kept so the cascade below still resolves; the dark values already apply. */
@@ -334,7 +354,9 @@ html {
   color: var(--ol-body);
   font-family: var(--font-sans);
   scroll-behavior: smooth;
-  scroll-padding-top: 2rem;
+  /* The header is sticky now, so an anchor jump has to land below the bar,
+     not under it: the bar's own height plus a breath of air. */
+  scroll-padding-top: calc(var(--ol-header-h) + 1.25rem);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -465,26 +487,22 @@ body:has(.ol-shell) .announce-bar {
   The button offers the theme you are not in, and the swap is pure CSS, so the
   correct icon is right on the very first paint with no hydration step and no
   browser globals read during render.
+
+  No media query in here, on purpose: the palette above renders DARK whenever
+  the attribute is not "light", whatever the system preference says, so the
+  icon has to follow the attribute and only the attribute. The old media
+  keyed rules showed a light system visitor the moon while the page was
+  actually dark.
 */
 .icon-to-light {
   display: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .icon-to-dark {
-    display: none;
-  }
-
-  :root:not([data-theme="light"]) .icon-to-light {
-    display: block;
-  }
-}
-
-:root[data-theme="dark"] .icon-to-dark {
+:root:not([data-theme="light"]) .icon-to-dark {
   display: none;
 }
 
-:root[data-theme="dark"] .icon-to-light {
+:root:not([data-theme="light"]) .icon-to-light {
   display: block;
 }
 
@@ -751,59 +769,69 @@ body:has(.ol-shell) .announce-bar {
 }
 
 /*
-  The hero video backdrop. An experiment, and switchable off in one place:
-  HERO_BACKDROP_ENABLED in lib/site.ts. When that flag is false none of the
-  markup below is rendered and none of these rules match anything.
+  THE FIRST FOLD, the full Perpeta pattern (founder's order, 2026-08-10).
 
-  Three rules and a pseudo element:
+  The whole fold is footage: 100svh tall, the full width, `cover` crop, the
+  copy sitting LEFT and vertically centred over it, and the fold is a DARK
+  ISLAND in both themes. `svh` rather than `vh` on purpose: on a phone `vh`
+  counts the screen with the browser bar collapsed, so a 100vh fold is born
+  taller than the visible area; `svh` is the height that is actually there
+  when the visitor arrives. The `100vh` line stays as the reserve for engines
+  that do not know `svh`.
 
-  `.hero-backdrop-host` is the hero section itself. All it does is become a
-  stacking context, so the layer underneath can sit at a negative index without
-  sliding behind the page background, and a positioning parent, so the layer
-  can be pinned to the hero's own top and bottom. It changes no layout.
+  The fold pulls itself up under the transparent sticky header: the negative
+  margin cancels the header's whole flow slot, the bar plus the 4rem margin it
+  keeps for every other page, so the footage starts at the very top of the
+  page and runs under the floating bar. Nothing else on the site moves.
 
-  `.hero-backdrop` is that layer. It is pinned to the hero block vertically and
-  stretched to the viewport horizontally, the same breakout the sliding strip
-  uses, because a band that stops at the content column leaves dead gutters on
-  a wide screen. It clips its own overflow, so the video cannot reach the rest
-  of the page, and the poster is its background, which means the still frame is
-  painted the moment the stylesheet lands whether or not any video ever loads.
-
-  `::after` is the veil, and the whole band is Perpeta's island pattern,
-  ported and then simplified across four founder rounds (2026-08-10, ending
-  at "a dark overlay, not super transparent, no gradient"): the hero is a
-  DARK ISLAND in both themes. Crisp edges, no blending in any direction,
-  footage under one flat black coat. The words inside are the dark palette's
-  white in both themes, carried by `.hero-dark-island` re-declaring the dark
-  tokens for the subtree, so light mode never has to balance dark text on a
-  moving picture again.
+  Media, poster first, zero layout shift: the section has fixed height and the
+  media layer is absolute inside it, so there is no path by which the footage
+  can push layout. The poster is the media layer's own background image, so it
+  paints with the stylesheet on the first frame; the video mounts only after
+  hydration and fades in over it. Displacement zero by construction.
 */
-.hero-backdrop-host {
+.hero-fold {
   position: relative;
   isolation: isolate;
+  height: 100vh;
+  height: 100svh;
+  margin-top: calc(-1 * var(--ol-header-h) - 4rem);
+  overflow: hidden;
 }
 
-.hero-backdrop {
+/* The header watcher's top marker: one bar height of the fold's top, sized by
+   the same token as the bar itself, so when the bar changes height at the
+   breakpoint the transparent boundary moves with it and nothing goes stale.
+   While any part of this strip is on screen, the transparent header is still
+   inside the band the top scrim was measured for; the moment it scrolls away,
+   the frosted dark coat takes over. Geometry only: no paint, no pointer. */
+.hero-fold-sentinel {
   position: absolute;
-  inset-block: 0;
-  left: 50%;
-  z-index: -1;
-  width: 100vw;
-  overflow: hidden;
-  transform: translateX(-50%);
-  /* The island's base coat: inside .hero-dark-island this resolves to the
-     dark canvas, so a slow or failed poster still leaves white words on a
-     dark bar rather than on the light page. */
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--ol-header-h);
+  pointer-events: none;
+}
+
+/* The footage grade, straight from the pattern: the fold is dark by
+   definition and this footage has blown out frames, so the brightness comes
+   down once, here, which is what lets the scrims above stay DISCREET curtains
+   instead of heavy coats. The island's canvas is the base coat underneath, so
+   a slow or failed poster still leaves white words on a dark band. */
+.hero-fold-media {
+  position: absolute;
+  inset: 0;
   background: var(--ol-canvas);
+  filter: brightness(0.6) saturate(0.92);
   pointer-events: none;
 }
 
 /* The still frame lives on ::before rather than the box itself so the media
-   can be mirrored without mirroring the curtain: founder's order 2026-08-10,
-   flip the footage horizontally, which parks its bright subject on the right,
-   exactly where the curtain opens. ::before paints under the video, and the
-   ::after veil stays unflipped on top of both. */
-.hero-backdrop::before {
+   can be mirrored without mirroring the scrims: founder's standing order,
+   flip the footage horizontally, which parks its bright subject on the
+   right, exactly where the lateral curtain opens. */
+.hero-fold-media::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -813,7 +841,7 @@ body:has(.ol-shell) .announce-bar {
   transform: scaleX(-1);
 }
 
-.hero-backdrop video {
+.hero-fold-media video {
   position: absolute;
   inset: 0;
   height: 100%;
@@ -821,26 +849,165 @@ body:has(.ol-shell) .announce-bar {
   object-fit: cover;
   object-position: center;
   transform: scaleX(-1);
+  opacity: 0;
+  transition: opacity 480ms ease;
 }
 
-/* One flat coat, no direction, every width: the founder's final call of the
-   round ("a dark overlay, not super transparent, no gradient"). 0.40 sits
-   just above the left edge density Perpeta's contrast prover passed for the
-   same white words over real frames, so the whole band inherits that margin
-   instead of only the text side. Brightening the footage later means
-   lowering this one number. */
-.hero-backdrop::after {
-  content: "";
+.hero-fold-media video[data-ready="true"] {
+  opacity: 1;
+}
+
+/*
+  The two scrims, ported stop for stop from the pattern that measured them.
+
+  The LATERAL curtain is what holds the contrast of the title, the lead and
+  the buttons: black opening to transparent, left to right. It changes shape
+  with the width rather than stretching one gradient, because the copy column
+  is a fixed width and the fraction of the screen it covers grows as the
+  screen shrinks: below 1280 the curtain is a near flat coat so the end of
+  every line stays protected, and from 1280 up, where the copy really fits in
+  the left half, the horizontal ramp returns.
+
+  One lever, `--fold-scrim-strength`, multiplies every stop. The pattern's
+  own contrast prover swept the levels against real frames and shipped 0.5:
+  at 0.5 the worst text block still measured 4.65:1, and 0.45 already dropped
+  two blocks below AA. The ported stops keep that lever at the shipped value,
+  and the numbers for OUR footage are re-measured against the composed pixels
+  in the round that ships this file.
+*/
+.hero-scrim-side {
+  --fold-scrim-strength: 0.5;
   position: absolute;
   inset: 0;
-  background: rgb(0 0 0 / 0.4);
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    rgb(0 0 0 / calc(0.62 * var(--fold-scrim-strength))) 0%,
+    rgb(0 0 0 / calc(0.55 * var(--fold-scrim-strength))) 100%
+  );
 }
 
-/* The island: the dark palette re-declared for the hero subtree, so every
-   token a child resolves (buttons, chips, greys, focus rings) paints in dark
-   theme values whatever the page theme is. No component inside the hero
-   carries a raw colour, which is what keeps this one class sufficient. */
-.hero-dark-island {
+@media (min-width: 1280px) {
+  .hero-scrim-side {
+    background: linear-gradient(
+      to right,
+      rgb(0 0 0 / calc(0.86 * var(--fold-scrim-strength))) 0%,
+      rgb(0 0 0 / calc(0.78 * var(--fold-scrim-strength))) 40%,
+      rgb(0 0 0 / calc(0.5 * var(--fold-scrim-strength))) 62%,
+      rgb(0 0 0 / calc(0.14 * var(--fold-scrim-strength))) 84%,
+      transparent 100%
+    );
+  }
+}
+
+/* The TOP scrim protects the header zone, not the copy: the white bar text
+   has to land on the footage without depending on what the frame is showing
+   that second. It stays off the lateral lever on purpose, same as the
+   pattern: it is the lighter of the two layers and it guards a different
+   thing. */
+.hero-scrim-top {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.45) 0%, transparent 24%);
+}
+
+/*
+  The fold's entrance, in CSS and not in the scroll reveal system, ported with
+  the pattern's own time table. The reason is the pattern's measured one: a
+  JavaScript driven entrance starts after hydration, so the largest paint sat
+  in opacity 0 for seconds. Here the title and the lead are BORN VISIBLE and
+  animate only `transform`, which never blocks paint, so the largest paint
+  happens with the first paint; only the smaller rows below them enter with a
+  fade. Nothing here moves layout: transform and opacity only.
+*/
+@keyframes fold-rise {
+  from {
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes fold-side {
+  from {
+    transform: translate3d(-18px, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes fold-fade {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.fold-enter {
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  /* `both` holds the first frame through the delay: without it, the rows that
+     fade would blink visible before their own turn. */
+  animation-fill-mode: both;
+}
+
+.fold-enter-title {
+  animation-name: fold-rise;
+  animation-delay: 0.05s;
+  animation-duration: 0.45s;
+}
+
+.fold-enter-lead {
+  animation-name: fold-side;
+  animation-delay: 0.18s;
+  animation-duration: 0.45s;
+}
+
+.fold-enter-row {
+  animation-name: fold-fade;
+  animation-delay: 0.3s;
+  animation-duration: 0.38s;
+}
+
+.fold-enter-note {
+  animation-name: fold-fade;
+  animation-delay: 0.42s;
+  animation-duration: 0.34s;
+}
+
+.fold-enter-marks {
+  animation-name: fold-fade;
+  animation-delay: 0.52s;
+  animation-duration: 0.34s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fold-enter {
+    animation: none;
+  }
+}
+
+/* The island: the dark palette re-declared for a subtree, so every token a
+   child resolves (buttons, chips, greys, focus rings) paints in dark theme
+   values whatever the page theme is. No component inside carries a raw
+   colour, which is what keeps this one block sufficient.
+
+   Three subtrees share it: the fold itself, and the header's content in its
+   two dark treatments, the transparent state over the fold's protected top
+   and the dark frosted state everywhere else the fold is on screen. Both are
+   attribute states written before first paint by the fold's inline sync
+   script and kept by the watcher after hydration; with no attribute at all
+   the header deliberately stays in the page theme, because the no attribute
+   state now means the safe frosted themed bar. */
+.hero-dark-island,
+.site-header[data-bar="none"] .site-header-scope,
+.site-header[data-bar="dark"] .site-header-scope {
   color-scheme: dark;
 
   --ol-canvas: #0d0d0f;
@@ -875,20 +1042,126 @@ body:has(.ol-shell) .announce-bar {
 
 /* A phone gets the still frame and never the file. The component is what
    stops the fetch, this is the backstop for a viewport that crosses the
-   breakpoint afterwards. This block sits AFTER the base veil on purpose:
-   same specificity, so only source order lets the phone override win. The
-   crop pins to the top so the frame's composition sits high; with this
-   footage that parks the bright glow low in the band, behind the download
-   notes, where it reads as life rather than noise. The curtain itself is
-   the same shared rule. */
+   breakpoint afterwards. The crop pins to the top so the frame's composition
+   sits high; with this footage that parks the bright glow low in the band,
+   where it reads as life rather than noise. */
 @media (max-width: 767px) {
-  .hero-backdrop video {
+  .hero-fold-media video {
     display: none;
   }
 
-  .hero-backdrop::before {
+  .hero-fold-media::before {
     background-position: center top;
   }
+}
+
+/*
+  THE STICKY HEADER'S GLASS, the pattern's three layer architecture.
+
+  The header element itself never animates anything. Behind its content sit
+  three absolute layers, and the only property that ever changes is their
+  opacity, which the compositor resolves without repainting the blurred strip
+  on every frame:
+
+  `.hdr-blur` is the ONLY layer with a backdrop filter, shared by both bar
+  tints. `.hdr-tint-page` is the page theme's coat, a translucent mix of the
+  real canvas with a hairline underneath: the frosted bar of point eight, dark
+  bar in the dark theme, light bar in the light theme. `.hdr-tint-dark` is the
+  fixed dark coat for the sliver of scroll where the frosted bar has appeared
+  but part of the fold is still under it: the bar stays dark there whatever
+  the theme, because a light frosted coat over footage is murk. It reads its
+  own two tokens rather than the surface tokens, because these layers live
+  outside the island scope on purpose: the page tint has to keep seeing the
+  real page theme.
+
+  One attribute drives all of it, written by the fold watcher from a pair of
+  IntersectionObservers, no scroll listener in the steady state: `data-bar`
+  is "none" only while the header sits within the fold's top scrim band (the
+  one region measured to hold white text on any frame), "dark" everywhere
+  else that any part of the fold is on screen, so the transparent header can
+  never drift down onto unscrimed footage, and "page" past the fold.
+
+  THE DEFAULT IS THE SAFE STATE. With no attribute at all, the rules below
+  show the frosted themed bar: that is simply correct on every page without a
+  fold, before any script and with scripting off, and it is the safe fallback
+  on a fold page restored mid scroll before hydration. A fold page corrects
+  it to the real state before its first paint through the inline sync script
+  the fold itself carries (components/hero.tsx), which also rides the
+  browser's scroll restoration until the watcher takes over.
+
+  Reduced motion swaps states instantly: the global reduced motion block
+  already zeroes these transitions.
+*/
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.site-header-row {
+  height: var(--ol-header-h);
+}
+
+.hdr-layers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hdr-layers > span {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 250ms ease;
+  border-bottom: 1px solid transparent;
+}
+
+.hdr-blur {
+  backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* 90% coats, not lighter, and the number is a measured floor: the muted link
+   grey has to clear AA against the WORST content that can pass behind the
+   glass. At 78% the light coat over near black composed to 3.98:1 for the
+   light muted grey, under the 4.5:1 floor; at 90% the same worst cases
+   compose to 5.3:1 (light coat over pure black) and 6.4:1 (dark theme coat
+   over pure white), and the fixed dark coat holds white text at 13.9:1 over
+   pure white. It is also the pattern authority's own shipped opacity. */
+.hdr-tint-page {
+  background: color-mix(in srgb, var(--ol-canvas) 90%, transparent);
+  border-bottom-color: var(--ol-hairline);
+}
+
+.hdr-tint-dark {
+  background: color-mix(in srgb, var(--ol-nav-dark-surface) 90%, transparent);
+  border-bottom-color: var(--ol-nav-dark-line);
+}
+
+/* No attribute means the safe themed bar; the two written states override. */
+.site-header:not([data-bar]) .hdr-blur,
+.site-header[data-bar="dark"] .hdr-blur,
+.site-header[data-bar="page"] .hdr-blur {
+  opacity: 1;
+}
+
+.site-header:not([data-bar]) .hdr-tint-page,
+.site-header[data-bar="page"] .hdr-tint-page {
+  opacity: 1;
+}
+
+.site-header[data-bar="dark"] .hdr-tint-dark {
+  opacity: 1;
+}
+
+/* Over the footage the quiet header text gives up its grey step: colour with
+   alpha or a muted token has no contrast of its own over a moving picture, so
+   every marked control goes to the full heading white and size alone carries
+   the hierarchy, exactly the fold's own rule. Past the fold the mark does
+   nothing and the quiet grey returns. */
+.site-header[data-bar="none"] .hdr-ink,
+.site-header[data-bar="dark"] .hdr-ink {
+  color: var(--ol-heading);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -912,11 +1185,11 @@ body:has(.ol-shell) .announce-bar {
     translate: none;
   }
 
-  /* The hero keeps its still frame and loses the moving picture. The video is
+  /* The fold keeps its still frame and loses the moving picture. The video is
      never mounted under this preference in the first place, which is what
      stops the file being fetched at all; this rule is only the backstop for a
      preference that changes after the component has already decided. */
-  .hero-backdrop video {
+  .hero-fold-media video {
     display: none;
   }
 
