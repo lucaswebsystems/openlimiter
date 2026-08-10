@@ -4,6 +4,8 @@ All notable project changes appear in this file.
 
 ## [Unreleased]
 
+## [0.3.0] (2026-08-10)
+
 ### Fixed
 
 - **The Claude connector could not parse a real Claude Code payload.** The previous release read a field named `utilization` and reset instants as ISO date strings. Anthropic's statusline documentation states `used_percentage` and reset instants as Unix epoch seconds, and no Claude Code release is known to have ever emitted the old shape; only this project's own fixture ever agreed with it. The parser now reads the documented shape. Each of the two windows, five hour and seven day, is independently optional, absent entirely for a free account or before the first API response of a session, and a window with an implausible reset for its own length is dropped on its own rather than trusted, leaving the other window to still count.
@@ -16,6 +18,8 @@ All notable project changes appear in this file.
 
 ### Added
 
+- **The desktop application gains a Connections tab.** A live OpenRouter connection can be connected, tested, refreshed and disconnected from the application itself, and the key lives in the operating system's credential store under a masked label, never in a file. Every endpoint the connection can call is named in a closed allowlist, and a Claude card explains the statusline wiring with a copy block and a verify step. When the Rust backend is absent, the tab says so honestly instead of pretending.
+- The connection subsystem underneath that tab, written in Rust: `connections.json` owned and fully validated by the Rust side behind a document version gate, cache writes holding the lock from begin through commit, and a sixty second refresh metronome whose policy stays entirely in TypeScript. Seventy two tests cover it, plus fifteen regression tests from the security review.
 - A connection state vocabulary and the source chips built on it. `packages/core/src/connection-state.ts` names thirteen connection states with one honest sentence each, so a connection's state is a value the whole product agrees on rather than a sentence each surface invents. The dashboard now shows a source chip on every provider drawn from it: Local CLI for Claude's statusline data, Import only for OpenRouter, Codex, Antigravity and OpenCode, Manual for manual entries.
 - A scheduling module, `packages/core/src/schedule.ts`: exponential backoff with jitter for when a connection may next ask its provider a question, honouring a provider's own `Retry-After` as a floor under our own backoff, never a reduction of it.
 - `provider_specs/`, a YAML capability registry, one file per provider and product, naming what its payload can state, where each meter and its reset are read from, and when its documentation was last checked against it. `scripts/validate-provider-specs.mjs` validates every entry with a small YAML reader of its own and is wired into `pnpm test`, so a malformed or disagreeing spec fails the build rather than shipping.
