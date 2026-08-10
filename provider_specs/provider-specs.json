@@ -1,0 +1,759 @@
+{
+  "schema": 1,
+  "note": "Generated from provider_specs/**/*.yaml by scripts/validate-provider-specs.mjs. Do not edit by hand. Regenerate with: node scripts/validate-provider-specs.mjs --emit",
+  "providers": [
+    {
+      "id": "anthropic/claude-code",
+      "providerId": "anthropic",
+      "productId": "claude-code",
+      "displayName": "Claude Code",
+      "docsUrl": "https://code.claude.com/docs/en/statusline",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "statusline_payload"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "session_5h",
+          "label": "Current session",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 18000
+          },
+          "optional": true,
+          "meterCode": "FIVE_HOUR"
+        },
+        {
+          "id": "weekly_7d",
+          "label": "Weekly",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 604800
+          },
+          "optional": true,
+          "meterCode": "SEVEN_DAY"
+        }
+      ]
+    },
+    {
+      "id": "cursor/editor",
+      "providerId": "cursor",
+      "productId": "editor",
+      "displayName": "Cursor",
+      "docsUrl": "https://cursor.com/docs/account/teams/admin-api",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "absent",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "admin_api_key"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "team_spend",
+          "label": "Team spend this billing cycle",
+          "kind": "api_spend",
+          "unit": "percent_used",
+          "scope": "organization",
+          "window": {
+            "kind": "billing_period"
+          },
+          "optional": true,
+          "meterCode": "TEAM_SPEND"
+        }
+      ]
+    },
+    {
+      "id": "deepseek/api",
+      "providerId": "deepseek",
+      "productId": "api",
+      "displayName": "DeepSeek",
+      "docsUrl": "https://api-docs.deepseek.com/api/get-user-balance/",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "absent",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "api_key"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "balance",
+          "label": "Account balance",
+          "kind": "credits",
+          "unit": "currency",
+          "scope": "account",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": false,
+          "meterCode": "BALANCE"
+        }
+      ]
+    },
+    {
+      "id": "github/copilot",
+      "providerId": "github",
+      "productId": "copilot",
+      "displayName": "GitHub Copilot",
+      "docsUrl": "https://docs.github.com/en/rest/billing/usage",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "absent",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "oauth"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "ai_credits",
+          "label": "AI credits used this month",
+          "kind": "credits",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "calendar_month"
+          },
+          "optional": true,
+          "meterCode": "AI_CREDITS"
+        }
+      ]
+    },
+    {
+      "id": "google/antigravity",
+      "providerId": "google",
+      "productId": "antigravity",
+      "displayName": "Antigravity",
+      "docsUrl": "packages/connectors/src/antigravity.ts",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "absent",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "explicit_import"
+      ],
+      "authModes": [
+        "none"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "primary",
+          "label": "Primary quota",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "provider_defined"
+          },
+          "optional": false,
+          "meterCode": "PRIMARY"
+        }
+      ]
+    },
+    {
+      "id": "google/gemini-cli",
+      "providerId": "google",
+      "productId": "gemini-cli",
+      "displayName": "Gemini CLI",
+      "docsUrl": "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/telemetry.md",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "local_file"
+      ],
+      "authModes": [
+        "none"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "token_usage",
+          "label": "Token usage (local telemetry)",
+          "kind": "token_usage",
+          "unit": "tokens",
+          "scope": "account",
+          "window": {
+            "kind": "provider_defined"
+          },
+          "optional": true,
+          "meterCode": "TOKEN_USAGE"
+        }
+      ]
+    },
+    {
+      "id": "lmstudio/local",
+      "providerId": "lmstudio",
+      "productId": "local",
+      "displayName": "LM Studio",
+      "docsUrl": "https://lmstudio.ai/docs/developer/rest/endpoints",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "local_command"
+      ],
+      "authModes": [
+        "none"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "max_context_length",
+          "label": "Model max context length",
+          "kind": "context",
+          "unit": "tokens",
+          "scope": "model",
+          "window": {
+            "kind": "provider_defined"
+          },
+          "optional": true,
+          "meterCode": "MAX_CONTEXT_LENGTH"
+        }
+      ]
+    },
+    {
+      "id": "mistral/api",
+      "providerId": "mistral",
+      "productId": "api",
+      "displayName": "Mistral AI",
+      "docsUrl": "https://docs.mistral.ai/api/endpoint/beta/admin/billing",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "absent",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "admin_api_key"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "usage_breakdown",
+          "label": "Usage breakdown by category",
+          "kind": "api_spend",
+          "unit": "currency",
+          "scope": "organization",
+          "window": {
+            "kind": "calendar_month"
+          },
+          "optional": true,
+          "meterCode": "USAGE_BREAKDOWN"
+        }
+      ]
+    },
+    {
+      "id": "moonshot/api",
+      "providerId": "moonshot",
+      "productId": "api",
+      "displayName": "Kimi (Moonshot AI)",
+      "docsUrl": "https://platform.kimi.ai/docs/api/balance",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "absent",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "api_key"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "available_balance",
+          "label": "Available balance",
+          "kind": "credits",
+          "unit": "currency",
+          "scope": "account",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": false,
+          "meterCode": "AVAILABLE_BALANCE"
+        }
+      ]
+    },
+    {
+      "id": "ollama/local",
+      "providerId": "ollama",
+      "productId": "local",
+      "displayName": "Ollama",
+      "docsUrl": "https://github.com/ollama/ollama/blob/main/docs/api.md",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "local_command"
+      ],
+      "authModes": [
+        "none"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "context_length",
+          "label": "Model context length",
+          "kind": "context",
+          "unit": "tokens",
+          "scope": "model",
+          "window": {
+            "kind": "provider_defined"
+          },
+          "optional": true,
+          "meterCode": "CONTEXT_LENGTH"
+        }
+      ]
+    },
+    {
+      "id": "openai/codex",
+      "providerId": "openai",
+      "productId": "codex",
+      "displayName": "Codex",
+      "docsUrl": "packages/connectors/src/codex.ts",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "absent",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "explicit_import"
+      ],
+      "authModes": [
+        "none"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "primary",
+          "label": "Primary window",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 18000
+          },
+          "optional": false,
+          "meterCode": "PRIMARY"
+        }
+      ]
+    },
+    {
+      "id": "opencode/opencode",
+      "providerId": "opencode",
+      "productId": "opencode",
+      "displayName": "OpenCode",
+      "docsUrl": "packages/connectors/src/opencode.ts",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "absent",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "explicit_import"
+      ],
+      "authModes": [
+        "none"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "primary",
+          "label": "Primary usage",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "provider_defined"
+          },
+          "optional": false,
+          "meterCode": "PRIMARY"
+        }
+      ]
+    },
+    {
+      "id": "openlimiter/manual",
+      "providerId": "openlimiter",
+      "productId": "manual",
+      "displayName": "Manual",
+      "docsUrl": "packages/connectors/src/manual.ts",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "absent",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "manual"
+      ],
+      "authModes": [
+        "none"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "custom",
+          "label": "Manually entered meter",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "provider_defined"
+          },
+          "optional": true,
+          "meterCode": null
+        }
+      ]
+    },
+    {
+      "id": "openrouter/api",
+      "providerId": "openrouter",
+      "productId": "api",
+      "displayName": "OpenRouter",
+      "docsUrl": "https://openrouter.ai/docs/api-reference/get-credits",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "implemented",
+        "reader": "absent",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "api_key"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "credits",
+          "label": "Credits",
+          "kind": "credits",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": false,
+          "meterCode": "CREDITS"
+        }
+      ]
+    },
+    {
+      "id": "perplexity/api",
+      "providerId": "perplexity",
+      "productId": "api",
+      "displayName": "Perplexity",
+      "docsUrl": "https://docs.perplexity.ai/guides/api-organization",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "manual"
+      ],
+      "authModes": [
+        "manual"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "credits",
+          "label": "Credit balance",
+          "kind": "credits",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": true,
+          "meterCode": "CREDITS"
+        }
+      ]
+    },
+    {
+      "id": "together/api",
+      "providerId": "together",
+      "productId": "api",
+      "displayName": "Together AI",
+      "docsUrl": "https://docs.together.ai/docs/billing-credits",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "not_required",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "manual"
+      ],
+      "authModes": [
+        "manual"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "credits",
+          "label": "Credits",
+          "kind": "credits",
+          "unit": "percent_used",
+          "scope": "account",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": true,
+          "meterCode": "CREDITS"
+        }
+      ]
+    },
+    {
+      "id": "windsurf/editor",
+      "providerId": "windsurf",
+      "productId": "editor",
+      "displayName": "Devin Desktop (formerly Windsurf, Cognition)",
+      "docsUrl": "https://docs.devin.ai/windsurf/plugins/accounts/api-reference/get-team-credit-balance",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "absent",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "admin_api_key"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "addon_credits",
+          "label": "Add on credits used this cycle",
+          "kind": "credits",
+          "unit": "percent_used",
+          "scope": "organization",
+          "window": {
+            "kind": "billing_period"
+          },
+          "optional": true,
+          "meterCode": "ADDON_CREDITS"
+        }
+      ]
+    },
+    {
+      "id": "xai/api",
+      "providerId": "xai",
+      "productId": "api",
+      "displayName": "xAI",
+      "docsUrl": "https://docs.x.ai/developers/rest-api-reference/management/billing",
+      "reviewedAt": "2026-08-10",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "absent",
+        "verification": "unverified"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "management_key"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "prepaid_balance",
+          "label": "Prepaid balance",
+          "kind": "credits",
+          "unit": "currency",
+          "scope": "organization",
+          "window": {
+            "kind": "credit_balance"
+          },
+          "optional": false,
+          "meterCode": "PREPAID_BALANCE"
+        }
+      ]
+    }
+  ]
+}

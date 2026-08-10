@@ -99,29 +99,71 @@ describe("serve", () => {
     }
   });
 
-  it("refuses every route without the token", async () => {
+  it("answers the quota route for a bearer token in the header", async () => {
     const handle = await serve(await seededDirectory());
-    for (const route of ["/", "/quota.json", "/anything"]) {
+    const response = await fetch(base(handle) + "/quota.json", {
+      headers: { authorization: "Bearer " + handle.token }
+    });
+    expect(response.status).toBe(200);
+    const document = await response.json() as { reason: string };
+    expect(document.reason).toBe("NEAR_CAP");
+  });
+
+  it("refuses every data route without the token", async () => {
+    const handle = await serve(await seededDirectory());
+    for (const route of ["/quota.json", "/anything"]) {
       const response = await fetch(base(handle) + route);
       expect(response.status).toBe(401);
       expect(await response.json()).toEqual({ error: "token_required" });
     }
   });
 
-  it("refuses a token that is close but not equal", async () => {
+  it.each([
+    ["an empty bearer value", "Bearer "],
+    ["a bare token with no scheme", "TOKEN_HERE"],
+    ["the wrong scheme", "Basic TOKEN_HERE"],
+    ["a scheme and nothing else", "Bearer"]
+  ])("refuses an Authorization header that is %s", async (_name, header) => {
     const handle = await serve(await seededDirectory());
-    const wrong = handle.token.slice(0, -1) + (handle.token.endsWith("a") ? "b" : "a");
+    const response = await fetch(base(handle) + "/quota.json", {
+      headers: { authorization: header.replace("TOKEN_HERE", handle.token) }
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it("does not let a header claim override the token it presents", async () => {
+    const handle = await serve(await seededDirectory());
+    /* A wrong header is a wrong answer. It never falls through to the query
+       fallback, or a caller could smuggle a token past a header check. */
     const response = await fetch(
-      base(handle) + "/quota.json?" + TOKEN_PARAMETER + "=" + wrong
+      base(handle) + "/quota.json?" + TOKEN_PARAMETER + "=" + handle.token,
+      { headers: { authorization: "Bearer not-the-token" } }
     );
     expect(response.status).toBe(401);
   });
 
-  it("serves the mobile page on the root route", async () => {
+  it("still accepts the query token for one release of compatibility", async () => {
     const handle = await serve(await seededDirectory());
     const response = await fetch(
-      base(handle) + "/?" + TOKEN_PARAMETER + "=" + handle.token
+      base(handle) + "/quota.json?" + TOKEN_PARAMETER + "=" + handle.token
     );
+    expect(response.status).toBe(200);
+  });
+
+  it("refuses a token that is close but not equal", async () => {
+    const handle = await serve(await seededDirectory());
+    const wrong = handle.token.slice(0, -1) + (handle.token.endsWith("a") ? "b" : "a");
+    const response = await fetch(base(handle) + "/quota.json", {
+      headers: { authorization: "Bearer " + wrong }
+    });
+    expect(response.status).toBe(401);
+  });
+
+  it("serves the empty page shell on the root route without a token", async () => {
+    const handle = await serve(await seededDirectory());
+    /* The token is in the fragment, which never reaches a server, so the shell
+       has to be reachable without one. It must therefore hold no data. */
+    const response = await fetch(base(handle) + "/");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
     const html = await response.text();
@@ -130,6 +172,61 @@ describe("serve", () => {
     /* The page reaches nothing but its own origin. */
     expect(html.includes("http://")).toBe(false);
     expect(html.includes("https://")).toBe(false);
+    /* And it carries neither the token nor a single reading. The field names
+       and reason codes the script draws with are markup, not data, so what is
+       asserted here is the absence of values that could only come from the
+       cache: a provider code, a percentage, an observed instant. */
+    expect(html.includes(handle.token)).toBe(false);
+    for (const leaked of ["CLAUDE", "CODEX", FIXTURE_NOW, '"fresh"']) {
+      expect(html.includes(leaked)).toBe(false);
+    }
+  });
+
+  it("moves the token out of the address and into a header", async () => {
+    const handle = await serve(await seededDirectory());
+    const html = await (await fetch(base(handle) + "/")).text();
+    expect(html).toContain("history.replaceState(null, \"\", location.pathname)");
+    expect(html).toContain("sessionStorage.setItem(key, token)");
+    expect(html).toContain('"authorization": "Bearer " + token');
+    /* Nothing in the page appends a token to a URL any more. */
+    expect(html.includes("/quota.json?")).toBe(false);
+  });
+
+  it("bootstraps an address printed by an older build, then scrubs it", async () => {
+    const handle = await serve(await seededDirectory());
+    /* An older build printed the token in the query. That address still opens
+       this page, so the page has to accept it once and then wipe it, rather
+       than sit at 401 with the token on display in the address bar. */
+    const response = await fetch(
+      base(handle) + "/?" + TOKEN_PARAMETER + "=" + handle.token
+    );
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("new URLSearchParams(location.search).get(name)");
+    expect(html).toContain("location.hash.indexOf(prefix)");
+    /* The query is read first, the fragment second, storage last. */
+    const queryAt = html.indexOf("URLSearchParams(location.search)");
+    const hashAt = html.indexOf("location.hash.indexOf(prefix)");
+    const storageAt = html.indexOf("sessionStorage.getItem(key)");
+    expect(queryAt).toBeGreaterThan(-1);
+    expect(hashAt).toBeGreaterThan(queryAt);
+    expect(storageAt).toBeGreaterThan(hashAt);
+    /* Reading the address at runtime is not the same as embedding a token:
+       the served bytes are identical whether a token was in the URL or not. */
+    expect(html.includes(handle.token)).toBe(false);
+    expect(html).toBe(await (await fetch(base(handle) + "/")).text());
+  });
+
+  it("prints an address whose token is in the fragment, never the query", async () => {
+    const handle = await serve(await seededDirectory());
+    for (const address of [handle.url, handle.localUrl]) {
+      expect(address).toContain("/#" + TOKEN_PARAMETER + "=" + handle.token);
+      expect(address.includes("?")).toBe(false);
+      const parsed = new URL(address);
+      expect(parsed.search).toBe("");
+      expect(parsed.pathname).toBe("/");
+      expect(parsed.hash).toBe("#" + TOKEN_PARAMETER + "=" + handle.token);
+    }
   });
 
   it("refuses a request that carries any origin at all", async () => {
@@ -224,9 +321,16 @@ describe("serve", () => {
     expect(handle).not.toBeNull();
     const started = handle as unknown as QuotaServerHandle;
     expect(result.stdout).toContain(started.url);
-    expect(result.stdout).toContain(TOKEN_PARAMETER + "=" + started.token);
+    expect(result.stdout).toContain("#" + TOKEN_PARAMETER + "=" + started.token);
     expect(result.stdout).toContain("Read only");
     expect(result.stdout).toContain("trusted home or office network");
+    /* The two things the banner has to say plainly: the code is the key, and
+       the bind is every interface, so forwarding the port is on the reader. */
+    expect(result.stdout).toContain("anyone who can see this screen");
+    expect(result.stdout).toContain("do not port forward this port");
+    expect(result.stdout).toContain("listens on every interface");
+    /* No printed address carries the token in a query string. */
+    expect(result.stdout.includes("?" + TOKEN_PARAMETER + "=")).toBe(false);
     /* The block characters are the QR symbol itself. */
     expect(result.stdout).toContain("█");
   });

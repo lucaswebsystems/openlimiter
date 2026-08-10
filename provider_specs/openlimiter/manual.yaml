@@ -1,0 +1,65 @@
+# OpenLimiter's own manual entry connector. Documents an existing shipped
+# connector, packages/connectors/src/manual.ts, and unlike the other three
+# files added alongside this one it is not an unofficial reading of
+# someone else's interface: OpenLimiter owns this file format outright, so
+# this repository is its own and only source. fixtures.ts marks this
+# connector's own fixture sourceStatus official for exactly that reason,
+# even though source_status below still reads provisional, because
+# docs_url here is a repository path rather than an https address and this
+# schema requires an https address before it will accept official.
+#
+# manual.ts reads a JSON document at {openlimiterState}/manual.json, shape
+# { "version": 1, "meters": [ { "name": "MONTHLY", "used_percent": 35,
+# "reset_at": "2026-09-01T00:00:00.000Z" } ] }, up to ten entries, each
+# entry's name matching /^[A-Z][A-Z0-9_]{0,31}$/, the same pattern this
+# registry's own meter_code uses. A human names and types in each meter
+# themselves, so the one meter below is a representative shape rather than
+# a fixed field this connector always returns, and meter_code is left out
+# rather than fixed to one value that would misstate every other name a
+# person might choose.
+
+provider_id: openlimiter
+product_id: manual
+display_name: Manual
+
+source:
+  docs_url: packages/connectors/src/manual.ts
+  reviewed_at: "2026-08-10"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: manual_file_present
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: absent
+  auth: not_required
+
+connections:
+  - reader: manual
+    auth_mode: none
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - manual.documented.plan
+
+meters:
+  - id: custom
+    label: Manually entered meter
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: provider_defined
+    source_path: used_percent
+    reset_path: reset_at
+    reset_encoding: iso8601
+    optional: true

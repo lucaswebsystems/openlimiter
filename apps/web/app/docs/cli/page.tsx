@@ -210,11 +210,24 @@ Ingested 1 bounded meters. Cached meters: 3.`}
               <Sub id="serve">serve</Sub>
               <P>
                 Serves a read only snapshot of your quota on your own local network, so a phone on
-                the same network can see it. Prints the address and a QR code to scan, and every
-                request needs the single use token baked into that address. It is meant for a
-                trusted home or office network, never for the open internet, and it exposes only the
-                bounded fields the agent context carries.
+                the same network can see it. Prints the address and a QR code to scan. A fresh
+                token is generated every time the command starts, and it rides in the URL fragment
+                after <Code>#t=</Code>, which a server never receives. The page moves that token
+                into the tab&apos;s own <Code>sessionStorage</Code> and cleans the address bar on
+                first load, so no browser history anywhere keeps the capability. Every refetch
+                after that sends the token as an <Code>Authorization: Bearer</Code> header instead
+                of a URL parameter. An address printed by last release, with the token as a query
+                parameter, still answers for this one release, so nothing already scanned or saved
+                breaks.
               </P>
+              <Callout tone="key" title="Anyone who can see the screen can read the quota">
+                The address and the code ARE the key: anyone who can see this screen, or a
+                photograph of it, can read your quota for as long as the command keeps running.
+                This listens on every interface on the machine, so do not port forward this port
+                and do not open it on a firewall. It is meant for a trusted home or office network,
+                never for the open internet, and it exposes only the bounded fields the agent
+                context carries.
+              </Callout>
             </>
           ),
         },

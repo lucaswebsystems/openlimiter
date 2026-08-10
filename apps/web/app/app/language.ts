@@ -1,4 +1,11 @@
-import { floorFixed, type Advice, type MeterView, type ProviderCode, type SnapshotState } from "./engine";
+import {
+  floorFixed,
+  type Advice,
+  type MeterView,
+  type ProviderCode,
+  type SnapshotSourceKind,
+  type SnapshotState,
+} from "./engine";
 
 /** The engine's four overall reason codes. */
 type AdviceReason = Advice["reason"];
@@ -43,15 +50,35 @@ export function pressureOf(percent: number): Pressure {
   return "ok";
 }
 
-/** How many of the ten blocks are full, and whether the next one is half. */
-export function blocks(percent: number): readonly ("full" | "half" | "empty")[] {
-  const bounded = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0));
-  return Array.from({ length: 10 }, (_unused, index) => {
-    const floor = index * 10;
-    if (bounded >= floor + 10) return "full";
-    if (bounded >= floor + 5) return "half";
-    return "empty";
-  });
+/**
+ * A reading as bar geometry, clamped to the track and nothing else.
+ *
+ * The bar this feeds is continuous, so the number that decides its length is
+ * the number itself rather than a step. The old bar was ten blocks with a half
+ * step every five percent, which drew 91 and 97 identically: two readings four
+ * days apart in a weekly window looked like the same reading. Nothing is
+ * rounded here and nothing is bucketed. The only arithmetic is the clamp, which
+ * exists because a track cannot be longer than itself.
+ *
+ * A value that is not a number at all is not a zero, so this returns null and
+ * the caller draws the unknown track, which has no fill in it.
+ */
+export function meterFraction(percent: number): number | null {
+  if (!Number.isFinite(percent)) return null;
+  return Math.min(100, Math.max(0, percent));
+}
+
+/**
+ * The same clamped reading as a CSS width.
+ *
+ * Every decimal the source carried survives into the style, because the whole
+ * point of a continuous bar is that a tenth of a percent moves it. Number's own
+ * string form is used rather than a fixed number of places, so 91 stays "91%"
+ * and 97.2 stays "97.2%" instead of both being padded or both being trimmed.
+ */
+export function meterWidth(percent: number): string | null {
+  const fraction = meterFraction(percent);
+  return fraction === null ? null : String(fraction) + "%";
 }
 
 const MINUTE = 60_000;
@@ -184,7 +211,9 @@ export const reasonSentence: Record<AdviceReason, string> = {
   HEALTHY: "Every readable meter is under 80%.",
   NEAR_CAP: "At least one readable meter is at 80% or more.",
   AT_CAP: "At least one readable meter has reached its cap.",
-  UNKNOWN: "Nothing readable has been supplied yet.",
+  /* Not "nothing readable has been supplied": that sentence described a parser
+     to its author rather than a state to its reader, and the audit named it. */
+  UNKNOWN: "No provider has reported yet, so nothing is claimed.",
 };
 
 /**
@@ -235,6 +264,156 @@ const PROVIDER_ORIGIN: Record<ProviderCode, string> = {
 export function providerOrigin(code: string): string {
   return PROVIDER_ORIGIN[code as ProviderCode] ?? "";
 }
+
+/* --------------------------------------------------------- connection state */
+
+/**
+ * How a reading actually reached this device.
+ *
+ * Four states, and only one of them is the word connected, which nothing can
+ * reach today. A parser existing is not a connection: five of the six providers
+ * here have a parser and no reader, which means somebody has to hand the
+ * document over, and the interface has to say so rather than let a filled bar
+ * imply a live account.
+ *
+ *   LOCAL_CLI     a tool already running on this machine wrote the payload
+ *   IMPORT_ONLY   the shape parses, and nothing here fetches it for you
+ *   MANUAL        a number you wrote down yourself
+ *   CONNECTED     OpenLimiter itself held a credential and made the request
+ *
+ * CONNECTED is reserved rather than aspirational. It is here because the
+ * provenance vocabulary already names `remote_api`, and a state that exists in
+ * the data with no word for it would be silently painted as one of the other
+ * three. No reader in this product can produce it yet, so in practice it only
+ * appears if a stamped reading claims it.
+ *
+ * The code is what a bug report should quote and the label is what a person
+ * reads, so the chip shows the label and carries the code in its title.
+ */
+export type SourceState = "LOCAL_CLI" | "IMPORT_ONLY" | "MANUAL" | "CONNECTED";
+
+export const sourceStateLabel: Record<SourceState, string> = {
+  LOCAL_CLI: "Local CLI",
+  IMPORT_ONLY: "Import only",
+  MANUAL: "Manual",
+  CONNECTED: "Connected",
+};
+
+/** One sentence per state, for the chip's tooltip and the connections list. */
+export const sourceStateSentence: Record<SourceState, string> = {
+  LOCAL_CLI:
+    "A tool on this machine writes the payload, and OpenLimiter reads what it wrote.",
+  IMPORT_ONLY:
+    "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document.",
+  MANUAL: "Figures you keep yourself. Nothing is read from an account.",
+  CONNECTED:
+    "OpenLimiter held a credential and asked the provider itself. No reader in this build does that yet.",
+};
+
+/** What a provider's state is before any reading has arrived. */
+const PROVIDER_DEFAULT_SOURCE: Record<ProviderCode, SourceState> = {
+  CLAUDE: "LOCAL_CLI",
+  OPENROUTER: "IMPORT_ONLY",
+  CODEX: "IMPORT_ONLY",
+  ANTIGRAVITY: "IMPORT_ONLY",
+  OPENCODE: "IMPORT_ONLY",
+  MANUAL: "MANUAL",
+};
+
+/**
+ * The one place a stamped provenance becomes a source state.
+ *
+ * `unknown` maps to nothing on purpose. It is the value the normalizer writes
+ * when a provenance was present and could not be believed, so treating it as an
+ * answer would let a malformed stamp overrule a source literal that is fine.
+ * Null here means fall through to the literal logic below.
+ */
+const PROVENANCE_SOURCE_STATE: Record<SnapshotSourceKind, SourceState | null> = {
+  statusline_payload: "LOCAL_CLI",
+  explicit_ingest: "IMPORT_ONLY",
+  manual_document: "MANUAL",
+  remote_api: "CONNECTED",
+  unknown: null,
+};
+
+/**
+ * The state a reading is shown in, decided by the reading rather than by a
+ * table where one exists.
+ *
+ * PROVENANCE FIRST, AND WHY
+ * -------------------------
+ * `source` is the provider's own word for the shape of the document: a Claude
+ * statusline block is `native_payload` whether Claude Code handed it over on
+ * this machine or somebody pasted a copy of it out of a chat log. Keying the
+ * chip off that literal chipped an imported Claude payload as Local CLI, which
+ * is the one sentence this chip exists to never say wrongly.
+ *
+ * `provenance.sourceKind` is OpenLimiter's own word for how the reading
+ * arrived, written by whatever read it and never by a provider, so it is the
+ * better answer whenever there is one. When it is absent, or stamped `unknown`,
+ * the literal logic below runs exactly as it always did: this is a preference,
+ * not a replacement, and a store full of rows written before provenance existed
+ * renders byte for byte the way it used to.
+ */
+export function sourceStateOf(
+  provider: string,
+  source?: MeterView["source"],
+  provenance?: MeterView["provenance"],
+): SourceState {
+  const stamped =
+    provenance === undefined ? null : PROVENANCE_SOURCE_STATE[provenance.sourceKind];
+  if (stamped !== null) return stamped;
+  if (source === "native_payload") return "LOCAL_CLI";
+  if (source === "manual_entry") return "MANUAL";
+  if (source !== undefined) return "IMPORT_ONLY";
+  return PROVIDER_DEFAULT_SOURCE[provider as ProviderCode] ?? "IMPORT_ONLY";
+}
+
+/**
+ * What each provider can actually do today, in one honest line each.
+ *
+ * This is the connections list, and it is deliberately the least exciting text
+ * in the product. Nothing here is a promise: a line says what happens if you
+ * try it right now.
+ */
+export interface ConnectionFact {
+  provider: ProviderCode;
+  state: SourceState;
+  line: string;
+}
+
+export const CONNECTION_FACTS: readonly ConnectionFact[] = [
+  {
+    provider: "CLAUDE",
+    state: "LOCAL_CLI",
+    line: "Claude Code writes a rate limit block to its statusline command. Point that command at OpenLimiter and the reading arrives on its own.",
+  },
+  {
+    provider: "OPENROUTER",
+    state: "IMPORT_ONLY",
+    line: "The documented credits response parses. There is no key store and no request from here yet, so paste or ingest the response.",
+  },
+  {
+    provider: "CODEX",
+    state: "IMPORT_ONLY",
+    line: "The usage payload the Codex tooling produces parses. Internal shape, no reader, so the document comes from you.",
+  },
+  {
+    provider: "ANTIGRAVITY",
+    state: "IMPORT_ONLY",
+    line: "The quota payload the Antigravity tooling produces parses. Internal shape, no reader, so the document comes from you.",
+  },
+  {
+    provider: "OPENCODE",
+    state: "IMPORT_ONLY",
+    line: "The usage view behind an existing session parses. Nothing here opens or holds that session.",
+  },
+  {
+    provider: "MANUAL",
+    state: "MANUAL",
+    line: "Write down what you know for anything with no interface at all. It never breaks and it never guesses.",
+  },
+];
 
 /**
  * The label a bar is announced with.

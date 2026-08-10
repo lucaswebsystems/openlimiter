@@ -1,0 +1,72 @@
+# Ollama, a local inference engine. There is no account, subscription, or
+# quota to read: models run on the user's own hardware and the local API is
+# unauthenticated. This entry says that plainly and records the one locally
+# documented numeric field close to a meter, a model's context length, which
+# is a model capability rather than a usage meter.
+#
+# Ollama also ships a separate paid product, Ollama Cloud, with real
+# subscription tiers (Free, Pro, Max, Team, Enterprise) and session and
+# weekly windows. As of the review date below, Ollama documents no API and
+# no local file for reading Cloud usage or quota: an open feature request on
+# the official repository, ollama/ollama#16448, closed as a duplicate of
+# #12532, states the only way to see it is the web dashboard. That makes
+# Ollama Cloud scrape_only in this registry's taxonomy, not local_file or
+# official_api, so it is not modelled here. See provider_specs/RESEARCH.md
+# for the full writeup.
+
+provider_id: ollama
+product_id: local
+display_name: Ollama
+
+source:
+  docs_url: https://github.com/ollama/ollama/blob/main/docs/api.md
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: not_applicable
+  appears_after: local_server_running
+  absence_is_error: false
+
+# Nothing in this repository reads Ollama yet. This entry is what a future
+# parser and reader would be written against.
+support:
+  parser: absent
+  reader: absent
+  auth: not_required
+
+connections:
+  - reader: local_command
+    auth_mode: none
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - ollama.documented.show
+
+# POST /api/show returns a model_info block whose keys are namespaced by
+# model architecture, for example "llama.context_length" for a Llama family
+# model, with the prefix changing per architecture family. That does not fit
+# this file's plain dotted path, which has no way to express an architecture
+# dependent prefix, so source_path below names only the logical field. A
+# real parser needs architecture aware key matching this registry entry
+# cannot state. Marked optional because it is a model capability, not usage,
+# and because no reader exists yet.
+meters:
+  - id: context_length
+    label: Model context length
+    kind: context
+    unit: tokens
+    scope: model
+    window:
+      kind: provider_defined
+    source_path: context_length
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: CONTEXT_LENGTH

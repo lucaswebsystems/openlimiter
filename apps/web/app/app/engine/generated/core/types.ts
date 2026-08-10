@@ -56,6 +56,73 @@ export interface SnapshotAmounts {
   currency: SnapshotCurrency;
 }
 
+/**
+ * How an observation reached us, stated in our own vocabulary.
+ *
+ * A provider tells us what its meter reads. It never tells us how we read it,
+ * so this field is written by OpenLimiter and only ever holds one of the values
+ * below. A human surface can then say "this came from your local Claude Code"
+ * or "this came from an official API" without a provider being able to write
+ * that sentence for us.
+ */
+export const SNAPSHOT_SOURCE_KINDS = [
+  "statusline_payload",
+  "explicit_ingest",
+  "manual_document",
+  "remote_api",
+  "unknown"
+] as const;
+
+export type SnapshotSourceKind = (typeof SNAPSHOT_SOURCE_KINDS)[number];
+
+/**
+ * Which reader carried the observation. Closed for the same reason as above.
+ *
+ * The first three name a concrete path this product actually has, because a
+ * source chip saying "your Claude Code statusline" and one saying "you imported
+ * this" are the difference between a live reading and a paste, and a generic
+ * reader kind cannot tell a person which they are looking at. The rest are the
+ * reader kinds the connection architecture defines, kept for paths that exist
+ * on paper before they exist in code.
+ */
+export const SNAPSHOT_OBSERVED_VIA = [
+  "claude_code_statusline",
+  "ingest_command",
+  "manual_json",
+  "local_event",
+  "local_file",
+  "local_command",
+  "remote_http",
+  "user_entry",
+  "unknown"
+] as const;
+
+export type SnapshotObservedVia = (typeof SNAPSHOT_OBSERVED_VIA)[number];
+
+export interface SnapshotProvenance {
+  sourceKind: SnapshotSourceKind;
+  observedVia: SnapshotObservedVia;
+}
+
+/**
+ * What a reading's provenance becomes when the stated provenance cannot be
+ * believed. The reading itself still stands: how a number arrived is a separate
+ * question from whether the number is in range.
+ */
+export const UNKNOWN_PROVENANCE: SnapshotProvenance = {
+  sourceKind: "unknown",
+  observedVia: "unknown"
+};
+
+/**
+ * Shape of an account identifier, when a source names one.
+ *
+ * Lowercase, digits and hyphens, never a space, so it can be joined into a cache
+ * identity with a space separator and never collide. It is an opaque local alias
+ * and is not required to be an account name any provider would recognise.
+ */
+export const ACCOUNT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/u;
+
 export interface ConnectorLabels {
   credentialOrigin:
     | "official-local-tool"
@@ -88,6 +155,16 @@ export interface Snapshot {
   usedAmount?: number;
   limitAmount?: number;
   currency?: SnapshotCurrency;
+  /**
+   * Which account this reading belongs to, when a source names one.
+   *
+   * Absent means one unnamed account, which is every reading written before
+   * multiple accounts existed. Absent is not the same as an account called
+   * "default": a row without this field keeps the identity it always had.
+   */
+  accountId?: string;
+  /** How the reading arrived. Absent means it was never recorded. */
+  provenance?: SnapshotProvenance;
 }
 
 export interface RawMeter {
@@ -105,6 +182,8 @@ export interface RawMeter {
   usedAmount?: unknown;
   limitAmount?: unknown;
   currency?: unknown;
+  accountId?: unknown;
+  provenance?: unknown;
 }
 
 export interface ConnectorReadContext {

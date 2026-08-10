@@ -1,14 +1,21 @@
 import {
+  ACCOUNT_ID_PATTERN,
   MAX_SNAPSHOT_AMOUNT,
   PROVIDER_CODES,
+  SNAPSHOT_OBSERVED_VIA,
+  SNAPSHOT_SOURCE_KINDS,
+  UNKNOWN_PROVENANCE,
   type ConnectorLabels,
   type ProviderCode,
   type RawMeter,
   type Snapshot,
   type SnapshotAmounts,
   type SnapshotCurrency,
+  type SnapshotObservedVia,
   type SnapshotPrecision,
+  type SnapshotProvenance,
   type SnapshotSource,
+  type SnapshotSourceKind,
   type SnapshotUnit,
   type SnapshotWindow
 } from "./types.js";
@@ -24,6 +31,8 @@ const sources = new Set<SnapshotSource>([
 const precisions = new Set<SnapshotPrecision>(["exact", "estimated", "manual"]);
 const currencies = new Set<SnapshotCurrency>(["USD"]);
 const providerCodes = new Set<string>(PROVIDER_CODES);
+const sourceKinds = new Set<string>(SNAPSHOT_SOURCE_KINDS);
+const observedVia = new Set<string>(SNAPSHOT_OBSERVED_VIA);
 const safeMeter = /^[A-Z][A-Z0-9_]{0,31}$/u;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -109,6 +118,43 @@ function normalizeAmounts(raw: RawMeter): SnapshotAmounts | null {
   return { usedAmount: used, limitAmount: limit, currency: currency as SnapshotCurrency };
 }
 
+/**
+ * Read the account this reading belongs to.
+ *
+ * Absent is the ordinary case and means one unnamed account. Present but
+ * malformed is the dangerous case, because an identity we cannot trust would
+ * quietly split or merge a user's meters in the cache, so that row is refused
+ * outright rather than stripped back to the unnamed account.
+ */
+function readAccountId(value: unknown): { ok: true; accountId: string | null } |
+  { ok: false } {
+  if (value === undefined) return { ok: true, accountId: null };
+  if (typeof value !== "string" || !ACCOUNT_ID_PATTERN.test(value)) return { ok: false };
+  return { ok: true, accountId: value };
+}
+
+/**
+ * Read how the observation arrived.
+ *
+ * The opposite call to the one above, and deliberately so. Provenance is a
+ * label on a reading, not part of its identity, so a provenance we cannot read
+ * costs the reading nothing: it becomes unknown and the number survives. Either
+ * field failing makes the whole thing unknown, because half a provenance would
+ * invite a surface to describe a source it cannot actually vouch for.
+ */
+function readProvenance(value: unknown): SnapshotProvenance | null {
+  if (value === undefined) return null;
+  if (!isRecord(value)) return UNKNOWN_PROVENANCE;
+  const kind = value["sourceKind"];
+  const via = value["observedVia"];
+  if (typeof kind !== "string" || !sourceKinds.has(kind)) return UNKNOWN_PROVENANCE;
+  if (typeof via !== "string" || !observedVia.has(via)) return UNKNOWN_PROVENANCE;
+  return {
+    sourceKind: kind as SnapshotSourceKind,
+    observedVia: via as SnapshotObservedVia
+  };
+}
+
 export function normalizeMeter(raw: RawMeter): Snapshot | null {
   if (typeof raw.provider !== "string" || !providerCodes.has(raw.provider)) return null;
   if (typeof raw.meter !== "string" || !safeMeter.test(raw.meter)) return null;
@@ -131,6 +177,9 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
   ) return null;
   if (!isIsoInstant(raw.observedAt) || !isIsoInstant(raw.expiresAt)) return null;
   if (Date.parse(raw.expiresAt) < Date.parse(raw.observedAt)) return null;
+  const account = readAccountId(raw.accountId);
+  if (!account.ok) return null;
+  const provenance = readProvenance(raw.provenance);
   const amounts = normalizeAmounts(raw);
   return {
     provider: raw.provider as Snapshot["provider"],
@@ -144,7 +193,9 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
     observedAt: raw.observedAt,
     expiresAt: raw.expiresAt,
     labels,
-    ...(amounts === null ? {} : amounts)
+    ...(amounts === null ? {} : amounts),
+    ...(account.accountId === null ? {} : { accountId: account.accountId }),
+    ...(provenance === null ? {} : { provenance })
   };
 }
 

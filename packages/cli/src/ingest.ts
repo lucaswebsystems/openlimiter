@@ -8,7 +8,9 @@ import {
   readJsonFileSafely,
   resolveStateDirectory,
   type CacheMergeResult,
-  type Snapshot
+  type RawMeter,
+  type Snapshot,
+  type SnapshotProvenance
 } from "@openlimiter/core";
 
 /** Largest document accepted on standard input. */
@@ -80,6 +82,48 @@ export function parseJsonText(text: string | null): JsonText {
   } catch {
     return { ok: false };
   }
+}
+
+/**
+ * Where a reading came from, stated by the code that actually knows.
+ *
+ * A parser is handed a payload and cannot tell whether Claude Code piped it in
+ * a moment ago or a person pasted it from a chat window last week, and those
+ * two readings deserve different words on a card. Only these boundaries know,
+ * so the stamp is applied here and the parsers stay pure functions of their
+ * input. Every value below is ours: nothing a provider sends can become one.
+ */
+
+/** A live Claude Code session payload, arriving on standard input. */
+export const STATUSLINE_PROVENANCE: SnapshotProvenance = {
+  sourceKind: "statusline_payload",
+  observedVia: "claude_code_statusline"
+};
+
+/** A payload a person handed us with `openlimiter ingest`. */
+export const INGEST_PROVENANCE: SnapshotProvenance = {
+  sourceKind: "explicit_ingest",
+  observedVia: "ingest_command"
+};
+
+/** The manual quota document, read from the state directory. */
+export const MANUAL_PROVENANCE: SnapshotProvenance = {
+  sourceKind: "manual_document",
+  observedVia: "manual_json"
+};
+
+/**
+ * Stamp provenance onto meters a parser just produced.
+ *
+ * Applied at the boundary, before normalization, so the normalizer validates
+ * the stamp the same way it validates everything else and a stamp this code got
+ * wrong is caught rather than trusted.
+ */
+export function withProvenance(
+  meters: readonly RawMeter[],
+  provenance: SnapshotProvenance
+): RawMeter[] {
+  return meters.map((meter) => ({ ...meter, provenance }));
 }
 
 function manualFilePath(directory: string | undefined): string {

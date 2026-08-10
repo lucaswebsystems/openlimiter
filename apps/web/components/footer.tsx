@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { BrandLockup } from "./brand";
 import { GitHubMark, SHELL } from "./ui";
-import { platformTargets } from "@/lib/downloads";
 import { reveal } from "@/lib/motion";
 import {
   AUTHOR_EMAIL,
@@ -10,7 +9,6 @@ import {
   AUTHOR_NAME,
   AUTHOR_SITE,
   COFFEE_URL,
-  DISCUSSIONS_URL,
   ISSUES_URL,
   LICENSE_URL,
   REPO_URL,
@@ -20,14 +18,23 @@ import {
 /**
  * The footer.
  *
- * A brand block that says who made this and how to reach him, then three
- * columns of links that all point at something that exists. The columns are
- * short on purpose: a footer that lists every provider and every comparison
- * page is a sitemap, not a footer, and the two columns that did that are gone.
- * Comparisons live in the header, where a reader looking for them will be.
+ * A brand block that says who made this and how to reach him, then two columns
+ * of links that all point at something that exists.
  *
- * The Download column is generated from the same data the download page renders,
- * so a platform cannot be listed here and missing from the page it points at.
+ * IT USED TO BE THREE COLUMNS AND FIFTEEN LINKS
+ * ---------------------------------------------
+ * The Download column listed every platform separately, which duplicated the
+ * one job the download page already does better: it reads the visitor's system
+ * and offers the right file first. So the whole column collapsed into a single
+ * Download link. Discussions went with it, because Issues is where anything
+ * actionable actually lands.
+ *
+ * Roadmap and Security left the columns too, and only one of them needed
+ * somewhere else to live. Roadmap is a documentation page and is linked from
+ * the documentation. Security is a trust surface, and a trust surface that
+ * takes two navigations to reach is a trust surface nobody reads, so it sits in
+ * the licence line at the bottom beside the licence itself.
+ *
  * There is no Discord link anywhere on this site, by instruction.
  */
 
@@ -39,21 +46,14 @@ interface FooterLink {
 
 const product: FooterLink[] = [
   { label: "Docs", href: "/docs" },
+  { label: "Download", href: "/download" },
   { label: "Changelog", href: "/changelog" },
   { label: "Blog", href: "/blog" },
-  { label: "Roadmap", href: "/docs/roadmap" },
-  { label: "Security", href: "/docs/security" },
 ];
-
-const download: FooterLink[] = platformTargets.map((target) => ({
-  label: target.name,
-  href: `/download#${target.id}`,
-}));
 
 const community: FooterLink[] = [
   { label: "GitHub", href: REPO_URL, external: true },
   { label: "Issues", href: ISSUES_URL, external: true },
-  { label: "Discussions", href: DISCUSSIONS_URL, external: true },
   { label: "GitHub Sponsors", href: SPONSORS_URL, external: true },
   { label: "Buy me a coffee", href: COFFEE_URL, external: true },
 ];
@@ -167,8 +167,13 @@ function MailMark({ className = "h-4 w-4" }: { className?: string }) {
 
 export function Footer() {
   return (
-    <footer className={`${SHELL} pb-8 pt-4 md:pb-16`}>
-      <div className="grid gap-10 border-t border-hairline pt-10 text-sm lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
+    /* The bottom padding is generous on a phone because the back to top button
+       is fixed in that corner, and the licence line is centred, so a tight
+       footer put a floating circle on top of the last sentence of the page.
+       The button is 44 pixels tall and sits 20 from the edge, so 96 clears it
+       with room left over. Wide screens never had the collision. */
+    <footer className={`${SHELL} pb-24 pt-4 sm:pb-8 md:pb-16`}>
+      <div className="grid gap-10 border-t border-hairline pt-10 text-sm lg:grid-cols-[2fr_1fr_1fr]">
         <div className="max-w-sm space-y-4" {...reveal}>
           <Link href="/" aria-label="OpenLimiter, home" className="focus-ring inline-flex rounded">
             <BrandLockup
@@ -222,11 +227,13 @@ export function Footer() {
         </div>
 
         <Column title="Product" links={product} />
-        <Column title="Download" links={download} />
         <Column title="Community" links={community} />
       </div>
 
-      <p className="pt-10 text-xs text-muted" {...reveal}>
+      {/* Centred, and capped at a readable measure, so the last line of the page
+          reads as a closing statement rather than as one more left aligned
+          column heading. */}
+      <p className="mx-auto max-w-2xl pt-10 text-center text-xs leading-relaxed text-muted" {...reveal}>
         Apache 2.0. Local first. Zero telemetry in the software. No accounts. This site keeps
         cookieless page counts only.{" "}
         <a
@@ -237,7 +244,13 @@ export function Footer() {
         >
           Read the licence
         </a>
-        .
+        {" · "}
+        <Link
+          href="/docs/security"
+          className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+        >
+          Security
+        </Link>
       </p>
     </footer>
   );

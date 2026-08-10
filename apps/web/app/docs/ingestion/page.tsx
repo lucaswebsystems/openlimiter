@@ -25,13 +25,36 @@ export default function IngestionPage() {
                 the cache, and renders the fresh numbers in the same call.
               </P>
               <CodeBlock
-                label="the block it reads"
+                label="the block it reads, from Anthropic's own statusline documentation"
                 code={`{
   "rate_limits": {
-    "five_hour": { "utilization": 87.5, "resets_at": "2026-08-09T13:11:01.351Z" },
-    "seven_day": { "utilization": 41.25, "resets_at": "2026-08-15T12:11:01.351Z" }
+    "five_hour": { "used_percentage": 23.5, "resets_at": 1738425600 },
+    "seven_day": { "used_percentage": 41.2, "resets_at": 1738857600 }
   }
 }`}
+              />
+              <P>
+                <Code>used_percentage</Code> is the share of the window already used, from 0 to
+                100. <Code>resets_at</Code> is a Unix epoch number in seconds, not a date string.
+                Both field names and the epoch encoding come from Anthropic&apos;s published
+                statusline documentation rather than from this project, and each window is
+                independently optional: a payload naming only one of them is one complete meter,
+                not a partial one.
+              </P>
+              <Bullets
+                items={[
+                  <>
+                    <Code>rate_limits</Code> appears only for Claude.ai subscribers on a Pro or Max
+                    plan, and only after the first API response of a session. A payload with no{" "}
+                    <Code>rate_limits</Code> block is the ordinary shape of a free account or a
+                    session that has not called the API yet, not an error.
+                  </>,
+                  <>
+                    A reset implausibly far out for its own window, a five hour window resetting
+                    days away, is dropped on its own rather than trusted. The other window still
+                    counts.
+                  </>,
+                ]}
               />
               <P>
                 Anything else in the session object is ignored. A window that fails validation is

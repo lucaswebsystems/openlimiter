@@ -1,0 +1,64 @@
+# Perplexity. Two surfaces exist, the developer API and the consumer Pro or
+# Max subscription, and neither documents a program readable balance or
+# usage endpoint. The API reference at the source URL lists only the
+# generation endpoint; account usage and credit balance appear solely in the
+# console at console.perplexity.ai/group/billing, confirmed absent of any
+# API alternative by docs.perplexity.ai/guides/api-organization. The
+# consumer help center could not be fetched directly, bot protected, so its
+# facts live in provider_specs/RESEARCH.md marked inferred rather than here.
+#
+# Every /v1/agent response does carry a real per request usage object
+# (input_tokens, output_tokens, cost, and more) but that is request
+# telemetry, not an account balance check, so it does not change the
+# classification below.
+#
+# This entry routes through the manual reader, the same contract
+# packages/connectors/src/manual.ts already implements: a human reads the
+# console and types the number in.
+
+provider_id: perplexity
+product_id: api
+display_name: Perplexity
+
+source:
+  docs_url: https://docs.perplexity.ai/guides/api-organization
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: any
+  appears_after: manual_entry
+  absence_is_error: false
+
+support:
+  parser: absent
+  reader: absent
+  auth: not_required
+
+connections:
+  - reader: manual
+    auth_mode: manual
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - perplexity.manual.credits
+
+meters:
+  - id: credits
+    label: Credit balance
+    kind: credits
+    unit: percent_used
+    scope: account
+    window:
+      kind: credit_balance
+    source_path: used_percent
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: CREDITS

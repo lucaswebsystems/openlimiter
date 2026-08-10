@@ -1,0 +1,70 @@
+# GitHub Copilot. The only one of the three coding assistant tools in this
+# research pass, Copilot, Cursor, Windsurf, whose usage API also works for
+# an ordinary individual user rather than only a team or enterprise admin.
+# GET /users/{username}/settings/billing/usage/summary and three sibling
+# paths, /usage, /premium_request/usage, /ai_credit/usage, are documented at
+# the source_url, reachable with a normal bearer token. The exact OAuth
+# scope or fine grained PAT permission the endpoint needs was not stated on
+# the page read: unknown, not guessed, flagged here and in RESEARCH.md.
+#
+# GitHub is also mid migration: the billing unit changed from "premium
+# requests" to "GitHub AI Credits" on 2026-06-01, and both terms still
+# appear across current docs, so the response shape may still move. The
+# documented sample response is a per line item array, usageItems, each
+# with product, sku, model, unitType, pricePerUnit, grossQuantity,
+# grossAmount, netQuantity, netAmount: there is no single confirmed
+# aggregate "percent of monthly credits used" field, so source_path below
+# names the array itself. A real parser would need to sum it, which this
+# file's plain dotted path cannot express.
+#
+# Documented monthly credit allotments: Pro 1500, Pro+ 7000, Max 20000,
+# Business 1900 per user, Enterprise 3900 per user, resetting at
+# 00:00:00 UTC on the first of each calendar month. Free tier states "an
+# allowance of AI credits" without publishing the exact number.
+
+provider_id: github
+product_id: copilot
+display_name: GitHub Copilot
+
+source:
+  docs_url: https://docs.github.com/en/rest/billing/usage
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: any
+  appears_after: credential_stored
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: oauth
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - github.documented.usage
+
+meters:
+  - id: ai_credits
+    label: AI credits used this month
+    kind: credits
+    unit: percent_used
+    scope: account
+    window:
+      kind: calendar_month
+    source_path: usageItems
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: AI_CREDITS

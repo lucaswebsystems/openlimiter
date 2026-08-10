@@ -43,8 +43,8 @@ const cases: readonly {
     huge: {
       rate_limits: {
         five_hour: {
-          utilization: 9e300,
-          resets_at: "2026-01-01T05:00:00.000Z"
+          used_percentage: 9e300,
+          resets_at: 1_767_243_600
         }
       }
     }
@@ -207,9 +207,10 @@ describe("connector contracts", () => {
 
   it("keeps the readable window when the other window is unusable", () => {
     const payload = claudeFixture(FIXTURE_NOW) as {
-      rate_limits: { five_hour: { resets_at: string } };
+      rate_limits: { five_hour: { resets_at: number } };
     };
-    payload.rate_limits.five_hour.resets_at = "2020-01-01T00:00:00.000Z";
+    /* An epoch in 2020, long past the fixture clock. */
+    payload.rate_limits.five_hour.resets_at = 1_577_836_800;
     const parsed = parseClaudePayload(payload, FIXTURE_NOW);
     expect(parsed).toHaveLength(1);
     expect(parsed?.[0]?.meter).toBe("SEVEN_DAY");

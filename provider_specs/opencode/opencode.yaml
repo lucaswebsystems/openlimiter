@@ -1,0 +1,67 @@
+# OpenCode. Documents an existing shipped connector,
+# packages/connectors/src/opencode.ts, not third party research, and the
+# riskiest of the four connectors in this batch. Its own code carries an
+# explicit honesty flag, opencodeHonesty, literally valued
+# "UNVERIFIED_AUTHENTICATED_SCRAPE_HIGH_RISK," and its labels state
+# credentialOrigin "browser-session" and dataInterfaceStatus
+# "authenticated-scrape": the payload this parser reads comes from an
+# authenticated web session, not a file a local tool wrote for itself. The
+# parser is real and exercised by the fixture named below; nothing in this
+# repository captures a browser session or fetches the payload itself,
+# which is why reader is absent even though parser is implemented.
+#
+# parseOpencodePayload reads usage.percent and usage.reset_at, the second
+# parsed as a date string through futureInstant. The fixture also carries
+# an account_label field the parser never reads; it is not modelled as a
+# meter here because the parser does not consume it. The window carries no
+# duration or calendar rule in the parser, internally typed only as
+# "fixed," stated here as provider_defined rather than guessing a length
+# the code does not state. A payload missing either field is refused
+# whole, so this one meter is not marked optional.
+
+provider_id: opencode
+product_id: opencode
+display_name: OpenCode
+
+source:
+  docs_url: packages/connectors/src/opencode.ts
+  reviewed_at: "2026-08-10"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: browser_session_captured
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: absent
+  auth: not_required
+
+connections:
+  - reader: explicit_import
+    auth_mode: none
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - opencode.provisional.usage
+
+meters:
+  - id: primary
+    label: Primary usage
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: provider_defined
+    source_path: usage.percent
+    reset_path: usage.reset_at
+    reset_encoding: iso8601
+    optional: false
+    meter_code: PRIMARY

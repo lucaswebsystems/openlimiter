@@ -15,6 +15,7 @@
  * reports for a file that is not there.
  */
 export * from "./types";
+export * from "./connection-state";
 export * from "./failures";
 export * from "./format";
 export * from "./forecast";
@@ -22,4 +23,5 @@ export * from "./freshness";
 export * from "./merge";
 export * from "./normalizer";
 export * from "./policy";
+export * from "./schedule";
 export { readSnapshotCache, type CacheReadResult } from "../../browser-cache";

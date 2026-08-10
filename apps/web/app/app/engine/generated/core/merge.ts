@@ -11,11 +11,18 @@ import type { Snapshot } from "./types";
 export const MAX_CACHE_ENTRIES = 64;
 
 /*
- * A provider code and a meter name are both closed uppercase identifiers with
- * no spaces, so joining them with one space cannot collide.
+ * A provider code, a meter name and an account id are all closed identifiers
+ * with no spaces, so joining them with one space cannot collide.
+ *
+ * The account id joins the key only when the row states one. A row without an
+ * account therefore keys exactly as it always did, which is what lets a cache
+ * written before accounts existed merge with one written after without any row
+ * changing identity or duplicating itself. Two rows for the same meter under
+ * different accounts are two rows, which is the whole point of the field.
  */
 function identity(snapshot: Snapshot): string {
-  return snapshot.provider + " " + snapshot.meter;
+  const base = snapshot.provider + " " + snapshot.meter;
+  return snapshot.accountId === undefined ? base : base + " " + snapshot.accountId;
 }
 
 function compareIdentity(left: Snapshot, right: Snapshot): number {

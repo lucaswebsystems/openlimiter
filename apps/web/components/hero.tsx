@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { HeroBackdrop } from "./hero-backdrop";
-import { heroMarks } from "./tool-marks";
+import { heroMarks, toolTitle } from "./tool-marks";
 import { ButtonLink, IconButtonLink, SHELL } from "./ui";
 import {
   DOWNLOAD_DISCLAIMER,
@@ -97,10 +97,13 @@ export function Hero() {
   /* The experiment, and its off switch. When HERO_BACKDROP_ENABLED is false the
      section does not take the class either, so the markup below is exactly what
      it was before the backdrop existed. See lib/site.ts. */
-  const backdropClass = HERO_BACKDROP_ENABLED ? " hero-backdrop-host" : "";
+  /* The island class rides the same flag: without the footage band, white
+     words on the light canvas would be unreadable, so the two only ship
+     together. */
+  const backdropClass = HERO_BACKDROP_ENABLED ? " hero-backdrop-host hero-dark-island" : "";
 
   return (
-    <section className={`${SHELL} pb-10 md:pb-12${backdropClass}`}>
+    <section className={`${SHELL} mb-12 pt-8 pb-10 md:mb-16 md:pt-12 md:pb-12${backdropClass}`}>
       {HERO_BACKDROP_ENABLED && <HeroBackdrop />}
 
       <div className="space-y-6" {...reveal}>
@@ -109,7 +112,10 @@ export function Hero() {
           <br />
           Route around them.
         </h1>
-        <p className="max-w-lg text-lg leading-relaxed text-soft">
+        {/* Body tone rather than the grey step: alpha grey has no contrast of
+            its own over footage, so the fold's paragraph rides the strongest
+            text colour and lets size carry the hierarchy, same as Perpeta. */}
+        <p className="max-w-lg text-lg leading-relaxed text-body">
           Read your AI subscription quota locally. Give agents bounded budget state and advice.
           Open source, local first, cross platform.
         </p>
@@ -157,15 +163,17 @@ export function Hero() {
 
         <div className="flex flex-wrap items-center gap-2 pt-6">
           <span className="text-xs text-muted">Supports</span>
-          <div className="flex items-center gap-1.5">
-            {heroMarks.map(({ name, Mark }) => (
+          <div className="flex items-center gap-3">
+            {heroMarks.map((tool) => (
               <span
-                key={name}
-                title={name}
-                className="inline-flex items-center justify-center rounded-lg border border-hairline bg-surface p-1.5 text-soft"
+                key={tool.name}
+                title={toolTitle(tool)}
+                className="inline-flex items-center justify-center text-soft"
               >
-                <Mark className="h-[18px] w-[18px]" />
-                <span className="sr-only">{name}</span>
+                <tool.Mark className="h-[18px] w-[18px]" />
+                <span className="sr-only">
+                  {toolTitle(tool)}
+                </span>
               </span>
             ))}
           </div>

@@ -1,16 +1,24 @@
 import Link from "next/link";
-import { MANUAL_TODAY_NOTE, plannedTools, todayTools, type Tool } from "./tool-marks";
-import { Chip, IconChip, SectionHeading } from "./ui";
+import { ConnectionMatrix } from "./connection-matrix";
+import {
+  MANUAL_TODAY_NOTE,
+  plannedTools,
+  todayTools,
+  toolTitle,
+  type Tool,
+} from "./tool-marks";
+import { Chip, SectionHeading } from "./ui";
 import { reveal, revealGroup, revealSm } from "@/lib/motion";
 
 /**
  * The agent grid.
  *
  * Two groups, and the line between them is the point of the section. The first
- * group is the six connectors that ship in this release, each one carrying a
- * `today` chip. The second is twelve well known tools with no connector, each
- * one carrying a `planned` chip, so the grid can be as wide as the field
- * without a single tile implying support that does not exist.
+ * group is the six connectors that ship in this release, under a label that
+ * says so, and carrying no badge: shipping is the default here. The second is
+ * twelve well known tools with no connector, each one carrying a `planned`
+ * chip, so the grid can be as wide as the field without a single tile implying
+ * support that does not exist.
  *
  * The note between them is what keeps the planned group honest rather than a
  * tease: every name on this page can be metered today by hand, through manual
@@ -22,28 +30,78 @@ import { reveal, revealGroup, revealSm } from "@/lib/motion";
  * and nothing is fetched.
  */
 
+/**
+ * One tile, with the mark drawn bare and no badge on the ordinary case.
+ *
+ * The tinted square around the logo is gone: a brand mark is already an object
+ * and putting it in a second one turned this grid into eighteen buttons. The
+ * `today` chip is gone for the same kind of reason: every tile in the first
+ * group had one, so it said nothing, and the line under the name already says
+ * `Connector`. `planned` stays, because that is the exception.
+ */
 function ToolTile({ tool }: { tool: Tool }) {
   const planned = tool.state === "planned";
   return (
     <div
-      className={`lift elev-1 flex items-center gap-3 rounded-xl border px-4 py-3.5 ${
+      title={toolTitle(tool)}
+      className={`lift elev-1 flex items-center gap-3.5 rounded-xl border px-4 py-3.5 ${
         planned
           ? "border-hairline bg-canvas hover:border-hairline-strong hover:bg-surface"
           : "border-hairline bg-surface hover:border-hairline-strong hover:bg-raised"
       }`}
       {...reveal}
     >
-      <IconChip tone={planned ? "neutral" : "accent"}>
+      <span aria-hidden="true" className={`flex-none ${planned ? "text-soft" : "text-accent"}`}>
         <tool.Mark className="h-5 w-5" />
-      </IconChip>
+      </span>
       <span className="min-w-0 flex-1">
         <span className="heading-face block truncate text-sm text-heading">{tool.name}</span>
         <span className="mt-0.5 block text-xs text-muted">
           {planned ? "No connector yet" : "Connector"}
         </span>
       </span>
-      <Chip tone={planned ? "neutral" : "accent"} dot={!planned} className="flex-none">
-        {planned ? "planned" : "today"}
+      {planned && (
+        <Chip tone="neutral" className="flex-none">
+          planned
+        </Chip>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A planned tile, which is a smaller object than a shipping one.
+ *
+ * Twelve full width rows ran this section past 3700 pixels on a phone for a
+ * list whose entire content is "we know about this and have not built it". So
+ * below the small breakpoint they stack three across as a mark over a name, and
+ * from there up they are the same row the shipping tiles use.
+ *
+ * The honesty rule survives the compaction untouched. Every tile still carries
+ * both statements at every width: the line under the name reads `No connector
+ * yet` and the chip reads `planned`. Only the arrangement changed. The hover
+ * text carries the whole sentence including any former product name.
+ */
+function PlannedTile({ tool }: { tool: Tool }) {
+  return (
+    <div
+      title={toolTitle(tool)}
+      className="lift elev-1 flex flex-col items-center gap-1.5 rounded-xl border border-hairline bg-canvas px-2 py-3 text-center hover:border-hairline-strong hover:bg-surface sm:flex-row sm:gap-3.5 sm:px-4 sm:py-3.5 sm:text-left"
+      {...reveal}
+    >
+      <span aria-hidden="true" className="flex-none text-soft">
+        <tool.Mark className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 sm:flex-1">
+        <span className="heading-face block truncate text-xs text-heading sm:text-sm">
+          {tool.name}
+        </span>
+        <span className="mt-0.5 block text-2xs leading-tight text-muted sm:text-xs">
+          No connector yet
+        </span>
+      </span>
+      <Chip tone="neutral" className="flex-none">
+        planned
       </Chip>
     </div>
   );
@@ -70,18 +128,25 @@ export function WorksWith() {
         lead="One meter over every subscription you already hold. Each connector reads a shape that something on your machine already wrote, and in this release not one of them touches the network."
       />
 
-      <GroupLabel title="Connected today" note="Six connectors ship in this release" />
+      <GroupLabel title="Ships today" note="Six connectors ship in this release" />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" {...revealGroup}>
         {todayTools.map((tool) => (
           <ToolTile key={tool.name} tool={tool} />
         ))}
       </div>
 
+      {/* Immediately under the six tiles, because the tiles are what invite the
+          reading that six accounts get connected. */}
+      <ConnectionMatrix />
+
       <div className="mt-10">
         <GroupLabel title="Planned" note="Known, named, and not written yet" />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" {...revealGroup}>
+        <div
+          className="grid grid-cols-3 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4"
+          {...revealGroup}
+        >
           {plannedTools.map((tool) => (
-            <ToolTile key={tool.name} tool={tool} />
+            <PlannedTile key={tool.name} tool={tool} />
           ))}
         </div>
       </div>

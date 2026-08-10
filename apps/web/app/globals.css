@@ -34,20 +34,17 @@
   are re-measured whenever a value here changes.
 
   The hero video backdrop is measured separately, because the surface behind
-  that text is a moving picture rather than a token. Every one of the 901
-  frames was composited under the veil declared further down this file, at the
-  hero's real geometry, and every piece of hero text was checked against the
-  brightest and the darkest that pixel ever gets. The worst result at each
-  width the veil behaves differently at:
-    1440 open ramp, video:   dark 6.10:1, light 5.22:1
-    1280 open ramp, video:   dark 6.11:1, light 5.22:1
-     768 flat veil, video:   dark 6.19:1, light 5.23:1
-     375 flat veil, poster:  dark 6.48:1, light 5.26:1
-  Every one clears AA 4.5:1, the tightest by a factor of 1.16, and the model
-  those numbers come from was checked against the rendered page and agreed to
-  within 3 of 255. The two pieces of hero text on the filled primary button sit
-  on an opaque token and are covered by the figures higher up instead.
-  Re-measure if the veil, the footage or the hero's copy changes.
+  that text is a moving picture rather than a token. 2026-08-10: after four
+  founder rounds the hero settled as a dark island in both themes (see the
+  band comment further down), footage under one flat black coat at 0.40,
+  white words in both themes, and the fold's paragraph on the body colour
+  because alpha grey has no contrast of its own over footage. The 901 frame
+  composite measurement that blessed the old heavy veil predates all of
+  this, so its figures are history, not evidence. Re-run that composite
+  against the flat coat before the next release gate, and re-measure again
+  whenever the coat, the footage or the hero's copy changes. Interim
+  evidence: visual checks at 1440 and 390 in both themes, in the session
+  log.
 */
 
 @theme inline {
@@ -492,6 +489,91 @@ body:has(.ol-shell) .announce-bar {
 }
 
 /*
+  THEME PAIRED IMAGERY
+  --------------------
+  A screenshot of a dark application on a light page is a hole in the page, so
+  every product capture ships twice and the pair is swapped in CSS. Both images
+  are in the markup at identical dimensions, so the swap cannot move anything:
+  one of them is `display: none` and neither ever loads at a different size.
+
+  Only the attribute is consulted, and `prefers-color-scheme` deliberately is
+  not, because the palette above does not consult it either: this product is
+  dark first for every visitor whatever their system says, and light is reached
+  only by asking for it. A media query here would put a light screenshot on a
+  dark page for anybody whose laptop is in light mode, which is exactly the
+  defect this pair exists to remove.
+*/
+.shot-light {
+  display: none;
+}
+
+:root[data-theme="light"] .shot-dark {
+  display: none;
+}
+
+:root[data-theme="light"] .shot-light {
+  display: block;
+}
+
+/*
+  THE PHONE, DRAWN
+  ----------------
+  A device shell in CSS, and not one pixel of anybody's product photography.
+  Every measurement is a fraction of the screen width, so one size variable
+  moves the whole thing and the proportions survive: the bezel, the corner
+  radius and the island keep their relationship at any width.
+
+  The screen box is exactly 440 by 956, which is the logical screen the captures
+  are taken at, so the image lands at one to one and nothing is scaled on a
+  single axis. The island sits over the top of the picture the way the real one
+  sits over the top of a real screen.
+*/
+.phone-body {
+  --bezel: calc(var(--screen) * 0.028);
+  width: calc(var(--screen) + var(--bezel) * 2);
+  padding: var(--bezel);
+  border-radius: calc(var(--screen) * 0.135 + var(--bezel));
+  background:
+    linear-gradient(150deg, #4a4a52 0%, #17171a 22%, #0b0b0d 52%, #1e1e22 78%, #45454d 100%);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.5),
+    0 24px 48px -20px rgb(0 0 0 / 0.55),
+    inset 0 0 0 1px rgb(255 255 255 / 0.07);
+}
+
+.phone-screen {
+  position: relative;
+  width: var(--screen);
+  aspect-ratio: 440 / 956;
+  overflow: hidden;
+  border-radius: calc(var(--screen) * 0.135);
+  background-color: var(--ol-code);
+}
+
+/* No `display` here on purpose. `.shot-dark` and `.shot-light` above own that
+   property, and a selector of this shape would outrank a bare class and put
+   both halves of a theme pair on the page at once. */
+.phone-screen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+/* The pill, centred, over the picture. Pure black, because the real one is a
+   hole in the display rather than a painted shape. */
+.phone-island {
+  position: absolute;
+  top: calc(var(--screen) * 0.031);
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(var(--screen) * 0.283);
+  height: calc(var(--screen) * 0.077);
+  border-radius: 999px;
+  background-color: #000000;
+}
+
+/*
   The integration strip.
 
   Two rows of real integration cards sliding in opposite directions. Each track
@@ -687,14 +769,14 @@ body:has(.ol-shell) .announce-bar {
   of the page, and the poster is its background, which means the still frame is
   painted the moment the stylesheet lands whether or not any video ever loads.
 
-  `::after` is the contrast veil, and it is the reason any of this is legible.
-  Two gradients of the canvas token, so both themes veil in their own colour
-  and neither has to be written twice. The first fades the band into the page
-  at the top and the bottom. The second is the reading scrim: heaviest on the
-  left, where every word in the hero sits, thinning to the right, where there
-  is nothing but picture. Their opacities multiply where they overlap, and the
-  effective figures were measured on the composite rather than chosen: see the
-  contrast note in this file's header.
+  `::after` is the veil, and the whole band is Perpeta's island pattern,
+  ported and then simplified across four founder rounds (2026-08-10, ending
+  at "a dark overlay, not super transparent, no gradient"): the hero is a
+  DARK ISLAND in both themes. Crisp edges, no blending in any direction,
+  footage under one flat black coat. The words inside are the dark palette's
+  white in both themes, carried by `.hero-dark-island` re-declaring the dark
+  tokens for the subtree, so light mode never has to balance dark text on a
+  moving picture again.
 */
 .hero-backdrop-host {
   position: relative;
@@ -709,10 +791,26 @@ body:has(.ol-shell) .announce-bar {
   width: 100vw;
   overflow: hidden;
   transform: translateX(-50%);
+  /* The island's base coat: inside .hero-dark-island this resolves to the
+     dark canvas, so a slow or failed poster still leaves white words on a
+     dark bar rather than on the light page. */
+  background: var(--ol-canvas);
+  pointer-events: none;
+}
+
+/* The still frame lives on ::before rather than the box itself so the media
+   can be mirrored without mirroring the curtain: founder's order 2026-08-10,
+   flip the footage horizontally, which parks its bright subject on the right,
+   exactly where the curtain opens. ::before paints under the video, and the
+   ::after veil stays unflipped on top of both. */
+.hero-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background-image: url("/backdrop/hero-backdrop.jpg");
   background-position: center;
   background-size: cover;
-  pointer-events: none;
+  transform: scaleX(-1);
 }
 
 .hero-backdrop video {
@@ -722,63 +820,74 @@ body:has(.ol-shell) .announce-bar {
   width: 100%;
   object-fit: cover;
   object-position: center;
+  transform: scaleX(-1);
 }
 
-/* A phone gets the still frame and never the file. Same story as the reduced
-   motion rule below: the component is what stops the fetch, this is the
-   backstop for a viewport that crosses the breakpoint afterwards. */
-@media (max-width: 767px) {
-  .hero-backdrop video {
-    display: none;
-  }
-}
-
+/* One flat coat, no direction, every width: the founder's final call of the
+   round ("a dark overlay, not super transparent, no gradient"). 0.40 sits
+   just above the left edge density Perpeta's contrast prover passed for the
+   same white words over real frames, so the whole band inherits that margin
+   instead of only the text side. Brightening the footage later means
+   lowering this one number. */
 .hero-backdrop::after {
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      to bottom,
-      var(--ol-canvas) 0%,
-      transparent 20%,
-      transparent 66%,
-      var(--ol-canvas) 100%
-    ),
-    linear-gradient(
-      to right,
-      color-mix(in srgb, var(--ol-canvas) 90%, transparent) 0%,
-      color-mix(in srgb, var(--ol-canvas) 86%, transparent) 100%
-    );
+  background: rgb(0 0 0 / 0.4);
 }
 
-/*
-  Only a wide screen gets the picture opened up.
+/* The island: the dark palette re-declared for the hero subtree, so every
+   token a child resolves (buttons, chips, greys, focus rings) paints in dark
+   theme values whatever the page theme is. No component inside the hero
+   carries a raw colour, which is what keeps this one class sufficient. */
+.hero-dark-island {
+  color-scheme: dark;
 
-  The reading scrim above thins towards the right because the hero's words are
-  on the left, but that is only true once the column is wide enough to leave
-  the right hand side empty. Measured on the rendered page, the hero's text
-  reaches 87 percent of the way across the band at 375, 80 percent at 768, and
-  only 49 percent at 1280. So the thinning starts at 1280 and nowhere below it,
-  where the veil stays flat and heavy instead and the footage reads as a tint.
-*/
-@media (min-width: 1280px) {
-  .hero-backdrop::after {
-    background:
-      linear-gradient(
-        to bottom,
-        var(--ol-canvas) 0%,
-        transparent 20%,
-        transparent 66%,
-        var(--ol-canvas) 100%
-      ),
-      linear-gradient(
-        to right,
-        color-mix(in srgb, var(--ol-canvas) 90%, transparent) 0%,
-        color-mix(in srgb, var(--ol-canvas) 87%, transparent) 46%,
-        color-mix(in srgb, var(--ol-canvas) 44%, transparent) 80%,
-        color-mix(in srgb, var(--ol-canvas) 64%, transparent) 100%
-      );
+  --ol-canvas: #0d0d0f;
+  --ol-surface: #141416;
+  --ol-raised: #1a1a1d;
+  --ol-code: #0a0a0c;
+  --ol-frame: #131315;
+  --ol-track: #34343a;
+
+  --ol-hairline: #24242a;
+  --ol-hairline-strong: #3c3c44;
+
+  --ol-heading: #fafafa;
+  --ol-body: #fafafa;
+  --ol-soft: #b6b6bd;
+  --ol-muted: #aaaab2;
+
+  --ol-accent: #7db4ff;
+  --ol-accent-hover: #a3caff;
+  --ol-accent-subtle: #0d1b33;
+  --ol-accent-solid: #0866ff;
+  --ol-accent-solid-hover: #0552d6;
+  --ol-on-accent: #ffffff;
+
+  --ol-solid: #fafafa;
+  --ol-solid-hover: #e4e4e4;
+  --ol-on-solid: #0d0d0f;
+
+  --ol-elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.45);
+  --ol-elev-2: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 8px 20px -14px rgb(0 0 0 / 0.75);
+}
+
+/* A phone gets the still frame and never the file. The component is what
+   stops the fetch, this is the backstop for a viewport that crosses the
+   breakpoint afterwards. This block sits AFTER the base veil on purpose:
+   same specificity, so only source order lets the phone override win. The
+   crop pins to the top so the frame's composition sits high; with this
+   footage that parks the bright glow low in the band, behind the download
+   notes, where it reads as life rather than noise. The curtain itself is
+   the same shared rule. */
+@media (max-width: 767px) {
+  .hero-backdrop video {
+    display: none;
+  }
+
+  .hero-backdrop::before {
+    background-position: center top;
   }
 }
 

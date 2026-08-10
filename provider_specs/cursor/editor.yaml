@@ -1,0 +1,66 @@
+# Cursor. An Admin API is real and documented at the source_url, but it is
+# scoped to a team: the only credential type documented is an API key "tied
+# to your organization... viewable by all admins," created at
+# cursor.com/dashboard. No separate personal usage endpoint exists for a
+# solo Hobby or Pro subscriber with no team: for that account shape this
+# surface is scrape_only in practice, dashboard only, even though
+# official_api is the literal, correct bucket for the endpoint itself. See
+# provider_specs/RESEARCH.md.
+#
+# POST /teams/spend documents teamMemberSpend[] with spendCents (per
+# member), overallSpendCents, monthlyLimitDollars, and
+# effectivePerUserLimitDollars. overallSpendCents against monthlyLimitDollars
+# is the closest confirmed used against limit pair, carried through below,
+# flagging that spend is documented in cents and the limit in whole dollars,
+# a unit mismatch a real parser must convert. subscriptionCycleStart is also
+# documented but no forward looking reset timestamp field was found, so
+# reset_path is null here rather than guessed.
+
+provider_id: cursor
+product_id: editor
+display_name: Cursor
+
+source:
+  docs_url: https://cursor.com/docs/account/teams/admin-api
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: team_or_business
+  appears_after: admin_key_created
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: admin_api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - cursor.documented.spend
+
+meters:
+  - id: team_spend
+    label: Team spend this billing cycle
+    kind: api_spend
+    unit: percent_used
+    scope: organization
+    window:
+      kind: billing_period
+    source_path: overallSpendCents
+    limit_path: monthlyLimitDollars
+    amount_currency: USD
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: TEAM_SPEND

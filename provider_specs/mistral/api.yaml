@@ -1,0 +1,65 @@
+# Mistral AI. An Admin API is real and documented at the source_url, but
+# the overview page states plainly that it is an Enterprise only feature for
+# Organization administrators to retrieve usage and audit logs,
+# authenticated with a separate Admin API key created in the Backoffice,
+# never a normal user API key. No self serve balance or usage endpoint was
+# found for an ordinary paid individual account after checking the API
+# reference, the usage limits page, and the tier and subscriptions pages:
+# all three explicitly defer actual numbers to the authenticated dashboard
+# at admin.mistral.ai. See provider_specs/RESEARCH.md.
+#
+# GET /v1/admin/usage is documented to return "a consumption breakdown by
+# category (chat, completion, ocr, audio, connectors, libraries_api,
+# fine_tuning, vibe_usage)" alongside start_date, end_date and currency, but
+# the exact key holding that breakdown object was not shown in a rendered
+# example on the page read. source_path below names a plausible field,
+# breakdown, pending a follow up read that confirms it: treat this meter as
+# the least certain in this registry and do not harden a parser against it
+# without reverifying the exact response body first.
+
+provider_id: mistral
+product_id: api
+display_name: Mistral AI
+
+source:
+  docs_url: https://docs.mistral.ai/api/endpoint/beta/admin/billing
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: enterprise_admin
+  appears_after: admin_key_created
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: admin_api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - mistral.documented.usage
+
+meters:
+  - id: usage_breakdown
+    label: Usage breakdown by category
+    kind: api_spend
+    unit: currency
+    scope: organization
+    window:
+      kind: calendar_month
+    source_path: breakdown
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: USAGE_BREAKDOWN

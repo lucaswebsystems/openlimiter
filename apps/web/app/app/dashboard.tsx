@@ -13,12 +13,15 @@ import { InstallControl } from "./install";
 import {
   Button,
   CodeBlock,
+  ConnectionList,
+  DemoBanner,
   DemoDataChip,
-  EmptyState,
+  FirstRunState,
   HeaderStrip,
   MeterList,
   Panel,
   ProviderCard,
+  SettingsMenu,
   SkeletonCards,
   Tabs,
   ViewSwitch,
@@ -40,11 +43,56 @@ import { ThemeToggle } from "@/components/theme-toggle";
  * account, no analytics, and nothing is uploaded. The only thing that leaves
  * memory is the last reading, kept in this browser's own storage so an
  * installed copy of this page still has something to show when it reopens.
+ *
+ * LIVE AND DEMO ARE TWO STORES, NOT ONE STORE WITH A FLAG
+ * ------------------------------------------------------
+ * They used to share a key with a boolean beside it saying which kind the
+ * contents were, and that arrangement had three separate ways of lying:
+ *
+ *   pasting a real document while sample data was loaded merged the two lists
+ *   and then cleared the flag, so synthetic readings were relabelled as live;
+ *
+ *   loading sample data overwrote whatever real readings were stored, with no
+ *   way back;
+ *
+ *   a browser that dropped the flag but kept the list, or the other way round,
+ *   left synthetic numbers presented as an account.
+ *
+ * None of those are fixable with a better flag, because the flag is the bug. So
+ * there are two keys now, they are written by two functions that each name
+ * their own key, and nothing ever merges a snapshot from one into the other.
+ * Which one is on screen is a mode, kept in a third key, and switching modes
+ * reads a store rather than converting one. Entering demo mode cannot touch the
+ * live store because it never names it.
  */
 
-/** Where the last reading is kept, on this device only. */
-const STORAGE_KEY = "openlimiter-app-snapshots";
-const STORAGE_SAMPLE_KEY = "openlimiter-app-sample";
+/** Where real readings live, on this device only. */
+const LIVE_KEY = "openlimiter-app-live";
+
+/** Where synthetic readings live. Never read as live, never merged into it. */
+const DEMO_KEY = "openlimiter-app-demo";
+
+/** Which of the two is on screen. */
+const MODE_KEY = "openlimiter-app-mode";
+
+/**
+ * The single key the two used to share, and the flag that sat beside it.
+ *
+ * Read once, on first load, and then removed, whichever way it goes. What
+ * happens in between depends on what the flag said, and the two cases are
+ * opposites:
+ *
+ *   flag absent or "0", meaning the contents were real, and the live store is
+ *   still empty: the contents are PROMOTED into the live store, so somebody
+ *   upgrading does not lose the readings they had;
+ *
+ *   flag "1", meaning the contents were synthetic, or a live store that already
+ *   holds something: the contents are dropped, because a store that cannot
+ *   prove a reading came from an account is not allowed to hand it to the live
+ *   store, and a real live store is never overwritten by an older one.
+ */
+const LEGACY_KEY = "openlimiter-app-snapshots";
+const LEGACY_SAMPLE_KEY = "openlimiter-app-sample";
 
 /** How often the clock advances, which is what ages a reading to stale. */
 const TICK_MILLISECONDS = 10_000;
@@ -65,6 +113,11 @@ const READY_ATTR = "data-ol-ready";
 /** Where the grid or list choice is remembered, on this device only. */
 const STORAGE_VIEW_KEY = "openlimiter-app-view";
 
+type Mode = "live" | "demo";
+
+/** One frozen empty list, so demo mode does not rebuild the view every tick. */
+const NO_FAILURES: readonly ProviderFailure[] = [];
+
 function loadView(): ViewMode {
   if (typeof window === "undefined") return "grid";
   try {
@@ -76,8 +129,8 @@ function loadView(): ViewMode {
 
 const TABS: readonly TabDefinition[] = [
   { id: "meters", label: "Meters" },
+  { id: "connections", label: "Connections" },
   { id: "context", label: "Agent context" },
-  { id: "ingest", label: "Ingest" },
 ];
 
 const messages = {
@@ -88,30 +141,87 @@ const messages = {
     "That parsed as JSON, but no bounded meter survived validation. Nothing is assumed from it, so every provider stays unknown.",
 } as const;
 
-function loadStored(): { snapshots: Snapshot[]; sample: boolean } {
-  if (typeof window === "undefined") return { snapshots: [], sample: false };
+/**
+ * Read one store back.
+ *
+ * Whatever comes out goes through the real validator again rather than being
+ * trusted as it was written, so a store somebody edited by hand is worth
+ * exactly as much as a document somebody pasted.
+ */
+function loadStore(key: string): Snapshot[] {
+  if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return { snapshots: [], sample: false };
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) return [];
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return { snapshots: [], sample: false };
-    return {
-      /* Read back through the real validator, never trusted as it was stored. */
-      snapshots: parseStored(parsed),
-      sample: window.localStorage.getItem(STORAGE_SAMPLE_KEY) === "1",
-    };
+    if (!Array.isArray(parsed)) return [];
+    const result = parseQuotaText(JSON.stringify(parsed), new Date().toISOString());
+    return result.ok ? [...result.snapshots] : [];
   } catch {
-    return { snapshots: [], sample: false };
+    return [];
   }
 }
 
-function parseStored(value: unknown[]): Snapshot[] {
-  const result = parseQuotaText(JSON.stringify(value), new Date().toISOString());
-  return result.ok ? [...result.snapshots] : [];
+function saveStore(key: string, snapshots: readonly Snapshot[]): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(snapshots));
+  } catch {
+    /* A browser with storage refused simply keeps the reading in memory. */
+  }
+}
+
+function loadMode(): Mode {
+  if (typeof window === "undefined") return "live";
+  try {
+    return window.localStorage.getItem(MODE_KEY) === "demo" ? "demo" : "live";
+  } catch {
+    return "live";
+  }
+}
+
+function saveMode(mode: Mode): void {
+  try {
+    window.localStorage.setItem(MODE_KEY, mode);
+  } catch {
+    /* The mode still applies to this page. */
+  }
+}
+
+/**
+ * Promote a single key store into the live key, or drop it if it was synthetic.
+ *
+ * Promotion is the point of this function: a reading the old flag called real
+ * is carried over intact rather than thrown away, and only an empty live store
+ * will accept it. Everything else about the legacy pair is removed either way,
+ * so this runs once per browser and never again.
+ */
+function migrateLegacy(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.localStorage.getItem(LEGACY_KEY);
+    if (raw === null) return;
+    const wasSample = window.localStorage.getItem(LEGACY_SAMPLE_KEY) === "1";
+    /* Readings the old flag called real are carried over into a live store that
+       has nothing in it yet. Anything else is dropped. */
+    if (!wasSample && window.localStorage.getItem(LIVE_KEY) === null) {
+      window.localStorage.setItem(LIVE_KEY, raw);
+    }
+    window.localStorage.removeItem(LEGACY_KEY);
+    window.localStorage.removeItem(LEGACY_SAMPLE_KEY);
+  } catch {
+    /* Nothing to migrate if storage was never available. */
+  }
 }
 
 export function Dashboard({ lockup }: { lockup: ReactNode }) {
-  const [snapshots, setSnapshots] = useState<readonly Snapshot[]>([]);
+  /**
+   * The two stores, side by side in memory exactly as they are on disk.
+   *
+   * Nothing in this component ever combines them. `shown` below picks one.
+   */
+  const [live, setLive] = useState<readonly Snapshot[]>([]);
+  const [demoSnapshots, setDemoSnapshots] = useState<readonly Snapshot[]>([]);
+  const [mode, setMode] = useState<Mode>("live");
   /**
    * What the last document got wrong, per provider.
    *
@@ -119,10 +229,10 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    * reading is not a reading: the provider's card still shows the last good
    * one and says, in red, that the newer document was refused. Cleared on the
    * next successful read of that provider, and never stored, since a failure
-   * is about a document rather than about the state of a quota.
+   * is about a document rather than about the state of a quota. It belongs to
+   * the live store only: a fixture cannot fail to parse.
    */
   const [failures, setFailures] = useState<readonly ProviderFailure[]>([]);
-  const [sample, setSample] = useState(false);
   const [text, setText] = useState("");
   const [note, setNote] = useState<{ tone: "ok" | "bad"; message: string } | null>(null);
   const [now, setNow] = useState<string | null>(null);
@@ -136,10 +246,13 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const textArea = useRef<HTMLTextAreaElement | null>(null);
   const busyTimer = useRef<number | null>(null);
 
+  const demo = mode === "demo";
+
   useEffect(() => {
-    const stored = loadStored();
-    setSnapshots(stored.snapshots);
-    setSample(stored.sample);
+    migrateLegacy();
+    setLive(loadStore(LIVE_KEY));
+    setDemoSnapshots(loadStore(DEMO_KEY));
+    setMode(loadMode());
     setNow(new Date().toISOString());
     setView(loadView());
     /* The launch splash waits on this and nothing else. */
@@ -164,17 +277,31 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     }, BUSY_FLOOR_MILLISECONDS);
   }, []);
 
-  const persist = useCallback((next: readonly Snapshot[], isSample: boolean) => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      window.localStorage.setItem(STORAGE_SAMPLE_KEY, isSample ? "1" : "0");
-    } catch {
-      /* A browser with storage refused simply keeps the reading in memory. */
-    }
+  const leaveDemo = useCallback(() => {
+    setMode("live");
+    saveMode("live");
+    setNote(null);
   }, []);
 
+  /**
+   * Take in a document.
+   *
+   * Refused outright while demo mode is on. The alternative is to merge a real
+   * reading into a synthetic list, which is the exact defect this rewrite
+   * exists to remove, and silently leaving demo mode on somebody's behalf would
+   * mean their paste lands on a screen they think is a fixture. So it says no,
+   * in a sentence, and the banner overhead carries the way out.
+   */
   const read = useCallback(
     (incoming: string) => {
+      if (mode === "demo") {
+        setNote({
+          tone: "bad",
+          message:
+            "Demo mode is on, so this document was not read. Real readings are never mixed into synthetic ones. Leave demo mode and paste it again.",
+        });
+        return;
+      }
       work(() => {
         const instant = new Date().toISOString();
         const result = parseQuotaText(incoming, instant);
@@ -186,12 +313,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           setNow(instant);
           return;
         }
-        setSnapshots((current) => {
+        setLive((current) => {
           const merged = combine(current, result.snapshots);
-          persist(merged, false);
+          saveStore(LIVE_KEY, merged);
           return merged;
         });
-        setSample(false);
         setNow(instant);
         setNote({
           tone: "ok",
@@ -205,7 +331,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         setTab("meters");
       });
     },
-    [persist, work],
+    [mode, work],
   );
 
   /**
@@ -213,50 +339,77 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    *
    * There is no server to ask, so this re reads what this browser stored,
    * validates it once more with the same normalizer, and advances the clock,
-   * which is what ages a reading past its own expiry. It is the same button
-   * the desktop window carries, doing the same job against the one source each
-   * surface actually has.
+   * which is what ages a reading past its own expiry. It reads whichever store
+   * the current mode is showing, and never the other one.
    */
   const refresh = useCallback(() => {
     work(() => {
-      const stored = loadStored();
-      setSnapshots(stored.snapshots);
-      setSample(stored.sample);
+      if (mode === "demo") {
+        setDemoSnapshots(loadStore(DEMO_KEY));
+      } else {
+        setLive(loadStore(LIVE_KEY));
+      }
       setNow(new Date().toISOString());
     });
-  }, [work]);
+  }, [mode, work]);
 
-  const loadSample = useCallback(() => {
+  /**
+   * Turn demo mode on.
+   *
+   * It writes the fixtures to the demo key and sets the mode. It does not name
+   * the live key, so there is no arrangement of this code in which entering
+   * demo mode can touch a real reading.
+   */
+  const enterDemo = useCallback(() => {
     work(() => {
       const instant = new Date().toISOString();
       const next = sampleSnapshots(instant);
-      setSnapshots(next);
-      setFailures([]);
-      setSample(true);
+      setDemoSnapshots(next);
+      saveStore(DEMO_KEY, next);
+      setMode("demo");
+      saveMode("demo");
       setNow(instant);
-      persist(next, true);
       setNote({
         tone: "ok",
         message:
-          "Loaded the project's synthetic fixtures. No account, no credential and no real usage is involved.",
+          "Demo mode is on. These are the project's synthetic fixtures: no account, no credential and no real usage. Your own readings are kept where they are.",
       });
       setTab("meters");
     });
-  }, [persist, work]);
+  }, [work]);
 
+  /**
+   * Forget whichever store is on screen, and only that one.
+   *
+   * THE MODE DECIDES THE KEY, AND IT HAS TO
+   * ---------------------------------------
+   * This used to name LIVE_KEY unconditionally. Clearing while demo mode was on
+   * therefore destroyed the real readings sitting behind the synthetic view: the
+   * screen did not change, because the screen was showing fixtures, so the one
+   * signal that something had been deleted was absent at exactly the moment it
+   * mattered. The banner overhead promises the live store is untouched, and a
+   * button in the same window quietly emptied it.
+   *
+   * So the key is chosen by the mode, the same way `refresh` and `shown` choose
+   * theirs, and the button in the settings panel says which store it is about to
+   * forget. Demo mode never names the live key and live mode never names the
+   * demo key, which is the same rule the rest of this file already keeps.
+   */
   const clear = useCallback(() => {
-    setSnapshots([]);
-    setFailures([]);
-    setSample(false);
+    if (demo) {
+      setDemoSnapshots([]);
+    } else {
+      setLive([]);
+      setFailures([]);
+    }
     setText("");
     setNote(null);
     try {
-      window.localStorage.removeItem(STORAGE_KEY);
-      window.localStorage.removeItem(STORAGE_SAMPLE_KEY);
+      window.localStorage.removeItem(demo ? DEMO_KEY : LIVE_KEY);
     } catch {
       /* Nothing to clear if storage was never available. */
     }
-  }, []);
+  }, [demo]);
 
   const acceptFile = useCallback(
     (file: File | undefined) => {
@@ -284,21 +437,46 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     }
   }, []);
 
-  const openIngest = useCallback(() => {
-    setTab("ingest");
+  const openConnections = useCallback(() => {
+    setTab("connections");
+  }, []);
+
+  const focusImport = useCallback(() => {
+    setTab("connections");
     window.setTimeout(() => {
       textArea.current?.focus();
     }, 0);
   }, []);
 
+  /* One store is on screen at a time, and this is where that is decided. */
+  const shown = demo ? demoSnapshots : live;
+  const shownFailures = demo ? NO_FAILURES : failures;
+
   /* The rendered shape of every reading. Named apart from `view` above, which
      is the layout choice: one is what is shown, the other is how. */
   const dash = useMemo(
-    () => (now === null ? null : dashboardView(snapshots, now, failures)),
-    [snapshots, now, failures],
+    () => (now === null ? null : dashboardView(shown, now, shownFailures)),
+    [shown, now, shownFailures],
   );
 
-  const hasReadings = snapshots.length > 0 || failures.length > 0;
+  const hasReadings = shown.length > 0 || shownFailures.length > 0;
+
+  /**
+   * The providers that earned a card.
+   *
+   * A provider with no reading and no failure has nothing to say, and a grid of
+   * empty cards is the first launch defect the audit named: it reads as six
+   * broken connections. They are accounted for in one quiet line underneath
+   * instead.
+   */
+  const carded = useMemo(
+    () =>
+      (dash?.providers ?? []).filter(
+        (provider) => provider.meters.length > 0 || provider.failure !== null,
+      ),
+    [dash],
+  );
+
   const asOf = useMemo(() => {
     if (now === null) return null;
     const parsed = Date.parse(now);
@@ -307,11 +485,13 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
   return (
     <div className="space-y-5">
+      {demo && <DemoBanner onLeave={leaveDemo} />}
+
       <HeaderStrip
         lockup={lockup}
         advice={dash?.advice ?? null}
         asOf={asOf}
-        sample={sample}
+        demo={demo}
         busy={busy}
         onRefresh={refresh}
         actions={
@@ -319,19 +499,25 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             <ViewSwitch view={view} onSelect={chooseView} />
             <InstallControl />
             <ThemeToggle className="mr-1 h-9 w-9" />
+            <SettingsMenu
+              demo={demo}
+              onEnterDemo={enterDemo}
+              onLeaveDemo={leaveDemo}
+              onClear={clear}
+              /* Whether there is anything to forget is a question about the
+                 store the button will actually name, so it is asked of that
+                 store and not of the other one. */
+              clearable={
+                (demo
+                  ? demoSnapshots.length > 0
+                  : live.length > 0 || failures.length > 0) || text !== ""
+              }
+            />
           </>
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs tabs={TABS} active={tab} onSelect={setTab} />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={loadSample}>Load sample data</Button>
-          <Button tone="quiet" onClick={clear} disabled={!hasReadings && text === ""}>
-            Clear
-          </Button>
-        </div>
-      </div>
+      <Tabs tabs={TABS} active={tab} onSelect={setTab} />
 
       <p role="status" aria-live="polite" className="sr-only">
         {busy ? "Reading." : "Ready."}
@@ -350,25 +536,37 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           ) : hasReadings ? (
             <>
               {view === "list" ? (
-                <MeterList providers={dash.providers} now={now ?? ""} />
+                <MeterList providers={carded} now={now ?? ""} demo={demo} />
               ) : (
                 <div className="ol-stagger grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {dash.providers.map((provider) => (
-                    <ProviderCard key={provider.provider} view={provider} now={now ?? ""} />
+                  {carded.map((provider) => (
+                    <ProviderCard
+                      key={provider.provider}
+                      view={provider}
+                      now={now ?? ""}
+                      demo={demo}
+                    />
                   ))}
                 </div>
               )}
               {dash.unknown.length > 0 && (
                 <p className="mt-4 text-xs leading-relaxed text-muted">
-                  Unknown, and left that way on purpose:{" "}
+                  Not connected yet:{" "}
                   {dash.unknown.map((code) => providerName(code)).join(", ")}. A
-                  missing reading never becomes a zero and never becomes an
-                  exhausted quota.
+                  provider with no reading gets no card and no number, because a
+                  missing reading is not a zero and not an exhausted quota.{" "}
+                  <button
+                    type="button"
+                    onClick={openConnections}
+                    className="focus-ring cursor-pointer rounded text-accent underline-offset-2 hover:underline"
+                  >
+                    See what can be connected
+                  </button>
                 </p>
               )}
             </>
           ) : (
-            <EmptyState onPaste={openIngest} onSample={loadSample} />
+            <FirstRunState onConnect={openConnections} />
           )}
         </div>
       )}
@@ -384,7 +582,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           <Panel
             title="What an agent would be told"
             description="This is the block the prompt hook injects, built here by the same adapter the command line tool uses. It carries bounded numbers, enum codes and timestamps, inside a boundary that tells the agent to treat the contents as untrusted."
-            action={sample ? <DemoDataChip /> : undefined}
+            action={demo ? <DemoDataChip /> : undefined}
+            demo={demo}
           >
             {dash === null || dash.agentContext === "" ? (
               <p className="text-sm leading-relaxed text-body">
@@ -394,26 +593,53 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               </p>
             ) : (
               <div className="space-y-4">
-                <CodeBlock label="UserPromptSubmit hook" text={dash.agentContext} />
-                <CodeBlock label="Statusline" text={dash.statusline} />
+                {/* The blocks themselves are byte for byte what the hook would
+                    inject. Where the numbers in them are synthetic, the chrome
+                    around the block says so and the block is left alone. */}
+                <CodeBlock
+                  label="UserPromptSubmit hook"
+                  text={dash.agentContext}
+                  synthetic={demo}
+                />
+                <CodeBlock label="Statusline" text={dash.statusline} synthetic={demo} />
               </div>
             )}
           </Panel>
         </div>
       )}
 
-      {tab === "ingest" && (
+      {tab === "connections" && (
         <div
-          id="panel-ingest"
+          id="panel-connections"
           role="tabpanel"
-          aria-labelledby="tab-ingest"
+          aria-labelledby="tab-connections"
           tabIndex={-1}
           className="ol-panel space-y-5"
         >
           <Panel
-            title="Give it a document"
-            description="Paste a Claude Code statusline payload, a manual quota document, or the output of openlimiter export. Drop a JSON file on the box if that is easier."
+            title="Connections"
+            description="What OpenLimiter can read today, and how. One provider reports on its own; the rest parse a document you supply. Nothing here signs in to anything, and no credential is stored on this page."
+            demo={demo}
           >
+            <ConnectionList />
+            <p className="mt-4 text-xs leading-relaxed text-muted">
+              Every connector ships marked UNVERIFIED: no verifier has confirmed
+              a shape against a live account yet. A shape that changes fails
+              closed to unknown rather than guessing.
+            </p>
+          </Panel>
+
+          <Panel
+            title="Import a document"
+            description="Paste a Claude Code statusline payload, a manual quota document, or the output of openlimiter export. Drop a JSON file on the box if that is easier."
+            demo={demo}
+          >
+            {demo && (
+              <p className="mb-3 text-sm leading-relaxed text-heading">
+                Demo mode is on, so nothing pasted here is read. Leave demo mode
+                first and your own readings come back exactly as they were.
+              </p>
+            )}
             <div
               onDragOver={(event) => {
                 event.preventDefault();
@@ -441,7 +667,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                 spellCheck={false}
                 rows={8}
                 placeholder={
-                  '{ "rate_limits": { "seven_day": { "utilization": 64, "resets_at": "..." } } }'
+                  '{ "rate_limits": { "seven_day": { "used_percentage": 64.2, "resets_at": 1760000000 } } }'
                 }
                 className={`focus-ring-inset w-full resize-y rounded-lg border bg-code p-3.5 font-mono text-xs leading-relaxed text-body outline-none transition-colors ${
                   dragging ? "border-accent-solid" : "border-hairline"
@@ -451,6 +677,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button
                 tone="primary"
+                disabled={demo}
                 onClick={() => {
                   read(text);
                 }}
@@ -458,6 +685,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                 Read it
               </Button>
               <Button
+                disabled={demo}
                 onClick={() => {
                   fileInput.current?.click();
                 }}
@@ -522,6 +750,17 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               </code>{" "}
               there and scan the code it prints. Your phone then reads the live
               quota on that machine directly, with no cloud in the middle.
+            </p>
+            <p className="mt-4 text-xs leading-relaxed text-muted">
+              Prefer the keyboard?{" "}
+              <button
+                type="button"
+                onClick={focusImport}
+                className="focus-ring cursor-pointer rounded text-accent underline-offset-2 hover:underline"
+              >
+                Jump to the import box
+              </button>
+              .
             </p>
           </Panel>
         </div>

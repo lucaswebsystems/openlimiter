@@ -1,0 +1,77 @@
+# Claude Code subscription quota, read from the local statusline payload.
+#
+# This file is the registry entry, not the parser. The parser lives at
+# packages/connectors/src/claude.ts and must agree with the paths below.
+# Nothing reads a provider's documentation at run time: a human reads it,
+# records what it said and when, and the product trusts this file until a
+# human changes it.
+
+provider_id: anthropic
+product_id: claude-code
+display_name: Claude Code
+
+source:
+  docs_url: https://code.claude.com/docs/en/statusline
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+# Absence is documented behaviour, not a fault. rate_limits appears only for
+# Claude.ai subscribers on Pro or Max, and only after the first API response in
+# a session, and each window may be independently absent.
+availability:
+  requires_plan: pro_or_max
+  appears_after: first_api_response
+  absence_is_error: false
+
+# The four independent questions the audit demands be answered separately.
+# A parser is not a reader, a reader is not an auth flow, and none of the three
+# is a verification. Any of them may be ready while the others are not.
+support:
+  parser: implemented
+  reader: implemented
+  auth: not_required
+
+connections:
+  - reader: statusline_payload
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  verified_provider_version: null
+  fixture_ids:
+    - claude.documented.statusline
+    - claude.live.pending
+
+meters:
+  - id: session_5h
+    label: Current session
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 18000
+    source_path: rate_limits.five_hour.used_percentage
+    reset_path: rate_limits.five_hour.resets_at
+    reset_encoding: unix_seconds
+    optional: true
+    meter_code: FIVE_HOUR
+
+  - id: weekly_7d
+    label: Weekly
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 604800
+    source_path: rate_limits.seven_day.used_percentage
+    reset_path: rate_limits.seven_day.resets_at
+    reset_encoding: unix_seconds
+    optional: true
+    meter_code: SEVEN_DAY

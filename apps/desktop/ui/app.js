@@ -200,7 +200,7 @@ const REASON_SENTENCE = {
   HEALTHY: "Every readable meter is under 80 percent.",
   NEAR_CAP: "At least one readable meter is at 80 percent or more.",
   AT_CAP: "At least one readable meter has reached its cap.",
-  UNKNOWN: "Nothing readable has been found yet.",
+  UNKNOWN: "No provider has reported yet, so nothing is claimed.",
 };
 
 const REASON_PRESSURE = {
@@ -218,6 +218,7 @@ const NO_RECOMMENDATION_SENTENCE = {
 
 const elements = {
   cards: document.getElementById("cards"),
+  absent: document.getElementById("absent"),
   list: document.getElementById("list"),
   viewGrid: document.getElementById("view-grid"),
   viewList: document.getElementById("view-list"),
@@ -294,15 +295,96 @@ function amountSentence(money) {
   return money === null ? null : money.spent + " spent of " + money.loaded + " loaded";
 }
 
-/** How many of the ten blocks are full, and whether the next one is half. */
-function blocks(percent) {
-  const bounded = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0));
-  const result = [];
-  for (let index = 0; index < 10; index += 1) {
-    const floor = index * 10;
-    result.push(bounded >= floor + 10 ? "full" : bounded >= floor + 5 ? "half" : "empty");
-  }
-  return result;
+/**
+ * A reading as bar geometry, clamped to the track and nothing else.
+ *
+ * The bar this feeds is continuous. It used to be ten blocks with a half step
+ * every five percent, which drew 91 and 97 identically and rounded away exactly
+ * the room somebody opens this window to check. Nothing is bucketed here: the
+ * only arithmetic is the clamp, because a track cannot be longer than itself. A
+ * value that is not a number is not a zero, so this returns null and the caller
+ * draws the unknown track, which has no fill in it.
+ *
+ * apps/web/app/app/language.ts carries the same two functions, so the window
+ * and the browser dashboard cannot draw one reading two lengths.
+ */
+function meterFraction(percent) {
+  if (!Number.isFinite(percent)) return null;
+  return Math.min(100, Math.max(0, percent));
+}
+
+/** The same clamped reading as a CSS width, every decimal intact. */
+function meterWidth(percent) {
+  const fraction = meterFraction(percent);
+  return fraction === null ? null : String(fraction) + "%";
+}
+
+/**
+ * Where this provider's numbers came from, and almost never the word connected.
+ *
+ * Same four states and the same tables as the web dashboard's language module.
+ * A parser existing is not a connection: the payload for most of these has to
+ * be handed over by something else, and the card says so. CONNECTED is reserved
+ * for a reader that holds a credential of its own, which nothing in this build
+ * does, and exists only because the provenance vocabulary already names it.
+ */
+const SOURCE_LABEL = {
+  LOCAL_CLI: "Local CLI",
+  IMPORT_ONLY: "Import only",
+  MANUAL: "Manual",
+  CONNECTED: "Connected",
+};
+
+const SOURCE_SENTENCE = {
+  LOCAL_CLI: "A tool on this machine writes the payload, and OpenLimiter reads what it wrote.",
+  IMPORT_ONLY:
+    "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document.",
+  MANUAL: "Figures you keep yourself. Nothing is read from an account.",
+  CONNECTED:
+    "OpenLimiter held a credential and asked the provider itself. No reader in this build does that yet.",
+};
+
+const PROVIDER_DEFAULT_SOURCE = {
+  CLAUDE: "LOCAL_CLI",
+  OPENROUTER: "IMPORT_ONLY",
+  CODEX: "IMPORT_ONLY",
+  ANTIGRAVITY: "IMPORT_ONLY",
+  OPENCODE: "IMPORT_ONLY",
+  MANUAL: "MANUAL",
+};
+
+/**
+ * A stamped provenance, as a source state. `unknown` maps to nothing, so a
+ * stamp the normalizer could not believe never overrules a sound literal.
+ */
+const PROVENANCE_SOURCE_STATE = {
+  statusline_payload: "LOCAL_CLI",
+  explicit_ingest: "IMPORT_ONLY",
+  manual_document: "MANUAL",
+  remote_api: "CONNECTED",
+  unknown: null,
+};
+
+/**
+ * Provenance first, then the source literal.
+ *
+ * `source` describes the shape of the document, so a Claude statusline block
+ * pasted out of a chat log is still `native_payload` and used to chip as Local
+ * CLI. `provenance.sourceKind` is our own word for how the reading arrived and
+ * is written by whatever read it, so it wins whenever it is there. Absent or
+ * `unknown` falls through to the literal logic unchanged, which is what every
+ * row written before provenance existed relies on.
+ */
+function sourceStateOf(provider, source, provenance) {
+  const stamped =
+    provenance === undefined || provenance === null
+      ? null
+      : (PROVENANCE_SOURCE_STATE[provenance.sourceKind] ?? null);
+  if (stamped !== null) return stamped;
+  if (source === "native_payload") return "LOCAL_CLI";
+  if (source === "manual_entry") return "MANUAL";
+  if (source !== undefined && source !== null) return "IMPORT_ONLY";
+  return PROVIDER_DEFAULT_SOURCE[provider] ?? "IMPORT_ONLY";
 }
 
 const MINUTE = 60_000;
@@ -346,18 +428,59 @@ function element(tag, className, text) {
   return node;
 }
 
-/** The ten block bar, labelled for a screen reader as one image. */
-function meterBar(value, state) {
-  const bar = element("div", "meter");
-  bar.dataset.pressure = state === "unknown" ? "none" : pressureOf(value);
+/**
+ * The bar, and it is continuous.
+ *
+ * A real progressbar rather than an image, so `aria-valuenow` carries the exact
+ * reading instead of the drawn approximation of it. The fill's width is set
+ * from that same number with every decimal intact, and geometry never depends
+ * on which colour band the number falls in.
+ *
+ * Unknown gets no fill element and no `aria-valuenow` at all, which is how ARIA
+ * spells a progressbar with no value. A zero width fill on a full width track
+ * is a picture of an exhausted quota, and an absent reading is not that.
+ *
+ * @param {number} value    the percentage, or anything at all when unknown
+ * @param {string} state    fresh, stale or unknown
+ * @param {boolean} compact true in the list, where there is no room for a word
+ */
+function meterBar(value, state, compact = false) {
+  const unknown = state === "unknown";
+  const width = unknown ? null : meterWidth(value);
+  const bar = element("div", compact ? "meter meter-sm" : "meter");
+  bar.dataset.pressure = width === null ? "none" : pressureOf(value);
   bar.dataset.state = state;
-  bar.setAttribute("role", "img");
-  for (const fill of blocks(state === "unknown" ? 0 : value)) {
-    const block = element("span", "block");
-    block.dataset.fill = fill;
-    bar.append(block);
+  bar.setAttribute("role", "progressbar");
+  bar.setAttribute("aria-valuemin", "0");
+  bar.setAttribute("aria-valuemax", "100");
+  if (width === null) {
+    bar.setAttribute("aria-valuetext", "Unknown");
+    if (!compact) bar.append(element("span", "meter-word", "Unknown"));
+  } else {
+    /* Exact for a machine, speakable for a person: a credit balance of 12.47
+       out of 20 is 62.35000000000001, which is the honest value to expose and
+       an absurd thing to read aloud one digit at a time. */
+    bar.setAttribute("aria-valuenow", String(meterFraction(value)));
+    bar.setAttribute("aria-valuetext", floorFixed(value, 1) + "% used");
+    const fill = element("span", "meter-fill");
+    fill.setAttribute("aria-hidden", "true");
+    fill.style.width = width;
+    bar.append(fill);
   }
   return bar;
+}
+
+/** Where a reading came from, as the chip every card and row carries. */
+function sourceChip(provider, source, provenance) {
+  const state = sourceStateOf(provider, source, provenance);
+  const chip = element("span", "chip muted source-chip");
+  chip.dataset.source = state;
+  chip.title = state + ". " + SOURCE_SENTENCE[state];
+  const dot = element("span", "source-dot");
+  dot.setAttribute("aria-hidden", "true");
+  chip.append(dot);
+  chip.append(element("span", undefined, SOURCE_LABEL[state]));
+  return chip;
 }
 
 function freshnessTag(state) {
@@ -420,18 +543,14 @@ function meterRow(code, value, state, resetAt, now, money) {
     block.append(element("span", "word", " spent"));
     block.append(element("span", "loaded", "of " + money.loaded + " loaded"));
     line.append(block);
-  } else {
-    const number = element(
-      "span",
-      state === "unknown" ? "meter-value none" : "meter-value value",
-      state === "unknown" ? "Unknown" : floorFixed(value, 1) + "%",
-    );
-    if (state !== "unknown") {
-      number.dataset.pressure = pressureOf(value);
-      number.dataset.state = state;
-    }
+  } else if (state !== "unknown") {
+    const number = element("span", "meter-value value", floorFixed(value, 1) + "%");
+    number.dataset.pressure = pressureOf(value);
+    number.dataset.state = state;
     line.append(number);
   }
+  /* An unknown row says so inside its own track and nowhere else, so the value
+     column is left out rather than repeating the word beside the bar. */
   row.append(line);
 
   const foot = element("div", "meter-foot");
@@ -537,15 +656,24 @@ function card(provider, snapshots, now, failure) {
     node.append(error);
   }
 
-  node.append(
+  /* Where these numbers came from, on the card that shows them. A parser is
+     not a connection, so this chip never says connected. */
+  const origin = element("div", "origin");
+  /* One reading answers for the card, and both of its facts come from that same
+     reading: a literal from one row and a stamp from another would describe an
+     arrival nothing here saw. */
+  const lead = (worst ?? readings[0])?.snapshot;
+  origin.append(sourceChip(provider, lead?.source, lead?.provenance));
+  origin.append(
     element(
       "p",
-      "origin",
+      "origin-line",
       worst === undefined
         ? (PROVIDER_ORIGIN[provider] ?? "")
         : (PROVIDER_ORIGIN[provider] ?? "") + " · " + worst.snapshot.precision,
     ),
   );
+  node.append(origin);
   return node;
 }
 
@@ -596,21 +724,28 @@ function listView(groups, now) {
 
       const ident = cell("cell-ident");
       if (index === 0) {
+        const identity = element("span", "ident-line");
         const mark = element("span");
         mark.innerHTML = MARKS[group.provider] ?? "";
-        ident.append(mark);
-        ident.append(element("span", "name", PROVIDER_NAMES[group.provider] ?? group.provider));
+        identity.append(mark);
+        identity.append(
+          element("span", "name", PROVIDER_NAMES[group.provider] ?? group.provider),
+        );
+        ident.append(identity);
       } else {
         ident.append(
           element("span", "only-reader", PROVIDER_NAMES[group.provider] ?? group.provider),
         );
       }
+      /* Where this row's number came from, on this row, because a dense table
+         is where a reading is easiest to mistake for a live account. */
+      ident.append(sourceChip(group.provider, snapshot.source, snapshot.provenance));
       row.append(ident);
 
       row.append(cell("cell-meter", meterName(snapshot.meter)));
 
       const bars = cell("cell-bar");
-      const bar = meterBar(snapshot.value, entry.state);
+      const bar = meterBar(snapshot.value, entry.state, true);
       bar.setAttribute(
         "aria-label",
         meterName(snapshot.meter) +
@@ -819,8 +954,22 @@ async function refresh() {
       failures.map((failure) => [failure.provider, failure.category]),
     );
 
+    /*
+     * A card per provider that has something to say, and no card at all for a
+     * provider that has nothing.
+     *
+     * This window used to draw all six on every launch, so a fresh install
+     * opened on a wall of empty outlines that read as six broken connections
+     * rather than as a tool nobody has pointed at anything yet. The providers
+     * with no reading are named in one quiet line under the grid instead.
+     */
     elements.cards.textContent = "";
-    for (const provider of PROVIDER_CODES) {
+    const carded = PROVIDER_CODES.filter(
+      (provider) =>
+        snapshots.some((snapshot) => snapshot.provider === provider) ||
+        failureByProvider.has(provider),
+    );
+    for (const provider of carded) {
       elements.cards.append(
         card(
           provider,
@@ -830,6 +979,16 @@ async function refresh() {
         ),
       );
     }
+
+    const missing = PROVIDER_CODES.filter((provider) => !carded.includes(provider));
+    elements.absent.textContent =
+      missing.length === 0
+        ? ""
+        : "Not connected yet: " +
+          missing.map((provider) => PROVIDER_NAMES[provider] ?? provider).join(", ") +
+          ". A provider with no reading gets no card and no number, because a " +
+          "missing reading is not a zero and not an exhausted quota.";
+    elements.absent.hidden = missing.length === 0 || carded.length === 0;
 
     /* The list is the same readings in the same order, grouped by provider,
        from the same snapshots the cards were built from. */

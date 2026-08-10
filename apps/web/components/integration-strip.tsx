@@ -16,7 +16,7 @@ import {
   XaiMark,
   type ToolMarkProps,
 } from "./tool-marks";
-import { Chip, CodeChip, IconChip, SectionHeading, VIEWPORT_BLEED } from "./ui";
+import { Chip, CodeChip, SectionHeading, VIEWPORT_BLEED } from "./ui";
 import { reveal } from "@/lib/motion";
 
 /**
@@ -31,10 +31,11 @@ import { reveal } from "@/lib/motion";
  * The honesty rule this section runs on. The first row is wide enough to read
  * as the field rather than as five names, so it carries well known tools that
  * have no connector as well as the ones that do, and the difference is stated
- * on every card: a `today` chip and a real sentence about what the connector
- * reads, or a `planned` chip and one line saying the connector is not written
- * and manual entry is the path today. A card can never be read as support that
- * does not exist.
+ * on every card that needs it: a `planned` chip and one line saying the
+ * connector is not written and manual entry is the path today. A card with no
+ * chip ships one, which is the ordinary case and does not need a badge, and its
+ * own sentence still says exactly what it reads. A card can never be read as
+ * support that does not exist.
  *
  * Both rows run the full width of the viewport, not the shell: on any screen
  * wider than the content column, stopping at the column edge left dead gutters
@@ -327,21 +328,40 @@ const surfaces: readonly StripCard[] = [
   },
 ];
 
+/**
+ * One card, and two deliberate absences.
+ *
+ * THE MARK STANDS FREE. It used to sit in a tinted rounded square, which put a
+ * second object around artwork that is already a logo: fourteen boxes reading
+ * as a grid of buttons rather than a row of brands. The glyph is now drawn
+ * bare, still in `currentColor`, still at 20 pixels, and the gap beside the
+ * name does the spacing the box used to do.
+ *
+ * THERE IS NO `today` CHIP. Shipping is the default state of a card on this
+ * page and a badge saying so is noise on every card that has one. `planned`
+ * survives, because that one is a real exception a reader has to be told about,
+ * and the support matrix under the provider grid states the rest.
+ */
 function Card({ card }: { card: StripCard }) {
   const planned = card.state === "planned";
   return (
     <div className="lift elev-1 flex h-[192px] w-[280px] flex-none flex-col justify-between gap-3 rounded-2xl border border-hairline bg-surface p-4 hover:border-hairline-strong hover:bg-raised sm:w-[330px]">
       <div className="min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <IconChip tone={planned ? "neutral" : "accent"}>
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              aria-hidden="true"
+              className={`flex-none ${planned ? "text-soft" : "text-accent"}`}
+            >
               <card.Mark className="h-5 w-5" />
-            </IconChip>
+            </span>
             <p className="heading-face min-w-0 truncate text-sm text-heading">{card.name}</p>
           </div>
-          <Chip tone={planned ? "neutral" : "accent"} dot={!planned} className="flex-none">
-            {planned ? "planned" : "today"}
-          </Chip>
+          {planned && (
+            <Chip tone="neutral" className="flex-none">
+              planned
+            </Chip>
+          )}
         </div>
         <p className="mt-2.5 line-clamp-3 text-sm leading-relaxed text-muted">{card.detail}</p>
       </div>

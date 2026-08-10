@@ -1,0 +1,63 @@
+# Codex, OpenAI's coding CLI. Documents an existing shipped connector,
+# packages/connectors/src/codex.ts, not third party research: OpenAI
+# publishes no interface for this, and the connector's own header comment
+# says so plainly, "This interface is UNOFFICIAL and may break." The parser
+# is real and exercised by the fixture named below; nothing in this
+# repository locates or fetches the payload it parses, some external
+# process must already have written it and handed it in, which is why
+# reader is absent even though parser is implemented.
+#
+# parseCodexPayload reads rate_limits.primary_window.used_percent and
+# rate_limits.primary_window.reset_at, the second parsed as a date string
+# through futureInstant, not as Claude Code's Unix epoch seconds. The
+# window length, five hours, is not read from the payload: it is hard
+# coded in the parser alongside the meter name PRIMARY. A payload missing
+# either field is refused whole, so this one meter is not marked optional.
+
+provider_id: openai
+product_id: codex
+display_name: Codex
+
+source:
+  docs_url: packages/connectors/src/codex.ts
+  reviewed_at: "2026-08-10"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: usage_json_present
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: absent
+  auth: not_required
+
+connections:
+  - reader: explicit_import
+    auth_mode: none
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - codex.provisional.usage
+
+meters:
+  - id: primary
+    label: Primary window
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 18000
+    source_path: rate_limits.primary_window.used_percent
+    reset_path: rate_limits.primary_window.reset_at
+    reset_encoding: iso8601
+    optional: false
+    meter_code: PRIMARY

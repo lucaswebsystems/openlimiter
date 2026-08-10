@@ -49,10 +49,14 @@ import {
   type StatuslineKey
 } from "./config.js";
 import {
+  INGEST_PROVENANCE,
+  MANUAL_PROVENANCE,
+  STATUSLINE_PROVENANCE,
   environmentWithLocalMarkers,
   parseJsonText,
   persistSnapshots,
-  readManualDocument
+  readManualDocument,
+  withProvenance
 } from "./ingest.js";
 import {
   UnavailableCredentialStore,
@@ -192,6 +196,12 @@ async function refresh(
   const manual = supplied === undefined
     ? await readManualDocument(dependencies.stateDirectory)
     : supplied;
+  /*
+   * The manual connector is the only one this command reads from disk on its
+   * own, so it is the only one whose provenance is the document. Everything
+   * else here was handed in by a caller, which is an import by any other name.
+   */
+  const manualFromDisk = supplied === undefined;
   const environment = await environmentWithLocalMarkers(
     dependencies.environment,
     dependencies.stateDirectory
@@ -204,7 +214,10 @@ async function refresh(
       : dependencies.payloads[connector.id];
     const result = await connector.read({ payload, now, environment });
     if (result.ok) {
-      raw.push(...result.meters);
+      const provenance = connector.id === "manual" && manualFromDisk
+        ? MANUAL_PROVENANCE
+        : INGEST_PROVENANCE;
+      raw.push(...withProvenance(result.meters, provenance));
       continue;
     }
     if (payload === undefined) continue;
@@ -300,7 +313,9 @@ async function ingestStandardInput(
     if (!document.ok) return null;
     const meters = parseClaudePayload(document.value, now);
     if (meters === null) return null;
-    const incoming = normalizeMeters(meters);
+    /* Claude Code wrote this to our standard input in this session. It is the
+       one live reading the product currently has, and it says so. */
+    const incoming = normalizeMeters(withProvenance(meters, STATUSLINE_PROVENANCE));
     if (incoming.length === 0) return null;
     try {
       return (await persistSnapshots(incoming, dependencies.stateDirectory)).merged;
@@ -477,7 +492,14 @@ async function ingestCommand(
     });
     meters = result.ok ? result.meters : null;
   }
-  const incoming = meters === null ? [] : normalizeMeters([...meters]);
+  /*
+   * However this document reached the command, a person handed it over. It is
+   * an import, not a live reading, whichever connector parsed it, and a card
+   * that showed it as live would be the exact claim this wave exists to stop.
+   */
+  const incoming = meters === null
+    ? []
+    : normalizeMeters(withProvenance(meters, INGEST_PROVENANCE));
   if (incoming.length === 0) {
     return fail(
       EXIT_FAILURE,

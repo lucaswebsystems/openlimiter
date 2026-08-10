@@ -56,6 +56,13 @@ export const docGroups: readonly DocGroup[] = [
           "The six connectors that ship today, what each one reads, and how likely it is to break.",
       },
       {
+        href: "/docs/connections",
+        title: "Connections",
+        metaTitle: "Connections: source chips and the state vocabulary",
+        description:
+          "What each connection state and source chip actually means, stated honestly, including what Import only does and does not do.",
+      },
+      {
         href: "/docs/ingestion",
         title: "Ingestion",
         description:

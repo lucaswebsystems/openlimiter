@@ -1,22 +1,36 @@
 import { DemoDataChip } from "./ui";
 
 /**
- * Three phone sized panels, and what is inside them.
+ * Three phones, drawn here, holding real captures of the running web app.
  *
- * These were a hand built mock of the snapshot at phone width, because no
- * capture of the web app on a phone existed. Three do now, so the shells hold
- * real screenshots of the running web app at phone size, taken against the
- * project's synthetic demo fixtures. Every shell still carries a demo data
- * chip, because the numbers in the picture are fixtures rather than an account.
+ * THE FRAME IS OURS AND THE SCREEN IS EXACT
+ * -----------------------------------------
+ * The shell is CSS: a titanium coloured bezel with a continuous corner radius
+ * and a pill over the top of the picture. No photograph of a device and no
+ * vendor artwork is involved, and every measurement is a fraction of one screen
+ * width variable so the proportions hold at any size.
  *
- * The three entries below are the whole contract with the files. Each one is
- * served from public/ at its natural pixel size, and only that size is written
- * here, so the captures can be retaken at any time and these shells follow
- * them. Nothing in this component depends on what is inside a picture.
+ * The screen is 440 by 956, which is the logical screen the captures are taken
+ * at, so an image lands one to one inside it. That is the whole fix for the
+ * squashed pictures this replaced: the old shell was a 210 by 440 window over a
+ * 390 by 844 capture, so the app was shown at 54 percent and cropped, and the
+ * result read as a cramped screenshot rather than as a phone.
+ *
+ * EACH VIEW SHIPS TWICE
+ * ---------------------
+ * A dark capture on a light page is a hole in the page, so every view has a
+ * dark file and a light one at identical dimensions and the pair is swapped by
+ * the theme in CSS. The hidden one is lazy, the visible one is not, and because
+ * both are in the layout at the same size the swap cannot shift anything.
+ *
+ * The entries below are the whole contract with the files. Retake them with
+ * scripts/capture-screenshots.mjs; nothing in this component knows or cares
+ * what is inside a picture.
  */
 
 interface PhoneShot {
-  src: string;
+  /** Basename under public/screenshots. The light file adds `-light`. */
+  name: string;
   width: number;
   height: number;
   label: string;
@@ -25,47 +39,64 @@ interface PhoneShot {
 
 const shots: readonly PhoneShot[] = [
   {
-    src: "/screenshots/phone-1.png",
-    width: 780,
-    height: 1688,
+    name: "phone-1",
+    width: 880,
+    height: 1912,
     label: "Meters",
     alt: "The web app on a phone, showing the overall verdict at the top and one card per provider below it, each with a meter bar, a percentage, a freshness state and a reset countdown.",
   },
   {
-    src: "/screenshots/phone-2.png",
-    width: 780,
-    height: 1688,
+    name: "phone-2",
+    width: 880,
+    height: 1912,
     label: "Agent context",
     alt: "The web app on a phone, showing the bounded block of budget state a coding agent receives, fenced in an untrusted data boundary.",
   },
   {
-    src: "/screenshots/phone-3.png",
-    width: 780,
-    height: 1688,
-    label: "Ingest",
-    alt: "The web app on a phone, showing the box a quota document is pasted or dropped into, and where such a document comes from.",
+    name: "phone-3",
+    width: 880,
+    height: 1912,
+    label: "Connections",
+    alt: "The web app on a phone, showing what each provider can be read from today and the box a quota document is pasted or dropped into.",
   },
 ];
 
 function Phone({ shot, className = "" }: { shot: PhoneShot; className?: string }) {
+  const common = { width: shot.width, height: shot.height };
   return (
     <div className={`flex-none ${className}`}>
-      <div className="elev-2 w-[210px] overflow-hidden rounded-phone border-4 border-frame bg-code sm:w-[240px]">
-        <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-4">
-          <span className="text-xs font-medium text-heading">{shot.label}</span>
-          <DemoDataChip />
-        </div>
-        <div className="h-[440px] overflow-hidden px-3 pb-3 sm:h-[496px]">
+      {/* One variable drives the whole device, and it is sized so three of them
+          fit the column they are in. Below the medium breakpoint only one phone
+          is on screen and it can be large; at medium three appear at once in a
+          672 pixel column, which is why that step is the smallest of the four.
+          Getting this wrong pushes the document sideways rather than wrapping,
+          because a phone frame cannot shrink below its own screen. */}
+      <div className="phone-body [--screen:238px] md:[--screen:176px] lg:[--screen:232px] xl:[--screen:272px]">
+        <div className="phone-screen">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={shot.src}
-            width={shot.width}
-            height={shot.height}
+            {...common}
             alt={shot.alt}
+            src={`/screenshots/${shot.name}.png`}
+            className="shot-dark"
             loading="lazy"
-            className="block h-full w-full rounded-xl border border-hairline object-cover object-top"
           />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            {...common}
+            alt={shot.alt}
+            src={`/screenshots/${shot.name}-light.png`}
+            className="shot-light"
+            loading="lazy"
+          />
+          <span aria-hidden="true" className="phone-island" />
         </div>
+      </div>
+      {/* Outside the frame, always. A watermark inside the screen would be part
+          of the picture, and the picture is a capture, not a composite. */}
+      <div className="mt-3 flex items-center justify-between gap-2 px-1">
+        <span className="text-xs font-medium text-heading">{shot.label}</span>
+        <DemoDataChip />
       </div>
     </div>
   );
@@ -77,7 +108,7 @@ export function PhonePanels() {
        it is the meters view rather than whichever one happened to be in the
        middle: three phones do not fit on a phone, and the one that survives
        should be the one that shows what the product is for. */
-    <div className="flex items-center justify-center gap-4 sm:gap-6">
+    <div className="flex items-start justify-center gap-5 md:gap-4 lg:gap-6 xl:gap-7">
       <Phone shot={shots[0]} />
       <Phone shot={shots[1]} className="hidden md:block" />
       <Phone shot={shots[2]} className="hidden md:block" />

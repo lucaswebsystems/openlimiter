@@ -14,6 +14,8 @@ import {
   type ProviderFailure,
   type RawMeter,
   type Snapshot,
+  type SnapshotProvenance,
+  type SnapshotSourceKind,
   type SnapshotState,
 } from "./generated/core";
 import {
@@ -49,6 +51,8 @@ export type {
   ProviderCode,
   ProviderFailure,
   Snapshot,
+  SnapshotProvenance,
+  SnapshotSourceKind,
   SnapshotState,
 };
 
@@ -179,6 +183,16 @@ export interface MeterView {
   precision: Snapshot["precision"];
   source: Snapshot["source"];
   risk: Snapshot["labels"]["automationRisk"];
+  /**
+   * How this reading reached the device, in OpenLimiter's own vocabulary.
+   *
+   * Carried per row rather than per provider, because one provider can be read
+   * two ways: a Claude payload off the local statusline and the same provider's
+   * numbers pasted out of a file are not the same claim. Absent means nothing
+   * ever stamped it, and every surface then falls back to the source literal,
+   * which is exactly what it did before this field existed.
+   */
+  provenance?: SnapshotProvenance;
   /** Present together or not at all, exactly as the normalizer left them. */
   usedAmount?: number;
   limitAmount?: number;
@@ -214,6 +228,7 @@ function toMeterView(snapshot: Snapshot, now: string): MeterView {
     precision: snapshot.precision,
     source: snapshot.source,
     risk: snapshot.labels.automationRisk,
+    ...(snapshot.provenance === undefined ? {} : { provenance: snapshot.provenance }),
     ...(snapshot.usedAmount === undefined ? {} : { usedAmount: snapshot.usedAmount }),
     ...(snapshot.limitAmount === undefined ? {} : { limitAmount: snapshot.limitAmount }),
     ...(snapshot.currency === undefined ? {} : { currency: snapshot.currency }),

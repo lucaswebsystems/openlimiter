@@ -1,0 +1,63 @@
+# DeepSeek. The cleanest official_api case in this whole research pass: a
+# single GET call with the same bearer key used for inference, no admin or
+# management tier gate. GET https://api.deepseek.com/user/balance,
+# documented at the source_url with a full example response:
+# { "is_available": true, "balance_infos": [ { "currency": "CNY",
+#   "total_balance": "110.00", "granted_balance": "10.00",
+#   "topped_up_balance": "100.00" } ] }
+# Balances are returned as strings, and balance_infos is a list because an
+# account can apparently hold more than one currency (CNY or USD); this
+# file's plain dotted path cannot index into a list, so source_path below
+# anchors on the array itself and a real parser must pick the right currency
+# entry from it. is_available is a plain boolean gate, not a windowed meter,
+# and is not modelled as one here.
+#
+# No official CLI was found under the deepseek-ai GitHub organisation, so
+# there is no local file question to answer for this provider.
+
+provider_id: deepseek
+product_id: api
+display_name: DeepSeek
+
+source:
+  docs_url: https://api-docs.deepseek.com/api/get-user-balance/
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: any
+  appears_after: credential_stored
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - deepseek.documented.balance
+
+meters:
+  - id: balance
+    label: Account balance
+    kind: credits
+    unit: currency
+    scope: account
+    window:
+      kind: credit_balance
+    source_path: balance_infos
+    reset_path: null
+    reset_encoding: none
+    optional: false
+    meter_code: BALANCE

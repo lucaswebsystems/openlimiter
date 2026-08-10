@@ -1,0 +1,60 @@
+# OpenRouter credits, read from the documented credits endpoint.
+#
+# The one remote source in the registry so far, and the one meter stated in
+# money rather than in a percentage. The percentage the product shows is
+# computed from the two paths below; both are carried through so a surface can
+# print the spend beside it.
+
+provider_id: openrouter
+product_id: api
+display_name: OpenRouter
+
+source:
+  docs_url: https://openrouter.ai/docs/api-reference/get-credits
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: any
+  appears_after: credential_stored
+  absence_is_error: true
+
+# Parser and credential storage exist. Nothing in this repository makes an
+# HTTP request to OpenRouter, so there is no reader: a payload reaches the
+# product only when a person runs the ingest command. This entry says so
+# rather than letting a working parser imply a working connection.
+support:
+  parser: implemented
+  reader: absent
+  auth: implemented
+
+connections:
+  - reader: official_remote_api
+    auth_mode: api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  verified_provider_version: null
+  fixture_ids:
+    - openrouter.documented.credits
+
+meters:
+  - id: credits
+    label: Credits
+    kind: credits
+    unit: percent_used
+    scope: account
+    window:
+      kind: credit_balance
+    source_path: data.total_usage
+    limit_path: data.total_credits
+    amount_currency: USD
+    reset_path: null
+    reset_encoding: none
+    optional: false
+    meter_code: CREDITS

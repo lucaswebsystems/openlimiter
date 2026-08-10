@@ -1,0 +1,75 @@
+# Devin Desktop, formerly Windsurf, under Cognition. The single biggest
+# surprise of the research pass this file came from: Windsurf was
+# rebranded to Devin Desktop effective 2026-06-02, and display_name leads
+# with the current brand for that reason. Redirect evidence, checked live
+# rather than assumed: windsurf.com now redirects to devin.ai and
+# docs.windsurf.com now redirects to docs.devin.ai, both confirmed at the
+# review date below. The legacy Cascade agent name and the underlying
+# server.codeium.com infrastructure both persist, so this is the third
+# brand name over one lineage: Codeium, then Windsurf, now Devin Desktop.
+# This entry keeps provider_id windsurf because that is the name this
+# audit was asked to research and the name most existing subscriptions
+# were bought under, and states the rename plainly rather than silently
+# following it.
+#
+# Two API generations are documented. Generation one, POST server.codeium.
+# com/api/v1/GetTeamCreditBalance, a service_key with Billing Read
+# permission in the request body, returns promptCreditsPerSeat, numSeats,
+# addOnCreditsAvailable, addOnCreditsUsed, billingCycleStart,
+# billingCycleEnd: a genuine used against available pair, used below.
+# Generation two, GET server.codeium.com/api/v2alpha/analytics/consumption,
+# bearer auth, returns a consumption time series (prompt_credits,
+# flex_credits, billed_acus, message_count) rather than a balance, rate
+# limited to 10 requests per hour and explicitly "not intended for real time
+# usage monitoring." Both generations are stated in the official docs to be
+# "available for Enterprise plans only": a Free or Pro individual subscriber
+# has no documented API, only the in app Plan Info panel or the web portal
+# at windsurf.com/subscription/manage-plan. See provider_specs/RESEARCH.md.
+
+provider_id: windsurf
+product_id: editor
+display_name: Devin Desktop (formerly Windsurf, Cognition)
+
+source:
+  docs_url: https://docs.devin.ai/windsurf/plugins/accounts/api-reference/get-team-credit-balance
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: enterprise
+  appears_after: admin_key_created
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: admin_api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - windsurf.documented.credit-balance
+
+meters:
+  - id: addon_credits
+    label: Add on credits used this cycle
+    kind: credits
+    unit: percent_used
+    scope: organization
+    window:
+      kind: billing_period
+    source_path: addOnCreditsUsed
+    limit_path: addOnCreditsAvailable
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: ADDON_CREDITS

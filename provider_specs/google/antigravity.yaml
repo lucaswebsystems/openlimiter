@@ -1,0 +1,66 @@
+# Antigravity, Google's coding tool. Documents an existing shipped
+# connector, packages/connectors/src/antigravity.ts, not third party
+# research: like Codex, its header comment states "This interface is
+# UNOFFICIAL and may break." The parser is real and exercised by the
+# fixture named below; nothing in this repository locates or fetches the
+# payload it parses, some external process must already have written it
+# and handed it in, which is why reader is absent even though parser is
+# implemented.
+#
+# parseAntigravityPayload reads quota.used_percent and quota.reset_at, the
+# second parsed as a date string through futureInstant. The window carries
+# no duration or calendar rule in the parser, internally typed only as
+# "fixed," which this registry states as provider_defined rather than
+# guessing a length the code does not state. A payload missing either
+# field is refused whole, so this one meter is not marked optional.
+#
+# This file covers Antigravity specifically. Google's other surfaces,
+# consumer Gemini, Gemini CLI, and the Gemini API, are and must stay
+# separate credentials and separate spec files; see google/gemini-cli.yaml.
+
+provider_id: google
+product_id: antigravity
+display_name: Antigravity
+
+source:
+  docs_url: packages/connectors/src/antigravity.ts
+  reviewed_at: "2026-08-10"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: quota_json_present
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: absent
+  auth: not_required
+
+connections:
+  - reader: explicit_import
+    auth_mode: none
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - antigravity.provisional.quota
+
+meters:
+  - id: primary
+    label: Primary quota
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: provider_defined
+    source_path: quota.used_percent
+    reset_path: quota.reset_at
+    reset_encoding: iso8601
+    optional: false
+    meter_code: PRIMARY

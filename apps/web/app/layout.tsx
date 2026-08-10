@@ -5,6 +5,7 @@ import { AnnouncementBar } from "@/components/announcement-bar";
 import { Footer } from "@/components/footer";
 import { Nav } from "@/components/nav";
 import { Reveal } from "@/components/reveal";
+import { ScrollTop } from "@/components/scroll-top";
 import { announceArmScript } from "@/lib/announce";
 import { markArmScript } from "@/lib/brand";
 import { wordmarkFont } from "@/lib/fonts";
@@ -108,6 +109,8 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <Footer />
         {/* The one client component the motion system has. See lib/motion.ts. */}
         <Reveal />
+        {/* Offered after a viewport of scrolling, on every page. */}
+        <ScrollTop />
         {/* Cookieless, first party page counting. No cookies, no cross site
             tracking, no personal identifiers: the open source card's telemetry
             claim stays about the product, and the footer discloses this. */}

@@ -2,6 +2,25 @@
 
 All notable project changes appear in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **The Claude connector could not parse a real Claude Code payload.** The previous release read a field named `utilization` and reset instants as ISO date strings. Anthropic's statusline documentation states `used_percentage` and reset instants as Unix epoch seconds, and no Claude Code release is known to have ever emitted the old shape; only this project's own fixture ever agreed with it. The parser now reads the documented shape. Each of the two windows, five hour and seven day, is independently optional, absent entirely for a free account or before the first API response of a session, and a window with an implausible reset for its own length is dropped on its own rather than trusted, leaving the other window to still count.
+
+### Changed
+
+- Every meter bar, on the web dashboard and the desktop application alike, is now continuous rather than stepped. The previous bar drew ten blocks with a half step every five percent, which rendered a 91 and a 97 identically; the bar now draws the exact reading, decimals included, as its own width.
+- Sample data moved behind Settings, then Demo mode, and became its own isolated store rather than a flag on the real one. Entering demo mode cannot merge with or overwrite a real reading, and leaving it cannot touch what was real either. A persistent watermark marks every synthetic surface while demo mode is on, and pasting a document is refused outright while it is active rather than silently mixed in.
+- `openlimiter serve` now carries its token in the URL fragment rather than the query string, moves it into the tab's own session storage and cleans the address bar on first load, and sends it as an `Authorization: Bearer` header on every refetch after that. An address printed by the previous release, with the token as a query parameter, still answers for this one release. The startup banner now says plainly that anyone who can see the screen, or a photograph of it, can read the quota for as long as the command keeps running, and that the port must never be forwarded or opened on a firewall.
+
+### Added
+
+- A connection state vocabulary and the source chips built on it. `packages/core/src/connection-state.ts` names thirteen connection states with one honest sentence each, so a connection's state is a value the whole product agrees on rather than a sentence each surface invents. The dashboard now shows a source chip on every provider drawn from it: Local CLI for Claude's statusline data, Import only for OpenRouter, Codex, Antigravity and OpenCode, Manual for manual entries.
+- A scheduling module, `packages/core/src/schedule.ts`: exponential backoff with jitter for when a connection may next ask its provider a question, honouring a provider's own `Retry-After` as a floor under our own backoff, never a reduction of it.
+- `provider_specs/`, a YAML capability registry, one file per provider and product, naming what its payload can state, where each meter and its reset are read from, and when its documentation was last checked against it. `scripts/validate-provider-specs.mjs` validates every entry with a small YAML reader of its own and is wired into `pnpm test`, so a malformed or disagreeing spec fails the build rather than shipping.
+- `accountId` and `provenance` fields on the snapshot schema, for a future reading that names its own account and states how it was observed. Both are added unpopulated: no connector sets either field yet, so their absence today means exactly what it always meant, one unnamed account, provenance unknown.
+
 ## [0.2.0] (2026-08-10)
 
 ### Changed

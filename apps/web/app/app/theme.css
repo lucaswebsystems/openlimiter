@@ -82,17 +82,15 @@
   --ol-meter-stale-mix: 55%;
 
   /*
-    Bar geometry, so every surface renders the same block.
+    Bar geometry, so every surface renders the same track.
 
-    The old bar was a row of ten 12 pixel slabs at a 2 pixel radius, which read
-    as a chart component borrowed from somewhere else. These are the
-    proportions of the bars in the site's own phone panels: a short pill on a
-    track, with a hairline of air between the segments. The semantics are
-    untouched, ten blocks with a half step at every five percent, and only the
-    drawing changed.
+    One continuous pill, at the proportions of the bars in the site's own phone
+    panels. It replaced a row of ten segments: segments could only move in five
+    percent steps, so 91 and 97 drew identically, and the bar quietly rounded
+    away the room a person was trying to read. There is no gap value any more
+    because there is nothing to put a gap between.
   */
   --ol-meter-height: 0.5rem;
-  --ol-meter-gap: 0.25rem;
   --ol-meter-radius: 999px;
 }
 
@@ -231,21 +229,33 @@
 }
 
 /*
-  The meter.
+  The meter, and it is continuous.
 
-  Ten blocks, because a terminal statusline draws ten blocks and this product
-  is read in a terminal more often than anywhere else. A block is full at every
-  whole ten percent and half at every five, so a reading is only ever shown
-  rounded down: 73 percent lights seven blocks and half of the eighth, never
-  eight. The same arithmetic runs in the desktop window and in the command line
-  tool, so the three cannot draw the same number differently.
+  It was ten blocks, one per ten percent with a half step at every five, on the
+  reasoning that a terminal statusline draws ten blocks. A terminal has no
+  choice: its cells are discrete. A browser does, and taking the terminal's
+  constraint anyway cost the reading its precision, because the bar could only
+  move in five point steps. 91 and 97 were the same picture. On a weekly window
+  that is the difference between four days of room and a few hours of it.
+
+  So the track is one element and the fill is another, and the fill's width is
+  the number. The command line keeps its character bar, where the constraint is
+  real, and prints the exact figure beside it.
+
+  Geometry is set inline, from the reading. Colour is set here, from the band.
+  They never touch: a red bar and an orange bar are still measured against the
+  same ruler, which is the property that makes two cards comparable at a glance.
 */
 .ol-meter {
+  position: relative;
   display: flex;
-  align-items: stretch;
-  gap: var(--ol-meter-gap);
+  align-items: center;
   width: 100%;
   min-width: 0;
+  height: var(--ol-meter-height);
+  border-radius: var(--ol-meter-radius);
+  background-color: var(--ol-meter-empty);
+  overflow: hidden;
 }
 
 .ol-meter[data-pressure="ok"] {
@@ -284,39 +294,53 @@
   );
 }
 
-.ol-meter-block {
-  flex: 1 1 0;
-  min-width: 0;
-  height: var(--ol-meter-height);
-  border-radius: var(--ol-meter-radius);
-  background-color: var(--ol-meter-empty);
-}
+/*
+  The fill.
 
-.ol-meter-block[data-fill="full"] {
+  Its width arrives inline as a percentage carrying every decimal the reading
+  had, so this rule sets no length of any kind. A reading of exactly zero draws
+  a zero width fill, which is correct: zero used is a real reading and it is not
+  the same thing as no reading.
+*/
+.ol-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
   background-color: var(--ol-pressure);
+  transition: width 320ms cubic-bezier(0, 0, 0.58, 1);
 }
 
-/* A half block keeps the pill silhouette: the fill is painted inside the
-   rounded box rather than the box being squared off to hold it. */
-.ol-meter-block[data-fill="half"] {
-  background-image: linear-gradient(
-    to right,
-    var(--ol-pressure) 0 50%,
-    var(--ol-meter-empty) 50% 100%
-  );
-}
+/*
+  Unknown is drawn, not blanked, and above all not filled to zero.
 
-/* Unknown is drawn, not blanked. Ten empty outlines say the same thing the
-   word next to them says: this was never read, and it is not a zero. */
-.ol-meter[data-state="unknown"] .ol-meter-block {
+  A zero width fill on a full width track is a picture of an empty quota, which
+  is the opposite of what an absent reading means. So the track loses its own
+  body, keeps a ghost outline, and carries the word itself. There is no fill
+  element in the markup at all in this state, so there is nothing that could be
+  mistaken for a measurement of nothing.
+*/
+.ol-meter[data-state="unknown"] {
+  /* Tall enough to hold its own word, which is the only reason it differs from
+     the bar above it. The compact bar in the list stays at its own height and
+     carries no word: that row has an Unknown cell of its own. */
+  height: 1.25rem;
   background-color: transparent;
-  background-image: none;
   box-shadow: inset 0 0 0 1px var(--ol-meter-ghost);
+}
+
+.ol-meter-sm[data-state="unknown"] {
+  height: var(--ol-meter-height);
+}
+
+.ol-meter-word {
+  padding-inline: 0.625rem;
+  font-size: var(--text-2xs);
+  line-height: 1;
+  color: var(--ol-muted);
 }
 
 .ol-meter-sm {
   --ol-meter-height: 0.375rem;
-  --ol-meter-gap: 0.1875rem;
 }
 
 /* The number beside a bar, painted in the bar's own colour. */
@@ -387,10 +411,181 @@
   box-shadow: inset 0 0 0 1.5px var(--ol-hairline-strong);
 }
 
+/* The dot on a connection chip. Neutral on purpose: where a reading came from
+   is not a pressure reading and must never borrow a band colour. */
+.ol-source-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: none;
+  border-radius: 50%;
+  background-color: var(--ol-muted);
+}
+
+/* Brighter for the two states where the reading arrived on its own. CONNECTED
+   cannot be reached by any reader in this build and is styled anyway, so the
+   day one arrives the chip is not unstyled. */
+[data-source="LOCAL_CLI"] .ol-source-dot,
+[data-source="CONNECTED"] .ol-source-dot {
+  background-color: var(--ol-soft);
+}
+
 /* One pixel of light along the top of a card, which is the only thing that
    separates a card from the surface behind it beyond its hairline. */
 .ol-sheen {
   box-shadow: inset 0 1px 0 0 var(--ol-card-sheen);
+}
+
+/*
+  DEMO MODE, AND WHY IT IS THIS LOUD
+  ----------------------------------
+  Sample data used to be a button in the main toolbar, stored under the same key
+  as real readings with a boolean beside it. A screenshot taken in that state
+  was indistinguishable from a screenshot of an account, which is how a
+  synthetic 97 percent ends up quoted as somebody's real quota.
+
+  The mark is therefore designed to survive a crop. A banner runs across the top
+  of the application, a strip runs across the top of every panel that can hold a
+  reading, the provider cards included, and neither can be dismissed. The colour
+  is the accent, which everywhere else on this route means the product talking
+  about itself rather than about a number, and it is the one place a meter can
+  never use, so a demo mark can never be mistaken for a pressure band.
+*/
+.ol-demo-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--ol-accent-subtle);
+  border-radius: 0.75rem;
+  background-color: var(--ol-accent-subtle);
+}
+
+.ol-demo-banner-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.ol-demo-banner-title {
+  font-family: var(--font-brand, "Baloo 2"), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ol-accent);
+}
+
+.ol-demo-banner-detail {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ol-accent);
+}
+
+/*
+  The per panel strip. Full width of whatever it sits at the top of, which is
+  why the caller passes the pull that cancels that panel's own padding.
+
+  It rounds its own top corners to the card radius rather than relying on the
+  panel clipping it. A panel that clips its children cannot hold a popover, and
+  the settings disclosure lives in one of these panels.
+
+  IT CARRIES THE CARD'S SHEEN, BECAUSE IT COVERS IT
+  ------------------------------------------------
+  `.ol-sheen` is an inset shadow on the card, and an inset shadow is painted
+  with the card's own background, underneath every child. This strip sits flush
+  against the card's top inner edge with a background of its own, so in demo
+  mode it painted straight over that one pixel of light and every card lost its
+  top edge for as long as the mode was on. The strip therefore repeats the same
+  inset line with the same token, and the edge reads identically in both modes.
+*/
+.ol-demo-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.3125rem 1.25rem;
+  border-bottom: 1px solid var(--ol-hairline);
+  border-radius: 0.75rem 0.75rem 0 0;
+  background-color: var(--ol-accent-subtle);
+  box-shadow: inset 0 1px 0 0 var(--ol-card-sheen);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-2xs);
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ol-accent);
+}
+
+/* The same mark inline, for a caption rather than a panel edge. */
+.ol-demo-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background-color: var(--ol-accent-subtle);
+  color: var(--ol-accent);
+  letter-spacing: 0.06em;
+}
+
+.ol-demo-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: none;
+  border-radius: 50%;
+  background-color: var(--ol-accent-solid);
+}
+
+/*
+  The settings panel.
+
+  A disclosure rather than a menu of commands: it holds two settings with a
+  sentence each, and demo mode is one of them. It is positioned against the gear
+  and is allowed to be wider than it, which is why the button's wrapper is the
+  positioning context rather than the toolbar.
+*/
+.ol-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 40;
+  width: min(20rem, calc(100vw - 2rem));
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: 0.75rem;
+  background-color: var(--ol-surface);
+  box-shadow: 0 18px 40px -18px rgb(0 0 0 / 0.55);
+  animation: ol-panel-in 160ms cubic-bezier(0, 0, 0.58, 1) both;
+}
+
+.ol-menu-label {
+  padding: 0.625rem 0.75rem 0.375rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ol-muted);
+}
+
+/*
+  On a phone the gear is wherever the toolbar's wrapping put it, and a panel
+  hung off its right edge is 320 pixels of content pointing at a screen edge 40
+  pixels away. So below the fold in the layout sense, the panel stops being
+  anchored to the button horizontally and spans the screen with a gutter each
+  side. `top: auto` keeps its vertical position exactly where the absolute one
+  put it: immediately under the control that opened it.
+*/
+@media (max-width: 639px) {
+  .ol-menu {
+    position: fixed;
+    left: 1rem;
+    right: 1rem;
+    top: auto;
+    width: auto;
+    margin-top: 0.5rem;
+  }
 }
 
 /*
@@ -604,8 +799,19 @@
   gap: 0.25rem 1rem;
   padding: 0.625rem 1.25rem;
   grid-template-columns:
-    minmax(7rem, 1.1fr) minmax(6rem, 0.9fr) minmax(5rem, 1.3fr)
+    minmax(8.5rem, 1.2fr) minmax(6rem, 0.9fr) minmax(5rem, 1.3fr)
     3.75rem minmax(0, 6.5rem) 4.5rem minmax(0, 7.5rem);
+}
+
+/* The identity cell carries the provider and, under it, where this row's
+   number came from. Two lines rather than one, because the chip beside a name
+   at this width pushed the name into an ellipsis on every row. */
+.ol-cell-ident {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 /* A provider's rows read as one block, so the hairline goes between groups. */
@@ -640,9 +846,9 @@
     Three areas, seven cells, no overlap and no sideways scroll.
 
     Line one is who and what, with the reading on the right. The bar takes a
-    full width line of its own, which is the only way ten segments stay
-    readable at this width. Line three is the quiet detail: freshness, money
-    and the countdown, one at each end and one in the middle.
+    full width line of its own, which is the only way a difference of a few
+    percent stays visible at this width. Line three is the quiet detail:
+    freshness, money and the countdown, one at each end and one in the middle.
   */
   .ol-list-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -784,8 +990,17 @@
   .ol-sheet-backdrop,
   .ol-sheet,
   .ol-panel,
+  .ol-menu,
   .ol-rise {
     animation: none;
+  }
+
+  /* The bar arrives at its length rather than growing into it. Its width is
+     set inline from the reading, so removing the transition removes the
+     motion and nothing else: the geometry is already correct on the first
+     frame and there is no state this can leave it stuck in. */
+  .ol-meter-fill {
+    transition: none;
   }
 
   .ol-tap:active {

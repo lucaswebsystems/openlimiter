@@ -513,12 +513,6 @@ main {
   color: var(--muted);
 }
 
-/* The word unknown is not a reading, so it is not typeset like one. */
-.meter-value.none {
-  font-size: 12px;
-  font-weight: 400;
-}
-
 /*
  * The money reading, for a plan bought in credits rather than rationed.
  *
@@ -559,12 +553,48 @@ main {
 }
 
 .origin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
   margin: 12px 0 0;
   padding-top: 12px;
   border-top: 1px solid var(--hairline);
+}
+
+.origin-line {
+  margin: 0;
   font-size: 11px;
   line-height: 1.35;
   color: var(--muted);
+}
+
+/*
+  The connection chip.
+
+  It never says connected. Five of the six parsers in this build have no reader
+  behind them, so a card showing a full bar has to say on the card that somebody
+  handed it that document. The dot is neutral on purpose: where a reading came
+  from is not a pressure reading and must never borrow a band colour.
+*/
+.source-chip {
+  gap: 6px;
+}
+
+.source-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+/* Brighter for the two states where something other than the reader's owner
+   put the reading here. CONNECTED cannot be reached by any reader in this
+   build and is styled anyway, so the day one arrives it is not unstyled. */
+[data-source="LOCAL_CLI"] .source-dot,
+[data-source="CONNECTED"] .source-dot {
+  background: var(--soft);
 }
 
 /* The line under a meter: the countdown, and for a priced plan the percentage
@@ -667,7 +697,7 @@ main {
   gap: 4px 14px;
   padding: 10px 16px;
   grid-template-columns:
-    minmax(6.5rem, 1.1fr) minmax(5.5rem, 0.9fr) minmax(4.5rem, 1.3fr)
+    minmax(8rem, 1.2fr) minmax(5.5rem, 0.9fr) minmax(4.5rem, 1.3fr)
     3.5rem minmax(0, 6rem) 4.25rem minmax(0, 7rem);
 }
 
@@ -689,7 +719,18 @@ main {
   background: var(--raised);
 }
 
+/* The provider, and under it where this row's number came from. Two lines
+   rather than one, because a chip beside the name at this width pushed every
+   name into an ellipsis. */
 .cell-ident {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ident-line {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -764,12 +805,29 @@ main {
 
 /* -------------------------------------------------------------------- meter */
 
+/*
+  It was ten blocks, one per ten percent with a half step at every five, on the
+  reasoning that a terminal statusline draws ten blocks. A terminal has no
+  choice: its cells are discrete. A window does, and taking the terminal's
+  constraint anyway meant the bar could only move in five point steps, so 91 and
+  97 drew the same picture. On a weekly window that is the difference between
+  four days of room and a few hours of it.
+
+  The track is one element, the fill is another, and the fill's width is the
+  number itself, set inline with every decimal intact. Colour comes from the
+  band and never touches the length, so two cards are still measured against the
+  same ruler.
+*/
 .meter {
+  position: relative;
   display: flex;
-  align-items: stretch;
-  gap: var(--meter-gap);
+  align-items: center;
   flex: 1;
   min-width: 0;
+  height: var(--meter-height);
+  border-radius: var(--meter-radius);
+  background-color: var(--meter-empty);
+  overflow: hidden;
   --pressure-base: var(--meter-ghost);
   --pressure: var(--pressure-base);
 }
@@ -783,30 +841,40 @@ main {
   --pressure: color-mix(in srgb, var(--pressure-base) var(--stale-mix), var(--surface));
 }
 
-.block {
-  flex: 1 1 0;
-  min-width: 0;
-  height: var(--meter-height);
-  border-radius: var(--meter-radius);
-  background-color: var(--meter-empty);
-}
-
-.block[data-fill="full"] {
+.meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
   background-color: var(--pressure);
+  transition: width 320ms cubic-bezier(0, 0, 0.58, 1);
 }
 
-.block[data-fill="half"] {
-  background-image: linear-gradient(
-    to right,
-    var(--pressure) 0 50%,
-    var(--meter-empty) 50% 100%
-  );
-}
-
-.meter[data-state="unknown"] .block {
+/*
+  Unknown is drawn, not blanked, and above all not filled to zero. A zero width
+  fill on a full width track is a picture of an exhausted quota, which is the
+  opposite of what an absent reading means, so the track loses its body, keeps a
+  ghost outline and carries the word itself. There is no fill element in this
+  state at all.
+*/
+.meter[data-state="unknown"] {
+  height: 20px;
   background-color: transparent;
-  background-image: none;
   box-shadow: inset 0 0 0 1px var(--meter-ghost);
+}
+
+.meter-sm[data-state="unknown"] {
+  height: var(--meter-height);
+}
+
+.meter-word {
+  padding-inline: 10px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.meter-sm {
+  --meter-height: 6px;
 }
 
 /* The number keeps its full colour whatever its freshness: a percentage has to
@@ -818,17 +886,35 @@ main {
 
 /* -------------------------------------------------------------------- empty */
 
+/* The providers with no card. One quiet line, never a grid of empty outlines. */
+.absent {
+  margin: 16px 0 0;
+  max-width: 60em;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
 .empty {
-  border: 1px dashed var(--hairline-strong);
+  border: 1px solid var(--hairline);
   border-radius: 12px;
   background: var(--surface);
-  padding: 48px 24px;
+  padding: 56px 24px;
   text-align: center;
 }
 
-.empty .meter {
-  max-width: 224px;
-  margin: 0 auto 24px;
+/* No bar on the first launch screen. An empty bar next to a provider's name is
+   the closest thing to a fabricated zero this window can draw. */
+.empty-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 20px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--raised);
+  color: var(--soft);
 }
 
 .empty h3 {
@@ -836,7 +922,7 @@ main {
   font-family: var(--font-brand);
   font-weight: 600;
   letter-spacing: -0.01em;
-  font-size: 16px;
+  font-size: 18px;
   color: var(--heading);
 }
 

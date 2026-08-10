@@ -1,0 +1,69 @@
+# xAI. The strongest official_api case found across this whole research
+# pass. A separate Management API, at management-api.x.ai, documents a
+# prepaid balance endpoint and a usage time series endpoint, both read only
+# with a self service management key created in the xAI console. That key
+# is a distinct credential from the normal inference api_key: this entry
+# models the management key specifically, matching the auth_mode
+# management_key.
+#
+# The consumer Grok and SuperGrok subscription is a separate surface. xAI's
+# own docs describe a single shared weekly usage pool across chat, image,
+# video and voice, but explicitly decline to publish fixed numbers and point
+# users at the in app usage settings instead, so that surface is scrape_only
+# and is not modelled here. See provider_specs/RESEARCH.md.
+
+provider_id: xai
+product_id: api
+display_name: xAI
+
+source:
+  docs_url: https://docs.x.ai/developers/rest-api-reference/management/billing
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: any
+  appears_after: management_key_created
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: management_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - xai.documented.balance
+
+# GET /v1/billing/teams/{team_id}/prepaid/balance. Documented response:
+# { "changes": [ { "teamId": ..., "amount": { "val": "-1000" }, ... } ],
+#   "total": { "val": "-1000" } }
+# The sign convention of val was not spelled out in prose on the page read,
+# so this is carried through as a raw currency amount rather than turned
+# into a computed percentage. A richer POST /v1/billing/teams/{team_id}/usage
+# time series endpoint also exists and is documented at the same source_url,
+# for a future second meter.
+meters:
+  - id: prepaid_balance
+    label: Prepaid balance
+    kind: credits
+    unit: currency
+    scope: organization
+    window:
+      kind: credit_balance
+    source_path: total.val
+    amount_currency: USD
+    reset_path: null
+    reset_encoding: none
+    optional: false
+    meter_code: PREPAID_BALANCE

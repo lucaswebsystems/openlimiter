@@ -17,32 +17,48 @@ import { reveal } from "@/lib/motion";
  */
 
 interface Screenshot {
-  src: string;
+  /** Basename under public/screenshots. The light file adds `-light`. */
+  name: string;
   width: number;
   height: number;
   alt: string;
 }
 
 const SCREENSHOT: Screenshot = {
-  src: "/screenshots/desktop-app.png",
+  name: "desktop-app",
   width: 2560,
   height: 1600,
   alt: "The OpenLimiter desktop application, showing one card per provider with a meter, a percentage, a freshness state and a reset countdown, over synthetic demo data.",
 };
 
 export function DeviceFrame() {
+  const common = {
+    width: SCREENSHOT.width,
+    height: SCREENSHOT.height,
+    className: "h-auto w-full rounded-lg sm:rounded-xl",
+  };
   return (
     <div className={`${SHELL} relative pb-8 md:pb-16`}>
       <div {...reveal}>
         <div className="elev-2 overflow-hidden rounded-xl border border-hairline bg-frame p-2 sm:rounded-2xl sm:p-3">
+          {/* The pair. Same file name, same dimensions, one of them hidden by
+              the theme, so the largest visual on the page belongs to whichever
+              theme the reader is actually in. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={SCREENSHOT.src}
-            width={SCREENSHOT.width}
-            height={SCREENSHOT.height}
+            {...common}
             alt={SCREENSHOT.alt}
+            src={`/screenshots/${SCREENSHOT.name}.png`}
             fetchPriority="high"
-            className="block h-auto w-full rounded-lg sm:rounded-xl"
+            className={`shot-dark ${common.className}`}
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            {...common}
+            alt={SCREENSHOT.alt}
+            src={`/screenshots/${SCREENSHOT.name}-light.png`}
+            loading="lazy"
+            className={`shot-light ${common.className}`}
           />
         </div>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

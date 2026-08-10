@@ -1,11 +1,23 @@
-// This interface is UNOFFICIAL and may break.
+/*
+ * The one connector reading an interface the provider documents itself.
+ *
+ * Everything below is written against the published Claude Code statusline
+ * contract, cited in full above parseClaudePayload.
+ */
 import type {
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
   RawMeter
 } from "@openlimiter/core";
-import { boundedNumber, futureInstant, rawMeter, record, shortExpiry } from "./shared.js";
+import {
+  boundedNumber,
+  futureInstantFromEpochSeconds,
+  plausibleResetHorizon,
+  rawMeter,
+  record,
+  shortExpiry
+} from "./shared.js";
 
 export const claudeLabels = {
   credentialOrigin: "official-local-tool",
@@ -28,8 +40,17 @@ function parseWindow(
 ): RawMeter | null {
   const input = record(value);
   if (input === null) return null;
-  const percent = boundedNumber(input["utilization"]);
-  const resetAt = futureInstant(input["resets_at"], now);
+  const percent = boundedNumber(input["used_percentage"]);
+  /*
+   * The reset has to belong to the window that named it. A five hour window
+   * resetting years from now is a corrupt field, not a long wait, and it is
+   * dropped on its own so the other window still reports.
+   */
+  const resetAt = futureInstantFromEpochSeconds(
+    input["resets_at"],
+    now,
+    plausibleResetHorizon(durationSeconds)
+  );
   const expiresAt = shortExpiry(now);
   if (percent === null || resetAt === null || expiresAt === null) return null;
   return rawMeter({
@@ -54,8 +75,35 @@ const windows = [
 /**
  * Parse the rate limit block of a Claude Code statusline payload.
  *
- * Shape: { "rate_limits": { "five_hour": { "utilization": 42,
- * "resets_at": "2026-09-01T05:00:00.000Z" }, "seven_day": { ... } } }
+ * Documented shape, from https://code.claude.com/docs/en/statusline
+ * reviewed 2026-08-10:
+ *
+ * ```json
+ * {
+ *   "rate_limits": {
+ *     "five_hour": { "used_percentage": 23.5, "resets_at": 1738425600 },
+ *     "seven_day": { "used_percentage": 41.2, "resets_at": 1738857600 }
+ *   }
+ * }
+ * ```
+ *
+ * `used_percentage` is the share of the window consumed, from 0 to 100.
+ * `resets_at` is Unix epoch SECONDS, a number, not a date string.
+ *
+ * Three absences the documentation states, and none of them is an error:
+ *
+ * 1. `rate_limits` appears only for Claude.ai subscribers on Pro or Max, and
+ *    only after the first API response in the session. A payload without it is
+ *    an ordinary payload from a free account or a session that has not called
+ *    the API yet.
+ * 2. Each window may be independently absent, so one present window is one
+ *    meter and is a complete answer.
+ * 3. No window present is the honest unknown, not zero.
+ *
+ * An earlier version of this parser read a field named `utilization` and an ISO
+ * date string. No Claude Code release is known to have emitted either, and the
+ * only thing that ever agreed with them was our own fixture, so nothing here
+ * falls back to that shape.
  *
  * A window that fails validation is dropped and the other window still counts,
  * because one expired window is not a reason to forget the whole session.

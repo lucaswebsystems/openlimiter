@@ -318,13 +318,35 @@ async function withCacheLock<Result>(
   }
 }
 
+/**
+ * Document version of the snapshot cache.
+ *
+ * Deliberately still 1 after `accountId` and `provenance` were added to a row.
+ *
+ * Both fields are strictly optional and are written only when a source states
+ * them, so a row that predates them is byte identical to the row this build
+ * writes, and every reader in the repository ignores fields it does not know:
+ * the CLI, the desktop UI and the web app all reach the same normalizer, which
+ * reads named fields and never rejects a document for carrying extra ones. No
+ * reader parses the cache with a closed shape, so nothing exists that a version
+ * bump would protect.
+ *
+ * Bump this to 2 only for a change an old reader would misread rather than
+ * ignore: a field whose meaning changes, a required field, or a row whose
+ * identity moves. A reader added then must still accept 1.
+ */
+export const CACHE_DOCUMENT_VERSION = 1;
+
 async function replaceCache(
   directory: string,
   snapshots: readonly Snapshot[]
 ): Promise<void> {
   const file = path.join(directory, CACHE_FILE_NAME);
   await rejectSymlink(file);
-  await writeFileAtomically(file, canonicalJson({ snapshots, version: 1 }));
+  await writeFileAtomically(
+    file,
+    canonicalJson({ snapshots, version: CACHE_DOCUMENT_VERSION })
+  );
 }
 
 /**

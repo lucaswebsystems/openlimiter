@@ -90,11 +90,11 @@
      different amounts to stay above 3 to 1 against the card behind them. */
   --stale-mix: 55%;
 
-  /* Bar geometry. A short pill on a track with a hairline of air between the
-     segments, which is the shape the site's own bars take. The semantics are
-     untouched: ten blocks, a half step at every five percent. */
+  /* Bar geometry. One continuous pill, at the shape the site's own bars take.
+     There is no gap value any more because the bar is no longer segments: ten
+     segments could only move in five point steps, so 91 and 97 drew the same
+     picture, and a quota meter cannot round away the room it is reporting. */
   --meter-height: 8px;
-  --meter-gap: 4px;
   --meter-radius: 999px;
 
   /*

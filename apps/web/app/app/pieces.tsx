@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   failureSentence,
   floorFixed,
@@ -10,22 +10,28 @@ import {
   type ProviderView,
 } from "./engine";
 import {
+  CONNECTION_FACTS,
   amountLine,
   amountSentence,
-  blocks,
   byMeterOrder,
   countdown,
   freshnessWord,
   meterCountLabel,
+  meterFraction,
   meterLabel,
   meterName,
+  meterWidth,
   noRecommendationSentence,
   pressureOf,
   providerName,
   providerOrigin,
   reasonPressure,
   reasonSentence,
+  sourceStateLabel,
+  sourceStateOf,
+  sourceStateSentence,
   type Pressure,
+  type SourceState,
 } from "./language";
 import { ProviderMark } from "./marks";
 
@@ -77,15 +83,33 @@ const CHIP_ACCENT = `${CHIP} border-accent-subtle bg-accent-subtle text-accent`;
 /* ------------------------------------------------------------------ meters */
 
 /**
- * The segmented bar.
+ * The bar, and it is continuous.
  *
- * Ten blocks, filled by the arithmetic in language.ts, drawn by the classes in
- * theme.css. The whole bar is one image to a screen reader, labelled with the
- * meter, the number and how much of it to trust, and the blocks themselves are
- * hidden from the accessibility tree because ten of them announced one at a
- * time would be noise.
+ * It used to be ten blocks with a half step every five percent, which meant the
+ * bar only moved twice per ten points: 91 and 97 drew the same picture, and a
+ * weekly window four days apart looked untouched. A quota meter whose whole job
+ * is to show how much room is left cannot round the room away. So the fill is
+ * the number, `width` set from the clamped percentage with every decimal the
+ * source carried, and the only arithmetic between the reading and the pixels is
+ * the clamp that keeps a track from being longer than itself.
+ *
+ * Colour and geometry are independent. The four pressure bands paint the fill
+ * and never touch its length, which is what lets a red bar and an orange bar be
+ * compared by eye.
+ *
+ * It is a real `progressbar`, so `aria-valuenow` carries the exact reading
+ * rather than the drawn approximation of it. Unknown is the one case with no
+ * `aria-valuenow` at all, which is how ARIA spells a progressbar that has no
+ * value: an absent reading is not zero, and a zero width fill on a full width
+ * track is exactly the lie this component exists to stop telling.
+ *
+ * `aria-valuetext` is the spoken form, and it is here because exact and
+ * speakable are not the same requirement. A credit balance of 12.47 out of 20
+ * is 62.35000000000001 in binary floating point, and that is the honest value
+ * to expose programmatically and an absurd thing to read aloud one digit at a
+ * time. So the number stays exact and the sentence stays short.
  */
-export function SegmentedMeter({
+export function QuotaMeter({
   value,
   state,
   label,
@@ -96,24 +120,32 @@ export function SegmentedMeter({
   label: string;
   size?: "md" | "sm";
 }) {
-  const pressure: Pressure = state === "unknown" ? "none" : pressureOf(value);
+  const unknown = state === "unknown";
+  const exact = unknown ? null : meterFraction(value);
+  const width = unknown ? null : meterWidth(value);
+  const pressure: Pressure = exact === null ? "none" : pressureOf(value);
+
   return (
     <div
-      role="img"
+      role="progressbar"
       aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      {...(exact === null
+        ? { "aria-valuetext": "Unknown" }
+        : { "aria-valuenow": exact, "aria-valuetext": floorFixed(exact, 1) + "% used" })}
       data-pressure={pressure}
       data-state={state}
       className={`ol-meter min-w-0 flex-1 ${size === "sm" ? "ol-meter-sm" : ""}`}
     >
-      {blocks(state === "unknown" ? 0 : value).map((fill, index) => (
-        <span
-          /* Ten fixed positions in a fixed order, so the index is the identity. */
-          key={"block" + String(index)}
-          aria-hidden="true"
-          data-fill={fill}
-          className="ol-meter-block"
-        />
-      ))}
+      {width === null ? (
+        /* Neutral track, no fill element at all, and the word itself at the
+           size that can hold it. The compact bar in the list has no room for a
+           word and does not need one: its row carries an Unknown cell. */
+        size === "md" && <span className="ol-meter-word">Unknown</span>
+      ) : (
+        <span aria-hidden="true" className="ol-meter-fill" style={{ width }} />
+      )}
     </div>
   );
 }
@@ -167,9 +199,8 @@ function MeterReading({
 }) {
   const money = amountLine(meter);
 
-  if (meter.state === "unknown") {
-    return <span className="w-14 shrink-0 text-right text-xs text-muted">Unknown</span>;
-  }
+  /* The bar itself says Unknown, in the track, so nothing is repeated here. */
+  if (meter.state === "unknown") return null;
 
   if (money !== null) {
     return (
@@ -214,7 +245,7 @@ function MeterRow({ meter, now }: { meter: MeterView; now: string }) {
         <Freshness state={meter.state} />
       </div>
       <div className="mt-2.5 flex items-center gap-3">
-        <SegmentedMeter
+        <QuotaMeter
           value={meter.value}
           state={meter.state}
           label={meterLabel(meter, percent, now)}
@@ -268,12 +299,11 @@ function AbsentMeterRow({ code }: { code: string }) {
         <Freshness state="unknown" />
       </div>
       <div className="mt-2.5 flex items-center gap-3">
-        <SegmentedMeter
-          value={0}
+        <QuotaMeter
+          value={Number.NaN}
           state="unknown"
           label={name + " has no reading, so it is unknown"}
         />
-        <span className="w-14 shrink-0 text-right text-xs text-muted">Unknown</span>
       </div>
       <p className="mt-2 text-2xs text-muted">Not zero, not exhausted</p>
     </div>
@@ -282,6 +312,30 @@ function AbsentMeterRow({ code }: { code: string }) {
 
 /* ------------------------------------------------------------------- cards */
 
+/* --------------------------------------------------------- connection chip */
+
+/**
+ * What this provider's numbers actually came from.
+ *
+ * The one word this chip will never say is connected. Five of the six parsers
+ * here have no reader behind them, so a card showing a full bar has to say, on
+ * the card, that somebody handed it that document. The label is the sentence
+ * form a person reads and the enum is on the element for anyone quoting it in a
+ * bug report, which is the same split the provider code line makes.
+ */
+export function SourceChip({ state }: { state: SourceState }) {
+  return (
+    <span
+      data-source={state}
+      title={state + ". " + sourceStateSentence[state]}
+      className={`${CHIP_NEUTRAL} flex-none`}
+    >
+      <span aria-hidden="true" className="ol-source-dot" />
+      {sourceStateLabel[state]}
+    </span>
+  );
+}
+
 /**
  * A provider, and every meter it carries.
  *
@@ -289,8 +343,21 @@ function AbsentMeterRow({ code }: { code: string }) {
  * money last, and there are exactly as many of them as the data has. Nothing
  * here knows how many that is: a provider that starts reporting a third window
  * grows a third row on its own.
+ *
+ * A card is only ever drawn for a provider that has something to say. The
+ * decision is the dashboard's, not this component's, because an empty card for
+ * every unconfigured provider was the wall of Unknown the first launch used to
+ * open on.
  */
-export function ProviderCard({ view, now }: { view: ProviderView; now: string }) {
+export function ProviderCard({
+  view,
+  now,
+  demo = false,
+}: {
+  view: ProviderView;
+  now: string;
+  demo?: boolean;
+}) {
   const worst = view.worst;
   const meters = [...view.meters].sort((left, right) =>
     byMeterOrder(left.meter, right.meter),
@@ -301,15 +368,23 @@ export function ProviderCard({ view, now }: { view: ProviderView; now: string })
     .sort(byMeterOrder);
   const pressure: Pressure = worst === null ? "none" : pressureOf(worst.value);
   const count = meterCountLabel(meters.length);
+  /* One row answers for the card, and its source literal and its provenance
+     have to come from that same row: pairing one meter's stamp with another
+     meter's literal is how a card ends up describing an arrival nothing here
+     actually saw. */
+  const lead = worst ?? meters[0];
+  const source = sourceStateOf(view.provider, lead?.source, lead?.provenance);
 
   return (
     <article
+      data-demo={demo ? "" : undefined}
       className={`ol-rise lift flex flex-col p-5 transition-colors ${CARD_SURFACE} ${
         meters.length === 0
           ? "border-dashed border-hairline-strong"
           : "hover:border-hairline-strong hover:bg-raised"
       }`}
     >
+      {demo && <DemoStrip />}
       <header className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-hairline bg-raised text-soft">
@@ -351,11 +426,14 @@ export function ProviderCard({ view, now }: { view: ProviderView; now: string })
 
       {view.failure !== null && <FailureLine category={view.failure} />}
 
-      <p className="mt-3 border-t border-hairline pt-3 text-2xs text-muted">
-        {worst === null
-          ? providerOrigin(view.provider)
-          : providerOrigin(view.provider) + " · " + worst.precision}
-      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t border-hairline pt-3">
+        <SourceChip state={source} />
+        <p className="text-2xs text-muted">
+          {worst === null
+            ? providerOrigin(view.provider)
+            : providerOrigin(view.provider) + " · " + worst.precision}
+        </p>
+      </div>
     </article>
   );
 }
@@ -380,9 +458,11 @@ export function ProviderCard({ view, now }: { view: ProviderView; now: string })
 export function MeterList({
   providers,
   now,
+  demo = false,
 }: {
   providers: readonly ProviderView[];
   now: string;
+  demo?: boolean;
 }) {
   const groups = providers
     .map((provider) => ({
@@ -396,7 +476,8 @@ export function MeterList({
   if (groups.length === 0) return null;
 
   return (
-    <div className={`ol-rise overflow-hidden ${CARD_SURFACE}`}>
+    <div data-demo={demo ? "" : undefined} className={`ol-rise overflow-hidden ${CARD_SURFACE}`}>
+      {demo && <DemoStrip className="" />}
       <div role="table" aria-label="Every meter, one row each" className="ol-list">
         <div role="rowgroup">
           <div role="row" className="ol-list-row ol-list-head">
@@ -453,12 +534,22 @@ export function MeterList({
                         {providerName(group.provider.provider)}
                       </span>
                     )}
+                    {/* Where the number came from, on the row the number is on,
+                        because a dense table is exactly where a reading is
+                        easiest to mistake for a live account. */}
+                    <SourceChip
+                      state={sourceStateOf(
+                        group.provider.provider,
+                        meter.source,
+                        meter.provenance,
+                      )}
+                    />
                   </span>
                   <span role="cell" className="ol-cell-meter truncate text-sm text-soft">
                     {meterName(meter.meter)}
                   </span>
                   <span role="cell" className="ol-cell-bar">
-                    <SegmentedMeter
+                    <QuotaMeter
                       value={meter.value}
                       state={meter.state}
                       size="sm"
@@ -592,7 +683,7 @@ export function HeaderStrip({
   lockup,
   advice,
   asOf,
-  sample,
+  demo,
   busy,
   onRefresh,
   actions,
@@ -600,7 +691,7 @@ export function HeaderStrip({
   lockup: ReactNode;
   advice: Advice | null;
   asOf: string | null;
-  sample: boolean;
+  demo: boolean;
   busy: boolean;
   onRefresh: () => void;
   actions?: ReactNode;
@@ -610,14 +701,29 @@ export function HeaderStrip({
   const recommendation = advice?.recommendation ?? null;
 
   return (
-    <section aria-label="Overall state" className={`ol-rise ${CARD_SURFACE}`}>
+    <section
+      aria-label="Overall state"
+      data-demo={demo ? "" : undefined}
+      /* Never clipped: the settings disclosure opens out of this panel. */
+      className={`ol-rise ${CARD_SURFACE}`}
+    >
+      {demo && <DemoStrip className="" />}
       <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
         {lockup}
         <div className="flex flex-wrap items-center gap-2">
           {actions}
-          <Button tone="ghost" onClick={onRefresh} disabled={busy}>
+          <Button
+            tone="ghost"
+            onClick={onRefresh}
+            disabled={busy}
+            title="Reads this device's stored reading again and advances the clock. Nothing is fetched from a provider."
+          >
+            {/* Not `Refresh`. That word promises a round trip to somebody's
+                account, and this button cannot reach one: it re-reads what is
+                already on the device. The desktop window's equivalent says the
+                same thing, so the two surfaces describe one action once. */}
             <RefreshGlyph spinning={busy} />
-            Refresh
+            Re-read local data
           </Button>
         </div>
       </div>
@@ -656,7 +762,7 @@ export function HeaderStrip({
           <span className="font-mono text-2xs text-muted">
             {asOf === null ? "reading the clock" : "as of " + asOf}
           </span>
-          {sample && <DemoDataChip />}
+          {demo && <DemoDataChip />}
         </div>
       </div>
     </section>
@@ -807,59 +913,300 @@ export function SkeletonCards({ count = 3 }: { count?: number }) {
   );
 }
 
-/* ------------------------------------------------------------ empty  state */
+/* ------------------------------------------------------------- first launch */
 
 /**
  * What the page says before it has been given anything.
  *
- * Three ways in, stated plainly, and not one invented number anywhere near
- * them. An empty dashboard is the honest state of a tool that has been handed
- * nothing, so it is designed rather than apologised for.
+ * It used to open on a full grid of Unknown cards, one per provider, each with
+ * an empty bar in it. That is a parser debugging view: it reads as six broken
+ * connections rather than as a tool nobody has set up yet, and an empty bar
+ * beside a provider's name is the closest thing to a fabricated zero this
+ * product can draw without inventing a number.
+ *
+ * So the first launch is one calm block with one action in it. The cards arrive
+ * when there is something to put in them.
  */
-export function EmptyState({
-  onPaste,
-  onSample,
-}: {
-  onPaste: () => void;
-  onSample: () => void;
-}) {
+export function FirstRunState({ onConnect }: { onConnect: () => void }) {
   return (
-    <div
-      className="ol-rise rounded-xl border border-dashed border-hairline-strong bg-surface px-6 py-12 text-center sm:py-16"
-    >
+    <div className="ol-rise rounded-xl border border-hairline bg-surface px-6 py-14 text-center sm:py-20">
       <div className="mx-auto flex w-full max-w-md flex-col items-center">
-        <div
+        <span
           aria-hidden="true"
-          data-pressure="none"
-          data-state="unknown"
-          className="ol-meter mx-auto max-w-56"
+          className="grid h-12 w-12 place-items-center rounded-xl border border-hairline bg-raised text-soft"
         >
-          {blocks(0).map((fill, index) => (
-            <span
-              key={"empty" + String(index)}
-              data-fill={fill}
-              className="ol-meter-block"
-            />
-          ))}
-        </div>
-        <h3 className="ol-brand-font mt-6 text-base text-heading">No reading yet</h3>
+          <PlugGlyph />
+        </span>
+        <h3 className="ol-brand-font mt-5 text-lg text-heading">
+          No providers are connected yet
+        </h3>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Nothing has been handed to this page, so every provider is unknown. It
-          will stay that way until you give it a document: a missing reading is
-          never shown as a zero and never as an exhausted quota.
+          OpenLimiter reads the tools already running on this machine and the
+          accounts it supports. Until one of them reports, nothing here is a
+          number: a provider with no reading is never drawn as a zero.
         </p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-          <Button tone="primary" onClick={onPaste}>
-            Paste a payload
+        <div className="mt-7">
+          <Button tone="primary" onClick={onConnect}>
+            Set up providers
           </Button>
-          <Button onClick={onSample}>Load sample data</Button>
         </div>
-        <p className="mt-6 text-xs leading-relaxed text-muted">
-          Or install the command line tool and run{" "}
-          <code className="font-mono text-heading">openlimiter export</code>, then
-          paste what it prints.
-        </p>
       </div>
+    </div>
+  );
+}
+
+function PlugGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M9 3v6M15 3v6" />
+      <path d="M6 9h12v3a6 6 0 0 1-12 0Z" />
+      <path d="M12 18v3" />
+    </svg>
+  );
+}
+
+/* -------------------------------------------------------------- connections */
+
+/**
+ * What can actually be connected today, one line each.
+ *
+ * This is the page the first launch sends somebody to, and the honest answer is
+ * that one provider reports on its own and the rest need a document. Saying so
+ * in a list, with the same chip the cards carry, is the whole feature: the next
+ * release replaces each row's sentence with a real action.
+ */
+export function ConnectionList() {
+  return (
+    <ul className="divide-y divide-hairline border-t border-hairline">
+      {CONNECTION_FACTS.map((fact) => (
+        <li
+          key={fact.provider}
+          className="flex flex-col gap-2 py-3.5 sm:flex-row sm:items-start sm:gap-4"
+        >
+          <span className="flex min-w-0 flex-none items-center gap-2.5 sm:w-44">
+            <span className="grid h-7 w-7 flex-none place-items-center rounded-md border border-hairline bg-raised text-soft">
+              <ProviderMark provider={fact.provider} />
+            </span>
+            <span className="ol-brand-font truncate text-sm text-heading">
+              {providerName(fact.provider)}
+            </span>
+          </span>
+          <span className="flex-none sm:pt-0.5">
+            <SourceChip state={fact.state} />
+          </span>
+          <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted">{fact.line}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* -------------------------------------------------------------------- demo */
+
+/**
+ * The mark that says these numbers are made up.
+ *
+ * It is a strip rather than a chip because it has to survive a screenshot. One
+ * of these sits on every panel that can show a reading, the header included and
+ * every provider card included, so no crop of this page can be mistaken for an
+ * account. The banner above them all carries the way out.
+ */
+export function DemoStrip({ className = "-mx-5 -mt-5 mb-4" }: { className?: string }) {
+  return (
+    <p className={`ol-demo-strip ${className}`}>
+      <span aria-hidden="true" className="ol-demo-dot" />
+      Demo data · synthetic
+    </p>
+  );
+}
+
+/**
+ * The banner across the top of the application while demo mode is on.
+ *
+ * Live readings are untouched behind it, in their own store, and the button
+ * here is the only thing that puts them back on screen. Nothing about this is
+ * dismissible: a demo watermark somebody can close is a watermark that will be
+ * missing from the screenshot that matters.
+ */
+export function DemoBanner({ onLeave }: { onLeave: () => void }) {
+  return (
+    <div role="status" className="ol-demo-banner">
+      <p className="ol-demo-banner-text">
+        <span aria-hidden="true" className="ol-demo-dot" />
+        <span className="ol-demo-banner-title">Demo data</span>
+        <span className="ol-demo-banner-detail">
+          Every number below is synthetic. No account was read, and your own
+          readings are untouched.
+        </span>
+      </p>
+      <Button tone="ghost" onClick={onLeave} className="flex-none">
+        Leave demo mode
+      </Button>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- settings */
+
+function GearGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="3.1" />
+      <path d="M19.4 14.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.11a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.11a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.11a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.11a1.7 1.7 0 0 0-1.49 1.03Z" />
+    </svg>
+  );
+}
+
+/**
+ * Settings, and the one drawer under it that developers need.
+ *
+ * Demo mode lives here and nowhere else. It used to be a button called Load
+ * sample data sitting in the main toolbar beside Clear, one click away from the
+ * live view and indistinguishable from it afterwards, which is precisely how a
+ * synthetic reading ends up in somebody's screenshot of their own quota. Behind
+ * a gear it is still two clicks from anyone who wants it and no clicks from
+ * anyone who does not.
+ *
+ * The panel closes on Escape and on a press outside it, and the button carries
+ * its own expanded state, so the whole thing behaves like the disclosure it is.
+ */
+export function SettingsMenu({
+  demo,
+  onEnterDemo,
+  onLeaveDemo,
+  onClear,
+  clearable,
+}: {
+  demo: boolean;
+  onEnterDemo: () => void;
+  onLeaveDemo: () => void;
+  onClear: () => void;
+  clearable: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    const onDown = (event: MouseEvent) => {
+      if (wrap.current !== null && !wrap.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrap} className="relative">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="true"
+        aria-label="Settings"
+        title="Settings"
+        onClick={() => {
+          setOpen((current) => !current);
+        }}
+        className={`ol-tap focus-ring inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-hairline-strong text-heading hover:border-heading hover:bg-surface ${
+          open ? "bg-surface" : "bg-transparent"
+        }`}
+      >
+        <GearGlyph />
+      </button>
+
+      {open && (
+        <div className="ol-menu" role="group" aria-label="Settings">
+          <p className="ol-menu-label">Developer</p>
+          <div className="px-3 pb-3">
+            <p className="ol-brand-font text-sm text-heading">Demo mode</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              Fills the dashboard with the project&apos;s own synthetic fixtures,
+              in a separate store, watermarked everywhere. Your readings stay
+              where they are and come back when you leave.
+            </p>
+            <div className="mt-3">
+              {demo ? (
+                <Button
+                  onClick={() => {
+                    onLeaveDemo();
+                    setOpen(false);
+                  }}
+                >
+                  Leave demo mode
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    onEnterDemo();
+                    setOpen(false);
+                  }}
+                >
+                  Enter demo mode
+                </Button>
+              )}
+            </div>
+          </div>
+          {/* There are two stores and this button empties exactly one of them,
+              so it says which. While demo mode is on it is the demo store: the
+              live readings are behind the fixtures on screen, and a control
+              that emptied them would show no visible change at all. */}
+          <div className="border-t border-hairline px-3 py-3">
+            <p className="ol-brand-font text-sm text-heading">
+              {demo ? "Stored demo readings" : "Stored readings"}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted">
+              {demo
+                ? "Forgets the synthetic fixtures only. Your own readings are in a separate store and are not touched by this."
+                : "Forgets what this browser kept. It cannot reach a provider, so nothing anywhere else changes."}
+            </p>
+            <div className="mt-3">
+              <Button
+                tone="quiet"
+                disabled={!clearable}
+                title={
+                  demo
+                    ? "Clears the demo store only. The live store is left exactly as it is."
+                    : "Clears the live store only. The demo fixtures are left exactly as they are."
+                }
+                onClick={() => {
+                  onClear();
+                  setOpen(false);
+                }}
+              >
+                {demo ? "Clear demo readings" : "Clear live readings"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -871,26 +1218,31 @@ export function Panel({
   description,
   children,
   action,
+  demo = false,
 }: {
   title: string;
   description?: string;
   children: ReactNode;
   action?: ReactNode;
+  demo?: boolean;
 }) {
   return (
-    <section className={`ol-rise ${CARD_SURFACE} p-5 sm:p-6`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="ol-brand-font text-base text-heading">{title}</h2>
-          {description !== undefined && (
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
-              {description}
-            </p>
-          )}
+    <section data-demo={demo ? "" : undefined} className={`ol-rise ${CARD_SURFACE}`}>
+      {demo && <DemoStrip className="" />}
+      <div className="p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="ol-brand-font text-base text-heading">{title}</h2>
+            {description !== undefined && (
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
+                {description}
+              </p>
+            )}
+          </div>
+          {action}
         </div>
-        {action}
+        <div className="mt-4">{children}</div>
       </div>
-      <div className="mt-4">{children}</div>
     </section>
   );
 }
@@ -919,6 +1271,8 @@ export function Button({
   onClick,
   disabled = false,
   label,
+  title,
+  className = "",
   children,
 }: {
   tone?: keyof typeof buttonTone;
@@ -926,6 +1280,16 @@ export function Button({
   disabled?: boolean;
   /** Accessible name, for a control whose text alone is not enough. */
   label?: string;
+  /**
+   * What the control actually does, when its own words cannot carry all of it.
+   *
+   * Separate from `label` on purpose: `label` replaces the accessible name and
+   * belongs on a control with no text, while this adds an explanation to one
+   * whose text is already correct. Every honesty note about what a button does
+   * and does not reach uses this.
+   */
+  title?: string;
+  className?: string;
   children: ReactNode;
 }) {
   const naming = label === undefined ? {} : { "aria-label": label, title: label };
@@ -934,8 +1298,9 @@ export function Button({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      {...(title === undefined ? {} : { title })}
       {...naming}
-      className={`${buttonBase} ${buttonTone[tone]}`}
+      className={`${buttonBase} ${buttonTone[tone]} ${className}`}
     >
       {children}
     </button>
@@ -952,11 +1317,33 @@ export function DemoDataChip() {
   );
 }
 
-export function CodeBlock({ text, label }: { text: string; label: string }) {
+/**
+ * A block exactly as something else would receive it.
+ *
+ * The `<pre>` is bit exact and stays that way. When the readings behind it are
+ * synthetic the warning goes in the chrome around the block, never inside it,
+ * because the whole value of this view is that what you copy is what the hook
+ * injects, character for character.
+ */
+export function CodeBlock({
+  text,
+  label,
+  synthetic = false,
+}: {
+  text: string;
+  label: string;
+  synthetic?: boolean;
+}) {
   return (
     <figure>
-      <figcaption className="mb-2 text-2xs uppercase tracking-widest text-muted">
+      <figcaption className="mb-2 flex flex-wrap items-center gap-2 text-2xs uppercase tracking-widest text-muted">
         {label}
+        {synthetic && (
+          <span className="ol-demo-inline">
+            <span aria-hidden="true" className="ol-demo-dot" />
+            Built from demo data
+          </span>
+        )}
       </figcaption>
       <pre className="overflow-x-auto rounded-lg border border-hairline bg-code p-4 font-mono text-xs leading-relaxed text-body">
         <code>{text}</code>

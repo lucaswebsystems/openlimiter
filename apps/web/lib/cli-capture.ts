@@ -2,11 +2,19 @@
  * Real output from the real command line tool.
  *
  * Nothing in this file was written by hand. Every `output` string below is the
- * exact stdout of the command in its `command` field, captured on 9 August 2026
+ * exact stdout of the command in its `command` field, captured on 10 August 2026
  * from a clean state directory seeded with the project's own synthetic demo
  * fixtures. Line for line, character for character, including the `PERCENT`
  * suffix the table renderer emits and the `NONE` the OpenRouter meter reports
  * because credits have no reset instant.
+ *
+ * Recaptured on 10 August 2026 against the corrected Claude connector. Anthropic
+ * documents `resets_at` as Unix epoch seconds, and the parser now reads it as
+ * such, so Claude's reset instants land on a whole second and print `.000Z`
+ * while every other provider keeps the millisecond its fixture was built with.
+ * The countdown moved with it, from `5h0m` to `4h59m`, because a whole second
+ * boundary is a fraction of a second in the past by the time the row renders.
+ * Those two differences are the fix showing through, not drift.
  *
  * The fixtures are synthetic by construction: see packages/connectors fixtures,
  * where every reset timestamp is derived from the clock at capture time. No
@@ -32,8 +40,8 @@ export interface CliCapture {
   readonly caption: string;
 }
 
-/** The day the three captures below were taken. */
-export const CAPTURED_ON = "9 August 2026";
+/** The day the captures below were taken. */
+export const CAPTURED_ON = "10 August 2026";
 
 /**
  * `openlimiter demo` parses the bundled fixtures for all six connectors and
@@ -48,13 +56,13 @@ export const CAPTURED_ON = "9 August 2026";
 export const demoCapture: CliCapture = {
   command: "NO_COLOR=1 node packages/cli/dist/bin.js demo",
   output: `PROVIDER METER BAR USAGE AMOUNT STATE RESET IN
-CLAUDE FIVE_HOUR ####...... 42.00PERCENT NONE fresh 2026-08-10T05:59:48.766Z 5h0m
-CLAUDE SEVEN_DAY ######.... 64.00PERCENT NONE fresh 2026-08-17T00:59:48.766Z 7d0h
+CLAUDE FIVE_HOUR ####...... 42.00PERCENT NONE fresh 2026-08-10T09:12:01.000Z 4h59m
+CLAUDE SEVEN_DAY ######.... 64.00PERCENT NONE fresh 2026-08-17T04:12:01.000Z 6d23h
 OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE
-CODEX PRIMARY ########.. 84.00PERCENT NONE fresh 2026-08-10T05:59:48.766Z 5h0m
-ANTIGRAVITY PRIMARY ##........ 28.00PERCENT NONE fresh 2026-08-11T00:59:48.766Z 1d0h
-OPENCODE PRIMARY #########. 92.00PERCENT NONE fresh 2026-08-11T00:59:48.766Z 1d0h
-MANUAL MONTHLY ###....... 35.00PERCENT NONE fresh 2026-09-10T00:59:48.766Z 31d0h`,
+CODEX PRIMARY ########.. 84.00PERCENT NONE fresh 2026-08-10T09:12:01.658Z 5h0m
+ANTIGRAVITY PRIMARY ##........ 28.00PERCENT NONE fresh 2026-08-11T04:12:01.658Z 1d0h
+OPENCODE PRIMARY #########. 92.00PERCENT NONE fresh 2026-08-11T04:12:01.658Z 1d0h
+MANUAL MONTHLY ###....... 35.00PERCENT NONE fresh 2026-09-10T04:12:01.658Z 31d0h`,
   caption: "All six connectors, one schema",
 };
 
@@ -146,12 +154,12 @@ reason=NEAR_CAP
 recommendation_code=PREFER
 recommendation_provider=ANTIGRAVITY
 recommendation_reason=LOWEST_USAGE
-provider=CLAUDE state=fresh usage_percent=64.00 reset_at=2026-08-17T00:59:48.083Z
+provider=CLAUDE state=fresh usage_percent=64.00 reset_at=2026-08-17T04:12:00.000Z
 provider=OPENROUTER state=fresh usage_percent=62.35 reset_at=NONE
-provider=CODEX state=fresh usage_percent=84.00 reset_at=2026-08-10T05:59:48.083Z
-provider=ANTIGRAVITY state=fresh usage_percent=28.00 reset_at=2026-08-11T00:59:48.083Z
-provider=OPENCODE state=fresh usage_percent=92.00 reset_at=2026-08-11T00:59:48.083Z
-provider=MANUAL state=fresh usage_percent=35.00 reset_at=2026-09-10T00:59:48.083Z
+provider=CODEX state=fresh usage_percent=84.00 reset_at=2026-08-10T09:12:00.786Z
+provider=ANTIGRAVITY state=fresh usage_percent=28.00 reset_at=2026-08-11T04:12:00.786Z
+provider=OPENCODE state=fresh usage_percent=92.00 reset_at=2026-08-11T04:12:00.786Z
+provider=MANUAL state=fresh usage_percent=35.00 reset_at=2026-09-10T04:12:00.786Z
 unknown=NONE
 </openlimiter_untrusted_data>`,
   caption: "Agent context, bounded by construction",

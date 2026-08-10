@@ -1,0 +1,58 @@
+# LM Studio, a local desktop app for running models on the user's own
+# hardware. There is no account or subscription: quota does not apply. Its
+# REST API requires no authentication by default, an optional bearer token
+# can be turned on in Developer settings, and it documents a model listing
+# endpoint whose fields describe model capability, not usage.
+#
+# The field named below was checked directly against the documented example
+# response at the source URL: "max_context_length" is the real field.
+# "loaded_context_length" does not appear in any published example and is
+# deliberately not modelled here. See provider_specs/RESEARCH.md for the
+# full writeup.
+
+provider_id: lmstudio
+product_id: local
+display_name: LM Studio
+
+source:
+  docs_url: https://lmstudio.ai/docs/developer/rest/endpoints
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: not_applicable
+  appears_after: local_server_running
+  absence_is_error: false
+
+support:
+  parser: absent
+  reader: absent
+  auth: not_required
+
+connections:
+  - reader: local_command
+    auth_mode: none
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - lmstudio.documented.models
+
+meters:
+  - id: max_context_length
+    label: Model max context length
+    kind: context
+    unit: tokens
+    scope: model
+    window:
+      kind: provider_defined
+    source_path: max_context_length
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: MAX_CONTEXT_LENGTH

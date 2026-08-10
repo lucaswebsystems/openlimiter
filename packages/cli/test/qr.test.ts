@@ -207,7 +207,7 @@ describe("QR encoder", () => {
   });
 
   it("draws the fixed patterns exactly where the standard puts them", () => {
-    const matrix = encodeQr("http://192.168.1.20:7317/?t=synthetic-token-value");
+    const matrix = encodeQr("http://192.168.1.20:7317/#t=synthetic-token-value");
     expect(matrix.size).toBe(qrSize(matrix.version));
     expect(finderAt(matrix, 0, 0)).toBe(true);
     expect(finderAt(matrix, 0, matrix.size - 7)).toBe(true);
@@ -233,8 +233,8 @@ describe("QR encoder", () => {
   it("reads back every payload it encodes", () => {
     const payloads = [
       "a",
-      "http://192.168.1.20:7317/?t=Zm9vYmFyYmF6cXV4",
-      "http://10.0.0.255:65535/?t=" + "A".repeat(22),
+      "http://192.168.1.20:7317/#t=Zm9vYmFyYmF6cXV4",
+      "http://10.0.0.255:65535/#t=" + "A".repeat(22),
       "x".repeat(106)
     ];
     for (const payload of payloads) {

@@ -34,8 +34,12 @@ import { encodeQr, renderQr } from "./qr.js";
  * Four gates stand between the socket and that payload:
  *
  *   1. A random token is generated on every start and is required on every
- *      route. It lives only in memory, is never written to disk, and is void
- *      the moment the command stops.
+ *      route that carries data. It lives only in memory, is never written to
+ *      disk, and is void the moment the command stops. The empty page shell at
+ *      the root is the one route served without it, because the token travels
+ *      in the URL fragment and a fragment never reaches a server. The shell
+ *      holds no quota state, no token and no account detail: it is markup that
+ *      then has to authenticate before anything is filled in.
  *   2. The Host header must be an address literal or localhost, which is what
  *      closes a DNS rebinding attack from a page on an attacker's domain.
  *   3. Cross origin requests are refused outright. The page this server hands
@@ -58,8 +62,33 @@ export const DEFAULT_SERVE_HOST = "0.0.0.0";
 /** Payload schema version. Bumped only on a breaking shape change. */
 export const SERVE_SCHEMA = 1;
 
-/** Query parameter carrying the token. Short, because it goes in a QR symbol. */
+/**
+ * Name the token travels under. Short, because it goes in a QR symbol.
+ *
+ * It is the key in the URL FRAGMENT of every address this command prints, and
+ * for one more release it is also accepted as a query parameter so an address
+ * saved from an older build keeps working.
+ */
 export const TOKEN_PARAMETER = "t";
+
+/**
+ * Why the token is in the fragment rather than the query.
+ *
+ * A query string is part of the request line. It lands in the phone's browser
+ * history, in the omnibox suggestions, in whatever cloud that browser syncs
+ * history to, and in the Referer of any link the page might carry. A fragment
+ * is never sent to a server at all: it stays in the address bar until the page
+ * itself reads it, and the page's first act is to move it into sessionStorage
+ * and rewrite the address to a clean one. From that point the token exists only
+ * in the tab's own memory and is sent as an Authorization header, so no URL
+ * anywhere on the phone carries the capability.
+ *
+ * docs/SYNC_ARCHITECTURE.md already required exactly this of pairing links.
+ */
+export const TOKEN_FRAGMENT_PREFIX = "#" + TOKEN_PARAMETER + "=";
+
+/** Key the page keeps the token under, inside its own tab and nowhere else. */
+const TOKEN_STORAGE_KEY = "openlimiter.token";
 
 /** Longest request target this server will look at. */
 const MAX_TARGET_LENGTH = 512;
@@ -166,6 +195,28 @@ export function isAllowedHostHeader(
   /* A bracketed IPv6 literal loses its brackets through the URL parser. */
   const literal = hostname.startsWith("[") ? hostname.slice(1, -1) : hostname;
   return isIP(literal) !== 0;
+}
+
+/**
+ * Read the token a request presents.
+ *
+ * The header is the supported way and is read first. The query parameter is a
+ * fallback kept for one release so an address copied out of an older build
+ * still answers; nothing this command prints uses it any more.
+ */
+export function presentedToken(
+  authorization: string | undefined,
+  target: URL
+): string | null {
+  if (typeof authorization === "string") {
+    const space = authorization.indexOf(" ");
+    if (space > 0 && authorization.slice(0, space).toLowerCase() === "bearer") {
+      const value = authorization.slice(space + 1).trim();
+      if (value !== "") return value;
+    }
+    return null;
+  }
+  return target.searchParams.get(TOKEN_PARAMETER);
 }
 
 function constantTimeEquals(left: string, right: string): boolean {
@@ -317,7 +368,40 @@ h1{margin:0 0 2px;font-size:19px;font-weight:600;letter-spacing:-.01em;color:var
 </main>
 <script>
 (function(){
-  var token = new URLSearchParams(location.search).get(${JSON.stringify(TOKEN_PARAMETER)});
+  /* The token arrives in the fragment, which no server ever sees. Move it into
+     this tab's own memory and wipe the address, so the history entry the phone
+     keeps, and syncs, carries no capability.
+
+     The query is read as well, and first, because an address printed by an
+     older build put the token there. Such an address still reaches this page,
+     and a page that only looked at the fragment would sit at 401 forever with
+     the token visible in the address bar the whole time. Reading it, then
+     scrubbing BOTH the query and the fragment in one replaceState, turns the
+     old address into the new behaviour on its first load. */
+  var key = ${JSON.stringify(TOKEN_STORAGE_KEY)};
+  var name = ${JSON.stringify(TOKEN_PARAMETER)};
+  var prefix = ${JSON.stringify(TOKEN_FRAGMENT_PREFIX)};
+  var token = "";
+  var fromAddress = false;
+  try {
+    var queried = new URLSearchParams(location.search).get(name);
+    if (queried) {
+      token = queried;
+      fromAddress = true;
+    } else if (location.hash.indexOf(prefix) === 0) {
+      token = decodeURIComponent(location.hash.slice(prefix.length));
+      fromAddress = true;
+    }
+  } catch (error) {
+    token = "";
+  }
+  if (fromAddress) {
+    try { sessionStorage.setItem(key, token); } catch (error) {}
+    /* One rewrite, dropping the query and the fragment together. */
+    try { history.replaceState(null, "", location.pathname); } catch (error) {}
+  } else {
+    try { token = sessionStorage.getItem(key) || ""; } catch (error) { token = ""; }
+  }
   var cards = document.getElementById("cards");
   var stamp = document.getElementById("stamp");
   var reason = document.getElementById("reason");
@@ -369,7 +453,12 @@ h1{margin:0 0 2px;font-size:19px;font-weight:600;letter-spacing:-.01em;color:var
       : "Unknown, so nothing is claimed for them: " + document_.unknown.join(", ") + ".";
   }
   function load(){
-    fetch("/quota.json?${TOKEN_PARAMETER}=" + encodeURIComponent(token || ""), { cache: "no-store" })
+    /* The token goes in a header, never in a URL, so nothing that repeats every
+       fifteen seconds can write it into a log or a history entry. */
+    fetch("/quota.json", {
+      cache: "no-store",
+      headers: { "authorization": "Bearer " + token }
+    })
       .then(function(response){
         if (!response.ok) throw new Error(String(response.status));
         return response.json();
@@ -441,13 +530,20 @@ export async function startQuotaServer(
       sendJson(request, response, 400, { error: "bad_request" });
       return;
     }
-    const presented = target.searchParams.get(TOKEN_PARAMETER);
-    if (presented === null || !constantTimeEquals(presented, token)) {
-      sendJson(request, response, 401, { error: "token_required" });
-      return;
-    }
+    /*
+     * The shell is served before the token is looked at, and only the shell.
+     * It has to be, because the token is in the fragment and the fragment never
+     * arrives here. It carries no reading, no token and no account detail, so
+     * anyone who fetches it learns only that this command is running, which the
+     * open port already told them.
+     */
     if (target.pathname === "/") {
       sendHtml(request, response, 200, mobilePage());
+      return;
+    }
+    const presented = presentedToken(request.headers.authorization, target);
+    if (presented === null || !constantTimeEquals(presented, token)) {
+      sendJson(request, response, 401, { error: "token_required" });
       return;
     }
     if (target.pathname === "/quota.json") {
@@ -492,7 +588,8 @@ export async function startQuotaServer(
     server.listen(port, host);
   });
 
-  const query = "/?" + TOKEN_PARAMETER + "=" + token;
+  /* Fragment, not query. See TOKEN_FRAGMENT_PREFIX above for why. */
+  const suffix = "/" + TOKEN_FRAGMENT_PREFIX + token;
   const advertised = host === "0.0.0.0" || host === "::"
     ? lanAddress() ?? "127.0.0.1"
     : host;
@@ -501,8 +598,8 @@ export async function startQuotaServer(
     host,
     port: listeningPort,
     token,
-    url: "http://" + authority(advertised, listeningPort) + query,
-    localUrl: "http://" + authority("127.0.0.1", listeningPort) + query,
+    url: "http://" + authority(advertised, listeningPort) + suffix,
+    localUrl: "http://" + authority("127.0.0.1", listeningPort) + suffix,
     close: async () => {
       await new Promise<void>((resolve) => {
         server.close(() => {
@@ -553,9 +650,13 @@ export function serveBanner(
     "",
     "Scan the code with a phone on the same network, or type the address.",
     "The token changes every time this command starts, and nothing answers without it.",
+    "The code and the address ARE the key: anyone who can see this screen, or a",
+    "photograph of it, can read your quota for as long as this command runs.",
     "Read only: no route here can change anything on this machine, and no",
     "credential, provider payload, or account detail is ever served.",
-    "Meant for a trusted home or office network. Do not expose this port to the internet.",
+    "Meant for a trusted home or office network. This listens on every interface",
+    "on this machine, so do not port forward this port and do not open it on a",
+    "firewall: nothing but your router's default is keeping it off the internet.",
     "",
     "Press Ctrl C to stop."
   );

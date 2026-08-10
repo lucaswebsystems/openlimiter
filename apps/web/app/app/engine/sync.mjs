@@ -48,6 +48,7 @@ const MIRROR = {
     /* cache.ts is deliberately absent: it is the only node only module. */
     files: [
       "types.ts",
+      "connection-state.ts",
       "failures.ts",
       "format.ts",
       "forecast.ts",
@@ -55,6 +56,7 @@ const MIRROR = {
       "merge.ts",
       "normalizer.ts",
       "policy.ts",
+      "schedule.ts",
     ],
   },
   connectors: {

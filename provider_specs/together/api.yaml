@@ -1,0 +1,59 @@
+# Together AI, an inference API company. Official docs were checked across
+# the API reference, the rate limits page, and both billing pages, and none
+# of them documents an endpoint or local file for reading balance, credit,
+# or usage state. The one adjacent official signal, an x-ratelimit-reset
+# header, only appears on a 429 error response and carries no remaining
+# quota number, so it does not clear the bar for official_api.
+#
+# Real balance and usage data exists only in the authenticated billing
+# dashboard. This entry therefore routes through the manual reader, the same
+# contract packages/connectors/src/manual.ts already implements: a human
+# reads the dashboard and types the number in. See provider_specs/
+# RESEARCH.md for the full writeup and every page checked.
+
+provider_id: together
+product_id: api
+display_name: Together AI
+
+source:
+  docs_url: https://docs.together.ai/docs/billing-credits
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: any
+  appears_after: manual_entry
+  absence_is_error: false
+
+support:
+  parser: absent
+  reader: absent
+  auth: not_required
+
+connections:
+  - reader: manual
+    auth_mode: manual
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - together.manual.credits
+
+meters:
+  - id: credits
+    label: Credits
+    kind: credits
+    unit: percent_used
+    scope: account
+    window:
+      kind: credit_balance
+    source_path: used_percent
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: CREDITS

@@ -1,0 +1,68 @@
+# Kimi, made by Moonshot AI. Domains were rebranded and were verified live
+# by following the redirect rather than assumed: platform.moonshot.ai now
+# 301s to platform.kimi.ai (international) and platform.moonshot.cn now
+# 301s to platform.kimi.com (China); the API host names, api.moonshot.ai and
+# api.moonshot.cn, are unchanged. Both regional docs pages independently
+# document the same clean shape: GET /v1/users/me/balance, bearer auth with
+# the normal Moonshot API key, no admin tier gate, the second cleanest
+# official_api case in this research pass after DeepSeek.
+#
+# Documented response: { "code": 0, "data": { "available_balance": 49.589,
+# "voucher_balance": 46.589, "cash_balance": 3.0 }, "scode": "0x0",
+# "status": true }. data.available_balance is a real two level nested field,
+# not a flat key with a literal dot in it, so the dotted path below is
+# exact rather than approximated. The semantic split between voucher_balance
+# and cash_balance was not defined in prose on either page read: unknown.
+#
+# A consumer Kimi chat app also exists at kimi.com with its own membership
+# tiers, separate from this developer API; see provider_specs/RESEARCH.md.
+# No local file question applies: the official kimi-cli README documents
+# only third party editor integration paths, none of them carrying balance
+# or usage state.
+
+provider_id: moonshot
+product_id: api
+display_name: Kimi (Moonshot AI)
+
+source:
+  docs_url: https://platform.kimi.ai/docs/api/balance
+  reviewed_at: "2026-08-10"
+  source_status: official
+
+availability:
+  requires_plan: any
+  appears_after: credential_stored
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - moonshot.documented.balance
+
+meters:
+  - id: available_balance
+    label: Available balance
+    kind: credits
+    unit: currency
+    scope: account
+    window:
+      kind: credit_balance
+    source_path: data.available_balance
+    reset_path: null
+    reset_encoding: none
+    optional: false
+    meter_code: AVAILABLE_BALANCE

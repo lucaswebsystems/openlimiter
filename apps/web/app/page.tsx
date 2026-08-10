@@ -1,5 +1,5 @@
+import Link from "next/link";
 import { AboutCard } from "@/components/about-card";
-import { AgentContext } from "@/components/agent-context";
 import { BrandLockup } from "@/components/brand";
 import { DeviceFrame } from "@/components/device-frame";
 import { Faq, faqItems } from "@/components/faq";
@@ -8,7 +8,6 @@ import { IntegrationStrip } from "@/components/integration-strip";
 import { JsonLd } from "@/components/json-ld";
 import { Pricing } from "@/components/pricing";
 import { RunsWhere } from "@/components/runs-where";
-import { Scriptable } from "@/components/scriptable";
 import { SHELL } from "@/components/ui";
 import { WebApp } from "@/components/web-app";
 import { WorksWith } from "@/components/works-with";
@@ -28,6 +27,10 @@ import { reveal } from "@/lib/motion";
  * page has a single left edge and a single right edge and no band is narrower
  * than the one above it. Sections sit 96 pixels apart.
  *
+ * The order ends on price. Everything that explains the product runs first, the
+ * questions come after it, and only then does the page ask for money, which is
+ * the order a reader who has not decided yet actually reads in.
+ *
  * A row that needs to run wider than its text, namely the sliding strip, uses
  * FULL_BLEED to cancel the shell's padding rather than inventing a width of its
  * own. There is no other exception anywhere on the page.
@@ -38,6 +41,37 @@ import { reveal } from "@/lib/motion";
  * questions are the very array the FAQ section renders, so nothing here can
  * describe a page that is not the one below it.
  */
+
+/**
+ * The two sections this page used to spend a screen each on.
+ *
+ * "Read, bound, hand over" walked through the agent context block, and "Fully
+ * scriptable" walked through the command line, and between them they were most
+ * of the page's word count for a reader who had already decided. Both stories
+ * are told properly in the documentation and one of them is on a phone card
+ * further up, so the page keeps one line and gives the screen back.
+ */
+function DocsLine() {
+  return (
+    <p className="text-sm leading-relaxed text-muted" {...reveal}>
+      Both of those are written up in full:{" "}
+      <Link
+        href="/docs/agent-context"
+        className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+      >
+        what an agent is told
+      </Link>{" "}
+      and{" "}
+      <Link
+        href="/docs/cli"
+        className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+      >
+        every command it ships with
+      </Link>
+      .
+    </p>
+  );
+}
 
 function BridgeBand() {
   return (
@@ -69,10 +103,12 @@ export default function Home() {
           <WorksWith />
           <RunsWhere />
           <WebApp />
-          <AgentContext />
-          <Scriptable />
-          <Pricing />
+          <DocsLine />
           <Faq />
+          {/* Price last, after every question a reader could have had. It keeps
+              its own anchor, which the header button and the pricing links in
+              the documentation both point at. */}
+          <Pricing />
           <AboutCard />
         </div>
       </div>
