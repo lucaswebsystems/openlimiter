@@ -29,7 +29,7 @@ import { pageMetadata } from "@/lib/metadata";
 
 /* Finite slugs, so an unknown one is rejected before the route matches and the
    request reaches global-not-found's real page instead of the markupless shell
-   a request time notFound() renders. Same reasoning as the alternatives page. */
+   a request time notFound() renders. The comparison pages that shared this pattern are gone by order. */
 export const dynamicParams = false;
 
 export async function generateStaticParams() {

@@ -65,7 +65,6 @@ const routes = [
   { key: "webApp", href: "/app" },
   { key: "download", href: "/download" },
   { key: "changelog", href: "/changelog" },
-  { key: "alternatives", href: "/alternatives" },
 ] as const;
 
 /* `hdr-ink` is the marker globals.css uses to lift this quiet grey to the

@@ -58,7 +58,6 @@ Six ship in 0.1.0. Every one is marked UNVERIFIED, which means no explicit verif
 - [Download](https://openlimiter.com/download): every way to get it, each row carrying its real state.
 - [Blog](https://openlimiter.com/blog): occasional writing about the design and its limits.
 - [Changelog](https://openlimiter.com/changelog): every released version, rendered from the repository's own file.
-- [Alternatives](https://openlimiter.com/alternatives): comparisons with other tools that read AI subscription quota.
 
 ## Project
 

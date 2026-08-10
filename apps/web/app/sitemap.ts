@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
 import { LOCALES, type Locale } from "@/i18n/locales";
 import { localePath } from "@/i18n/routing";
-import { alternatives } from "@/lib/alternatives";
 import { posts } from "@/lib/blog";
 import { docPages } from "@/lib/docs";
 import { SITE_URL } from "@/lib/site";
@@ -29,9 +28,7 @@ const LOCALISED_ROUTES: readonly { route: string; priority: number }[] = [
   { route: "/", priority: 1 },
   { route: "/download", priority: 0.9 },
   { route: "/changelog", priority: 0.7 },
-  { route: "/alternatives", priority: 0.7 },
   ...docPages.map((page) => ({ route: page.href, priority: 0.8 })),
-  ...alternatives.map((entry) => ({ route: `/alternatives/${entry.slug}`, priority: 0.6 })),
 ];
 
 /** The routes that exist in English only. */

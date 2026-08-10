@@ -8,7 +8,7 @@ import { SITE_URL } from "@/lib/site";
 /**
  * The 404 boundary for a page under a locale that calls `notFound()`.
  *
- * Today that is `alternatives/[slug]` and nothing else. A URL that matches no
+ * Today no matched route misses: every dynamic route pins its params. A URL that matches no
  * route at all does not reach here: it is answered by app/global-not-found.tsx,
  * which renders its own document.
  *
