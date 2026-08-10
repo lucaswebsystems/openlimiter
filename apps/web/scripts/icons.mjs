@@ -71,19 +71,18 @@ export const MASKABLE = {
 };
 
 /**
- * The desktop application's icon: the ring on the site's canvas colour, in a
- * rounded tile.
- *
- * An operating system paints this into a dock, a taskbar and a wallpaper it did
- * not choose, beside applications that all have a solid silhouette, and it is
- * the one surface where the icon has to hold its own ground rather than borrow
- * one. apps/desktop/scripts/icons.mjs renders it at every size Windows, macOS
- * and Linux ask for.
+ * The desktop application's icon: the transparent ring, exactly like the
+ * favicon, by the founder's explicit call. No tile, no ground: the taskbar or
+ * dock paints straight through the gaps. The one trade this makes, and it was
+ * made knowingly: macOS dock convention is a filled rounded tile, so the ring
+ * reads less native there than a tiled icon would.
+ * apps/desktop/scripts/icons.mjs renders it at every size Windows, macOS and
+ * Linux ask for.
  */
 export const APP_TILE = {
-  cornerRatio: 0.22,
-  markRatio: 0.68,
-  ground: CANVAS,
+  cornerRatio: 0,
+  markRatio: EDGE_TO_EDGE,
+  ground: null,
   ink: BRAND,
 };
 
