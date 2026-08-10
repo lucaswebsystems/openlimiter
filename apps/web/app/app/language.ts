@@ -1,6 +1,7 @@
 import {
   floorFixed,
   type Advice,
+  type ConnectionState,
   type MeterView,
   type ProviderCode,
   type SnapshotSourceKind,
@@ -375,11 +376,24 @@ export function sourceStateOf(
  * This is the connections list, and it is deliberately the least exciting text
  * in the product. Nothing here is a promise: a line says what happens if you
  * try it right now.
+ *
+ * Two of these fields are scoped to THIS SURFACE, a browser page, and say so
+ * in their names. `browserState` is the connection state machine's state for
+ * the provider here: every remote and local tool provider is IMPORT_ONLY in a
+ * browser, whatever the desktop app can do, because this page holds no
+ * credential and makes no request. Its sentence and next action come from the
+ * core tables, so the browser and the desktop describe one state with one
+ * sentence. `documentPath` is where the document a person imports comes from,
+ * as the command or file that produces it.
  */
 export interface ConnectionFact {
   provider: ProviderCode;
   state: SourceState;
   line: string;
+  /** The core state machine's state for this provider, in a browser. */
+  browserState: ConnectionState;
+  /** The command or file the imported document comes from, or null. */
+  documentPath: string | null;
 }
 
 export const CONNECTION_FACTS: readonly ConnectionFact[] = [
@@ -387,33 +401,58 @@ export const CONNECTION_FACTS: readonly ConnectionFact[] = [
     provider: "CLAUDE",
     state: "LOCAL_CLI",
     line: "Claude Code writes a rate limit block to its statusline command. Point that command at OpenLimiter and the reading arrives on its own.",
+    browserState: "IMPORT_ONLY",
+    documentPath: null,
   },
   {
     provider: "OPENROUTER",
     state: "IMPORT_ONLY",
-    line: "The documented credits response parses. There is no key store and no request from here yet, so paste or ingest the response.",
+    line: "The documented credits response parses. This page holds no key and makes no request, so paste or ingest the response. A live OpenRouter connection is the desktop application's job.",
+    browserState: "IMPORT_ONLY",
+    documentPath: "openlimiter ingest --provider openrouter",
   },
   {
     provider: "CODEX",
     state: "IMPORT_ONLY",
     line: "The usage payload the Codex tooling produces parses. Internal shape, no reader, so the document comes from you.",
+    browserState: "IMPORT_ONLY",
+    documentPath: "openlimiter ingest --provider codex",
   },
   {
     provider: "ANTIGRAVITY",
     state: "IMPORT_ONLY",
     line: "The quota payload the Antigravity tooling produces parses. Internal shape, no reader, so the document comes from you.",
+    browserState: "IMPORT_ONLY",
+    documentPath: "openlimiter ingest --provider antigravity",
   },
   {
     provider: "OPENCODE",
     state: "IMPORT_ONLY",
     line: "The usage view behind an existing session parses. Nothing here opens or holds that session.",
+    browserState: "IMPORT_ONLY",
+    documentPath: "openlimiter ingest --provider opencode",
   },
   {
     provider: "MANUAL",
     state: "MANUAL",
     line: "Write down what you know for anything with no interface at all. It never breaks and it never guesses.",
+    browserState: "MANUAL",
+    documentPath: "manual.json in the state directory, or openlimiter ingest --provider manual",
   },
 ];
+
+/**
+ * The exact statusline wiring, byte for byte the block the documentation and
+ * the desktop application publish. It renders on the Claude connection block
+ * because the answer to "how do I connect Claude" is this object and nothing
+ * else, and it must be the same object everywhere it appears.
+ */
+export const CLAUDE_STATUSLINE_WIRING = `{
+  "statusLine": {
+    "type": "command",
+    "command": "openlimiter statusline"
+  }
+}`;
 
 /**
  * The label a bar is announced with.

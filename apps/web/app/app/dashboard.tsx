@@ -630,6 +630,49 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           </Panel>
 
           <Panel
+            title="Why this browser holds no live connection"
+            description="This page makes no request to any provider and stores no credential, and that is a decision, not a gap. Live connections belong in the desktop application."
+            demo={demo}
+          >
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div>
+                <h3 className="ol-brand-font text-sm text-heading">
+                  Browsers refuse the request
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">
+                  Provider quota endpoints are not built to answer a web page
+                  from another origin, and the browser enforces that boundary
+                  itself: the cross origin rules, CORS, stop the call before it
+                  leaves. A page that promised live provider reads would be
+                  promising a request the platform is designed to refuse.
+                </p>
+              </div>
+              <div>
+                <h3 className="ol-brand-font text-sm text-heading">
+                  A page is the wrong place for a key
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">
+                  A key pasted into a page has to live in browser storage,
+                  where any script that ever runs on this origin can read it.
+                  The desktop application stores keys in the operating system
+                  credential store, and after entry it only ever sees a masked
+                  label.
+                </p>
+              </div>
+            </div>
+            <p className="mt-5 text-sm leading-relaxed text-muted">
+              The desktop application&apos;s Connections tab is where a live
+              connection lives: it stores the key, tests it, refreshes on a
+              schedule, and the same readings then appear in the command line
+              tool and on this page through{" "}
+              <code className="font-mono text-xs text-heading">
+                openlimiter export
+              </code>
+              .
+            </p>
+          </Panel>
+
+          <Panel
             title="Import a document"
             description="Paste a Claude Code statusline payload, a manual quota document, or the output of openlimiter export. Drop a JSON file on the box if that is easier."
             demo={demo}

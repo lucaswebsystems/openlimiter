@@ -1,6 +1,8 @@
 import {
   PROVIDER_CODES,
   buildAdvice,
+  connectionNextAction,
+  connectionSentence,
   dedupeFailures,
   failureSentence,
   floorFixed,
@@ -9,6 +11,7 @@ import {
   normalizeMeters,
   normalizeMetersReport,
   type Advice,
+  type ConnectionState,
   type FailureCategory,
   type ProviderCode,
   type ProviderFailure,
@@ -47,6 +50,7 @@ import { buildAgentContext, renderClaudeStatusline } from "./generated/adapters/
 
 export type {
   Advice,
+  ConnectionState,
   FailureCategory,
   ProviderCode,
   ProviderFailure,
@@ -59,6 +63,10 @@ export type {
 export {
   PROVIDER_CODES,
   buildAgentContext,
+  /* The connection state machine's two human tables, so the Connections tab
+     renders the same sentence and next action every other surface does. */
+  connectionNextAction,
+  connectionSentence,
   failureSentence,
   floorFixed,
   renderClaudeStatusline,

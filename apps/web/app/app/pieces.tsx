@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  connectionNextAction,
+  connectionSentence,
   failureSentence,
   floorFixed,
   type Advice,
@@ -10,6 +12,7 @@ import {
   type ProviderView,
 } from "./engine";
 import {
+  CLAUDE_STATUSLINE_WIRING,
   CONNECTION_FACTS,
   amountLine,
   amountSentence,
@@ -978,33 +981,68 @@ function PlugGlyph() {
 /* -------------------------------------------------------------- connections */
 
 /**
- * What can actually be connected today, one line each.
+ * What can actually be connected today, one block per provider.
  *
- * This is the page the first launch sends somebody to, and the honest answer is
- * that one provider reports on its own and the rest need a document. Saying so
- * in a list, with the same chip the cards carry, is the whole feature: the next
- * release replaces each row's sentence with a real action.
+ * This is the page the first launch sends somebody to, and the honest answer
+ * is that one provider reports on its own, in the tools on a machine, and
+ * everything on THIS page arrives as a document. Each block carries two
+ * layers of that truth: the product wide chip and line it always carried,
+ * and underneath, the connection state machine's own sentence and next
+ * action for what this browser surface can do, with the statusline wiring
+ * for Claude and the document path for every import only provider. The
+ * sentences come from packages/core, so a block here and a card on the
+ * desktop describe one state with one sentence.
  */
 export function ConnectionList() {
   return (
     <ul className="divide-y divide-hairline border-t border-hairline">
       {CONNECTION_FACTS.map((fact) => (
-        <li
-          key={fact.provider}
-          className="flex flex-col gap-2 py-3.5 sm:flex-row sm:items-start sm:gap-4"
-        >
-          <span className="flex min-w-0 flex-none items-center gap-2.5 sm:w-44">
+        <li key={fact.provider} className="py-4">
+          <div className="flex flex-wrap items-center gap-2.5">
             <span className="grid h-7 w-7 flex-none place-items-center rounded-md border border-hairline bg-raised text-soft">
               <ProviderMark provider={fact.provider} />
             </span>
-            <span className="ol-brand-font truncate text-sm text-heading">
+            <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
               {providerName(fact.provider)}
             </span>
-          </span>
-          <span className="flex-none sm:pt-0.5">
             <SourceChip state={fact.state} />
-          </span>
-          <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted">{fact.line}</p>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-muted">{fact.line}</p>
+
+          <div className="mt-3 rounded-lg border border-hairline bg-raised p-3">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted">
+              <span className="uppercase tracking-widest">In this browser</span>
+              <span className="font-mono tracking-widest text-heading">
+                {fact.browserState}
+              </span>
+            </p>
+            <p className="mt-1.5 text-xs leading-relaxed text-body">
+              {connectionSentence[fact.browserState]}{" "}
+              <span className="text-muted">
+                Next action: {connectionNextAction[fact.browserState]}.
+              </span>
+            </p>
+            {fact.provider === "CLAUDE" && (
+              <>
+                <p className="mt-2 text-xs leading-relaxed text-muted">
+                  On a machine running Claude Code, this wiring makes the
+                  reading arrive on its own. In this browser, you paste the
+                  payload that command receives.
+                </p>
+                <pre className="mt-2 overflow-x-auto rounded-md border border-hairline bg-code p-3 font-mono text-2xs leading-relaxed text-body">
+                  <code>{CLAUDE_STATUSLINE_WIRING}</code>
+                </pre>
+              </>
+            )}
+            {fact.documentPath !== null && (
+              <p className="mt-2 text-xs leading-relaxed text-muted">
+                Document path:{" "}
+                <code className="font-mono text-2xs text-heading">
+                  {fact.documentPath}
+                </code>
+              </p>
+            )}
+          </div>
         </li>
       ))}
     </ul>
