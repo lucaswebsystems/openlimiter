@@ -296,10 +296,34 @@ together and fail quietly apart. Missing the second one costs static rendering
 with no error to show for it. `const locale = await pageLocale(params)` does all
 three.
 
-**`app/[locale]/[...rest]/page.tsx`, so a 404 knows its language.** A
-`not-found` file cannot read `params`. Without a catch all to route through, an
-unknown path under `/pt-BR` would reach the document root with no locale in scope
-and be answered in English inside a `lang="en"` document.
+**The 404 cost of having no `app/layout.tsx`, found by testing the built server.**
+This is the one place the architecture charges a real price, so it is written out
+in full.
+
+Next 15.5 answers a request time `notFound()` with an internal shell: the right
+status code, and a document with no markup in it. It does that because there is
+no single root layout to render a 404 inside, and there is none because `html
+lang` has to be right per locale. The same page renders perfectly when it is
+prerendered at build time, which is how the gap hid until the built server was
+actually curled.
+
+A catch all at `app/[locale]/[...rest]/page.tsx` was tried first, to hand an
+unknown path to the localised boundary with its locale in hand. It made things
+worse: because it matched every path, nothing was ever unmatched, and every 404
+on the site got the blank shell.
+
+What ships instead: no catch all, `experimental.globalNotFound` on, and
+`app/global-not-found.tsx` rendering its own document. Every URL that matches no
+route, which is very nearly every 404 anybody will ever see, now gets a real
+styled page with a heading, a lead, two links and `noindex`. It is English,
+because a URL that matched nothing has no locale to be trusted about.
+
+What is left broken, precisely: an explicit `notFound()` from a matched route,
+which today means `/alternatives/<typo>` and `/blog/<typo>`, still renders the
+shell with a 404 status, and its content arrives on hydration. Two routes, right
+status, no styled body without JavaScript. The alternative was giving up per
+locale `html lang` on all 107 real pages, which is a settled decision, so the
+trade was not close.
 
 **`DocArticle` takes an identifier, not a title.** Each documentation page used to
 hand in its own `href`, `title` and `lead`, and the title also existed in the map

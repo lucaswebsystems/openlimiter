@@ -30,6 +30,21 @@ const nextConfig: NextConfig = {
   distDir: process.env.OL_DIST_DIR ?? ".next",
 
   /**
+   * Lets app/global-not-found.tsx own the 404 for a request that matched no
+   * route.
+   *
+   * It is on because this app has no `app/layout.tsx`: `html lang` has to be
+   * right per locale, so the localised tree owns a root layout and every other
+   * top level tree owns its own. Next then has no single document to render a
+   * request time 404 in and serves an internal shell with no markup in it, which
+   * is the right status code over a blank page. This flag is the mechanism Next
+   * provides for that case.
+   */
+  experimental: {
+    globalNotFound: true,
+  },
+
+  /**
    * The social card reads the wordmark font off disk at render time, from
    * assets/fonts. Next works out which files a route needs by reading the code,
    * and it does understand a path built from process.cwd(), but a font that

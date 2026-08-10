@@ -38,8 +38,8 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
     ".next-i18n/types/**/*.ts",
+    ".next/types/**/*.ts",
     "next-env.d.ts"
   ],
   "exclude": [

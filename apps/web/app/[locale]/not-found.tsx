@@ -6,7 +6,11 @@ import { reveal } from "@/lib/motion";
 import { SITE_URL } from "@/lib/site";
 
 /**
- * The 404, in the reader's language.
+ * The 404 boundary for a page under a locale that calls `notFound()`.
+ *
+ * Today that is `alternatives/[slug]` and nothing else. A URL that matches no
+ * route at all does not reach here: it is answered by app/global-not-found.tsx,
+ * which renders its own document.
  *
  * HOW IT KNOWS THE LANGUAGE
  * -------------------------
@@ -16,10 +20,13 @@ import { SITE_URL } from "@/lib/site";
  * `setRequestLocale` for this render, so asking for translations here resolves
  * against the locale of the URL that missed rather than against the default.
  *
- * The other half of that arrangement is `[locale]/[...rest]/page.tsx`, which is
- * what turns an unknown path under a locale into a call to `notFound()` with the
- * locale still in hand. Without it, an unknown path would fall through to the
- * document root and be answered in English.
+ * KNOWN LIMITATION, AND IT IS NEXT'S
+ * ----------------------------------
+ * At build time this renders correctly. At request time Next 15.5 answers a
+ * `notFound()` with an internal shell carrying the right status and no markup,
+ * because there is no `app/layout.tsx` for it to render a 404 inside, and there
+ * is none because `html lang` has to be right per locale. The status code is
+ * correct either way and the content arrives on hydration. See PLAN.md.
  */
 
 /* The boundary renders outside the layout's own metadata pass, so it states the
