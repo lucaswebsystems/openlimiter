@@ -267,10 +267,11 @@ export function Footer({ localised = true }: { localised?: boolean }) {
           reads as a closing statement rather than as one more left aligned
           column heading. */}
       <p
-        className={`mx-auto max-w-2xl text-center text-xs leading-relaxed text-muted ${localised ? "pt-6" : "pt-10"}`}
+        className={`mx-auto max-w-none text-center text-xs leading-relaxed text-muted ${localised ? "pt-6" : "pt-10"}`}
         {...reveal}
       >
-        {t("licenceNote")}{" "}
+        © {new Date().getFullYear()} Lucas Costa{" | "}
+        {t("licenceNote")}{" | "}
         <a
           href={LICENSE_URL}
           target="_blank"
@@ -279,7 +280,7 @@ export function Footer({ localised = true }: { localised?: boolean }) {
         >
           {t("licenceRead")}
         </a>
-        {" · "}
+        {" | "}
         <SiteLink
           href="/docs/security"
           className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"

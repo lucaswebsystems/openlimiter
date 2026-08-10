@@ -41,9 +41,9 @@
     "product": "Product",
     "community": "Community",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0. Local first. Zero telemetry in the software. No accounts. This site keeps cookieless page counts only.",
-    "licenceRead": "Read the licence",
-    "security": "Security"
+    "licenceNote": "Apache 2.0 | Local primeiro | Zero telemetria no software | Sem contas | Contagem de páginas sem cookies",
+    "licenceRead": "Leia a licença",
+    "security": "Segurança"
   },
   "localeSwitcher": {
     "label": "Language"

@@ -41,9 +41,9 @@
     "product": "Product",
     "community": "Community",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0. Local first. Zero telemetry in the software. No accounts. This site keeps cookieless page counts only.",
-    "licenceRead": "Read the licence",
-    "security": "Security"
+    "licenceNote": "Apache 2.0 | ローカル優先 | ソフトウェア内にテレメトリなし | アカウント不要 | クッキーなしのページ計測",
+    "licenceRead": "ライセンスを読む",
+    "security": "セキュリティ"
   },
   "localeSwitcher": {
     "label": "Language"
@@ -659,748 +659,748 @@
   },
   "docs": {
     "groups": {
-      "start": "Start here",
-      "using": "Using it",
-      "reference": "Reference"
+      "start": "まずはここから",
+      "using": "使い方",
+      "reference": "リファレンス"
     },
     "sidebar": {
-      "label": "Documentation",
-      "menu": "Documentation menu"
+      "label": "ドキュメント",
+      "menu": "ドキュメントメニュー"
     },
     "article": {
-      "breadcrumb": "Breadcrumb",
-      "pagesNav": "Documentation pages",
-      "previous": "Previous",
-      "next": "Next",
-      "onThisPage": "On this page",
-      "home": "Home"
+      "breadcrumb": "パンくずリスト",
+      "pagesNav": "ドキュメントのページ",
+      "previous": "前へ",
+      "next": "次へ",
+      "onThisPage": "このページの内容",
+      "home": "ホーム"
     },
     "pages": {
       "index": {
-        "title": "Getting started",
-        "metaTitle": "Getting started: install and meter your quota",
-        "description": "Install the workspace, run the demo, and wire OpenLimiter into Claude Code in a few minutes.",
-        "lead": "OpenLimiter is a quota meter for the AI subscriptions you already pay for. It runs on your machine, reads what your tools already wrote there, and hands your coding agents a bounded picture of what budget is left.",
+        "title": "はじめに",
+        "metaTitle": "はじめに：インストールしてquotaをmeterする",
+        "description": "ワークスペースをインストールし、デモを実行し、数分でOpenLimiterをClaude Codeに組み込みます。",
+        "lead": "OpenLimiterは、すでにお金を払っているAIサブスクリプションのためのquota meterです。あなたのマシン上で動き、ツールがすでにそこに書き込んだものを読み取り、コーディングエージェントに、残っている予算の範囲が定まった全体像を渡します。",
         "sections": {
           "what-you-need": {
-            "title": "What you need",
+            "title": "必要なもの",
             "bullets": {
-              "node": "Node 24 or newer.",
-              "npm": "npm, which ships with Node."
+              "node": "Node 24以降。",
+              "npm": "Nodeに同梱されているnpm。"
             },
-            "local": "Everything runs locally. No account is created, no key is required to start, and no request leaves your machine during any of the steps below."
+            "local": "すべてローカルで動きます。アカウントは作られず、始めるのにキーも必要なく、以下のどの手順でもリクエストがマシンの外へ出ることはありません。"
           },
           "install": {
-            "title": "Install OpenLimiter",
-            "intro": "Install the command line tool globally, then run its synthetic demo.",
-            "terminalLabel": "terminal",
-            "demo": "<code>openlimiter demo</code> renders synthetic fixtures. It proves the binary works without touching any real account, and every number it prints is invented."
+            "title": "OpenLimiterをインストールする",
+            "intro": "コマンドラインツールをグローバルにインストールし、合成データによるデモを実行します。",
+            "terminalLabel": "ターミナル",
+            "demo": "<code>openlimiter demo</code>は合成フィクスチャを描画します。実際のアカウントに一切触れずにバイナリが動くことを示すもので、出力される数値はすべて架空のものです。"
           },
           "first-data": {
-            "title": "Give it something to meter",
-            "parser": "OpenLimiter never contacts a provider in this release. It parses data that something else already put in front of it. Until one of the ingestion paths runs, every command honestly reports unknown.",
-            "statusline": "The path that needs no extra work is the Claude Code statusline. Claude Code runs your statusline command on every render and writes a JSON object describing the current session to that command's standard input. When that object carries a rate limit block, OpenLimiter validates it, caches it, and renders the fresh numbers in the same call.",
-            "terminalLabel": "terminal",
-            "fallback": "Not every Claude Code version sends rate limit fields. If yours does not, this path stays quiet and the two manual paths still work. The <docs>ingestion page</docs> covers all three."
+            "title": "meterする対象を与える",
+            "parser": "OpenLimiterはこのリリースでプロバイダーに接続することは決してありません。すでに何かが目の前に置いたデータをパースするだけです。取り込み経路のいずれかが動くまで、すべてのコマンドは正直にunknownを報告します。",
+            "statusline": "追加の作業が要らない経路は、Claude Codeのstatuslineです。Claude Codeは描画のたびにあなたのstatuslineコマンドを実行し、現在のセッションを表すJSONオブジェクトをそのコマンドの標準入力に書き込みます。そのオブジェクトがレート制限ブロックを含んでいる場合、OpenLimiterはそれを検証し、キャッシュに保存し、同じ呼び出しの中で新しい数値を描画します。",
+            "terminalLabel": "ターミナル",
+            "fallback": "すべてのClaude Codeのバージョンがレート制限のフィールドを送るわけではありません。もし送られない場合、この経路は静かなままで、残る2つの手動の経路は引き続き機能します。<docs>取り込みのページ</docs>で3つすべてを扱っています。"
           },
           "claude-code": {
-            "title": "Wire Claude Code",
-            "intro": "Add this to your Claude Code <code>settings.json</code>. The global install makes the <code>openlimiter</code> command available to Claude Code.",
-            "calloutTitle": "The hook cannot break your session",
-            "calloutBody": "The statusline is the only path that writes. The hook reads the cache, makes no network request of any kind, injects nothing when every provider is unknown, and exits 0 whatever happens."
+            "title": "Claude Codeを組み込む",
+            "intro": "これをClaude Codeの<code>settings.json</code>に追加してください。グローバルインストールによって、<code>openlimiter</code>コマンドがClaude Codeから使えるようになります。",
+            "calloutTitle": "hookがあなたのセッションを壊すことはありません",
+            "calloutBody": "書き込みを行う経路はstatuslineだけです。hookはキャッシュを読み取るだけで、いかなる種類のネットワークリクエストも行わず、すべてのプロバイダーがunknownのときは何も渡さず、何が起きても終了コード0で終わります。"
           },
           "from-source": {
-            "title": "Contribute from source",
-            "intro": "Use the repository toolchain when you want to contribute.",
-            "terminalLabel": "terminal",
-            "buildOrder": "The build has to run before the type check, because each package resolves its neighbours through the declaration files the build produces."
+            "title": "ソースから貢献する",
+            "intro": "貢献したい場合は、リポジトリのツールチェーンを使ってください。",
+            "terminalLabel": "ターミナル",
+            "buildOrder": "型チェックより先にビルドを実行する必要があります。各パッケージは、ビルドが生成する宣言ファイルを通じて隣接パッケージを解決するためです。"
           },
           "where-next": {
-            "title": "Where next",
+            "title": "次に読むもの",
             "reading-order": {
-              "title": "A reasonable reading order",
+              "title": "おすすめの読み進め方",
               "steps": {
-                "why": "<docs>Why OpenLimiter</docs> for the problem this solves.",
-                "providers": "<docs>Supported providers</docs> for what each connector reads and how fragile it is.",
-                "agentContext": "<docs>Agent context</docs> for exactly what reaches your agent.",
-                "cli": "<docs>CLI reference</docs> for every command and exit code."
+                "why": "この問題が何を解決するかについては<docs>OpenLimiterを使う理由</docs>を。",
+                "providers": "各connectorが何を読み取り、どれくらい壊れやすいかについては<docs>対応プロバイダー</docs>を。",
+                "agentContext": "エージェントに正確に何が届くかについては<docs>Agent context</docs>を。",
+                "cli": "すべてのコマンドと終了コードについては<docs>CLIリファレンス</docs>を。"
               }
             }
           }
         }
       },
       "why-openlimiter": {
-        "title": "Why OpenLimiter",
-        "description": "When you hold several AI coding subscriptions the scarce resource stops being money and becomes quota.",
-        "lead": "When you hold several AI coding subscriptions, the scarce resource stops being money and becomes quota. You already paid. The question that decides your afternoon is which of those plans still has room left.",
+        "title": "OpenLimiterを使う理由",
+        "description": "複数のAIコーディングサブスクリプションを持つと、希少な資源はお金ではなく、quotaになります。",
+        "lead": "複数のAIコーディングサブスクリプションを持つと、希少な資源はお金ではなく、quotaになります。お金はもう払っています。あなたの午後を左右するのは、そのうちどのプランにまだ余裕があるかという問いです。",
         "sections": {
           "the-problem": {
-            "title": "The problem",
-            "interruption": "A developer running two or three coding agents ends the week with the same recurring interruption. One plan hits its window, the agent stops mid task, and the work pauses while a human goes hunting through dashboards to find out which other subscription is still usable.",
-            "scattered": "The information exists. It is scattered across a statusline payload, a local usage file, a billing page, and a credit balance, in four different shapes, none of which the agent can see."
+            "title": "問題",
+            "interruption": "2つか3つのコーディングエージェントを動かしている開発者は、毎週同じ中断に行き着きます。1つのプランがウィンドウの上限に達し、エージェントは作業の途中で止まり、他のどのサブスクリプションがまだ使えるかを人間がダッシュボードをあちこち探し回っている間、作業は止まったままです。",
+            "scattered": "その情報は存在しています。ただし、statuslineのペイロード、ローカルの使用量ファイル、請求ページ、クレジット残高という4つの異なる構造に散らばっており、そのどれもエージェントからは見えません。"
           },
           "what-it-does": {
-            "title": "What OpenLimiter does about it",
-            "intro": "OpenLimiter reads quota for supported AI subscriptions on your own machine, normalises every reading into one schema, and feeds bounded budget state plus routing advice into the coding agents' own context. The first adapter is a Claude Code statusline and prompt hook.",
+            "title": "OpenLimiterがそれに対してすること",
+            "intro": "OpenLimiterは、あなたのマシン上で対応するAIサブスクリプションのquotaを読み取り、すべての値を1つのスキーマへ正規化し、範囲の定まった予算状態とルーティングのアドバイスを、コーディングエージェント自身のコンテキストへ渡します。最初のadapterは、Claude Codeのstatuslineとprompt hookです。",
             "bullets": {
-              "read": "<strong>Read.</strong> Connectors parse shapes that a provider or a local tool already produced. They perform no network access in this release.",
-              "normalise": "<strong>Normalise.</strong> One snapshot schema with closed enums, bounded percentages, and derived freshness. Unknown stays unknown and never becomes a fabricated zero.",
-              "advise": "<strong>Advise.</strong> A compact statusline for you, and a bounded context block for your agent that carries enum codes, numbers, and timestamps only."
+              "read": "<strong>読み取る。</strong>connectorは、プロバイダーやローカルのツールがすでに生成した構造をパースします。このリリースではネットワークアクセスを一切行いません。",
+              "normalise": "<strong>正規化する。</strong>閉じたenum、範囲の定まったパーセンテージ、そこから導かれる鮮度を持つ、1つのスナップショットスキーマです。unknownはunknownのままで、作り出された0になることは決してありません。",
+              "advise": "<strong>アドバイスする。</strong>あなたにはコンパクトなstatuslineを、エージェントにはenumコード、数値、タイムスタンプだけを運ぶ、範囲の定まったコンテキストブロックを渡します。"
             }
           },
           "what-it-is-not": {
-            "title": "What it deliberately is not",
-            "calloutTitle": "Advice, never automatic routing",
-            "calloutBody": "OpenLimiter provides routing advice. It does not route requests for you, it does not bypass a limit, and it never mutates a provider's authentication artifacts. The decision stays with you and your agent.",
+            "title": "意図的にそうしていないこと",
+            "calloutTitle": "アドバイスであり、自動ルーティングでは決してありません",
+            "calloutBody": "OpenLimiterはルーティングのアドバイスを提供します。あなたに代わってリクエストをルーティングすることも、上限を回避することもなく、プロバイダーの認証情報を書き換えることも決してありません。判断はあなたとあなたのエージェントのものであり続けます。",
             "bullets": {
-              "proxy": "It is not a proxy. Your requests keep going straight to your provider.",
-              "dashboard": "It is not a dashboard service. There is no OpenLimiter server, no account, and no telemetry.",
-              "billing": "It is not a billing tool. It reports how much of a window you have consumed, not what you will be charged."
+              "proxy": "プロキシではありません。あなたのリクエストは、そのままプロバイダーへ直接送られ続けます。",
+              "dashboard": "ダッシュボードサービスではありません。OpenLimiterのサーバーも、アカウントも、テレメトリーもありません。",
+              "billing": "請求ツールではありません。報告するのはウィンドウをどれだけ消費したかであって、いくら請求されるかではありません。"
             }
           },
           "design-rules": {
-            "title": "The rules the code follows",
+            "title": "コードが従うルール",
             "unknown-stays-unknown": {
-              "title": "Unknown stays unknown",
-              "body": "Missing, expired, malformed, and unrecognised input all resolve to unknown. A connector that cannot read something says so. Nothing in the codebase turns an absent reading into a zero, because a fake zero would make an agent behave as though a plan were exhausted."
+              "title": "unknownはunknownのままです",
+              "body": "欠落、期限切れ、不正な形式、認識できない入力は、すべてunknownに解決されます。何かを読み取れなかったconnectorは、そう表明します。コードベースの中で、存在しない値を0に変えるものは何もありません。偽の0は、エージェントにプランが枯渇したかのように振る舞わせてしまうためです。"
             },
             "truncated-not-rounded": {
-              "title": "Percentages are truncated, never rounded up",
-              "body": "A meter at 99.99% renders as 99.9%. A cap is only ever claimed once it has actually been reached."
+              "title": "パーセンテージは切り捨てられ、切り上げられることは決してありません",
+              "body": "99.99%のmeterは99.9%として表示されます。上限に達したと主張するのは、実際にそこへ達したときだけです。"
             },
             "one-bad-row": {
-              "title": "One bad row does not lose a provider",
-              "body": "A row that fails validation is dropped and the remaining rows still count. One expired window is not a reason to forget a whole subscription."
+              "title": "1行の不良データがプロバイダー全体を失わせることはありません",
+              "body": "検証に失敗した行は取り除かれ、残りの行はそのまま数えられます。1つのウィンドウの期限切れは、サブスクリプション全体を忘れる理由にはなりません。"
             },
             "local-first": {
-              "title": "Local first, with no server to trust",
-              "body": "Everything is written to a local state directory under your own user account. See <config>configuration</config> for where that is, and <security>security and privacy</security> for what that buys you. The licence is Apache 2.0 and the whole thing is <code>UNVERIFIED</code> by its own labels until a verifier exists."
+              "title": "ローカルファーストで、信頼すべきサーバーもありません",
+              "body": "すべては、あなた自身のユーザーアカウントの下にあるローカルの状態ディレクトリに書き込まれます。それがどこにあるかは<config>設定</config>を、それが何をもたらすかは<security>セキュリティとプライバシー</security>を参照してください。ライセンスはApache 2.0で、全体は検証者が現れるまで、自らのラベルによって<code>UNVERIFIED</code>です。"
             }
           }
         }
       },
       "providers": {
-        "title": "Supported providers",
-        "description": "The six connectors that ship today, what each one reads, and how likely it is to break.",
-        "lead": "Six connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
+        "title": "対応プロバイダー",
+        "description": "今日提供されている6つのconnectorが、それぞれ何を読み取り、どれくらい壊れやすいか。",
+        "lead": "今日、6つのconnectorが提供されています。それぞれが、認証情報がどこから来るか、そのデータインターフェースがどれくらい公式なものか、どれくらい壊れやすいかを説明する、自前の誠実なラベルを持っています。",
         "sections": {
           "the-six": {
-            "title": "The six connectors",
-            "caption": "Connectors that ship today, with what each one reads and how stable it is",
+            "title": "6つのconnector",
+            "caption": "今日提供されているconnectorと、それぞれが何を読み取り、どれくらい安定しているか",
             "columns": {
               "id": "id",
-              "reads": "reads",
-              "status": "interface status"
+              "reads": "読み取るもの",
+              "status": "インターフェースの状態"
             },
             "rows": {
               "claude": {
-                "reads": "The rate limit block of the Claude Code statusline payload",
-                "status": "Native payload from a local tool. Low automation risk."
+                "reads": "Claude Codeのstatuslineペイロードのレート制限ブロック",
+                "status": "ローカルツールからのネイティブペイロード。自動化リスクは低。"
               },
               "openrouter": {
-                "reads": "A credits response shape from OpenRouter's documented API",
-                "status": "Documented API. Low automation risk."
+                "reads": "OpenRouterのドキュメント化されたAPIによるクレジットレスポンスの構造",
+                "status": "ドキュメント化されたAPI。自動化リスクは低。"
               },
               "codex": {
-                "reads": "A usage payload the Codex tooling produces",
-                "status": "Internal endpoint. May break without notice."
+                "reads": "Codexのツールが生成する使用量ペイロード",
+                "status": "内部エンドポイント。予告なく壊れる可能性があります。"
               },
               "antigravity": {
-                "reads": "A quota payload the Antigravity tooling produces",
-                "status": "Internal endpoint. May break without notice."
+                "reads": "Antigravityのツールが生成するquotaペイロード",
+                "status": "内部エンドポイント。予告なく壊れる可能性があります。"
               },
               "opencode": {
-                "reads": "A usage view behind a session you already signed in to",
-                "status": "Authenticated page. High automation risk. May break."
+                "reads": "すでにサインイン済みのセッションの裏にある使用量ビュー",
+                "status": "認証が必要なページ。自動化リスクは高。壊れる可能性があります。"
               },
               "manual": {
-                "reads": "Numbers you write yourself",
-                "status": "Manual entry. Never breaks, never guesses."
+                "reads": "自分で書いた数値",
+                "status": "Manual entry。壊れることも、推測することもありません。"
               }
             },
-            "calloutTitle": "Every connector ships marked UNVERIFIED",
-            "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good."
+            "calloutTitle": "すべてのconnectorはUNVERIFIEDのマークつきで提供されます",
+            "calloutBody": "<code>UNVERIFIED</code>は誠実なデフォルトです。明示的な検証者が実際のアカウントに対して構造を確認していないことを意味し、そのため<code>openlimiter doctor</code>は、connectorが健全だと主張する代わりに、driftを未検証として報告します。"
           },
           "how-data-arrives": {
-            "title": "How data actually arrives",
-            "intro": "This is the part that surprises people, so it is worth stating plainly. In this release no connector performs network access. Every one of them is a parser, and something else has to hand it a document.",
+            "title": "データが実際に届く仕組み",
+            "intro": "ここは人を驚かせる部分なので、はっきり述べる価値があります。このリリースでは、どのconnectorもネットワークアクセスを行いません。そのすべてがパーサーであり、別の何かがドキュメントを手渡す必要があります。",
             "bullets": {
-              "claude": "<code>claude</code> is fed by the statusline payload arriving on standard input. That path is automatic once Claude Code is wired up.",
-              "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "<code>codex</code>, <code>antigravity</code>, <code>opencode</code> and <code>openrouter</code> have no local reader yet. They accept data through <code>openlimiter ingest --provider '<id>'</code> and nothing else."
+              "claude": "<code>claude</code>には、標準入力に届くstatuslineペイロードが供給されます。Claude Codeが組み込まれていれば、この経路は自動です。",
+              "manual": "<code>manual</code>には、状態ディレクトリに置いたドキュメントが供給されます。",
+              "ingestOnly": "<code>codex</code>、<code>antigravity</code>、<code>opencode</code>、<code>openrouter</code>には、まだローカルのリーダーがありません。<code>openlimiter ingest --provider '<id>'</code>を通じてのみデータを受け取ります。"
             },
-            "exactShapes": "The <docs>ingestion page</docs> documents all three paths and the exact shapes they accept."
+            "exactShapes": "3つの経路すべてと、それぞれが受け付ける正確な構造は<docs>取り込みのページ</docs>に記載されています。"
           },
           "labels": {
-            "title": "Reading the labels",
-            "intro": "Every snapshot carries four labels, so a surface can always tell a reader how much to trust a number.",
-            "caption": "The four connector labels and their meaning",
+            "title": "ラベルの読み方",
+            "intro": "すべてのスナップショットは4つのラベルを持っており、それによってどの画面でも、その数値をどれくらい信頼してよいかを読み取る側に伝えられます。",
+            "caption": "4つのconnectorラベルとその意味",
             "columns": {
-              "label": "label",
-              "values": "values you will see"
+              "label": "ラベル",
+              "values": "表示される値"
             },
             "rows": {
               "automationRisk": {
-                "values": "<code>low</code> or <code>high</code>"
+                "values": "<code>low</code>または<code>high</code>"
               }
             },
             "drift": {
-              "title": "What drift looks like",
-              "body": "Unofficial interfaces change without notice. When a shape moves, parsing fails closed: the affected provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap."
+              "title": "driftとはどういうものか",
+              "body": "非公式なインターフェースは予告なく変更されます。構造が変わると、パースは安全側に倒れます。影響を受けたプロバイダーはunknownに戻り、他のプロバイダーには影響がなく、その空白を埋めるために数値が作られることもありません。"
             }
           },
           "openrouter-key": {
-            "title": "The OpenRouter credential",
-            "intro": "OpenRouter is the one connector that expects a key of your own. That key belongs in your operating system credential store and nowhere else. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs.",
-            "calloutTitle": "Stubbed in this release",
-            "calloutBody": "The credential library adapter is deliberately stubbed, so <code>openlimiter init</code> cannot store a key until you supply a driver. Until then, feed OpenRouter through the ingest command like any other provider.",
-            "terminalLabel": "terminal"
+            "title": "OpenRouterの認証情報",
+            "intro": "OpenRouterは、自分のキーを必要とする唯一のconnectorです。そのキーは、オペレーティングシステムの認証情報ストアに置くべきものであり、それ以外の場所には置きません。リポジトリのファイル、キャッシュファイル、エクスポート、診断出力、フィクスチャ、ログのいずれにも、決して現れてはいけません。",
+            "calloutTitle": "このリリースではスタブです",
+            "calloutBody": "認証情報ライブラリのadapterは意図的にスタブ化されており、ドライバーを与えるまで<code>openlimiter init</code>はキーを保存できません。それまでは、他のプロバイダーと同じようにingestコマンドを通じてOpenRouterへデータを供給してください。",
+            "terminalLabel": "ターミナル"
           },
           "not-yet": {
-            "title": "Connectors that do not exist yet",
-            "body": "Only the six above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
+            "title": "まだ存在しないconnector",
+            "body": "実在するのは上の6つだけです。それ以外に期待するものは何であれ、作られておらず、予定にもなく、想定すべきではありません。サブスクリプションにconnectorがない場合、今日はmanualの経路が、自分で入力する数値でそれをカバーします。"
           }
         }
       },
       "connections": {
-        "title": "Connections",
-        "metaTitle": "Connections: source chips and the state vocabulary",
-        "description": "What each connection state and source chip actually means, stated honestly, including what Import only does and does not do.",
-        "lead": "Every provider shows two things: a chip naming where its numbers came from, and, underneath, a state drawn from one vocabulary the whole product shares. This page names every state in it, says plainly what Import only means, and says what changes once a live connection exists.",
+        "title": "接続",
+        "metaTitle": "接続：ソースチップと状態の語彙",
+        "description": "接続の各状態とソースチップが実際に何を意味するかを、Import onlyが何をしてしないかも含めて誠実に説明します。",
+        "lead": "すべてのプロバイダーは2つのものを表示します。数値の出所を示すチップと、その下に、プロダクト全体が共有する1つの語彙から取られた状態です。このページでは、その中のすべての状態に名前をつけ、Import onlyが何を意味するかをはっきり述べ、実際の接続が存在するようになると何が変わるかを説明します。",
         "sections": {
           "chips": {
-            "title": "The chip on a provider today",
-            "intro": "A parser existing is not a connection, so no card in the dashboard is ever labelled connected on the strength of one. Every provider instead carries a chip naming how its numbers actually reached this device. There are three, today.",
-            "caption": "The three source chips shown in the dashboard today",
+            "title": "今日、プロバイダーについているチップ",
+            "intro": "パーサーが存在することは、接続があることを意味しません。そのため、ダッシュボード上のどのカードも、パーサーの存在だけを根拠に接続済みと表示されることはありません。代わりに、すべてのプロバイダーには、その数値が実際どのようにこのデバイスに届いたかを示すチップがついています。今日のところ、それは3種類です。",
+            "caption": "今日ダッシュボードに表示される3つのソースチップ",
             "columns": {
-              "chip": "chip",
-              "providers": "providers",
-              "meaning": "meaning"
+              "chip": "チップ",
+              "providers": "プロバイダー",
+              "meaning": "意味"
             },
             "rows": {
               "localCli": {
-                "meaning": "A tool on this machine writes the payload, and OpenLimiter reads what it wrote."
+                "meaning": "このマシン上のツールがペイロードを書き込み、OpenLimiterはそれが書き込んだものを読み取ります。"
               },
               "importOnly": {
-                "meaning": "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document."
+                "meaning": "ペイロードの構造がパースされます。ここではサインインも取得も行われないため、ドキュメントはあなたが用意します。"
               },
               "manual": {
-                "providers": "Manual entries",
-                "meaning": "Figures you keep yourself. Nothing is read from an account."
+                "providers": "手動入力",
+                "meaning": "自分で保持する数値です。アカウントから読み取られるものは何もありません。"
               }
             },
-            "calloutTitle": "What Import only actually means",
-            "calloutBody": "A parser exists for that provider's document, and OpenLimiter understands the shape when it sees one. Nothing here signs in, holds a key, or fetches anything on its own. A reading arrives only once you hand OpenLimiter that document yourself, by pasting it or by running <code>openlimiter ingest --provider '<id>'</code>. See <docs>ingestion</docs> for the exact paths."
+            "calloutTitle": "Import onlyが実際に意味すること",
+            "calloutBody": "そのプロバイダーのドキュメントに対応するパーサーが存在し、OpenLimiterはそれを見ればその構造を理解します。ここでは、サインインすることも、キーを保持することも、自分から何かを取得することもありません。値が届くのは、あなた自身がそのドキュメントを貼り付けるか、<code>openlimiter ingest --provider '<id>'</code>を実行して、OpenLimiterに手渡したときだけです。正確な経路については<docs>取り込み</docs>を参照してください。"
           },
           "vocabulary": {
-            "title": "The full connection vocabulary",
-            "intro": "Underneath the three chips sits a larger vocabulary: thirteen named states, one module in the core package the whole product is built from, each with one plain sentence rather than a log line. It exists so a connection's state is a value every surface reads the same way, never a sentence each one is free to invent for itself.",
-            "caption": "Every state in the connection vocabulary, and what each one means",
+            "title": "接続の語彙の全体",
+            "intro": "3つのチップの下には、より大きな語彙があります。13の名前つき状態で、プロダクト全体が作られているcoreパッケージの中の1つのモジュールにあり、それぞれログの1行ではなく、平易な1文で説明されています。これが存在するのは、接続の状態がどの画面でも同じように読み取られる1つの値であり続け、各画面が勝手に文章を作り出さないようにするためです。",
+            "caption": "接続の語彙にあるすべての状態と、それぞれの意味",
             "columns": {
-              "state": "state",
-              "meaning": "meaning"
+              "state": "状態",
+              "meaning": "意味"
             },
             "rows": {
               "notConfigured": {
-                "meaning": "Not connected."
+                "meaning": "未接続。"
               },
               "detected": {
-                "meaning": "Found on this machine but not collecting yet."
+                "meaning": "このマシン上で見つかっているが、まだ収集していない。"
               },
               "needsAuth": {
-                "meaning": "Waiting for a credential."
+                "meaning": "認証情報を待っている。"
               },
               "readyToEnable": {
-                "meaning": "Ready to start collecting."
+                "meaning": "収集を始める準備ができている。"
               },
               "connecting": {
-                "meaning": "Connecting."
+                "meaning": "接続中。"
               },
               "connected": {
-                "meaning": "Connected and collecting."
+                "meaning": "接続済みで、収集中。"
               },
               "degraded": {
-                "meaning": "The provider is refusing reads for now."
+                "meaning": "プロバイダーが今のところ読み取りを拒否している。"
               },
               "stale": {
-                "meaning": "The last reading is older than it should be."
+                "meaning": "最後の値が、あるべき鮮度より古い。"
               },
               "authExpired": {
-                "meaning": "The stored credential stopped working."
+                "meaning": "保存されていた認証情報が機能しなくなった。"
               },
               "importOnly": {
-                "meaning": "Reads only what you import. Nothing is collected automatically."
+                "meaning": "インポートしたものだけを読み取る。自動で収集されるものはない。"
               },
               "manual": {
-                "meaning": "Shows the plan you entered yourself."
+                "meaning": "自分で入力したプランを表示する。"
               },
               "unsupported": {
-                "meaning": "No safe automatic source exists for this product yet."
+                "meaning": "この製品にはまだ安全な自動ソースが存在しない。"
               },
               "error": {
-                "meaning": "This connection failed and needs a look."
+                "meaning": "この接続は失敗しており、確認が必要。"
               }
             },
             "bullets": {
-              "declared": "<code>IMPORT_ONLY</code>, <code>MANUAL</code> and <code>UNSUPPORTED</code> are declared rather than attempted, by design: the product states them outright, and nothing that happens afterward, a response, a failure, a timeout, is allowed to quietly promote one of them to <code>CONNECTED</code>. Only OpenLimiter itself declaring otherwise moves a connection out of one.",
-              "lifecycle": "The rest name a lifecycle a live reader would move a connection through: found but not yet collecting, waiting on a credential, connecting, connected, and, when something goes wrong, degraded, stale, expired, or needing a look."
+              "declared": "<code>IMPORT_ONLY</code>、<code>MANUAL</code>、<code>UNSUPPORTED</code>は、試みた結果としてではなく、設計として宣言されるものです。プロダクトはこれらをはっきりと明言し、その後に起きること、レスポンスであれ、失敗であれ、タイムアウトであれ、それらが静かに<code>CONNECTED</code>へ格上げされることは許されません。ある接続をそこから動かせるのは、OpenLimiter自身が別のことを宣言したときだけです。",
+              "lifecycle": "残りは、実際のリーダーが接続を通過させるライフサイクルに名前をつけたものです。見つかったがまだ収集していない、認証情報を待っている、接続中、接続済み、そして何かがうまくいかなかったときの、劣化、鮮度切れ、期限切れ、確認が必要、です。"
             },
             "what-this-is-not-claiming": {
-              "title": "What this page is not claiming",
-              "body": "Not that all thirteen are on screen. What the dashboard actually renders today is the simpler, three chip vocabulary above, built for a release where nothing performs a network read. The thirteen states are real and tested in the core package this product is built from, and they name the general lifecycle any connection follows once a live reader exists. No surface renders those words yet, because nothing today does the thing that would put a connection into one of them: no reader, no request, nothing to fail, expire, or need a credential for."
+              "title": "このページが主張していないこと",
+              "body": "13すべてが画面に表示されているという主張ではありません。ダッシュボードが今日実際に描画しているのは、上で説明したよりシンプルな3つのチップの語彙であり、ネットワーク読み取りを一切行わないリリースのために作られています。13の状態は実在し、このプロダクトが作られているcoreパッケージの中でテストされており、実際のリーダーが存在するようになったときに、あらゆる接続がたどる一般的なライフサイクルに名前をつけたものです。今日、どの画面もこれらの言葉を描画していません。今日、接続をそのどれかに置くようなこと、つまりリーダーも、リクエストも、失敗も、期限切れも、認証情報を必要とすることも、何一つ起きていないからです。"
             }
           },
           "what-changes": {
-            "title": "What changes when a live connection ships",
-            "intro": "Nothing on this page is a date or a promise. When a provider gains a real reader, the honest description of it stops being a fixed chip and starts being whichever of the thirteen states above actually fits at that moment: detected, waiting on a credential, connecting, connected, or, when something goes wrong, degraded, stale, or needing a look. That is the reason to name the whole vocabulary now, before any of it is reachable, so the sentence a person reads does not change on the day the state underneath it starts moving.",
-            "noReader": "No provider has that reader today. See the <roadmap>roadmap</roadmap> for what is planned and what is not, and <providers>supported providers</providers> for what each connector can actually do right now."
+            "title": "実際の接続が提供されたときに変わること",
+            "intro": "このページのどこにも、日付や約束はありません。あるプロバイダーが本物のリーダーを得たとき、その誠実な説明は、固定されたチップであることをやめ、その瞬間に実際に当てはまる、上の13の状態のいずれかになります。検出済み、認証情報待ち、接続中、接続済み、そして何かがうまくいかなかったときは、劣化、鮮度切れ、確認が必要、のいずれかです。今、まだそのどれにも手が届かないうちに、語彙全体に名前をつけておく理由はここにあります。その下にある状態が動き出す日になっても、人が読む文章そのものは変わらないようにするためです。",
+            "noReader": "今日の時点で、そのリーダーを持つプロバイダーはありません。何が計画されていて何がそうでないかは<roadmap>ロードマップ</roadmap>を、各connectorが今実際に何をできるかは<providers>対応プロバイダー</providers>を参照してください。"
           }
         }
       },
       "ingestion": {
-        "title": "Ingestion",
-        "description": "The three offline paths that put quota data in front of OpenLimiter, and what each one expects.",
-        "lead": "Three paths put quota data in front of OpenLimiter. All three are offline. None of them reaches the network, and until one of them runs, every command honestly reports unknown.",
+        "title": "取り込み",
+        "description": "quotaのデータをOpenLimiterの前に置く3つのオフラインの経路と、それぞれが何を求めているか。",
+        "lead": "3つの経路が、quotaのデータをOpenLimiterの前に置きます。3つとも、オフラインです。どれもネットワークに触れず、そのいずれかが動くまで、すべてのコマンドは正直にunknownを報告します。",
         "sections": {
           "statusline": {
-            "title": "1. The Claude Code statusline payload",
-            "intro": "This is the path that needs no extra work once Claude Code is wired up. Claude Code runs your statusline command on every render and writes a JSON object describing the current session to that command's standard input. When that object carries a rate limit block, <code>openlimiter statusline</code> validates it, writes it to the cache, and renders the fresh numbers in the same call.",
-            "blockLabel": "the block it reads, from Anthropic's own statusline documentation",
-            "fields": "<code>used_percentage</code> is the share of the window already used, from 0 to 100. <code>resets_at</code> is a Unix epoch number in seconds, not a date string. Both field names and the epoch encoding come from Anthropic's published statusline documentation rather than from this project, and each window is independently optional: a payload naming only one of them is one complete meter, not a partial one.",
+            "title": "1. Claude Codeのstatuslineペイロード",
+            "intro": "Claude Codeが組み込まれていれば、追加の作業が要らない経路です。Claude Codeは描画のたびにあなたのstatuslineコマンドを実行し、現在のセッションを表すJSONオブジェクトをそのコマンドの標準入力に書き込みます。そのオブジェクトがレート制限ブロックを含んでいる場合、<code>openlimiter statusline</code>はそれを検証し、キャッシュに書き込み、同じ呼び出しの中で新しい数値を描画します。",
+            "blockLabel": "それが読み取るブロック（Anthropic自身のstatuslineドキュメントより）",
+            "fields": "<code>used_percentage</code>は、すでに使われたウィンドウの割合で、0から100までです。<code>resets_at</code>は日付の文字列ではなく、秒単位のUnixエポック数値です。フィールド名もエポックの符号化方式も、このプロジェクトではなくAnthropicが公開しているstatuslineドキュメントに由来しており、それぞれのウィンドウは互いに独立して任意です。片方だけを名指すペイロードは、部分的なmeterではなく、それ自体で完結した1つのmeterです。",
             "bullets": {
-              "rateLimits": "<code>rate_limits</code> appears only for Claude.ai subscribers on a Pro or Max plan, and only after the first API response of a session. A payload with no <code>rate_limits</code> block is the ordinary shape of a free account or a session that has not called the API yet, not an error.",
-              "implausibleReset": "A reset implausibly far out for its own window, a five hour window resetting days away, is dropped on its own rather than trusted. The other window still counts."
+              "rateLimits": "<code>rate_limits</code>が現れるのは、ProまたはMaxプランのClaude.ai加入者に限られ、しかもセッション最初のAPIレスポンスの後だけです。<code>rate_limits</code>ブロックのないペイロードは、エラーではなく、無料アカウントやまだAPIを呼び出していないセッションの通常の形です。",
+              "implausibleReset": "そのウィンドウにとってあり得ないほど先のリセット、たとえば5時間のウィンドウが数日先にリセットされるような場合は、信頼するのではなく、それ単体で取り除かれます。もう一方のウィンドウはそのまま数えられます。"
             },
-            "ignored": "Anything else in the session object is ignored. A window that fails validation is dropped and the other window still counts.",
-            "calloutTitle": "This path can never break your statusline",
-            "calloutBody": "If standard input is absent, empty, malformed, or carries no recognisable rate limit field, the statusline falls back to the cache and reports unknown. It never blocks and never fails. Not every Claude Code version sends rate limit fields; if yours does not, this path simply stays quiet."
+            "ignored": "セッションオブジェクトの中の他のものはすべて無視されます。検証に失敗したウィンドウは取り除かれ、もう一方のウィンドウはそのまま数えられます。",
+            "calloutTitle": "この経路が、あなたのstatuslineを壊すことは決してありません",
+            "calloutBody": "標準入力がない、空である、壊れている、あるいは認識できるレート制限フィールドを含んでいない場合、statuslineはキャッシュにフォールバックしてunknownを報告します。ブロックすることも、失敗することも決してありません。すべてのClaude Codeのバージョンがレート制限フィールドを送るわけではなく、もし送られない場合、この経路はただ静かなままです。"
           },
           "manual-document": {
-            "title": "2. A manual document on disk",
-            "intro": "Write <code>manual.json</code> inside the state directory and every command picks it up. See <docs>configuration</docs> for where that directory lives on each platform.",
+            "title": "2. ディスク上の手動ドキュメント",
+            "intro": "状態ディレクトリの中に<code>manual.json</code>を書き込めば、すべてのコマンドがそれを読み取ります。そのディレクトリが各プラットフォームのどこにあるかは<docs>設定</docs>を参照してください。",
             "manual-rules": {
-              "title": "The rules each row must satisfy",
+              "title": "各行が満たすべきルール",
               "bullets": {
-                "name": "<code>name</code> is one uppercase identifier of up to 32 characters, starting with a letter.",
-                "usedPercent": "<code>used_percent</code> is a number from 0 to 100.",
-                "resetAt": "<code>reset_at</code> is an ISO instant in the future.",
-                "ten": "Up to ten meters are read. Rows past the tenth are ignored.",
-                "dropped": "A row that breaks any of those rules is dropped, and the remaining rows still count. Nothing is repaired."
+                "name": "<code>name</code>は、文字で始まる、最大32文字までの大文字の識別子です。",
+                "usedPercent": "<code>used_percent</code>は0から100までの数値です。",
+                "resetAt": "<code>reset_at</code>は未来を指すISO形式の日時です。",
+                "ten": "最大10個までのmeterが読み取られます。11個目以降の行は無視されます。",
+                "dropped": "これらのルールのいずれかを破る行は取り除かれ、残りの行はそのまま数えられます。何かが修復されることはありません。"
               }
             },
-            "refresh": "Run <code>openlimiter snapshot --refresh</code> to fold the file into the cache."
+            "refresh": "ファイルをキャッシュに取り込むには、<code>openlimiter snapshot --refresh</code>を実行してください。"
           },
           "ingest-command": {
-            "title": "3. The generic ingest command",
-            "intro": "Any script or agent can hand OpenLimiter a document without a provider integration. The command reads standard input, or an inline document passed with <code>--payload</code>.",
-            "terminalLabel": "terminal",
-            "provider": "Without a provider flag the document is treated as a manual document, so the resulting snapshot is labelled with manual precision. With <code>--provider '<id>'</code> the document is handed to that connector's own parser and keeps that connector's labels.",
-            "validIds": "Valid provider ids are <code>claude</code>, <code>openrouter</code>, <code>codex</code>, <code>antigravity</code>, <code>opencode</code>, and <code>manual</code>. An unknown id is a usage error and exits 2."
+            "title": "3. 汎用のingestコマンド",
+            "intro": "どんなスクリプトやエージェントでも、プロバイダー統合なしにOpenLimiterへドキュメントを手渡せます。このコマンドは標準入力か、<code>--payload</code>で渡されたインラインのドキュメントを読み取ります。",
+            "terminalLabel": "ターミナル",
+            "provider": "providerフラグがない場合、そのドキュメントは手動ドキュメントとして扱われ、結果として得られるスナップショットはmanualの精度でラベルづけされます。<code>--provider '<id>'</code>を指定すると、そのドキュメントはそのconnector自身のパーサーへ渡され、そのconnectorのラベルを保ちます。",
+            "validIds": "有効なプロバイダーidは<code>claude</code>、<code>openrouter</code>、<code>codex</code>、<code>antigravity</code>、<code>opencode</code>、<code>manual</code>です。未知のidは使用エラーで、終了コード2になります。"
           },
           "merging": {
-            "title": "What happens to the data",
-            "intro": "Ingested rows merge into one cache under the same lock every other writer uses, so nothing already cached is lost and two writers observing different providers cannot silently drop each other's rows.",
+            "title": "データはどうなるか",
+            "intro": "取り込まれた行は、他のすべての書き込み側が使うのと同じロックのもとで、1つのキャッシュへマージされます。そのため、すでにキャッシュされているものが失われることはなく、異なるプロバイダーを観測する2つの書き込み側が、互いの行を静かに落とし合うこともありません。",
             "bullets": {
-              "validated": "Values are validated against the snapshot schema before anything is written.",
-              "bounds": "Percentages stay between 0 and 100. A value outside that range is not clamped, it is dropped.",
-              "atomic": "Every write lands through an atomic replacement, so a reader observes either the previous content or the new content and never a partial file.",
-              "freshness": "Freshness is derived from when a reading was observed and when it expires, so stale data is labelled rather than silently reused as current."
+              "validated": "値は、書き込まれる前にスナップショットのスキーマに対して検証されます。",
+              "bounds": "パーセンテージは0から100の範囲に収まります。その範囲外の値は、丸め込まれるのではなく、取り除かれます。",
+              "atomic": "すべての書き込みはアトミックな置き換えを通じて行われるため、読み取る側は以前の内容か新しい内容のどちらかを見るだけで、部分的なファイルを見ることは決してありません。",
+              "freshness": "鮮度は、値が観測された時刻と期限切れになる時刻から導かれるため、古いデータは、現在のものとして静かに使い回されるのではなく、そのようにラベルづけされます。"
             },
-            "nothingSurvives": "Nothing survives validation? The command reports that no bounded meter survived and exits with a failure, rather than writing a placeholder."
+            "nothingSurvives": "何も検証を通らなかった場合はどうなりますか。そのコマンドは、範囲の定まったmeterが1つも残らなかったことを報告し、プレースホルダーを書き込むのではなく、失敗として終了します。"
           }
         }
       },
       "agent-context": {
         "title": "Agent context",
-        "description": "What the Claude Code statusline and prompt hook inject, and the boundary that keeps provider text out.",
-        "lead": "Two surfaces reach your agent: a one line statusline for you to read, and a bounded context block for the model. This page documents exactly what each one contains and the boundary that keeps provider text out of both.",
+        "description": "Claude Codeのstatuslineとprompt hookが何を渡すのかと、プロバイダーのテキストを締め出す境界について。",
+        "lead": "2つの画面がエージェントに届きます。あなたが読むための1行のstatuslineと、モデルのための範囲の定まったコンテキストブロックです。このページは、それぞれが正確に何を含むかと、両方からプロバイダーのテキストを締め出す境界を説明します。",
         "sections": {
           "statusline": {
-            "title": "The statusline",
-            "intro": "One line, rendered on every Claude Code statusline call. It names the worst state across your providers, lists the providers with a usable reading, and names the ones that are unknown.",
-            "exampleLabel": "example output, synthetic values",
-            "truncation": "Usage is truncated, never rounded upward, so a meter at 99.99% reads as 99.9%. When nothing usable is cached the whole line reduces to <code>OpenLimiter UNKNOWN</code>."
+            "title": "statusline",
+            "intro": "Claude Codeがstatuslineを呼び出すたびに描画される1行です。プロバイダー群の中で最も悪い状態に名前をつけ、使える値を持つプロバイダーを列挙し、unknownなプロバイダーにも名前をつけます。",
+            "exampleLabel": "出力例（合成の値）",
+            "truncation": "使用量は切り捨てられ、切り上げられることは決してないため、99.99%のmeterは99.9%として読み取れます。使えるものがキャッシュに何もない場合、行全体は<code>OpenLimiter UNKNOWN</code>に縮まります。"
           },
           "context-block": {
-            "title": "The context block",
-            "intro": "The prompt hook emits a small block on <code>UserPromptSubmit</code>. It is plain text with one field per line, wrapped in an explicit untrusted data boundary.",
-            "exampleLabel": "example block, synthetic values",
+            "title": "コンテキストブロック",
+            "intro": "prompt hookは<code>UserPromptSubmit</code>のタイミングで小さなブロックを出力します。1行に1フィールドのプレーンテキストで、明示的な信頼できないデータの境界に包まれています。",
+            "exampleLabel": "ブロックの例（合成の値）",
             "fields": {
-              "title": "Every field it can contain",
-              "caption": "Fields in the agent context block",
+              "title": "含みうるすべてのフィールド",
+              "caption": "agent context blockの中のフィールド",
               "columns": {
-                "field": "field",
-                "meaning": "meaning"
+                "field": "フィールド",
+                "meaning": "意味"
               },
               "rows": {
                 "schema": {
-                  "meaning": "Format version. Currently 2."
+                  "meaning": "フォーマットのバージョン。現在は2。"
                 },
                 "recommendationCode": {
-                  "meaning": "<code>PREFER</code> when a provider is worth routing to, or <code>NONE</code> when nothing usable stands out."
+                  "meaning": "ルーティングする価値のあるプロバイダーがある場合は<code>PREFER</code>、使えるものが特に見当たらない場合は<code>NONE</code>。"
                 },
                 "recommendationProvider": {
-                  "meaning": "The provider code the advice points at. Present only when the code is PREFER."
+                  "meaning": "そのアドバイスが指し示すプロバイダーコード。コードがPREFERのときだけ現れます。"
                 },
                 "recommendationReason": {
-                  "meaning": "Why that provider: <code>LOWEST_USAGE</code> today. An enum, never prose."
+                  "meaning": "なぜそのプロバイダーなのか。今日のところは<code>LOWEST_USAGE</code>のみです。文章ではなく、enumです。"
                 },
                 "notice": {
-                  "meaning": "A fixed sentence telling the model to treat the block as untrusted data."
+                  "meaning": "このブロックを信頼できないデータとして扱うよう、モデルに伝える固定文です。"
                 },
                 "reason": {
-                  "meaning": "The worst state across providers: <code>HEALTHY</code>, <code>NEAR_CAP</code> at 80% or above, or <code>AT_CAP</code> at 100%."
+                  "meaning": "プロバイダー群の中で最も悪い状態。<code>HEALTHY</code>、80%以上の<code>NEAR_CAP</code>、または100%の<code>AT_CAP</code>。"
                 },
                 "provider": {
-                  "meaning": "One line per provider with a usable reading, carrying <code>state</code> of <code>fresh</code> or <code>stale</code>, a bounded <code>usage_percent</code>, and a <code>reset_at</code> instant or <code>NONE</code>."
+                  "meaning": "使える値を持つプロバイダーごとに1行。<code>fresh</code>または<code>stale</code>の<code>state</code>、範囲の定まった<code>usage_percent</code>、そして<code>reset_at</code>の日時または<code>NONE</code>を運びます。"
                 },
                 "unknown": {
-                  "meaning": "The providers with no usable reading, or <code>NONE</code> when every provider was read."
+                  "meaning": "使える値のないプロバイダー。すべてのプロバイダーが読み取れた場合は<code>NONE</code>。"
                 }
               }
             }
           },
           "boundary": {
-            "title": "The safety boundary",
-            "calloutTitle": "Provider text never reaches your agent",
-            "calloutBody": "Provider responses are untrusted data. Connector parsers select known numeric fields and known timestamps, then discard labels, messages, account text, markup, and every unknown field. The advice engine emits only provider enum codes, reason enum codes, bounded percentages, freshness enum codes, and timestamps. The Claude Code adapter validates all of those again before writing the block.",
-            "injectionSurface": "This matters because a block injected into a prompt is an injection surface. If a provider could put arbitrary text into your agent's context through a billing message or an account name, that text would arrive with the authority of your own tooling. Nothing in this pipeline can carry it.",
+            "title": "安全のための境界",
+            "calloutTitle": "プロバイダーのテキストがエージェントに届くことは決してありません",
+            "calloutBody": "プロバイダーのレスポンスは、信頼できないデータです。connectorのパーサーは既知の数値フィールドと既知のタイムスタンプだけを選び取り、ラベル、メッセージ、アカウントのテキスト、マークアップ、未知のフィールドをすべて破棄します。アドバイスエンジンが出すのは、プロバイダーのenumコード、理由のenumコード、範囲の定まったパーセンテージ、鮮度のenumコード、タイムスタンプだけです。Claude Codeのadapterは、ブロックを書き込む前にそのすべてを再度検証します。",
+            "injectionSurface": "これが重要なのは、プロンプトに渡されるブロックがインジェクションの経路になるからです。もしプロバイダーが、請求メッセージやアカウント名を通じて任意のテキストをエージェントのコンテキストに入れられたら、そのテキストはあなた自身のツールの権威をまとって届いてしまいます。このパイプラインの中には、それを運べるものは何もありません。",
             "silence": {
-              "title": "When it injects nothing",
+              "title": "何も渡さないのはどんなときか",
               "bullets": {
-                "unknown": "If every provider is unknown, the adapter injects nothing at all.",
-                "validation": "If the advice fails its own validation, the adapter injects nothing.",
-                "cache": "If the cache cannot be read, the hook returns an empty result rather than guessing."
+                "unknown": "すべてのプロバイダーがunknownの場合、adapterは何も渡しません。",
+                "validation": "アドバイス自身の検証に失敗した場合、adapterは何も渡しません。",
+                "cache": "キャッシュが読み取れない場合、hookは推測するのではなく、空の結果を返します。"
               }
             }
           },
           "hook-behaviour": {
-            "title": "How the hook behaves",
+            "title": "hookの振る舞い",
             "bullets": {
-              "readsOnly": "It reads the cache only. It performs no network request of any kind and writes nothing.",
-              "exitsZero": "It exits 0 whatever happens, including on internal failure, so it cannot break a session.",
-              "inspect": "Running <code>openlimiter hook</code> in a terminal prints exactly what would be injected, which is a safe way to inspect it before wiring it into a real session."
+              "readsOnly": "キャッシュを読み取るだけです。いかなる種類のネットワークリクエストも行わず、何も書き込みません。",
+              "exitsZero": "内部の失敗を含め、何が起きても終了コード0で終わるため、セッションを壊すことはできません。",
+              "inspect": "ターミナルで<code>openlimiter hook</code>を実行すると、実際に渡される内容がそのまま出力されます。実際のセッションに組み込む前に確認する、安全な方法です。"
             },
-            "writes": "The statusline is the only path that writes. See <config>configuration</config> for the exact Claude Code settings, and <cli>the CLI reference</cli> for the commands."
+            "writes": "書き込みを行う経路はstatuslineだけです。Claude Codeの正確な設定は<config>設定</config>を、コマンドについては<cli>CLIリファレンス</cli>を参照してください。"
           }
         }
       },
       "configuration": {
-        "title": "Configuration",
-        "description": "The state directory, the configuration file, the cache, and the settings Claude Code needs.",
-        "lead": "OpenLimiter keeps everything in one state directory under your own user account: a configuration file, a cache, a lock, and the optional manual document. This page says where that is and what each file does.",
+        "title": "設定",
+        "description": "状態ディレクトリ、設定ファイル、キャッシュ、そしてClaude Codeが必要とする設定について。",
+        "lead": "OpenLimiterは、すべてをあなた自身のユーザーアカウントの下にある1つの状態ディレクトリに保持します。設定ファイル、キャッシュ、ロック、そして任意の手動ドキュメントです。このページは、それがどこにあり、各ファイルが何をするかを説明します。",
         "sections": {
           "state-directory": {
-            "title": "The state directory",
-            "caption": "Where the state directory lives on each platform",
+            "title": "状態ディレクトリ",
+            "caption": "各プラットフォームで状態ディレクトリがどこにあるか",
             "columns": {
-              "platform": "platform",
-              "path": "path"
+              "platform": "プラットフォーム",
+              "path": "パス"
             },
-            "permissions": "The directory is created with restrictive permissions where the platform supports them. A path that turns out to be a symbolic link is rejected rather than followed."
+            "permissions": "プラットフォームが対応している場合、このディレクトリは制限的なパーミッションで作成されます。シンボリックリンクだと判明したパスは、たどられるのではなく、拒否されます。"
           },
           "files": {
-            "title": "What lives in it",
-            "caption": "Files inside the state directory",
+            "title": "その中にあるもの",
+            "caption": "状態ディレクトリの中のファイル",
             "columns": {
-              "file": "file",
-              "role": "role"
+              "file": "ファイル",
+              "role": "役割"
             },
             "rows": {
               "config": {
-                "role": "Written by <code>openlimiter init</code>. Records the connector list, whether each one was detected, and the statusline layout."
+                "role": "<code>openlimiter init</code>によって書き込まれます。connectorの一覧、それぞれが検出されたかどうか、statuslineのレイアウトを記録します。"
               },
               "cache": {
-                "role": "The one cache every command reads and every writer merges into."
+                "role": "すべてのコマンドが読み取り、すべての書き込み側がマージする、ただ1つのキャッシュです。"
               },
               "lock": {
-                "role": "Held by writers only. Readers never take it."
+                "role": "書き込み側だけが保持します。読み取り側が取ることは決してありません。"
               },
               "manual": {
-                "role": "Optional. Quota you maintain by hand. See <docs>ingestion</docs> for the shape."
+                "role": "任意です。あなたが手で管理するquotaです。その構造については<docs>取り込み</docs>を参照してください。"
               }
             }
           },
           "cache-behaviour": {
-            "title": "How the cache behaves",
+            "title": "キャッシュの振る舞い",
             "bullets": {
-              "oneFile": "One schema, one file, one lock. There are no competing state files to reconcile.",
-              "readers": "Readers never take the lock. A reader opens the file, validates that open descriptor, and reads through it, so a path swapped after the check cannot redirect the bytes.",
-              "writers": "Writers take the lock, and the read, the merge, and the write all happen inside it. A lock older than five seconds is treated as abandoned and reclaimed.",
-              "atomic": "Every replacement flushes to stable storage before the rename, so a reader observes either the previous content or the new content and never a partial file."
+              "oneFile": "1つのスキーマ、1つのファイル、1つのロック。調停すべき競合する状態ファイルはありません。",
+              "readers": "読み取り側がロックを取ることは決してありません。読み取り側はファイルを開き、その開いたディスクリプタを検証したうえで読み進めます。そのため、チェックの後にパスがすり替えられても、読み取るバイト列を差し替えることはできません。",
+              "writers": "書き込み側はロックを取り、読み取り、マージ、書き込みのすべてがその内側で行われます。5秒より古いロックは、放棄されたものとみなされ、回収されます。",
+              "atomic": "すべての置き換えは、リネームの前に安定したストレージへフラッシュされるため、読み取る側は以前の内容か新しい内容のどちらかを見るだけで、部分的なファイルを見ることは決してありません。"
             },
-            "doctor": "Cache health is visible at any time through <code>openlimiter doctor</code>, which prints the cache status and how many rows were dropped for failing validation."
+            "doctor": "キャッシュの健全性は、いつでも<code>openlimiter doctor</code>で確認できます。キャッシュの状態と、検証に失敗して取り除かれた行の数を出力します。"
           },
           "statusline": {
-            "title": "The statusline layout",
-            "intro": "The statusline draws one compact cell per provider: a name, a five block bar, and the percentage, with the overall reason code and the routing recommendation leading the row. Six keys in the configuration file decide how that row is built, and <code>openlimiter config</code> is how they are read and changed.",
-            "capturedFixturesLabel": "captured {date}, synthetic fixtures",
-            "capturedLabel": "captured {date}",
+            "title": "statuslineのレイアウト",
+            "intro": "statuslineは、プロバイダーごとにコンパクトな1セルを描きます。名前、5ブロックのバー、パーセンテージで、行の先頭には全体の理由コードとルーティングの推薦が来ます。設定ファイルの中の6つのキーが、その行がどう組み立てられるかを決め、<code>openlimiter config</code>がそれらを読み書きする方法です。",
+            "capturedFixturesLabel": "{date}に取得、合成フィクスチャ",
+            "capturedLabel": "{date}に取得",
             "statusline-keys": {
-              "title": "Every key",
-              "caption": "The statusline keys and what each one accepts",
+              "title": "すべてのキー",
+              "caption": "statuslineのキーと、それぞれが受け付ける値",
               "columns": {
-                "key": "key",
-                "accepts": "accepts",
-                "meaning": "meaning"
+                "key": "キー",
+                "accepts": "受け付ける値",
+                "meaning": "意味"
               },
               "rows": {
                 "order": {
-                  "accepts": "provider ids, comma separated, or <code>NONE</code>",
-                  "meaning": "The order the cells appear in. Whatever you list comes first; every provider you leave out follows the built in order behind it, which is the subscription plans and then the credit and API meters. <code>NONE</code> is the way back to that built in order. Default <code>NONE</code>."
+                  "accepts": "プロバイダーidをカンマ区切りで、または<code>NONE</code>",
+                  "meaning": "セルが現れる順番です。あなたが列挙したものが先に来て、除外したプロバイダーはすべて、その後ろの組み込みの順番、つまりサブスクリプションのプランの後にクレジットとAPIのmeterという順番に従います。<code>NONE</code>は、その組み込みの順番に戻る方法です。デフォルトは<code>NONE</code>。"
                 },
                 "meters": {
-                  "accepts": "<code>worst</code> or <code>all</code>",
-                  "meaning": "A provider with several meters shows the one closest to its cap, or all of them as separate cells named <code>PROVIDER:METER</code>. Meters order session, daily, weekly, monthly, credits. Default <code>worst</code>."
+                  "accepts": "<code>worst</code>または<code>all</code>",
+                  "meaning": "複数のmeterを持つプロバイダーは、上限に最も近い1つを表示するか、<code>PROVIDER:METER</code>という名前の別々のセルとしてすべて表示します。meterはセッション、日次、週次、月次、クレジットの順に並びます。デフォルトは<code>worst</code>。"
                 },
                 "width": {
-                  "accepts": "a whole number from 40 to 400",
-                  "meaning": "The columns one row may spend before the line stacks. Nothing measures your terminal: a statusline host runs the command with no terminal attached, so the number here is the number honoured. Default <code>140</code>."
+                  "accepts": "40から400までの整数",
+                  "meaning": "行が折り返す前に、1行が使ってよい桁数です。あなたのターミナルを測ることは何もありません。statuslineのホストはターミナルを渡さずにこのコマンドを実行するため、ここで指定した数値がそのまま尊重されます。デフォルトは<code>140</code>。"
                 },
                 "rows": {
-                  "accepts": "<code>1</code> or <code>2</code>",
-                  "meaning": "How many rows the layout may use. Default <code>2</code>."
+                  "accepts": "<code>1</code>または<code>2</code>",
+                  "meaning": "レイアウトが使ってよい行数です。デフォルトは<code>2</code>。"
                 },
                 "bars": {
-                  "accepts": "<code>true</code> or <code>false</code>",
-                  "meaning": "False restores the single plain line from 0.1.0, byte for byte. Default <code>true</code>."
+                  "accepts": "<code>true</code>または<code>false</code>",
+                  "meaning": "falseにすると、0.1.0の単純な1行を、そのままバイト単位で復元します。デフォルトは<code>true</code>。"
                 },
                 "color": {
-                  "accepts": "<code>auto</code>, <code>always</code>, or <code>never</code>",
-                  "meaning": "<code>auto</code> follows the terminal, which for a statusline host usually means no colour, because the host captures the output rather than handing the command a terminal. <code>always</code> is how you say the host understands escape codes. Default <code>auto</code>."
+                  "accepts": "<code>auto</code>、<code>always</code>、または<code>never</code>",
+                  "meaning": "<code>auto</code>はターミナルに従います。statuslineのホストの場合、通常は無色を意味します。ホストがターミナルを渡す代わりに出力をキャプチャするためです。<code>always</code>は、ホストがエスケープコードを理解することをあなたが宣言する方法です。デフォルトは<code>auto</code>。"
                 }
               }
             },
-            "calloutTitle": "NO_COLOR beats always",
-            "calloutBody": "The environment variable is the one setting a person makes once for every tool on the machine, so a configuration file inside one tool does not overrule it. With <code>NO_COLOR</code> set, the bars are drawn in <code>#</code> and <code>.</code> and no escape code is emitted at all.",
+            "calloutTitle": "NO_COLORはalwaysに勝ります",
+            "calloutBody": "この環境変数は、マシン上のすべてのツールに対して1人が一度だけ行う設定なので、1つのツールの内側にある設定ファイルがそれを覆すことはありません。<code>NO_COLOR</code>が設定されていると、バーは<code>#</code>と<code>.</code>で描かれ、エスケープコードは一切出力されません。",
             "statusline-commands": {
-              "title": "Reading and writing them",
-              "oneKey": "One key at a time, validated before it is written. A value the key cannot use exits 2 and names what it wanted, and nothing partial is written, because the whole document is replaced atomically. Statusline keys are the only thing this command mutates: the connector list belongs to <code>openlimiter init</code>, and any other key exits 2.",
-              "reinit": "Re running <code>openlimiter init</code> keeps whatever is configured here and only redetects the connectors. A statusline key this version cannot read falls back to its default rather than stopping the draw, so a hand edited typo in one field never costs you the other five."
+              "title": "読み書きの方法",
+              "oneKey": "一度に1つのキーずつ、書き込む前に検証されます。そのキーが使えない値を渡すと終了コード2になり、期待していたものが示されます。文書全体がアトミックに置き換えられるため、部分的な書き込みは発生しません。このコマンドが変更するのはstatuslineのキーだけです。connectorの一覧は<code>openlimiter init</code>のものであり、それ以外のキーを指定すると終了コード2になります。",
+              "reinit": "<code>openlimiter init</code>を再実行しても、ここで設定した内容はそのまま保たれ、connectorだけが再検出されます。このバージョンが読み取れないstatuslineキーがあっても、描画を止めるのではなくデフォルトにフォールバックするため、手で編集した1つのフィールドの誤字が、残り5つを犠牲にすることはありません。"
             },
             "statusline-stacking": {
-              "title": "When the row runs out of room",
-              "body": "The line stacks instead of truncating. A break lands between two cells and never inside one, and two rows is the ceiling. Past that the providers closest to their caps are the ones kept, and the last row ends by saying how many it could not show."
+              "title": "行に収まりきらないとき",
+              "body": "行は切り捨てられるのではなく、折り返されます。区切りは2つのセルの間に入り、セルの内側に入ることは決してなく、2行が上限です。それを超えると、上限に最も近いプロバイダーが残され、最後の行の末尾に、表示しきれなかった数が示されます。"
             },
             "statusline-plain": {
-              "title": "The 0.1.0 line, on request",
-              "body": "The format before this layout was one plain line with no bars. If you wrote a script against it, <code>bars false</code> returns it exactly, and a test pins that exact string so it cannot drift."
+              "title": "0.1.0の行を、リクエストに応じて",
+              "body": "このレイアウトより前の形式は、バーのない単純な1行でした。それに対してスクリプトを書いていた場合、<code>bars false</code>でそれを正確に復元でき、テストがその文字列を固定しているため、ずれることはありません。"
             }
           },
           "claude-code": {
-            "title": "Claude Code settings",
-            "intro": "Use the absolute path to your clone. Forward slashes work on every platform, including Windows.",
+            "title": "Claude Codeの設定",
+            "intro": "自分のクローンへの絶対パスを使ってください。フォワードスラッシュは、Windowsを含むすべてのプラットフォームで機能します。",
             "which-writes": {
-              "title": "Which of the two writes",
-              "body": "Only the statusline. It is the path that receives the session payload, so it is the path that updates the cache. The hook reads and never writes."
+              "title": "2つのうちどちらが書き込むか",
+              "body": "statuslineだけです。セッションのペイロードを受け取る経路であり、キャッシュを更新する経路です。hookは読み取るだけで、書き込むことは決してありません。"
             }
           },
           "credentials": {
-            "title": "Credentials",
-            "calloutTitle": "Keys belong in the operating system credential store",
-            "calloutBody": "The only credential OpenLimiter has any concept of is an OpenRouter key, and it belongs in your operating system credential store. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs. Provider authentication artifacts are opened read only and are never rewritten, backed up, repaired, or migrated.",
-            "stub": "The credential library call sits behind an interface, and the adapter is stubbed in this release, so <code>openlimiter init</code> cannot store a key until a driver is supplied. Nothing else on your machine is touched."
+            "title": "認証情報",
+            "calloutTitle": "キーはオペレーティングシステムの認証情報ストアに置くものです",
+            "calloutBody": "OpenLimiterが概念として持つ唯一の認証情報はOpenRouterのキーであり、オペレーティングシステムの認証情報ストアに置くものです。リポジトリのファイル、キャッシュファイル、エクスポート、診断出力、フィクスチャ、ログのいずれにも、決して現れてはいけません。プロバイダーの認証情報は読み取り専用で開かれ、書き換えられたり、バックアップされたり、修復されたり、移行されたりすることは決してありません。",
+            "stub": "認証情報ライブラリの呼び出しはインターフェースの裏にあり、adapterはこのリリースではスタブ化されているため、ドライバーが与えられるまで<code>openlimiter init</code>はキーを保存できません。あなたのマシン上の他の何にも触れません。"
           },
           "detection": {
-            "title": "Connector detection",
-            "intro": "Detection is a pure function of the environment the CLI hands a connector. Facts only the CLI can observe, such as a manual document sitting in the state directory, arrive as explicit markers, which is why <code>openlimiter doctor</code> never claims a connector is ready when it could not receive data.",
-            "terminalLabel": "terminal",
-            "corrupt": "A cache that would not parse, or one that parsed with rows thrown out, adds one more line in red saying so. It reports against the cache rather than against a provider, because a corrupt file cannot be trusted to say whose reading it held."
+            "title": "connectorの検出",
+            "intro": "検出は、CLIがconnectorに渡す環境の純粋な関数です。状態ディレクトリに手動ドキュメントが置かれているといった、CLIだけが観測できる事実は、明示的なマーカーとして届きます。だからこそ、データを受け取れなかったconnectorを、<code>openlimiter doctor</code>が準備完了だと主張することは決してありません。",
+            "terminalLabel": "ターミナル",
+            "corrupt": "パースできなかったキャッシュ、あるいは行が取り除かれた状態でパースされたキャッシュがある場合、その旨を伝える1行が赤字で追加されます。これはプロバイダーではなくキャッシュに対する報告です。壊れたファイルは、それが誰の値を保持していたかを信頼して語れないためです。"
           }
         }
       },
       "cli": {
-        "title": "CLI reference",
-        "metaTitle": "CLI reference: commands, flags and exit codes",
-        "description": "Every command the CLI accepts today, with its flags, its output, and its exit codes.",
-        "lead": "Ten commands, one binary. Agent tools and people get the same interface, and every command reports a genuine failure rather than inventing a number.",
+        "title": "CLIリファレンス",
+        "metaTitle": "CLIリファレンス：コマンド、フラグ、終了コード",
+        "description": "今日CLIが受け付けるすべてのコマンドと、そのフラグ、出力、終了コード。",
+        "lead": "10個のコマンドに、1つのバイナリです。エージェントのツールも人間も同じインターフェースを使い、すべてのコマンドは、数値を作り出す代わりに、本物の失敗を報告します。",
         "sections": {
           "overview": {
-            "title": "Overview",
-            "install": "Install the global command with <code>npm install -g openlimiter</code>, then run each example exactly as shown."
+            "title": "概要",
+            "install": "<code>npm install -g openlimiter</code>でグローバルコマンドをインストールし、各例をそのまま実行してください。"
           },
           "commands": {
-            "title": "The commands",
-            "capturedFixturesLabel": "captured {date}, synthetic fixtures",
-            "capturedLabel": "captured {date}",
+            "title": "コマンド一覧",
+            "capturedFixturesLabel": "{date}に取得、合成フィクスチャ",
+            "capturedLabel": "{date}に取得",
             "init": {
-              "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
+              "body": "ローカル設定を状態ディレクトリに書き込み、すべてのconnectorとそれが検出されたかどうかを記録します。検出済みの一覧、または何もなかったことを報告します。"
             },
             "snapshot": {
-              "intro": "Prints the cached quota as a table. With <code>--refresh</code> it first asks every connector for meters, folds what survives validation into the cache, and then prints. Exits 3 when no bounded quota data exists.",
-              "columns": "Eight columns, always eight, separated by one space, so a script can split a row without guessing. <code>BAR</code> is a ten block meter, drawn in colour when the terminal supports it and in <code>#</code> and <code>.</code> when it does not or when <code>NO_COLOR</code> is set. <code>AMOUNT</code> carries the money for a plan that is priced rather than rationed. <code>RESET</code> is the instant the window turns over and <code>IN</code> is how long that is from now. A column with nothing to say reads <code>NONE</code> rather than disappearing.",
-              "syntheticLabel": "synthetic values",
-              "failures": "A connector that was handed a payload and could not read it, or a reading the validator threw out, adds one line under the table in red, naming the provider and one fixed sentence. That sentence is always one of ours: no text a provider sent ever reaches your terminal."
+              "intro": "キャッシュされたquotaを表として出力します。<code>--refresh</code>を指定すると、まずすべてのconnectorにmeterを問い合わせ、検証を通過したものをキャッシュに取り込んでから出力します。範囲の定まったquotaデータが1つもない場合は終了コード3になります。",
+              "columns": "常に8列で、スペース1つで区切られているため、スクリプトは推測なしに行を分割できます。<code>BAR</code>は10ブロックのmeterで、ターミナルが対応していれば色つきで、対応していないか<code>NO_COLOR</code>が設定されている場合は<code>#</code>と<code>.</code>で描かれます。<code>AMOUNT</code>は、割り当て制ではなく価格制のプランの金額を運びます。<code>RESET</code>はウィンドウが切り替わる瞬間で、<code>IN</code>はそこまでの残り時間です。表示するものがない列は、消えるのではなく<code>NONE</code>と表示されます。",
+              "syntheticLabel": "合成の値",
+              "failures": "ペイロードを渡されたのに読み取れなかったconnector、あるいは検証で取り除かれた値がある場合、表の下にプロバイダー名と1つの固定文を添えた行が赤字で追加されます。その文はいつも私たち自身のものです。プロバイダーが送ったテキストがターミナルに届くことは決してありません。"
             },
             "statusline": {
-              "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
-              "cells": "The overall reason code leads, then the routing recommendation, then one compact cell per provider: a name, a five block bar, and the percentage. Five blocks rather than the ten the table draws, because a status row is shared with a model name, a branch and a directory, and it has to read at a glance. The percentage is truncated like everywhere else, so a bar never lights a block the reading has not earned.",
-              "order": "Subscription providers come first and credit or API providers last, so a window that refills on a clock is never read next to a balance that does not come back. Within a provider the meters order session, daily, weekly, monthly, credits, and the cell shows the meter closest to its cap. The full set is one <code>openlimiter snapshot</code> away, or set <code>statusline.meters all</code> to put every meter in the row as its own cell.",
-              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
-              "calloutTitle": "The old line is still one setting away",
-              "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
+              "intro": "statuslineのホストのためにステータス行を描画します。まず標準入力を読み取るため、Claude Codeのセッションペイロードは同じ呼び出しの中で取り込まれて描画され、そのうえでキャッシュにフォールバックします。表示されることの副作用として書き込みを行う、唯一のコマンドです。",
+              "cells": "全体の理由コードが先頭に来て、続いてルーティングの推薦、そしてプロバイダーごとにコンパクトな1セル、名前、5ブロックのバー、パーセンテージが続きます。表が描く10ブロックではなく5ブロックなのは、ステータス行はモデル名、ブランチ、ディレクトリと場所を共有しており、一目で読み取れる必要があるためです。パーセンテージは他の場所と同じように切り捨てられるため、バーがその値の得ていないブロックを光らせることは決してありません。",
+              "order": "サブスクリプション系のプロバイダーが先に来て、クレジットやAPI系のプロバイダーが最後に来ます。時計仕掛けで補充されるウィンドウが、戻ってこない残高の隣に並ぶことのないようにするためです。プロバイダーの中では、meterはセッション、日次、週次、月次、クレジットの順に並び、セルには上限に最も近いmeterが表示されます。全体を見るには<code>openlimiter snapshot</code>を実行するだけで済みますし、<code>statusline.meters all</code>を設定すれば、すべてのmeterをそれぞれ独自のセルとして行に含められます。",
+              "stacking": "予算より幅の広い行は、切り捨てられるのではなく折り返されます。区切りは2つのセルの間に入り、セルの内側に入ることは決してありません。半分のバーは1つの値として読めてしまい、それは本来の値ではないためです。2行が上限です。それを超えると、上限に最も近いプロバイダーが残され、最後の行の末尾に、表示しきれなかった数が示されます。",
+              "calloutTitle": "古い行も、設定1つで戻せます",
+              "calloutBody": "<code>openlimiter config set statusline.bars false</code>は、0.1.0が出力していた単純な1行を、それをすでにパースしている何にとってもバイト単位で正確に復元します。テストがその文字列を固定しているため、この抜け道が静かに劣化することはありません。"
             },
             "config": {
-              "body": "Reads and changes the statusline layout in the configuration file. Every key is validated before it is written, a rejected value exits 2 and names what it wanted, and nothing outside the statusline section can be changed by this command. See <docs>configuration</docs> for what each key accepts."
+              "body": "設定ファイルの中のstatuslineレイアウトを読み書きします。すべてのキーは書き込まれる前に検証され、拒否された値は終了コード2になり、期待していたものが示されます。このコマンドが変更できるのは、statuslineのセクションの外側にあるものではありません。各キーが受け付ける値については<docs>設定</docs>を参照してください。"
             },
             "hook": {
-              "body": "Emits the agent context block from the cache. It performs no network access, writes nothing, and injects nothing when every provider is unknown. See <docs>agent context</docs> for the exact format."
+              "body": "キャッシュからagent context blockを出力します。ネットワークアクセスは一切行わず、何も書き込まず、すべてのプロバイダーがunknownのときは何も渡しません。正確な形式については<docs>agent context</docs>を参照してください。"
             },
             "ingest": {
-              "body": "Accepts a quota document from any script or agent, on standard input or inline with <code>--payload</code>. Without <code>--provider</code> the document is a manual document. With it, the document goes to that connector's parser and keeps that connector's labels."
+              "body": "どんなスクリプトやエージェントからも、標準入力または<code>--payload</code>によるインラインで、quotaのドキュメントを受け取ります。<code>--provider</code>がない場合、そのドキュメントは手動ドキュメントになります。指定した場合、そのドキュメントはそのconnectorのパーサーへ渡され、そのconnectorのラベルを保ちます。"
             },
             "doctor": {
-              "body": "Reports connector detection, freshness, drift, and cache health. Drift stays <code>UNVERIFIED</code> until an explicit verifier exists, and the output is redacted by design."
+              "body": "connectorの検出状況、鮮度、drift、キャッシュの健全性を報告します。driftは、明示的な検証者が現れるまで<code>UNVERIFIED</code>のままで、出力は設計上マスクされています。"
             },
             "demo": {
-              "body": "Renders synthetic fixtures so you can see the output shape without any real account. Every value it prints is invented. The block below is the real output of that command, pasted in unedited."
+              "body": "実際のアカウントに一切触れずに出力の形を確認できるよう、合成フィクスチャを描画します。出力される値はすべて架空のものです。以下のブロックは、そのコマンドの実際の出力を、編集せずに貼り付けたものです。"
             },
             "export": {
-              "body": "Prints the cache as canonical JSON, suitable for a script to parse. Exits 3 when the cache holds no bounded quota data."
+              "body": "スクリプトがパースしやすい正規のJSONとしてキャッシュを出力します。キャッシュに範囲の定まったquotaデータがない場合は終了コード3になります。"
             },
             "serve": {
-              "body": "Serves a read only snapshot of your quota on your own local network, so a phone on the same network can see it. Prints the address and a QR code to scan. A fresh token is generated every time the command starts, and it rides in the URL fragment after <code>#t=</code>, which a server never receives. The page moves that token into the tab's own <code>sessionStorage</code> and cleans the address bar on first load, so no browser history anywhere keeps the capability. Every refetch after that sends the token as an <code>Authorization: Bearer</code> header instead of a URL parameter. An address printed by last release, with the token as a query parameter, still answers for this one release, so nothing already scanned or saved breaks.",
-              "calloutTitle": "Anyone who can see the screen can read the quota",
-              "calloutBody": "The address and the code ARE the key: anyone who can see this screen, or a photograph of it, can read your quota for as long as the command keeps running. This listens on every interface on the machine, so do not port forward this port and do not open it on a firewall. It is meant for a trusted home or office network, never for the open internet, and it exposes only the bounded fields the agent context carries."
+              "body": "あなたのquotaの読み取り専用スナップショットを、あなた自身のローカルネットワーク上で提供し、同じネットワーク上のスマートフォンから見られるようにします。アドレスとスキャン用のQRコードを出力します。コマンドが起動するたびに新しいトークンが生成され、サーバーが決して受け取ることのないURLフラグメントの<code>#t=</code>の後ろに乗って運ばれます。ページは初回読み込み時にそのトークンをタブ自身の<code>sessionStorage</code>へ移し、アドレスバーを消去するため、どのブラウザ履歴にもその能力は残りません。それ以降の再取得はすべて、URLパラメータではなく<code>Authorization: Bearer</code>ヘッダーとしてトークンを送ります。前のリリースが出力していた、トークンをクエリパラメータとして含むアドレスも、このリリース1回分は引き続き応答するため、すでにスキャンまたは保存されたものが壊れることはありません。",
+              "calloutTitle": "画面を見られる人は誰でもquotaを読み取れます",
+              "calloutBody": "アドレスとコードそのものが鍵です。この画面を見られる人、あるいはその写真を見られる人は誰でも、そのコマンドが動き続けている限り、あなたのquotaを読み取れます。これはマシン上のすべてのインターフェースで待ち受けるため、このポートをポートフォワードしたり、ファイアウォールで開けたりしないでください。信頼できる自宅やオフィスのネットワーク向けであり、開かれたインターネット向けでは決してなく、公開するのはagent contextが運ぶ、範囲の定まったフィールドだけです。"
             }
           },
           "exit-codes": {
-            "title": "Exit codes",
-            "caption": "Exit codes and what they mean",
+            "title": "終了コード",
+            "caption": "終了コードとその意味",
             "columns": {
-              "code": "code",
-              "meaning": "meaning"
+              "code": "コード",
+              "meaning": "意味"
             },
             "rows": {
-              "success": "Success.",
-              "failure": "A genuine failure.",
-              "usage": "A usage error, such as an unknown provider id.",
-              "noData": "No bounded quota data is available."
+              "success": "成功。",
+              "failure": "本物の失敗。",
+              "usage": "未知のプロバイダーidなどの、使用エラー。",
+              "noData": "範囲の定まったquotaデータが利用できません。"
             },
-            "calloutTitle": "hook and statusline always exit 0",
-            "calloutBody": "Both are invoked by another tool, so they report unknown instead of breaking their host. Every other command surfaces a failure on standard error using a fixed set of strings that never carry provider text, paths taken from a payload, or secrets."
+            "calloutTitle": "hookとstatuslineは常に終了コード0です",
+            "calloutBody": "どちらも別のツールから呼び出されるため、ホストを壊す代わりにunknownを報告します。それ以外のすべてのコマンドは、プロバイダーのテキストも、ペイロードから取ったパスも、秘密も一切運ばない、固定された文字列の集合を使って、標準エラー出力に失敗を表します。"
           },
           "notes": {
-            "title": "Behaviour worth knowing",
+            "title": "知っておく価値のある振る舞い",
             "bullets": {
-              "stdin": "Standard input is bounded and time limited, so a command never waits on a stream that does not end.",
-              "truncated": "Displayed percentages are truncated rather than rounded, so no surface can report a cap that was not reached.",
-              "flags": "<code>--provider</code> and <code>--payload</code> each need a value. Passing the flag without one is a usage error.",
-              "noNetwork": "In this release no command reaches the network. Every path is a parser over something already on your machine."
+              "stdin": "標準入力は範囲と時間の両方が制限されているため、コマンドが終わらないストリームを待ち続けることは決してありません。",
+              "truncated": "表示されるパーセンテージは、丸められるのではなく切り捨てられるため、どの画面も到達していない上限を報告することはありません。",
+              "flags": "<code>--provider</code>と<code>--payload</code>はそれぞれ値を必要とします。値なしでフラグだけを渡すと使用エラーになります。",
+              "noNetwork": "このリリースでは、どのコマンドもネットワークに触れません。すべての経路は、あなたのマシン上にすでにある何かに対するパーサーです。"
             }
           }
         }
       },
       "security": {
-        "title": "Security and privacy",
-        "description": "What OpenLimiter guarantees, what it deliberately does not do, and how to report a problem.",
-        "lead": "OpenLimiter runs on your machine and reads things that are already there. This page states what that guarantees, what it deliberately does not do, and how to report a problem.",
+        "title": "セキュリティとプライバシー",
+        "description": "OpenLimiterが保証すること、意図的にしないこと、そして問題を報告する方法。",
+        "lead": "OpenLimiterはあなたのマシン上で動き、すでにそこにあるものを読み取ります。このページは、それが何を保証し、意図的に何をしないか、そして問題を報告する方法を述べます。",
         "sections": {
           "guarantees": {
-            "title": "The guarantees",
-            "calloutTitle": "What OpenLimiter guarantees",
+            "title": "保証していること",
+            "calloutTitle": "OpenLimiterが保証すること",
             "bullets": {
-              "noServer": "<strong>There is no OpenLimiter server.</strong> Nothing is sent to the project authors, because there is nowhere to send it.",
-              "noTelemetry": "<strong>There is no telemetry.</strong> No command sends usage, diagnostics, identifiers, prompts, or quota state anywhere.",
-              "hookNoNetwork": "<strong>The hook makes no network request.</strong> It reads the local cache and nothing else.",
-              "noEgress": "<strong>This release performs no egress at all.</strong> No connector contacts a provider. Every one of them is a parser over data something else already produced.",
-              "unknownNeverZero": "<strong>Unknown never becomes zero.</strong> Missing, expired, malformed, and unrecognised input all resolve to unknown.",
-              "readOnlyArtifacts": "<strong>Provider authentication artifacts are read only.</strong> They are never rewritten, backed up, repaired, or migrated."
+              "noServer": "<strong>OpenLimiterのサーバーはありません。</strong>プロジェクトの作者に何かが送られることはありません。送り先がそもそも存在しないためです。",
+              "noTelemetry": "<strong>テレメトリーはありません。</strong>使用状況、診断情報、識別子、プロンプト、quotaの状態を、どこかへ送るコマンドは1つもありません。",
+              "hookNoNetwork": "<strong>hookはネットワークへのリクエストを行いません。</strong>ローカルキャッシュを読み取るだけで、それ以外は何もしません。",
+              "noEgress": "<strong>このリリースは外部送信を一切行いません。</strong>プロバイダーに接続するconnectorはありません。そのすべてが、別の何かがすでに生成したデータに対するパーサーです。",
+              "unknownNeverZero": "<strong>unknownが0になることは決してありません。</strong>欠落、期限切れ、不正な形式、認識できない入力は、すべてunknownに解決されます。",
+              "readOnlyArtifacts": "<strong>プロバイダーの認証情報は読み取り専用です。</strong>書き換えられたり、バックアップされたり、修復されたり、移行されたりすることは決してありません。"
             }
           },
           "injection-boundary": {
-            "title": "The agent context boundary",
-            "intro": "Provider text is untrusted data. A block injected into a prompt is an injection surface, so the pipeline is built so that no provider supplied text can reach it.",
+            "title": "agent contextの境界",
+            "intro": "プロバイダーのテキストは、信頼できないデータです。プロンプトに渡されるブロックはインジェクションの経路であるため、プロバイダーが供給したテキストがそこに届かないように、パイプライン全体が組み立てられています。",
             "bullets": {
-              "parsers": "Connector parsers select known numeric fields and known timestamps. They discard labels, messages, account text, markup, and every unknown field.",
-              "advice": "The advice engine emits only provider enum codes, reason enum codes, bounded percentages, freshness enum codes, and timestamps.",
-              "adapter": "The Claude Code adapter validates all of those again and wraps them in an explicit untrusted data boundary before anything is written.",
-              "unknown": "If every provider is unknown, the adapter injects nothing."
+              "parsers": "connectorのパーサーは既知の数値フィールドと既知のタイムスタンプだけを選び取ります。ラベル、メッセージ、アカウントのテキスト、マークアップ、未知のフィールドはすべて破棄されます。",
+              "advice": "アドバイスエンジンが出すのは、プロバイダーのenumコード、理由のenumコード、範囲の定まったパーセンテージ、鮮度のenumコード、タイムスタンプだけです。",
+              "adapter": "Claude Codeのadapterは、何かを書き込む前にそのすべてを再度検証し、明示的な信頼できないデータの境界に包みます。",
+              "unknown": "すべてのプロバイダーがunknownの場合、adapterは何も渡しません。"
             },
-            "exactBlock": "The exact block, field by field, is on the <docs>agent context page</docs>."
+            "exactBlock": "そのブロックの正確な中身は、フィールドごとに<docs>agent contextのページ</docs>に記載されています。"
           },
           "secrets": {
-            "title": "Secret handling",
-            "intro": "The only credential the project has a concept of is an OpenRouter key, and it belongs in your operating system credential store. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs. The credential library call sits behind an interface, and the tests use only a memory implementation with a synthetic key.",
+            "title": "秘密情報の扱い",
+            "intro": "このプロジェクトが概念として持つ唯一の認証情報はOpenRouterのキーであり、オペレーティングシステムの認証情報ストアに置くものです。リポジトリのファイル、キャッシュファイル、エクスポート、診断出力、フィクスチャ、ログのいずれにも、決して現れてはいけません。認証情報ライブラリの呼び出しはインターフェースの裏にあり、テストでは合成のキーを使ったメモリ実装だけが使われます。",
             "local-state": {
-              "title": "Local state",
-              "body": "The state directory is created with restrictive permissions where the platform supports them, a path that turns out to be a symbolic link is rejected rather than followed, and every file replacement is atomic. See <docs>configuration</docs> for the paths."
+              "title": "ローカルの状態",
+              "body": "プラットフォームが対応している場合、状態ディレクトリは制限的なパーミッションで作成され、シンボリックリンクだと判明したパスはたどられるのではなく拒否され、すべてのファイルの置き換えはアトミックです。パスについては<docs>設定</docs>を参照してください。"
             }
           },
           "honest-limits": {
-            "title": "Honest limitations",
-            "calloutTitle": "Read this before you rely on a number",
+            "title": "正直な限界",
+            "calloutTitle": "数値を信頼する前に、これを読んでください",
             "bullets": {
-              "noOfficialApi": "Most consumer subscription providers offer no official quota API. Several connectors therefore describe unofficial interfaces that can change or disappear without notice.",
-              "unverified": "Every connector ships marked <code>UNVERIFIED</code>. Nothing here has been confirmed against a live account by an explicit verifier.",
-              "opencode": "The OpenCode connector describes an authenticated page shape and carries high automation risk. Treat it as the most fragile of the six.",
-              "adviceOnly": "OpenLimiter provides routing advice. It does not route requests automatically, bypass limits, or change how your agent authenticates."
+              "noOfficialApi": "ほとんどのコンシューマー向けサブスクリプションのプロバイダーは、公式のquota APIを提供していません。そのため、いくつかのconnectorは、予告なく変更されたり消えたりしうる非公式なインターフェースを扱っています。",
+              "unverified": "すべてのconnectorは<code>UNVERIFIED</code>のマークつきで提供されます。ここにあるものは何一つ、明示的な検証者によって実際のアカウントに対して確認されていません。",
+              "opencode": "OpenCodeのconnectorは、認証が必要なページの構造を扱っており、自動化リスクが高いものです。6つの中で最も壊れやすいものとして扱ってください。",
+              "adviceOnly": "OpenLimiterはルーティングのアドバイスを提供します。自動でリクエストをルーティングすることも、上限を回避することも、エージェントの認証の仕組みを変えることもありません。"
             }
           },
           "future-egress": {
-            "title": "If a future connector goes to the network",
-            "intro": "This release performs no provider egress. A future connector that does would have to satisfy all of the following before it could ship.",
+            "title": "将来のconnectorがネットワークに接続するとしたら",
+            "intro": "このリリースは、プロバイダーへの外部送信を一切行いません。将来そうするconnectorがあれば、提供される前に以下のすべてを満たす必要があります。",
             "bullets": {
-              "oneHost": "Declare one exact provider host.",
-              "transport": "Use secure transport and reject any redirect outside that host.",
-              "bounds": "Set a short timeout and bound the response size.",
-              "status": "Document its interface status honestly.",
-              "sendNothing": "Send no cache content, no other provider state, no prompts, no source code, and no diagnostics."
+              "oneHost": "1つの正確なプロバイダーホストを宣言する。",
+              "transport": "安全な通信経路を使い、そのホスト以外へのリダイレクトはすべて拒否する。",
+              "bounds": "短いタイムアウトを設定し、レスポンスサイズに上限を設ける。",
+              "status": "そのインターフェースの状態を正直に文書化する。",
+              "sendNothing": "キャッシュの内容も、他のプロバイダーの状態も、プロンプトも、ソースコードも、診断情報も、何一つ送らない。"
             }
           },
           "reporting": {
-            "title": "Reporting a problem",
-            "address": "Report a suspected vulnerability privately to <code>security@openlimiter.com</code>. Include a concise description, the affected version, reproduction steps using synthetic data, and the expected impact. Do not include real credentials or provider account data. That address is a project placeholder until the public security intake is activated.",
-            "scope": "In scope: secret disclosure, provider artifact mutation, unsafe cache behaviour, symbolic link bypass, parser bounds bypass, agent context injection, and unexpected network egress. Connector drift with no security impact is a compatibility issue, so please open a connector request instead. The full policy lives in <policy>SECURITY.md</policy> and the reasoning in <threat>THREAT_MODEL.md</threat>.",
-            "supported": "Only the latest released version receives security fixes during the initial development period."
+            "title": "問題を報告する",
+            "address": "疑わしい脆弱性は、<code>security@openlimiter.com</code>宛に非公開で報告してください。簡潔な説明、影響を受けるバージョン、合成データを使った再現手順、想定される影響を含めてください。実際の認証情報やプロバイダーのアカウントデータは含めないでください。このアドレスは、公開のセキュリティ受付が有効になるまでのプロジェクトの仮の窓口です。",
+            "scope": "対象範囲：秘密情報の漏えい、プロバイダーの認証情報の改変、安全でないキャッシュの振る舞い、シンボリックリンクの回避、パーサーの範囲チェックの回避、agent contextへのインジェクション、想定外のネットワーク外部送信です。セキュリティへの影響がないconnectorのdriftは互換性の問題なので、代わりにconnectorのリクエストを開いてください。完全なポリシーは<policy>SECURITY.md</policy>に、その理由は<threat>THREAT_MODEL.md</threat>にあります。",
+            "supported": "初期開発期間中、セキュリティ修正を受け取るのは最新のリリース済みバージョンのみです。"
           }
         }
       },
       "roadmap": {
-        "title": "Roadmap",
-        "description": "What is planned and not yet built: mobile applications, encrypted sync, and signed builds with an automatic update channel.",
-        "lead": "What is on this page is not yet built, with one exception noted at the top so nothing here reads as a promise about something that already ships. None of the planned work can be downloaded, bought, or waited for on a list. It is written down so the shape of the project is honest about where it is going.",
+        "title": "ロードマップ",
+        "description": "計画されていてまだ作られていないもの：モバイルアプリケーション、暗号化された同期、自動更新の仕組みを備えた署名済みビルド。",
+        "lead": "このページにあるものはまだ作られていません。冒頭に記した1つの例外を除いて、ここにあるものがすでに提供されている何かについての約束として読めてしまわないようにしています。計画中の作業は、どれもダウンロードすることも、購入することも、リストで待つこともできません。プロジェクトの向かう先について誠実であるために、ここに書き出しています。",
         "sections": {
           "not-available": {
-            "title": "Read this first",
-            "calloutTitle": "Planned means not built",
-            "calloutBody": "Everything called planned below does not exist today. There is no mobile application in any store and no synchronisation service running anywhere. What works today is documented on the rest of this site, and the difference between the two is deliberate."
+            "title": "まずこれを読んでください",
+            "calloutTitle": "計画中とは、作られていないという意味です",
+            "calloutBody": "以下で計画中と呼ばれているものは、今日の時点でどれも存在しません。どのストアにもモバイルアプリケーションはなく、どこにも同期サービスは動いていません。今日動いているものは、このサイトの他の部分に文書化されており、この2つの違いは意図的なものです。"
           },
           "desktop": {
-            "title": "Shipped: the desktop application",
-            "intro": "A small desktop application with a tray icon next to the system clock, reading the same local cache the command line tool writes, so quota is glanceable without a terminal open. It is built, and packaged builds for Windows, macOS and Linux are all attached to the release on GitHub.",
+            "title": "提供済み：デスクトップアプリケーション",
+            "intro": "システム時計の横にトレイアイコンを持つ小さなデスクトップアプリケーションで、コマンドラインツールが書き込むのと同じローカルキャッシュを読み取るため、ターミナルを開かなくてもquotaを一目で確認できます。すでに作られており、Windows、macOS、Linux向けにパッケージ化されたビルドはすべて、GitHub上のリリースに添付されています。",
             "bullets": {
-              "status": "Status: shipped on Windows, macOS and Linux. Every build is on the releases page, and the download page links each file directly.",
-              "signing": "Planned: code signing on Windows and notarisation on macOS. Until those are done, SmartScreen and Gatekeeper warn on first run.",
-              "updates": "Planned: an automatic update channel. There is none today."
+              "status": "状態：Windows、macOS、Linuxで提供済みです。すべてのビルドはリリースページにあり、ダウンロードページから各ファイルへ直接リンクしています。",
+              "signing": "計画中：Windowsでのコード署名とmacOSでの公証です。それが済むまで、初回起動時にSmartScreenとGatekeeperが警告を出します。",
+              "updates": "計画中：自動更新の仕組みです。今日の時点ではまだありません。"
             }
           },
           "mobile": {
-            "title": "Planned: native mobile applications",
-            "intro": "Applications for iOS and Android, so a long running window can be checked away from the desk. The web app already installs to a phone home screen and works offline, which is the part of this that exists.",
+            "title": "計画中：ネイティブのモバイルアプリケーション",
+            "intro": "デスクを離れていても、長時間動くウィンドウを確認できるようにするための、iOSとAndroid向けのアプリケーションです。Webアプリはすでにスマートフォンのホーム画面にインストールでき、オフラインでも動きます。これが、この中で今すでに存在している部分です。",
             "bullets": {
-              "status": "Status: planned. Nothing is submitted to any store.",
-              "dependsOnSync": "A phone cannot read a file on your laptop, so a native application that shows the numbers on your desk machine depends on the synchronisation work below."
+              "status": "状態：計画中です。どのストアにも何も提出されていません。",
+              "dependsOnSync": "スマートフォンは、あなたのノートパソコン上のファイルを読み取れません。そのため、デスク機の数値をスマートフォン上に表示するネイティブアプリケーションは、下記の同期の作業に依存します。"
             }
           },
           "sync": {
-            "title": "Planned: OpenLimiter Pro",
-            "intro": "Everything that can only run on a server, gathered into one planned paid tier at $5 a month, founding price. Nothing that runs locally today moves behind it: Pro sells servers and service, not switches. See <pricing>pricing</pricing> for the card as it stands.",
+            "title": "計画中：OpenLimiter Pro",
+            "intro": "サーバー上でしか動かせないものすべてを、月5ドルの計画中の有料プラン1つに集めたものです（先行価格）。今日ローカルで動いているものが、このプランの裏に回されることはありません。Proが売るのはサーバーとサービスであり、スイッチではありません。現時点のカードについては<pricing>料金</pricing>を参照してください。",
             "bullets": {
-              "status": "Status: planned. No service exists, there is no checkout and no waiting list.",
-              "sync": "Encrypted synchronisation of quota state across your own devices.",
-              "push": "Push notifications to your phone when a window nears its cap.",
-              "smartLimiter": "A smart limiter: quota aware routing between your models, driven by live budget state.",
-              "email": "Email alerts and a weekly digest, with delivery rules for quiet hours.",
-              "history": "Hosted usage history and burn trends across every device.",
-              "priority": "Priority connector requests, so your provider gets built first.",
-              "team": "A team dashboard tier, later than the rest.",
-              "localFirst": "The local first guarantee does not change: the CLI would keep working with no account and no network."
+              "status": "状態：計画中です。サービスは存在せず、チェックアウトも待機リストもありません。",
+              "sync": "あなたのデバイス間でのquota状態の暗号化された同期。",
+              "push": "ウィンドウが上限に近づいたときのスマートフォンへのプッシュ通知。",
+              "smartLimiter": "smart limiter：ライブの予算状態にもとづく、あなたのモデル間のquotaを意識したルーティング。",
+              "email": "メール通知と週次ダイジェスト。静かにしておきたい時間帯のための配信ルールつきです。",
+              "history": "全デバイスにわたるホスト型の使用履歴と消費トレンド。",
+              "priority": "あなたのプロバイダーを優先的に作ってもらえる、優先的なconnectorリクエスト。",
+              "team": "他より後になる、チームダッシュボードプラン。",
+              "localFirst": "ローカルファーストという保証は変わりません。CLIはアカウントなし、ネットワークなしで、これまでどおり動き続けます。"
             }
           },
           "following": {
-            "title": "Following the work",
-            "body": "There is no waitlist and no email capture. The honest place to watch is the <issues>issue tracker</issues>, where the work is planned in public."
+            "title": "作業を追いかける",
+            "body": "ウェイティングリストも、メールの登録も、ありません。誠実に見守れる場所は<issues>issueトラッカー</issues>で、そこで作業は公開の場で計画されています。"
           }
         }
       }
