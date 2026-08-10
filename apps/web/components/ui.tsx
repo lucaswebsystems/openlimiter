@@ -1,4 +1,6 @@
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
+import { SiteLink } from "./site-link";
 import { reveal } from "@/lib/motion";
 
 /**
@@ -68,6 +70,19 @@ const buttonTone = {
 
 export type ButtonTone = keyof typeof buttonTone;
 
+/**
+ * A button that is a link.
+ *
+ * IT ROUTES INTERNAL DESTINATIONS THROUGH SiteLink
+ * ------------------------------------------------
+ * It used to render a bare `<a href>` for every destination, which was right
+ * when the site had one language. It is not right now: an internal `<a href>`
+ * loses the locale, so a Portuguese page's download button would send the reader
+ * back to the English page. Rather than fixing that at every call site, and
+ * missing one, the decision is made here once: an address off this site keeps its
+ * anchor, its target and its `rel`, and everything else goes through the link
+ * component that knows the prefix rule.
+ */
 export function ButtonLink({
   href,
   tone = "ghost",
@@ -84,17 +99,27 @@ export function ButtonLink({
   label?: string;
   children: ReactNode;
 }) {
-  const externalProps = external ? { target: "_blank", rel: "noopener noreferrer" } : {};
   const naming = label === undefined ? {} : { "aria-label": label, title: label };
+  const classes = `${buttonBase} ${buttonTone[tone]} ${className}`;
+
+  if (external) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        {...naming}
+        className={classes}
+      >
+        {children}
+      </a>
+    );
+  }
+
   return (
-    <a
-      href={href}
-      {...externalProps}
-      {...naming}
-      className={`${buttonBase} ${buttonTone[tone]} ${className}`}
-    >
+    <SiteLink href={href} {...naming} className={classes}>
       {children}
-    </a>
+    </SiteLink>
   );
 }
 
@@ -121,20 +146,32 @@ export function IconButtonLink({
   solid?: boolean;
   children: ReactNode;
 }) {
-  const externalProps = external ? { target: "_blank", rel: "noopener noreferrer" } : {};
   const fill = solid
     ? "bg-surface hover:border-heading hover:bg-raised"
     : "bg-transparent hover:border-heading hover:bg-surface";
+  const classes = `lift-sm focus-ring inline-flex items-center justify-center rounded-lg border border-hairline-strong px-3 py-2 text-heading ${fill}`;
+
+  /* Same rule as ButtonLink: off site keeps the anchor, on site goes through the
+     component that knows about locales. */
+  if (external) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={label}
+        title={label}
+        className={classes}
+      >
+        {children}
+      </a>
+    );
+  }
+
   return (
-    <a
-      href={href}
-      {...externalProps}
-      aria-label={label}
-      title={label}
-      className={`lift-sm focus-ring inline-flex items-center justify-center rounded-lg border border-hairline-strong px-3 py-2 text-heading ${fill}`}
-    >
+    <SiteLink href={href} aria-label={label} title={label} className={classes}>
       {children}
-    </a>
+    </SiteLink>
   );
 }
 
@@ -253,10 +290,12 @@ export function SectionPanel({
  * is a reading from a real account.
  */
 export function DemoDataChip() {
+  const t = useTranslations("common");
+
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-raised px-2 py-1 font-mono text-2xs uppercase tracking-wider text-muted">
       <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent-solid" />
-      Demo data
+      {t("demoData")}
     </span>
   );
 }

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { AboutCard } from "@/components/about-card";
 import { BrandLockup } from "@/components/brand";
 import { DeviceFrame } from "@/components/device-frame";
@@ -8,6 +8,7 @@ import { IntegrationStrip } from "@/components/integration-strip";
 import { JsonLd } from "@/components/json-ld";
 import { Pricing } from "@/components/pricing";
 import { RunsWhere } from "@/components/runs-where";
+import { SiteLink } from "@/components/site-link";
 import { SHELL } from "@/components/ui";
 import { WebApp } from "@/components/web-app";
 import { WorksWith } from "@/components/works-with";
@@ -18,6 +19,7 @@ import {
   websiteSchema,
 } from "@/lib/jsonld";
 import { reveal } from "@/lib/motion";
+import { type LocaleParams, pageLocale } from "@/i18n/params";
 
 /**
  * The home page.
@@ -51,49 +53,58 @@ import { reveal } from "@/lib/motion";
  * are told properly in the documentation and one of them is on a phone card
  * further up, so the page keeps one line and gives the screen back.
  */
-function DocsLine() {
+async function DocsLine() {
+  const t = await getTranslations("home");
+
+  /* One sentence with two links inside it, so it is one message with two tags
+     rather than five fragments a translator would have to reassemble. The word
+     order around the links is theirs to change. */
+  const linkClass = "focus-ring rounded text-accent transition-colors hover:text-accent-hover";
+
   return (
     <p className="text-sm leading-relaxed text-muted" {...reveal}>
-      Both of those are written up in full:{" "}
-      <Link
-        href="/docs/agent-context"
-        className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
-      >
-        what an agent is told
-      </Link>{" "}
-      and{" "}
-      <Link
-        href="/docs/cli"
-        className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
-      >
-        every command it ships with
-      </Link>
-      .
+      {t.rich("docsLine", {
+        agentContext: (chunks) => (
+          <SiteLink href="/docs/agent-context" className={linkClass}>
+            {chunks}
+          </SiteLink>
+        ),
+        cli: (chunks) => (
+          <SiteLink href="/docs/cli" className={linkClass}>
+            {chunks}
+          </SiteLink>
+        ),
+      })}
     </p>
   );
 }
 
-function BridgeBand() {
+async function BridgeBand() {
+  const t = await getTranslations("home");
+
   return (
     <div className="flex flex-col items-center gap-1.5 px-6 pb-16 pt-4" {...reveal}>
       <BrandLockup markClassName="h-6 w-6 flex-none text-brand" wordClassName="text-base" />
-      <p className="text-center text-lg text-soft">
-        When you step away from the desk, the numbers are still on your own disk.
-      </p>
-      <p className="text-center text-sm text-muted">
-        Nothing had to be uploaded to make that true.
-      </p>
+      <p className="text-center text-lg text-soft">{t("bridge.line")}</p>
+      <p className="text-center text-sm text-muted">{t("bridge.note")}</p>
     </div>
   );
 }
 
-export default function Home() {
+export default async function Home({ params }: LocaleParams) {
+  const locale = await pageLocale(params);
+
+  /* The questions, read once and handed to the structured data. The FAQ section
+     below reads the same namespace, so the answer a crawler parses and the
+     answer a reader opens are the same string. See components/faq.tsx. */
+  const faq = await getTranslations("faq");
+
   return (
     <main id="main">
       <JsonLd data={organizationSchema()} />
-      <JsonLd data={websiteSchema()} />
-      <JsonLd data={softwareApplicationSchema()} />
-      <JsonLd data={faqPageSchema(faqItems)} />
+      <JsonLd data={await websiteSchema(locale)} />
+      <JsonLd data={await softwareApplicationSchema(locale)} />
+      <JsonLd data={faqPageSchema(faqItems(faq), locale)} />
       <Hero />
       <DeviceFrame />
       <BridgeBand />

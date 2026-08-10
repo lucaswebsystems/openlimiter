@@ -1,23 +1,51 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { docGroups } from "@/lib/docs";
+import { SiteLink } from "@/components/site-link";
+import { usePathname } from "@/i18n/navigation";
 
-function GroupList({ pathname }: { pathname: string }) {
+/**
+ * The persistent documentation navigation.
+ *
+ * The full variant sticks beside the content from the large breakpoint up. The
+ * compact variant takes over below it as a native disclosure, which keeps the
+ * keyboard and screen reader behaviour the browser already provides. Only one of
+ * the two is ever in the tree, so there is a single navigation landmark.
+ *
+ * WHY THE LABELS ARRIVE AS PROPS
+ * ------------------------------
+ * This is the one piece of the documentation that has to hydrate, because
+ * highlighting the current page means knowing which page that is. It could read
+ * the catalog itself, but the `docs` namespace holds every page's meta
+ * description and lead as well as its label, and shipping all of it to the
+ * browser so a list can bold one row would put the whole documentation's prose
+ * into the HTML of every documentation page. The layout reads the catalog on the
+ * server and sends down eleven labels.
+ *
+ * `usePathname` is next-intl's, and it has to be: Next's own would report
+ * `/pt-BR/docs/cli`, which matches none of the routes in the map, and the
+ * current page would never be marked on any translated page.
+ */
+
+export interface SidebarGroup {
+  id: string;
+  label: string;
+  pages: readonly { href: string; label: string }[];
+}
+
+function GroupList({ groups, pathname }: { groups: readonly SidebarGroup[]; pathname: string }) {
   return (
     <div className="space-y-7">
-      {docGroups.map((group) => (
-        <div key={group.title}>
+      {groups.map((group) => (
+        <div key={group.id}>
           <p className="mb-2.5 font-mono text-2xs uppercase tracking-widest text-muted">
-            {group.title}
+            {group.label}
           </p>
           <ul className="space-y-0.5">
             {group.pages.map((page) => {
               const active = pathname === page.href;
               return (
                 <li key={page.href}>
-                  <Link
+                  <SiteLink
                     href={page.href}
                     aria-current={active ? "page" : undefined}
                     className={`focus-ring block rounded-md px-3 py-1.5 font-sans text-sm transition-colors ${
@@ -26,8 +54,8 @@ function GroupList({ pathname }: { pathname: string }) {
                         : "text-body hover:bg-surface hover:text-heading"
                     }`}
                   >
-                    {page.title}
-                  </Link>
+                    {page.label}
+                  </SiteLink>
                 </li>
               );
             })}
@@ -38,25 +66,27 @@ function GroupList({ pathname }: { pathname: string }) {
   );
 }
 
-/**
- * The persistent documentation navigation.
- *
- * The full variant sticks beside the content from the large breakpoint up. The
- * compact variant takes over below it as a native disclosure, which keeps the
- * keyboard and screen reader behaviour the browser already provides. Only one
- * of the two is ever in the tree, so there is a single navigation landmark.
- */
-export function DocsSidebar({ variant }: { variant: "full" | "compact" }) {
+export function DocsSidebar({
+  variant,
+  groups,
+  navLabel,
+  menuLabel,
+}: {
+  variant: "full" | "compact";
+  groups: readonly SidebarGroup[];
+  navLabel: string;
+  menuLabel: string;
+}) {
   const pathname = usePathname();
 
   if (variant === "compact") {
     return (
       <details className="mb-8 rounded-xl border border-hairline bg-surface">
         <summary className="focus-ring cursor-pointer rounded-xl px-4 py-3 font-sans text-sm font-medium text-heading">
-          Documentation menu
+          {menuLabel}
         </summary>
-        <nav aria-label="Documentation" className="border-t border-hairline px-2 py-4">
-          <GroupList pathname={pathname} />
+        <nav aria-label={navLabel} className="border-t border-hairline px-2 py-4">
+          <GroupList groups={groups} pathname={pathname} />
         </nav>
       </details>
     );
@@ -64,10 +94,10 @@ export function DocsSidebar({ variant }: { variant: "full" | "compact" }) {
 
   return (
     <nav
-      aria-label="Documentation"
+      aria-label={navLabel}
       className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pb-10"
     >
-      <GroupList pathname={pathname} />
+      <GroupList groups={groups} pathname={pathname} />
     </nav>
   );
 }

@@ -4,105 +4,88 @@
  * One typed list drives the sidebar, the previous and next links at the foot of
  * every page, and the sitemap, so a page can never appear in one of those and
  * be missing from another.
+ *
+ * STRUCTURE HERE, WORDS IN THE CATALOG
+ * ------------------------------------
+ * This list used to carry each page's title and description as literals. The
+ * documentation is published in five languages now, so what stays here is the
+ * part that is the same in all five: the order, the grouping and the route.
+ * Every string moved to `docs.groups.*` and `docs.pages.*` in the catalogs,
+ * keyed by the identifiers below.
+ *
+ * The identifier is the last segment of the route, which is what makes the
+ * catalog readable beside the sidebar it draws: `docs.pages.cli.title` is the
+ * CLI page's label, and the front page of the documentation is `index`. It is
+ * written out rather than derived, so renaming a route cannot silently orphan a
+ * translated string in four other files.
  */
 
 export interface DocPage {
-  /** Route, always absolute. */
+  /** Catalog key. `docs.pages.<id>` holds this page's words. */
+  id: string;
+  /** Route, always absolute, always the unprefixed English spelling. */
   href: string;
-  /** Sidebar label and page heading. */
-  title: string;
-  /**
-   * The title tag, when a search result needs more words than a sidebar label
-   * can spare. A short label like "CLI reference" is right in the navigation
-   * and far too thin in a result page, so the two are allowed to differ. Left
-   * unset, the label is the title.
-   */
-  metaTitle?: string;
-  /** Meta description, and the lead paragraph under the heading. */
-  description: string;
 }
 
 export interface DocGroup {
-  title: string;
+  /** Catalog key. `docs.groups.<id>` is the heading over this group. */
+  id: string;
   pages: readonly DocPage[];
 }
 
 export const docGroups: readonly DocGroup[] = [
   {
-    title: "Start here",
+    id: "start",
     pages: [
       {
+        id: "index",
         href: "/docs",
-        title: "Getting started",
-        metaTitle: "Getting started: install and meter your quota",
-        description:
-          "Install the workspace, run the demo, and wire OpenLimiter into Claude Code in a few minutes.",
       },
       {
+        id: "why-openlimiter",
         href: "/docs/why-openlimiter",
-        title: "Why OpenLimiter",
-        description:
-          "When you hold several AI coding subscriptions the scarce resource stops being money and becomes quota.",
       },
     ],
   },
   {
-    title: "Using it",
+    id: "using",
     pages: [
       {
+        id: "providers",
         href: "/docs/providers",
-        title: "Supported providers",
-        description:
-          "The six connectors that ship today, what each one reads, and how likely it is to break.",
       },
       {
+        id: "connections",
         href: "/docs/connections",
-        title: "Connections",
-        metaTitle: "Connections: source chips and the state vocabulary",
-        description:
-          "What each connection state and source chip actually means, stated honestly, including what Import only does and does not do.",
       },
       {
+        id: "ingestion",
         href: "/docs/ingestion",
-        title: "Ingestion",
-        description:
-          "The three offline paths that put quota data in front of OpenLimiter, and what each one expects.",
       },
       {
+        id: "agent-context",
         href: "/docs/agent-context",
-        title: "Agent context",
-        description:
-          "What the Claude Code statusline and prompt hook inject, and the boundary that keeps provider text out.",
       },
       {
+        id: "configuration",
         href: "/docs/configuration",
-        title: "Configuration",
-        description:
-          "The state directory, the configuration file, the cache, and the settings Claude Code needs.",
       },
     ],
   },
   {
-    title: "Reference",
+    id: "reference",
     pages: [
       {
+        id: "cli",
         href: "/docs/cli",
-        title: "CLI reference",
-        metaTitle: "CLI reference: commands, flags and exit codes",
-        description:
-          "Every command the CLI accepts today, with its flags, its output, and its exit codes.",
       },
       {
+        id: "security",
         href: "/docs/security",
-        title: "Security and privacy",
-        description:
-          "What OpenLimiter guarantees, what it deliberately does not do, and how to report a problem.",
       },
       {
+        id: "roadmap",
         href: "/docs/roadmap",
-        title: "Roadmap",
-        description:
-          "What is planned and not yet built: mobile applications, encrypted sync, and signed builds with an automatic update channel.",
       },
     ],
   },
@@ -113,6 +96,11 @@ export const docPages: readonly DocPage[] = docGroups.flatMap((group) => group.p
 
 export function findDocPage(href: string): DocPage | undefined {
   return docPages.find((page) => page.href === href);
+}
+
+/** The same lookup from the other end, for a page that knows what it is. */
+export function findDocPageById(id: string): DocPage | undefined {
+  return docPages.find((page) => page.id === id);
 }
 
 export function docNeighbours(href: string): {

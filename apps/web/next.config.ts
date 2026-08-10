@@ -1,5 +1,13 @@
 import path from "node:path";
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+/**
+ * Points next-intl at the request configuration, which is what makes the
+ * message catalog available to a Server Component without every page having to
+ * load it by hand. See i18n/request.ts.
+ */
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -34,4 +42,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

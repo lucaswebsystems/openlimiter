@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 /**
@@ -21,6 +22,7 @@ import { useEffect, useState } from "react";
  * a scroll frame nothing measurable.
  */
 export function ScrollTop() {
+  const t = useTranslations("common");
   const [shown, setShown] = useState(false);
 
   useEffect(() => {
@@ -37,8 +39,8 @@ export function ScrollTop() {
   return (
     <button
       type="button"
-      aria-label="Back to top"
-      title="Back to top"
+      aria-label={t("backToTop")}
+      title={t("backToTop")}
       /* Hidden from everything, not merely invisible, until it is offered. A
          button a keyboard can reach and an eye cannot find is worse than no
          button at all. */

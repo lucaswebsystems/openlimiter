@@ -28,17 +28,19 @@
       ]
     }
   },
+  /* Only the default build directory's generated route types, plus this wave's.
+     Next writes one of these entries per OL_DIST_DIR it builds into, so the list
+     had grown a line per finished agent lane, and every one of them still
+     described routes at their old paths. After the routes moved under
+     app/[locale] those stale files stopped compiling, which would have failed the
+     build on artifacts nobody was using. A lane that needs its own entry gets it
+     written back automatically the first time it builds. */
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    ".next-caps/types/**/*.ts",
-    ".next-fold-build/types/**/*.ts",
-    ".next-fold/types/**/*.ts",
-    ".next-phone-install-verify/types/**/*.ts",
-    ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
-    "next-env.d.ts",
-    ".next-fable/types/**/*.ts"
+    ".next-i18n/types/**/*.ts",
+    "next-env.d.ts"
   ],
   "exclude": [
     "node_modules"

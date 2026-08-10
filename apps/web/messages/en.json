@@ -1,0 +1,146 @@
+{
+  "meta": {
+    "title": "OpenLimiter, quota awareness for AI coding agents",
+    "description": "OpenLimiter reads the quota of your AI subscriptions on your own machine and hands your coding agents bounded budget state plus routing advice. Open source, local first, zero telemetry."
+  },
+  "common": {
+    "skipToContent": "Skip to content",
+    "backToTop": "Back to top",
+    "homeAria": "OpenLimiter, home",
+    "demoData": "Demo data",
+    "theme": {
+      "label": "Theme",
+      "toggle": "Switch between the light and dark theme"
+    },
+    "routes": {
+      "docs": "Docs",
+      "webApp": "Web app",
+      "download": "Download",
+      "changelog": "Changelog",
+      "alternatives": "Alternatives",
+      "blog": "Blog"
+    }
+  },
+  "nav": {
+    "getPro": "Get Pro",
+    "sponsor": "Sponsor",
+    "githubAria": "OpenLimiter on GitHub",
+    "githubStarsAria": "OpenLimiter on GitHub, {count, plural, one {# star} other {# stars}}",
+    "menu": "Menu",
+    "closeMenu": "Close menu"
+  },
+  "announce": {
+    "message": "Founding promo: OpenLimiter Pro at 50% OFF for early supporters",
+    "short": "Promo: OpenLimiter Pro at 50% OFF for early supporters",
+    "dismiss": "Close this announcement"
+  },
+  "footer": {
+    "blurb": "Quota awareness for AI coding agents. It reads what your subscriptions have left on your own machine, hands your agents a bounded block of that state, and never invents a number it does not have.",
+    "builtBy": "Built by <name>{author}</name>",
+    "product": "Product",
+    "community": "Community",
+    "issues": "Issues",
+    "licenceNote": "Apache 2.0. Local first. Zero telemetry in the software. No accounts. This site keeps cookieless page counts only.",
+    "licenceRead": "Read the licence",
+    "security": "Security"
+  },
+  "localeSwitcher": {
+    "label": "Language"
+  },
+  "localeOffer": {
+    "title": "This site is available in English.",
+    "action": "Read in English",
+    "dismiss": "Dismiss"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "lead": "That address does not match anything on this site. It may have moved, or it may never have existed.",
+    "home": "Back to the home page",
+    "docs": "Read the documentation"
+  },
+  "download": {
+    "metaTitle": "Download",
+    "metaDescription": "Get OpenLimiter: packaged desktop builds for Windows, macOS and Linux, the command line tool from npm, or the web app in any browser. Mobile applications are not built."
+  },
+  "changelog": {
+    "metaTitle": "Changelog: every release and what changed",
+    "metaDescription": "Every released version of OpenLimiter, rendered from the CHANGELOG.md at the root of the repository."
+  },
+  "alternatives": {
+    "metaTitle": "Alternatives: other AI quota tools compared",
+    "metaDescription": "Honest comparisons between OpenLimiter and the other tools that read AI subscription quota, each one read off its own repository or store listing."
+  },
+  "docs": {
+    "groups": {
+      "start": "Start here",
+      "using": "Using it",
+      "reference": "Reference"
+    },
+    "sidebar": {
+      "label": "Documentation",
+      "menu": "Documentation menu"
+    },
+    "article": {
+      "breadcrumb": "Breadcrumb",
+      "pagesNav": "Documentation pages",
+      "previous": "Previous",
+      "next": "Next",
+      "onThisPage": "On this page"
+    },
+    "pages": {
+      "index": {
+        "title": "Getting started",
+        "metaTitle": "Getting started: install and meter your quota",
+        "description": "Install the workspace, run the demo, and wire OpenLimiter into Claude Code in a few minutes.",
+        "lead": "OpenLimiter is a quota meter for the AI subscriptions you already pay for. It runs on your machine, reads what your tools already wrote there, and hands your coding agents a bounded picture of what budget is left."
+      },
+      "why-openlimiter": {
+        "title": "Why OpenLimiter",
+        "description": "When you hold several AI coding subscriptions the scarce resource stops being money and becomes quota.",
+        "lead": "When you hold several AI coding subscriptions, the scarce resource stops being money and becomes quota. You already paid. The question that decides your afternoon is which of those plans still has room left."
+      },
+      "providers": {
+        "title": "Supported providers",
+        "description": "The six connectors that ship today, what each one reads, and how likely it is to break.",
+        "lead": "Six connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break."
+      },
+      "connections": {
+        "title": "Connections",
+        "metaTitle": "Connections: source chips and the state vocabulary",
+        "description": "What each connection state and source chip actually means, stated honestly, including what Import only does and does not do.",
+        "lead": "Every provider shows two things: a chip naming where its numbers came from, and, underneath, a state drawn from one vocabulary the whole product shares. This page names every state in it, says plainly what Import only means, and says what changes once a live connection exists."
+      },
+      "ingestion": {
+        "title": "Ingestion",
+        "description": "The three offline paths that put quota data in front of OpenLimiter, and what each one expects.",
+        "lead": "Three paths put quota data in front of OpenLimiter. All three are offline. None of them reaches the network, and until one of them runs, every command honestly reports unknown."
+      },
+      "agent-context": {
+        "title": "Agent context",
+        "description": "What the Claude Code statusline and prompt hook inject, and the boundary that keeps provider text out.",
+        "lead": "Two surfaces reach your agent: a one line statusline for you to read, and a bounded context block for the model. This page documents exactly what each one contains and the boundary that keeps provider text out of both."
+      },
+      "configuration": {
+        "title": "Configuration",
+        "description": "The state directory, the configuration file, the cache, and the settings Claude Code needs.",
+        "lead": "OpenLimiter keeps everything in one state directory under your own user account: a configuration file, a cache, a lock, and the optional manual document. This page says where that is and what each file does."
+      },
+      "cli": {
+        "title": "CLI reference",
+        "metaTitle": "CLI reference: commands, flags and exit codes",
+        "description": "Every command the CLI accepts today, with its flags, its output, and its exit codes.",
+        "lead": "Ten commands, one binary. Agent tools and people get the same interface, and every command reports a genuine failure rather than inventing a number."
+      },
+      "security": {
+        "title": "Security and privacy",
+        "description": "What OpenLimiter guarantees, what it deliberately does not do, and how to report a problem.",
+        "lead": "OpenLimiter runs on your machine and reads things that are already there. This page states what that guarantees, what it deliberately does not do, and how to report a problem."
+      },
+      "roadmap": {
+        "title": "Roadmap",
+        "description": "What is planned and not yet built: mobile applications, encrypted sync, and signed builds with an automatic update channel.",
+        "lead": "What is on this page is not yet built, with one exception noted at the top so nothing here reads as a promise about something that already ships. None of the planned work can be downloaded, bought, or waited for on a list. It is written down so the shape of the project is honest about where it is going."
+      }
+    }
+  }
+}

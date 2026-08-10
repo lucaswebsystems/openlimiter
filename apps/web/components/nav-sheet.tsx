@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { SiteLink } from "./site-link";
 
 /**
  * The phone header's menu.
@@ -43,6 +44,8 @@ export function NavSheet({
   extras: readonly SheetLink[];
   themeToggle: ReactNode;
 }) {
+  const t = useTranslations("nav");
+  const common = useTranslations("common");
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const sheet = useRef<HTMLDivElement | null>(null);
@@ -123,7 +126,7 @@ export function NavSheet({
         type="button"
         aria-expanded={open}
         aria-controls="nav-sheet"
-        aria-label={open ? "Close menu" : "Menu"}
+        aria-label={open ? t("closeMenu") : t("menu")}
         onClick={() => {
           setOpen((current) => !current);
         }}
@@ -165,13 +168,13 @@ export function NavSheet({
             ref={sheet}
             role="dialog"
             aria-modal="true"
-            aria-label="Menu"
+            aria-label={t("menu")}
             className="fixed inset-x-3 top-3 z-50 flex flex-col gap-1 rounded-2xl border border-hairline-strong bg-surface p-3 shadow-[0_24px_60px_-24px_rgb(0_0_0/0.6)]"
           >
             {links.map((link) => (
-              <Link key={link.label} href={link.href} onClick={close} className={rowClass}>
+              <SiteLink key={link.href} href={link.href} onClick={close} className={rowClass}>
                 {link.label}
-              </Link>
+              </SiteLink>
             ))}
             <span aria-hidden="true" className="my-1 h-px bg-hairline" />
             {extras.map((link) => (
@@ -187,7 +190,7 @@ export function NavSheet({
               </a>
             ))}
             <div className="mt-1 flex items-center justify-between gap-3 border-t border-hairline pt-3">
-              <span className="px-3 text-sm text-muted">Theme</span>
+              <span className="px-3 text-sm text-muted">{common("theme.label")}</span>
               {themeToggle}
             </div>
           </div>

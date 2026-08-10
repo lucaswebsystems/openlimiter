@@ -43,7 +43,11 @@ export async function generateMetadata({
   return pageMetadata({
     title: post.title,
     description: post.description,
-    path: `/blog/${slug}`,
+    route: `/blog/${slug}`,
+    /* A post is written once, in English, and is not translated. It carries a
+       canonical and no hreflang map. See lib/metadata.ts. */
+    locale: "en",
+    localised: false,
     absoluteTitle: true,
     published: post.date,
   });

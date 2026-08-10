@@ -1,7 +1,8 @@
-import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { BrandLockup } from "./brand";
 import { HeaderState } from "./header-state";
 import { NavSheet } from "./nav-sheet";
+import { SiteLink } from "./site-link";
 import { ThemeToggle } from "./theme-toggle";
 import { GitHubMark, SHELL } from "./ui";
 import { fetchStarCount, formatStarCount } from "@/lib/github";
@@ -54,14 +55,18 @@ import { REPO_URL, SPONSORS_URL } from "@/lib/site";
  * Blog is not among them any more. The route is alive and the footer still
  * carries it, but a header is a list of the things a first visit needs, and one
  * post does not earn a slot beside the download.
+ *
+ * The hrefs are the unprefixed English routes, always. `SiteLink` puts the
+ * locale on the four that have one and leaves `/app` alone, which is an English
+ * only tree and would 404 behind a prefix.
  */
-const links = [
-  { label: "Docs", href: "/docs" },
-  { label: "Web app", href: "/app" },
-  { label: "Download", href: "/download" },
-  { label: "Changelog", href: "/changelog" },
-  { label: "Alternatives", href: "/alternatives" },
-];
+const routes = [
+  { key: "docs", href: "/docs" },
+  { key: "webApp", href: "/app" },
+  { key: "download", href: "/download" },
+  { key: "changelog", href: "/changelog" },
+  { key: "alternatives", href: "/alternatives" },
+] as const;
 
 /* `hdr-ink` is the marker globals.css uses to lift this quiet grey to the
    full heading white while the header is in its dark treatment over the
@@ -83,9 +88,14 @@ const proClass =
 
 export async function Nav() {
   const stars = await fetchStarCount();
+  const t = await getTranslations("nav");
+  const routeLabels = await getTranslations("common.routes");
+  const common = await getTranslations("common");
+
+  const links = routes.map((route) => ({ label: routeLabels(route.key), href: route.href }));
 
   const starsLabel =
-    stars === null ? "OpenLimiter on GitHub" : `OpenLimiter on GitHub, ${stars} stars`;
+    stars === null ? t("githubAria") : t("githubStarsAria", { count: stars });
 
   return (
     /* suppressHydrationWarning for the same reason the root <html> carries it:
@@ -112,9 +122,9 @@ export async function Nav() {
                 viewBox, which is 5 pixels of clear space at a 36 pixel mark,
                 and 5 pixels is exactly what reads as the logo being indented.
                 The pull below cancels it. */}
-            <Link
+            <SiteLink
               href="/"
-              aria-label="OpenLimiter, home"
+              aria-label={common("homeAria")}
               className="focus-ring -ml-[5px] flex items-center rounded max-[359px]:-ml-[4px]"
             >
               {/* The one instance allowed to play the draw in. See lib/brand.ts.
@@ -127,14 +137,14 @@ export async function Nav() {
                 markClassName="h-9 w-9 flex-none text-brand max-[359px]:h-8 max-[359px]:w-8"
                 wordClassName="text-2xl leading-none max-[359px]:text-xl"
               />
-            </Link>
+            </SiteLink>
 
             {/* The wide row, only where it genuinely fits on one line. */}
             <div className="hidden flex-wrap items-center justify-end gap-4 lg:flex">
               {links.map((link) => (
-                <Link key={link.label} href={link.href} className={linkClass}>
+                <SiteLink key={link.href} href={link.href} className={linkClass}>
                   {link.label}
-                </Link>
+                </SiteLink>
               ))}
               <a
                 href={SPONSORS_URL}
@@ -142,7 +152,7 @@ export async function Nav() {
                 rel="noopener noreferrer"
                 className={linkClass}
               >
-                Sponsor
+                {t("sponsor")}
               </a>
               <a
                 href={REPO_URL}
@@ -155,22 +165,22 @@ export async function Nav() {
                 {stars !== null && <span className="text-sm">{formatStarCount(stars)}</span>}
               </a>
               <ThemeToggle />
-              <Link href="/#pricing" className={proClass}>
-                Get Pro
-              </Link>
+              <SiteLink href="/#pricing" className={proClass}>
+                {t("getPro")}
+              </SiteLink>
             </div>
 
             {/* The compact row, everywhere below the large breakpoint. A tablet
                 at 768 wrapped the wide row into two lines, so the sheet owns
                 that width too: two controls beside the mark, and never a third. */}
             <div className="flex items-center gap-2 lg:hidden">
-              <Link href="/#pricing" className={proClass}>
-                Get Pro
-              </Link>
+              <SiteLink href="/#pricing" className={proClass}>
+                {t("getPro")}
+              </SiteLink>
               <NavSheet
                 links={links}
                 extras={[
-                  { label: "Sponsor", href: SPONSORS_URL, external: true },
+                  { label: t("sponsor"), href: SPONSORS_URL, external: true },
                   {
                     label: stars === null ? "GitHub" : `GitHub · ${formatStarCount(stars)}`,
                     href: REPO_URL,

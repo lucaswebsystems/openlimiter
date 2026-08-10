@@ -8,14 +8,16 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/pull-changelog.mjs && next build",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "build": "node scripts/check-i18n.mjs && node scripts/pull-changelog.mjs && next build",
     "start": "next start",
-    "lint": "eslint app components lib --max-warnings=0"
+    "lint": "eslint app components i18n lib middleware.ts --max-warnings=0"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.2",
     "@vercel/analytics": "2.0.1",
     "next": "15.5.20",
+    "next-intl": "4.13.6",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

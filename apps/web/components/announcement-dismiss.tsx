@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ANNOUNCE_ATTR, ANNOUNCE_OFF, ANNOUNCE_STORAGE_KEY } from "@/lib/announce";
 
 /**
@@ -15,6 +16,7 @@ import { ANNOUNCE_ATTR, ANNOUNCE_OFF, ANNOUNCE_STORAGE_KEY } from "@/lib/announc
  * mismatch and no second paint of a bar that was already closed.
  */
 export function AnnouncementDismiss() {
+  const t = useTranslations("announce");
   function dismiss() {
     try {
       window.localStorage.setItem(ANNOUNCE_STORAGE_KEY, ANNOUNCE_OFF);
@@ -28,8 +30,8 @@ export function AnnouncementDismiss() {
     <button
       type="button"
       onClick={dismiss}
-      aria-label="Close this announcement"
-      title="Close this announcement"
+      aria-label={t("dismiss")}
+      title={t("dismiss")}
       className="announce-dismiss focus-ring-inset -mr-1 inline-flex h-7 w-7 flex-none items-center justify-center rounded-md"
     >
       <svg

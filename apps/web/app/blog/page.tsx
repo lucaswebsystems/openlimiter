@@ -14,11 +14,15 @@ import { reveal, revealGroup, revealSm } from "@/lib/motion";
  * the sentence cannot go stale the moment a second post lands.
  */
 
+/* English only, so `localised: false`: the page gets a canonical and no
+   hreflang map. See lib/metadata.ts and app/blog/layout.tsx. */
 export const metadata: Metadata = pageMetadata({
   title: "Blog: notes on quota, agents and local tools",
   description:
     "Notes on how OpenLimiter reads quota locally, what it deliberately does not do, and why the line is drawn where it is.",
-  path: "/blog",
+  route: "/blog",
+  locale: "en",
+  localised: false,
 });
 
 const countLine =

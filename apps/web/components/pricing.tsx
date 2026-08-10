@@ -1,13 +1,8 @@
+import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { ButtonLink, Chip, SectionHeading } from "./ui";
 import { reveal, revealGroup } from "@/lib/motion";
-import {
-  LICENSE_URL,
-  PRO_PRICE,
-  PRO_PRICE_NOTE,
-  PRO_REGULAR_PRICE,
-  REPO_URL,
-} from "@/lib/site";
+import { LICENSE_URL, PRO_PRICE, PRO_REGULAR_PRICE, REPO_URL } from "@/lib/site";
 
 /**
  * Pricing.
@@ -28,6 +23,14 @@ import {
  * The one line in the free list that is not shipped is marked in place, and it
  * is marked because it will be free when it lands, which is the whole reason
  * for listing it on that side of the section.
+ *
+ * THE TWO NUMBERS STAY IN CODE
+ * ----------------------------
+ * `PRO_PRICE` and `PRO_REGULAR_PRICE` are still read from lib/site.ts and are
+ * passed into the sentence about them as arguments rather than being typed into
+ * five catalogs. A price that could be edited in a translation is a price that
+ * can disagree with itself in one language, and the rule about how these two
+ * numbers may be described is the strictest rule on the site.
  */
 
 function CheckGlyph() {
@@ -65,49 +68,59 @@ function PlannedGlyph() {
   );
 }
 
-interface PlanLine {
-  readonly text: string;
-  /** Set only where the line is not built, and the chip says so on the row. */
-  readonly planned?: string;
-}
-
-const freeLines: readonly PlanLine[] = [
-  { text: "Every connector, and every one added later" },
-  { text: "The bounded agent context block and its routing advice" },
-  {
-    text: "Desktop notifications and sounds when a window nears its cap",
-    planned: "planned",
-  },
-  { text: "Themes, in the desktop application and in the browser" },
-  { text: "The full command line tool and every statusline setting" },
-  { text: "All three ingestion paths: a connector, ingest, or manual entry" },
-  { text: "No usage limit, no account, no feature locked behind anything" },
+/**
+ * The two lists, as identifiers.
+ *
+ * The order is the argument the section makes and is the same argument in every
+ * language, so it lives here. Each identifier is a catalog key under
+ * `pricing.free.lines` or `pricing.pro.lines`.
+ *
+ * `planned` marks the one free line that is not shipped. It is a fact about the
+ * product rather than a word, so it stays in the code and only the chip's label
+ * is read from the catalog.
+ */
+const FREE_LINES: readonly { id: string; planned?: boolean }[] = [
+  { id: "connectors" },
+  { id: "agentContext" },
+  { id: "notifications", planned: true },
+  { id: "themes" },
+  { id: "cli" },
+  { id: "ingestion" },
+  { id: "noLimits" },
 ];
 
-const proLines: readonly PlanLine[] = [
-  { text: "Encrypted synchronisation of quota state across your own devices" },
-  { text: "Push notifications to your phone when a window nears its cap" },
-  {
-    text: "Smart limiter: quota aware routing between your models, driven by live budget state",
-  },
-  { text: "Email alerts and a weekly digest" },
-  { text: "Alert delivery rules, so a quiet hour stays quiet" },
-  { text: "Hosted usage history and burn trends across every device" },
-  { text: "Priority connector requests, so your provider gets built first" },
-  { text: "A team dashboard tier, later than the rest" },
+const PRO_LINES: readonly { id: string }[] = [
+  { id: "sync" },
+  { id: "push" },
+  { id: "smartLimiter" },
+  { id: "email" },
+  { id: "deliveryRules" },
+  { id: "history" },
+  { id: "priority" },
+  { id: "team" },
 ];
 
-function PlanList({ lines, glyph }: { lines: readonly PlanLine[]; glyph: "check" | "planned" }) {
+function PlanList({
+  lines,
+  glyph,
+  label,
+  plannedLabel,
+}: {
+  lines: readonly { id: string; planned?: boolean }[];
+  glyph: "check" | "planned";
+  label: (id: string) => string;
+  plannedLabel: string;
+}) {
   return (
     <ul className="mt-6 space-y-3">
       {lines.map((line) => (
-        <li key={line.text} className="flex gap-3 text-sm leading-relaxed text-body">
-          {glyph === "check" && line.planned === undefined ? <CheckGlyph /> : <PlannedGlyph />}
+        <li key={line.id} className="flex gap-3 text-sm leading-relaxed text-body">
+          {glyph === "check" && line.planned !== true ? <CheckGlyph /> : <PlannedGlyph />}
           <span className="min-w-0">
-            {line.text}
-            {line.planned !== undefined && (
+            {label(line.id)}
+            {line.planned === true && (
               <Chip tone="neutral" className="ml-2 align-middle">
-                {line.planned}
+                {plannedLabel}
               </Chip>
             )}
           </span>
@@ -156,47 +169,51 @@ function PlanCard({
   );
 }
 
-export function Pricing() {
+export async function Pricing() {
+  const t = await getTranslations("pricing");
+
   return (
     <section id="pricing" className="scroll-mt-8">
-      <SectionHeading
-        title="Pricing"
-        lead="Everything that runs on your machine is free, and that is not a launch offer. The only thing that could ever cost money is a service running on servers, because servers cost money to run."
-      />
+      <SectionHeading title={t("title")} lead={t("lead")} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" {...revealGroup}>
         <PlanCard
           title="OpenLimiter"
-          status="available"
+          status={t("free.status")}
           statusTone="accent"
           price={
             <p className="mt-4 flex items-baseline gap-1.5">
-              <span className="text-4xl font-medium tracking-tight text-heading">Free</span>
-              <span className="text-sm text-muted">forever, and in the licence</span>
+              <span className="text-4xl font-medium tracking-tight text-heading">
+                {t("free.price")}
+              </span>
+              <span className="text-sm text-muted">{t("free.priceNote")}</span>
             </p>
           }
-          lead="The whole local product, for everybody, with no account anywhere in it."
-          footnote={
-            <>
-              Open source under{" "}
+          lead={t("free.lead")}
+          footnote={t.rich("free.footnote", {
+            licence: (chunks) => (
               <a
                 href={LICENSE_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
               >
-                Apache 2.0
+                {chunks}
               </a>
-              , so this cannot be taken away later. The licence is the promise.
-            </>
-          }
+            ),
+          })}
         >
-          <PlanList lines={freeLines} glyph="check" />
+          <PlanList
+            lines={FREE_LINES}
+            glyph="check"
+            label={(id) => t(`free.lines.${id}`)}
+            plannedLabel={t("plannedChip")}
+          />
         </PlanCard>
 
         <PlanCard
           title="OpenLimiter Pro"
-          status="not built"
+          status={t("pro.status")}
           statusTone="neutral"
           price={
             <>
@@ -215,25 +232,32 @@ export function Pricing() {
                 <span className="text-4xl font-medium tracking-tight text-heading">
                   {PRO_PRICE}
                 </span>
-                <span className="text-sm text-muted">a month</span>
+                <span className="text-sm text-muted">{t("pro.perMonth")}</span>
                 <Chip tone="accent" className="uppercase tracking-wider">
-                  founding price
+                  {t("pro.foundingChip")}
                 </Chip>
               </p>
-              <p className="mt-2 text-xs leading-relaxed text-muted">{PRO_PRICE_NOTE}</p>
+              <p className="mt-2 text-xs leading-relaxed text-muted">
+                {t("pro.priceNote", { regular: PRO_REGULAR_PRICE, founding: PRO_PRICE })}
+              </p>
             </>
           }
-          lead="Services that run on servers rather than on your machine. Every line below is coming and none of it exists yet: there is no checkout, no card form and no waiting list."
-          footnote="Nothing local ever moves behind this plan. Pro sells servers and service, not switches."
+          lead={t("pro.lead")}
+          footnote={t("pro.footnote")}
         >
-          <PlanList lines={proLines} glyph="planned" />
+          <PlanList
+            lines={PRO_LINES}
+            glyph="planned"
+            label={(id) => t(`pro.lines.${id}`)}
+            plannedLabel={t("plannedChip")}
+          />
         </PlanCard>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3" {...reveal}>
-        <ButtonLink href="/docs/roadmap">What is actually planned</ButtonLink>
+        <ButtonLink href="/docs/roadmap">{t("roadmapCta")}</ButtonLink>
         <ButtonLink href={REPO_URL} external>
-          Read the source
+          {t("sourceCta")}
         </ButtonLink>
       </div>
     </section>

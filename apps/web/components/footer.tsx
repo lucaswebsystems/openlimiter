@@ -1,6 +1,8 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { BrandLockup } from "./brand";
+import { LocaleSwitcher } from "./locale-switcher";
 import { GitHubMark, SHELL } from "./ui";
+import { SiteLink } from "./site-link";
 import { reveal } from "@/lib/motion";
 import {
   AUTHOR_EMAIL,
@@ -36,6 +38,14 @@ import {
  * the licence line at the bottom beside the licence itself.
  *
  * There is no Discord link anywhere on this site, by instruction.
+ *
+ * THE LANGUAGE SWITCHER LIVES HERE
+ * --------------------------------
+ * Bottom of every page that has translations, above the licence line. A reader
+ * looking for their language looks at the foot of the page, and a control in the
+ * header would be a sixth thing competing with the product's own navigation.
+ * The three English only trees render this footer with `localised` off, because
+ * a switcher there would point at pages that do not exist.
  */
 
 interface FooterLink {
@@ -43,20 +53,6 @@ interface FooterLink {
   href: string;
   external?: boolean;
 }
-
-const product: FooterLink[] = [
-  { label: "Docs", href: "/docs" },
-  { label: "Download", href: "/download" },
-  { label: "Changelog", href: "/changelog" },
-  { label: "Blog", href: "/blog" },
-];
-
-const community: FooterLink[] = [
-  { label: "GitHub", href: REPO_URL, external: true },
-  { label: "Issues", href: ISSUES_URL, external: true },
-  { label: "GitHub Sponsors", href: SPONSORS_URL, external: true },
-  { label: "Buy me a coffee", href: COFFEE_URL, external: true },
-];
 
 /*
   The link rows.
@@ -109,10 +105,10 @@ function Column({ title, links }: { title: string; links: readonly FooterLink[] 
               {link.label}
             </a>
           ) : (
-            <Link key={`${link.label}-${link.href}`} href={link.href} className={linkClass}>
+            <SiteLink key={`${link.label}-${link.href}`} href={link.href} className={linkClass}>
               <LinkChevron />
               {link.label}
-            </Link>
+            </SiteLink>
           ),
         )}
       </div>
@@ -165,7 +161,29 @@ function MailMark({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-export function Footer() {
+export function Footer({ localised = true }: { localised?: boolean }) {
+  const t = useTranslations("footer");
+  const routes = useTranslations("common.routes");
+  const common = useTranslations("common");
+
+  const product: FooterLink[] = [
+    { label: routes("docs"), href: "/docs" },
+    { label: routes("download"), href: "/download" },
+    { label: routes("changelog"), href: "/changelog" },
+    { label: routes("blog"), href: "/blog" },
+  ];
+
+  /* Four proper nouns and one word. GitHub, GitHub Sponsors and Buy me a coffee
+     are the names of services and are the same in every language, so they are
+     literals here rather than five identical catalog entries. See
+     messages/GLOSSARY.md. */
+  const community: FooterLink[] = [
+    { label: "GitHub", href: REPO_URL, external: true },
+    { label: t("issues"), href: ISSUES_URL, external: true },
+    { label: "GitHub Sponsors", href: SPONSORS_URL, external: true },
+    { label: "Buy me a coffee", href: COFFEE_URL, external: true },
+  ];
+
   return (
     /* The bottom padding is generous on a phone because the back to top button
        is fixed in that corner, and the licence line is centred, so a tight
@@ -175,20 +193,27 @@ export function Footer() {
     <footer className={`${SHELL} pb-24 pt-4 sm:pb-8 md:pb-16`}>
       <div className="grid gap-10 border-t border-hairline pt-10 text-sm lg:grid-cols-[2fr_1fr_1fr]">
         <div className="max-w-sm space-y-4" {...reveal}>
-          <Link href="/" aria-label="OpenLimiter, home" className="focus-ring inline-flex rounded">
+          <SiteLink
+            href="/"
+            aria-label={common("homeAria")}
+            className="focus-ring inline-flex rounded"
+          >
             <BrandLockup
               markClassName="h-8 w-8 flex-none text-brand"
               wordClassName="text-xl"
             />
-          </Link>
-          <p className="leading-relaxed text-muted">
-            Quota awareness for AI coding agents. It reads what your subscriptions have left on your
-            own machine, hands your agents a bounded block of that state, and never invents a number
-            it does not have.
-          </p>
+          </SiteLink>
+          <p className="leading-relaxed text-muted">{t("blurb")}</p>
           <div className="space-y-2">
             <p className="text-muted">
-              Built by <span className="text-heading">{AUTHOR_NAME}</span>
+              {/* One sentence, one argument and one tag: the name is a fact from
+                  lib/site.ts rather than a word to translate, and the tag is what
+                  lifts it out of the grey. A translator moves both around the
+                  sentence and edits neither. */}
+              {t.rich("builtBy", {
+                author: AUTHOR_NAME,
+                name: (chunks) => <span className="text-heading">{chunks}</span>,
+              })}
             </p>
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
               <a
@@ -226,31 +251,41 @@ export function Footer() {
           </div>
         </div>
 
-        <Column title="Product" links={product} />
-        <Column title="Community" links={community} />
+        <Column title={t("product")} links={product} />
+        <Column title={t("community")} links={community} />
       </div>
+
+      {/* The switcher sits between the columns and the licence line, centred on
+          the same axis as the sentence under it. */}
+      {localised && (
+        <div className="flex justify-center pt-10 text-sm" {...reveal}>
+          <LocaleSwitcher />
+        </div>
+      )}
 
       {/* Centred, and capped at a readable measure, so the last line of the page
           reads as a closing statement rather than as one more left aligned
           column heading. */}
-      <p className="mx-auto max-w-2xl pt-10 text-center text-xs leading-relaxed text-muted" {...reveal}>
-        Apache 2.0. Local first. Zero telemetry in the software. No accounts. This site keeps
-        cookieless page counts only.{" "}
+      <p
+        className={`mx-auto max-w-2xl text-center text-xs leading-relaxed text-muted ${localised ? "pt-6" : "pt-10"}`}
+        {...reveal}
+      >
+        {t("licenceNote")}{" "}
         <a
           href={LICENSE_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
         >
-          Read the licence
+          {t("licenceRead")}
         </a>
         {" · "}
-        <Link
+        <SiteLink
           href="/docs/security"
           className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
         >
-          Security
-        </Link>
+          {t("security")}
+        </SiteLink>
       </p>
     </footer>
   );

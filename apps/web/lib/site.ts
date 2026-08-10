@@ -13,12 +13,16 @@ export const SITE_NAME = "OpenLimiter";
 
 /**
  * The one title and the one description every surface starts from: the root
- * metadata, the social cards, and the structured data. Written once so a schema
- * can never describe the site differently from the tag next to it.
+ * metadata, the social cards, and the structured data.
+ *
+ * They moved to `meta.title` and `meta.description` in messages/en.json when the
+ * site gained four more languages, because a description that only exists in
+ * English cannot describe a Portuguese page. They are still written once and
+ * still read by every surface; the file they are written in changed.
+ *
+ * The one thing left here is the suffix below, which is punctuation and a product
+ * name rather than a sentence.
  */
-export const SITE_TITLE = "OpenLimiter, quota awareness for AI coding agents";
-export const SITE_DESCRIPTION =
-  "OpenLimiter reads the quota of your AI subscriptions on your own machine and hands your coding agents bounded budget state plus routing advice. Open source, local first, zero telemetry.";
 
 /**
  * What the title template appends to a page's own title. Kept here so a social
@@ -77,13 +81,15 @@ export const COFFEE_URL = "https://buymeacoffee.com/lucaswebsystems";
  * all three would be inventing a history the product does not have.
  *
  * The only sentence the regular price is allowed to appear in is
- * `PRO_PRICE_NOTE`, which is written once here and rendered once, on the
+ * `pricing.pro.priceNote` in the catalogs, which is rendered once, on the
  * pricing card. Every other surface, the FAQ and the roadmap included, names
  * the founding price alone.
+ *
+ * That sentence takes both numbers as arguments rather than spelling them out,
+ * so a translation cannot change a price. The numbers are here and only here.
  */
 export const PRO_PRICE = "$5";
 export const PRO_REGULAR_PRICE = "$10";
-export const PRO_PRICE_NOTE = "$10 is the planned regular price. Early supporters keep $5.";
 
 export const AUTHOR_NAME = "Lucas Costa";
 export const AUTHOR_EMAIL = "lucas@lucaswebsystems.com";

@@ -1,13 +1,8 @@
-import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { AnnouncementDismiss } from "./announcement-dismiss";
+import { SiteLink } from "./site-link";
 import { SHELL } from "./ui";
-import {
-  ANNOUNCE_HREF,
-  ANNOUNCE_LEAD,
-  ANNOUNCE_LEAD_SHORT,
-  ANNOUNCE_MESSAGE,
-  ANNOUNCE_REST,
-} from "@/lib/announce";
+import { ANNOUNCE_HREF } from "@/lib/announce";
 
 /**
  * The announcement bar.
@@ -52,26 +47,29 @@ function ChevronGlyph() {
   );
 }
 
-export function AnnouncementBar() {
+export async function AnnouncementBar() {
+  const t = await getTranslations("announce");
+
   return (
     <div className="announce-bar bg-announce text-announce-fg">
       <div className={`${SHELL} flex h-9 items-center gap-2`}>
-        <Link
+        <SiteLink
           href={ANNOUNCE_HREF}
           className="focus-ring-inset group flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded text-xs font-medium"
         >
-          <span className="sr-only">{ANNOUNCE_MESSAGE}</span>
-          {/* The visible copy is built in two pieces so a narrow screen can drop
-              the first word and still open on a capital, which is why this half
-              is hidden from assistive technology and the whole sentence sits
-              above it instead. */}
+          <span className="sr-only">{t("message")}</span>
+          {/* Two whole sentences rather than one sentence split across widths.
+              It used to be spliced mid word, so a narrow screen could drop the
+              first syllable and still open on a capital, and a word cut in half
+              is a word no translator can be handed. Both are complete in every
+              language, the visible pair is hidden from assistive technology, and
+              the sentence a screen reader gets sits above them. */}
           <span aria-hidden="true" className="truncate">
-            <span className="hidden sm:inline">{ANNOUNCE_LEAD}</span>
-            <span className="sm:hidden">{ANNOUNCE_LEAD_SHORT}</span>
-            {ANNOUNCE_REST}
+            <span className="hidden sm:inline">{t("message")}</span>
+            <span className="sm:hidden">{t("short")}</span>
           </span>
           <ChevronGlyph />
-        </Link>
+        </SiteLink>
         <AnnouncementDismiss />
       </div>
     </div>

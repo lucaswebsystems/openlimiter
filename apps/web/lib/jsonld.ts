@@ -1,4 +1,7 @@
+import { getTranslations } from "next-intl/server";
 import type { FaqItem } from "@/components/faq";
+import type { Locale } from "@/i18n/locales";
+import { localePath } from "@/i18n/routing";
 import type { Post } from "./blog";
 import { findDocPage } from "./docs";
 import {
@@ -10,7 +13,6 @@ import {
   LOGO_URL,
   RELEASES_URL,
   REPO_URL,
-  SITE_DESCRIPTION,
   SITE_NAME,
   SITE_URL,
 } from "./site";
@@ -25,6 +27,19 @@ import {
  *
  * The blocks are rendered by the JsonLd component, which is a server component
  * and emits a plain script tag. No structured data is produced in a browser.
+ *
+ * IN FIVE LANGUAGES
+ * -----------------
+ * A block describes the page it is on, so a translated page's block has to be
+ * translated too: `inLanguage` names the locale, `url` is that locale's URL, and
+ * the description is read from that locale's catalog rather than from a constant
+ * that only exists in English. The builders take a locale and are async for that
+ * one reason.
+ *
+ * The identifiers follow the same rule. Two pages in two languages are two
+ * pages, so each gets its own `@id` under its own URL. The publisher is the one
+ * exception: there is one organisation behind all five, so its node keeps a
+ * single global identifier and every page points at it.
  */
 
 export type JsonLdNode = Record<string, unknown>;
@@ -36,8 +51,18 @@ const SCHEMA = "https://schema.org";
  * describing the same organisation three times on one page.
  */
 export const ORGANIZATION_ID = `${SITE_URL}/#organization`;
-export const WEBSITE_ID = `${SITE_URL}/#website`;
-export const SOFTWARE_ID = `${SITE_URL}/#software`;
+
+function homeUrl(locale: Locale): string {
+  return `${SITE_URL}${localePath(locale, "/") === "/" ? "" : localePath(locale, "/")}`;
+}
+
+export function websiteId(locale: Locale): string {
+  return `${homeUrl(locale)}/#website`;
+}
+
+export function softwareId(locale: Locale): string {
+  return `${homeUrl(locale)}/#software`;
+}
 
 /**
  * The organisation as an embeddable node, without the context line.
@@ -74,15 +99,17 @@ export function organizationSchema(): JsonLdNode {
   return { "@context": SCHEMA, ...organizationNode() };
 }
 
-export function websiteSchema(): JsonLdNode {
+export async function websiteSchema(locale: Locale): Promise<JsonLdNode> {
+  const t = await getTranslations({ locale, namespace: "meta" });
+
   return {
     "@context": SCHEMA,
     "@type": "WebSite",
-    "@id": WEBSITE_ID,
+    "@id": websiteId(locale),
     name: SITE_NAME,
-    url: SITE_URL,
-    description: SITE_DESCRIPTION,
-    inLanguage: "en",
+    url: homeUrl(locale),
+    description: t("description"),
+    inLanguage: locale,
     publisher: { "@id": ORGANIZATION_ID },
   };
 }
@@ -95,14 +122,17 @@ export function websiteSchema(): JsonLdNode {
  * Apache 2.0 text rather than at a copy, and the download URL points at the
  * releases page, which is where every packaged build actually is.
  */
-export function softwareApplicationSchema(): JsonLdNode {
+export async function softwareApplicationSchema(locale: Locale): Promise<JsonLdNode> {
+  const t = await getTranslations({ locale, namespace: "meta" });
+
   return {
     "@context": SCHEMA,
     "@type": "SoftwareApplication",
-    "@id": SOFTWARE_ID,
+    "@id": softwareId(locale),
     name: SITE_NAME,
-    url: SITE_URL,
-    description: SITE_DESCRIPTION,
+    url: homeUrl(locale),
+    description: t("description"),
+    inLanguage: locale,
     applicationCategory: "DeveloperApplication",
     operatingSystem: "Windows, macOS, Linux",
     softwareVersion: CURRENT_VERSION,
@@ -117,7 +147,7 @@ export function softwareApplicationSchema(): JsonLdNode {
     },
     softwareHelp: {
       "@type": "WebPage",
-      url: `${SITE_URL}/docs`,
+      url: `${SITE_URL}${localePath(locale, "/docs")}`,
     },
     author: authorNode(),
     publisher: { "@id": ORGANIZATION_ID },
@@ -132,12 +162,12 @@ export function softwareApplicationSchema(): JsonLdNode {
  * function cannot be handed a different set of answers than the ones on screen
  * without the caller doing it deliberately.
  */
-export function faqPageSchema(items: readonly FaqItem[]): JsonLdNode {
+export function faqPageSchema(items: readonly FaqItem[], locale: Locale): JsonLdNode {
   return {
     "@context": SCHEMA,
     "@type": "FAQPage",
-    "@id": `${SITE_URL}/#faq`,
-    inLanguage: "en",
+    "@id": `${homeUrl(locale)}/#faq`,
+    inLanguage: locale,
     mainEntity: items.map((item) => ({
       "@type": "Question",
       name: item.question,
@@ -174,16 +204,21 @@ export function blogPostingSchema(post: Post): JsonLdNode {
  * sidebar. A page missing from lib/docs.ts gets the two step trail rather than
  * a fabricated third step.
  */
-export function docsBreadcrumbSchema(href: string): JsonLdNode {
+export async function docsBreadcrumbSchema(href: string, locale: Locale): Promise<JsonLdNode> {
   const page = findDocPage(href);
+  const docs = await getTranslations({ locale, namespace: "docs" });
+  const routes = await getTranslations({ locale, namespace: "common.routes" });
 
   const trail: { name: string; url: string }[] = [
-    { name: "Home", url: SITE_URL },
-    { name: "Docs", url: `${SITE_URL}/docs` },
+    { name: docs("article.home"), url: homeUrl(locale) },
+    { name: routes("docs"), url: `${SITE_URL}${localePath(locale, "/docs")}` },
   ];
 
   if (page !== undefined && page.href !== "/docs") {
-    trail.push({ name: page.title, url: `${SITE_URL}${page.href}` });
+    trail.push({
+      name: docs(`pages.${page.id}.title`),
+      url: `${SITE_URL}${localePath(locale, page.href)}`,
+    });
   }
 
   return {

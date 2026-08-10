@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { THEME_ATTR, THEME_STORAGE_KEY, isTheme, type Theme } from "@/lib/theme";
 
@@ -27,6 +28,7 @@ function resolveTheme(): Theme {
  * clears the 24 pixel target floor with room.
  */
 export function ThemeToggle({ className = "" }: { className?: string }) {
+  const t = useTranslations("common");
   const [theme, setTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
@@ -59,8 +61,8 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       type="button"
       onClick={toggle}
       aria-pressed={theme === null ? undefined : theme === "dark"}
-      aria-label="Switch between the light and dark theme"
-      title="Switch between the light and dark theme"
+      aria-label={t("theme.toggle")}
+      title={t("theme.toggle")}
       className={`focus-ring inline-flex h-9 w-9 flex-none items-center justify-center rounded-lg border border-hairline-strong text-heading transition-colors hover:border-heading hover:bg-surface ${className}`}
     >
       {/* Moon, offered while the light theme is active. */}
