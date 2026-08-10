@@ -149,7 +149,7 @@
      breathes, at least 10 to 15px of air above and below the controls. 76px
      where the sheet trigger sets the row (56 + 10 each side), 80px where the
      desktop controls do (52 + 14 each side). */
-  --ol-header-h: 4.75rem;
+  --ol-header-h: 0rem;
 }
 
 @media (min-width: 1024px) {
@@ -1094,13 +1094,25 @@ body:has(.ol-shell) .announce-bar {
   already zeroes these transitions.
 */
 .site-header {
-  position: sticky;
-  top: 0;
+  position: static;
   z-index: 50;
 }
 
+@media (min-width: 1024px) {
+  .site-header {
+    position: sticky;
+    top: 0;
+  }
+}
+
 .site-header-row {
-  height: var(--ol-header-h);
+  height: 4.75rem;
+}
+
+@media (min-width: 1024px) {
+  .site-header-row {
+    height: var(--ol-header-h);
+  }
 }
 
 .hdr-layers {
@@ -1119,10 +1131,10 @@ body:has(.ol-shell) .announce-bar {
 }
 
 .hdr-blur {
-  backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
 }
 
-/* 90% coats, not lighter, and the number is a measured floor: the muted link
+/* 72% coats, not lighter, and the number is a measured floor: the muted link
    grey has to clear AA against the WORST content that can pass behind the
    glass. At 78% the light coat over near black composed to 3.98:1 for the
    light muted grey, under the 4.5:1 floor; at 90% the same worst cases
@@ -1130,12 +1142,12 @@ body:has(.ol-shell) .announce-bar {
    over pure white), and the fixed dark coat holds white text at 13.9:1 over
    pure white. It is also the pattern authority's own shipped opacity. */
 .hdr-tint-page {
-  background: color-mix(in srgb, var(--ol-canvas) 90%, transparent);
+  background: color-mix(in srgb, var(--ol-canvas) 72%, transparent);
   border-bottom-color: var(--ol-hairline);
 }
 
 .hdr-tint-dark {
-  background: color-mix(in srgb, var(--ol-nav-dark-surface) 90%, transparent);
+  background: color-mix(in srgb, var(--ol-nav-dark-surface) 72%, transparent);
   border-bottom-color: var(--ol-nav-dark-line);
 }
 

@@ -56,17 +56,22 @@ export function HeaderState() {
       return () => header.removeAttribute("data-bar");
     }
 
+    const mql = window.matchMedia("(min-width: 1024px)");
+
     const measure = () => {
       const r = fold.getBoundingClientRect();
       const barH = header.getBoundingClientRect().height || 56;
       return { atTop: r.top > -barH, onScreen: r.bottom > 0 };
     };
 
-    let { atTop, onScreen } = measure();
+    let atTop = false;
+    let onScreen = false;
+
     const apply = () => {
       header.setAttribute("data-bar", atTop ? "none" : onScreen ? "dark" : "page");
     };
-    apply();
+
+    let isObserving = false;
 
     const topEdge = new IntersectionObserver(
       ([entry]) => {
@@ -84,17 +89,48 @@ export function HeaderState() {
       },
       { threshold: 0 },
     );
-    topEdge.observe(sentinel);
-    viewport.observe(fold);
+
+    const updateObservation = () => {
+      if (mql.matches) {
+        if (!isObserving) {
+          isObserving = true;
+          const initial = measure();
+          atTop = initial.atTop;
+          onScreen = initial.onScreen;
+          apply();
+          topEdge.observe(sentinel);
+          viewport.observe(fold);
+        }
+      } else {
+        if (isObserving) {
+          isObserving = false;
+          topEdge.disconnect();
+          viewport.disconnect();
+        }
+        header.removeAttribute("data-bar");
+      }
+    };
+
+    updateObservation();
+
+    const onMediaChange = () => {
+      updateObservation();
+    };
+    mql.addEventListener("change", onMediaChange);
 
     const onPageShow = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
-      ({ atTop, onScreen } = measure());
-      apply();
+      if (mql.matches) {
+        ({ atTop, onScreen } = measure());
+        apply();
+      } else {
+        header.removeAttribute("data-bar");
+      }
     };
     window.addEventListener("pageshow", onPageShow);
 
     return () => {
+      mql.removeEventListener("change", onMediaChange);
       topEdge.disconnect();
       viewport.disconnect();
       window.removeEventListener("pageshow", onPageShow);

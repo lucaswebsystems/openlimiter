@@ -158,6 +158,7 @@ const FOLD_SYNC_SCRIPT = [
   'var f=document.querySelector(".hero-fold");',
   "if(!h||!f)return;",
   "var set=function(){",
+  "if(window.innerWidth<1024){h.removeAttribute('data-bar');return;}",
   "var r=f.getBoundingClientRect();",
   "var b=h.getBoundingClientRect().height||56;",
   'h.setAttribute("data-bar",r.bottom<=0?"page":(r.top>-b?"none":"dark"));',
