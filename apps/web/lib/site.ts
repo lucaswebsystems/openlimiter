@@ -110,7 +110,7 @@ export const AUTHOR_LINKEDIN = "https://www.linkedin.com/in/lucas-costa-t/";
 export const HERO_BACKDROP_ENABLED: boolean = true;
 
 /** The version this site describes. Kept in step with the root CHANGELOG. */
-export const CURRENT_VERSION = "0.2.0";
+export const CURRENT_VERSION = "0.3.0";
 
 /**
  * What actually ships today, in one place, so no surface can quietly promote a
