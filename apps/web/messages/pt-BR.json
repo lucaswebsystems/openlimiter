@@ -1,52 +1,51 @@
 {
-  "_status": "UNTRANSLATED PLACEHOLDER. Every value below is still English, copied from en.json so the site builds and the key check passes. Read messages/GLOSSARY.md before translating, and delete this note when the file is done.",
   "meta": {
-    "title": "OpenLimiter, quota awareness for AI coding agents",
-    "description": "OpenLimiter reads the quota of your AI subscriptions on your own machine and hands your coding agents bounded budget state plus routing advice. Open source, local first, zero telemetry."
+    "title": "OpenLimiter, consciência de quota para agentes de codificação com IA",
+    "description": "O OpenLimiter lê a quota das suas assinaturas de IA na sua própria máquina e entrega aos seus agentes de codificação um estado de orçamento limitado, além de recomendações de roteamento. Código aberto, local first, telemetria zero."
   },
   "common": {
-    "skipToContent": "Skip to content",
-    "backToTop": "Back to top",
-    "homeAria": "OpenLimiter, home",
-    "demoData": "Demo data",
+    "skipToContent": "Pular para o conteúdo",
+    "backToTop": "Voltar ao topo",
+    "homeAria": "OpenLimiter, início",
+    "demoData": "Dados de demonstração",
     "theme": {
-      "label": "Theme",
-      "toggle": "Switch between the light and dark theme"
+      "label": "Tema",
+      "toggle": "Alternar entre o tema claro e o escuro"
     },
     "routes": {
-      "docs": "Docs",
+      "docs": "Documentação",
       "webApp": "Web app",
       "download": "Download",
       "changelog": "Changelog",
-      "alternatives": "Alternatives",
+      "alternatives": "Alternativas",
       "blog": "Blog"
     }
   },
   "nav": {
-    "getPro": "Get Pro",
-    "sponsor": "Sponsor",
-    "githubAria": "OpenLimiter on GitHub",
-    "githubStarsAria": "OpenLimiter on GitHub, {count, plural, one {# star} other {# stars}}",
+    "getPro": "Obter o Pro",
+    "sponsor": "Patrocinar",
+    "githubAria": "OpenLimiter no GitHub",
+    "githubStarsAria": "OpenLimiter no GitHub, {count, plural, one {# estrela} other {# estrelas}}",
     "menu": "Menu",
-    "closeMenu": "Close menu"
+    "closeMenu": "Fechar menu"
   },
   "announce": {
-    "message": "Founding promo: OpenLimiter Pro at 50% OFF for early supporters",
-    "short": "Promo: OpenLimiter Pro at 50% OFF for early supporters",
-    "dismiss": "Close this announcement"
+    "message": "Promoção de fundador: OpenLimiter Pro com 50% de desconto para os primeiros apoiadores",
+    "short": "Promoção: OpenLimiter Pro com 50% de desconto para os primeiros apoiadores",
+    "dismiss": "Fechar este aviso"
   },
   "footer": {
-    "blurb": "Quota awareness for AI coding agents. It reads what your subscriptions have left on your own machine, hands your agents a bounded block of that state, and never invents a number it does not have.",
-    "builtBy": "Built by <name>{author}</name>",
-    "product": "Product",
-    "community": "Community",
+    "blurb": "Consciência de quota para agentes de codificação com IA. Ele lê o que sobrou das suas assinaturas na sua própria máquina, entrega aos seus agentes um bloco limitado desse estado e nunca inventa um número que não tem.",
+    "builtBy": "Feito por <name>{author}</name>",
+    "product": "Produto",
+    "community": "Comunidade",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | Local primeiro | Zero telemetria no software | Sem contas | Contagem de páginas sem cookies",
-    "licenceRead": "Leia a licença",
+    "licenceNote": "Apache 2.0. Local first. Telemetria zero no software. Sem contas. Este site mantém apenas contagens de página, sem cookies.",
+    "licenceRead": "Ler a licença",
     "security": "Segurança"
   },
   "localeSwitcher": {
-    "label": "Language"
+    "label": "Idioma"
   },
   "localeOffer": {
     "title": "Este site está disponível em português.",
@@ -54,1353 +53,1353 @@
     "dismiss": "Fechar"
   },
   "notFound": {
-    "title": "Page not found",
-    "lead": "That address does not match anything on this site. It may have moved, or it may never have existed.",
-    "home": "Back to the home page",
-    "docs": "Read the documentation"
+    "title": "Página não encontrada",
+    "lead": "Esse endereço não corresponde a nada neste site. Ele pode ter mudado de lugar, ou pode nunca ter existido.",
+    "home": "Voltar para a página inicial",
+    "docs": "Ler a documentação"
   },
   "hero": {
     "title": {
-      "limits": "Know your limits.",
-      "route": "Route around them."
+      "limits": "Conheça seus limites.",
+      "route": "Contorne eles."
     },
-    "lead": "Read your AI subscription quota locally. Give agents bounded budget state and advice. Open source, local first, cross platform.",
+    "lead": "Leia a quota das suas assinaturas de IA localmente. Dê aos agentes um estado de orçamento limitado e recomendações. Código aberto, local first, multiplataforma.",
     "downloads": {
       "windows": {
-        "aria": "Download the OpenLimiter installer for Windows, 64 bit",
-        "label": "Download for Windows"
+        "aria": "Baixar o instalador do OpenLimiter para Windows, 64 bits",
+        "label": "Baixar para Windows"
       },
       "webApp": {
-        "aria": "Open the web app, live now",
-        "label": "Open the web app"
+        "aria": "Abrir o web app, disponível agora",
+        "label": "Abrir o web app"
       },
       "macos": {
-        "aria": "Download OpenLimiter for macOS, Apple silicon"
+        "aria": "Baixar o OpenLimiter para macOS, Apple silicon"
       },
       "iphone": {
-        "aria": "iPhone: the web app installs to your home screen, there is no App Store app"
+        "aria": "iPhone: o web app se instala na sua tela de início, não existe app na App Store"
       },
       "android": {
-        "aria": "Android: the web app installs to your home screen, there is no Play Store app"
+        "aria": "Android: o web app se instala na sua tela de início, não existe app na Play Store"
       },
       "cli": {
-        "aria": "Command line reference in the docs"
+        "aria": "Referência de linha de comando na documentação"
       },
-      "allOptions": "All download options"
+      "allOptions": "Todas as opções de download"
     },
     "supports": {
-      "label": "Supports",
-      "manualEntry": "and manual entry"
+      "label": "Compatível com",
+      "manualEntry": "e manual entry"
     },
     "backdrop": {
-      "play": "Play video",
-      "pause": "Pause video"
+      "play": "Reproduzir vídeo",
+      "pause": "Pausar vídeo"
     },
-    "disclaimer": "Windows, macOS and Linux all have packaged desktop builds on the release, and npm is the recommended command line install. The web app needs nothing installed. The desktop builds are not code signed yet, so Windows and macOS warn on first run. The mobile applications are not built."
+    "disclaimer": "Windows, macOS e Linux têm builds de desktop empacotadas no release, e o npm é a instalação de linha de comando recomendada. O web app não precisa de nada instalado. As builds de desktop ainda não são assinadas digitalmente, então Windows e macOS avisam na primeira execução. Os aplicativos móveis não foram construídos."
   },
   "home": {
-    "docsLine": "Both of those are written up in full: <agentContext>what an agent is told</agentContext> and <cli>every command it ships with</cli>.",
+    "docsLine": "As duas coisas estão documentadas em detalhe: <agentContext>o que um agente recebe</agentContext> e <cli>cada comando que ele já traz</cli>.",
     "bridge": {
-      "line": "When you step away from the desk, the numbers are still on your own disk.",
-      "note": "Nothing had to be uploaded to make that true."
+      "line": "Quando você se afasta da mesa, os números continuam no seu próprio disco.",
+      "note": "Nada precisou ser enviado a lugar nenhum para isso ser verdade."
     }
   },
   "deviceFrame": {
-    "title": "Every plan on one screen",
-    "lead": "A card per provider: the meter, how fresh that reading is, and when the window resets. What you see here is what installs.",
+    "title": "Todo plano em uma tela",
+    "lead": "Um cartão por provedor: o meter, quão recente é essa leitura, e quando a janela reinicia. O que você vê aqui é o que se instala.",
     "screenshot": {
-      "alt": "The OpenLimiter desktop application, showing one card per provider with a meter, a percentage, a freshness state and a reset countdown, over synthetic demo data."
+      "alt": "O aplicativo de desktop do OpenLimiter, mostrando um cartão por provedor com um meter, uma porcentagem, um estado de atualização e uma contagem regressiva de reinício, sobre dados sintéticos de demonstração."
     },
-    "caption": "The packaged desktop application, captured on a real machine against the project's synthetic demo fixtures. No account, credential or real usage figure appears in it."
+    "caption": "O aplicativo de desktop empacotado, capturado numa máquina real contra os fixtures sintéticos de demonstração do projeto. Nenhuma conta, credencial ou número real de uso aparece nele."
   },
   "phonePanels": {
     "shots": {
       "meters": {
         "label": "Meters",
-        "alt": "The web app on a phone, showing the overall verdict at the top and one card per provider below it, each with a meter bar, a percentage, a freshness state and a reset countdown."
+        "alt": "O web app num celular, mostrando o veredito geral no topo e um cartão por provedor abaixo, cada um com uma barra de meter, uma porcentagem, um estado de atualização e uma contagem regressiva de reinício."
       },
       "agentContext": {
         "label": "Agent context",
-        "alt": "The web app on a phone, showing the bounded block of budget state a coding agent receives, fenced in an untrusted data boundary."
+        "alt": "O web app num celular, mostrando o bloco limitado de estado de orçamento que um agente de codificação recebe, cercado por um limite explícito de dados não confiáveis."
       },
       "connections": {
-        "label": "Connections",
-        "alt": "The web app on a phone, showing what each provider can be read from today and the box a quota document is pasted or dropped into."
+        "label": "Conexões",
+        "alt": "O web app num celular, mostrando o que cada provedor pode entregar hoje e a caixa em que um documento de quota é colado ou solto."
       }
     }
   },
   "integrations": {
-    "title": "What it reads, where it lands",
-    "lead": "No testimonials, no avatar wall, no user count. Every card below either ships a connector in this release or says plainly that it does not have one yet.",
-    "plannedChip": "planned",
-    "plannedLine": "Planned connector. Meter it today through manual entry or ingest.",
+    "title": "O que ele lê, onde isso chega",
+    "lead": "Sem depoimentos, sem mural de avatares, sem contador de usuários. Cada cartão abaixo ou já traz um connector nesta versão, ou diz claramente que ainda não tem um.",
+    "plannedChip": "planejado",
+    "plannedLine": "Connector planejado. Meça isso hoje por manual entry ou ingest.",
     "connectors": {
       "claude": {
-        "tag": "reads the native statusline payload",
-        "detail": "Parses the rate limit block Claude Code already hands to your statusline command. It asks nothing of Anthropic on its own."
+        "tag": "lê o payload nativo do statusline",
+        "detail": "Interpreta o bloco de limite de taxa que o Claude Code já entrega ao seu comando de statusline. Ele não pede nada à Anthropic por conta própria."
       },
       "openRouter": {
-        "tag": "reads a documented credits response",
-        "detail": "Parses the credits shape OpenRouter documents. The key belongs in your operating system credential store, never in a file."
+        "tag": "lê uma resposta de créditos documentada",
+        "detail": "Interpreta o formato de créditos que a OpenRouter documenta. A chave pertence ao gerenciador de credenciais do seu sistema operacional, nunca a um arquivo."
       },
       "codex": {
-        "tag": "reads an internal usage payload",
-        "detail": "Parses the usage shape the Codex tooling produces. The shape is internal, so it can change without notice, and it fails closed when it does."
+        "tag": "lê um payload interno de uso",
+        "detail": "Interpreta o formato de uso que as ferramentas do Codex produzem. O formato é interno, então pode mudar sem aviso, e falha de forma segura quando isso acontece."
       },
       "antigravity": {
-        "tag": "reads an internal quota payload",
-        "detail": "Parses the quota shape the Antigravity tooling produces. Internal too, marked as such, and never repaired or rewritten."
+        "tag": "lê um payload interno de quota",
+        "detail": "Interpreta o formato de quota que as ferramentas do Antigravity produzem. Também interno, marcado como tal, e nunca corrigido ou reescrito."
       },
       "openCode": {
-        "tag": "reads a session you already opened",
-        "detail": "Describes the usage view behind an existing session. It carries the highest automation risk of the six and stops the moment that session expires."
+        "tag": "lê uma sessão que você já abriu",
+        "detail": "Descreve a visão de uso por trás de uma sessão existente. Carrega o maior risco de automação dos seis e para no instante em que essa sessão expira."
       },
       "manualEntry": {
         "name": "Manual entry",
-        "tag": "reads numbers you write yourself",
-        "detail": "Budgets you maintain by hand, for a self hosted model or any subscription without a connector. It never breaks and never guesses."
+        "tag": "lê números que você mesmo escreve",
+        "detail": "Orçamentos que você mantém à mão, para um modelo self hosted ou qualquer assinatura sem connector. Nunca quebra e nunca chuta."
       }
     },
     "surfaces": {
       "statusline": {
-        "name": "Claude Code statusline",
-        "detail": "One line beside your prompt: the worst meter per provider with a reason code in front. It falls back to the cache and never blocks the tool that called it."
+        "name": "Statusline do Claude Code",
+        "detail": "Uma linha ao lado do seu prompt: o pior meter por provedor, com um código de motivo na frente. Ela recorre ao cache e nunca bloqueia a ferramenta que a chamou."
       },
       "promptHook": {
-        "name": "Claude Code prompt hook",
-        "detail": "A bounded block on prompt submit, fenced in an explicit untrusted data boundary. When every provider is unknown it injects nothing at all."
+        "name": "Prompt hook do Claude Code",
+        "detail": "Um bloco limitado ao enviar o prompt, cercado por um limite explícito de dados não confiáveis. Quando todo provedor está unknown, ele não injeta nada."
       },
       "shell": {
-        "name": "Any shell",
-        "detail": "The whole snapshot as a table for you or as JSON for a script. No network call, no account, no daemon in the middle."
+        "name": "Qualquer shell",
+        "detail": "O snapshot inteiro como uma tabela para você, ou como JSON para um script. Sem chamada de rede, sem conta, sem daemon no meio."
       },
       "fileWriter": {
-        "name": "Any tool that can write a file",
-        "detail": "One generic command takes a payload for any connector, so a provider without an integration can still be fed from a script you control."
+        "name": "Qualquer ferramenta que grave um arquivo",
+        "detail": "Um comando genérico aceita um payload para qualquer connector, então um provedor sem integração ainda pode ser alimentado por um script que você controla."
       },
       "ci": {
-        "name": "Continuous integration",
-        "detail": "Export the cache as JSON and assert on it in a pipeline. Every release is tested on Windows and Linux on every push."
+        "name": "Integração contínua",
+        "detail": "Exporte o cache como JSON e faça asserções sobre ele num pipeline. Todo release é testado em Windows e Linux a cada push."
       },
       "ownFrontend": {
-        "name": "Your own front end",
-        "tag": "one JSON document",
-        "detail": "The cache is a plain document on your disk with a versioned schema. Read it and build whatever view you want."
+        "name": "Seu próprio front end",
+        "tag": "um documento JSON",
+        "detail": "O cache é um documento simples no seu disco, com um schema versionado. Leia e construa a visão que quiser."
       }
     }
   },
   "worksWith": {
-    "title": "Works with your tools",
-    "lead": "One meter over every subscription you already hold. Each connector reads a shape that something on your machine already wrote, and in this release not one of them touches the network.",
+    "title": "Funciona com suas ferramentas",
+    "lead": "Um meter sobre cada assinatura que você já mantém. Cada connector lê um formato que algo na sua máquina já escreveu, e nesta versão nenhum deles toca a rede.",
     "groups": {
       "today": {
-        "label": "Ships today",
-        "note": "Six connectors ship in this release"
+        "label": "Já disponíveis",
+        "note": "Seis connectors vêm nesta versão"
       },
       "planned": {
-        "label": "Planned",
-        "note": "Known, named, and not written yet"
+        "label": "Planejados",
+        "note": "Conhecidos, nomeados e ainda não escritos"
       }
     },
     "tile": {
       "connector": "Connector",
-      "noConnector": "No connector yet",
-      "plannedChip": "planned"
+      "noConnector": "Ainda sem connector",
+      "plannedChip": "planejado"
     },
-    "feedIn": "How to feed one in",
-    "footnote": "Every connector ships marked <code>UNVERIFIED</code>, which is the honest default: no explicit verifier has confirmed a shape against a live account yet. Three of them read interfaces that are internal to somebody else's tooling and can change without notice, and when one does, that provider fails closed to unknown rather than guessing. <link>Every connector and its real state</link>.",
-    "manualNote": "Every tool on this page can be metered today. Write the numbers down with manual entry, or pipe a payload in with ingest from any script you control, and it lands in the same snapshot as a connector."
+    "feedIn": "Como alimentar um",
+    "footnote": "Todo connector vem marcado <code>UNVERIFIED</code>, que é o padrão honesto: nenhum verificador explícito confirmou ainda um formato contra uma conta real. Três deles leem interfaces internas às ferramentas de outra empresa, que podem mudar sem aviso, e quando isso acontece, esse provedor falha de forma segura para unknown em vez de chutar. <link>Cada connector e seu estado real</link>.",
+    "manualNote": "Toda ferramenta desta página já pode ser medida hoje. Anote os números com manual entry, ou envie um payload com ingest a partir de qualquer script que você controle, e ele cai no mesmo snapshot que um connector."
   },
   "runsWhere": {
-    "title": "Runs where you work",
-    "lead": "Windows, macOS and Linux, from a terminal, a statusline, a prompt hook or a script, and in any browser through the web app. One local cache, read by whatever you point at it.",
-    "screenshotsNote": "Those are screenshots of the web app running at phone size, against the project's synthetic fixtures, declared here in words rather than stamped over the pictures. The same reading opens in any browser at the <webApp>web app</webApp>, which installs to a home screen. Native iOS and Android applications are planned and not built."
+    "title": "Roda onde você trabalha",
+    "lead": "Windows, macOS e Linux, a partir de um terminal, um statusline, um prompt hook ou um script, e em qualquer navegador pelo web app. Um cache local, lido por qualquer coisa que você aponte para ele.",
+    "screenshotsNote": "Essas são capturas de tela do web app rodando em tamanho de celular, contra os fixtures sintéticos do projeto, declarado aqui em palavras em vez de carimbado sobre as imagens. A mesma leitura abre em qualquer navegador no <webApp>web app</webApp>, que se instala numa tela de início. Aplicativos nativos para iOS e Android estão planejados e ainda não foram construídos."
   },
   "webApp": {
     "title": "Web app",
-    "status": "live",
-    "lead": "A browser is the one surface every device already has. This one runs the same engine as the command line tool, on a document you give it, with nothing uploaded and no account anywhere.",
+    "status": "disponível",
+    "lead": "Um navegador é a única superfície que todo dispositivo já tem. Este roda o mesmo motor da ferramenta de linha de comando, sobre um documento que você entrega a ele, sem nada enviado e sem conta em lugar nenhum.",
     "facts": {
       "sameEngine": {
-        "title": "The same engine, in the tab",
-        "detail": "Not a second implementation. The core, the connectors and the adapter are mirrored from the command line tool into the browser bundle, so a reading here and a reading in a terminal cannot disagree."
+        "title": "O mesmo motor, na aba",
+        "detail": "Não é uma segunda implementação. O núcleo, os connectors e o adaptador são espelhados da ferramenta de linha de comando para o pacote do navegador, então uma leitura aqui e uma leitura num terminal não podem divergir."
       },
       "handDocument": {
-        "title": "You hand it the document",
-        "detail": "Paste or drop what openlimiter export prints. A browser tab cannot read your disk by itself, and nothing is uploaded to make up for that: parsing happens in the tab and no request leaves it."
+        "title": "Você entrega o documento",
+        "detail": "Cole ou solte o que o openlimiter export imprime. Uma aba de navegador não consegue ler seu disco sozinha, e nada é enviado para compensar isso: a interpretação acontece na própria aba e nenhuma requisição sai dela."
       },
       "offline": {
-        "title": "Installs, and works offline",
-        "detail": "Add it to a phone or desktop home screen and it opens like an application. A service worker keeps it working with no network at all, because it never needed one."
+        "title": "Instala, e funciona offline",
+        "detail": "Adicione à tela de início do celular ou do desktop e ele abre como um aplicativo. Um service worker o mantém funcionando sem nenhuma rede, porque ele nunca precisou de uma."
       }
     },
-    "openApp": "Open the web app",
-    "howToProduce": "How to produce a document"
+    "openApp": "Abrir o web app",
+    "howToProduce": "Como produzir um documento"
   },
   "connections": {
     "heading": {
-      "title": "What each one actually does",
-      "note": "A parser is not a connection"
+      "title": "O que cada um realmente faz",
+      "note": "Um parser não é uma conexão"
     },
     "columns": {
       "parser": "Parser",
-      "reader": "Reader",
+      "reader": "Leitor",
       "auth": "Auth",
-      "verification": "Verification"
+      "verification": "Verificação"
     },
     "table": {
-      "caption": "Every provider, and which of the four stages of support it has reached today, read from the reviewed provider registry",
-      "provider": "Provider",
-      "state": "State"
+      "caption": "Cada provedor, e qual dos quatro estágios de suporte ele já alcançou hoje, lido do registro de provedores revisado",
+      "provider": "Provedor",
+      "state": "Estado"
     },
     "cells": {
-      "unstated": "Unstated"
+      "unstated": "Não informado"
     },
     "support": {
-      "ready": "Ready",
-      "notRequired": "Not required",
-      "none": "None"
+      "ready": "Pronto",
+      "notRequired": "Não necessário",
+      "none": "Nenhum"
     },
     "verification": {
       "unverified": "Unverified",
       "beta": "Beta",
-      "verified": "Verified",
-      "importOnly": "Import only",
+      "verified": "Verificado",
+      "importOnly": "Só importação",
       "manual": "Manual",
       "experimental": "Experimental",
-      "planned": "Planned"
+      "planned": "Planejado"
     },
     "state": {
-      "noSpec": "No spec",
+      "noSpec": "Sem spec",
       "manual": "Manual",
-      "importOnly": "Import only",
-      "localCli": "Local CLI",
-      "connected": "Connected"
+      "importOnly": "Só importação",
+      "localCli": "CLI local",
+      "connected": "Conectado"
     },
     "readerLine": {
-      "noSpec": "No reviewed spec in the registry yet, so nothing here claims a state for it.",
-      "implemented": "OpenLimiter reads this one itself.",
-      "notImplemented": "Nothing here fetches it, so the document comes from you."
+      "noSpec": "Ainda não há uma spec revisada no registro, então nada aqui reivindica um estado para ele.",
+      "implemented": "O OpenLimiter lê este por conta própria.",
+      "notImplemented": "Nada aqui busca este, então o documento vem de você."
     },
     "providers": {
       "claude": {
-        "fact": "Claude Code writes a rate limit block to its statusline command."
+        "fact": "O Claude Code grava um bloco de limite de taxa no seu comando de statusline."
       },
       "openrouter": {
-        "fact": "The credits endpoint is documented and its response parses."
+        "fact": "O endpoint de créditos é documentado e a resposta dele é interpretável."
       },
       "codex": {
-        "fact": "An internal payload shape, which can change without notice."
+        "fact": "Um formato de payload interno, que pode mudar sem aviso."
       },
       "antigravity": {
-        "fact": "An internal payload shape, which can change without notice."
+        "fact": "Um formato de payload interno, que pode mudar sem aviso."
       },
       "opencode": {
-        "fact": "A usage view behind a session you already hold."
+        "fact": "Uma visão de uso por trás de uma sessão em que você já entrou."
       },
       "manual": {
-        "fact": "Numbers you keep yourself, for anything with no interface."
+        "fact": "Números que você mesmo mantém, para qualquer coisa sem interface."
       }
     },
     "footnote": {
-      "lead": "Reader means something in OpenLimiter goes and fetches the number. Auth means a credential is held and used. Every cell above is read at build time from the reviewed provider registry rather than written into this page, so a stage cannot be claimed here without a human changing a spec first.",
-      "unspecified": "{count} of the {total} connectors have no reviewed spec yet, and every one of their cells reads Unstated rather than guessing.",
-      "elsewhere": "The registry describes {count} further products with no connector at all, which is why they are not rows here.",
-      "tail": "Nothing on this page is called connected."
+      "lead": "Leitor significa que algo dentro do OpenLimiter vai buscar o número. Auth significa que uma credencial é guardada e usada. Cada célula acima é lida em tempo de build a partir do registro de provedores revisado, em vez de escrita nesta página, então um estágio não pode ser reivindicado aqui sem um humano mudar uma spec antes.",
+      "unspecified": "{count} dos {total} connectors ainda não têm uma spec revisada, e cada célula deles mostra Não informado em vez de chutar.",
+      "elsewhere": "O registro descreve mais {count} produtos sem connector nenhum, por isso eles não são linhas aqui.",
+      "tail": "Nada nesta página é chamado de conectado."
     }
   },
   "cliTranscript": {
     "captions": {
-      "demo": "All six connectors, one schema",
-      "statusline": "Statusline, bars where you already look",
-      "statuslineNarrow": "One row, worst providers kept",
-      "statuslinePlain": "The 0.1.0 line, on request",
-      "statuslineAllMeters": "Every meter, one cell each",
-      "config": "The statusline section, as it ships",
-      "hook": "Agent context, bounded by construction"
+      "demo": "Seis connectors, um só schema",
+      "statusline": "Statusline, barras onde você já olha",
+      "statuslineNarrow": "Uma linha, com os piores provedores mantidos",
+      "statuslinePlain": "A linha da 0.1.0, sob pedido",
+      "statuslineAllMeters": "Cada meter, uma célula própria",
+      "config": "A seção do statusline, como ela vem",
+      "hook": "Agent context, limitado por construção"
     }
   },
   "scriptable": {
-    "title": "Fully scriptable",
-    "lead": "Everything the tool knows, it will print. A table for you, one line for a statusline, a bounded block for an agent, or plain JSON for anything else.",
-    "tablistAriaLabel": "Command line examples",
+    "title": "Totalmente scriptável",
+    "lead": "Tudo que a ferramenta sabe, ela imprime. Uma tabela para você, uma linha para um statusline, um bloco limitado para um agente, ou JSON puro para qualquer outra coisa.",
+    "tablistAriaLabel": "Exemplos de linha de comando",
     "tabs": {
       "snapshot": "Snapshot",
       "statusline": "Statusline",
       "agentContext": "Agent context"
     },
-    "note": "Every block above is verbatim standard output, captured against the project's synthetic fixtures. Add <code>export</code> for the same state as JSON, and <code>doctor</code> when a connector stops parsing."
+    "note": "Cada bloco acima é a saída padrão exata, capturada contra os fixtures sintéticos do projeto. Acrescente <code>export</code> para o mesmo estado em JSON, e <code>doctor</code> para quando um connector parar de interpretar."
   },
   "tools": {
     "title": {
-      "formerly": "{name}, formerly {formerly}",
-      "formerlyPlanned": "{name}, formerly {formerly}, planned",
-      "planned": "{name}, planned"
+      "formerly": "{name}, antes {formerly}",
+      "formerlyPlanned": "{name}, antes {formerly}, planejado",
+      "planned": "{name}, planejado"
     }
   },
   "agentContext": {
-    "title": "Read, bound, hand over",
-    "lead": "A block injected into a prompt is an injection surface. This one carries enum codes, bounded numbers and timestamps, and it says so about itself in its own opening tag.",
-    "captured": "Captured {date}",
+    "title": "Ler, limitar, entregar",
+    "lead": "Um bloco injetado num prompt é uma superfície de injeção. Este carrega códigos enum, números limitados e timestamps, e ele mesmo diz isso na sua própria tag de abertura.",
+    "captured": "Capturado em {date}",
     "guarantees": {
       "providerTextNeverCrosses": {
-        "title": "Provider text never crosses",
-        "detail": "Parsers keep known numbers and known timestamps. Labels, messages, account text, markup and unknown fields are discarded before anything reaches policy code, so no provider's prose can become an instruction to your agent."
+        "title": "Texto do provedor nunca atravessa",
+        "detail": "Os parsers mantêm apenas números e timestamps conhecidos. Rótulos, mensagens, texto de conta, marcação e campos desconhecidos são descartados antes de qualquer coisa chegar ao código de política, então nenhuma prosa de provedor vira uma instrução para o seu agente."
       },
       "enumCodesOnly": {
-        "title": "Enum codes only",
-        "detail": "The advice engine emits provider codes, reason codes, bounded percentages, freshness codes and timestamps. The adapter validates every one of them again on the way out."
+        "title": "Só códigos enum",
+        "detail": "O motor de recomendação emite códigos de provedor, códigos de motivo, porcentagens limitadas, códigos de atualização e timestamps. O adaptador valida cada um deles de novo na saída."
       },
       "silenceBeatsGuess": {
-        "title": "Silence beats a guess",
-        "detail": "If every provider is unknown, the hook injects nothing at all. It reads the local cache, makes no network request, and exits 0 whatever happens."
+        "title": "Silêncio vale mais que um chute",
+        "detail": "Se todo provedor está unknown, o hook não injeta nada. Ele lê o cache local, não faz nenhuma requisição de rede, e sai com 0 aconteça o que acontecer."
       },
       "adviceNotRouting": {
-        "title": "Advice, not routing",
-        "detail": "OpenLimiter tells your agent what is left and what that suggests. It does not switch providers for you, does not bypass a limit, and does not touch how anything authenticates. The decision stays yours."
+        "title": "Recomendação, não roteamento",
+        "detail": "O OpenLimiter diz ao seu agente o que sobrou e o que isso sugere. Ele não troca de provedor por você, não contorna um limite, e não toca em como nada se autentica. A decisão continua sua."
       }
     }
   },
   "faq": {
-    "title": "FAQ",
+    "title": "Perguntas frequentes",
     "items": {
       "whatLeaves": {
-        "question": "What actually leaves my machine?",
-        "answer": "Nothing. There is no telemetry, no analytics, and no OpenLimiter server to receive anything. This release performs no provider egress at all: every connector is a parser over data that something else already wrote to your disk or piped to standard input."
+        "question": "O que realmente sai da minha máquina?",
+        "answer": "Nada. Não há telemetria, não há analytics, e não há servidor do OpenLimiter para receber qualquer coisa. Esta versão não faz nenhuma saída de dados para provedor: cada connector é um parser sobre dados que outra coisa já escreveu no seu disco ou enviou pela entrada padrão."
       },
       "safeToPoint": {
-        "question": "Is it safe to point at my tools?",
-        "answer": "OpenLimiter opens what your installed tools already store, read only, and never rewrites, repairs or migrates them. Every parser keeps bounded numbers and timestamps and discards provider text before anything reaches your agent."
+        "question": "É seguro apontar para minhas ferramentas?",
+        "answer": "O OpenLimiter abre o que suas ferramentas instaladas já guardam, só para leitura, e nunca as reescreve, conserta ou migra. Cada parser mantém números e timestamps limitados e descarta texto de provedor antes de qualquer coisa chegar ao seu agente."
       },
       "promptHook": {
-        "question": "Can the prompt hook break my session?",
-        "answer": "No. The hook reads the local cache, makes no network request, injects nothing when every provider is unknown, and exits 0 whatever happens. The statusline behaves the same way: if input is absent or malformed it falls back to the cache and reports unknown."
+        "question": "O prompt hook pode quebrar minha sessão?",
+        "answer": "Não. O hook lê o cache local, não faz nenhuma requisição de rede, não injeta nada quando todo provedor está unknown, e sai com 0 aconteça o que acontecer. O statusline se comporta da mesma forma: se a entrada está ausente ou malformada, ele recorre ao cache e reporta unknown."
       },
       "providersToday": {
-        "question": "Which providers work today?",
-        "answer": "Six connectors ship: Claude through the native statusline payload, OpenRouter through its documented shape, Codex and Antigravity through internal shapes that may break, OpenCode through an existing session that may break, and manual entry. Every one is marked UNVERIFIED until an explicit verifier exists."
+        "question": "Quais provedores funcionam hoje?",
+        "answer": "Seis connectors vêm inclusos: Claude pelo payload nativo do statusline, OpenRouter pelo formato documentado dele, Codex e Antigravity por formatos internos que podem quebrar, OpenCode por uma sessão existente que pode quebrar, e manual entry. Todos vêm marcados UNVERIFIED até existir um verificador explícito."
       },
       "apiKey": {
-        "question": "Do I need an API key?",
-        "answer": "Not to start. The Claude path reads a payload Claude Code already hands your statusline, and the manual path needs nothing at all. OpenRouter is the one connector that expects a key of your own, and that key belongs in your operating system credential store."
+        "question": "Eu preciso de uma chave de API?",
+        "answer": "Não para começar. O caminho do Claude lê um payload que o Claude Code já entrega ao seu statusline, e o caminho manual não precisa de nada. A OpenRouter é o único connector que espera uma chave sua, e essa chave pertence ao gerenciador de credenciais do seu sistema operacional."
       },
       "routing": {
-        "question": "Does it route my requests for me?",
-        "answer": "No, and it is not going to. OpenLimiter provides advice. It does not route requests automatically, does not bypass a limit, and does not touch how your agent authenticates. The decision stays with you."
+        "question": "Ele roteia minhas requisições por mim?",
+        "answer": "Não, e não vai passar a fazer isso. O OpenLimiter fornece recomendações. Ele não roteia requisições automaticamente, não contorna um limite, e não toca em como seu agente se autentica. A decisão continua com você."
       },
       "connectorBreaks": {
-        "question": "What happens when a connector breaks?",
-        "answer": "Unofficial shapes change without notice. When one does, parsing fails closed: that provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap. Unknown never becomes zero."
+        "question": "O que acontece quando um connector quebra?",
+        "answer": "Formatos não oficiais mudam sem aviso. Quando isso acontece, a interpretação falha de forma segura: esse provedor volta a unknown, os outros provedores não são afetados, e nada inventa um número para preencher a lacuna. Unknown nunca vira zero."
       },
       "desktopOrPhone": {
-        "question": "Is there a desktop or phone app?",
-        "answer": "The desktop tray application is built and packaged for Windows, macOS and Linux, and every build is attached to the release on GitHub. None of them are code signed yet, so Windows SmartScreen and macOS Gatekeeper warn the first time you open one, and the download page says how to get past that. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
+        "question": "Existe um aplicativo de desktop ou de celular?",
+        "answer": "O aplicativo de bandeja do sistema está construído e empacotado para Windows, macOS e Linux, e toda build está anexada ao release no GitHub. Nenhuma delas é assinada digitalmente ainda, então o SmartScreen do Windows e o Gatekeeper do macOS avisam na primeira vez que você abre uma, e a página de download diz como contornar isso. No celular, o web app abre no navegador e se instala numa tela de início. Aplicativos nativos para iOS e Android não foram construídos, nada está numa loja, e não há lista de espera. A página de download lista cada plataforma com seu estado real."
       },
       "free": {
-        "question": "Is it free?",
-        "answer": "Everything that runs locally is free and always will be, under Apache 2.0: every connector, the agent context block, themes, the whole command line tool, and all three ingestion paths, with no usage limit and no account. Desktop notifications are not built yet and will be free too."
+        "question": "É grátis?",
+        "answer": "Tudo que roda localmente é grátis e sempre vai ser, sob a Apache 2.0: cada connector, o agent context block, os temas, toda a ferramenta de linha de comando, e os três caminhos de ingestão, sem limite de uso e sem conta. As notificações de desktop ainda não foram construídas e também vão ser grátis."
       },
       "pro": {
-        "question": "What is OpenLimiter Pro?",
-        "answer": "A planned paid tier at $5 a month, founding price, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, a smart limiter that routes between your models from live budget state, email alerts and a weekly digest, delivery rules, hosted history and burn trends, priority connector requests, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it."
+        "question": "O que é o OpenLimiter Pro?",
+        "answer": "Uma camada paga planejada, a $5 por mês, preço de fundador, para as coisas que só rodam em servidores: sincronização criptografada entre seus dispositivos, notificações push para o celular, um smart limiter que roteia entre seus modelos a partir de estado de orçamento em tempo real, alertas por email e um resumo semanal, regras de entrega, histórico hospedado e tendências de consumo, pedidos prioritários de connector, e uma camada de equipe mais adiante. Ainda não foi construído. Não há checkout e não há lista de espera, e nada que roda localmente hoje algum dia fica atrás dela."
       }
     }
   },
   "pricing": {
-    "title": "Pricing",
-    "lead": "Everything that runs on your machine is free, and that is not a launch offer. The only thing that could ever cost money is a service running on servers, because servers cost money to run.",
-    "plannedChip": "planned",
+    "title": "Preços",
+    "lead": "Tudo que roda na sua máquina é grátis, e isso não é uma promoção de lançamento. A única coisa que algum dia poderia custar dinheiro é um serviço rodando em servidores, porque servidores custam dinheiro para rodar.",
+    "plannedChip": "planejado",
     "free": {
-      "status": "available",
-      "price": "Free",
-      "priceNote": "forever, and in the licence",
-      "lead": "The whole local product, for everybody, with no account anywhere in it.",
-      "footnote": "Open source under <licence>Apache 2.0</licence>, so this cannot be taken away later. The licence is the promise.",
+      "status": "disponível",
+      "price": "Grátis",
+      "priceNote": "para sempre, e na licença",
+      "lead": "O produto local inteiro, para todo mundo, sem nenhuma conta em lugar nenhum.",
+      "footnote": "Código aberto sob a <licence>Apache 2.0</licence>, então isso não pode ser tirado depois. A licença é a promessa.",
       "lines": {
-        "connectors": "Every connector, and every one added later",
-        "agentContext": "The bounded agent context block and its routing advice",
-        "notifications": "Desktop notifications and sounds when a window nears its cap",
-        "themes": "Themes, in the desktop application and in the browser",
-        "cli": "The full command line tool and every statusline setting",
-        "ingestion": "All three ingestion paths: a connector, ingest, or manual entry",
-        "noLimits": "No usage limit, no account, no feature locked behind anything"
+        "connectors": "Cada connector, e cada um que for adicionado depois",
+        "agentContext": "O agent context block limitado e suas recomendações de roteamento",
+        "notifications": "Notificações e sons no desktop quando uma janela se aproxima do limite",
+        "themes": "Temas, no aplicativo de desktop e no navegador",
+        "cli": "A ferramenta de linha de comando completa e cada configuração de statusline",
+        "ingestion": "Os três caminhos de ingestão: um connector, ingest, ou manual entry",
+        "noLimits": "Sem limite de uso, sem conta, sem recurso trancado atrás de nada"
       }
     },
     "pro": {
-      "status": "not built",
-      "perMonth": "a month",
-      "foundingChip": "founding price",
-      "priceNote": "{regular} is the planned regular price. Early supporters keep {founding}.",
-      "lead": "Services that run on servers rather than on your machine. Every line below is coming and none of it exists yet: there is no checkout, no card form and no waiting list.",
-      "footnote": "Nothing local ever moves behind this plan. Pro sells servers and service, not switches.",
+      "status": "não construído",
+      "perMonth": "por mês",
+      "foundingChip": "preço de fundador",
+      "priceNote": "{regular} é o preço regular planejado. Os primeiros apoiadores mantêm {founding}.",
+      "lead": "Serviços que rodam em servidores, não na sua máquina. Cada linha abaixo está a caminho e nenhuma delas existe ainda: não há checkout, não há formulário de cartão e não há lista de espera.",
+      "footnote": "Nada local algum dia fica atrás deste plano. O Pro vende servidores e serviço, não interruptores.",
       "lines": {
-        "sync": "Encrypted synchronisation of quota state across your own devices",
-        "push": "Push notifications to your phone when a window nears its cap",
-        "smartLimiter": "Smart limiter: quota aware routing between your models, driven by live budget state",
-        "email": "Email alerts and a weekly digest",
-        "deliveryRules": "Alert delivery rules, so a quiet hour stays quiet",
-        "history": "Hosted usage history and burn trends across every device",
-        "priority": "Priority connector requests, so your provider gets built first",
-        "team": "A team dashboard tier, later than the rest"
+        "sync": "Sincronização criptografada do estado de quota entre seus próprios dispositivos",
+        "push": "Notificações push para o celular quando uma janela se aproxima do limite",
+        "smartLimiter": "Smart limiter: roteamento consciente de quota entre seus modelos, guiado por estado de orçamento em tempo real",
+        "email": "Alertas por email e um resumo semanal",
+        "deliveryRules": "Regras de entrega de alerta, para uma hora silenciosa continuar silenciosa",
+        "history": "Histórico de uso hospedado e tendências de consumo em cada dispositivo",
+        "priority": "Pedidos prioritários de connector, para seu provedor ser construído primeiro",
+        "team": "Uma camada de painel para equipes, mais adiante que o resto"
       }
     },
-    "roadmapCta": "What is actually planned",
-    "sourceCta": "Read the source"
+    "roadmapCta": "O que está realmente planejado",
+    "sourceCta": "Ler o código fonte"
   },
   "about": {
-    "lead": "OpenLimiter is an independent open source project for people who hold several AI coding subscriptions at once and would rather know which one still has room than find out the hard way, mid task.",
-    "description": "It is built around three commitments that are easy to state and awkward to keep. If it saves you an afternoon, sponsorship is the best way to keep the connectors working as the shapes underneath them shift. Reporting a connector that broke is worth just as much.",
+    "lead": "O OpenLimiter é um projeto de código aberto independente para quem mantém várias assinaturas de IA ao mesmo tempo e prefere saber qual delas ainda tem espaço, em vez de descobrir isso do jeito difícil, no meio de uma tarefa.",
+    "description": "Ele é construído em torno de três compromissos fáceis de declarar e difíceis de manter. Se ele te economiza uma tarde, patrocinar é a melhor forma de manter os connectors funcionando à medida que os formatos por trás deles mudam. Reportar um connector que quebrou vale exatamente o mesmo.",
     "commitments": {
       "runsLocal": {
-        "title": "It runs on your machine",
-        "detail": "Every connector in this release is a parser over something already on your disk. No provider egress, no daemon, no account."
+        "title": "Ele roda na sua máquina",
+        "detail": "Cada connector nesta versão é um parser sobre algo que já está no seu disco. Sem saída de dados para provedor, sem daemon, sem conta."
       },
       "reportsNobody": {
-        "title": "It reports to nobody",
-        "detail": "The software has no telemetry, no analytics, and no OpenLimiter server for anything to reach. This website keeps cookieless page counts only, with no cookies and nothing personal."
+        "title": "Ele não reporta para ninguém",
+        "detail": "O software não tem telemetria, não tem analytics, e não tem servidor do OpenLimiter para nada alcançar. Este site mantém apenas contagens de página sem cookies, sem nada pessoal."
       },
       "unknownStaysUnknown": {
-        "title": "Unknown stays unknown",
-        "detail": "A missing number never becomes a confident one. When a shape changes underneath a connector, that provider fails closed."
+        "title": "Unknown continua unknown",
+        "detail": "Um número ausente nunca vira um número confiante. Quando um formato muda por baixo de um connector, esse provedor falha de forma segura."
       }
     },
     "signature": {
-      "role": "Author and maintainer."
+      "role": "Autor e mantenedor."
     },
-    "readSource": "Read the source"
+    "readSource": "Ler o código fonte"
   },
   "download": {
     "metaTitle": "Download",
-    "metaDescription": "Get OpenLimiter: packaged desktop builds for Windows, macOS and Linux, the command line tool from npm, or the web app in any browser. Mobile applications are not built.",
+    "metaDescription": "Baixe o OpenLimiter: builds de desktop empacotadas para Windows, macOS e Linux, a ferramenta de linha de comando pelo npm, ou o web app em qualquer navegador. Aplicativos móveis ainda não foram construídos.",
     "title": "Download",
-    "lead": "Windows, macOS and Linux all have packaged desktop builds on the release, and npm is the recommended command line install. The web app needs nothing installed. The desktop builds are not code signed yet, so Windows and macOS warn on first run. The mobile applications are not built.",
+    "lead": "Windows, macOS e Linux têm builds de desktop empacotadas no release, e o npm é a instalação de linha de comando recomendada. O web app não precisa de nada instalado. As builds de desktop ainda não são assinadas digitalmente, então Windows e macOS avisam na primeira execução. Os aplicativos móveis não foram construídos.",
     "states": {
-      "available": "available",
-      "inDevelopment": "in development",
-      "planned": "planned"
+      "available": "disponível",
+      "inDevelopment": "em desenvolvimento",
+      "planned": "planejado"
     },
     "available": {
-      "title": "Available now",
-      "lead": "Windows, macOS and Linux each have a packaged desktop build, and every link below goes straight to the file. The command line tool is one npm install on any of them, or one clone if you would rather build it, because it is plain Node.js with no third party runtime dependencies. The web app needs nothing installed at all."
+      "title": "Disponível agora",
+      "lead": "Windows, macOS e Linux têm, cada um, uma build de desktop empacotada, e cada link abaixo leva direto ao arquivo. A ferramenta de linha de comando é um npm install em qualquer um deles, ou um clone se você preferir construir do zero, porque é Node.js puro, sem dependências de terceiros em tempo de execução. O web app não precisa de nada instalado."
     },
     "phone": {
-      "title": "On your phone",
-      "lead": "This installs the web app to your home screen. No native iOS or Android application is built.",
-      "qrAlt": "QR code linking to {url}",
-      "scan": "Scan this with your phone's camera. The web app opens, and you install it to the home screen from there."
+      "title": "No seu celular",
+      "lead": "Isso instala o web app na sua tela de início. Nenhum aplicativo nativo para iOS ou Android foi construído.",
+      "qrAlt": "Código QR apontando para {url}",
+      "scan": "Escaneie com a câmera do seu celular. O web app abre, e você o instala na tela de início a partir dali."
     },
     "building": {
-      "title": "Built, not packaged for you yet",
-      "lead": "This exists and it runs. What is missing is a build you can install on your own platform, and until that is produced this section says so rather than pointing you at something that is not there."
+      "title": "Construído, ainda não empacotado para você",
+      "lead": "Isso existe e funciona. O que falta é uma build que você possa instalar na sua própria plataforma, e até que ela exista, esta seção diz isso em vez de te apontar para algo que não está lá."
     },
     "notBuilt": {
-      "title": "Not built yet",
-      "lead": "Everything below is written down so the direction is clear. None of it exists today, none of it can be installed or opened, there is no waiting list, and no date is being promised for any of it."
+      "title": "Ainda não construído",
+      "lead": "Tudo abaixo está escrito para deixar clara a direção. Nada disso existe hoje, nada disso pode ser instalado ou aberto, não há lista de espera, e nenhuma data está sendo prometida para qualquer um deles."
     },
-    "releasesNote": "Every tagged version lives on the <releases>releases page</releases> of the <repo>repository</repo>, and what changed in each one is on the <changelog>changelog</changelog>.",
+    "releasesNote": "Cada versão marcada vive na <releases>página de releases</releases> do <repo>repositório</repo>, e o que mudou em cada uma está no <changelog>changelog</changelog>.",
     "targets": {
       "npm": {
-        "name": "Global install from npm",
-        "summary": "Recommended for the command line tool. Install the published package globally, then run openlimiter from any directory.",
-        "requirement": "Node 24 or newer and npm.",
-        "hrefLabel": "View the npm package"
+        "name": "Instalação global pelo npm",
+        "summary": "Recomendado para a ferramenta de linha de comando. Instale o pacote publicado globalmente e depois rode openlimiter a partir de qualquer pasta.",
+        "requirement": "Node 24 ou mais recente, e npm.",
+        "hrefLabel": "Ver o pacote no npm"
       },
       "source": {
-        "name": "From source",
-        "summary": "The command line tool, on any platform, and the path every capture on this site was taken from. Clone the repository, build the workspace, and the tool is ready.",
-        "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins."
+        "name": "A partir do código fonte",
+        "summary": "A ferramenta de linha de comando, em qualquer plataforma, e o caminho de onde toda captura deste site foi tirada. Clone o repositório, construa o workspace, e a ferramenta fica pronta.",
+        "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa."
       },
       "windows": {
         "name": "Windows",
-        "summary": "The desktop application is packaged for Windows two ways, and both are attached to the release: an installer for a normal machine, and an MSI for anyone putting it on several. The command line tool installs from npm on Windows like anywhere else, and all one hundred tests run on Windows in continuous integration on every commit.",
+        "summary": "O aplicativo de desktop é empacotado para Windows de duas formas, ambas anexadas ao release: um instalador para uma máquina comum, e um MSI para quem instala em várias. A ferramenta de linha de comando se instala pelo npm no Windows como em qualquer outro lugar, e os cem testes rodam no Windows na integração contínua a cada commit.",
         "assets": {
-          "setup": "Windows installer",
-          "msi": "Windows MSI"
+          "setup": "Instalador para Windows",
+          "msi": "MSI para Windows"
         },
-        "note": "Neither Windows build is code signed yet, so SmartScreen warns the first time you run it. Choose More info, then Run anyway.",
-        "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins. PowerShell or any terminal you like."
+        "note": "Nenhuma das duas builds do Windows é assinada digitalmente ainda, então o SmartScreen avisa na primeira vez que você a executa. Escolha Mais informações e depois Executar assim mesmo.",
+        "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa. PowerShell ou qualquer terminal de sua preferência."
       },
       "macos": {
         "name": "macOS",
-        "summary": "The desktop application is packaged for macOS as a disk image for each chip family, Apple silicon and Intel, and both are attached to the release. The command line tool runs on either from npm, because it is plain Node.js with no third party runtime dependencies.",
+        "summary": "O aplicativo de desktop é empacotado para macOS como uma imagem de disco para cada família de chip, Apple silicon e Intel, e ambas estão anexadas ao release. A ferramenta de linha de comando roda em qualquer um deles pelo npm, porque é Node.js puro, sem dependências de terceiros em tempo de execução.",
         "assets": {
-          "appleSilicon": "Apple silicon DMG",
-          "intel": "Intel DMG"
+          "appleSilicon": "DMG Apple silicon",
+          "intel": "DMG Intel"
         },
-        "note": "The disk images are not notarised yet, so Gatekeeper refuses to open the application on a double click. Right click it and choose Open the first time, then confirm.",
-        "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins."
+        "note": "As imagens de disco ainda não são notarizadas, então o Gatekeeper se recusa a abrir o aplicativo com um duplo clique. Clique com o botão direito e escolha Abrir na primeira vez, depois confirme.",
+        "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa."
       },
       "linux": {
         "name": "Linux",
-        "summary": "The desktop application is packaged for Linux three ways, all attached to the release: an AppImage that runs on anything, a deb for Debian and Ubuntu, and an rpm for Fedora and openSUSE. The command line tool installs from npm and is tested on Linux alongside Windows on every push.",
+        "summary": "O aplicativo de desktop é empacotado para Linux de três formas, todas anexadas ao release: um AppImage que roda em qualquer distribuição, um deb para Debian e Ubuntu, e um rpm para Fedora e openSUSE. A ferramenta de linha de comando se instala pelo npm e é testada no Linux junto com o Windows a cada push.",
         "assets": {
           "appImage": "AppImage",
-          "deb": "deb for Debian and Ubuntu",
-          "rpm": "rpm for Fedora and openSUSE"
+          "deb": "deb para Debian e Ubuntu",
+          "rpm": "rpm para Fedora e openSUSE"
         },
-        "note": "The AppImage needs its executable bit set before it will run. Tick that box in your file manager, or run chmod +x on the file you downloaded.",
-        "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins."
+        "note": "O AppImage precisa ter o bit de execução marcado antes de rodar. Marque essa opção no seu gerenciador de arquivos, ou rode chmod +x no arquivo baixado.",
+        "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa."
       },
       "web-app": {
         "name": "Web app",
-        "summary": "Nothing to install. The web app runs the same engine as the command line tool inside the browser tab, on a document you paste or drop, and it installs to a phone or desktop home screen and keeps working offline. Nothing is uploaded and there is no account.",
-        "hrefLabel": "Open the web app"
+        "summary": "Nada para instalar. O web app roda o mesmo motor da ferramenta de linha de comando dentro da aba do navegador, sobre um documento que você cola ou solta, e se instala numa tela de início do celular ou do desktop e continua funcionando offline. Nada é enviado e não há conta.",
+        "hrefLabel": "Abrir o web app"
       },
       "desktop": {
-        "name": "Desktop application",
-        "summary": "A tray icon beside the system clock, reading the same local cache the command line tool writes, so quota is glanceable with no terminal open. It is packaged for Windows, macOS and Linux, and every build is attached to the same release. There is no automatic update channel yet, so a new version means downloading it again.",
-        "note": "None of the desktop builds are code signed yet. Windows SmartScreen and macOS Gatekeeper both warn on first run, and each platform row above says how to get past it."
+        "name": "Aplicativo de desktop",
+        "summary": "Um ícone de bandeja ao lado do relógio do sistema, lendo o mesmo cache local que a ferramenta de linha de comando escreve, então a quota fica visível de relance sem nenhum terminal aberto. Ele é empacotado para Windows, macOS e Linux, e toda build está anexada ao mesmo release. Ainda não há canal de atualização automática, então uma versão nova precisa ser baixada de novo.",
+        "note": "Nenhuma das builds de desktop é assinada digitalmente ainda. O SmartScreen do Windows e o Gatekeeper do macOS avisam na primeira execução, e cada linha de plataforma acima diz como contornar isso."
       },
       "iphone": {
         "name": "iOS",
-        "summary": "Planned. Nothing has been submitted to the App Store, there is no build, and there is no waiting list. The web app installs to an iPhone home screen today, which is the nearest thing that exists."
+        "summary": "Planejado. Nada foi enviado para a App Store, não há build, e não há lista de espera. O web app se instala numa tela de início do iPhone hoje, que é a coisa mais próxima que existe."
       },
       "android": {
         "name": "Android",
-        "summary": "Planned. Nothing has been submitted to Google Play, there is no build, and there is no waiting list. The web app installs to an Android home screen today, which is the nearest thing that exists."
+        "summary": "Planejado. Nada foi enviado para o Google Play, não há build, e não há lista de espera. O web app se instala numa tela de início do Android hoje, que é a coisa mais próxima que existe."
       }
     }
   },
   "changelog": {
-    "metaTitle": "Changelog: every release and what changed",
-    "metaDescription": "Every released version of OpenLimiter, rendered from the CHANGELOG.md at the root of the repository.",
+    "metaTitle": "Changelog: cada release e o que mudou",
+    "metaDescription": "Cada versão lançada do OpenLimiter, renderizada a partir do CHANGELOG.md na raiz do repositório.",
     "title": "Changelog",
-    "lead": "Every released version of OpenLimiter, read straight from the file the repository itself keeps, in the order that file lists them.",
-    "empty": "No CHANGELOG.md was found in this checkout, so there is nothing to show here. The file this page reads sits at the root of the <repo>repository</repo>, and it is the only copy of these notes there is.",
-    "sourceNote": "This page is rendered from the <file>CHANGELOG.md</file> at the root of the repository. Nothing here is written twice, so there is no second copy to drift out of step with the released code."
+    "lead": "Cada versão lançada do OpenLimiter, lida direto do arquivo que o próprio repositório mantém, na ordem em que esse arquivo as lista.",
+    "empty": "Nenhum CHANGELOG.md foi encontrado neste checkout, então não há nada para mostrar aqui. O arquivo que esta página lê fica na raiz do <repo>repositório</repo>, e é a única cópia dessas notas que existe.",
+    "sourceNote": "Esta página é renderizada a partir do <file>CHANGELOG.md</file> na raiz do repositório. Nada aqui é escrito duas vezes, então não há uma segunda cópia para se desalinhar do código lançado."
   },
   "alternatives": {
-    "metaTitle": "Alternatives: other AI quota tools compared",
-    "metaDescription": "Honest comparisons between OpenLimiter and the other tools that read AI subscription quota, each one read off its own repository or store listing.",
-    "title": "Alternatives",
-    "lead": "Other tools solve a problem that overlaps this one. Each page below says what that tool does well before it says where OpenLimiter differs, and the difference described is scope rather than quality.",
-    "checkedTitle": "How these were checked",
-    "note": "These notes were read off each project's own repository, README or store listing in August 2026. Software moves, so check the source before you rely on any of it, and open an issue if something here has gone stale or is simply wrong.",
-    "readComparison": "Read the comparison",
+    "metaTitle": "Alternativas: outras ferramentas de quota de IA comparadas",
+    "metaDescription": "Comparações honestas entre o OpenLimiter e as outras ferramentas que leem quota de assinatura de IA, cada uma lida do seu próprio repositório ou ficha na loja.",
+    "title": "Alternativas",
+    "lead": "Outras ferramentas resolvem um problema que se sobrepõe a este. Cada página abaixo diz o que aquela ferramenta faz bem antes de dizer onde o OpenLimiter difere, e a diferença descrita é de escopo, não de qualidade.",
+    "checkedTitle": "Como isso foi verificado",
+    "note": "Essas notas foram lidas do repositório, README ou ficha na loja de cada projeto em agosto de 2026. Software muda, então confira a fonte antes de confiar em qualquer coisa aqui, e abra uma issue se algo aqui ficou desatualizado ou simplesmente está errado.",
+    "readComparison": "Ler a comparação",
     "facts": {
-      "platform": "Platform",
-      "licence": "Licence",
-      "coverage": "Coverage",
-      "source": "Source"
+      "platform": "Plataforma",
+      "licence": "Licença",
+      "coverage": "Cobertura",
+      "source": "Código fonte"
     },
     "comparison": {
-      "title": "{name} and OpenLimiter",
-      "metaTitle": "{name} compared",
-      "notFound": "Comparison not found",
-      "visit": "Visit {name}",
-      "whatItDoes": "What it does",
-      "strength": "What it does well",
-      "difference": "Where OpenLimiter differs",
-      "caveatTitle": "Before you go looking",
+      "title": "{name} e o OpenLimiter",
+      "metaTitle": "{name} comparado",
+      "notFound": "Comparação não encontrada",
+      "visit": "Visitar {name}",
+      "whatItDoes": "O que ele faz",
+      "strength": "O que ele faz bem",
+      "difference": "Onde o OpenLimiter difere",
+      "caveatTitle": "Antes de ir procurar",
       "nav": {
-        "label": "Other comparisons",
-        "previous": "Previous",
-        "next": "Next",
-        "back": "Back",
-        "all": "All comparisons"
+        "label": "Outras comparações",
+        "previous": "Anterior",
+        "next": "Próxima",
+        "back": "Voltar",
+        "all": "Todas as comparações"
       }
     },
     "entries": {
       "ccusage": {
-        "summary": "The broadest local log reader, and the only genuinely cross platform tool here.",
-        "what": "It reads the JSONL session logs that coding agent command line tools already write to your disk and turns them into daily, weekly, monthly and per session token and cost reports. Its own description is analysing coding agent token usage and costs from local data.",
-        "platform": "Command line, Node based, run with npx. Windows, macOS and Linux.",
+        "summary": "O leitor de logs locais mais amplo, e a única ferramenta aqui genuinamente multiplataforma.",
+        "what": "Ele lê os logs de sessão em JSONL que as ferramentas de linha de comando de agentes de codificação já escrevem no seu disco e transforma isso em relatórios diários, semanais, mensais e por sessão de tokens e custo. A própria descrição dele é analisar uso de tokens e custos de agentes de codificação a partir de dados locais.",
+        "platform": "Linha de comando, baseado em Node, rodado com npx. Windows, macOS e Linux.",
         "licence": "MIT",
-        "coverage": "Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI and Gemini CLI, as its site lists them.",
-        "source": "Local files only. It uploads nothing and calls no provider API.",
-        "strength": "The breadth of its log parsers is unmatched: more than fifteen agent tools from one binary, with no credentials and no setup at all. It also emits structured JSON and ships a Claude Code statusline hook.",
-        "difference": "It reports what you already spent, not what you have left. Its only quota notion is a token limit you supply yourself on the blocks report, so it never reads a real remaining figure from a provider. OpenLimiter starts from the provider's own remaining percentage and hands that to an agent as a bounded block."
+        "coverage": "Claude Code, Codex, OpenCode, Amp, Droid, Codebuff, Hermes Agent, pi-agent, Goose, OpenClaw, Kilo, Kimi, Qwen, GitHub Copilot CLI e Gemini CLI, como o site dele lista.",
+        "source": "Só arquivos locais. Ele não envia nada e não chama nenhuma API de provedor.",
+        "strength": "A amplitude dos parsers de log dele é incomparável: mais de quinze ferramentas de agente a partir de um único binário, sem credenciais e sem configuração nenhuma. Também emite JSON estruturado e traz um hook de statusline para o Claude Code.",
+        "difference": "Ele reporta o que você já gastou, não o que sobrou. A única noção de quota dele é um limite de tokens que você mesmo informa no relatório de blocks, então ele nunca lê um número real restante de um provedor. O OpenLimiter parte da própria porcentagem restante do provedor e entrega isso a um agente como um bloco limitado."
       },
       "openusage": {
-        "summary": "The closest overlap, and the only other tool that designs for machine consumers.",
-        "what": "It is a native Swift menu bar application that shows session limits, weekly limits, credits and spend for your AI coding subscriptions in one popover. It also publishes those limits as JSON on a local port so other software can read them.",
-        "platform": "macOS menu bar only. Requires macOS 15 Sequoia or later.",
+        "summary": "A sobreposição mais próxima, e a única outra ferramenta pensada para consumidores automatizados.",
+        "what": "É um aplicativo nativo em Swift na barra de menu que mostra limites de sessão, limites semanais, créditos e gasto das suas assinaturas de IA para codificação num único popover. Também publica esses limites como JSON numa porta local, para outro software poder ler esses limites.",
+        "platform": "Só barra de menu do macOS. Exige macOS 15 Sequoia ou mais recente.",
         "licence": "MIT",
-        "coverage": "Antigravity, Claude, Codex, Copilot, Cursor, Devin, Grok, OpenCode, OpenRouter and Z.ai.",
-        "source": "Both. Most providers are read from credentials already on your machine, some need a key you supply, and consumption is computed from local command line logs or an exported usage file.",
-        "strength": "It is the only tool in this list whose documentation explicitly targets other programs: other applications read machine friendly limits from a local endpoint, and agents read stable limit JSON through the same cache. That is the same instinct OpenLimiter is built on, and OpenUsage got there first.",
-        "difference": "It stops at exposing the numbers and leaves every decision to whatever reads them. OpenLimiter turns the same numbers into an explicit advice policy with reason codes and injects them into an agent's prompt inside a declared untrusted data boundary. It also runs on Windows and Linux, which OpenUsage no longer does since its Swift rewrite.",
-        "caveat": "Four active repositories share this name. The one linked here is the project behind openusage.ai. A cross platform community fork, a terminal dashboard, and two Windows tray ports all exist separately."
+        "coverage": "Antigravity, Claude, Codex, Copilot, Cursor, Devin, Grok, OpenCode, OpenRouter e Z.ai.",
+        "source": "Os dois. A maioria dos provedores é lida de credenciais que já estão na sua máquina, alguns precisam de uma chave que você fornece, e o consumo é calculado a partir de logs locais de linha de comando ou de um arquivo de uso exportado.",
+        "strength": "É a única ferramenta desta lista cuja documentação mira explicitamente em outros programas: outros aplicativos leem limites pensados para máquina a partir de um endpoint local, e agentes leem JSON de limite estável pelo mesmo cache. É o mesmo instinto em que o OpenLimiter é construído, e o OpenUsage chegou lá primeiro.",
+        "difference": "Ele para em expor os números e deixa cada decisão para o que quer que os leia. O OpenLimiter transforma os mesmos números numa política explícita de recomendação com códigos de motivo e os injeta no prompt de um agente, dentro de um limite declarado de dados não confiáveis. Também roda em Windows e Linux, o que o OpenUsage não faz mais desde sua reescrita em Swift.",
+        "caveat": "Quatro repositórios ativos compartilham esse nome. O linkado aqui é o projeto por trás do openusage.ai. Um fork multiplataforma da comunidade, um painel de terminal, e duas portas para bandeja do Windows existem separadamente."
       },
       "claudebar": {
-        "summary": "The clearest per provider documentation, and explicit remaining quota bands.",
-        "what": "It is a macOS menu bar application that monitors the usage quotas of AI coding assistants. For most providers it runs that vendor's own installed command line tool and reads the result.",
-        "platform": "macOS 15 or later. Installed with Homebrew, a release download, or from source.",
+        "summary": "A documentação mais clara por provedor, e faixas explícitas de quota restante.",
+        "what": "É um aplicativo de barra de menu do macOS que monitora as quotas de uso de assistentes de codificação com IA. Para a maioria dos provedores, ele roda a própria ferramenta de linha de comando do fornecedor e lê o resultado.",
+        "platform": "macOS 15 ou mais recente. Instalado com Homebrew, um download de release, ou a partir do código fonte.",
         "licence": "MIT",
-        "coverage": "Claude, Codex, Gemini, GitHub Copilot, Antigravity, Z.ai, Kimi, Kiro, Amp, OpenCode Go, Oh My Pi and Grok.",
-        "source": "Mixed, and documented per provider: mostly by running each vendor's command line tool, plus a local database for OpenCode Go, local credentials for Grok, and an optional browser cookie path for Kimi.",
-        "strength": "It documents exactly how every single provider is read, which is rarer than it should be, and it publishes explicit remaining quota bands: healthy above 50%, warning between 20 and 50, critical below 20, depleted at zero.",
-        "difference": "There is no documented command line tool, JSON export or local endpoint, so nothing downstream can consume what it shows. It is a display surface for human eyes. Its per provider reliance on each vendor tool being installed also means coverage quietly shrinks on a machine that lacks them.",
-        "caveat": "A second repository carries a near identical description. Whether it is a fork, a mirror or an independent project was not confirmed, so use the repository linked here."
+        "coverage": "Claude, Codex, Gemini, GitHub Copilot, Antigravity, Z.ai, Kimi, Kiro, Amp, OpenCode Go, Oh My Pi e Grok.",
+        "source": "Misto, e documentado por provedor: na maior parte rodando a ferramenta de linha de comando de cada fornecedor, mais um banco de dados local para o OpenCode Go, credenciais locais para o Grok, e um caminho opcional de cookie de navegador para o Kimi.",
+        "strength": "Ele documenta exatamente como cada provedor é lido, o que é mais raro do que deveria ser, e publica faixas explícitas de quota restante: saudável acima de 50%, alerta entre 20 e 50, crítico abaixo de 20, esgotado em zero.",
+        "difference": "Não há ferramenta de linha de comando documentada, exportação em JSON ou endpoint local, então nada a jusante consegue consumir o que ele mostra. É uma superfície de exibição para olhos humanos. A dependência dele, por provedor, de cada ferramenta do fornecedor estar instalada também faz a cobertura encolher silenciosamente numa máquina que não as tem.",
+        "caveat": "Um segundo repositório carrega uma descrição quase idêntica. Se é um fork, um espelho ou um projeto independente não foi confirmado, então use o repositório linkado aqui."
       },
       "codexbar": {
-        "summary": "The widest provider coverage anywhere, and a real scriptable command line tool.",
-        "what": "It is a small macOS menu bar application that keeps every AI coding provider's usage window, credits and reset countdown visible without a login step. A companion command line tool ships alongside it.",
-        "platform": "macOS 14 Sonoma or later for the application, with command line builds for macOS and Linux. Community integrations exist for Waybar, GNOME, KDE Plasma and Cinnamon.",
+        "summary": "A cobertura de provedores mais ampla que existe, e uma ferramenta de linha de comando de verdade scriptável.",
+        "what": "É um pequeno aplicativo de barra de menu do macOS que mantém a janela de uso, créditos e contagem regressiva de reinício de cada provedor de IA para codificação visível sem uma etapa de login. Uma ferramenta de linha de comando complementar vem junto com ele.",
+        "platform": "macOS 14 Sonoma ou mais recente para o aplicativo, com builds de linha de comando para macOS e Linux. Existem integrações da comunidade para Waybar, GNOME, KDE Plasma e Cinnamon.",
         "licence": "MIT",
-        "coverage": "Its README claims 69 providers, among them Codex, OpenAI, Claude, Cursor, Gemini, Copilot, Grok, AWS Bedrock and LiteLLM.",
-        "source": "Both, and opt in. It reuses provider sessions you already have, whether OAuth, a device flow, an API key, a browser cookie or a local file, with on device parsing by default and cookies only when you ask.",
-        "strength": "Nothing else here comes close on coverage, and it is the only tool with a genuine scriptable interface: configuration, cost reporting and a serve command, with JSON output and Linux builds, so it runs in continuous integration.",
-        "difference": "That command line tool is built for configuration, cost reporting and feeding a status bar, not for handing an agent a bounded budget. Nothing in it turns a remaining percentage into advice a coding agent acts on. The visual product is macOS only.",
-        "caveat": "An unrelated project of the same name exists: a Bash widget for Waybar on Linux. It is a different program by a different author."
+        "coverage": "O README dele alega 69 provedores, entre eles Codex, OpenAI, Claude, Cursor, Gemini, Copilot, Grok, AWS Bedrock e LiteLLM.",
+        "source": "Os dois, e opcional. Ele reaproveita sessões de provedor que você já tem, seja OAuth, um device flow, uma chave de API, um cookie de navegador ou um arquivo local, com interpretação no próprio dispositivo por padrão, e cookies só quando você pede.",
+        "strength": "Nada mais aqui chega perto em cobertura, e é a única ferramenta com uma interface genuinamente scriptável: configuração, relatório de custo e um comando serve, com saída em JSON e builds para Linux, então roda em integração contínua.",
+        "difference": "Aquela ferramenta de linha de comando é feita para configuração, relatório de custo e alimentar uma barra de status, não para entregar a um agente um orçamento limitado. Nada nela transforma uma porcentagem restante numa recomendação que um agente de codificação acata. O produto visual é só macOS.",
+        "caveat": "Existe um projeto sem relação com o mesmo nome: um widget em Bash para Waybar no Linux. É um programa diferente, de um autor diferente."
       },
       "usagemaster": {
-        "summary": "The only one that recommends a next action, and the only one that is not open source.",
-        "what": "It is a macOS menu bar application that brings usage and reset times for several coding tools into one view and then makes a recommendation. Its store listing says it compares your current quota state and helps you decide whether to keep running, wait for a reset, or switch tools.",
-        "platform": "macOS 15 or later, from the Mac App Store. Mac only.",
-        "licence": "Not stated, and no public source repository was found. Free to download with a one time paid tier.",
-        "coverage": "Claude Code, Codex, Gemini CLI, OpenCode Go and Cursor.",
-        "source": "Both. It states that Claude Code, Codex and OpenCode Go usage is read from local files and not sent anywhere, while Cursor is fetched with a cookie you save in the keychain yourself.",
-        "strength": "It acts on the numbers rather than only rendering them. Comparing providers side by side and recommending which tool to use right now is the same problem OpenLimiter's advice policy exists to solve, and UsageMaster shipped a polished version of it first.",
-        "difference": "It is closed source, single platform, and covers five providers, with no documented programmatic output at all, so its recommendation lives inside its own window. OpenLimiter's advice is a machine readable block a running agent consumes, and the whole thing is Apache 2.0 and auditable.",
-        "caveat": "This is the one entry here that is not open source, so the claims above come from its store listing rather than from code anyone can read."
+        "summary": "O único que recomenda uma próxima ação, e o único que não é código aberto.",
+        "what": "É um aplicativo de barra de menu do macOS que reúne uso e horários de reinício de várias ferramentas de codificação numa única visão, e então faz uma recomendação. A ficha dele na loja diz que compara o estado atual da sua quota e ajuda a decidir se você continua, espera um reinício, ou troca de ferramenta.",
+        "platform": "macOS 15 ou mais recente, pela Mac App Store. Só Mac.",
+        "licence": "Não informada, e nenhum repositório de código público foi encontrado. Grátis para baixar, com uma camada paga de pagamento único.",
+        "coverage": "Claude Code, Codex, Gemini CLI, OpenCode Go e Cursor.",
+        "source": "Os dois. Ele afirma que o uso de Claude Code, Codex e OpenCode Go é lido de arquivos locais e não enviado a lugar nenhum, enquanto o Cursor é buscado com um cookie que você mesmo salva no keychain.",
+        "strength": "Ele age sobre os números, em vez de apenas exibir esses números. Comparar provedores lado a lado e recomendar qual ferramenta usar agora é exatamente o problema que a política de recomendação do OpenLimiter existe para resolver, e o UsageMaster lançou uma versão polida disso primeiro.",
+        "difference": "É de código fechado, uma única plataforma, e cobre cinco provedores, sem nenhuma saída programática documentada, então a recomendação dele fica presa dentro da própria janela. A recomendação do OpenLimiter é um bloco legível por máquina que um agente em execução consome, e o projeto inteiro é Apache 2.0 e auditável.",
+        "caveat": "Esta é a única entrada aqui que não é código aberto, então as afirmações acima vêm da ficha dele na loja, não de código que qualquer um possa ler."
       }
     }
   },
   "docs": {
     "groups": {
-      "start": "Start here",
-      "using": "Using it",
-      "reference": "Reference"
+      "start": "Comece aqui",
+      "using": "Usando",
+      "reference": "Referência"
     },
     "sidebar": {
-      "label": "Documentation",
-      "menu": "Documentation menu"
+      "label": "Documentação",
+      "menu": "Menu de documentação"
     },
     "article": {
-      "breadcrumb": "Breadcrumb",
-      "pagesNav": "Documentation pages",
-      "previous": "Previous",
-      "next": "Next",
-      "onThisPage": "On this page",
-      "home": "Home"
+      "breadcrumb": "Trilha de navegação",
+      "pagesNav": "Páginas de documentação",
+      "previous": "Anterior",
+      "next": "Próxima",
+      "onThisPage": "Nesta página",
+      "home": "Início"
     },
     "pages": {
       "index": {
-        "title": "Getting started",
-        "metaTitle": "Getting started: install and meter your quota",
-        "description": "Install the workspace, run the demo, and wire OpenLimiter into Claude Code in a few minutes.",
-        "lead": "OpenLimiter is a quota meter for the AI subscriptions you already pay for. It runs on your machine, reads what your tools already wrote there, and hands your coding agents a bounded picture of what budget is left.",
+        "title": "Primeiros passos",
+        "metaTitle": "Primeiros passos: instale e meça sua quota",
+        "description": "Instale o workspace, rode a demonstração, e conecte o OpenLimiter ao Claude Code em poucos minutos.",
+        "lead": "O OpenLimiter é um quota meter para as assinaturas de IA que você já paga. Ele roda na sua máquina, lê o que suas ferramentas já escreveram lá, e entrega aos seus agentes de codificação um retrato limitado do orçamento que sobrou.",
         "sections": {
           "what-you-need": {
-            "title": "What you need",
+            "title": "O que você precisa",
             "bullets": {
-              "node": "Node 24 or newer.",
-              "npm": "npm, which ships with Node."
+              "node": "Node 24 ou mais recente.",
+              "npm": "npm, que já vem com o Node."
             },
-            "local": "Everything runs locally. No account is created, no key is required to start, and no request leaves your machine during any of the steps below."
+            "local": "Tudo roda localmente. Nenhuma conta é criada, nenhuma chave é exigida para começar, e nenhuma requisição sai da sua máquina durante nenhum dos passos abaixo."
           },
           "install": {
-            "title": "Install OpenLimiter",
-            "intro": "Install the command line tool globally, then run its synthetic demo.",
+            "title": "Instale o OpenLimiter",
+            "intro": "Instale a ferramenta de linha de comando globalmente, depois rode a demonstração sintética dela.",
             "terminalLabel": "terminal",
-            "demo": "<code>openlimiter demo</code> renders synthetic fixtures. It proves the binary works without touching any real account, and every number it prints is invented."
+            "demo": "<code>openlimiter demo</code> renderiza fixtures sintéticos. Isso prova que o binário funciona sem tocar em nenhuma conta real, e todo número que ele imprime é inventado."
           },
           "first-data": {
-            "title": "Give it something to meter",
-            "parser": "OpenLimiter never contacts a provider in this release. It parses data that something else already put in front of it. Until one of the ingestion paths runs, every command honestly reports unknown.",
-            "statusline": "The path that needs no extra work is the Claude Code statusline. Claude Code runs your statusline command on every render and writes a JSON object describing the current session to that command's standard input. When that object carries a rate limit block, OpenLimiter validates it, caches it, and renders the fresh numbers in the same call.",
+            "title": "Dê a ele algo para medir",
+            "parser": "O OpenLimiter nunca contata um provedor nesta versão. Ele interpreta dados que outra coisa já colocou na frente dele. Até que um dos caminhos de ingestão rode, todo comando reporta unknown com honestidade.",
+            "statusline": "O caminho que não precisa de nenhum trabalho extra é o statusline do Claude Code. O Claude Code roda seu comando de statusline a cada renderização e escreve um objeto JSON descrevendo a sessão atual na entrada padrão desse comando. Quando esse objeto carrega um bloco de limite de taxa, o OpenLimiter o valida, guarda em cache, e renderiza os números atualizados na mesma chamada.",
             "terminalLabel": "terminal",
-            "fallback": "Not every Claude Code version sends rate limit fields. If yours does not, this path stays quiet and the two manual paths still work. The <docs>ingestion page</docs> covers all three."
+            "fallback": "Nem toda versão do Claude Code envia campos de limite de taxa. Se a sua não envia, este caminho fica quieto e os dois caminhos manuais continuam funcionando. A <docs>página de ingestão</docs> cobre os três."
           },
           "claude-code": {
-            "title": "Wire Claude Code",
-            "intro": "Add this to your Claude Code <code>settings.json</code>. The global install makes the <code>openlimiter</code> command available to Claude Code.",
-            "calloutTitle": "The hook cannot break your session",
-            "calloutBody": "The statusline is the only path that writes. The hook reads the cache, makes no network request of any kind, injects nothing when every provider is unknown, and exits 0 whatever happens."
+            "title": "Conecte o Claude Code",
+            "intro": "Adicione isto ao <code>settings.json</code> do seu Claude Code. A instalação global torna o comando <code>openlimiter</code> disponível para o Claude Code.",
+            "calloutTitle": "O hook não consegue quebrar sua sessão",
+            "calloutBody": "O statusline é o único caminho que escreve. O hook lê o cache, não faz nenhuma requisição de rede, não injeta nada quando todo provedor está unknown, e sai com 0 aconteça o que acontecer."
           },
           "from-source": {
-            "title": "Contribute from source",
-            "intro": "Use the repository toolchain when you want to contribute.",
+            "title": "Contribua a partir do código fonte",
+            "intro": "Use o toolchain do repositório quando quiser contribuir.",
             "terminalLabel": "terminal",
-            "buildOrder": "The build has to run before the type check, because each package resolves its neighbours through the declaration files the build produces."
+            "buildOrder": "O build precisa rodar antes da checagem de tipos, porque cada pacote resolve seus vizinhos pelos arquivos de declaração que o build produz."
           },
           "where-next": {
-            "title": "Where next",
+            "title": "Para onde ir agora",
             "reading-order": {
-              "title": "A reasonable reading order",
+              "title": "Uma ordem de leitura razoável",
               "steps": {
-                "why": "<docs>Why OpenLimiter</docs> for the problem this solves.",
-                "providers": "<docs>Supported providers</docs> for what each connector reads and how fragile it is.",
-                "agentContext": "<docs>Agent context</docs> for exactly what reaches your agent.",
-                "cli": "<docs>CLI reference</docs> for every command and exit code."
+                "why": "<docs>Por que o OpenLimiter</docs> para o problema que ele resolve.",
+                "providers": "<docs>Provedores suportados</docs> para o que cada connector lê e quão frágil ele é.",
+                "agentContext": "<docs>Agent context</docs> para exatamente o que chega ao seu agente.",
+                "cli": "<docs>Referência da CLI</docs> para cada comando e código de saída."
               }
             }
           }
         }
       },
       "why-openlimiter": {
-        "title": "Why OpenLimiter",
-        "description": "When you hold several AI coding subscriptions the scarce resource stops being money and becomes quota.",
-        "lead": "When you hold several AI coding subscriptions, the scarce resource stops being money and becomes quota. You already paid. The question that decides your afternoon is which of those plans still has room left.",
+        "title": "Por que o OpenLimiter",
+        "description": "Quando você mantém várias assinaturas de IA para codificação, o recurso escasso deixa de ser dinheiro e passa a ser quota.",
+        "lead": "Quando você mantém várias assinaturas de IA para codificação, o recurso escasso deixa de ser dinheiro e passa a ser quota. Você já pagou. A pergunta que decide sua tarde é qual desses planos ainda tem espaço sobrando.",
         "sections": {
           "the-problem": {
-            "title": "The problem",
-            "interruption": "A developer running two or three coding agents ends the week with the same recurring interruption. One plan hits its window, the agent stops mid task, and the work pauses while a human goes hunting through dashboards to find out which other subscription is still usable.",
-            "scattered": "The information exists. It is scattered across a statusline payload, a local usage file, a billing page, and a credit balance, in four different shapes, none of which the agent can see."
+            "title": "O problema",
+            "interruption": "Um desenvolvedor rodando dois ou três agentes de codificação termina a semana com a mesma interrupção recorrente. Um plano bate na janela, o agente para no meio de uma tarefa, e o trabalho pausa enquanto um humano vai caçar em painéis para descobrir qual outra assinatura ainda está utilizável.",
+            "scattered": "A informação existe. Ela está espalhada num payload de statusline, num arquivo local de uso, numa página de cobrança e num saldo de crédito, em quatro formatos diferentes, nenhum dos quais o agente consegue ver."
           },
           "what-it-does": {
-            "title": "What OpenLimiter does about it",
-            "intro": "OpenLimiter reads quota for supported AI subscriptions on your own machine, normalises every reading into one schema, and feeds bounded budget state plus routing advice into the coding agents' own context. The first adapter is a Claude Code statusline and prompt hook.",
+            "title": "O que o OpenLimiter faz sobre isso",
+            "intro": "O OpenLimiter lê a quota das assinaturas de IA suportadas na sua própria máquina, normaliza cada leitura num único schema, e alimenta o contexto dos próprios agentes de codificação com um estado de orçamento limitado, mais recomendações de roteamento. O primeiro adaptador é um statusline e um prompt hook do Claude Code.",
             "bullets": {
-              "read": "<strong>Read.</strong> Connectors parse shapes that a provider or a local tool already produced. They perform no network access in this release.",
-              "normalise": "<strong>Normalise.</strong> One snapshot schema with closed enums, bounded percentages, and derived freshness. Unknown stays unknown and never becomes a fabricated zero.",
-              "advise": "<strong>Advise.</strong> A compact statusline for you, and a bounded context block for your agent that carries enum codes, numbers, and timestamps only."
+              "read": "<strong>Ler.</strong> Os connectors interpretam formatos que um provedor ou uma ferramenta local já produziu. Eles não fazem nenhum acesso de rede nesta versão.",
+              "normalise": "<strong>Normalizar.</strong> Um schema único de snapshot, com enums fechados, porcentagens limitadas, e atualização derivada. Unknown continua unknown e nunca vira um zero fabricado.",
+              "advise": "<strong>Recomendar.</strong> Um statusline compacto para você, e um bloco de contexto limitado para o seu agente, carregando só códigos enum, números e timestamps."
             }
           },
           "what-it-is-not": {
-            "title": "What it deliberately is not",
-            "calloutTitle": "Advice, never automatic routing",
-            "calloutBody": "OpenLimiter provides routing advice. It does not route requests for you, it does not bypass a limit, and it never mutates a provider's authentication artifacts. The decision stays with you and your agent.",
+            "title": "O que ele deliberadamente não é",
+            "calloutTitle": "Recomendação, nunca roteamento automático",
+            "calloutBody": "O OpenLimiter fornece recomendações de roteamento. Ele não roteia requisições por você, não contorna um limite, e nunca altera os artefatos de autenticação de um provedor. A decisão continua com você e com seu agente.",
             "bullets": {
-              "proxy": "It is not a proxy. Your requests keep going straight to your provider.",
-              "dashboard": "It is not a dashboard service. There is no OpenLimiter server, no account, and no telemetry.",
-              "billing": "It is not a billing tool. It reports how much of a window you have consumed, not what you will be charged."
+              "proxy": "Não é um proxy. Suas requisições continuam indo direto para seu provedor.",
+              "dashboard": "Não é um serviço de painel. Não há servidor do OpenLimiter, não há conta, e não há telemetria.",
+              "billing": "Não é uma ferramenta de cobrança. Ele reporta quanto de uma janela você consumiu, não quanto você vai pagar."
             }
           },
           "design-rules": {
-            "title": "The rules the code follows",
+            "title": "As regras que o código segue",
             "unknown-stays-unknown": {
-              "title": "Unknown stays unknown",
-              "body": "Missing, expired, malformed, and unrecognised input all resolve to unknown. A connector that cannot read something says so. Nothing in the codebase turns an absent reading into a zero, because a fake zero would make an agent behave as though a plan were exhausted."
+              "title": "Unknown continua unknown",
+              "body": "Entrada ausente, expirada, malformada, e não reconhecida, todas se resolvem para unknown. Um connector que não consegue ler algo diz isso. Nada no código transforma uma leitura ausente num zero, porque um zero falso faria um agente se comportar como se um plano estivesse esgotado."
             },
             "truncated-not-rounded": {
-              "title": "Percentages are truncated, never rounded up",
-              "body": "A meter at 99.99% renders as 99.9%. A cap is only ever claimed once it has actually been reached."
+              "title": "Porcentagens são truncadas, nunca arredondadas para cima",
+              "body": "Um meter em 99,99% aparece como 99,9%. Um limite só é reivindicado depois de realmente ter sido alcançado."
             },
             "one-bad-row": {
-              "title": "One bad row does not lose a provider",
-              "body": "A row that fails validation is dropped and the remaining rows still count. One expired window is not a reason to forget a whole subscription."
+              "title": "Uma linha ruim não derruba um provedor",
+              "body": "Uma linha que falha na validação é descartada e as linhas restantes continuam contando. Uma janela expirada não é motivo para esquecer uma assinatura inteira."
             },
             "local-first": {
-              "title": "Local first, with no server to trust",
-              "body": "Everything is written to a local state directory under your own user account. See <config>configuration</config> for where that is, and <security>security and privacy</security> for what that buys you. The licence is Apache 2.0 and the whole thing is <code>UNVERIFIED</code> by its own labels until a verifier exists."
+              "title": "Local first, sem servidor para confiar",
+              "body": "Tudo é escrito num diretório de estado local sob sua própria conta de usuário. Veja <config>configuração</config> para onde isso fica, e <security>segurança e privacidade</security> para o que isso garante. A licença é Apache 2.0 e o projeto inteiro é <code>UNVERIFIED</code>, pelos próprios rótulos, até existir um verificador."
             }
           }
         }
       },
       "providers": {
-        "title": "Supported providers",
-        "description": "The six connectors that ship today, what each one reads, and how likely it is to break.",
-        "lead": "Six connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
+        "title": "Provedores suportados",
+        "description": "Os seis connectors que já vêm hoje, o que cada um lê, e quão provável é que quebre.",
+        "lead": "Seis connectors já vêm hoje. Cada um carrega seus próprios rótulos honestos, descrevendo de onde vêm as credenciais dele, quão oficial é a interface de dados dele, e quão provável é que ele quebre.",
         "sections": {
           "the-six": {
-            "title": "The six connectors",
-            "caption": "Connectors that ship today, with what each one reads and how stable it is",
+            "title": "Os seis connectors",
+            "caption": "Connectors que já vêm hoje, com o que cada um lê e quão estável ele é",
             "columns": {
               "id": "id",
-              "reads": "reads",
-              "status": "interface status"
+              "reads": "lê",
+              "status": "status da interface"
             },
             "rows": {
               "claude": {
-                "reads": "The rate limit block of the Claude Code statusline payload",
-                "status": "Native payload from a local tool. Low automation risk."
+                "reads": "O bloco de limite de taxa do payload de statusline do Claude Code",
+                "status": "Payload nativo de uma ferramenta local. Baixo risco de automação."
               },
               "openrouter": {
-                "reads": "A credits response shape from OpenRouter's documented API",
-                "status": "Documented API. Low automation risk."
+                "reads": "Um formato de resposta de créditos da API documentada da OpenRouter",
+                "status": "API documentada. Baixo risco de automação."
               },
               "codex": {
-                "reads": "A usage payload the Codex tooling produces",
-                "status": "Internal endpoint. May break without notice."
+                "reads": "Um payload de uso que as ferramentas do Codex produzem",
+                "status": "Endpoint interno. Pode quebrar sem aviso."
               },
               "antigravity": {
-                "reads": "A quota payload the Antigravity tooling produces",
-                "status": "Internal endpoint. May break without notice."
+                "reads": "Um payload de quota que as ferramentas do Antigravity produzem",
+                "status": "Endpoint interno. Pode quebrar sem aviso."
               },
               "opencode": {
-                "reads": "A usage view behind a session you already signed in to",
-                "status": "Authenticated page. High automation risk. May break."
+                "reads": "Uma visão de uso por trás de uma sessão em que você já entrou",
+                "status": "Página autenticada. Alto risco de automação. Pode quebrar."
               },
               "manual": {
-                "reads": "Numbers you write yourself",
-                "status": "Manual entry. Never breaks, never guesses."
+                "reads": "Números que você mesmo escreve",
+                "status": "Manual entry. Nunca quebra, nunca chuta."
               }
             },
-            "calloutTitle": "Every connector ships marked UNVERIFIED",
-            "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good."
+            "calloutTitle": "Todo connector vem marcado UNVERIFIED",
+            "calloutBody": "<code>UNVERIFIED</code> é o padrão honesto. Significa que nenhum verificador explícito confirmou o formato contra uma conta real, então <code>openlimiter doctor</code> reporta desvio como não verificado, em vez de afirmar que um connector é confiável."
           },
           "how-data-arrives": {
-            "title": "How data actually arrives",
-            "intro": "This is the part that surprises people, so it is worth stating plainly. In this release no connector performs network access. Every one of them is a parser, and something else has to hand it a document.",
+            "title": "Como os dados realmente chegam",
+            "intro": "Esta é a parte que surpreende as pessoas, então vale a pena dizer com todas as letras. Nesta versão, nenhum connector faz acesso de rede. Cada um deles é um parser, e algo mais precisa entregar um documento a ele.",
             "bullets": {
-              "claude": "<code>claude</code> is fed by the statusline payload arriving on standard input. That path is automatic once Claude Code is wired up.",
-              "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "<code>codex</code>, <code>antigravity</code>, <code>opencode</code> and <code>openrouter</code> have no local reader yet. They accept data through <code>openlimiter ingest --provider '<id>'</code> and nothing else."
+              "claude": "<code>claude</code> é alimentado pelo payload de statusline chegando na entrada padrão. Esse caminho é automático assim que o Claude Code está conectado.",
+              "manual": "<code>manual</code> é alimentado por um documento que você coloca no diretório de estado.",
+              "ingestOnly": "<code>codex</code>, <code>antigravity</code>, <code>opencode</code> e <code>openrouter</code> ainda não têm um leitor local. Eles aceitam dados por <code>openlimiter ingest --provider '<id>'</code> e nada mais."
             },
-            "exactShapes": "The <docs>ingestion page</docs> documents all three paths and the exact shapes they accept."
+            "exactShapes": "A <docs>página de ingestão</docs> documenta os três caminhos e os formatos exatos que eles aceitam."
           },
           "labels": {
-            "title": "Reading the labels",
-            "intro": "Every snapshot carries four labels, so a surface can always tell a reader how much to trust a number.",
-            "caption": "The four connector labels and their meaning",
+            "title": "Lendo os rótulos",
+            "intro": "Todo snapshot carrega quatro rótulos, para que uma superfície sempre consiga dizer a um leitor o quanto confiar num número.",
+            "caption": "Os quatro rótulos de connector e o que significam",
             "columns": {
-              "label": "label",
-              "values": "values you will see"
+              "label": "rótulo",
+              "values": "valores que você vai ver"
             },
             "rows": {
               "automationRisk": {
-                "values": "<code>low</code> or <code>high</code>"
+                "values": "<code>low</code> ou <code>high</code>"
               }
             },
             "drift": {
-              "title": "What drift looks like",
-              "body": "Unofficial interfaces change without notice. When a shape moves, parsing fails closed: the affected provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap."
+              "title": "Como um desvio se parece",
+              "body": "Interfaces não oficiais mudam sem aviso. Quando um formato se move, a interpretação falha de forma segura: o provedor afetado volta a unknown, os outros provedores não são afetados, e nada inventa um número para preencher a lacuna."
             }
           },
           "openrouter-key": {
-            "title": "The OpenRouter credential",
-            "intro": "OpenRouter is the one connector that expects a key of your own. That key belongs in your operating system credential store and nowhere else. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs.",
-            "calloutTitle": "Stubbed in this release",
-            "calloutBody": "The credential library adapter is deliberately stubbed, so <code>openlimiter init</code> cannot store a key until you supply a driver. Until then, feed OpenRouter through the ingest command like any other provider.",
+            "title": "A credencial da OpenRouter",
+            "intro": "A OpenRouter é o único connector que espera uma chave sua. Essa chave pertence ao gerenciador de credenciais do seu sistema operacional e a lugar nenhum mais. Ela nunca deve aparecer em arquivos do repositório, arquivos de cache, exportações, diagnósticos, fixtures, ou logs.",
+            "calloutTitle": "Stubado nesta versão",
+            "calloutBody": "O adaptador da biblioteca de credenciais é deliberadamente stubado, então <code>openlimiter init</code> não consegue guardar uma chave até você fornecer um driver. Até lá, alimente a OpenRouter pelo comando ingest, como qualquer outro provedor.",
             "terminalLabel": "terminal"
           },
           "not-yet": {
-            "title": "Connectors that do not exist yet",
-            "body": "Only the six above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
+            "title": "Connectors que ainda não existem",
+            "body": "Só os seis acima são reais. Qualquer outra coisa que você possa esperar não está construída, não está agendada, e não deveria ser presumida. Se uma assinatura não tem connector, o caminho manual cobre isso hoje, com números que você mesmo digita."
           }
         }
       },
       "connections": {
-        "title": "Connections",
-        "metaTitle": "Connections: source chips and the state vocabulary",
-        "description": "What each connection state and source chip actually means, stated honestly, including what Import only does and does not do.",
-        "lead": "Every provider shows two things: a chip naming where its numbers came from, and, underneath, a state drawn from one vocabulary the whole product shares. This page names every state in it, says plainly what Import only means, and says what changes once a live connection exists.",
+        "title": "Conexões",
+        "metaTitle": "Conexões: chips de origem e o vocabulário de estado",
+        "description": "O que cada estado de conexão e chip de origem realmente significa, dito com honestidade, incluindo o que Import only faz e não faz.",
+        "lead": "Todo provedor mostra duas coisas: um chip nomeando de onde vieram os números dele, e, abaixo, um estado tirado de um vocabulário único que o produto inteiro compartilha. Esta página nomeia cada estado dele, diz claramente o que Import only significa, e diz o que muda quando uma conexão ao vivo passa a existir.",
         "sections": {
           "chips": {
-            "title": "The chip on a provider today",
-            "intro": "A parser existing is not a connection, so no card in the dashboard is ever labelled connected on the strength of one. Every provider instead carries a chip naming how its numbers actually reached this device. There are three, today.",
-            "caption": "The three source chips shown in the dashboard today",
+            "title": "O chip num provedor hoje",
+            "intro": "Um parser existir não é uma conexão, então nenhum cartão no painel é rotulado como conectado com base num só. Todo provedor, em vez disso, carrega um chip nomeando como os números dele realmente chegaram a este dispositivo. Existem três, hoje.",
+            "caption": "Os três chips de origem mostrados no painel hoje",
             "columns": {
               "chip": "chip",
-              "providers": "providers",
-              "meaning": "meaning"
+              "providers": "provedores",
+              "meaning": "significado"
             },
             "rows": {
               "localCli": {
-                "meaning": "A tool on this machine writes the payload, and OpenLimiter reads what it wrote."
+                "meaning": "Uma ferramenta nesta máquina escreve o payload, e o OpenLimiter lê o que ela escreveu."
               },
               "importOnly": {
-                "meaning": "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document."
+                "meaning": "O formato do payload é interpretado. Nada aqui entra numa conta ou busca isso, então você fornece o documento."
               },
               "manual": {
-                "providers": "Manual entries",
-                "meaning": "Figures you keep yourself. Nothing is read from an account."
+                "providers": "Entradas manuais",
+                "meaning": "Números que você mesmo mantém. Nada é lido de uma conta."
               }
             },
-            "calloutTitle": "What Import only actually means",
-            "calloutBody": "A parser exists for that provider's document, and OpenLimiter understands the shape when it sees one. Nothing here signs in, holds a key, or fetches anything on its own. A reading arrives only once you hand OpenLimiter that document yourself, by pasting it or by running <code>openlimiter ingest --provider '<id>'</code>. See <docs>ingestion</docs> for the exact paths."
+            "calloutTitle": "O que Import only realmente significa",
+            "calloutBody": "Existe um parser para o documento daquele provedor, e o OpenLimiter entende o formato quando vê um. Nada aqui entra numa conta, guarda uma chave, ou busca qualquer coisa sozinho. Uma leitura só chega quando você mesmo entrega esse documento ao OpenLimiter, colando ou rodando <code>openlimiter ingest --provider '<id>'</code>. Veja <docs>ingestão</docs> para os caminhos exatos."
           },
           "vocabulary": {
-            "title": "The full connection vocabulary",
-            "intro": "Underneath the three chips sits a larger vocabulary: thirteen named states, one module in the core package the whole product is built from, each with one plain sentence rather than a log line. It exists so a connection's state is a value every surface reads the same way, never a sentence each one is free to invent for itself.",
-            "caption": "Every state in the connection vocabulary, and what each one means",
+            "title": "O vocabulário completo de conexão",
+            "intro": "Abaixo dos três chips há um vocabulário maior: treze estados nomeados, um módulo no pacote core em que o produto inteiro é construído, cada um com uma frase simples em vez de uma linha de log. Ele existe para que o estado de uma conexão seja um valor que toda superfície lê da mesma forma, nunca uma frase que cada uma é livre para inventar por conta própria.",
+            "caption": "Cada estado no vocabulário de conexão, e o que cada um significa",
             "columns": {
-              "state": "state",
-              "meaning": "meaning"
+              "state": "estado",
+              "meaning": "significado"
             },
             "rows": {
               "notConfigured": {
-                "meaning": "Not connected."
+                "meaning": "Não conectado."
               },
               "detected": {
-                "meaning": "Found on this machine but not collecting yet."
+                "meaning": "Encontrado nesta máquina, mas ainda não coletando."
               },
               "needsAuth": {
-                "meaning": "Waiting for a credential."
+                "meaning": "Esperando uma credencial."
               },
               "readyToEnable": {
-                "meaning": "Ready to start collecting."
+                "meaning": "Pronto para começar a coletar."
               },
               "connecting": {
-                "meaning": "Connecting."
+                "meaning": "Conectando."
               },
               "connected": {
-                "meaning": "Connected and collecting."
+                "meaning": "Conectado e coletando."
               },
               "degraded": {
-                "meaning": "The provider is refusing reads for now."
+                "meaning": "O provedor está recusando leituras por enquanto."
               },
               "stale": {
-                "meaning": "The last reading is older than it should be."
+                "meaning": "A última leitura é mais antiga do que deveria."
               },
               "authExpired": {
-                "meaning": "The stored credential stopped working."
+                "meaning": "A credencial guardada parou de funcionar."
               },
               "importOnly": {
-                "meaning": "Reads only what you import. Nothing is collected automatically."
+                "meaning": "Só lê o que você importa. Nada é coletado automaticamente."
               },
               "manual": {
-                "meaning": "Shows the plan you entered yourself."
+                "meaning": "Mostra o plano que você mesmo digitou."
               },
               "unsupported": {
-                "meaning": "No safe automatic source exists for this product yet."
+                "meaning": "Ainda não existe uma fonte automática segura para este produto."
               },
               "error": {
-                "meaning": "This connection failed and needs a look."
+                "meaning": "Esta conexão falhou e precisa de uma olhada."
               }
             },
             "bullets": {
-              "declared": "<code>IMPORT_ONLY</code>, <code>MANUAL</code> and <code>UNSUPPORTED</code> are declared rather than attempted, by design: the product states them outright, and nothing that happens afterward, a response, a failure, a timeout, is allowed to quietly promote one of them to <code>CONNECTED</code>. Only OpenLimiter itself declaring otherwise moves a connection out of one.",
-              "lifecycle": "The rest name a lifecycle a live reader would move a connection through: found but not yet collecting, waiting on a credential, connecting, connected, and, when something goes wrong, degraded, stale, expired, or needing a look."
+              "declared": "<code>IMPORT_ONLY</code>, <code>MANUAL</code> e <code>UNSUPPORTED</code> são declarados em vez de tentados, por design: o produto os afirma diretamente, e nada que aconteça depois, uma resposta, uma falha, um tempo esgotado, pode promover um deles a <code>CONNECTED</code> silenciosamente. Só o próprio OpenLimiter afirmando o contrário tira uma conexão de um deles.",
+              "lifecycle": "O resto nomeia um ciclo de vida pelo qual um leitor ao vivo faria uma conexão passar: encontrado mas ainda não coletando, esperando uma credencial, conectando, conectado, e, quando algo dá errado, degradado, desatualizado, expirado, ou precisando de uma olhada."
             },
             "what-this-is-not-claiming": {
-              "title": "What this page is not claiming",
-              "body": "Not that all thirteen are on screen. What the dashboard actually renders today is the simpler, three chip vocabulary above, built for a release where nothing performs a network read. The thirteen states are real and tested in the core package this product is built from, and they name the general lifecycle any connection follows once a live reader exists. No surface renders those words yet, because nothing today does the thing that would put a connection into one of them: no reader, no request, nothing to fail, expire, or need a credential for."
+              "title": "O que esta página não está afirmando",
+              "body": "Não que os treze estejam na tela. O que o painel realmente renderiza hoje é o vocabulário mais simples, de três chips, acima, construído para uma versão em que nada faz uma leitura de rede. Os treze estados são reais e testados no pacote core em que este produto é construído, e nomeiam o ciclo de vida geral que qualquer conexão segue quando um leitor ao vivo passa a existir. Nenhuma superfície renderiza essas palavras ainda, porque nada hoje faz a coisa que colocaria uma conexão num deles: sem leitor, sem requisição, nada para falhar, expirar, ou precisar de uma credencial."
             }
           },
           "what-changes": {
-            "title": "What changes when a live connection ships",
-            "intro": "Nothing on this page is a date or a promise. When a provider gains a real reader, the honest description of it stops being a fixed chip and starts being whichever of the thirteen states above actually fits at that moment: detected, waiting on a credential, connecting, connected, or, when something goes wrong, degraded, stale, or needing a look. That is the reason to name the whole vocabulary now, before any of it is reachable, so the sentence a person reads does not change on the day the state underneath it starts moving.",
-            "noReader": "No provider has that reader today. See the <roadmap>roadmap</roadmap> for what is planned and what is not, and <providers>supported providers</providers> for what each connector can actually do right now."
+            "title": "O que muda quando uma conexão ao vivo é lançada",
+            "intro": "Nada nesta página é uma data ou uma promessa. Quando um provedor ganha um leitor de verdade, a descrição honesta dele deixa de ser um chip fixo e passa a ser qualquer um dos treze estados acima que realmente se encaixe naquele momento: detectado, esperando uma credencial, conectando, conectado, ou, quando algo dá errado, degradado, desatualizado, ou precisando de uma olhada. Esse é o motivo de nomear o vocabulário inteiro agora, antes de qualquer parte dele ser alcançável, para que a frase que uma pessoa lê não mude no dia em que o estado por baixo dela começar a se mover.",
+            "noReader": "Nenhum provedor tem esse leitor hoje. Veja o <roadmap>roadmap</roadmap> para o que está planejado e o que não está, e <providers>provedores suportados</providers> para o que cada connector consegue realmente fazer agora."
           }
         }
       },
       "ingestion": {
-        "title": "Ingestion",
-        "description": "The three offline paths that put quota data in front of OpenLimiter, and what each one expects.",
-        "lead": "Three paths put quota data in front of OpenLimiter. All three are offline. None of them reaches the network, and until one of them runs, every command honestly reports unknown.",
+        "title": "Ingestão",
+        "description": "Os três caminhos offline que colocam dados de quota na frente do OpenLimiter, e o que cada um espera.",
+        "lead": "Três caminhos colocam dados de quota na frente do OpenLimiter. Os três são offline. Nenhum deles alcança a rede, e até que um deles rode, todo comando reporta unknown com honestidade.",
         "sections": {
           "statusline": {
-            "title": "1. The Claude Code statusline payload",
-            "intro": "This is the path that needs no extra work once Claude Code is wired up. Claude Code runs your statusline command on every render and writes a JSON object describing the current session to that command's standard input. When that object carries a rate limit block, <code>openlimiter statusline</code> validates it, writes it to the cache, and renders the fresh numbers in the same call.",
-            "blockLabel": "the block it reads, from Anthropic's own statusline documentation",
-            "fields": "<code>used_percentage</code> is the share of the window already used, from 0 to 100. <code>resets_at</code> is a Unix epoch number in seconds, not a date string. Both field names and the epoch encoding come from Anthropic's published statusline documentation rather than from this project, and each window is independently optional: a payload naming only one of them is one complete meter, not a partial one.",
+            "title": "1. O payload de statusline do Claude Code",
+            "intro": "Este é o caminho que não precisa de nenhum trabalho extra assim que o Claude Code está conectado. O Claude Code roda seu comando de statusline a cada renderização e escreve um objeto JSON descrevendo a sessão atual na entrada padrão desse comando. Quando esse objeto carrega um bloco de limite de taxa, <code>openlimiter statusline</code> o valida, escreve no cache, e renderiza os números atualizados na mesma chamada.",
+            "blockLabel": "o bloco que ele lê, da própria documentação de statusline da Anthropic",
+            "fields": "<code>used_percentage</code> é a fração da janela já usada, de 0 a 100. <code>resets_at</code> é um número epoch Unix em segundos, não uma string de data. Os dois nomes de campo e a codificação epoch vêm da documentação de statusline publicada pela Anthropic, não deste projeto, e cada janela é opcional de forma independente: um payload nomeando só uma delas é um meter completo, não um parcial.",
             "bullets": {
-              "rateLimits": "<code>rate_limits</code> appears only for Claude.ai subscribers on a Pro or Max plan, and only after the first API response of a session. A payload with no <code>rate_limits</code> block is the ordinary shape of a free account or a session that has not called the API yet, not an error.",
-              "implausibleReset": "A reset implausibly far out for its own window, a five hour window resetting days away, is dropped on its own rather than trusted. The other window still counts."
+              "rateLimits": "<code>rate_limits</code> aparece só para assinantes do Claude.ai num plano Pro ou Max, e só depois da primeira resposta de API de uma sessão. Um payload sem bloco <code>rate_limits</code> é o formato normal de uma conta gratuita ou de uma sessão que ainda não chamou a API, não um erro.",
+              "implausibleReset": "Um reinício implausivelmente distante para sua própria janela, uma janela de cinco horas reiniciando dias depois, é descartado sozinho, em vez de confiado. A outra janela continua contando."
             },
-            "ignored": "Anything else in the session object is ignored. A window that fails validation is dropped and the other window still counts.",
-            "calloutTitle": "This path can never break your statusline",
-            "calloutBody": "If standard input is absent, empty, malformed, or carries no recognisable rate limit field, the statusline falls back to the cache and reports unknown. It never blocks and never fails. Not every Claude Code version sends rate limit fields; if yours does not, this path simply stays quiet."
+            "ignored": "Qualquer outra coisa no objeto de sessão é ignorada. Uma janela que falha na validação é descartada e a outra janela continua contando.",
+            "calloutTitle": "Este caminho nunca pode quebrar seu statusline",
+            "calloutBody": "Se a entrada padrão está ausente, vazia, malformada, ou não carrega nenhum campo reconhecível de limite de taxa, o statusline recorre ao cache e reporta unknown. Nunca bloqueia e nunca falha. Nem toda versão do Claude Code envia campos de limite de taxa; se a sua não envia, este caminho simplesmente fica quieto."
           },
           "manual-document": {
-            "title": "2. A manual document on disk",
-            "intro": "Write <code>manual.json</code> inside the state directory and every command picks it up. See <docs>configuration</docs> for where that directory lives on each platform.",
+            "title": "2. Um documento manual no disco",
+            "intro": "Escreva <code>manual.json</code> dentro do diretório de estado e todo comando vai pegar esse arquivo. Veja <docs>configuração</docs> para onde esse diretório fica em cada plataforma.",
             "manual-rules": {
-              "title": "The rules each row must satisfy",
+              "title": "As regras que cada linha precisa satisfazer",
               "bullets": {
-                "name": "<code>name</code> is one uppercase identifier of up to 32 characters, starting with a letter.",
-                "usedPercent": "<code>used_percent</code> is a number from 0 to 100.",
-                "resetAt": "<code>reset_at</code> is an ISO instant in the future.",
-                "ten": "Up to ten meters are read. Rows past the tenth are ignored.",
-                "dropped": "A row that breaks any of those rules is dropped, and the remaining rows still count. Nothing is repaired."
+                "name": "<code>name</code> é um identificador em maiúsculas, de até 32 caracteres, começando com uma letra.",
+                "usedPercent": "<code>used_percent</code> é um número de 0 a 100.",
+                "resetAt": "<code>reset_at</code> é um instante ISO no futuro.",
+                "ten": "Até dez meters são lidos. Linhas além da décima são ignoradas.",
+                "dropped": "Uma linha que quebra qualquer uma dessas regras é descartada, e as linhas restantes continuam contando. Nada é consertado."
               }
             },
-            "refresh": "Run <code>openlimiter snapshot --refresh</code> to fold the file into the cache."
+            "refresh": "Rode <code>openlimiter snapshot --refresh</code> para dobrar o arquivo dentro do cache."
           },
           "ingest-command": {
-            "title": "3. The generic ingest command",
-            "intro": "Any script or agent can hand OpenLimiter a document without a provider integration. The command reads standard input, or an inline document passed with <code>--payload</code>.",
+            "title": "3. O comando genérico ingest",
+            "intro": "Qualquer script ou agente pode entregar um documento ao OpenLimiter sem uma integração de provedor. O comando lê a entrada padrão, ou um documento inline passado com <code>--payload</code>.",
             "terminalLabel": "terminal",
-            "provider": "Without a provider flag the document is treated as a manual document, so the resulting snapshot is labelled with manual precision. With <code>--provider '<id>'</code> the document is handed to that connector's own parser and keeps that connector's labels.",
-            "validIds": "Valid provider ids are <code>claude</code>, <code>openrouter</code>, <code>codex</code>, <code>antigravity</code>, <code>opencode</code>, and <code>manual</code>. An unknown id is a usage error and exits 2."
+            "provider": "Sem uma flag de provedor, o documento é tratado como um documento manual, então o snapshot resultante é rotulado com precisão manual. Com <code>--provider '<id>'</code>, o documento é entregue ao parser daquele connector e mantém os rótulos daquele connector.",
+            "validIds": "Ids de provedor válidos são <code>claude</code>, <code>openrouter</code>, <code>codex</code>, <code>antigravity</code>, <code>opencode</code>, e <code>manual</code>. Um id desconhecido é um erro de uso e sai com 2."
           },
           "merging": {
-            "title": "What happens to the data",
-            "intro": "Ingested rows merge into one cache under the same lock every other writer uses, so nothing already cached is lost and two writers observing different providers cannot silently drop each other's rows.",
+            "title": "O que acontece com os dados",
+            "intro": "Linhas ingeridas se fundem num único cache, sob o mesmo lock que todo outro escritor usa, então nada já em cache é perdido, e dois escritores observando provedores diferentes não conseguem apagar silenciosamente as linhas um do outro.",
             "bullets": {
-              "validated": "Values are validated against the snapshot schema before anything is written.",
-              "bounds": "Percentages stay between 0 and 100. A value outside that range is not clamped, it is dropped.",
-              "atomic": "Every write lands through an atomic replacement, so a reader observes either the previous content or the new content and never a partial file.",
-              "freshness": "Freshness is derived from when a reading was observed and when it expires, so stale data is labelled rather than silently reused as current."
+              "validated": "Valores são validados contra o schema do snapshot antes de qualquer coisa ser escrita.",
+              "bounds": "Porcentagens ficam entre 0 e 100. Um valor fora desse intervalo não é ajustado, é descartado.",
+              "atomic": "Toda escrita passa por uma substituição atômica, então um leitor observa o conteúdo anterior ou o conteúdo novo, e nunca um arquivo parcial.",
+              "freshness": "A atualização é derivada de quando uma leitura foi observada e quando ela expira, então dados desatualizados são rotulados em vez de reaproveitados silenciosamente como atuais."
             },
-            "nothingSurvives": "Nothing survives validation? The command reports that no bounded meter survived and exits with a failure, rather than writing a placeholder."
+            "nothingSurvives": "Nada sobrevive à validação? O comando reporta que nenhum meter limitado sobreviveu e sai com falha, em vez de escrever um placeholder."
           }
         }
       },
       "agent-context": {
         "title": "Agent context",
-        "description": "What the Claude Code statusline and prompt hook inject, and the boundary that keeps provider text out.",
-        "lead": "Two surfaces reach your agent: a one line statusline for you to read, and a bounded context block for the model. This page documents exactly what each one contains and the boundary that keeps provider text out of both.",
+        "description": "O que o statusline e o prompt hook do Claude Code injetam, e o limite que mantém texto de provedor de fora.",
+        "lead": "Duas superfícies alcançam seu agente: uma linha de statusline para você ler, e um bloco de contexto limitado para o modelo. Esta página documenta exatamente o que cada um contém e o limite que mantém texto de provedor fora dos dois.",
         "sections": {
           "statusline": {
-            "title": "The statusline",
-            "intro": "One line, rendered on every Claude Code statusline call. It names the worst state across your providers, lists the providers with a usable reading, and names the ones that are unknown.",
-            "exampleLabel": "example output, synthetic values",
-            "truncation": "Usage is truncated, never rounded upward, so a meter at 99.99% reads as 99.9%. When nothing usable is cached the whole line reduces to <code>OpenLimiter UNKNOWN</code>."
+            "title": "O statusline",
+            "intro": "Uma linha, renderizada a cada chamada de statusline do Claude Code. Ela nomeia o pior estado entre seus provedores, lista os provedores com uma leitura utilizável, e nomeia os que estão unknown.",
+            "exampleLabel": "exemplo de saída, valores sintéticos",
+            "truncation": "O uso é truncado, nunca arredondado para cima, então um meter em 99,99% aparece como 99,9%. Quando nada utilizável está em cache, a linha inteira se reduz a <code>OpenLimiter UNKNOWN</code>."
           },
           "context-block": {
-            "title": "The context block",
-            "intro": "The prompt hook emits a small block on <code>UserPromptSubmit</code>. It is plain text with one field per line, wrapped in an explicit untrusted data boundary.",
-            "exampleLabel": "example block, synthetic values",
+            "title": "O bloco de contexto",
+            "intro": "O prompt hook emite um pequeno bloco em <code>UserPromptSubmit</code>. É texto simples, com um campo por linha, envolto num limite explícito de dados não confiáveis.",
+            "exampleLabel": "exemplo de bloco, valores sintéticos",
             "fields": {
-              "title": "Every field it can contain",
-              "caption": "Fields in the agent context block",
+              "title": "Cada campo que ele pode conter",
+              "caption": "Campos no bloco de agent context",
               "columns": {
-                "field": "field",
-                "meaning": "meaning"
+                "field": "campo",
+                "meaning": "significado"
               },
               "rows": {
                 "schema": {
-                  "meaning": "Format version. Currently 2."
+                  "meaning": "Versão do formato. Atualmente 2."
                 },
                 "recommendationCode": {
-                  "meaning": "<code>PREFER</code> when a provider is worth routing to, or <code>NONE</code> when nothing usable stands out."
+                  "meaning": "<code>PREFER</code> quando um provedor vale a pena para rotear, ou <code>NONE</code> quando nada utilizável se destaca."
                 },
                 "recommendationProvider": {
-                  "meaning": "The provider code the advice points at. Present only when the code is PREFER."
+                  "meaning": "O código de provedor para o qual a recomendação aponta. Presente só quando o código é PREFER."
                 },
                 "recommendationReason": {
-                  "meaning": "Why that provider: <code>LOWEST_USAGE</code> today. An enum, never prose."
+                  "meaning": "Por que aquele provedor: <code>LOWEST_USAGE</code> hoje. Um enum, nunca prosa."
                 },
                 "notice": {
-                  "meaning": "A fixed sentence telling the model to treat the block as untrusted data."
+                  "meaning": "Uma frase fixa dizendo ao modelo para tratar o bloco como dados não confiáveis."
                 },
                 "reason": {
-                  "meaning": "The worst state across providers: <code>HEALTHY</code>, <code>NEAR_CAP</code> at 80% or above, or <code>AT_CAP</code> at 100%."
+                  "meaning": "O pior estado entre provedores: <code>HEALTHY</code>, <code>NEAR_CAP</code> em 80% ou mais, ou <code>AT_CAP</code> em 100%."
                 },
                 "provider": {
-                  "meaning": "One line per provider with a usable reading, carrying <code>state</code> of <code>fresh</code> or <code>stale</code>, a bounded <code>usage_percent</code>, and a <code>reset_at</code> instant or <code>NONE</code>."
+                  "meaning": "Uma linha por provedor com uma leitura utilizável, carregando <code>state</code> de <code>fresh</code> ou <code>stale</code>, um <code>usage_percent</code> limitado, e um instante <code>reset_at</code> ou <code>NONE</code>."
                 },
                 "unknown": {
-                  "meaning": "The providers with no usable reading, or <code>NONE</code> when every provider was read."
+                  "meaning": "Os provedores sem leitura utilizável, ou <code>NONE</code> quando todo provedor foi lido."
                 }
               }
             }
           },
           "boundary": {
-            "title": "The safety boundary",
-            "calloutTitle": "Provider text never reaches your agent",
-            "calloutBody": "Provider responses are untrusted data. Connector parsers select known numeric fields and known timestamps, then discard labels, messages, account text, markup, and every unknown field. The advice engine emits only provider enum codes, reason enum codes, bounded percentages, freshness enum codes, and timestamps. The Claude Code adapter validates all of those again before writing the block.",
-            "injectionSurface": "This matters because a block injected into a prompt is an injection surface. If a provider could put arbitrary text into your agent's context through a billing message or an account name, that text would arrive with the authority of your own tooling. Nothing in this pipeline can carry it.",
+            "title": "O limite de segurança",
+            "calloutTitle": "Texto de provedor nunca chega ao seu agente",
+            "calloutBody": "Respostas de provedor são dados não confiáveis. Os parsers de connector selecionam campos numéricos conhecidos e timestamps conhecidos, depois descartam rótulos, mensagens, texto de conta, marcação, e todo campo desconhecido. O motor de recomendação emite só códigos enum de provedor, códigos enum de motivo, porcentagens limitadas, códigos enum de atualização, e timestamps. O adaptador do Claude Code valida tudo isso de novo antes de escrever o bloco.",
+            "injectionSurface": "Isso importa porque um bloco injetado num prompt é uma superfície de injeção. Se um provedor pudesse colocar texto arbitrário no contexto do seu agente por meio de uma mensagem de cobrança ou de um nome de conta, esse texto chegaria com a autoridade da sua própria ferramenta. Nada neste pipeline consegue carregar isso.",
             "silence": {
-              "title": "When it injects nothing",
+              "title": "Quando ele não injeta nada",
               "bullets": {
-                "unknown": "If every provider is unknown, the adapter injects nothing at all.",
-                "validation": "If the advice fails its own validation, the adapter injects nothing.",
-                "cache": "If the cache cannot be read, the hook returns an empty result rather than guessing."
+                "unknown": "Se todo provedor está unknown, o adaptador não injeta nada.",
+                "validation": "Se a recomendação falha na própria validação, o adaptador não injeta nada.",
+                "cache": "Se o cache não pode ser lido, o hook retorna um resultado vazio em vez de chutar."
               }
             }
           },
           "hook-behaviour": {
-            "title": "How the hook behaves",
+            "title": "Como o hook se comporta",
             "bullets": {
-              "readsOnly": "It reads the cache only. It performs no network request of any kind and writes nothing.",
-              "exitsZero": "It exits 0 whatever happens, including on internal failure, so it cannot break a session.",
-              "inspect": "Running <code>openlimiter hook</code> in a terminal prints exactly what would be injected, which is a safe way to inspect it before wiring it into a real session."
+              "readsOnly": "Ele só lê o cache. Não faz nenhuma requisição de rede de nenhum tipo e não escreve nada.",
+              "exitsZero": "Ele sai com 0 aconteça o que acontecer, incluindo numa falha interna, então não pode quebrar uma sessão.",
+              "inspect": "Rodar <code>openlimiter hook</code> num terminal imprime exatamente o que seria injetado, o que é uma forma segura de inspecionar antes de conectar a uma sessão de verdade."
             },
-            "writes": "The statusline is the only path that writes. See <config>configuration</config> for the exact Claude Code settings, and <cli>the CLI reference</cli> for the commands."
+            "writes": "O statusline é o único caminho que escreve. Veja <config>configuração</config> para as configurações exatas do Claude Code, e <cli>a referência da CLI</cli> para os comandos."
           }
         }
       },
       "configuration": {
-        "title": "Configuration",
-        "description": "The state directory, the configuration file, the cache, and the settings Claude Code needs.",
-        "lead": "OpenLimiter keeps everything in one state directory under your own user account: a configuration file, a cache, a lock, and the optional manual document. This page says where that is and what each file does.",
+        "title": "Configuração",
+        "description": "O diretório de estado, o arquivo de configuração, o cache, e as configurações que o Claude Code precisa.",
+        "lead": "O OpenLimiter mantém tudo num único diretório de estado sob sua própria conta de usuário: um arquivo de configuração, um cache, um lock, e o documento manual opcional. Esta página diz onde isso fica e o que cada arquivo faz.",
         "sections": {
           "state-directory": {
-            "title": "The state directory",
-            "caption": "Where the state directory lives on each platform",
+            "title": "O diretório de estado",
+            "caption": "Onde o diretório de estado fica em cada plataforma",
             "columns": {
-              "platform": "platform",
-              "path": "path"
+              "platform": "plataforma",
+              "path": "caminho"
             },
-            "permissions": "The directory is created with restrictive permissions where the platform supports them. A path that turns out to be a symbolic link is rejected rather than followed."
+            "permissions": "O diretório é criado com permissões restritivas onde a plataforma suporta isso. Um caminho que se revela um link simbólico é rejeitado, em vez de seguido."
           },
           "files": {
-            "title": "What lives in it",
-            "caption": "Files inside the state directory",
+            "title": "O que existe dentro dele",
+            "caption": "Arquivos dentro do diretório de estado",
             "columns": {
-              "file": "file",
-              "role": "role"
+              "file": "arquivo",
+              "role": "papel"
             },
             "rows": {
               "config": {
-                "role": "Written by <code>openlimiter init</code>. Records the connector list, whether each one was detected, and the statusline layout."
+                "role": "Escrito por <code>openlimiter init</code>. Registra a lista de connectors, se cada um foi detectado, e o layout do statusline."
               },
               "cache": {
-                "role": "The one cache every command reads and every writer merges into."
+                "role": "O único cache que todo comando lê e todo escritor funde."
               },
               "lock": {
-                "role": "Held by writers only. Readers never take it."
+                "role": "Mantido só por escritores. Leitores nunca o tomam."
               },
               "manual": {
-                "role": "Optional. Quota you maintain by hand. See <docs>ingestion</docs> for the shape."
+                "role": "Opcional. Quota que você mantém à mão. Veja <docs>ingestão</docs> para o formato."
               }
             }
           },
           "cache-behaviour": {
-            "title": "How the cache behaves",
+            "title": "Como o cache se comporta",
             "bullets": {
-              "oneFile": "One schema, one file, one lock. There are no competing state files to reconcile.",
-              "readers": "Readers never take the lock. A reader opens the file, validates that open descriptor, and reads through it, so a path swapped after the check cannot redirect the bytes.",
-              "writers": "Writers take the lock, and the read, the merge, and the write all happen inside it. A lock older than five seconds is treated as abandoned and reclaimed.",
-              "atomic": "Every replacement flushes to stable storage before the rename, so a reader observes either the previous content or the new content and never a partial file."
+              "oneFile": "Um schema, um arquivo, um lock. Não há arquivos de estado concorrentes para reconciliar.",
+              "readers": "Leitores nunca tomam o lock. Um leitor abre o arquivo, valida esse descritor aberto, e lê por meio dele, então um caminho trocado depois da checagem não consegue redirecionar os bytes.",
+              "writers": "Escritores tomam o lock, e a leitura, a fusão, e a escrita acontecem todas dentro dele. Um lock com mais de cinco segundos é tratado como abandonado e retomado.",
+              "atomic": "Toda substituição é gravada em armazenamento estável antes da renomeação, então um leitor observa o conteúdo anterior ou o conteúdo novo, e nunca um arquivo parcial."
             },
-            "doctor": "Cache health is visible at any time through <code>openlimiter doctor</code>, which prints the cache status and how many rows were dropped for failing validation."
+            "doctor": "A saúde do cache fica visível a qualquer momento por <code>openlimiter doctor</code>, que imprime o status do cache e quantas linhas foram descartadas por falhar na validação."
           },
           "statusline": {
-            "title": "The statusline layout",
-            "intro": "The statusline draws one compact cell per provider: a name, a five block bar, and the percentage, with the overall reason code and the routing recommendation leading the row. Six keys in the configuration file decide how that row is built, and <code>openlimiter config</code> is how they are read and changed.",
-            "capturedFixturesLabel": "captured {date}, synthetic fixtures",
-            "capturedLabel": "captured {date}",
+            "title": "O layout do statusline",
+            "intro": "O statusline desenha uma célula compacta por provedor: um nome, uma barra de cinco blocos, e a porcentagem, com o código de motivo geral e a recomendação de roteamento à frente da linha. Seis chaves no arquivo de configuração decidem como essa linha é montada, e <code>openlimiter config</code> é como elas são lidas e alteradas.",
+            "capturedFixturesLabel": "capturado em {date}, fixtures sintéticos",
+            "capturedLabel": "capturado em {date}",
             "statusline-keys": {
-              "title": "Every key",
-              "caption": "The statusline keys and what each one accepts",
+              "title": "Cada chave",
+              "caption": "As chaves de statusline e o que cada uma aceita",
               "columns": {
-                "key": "key",
-                "accepts": "accepts",
-                "meaning": "meaning"
+                "key": "chave",
+                "accepts": "aceita",
+                "meaning": "significado"
               },
               "rows": {
                 "order": {
-                  "accepts": "provider ids, comma separated, or <code>NONE</code>",
-                  "meaning": "The order the cells appear in. Whatever you list comes first; every provider you leave out follows the built in order behind it, which is the subscription plans and then the credit and API meters. <code>NONE</code> is the way back to that built in order. Default <code>NONE</code>."
+                  "accepts": "ids de provedor, separados por vírgula, ou <code>NONE</code>",
+                  "meaning": "A ordem em que as células aparecem. O que você lista vem primeiro; todo provedor que você deixa de fora segue a ordem embutida atrás dele, que é os planos de assinatura, e depois os meters de crédito e API. <code>NONE</code> é o caminho de volta para essa ordem embutida. Padrão <code>NONE</code>."
                 },
                 "meters": {
-                  "accepts": "<code>worst</code> or <code>all</code>",
-                  "meaning": "A provider with several meters shows the one closest to its cap, or all of them as separate cells named <code>PROVIDER:METER</code>. Meters order session, daily, weekly, monthly, credits. Default <code>worst</code>."
+                  "accepts": "<code>worst</code> ou <code>all</code>",
+                  "meaning": "Um provedor com vários meters mostra o mais próximo do limite dele, ou todos como células separadas nomeadas <code>PROVIDER:METER</code>. Meters seguem a ordem sessão, diário, semanal, mensal, créditos. Padrão <code>worst</code>."
                 },
                 "width": {
-                  "accepts": "a whole number from 40 to 400",
-                  "meaning": "The columns one row may spend before the line stacks. Nothing measures your terminal: a statusline host runs the command with no terminal attached, so the number here is the number honoured. Default <code>140</code>."
+                  "accepts": "um número inteiro de 40 a 400",
+                  "meaning": "As colunas que uma linha pode gastar antes de a linha empilhar. Nada mede seu terminal: um host de statusline roda o comando sem nenhum terminal anexado, então o número aqui é o número respeitado. Padrão <code>140</code>."
                 },
                 "rows": {
-                  "accepts": "<code>1</code> or <code>2</code>",
-                  "meaning": "How many rows the layout may use. Default <code>2</code>."
+                  "accepts": "<code>1</code> ou <code>2</code>",
+                  "meaning": "Quantas linhas o layout pode usar. Padrão <code>2</code>."
                 },
                 "bars": {
-                  "accepts": "<code>true</code> or <code>false</code>",
-                  "meaning": "False restores the single plain line from 0.1.0, byte for byte. Default <code>true</code>."
+                  "accepts": "<code>true</code> ou <code>false</code>",
+                  "meaning": "False restaura a linha única e simples da 0.1.0, byte por byte. Padrão <code>true</code>."
                 },
                 "color": {
-                  "accepts": "<code>auto</code>, <code>always</code>, or <code>never</code>",
-                  "meaning": "<code>auto</code> follows the terminal, which for a statusline host usually means no colour, because the host captures the output rather than handing the command a terminal. <code>always</code> is how you say the host understands escape codes. Default <code>auto</code>."
+                  "accepts": "<code>auto</code>, <code>always</code>, ou <code>never</code>",
+                  "meaning": "<code>auto</code> segue o terminal, o que para um host de statusline geralmente significa sem cor, porque o host captura a saída em vez de entregar um terminal de verdade ao comando. <code>always</code> é como você diz que o host entende códigos de escape. Padrão <code>auto</code>."
                 }
               }
             },
-            "calloutTitle": "NO_COLOR beats always",
-            "calloutBody": "The environment variable is the one setting a person makes once for every tool on the machine, so a configuration file inside one tool does not overrule it. With <code>NO_COLOR</code> set, the bars are drawn in <code>#</code> and <code>.</code> and no escape code is emitted at all.",
+            "calloutTitle": "NO_COLOR vence always",
+            "calloutBody": "A variável de ambiente é a configuração que uma pessoa faz uma vez para cada ferramenta na máquina, então um arquivo de configuração dentro de uma ferramenta não a sobrepõe. Com <code>NO_COLOR</code> definida, as barras são desenhadas em <code>#</code> e <code>.</code>, e nenhum código de escape é emitido.",
             "statusline-commands": {
-              "title": "Reading and writing them",
-              "oneKey": "One key at a time, validated before it is written. A value the key cannot use exits 2 and names what it wanted, and nothing partial is written, because the whole document is replaced atomically. Statusline keys are the only thing this command mutates: the connector list belongs to <code>openlimiter init</code>, and any other key exits 2.",
-              "reinit": "Re running <code>openlimiter init</code> keeps whatever is configured here and only redetects the connectors. A statusline key this version cannot read falls back to its default rather than stopping the draw, so a hand edited typo in one field never costs you the other five."
+              "title": "Lendo e escrevendo elas",
+              "oneKey": "Uma chave por vez, validada antes de ser escrita. Um valor que a chave não pode usar sai com 2 e nomeia o que ela esperava, e nada parcial é escrito, porque o documento inteiro é substituído atomicamente. Chaves de statusline são a única coisa que este comando altera: a lista de connectors pertence a <code>openlimiter init</code>, e qualquer outra chave sai com 2.",
+              "reinit": "Rodar <code>openlimiter init</code> de novo mantém o que já está configurado aqui e só redetecta os connectors. Uma chave de statusline que esta versão não consegue ler recorre ao próprio padrão em vez de parar o desenho, então um erro de digitação num campo nunca custa os outros cinco."
             },
             "statusline-stacking": {
-              "title": "When the row runs out of room",
-              "body": "The line stacks instead of truncating. A break lands between two cells and never inside one, and two rows is the ceiling. Past that the providers closest to their caps are the ones kept, and the last row ends by saying how many it could not show."
+              "title": "Quando a linha fica sem espaço",
+              "body": "A linha empilha em vez de truncar. Uma quebra acontece entre duas células e nunca dentro de uma, e duas linhas é o teto. Além disso, os provedores mais perto do limite deles são os mantidos, e a última linha termina dizendo quantos ela não conseguiu mostrar."
             },
             "statusline-plain": {
-              "title": "The 0.1.0 line, on request",
-              "body": "The format before this layout was one plain line with no bars. If you wrote a script against it, <code>bars false</code> returns it exactly, and a test pins that exact string so it cannot drift."
+              "title": "A linha da 0.1.0, sob pedido",
+              "body": "O formato antes deste layout era uma linha única e simples, sem barras. Se você escreveu um script contra ele, <code>bars false</code> a devolve exatamente, e um teste fixa essa string exata para ela não conseguir desviar."
             }
           },
           "claude-code": {
-            "title": "Claude Code settings",
-            "intro": "Use the absolute path to your clone. Forward slashes work on every platform, including Windows.",
+            "title": "Configurações do Claude Code",
+            "intro": "Use o caminho absoluto do seu clone. Barras normais funcionam em qualquer plataforma, incluindo Windows.",
             "which-writes": {
-              "title": "Which of the two writes",
-              "body": "Only the statusline. It is the path that receives the session payload, so it is the path that updates the cache. The hook reads and never writes."
+              "title": "Qual dos dois escreve",
+              "body": "Só o statusline. É o caminho que recebe o payload da sessão, então é o caminho que atualiza o cache. O hook lê e nunca escreve."
             }
           },
           "credentials": {
-            "title": "Credentials",
-            "calloutTitle": "Keys belong in the operating system credential store",
-            "calloutBody": "The only credential OpenLimiter has any concept of is an OpenRouter key, and it belongs in your operating system credential store. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs. Provider authentication artifacts are opened read only and are never rewritten, backed up, repaired, or migrated.",
-            "stub": "The credential library call sits behind an interface, and the adapter is stubbed in this release, so <code>openlimiter init</code> cannot store a key until a driver is supplied. Nothing else on your machine is touched."
+            "title": "Credenciais",
+            "calloutTitle": "Chaves pertencem ao gerenciador de credenciais do sistema operacional",
+            "calloutBody": "A única credencial da qual o OpenLimiter tem algum conceito é uma chave da OpenRouter, e ela pertence ao gerenciador de credenciais do seu sistema operacional. Ela nunca deve aparecer em arquivos do repositório, arquivos de cache, exportações, diagnósticos, fixtures, ou logs. Artefatos de autenticação de provedor são abertos só para leitura, e nunca são reescritos, salvos, consertados, ou migrados.",
+            "stub": "A chamada da biblioteca de credenciais fica atrás de uma interface, e o adaptador é stubado nesta versão, então <code>openlimiter init</code> não consegue guardar uma chave até um driver ser fornecido. Mais nada na sua máquina é tocado."
           },
           "detection": {
-            "title": "Connector detection",
-            "intro": "Detection is a pure function of the environment the CLI hands a connector. Facts only the CLI can observe, such as a manual document sitting in the state directory, arrive as explicit markers, which is why <code>openlimiter doctor</code> never claims a connector is ready when it could not receive data.",
+            "title": "Detecção de connector",
+            "intro": "A detecção é uma função pura do ambiente que a CLI entrega a um connector. Fatos que só a CLI consegue observar, como um documento manual sentado no diretório de estado, chegam como marcadores explícitos, por isso <code>openlimiter doctor</code> nunca afirma que um connector está pronto quando ele não conseguiria receber dados.",
             "terminalLabel": "terminal",
-            "corrupt": "A cache that would not parse, or one that parsed with rows thrown out, adds one more line in red saying so. It reports against the cache rather than against a provider, because a corrupt file cannot be trusted to say whose reading it held."
+            "corrupt": "Um cache que não consegue ser interpretado, ou um que foi interpretado com linhas descartadas, adiciona mais uma linha em vermelho dizendo isso. Ele reporta contra o cache, não contra um provedor, porque um arquivo corrompido não pode ser confiável para dizer de quem era a leitura que guardava."
           }
         }
       },
       "cli": {
-        "title": "CLI reference",
-        "metaTitle": "CLI reference: commands, flags and exit codes",
-        "description": "Every command the CLI accepts today, with its flags, its output, and its exit codes.",
-        "lead": "Ten commands, one binary. Agent tools and people get the same interface, and every command reports a genuine failure rather than inventing a number.",
+        "title": "Referência da CLI",
+        "metaTitle": "Referência da CLI: comandos, flags e códigos de saída",
+        "description": "Cada comando que a CLI aceita hoje, com suas flags, sua saída, e seus códigos de saída.",
+        "lead": "Dez comandos, um binário. Ferramentas de agente e pessoas têm a mesma interface, e todo comando reporta uma falha genuína em vez de inventar um número.",
         "sections": {
           "overview": {
-            "title": "Overview",
-            "install": "Install the global command with <code>npm install -g openlimiter</code>, then run each example exactly as shown."
+            "title": "Visão geral",
+            "install": "Instale o comando global com <code>npm install -g openlimiter</code>, e depois rode cada exemplo exatamente como mostrado."
           },
           "commands": {
-            "title": "The commands",
-            "capturedFixturesLabel": "captured {date}, synthetic fixtures",
-            "capturedLabel": "captured {date}",
+            "title": "Os comandos",
+            "capturedFixturesLabel": "capturado em {date}, fixtures sintéticos",
+            "capturedLabel": "capturado em {date}",
             "init": {
-              "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
+              "body": "Escreve a configuração local no diretório de estado, registrando cada connector e se ele foi detectado. Reporta a lista detectada, ou nenhuma."
             },
             "snapshot": {
-              "intro": "Prints the cached quota as a table. With <code>--refresh</code> it first asks every connector for meters, folds what survives validation into the cache, and then prints. Exits 3 when no bounded quota data exists.",
-              "columns": "Eight columns, always eight, separated by one space, so a script can split a row without guessing. <code>BAR</code> is a ten block meter, drawn in colour when the terminal supports it and in <code>#</code> and <code>.</code> when it does not or when <code>NO_COLOR</code> is set. <code>AMOUNT</code> carries the money for a plan that is priced rather than rationed. <code>RESET</code> is the instant the window turns over and <code>IN</code> is how long that is from now. A column with nothing to say reads <code>NONE</code> rather than disappearing.",
-              "syntheticLabel": "synthetic values",
-              "failures": "A connector that was handed a payload and could not read it, or a reading the validator threw out, adds one line under the table in red, naming the provider and one fixed sentence. That sentence is always one of ours: no text a provider sent ever reaches your terminal."
+              "intro": "Imprime a quota em cache como uma tabela. Com <code>--refresh</code>, primeiro pergunta a cada connector por meters, funde o que sobrevive à validação no cache, e então imprime. Sai com 3 quando não existe nenhum dado de quota limitado.",
+              "columns": "Oito colunas, sempre oito, separadas por um espaço, para um script poder dividir uma linha sem chutar. <code>BAR</code> é um meter de dez blocos, desenhado em cor quando o terminal suporta, e em <code>#</code> e <code>.</code> quando não suporta, ou quando <code>NO_COLOR</code> está definida. <code>AMOUNT</code> carrega o dinheiro para um plano que é precificado em vez de racionado. <code>RESET</code> é o instante em que a janela vira, e <code>IN</code> é quanto tempo falta a partir de agora. Uma coluna sem nada a dizer mostra <code>NONE</code> em vez de desaparecer.",
+              "syntheticLabel": "valores sintéticos",
+              "failures": "Um connector que recebeu um payload que não conseguiu interpretar, ou uma leitura que o validador descartou, adiciona uma linha embaixo da tabela em vermelho, nomeando o provedor e uma frase fixa. Essa frase é sempre nossa: nenhum texto que um provedor enviou chega ao seu terminal."
             },
             "statusline": {
-              "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
-              "cells": "The overall reason code leads, then the routing recommendation, then one compact cell per provider: a name, a five block bar, and the percentage. Five blocks rather than the ten the table draws, because a status row is shared with a model name, a branch and a directory, and it has to read at a glance. The percentage is truncated like everywhere else, so a bar never lights a block the reading has not earned.",
-              "order": "Subscription providers come first and credit or API providers last, so a window that refills on a clock is never read next to a balance that does not come back. Within a provider the meters order session, daily, weekly, monthly, credits, and the cell shows the meter closest to its cap. The full set is one <code>openlimiter snapshot</code> away, or set <code>statusline.meters all</code> to put every meter in the row as its own cell.",
-              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
-              "calloutTitle": "The old line is still one setting away",
-              "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
+              "intro": "Renderiza a linha de status para um host de statusline. Ele lê a entrada padrão primeiro, então um payload de sessão do Claude Code é ingerido e renderizado na mesma chamada, depois recorre ao cache. Este é o único comando que escreve como efeito colateral de ser exibido.",
+              "cells": "O código de motivo geral vem à frente, depois a recomendação de roteamento, depois uma célula compacta por provedor: um nome, uma barra de cinco blocos, e a porcentagem. Cinco blocos em vez dos dez que a tabela desenha, porque uma linha de status é compartilhada com um nome de modelo, uma branch e um diretório, e precisa ser lida de relance. A porcentagem é truncada como em qualquer outro lugar, então uma barra nunca acende um bloco que a leitura não ganhou.",
+              "order": "Provedores de assinatura vêm primeiro e provedores de crédito ou API por último, então uma janela que se enche num relógio nunca é lida ao lado de um saldo que não volta. Dentro de um provedor, os meters seguem a ordem sessão, diário, semanal, mensal, créditos, e a célula mostra o meter mais próximo do limite dele. O conjunto completo está a um <code>openlimiter snapshot</code> de distância, ou defina <code>statusline.meters all</code> para colocar cada meter na linha como sua própria célula.",
+              "stacking": "Uma linha mais larga que seu orçamento empilha em vez de truncar. A quebra acontece entre duas células e nunca dentro de uma, porque meia barra parece uma leitura e não é uma. Duas linhas é o teto. Além disso, os provedores mais perto do limite deles são mantidos, e a última linha termina dizendo quantos ela não conseguiu mostrar.",
+              "calloutTitle": "A linha antiga ainda está a uma configuração de distância",
+              "calloutBody": "<code>openlimiter config set statusline.bars false</code> devolve a linha única e simples que a 0.1.0 imprimia, byte por byte, para qualquer coisa que já a interprete. Um teste fixa essa string exata, então esse escape não pode apodrecer silenciosamente."
             },
             "config": {
-              "body": "Reads and changes the statusline layout in the configuration file. Every key is validated before it is written, a rejected value exits 2 and names what it wanted, and nothing outside the statusline section can be changed by this command. See <docs>configuration</docs> for what each key accepts."
+              "body": "Lê e altera o layout do statusline no arquivo de configuração. Toda chave é validada antes de ser escrita, um valor rejeitado sai com 2 e nomeia o que esperava, e nada fora da seção de statusline pode ser alterado por este comando. Veja <docs>configuração</docs> para o que cada chave aceita."
             },
             "hook": {
-              "body": "Emits the agent context block from the cache. It performs no network access, writes nothing, and injects nothing when every provider is unknown. See <docs>agent context</docs> for the exact format."
+              "body": "Emite o bloco de agent context a partir do cache. Não faz nenhum acesso de rede, não escreve nada, e não injeta nada quando todo provedor está unknown. Veja <docs>agent context</docs> para o formato exato."
             },
             "ingest": {
-              "body": "Accepts a quota document from any script or agent, on standard input or inline with <code>--payload</code>. Without <code>--provider</code> the document is a manual document. With it, the document goes to that connector's parser and keeps that connector's labels."
+              "body": "Aceita um documento de quota de qualquer script ou agente, pela entrada padrão ou inline com <code>--payload</code>. Sem <code>--provider</code>, o documento é um documento manual. Com ele, o documento vai para o parser daquele connector e mantém os rótulos daquele connector."
             },
             "doctor": {
-              "body": "Reports connector detection, freshness, drift, and cache health. Drift stays <code>UNVERIFIED</code> until an explicit verifier exists, and the output is redacted by design."
+              "body": "Reporta detecção de connector, atualização, desvio, e saúde do cache. Desvio continua <code>UNVERIFIED</code> até existir um verificador explícito, e a saída é redigida por design."
             },
             "demo": {
-              "body": "Renders synthetic fixtures so you can see the output shape without any real account. Every value it prints is invented. The block below is the real output of that command, pasted in unedited."
+              "body": "Renderiza fixtures sintéticos para você ver o formato da saída sem nenhuma conta real. Todo valor que ele imprime é inventado. O bloco abaixo é a saída real desse comando, colada sem edição."
             },
             "export": {
-              "body": "Prints the cache as canonical JSON, suitable for a script to parse. Exits 3 when the cache holds no bounded quota data."
+              "body": "Imprime o cache como JSON canônico, adequado para um script interpretar. Sai com 3 quando o cache não guarda nenhum dado de quota limitado."
             },
             "serve": {
-              "body": "Serves a read only snapshot of your quota on your own local network, so a phone on the same network can see it. Prints the address and a QR code to scan. A fresh token is generated every time the command starts, and it rides in the URL fragment after <code>#t=</code>, which a server never receives. The page moves that token into the tab's own <code>sessionStorage</code> and cleans the address bar on first load, so no browser history anywhere keeps the capability. Every refetch after that sends the token as an <code>Authorization: Bearer</code> header instead of a URL parameter. An address printed by last release, with the token as a query parameter, still answers for this one release, so nothing already scanned or saved breaks.",
-              "calloutTitle": "Anyone who can see the screen can read the quota",
-              "calloutBody": "The address and the code ARE the key: anyone who can see this screen, or a photograph of it, can read your quota for as long as the command keeps running. This listens on every interface on the machine, so do not port forward this port and do not open it on a firewall. It is meant for a trusted home or office network, never for the open internet, and it exposes only the bounded fields the agent context carries."
+              "body": "Serve um snapshot só para leitura da sua quota na sua própria rede local, para um celular na mesma rede poder ver isso. Imprime o endereço e um código QR para escanear. Um token novo é gerado toda vez que o comando inicia, e ele viaja no fragmento da URL depois de <code>#t=</code>, que um servidor nunca recebe. A página move esse token para o próprio <code>sessionStorage</code> da aba e limpa a barra de endereço no primeiro carregamento, então nenhum histórico de navegador em lugar nenhum guarda a capacidade. Toda nova busca depois disso envia o token como um cabeçalho <code>Authorization: Bearer</code>, em vez de um parâmetro de URL. Um endereço impresso pelo último release, com o token como parâmetro de consulta, ainda funciona neste release, então nada já escaneado ou salvo quebra.",
+              "calloutTitle": "Quem consegue ver a tela consegue ler a quota",
+              "calloutBody": "O endereço e o código SÃO a chave: qualquer um que consiga ver esta tela, ou uma foto dela, consegue ler sua quota enquanto o comando continuar rodando. Isso escuta em toda interface da máquina, então não redirecione essa porta e não a abra num firewall. É pensado para uma rede doméstica ou de escritório confiável, nunca para a internet aberta, e expõe só os campos limitados que o agent context carrega."
             }
           },
           "exit-codes": {
-            "title": "Exit codes",
-            "caption": "Exit codes and what they mean",
+            "title": "Códigos de saída",
+            "caption": "Códigos de saída e o que significam",
             "columns": {
-              "code": "code",
-              "meaning": "meaning"
+              "code": "código",
+              "meaning": "significado"
             },
             "rows": {
-              "success": "Success.",
-              "failure": "A genuine failure.",
-              "usage": "A usage error, such as an unknown provider id.",
-              "noData": "No bounded quota data is available."
+              "success": "Sucesso.",
+              "failure": "Uma falha genuína.",
+              "usage": "Um erro de uso, como um id de provedor desconhecido.",
+              "noData": "Nenhum dado de quota limitado está disponível."
             },
-            "calloutTitle": "hook and statusline always exit 0",
-            "calloutBody": "Both are invoked by another tool, so they report unknown instead of breaking their host. Every other command surfaces a failure on standard error using a fixed set of strings that never carry provider text, paths taken from a payload, or secrets."
+            "calloutTitle": "hook e statusline sempre saem com 0",
+            "calloutBody": "Os dois são chamados por outra ferramenta, então reportam unknown em vez de quebrar o host. Todo outro comando expõe uma falha na saída de erro padrão, usando um conjunto fixo de strings que nunca carregam texto de provedor, caminhos tirados de um payload, ou segredos."
           },
           "notes": {
-            "title": "Behaviour worth knowing",
+            "title": "Comportamento que vale a pena saber",
             "bullets": {
-              "stdin": "Standard input is bounded and time limited, so a command never waits on a stream that does not end.",
-              "truncated": "Displayed percentages are truncated rather than rounded, so no surface can report a cap that was not reached.",
-              "flags": "<code>--provider</code> and <code>--payload</code> each need a value. Passing the flag without one is a usage error.",
-              "noNetwork": "In this release no command reaches the network. Every path is a parser over something already on your machine."
+              "stdin": "A entrada padrão é limitada e tem tempo limite, então um comando nunca espera por um stream que não termina.",
+              "truncated": "Porcentagens exibidas são truncadas em vez de arredondadas, então nenhuma superfície pode reportar um limite que não foi alcançado.",
+              "flags": "<code>--provider</code> e <code>--payload</code> precisam cada um de um valor. Passar a flag sem um é um erro de uso.",
+              "noNetwork": "Nesta versão, nenhum comando alcança a rede. Todo caminho é um parser sobre algo já na sua máquina."
             }
           }
         }
       },
       "security": {
-        "title": "Security and privacy",
-        "description": "What OpenLimiter guarantees, what it deliberately does not do, and how to report a problem.",
-        "lead": "OpenLimiter runs on your machine and reads things that are already there. This page states what that guarantees, what it deliberately does not do, and how to report a problem.",
+        "title": "Segurança e privacidade",
+        "description": "O que o OpenLimiter garante, o que ele deliberadamente não faz, e como reportar um problema.",
+        "lead": "O OpenLimiter roda na sua máquina e lê coisas que já estão lá. Esta página afirma o que isso garante, o que ele deliberadamente não faz, e como reportar um problema.",
         "sections": {
           "guarantees": {
-            "title": "The guarantees",
-            "calloutTitle": "What OpenLimiter guarantees",
+            "title": "As garantias",
+            "calloutTitle": "O que o OpenLimiter garante",
             "bullets": {
-              "noServer": "<strong>There is no OpenLimiter server.</strong> Nothing is sent to the project authors, because there is nowhere to send it.",
-              "noTelemetry": "<strong>There is no telemetry.</strong> No command sends usage, diagnostics, identifiers, prompts, or quota state anywhere.",
-              "hookNoNetwork": "<strong>The hook makes no network request.</strong> It reads the local cache and nothing else.",
-              "noEgress": "<strong>This release performs no egress at all.</strong> No connector contacts a provider. Every one of them is a parser over data something else already produced.",
-              "unknownNeverZero": "<strong>Unknown never becomes zero.</strong> Missing, expired, malformed, and unrecognised input all resolve to unknown.",
-              "readOnlyArtifacts": "<strong>Provider authentication artifacts are read only.</strong> They are never rewritten, backed up, repaired, or migrated."
+              "noServer": "<strong>Não há servidor do OpenLimiter.</strong> Nada é enviado aos autores do projeto, porque não há para onde enviar.",
+              "noTelemetry": "<strong>Não há telemetria.</strong> Nenhum comando envia uso, diagnósticos, identificadores, prompts, ou estado de quota para lugar nenhum.",
+              "hookNoNetwork": "<strong>O hook não faz nenhuma requisição de rede.</strong> Ele lê o cache local e mais nada.",
+              "noEgress": "<strong>Esta versão não faz nenhuma saída de dados.</strong> Nenhum connector contata um provedor. Cada um deles é um parser sobre dados que outra coisa já produziu.",
+              "unknownNeverZero": "<strong>Unknown nunca vira zero.</strong> Entrada ausente, expirada, malformada, e não reconhecida, todas se resolvem para unknown.",
+              "readOnlyArtifacts": "<strong>Artefatos de autenticação de provedor são só leitura.</strong> Nunca são reescritos, salvos, consertados, ou migrados."
             }
           },
           "injection-boundary": {
-            "title": "The agent context boundary",
-            "intro": "Provider text is untrusted data. A block injected into a prompt is an injection surface, so the pipeline is built so that no provider supplied text can reach it.",
+            "title": "O limite do agent context",
+            "intro": "Texto de provedor é dado não confiável. Um bloco injetado num prompt é uma superfície de injeção, então o pipeline é construído para que nenhum texto fornecido por provedor consiga chegar até ele.",
             "bullets": {
-              "parsers": "Connector parsers select known numeric fields and known timestamps. They discard labels, messages, account text, markup, and every unknown field.",
-              "advice": "The advice engine emits only provider enum codes, reason enum codes, bounded percentages, freshness enum codes, and timestamps.",
-              "adapter": "The Claude Code adapter validates all of those again and wraps them in an explicit untrusted data boundary before anything is written.",
-              "unknown": "If every provider is unknown, the adapter injects nothing."
+              "parsers": "Os parsers de connector selecionam campos numéricos conhecidos e timestamps conhecidos. Eles descartam rótulos, mensagens, texto de conta, marcação, e todo campo desconhecido.",
+              "advice": "O motor de recomendação emite só códigos enum de provedor, códigos enum de motivo, porcentagens limitadas, códigos enum de atualização, e timestamps.",
+              "adapter": "O adaptador do Claude Code valida tudo isso de novo e envolve num limite explícito de dados não confiáveis antes de qualquer coisa ser escrita.",
+              "unknown": "Se todo provedor está unknown, o adaptador não injeta nada."
             },
-            "exactBlock": "The exact block, field by field, is on the <docs>agent context page</docs>."
+            "exactBlock": "O bloco exato, campo por campo, está na <docs>página de agent context</docs>."
           },
           "secrets": {
-            "title": "Secret handling",
-            "intro": "The only credential the project has a concept of is an OpenRouter key, and it belongs in your operating system credential store. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs. The credential library call sits behind an interface, and the tests use only a memory implementation with a synthetic key.",
+            "title": "Tratamento de segredos",
+            "intro": "A única credencial da qual o projeto tem algum conceito é uma chave da OpenRouter, e ela pertence ao gerenciador de credenciais do seu sistema operacional. Ela nunca deve aparecer em arquivos do repositório, arquivos de cache, exportações, diagnósticos, fixtures, ou logs. A chamada da biblioteca de credenciais fica atrás de uma interface, e os testes usam só uma implementação em memória, com uma chave sintética.",
             "local-state": {
-              "title": "Local state",
-              "body": "The state directory is created with restrictive permissions where the platform supports them, a path that turns out to be a symbolic link is rejected rather than followed, and every file replacement is atomic. See <docs>configuration</docs> for the paths."
+              "title": "Estado local",
+              "body": "O diretório de estado é criado com permissões restritivas onde a plataforma suporta isso, um caminho que se revela um link simbólico é rejeitado em vez de seguido, e toda substituição de arquivo é atômica. Veja <docs>configuração</docs> para os caminhos."
             }
           },
           "honest-limits": {
-            "title": "Honest limitations",
-            "calloutTitle": "Read this before you rely on a number",
+            "title": "Limitações honestas",
+            "calloutTitle": "Leia isto antes de confiar num número",
             "bullets": {
-              "noOfficialApi": "Most consumer subscription providers offer no official quota API. Several connectors therefore describe unofficial interfaces that can change or disappear without notice.",
-              "unverified": "Every connector ships marked <code>UNVERIFIED</code>. Nothing here has been confirmed against a live account by an explicit verifier.",
-              "opencode": "The OpenCode connector describes an authenticated page shape and carries high automation risk. Treat it as the most fragile of the six.",
-              "adviceOnly": "OpenLimiter provides routing advice. It does not route requests automatically, bypass limits, or change how your agent authenticates."
+              "noOfficialApi": "A maioria dos provedores de assinatura para consumidor não oferece nenhuma API oficial de quota. Vários connectors, por isso, descrevem interfaces não oficiais que podem mudar ou desaparecer sem aviso.",
+              "unverified": "Todo connector vem marcado <code>UNVERIFIED</code>. Nada aqui foi confirmado contra uma conta real por um verificador explícito.",
+              "opencode": "O connector do OpenCode descreve o formato de uma página autenticada e carrega alto risco de automação. Trate como o mais frágil dos seis.",
+              "adviceOnly": "O OpenLimiter fornece recomendações de roteamento. Ele não roteia requisições automaticamente, não contorna limites, e não muda como seu agente se autentica."
             }
           },
           "future-egress": {
-            "title": "If a future connector goes to the network",
-            "intro": "This release performs no provider egress. A future connector that does would have to satisfy all of the following before it could ship.",
+            "title": "Se um futuro connector for para a rede",
+            "intro": "Esta versão não faz nenhuma saída de dados para provedor. Um futuro connector que fizesse teria que satisfazer tudo abaixo antes de poder ser lançado.",
             "bullets": {
-              "oneHost": "Declare one exact provider host.",
-              "transport": "Use secure transport and reject any redirect outside that host.",
-              "bounds": "Set a short timeout and bound the response size.",
-              "status": "Document its interface status honestly.",
-              "sendNothing": "Send no cache content, no other provider state, no prompts, no source code, and no diagnostics."
+              "oneHost": "Declarar um único host exato de provedor.",
+              "transport": "Usar transporte seguro e rejeitar qualquer redirecionamento para fora daquele host.",
+              "bounds": "Definir um tempo limite curto e limitar o tamanho da resposta.",
+              "status": "Documentar o status da interface dele com honestidade.",
+              "sendNothing": "Não enviar conteúdo de cache, nenhum outro estado de provedor, prompts, código fonte, ou diagnósticos."
             }
           },
           "reporting": {
-            "title": "Reporting a problem",
-            "address": "Report a suspected vulnerability privately to <code>security@openlimiter.com</code>. Include a concise description, the affected version, reproduction steps using synthetic data, and the expected impact. Do not include real credentials or provider account data. That address is a project placeholder until the public security intake is activated.",
-            "scope": "In scope: secret disclosure, provider artifact mutation, unsafe cache behaviour, symbolic link bypass, parser bounds bypass, agent context injection, and unexpected network egress. Connector drift with no security impact is a compatibility issue, so please open a connector request instead. The full policy lives in <policy>SECURITY.md</policy> and the reasoning in <threat>THREAT_MODEL.md</threat>.",
-            "supported": "Only the latest released version receives security fixes during the initial development period."
+            "title": "Reportando um problema",
+            "address": "Reporte uma suspeita de vulnerabilidade em privado para <code>security@openlimiter.com</code>. Inclua uma descrição concisa, a versão afetada, passos de reprodução usando dados sintéticos, e o impacto esperado. Não inclua credenciais reais ou dados de conta de provedor. Esse endereço é um espaço reservado do projeto até a abertura pública de segurança ser ativada.",
+            "scope": "No escopo: divulgação de segredo, mutação de artefato de provedor, comportamento inseguro de cache, contorno de link simbólico, contorno de limites de parser, injeção de agent context, e saída de rede inesperada. Desvio de connector sem impacto de segurança é uma questão de compatibilidade, então abra um pedido de connector em vez disso. A política completa está em <policy>SECURITY.md</policy>, e o raciocínio em <threat>THREAT_MODEL.md</threat>.",
+            "supported": "Só a última versão lançada recebe correções de segurança durante o período inicial de desenvolvimento."
           }
         }
       },
       "roadmap": {
         "title": "Roadmap",
-        "description": "What is planned and not yet built: mobile applications, encrypted sync, and signed builds with an automatic update channel.",
-        "lead": "What is on this page is not yet built, with one exception noted at the top so nothing here reads as a promise about something that already ships. None of the planned work can be downloaded, bought, or waited for on a list. It is written down so the shape of the project is honest about where it is going.",
+        "description": "O que está planejado e ainda não construído: aplicativos móveis, sincronização criptografada, e builds assinadas com um canal de atualização automática.",
+        "lead": "O que está nesta página ainda não foi construído, com uma exceção anotada no topo para nada aqui parecer uma promessa sobre algo que já vem hoje. Nenhum do trabalho planejado pode ser baixado, comprado, ou esperado numa lista. Está escrito para que a direção do projeto seja honesta sobre para onde ele está indo.",
         "sections": {
           "not-available": {
-            "title": "Read this first",
-            "calloutTitle": "Planned means not built",
-            "calloutBody": "Everything called planned below does not exist today. There is no mobile application in any store and no synchronisation service running anywhere. What works today is documented on the rest of this site, and the difference between the two is deliberate."
+            "title": "Leia isto primeiro",
+            "calloutTitle": "Planejado significa ainda não construído",
+            "calloutBody": "Tudo chamado de planejado abaixo não existe hoje. Não há aplicativo móvel em nenhuma loja e nenhum serviço de sincronização rodando em lugar nenhum. O que funciona hoje está documentado no resto deste site, e a diferença entre os dois é deliberada."
           },
           "desktop": {
-            "title": "Shipped: the desktop application",
-            "intro": "A small desktop application with a tray icon next to the system clock, reading the same local cache the command line tool writes, so quota is glanceable without a terminal open. It is built, and packaged builds for Windows, macOS and Linux are all attached to the release on GitHub.",
+            "title": "Lançado: o aplicativo de desktop",
+            "intro": "Um pequeno aplicativo de desktop com um ícone de bandeja ao lado do relógio do sistema, lendo o mesmo cache local que a ferramenta de linha de comando escreve, então a quota fica visível de relance sem nenhum terminal aberto. Ele está construído, e builds empacotadas para Windows, macOS e Linux estão todas anexadas ao release no GitHub.",
             "bullets": {
-              "status": "Status: shipped on Windows, macOS and Linux. Every build is on the releases page, and the download page links each file directly.",
-              "signing": "Planned: code signing on Windows and notarisation on macOS. Until those are done, SmartScreen and Gatekeeper warn on first run.",
-              "updates": "Planned: an automatic update channel. There is none today."
+              "status": "Status: lançado em Windows, macOS e Linux. Toda build está na página de releases, e a página de download linka cada arquivo diretamente.",
+              "signing": "Planejado: assinatura de código no Windows e notarização no macOS. Até isso ser feito, SmartScreen e Gatekeeper avisam na primeira execução.",
+              "updates": "Planejado: um canal de atualização automática. Ainda não há nenhum hoje."
             }
           },
           "mobile": {
-            "title": "Planned: native mobile applications",
-            "intro": "Applications for iOS and Android, so a long running window can be checked away from the desk. The web app already installs to a phone home screen and works offline, which is the part of this that exists.",
+            "title": "Planejado: aplicativos móveis nativos",
+            "intro": "Aplicativos para iOS e Android, para uma janela de longa duração poder ser checada longe da mesa. O web app já se instala numa tela de início de celular e funciona offline, que é a parte disso que já existe.",
             "bullets": {
-              "status": "Status: planned. Nothing is submitted to any store.",
-              "dependsOnSync": "A phone cannot read a file on your laptop, so a native application that shows the numbers on your desk machine depends on the synchronisation work below."
+              "status": "Status: planejado. Nada foi enviado para nenhuma loja.",
+              "dependsOnSync": "Um celular não consegue ler um arquivo no seu laptop, então um aplicativo nativo que mostre os números da sua máquina de mesa depende do trabalho de sincronização abaixo."
             }
           },
           "sync": {
-            "title": "Planned: OpenLimiter Pro",
-            "intro": "Everything that can only run on a server, gathered into one planned paid tier at $5 a month, founding price. Nothing that runs locally today moves behind it: Pro sells servers and service, not switches. See <pricing>pricing</pricing> for the card as it stands.",
+            "title": "Planejado: OpenLimiter Pro",
+            "intro": "Tudo que só pode rodar num servidor, reunido numa única camada paga planejada, a $5 por mês, preço de fundador. Nada que roda localmente hoje algum dia fica atrás dela: o Pro vende servidores e serviço, não interruptores. Veja <pricing>preços</pricing> para o cartão como ele está.",
             "bullets": {
-              "status": "Status: planned. No service exists, there is no checkout and no waiting list.",
-              "sync": "Encrypted synchronisation of quota state across your own devices.",
-              "push": "Push notifications to your phone when a window nears its cap.",
-              "smartLimiter": "A smart limiter: quota aware routing between your models, driven by live budget state.",
-              "email": "Email alerts and a weekly digest, with delivery rules for quiet hours.",
-              "history": "Hosted usage history and burn trends across every device.",
-              "priority": "Priority connector requests, so your provider gets built first.",
-              "team": "A team dashboard tier, later than the rest.",
-              "localFirst": "The local first guarantee does not change: the CLI would keep working with no account and no network."
+              "status": "Status: planejado. Nenhum serviço existe, não há checkout e não há lista de espera.",
+              "sync": "Sincronização criptografada do estado de quota entre seus próprios dispositivos.",
+              "push": "Notificações push para o celular quando uma janela se aproxima do limite.",
+              "smartLimiter": "Um smart limiter: roteamento consciente de quota entre seus modelos, guiado por estado de orçamento em tempo real.",
+              "email": "Alertas por email e um resumo semanal, com regras de entrega para horas silenciosas.",
+              "history": "Histórico de uso hospedado e tendências de consumo em cada dispositivo.",
+              "priority": "Pedidos prioritários de connector, para seu provedor ser construído primeiro.",
+              "team": "Uma camada de painel para equipes, mais adiante que o resto.",
+              "localFirst": "A garantia local first não muda: a CLI continuaria funcionando sem conta e sem rede."
             }
           },
           "following": {
-            "title": "Following the work",
-            "body": "There is no waitlist and no email capture. The honest place to watch is the <issues>issue tracker</issues>, where the work is planned in public."
+            "title": "Acompanhando o trabalho",
+            "body": "Não há lista de espera e nenhuma captura de email. O lugar honesto para acompanhar é o <issues>issue tracker</issues>, onde o trabalho é planejado em público."
           }
         }
       }

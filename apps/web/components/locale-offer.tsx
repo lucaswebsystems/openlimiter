@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LOCALE_FACES, type Locale, isLocale } from "@/i18n/locales";
 import { LOCALE_COOKIE, LOCALE_HINT_COOKIE, localePath } from "@/i18n/routing";
-import { rememberLocale } from "@/lib/locale-choice";
+import { LOCALE_CHOSEN_EVENT, rememberLocale } from "@/lib/locale-choice";
 
 /**
  * The offer, and the whole of decision 3's visible half.
@@ -48,8 +48,11 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
   const pathname = usePathname();
 
   useEffect(() => {
-    /* Already answered, in either direction. The question is closed. */
-    if (readCookie(LOCALE_COOKIE) !== null) return;
+    /* Already answered, in either direction. The question is closed. Only a
+       value we actually publish counts as an answer: the middleware ignores an
+       invalid cookie, so the banner must too, or a stale value like `pt-br`
+       from some earlier scheme mutes the offer forever with no way back. */
+    if (isLocale(readCookie(LOCALE_COOKIE))) return;
 
     const hint = readCookie(LOCALE_HINT_COOKIE);
     if (!isLocale(hint)) return;
@@ -60,6 +63,14 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
 
     setOffered(hint);
   }, [locale]);
+
+  useEffect(() => {
+    /* Any control recording a choice closes the question here too, in this
+       tab, without waiting for a navigation this tab might never make. */
+    const close = () => setOffered(null);
+    window.addEventListener(LOCALE_CHOSEN_EVENT, close);
+    return () => window.removeEventListener(LOCALE_CHOSEN_EVENT, close);
+  }, []);
 
   if (offered === null) return null;
 
@@ -92,7 +103,14 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
         <a
           href={target}
           hrefLang={offered}
-          onClick={() => rememberLocale(offered)}
+          onClick={(event) => {
+            /* The reader's query string and fragment travel with them. Read at
+               click time rather than render time, because both can change
+               without a route change, and writing the href in the handler keeps
+               this a real anchor that middle click and new tab still honour. */
+            event.currentTarget.href = `${target}${window.location.search}${window.location.hash}`;
+            rememberLocale(offered);
+          }}
           className="focus-ring inline-flex flex-none items-center rounded-lg bg-accent-solid px-3 py-1.5 text-sm font-medium text-on-accent transition-colors duration-200 hover:bg-accent-solid-hover"
         >
           {words.action}

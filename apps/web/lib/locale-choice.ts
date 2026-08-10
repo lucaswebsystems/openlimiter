@@ -12,11 +12,19 @@ import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_HINT_COOKIE } from "@/i18n
  *
  * The hint goes at the same time. It was the browser's opinion, and the browser's
  * opinion stops mattering the moment its owner states one.
+ *
+ * The event tells the offer banner, in this tab, that the question was answered
+ * by some other control. Cookies do not notify, and a banner that only reads
+ * them on mount can outlive the choice it asked about: a switcher link opened
+ * into a new tab records the answer while the old tab keeps offering.
  */
+export const LOCALE_CHOSEN_EVENT = "ol:locale-chosen";
+
 export function rememberLocale(locale: Locale): void {
   if (typeof document === "undefined") return;
 
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
   document.cookie = `${LOCALE_COOKIE}=${locale}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
   document.cookie = `${LOCALE_HINT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+  window.dispatchEvent(new CustomEvent(LOCALE_CHOSEN_EVENT));
 }

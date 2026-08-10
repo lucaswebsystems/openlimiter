@@ -36,6 +36,13 @@ interface ComparisonParams {
   params: Promise<{ locale: string; slug: string }>;
 }
 
+/* The slug list is finite and known at build time, so an unknown slug is
+   rejected before this route ever matches and the request falls through to
+   global-not-found, which renders a real page. Without this, a request time
+   notFound() from a matched route renders Next's markupless shell: a correct
+   404 status wrapped around a blank screen for anyone without JavaScript. */
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return routing.locales.flatMap((locale) =>
     alternatives.map((entry) => ({ locale, slug: entry.slug })),

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { SiteLink } from "../site-link";
 
 const linkStyle =
   "focus-ring rounded text-accent underline underline-offset-4 transition-colors hover:text-accent-hover";
@@ -24,10 +24,13 @@ export function DocLink({ href, children }: { href: string; children: ReactNode 
       </a>
     );
   }
+  /* Through SiteLink, not next/link: a route link written as `/docs/cli` must
+     keep the reader's language, and SiteLink is the one place that prefix rule
+     lives. Plain Link here sent every German docs reader back to English. */
   return (
-    <Link href={href} className={linkStyle}>
+    <SiteLink href={href} className={linkStyle}>
       {children}
-    </Link>
+    </SiteLink>
   );
 }
 

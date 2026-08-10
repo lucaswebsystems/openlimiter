@@ -2,7 +2,8 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { LOCALES, LOCALE_FACES } from "@/i18n/locales";
-import { Link, usePathname } from "@/i18n/navigation";
+import { usePathname } from "@/i18n/navigation";
+import { localePath } from "@/i18n/routing";
 import { rememberLocale } from "@/lib/locale-choice";
 
 /**
@@ -40,14 +41,24 @@ export function LocaleSwitcher() {
       {LOCALES.map((locale) => {
         const face = LOCALE_FACES[locale];
         const active = locale === current;
+        /* Built by hand rather than through next-intl's Link, because that Link
+           spells English as `/en/...`, a URL the middleware exists to redirect
+           away from: every switch to English would ride a 307 and the anchor
+           would disagree with the page's own hreflang. `localePath` writes the
+           canonical form directly, unprefixed English included. */
+        const href = localePath(locale, pathname);
 
         return (
-          <Link
+          <a
             key={locale}
-            href={pathname}
-            locale={locale}
+            href={href}
             hrefLang={locale}
-            onClick={() => rememberLocale(locale)}
+            onClick={(event) => {
+              /* Query and fragment come along, read at click time. See the
+                 same pattern on the offer banner. */
+              event.currentTarget.href = `${href}${window.location.search}${window.location.hash}`;
+              rememberLocale(locale);
+            }}
             /* The current language is still a link rather than a dead span: it
                is the page it points at, so it is the one entry that can be
                trusted to work, and marking it `aria-current` says which it is
@@ -59,7 +70,7 @@ export function LocaleSwitcher() {
           >
             <span aria-hidden="true">{face.flag}</span>
             <span>{face.name}</span>
-          </Link>
+          </a>
         );
       })}
     </nav>
