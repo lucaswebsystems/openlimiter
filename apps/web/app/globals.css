@@ -807,8 +807,32 @@ body:has(.ol-shell) .announce-bar {
   isolation: isolate;
   height: 100vh;
   height: 100svh;
-  margin-top: calc(-1 * var(--ol-header-h) - 4rem);
+  /* Below the sticky breakpoint the height token is zero on purpose (no bar
+     to offset anchors under), so the pull spells the static bar's own 76px
+     out loud instead of reading the token: the audit caught the fold sliding
+     76px down on phones when this line trusted the zeroed value. */
+  margin-top: calc(-4.75rem - 4rem);
   overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+  .hero-fold {
+    margin-top: calc(-1 * var(--ol-header-h) - 4rem);
+  }
+}
+
+/* A static bar over the fold is still OVER the footage: below the breakpoint
+   the coats stay off and the ink stays heading white on any page that carries
+   a fold, which is what removes the hard light-on-black seam the audit
+   photographed at 390. The bar only exists at the top of the page there, and
+   the top of a fold page is footage by definition. */
+@media (max-width: 1023.98px) {
+  body:has(.hero-fold) .site-header .hdr-layers > span {
+    opacity: 0 !important;
+  }
+  body:has(.hero-fold) .site-header .hdr-ink {
+    color: var(--ol-heading);
+  }
 }
 
 /* The header watcher's top marker: one bar height of the fold's top, sized by
@@ -1104,8 +1128,13 @@ body:has(.ol-shell) .announce-bar {
   Reduced motion swaps states instantly: the global reduced motion block
   already zeroes these transitions.
 */
+/* Relative, not static: the frost coats inside size themselves with inset 0
+   against the nearest positioned ancestor, and a static header hands that
+   job to the page root, which stretched the 72% glass over the entire
+   mobile viewport and buried the app under it. Relative scrolls with the
+   page exactly like static; it only keeps the coats inside the bar. */
 .site-header {
-  position: static;
+  position: relative;
   z-index: 50;
 }
 
@@ -1145,16 +1174,25 @@ body:has(.ol-shell) .announce-bar {
   backdrop-filter: blur(18px) saturate(140%);
 }
 
-/* 72% coats, not lighter, and the number is a measured floor: the muted link
-   grey has to clear AA against the WORST content that can pass behind the
-   glass. At 78% the light coat over near black composed to 3.98:1 for the
-   light muted grey, under the 4.5:1 floor; at 90% the same worst cases
-   compose to 5.3:1 (light coat over pure black) and 6.4:1 (dark theme coat
-   over pure white), and the fixed dark coat holds white text at 13.9:1 over
-   pure white. It is also the pattern authority's own shipped opacity. */
+/* 72% coats, the founder's glass, and the ink pays for it: at this opacity
+   the DARK theme still clears AA with room (7.18:1 measured worst on the
+   composed pixels), but the light theme's ordinary muted grey fell to 4.23:1
+   over the busiest home page bands. The cure is not a heavier coat, it is
+   darker ink: the light header's quiet step drops to #3f3f47 in the rule
+   further down, re measured over the same worst bands before shipping. */
 .hdr-tint-page {
   background: color-mix(in srgb, var(--ol-canvas) 72%, transparent);
   border-bottom-color: var(--ol-hairline);
+}
+
+/* The light theme's quiet header ink, darker than the page's muted token,
+   because the 72% glass lets anything pass behind it. #38383f against the
+   darkest pixel the coat can compose (pure black behind 72% light canvas,
+   rgb(178,178,180)) measures 5.05:1, so the WORST POSSIBLE content behind
+   the glass still clears AA with margin: a floor proof, not a sample. Page
+   state only: over the footage the ink is already the full heading white. */
+:root[data-theme="light"] .site-header:not([data-bar="none"]):not([data-bar="dark"]) .hdr-ink {
+  color: #38383f;
 }
 
 .hdr-tint-dark {

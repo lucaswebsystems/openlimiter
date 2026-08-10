@@ -91,7 +91,7 @@ export async function Faq() {
 
   return (
     <div id="faq" className="space-y-6">
-      <h2 className="text-3xl font-medium text-heading" {...reveal}>
+      <h2 className="text-center text-3xl font-medium text-heading" {...reveal}>
         {t("title")}
       </h2>
       {/* Two columns from the large breakpoint. Nine items in one column ran

@@ -85,8 +85,8 @@ async function BridgeBand() {
   return (
     <div className="flex flex-col items-center gap-1.5 px-6 pb-16 pt-4" {...reveal}>
       <BrandLockup markClassName="h-6 w-6 flex-none text-brand" wordClassName="text-base" />
-      <p className="text-center text-lg text-soft">{t("bridge.line")}</p>
-      <p className="text-center text-sm text-muted">{t("bridge.note")}</p>
+      <p className="max-w-[70ch] text-center text-lg text-soft">{t("bridge.line")}</p>
+      <p className="max-w-[70ch] text-center text-sm text-muted">{t("bridge.note")}</p>
     </div>
   );
 }

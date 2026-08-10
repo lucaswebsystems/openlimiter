@@ -38,9 +38,12 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-agy/types/**/*.ts",
+    ".next-caps/types/**/*.ts",
     ".next-i18n/types/**/*.ts",
     ".next/types/**/*.ts",
-    "next-env.d.ts"
+    "next-env.d.ts",
+    ".next-fable/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

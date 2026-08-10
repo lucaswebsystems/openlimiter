@@ -359,10 +359,14 @@ const STANDALONE = [
   ".ol-shell { padding-top: 62px !important; }",
 ].join("\n");
 
+/* Each view names the text that proves its panel actually hydrated. The old
+   fixed 1600ms wait stopped being enough when the bundle grew with the locale
+   wave, and a capture of the loading skeleton looked like an open sheet over
+   a blurred void. Waiting for real content cannot rot the same way. */
 const PHONE_VIEWS = [
-  { file: "phone-1", tab: "tab-meters", scrollY: 150 },
-  { file: "phone-2", tab: "tab-context", selector: "#panel-context pre" },
-  { file: "phone-3", tab: "tab-connections", selector: "#panel-connections" },
+  { file: "phone-1", tab: "tab-meters", panel: "#panel-meters", proof: "Claude", scrollY: 150 },
+  { file: "phone-2", tab: "tab-context", panel: "#panel-context", proof: "NEAR_CAP", selector: "#panel-context pre" },
+  { file: "phone-3", tab: "tab-connections", panel: "#panel-connections", proof: "OpenRouter", selector: "#panel-connections" },
 ];
 
 async function capturePhone(browser, theme, snapshots) {
@@ -390,8 +394,17 @@ async function capturePhone(browser, theme, snapshots) {
     await page.waitForSelector("html[data-ol-ready]", { state: "attached" });
     await page.addStyleTag({ content: STANDALONE });
     await page.click("#" + view.tab);
-    /* The launch splash clears at 760ms, the busy floor is 240ms. */
+    /* The launch splash clears at 760ms, the busy floor is 240ms, and then
+       the panel must actually contain its proof text before the shutter. */
     await page.waitForTimeout(1600);
+    await page.waitForFunction(
+      ([panel, proof]) => {
+        const el = document.querySelector(panel);
+        return el !== null && el.textContent !== null && el.textContent.includes(proof);
+      },
+      [view.panel, view.proof],
+      { timeout: 20000 },
+    );
     if (view.selector) {
       await page.locator(view.selector).first().scrollIntoViewIfNeeded();
     } else if (typeof view.scrollY === "number") {

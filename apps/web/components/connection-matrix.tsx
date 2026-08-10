@@ -468,7 +468,7 @@ export function ConnectionMatrix() {
         </table>
       </div>
 
-      <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted">
+      <p className="mx-auto mt-4 max-w-[70ch] text-center text-sm leading-relaxed text-muted">
         {t("footnote.lead")}{" "}
         {unspecified > 0 && (
           <>
