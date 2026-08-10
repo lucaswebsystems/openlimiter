@@ -45,6 +45,29 @@ const nextConfig: NextConfig = {
   },
 
   /**
+   * The comparison pages are gone by the founder's order (2026-08-10). Links
+   * and search results that still carry the old URLs, in any locale, land on
+   * the matching home page with a permanent redirect rather than on a 404.
+   * These run before the middleware, so no locale rewrite sees them.
+   */
+  async redirects() {
+    return [
+      { source: "/alternatives", destination: "/", permanent: true },
+      { source: "/alternatives/:slug*", destination: "/", permanent: true },
+      {
+        source: "/:locale(pt-BR|es|de|ja)/alternatives/:slug*",
+        destination: "/:locale",
+        permanent: true,
+      },
+      {
+        source: "/:locale(pt-BR|es|de|ja)/alternatives",
+        destination: "/:locale",
+        permanent: true,
+      },
+    ];
+  },
+
+  /**
    * The social card reads the wordmark font off disk at render time, from
    * assets/fonts. Next works out which files a route needs by reading the code,
    * and it does understand a path built from process.cwd(), but a font that
