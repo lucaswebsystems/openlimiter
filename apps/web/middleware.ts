@@ -18,8 +18,8 @@ import {
  *   1. Gets out of the way of the three trees that are not localised.
  *   2. Sends a returning reader who has chosen a language to that language, at
  *      the bare root only.
- *   3. Notes what Accept-Language asked for, so the offer banner can be written
- *      in the right language, without ever acting on it.
+ *   3. Notes what Accept-Language asked for, with a country fallback when it
+ *      names no published language, so the offer banner can use that language.
  *
  * WHAT IT DELIBERATELY DOES NOT DO
  * --------------------------------
@@ -38,6 +38,36 @@ import {
  * 'as-needed'` would mean two implementations of one rule.
  */
 const intlMiddleware = createMiddleware(routing);
+
+const COUNTRY_TO_LOCALE: Partial<Record<string, (typeof LOCALES)[number]>> = {
+  BR: "pt-BR",
+  ES: "es",
+  MX: "es",
+  AR: "es",
+  CO: "es",
+  CL: "es",
+  PE: "es",
+  UY: "es",
+  PY: "es",
+  BO: "es",
+  EC: "es",
+  VE: "es",
+  GT: "es",
+  CR: "es",
+  PA: "es",
+  DO: "es",
+  HN: "es",
+  NI: "es",
+  SV: "es",
+  DE: "de",
+  AT: "de",
+  JP: "ja",
+};
+
+function localeFromCountry(country: string | null): (typeof LOCALES)[number] | null {
+  if (country === null) return null;
+  return COUNTRY_TO_LOCALE[country.toUpperCase()] ?? null;
+}
 
 /**
  * A locale segment spelled in the wrong case.
@@ -98,7 +128,7 @@ export default function middleware(request: NextRequest): NextResponse {
   const response = intlMiddleware(request);
 
   /*
-    The hint, and the only thing Accept-Language is ever used for here.
+    The hint, and the only thing Accept-Language and country are used for here.
 
     Written only while the reader has never chosen, because that is exactly when
     the banner is allowed to appear. Once `NEXT_LOCALE` exists the question has
@@ -106,7 +136,11 @@ export default function middleware(request: NextRequest): NextResponse {
     banner back on the next visit.
   */
   if (!isLocale(chosen)) {
-    const preferred = negotiateLocale(request.headers.get("accept-language"));
+    const negotiated = negotiateLocale(request.headers.get("accept-language"));
+    /* `null` means no published language matched. An explicit English match
+       must win even though English is also the default locale. */
+    const preferred =
+      negotiated ?? localeFromCountry(request.headers.get("x-vercel-ip-country"));
     if (preferred !== null) {
       response.cookies.set(LOCALE_HINT_COOKIE, preferred, {
         path: "/",

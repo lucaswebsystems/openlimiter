@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { LOCALE_FLAG_ICONS } from "@/components/flag-icons";
 import { LOCALES, LOCALE_FACES } from "@/i18n/locales";
 import { usePathname } from "@/i18n/navigation";
 import { localePath } from "@/i18n/routing";
@@ -40,6 +41,7 @@ export function LocaleSwitcher() {
     <nav aria-label={t("label")} className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
       {LOCALES.map((locale) => {
         const face = LOCALE_FACES[locale];
+        const FlagIcon = LOCALE_FLAG_ICONS[locale];
         const active = locale === current;
         /* Built by hand rather than through next-intl's Link, because that Link
            spells English as `/en/...`, a URL the middleware exists to redirect
@@ -68,7 +70,7 @@ export function LocaleSwitcher() {
               active ? "text-heading" : "text-muted hover:text-heading"
             }`}
           >
-            <span aria-hidden="true">{face.flag}</span>
+            <FlagIcon />
             <span>{face.name}</span>
           </a>
         );

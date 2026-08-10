@@ -2,7 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LOCALE_FACES, type Locale, isLocale } from "@/i18n/locales";
+import { LOCALE_FLAG_ICONS } from "@/components/flag-icons";
+import { type Locale, isLocale } from "@/i18n/locales";
 import { LOCALE_COOKIE, LOCALE_HINT_COOKIE, localePath } from "@/i18n/routing";
 import { LOCALE_CHOSEN_EVENT, rememberLocale } from "@/lib/locale-choice";
 
@@ -74,7 +75,7 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
 
   if (offered === null) return null;
 
-  const face = LOCALE_FACES[offered];
+  const FlagIcon = LOCALE_FLAG_ICONS[offered];
   const words = copy[offered];
 
   /* The same page, in the offered language, never the home page. The locale
@@ -96,9 +97,7 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
       aria-label={words.title}
     >
       <div className="elev-1 pointer-events-auto flex max-w-full items-center gap-3 rounded-xl border border-hairline bg-surface px-4 py-3 text-sm">
-        <span aria-hidden="true" className="text-base leading-none">
-          {face.flag}
-        </span>
+        <FlagIcon />
         <p className="min-w-0 text-soft">{words.title}</p>
         <a
           href={target}
