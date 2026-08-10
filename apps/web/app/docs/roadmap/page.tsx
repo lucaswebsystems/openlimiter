@@ -80,8 +80,8 @@ export default function RoadmapPage() {
           body: (
             <>
               <P>
-                Everything that can only run on a server, gathered into one planned paid tier at 5
-                USD a month, founding price. Nothing that runs locally today moves behind it: Pro
+                Everything that can only run on a server, gathered into one planned paid tier at $5
+                a month, founding price. Nothing that runs locally today moves behind it: Pro
                 sells servers and service, not switches. See{" "}
                 <DocLink href="/#pricing">pricing</DocLink> for the card as it stands.
               </P>

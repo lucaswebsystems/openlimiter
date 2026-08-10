@@ -4,7 +4,7 @@ import { PageShell, ShellSections } from "@/components/page-shell";
 import { ButtonLink, Chip } from "@/components/ui";
 import { DOWNLOAD_DISCLAIMER, downloadTargets, type DownloadTarget } from "@/lib/downloads";
 import { reveal, revealGroup } from "@/lib/motion";
-import { RELEASES_URL, REPO_URL } from "@/lib/site";
+import { RELEASES_URL, REPO_URL, SITE_URL } from "@/lib/site";
 
 /**
  * /download
@@ -121,6 +121,35 @@ export default function DownloadPage() {
             {available.map((target) => (
               <TargetCard key={target.id} target={target} />
             ))}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="text-2xl font-medium text-heading" {...reveal}>
+            On your phone
+          </h2>
+          <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
+            This installs the web app to your home screen. No native iOS or Android
+            application is built.
+          </p>
+          <div
+            className="mt-8 flex flex-col items-start gap-5 rounded-xl border border-hairline bg-surface p-6 sm:flex-row sm:items-center"
+            {...reveal}
+          >
+            <span className="flex-none overflow-hidden rounded-lg border border-hairline">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/qr/openlimiter-app.svg"
+                alt={`QR code linking to ${SITE_URL}/app`}
+                width={180}
+                height={180}
+                className="block h-[180px] w-[180px]"
+              />
+            </span>
+            <p className="text-sm leading-relaxed text-muted">
+              Scan this with your phone&apos;s camera. The web app opens, and you install it to
+              the home screen from there.
+            </p>
           </div>
         </section>
 

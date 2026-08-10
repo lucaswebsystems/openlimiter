@@ -70,7 +70,7 @@ export const faqItems: readonly FaqItem[] = [
   {
     question: "What is OpenLimiter Pro?",
     answer:
-      "A planned paid tier at 5 USD a month, founding price, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, a smart limiter that routes between your models from live budget state, email alerts and a weekly digest, delivery rules, hosted history and burn trends, priority connector requests, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it.",
+      "A planned paid tier at $5 a month, founding price, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, a smart limiter that routes between your models from live budget state, email alerts and a weekly digest, delivery rules, hosted history and burn trends, priority connector requests, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it.",
   },
 ];
 

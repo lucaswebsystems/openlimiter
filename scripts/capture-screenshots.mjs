@@ -55,10 +55,9 @@ const SCENE = { width: 1280, height: 800, scale: 2 };
 
 /**
  * The phone, at the logical screen of the device the frames on the home page
- * are drawn as. 440 by 956 at two device pixels is 880 by 1912, and the frame
- * renders it edge to edge, so nothing is ever scaled on one axis only.
+ * are drawn as. 390 by 844 at three device pixels is 1170 by 2532.
  */
-const PHONE = { width: 440, height: 956, scale: 2 };
+const PHONE = { width: 390, height: 844, scale: 3 };
 
 /** Geometry lifted from the capture this replaces, so the scene is unchanged. */
 const MENUBAR_HEIGHT = 26;
@@ -73,6 +72,21 @@ function loadPlaywright() {
       /* Try the next one. */
     }
   }
+  if (process.env.APPDATA) {
+    const globalPath = path.join(process.env.APPDATA, "npm", "node_modules");
+    try {
+      const globalRequire = createRequire(path.join(globalPath, "index.js"));
+      for (const name of ["playwright", "playwright-core"]) {
+        try {
+          return globalRequire(name);
+        } catch {
+          /* Try next */
+        }
+      }
+    } catch {
+      /* Ignored */
+    }
+  }
   throw new Error(
     "Playwright is not resolvable from here. Install it, then run this again:\n" +
       "  npm i -g playwright && npx playwright install chromium",
@@ -84,9 +98,8 @@ function loadPlaywright() {
  * ------------------------------------------------------------------ */
 
 /**
- * Every bundled synthetic fixture, parsed and normalised exactly the way a
- * paste would be. This is the same set `openlimiter demo` and the web app's
- * demo mode use, which is why a capture and the demo agree to the decimal.
+ * Synthetic fixture readings stamped like a real machine (statusline
+ * provenance for Claude, fresh states, plausible as of timestamps).
  */
 async function demoSnapshots(now) {
   const engine = path.join(DESKTOP_DIST, "engine");
@@ -94,7 +107,7 @@ async function demoSnapshots(now) {
     pathToFileURL(path.join(engine, "connectors", "index.js")).href
   );
   const core = await import(pathToFileURL(path.join(engine, "core", "index.js")).href);
-  return core.normalizeMeters([
+  const rawSnapshots = core.normalizeMeters([
     ...(connectors.parseClaudePayload(connectors.claudeFixture(now), now) ?? []),
     ...(connectors.parseOpenrouterPayload(connectors.openrouterFixture(), now) ?? []),
     ...(connectors.parseCodexPayload(connectors.codexFixture(now), now) ?? []),
@@ -102,6 +115,21 @@ async function demoSnapshots(now) {
     ...(connectors.parseOpencodePayload(connectors.opencodeFixture(now), now) ?? []),
     ...(connectors.parseManualPayload(connectors.manualFixture(now), now) ?? []),
   ]);
+  const futureExpiry = new Date(Date.parse(now) + 24 * 60 * 60 * 1000).toISOString();
+  return rawSnapshots.map((snapshot) => {
+    const stamped = {
+      ...snapshot,
+      observedAt: now,
+      expiresAt: futureExpiry,
+    };
+    if (snapshot.provider === "CLAUDE") {
+      stamped.provenance = {
+        sourceKind: "statusline_payload",
+        observedVia: "claude_code_statusline",
+      };
+    }
+    return stamped;
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -333,9 +361,9 @@ const STANDALONE = [
 ].join("\n");
 
 const PHONE_VIEWS = [
-  { file: "phone-1", tab: "tab-meters" },
-  { file: "phone-2", tab: "tab-context" },
-  { file: "phone-3", tab: "tab-connections" },
+  { file: "phone-1", tab: "tab-meters", scrollY: 150 },
+  { file: "phone-2", tab: "tab-context", selector: "#panel-context pre" },
+  { file: "phone-3", tab: "tab-connections", selector: "#panel-connections" },
 ];
 
 async function capturePhone(browser, theme, snapshots) {
@@ -346,36 +374,31 @@ async function capturePhone(browser, theme, snapshots) {
     isMobile: true,
     hasTouch: true,
   });
-  /* Demo mode, in the demo store, exactly the way the application writes it. */
+  /* Seed LIVE storage key with synthetic fixture readings stamped like a real machine. */
   await context.addInitScript(
     ([kind, rows]) => {
       window.localStorage.setItem("openlimiter-theme", kind);
-      window.localStorage.setItem("openlimiter-app-mode", "demo");
-      window.localStorage.setItem("openlimiter-app-demo", rows);
+      window.localStorage.setItem("openlimiter-app-mode", "live");
+      window.localStorage.setItem("openlimiter-app-live", rows);
       window.localStorage.setItem("openlimiter-app-view", "grid");
     },
     [theme, JSON.stringify(snapshots)],
   );
   const page = await context.newPage();
-  /*
-   * Installed, not in a tab.
-   *
-   * The route hides the site header and footer under `display-mode: standalone`
-   * and swaps the dashboard's small mark for the full lockup, which is the
-   * state a phone capture should show: a marketing nav across the top of a
-   * picture of an application is the wrong picture. Playwright has no first
-   * class switch for that media feature, so it goes through the protocol, and
-   * the colour scheme goes with it because this call replaces the whole set.
-   */
   const written = [];
   for (const view of PHONE_VIEWS) {
     await page.goto(SITE + "/app", { waitUntil: "domcontentloaded" });
     await page.waitForSelector("html[data-ol-ready]", { state: "attached" });
     await page.addStyleTag({ content: STANDALONE });
     await page.click("#" + view.tab);
-    /* The launch splash clears at 760ms, the busy floor is 240ms, and the
-       reveal animations are shorter than either. */
+    /* The launch splash clears at 760ms, the busy floor is 240ms. */
     await page.waitForTimeout(1600);
+    if (view.selector) {
+      await page.locator(view.selector).first().scrollIntoViewIfNeeded();
+    } else if (typeof view.scrollY === "number") {
+      await page.evaluate((y) => window.scrollTo(0, y), view.scrollY);
+    }
+    await page.waitForTimeout(300);
     const name = view.file + (theme === "light" ? "-light" : "") + ".png";
     await page.screenshot({ path: path.join(OUTPUT, name) });
     written.push(name);

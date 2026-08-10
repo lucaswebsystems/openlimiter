@@ -40,22 +40,22 @@ interface PhoneShot {
 const shots: readonly PhoneShot[] = [
   {
     name: "phone-1",
-    width: 880,
-    height: 1912,
+    width: 1170,
+    height: 2532,
     label: "Meters",
     alt: "The web app on a phone, showing the overall verdict at the top and one card per provider below it, each with a meter bar, a percentage, a freshness state and a reset countdown.",
   },
   {
     name: "phone-2",
-    width: 880,
-    height: 1912,
+    width: 1170,
+    height: 2532,
     label: "Agent context",
     alt: "The web app on a phone, showing the bounded block of budget state a coding agent receives, fenced in an untrusted data boundary.",
   },
   {
     name: "phone-3",
-    width: 880,
-    height: 1912,
+    width: 1170,
+    height: 2532,
     label: "Connections",
     alt: "The web app on a phone, showing what each provider can be read from today and the box a quota document is pasted or dropped into.",
   },
@@ -67,12 +67,10 @@ function Phone({ shot, className = "" }: { shot: PhoneShot; className?: string }
     <div className={`flex-none ${className}`}>
       {/* One variable drives the whole device, and it is sized so three of them
           fit the column they are in. Below the medium breakpoint only one phone
-          is on screen and it can be large; at medium three appear at once in a
-          672 pixel column, which is why that step is the smallest of the four.
-          Getting this wrong pushes the document sideways rather than wrapping,
-          because a phone frame cannot shrink below its own screen. */}
-      <div className="phone-body [--screen:238px] md:[--screen:176px] lg:[--screen:232px] xl:[--screen:272px]">
-        <div className="phone-screen">
+          is on screen and it is full width at base; at md (834px) three appear
+          without overflow; at lg and up each phone is at least 300px wide. */}
+      <div className="phone-body [--screen:min(320px,calc(100vw-3.5rem))] md:[--screen:216px] lg:[--screen:300px] xl:[--screen:350px]">
+        <div style={{ aspectRatio: "390 / 844" }} className="phone-screen">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             {...common}
@@ -108,7 +106,7 @@ export function PhonePanels() {
        it is the meters view rather than whichever one happened to be in the
        middle: three phones do not fit on a phone, and the one that survives
        should be the one that shows what the product is for. */
-    <div className="flex items-start justify-center gap-5 md:gap-4 lg:gap-6 xl:gap-7">
+    <div className="flex items-start justify-center gap-4 md:gap-3 lg:gap-6 xl:gap-7">
       <Phone shot={shots[0]} />
       <Phone shot={shots[1]} className="hidden md:block" />
       <Phone shot={shots[2]} className="hidden md:block" />
