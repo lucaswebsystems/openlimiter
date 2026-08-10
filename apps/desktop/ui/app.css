@@ -572,10 +572,12 @@ main {
 /*
   The connection chip.
 
-  It never says connected. Five of the six parsers in this build have no reader
-  behind them, so a card showing a full bar has to say on the card that somebody
-  handed it that document. The dot is neutral on purpose: where a reading came
-  from is not a pressure reading and must never borrow a band colour.
+  Connected is earned, not inherited: the chip says it, with the brighter
+  dot, only when a live refresh reached the cache in this run of this window.
+  Every other remote stamped row carries the connection state machine's own
+  word with the neutral dot. The dot otherwise stays neutral on purpose:
+  where a reading came from is not a pressure reading and must never borrow
+  a band colour.
 */
 .source-chip {
   gap: 6px;
@@ -589,9 +591,10 @@ main {
   background: var(--muted);
 }
 
-/* Brighter for the two states where something other than the reader's owner
-   put the reading here. CONNECTED cannot be reached by any reader in this
-   build and is styled anyway, so the day one arrives it is not unstyled. */
+/* Brighter for the two states where the reading demonstrably arrived through
+   a live path: the local statusline, and a remote read this run performed.
+   CONNECTED_UNVERIFIED, a record's word without this run's proof, keeps the
+   neutral dot above. */
 [data-source="LOCAL_CLI"] .source-dot,
 [data-source="CONNECTED"] .source-dot {
   background: var(--soft);
@@ -1015,6 +1018,285 @@ footer p {
   /* Only the path breaks anywhere. A sentence breaks between its words. */
   word-break: break-all;
   user-select: text;
+}
+
+/* -------------------------------------------------------------- connections */
+
+/*
+  The Connections tab.
+
+  Everything here reuses the metrics the rest of the window already set: the
+  card is the .surface shape at twenty pixels of padding, chips are the pill,
+  buttons are the one button. The only new drawing is the state dot, and its
+  colours are the same band tokens the meters use, applied to connection
+  health rather than to quota pressure: green for collecting, amber for a
+  connection that is waiting something out, red for one that needs a person.
+  Where a reading came from stays a neutral chip, exactly as before.
+*/
+.scheduler-line {
+  margin: 0 0 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The honest block for a build whose backend has no connection commands.
+   Dashed, like a card with nothing readable, because that is what it is. */
+.backendless {
+  border: 1px dashed var(--hairline-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+.backendless h3 {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 15px;
+  color: var(--heading);
+}
+
+.backendless p {
+  margin: 8px 0 14px;
+  max-width: 44em;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.connections {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.conn-card {
+  padding: 20px;
+}
+
+.conn-block {
+  margin-top: 16px;
+  padding: 20px;
+}
+
+.conn-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.conn-head h2 {
+  margin: 0;
+}
+
+.conn-sentence {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--soft);
+}
+
+.conn-lead {
+  margin: 8px 0 0;
+  max-width: 44em;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--soft);
+}
+
+.conn-detail {
+  margin: 8px 0 0;
+  max-width: 44em;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* The record's facts, label over value, two to a row where there is room. */
+.conn-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px 16px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.conn-fact {
+  min-width: 0;
+}
+
+.fact-label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.fact-value {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--soft);
+  overflow-wrap: anywhere;
+}
+
+.conn-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.next-hint {
+  margin-right: auto;
+}
+
+/* The action feedback line under a card's buttons. Red is reserved for the
+   one tone that reports a failure, matching the card error line. */
+.conn-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.conn-note:empty {
+  display: none;
+}
+
+.conn-note[data-tone="bad"] {
+  color: var(--meter-error);
+}
+
+.conn-note[data-tone="ok"] {
+  color: var(--soft);
+}
+
+/* The connection state dot. Health, not pressure: the same tokens, applied
+   to whether collection is running rather than to how full a window is. */
+.conn-state {
+  gap: 6px;
+}
+
+.state-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.conn-state[data-connection-state="CONNECTED"] .state-dot {
+  background: var(--meter-ok);
+}
+
+.conn-state[data-connection-state="DEGRADED"] .state-dot,
+.conn-state[data-connection-state="STALE"] .state-dot,
+.conn-state[data-connection-state="CONNECTING"] .state-dot {
+  background: var(--meter-watch);
+}
+
+.conn-state[data-connection-state="ERROR"] .state-dot,
+.conn-state[data-connection-state="AUTH_EXPIRED"] .state-dot {
+  background: var(--meter-critical);
+}
+
+/* The disconnect button while it is asking to be pressed again. */
+button.confirming {
+  border-color: var(--meter-error);
+  color: var(--meter-error);
+}
+
+/* The two key kinds, as selectable rows rather than bare radios. */
+.kinds {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.kind {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--raised);
+  cursor: pointer;
+}
+
+.kind:has(input:checked) {
+  border-color: var(--accent);
+}
+
+.kind input {
+  margin-top: 2px;
+  accent-color: var(--accent-solid);
+}
+
+.kind-words {
+  display: block;
+  min-width: 0;
+}
+
+.kind-words b {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--heading);
+}
+
+.kind-words span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* The one text field in this window, at the button's own metrics. */
+.field-label {
+  display: block;
+  margin: 14px 0 6px;
+  font-size: 12px;
+  color: var(--soft);
+}
+
+.field {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  background: var(--code);
+  color: var(--body);
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.field-note {
+  margin: 8px 0 0;
+  max-width: 44em;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* The setup block keeps the window's own pre styling and adds breathing
+   room against the sentences above it. */
+#claude-snippet {
+  margin-top: 12px;
 }
 
 /* ------------------------------------------------------------------- motion */

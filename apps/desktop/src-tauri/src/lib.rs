@@ -1,4 +1,13 @@
+mod cache_write;
+mod claude_detect;
+mod commands;
+mod connections;
+mod credentials;
+mod fsx;
+mod net;
 mod state;
+#[cfg(test)]
+mod test_support;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -7,14 +16,19 @@ use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 /// OpenLimiter for the desktop.
 ///
 /// A window and a tray icon around the engine that already exists. Rust does
-/// the three things only Rust can do here: find the state directory, read the
-/// cache file, and talk to the operating system's tray. Every rule about what
+/// only what the webview cannot: find the state directory, read and replace
+/// state files, keep provider secrets in the operating system credential
+/// store, speak HTTPS to a closed allowlist of provider endpoints, and tick a
+/// metronome the operating system will not throttle. Every rule about what
 /// the numbers mean stays in the TypeScript engine that the command line tool
-/// and the web application both use, so there is exactly one implementation of
-/// freshness, validation and advice in the whole project.
+/// and the web application both use, so there is exactly one implementation
+/// of freshness, validation, advice, scheduling and merging in the whole
+/// project.
 ///
-/// It reads. It never writes to the state directory, never touches a provider
-/// credential, and never opens a socket.
+/// The webview itself gains nothing: its content security policy and its
+/// capabilities are unchanged, every request leaves from this process, and a
+/// secret that has entered `connect_provider` can never be read back across
+/// the boundary.
 /// The identifier the tray is registered under, so a command can find it again.
 const TRAY_ID: &str = "openlimiter-tray";
 
@@ -49,9 +63,11 @@ fn set_tray_status(app: AppHandle, tooltip: String, title: String) -> Result<(),
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return Ok(());
     };
-    tray.set_tooltip(Some(tooltip)).map_err(|error| error.to_string())?;
+    tray.set_tooltip(Some(tooltip))
+        .map_err(|error| error.to_string())?;
     #[cfg(target_os = "macos")]
-    tray.set_title(Some(title)).map_err(|error| error.to_string())?;
+    tray.set_title(Some(title))
+        .map_err(|error| error.to_string())?;
     #[cfg(not(target_os = "macos"))]
     let _ = title;
     Ok(())
@@ -68,13 +84,31 @@ fn show_window(app: &AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(connections::ConnectionsStore::at_state_directory())
+        .manage(credentials::KeyringStore)
+        .manage(std::sync::Arc::new(
+            cache_write::CacheWriter::at_state_directory(),
+        ))
+        .manage(net::ReqwestTransport::new())
         .invoke_handler(tauri::generate_handler![
             read_cache,
             read_manual,
             state_directory,
-            set_tray_status
+            set_tray_status,
+            commands::connect_provider,
+            commands::test_provider,
+            commands::refresh_provider,
+            commands::disconnect_provider,
+            commands::list_connections,
+            commands::update_connection,
+            commands::detect_local_tools,
+            commands::cache_begin_write,
+            commands::cache_commit_write
         ])
         .setup(|app| {
+            /* The metronome outlives every window: it ticks the hidden
+            webview awake for as long as the tray process runs. */
+            commands::spawn_collector_metronome(app.handle().clone());
             let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
             let refresh = MenuItem::with_id(app, "refresh", "Refresh", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

@@ -6,7 +6,7 @@
  * The window runs the engine that is already built. This script copies the
  * compiled JavaScript out of packages/core, packages/connectors and
  * packages/adapters into ui/dist/engine, rewrites the one bare import
- * specifier a bundler would normally resolve, and copies the three files the
+ * specifier a bundler would normally resolve, and copies the files the
  * window itself is made of. There is no bundler, no transpiler, and no third
  * party dependency anywhere in the result.
  *
@@ -39,6 +39,7 @@ const COPY = {
     from: path.join(REPOSITORY, "packages", "core", "dist"),
     files: [
       "types.js",
+      "connection-state.js",
       "failures.js",
       "format.js",
       "forecast.js",
@@ -46,6 +47,7 @@ const COPY = {
       "merge.js",
       "normalizer.js",
       "policy.js",
+      "schedule.js",
     ],
   },
   connectors: {
@@ -82,6 +84,14 @@ ${COPY.core.files.map((file) => `export * from "./${file}";`).join("\n")}
 export async function readSnapshotCache() {
   return { ok: false, reason: "missing" };
 }
+
+/*
+ * Mirrored from cache.js by hand, because cache.js itself cannot be copied.
+ * The desktop's refresh pipeline writes the cache document through the Rust
+ * lock handshake and must produce the exact document the CLI writes, version
+ * field included. Bump this only when packages/core/src/cache.ts bumps.
+ */
+export const CACHE_DOCUMENT_VERSION = 1;
 `;
 
 function assertBuilt() {
@@ -121,8 +131,17 @@ writeFileSync(path.join(ENGINE, "core", "index.js"), CORE_BARREL, "utf8");
 /* The window itself. theme.css holds every colour, radius and the embedded
    wordmark face; app.css draws the components and names no literal. That is
    the same token layer and component layer split the web side makes, and it is
-   what lets the design lint exempt the one file that defines values. */
-const WINDOW_FILES = ["index.html", "theme.css", "app.css", "app.js"];
+   what lets the design lint exempt the one file that defines values.
+   backend.js is the one module allowed to name a Tauri command, and
+   connections.js is the Connections tab that talks through it. */
+const WINDOW_FILES = [
+  "index.html",
+  "theme.css",
+  "app.css",
+  "app.js",
+  "backend.js",
+  "connections.js",
+];
 
 for (const file of WINDOW_FILES) {
   copyFileSync(path.join(DESKTOP, "ui", file), path.join(DIST, file));

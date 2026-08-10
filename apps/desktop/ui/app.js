@@ -14,13 +14,16 @@
  * answers are the same ones apps/web/app/app/language.ts gives, so the window
  * and the browser dashboard cannot describe one reading differently.
  *
- * Rust does three things this file cannot: it finds the state directory, it
- * reads two files out of it, and it talks to the system tray. Nothing else
- * crosses the boundary, and nothing at all leaves the machine.
+ * Rust sits behind ./backend.js for everything this file cannot do itself:
+ * the state directory, the two local files, the system tray, and the
+ * connection subsystem the Connections tab drives. Nothing crosses the
+ * boundary anywhere else, and nothing leaves the machine except the provider
+ * reads a person has explicitly connected.
  */
 import {
   PROVIDER_CODES,
   buildAdvice,
+  connectionSentence,
   dedupeFailures,
   failureSentence,
   floorFixed,
@@ -33,9 +36,24 @@ import {
   buildAgentContext,
   renderClaudeStatusline,
 } from "./engine/adapters/claude-code.js";
-
-const { invoke } = window.__TAURI__.core;
-const { listen } = window.__TAURI__.event;
+/* Every word the Rust process hears from this file goes through the backend
+   adapter, so a build without a given command degrades to an honest absence
+   instead of a module level crash, and a static serve of these files renders
+   the empty state rather than nothing at all. */
+import {
+  listen,
+  readCache,
+  readManual,
+  setTrayStatus,
+  stateDirectory,
+} from "./backend.js";
+import {
+  connectionFactFor,
+  connectionsTabShown,
+  initConnections,
+  noteMetersRefreshed,
+  stateWord,
+} from "./connections.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
@@ -196,9 +214,11 @@ const CLOCK_GLYPH =
   'stroke-width="1.4" stroke-linecap="round" aria-hidden="true" focusable="false">' +
   '<circle cx="6" cy="6" r="4.6"/><path d="M6 3.4V6l1.9 1.2"/></svg>';
 
+/* The same sentences apps/web/app/app/language.ts renders, word for word,
+   with the % sign the reference uses rather than the word. */
 const REASON_SENTENCE = {
-  HEALTHY: "Every readable meter is under 80 percent.",
-  NEAR_CAP: "At least one readable meter is at 80 percent or more.",
+  HEALTHY: "Every readable meter is under 80%.",
+  NEAR_CAP: "At least one readable meter is at 80% or more.",
   AT_CAP: "At least one readable meter has reached its cap.",
   UNKNOWN: "No provider has reported yet, so nothing is claimed.",
 };
@@ -213,7 +233,7 @@ const REASON_PRESSURE = {
 const NO_RECOMMENDATION_SENTENCE = {
   NO_KNOWN_PROVIDER: "No provider has a readable meter.",
   NO_FRESH_DATA: "Every reading has aged past its own expiry.",
-  NO_HEALTHY_PROVIDER: "Every readable provider is at 80 percent or more.",
+  NO_HEALTHY_PROVIDER: "Every readable provider is at 80% or more.",
 };
 
 const elements = {
@@ -236,9 +256,14 @@ const elements = {
   refresh: document.getElementById("refresh"),
   theme: document.getElementById("theme"),
   where: document.getElementById("where"),
-  tabs: [document.getElementById("tab-meters"), document.getElementById("tab-context")],
+  tabs: [
+    document.getElementById("tab-meters"),
+    document.getElementById("tab-connections"),
+    document.getElementById("tab-context"),
+  ],
   panels: [
     document.getElementById("panel-meters"),
+    document.getElementById("panel-connections"),
     document.getElementById("panel-context"),
   ],
 };
@@ -324,9 +349,12 @@ function meterWidth(percent) {
  *
  * Same four states and the same tables as the web dashboard's language module.
  * A parser existing is not a connection: the payload for most of these has to
- * be handed over by something else, and the card says so. CONNECTED is reserved
- * for a reader that holds a credential of its own, which nothing in this build
- * does, and exists only because the provenance vocabulary already names it.
+ * be handed over by something else, and the card says so. CONNECTED is earned,
+ * not inherited: a row stamped remote_api gets the word only after a live
+ * refresh has actually succeeded in this run of this window, because a stamp
+ * in the cache can outlive the credential and the build that wrote it.
+ * Otherwise the chip carries the connection state machine's own word for what
+ * the connection is right now, which sourceChip below decides.
  */
 const SOURCE_LABEL = {
   LOCAL_CLI: "Local CLI",
@@ -341,7 +369,7 @@ const SOURCE_SENTENCE = {
     "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document.",
   MANUAL: "Figures you keep yourself. Nothing is read from an account.",
   CONNECTED:
-    "OpenLimiter held a credential and asked the provider itself. No reader in this build does that yet.",
+    "OpenLimiter held a credential and asked the provider itself, and that read succeeded in this run of this window.",
 };
 
 const PROVIDER_DEFAULT_SOURCE = {
@@ -470,15 +498,43 @@ function meterBar(value, state, compact = false) {
   return bar;
 }
 
-/** Where a reading came from, as the chip every card and row carries. */
+/**
+ * Where a reading came from, as the chip every card and row carries.
+ *
+ * The one gate in it: a row whose provenance claims a remote read says
+ * Connected only when refresh_provider actually came back CONNECTED in this
+ * run of this window. Any other remote stamped row, an older build's write,
+ * a stalled connection, a build with no connection backend at all, carries
+ * the connection state machine's own word instead, and NOT_CONFIGURED when
+ * no connection record exists to speak for it. The claim on the chip is
+ * always a claim about this exact build.
+ */
 function sourceChip(provider, source, provenance) {
   const state = sourceStateOf(provider, source, provenance);
   const chip = element("span", "chip muted source-chip");
-  chip.dataset.source = state;
-  chip.title = state + ". " + SOURCE_SENTENCE[state];
   const dot = element("span", "source-dot");
   dot.setAttribute("aria-hidden", "true");
   chip.append(dot);
+  if (state === "CONNECTED") {
+    const fact = connectionFactFor(provider);
+    if (fact === null || !fact.liveOk) {
+      const connectionState = fact?.state ?? "NOT_CONFIGURED";
+      /* The word is the machine's, always. The styling is not: a record that
+         says CONNECTED without a live refresh in this run keeps the neutral
+         dot, so the bright dot stays a claim only this run can make. */
+      chip.dataset.source =
+        connectionState === "CONNECTED" ? "CONNECTED_UNVERIFIED" : connectionState;
+      chip.title =
+        connectionState +
+        ". " +
+        connectionSentence[connectionState] +
+        " A row gets the bright Connected dot only after a live refresh succeeds in this run.";
+      chip.append(element("span", undefined, stateWord(connectionState)));
+      return chip;
+    }
+  }
+  chip.dataset.source = state;
+  chip.title = state + ". " + SOURCE_SENTENCE[state];
   chip.append(element("span", undefined, SOURCE_LABEL[state]));
   return chip;
 }
@@ -657,7 +713,10 @@ function card(provider, snapshots, now, failure) {
   }
 
   /* Where these numbers came from, on the card that shows them. A parser is
-     not a connection, so this chip never says connected. */
+     still not a connection: the chip says Connected, with the bright dot,
+     only when a live refresh actually reached the cache in this run of this
+     window. Any other remote stamped row carries the connection state
+     machine's own word instead. sourceChip holds the gate. */
   const origin = element("div", "origin");
   /* One reading answers for the card, and both of its facts come from that same
      reading: a literal from one row and a stamp from another would describe an
@@ -836,6 +895,11 @@ function selectTab(index) {
     tab.tabIndex = selected ? 0 : -1;
     elements.panels[position].hidden = !selected;
   });
+  /* Bringing the Connections tab on screen re-asks the backend whether it is
+     there, so an absent block never describes a build that has since changed. */
+  if (elements.tabs[index] === document.getElementById("tab-connections")) {
+    connectionsTabShown();
+  }
 }
 
 elements.tabs.forEach((tab, index) => {
@@ -878,7 +942,11 @@ function parseJson(text) {
 async function collect(now) {
   const failures = [];
 
-  const cacheText = await invoke("read_cache");
+  /* Through the adapter, so a page served outside the shell reads nothing
+     and claims nothing instead of crashing. Absence is not a failure: this
+     window is often opened before anything has written a cache at all. */
+  const cacheRead = await readCache();
+  const cacheText = cacheRead.ok ? cacheRead.value : null;
   const cached = parseJson(cacheText);
   let fromCache = [];
   if (cached !== null && Array.isArray(cached.snapshots)) {
@@ -889,7 +957,8 @@ async function collect(now) {
     }
   }
 
-  const manualText = await invoke("read_manual");
+  const manualRead = await readManual();
+  const manualText = manualRead.ok ? manualRead.value : null;
   const manual = parseJson(manualText);
   let fromManual = [];
   if (manual !== null) {
@@ -942,6 +1011,14 @@ function trayText(advice) {
 
 let refreshing = false;
 
+/**
+ * Whether a fresh Claude reading that arrived through the local statusline is
+ * in the cache right now. The Connections tab reads this to tell "ready to
+ * collect" apart from "collecting": the wiring being present is one fact, a
+ * payload actually flowing is another, and only the cache knows the second.
+ */
+let freshLocalClaude = false;
+
 async function refresh() {
   if (refreshing) return;
   refreshing = true;
@@ -950,6 +1027,14 @@ async function refresh() {
     const now = new Date().toISOString();
     const { snapshots, failures } = await collect(now);
     const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
+    freshLocalClaude = snapshots.some(
+      (snapshot) =>
+        snapshot.provider === "CLAUDE" &&
+        (snapshot.provenance?.sourceKind === "statusline_payload" ||
+          ((snapshot.provenance === undefined || snapshot.provenance === null) &&
+            snapshot.source === "native_payload")) &&
+        freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh",
+    );
     const failureByProvider = new Map(
       failures.map((failure) => [failure.provider, failure.category]),
     );
@@ -1041,7 +1126,10 @@ async function refresh() {
     elements.stamp.textContent = "as of " + new Date().toLocaleTimeString();
 
     const tray = trayText(advice);
-    await invoke("set_tray_status", tray);
+    await setTrayStatus(tray);
+    /* The Claude card's ready or collecting split reads the cache through
+       the flag set above, so it is told the cache moved. */
+    noteMetersRefreshed();
   } catch {
     elements.stamp.textContent = "The local cache could not be read.";
   } finally {
@@ -1079,10 +1167,23 @@ void listen(REFRESH_EVENT, () => {
   void refresh();
 });
 
-void invoke("state_directory").then((directory) => {
+void stateDirectory().then((result) => {
+  const directory = result.ok ? result.value : null;
   elements.where.textContent = directory === null
     ? "No state directory could be resolved on this system."
     : "Reading " + directory;
+});
+
+/* The Connections tab. It owns the collector tick, the connection cards, the
+   OpenRouter connect flow and the Claude Code enable card, and it borrows
+   from this file only the four small facts it cannot know itself. */
+initConnections({
+  providerName: (code) => PROVIDER_NAMES[code] ?? code,
+  markFor: (code) => MARKS[code] ?? "",
+  onMetersChanged: () => {
+    void refresh();
+  },
+  hasFreshLocalClaude: () => freshLocalClaude,
 });
 
 void refresh();

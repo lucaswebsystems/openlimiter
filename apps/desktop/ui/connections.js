@@ -1,0 +1,1148 @@
+/**
+ * The Connections tab.
+ *
+ * Everything on it is a claim about this exact build, verified through the
+ * backend adapter before it is drawn. A connection card exists only because
+ * list_connections returned that record. The Claude card's state comes from
+ * detect_local_tools. The OpenRouter form stores a key only through
+ * connect_provider. When the backend does not carry those commands, because
+ * this build predates them or the window is being served outside the shell,
+ * the tab says so in one honest block and draws nothing in their place.
+ *
+ * What this file decides is layout and wording glue. What it never decides is
+ * vocabulary or policy:
+ *
+ *   the sentence and the next action for every connection state come from
+ *   packages/core/src/connection-state.ts, mirrored into this bundle, so a
+ *   card here and a block on the web dashboard describe one state with one
+ *   sentence;
+ *
+ *   when a connection is due for a refresh comes from
+ *   packages/core/src/schedule.ts, the same arithmetic on every surface:
+ *   doubling per consecutive failure capped at an hour, jitter on our own
+ *   backoff only, and a provider's Retry-After respected as a floor.
+ *
+ * The clock belongs to Rust. Hidden webviews get their timers throttled by
+ * the operating system, so the backend runs the metronome and emits a
+ * collector-tick event about once a minute. This module wakes on the tick,
+ * asks the schedule which connections are due, refreshes exactly those, and
+ * writes a heartbeat stamp so a webview that has died is observable: the
+ * stamp stops advancing while the process clock does not.
+ *
+ * A refresh is a pipeline, and every stage of it is the one implementation
+ * the rest of the product runs. The backend performs the HTTP read and hands
+ * back an EndpointOutcome. The body is parsed by the mirrored OpenRouter
+ * connector, validated by the mirrored normalizer, stamped remote_api, and
+ * folded into the snapshot cache through the Rust lock handshake with the
+ * mirrored merge: cache_begin_write hands over the current text and a
+ * generation stamp, this module merges, cache_commit_write presents the
+ * stamp back, and a stale_generation or busy refusal is retried exactly once
+ * from a fresh begin. The connection's next state is computed by the
+ * mirrored state machine and written back through update_connection, which
+ * is also where the backend stamps its timestamps. Nothing a parser did not
+ * produce is ever written anywhere.
+ */
+import {
+  CACHE_DOCUMENT_VERSION,
+  CONNECTION_STATES,
+  MAX_CACHE_ENTRIES,
+  canonicalJson,
+  connectionNextAction,
+  connectionSentence,
+  isDue,
+  mergeSnapshots,
+  nextConnectionState,
+  nextRefreshAt,
+  normalizeMetersReport,
+} from "./engine/core/index.js";
+import { parseOpenrouterPayload } from "./engine/connectors/openrouter.js";
+import * as backend from "./backend.js";
+
+/** The event the Rust metronome emits, about once a minute. */
+const TICK_EVENT = "collector-tick";
+
+/** Where the heartbeat stamp lives, so a dead webview is observable. */
+const HEARTBEAT_KEY = "openlimiter-collector-heartbeat";
+
+/** Where the per connection schedule survives a window restart. */
+const SCHEDULE_KEY = "openlimiter-schedule";
+
+/**
+ * The states the scheduler refreshes on its own.
+ *
+ * These are the three states the core's own next actions describe as being in
+ * rotation: CONNECTED refreshes on its interval, DEGRADED waits out its
+ * backoff and retries, STALE is overdue and refreshes at the next chance. A
+ * connection waiting on a credential, or one that failed hard enough to need
+ * a person, is never retried behind that person's back.
+ */
+const SCHEDULED_STATES = new Set(["CONNECTED", "DEGRADED", "STALE"]);
+
+/** The 13 states as a set, to check a record's claim before believing it. */
+const KNOWN_STATES = new Set(CONNECTION_STATES);
+
+/**
+ * The exact statusline wiring, byte for byte the block the documentation
+ * publishes. Copy plus verify is the whole flow: this window never edits
+ * anybody's settings file.
+ */
+const CLAUDE_SETUP_SNIPPET = `{
+  "statusLine": {
+    "type": "command",
+    "command": "openlimiter statusline"
+  }
+}`;
+
+/**
+ * Everything this module knows about the world, in one place.
+ *
+ * `backendPresent` is three valued: null before the first probe answers, then
+ * true or false. The render function treats null as "say nothing yet" so the
+ * absent block never flashes on a build that does have the backend.
+ */
+const session = {
+  ready: false,
+  backendPresent: null,
+  listError: null,
+  connections: [],
+  /** Providers whose refresh_provider came back CONNECTED in this run. */
+  liveRefreshOk: new Set(),
+  /** Per connection id: { attempt, nextAt }, the core schedule's inputs. */
+  schedule: {},
+  /**
+   * Per connection id: the last action's feedback line, { text, tone }.
+   * Kept here rather than only in the DOM because every render rebuilds the
+   * cards, and a sentence that vanishes the instant the state redraws was
+   * never read by anyone.
+   */
+  cardNotes: {},
+  ticksThisRun: 0,
+  lastTickAt: null,
+  /** The last detect_local_tools answer for Claude Code, normalized. */
+  claude: null,
+  claudeProbed: false,
+};
+
+/** Wired by initConnections. Nothing here runs before that. */
+let options = null;
+
+let el = null;
+
+function grabElements() {
+  el = {
+    panel: document.getElementById("panel-connections"),
+    schedulerLine: document.getElementById("scheduler-line"),
+    absent: document.getElementById("connections-absent"),
+    reprobe: document.getElementById("connections-reprobe"),
+    empty: document.getElementById("connections-empty"),
+    cards: document.getElementById("connections-cards"),
+    openrouterAdd: document.getElementById("openrouter-add"),
+    openrouterKind: () =>
+      document.querySelector('input[name="openrouter-kind"]:checked'),
+    openrouterKey: document.getElementById("openrouter-key"),
+    openrouterAlias: document.getElementById("openrouter-alias"),
+    openrouterSubmit: document.getElementById("openrouter-submit"),
+    openrouterNote: document.getElementById("openrouter-note"),
+    claudeCard: document.getElementById("claude-card"),
+    claudeState: document.getElementById("claude-state"),
+    claudeStateCode: document.getElementById("claude-state-code"),
+    claudeSentence: document.getElementById("claude-sentence"),
+    claudeDetail: document.getElementById("claude-detail"),
+    claudeSnippet: document.getElementById("claude-snippet"),
+    claudeCopy: document.getElementById("claude-copy"),
+    claudeVerify: document.getElementById("claude-verify"),
+    claudeNote: document.getElementById("claude-note"),
+  };
+}
+
+/* ------------------------------------------------------------------ storage */
+
+function loadSchedule() {
+  try {
+    const raw = window.localStorage.getItem(SCHEDULE_KEY);
+    if (raw === null) return {};
+    const parsed = JSON.parse(raw);
+    return parsed !== null && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSchedule() {
+  try {
+    window.localStorage.setItem(SCHEDULE_KEY, JSON.stringify(session.schedule));
+  } catch {
+    /* Storage refused. The schedule still applies to this window. */
+  }
+}
+
+function storedHeartbeat() {
+  try {
+    return window.localStorage.getItem(HEARTBEAT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeHeartbeat(now) {
+  session.lastTickAt = now;
+  try {
+    window.localStorage.setItem(HEARTBEAT_KEY, now);
+  } catch {
+    /* Storage refused. The in memory stamp still renders. */
+  }
+}
+
+/* ----------------------------------------------------------------- language */
+
+/**
+ * A state code as the short word a chip can hold.
+ *
+ * The code itself, in sentence case: STALE is "Stale", AUTH_EXPIRED is "Auth
+ * expired". The full sentence from the core rides in the title. Nothing is
+ * reworded, because the vocabulary is the core's and this file only changes
+ * its case.
+ */
+export function stateWord(code) {
+  const text = String(code).toLowerCase().replace(/_/gu, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** The core sentence for a state, or an honest refusal for a code outside it. */
+function sentenceFor(state) {
+  return KNOWN_STATES.has(state)
+    ? connectionSentence[state]
+    : "This build does not know this state code, so it claims nothing about it.";
+}
+
+function timeWord(iso) {
+  if (iso === null || iso === undefined) return null;
+  const parsed = Date.parse(iso);
+  if (!Number.isFinite(parsed)) return null;
+  return new Date(parsed).toLocaleString();
+}
+
+/* ---------------------------------------------------------------- schedule */
+
+/**
+ * When this connection may next be asked, from the webview's own schedule
+ * first and the record's stamp second. Null means the core calls it due.
+ */
+function nextAtOf(record) {
+  const local = session.schedule[record.id];
+  return local?.nextAt ?? record.nextRefreshAt ?? null;
+}
+
+/**
+ * The base interval handed to the core.
+ *
+ * When the record carries none this passes the absence straight through, and
+ * the core's own clamp answers: usableBase treats an unusable base as one
+ * second, which in practice means "due at every tick", with the tick cadence
+ * owned by the Rust metronome. That is the core's decision, deliberately not
+ * repeated or replaced here.
+ */
+function baseOf(record) {
+  return record.baseSeconds ?? Number.NaN;
+}
+
+/* ----------------------------------------------------------------- backend */
+
+async function syncConnections() {
+  const result = await backend.listConnections();
+  if (!result.ok) {
+    if (result.reason === backend.BACKEND_ABSENT) {
+      session.backendPresent = false;
+      session.connections = [];
+    } else {
+      session.backendPresent = true;
+      session.listError = result.message;
+    }
+    return;
+  }
+  session.backendPresent = true;
+  session.listError = null;
+  session.connections = backend.normalizeConnectionList(result.value);
+}
+
+/**
+ * Which allowlisted endpoint a connection's key kind may ask.
+ *
+ * This mapping is deliberately this side's policy, per the contract: the
+ * backend exposes the two closed endpoint names and the interface decides
+ * which one a key kind uses. An inference key can only read its own limit,
+ * so it probes openrouter_key; a management key reads the account's credits,
+ * so it probes openrouter_credits.
+ */
+function endpointFor(credentialKind) {
+  return /management/iu.test(String(credentialKind ?? ""))
+    ? "openrouter_credits"
+    : "openrouter_key";
+}
+
+function parseJson(text) {
+  if (typeof text !== "string" || text.trim() === "") return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A 2xx body as validated snapshots, stamped with how they arrived, or null.
+ *
+ * The parser is the mirrored OpenRouter connector and the validator is the
+ * mirrored normalizer: nothing about the shape of a reading is decided here.
+ * The one thing this function adds is provenance, remote_api over
+ * remote_http, because provenance is written by whatever performed the read
+ * and this pipeline is the reader. A body the parser refuses produces null,
+ * and null writes nothing anywhere.
+ */
+function snapshotsFromBody(body, now) {
+  const document = parseJson(body);
+  if (document === null) return null;
+  const meters = parseOpenrouterPayload(document, now);
+  if (meters === null || meters.length === 0) return null;
+  const stamped = meters.map((meter) => ({
+    ...meter,
+    provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+  }));
+  const report = normalizeMetersReport(stamped);
+  return report.snapshots.length === 0 ? null : report.snapshots;
+}
+
+/**
+ * Fold freshly parsed snapshots into the snapshot cache, through the Rust
+ * lock handshake, with the same merge every other writer uses.
+ *
+ * begin hands over the cache text and a generation stamp; commit presents
+ * the stamp back and is refused with stale_generation when the cache moved
+ * in between, or busy when another writer holds it. Either refusal is
+ * retried exactly once from a fresh begin, because the second attempt merges
+ * against the newer text and so loses nothing. A second refusal is reported,
+ * not retried again: the tick cadence retries soon enough, and a loop here
+ * would fight the CLI for the lock.
+ */
+async function commitToCache(snapshots) {
+  for (let round = 0; round < 2; round += 1) {
+    const begun = await backend.cacheBeginWrite();
+    if (!begun.ok) {
+      return {
+        ok: false,
+        message: begun.reason === backend.BACKEND_ABSENT
+          ? "This build has no connection backend yet."
+          : begun.message,
+      };
+    }
+    const handshake = backend.normalizeBeginWrite(begun.value);
+    if (handshake.generation === null) {
+      return {
+        ok: false,
+        message:
+          "The cache handshake carried no generation stamp, so nothing was written.",
+      };
+    }
+    const document = parseJson(handshake.text ?? "");
+    const existingRows =
+      document !== null && Array.isArray(document.snapshots)
+        ? normalizeMetersReport(document.snapshots).snapshots
+        : [];
+    const merged = mergeSnapshots(existingRows, snapshots);
+    if (merged.length > MAX_CACHE_ENTRIES) {
+      return {
+        ok: false,
+        message: "The merged cache would exceed its bounds, so nothing was written.",
+      };
+    }
+    const text = canonicalJson({ snapshots: merged, version: CACHE_DOCUMENT_VERSION });
+    const commit = await backend.cacheCommitWrite({
+      text,
+      generation: handshake.generation,
+    });
+    if (commit.ok) return { ok: true };
+    if (
+      round === 0 &&
+      (commit.kind === "stale_generation" || commit.kind === "busy")
+    ) {
+      continue;
+    }
+    return {
+      ok: false,
+      message: commit.reason === backend.BACKEND_ABSENT
+        ? "This build has no connection backend yet."
+        : commit.message,
+    };
+  }
+  /* Unreachable: both rounds return. Stated for the reader. */
+  return { ok: false, message: "The cache write did not complete." };
+}
+
+/**
+ * One probe of one connection: the HTTP read, the parse, and the state the
+ * mirrored machine assigns to what happened. Shared by Test Connection and
+ * by the refresh pipeline; only the latter goes on to touch the cache.
+ */
+async function probe(record, refresh) {
+  const endpoint = endpointFor(record.credentialKind);
+  const command = refresh ? backend.refreshProvider : backend.testProvider;
+  const result = await command({ connectionId: record.id, endpoint });
+  const now = new Date().toISOString();
+  if (!result.ok) {
+    if (result.reason === backend.BACKEND_ABSENT) {
+      session.backendPresent = false;
+      return { outcome: null, snapshots: null, event: null, note: null, absent: true };
+    }
+    /*
+     * timeout and connect are reads that never reached the provider, which
+     * is exactly the machine's network_failure event. Every other kind is a
+     * local fault, storage or input, and a local fault is not a provider
+     * event: the state holds and the sentence is shown.
+     */
+    const event =
+      result.kind === "timeout" || result.kind === "connect"
+        ? {
+            kind: "network_failure",
+            consecutive: (session.schedule[record.id]?.attempt ?? 0) + 1,
+          }
+        : null;
+    return { outcome: null, snapshots: null, event, note: result.message, absent: false };
+  }
+  const outcome = backend.normalizeOutcome(result.value);
+  if (outcome.status === null) {
+    return {
+      outcome,
+      snapshots: null,
+      event: null,
+      note: "The backend's answer could not be read, so nothing is claimed from it.",
+      absent: false,
+    };
+  }
+  const inTwoHundreds = outcome.status >= 200 && outcome.status <= 299;
+  const snapshots =
+    inTwoHundreds && outcome.body !== null
+      ? snapshotsFromBody(outcome.body, now)
+      : null;
+  return {
+    outcome,
+    snapshots,
+    event: {
+      kind: "http_response",
+      status: outcome.status,
+      parsed: snapshots !== null,
+    },
+    note: null,
+    absent: false,
+  };
+}
+
+/**
+ * Advance the record through the mirrored machine and persist the result.
+ *
+ * The status sent over the wire is always one of the machine's own 13
+ * states: it either came out of nextConnectionState, which cannot produce
+ * anything else, or it is a record state this build recognised. A record
+ * whose state this build does not know is never echoed back at the backend,
+ * because repeating a word is not the same as vouching for it.
+ */
+async function settleState(record, event, stampSuccess) {
+  let next = record.state;
+  if (event !== null && KNOWN_STATES.has(record.state)) {
+    next = nextConnectionState(record.state, event, {
+      everConnected: record.everConnected,
+    });
+  }
+  if ((next !== record.state || stampSuccess) && KNOWN_STATES.has(next)) {
+    await backend.updateConnection({ connectionId: record.id, status: next });
+  }
+  return next;
+}
+
+/**
+ * One refresh for one connection: probe, parse, commit to the cache through
+ * the handshake, settle the state, and do the bookkeeping the schedule
+ * needs. Success means validated snapshots reached the cache in this run,
+ * which is the one fact that lets a meters row say Connected.
+ */
+async function runRefresh(record) {
+  const attempt0 = await probe(record, true);
+  if (attempt0.absent) return { succeeded: false, note: null };
+
+  let note = attempt0.note;
+  let committed = false;
+  if (attempt0.snapshots !== null) {
+    const commit = await commitToCache(attempt0.snapshots);
+    committed = commit.ok;
+    if (!commit.ok) note = commit.message;
+  }
+  await settleState(record, attempt0.event, committed);
+
+  const after = new Date().toISOString();
+  const previous = session.schedule[record.id];
+  const attempt = committed ? 0 : (previous?.attempt ?? 0) + 1;
+  session.schedule[record.id] = {
+    attempt,
+    nextAt: nextRefreshAt(after, {
+      attempt,
+      baseSeconds: baseOf(record),
+      retryAfterSeconds: attempt0.outcome?.retryAfterSeconds ?? null,
+      random: Math.random,
+    }),
+  };
+  saveSchedule();
+  await syncConnections();
+  if (committed && record.provider !== null) {
+    session.liveRefreshOk.add(record.provider);
+  }
+  return { succeeded: committed, note };
+}
+
+/**
+ * One tick from the Rust metronome.
+ *
+ * Heartbeat first, unconditionally, because the stamp's whole job is to
+ * advance whenever this webview is alive to receive a tick. Then the due
+ * connections, one at a time rather than in a burst, so a machine with five
+ * connections does not open five requests in one instant.
+ */
+async function onTick() {
+  const now = new Date().toISOString();
+  session.ticksThisRun += 1;
+  writeHeartbeat(now);
+  await syncConnections();
+  if (session.backendPresent === true) {
+    const due = session.connections.filter(
+      (record) =>
+        KNOWN_STATES.has(record.state) &&
+        SCHEDULED_STATES.has(record.state) &&
+        isDue(nextAtOf(record), now),
+    );
+    let changed = false;
+    for (const record of due) {
+      const outcome = await runRefresh(record);
+      changed = changed || outcome.succeeded;
+    }
+    if (changed) options.onMetersChanged();
+  }
+  render();
+}
+
+/* ---------------------------------------------------------- claude detection */
+
+/** The first defined value under any of several key spellings. */
+function pick(record, names) {
+  for (const name of names) {
+    const value = record?.[name];
+    if (value !== undefined && value !== null) return value;
+  }
+  return null;
+}
+
+/**
+ * The detect_local_tools answer, reduced to the three facts the card needs:
+ * was Claude Code found, is the statusline pointed at OpenLimiter, and did
+ * the backend hand over a state of its own. Every spelling a serializer
+ * plausibly produces is accepted; anything unreadable is null, and null is
+ * rendered as not knowing rather than as either answer.
+ */
+function normalizeDetection(value) {
+  let entry = null;
+  if (Array.isArray(value)) {
+    entry = value.find((item) => {
+      const name = pick(item, ["id", "tool", "name", "toolId", "tool_id"]);
+      return typeof name === "string" && /claude/iu.test(name);
+    }) ?? null;
+  } else if (value !== null && typeof value === "object") {
+    entry = pick(value, ["claudeCode", "claude_code", "claude", "CLAUDE"]) ?? value;
+  }
+  if (entry === null || typeof entry !== "object") return null;
+  const found = pick(entry, ["installed", "present", "found", "detected"]);
+  const wired = pick(entry, [
+    "statuslineWired",
+    "statusline_wired",
+    "statuslineConfigured",
+    "statusline_configured",
+    "wired",
+    "configured",
+  ]);
+  const state = pick(entry, ["state", "status"]);
+  return {
+    found: typeof found === "boolean" ? found : null,
+    wired: typeof wired === "boolean" ? wired : null,
+    state: typeof state === "string" && KNOWN_STATES.has(state) ? state : null,
+  };
+}
+
+async function detectClaude() {
+  const result = await backend.detectLocalTools();
+  session.claudeProbed = true;
+  if (!result.ok) {
+    if (result.reason === backend.BACKEND_ABSENT) session.backendPresent = false;
+    session.claude = null;
+    return;
+  }
+  session.backendPresent = true;
+  session.claude = normalizeDetection(result.value);
+}
+
+/**
+ * The Claude card's state, in the core's own vocabulary.
+ *
+ * The backend's own state wins when it sent one. Otherwise: not found is
+ * NOT_CONFIGURED, found but not wired is DETECTED, and wired splits on
+ * whether a fresh statusline reading is actually in the cache right now,
+ * which is the difference between ready to collect and collecting. Null
+ * means detection itself was impossible, and the card says that instead.
+ */
+function claudeStateOf() {
+  const detection = session.claude;
+  if (detection === null) return null;
+  if (detection.state !== null) return detection.state;
+  if (detection.found === null) return null;
+  if (detection.found === false) return "NOT_CONFIGURED";
+  if (detection.wired !== true) return "DETECTED";
+  return options.hasFreshLocalClaude() ? "CONNECTED" : "READY_TO_ENABLE";
+}
+
+/* ---------------------------------------------------------------- dom kit */
+
+function element(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className !== undefined) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function setNote(node, text, tone) {
+  node.textContent = text;
+  node.dataset.tone = tone ?? "plain";
+}
+
+/** A card's feedback line: shown now, and kept across the next renders. */
+function keepCardNote(id, node, text, tone) {
+  session.cardNotes[id] = { text, tone: tone ?? "plain" };
+  setNote(node, text, tone);
+}
+
+/** The state chip a card leads with: a dot, then the code, in mono. */
+function stateChip(state) {
+  const known = KNOWN_STATES.has(state);
+  const chip = element("span", "chip muted conn-state");
+  chip.dataset.connectionState = known ? state : "UNRECOGNISED";
+  chip.title = sentenceFor(state);
+  const dot = element("span", "state-dot");
+  dot.setAttribute("aria-hidden", "true");
+  chip.append(dot);
+  chip.append(element("span", "mono tracked", String(state)));
+  return chip;
+}
+
+function fact(label, value) {
+  const wrap = element("div", "conn-fact");
+  wrap.append(element("dt", "fact-label", label));
+  wrap.append(element("dd", "fact-value", value));
+  return wrap;
+}
+
+/* ------------------------------------------------------------------ cards */
+
+/**
+ * One connection record as one card: every field the connection architecture
+ * names, each rendered from the record or rendered as an honest absence.
+ * Nothing on the card is a default pretending to be data.
+ */
+function connectionCard(record, now) {
+  const node = element("div", "surface conn-card");
+
+  const head = element("div", "conn-head");
+  const identity = element("div", "card-id");
+  const mark = element("span", "card-mark");
+  mark.innerHTML = record.provider === null ? "" : options.markFor(record.provider);
+  identity.append(mark);
+  const names = element("div");
+  names.append(
+    element(
+      "div",
+      "name",
+      record.provider === null ? "Unknown provider" : options.providerName(record.provider),
+    ),
+  );
+  if (record.product !== null) {
+    names.append(element("div", "code", String(record.product)));
+  }
+  identity.append(names);
+  head.append(identity);
+  /* A record that carries no state gets a placeholder code, not a claim:
+     NOT_CONFIGURED is a real state with a real sentence, and this is not it. */
+  head.append(stateChip(record.state ?? "UNSTATED"));
+  node.append(head);
+
+  node.append(element("p", "conn-sentence", sentenceFor(record.state)));
+
+  const facts = element("dl", "conn-facts");
+  facts.append(
+    fact("Account", record.accountAlias === null ? "No alias set" : String(record.accountAlias)),
+  );
+  facts.append(
+    fact("Source", record.sourceType === null ? "Not stated" : String(record.sourceType)),
+  );
+  facts.append(
+    fact(
+      "Credential",
+      record.credentialKind === null && record.maskedLabel === null
+        ? "None stored"
+        : [record.credentialKind, record.maskedLabel]
+            .filter((part) => part !== null)
+            .map((part) => String(part))
+            .join(" · "),
+    ),
+  );
+  facts.append(
+    fact(
+      "Last successful refresh",
+      timeWord(record.lastSuccessAt) ?? "None recorded",
+    ),
+  );
+  const next = nextAtOf(record);
+  facts.append(
+    fact(
+      "Next refresh",
+      !KNOWN_STATES.has(record.state) || !SCHEDULED_STATES.has(record.state)
+        ? "Not scheduled"
+        : next === null || isDue(next, now)
+          ? "At the next collector tick"
+          : (timeWord(next) ?? "At the next collector tick"),
+    ),
+  );
+  node.append(facts);
+
+  const note = element("p", "conn-note");
+  note.setAttribute("role", "status");
+  /* The last action's sentence survives the redraw that action caused. */
+  const kept = session.cardNotes[record.id];
+  if (kept !== undefined) setNote(note, kept.text, kept.tone);
+
+  const actions = element("div", "conn-actions");
+  if (KNOWN_STATES.has(record.state)) {
+    actions.append(
+      element("span", "chip muted next-hint", "Next: " + connectionNextAction[record.state]),
+    );
+  }
+
+  const test = element("button", undefined, "Test connection");
+  test.type = "button";
+  const refreshNow = element("button", undefined, "Refresh now");
+  refreshNow.type = "button";
+  const disconnect = element("button", undefined, "Disconnect");
+  disconnect.type = "button";
+  const controls = [test, refreshNow, disconnect];
+  const busy = (on) => {
+    for (const control of controls) control.disabled = on;
+  };
+
+  test.addEventListener("click", () => {
+    void (async () => {
+      busy(true);
+      setNote(note, "Asking the provider.", "plain");
+      const asked = await probe(record, false);
+      if (asked.absent) {
+        keepCardNote(record.id, note, "This build has no connection backend yet.", "bad");
+        render();
+        return;
+      }
+      const next = await settleState(record, asked.event, false);
+      await syncConnections();
+      if (asked.note !== null) {
+        keepCardNote(record.id, note, "The test failed. " + asked.note, "bad");
+      } else {
+        keepCardNote(
+          record.id,
+          note,
+          sentenceFor(next),
+          asked.event?.parsed === true ? "ok" : "bad",
+        );
+      }
+      render();
+    })();
+  });
+
+  refreshNow.addEventListener("click", () => {
+    void (async () => {
+      busy(true);
+      setNote(note, "Refreshing.", "plain");
+      const outcome = await runRefresh(record);
+      if (outcome.succeeded) {
+        options.onMetersChanged();
+        keepCardNote(
+          record.id,
+          note,
+          "Refreshed. The reading is in the cache and on the meters.",
+          "ok",
+        );
+      } else if (outcome.note !== null) {
+        keepCardNote(record.id, note, outcome.note, "bad");
+      } else {
+        const fresh = session.connections.find((entry) => entry.id === record.id);
+        keepCardNote(record.id, note, sentenceFor(fresh?.state ?? record.state), "bad");
+      }
+      render();
+    })();
+  });
+
+  /* Disconnect asks twice. The second press within a few seconds is the
+     consent; anything later starts over. No dialog, no framework. */
+  let confirming = null;
+  disconnect.addEventListener("click", () => {
+    if (confirming === null) {
+      disconnect.textContent = "Press again to disconnect";
+      disconnect.classList.add("confirming");
+      confirming = window.setTimeout(() => {
+        confirming = null;
+        disconnect.textContent = "Disconnect";
+        disconnect.classList.remove("confirming");
+      }, 4_000);
+      return;
+    }
+    window.clearTimeout(confirming);
+    confirming = null;
+    void (async () => {
+      busy(true);
+      const result = await backend.disconnectProvider(record.id);
+      if (result.ok) {
+        /* The credential is gone, so the schedule entry has nothing to
+           schedule, the note has no card to sit on, and the live mark no
+           longer has a connection behind it. */
+        delete session.schedule[record.id];
+        delete session.cardNotes[record.id];
+        saveSchedule();
+        if (
+          record.provider !== null &&
+          !session.connections.some(
+            (entry) => entry.provider === record.provider && entry.id !== record.id,
+          )
+        ) {
+          session.liveRefreshOk.delete(record.provider);
+        }
+      } else {
+        keepCardNote(
+          record.id,
+          note,
+          result.reason === backend.BACKEND_ABSENT
+            ? "This build has no connection backend yet."
+            : "Disconnecting failed: " + result.message,
+          "bad",
+        );
+      }
+      await syncConnections();
+      options.onMetersChanged();
+      render();
+    })();
+  });
+
+  actions.append(test, refreshNow, disconnect);
+  node.append(actions);
+  node.append(note);
+  return node;
+}
+
+/* ----------------------------------------------------------------- render */
+
+function renderSchedulerLine() {
+  if (session.backendPresent === false) {
+    el.schedulerLine.textContent =
+      "No collector tick can arrive: this build has no connection backend.";
+    return;
+  }
+  const stored = storedHeartbeat();
+  const stamp = timeWord(session.lastTickAt ?? stored);
+  if (session.lastTickAt === null) {
+    el.schedulerLine.textContent =
+      stamp === null
+        ? "No collector tick has been received yet in this run."
+        : "No collector tick has been received yet in this run. Last heartbeat written " +
+          stamp +
+          ".";
+    return;
+  }
+  el.schedulerLine.textContent =
+    "Collector heartbeat " +
+    stamp +
+    ". Ticks received this run: " +
+    String(session.ticksThisRun) +
+    ".";
+}
+
+function renderClaude() {
+  el.claudeSnippet.textContent = CLAUDE_SETUP_SNIPPET;
+  /* No backend, no look. Saying "looking" while nothing can look would be a
+     claim about an activity this build cannot perform. */
+  if (session.backendPresent === false) {
+    el.claudeState.hidden = true;
+    el.claudeSentence.textContent =
+      "Detecting a local tool needs the connection backend, and this build has none.";
+    el.claudeDetail.textContent =
+      "The setup block below still works: copy it, wire it by hand, and the statusline reports on its own.";
+    el.claudeVerify.disabled = true;
+    return;
+  }
+  const state = session.claudeProbed ? claudeStateOf() : null;
+  if (state === null) {
+    el.claudeState.hidden = true;
+    el.claudeSentence.textContent = session.claudeProbed
+      ? "The detection answer could not be read, so nothing is claimed about this machine."
+      : "Looking for Claude Code on this machine.";
+    el.claudeDetail.textContent = "";
+    el.claudeVerify.disabled = false;
+    return;
+  }
+  el.claudeState.hidden = false;
+  el.claudeState.dataset.connectionState = state;
+  el.claudeState.title = connectionSentence[state];
+  el.claudeStateCode.textContent = state;
+  el.claudeSentence.textContent = connectionSentence[state];
+  const detection = session.claude;
+  el.claudeDetail.textContent =
+    state === "NOT_CONFIGURED"
+      ? "Claude Code was not found on this machine."
+      : state === "DETECTED"
+        ? "Claude Code was found. Its statusline command does not point at OpenLimiter yet."
+        : detection !== null && detection.wired === true
+          ? "Claude Code was found and its statusline command points at OpenLimiter."
+          : "Claude Code was found.";
+  el.claudeVerify.disabled = false;
+}
+
+function render() {
+  if (!session.ready) return;
+  const now = new Date().toISOString();
+  renderSchedulerLine();
+
+  const absent = session.backendPresent === false;
+  el.absent.hidden = !absent;
+  el.openrouterAdd.hidden = absent || session.backendPresent === null;
+
+  el.cards.textContent = "";
+  if (session.backendPresent === true) {
+    for (const record of session.connections) {
+      el.cards.append(connectionCard(record, now));
+    }
+    if (session.listError !== null) {
+      const line = element("p", "conn-note");
+      line.dataset.tone = "bad";
+      line.setAttribute("role", "status");
+      line.textContent = "Listing connections failed: " + session.listError;
+      el.cards.append(line);
+    }
+  }
+  el.empty.hidden = !(
+    session.backendPresent === true &&
+    session.connections.length === 0 &&
+    session.listError === null
+  );
+
+  renderClaude();
+}
+
+/* ---------------------------------------------------------------- actions */
+
+async function submitOpenrouter() {
+  const input = el.openrouterKey;
+  const kindChoice = el.openrouterKind();
+  const kind = kindChoice === null ? "api_key" : kindChoice.value;
+  const secret = input.value.trim();
+  /* Cleared before anything else happens, success or failure, so the secret
+     never sits in a form field while a request is in flight. */
+  input.value = "";
+  if (secret === "") {
+    setNote(el.openrouterNote, "Nothing was pasted, so nothing was stored.", "bad");
+    return;
+  }
+  /* The contract wants an alias on every connection, because account
+     identity is first class. An unnamed account is honestly called default,
+     which is what it is until a second account makes a name matter. */
+  const alias = el.openrouterAlias.value.trim() || "default";
+  el.openrouterSubmit.disabled = true;
+  setNote(el.openrouterNote, "Storing the key in the credential store.", "plain");
+  const connected = await backend.connectProvider({
+    providerId: "OPENROUTER",
+    accountAlias: alias,
+    keyKind: kind,
+    /* A stored, untested credential is READY_TO_ENABLE in the machine's own
+       vocabulary: ready to start collecting, claiming nothing more. */
+    status: "READY_TO_ENABLE",
+    secret,
+  });
+  if (!connected.ok) {
+    if (connected.reason === backend.BACKEND_ABSENT) {
+      session.backendPresent = false;
+      setNote(el.openrouterNote, "This build has no connection backend yet.", "bad");
+    } else {
+      setNote(el.openrouterNote, "Connecting failed. " + connected.message, "bad");
+    }
+    el.openrouterSubmit.disabled = false;
+    render();
+    return;
+  }
+  await syncConnections();
+  const returned =
+    typeof connected.value === "string"
+      ? connected.value
+      : (backend.normalizeConnection(connected.value)?.id ?? null);
+  const record =
+    (returned !== null
+      ? session.connections.find((entry) => entry.id === returned)
+      : undefined) ??
+    session.connections.filter((entry) => entry.provider === "OPENROUTER").at(-1);
+  if (record === undefined) {
+    setNote(
+      el.openrouterNote,
+      "The key was stored, and no connection record came back to test.",
+      "bad",
+    );
+    el.openrouterSubmit.disabled = false;
+    render();
+    return;
+  }
+  setNote(el.openrouterNote, "Stored. Testing the connection now.", "plain");
+  const asked = await probe(record, false);
+  if (asked.absent) {
+    setNote(el.openrouterNote, "This build has no connection backend yet.", "bad");
+    el.openrouterSubmit.disabled = false;
+    render();
+    return;
+  }
+  const next = await settleState(record, asked.event, false);
+  await syncConnections();
+  if (asked.note !== null) {
+    setNote(el.openrouterNote, "The test failed. " + asked.note, "bad");
+  } else {
+    setNote(
+      el.openrouterNote,
+      "Test finished. " + sentenceFor(next),
+      asked.event?.parsed === true ? "ok" : "bad",
+    );
+  }
+  el.openrouterAlias.value = "";
+  el.openrouterSubmit.disabled = false;
+  render();
+}
+
+async function copyClaudeSnippet() {
+  try {
+    await window.navigator.clipboard.writeText(CLAUDE_SETUP_SNIPPET);
+    setNote(
+      el.claudeNote,
+      "Copied. Add it to your Claude Code settings.json, then press Verify.",
+      "ok",
+    );
+  } catch {
+    /* Clipboard refused. The block is selectable, so select it for the
+       person instead of failing with nothing to show. */
+    const selection = window.getSelection();
+    if (selection !== null) {
+      const range = document.createRange();
+      range.selectNodeContents(el.claudeSnippet);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    setNote(
+      el.claudeNote,
+      "Copying was refused here, so the block is selected. Copy it by hand.",
+      "bad",
+    );
+  }
+}
+
+async function verifyClaude() {
+  el.claudeVerify.disabled = true;
+  setNote(el.claudeNote, "Detecting.", "plain");
+  await detectClaude();
+  const state = claudeStateOf();
+  setNote(
+    el.claudeNote,
+    state === null
+      ? "Detection is not available in this build."
+      : connectionSentence[state],
+    state === null ? "bad" : "plain",
+  );
+  render();
+}
+
+/* ------------------------------------------------------------------ public */
+
+/**
+ * What the meters view may say about a provider's connection.
+ *
+ * Null when there is nothing to say: no backend, or no record for this
+ * provider. Otherwise the record's state and whether a live refresh has
+ * actually succeeded in this run, which is the one fact that permits the
+ * word Connected on a meters row.
+ */
+export function connectionFactFor(provider) {
+  if (session.backendPresent !== true) return null;
+  const records = session.connections.filter((entry) => entry.provider === provider);
+  if (records.length === 0) return null;
+  const best =
+    records.find((entry) => entry.state === "CONNECTED") ?? records[0];
+  return {
+    state: KNOWN_STATES.has(best.state) ? best.state : null,
+    liveOk: session.liveRefreshOk.has(provider),
+  };
+}
+
+/**
+ * The meters just re-read the cache. The Claude card's split between ready
+ * and collecting depends on that cache, so it is redrawn.
+ */
+export function noteMetersRefreshed() {
+  if (!session.ready) return;
+  renderClaude();
+}
+
+/**
+ * The Connections tab was brought on screen. On a build where the backend
+ * probe said absent this asks again, because the person may have switched
+ * builds under the same profile, and a stale absent block would be a claim
+ * about the wrong build.
+ */
+export function connectionsTabShown() {
+  if (!session.ready) return;
+  void (async () => {
+    await syncConnections();
+    if (session.backendPresent === true && !session.claudeProbed) {
+      await detectClaude();
+    }
+    render();
+  })();
+}
+
+async function bootstrap() {
+  await syncConnections();
+  if (session.backendPresent === true) await detectClaude();
+  render();
+}
+
+export function initConnections(configuration) {
+  options = configuration;
+  grabElements();
+  session.schedule = loadSchedule();
+  session.ready = true;
+
+  el.reprobe.addEventListener("click", () => {
+    void bootstrap();
+  });
+  el.openrouterSubmit.addEventListener("click", () => {
+    void submitOpenrouter();
+  });
+  el.claudeCopy.addEventListener("click", () => {
+    void copyClaudeSnippet();
+  });
+  el.claudeVerify.addEventListener("click", () => {
+    void verifyClaude();
+  });
+
+  void backend.listen(TICK_EVENT, () => {
+    void onTick();
+  });
+  void bootstrap();
+}

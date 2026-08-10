@@ -6,7 +6,9 @@ authors = ["Lucas Costa"]
 license = "Apache-2.0"
 repository = "https://github.com/lucaswebsystems/openlimiter"
 edition = "2021"
-rust-version = "1.77.2"
+# Raised from 1.77.2: keyring 4 declares 1.88 and reqwest 0.13 declares 1.85,
+# so 1.88 is the true floor of this crate's dependency graph.
+rust-version = "1.88"
 
 # The binary is a thin shell around the library, which is what lets the same
 # code be built for a desktop bundle and, later, for a mobile target.
@@ -22,6 +24,28 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# The v1 feature is exactly the three stores the connection design names:
+# Windows Credential Manager, macOS Keychain, and the Linux Secret Service
+# (through zbus, pure Rust, no libdbus at build time).
+keyring = { version = "4", default-features = false, features = ["v1"] }
+# rustls-no-provider instead of the rustls default because the default drags in
+# aws-lc-rs, which wants NASM and CMake on Windows builders. The provider is
+# pinned to ring below, which builds everywhere a C compiler exists.
+reqwest = { version = "0.13", default-features = false, features = [
+  "rustls-no-provider",
+] }
+# Direct dependency only to choose ring as the TLS crypto provider; no rustls
+# API beyond provider installation is used here.
+rustls = { version = "0.23", default-features = false, features = [
+  "ring",
+  "std",
+  "tls12",
+] }
+uuid = { version = "1", features = ["v4"] }
+zeroize = "1"
+# Only the interval timer for the collector metronome; every listed feature is
+# already in the dependency tree through tauri and reqwest.
+tokio = { version = "1", features = ["time"] }
 
 [profile.release]
 codegen-units = 1
@@ -29,3 +53,8 @@ lto = true
 opt-level = "s"
 panic = "abort"
 strip = true
+
+[dev-dependencies]
+# A current-thread runtime for the async transport tests; never in the product
+# build. The features are already unified into the tree by tauri.
+tokio = { version = "1", features = ["rt", "macros", "time"] }
