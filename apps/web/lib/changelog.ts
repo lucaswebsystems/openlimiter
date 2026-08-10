@@ -25,17 +25,29 @@ export interface ChangelogRelease {
   entries: readonly ChangelogEntry[];
 }
 
-const CHANGELOG_PATH = path.join(process.cwd(), "..", "..", "CHANGELOG.md");
+/* The root file when this runs inside the monorepo, and the build time copy
+   scripts/pull-changelog.mjs makes when it does not: the deploy uploads only
+   this directory, so without the copy the page rendered empty in production. */
+const CHANGELOG_PATHS = [
+  path.join(process.cwd(), "..", "..", "CHANGELOG.md"),
+  path.join(process.cwd(), "CHANGELOG.md"),
+];
 
 const RELEASE_PATTERN = /^##\s+\[?([^\]\s]+)\]?(?:\s+\((\d{4}-\d{2}-\d{2})\))?/;
 
 export async function readChangelog(): Promise<readonly ChangelogRelease[]> {
-  let source: string;
-  try {
-    source = await readFile(CHANGELOG_PATH, "utf8");
-  } catch {
-    /* A checkout without the root file still renders a page, empty and honest,
-       rather than failing the build. */
+  let source: string | null = null;
+  for (const candidate of CHANGELOG_PATHS) {
+    try {
+      source = await readFile(candidate, "utf8");
+      break;
+    } catch {
+      /* Try the next location. */
+    }
+  }
+  if (source === null) {
+    /* A checkout without the file anywhere still renders a page, empty and
+       honest, rather than failing the build. */
     return [];
   }
 
