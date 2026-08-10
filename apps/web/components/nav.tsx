@@ -60,7 +60,6 @@ const links = [
   { label: "Web app", href: "/app" },
   { label: "Download", href: "/download" },
   { label: "Changelog", href: "/changelog" },
-  { label: "Alternatives", href: "/alternatives" },
 ];
 
 /* `hdr-ink` is the marker globals.css uses to lift this quiet grey to the

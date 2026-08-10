@@ -32,6 +32,18 @@ const nextConfig: NextConfig = {
     "/opengraph-image": ["./assets/fonts/**"],
     "/twitter-image": ["./assets/fonts/**"],
   },
+
+  /**
+   * The comparison pages are gone by the founder's order (2026-08-10). Links
+   * and search results that still carry the old URLs land on the home page
+   * with a permanent redirect rather than on a 404.
+   */
+  async redirects() {
+    return [
+      { source: "/alternatives", destination: "/", permanent: true },
+      { source: "/alternatives/:slug*", destination: "/", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;
