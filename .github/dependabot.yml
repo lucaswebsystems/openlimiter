@@ -1,66 +1,23 @@
+# Policy (Lucas, 2026-08-10): no commit authored by a bot is ever accepted in
+# this repository. Dependabot runs in alerts only mode: every ecosystem below
+# has open-pull-requests-limit 0, so it scans and surfaces vulnerability alerts
+# but never opens or pushes anything. Dependency updates are done by the team,
+# deliberately: an agent proposes bumps with changelogs read, review happens,
+# and a human identity authors the commit.
 version: 2
 updates:
-  # Workspace packages (core, connectors, cli, adapters).
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      # Routine updates arrive as one pull request instead of a wall of them.
-      development:
-        dependency-type: development
-        update-types:
-          - minor
-          - patch
-      production:
-        dependency-type: production
-        update-types:
-          - minor
-          - patch
-    labels:
-      - dependencies
-  # Toolchain majors land deliberately, on their own slower cadence, so they
-  # stay visible instead of being silently ignored.
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: monthly
-    open-pull-requests-limit: 3
-    labels:
-      - dependencies
-      - major
-    allow:
-      - dependency-name: typescript
-      - dependency-name: vitest
-      - dependency-name: "@types/node"
-
-  # The marketing site keeps its own lockfile, so it needs its own entry or it
-  # would never receive a security update.
+    open-pull-requests-limit: 0
   - package-ecosystem: npm
     directory: /apps/web
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      web:
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-    labels:
-      - dependencies
-      - web
-
+    open-pull-requests-limit: 0
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    groups:
-      github-actions:
-        patterns:
-          - "*"
-    labels:
-      - dependencies
-      - ci
+    open-pull-requests-limit: 0
