@@ -145,15 +145,16 @@
   --ol-nav-dark-line: #24242a;
 
   /* The header bar's height, the one number the sticky bar, the row inside it
-     and the fold's pull under it all read. 56px where the sheet trigger sets
-     the row, 52px where the desktop controls do: the same 52 to 56 band the
-     bar has always measured at. */
-  --ol-header-h: 3.5rem;
+     and the fold's pull under it all read. Lucas's call (2026-08-10): the bar
+     breathes, at least 10 to 15px of air above and below the controls. 76px
+     where the sheet trigger sets the row (56 + 10 each side), 80px where the
+     desktop controls do (52 + 14 each side). */
+  --ol-header-h: 4.75rem;
 }
 
 @media (min-width: 1024px) {
   :root {
-    --ol-header-h: 3.25rem;
+    --ol-header-h: 5rem;
   }
 }
 

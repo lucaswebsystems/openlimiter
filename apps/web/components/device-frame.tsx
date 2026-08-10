@@ -1,4 +1,4 @@
-import { DemoDataChip, SHELL } from "./ui";
+import { DemoDataChip, SectionHeading, SHELL } from "./ui";
 import { reveal } from "@/lib/motion";
 
 /**
@@ -38,7 +38,15 @@ export function DeviceFrame() {
     className: "h-auto w-full rounded-lg sm:rounded-xl",
   };
   return (
-    <div className={`${SHELL} relative pb-8 md:pb-16`}>
+    /* A real section, not a bare picture: air after the fold, a heading a
+       reader can scan to, one lead sentence, then the frame. Lucas's call
+       (2026-08-10) after the fold shipped with the image butted straight
+       against the footage. */
+    <section className={`${SHELL} relative pb-8 pt-16 md:pb-16 md:pt-24`}>
+      <SectionHeading
+        title="Every plan on one screen"
+        lead="A card per provider: the meter, how fresh that reading is, and when the window resets. What you see here is what installs."
+      />
       <div {...reveal}>
         <div className="elev-2 overflow-hidden rounded-xl border border-hairline bg-frame p-2 sm:rounded-2xl sm:p-3">
           {/* The pair. Same file name, same dimensions, one of them hidden by
@@ -71,6 +79,6 @@ export function DeviceFrame() {
           </span>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

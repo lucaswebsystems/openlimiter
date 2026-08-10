@@ -28,7 +28,7 @@ export function RunsWhere() {
       </div>
       <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-relaxed text-muted" {...reveal}>
         Those are screenshots of the web app running at phone size, against the project&apos;s
-        synthetic fixtures, which is why each one carries a demo data chip. The same reading opens
+        synthetic fixtures, declared here in words rather than stamped over the pictures. The same reading opens
         in any browser at the{" "}
         <Link
           href="/app"
