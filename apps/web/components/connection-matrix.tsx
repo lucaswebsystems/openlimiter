@@ -1,4 +1,4 @@
-import registry from "../../../provider_specs/provider-specs.json";
+import registry from "../lib/provider-specs.generated.json";
 import {
   ClaudeMark,
   CodexMark,
@@ -37,14 +37,17 @@ import { reveal } from "@/lib/motion";
  *
  * So the truth is read, at build time, out of
  *
- *   provider_specs/provider-specs.json
+ *   lib/provider-specs.generated.json
  *
- * which `node scripts/validate-provider-specs.mjs --emit` generates from the
- * reviewed YAML entries under `provider_specs/`. Those entries are validated on
- * every test run, so a cell below cannot disagree with the registry and cannot
- * be edited without a human editing a reviewed spec first. This component now
- * holds presentation only: a name, a logo, and one sentence of provider fact
- * that states no support level at all.
+ * the app local mirror of `provider_specs/provider-specs.json`, which
+ * `node scripts/validate-provider-specs.mjs --emit` generates from the
+ * reviewed YAML entries and copies here in the same run. The mirror exists
+ * because this app deploys standalone from `apps/web`, where a path above the
+ * app root does not exist. The entries are validated on every test run, so a
+ * cell below cannot disagree with the registry and cannot be edited without a
+ * human editing a reviewed spec first. This component holds presentation only:
+ * a name, a logo, and one sentence of provider fact that states no support
+ * level at all.
  *
  * A PROVIDER WITH NO SPEC IS SHOWN AS HAVING NO SPEC
  * --------------------------------------------------

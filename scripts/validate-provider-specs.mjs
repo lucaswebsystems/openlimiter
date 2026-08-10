@@ -664,6 +664,17 @@ async function specFiles() {
  */
 export const COMPILED_FILE = path.join(specsRoot, "provider-specs.json");
 
+/*
+ * The web app deploys standalone from apps/web, where a path above the app
+ * root does not exist at build time, so the artifact is mirrored into the
+ * app and both copies are held to the same emit and drift rules. One source
+ * of truth, two identical bytes on disk.
+ */
+export const ARTIFACT_FILES = [
+  COMPILED_FILE,
+  path.join(repositoryRoot, "apps", "web", "lib", "provider-specs.generated.json")
+];
+
 /**
  * Version of the compiled shape, for the surfaces that read it.
  *
@@ -696,9 +707,9 @@ function compileRegistry(entries) {
   ) + "\n";
 }
 
-async function readCompiled() {
+async function readTarget(target) {
   try {
-    return await readFile(COMPILED_FILE, "utf8");
+    return await readFile(target, "utf8");
   } catch {
     return null;
   }
@@ -744,24 +755,26 @@ async function main() {
    */
   if (problems.length === 0) {
     const wanted = compileRegistry(compiled);
-    const current = await readCompiled();
-    const shown = path.relative(repositoryRoot, COMPILED_FILE)
-      .split(path.sep).join("/");
-    if (emit) {
-      if (current === wanted) {
-        console.log("PASS " + shown + " already current");
+    for (const target of ARTIFACT_FILES) {
+      const current = await readTarget(target);
+      const shown = path.relative(repositoryRoot, target)
+        .split(path.sep).join("/");
+      if (emit) {
+        if (current === wanted) {
+          console.log("PASS " + shown + " already current");
+        } else {
+          await writeFile(target, wanted, "utf8");
+          console.log("WROTE " + shown);
+        }
+      } else if (current === null) {
+        problems.push(shown + " is missing. Run: node " +
+          "scripts/validate-provider-specs.mjs --emit");
+      } else if (current !== wanted) {
+        problems.push(shown + " is stale relative to the yaml. Run: node " +
+          "scripts/validate-provider-specs.mjs --emit");
       } else {
-        await writeFile(COMPILED_FILE, wanted, "utf8");
-        console.log("WROTE " + shown);
+        console.log("PASS " + shown + " matches the yaml");
       }
-    } else if (current === null) {
-      problems.push(shown + " is missing. Run: node " +
-        "scripts/validate-provider-specs.mjs --emit");
-    } else if (current !== wanted) {
-      problems.push(shown + " is stale relative to the yaml. Run: node " +
-        "scripts/validate-provider-specs.mjs --emit");
-    } else {
-      console.log("PASS " + shown + " matches the yaml");
     }
   }
   if (problems.length > 0) {
