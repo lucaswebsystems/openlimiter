@@ -68,7 +68,7 @@ openlimiter demo`}
               <CodeBlock
                 label="terminal"
                 code={`openlimiter statusline < session.json
-OpenLimiter NEAR_CAP CLAUDE 87.5% UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL`}
+OpenLimiter NEAR_CAP NONE UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL  CLAUDE ####. 87.5%`}
               />
               <P>
                 Not every Claude Code version sends rate limit fields. If yours does not, this path

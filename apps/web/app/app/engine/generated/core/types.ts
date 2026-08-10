@@ -30,6 +30,32 @@ export interface SnapshotWindow {
   durationSeconds?: number;
 }
 
+/**
+ * The one currency an amount may be stated in, for now.
+ *
+ * A literal rather than a string keeps a provider from writing its own text
+ * into a field a human reads. When a second currency is genuinely supported it
+ * is added here and the normalizer's set below grows with it.
+ */
+export type SnapshotCurrency = "USD";
+
+/** Largest money amount a reading may carry. Above this it is not a plan. */
+export const MAX_SNAPSHOT_AMOUNT = 1_000_000;
+
+/**
+ * What a credit based plan has spent, and out of how much.
+ *
+ * Optional everywhere and travelling as one unit: a reading either carries all
+ * three of these or none of them, so a surface can never print a used figure
+ * with no limit beside it. A percentage never depends on them, which is why a
+ * pair that fails validation is dropped while the percentage survives.
+ */
+export interface SnapshotAmounts {
+  usedAmount: number;
+  limitAmount: number;
+  currency: SnapshotCurrency;
+}
+
 export interface ConnectorLabels {
   credentialOrigin:
     | "official-local-tool"
@@ -58,6 +84,10 @@ export interface Snapshot {
   observedAt: string;
   expiresAt: string;
   labels: ConnectorLabels;
+  /** Present only when the provider's own documented payload carried money. */
+  usedAmount?: number;
+  limitAmount?: number;
+  currency?: SnapshotCurrency;
 }
 
 export interface RawMeter {
@@ -72,6 +102,9 @@ export interface RawMeter {
   observedAt: unknown;
   expiresAt: unknown;
   labels: unknown;
+  usedAmount?: unknown;
+  limitAmount?: unknown;
+  currency?: unknown;
 }
 
 export interface ConnectorReadContext {

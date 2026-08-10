@@ -1,10 +1,13 @@
 import { Analytics } from "@vercel/analytics/react";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { AnnouncementBar } from "@/components/announcement-bar";
 import { Footer } from "@/components/footer";
 import { Nav } from "@/components/nav";
 import { Reveal } from "@/components/reveal";
+import { announceArmScript } from "@/lib/announce";
 import { markArmScript } from "@/lib/brand";
+import { wordmarkFont } from "@/lib/fonts";
 import { motionArmScript } from "@/lib/motion";
 import {
   AUTHOR_NAME,
@@ -76,7 +79,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    /* The display face is published as a custom property on the root element,
+       which is what lets app/globals.css set every heading in it without a
+       class on each one, and what lets the dashboard's own stylesheet reach
+       the same loaded file. See lib/fonts.ts: it is loaded once. */
+    <html lang="en" className={wordmarkFont.variable} suppressHydrationWarning>
       <head>
         {/* Applies a stored theme choice before first paint. See lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: themeArmScript }} />
@@ -84,6 +91,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <script dangerouslySetInnerHTML={{ __html: markArmScript }} />
         {/* Arms the scroll reveal, but only where it is safe. See lib/motion.ts. */}
         <script dangerouslySetInnerHTML={{ __html: motionArmScript }} />
+        {/* Closes the announcement bar before it paints, for a reader who has
+            already closed it once. See lib/announce.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: announceArmScript }} />
       </head>
       <body className="min-h-screen bg-canvas font-sans text-body antialiased selection:bg-accent-subtle selection:text-heading">
         <a
@@ -92,6 +102,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         >
           Skip to content
         </a>
+        <AnnouncementBar />
         <Nav />
         {children}
         <Footer />

@@ -43,6 +43,13 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
   ) return null;
   const percent = (usage / credits) * 100;
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
+  /*
+   * OpenRouter is the one provider whose documented shape states money rather
+   * than a percentage: total_credits is what the plan holds and total_usage is
+   * what has been spent out of it. Both are handed on as they were read. The
+   * normalizer decides whether they are believable and drops all three fields
+   * together if they are not, which leaves the percentage above intact.
+   */
   return [rawMeter({
     provider: "OPENROUTER",
     meter: "CREDITS",
@@ -53,7 +60,8 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
     precision: "exact",
     observedAt: now,
     expiresAt,
-    labels: openrouterLabels
+    labels: openrouterLabels,
+    amounts: { usedAmount: usage, limitAmount: credits, currency: "USD" }
   })];
 }
 

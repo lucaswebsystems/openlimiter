@@ -65,9 +65,36 @@ export const faqItems: readonly FaqItem[] = [
   {
     question: "Is it free?",
     answer:
-      "Everything that runs locally is free and always will be, under Apache 2.0. The only thing that would ever cost money is a hosted service, namely encrypted synchronisation and push alerts, because servers cost money to run. It does not exist, there is no checkout, and no local feature has been withheld to create it.",
+      "Everything that runs locally is free and always will be, under Apache 2.0: every connector, the agent context block, themes, the whole command line tool, and all three ingestion paths, with no usage limit and no account. Desktop notifications are not built yet and will be free too.",
+  },
+  {
+    question: "What is OpenLimiter Pro?",
+    answer:
+      "A planned paid tier at 5 USD a month, founding price, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, a smart limiter that routes between your models from live budget state, email alerts and a weekly digest, delivery rules, hosted history and burn trends, priority connector requests, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it.",
   },
 ];
+
+/**
+ * The chevron. One glyph that rotates a quarter turn on open rather than two
+ * glyphs swapping places, which is what a reader expects from an accordion and
+ * what the pointer response elsewhere on the site already implies.
+ */
+function Chevron() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4 flex-none text-muted transition-transform duration-200 group-open:rotate-90 group-hover:text-accent"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m9 5 7 7-7 7" />
+    </svg>
+  );
+}
 
 export function Faq() {
   return (
@@ -75,25 +102,22 @@ export function Faq() {
       <h2 className="text-3xl font-medium text-heading" {...reveal}>
         FAQ
       </h2>
-      <div className="space-y-6" {...revealGroup}>
+      {/* Two columns from the large breakpoint. Nine items in one column ran
+          past a screen height on their own; in two they read as a block, and
+          each item is a self contained card so an open answer pushes only its
+          own column. */}
+      <div className="grid gap-3 lg:grid-cols-2 lg:gap-x-4" {...revealGroup}>
         {faqItems.map((item) => (
-          <details key={item.question} className="group" {...reveal}>
-            <summary className="focus-ring flex cursor-pointer list-none items-start gap-2 rounded text-sm font-medium text-heading transition-colors duration-200 hover:text-accent">
-              <span
-                aria-hidden="true"
-                className="mt-px w-3 flex-none font-mono text-muted group-open:hidden"
-              >
-                +
-              </span>
-              <span
-                aria-hidden="true"
-                className="mt-px hidden w-3 flex-none font-mono text-muted group-open:block"
-              >
-                &minus;
-              </span>
-              <span>{item.question}</span>
+          <details
+            key={item.question}
+            className="lift-sm elev-1 group h-fit rounded-xl border border-hairline bg-surface transition-colors hover:border-hairline-strong open:border-hairline-strong open:bg-raised"
+            {...reveal}
+          >
+            <summary className="focus-ring-inset flex cursor-pointer list-none items-start gap-3 rounded-xl px-4 py-3.5 text-sm font-medium text-heading transition-colors duration-200 group-hover:text-accent">
+              <Chevron />
+              <span className="heading-face min-w-0">{item.question}</span>
             </summary>
-            <div className="mt-2 max-w-xl pl-5 text-sm leading-relaxed text-muted">
+            <div className="border-t border-hairline px-4 py-3.5 pl-11 text-sm leading-relaxed text-muted">
               {item.answer}
             </div>
           </details>

@@ -1,6 +1,6 @@
 {
   "name": "@openlimiter/connectors",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Provider connectors that collect quota and usage data for OpenLimiter.",
   "type": "module",
   "main": "./dist/index.js",

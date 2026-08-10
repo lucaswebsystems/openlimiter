@@ -8,9 +8,95 @@ name: Desktop release
 # toolchain. Running the build on one runner per platform is what makes a real
 # download exist for all three.
 #
-# Builds here are UNSIGNED. Windows SmartScreen and macOS Gatekeeper will warn
-# on first run until signing certificates are bought and wired in. The download
-# page says so plainly rather than pretending otherwise.
+# ===========================================================================
+# Signing
+# ===========================================================================
+#
+# This workflow signs when certificates are configured and builds unsigned when
+# they are not. Nothing here fails for a missing secret. Each platform has one
+# step that looks for its own secrets, arms the build when every one of them is
+# present, and otherwise prints a line saying the build is unsigned and carries
+# on. A fork, and this repository until the certificates are bought, therefore
+# get a green run and installers that warn on first launch, which is what the
+# download page already tells people to expect.
+#
+# ---------------------------------------------------------------------------
+# Windows: Azure Trusted Signing, which Microsoft now calls Artifact Signing
+# ---------------------------------------------------------------------------
+#
+# The modern path, and the cheap one: roughly 10 USD a month, no hardware token
+# in a drawer, and no three year certificate to lose. The catch is that Microsoft
+# verifies the organisation or the individual first, and an individual identity
+# needs a history of three years, so start the verification well before a launch.
+#
+#   Buy it:  https://azure.microsoft.com/en-us/products/trusted-signing
+#   Set up:  https://v2.tauri.app/distribute/sign/windows/
+#
+# Repository secrets, all six required together:
+#
+#   AZURE_CLIENT_ID          Application id of an App Registration in the tenant
+#   AZURE_CLIENT_SECRET      A client secret for that App Registration
+#   AZURE_TENANT_ID          Directory id of the tenant
+#   AZURE_SIGNING_ACCOUNT    Name of the signing account resource
+#   AZURE_SIGNING_PROFILE    Name of the certificate profile inside that account
+#   AZURE_SIGNING_ENDPOINT   Regional endpoint, for example
+#                            https://eus.codesigning.azure.net
+#
+# The App Registration needs the Trusted Signing Certificate Profile Signer role
+# on the signing account, or every signature comes back as unauthorised.
+#
+# The older path, a certificate bought from a certificate authority, is still
+# supported by Tauri and costs several hundred USD a year for an OV certificate
+# on a hardware token. It is wired through the bundler configuration rather than
+# through a command, so it needs no code here, only three keys under
+# bundle.windows in src-tauri/tauri.conf.json:
+#
+#   "certificateThumbprint": "<sha1 of the certificate>",
+#   "digestAlgorithm": "sha256",
+#   "timestampUrl": "http://timestamp.digicert.com"
+#
+# and the certificate imported into the runner's certificate store first, which
+# on a hosted runner means a base64 .pfx in a secret, usually called
+# WINDOWS_CERTIFICATE with WINDOWS_CERTIFICATE_PASSWORD, imported with
+# Import-PfxCertificate before the build. A hardware token cannot be used from a
+# hosted runner at all, which is the practical reason to prefer Azure.
+#
+# ---------------------------------------------------------------------------
+# macOS: Apple Developer Program
+# ---------------------------------------------------------------------------
+#
+# 99 USD a year, and there is no alternative: Gatekeeper only trusts Apple, and
+# an unnotarised application shows the "cannot be opened" dialog rather than a
+# warning that can be clicked through.
+#
+#   Buy it:  https://developer.apple.com/programs/
+#   Set up:  https://v2.tauri.app/distribute/sign/macos/
+#
+# Take a Developer ID Application certificate, not a Mac App Distribution one,
+# and export it from Keychain Access as a .p12.
+#
+# Repository secrets:
+#
+#   APPLE_CERTIFICATE           The .p12, base64 encoded
+#   APPLE_CERTIFICATE_PASSWORD  The password set when exporting the .p12
+#   APPLE_SIGNING_IDENTITY      For example
+#                               Developer ID Application: Name (TEAMID)
+#   APPLE_ID                    The Apple account email
+#   APPLE_PASSWORD              An app specific password, not the account one:
+#                               https://appleid.apple.com > Sign in and Security
+#   APPLE_TEAM_ID               The ten character team identifier
+#
+# The first three sign, the last three notarise, and notarisation is what
+# removes the dialog. KEYCHAIN_PASSWORD is optional: the action invents one for
+# the temporary keychain it builds when the secret is absent.
+#
+# ---------------------------------------------------------------------------
+# Linux
+# ---------------------------------------------------------------------------
+#
+# Nothing to buy and nothing to configure. A .deb, a .rpm and an AppImage carry
+# no operating system signature requirement, and the distribution channels that
+# do want one sign on their side.
 
 on:
   push:
@@ -99,6 +185,119 @@ jobs:
         working-directory: apps/desktop
         run: node scripts/build-ui.mjs
 
+      # Everything the signing steps below decide is carried to the build step
+      # in two environment variables, EXTRA_ARGS and the credentials themselves,
+      # so there is one build step rather than a signed copy and an unsigned one
+      # that can drift apart.
+
+      - name: Arm Windows signing, if the certificate is configured
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+        run: |
+          set -euo pipefail
+
+          missing=""
+          for name in AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_TENANT_ID \
+            AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE AZURE_SIGNING_ENDPOINT; do
+            if [ -z "${!name:-}" ]; then missing="${missing} ${name}"; fi
+          done
+
+          if [ -n "${missing}" ]; then
+            echo "Windows: building unsigned. Not configured:${missing}"
+            echo "SmartScreen will warn on first run until these are set."
+            exit 0
+          fi
+
+          # The signing tool is a command the bundler shells out to once per
+          # binary, so it has to exist before the build starts. Pinned, and
+          # --locked so a transitive release cannot change what gets installed.
+          cargo install artifact-signing-cli --version 0.11.0 --locked
+
+          # Tauri reads bundle.windows.signCommand, and it must not be in the
+          # committed configuration or every unsigned build would try to sign.
+          # It is written here instead and merged in with --config, which is
+          # exactly what that flag is for.
+          patch="${GITHUB_WORKSPACE}/apps/desktop/src-tauri/tauri.signing.conf.json"
+          cat > "${patch}" <<JSON
+          {
+            "bundle": {
+              "windows": {
+                "signCommand": {
+                  "cmd": "artifact-signing-cli",
+                  "args": ["-e", "${AZURE_SIGNING_ENDPOINT}", "%1"]
+                }
+              }
+            }
+          }
+          JSON
+
+          {
+            echo "EXTRA_ARGS=--config ${patch}"
+            echo "AZURE_CLIENT_ID=${AZURE_CLIENT_ID}"
+            echo "AZURE_TENANT_ID=${AZURE_TENANT_ID}"
+            echo "AZURE_ARTIFACT_SIGNING_ACCOUNT=${AZURE_SIGNING_ACCOUNT}"
+            echo "AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE=${AZURE_SIGNING_PROFILE}"
+            echo "AZURE_CLIENT_SECRET<<AZURE_CLIENT_SECRET_EOF"
+            echo "${AZURE_CLIENT_SECRET}"
+            echo "AZURE_CLIENT_SECRET_EOF"
+          } >> "${GITHUB_ENV}"
+
+          echo "Windows: signing with Azure, profile ${AZURE_SIGNING_PROFILE}."
+
+      - name: Arm macOS signing and notarisation, if the certificate is configured
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+
+          # An empty value is worse than an absent one here: the bundler reads
+          # the variable rather than testing it, and would try to sign with an
+          # identity of nothing and fail the build. So nothing is exported at
+          # all unless the whole set is present.
+          missing=""
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+            APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!name:-}" ]; then missing="${missing} ${name}"; fi
+          done
+
+          if [ -n "${missing}" ]; then
+            echo "macOS: building unsigned. Not configured:${missing}"
+            echo "Gatekeeper will refuse the first launch until these are set."
+            exit 0
+          fi
+
+          # Multi line safe, because a base64 certificate usually is.
+          {
+            echo "APPLE_CERTIFICATE<<APPLE_CERTIFICATE_EOF"
+            echo "${APPLE_CERTIFICATE}"
+            echo "APPLE_CERTIFICATE_EOF"
+            echo "APPLE_CERTIFICATE_PASSWORD<<APPLE_CERTIFICATE_PASSWORD_EOF"
+            echo "${APPLE_CERTIFICATE_PASSWORD}"
+            echo "APPLE_CERTIFICATE_PASSWORD_EOF"
+            echo "APPLE_SIGNING_IDENTITY=${APPLE_SIGNING_IDENTITY}"
+            echo "APPLE_ID=${APPLE_ID}"
+            echo "APPLE_PASSWORD<<APPLE_PASSWORD_EOF"
+            echo "${APPLE_PASSWORD}"
+            echo "APPLE_PASSWORD_EOF"
+            echo "APPLE_TEAM_ID=${APPLE_TEAM_ID}"
+          } >> "${GITHUB_ENV}"
+
+          echo "macOS: signing as ${APPLE_SIGNING_IDENTITY}, then notarising."
+
       - name: Build and publish the installers
         uses: tauri-apps/tauri-action@v0
         env:
@@ -110,4 +309,4 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: false
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ env.EXTRA_ARGS }}

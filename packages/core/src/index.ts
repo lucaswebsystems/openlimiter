@@ -1,4 +1,5 @@
 export * from "./cache.js";
+export * from "./failures.js";
 export * from "./forecast.js";
 export * from "./format.js";
 export * from "./freshness.js";

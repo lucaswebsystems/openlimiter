@@ -55,13 +55,35 @@ export const LOGO_SIZE = 512;
 export const CONTRIBUTING_URL = `${REPO_URL}/blob/main/CONTRIBUTING.md`;
 export const SECURITY_URL = `${REPO_URL}/blob/main/SECURITY.md`;
 
+/**
+ * The two ways to support the work, both live and both claimed. Sponsorship is
+ * the only money anywhere near this project: there is no checkout, no paid
+ * tier, and no local feature held back to create one.
+ */
 export const SPONSORS_URL = "https://github.com/sponsors/lucaswebsystems";
+export const COFFEE_URL = "https://buymeacoffee.com/lucaswebsystems";
 
 /**
- * Placeholder. The Buy Me a Coffee account may not exist yet, so treat this
- * link as unconfirmed until the page has been claimed.
+ * OpenLimiter Pro, and the exact words allowed around its two numbers.
+ *
+ * Pro is not built. It has never been sold, at any price, to anybody, and no
+ * surface on this site may imply otherwise.
+ *
+ * `PRO_PRICE` is the founding price, the one an early supporter would pay.
+ * `PRO_REGULAR_PRICE` is the **planned** regular price, and it is written in
+ * the future tense wherever it appears, because it is a plan rather than a
+ * price anything was ever charged at. It is never framed as a discount from a
+ * former price, never given an end date, and never given a countdown, because
+ * all three would be inventing a history the product does not have.
+ *
+ * The only sentence the regular price is allowed to appear in is
+ * `PRO_PRICE_NOTE`, which is written once here and rendered once, on the
+ * pricing card. Every other surface, the FAQ and the roadmap included, names
+ * the founding price alone.
  */
-export const COFFEE_URL = "https://buymeacoffee.com/lucaswebsystems";
+export const PRO_PRICE = "5 USD";
+export const PRO_REGULAR_PRICE = "10 USD";
+export const PRO_PRICE_NOTE = "10 USD is the planned regular price. Early supporters keep 5.";
 
 export const AUTHOR_NAME = "Lucas Costa";
 export const AUTHOR_EMAIL = "lucas@lucaswebsystems.com";
@@ -88,7 +110,7 @@ export const AUTHOR_LINKEDIN = "https://www.linkedin.com/in/lucas-costa-t/";
 export const HERO_BACKDROP_ENABLED: boolean = true;
 
 /** The version this site describes. Kept in step with the root CHANGELOG. */
-export const CURRENT_VERSION = "0.1.0";
+export const CURRENT_VERSION = "0.2.0";
 
 /**
  * What actually ships today, in one place, so no surface can quietly promote a

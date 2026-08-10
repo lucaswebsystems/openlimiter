@@ -31,5 +31,35 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/phone-1.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Every meter each provider reports, on one screen"
+    },
+    {
+      "src": "/screenshots/phone-2.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "The bounded block an agent would be handed"
+    },
+    {
+      "src": "/screenshots/phone-3.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Hand it a quota document from the tool or your agent"
+    },
+    {
+      "src": "/screenshots/desktop-app.png",
+      "sizes": "2560x1600",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "The quota dashboard on a desktop"
+    }
   ]
 }

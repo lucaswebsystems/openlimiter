@@ -83,10 +83,12 @@ describe("serve", () => {
     expect(document).toEqual({
       schema: 1,
       generatedAt: FIXTURE_NOW,
-      reason: "HEALTHY",
+      /* NEAR_CAP because the Codex fixture reads 84, which is the demo set's
+         meter in the orange band and above the engine's own 80 threshold. */
+      reason: "NEAR_CAP",
       providers: [
         { provider: "CLAUDE", state: "fresh", usagePercent: 64, resetAt: expect.any(String) },
-        { provider: "CODEX", state: "fresh", usagePercent: 51, resetAt: expect.any(String) }
+        { provider: "CODEX", state: "fresh", usagePercent: 84, resetAt: expect.any(String) }
       ],
       unknown: ["OPENROUTER", "ANTIGRAVITY", "OPENCODE", "MANUAL"]
     });

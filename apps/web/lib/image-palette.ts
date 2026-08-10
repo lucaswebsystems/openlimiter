@@ -31,35 +31,35 @@ export const imagePalette = {
 } as const;
 
 /**
- * The two icon treatments, and why there are two.
+ * The icon treatment: the ring, and nothing whatsoever behind it.
  *
- * `favicon` is the browser tab. It is the ring itself, in the brand blue, on
- * the site's own near black, filling as much of the square as the artwork
- * allows, because at 16 pixels the only thing that can survive is the mark and
- * it has to be recognisably the mark from the header. The background is there
- * only so the ring has a guaranteed ground rather than whatever chrome it lands
- * in.
+ * Every icon a browser paints beside a name takes this. The tab favicon, the
+ * iOS home screen icon and the two "any" icons in the web application manifest
+ * are the mark in the brand blue on a transparent ground, cropped to the ring's
+ * own outer edge so it fills its square corner to corner with no padding.
  *
- * `tile` is a home screen. That is a large icon on somebody's own wallpaper, so
- * it takes the approved tile artwork instead: the ring reversed out of a solid
- * brand blue square, which is exactly assets/brand/openlimiter-tile-1024.png
- * and exactly the PNGs in public/icons, so every home screen surface agrees.
+ * There is no tile because a tile is a second shape competing with the mark.
+ * At sixteen pixels a rounded blue square with a small ring inside it reads as
+ * a rounded blue square, and every pixel spent on padding is a pixel the ring
+ * does not have. Tileless, the mark is the icon.
  *
- * `radiusRatio` and `markRatio` are fractions of the icon edge, so one
- * treatment scales to any size without a second set of numbers.
+ * Two surfaces deliberately do not take this treatment, and both have a reason
+ * that is not taste:
+ *
+ *   Android maskable, in public/icons, crops to whatever shape the launcher
+ *   prefers and guarantees only the central eighty percent. An icon with no
+ *   ground would be cropped straight into the wallpaper, so that one file fills
+ *   its square with the canvas colour and pulls the ring into the safe area.
+ *   scripts/icons.mjs renders it and says the same thing at the point of use.
+ *
+ *   The desktop application icon keeps a tile, because an operating system
+ *   paints it on a dock, a taskbar and a wallpaper it did not choose, and every
+ *   application beside it has a solid silhouette. apps/desktop/scripts/icons.mjs
+ *   owns that one.
  */
-export const favicon = {
-  background: imagePalette.canvas,
+export const iconMark = {
+  background: "transparent",
   mark: imagePalette.brand,
-  radiusRatio: 0.22,
-  markRatio: 0.86,
-} as const;
-
-export const tile = {
-  background: imagePalette.brand,
-  mark: "#ffffff",
-  radiusRatio: 0.22,
-  markRatio: 0.68,
 } as const;
 
 export type ImagePalette = typeof imagePalette;

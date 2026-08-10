@@ -1,7 +1,45 @@
 import { BrandMark } from "./brand";
 import { ButtonLink, GitHubMark } from "./ui";
 import { reveal } from "@/lib/motion";
-import { AUTHOR_EMAIL, AUTHOR_NAME, REPO_URL, SPONSORS_URL } from "@/lib/site";
+import { AUTHOR_EMAIL, AUTHOR_NAME, COFFEE_URL, REPO_URL, SPONSORS_URL } from "@/lib/site";
+
+/** A cup, for the second of the two support links. Drawn here, no brand mark. */
+function CoffeeMark({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3.75 8.75h13v6a4.5 4.5 0 0 1-4.5 4.5h-4a4.5 4.5 0 0 1-4.5-4.5Z" />
+      <path d="M16.75 10.25h1.75a2.5 2.5 0 0 1 0 5h-1.75" />
+      <path d="M7 3v2.25M10.25 3v2.25M13.5 3v2.25" />
+    </svg>
+  );
+}
+
+/** GitHub Sponsors, a heart. */
+function HeartMark({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 20.25S3.75 15.5 3.75 9.6A4.35 4.35 0 0 1 12 7.35 4.35 4.35 0 0 1 20.25 9.6c0 5.9-8.25 10.65-8.25 10.65Z" />
+    </svg>
+  );
+}
 
 /**
  * The closing note.
@@ -60,7 +98,7 @@ export function AboutCard() {
         <div className="space-y-5">
           {commitments.map((item) => (
             <div key={item.title} className="border-l border-hairline-strong pl-4">
-              <p className="text-sm font-medium text-heading">{item.title}</p>
+              <p className="heading-face text-sm text-heading">{item.title}</p>
               <p className="mt-1 text-sm leading-relaxed text-muted">{item.detail}</p>
             </div>
           ))}
@@ -69,7 +107,7 @@ export function AboutCard() {
 
       <div className="mt-10 flex flex-col gap-6 border-t border-hairline pt-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-base font-medium text-heading">{AUTHOR_NAME}</p>
+          <p className="heading-face text-base text-heading">{AUTHOR_NAME}</p>
           <p className="mt-1 text-sm text-muted">
             Author and maintainer.{" "}
             <a
@@ -81,8 +119,13 @@ export function AboutCard() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <ButtonLink href={SPONSORS_URL} external>
-            Sponsor the project
+          <ButtonLink href={SPONSORS_URL} tone="primary" external>
+            <HeartMark />
+            GitHub Sponsors
+          </ButtonLink>
+          <ButtonLink href={COFFEE_URL} external>
+            <CoffeeMark />
+            Buy me a coffee
           </ButtonLink>
           <ButtonLink href={REPO_URL} external>
             <GitHubMark className="h-4 w-4" />

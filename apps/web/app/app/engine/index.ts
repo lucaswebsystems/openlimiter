@@ -1,12 +1,17 @@
 import {
   PROVIDER_CODES,
   buildAdvice,
+  dedupeFailures,
+  failureSentence,
   floorFixed,
   freshness,
   mergeSnapshots,
   normalizeMeters,
+  normalizeMetersReport,
   type Advice,
+  type FailureCategory,
   type ProviderCode,
+  type ProviderFailure,
   type RawMeter,
   type Snapshot,
   type SnapshotState,
@@ -40,12 +45,20 @@ import { buildAgentContext, renderClaudeStatusline } from "./generated/adapters/
 
 export type {
   Advice,
+  FailureCategory,
   ProviderCode,
+  ProviderFailure,
   Snapshot,
   SnapshotState,
 };
 
-export { PROVIDER_CODES, buildAgentContext, floorFixed, renderClaudeStatusline };
+export {
+  PROVIDER_CODES,
+  buildAgentContext,
+  failureSentence,
+  floorFixed,
+  renderClaudeStatusline,
+};
 
 /** The parsers a pasted document is offered to, in order, with their labels. */
 const PARSERS: readonly {
@@ -61,8 +74,18 @@ const PARSERS: readonly {
 ];
 
 export type ParseResult =
-  | { ok: true; snapshots: readonly Snapshot[]; recognised: readonly string[] }
-  | { ok: false; reason: "empty" | "not_json" | "no_meters" };
+  | {
+      ok: true;
+      snapshots: readonly Snapshot[];
+      recognised: readonly string[];
+      /** Providers whose readings this document named and lost. */
+      failures: readonly ProviderFailure[];
+    }
+  | {
+      ok: false;
+      reason: "empty" | "not_json" | "no_meters";
+      failures: readonly ProviderFailure[];
+    };
 
 /**
  * Turn pasted text into snapshots.
@@ -74,21 +97,33 @@ export type ParseResult =
  *
  * Failure is always closed. A document nothing recognises produces no meters
  * at all, never a zero and never an exhausted provider.
+ *
+ * A reading that a parser recognised and the normalizer then refused is
+ * reported against its provider, so that provider's card can say so instead of
+ * quietly showing the reading it happened to already have. That attribution
+ * only ever uses the provider code the normalizer itself validated, and the
+ * words shown for it are ours, never the document's.
  */
 export function parseQuotaText(text: string, now: string): ParseResult {
   const trimmed = text.trim();
-  if (trimmed === "") return { ok: false, reason: "empty" };
+  if (trimmed === "") return { ok: false, reason: "empty", failures: [] };
   let document: unknown;
   try {
     document = JSON.parse(trimmed);
   } catch {
-    return { ok: false, reason: "not_json" };
+    return { ok: false, reason: "not_json", failures: [] };
   }
   if (Array.isArray(document)) {
-    const snapshots = normalizeMeters(document as RawMeter[]);
-    return snapshots.length === 0
-      ? { ok: false, reason: "no_meters" }
-      : { ok: true, snapshots, recognised: ["openlimiter export output"] };
+    const report = normalizeMetersReport(document as RawMeter[]);
+    const failures = rejectionsAsFailures(report.rejected);
+    return report.snapshots.length === 0
+      ? { ok: false, reason: "no_meters", failures }
+      : {
+          ok: true,
+          snapshots: report.snapshots,
+          recognised: ["openlimiter export output"],
+          failures,
+        };
   }
   const meters: RawMeter[] = [];
   const recognised: string[] = [];
@@ -98,10 +133,20 @@ export function parseQuotaText(text: string, now: string): ParseResult {
     meters.push(...parsed);
     recognised.push(parser.label);
   }
-  const snapshots = normalizeMeters(meters);
-  return snapshots.length === 0
-    ? { ok: false, reason: "no_meters" }
-    : { ok: true, snapshots, recognised };
+  const report = normalizeMetersReport(meters);
+  const failures = rejectionsAsFailures(report.rejected);
+  return report.snapshots.length === 0
+    ? { ok: false, reason: "no_meters", failures }
+    : { ok: true, snapshots: report.snapshots, recognised, failures };
+}
+
+function rejectionsAsFailures(
+  rejected: readonly ProviderCode[],
+): readonly ProviderFailure[] {
+  return rejected.map((provider) => ({
+    provider,
+    category: "VALIDATION_REJECTED" as FailureCategory,
+  }));
 }
 
 /** Every bundled synthetic fixture, parsed the same way a paste would be. */
@@ -134,6 +179,10 @@ export interface MeterView {
   precision: Snapshot["precision"];
   source: Snapshot["source"];
   risk: Snapshot["labels"]["automationRisk"];
+  /** Present together or not at all, exactly as the normalizer left them. */
+  usedAmount?: number;
+  limitAmount?: number;
+  currency?: Snapshot["currency"];
 }
 
 export interface ProviderView {
@@ -141,6 +190,8 @@ export interface ProviderView {
   /** Null when this provider has contributed nothing readable. */
   worst: MeterView | null;
   meters: readonly MeterView[];
+  /** The one thing that went wrong for this provider, in our own words. */
+  failure: FailureCategory | null;
 }
 
 export interface DashboardView {
@@ -163,6 +214,9 @@ function toMeterView(snapshot: Snapshot, now: string): MeterView {
     precision: snapshot.precision,
     source: snapshot.source,
     risk: snapshot.labels.automationRisk,
+    ...(snapshot.usedAmount === undefined ? {} : { usedAmount: snapshot.usedAmount }),
+    ...(snapshot.limitAmount === undefined ? {} : { limitAmount: snapshot.limitAmount }),
+    ...(snapshot.currency === undefined ? {} : { currency: snapshot.currency }),
   };
 }
 
@@ -177,8 +231,12 @@ function toMeterView(snapshot: Snapshot, now: string): MeterView {
 export function dashboardView(
   snapshots: readonly Snapshot[],
   now: string,
+  failures: readonly ProviderFailure[] = [],
 ): DashboardView {
   const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
+  const byProvider = new Map(
+    dedupeFailures(failures).map((failure) => [failure.provider, failure.category]),
+  );
   const providers = PROVIDER_CODES.map((provider) => {
     const meters = snapshots
       .filter((snapshot) => snapshot.provider === provider)
@@ -189,6 +247,7 @@ export function dashboardView(
       provider,
       worst: readable[0] ?? null,
       meters,
+      failure: byProvider.get(provider) ?? null,
     };
   });
   return {

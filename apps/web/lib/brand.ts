@@ -48,6 +48,12 @@ export const MARK_SEGMENTS_SMALL = [
 /** The artwork box. Every consumer scales this, none of them redraws it. */
 export const MARK_VIEWBOX = "0 0 200 200";
 
+/** Centre of the artwork box, which is also the centre of the ring. */
+export const MARK_CENTRE = 100;
+
+/** Radius of the arc centreline, in artwork units. */
+export const MARK_RADIUS = 72;
+
 /** Stroke weight in artwork units. */
 export const MARK_STROKE_WIDTH = 34;
 
@@ -66,14 +72,51 @@ export const MARK_DRAWN_ATTR = "data-mark-drawn";
 /** Session key that remembers the draw already happened. */
 export const MARK_DRAWN_KEY = "openlimiter-mark-drawn";
 
+/** Which telling of the ring a consumer wants. See MARK_SEGMENTS_SMALL. */
+export type MarkVariant = "full" | "small";
+
+/**
+ * How much room the ring is given inside the box it is drawn into.
+ *
+ * `box` keeps the 200 unit artwork box, so the ring sits in the padding the
+ * artwork was designed with, and a caller placing the mark beside type gets the
+ * lockup's own spacing for free.
+ *
+ * `ring` crops the box to the ring's own outer edge, so the artwork ends where
+ * the ink ends and the ring fills whatever square it is given, corner to
+ * corner. This is what an icon wants: at sixteen pixels every pixel of built in
+ * padding is a pixel the mark does not have.
+ */
+export type MarkFit = "box" | "ring";
+
+/** Stroke weight of a variant, in artwork units. */
+function strokeWidth(variant: MarkVariant): number {
+  return variant === "small" ? MARK_STROKE_WIDTH_SMALL : MARK_STROKE_WIDTH;
+}
+
+/**
+ * The box to draw a variant in. For `ring`, that is the square the stroke's
+ * outer edge inscribes: the centreline radius plus half the stroke, taken from
+ * the centre in all four directions.
+ */
+export function markViewBox(variant: MarkVariant = "full", fit: MarkFit = "box"): string {
+  if (fit === "box") return MARK_VIEWBOX;
+  const outer = MARK_RADIUS + strokeWidth(variant) / 2;
+  return `${MARK_CENTRE - outer} ${MARK_CENTRE - outer} ${outer * 2} ${outer * 2}`;
+}
+
 /**
  * Standalone markup for contexts with no stylesheet, which is every generated
  * image route. The colour has to be passed in because `currentColor` has
  * nothing to inherit from there.
  */
-export function markSvgMarkup(color: string, variant: MarkVariant = "full"): string {
+export function markSvgMarkup(
+  color: string,
+  variant: MarkVariant = "full",
+  fit: MarkFit = "box",
+): string {
   const segments = variant === "small" ? MARK_SEGMENTS_SMALL : MARK_SEGMENTS;
-  const width = variant === "small" ? MARK_STROKE_WIDTH_SMALL : MARK_STROKE_WIDTH;
+  const width = strokeWidth(variant);
   const paths = segments
     .map(
       (segment) =>
@@ -81,18 +124,19 @@ export function markSvgMarkup(color: string, variant: MarkVariant = "full"): str
         ` stroke-width="${width}" stroke-linecap="butt"/>`,
     )
     .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${MARK_VIEWBOX}">${paths}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${markViewBox(variant, fit)}">${paths}</svg>`;
 }
-
-/** Which telling of the ring a consumer wants. See MARK_SEGMENTS_SMALL. */
-export type MarkVariant = "full" | "small";
 
 /**
  * The same markup as a data URI, which is how satori accepts vector artwork in
  * the icon and social card routes.
  */
-export function markDataUri(color: string, variant: MarkVariant = "full"): string {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(markSvgMarkup(color, variant))}`;
+export function markDataUri(
+  color: string,
+  variant: MarkVariant = "full",
+  fit: MarkFit = "box",
+): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(markSvgMarkup(color, variant, fit))}`;
 }
 
 /**

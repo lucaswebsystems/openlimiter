@@ -9,6 +9,7 @@ import {
   AUTHOR_LINKEDIN,
   AUTHOR_NAME,
   AUTHOR_SITE,
+  COFFEE_URL,
   DISCUSSIONS_URL,
   ISSUES_URL,
   LICENSE_URL,
@@ -53,33 +54,67 @@ const community: FooterLink[] = [
   { label: "GitHub", href: REPO_URL, external: true },
   { label: "Issues", href: ISSUES_URL, external: true },
   { label: "Discussions", href: DISCUSSIONS_URL, external: true },
-  { label: "Sponsor", href: SPONSORS_URL, external: true },
+  { label: "GitHub Sponsors", href: SPONSORS_URL, external: true },
+  { label: "Buy me a coffee", href: COFFEE_URL, external: true },
 ];
 
+/*
+  The link rows.
+
+  Each row is a flex line rather than a block, so the chevron and the label are
+  one object: the glyph is 12 pixels, sits on the text baseline box, and slides
+  two pixels to the right under a pointer, which is the same two pixel gesture
+  the cards on this site make. `leading-5` pulls the lists a step tighter than
+  the surrounding text, which is what makes a column read as a list rather than
+  as loose paragraphs.
+*/
 const linkClass =
-  "focus-ring rounded text-muted transition-colors duration-200 hover:text-heading";
+  "focus-ring group inline-flex items-center gap-1 rounded py-0.5 leading-5 text-muted transition-colors duration-200 hover:text-heading";
 
 const contactClass =
   "focus-ring inline-flex items-center gap-2 rounded text-muted transition-colors duration-200 hover:text-heading";
 
+function LinkChevron() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3 w-3 flex-none text-muted transition-[color,transform] duration-200 group-hover:translate-x-0.5 group-hover:text-accent"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m9 5 7 7-7 7" />
+    </svg>
+  );
+}
+
 function Column({ title, links }: { title: string; links: readonly FooterLink[] }) {
   return (
     <div className="space-y-3" {...reveal}>
-      <p className="font-medium text-heading">{title}</p>
-      <div className="space-y-2">
-        {links.map((link) => (
-          <div key={`${link.label}-${link.href}`}>
-            {link.external === true ? (
-              <a href={link.href} target="_blank" rel="noopener noreferrer" className={linkClass}>
-                {link.label}
-              </a>
-            ) : (
-              <Link href={link.href} className={linkClass}>
-                {link.label}
-              </Link>
-            )}
-          </div>
-        ))}
+      <p className="heading-face text-heading">{title}</p>
+      <div className="flex flex-col items-start gap-0.5">
+        {links.map((link) =>
+          link.external === true ? (
+            <a
+              key={`${link.label}-${link.href}`}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={linkClass}
+            >
+              <LinkChevron />
+              {link.label}
+            </a>
+          ) : (
+            <Link key={`${link.label}-${link.href}`} href={link.href} className={linkClass}>
+              <LinkChevron />
+              {link.label}
+            </Link>
+          ),
+        )}
       </div>
     </div>
   );

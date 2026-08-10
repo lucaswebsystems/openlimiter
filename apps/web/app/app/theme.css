@@ -2,50 +2,77 @@
   The dashboard's own layer.
 
   Everything the marketing pages need already lives in app/globals.css, and not
-  one value here replaces one of those. This file adds the single thing the
-  product surface needs and the site does not: a pressure scale, and the
-  segmented meter drawn in it.
+  one value here replaces one of those. This file is the product surface's own
+  layer on top of that system: the pressure scale, the segmented meter drawn in
+  it, and the handful of behaviours a page that installs to a home screen needs
+  and a marketing page does not.
 
-  The pressure scale has three steps and they are read off the same thresholds
-  the engine already uses, so a colour can never disagree with a reason code:
+  DARK FIRST, exactly like the site. The four theme blocks below mirror
+  globals.css block for block and in the same order, so an explicit choice still
+  beats the system preference and the two files can never disagree about which
+  theme is active.
 
-    healthy   below 60 percent      teal
-    watch     60 to 79 percent      amber
-    critical  80 percent and above  red
+  THE PRESSURE SCALE
+  ------------------
+  Four bands, and one number in the middle of them that is not a design choice:
 
-  Eighty is the number policy.ts calls NEAR_CAP, so the moment a bar turns red
-  is the same moment the advice engine stops recommending that provider. Sixty
-  is a warning step ahead of it, which is a display decision and nothing else:
-  no number, no reason code and no recommendation is derived from it.
+    ok        0 to 59 percent       green
+    watch     60 to 79 percent      yellow
+    high      80 to 89 percent      orange
+    critical  90 percent and above  red
+
+  EIGHTY IS THE ENGINE'S OWN NUMBER. packages/core/src/policy.ts calls a
+  provider NEAR_CAP at 80 and stops recommending it there, so a meter turning
+  orange is the same event as the agent being told to route away. The human and
+  the agent now see the same threshold at the same moment, which is the whole
+  point of the alignment. Red at 90 is the human's own band on top of that: the
+  point at which it is worth doing something rather than merely knowing.
+
+  Nothing here feeds back into the engine. No number, no reason code and no
+  recommendation is derived from these bands: they choose a colour and stop.
+
+  The brand blue is deliberately absent. Blue is this product's identity, and it
+  is spent on the lockup, links, focus rings and the recommendation chip. A
+  meter is a measurement, so it reads on a plain four step scale that anyone
+  recognises without being taught it, and the accent stays meaningful because
+  it never means "fine".
 
   Contrast, measured with the ratio formula against the three backgrounds these
   colours ever land on (canvas, surface, raised):
 
-    dark   teal 11.12 / 10.53 / 9.94   amber 10.60 / 10.05 / 9.48
-           red  8.51 / 8.06 / 7.61
-    light  teal 5.89 / 5.54 / 5.25     amber 6.14 / 5.78 / 5.47
-           red  6.19 / 5.83 / 5.52
+    dark   ok    11.14 / 10.56 / 9.96    watch 11.63 / 11.02 / 10.40
+           high   8.58 /  8.13 / 7.67    red    8.51 /  8.06 /  7.61
+    light  ok     6.72 /  6.32 / 5.99    watch  6.14 /  5.78 /  5.47
+           high   5.90 /  5.55 / 5.26    red    6.19 /  5.83 /  5.52
 
-  The lowest of those is 5.25, so every pressure colour clears AA for normal
-  text in both themes, which it has to: the percentage next to a bar is painted
-  in the same colour as the bar.
-
-  The theme cascade mirrors globals.css exactly, in the same four blocks and
-  the same order, so an explicit choice still beats the system preference.
+  The lowest of those is 5.26, so every band clears AA for normal text in both
+  themes, which it has to: the number beside a bar is painted in the bar's own
+  colour.
 */
 
 :root {
-  /* Pressure. */
-  --ol-meter-healthy: #3ddbb8;
-  --ol-meter-watch: #f2b544;
+  /* Pressure. Four bands, no blue: see the scale in this file's header. */
+  --ol-meter-ok: #4ade80;
+  --ol-meter-watch: #fbbf24;
+  --ol-meter-high: #fb923c;
   --ol-meter-critical: #ff8a80;
 
-  /* The unfilled part of a bar, and the outline a hollow bar is drawn with. */
-  --ol-meter-empty: #2a2a30;
+  /* A failure is shown in the same red a critical meter is, because both mean
+     stop reading this number as if it were fine. */
+  --ol-meter-error: var(--ol-meter-critical);
+
+  /* The unfilled part of a bar is the site's own bar track, the same token the
+     phone panels on the home page fill against, so the two read as one
+     component. Ghost is the outline a hollow bar is drawn with. */
+  --ol-meter-empty: var(--ol-track);
   --ol-meter-ghost: #3c3c44;
 
   /* One pixel of light along the top edge of a card. */
   --ol-card-sheen: rgb(255 255 255 / 0.045);
+
+  /* The shimmer that crosses a skeleton, and the block it crosses. */
+  --ol-skeleton: #1f1f23;
+  --ol-skeleton-sheen: rgb(255 255 255 / 0.06);
 
   /* How much of the pressure colour a stale bar keeps. Fading means mixing
      toward the surface, which on a dark surface means darker and on a light
@@ -54,40 +81,153 @@
      page: 3.82 in dark, 3.98 in light, both for the worst of the three. */
   --ol-meter-stale-mix: 55%;
 
-  /* Bar geometry, so every surface renders the same block. */
-  --ol-meter-height: 0.75rem;
-  --ol-meter-gap: 0.1875rem;
-  --ol-meter-radius: 0.125rem;
+  /*
+    Bar geometry, so every surface renders the same block.
+
+    The old bar was a row of ten 12 pixel slabs at a 2 pixel radius, which read
+    as a chart component borrowed from somewhere else. These are the
+    proportions of the bars in the site's own phone panels: a short pill on a
+    track, with a hairline of air between the segments. The semantics are
+    untouched, ten blocks with a half step at every five percent, and only the
+    drawing changed.
+  */
+  --ol-meter-height: 0.5rem;
+  --ol-meter-gap: 0.25rem;
+  --ol-meter-radius: 999px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ol-meter-healthy: #3ddbb8;
-    --ol-meter-watch: #f2b544;
+    --ol-meter-ok: #4ade80;
+    --ol-meter-watch: #fbbf24;
+    --ol-meter-high: #fb923c;
     --ol-meter-critical: #ff8a80;
-    --ol-meter-empty: #2a2a30;
+    --ol-meter-error: var(--ol-meter-critical);
+    --ol-meter-empty: var(--ol-track);
     --ol-meter-ghost: #3c3c44;
     --ol-card-sheen: rgb(255 255 255 / 0.045);
+    --ol-skeleton: #1f1f23;
+    --ol-skeleton-sheen: rgb(255 255 255 / 0.06);
+    --ol-meter-stale-mix: 55%;
   }
 }
 
 :root[data-theme="dark"] {
-  --ol-meter-healthy: #3ddbb8;
-  --ol-meter-watch: #f2b544;
+  --ol-meter-ok: #4ade80;
+  --ol-meter-watch: #fbbf24;
+  --ol-meter-high: #fb923c;
   --ol-meter-critical: #ff8a80;
-  --ol-meter-empty: #2a2a30;
+  --ol-meter-error: var(--ol-meter-critical);
+  --ol-meter-empty: var(--ol-track);
   --ol-meter-ghost: #3c3c44;
   --ol-card-sheen: rgb(255 255 255 / 0.045);
+  --ol-skeleton: #1f1f23;
+  --ol-skeleton-sheen: rgb(255 255 255 / 0.06);
+  --ol-meter-stale-mix: 55%;
 }
 
 :root[data-theme="light"] {
-  --ol-meter-healthy: #0a6d5d;
+  --ol-meter-ok: #166534;
   --ol-meter-watch: #845309;
+  --ol-meter-high: #a04512;
   --ol-meter-critical: #b42318;
-  --ol-meter-empty: #dcdce1;
+  --ol-meter-error: var(--ol-meter-critical);
+  --ol-meter-empty: var(--ol-track);
   --ol-meter-ghost: #c6c6cb;
   --ol-card-sheen: rgb(13 13 15 / 0.04);
+  --ol-skeleton: #e4e4e8;
+  --ol-skeleton-sheen: rgb(13 13 15 / 0.05);
   --ol-meter-stale-mix: 82%;
+}
+
+/*
+  The heading face.
+
+  Two fonts, and each has one job. Baloo 2 SemiBold is the brand face, the one
+  the lockup is drawn in, and it carries the headings: the dashboard title,
+  every panel heading, a provider's display name, the tab labels and the empty
+  state. Everything a person reads as a sentence stays in the system sans, so
+  the interface still feels like the operating system it is running on.
+
+  Numbers are deliberately excluded. A percentage, a countdown and a clock
+  reading are scanned rather than read, and Baloo's rounded digits are slower
+  to tell apart at a glance, so every figure keeps the tabular treatment it
+  already had. Provider codes and anything else that is literally code stay
+  monospace for the same reason: they are values, not language.
+
+  The family arrives as a custom property from lib/fonts.ts, which is the same
+  self hosted file the wordmark uses, so the heading face costs no extra
+  download anywhere on the site. The literal name is kept as a fallback in case
+  the property is ever missing, and the system stack after it means a heading is
+  never invisible while a font loads.
+*/
+.ol-brand-font {
+  font-family:
+    var(--font-brand, "Baloo 2"), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/*
+  The application shell.
+
+  One element wraps the whole route, and it is the only place the installed
+  window's geometry is dealt with. `env(safe-area-inset-*)` is zero in a browser
+  tab and on every desktop, so the `max()` below is simply the ordinary padding
+  everywhere except an installed copy on a notched phone, where it grows enough
+  to clear the notch and the home indicator. The layout sets `viewport-fit:
+  cover`, which is what makes those values non zero in the first place.
+*/
+.ol-shell {
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/*
+  Installed, the site's chrome is not the application's chrome.
+
+  In a browser tab this route sits under the site header and above the site
+  footer, which is correct: it is a page on a website. Launched from a home
+  screen it is an application, and a marketing header with a blog link in it
+  breaks that the moment it appears. The two elements below are the root
+  layout's own header and footer, which this route does not own and does not
+  modify; it only declines to show them in the one display mode where they do
+  not belong. The dashboard carries its own lockup, so nothing brand bearing is
+  lost.
+*/
+@media (display-mode: standalone) {
+  body > nav,
+  body > footer {
+    display: none;
+  }
+
+  .ol-shell {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+}
+
+/*
+  The dashboard's own header, in two tellings.
+
+  A browser tab already has the site header above this one, wordmark and all,
+  so the dashboard shows the ring alone and lets its own name be the heading.
+  Installed there is no site header, so the full lockup comes back, because it
+  is then the only brand anywhere on the screen. One markup, no script, and the
+  decision made by the same display mode the rest of this file keys off.
+*/
+.ol-appmark-full {
+  display: none;
+}
+
+@media (display-mode: standalone) {
+  .ol-appmark-small {
+    display: none;
+  }
+
+  .ol-appmark-full {
+    display: flex;
+  }
 }
 
 /*
@@ -108,8 +248,12 @@
   min-width: 0;
 }
 
-.ol-meter[data-pressure="healthy"] {
-  --ol-pressure-base: var(--ol-meter-healthy);
+.ol-meter[data-pressure="ok"] {
+  --ol-pressure-base: var(--ol-meter-ok);
+}
+
+.ol-meter[data-pressure="high"] {
+  --ol-pressure-base: var(--ol-meter-high);
 }
 
 .ol-meter[data-pressure="watch"] {
@@ -127,7 +271,7 @@
 /* Fresh paints the pressure colour itself. A stale bar keeps the hue and fades
    toward the surface, so it still reads as a reading and still reads as an old
    one. The number beside it is never faded: a percentage has to stay legible,
-   and the hollow dot and the word STALE already carry the state. */
+   and the hollow dot and the word stale already carry the state. */
 .ol-meter {
   --ol-pressure: var(--ol-pressure-base);
 }
@@ -152,6 +296,8 @@
   background-color: var(--ol-pressure);
 }
 
+/* A half block keeps the pill silhouette: the fill is painted inside the
+   rounded box rather than the box being squared off to hold it. */
 .ol-meter-block[data-fill="half"] {
   background-image: linear-gradient(
     to right,
@@ -169,13 +315,17 @@
 }
 
 .ol-meter-sm {
-  --ol-meter-height: 0.5rem;
-  --ol-meter-gap: 0.125rem;
+  --ol-meter-height: 0.375rem;
+  --ol-meter-gap: 0.1875rem;
 }
 
 /* The number beside a bar, painted in the bar's own colour. */
-.ol-pressure-text[data-pressure="healthy"] {
-  color: var(--ol-meter-healthy);
+.ol-pressure-text[data-pressure="ok"] {
+  color: var(--ol-meter-ok);
+}
+
+.ol-pressure-text[data-pressure="high"] {
+  color: var(--ol-meter-high);
 }
 
 .ol-pressure-text[data-pressure="watch"] {
@@ -198,8 +348,12 @@
   background-color: var(--ol-muted);
 }
 
-.ol-pressure-dot[data-pressure="healthy"] {
-  background-color: var(--ol-meter-healthy);
+.ol-pressure-dot[data-pressure="ok"] {
+  background-color: var(--ol-meter-ok);
+}
+
+.ol-pressure-dot[data-pressure="high"] {
+  background-color: var(--ol-meter-high);
 }
 
 .ol-pressure-dot[data-pressure="watch"] {
@@ -237,4 +391,404 @@
    separates a card from the surface behind it beyond its hairline. */
 .ol-sheen {
   box-shadow: inset 0 1px 0 0 var(--ol-card-sheen);
+}
+
+/*
+  The failure line on a card.
+
+  Red, because it is the one thing on a card that is not a reading. The text it
+  carries is always one of the fixed sentences from packages/core/src/
+  failures.ts: not one character of it comes from a provider.
+*/
+.ol-error-line {
+  color: var(--ol-meter-error);
+}
+
+/* The money figure beside a bar, for a plan that is priced rather than
+   rationed. It is a fact about the plan, not a pressure reading, so the words
+   around it are never painted in a band colour. */
+.ol-amount-line {
+  color: var(--ol-soft);
+}
+
+/*
+  Touch.
+
+  A phone gets no hover, so the feedback has to be on the press instead, and it
+  has to be instant. `touch-action: manipulation` is what removes the historical
+  three hundred millisecond wait before a tap counts, and the transparent
+  highlight replaces the platform's grey flash with the scale below, which is
+  the same gesture the site's `.lift` makes with a pointer.
+*/
+.ol-tap {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color 200ms ease,
+    background-color 200ms ease,
+    border-color 200ms ease,
+    scale 120ms ease;
+}
+
+.ol-tap:active {
+  scale: 0.975;
+}
+
+/*
+  The skeleton.
+
+  Shown only while a document is being read or the clock is being advanced, in
+  the surface tones the real cards use, so the layout does not jump when the
+  readings land. The sweep is a background position animation on a gradient,
+  which costs no layout and no paint outside the block itself.
+*/
+.ol-skeleton {
+  border-radius: 0.5rem;
+  background-color: var(--ol-skeleton);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--ol-skeleton-sheen) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: ol-shimmer 1400ms linear infinite;
+}
+
+@keyframes ol-shimmer {
+  from {
+    background-position: -100% 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
+}
+
+/*
+  The launch splash.
+
+  It exists for one frame of one situation: an installed copy opening from a
+  home screen, where the platform paints the manifest background colour and
+  then hands over to the page. Without this the handover is a blank canvas for
+  as long as the bundle takes to run.
+
+  It is display none everywhere except an installed window, so nobody reading
+  the page in a browser tab ever meets it, and it removes itself in three
+  independent ways, because a splash that fails to leave is the one bug this
+  feature can ship. The CSS animation below is the failsafe: it runs with no
+  script at all and it ends at 760 milliseconds, `forwards`, whatever else
+  happens. The dashboard sets `data-ol-ready` on the document as soon as it has
+  mounted, which is usually sooner. And a visitor who asked for less motion
+  never sees it at all.
+*/
+.ol-splash {
+  display: none;
+}
+
+@media (display-mode: standalone) {
+  .ol-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    background-color: var(--ol-canvas);
+    animation: ol-splash-out 320ms ease 440ms forwards;
+  }
+}
+
+.ol-splash-mark {
+  color: var(--ol-brand);
+  animation: ol-splash-pulse 1200ms ease-in-out infinite;
+}
+
+@keyframes ol-splash-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    scale: 0.97;
+  }
+  50% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes ol-splash-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Mounted, so the splash goes now rather than waiting out its own animation. */
+:root[data-ol-ready] .ol-splash {
+  animation: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 200ms ease,
+    visibility 0s linear 200ms;
+}
+
+/*
+  The install sheet.
+
+  iOS Safari has no install API of any kind, so the only honest thing a button
+  can do there is show the two taps the platform requires. It is a sheet rather
+  than a dialog element so it can slide from the bottom edge on a phone and sit
+  centred on a desktop, and it is only ever opened by a press.
+*/
+.ol-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  background-color: rgb(0 0 0 / 0.55);
+  animation: ol-fade-in 200ms ease both;
+}
+
+@media (min-width: 640px) {
+  .ol-sheet-backdrop {
+    align-items: center;
+  }
+}
+
+.ol-sheet {
+  animation: ol-sheet-up 260ms cubic-bezier(0, 0, 0.58, 1) both;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@keyframes ol-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ol-sheet-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+  The list view.
+
+  A grid with table roles rather than a `<table>`, because the row has to fold
+  at phone width and a table row cannot be refolded without throwing away the
+  semantics that made it a table. Seven columns on a wide screen, in the order
+  somebody reads them; at 640 the same seven cells rearrange into an identity
+  line with its reading on the right, the bar on its own full width line, and
+  one muted line carrying the money, the freshness and the countdown. Nothing
+  scrolls sideways at any width.
+*/
+.ol-list {
+  display: block;
+  width: 100%;
+}
+
+.ol-list-row {
+  display: grid;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  padding: 0.625rem 1.25rem;
+  grid-template-columns:
+    minmax(7rem, 1.1fr) minmax(6rem, 0.9fr) minmax(5rem, 1.3fr)
+    3.75rem minmax(0, 6.5rem) 4.5rem minmax(0, 7.5rem);
+}
+
+/* A provider's rows read as one block, so the hairline goes between groups. */
+.ol-list-row[data-group-start] {
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.ol-list-head {
+  border-bottom: 1px solid var(--ol-hairline);
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-size: var(--text-2xs);
+  line-height: var(--text-2xs--line-height);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ol-muted);
+}
+
+.ol-cell-value,
+.ol-cell-money {
+  text-align: right;
+}
+
+@media (hover: hover) {
+  .ol-list-row:not(.ol-list-head):hover {
+    background-color: var(--ol-raised);
+  }
+}
+
+@media (max-width: 639px) {
+  /*
+    Three areas, seven cells, no overlap and no sideways scroll.
+
+    Line one is who and what, with the reading on the right. The bar takes a
+    full width line of its own, which is the only way ten segments stay
+    readable at this width. Line three is the quiet detail: freshness, money
+    and the countdown, one at each end and one in the middle.
+  */
+  .ol-list-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ident meter value"
+      "bar   bar   bar"
+      "state money reset";
+    gap: 0.375rem 0.625rem;
+    padding: 0.875rem 1rem;
+  }
+
+  .ol-cell-ident {
+    grid-area: ident;
+    min-width: 0;
+  }
+
+  .ol-cell-meter {
+    grid-area: meter;
+    justify-self: start;
+    color: var(--ol-muted);
+  }
+
+  .ol-cell-bar {
+    grid-area: bar;
+  }
+
+  .ol-cell-value {
+    grid-area: value;
+  }
+
+  .ol-cell-state {
+    grid-area: state;
+    justify-self: start;
+  }
+
+  .ol-cell-money {
+    grid-area: money;
+    justify-self: center;
+    text-align: center;
+  }
+
+  .ol-cell-reset {
+    grid-area: reset;
+    justify-self: end;
+    text-align: right;
+  }
+
+  .ol-list-head {
+    display: none;
+  }
+}
+
+/*
+  The entrance, in the site's own motion language, without the site's observer.
+
+  The marketing pages fade and rise their sections through `[data-reveal]` and
+  one shared IntersectionObserver, and that observer collects its targets once,
+  when it mounts. Everything on this route appears after that: a card exists
+  because a document was just read. An element added later is never observed,
+  so borrowing that attribute here would leave the dashboard permanently at
+  opacity zero, which is exactly the failure the site's own rule about content
+  being visible by default exists to prevent.
+
+  So the entrance runs on the element itself instead, at the site's numbers:
+  twenty pixels of travel, 560 milliseconds, the same curve `ease-out` expands
+  to, and seventy milliseconds between siblings in a group. `backwards` holds
+  the start state through the delay and then hands the element back to its
+  ordinary style, so a finished animation leaves it painted and complete. There
+  is no state in which content can stay hidden.
+*/
+@keyframes ol-rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ol-rise {
+  animation: ol-rise-in 560ms cubic-bezier(0, 0, 0.58, 1) var(--ol-rise-delay, 0ms) backwards;
+}
+
+.ol-stagger > *:nth-child(1) { --ol-rise-delay: 0ms; }
+.ol-stagger > *:nth-child(2) { --ol-rise-delay: 70ms; }
+.ol-stagger > *:nth-child(3) { --ol-rise-delay: 140ms; }
+.ol-stagger > *:nth-child(4) { --ol-rise-delay: 210ms; }
+.ol-stagger > *:nth-child(5) { --ol-rise-delay: 280ms; }
+.ol-stagger > *:nth-child(6) { --ol-rise-delay: 350ms; }
+.ol-stagger > *:nth-child(n + 7) { --ol-rise-delay: 420ms; }
+
+/*
+  The tab panels.
+
+  A cross fade with a few pixels of rise, keyed off the panel's own identity so
+  switching tabs replays it. It is the same curve and the same distance the
+  site's small reveal uses, which is what makes the switch feel like part of
+  the same product rather than a control from a different one.
+*/
+.ol-panel {
+  animation: ol-panel-in 220ms cubic-bezier(0, 0, 0.58, 1) both;
+}
+
+@keyframes ol-panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+  Less motion, and the rule that governs it: nothing is ever left hidden.
+
+  Every animation in this file either fades something in or fades the splash
+  out, so switching them all off has to leave the page complete rather than
+  frozen at a start state. The splash is the one that would otherwise stay, so
+  it is removed outright.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .ol-skeleton {
+    animation: none;
+  }
+
+  .ol-splash,
+  .ol-splash-mark {
+    animation: none;
+  }
+
+  .ol-splash {
+    display: none;
+  }
+
+  .ol-sheet-backdrop,
+  .ol-sheet,
+  .ol-panel,
+  .ol-rise {
+    animation: none;
+  }
+
+  .ol-tap:active {
+    scale: 1;
+  }
 }

@@ -237,3 +237,53 @@ describe("connector contracts", () => {
     }, FIXTURE_NOW)).toBeNull();
   });
 });
+
+/**
+ * OpenRouter is the one provider whose documented shape states money.
+ *
+ * The connector hands the two figures on as it read them; the normalizer is
+ * what decides whether they are believable. These tests cover the handover and
+ * the two ends of it.
+ */
+describe("openrouter amounts", () => {
+  it("carries the documented credit figures onto the meter", () => {
+    const parsed = parseOpenrouterPayload(openrouterFixture(), FIXTURE_NOW);
+    expect(parsed).toHaveLength(1);
+    expect(parsed?.[0]?.usedAmount).toBe(12.47);
+    expect(parsed?.[0]?.limitAmount).toBe(20);
+    expect(parsed?.[0]?.currency).toBe("USD");
+  });
+
+  it("survives normalization with its amounts intact", () => {
+    const normalized = normalizeMeters(
+      parseOpenrouterPayload(openrouterFixture(), FIXTURE_NOW) ?? []
+    );
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]?.usedAmount).toBe(12.47);
+    expect(normalized[0]?.limitAmount).toBe(20);
+    expect(normalized[0]?.currency).toBe("USD");
+    expect(normalized[0]?.value).toBeCloseTo(62.35, 10);
+  });
+
+  it("keeps the percent when the amounts are too large to believe", () => {
+    const parsed = parseOpenrouterPayload(
+      { data: { total_credits: 4_000_000, total_usage: 2_000_000 } },
+      FIXTURE_NOW
+    );
+    const normalized = normalizeMeters(parsed ?? []);
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]?.value).toBe(50);
+    expect(normalized[0]?.usedAmount).toBeUndefined();
+    expect(normalized[0]?.limitAmount).toBeUndefined();
+    expect(normalized[0]?.currency).toBeUndefined();
+  });
+
+  it("states no money at all when the payload states none", () => {
+    const parsed = parseOpenrouterPayload(
+      { data: { total_credits: 100, total_usage: 0 } },
+      FIXTURE_NOW
+    );
+    expect(parsed?.[0]?.usedAmount).toBe(0);
+    expect(normalizeMeters(parsed ?? [])[0]?.usedAmount).toBe(0);
+  });
+});

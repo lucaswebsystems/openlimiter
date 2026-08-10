@@ -6,10 +6,14 @@
  * the script again.
  */
 import {
+  MAX_SNAPSHOT_AMOUNT,
   PROVIDER_CODES,
   type ConnectorLabels,
+  type ProviderCode,
   type RawMeter,
   type Snapshot,
+  type SnapshotAmounts,
+  type SnapshotCurrency,
   type SnapshotPrecision,
   type SnapshotSource,
   type SnapshotUnit,
@@ -25,6 +29,7 @@ const sources = new Set<SnapshotSource>([
   "manual_entry"
 ]);
 const precisions = new Set<SnapshotPrecision>(["exact", "estimated", "manual"]);
+const currencies = new Set<SnapshotCurrency>(["USD"]);
 const providerCodes = new Set<string>(PROVIDER_CODES);
 const safeMeter = /^[A-Z][A-Z0-9_]{0,31}$/u;
 
@@ -85,6 +90,32 @@ function normalizeLabels(value: unknown): ConnectorLabels | null {
   };
 }
 
+/**
+ * Validate the money amounts, as one unit or not at all.
+ *
+ * They arrive together or they do not arrive, and they leave together or they
+ * do not leave. Any one of them being absent, out of range, the wrong type, or
+ * inconsistent with the other drops all three, which is what keeps a card from
+ * ever printing a spend with no plan size beside it. The percentage on the same
+ * reading is untouched by this: a provider that misreports its money has not
+ * misreported how full the meter is.
+ */
+function normalizeAmounts(raw: RawMeter): SnapshotAmounts | null {
+  const used = raw.usedAmount;
+  const limit = raw.limitAmount;
+  const currency = raw.currency;
+  if (used === undefined && limit === undefined && currency === undefined) return null;
+  if (typeof used !== "number" || typeof limit !== "number") return null;
+  if (typeof currency !== "string" || !currencies.has(currency as SnapshotCurrency)) {
+    return null;
+  }
+  if (!Number.isFinite(used) || !Number.isFinite(limit)) return null;
+  if (used < 0 || limit < 0) return null;
+  if (used > limit) return null;
+  if (used > MAX_SNAPSHOT_AMOUNT || limit > MAX_SNAPSHOT_AMOUNT) return null;
+  return { usedAmount: used, limitAmount: limit, currency: currency as SnapshotCurrency };
+}
+
 export function normalizeMeter(raw: RawMeter): Snapshot | null {
   if (typeof raw.provider !== "string" || !providerCodes.has(raw.provider)) return null;
   if (typeof raw.meter !== "string" || !safeMeter.test(raw.meter)) return null;
@@ -107,6 +138,7 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
   ) return null;
   if (!isIsoInstant(raw.observedAt) || !isIsoInstant(raw.expiresAt)) return null;
   if (Date.parse(raw.expiresAt) < Date.parse(raw.observedAt)) return null;
+  const amounts = normalizeAmounts(raw);
   return {
     provider: raw.provider as Snapshot["provider"],
     meter: raw.meter,
@@ -118,7 +150,8 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
     precision: raw.precision as SnapshotPrecision,
     observedAt: raw.observedAt,
     expiresAt: raw.expiresAt,
-    labels
+    labels,
+    ...(amounts === null ? {} : amounts)
   };
 }
 
@@ -127,6 +160,46 @@ export function normalizeMeters(rawMeters: readonly RawMeter[]): Snapshot[] {
     const normalized = normalizeMeter(raw);
     return normalized === null ? [] : [normalized];
   });
+}
+
+/**
+ * What survived validation, and who lost a reading to it.
+ *
+ * `normalizeMeters` above answers the only question the engine ever asks: what
+ * may be believed. A human surface has a second question, which is why a card
+ * is empty when a document clearly mentioned that provider, and this is the
+ * seam that answers it without changing the first.
+ *
+ * A rejected reading is only attributed when its provider code was itself
+ * valid. Anything else is counted and left anonymous rather than blamed on a
+ * provider that a hostile document happened to name.
+ */
+export interface NormalizeReport {
+  snapshots: Snapshot[];
+  /** Providers that had at least one reading refused. Never a guess. */
+  rejected: readonly ProviderCode[];
+  /** How many readings were dropped in total, attributable or not. */
+  dropped: number;
+}
+
+export function normalizeMetersReport(
+  rawMeters: readonly RawMeter[]
+): NormalizeReport {
+  const snapshots: Snapshot[] = [];
+  const rejected = new Set<ProviderCode>();
+  let dropped = 0;
+  for (const raw of rawMeters) {
+    const normalized = normalizeMeter(raw);
+    if (normalized !== null) {
+      snapshots.push(normalized);
+      continue;
+    }
+    dropped += 1;
+    if (typeof raw.provider === "string" && providerCodes.has(raw.provider)) {
+      rejected.add(raw.provider as ProviderCode);
+    }
+  }
+  return { snapshots, rejected: [...rejected], dropped };
 }
 
 function sortDeep(value: unknown): unknown {

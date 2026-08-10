@@ -24,12 +24,28 @@ export interface SnapshotRow {
   resetAt: string | null;
 }
 
-const HEADER = "PROVIDER METER USAGE STATE RESET";
+const HEADER = "PROVIDER METER BAR USAGE AMOUNT STATE RESET IN";
+
+/** Where each field sits on a row, matching the header above exactly. */
+const COLUMN = {
+  provider: 0,
+  meter: 1,
+  usage: 3,
+  state: 5,
+  reset: 6,
+} as const;
+
+const COLUMN_COUNT = 8;
 
 /**
  * Splits the captured table into typed rows. A line that does not match the
  * shape the renderer emits is dropped rather than guessed at, so a malformed
  * capture produces fewer rows and never a wrong one.
+ *
+ * The renderer always emits the same eight columns, writing NONE where a
+ * provider has no money or no reset, so the count below is a fixed check
+ * rather than a lower bound. The bar and the countdown are read past: they are
+ * drawn from the percentage on this site rather than reprinted.
  */
 export function parseDemoRows(): readonly SnapshotRow[] {
   return demoCapture.output
@@ -37,9 +53,13 @@ export function parseDemoRows(): readonly SnapshotRow[] {
     .filter((line) => line.length > 0 && line !== HEADER)
     .map((line): SnapshotRow | null => {
       const parts = line.split(" ");
-      if (parts.length !== 5) return null;
+      if (parts.length !== COLUMN_COUNT) return null;
 
-      const [provider, meter, usage, state, reset] = parts;
+      const usage = parts[COLUMN.usage];
+      const provider = parts[COLUMN.provider];
+      const meter = parts[COLUMN.meter];
+      const state = parts[COLUMN.state];
+      const reset = parts[COLUMN.reset];
       const percent = Number.parseFloat(usage.replace("PERCENT", ""));
       if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
 

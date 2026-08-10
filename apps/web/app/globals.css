@@ -36,14 +36,18 @@
   The hero video backdrop is measured separately, because the surface behind
   that text is a moving picture rather than a token. Every one of the 901
   frames was composited under the veil declared further down this file, at the
-  hero's real geometry, and the worst result any piece of hero text reaches
-  over any frame is:
-    dark:   12px disclaimer 6.10:1, 18px lead 7.20:1, headline 14.10:1
-    light:  12px disclaimer 5.22:1, 18px lead 6.58:1, headline 13.76:1
-  The tightest of those clears AA 4.5:1 by a factor of 1.16. The two pieces of
-  hero text sitting on the filled primary button are on an opaque token and are
-  covered by the figures above instead. Re-measure if the veil, the footage or
-  the hero's copy changes.
+  hero's real geometry, and every piece of hero text was checked against the
+  brightest and the darkest that pixel ever gets. The worst result at each
+  width the veil behaves differently at:
+    1440 open ramp, video:   dark 6.10:1, light 5.22:1
+    1280 open ramp, video:   dark 6.11:1, light 5.22:1
+     768 flat veil, video:   dark 6.19:1, light 5.23:1
+     375 flat veil, poster:  dark 6.48:1, light 5.26:1
+  Every one clears AA 4.5:1, the tightest by a factor of 1.16, and the model
+  those numbers come from was checked against the rendered page and agreed to
+  within 3 of 255. The two pieces of hero text on the filled primary button sit
+  on an opaque token and are covered by the figures higher up instead.
+  Re-measure if the veil, the footage or the hero's copy changes.
 */
 
 @theme inline {
@@ -74,6 +78,9 @@
   --color-solid: var(--ol-solid);
   --color-solid-hover: var(--ol-solid-hover);
   --color-on-solid: var(--ol-on-solid);
+
+  --color-announce: var(--ol-announce);
+  --color-announce-fg: var(--ol-announce-fg);
 }
 
 @theme {
@@ -125,6 +132,12 @@
   --ol-solid: #fafafa;
   --ol-solid-hover: #e4e4e4;
   --ol-on-solid: #0d0d0f;
+
+  --ol-elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.45);
+  --ol-elev-2: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 8px 20px -14px rgb(0 0 0 / 0.75);
+
+  --ol-announce: #0866ff;
+  --ol-announce-fg: #ffffff;
 }
 
 /* Kept so the cascade below still resolves; the dark values already apply. */
@@ -159,6 +172,12 @@
     --ol-solid: #fafafa;
     --ol-solid-hover: #e4e4e4;
     --ol-on-solid: #0d0d0f;
+
+    --ol-elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.45);
+    --ol-elev-2: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 8px 20px -14px rgb(0 0 0 / 0.75);
+
+    --ol-announce: #0866ff;
+    --ol-announce-fg: #ffffff;
   }
 }
 
@@ -193,6 +212,12 @@
   --ol-solid: #fafafa;
   --ol-solid-hover: #e4e4e4;
   --ol-on-solid: #0d0d0f;
+
+  --ol-elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.45);
+  --ol-elev-2: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 8px 20px -14px rgb(0 0 0 / 0.75);
+
+  --ol-announce: #0866ff;
+  --ol-announce-fg: #ffffff;
 }
 
 /* Light, only when a visitor explicitly asks for it through the toggle. */
@@ -226,12 +251,85 @@
   --ol-solid: #0d0d0f;
   --ol-solid-hover: #26262c;
   --ol-on-solid: #fafafa;
+
+  /*
+    Elevation in light, and why it is this small.
+
+    The wide blurry drop this site used to carry read as smudge rather than
+    lift: on a near white canvas a large blur radius spreads a grey haze over
+    several hundred pixels and the edge of the card disappears into it. What
+    separates a surface from a page in light is the hairline border, which
+    every card already has. The shadow only has to seat that border, so it is
+    one pixel of offset and a two pixel blur at 5 percent, with a second, wider
+    pass at 10 percent reserved for the two objects that genuinely float, the
+    product frame and the phone shells. Both are measured in device pixels
+    rather than guessed: nothing here blurs further than 14 pixels.
+  */
+  --ol-elev-1: 0 1px 2px 0 rgb(13 13 15 / 0.05);
+  --ol-elev-2: 0 1px 2px 0 rgb(13 13 15 / 0.06), 0 6px 14px -10px rgb(13 13 15 / 0.14);
+
+  /* The one pairing that does not flip with the theme. The bar is the brand
+     blue in both, and white on that blue measures 4.82:1, which clears AA for
+     normal text. Flipping it would make the promo read as page furniture. */
+  --ol-announce: #0866ff;
+  --ol-announce-fg: #ffffff;
 }
 
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/*
+  Typography: two faces, and the line between them.
+
+  Headings are Baloo 2 at 600, the same file and the same weight the wordmark
+  is set in, so the page and the mark speak with one voice. Everything else,
+  body copy, buttons, chips, links, captions and every number, stays in the
+  system stack. That is the whole system: two faces, one downloaded file, and
+  the file is loaded exactly once in lib/fonts.ts.
+
+  `--font-brand` is published on the root element by the layout. The fallback
+  behind it matters: if the file has not arrived, or a visitor blocks it, a
+  heading renders in the system stack at the same size rather than in a serif
+  the browser picked, and `display: swap` then hands it the real face.
+
+  TRACKING, and why it is negative at every level.
+
+  Baloo 2 is a rounded display face with generous sidebearings, which is what
+  makes it friendly at a wordmark's size and bubbly at a headline's. Set at the
+  metrics this layout was built on it opened the headline up by roughly a
+  character across two lines. So each level is pulled back in, hardest where
+  the type is largest and the effect is worst: three percent of an em on the
+  hero, two and a half on a section heading, one and a half on the small
+  titles. Sizes and weights are untouched; only the space between letters
+  moved, which keeps the rhythm the rest of the page was measured against.
+
+  `.heading-face` is for the titles that are not heading elements: an FAQ
+  question inside a summary, a card title in a paragraph, a footer column
+  label. It carries exactly what an h4 carries, so nothing drifts.
+*/
+h1,
+h2,
+h3,
+h4,
+.heading-face {
+  font-family: var(--font-brand), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+h1 {
+  letter-spacing: -0.03em;
+}
+
+h2 {
+  letter-spacing: -0.025em;
+}
+
+h3 {
+  letter-spacing: -0.02em;
 }
 
 html {
@@ -265,6 +363,91 @@ body {
 
 .focus-ring-inset:focus-visible {
   outline-offset: -3px;
+}
+
+/*
+  The announcement bar.
+
+  Three rules and nothing else. The bar itself is ordinary markup in the
+  document the server sends, so all this file decides is when it is not there.
+
+  A reader who closed it has `data-announce="off"` on the root element, set by
+  the head script in lib/announce.ts before the body paints. `display: none`
+  takes the bar out of the flow completely, so a closed bar leaves no strip
+  behind and the header sits exactly where it would if the bar had never been
+  written. Nothing here animates, because a bar that slides away on every load
+  is a bar that shifts the page on every load.
+
+  /app is the product, not a marketing page, so the bar is hidden wherever the
+  application shell is on the screen. The selector reads that route's own root
+  element rather than reaching into its code.
+
+  The focus ring is the one place the site's accent ring cannot be used: an
+  accent outline on an accent band is invisible. Inside the bar it is drawn in
+  the bar's own foreground token instead.
+*/
+:root[data-announce="off"] .announce-bar,
+body:has(.ol-shell) .announce-bar {
+  display: none;
+}
+
+.announce-bar .focus-ring:focus-visible,
+.announce-bar .focus-ring-inset:focus-visible {
+  outline-color: var(--ol-announce-fg);
+}
+
+.announce-dismiss {
+  transition: background-color 200ms ease;
+}
+
+@media (hover: hover) {
+  .announce-dismiss:hover {
+    background-color: color-mix(in srgb, var(--ol-announce-fg) 18%, transparent);
+  }
+}
+
+/*
+  Elevation, the whole system.
+
+  Two steps and no others. `elev-1` is what a card gets: a single pixel of
+  offset that seats its hairline border, nothing a reader would name as a
+  shadow. `elev-2` is reserved for the two objects that are meant to float off
+  the page, the product frame and the phone shells, and even that stays inside
+  a 14 pixel blur. Both resolve to a token, so each theme carries its own
+  values and neither is written in a component.
+*/
+.elev-1 {
+  box-shadow: var(--ol-elev-1);
+}
+
+.elev-2 {
+  box-shadow: var(--ol-elev-2);
+}
+
+/*
+  The one gradient on this site, and it is a hairline rather than a fill.
+
+  A raised panel sitting on the canvas needs a top edge that reads as an edge
+  without drawing a hard line across the whole width. This is a single pixel
+  tall, transparent at both ends and at `hairline-strong` in the middle, so the
+  panel looks lit from above and the rule dissolves before it reaches a corner.
+  Both stops are tokens, so each theme carries its own and neither is a colour
+  written in a component.
+*/
+.hairline-sheen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+  background-image: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--ol-hairline-strong) 22%,
+    var(--ol-hairline-strong) 78%,
+    transparent 100%
+  );
 }
 
 .sr-only {
@@ -565,10 +748,38 @@ body {
     linear-gradient(
       to right,
       color-mix(in srgb, var(--ol-canvas) 90%, transparent) 0%,
-      color-mix(in srgb, var(--ol-canvas) 87%, transparent) 46%,
-      color-mix(in srgb, var(--ol-canvas) 44%, transparent) 80%,
-      color-mix(in srgb, var(--ol-canvas) 64%, transparent) 100%
+      color-mix(in srgb, var(--ol-canvas) 86%, transparent) 100%
     );
+}
+
+/*
+  Only a wide screen gets the picture opened up.
+
+  The reading scrim above thins towards the right because the hero's words are
+  on the left, but that is only true once the column is wide enough to leave
+  the right hand side empty. Measured on the rendered page, the hero's text
+  reaches 87 percent of the way across the band at 375, 80 percent at 768, and
+  only 49 percent at 1280. So the thinning starts at 1280 and nowhere below it,
+  where the veil stays flat and heavy instead and the footage reads as a tint.
+*/
+@media (min-width: 1280px) {
+  .hero-backdrop::after {
+    background:
+      linear-gradient(
+        to bottom,
+        var(--ol-canvas) 0%,
+        transparent 20%,
+        transparent 66%,
+        var(--ol-canvas) 100%
+      ),
+      linear-gradient(
+        to right,
+        color-mix(in srgb, var(--ol-canvas) 90%, transparent) 0%,
+        color-mix(in srgb, var(--ol-canvas) 87%, transparent) 46%,
+        color-mix(in srgb, var(--ol-canvas) 44%, transparent) 80%,
+        color-mix(in srgb, var(--ol-canvas) 64%, transparent) 100%
+      );
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -610,6 +821,12 @@ body {
     width: 100%;
     flex-wrap: wrap;
     animation: none !important;
+  }
+
+  /* The seamless second copy only exists so the loop has no seam. With no
+     loop it is duplicate content taking up a screen of height, so it goes. */
+  .strip-clone {
+    display: none;
   }
 
   /* The mark renders complete and still, with no dash state and no animation

@@ -39,6 +39,7 @@ const COPY = {
     from: path.join(REPOSITORY, "packages", "core", "dist"),
     files: [
       "types.js",
+      "failures.js",
       "format.js",
       "forecast.js",
       "freshness.js",
@@ -117,11 +118,18 @@ for (const [name, spec] of Object.entries(COPY)) {
 
 writeFileSync(path.join(ENGINE, "core", "index.js"), CORE_BARREL, "utf8");
 
-for (const file of ["index.html", "app.css", "app.js"]) {
+/* The window itself. theme.css holds every colour, radius and the embedded
+   wordmark face; app.css draws the components and names no literal. That is
+   the same token layer and component layer split the web side makes, and it is
+   what lets the design lint exempt the one file that defines values. */
+const WINDOW_FILES = ["index.html", "theme.css", "app.css", "app.js"];
+
+for (const file of WINDOW_FILES) {
   copyFileSync(path.join(DESKTOP, "ui", file), path.join(DIST, file));
 }
 
 const copied = Object.values(COPY).reduce((total, spec) => total + spec.files.length, 0);
 process.stdout.write(
-  `Assembled ui/dist from ${String(copied)} compiled modules and three window files.\n`,
+  `Assembled ui/dist from ${String(copied)} compiled modules and ` +
+    `${String(WINDOW_FILES.length)} window files.\n`,
 );

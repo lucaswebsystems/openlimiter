@@ -4,12 +4,36 @@ import type { ReactNode } from "react";
 const linkStyle =
   "focus-ring rounded text-accent underline underline-offset-4 transition-colors hover:text-accent-hover";
 
+/**
+ * A link inside documentation prose.
+ *
+ * `DocLink` is for a route on this site and `ExternalLink` is for a
+ * destination off it, which opens in its own tab with `noopener noreferrer`.
+ * `DocLink` also checks the href rather than trusting the caller: anything
+ * absolute is handed to `ExternalLink`, so a page that reaches for the wrong
+ * component still cannot ship an off site link that hijacks this tab.
+ */
 export function DocLink({ href, children }: { href: string; children: ReactNode }) {
+  if (isExternalHref(href)) return <ExternalLink href={href}>{children}</ExternalLink>;
+  if (href.startsWith("mailto:") || href.startsWith("tel:")) {
+    /* Neither a route nor a web page. It stays in this tab, because a new tab
+       for a mail client is a blank tab left behind. */
+    return (
+      <a href={href} className={linkStyle}>
+        {children}
+      </a>
+    );
+  }
   return (
     <Link href={href} className={linkStyle}>
       {children}
     </Link>
   );
+}
+
+/** A destination off this site: an absolute URL, or a protocol relative one. */
+export function isExternalHref(href: string): boolean {
+  return /^(https?:)?\/\//i.test(href);
 }
 
 export function ExternalLink({ href, children }: { href: string; children: ReactNode }) {

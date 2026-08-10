@@ -1,25 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   combine,
   dashboardView,
   parseQuotaText,
   sampleSnapshots,
+  type ProviderFailure,
   type Snapshot,
 } from "./engine";
+import { InstallControl } from "./install";
 import {
   Button,
   CodeBlock,
   DemoDataChip,
   EmptyState,
   HeaderStrip,
+  MeterList,
   Panel,
   ProviderCard,
+  SkeletonCards,
   Tabs,
+  ViewSwitch,
   type TabDefinition,
+  type ViewMode,
 } from "./pieces";
 import { providerName } from "./language";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
  * The dashboard.
@@ -41,6 +48,31 @@ const STORAGE_SAMPLE_KEY = "openlimiter-app-sample";
 
 /** How often the clock advances, which is what ages a reading to stale. */
 const TICK_MILLISECONDS = 10_000;
+
+/**
+ * How long a working state stays on screen at the least.
+ *
+ * Validating a document is usually over inside a frame, and a placeholder that
+ * appears and vanishes inside two frames is a flicker rather than feedback. So
+ * the skeleton is held for this long, and no longer: a document that genuinely
+ * takes more than this keeps the skeleton until it is actually finished.
+ */
+const BUSY_FLOOR_MILLISECONDS = 240;
+
+/** Set on the document once this component has mounted. Clears the splash. */
+const READY_ATTR = "data-ol-ready";
+
+/** Where the grid or list choice is remembered, on this device only. */
+const STORAGE_VIEW_KEY = "openlimiter-app-view";
+
+function loadView(): ViewMode {
+  if (typeof window === "undefined") return "grid";
+  try {
+    return window.localStorage.getItem(STORAGE_VIEW_KEY) === "list" ? "list" : "grid";
+  } catch {
+    return "grid";
+  }
+}
 
 const TABS: readonly TabDefinition[] = [
   { id: "meters", label: "Meters" },
@@ -78,28 +110,58 @@ function parseStored(value: unknown[]): Snapshot[] {
   return result.ok ? [...result.snapshots] : [];
 }
 
-export function Dashboard() {
+export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [snapshots, setSnapshots] = useState<readonly Snapshot[]>([]);
+  /**
+   * What the last document got wrong, per provider.
+   *
+   * Kept beside the readings rather than inside them, because a rejected
+   * reading is not a reading: the provider's card still shows the last good
+   * one and says, in red, that the newer document was refused. Cleared on the
+   * next successful read of that provider, and never stored, since a failure
+   * is about a document rather than about the state of a quota.
+   */
+  const [failures, setFailures] = useState<readonly ProviderFailure[]>([]);
   const [sample, setSample] = useState(false);
   const [text, setText] = useState("");
   const [note, setNote] = useState<{ tone: "ok" | "bad"; message: string } | null>(null);
   const [now, setNow] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  /* Grid until this device says otherwise, and the server has no device, so
+     the stored choice is read after mount rather than during render. */
+  const [view, setView] = useState<ViewMode>("grid");
   const [dragging, setDragging] = useState(false);
   const [tab, setTab] = useState<string>("meters");
   const fileInput = useRef<HTMLInputElement | null>(null);
   const textArea = useRef<HTMLTextAreaElement | null>(null);
+  const busyTimer = useRef<number | null>(null);
 
   useEffect(() => {
     const stored = loadStored();
     setSnapshots(stored.snapshots);
     setSample(stored.sample);
     setNow(new Date().toISOString());
+    setView(loadView());
+    /* The launch splash waits on this and nothing else. */
+    document.documentElement.setAttribute(READY_ATTR, "1");
     const timer = window.setInterval(() => {
       setNow(new Date().toISOString());
     }, TICK_MILLISECONDS);
     return () => {
       window.clearInterval(timer);
+      if (busyTimer.current !== null) window.clearTimeout(busyTimer.current);
     };
+  }, []);
+
+  /** Show the working state, then clear it no sooner than the floor above. */
+  const work = useCallback((run: () => void) => {
+    setBusy(true);
+    if (busyTimer.current !== null) window.clearTimeout(busyTimer.current);
+    busyTimer.current = window.setTimeout(() => {
+      run();
+      setBusy(false);
+      busyTimer.current = null;
+    }, BUSY_FLOOR_MILLISECONDS);
   }, []);
 
   const persist = useCallback((next: readonly Snapshot[], isSample: boolean) => {
@@ -113,50 +175,78 @@ export function Dashboard() {
 
   const read = useCallback(
     (incoming: string) => {
-      const instant = new Date().toISOString();
-      const result = parseQuotaText(incoming, instant);
-      if (!result.ok) {
-        setNote({ tone: "bad", message: messages[result.reason] });
-        return;
-      }
-      setSnapshots((current) => {
-        const merged = combine(current, result.snapshots);
-        persist(merged, false);
-        return merged;
+      work(() => {
+        const instant = new Date().toISOString();
+        const result = parseQuotaText(incoming, instant);
+        /* A refused reading is reported on its provider's own card, whether or
+           not anything else in the same document survived. */
+        setFailures(result.failures);
+        if (!result.ok) {
+          setNote({ tone: "bad", message: messages[result.reason] });
+          setNow(instant);
+          return;
+        }
+        setSnapshots((current) => {
+          const merged = combine(current, result.snapshots);
+          persist(merged, false);
+          return merged;
+        });
+        setSample(false);
+        setNow(instant);
+        setNote({
+          tone: "ok",
+          message:
+            "Read " +
+            String(result.snapshots.length) +
+            (result.snapshots.length === 1 ? " meter from " : " meters from ") +
+            result.recognised.join(", ") +
+            ".",
+        });
+        setTab("meters");
       });
-      setSample(false);
+    },
+    [persist, work],
+  );
+
+  /**
+   * Read the device again.
+   *
+   * There is no server to ask, so this re reads what this browser stored,
+   * validates it once more with the same normalizer, and advances the clock,
+   * which is what ages a reading past its own expiry. It is the same button
+   * the desktop window carries, doing the same job against the one source each
+   * surface actually has.
+   */
+  const refresh = useCallback(() => {
+    work(() => {
+      const stored = loadStored();
+      setSnapshots(stored.snapshots);
+      setSample(stored.sample);
+      setNow(new Date().toISOString());
+    });
+  }, [work]);
+
+  const loadSample = useCallback(() => {
+    work(() => {
+      const instant = new Date().toISOString();
+      const next = sampleSnapshots(instant);
+      setSnapshots(next);
+      setFailures([]);
+      setSample(true);
       setNow(instant);
+      persist(next, true);
       setNote({
         tone: "ok",
         message:
-          "Read " +
-          String(result.snapshots.length) +
-          (result.snapshots.length === 1 ? " meter from " : " meters from ") +
-          result.recognised.join(", ") +
-          ".",
+          "Loaded the project's synthetic fixtures. No account, no credential and no real usage is involved.",
       });
       setTab("meters");
-    },
-    [persist],
-  );
-
-  const loadSample = useCallback(() => {
-    const instant = new Date().toISOString();
-    const next = sampleSnapshots(instant);
-    setSnapshots(next);
-    setSample(true);
-    setNow(instant);
-    persist(next, true);
-    setNote({
-      tone: "ok",
-      message:
-        "Loaded the project's synthetic fixtures. No account, no credential and no real usage is involved.",
     });
-    setTab("meters");
-  }, [persist]);
+  }, [persist, work]);
 
   const clear = useCallback(() => {
     setSnapshots([]);
+    setFailures([]);
     setSample(false);
     setText("");
     setNote(null);
@@ -184,6 +274,16 @@ export function Dashboard() {
     [read],
   );
 
+  /** Remember the layout, on this device only, and apply it now. */
+  const chooseView = useCallback((next: ViewMode) => {
+    setView(next);
+    try {
+      window.localStorage.setItem(STORAGE_VIEW_KEY, next);
+    } catch {
+      /* Storage refused. The choice still applies to this page. */
+    }
+  }, []);
+
   const openIngest = useCallback(() => {
     setTab("ingest");
     window.setTimeout(() => {
@@ -191,21 +291,14 @@ export function Dashboard() {
     }, 0);
   }, []);
 
-  const view = useMemo(
-    () => (now === null ? null : dashboardView(snapshots, now)),
-    [snapshots, now],
+  /* The rendered shape of every reading. Named apart from `view` above, which
+     is the layout choice: one is what is shown, the other is how. */
+  const dash = useMemo(
+    () => (now === null ? null : dashboardView(snapshots, now, failures)),
+    [snapshots, now, failures],
   );
 
-  const hasReadings = snapshots.length > 0;
-  const readable =
-    view === null
-      ? 0
-      : view.providers.reduce(
-          (total, provider) =>
-            total +
-            provider.meters.filter((meter) => meter.state !== "unknown").length,
-          0,
-        );
+  const hasReadings = snapshots.length > 0 || failures.length > 0;
   const asOf = useMemo(() => {
     if (now === null) return null;
     const parsed = Date.parse(now);
@@ -215,10 +308,19 @@ export function Dashboard() {
   return (
     <div className="space-y-5">
       <HeaderStrip
-        advice={view?.advice ?? null}
+        lockup={lockup}
+        advice={dash?.advice ?? null}
         asOf={asOf}
         sample={sample}
-        readable={readable}
+        busy={busy}
+        onRefresh={refresh}
+        actions={
+          <>
+            <ViewSwitch view={view} onSelect={chooseView} />
+            <InstallControl />
+            <ThemeToggle className="mr-1 h-9 w-9" />
+          </>
+        }
       />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -231,23 +333,35 @@ export function Dashboard() {
         </div>
       </div>
 
+      <p role="status" aria-live="polite" className="sr-only">
+        {busy ? "Reading." : "Ready."}
+      </p>
+
       {tab === "meters" && (
-        <div id="panel-meters" role="tabpanel" aria-labelledby="tab-meters" tabIndex={-1}>
-          {view === null ? (
-            <p className="font-sans text-sm text-body">
-              Reading the clock on this device.
-            </p>
+        <div
+          id="panel-meters"
+          role="tabpanel"
+          aria-labelledby="tab-meters"
+          tabIndex={-1}
+          className="ol-panel"
+        >
+          {busy || dash === null ? (
+            <SkeletonCards />
           ) : hasReadings ? (
             <>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {view.providers.map((provider) => (
-                  <ProviderCard key={provider.provider} view={provider} now={now ?? ""} />
-                ))}
-              </div>
-              {view.unknown.length > 0 && (
-                <p className="mt-4 font-sans text-xs leading-relaxed text-muted">
+              {view === "list" ? (
+                <MeterList providers={dash.providers} now={now ?? ""} />
+              ) : (
+                <div className="ol-stagger grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {dash.providers.map((provider) => (
+                    <ProviderCard key={provider.provider} view={provider} now={now ?? ""} />
+                  ))}
+                </div>
+              )}
+              {dash.unknown.length > 0 && (
+                <p className="mt-4 text-xs leading-relaxed text-muted">
                   Unknown, and left that way on purpose:{" "}
-                  {view.unknown.map((code) => providerName(code)).join(", ")}. A
+                  {dash.unknown.map((code) => providerName(code)).join(", ")}. A
                   missing reading never becomes a zero and never becomes an
                   exhausted quota.
                 </p>
@@ -265,22 +379,23 @@ export function Dashboard() {
           role="tabpanel"
           aria-labelledby="tab-context"
           tabIndex={-1}
+          className="ol-panel"
         >
           <Panel
             title="What an agent would be told"
             description="This is the block the prompt hook injects, built here by the same adapter the command line tool uses. It carries bounded numbers, enum codes and timestamps, inside a boundary that tells the agent to treat the contents as untrusted."
             action={sample ? <DemoDataChip /> : undefined}
           >
-            {view === null || view.agentContext === "" ? (
-              <p className="font-sans text-sm leading-relaxed text-body">
+            {dash === null || dash.agentContext === "" ? (
+              <p className="text-sm leading-relaxed text-body">
                 Nothing at all. Every provider is unknown, and silence beats
                 noise, so the hook injects no block rather than a block full of
                 guesses.
               </p>
             ) : (
               <div className="space-y-4">
-                <CodeBlock label="UserPromptSubmit hook" text={view.agentContext} />
-                <CodeBlock label="Statusline" text={view.statusline} />
+                <CodeBlock label="UserPromptSubmit hook" text={dash.agentContext} />
+                <CodeBlock label="Statusline" text={dash.statusline} />
               </div>
             )}
           </Panel>
@@ -293,7 +408,7 @@ export function Dashboard() {
           role="tabpanel"
           aria-labelledby="tab-ingest"
           tabIndex={-1}
-          className="space-y-5"
+          className="ol-panel space-y-5"
         >
           <Panel
             title="Give it a document"
@@ -363,7 +478,7 @@ export function Dashboard() {
             {note !== null && (
               <p
                 role="status"
-                className={`mt-3 font-sans text-sm leading-relaxed ${
+                className={`mt-3 text-sm leading-relaxed ${
                   note.tone === "bad" ? "text-heading" : "text-body"
                 }`}
               >
@@ -375,10 +490,8 @@ export function Dashboard() {
           <Panel title="Where a document comes from">
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
               <div>
-                <h3 className="font-mono text-2xs uppercase tracking-widest text-muted">
-                  From the tool
-                </h3>
-                <p className="mt-2 font-sans text-sm leading-relaxed text-body">
+                <h3 className="ol-brand-font text-sm text-heading">From the tool</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">
                   Run{" "}
                   <code className="font-mono text-xs text-heading">
                     openlimiter export
@@ -388,25 +501,21 @@ export function Dashboard() {
                 </p>
               </div>
               <div>
-                <h3 className="font-mono text-2xs uppercase tracking-widest text-muted">
-                  From your agent
-                </h3>
-                <p className="mt-2 font-sans text-sm leading-relaxed text-body">
+                <h3 className="ol-brand-font text-sm text-heading">From your agent</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">
                   A Claude Code statusline payload works as it is, including the
                   rate limit block it already carries.
                 </p>
               </div>
               <div>
-                <h3 className="font-mono text-2xs uppercase tracking-widest text-muted">
-                  From your own notes
-                </h3>
-                <p className="mt-2 font-sans text-sm leading-relaxed text-body">
+                <h3 className="ol-brand-font text-sm text-heading">From your own notes</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted">
                   A manual quota document covers a provider with no interface at
                   all. You write down what you know, it does the arithmetic.
                 </p>
               </div>
             </div>
-            <p className="mt-5 font-sans text-sm leading-relaxed text-body">
+            <p className="mt-5 text-sm leading-relaxed text-muted">
               On the same network as the machine doing the work? Run{" "}
               <code className="font-mono text-xs text-heading">
                 openlimiter serve

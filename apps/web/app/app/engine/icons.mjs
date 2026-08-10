@@ -1,29 +1,34 @@
 /**
- * Render the home screen icons this application needs.
+ * The mark rasteriser. A library, and nothing else.
  *
- *   node apps/web/app/app/engine/icons.mjs
+ * This module writes no files and has no program of its own. It owns one
+ * thing, which is the only rasteriser in the repository: the approved arc
+ * geometry from lib/brand.ts and assets/brand/generate.mjs, turned into
+ * pixels, plus a minimal PNG encoder. Nothing outside Node's own zlib is used.
  *
- * The favicon and the Apple touch icon already come from the image routes in
- * app/, so the only icons missing were the ones a web application manifest
- * asks for by file. They are rendered here rather than drawn, from the same
- * approved arc geometry the site renders in app/app/../lib/brand.ts and
- * assets/brand/generate.mjs, so every OpenLimiter mark anywhere is the same
- * shape. Nothing outside Node's own zlib is used.
+ * WHERE ICONS ARE ACTUALLY WRITTEN
+ * --------------------------------
+ * apps/web/scripts/icons.mjs, and only there. It imports the three functions
+ * below, repaints the result into the treatments the brand actually ships, and
+ * writes public/icons. apps/desktop/scripts/icons.mjs imports those treatments
+ * from that same file for the desktop application's icon.
  *
- * Three files come out:
- *   192 and 512, the rounded tile, which is what a browser shows as is.
- *   maskable 512, edge to edge with the ring pulled into the safe area, which
- *   is what Android crops into whatever shape the launcher prefers.
+ * This file used to carry a writer of its own, in the older blue tile
+ * treatment. Running it would have silently overwritten the shipped icons with
+ * artwork the brand no longer uses, so the writer is gone and the treatments
+ * live with the script that owns them. Add a new icon by editing
+ * apps/web/scripts/icons.mjs; there is no second place to look.
+ *
+ * The output below is deliberately one fixed thing: the ring in white over
+ * solid brand blue, with the rounded corner in the alpha channel. It is an
+ * intermediate, not a deliverable. The caller recovers the ink coverage from
+ * it and repaints it, which is why one rasteriser can serve a tileless icon, a
+ * maskable one and a desktop tile without knowing about any of them.
  */
 import { deflateSync } from "node:zlib";
-import { mkdirSync, writeFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.resolve(HERE, "..", "..", "..", "public", "icons");
-
-/* The brand: one blue, and the mark inverted to white on top of it. */
+/* The two values the intermediate is drawn in. Not a brand decision: the
+   caller repaints every pixel. See `repaint` in apps/web/scripts/icons.mjs. */
 const BLUE = [0x08, 0x66, 0xff];
 const WHITE = [0xff, 0xff, 0xff];
 
@@ -188,27 +193,4 @@ export function encodePng(pixels, width, height) {
   ]);
 }
 
-/* ------------------------------------------------------------------- write */
-
-/** The tile treatment the favicon and the Apple icon already use. */
-export const TILE = { cornerRatio: 0.22, markRatio: 0.68 };
-/** Edge to edge, ring inside the central eighty percent a launcher may keep. */
-export const MASKABLE = { cornerRatio: 0, markRatio: 0.55 };
-
 export { assertGeometry };
-
-/* Only writes when this file is the program being run, so another script can
-   import the renderer without a folder of icons appearing beside it. */
-if (process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === import.meta.url) {
-  assertGeometry();
-  mkdirSync(OUT, { recursive: true });
-  const files = [
-    ["openlimiter-192.png", 192, TILE],
-    ["openlimiter-512.png", 512, TILE],
-    ["openlimiter-maskable-512.png", 512, MASKABLE],
-  ];
-  for (const [name, size, treatment] of files) {
-    writeFileSync(path.join(OUT, name), encodePng(renderTile(size, treatment), size, size));
-    process.stdout.write("Wrote " + name + " at " + String(size) + " pixels.\n");
-  }
-}

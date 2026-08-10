@@ -96,20 +96,28 @@ export function ButtonLink({
 /**
  * A square ghost button holding one 20 pixel icon. Same height and radius as
  * the text buttons beside it, 12 pixels of horizontal padding instead of 16.
+ *
+ * It carries the same `external` switch as `ButtonLink`, and for the same
+ * reason: a destination off this site opens in its own tab, with `noopener`
+ * and `noreferrer` on it.
  */
 export function IconButtonLink({
   href,
   label,
+  external = false,
   children,
 }: {
   href: string;
   /** Always required here: the control carries no visible text. */
   label: string;
+  external?: boolean;
   children: ReactNode;
 }) {
+  const externalProps = external ? { target: "_blank", rel: "noopener noreferrer" } : {};
   return (
     <a
       href={href}
+      {...externalProps}
       aria-label={label}
       title={label}
       className="lift-sm focus-ring inline-flex items-center justify-center rounded-lg border border-hairline-strong px-3 py-2 text-heading hover:border-heading hover:bg-surface"
@@ -127,21 +135,105 @@ const chipTone = {
 
 export type ChipTone = keyof typeof chipTone;
 
+const chipDotTone = {
+  neutral: "bg-muted",
+  strong: "bg-heading",
+  accent: "bg-accent-solid",
+} as const;
+
 export function Chip({
   tone = "neutral",
+  dot = false,
   className = "",
   children,
 }: {
   tone?: ChipTone;
+  /** A filled dot in front of the label, for a chip that states a state. */
+  dot?: boolean;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-1 text-xs ${chipTone[tone]} ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${chipTone[tone]} ${className}`}
+    >
+      {dot && (
+        <span
+          aria-hidden="true"
+          className={`h-1.5 w-1.5 flex-none rounded-full ${chipDotTone[tone]}`}
+        />
+      )}
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The smallest chip on the site, and the only one that carries mono type: a
+ * command, a file name or a schema key set as a real object rather than as
+ * bare text drifting against a card edge. It truncates rather than wraps, so a
+ * long command shortens instead of pushing a card out of shape.
+ */
+export function CodeChip({ className = "", children }: { className?: string; children: ReactNode }) {
+  return (
+    <span
+      className={`inline-flex max-w-full items-center truncate rounded-md border border-hairline bg-code px-2 py-1 font-mono text-2xs leading-4 text-soft ${className}`}
     >
       {children}
     </span>
+  );
+}
+
+/**
+ * A leading glyph in a tinted square. One size, one radius, one tint, so every
+ * icon on the site sits in the same object and a grid of them reads as a set.
+ * The accent pairing measures 8.06:1 in dark and 5.23:1 in light, well past the
+ * 3:1 a non text graphic has to clear.
+ */
+export function IconChip({
+  tone = "accent",
+  className = "",
+  children,
+}: {
+  tone?: "accent" | "neutral";
+  className?: string;
+  children: ReactNode;
+}) {
+  const tint =
+    tone === "accent"
+      ? "border-accent-subtle bg-accent-subtle text-accent"
+      : "border-hairline bg-raised text-soft";
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-flex h-9 w-9 flex-none items-center justify-center rounded-lg border ${tint} ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * A section that wants to read as one object rather than as loose cards on the
+ * canvas: a raised panel with a hairline that fades in from both ends, which
+ * is the one gradient on this site and is drawn from a token rather than from
+ * a colour. Used where a band of the page would otherwise sit on bare canvas
+ * with nothing but text holding it together.
+ */
+export function SectionPanel({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`elev-1 relative overflow-hidden rounded-2xl border border-hairline bg-surface p-6 md:p-8 ${className}`}
+    >
+      <span aria-hidden="true" className="hairline-sheen" />
+      {children}
+    </div>
   );
 }
 
@@ -180,7 +272,11 @@ export function SectionHeading({
         <h2 id={id} className="text-3xl font-medium text-heading">
           {title}
         </h2>
-        {status !== undefined && <Chip tone="accent">{status}</Chip>}
+        {status !== undefined && (
+          <Chip tone="accent" dot className="uppercase tracking-wider">
+            {status}
+          </Chip>
+        )}
       </div>
       {lead !== undefined && <p className="max-w-lg text-base text-muted">{lead}</p>}
     </div>
@@ -210,4 +306,4 @@ export function Card({
  * be a link or a grid child rather than a wrapper.
  */
 export const CARD =
-  "lift rounded-xl border border-hairline bg-surface px-5 py-4 hover:border-hairline-strong hover:bg-raised";
+  "lift elev-1 rounded-xl border border-hairline bg-surface px-5 py-4 hover:border-hairline-strong hover:bg-raised";

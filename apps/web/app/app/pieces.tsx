@@ -1,12 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { floorFixed, type Advice, type MeterView, type ProviderView } from "./engine";
+import { useRef, type ReactNode } from "react";
 import {
+  failureSentence,
+  floorFixed,
+  type Advice,
+  type FailureCategory,
+  type MeterView,
+  type ProviderView,
+} from "./engine";
+import {
+  amountLine,
+  amountSentence,
   blocks,
+  byMeterOrder,
   countdown,
   freshnessWord,
+  meterCountLabel,
   meterLabel,
+  meterName,
   noRecommendationSentence,
   pressureOf,
   providerName,
@@ -20,12 +32,23 @@ import { ProviderMark } from "./marks";
 /**
  * The parts the dashboard is built from.
  *
- * Two rules govern all of them. Every colour is a token, either one of the
- * site's own from app/globals.css or one of the pressure tokens this route
- * adds in theme.css, so nothing here can drift from the pages around it. And
- * nothing here decides anything: a percentage, a freshness state and a reason
- * code all arrive already decided by the engine, and these components only
- * choose how to draw them.
+ * Three rules govern all of them.
+ *
+ * Every colour is a token, either one of the site's own from app/globals.css
+ * or one of the pressure tokens this route adds in theme.css, so nothing here
+ * can drift from the pages around it. Every card, chip, button and radius is
+ * the site's own shape, taken from components/ui.tsx rather than re invented,
+ * which is why the two surfaces read as one product.
+ *
+ * Type is split by what a thing is rather than by where it sits. The monospace
+ * face carries code and only code: a provider's enum code, an engine reason
+ * code, a clock reading, and the blocks an agent would actually be handed.
+ * Every label, name, heading, button and sentence is the same system sans the
+ * rest of the site is set in.
+ *
+ * And nothing here decides anything: a percentage, a freshness state and a
+ * reason code all arrive already decided by the engine, and these components
+ * only choose how to draw them.
  */
 
 /** The meters each provider reports, used to draw a card that has no data yet. */
@@ -37,6 +60,19 @@ const EXPECTED_METERS: Record<string, readonly string[]> = {
   OPENCODE: ["PRIMARY"],
   MANUAL: ["MONTHLY"],
 };
+
+/* ------------------------------------------------------------------ shapes */
+
+/** The site's card, verbatim, plus the one pixel of light along its top. */
+const CARD_SURFACE =
+  "ol-sheen rounded-xl border border-hairline bg-surface";
+
+/** The site's chip: a pill, a hairline, twelve pixel text. */
+const CHIP = "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs";
+
+const CHIP_NEUTRAL = `${CHIP} border-hairline bg-raised text-muted`;
+const CHIP_STRONG = `${CHIP} border-hairline bg-raised text-heading`;
+const CHIP_ACCENT = `${CHIP} border-accent-subtle bg-accent-subtle text-accent`;
 
 /* ------------------------------------------------------------------ meters */
 
@@ -103,7 +139,7 @@ function ClockGlyph() {
 /** Solid means read just now, hollow means aged, dimmed means never read. */
 export function Freshness({ state }: { state: MeterView["state"] }) {
   return (
-    <span className="inline-flex items-center gap-1.5 font-mono text-2xs uppercase tracking-wider text-muted">
+    <span className="inline-flex flex-none items-center gap-1.5 text-2xs text-muted">
       <span aria-hidden="true" data-state={state} className="ol-fresh-dot" />
       {state === "stale" && <ClockGlyph />}
       {freshnessWord[state]}
@@ -111,98 +147,176 @@ export function Freshness({ state }: { state: MeterView["state"] }) {
   );
 }
 
-/** One meter: its name, its freshness, its bar, its number, its countdown. */
+/**
+ * What a meter reads, to the right of its bar.
+ *
+ * Two shapes, because two kinds of plan are being described. A rationed plan
+ * has spent a share of a window, and the percentage is the reading. A plan
+ * bought in credits has spent money, and the money is the reading: the dollars
+ * lead, in the bar's own colour, and the percentage drops to the line
+ * underneath where it belongs.
+ */
+function MeterReading({
+  meter,
+  percent,
+  pressure,
+}: {
+  meter: MeterView;
+  percent: string;
+  pressure: Pressure;
+}) {
+  const money = amountLine(meter);
+
+  if (meter.state === "unknown") {
+    return <span className="w-14 shrink-0 text-right text-xs text-muted">Unknown</span>;
+  }
+
+  if (money !== null) {
+    return (
+      <span className="shrink-0 text-right leading-tight">
+        <span className="block">
+          <span
+            data-pressure={pressure}
+            className="ol-pressure-text text-sm font-medium tabular-nums"
+          >
+            {money.spent}
+          </span>
+          <span className="text-2xs text-muted"> spent</span>
+        </span>
+        <span className="ol-amount-line block text-2xs tabular-nums">
+          of {money.loaded} loaded
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <span
+      data-pressure={pressure}
+      data-state={meter.state}
+      className="ol-pressure-text w-14 shrink-0 text-right text-sm font-medium tabular-nums"
+    >
+      {percent}%
+    </span>
+  );
+}
+
+/** One meter: its name, its freshness, its bar, its reading, its countdown. */
 function MeterRow({ meter, now }: { meter: MeterView; now: string }) {
   const percent = floorFixed(meter.value, 1);
   const pressure: Pressure = meter.state === "unknown" ? "none" : pressureOf(meter.value);
+  const priced = amountSentence(meter) !== null;
+
   return (
     <div className="py-3 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between gap-3">
-        <span className="truncate font-mono text-2xs uppercase tracking-widest text-soft">
-          {meter.meter}
-        </span>
+        <span className="truncate text-sm text-soft">{meterName(meter.meter)}</span>
         <Freshness state={meter.state} />
       </div>
-      <div className="mt-2 flex items-center gap-3">
+      <div className="mt-2.5 flex items-center gap-3">
         <SegmentedMeter
           value={meter.value}
           state={meter.state}
           label={meterLabel(meter, percent, now)}
         />
-        {meter.state === "unknown" ? (
-          <span className="w-16 shrink-0 text-right font-mono text-xs text-muted">
-            unknown
-          </span>
-        ) : (
-          <span
-            data-pressure={pressure}
-            data-state={meter.state}
-            className="ol-pressure-text w-16 shrink-0 text-right font-mono text-sm font-medium tabular-nums"
-          >
-            {percent}%
-          </span>
-        )}
+        <MeterReading meter={meter} percent={percent} pressure={pressure} />
       </div>
-      <p className="mt-2 font-mono text-2xs text-muted">
-        {meter.state === "unknown"
-          ? "nothing readable, so nothing is claimed"
-          : countdown(meter.resetAt, now)}
-      </p>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xs text-muted">
+        {priced && meter.state !== "unknown" && (
+          <>
+            <span className="tabular-nums">{percent}% used</span>
+            <span aria-hidden="true">·</span>
+          </>
+        )}
+        <span>
+          {meter.state === "unknown"
+            ? "Nothing readable, so nothing is claimed"
+            : countdown(meter.resetAt, now)}
+        </span>
+      </div>
     </div>
   );
 }
 
+/**
+ * The one line a card shows when something went wrong.
+ *
+ * The sentence is a constant out of the engine, keyed by a category the engine
+ * chose. Nothing a provider wrote can reach this element, which is the whole
+ * reason the vocabulary exists rather than a message string being passed up.
+ */
+function FailureLine({ category }: { category: FailureCategory }) {
+  return (
+    <p
+      role="status"
+      data-failure={category}
+      className="ol-error-line mt-3 flex items-start gap-1.5 border-t border-hairline pt-3 text-xs leading-relaxed"
+    >
+      <span aria-hidden="true">!</span>
+      <span>{failureSentence[category]}</span>
+    </p>
+  );
+}
+
 /** A meter a provider reports but has not reported yet. Never a number. */
-function AbsentMeterRow({ name }: { name: string }) {
+function AbsentMeterRow({ code }: { code: string }) {
+  const name = meterName(code);
   return (
     <div className="py-3 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between gap-3">
-        <span className="truncate font-mono text-2xs uppercase tracking-widest text-muted">
-          {name}
-        </span>
+        <span className="truncate text-sm text-muted">{name}</span>
         <Freshness state="unknown" />
       </div>
-      <div className="mt-2 flex items-center gap-3">
+      <div className="mt-2.5 flex items-center gap-3">
         <SegmentedMeter
           value={0}
           state="unknown"
           label={name + " has no reading, so it is unknown"}
         />
-        <span className="w-16 shrink-0 text-right font-mono text-xs text-muted">
-          unknown
-        </span>
+        <span className="w-14 shrink-0 text-right text-xs text-muted">Unknown</span>
       </div>
-      <p className="mt-2 font-mono text-2xs text-muted">not zero, not exhausted</p>
+      <p className="mt-2 text-2xs text-muted">Not zero, not exhausted</p>
     </div>
   );
 }
 
 /* ------------------------------------------------------------------- cards */
 
+/**
+ * A provider, and every meter it carries.
+ *
+ * The rows are in the order somebody reads them, shortest window first and
+ * money last, and there are exactly as many of them as the data has. Nothing
+ * here knows how many that is: a provider that starts reporting a third window
+ * grows a third row on its own.
+ */
 export function ProviderCard({ view, now }: { view: ProviderView; now: string }) {
   const worst = view.worst;
-  const meters = view.meters;
-  const expected = EXPECTED_METERS[view.provider] ?? [];
-  const absent = expected.filter(
-    (name) => !meters.some((meter) => meter.meter === name),
+  const meters = [...view.meters].sort((left, right) =>
+    byMeterOrder(left.meter, right.meter),
   );
+  const expected = EXPECTED_METERS[view.provider] ?? [];
+  const absent = expected
+    .filter((code) => !meters.some((meter) => meter.meter === code))
+    .sort(byMeterOrder);
   const pressure: Pressure = worst === null ? "none" : pressureOf(worst.value);
+  const count = meterCountLabel(meters.length);
 
   return (
     <article
-      className={`ol-sheen lift flex h-full flex-col rounded-xl border bg-surface p-4 transition-colors sm:p-5 ${
+      className={`ol-rise lift flex flex-col p-5 transition-colors ${CARD_SURFACE} ${
         meters.length === 0
           ? "border-dashed border-hairline-strong"
-          : "border-hairline hover:border-hairline-strong"
+          : "hover:border-hairline-strong hover:bg-raised"
       }`}
     >
       <header className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-hairline bg-raised text-soft">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-hairline bg-raised text-soft">
             <ProviderMark provider={view.provider} />
           </span>
           <div className="min-w-0">
-            <h3 className="truncate font-sans text-sm font-medium text-heading">
+            <h3 className="ol-brand-font truncate text-sm text-heading">
               {providerName(view.provider)}
             </h3>
             <p className="mt-0.5 truncate font-mono text-2xs uppercase tracking-widest text-muted">
@@ -210,41 +324,34 @@ export function ProviderCard({ view, now }: { view: ProviderView; now: string })
             </p>
           </div>
         </div>
-        <div className="shrink-0 text-right">
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
           {worst === null ? (
-            <>
-              <p className="font-mono text-base text-muted">unknown</p>
-              <p className="mt-0.5 font-mono text-2xs text-muted">no reading</p>
-            </>
+            <p className="text-sm text-muted">No reading</p>
           ) : (
-            <>
-              <p
-                data-pressure={pressure}
-                data-state={worst.state}
-                className="ol-pressure-text font-mono text-lg font-medium leading-none tabular-nums"
-              >
-                {floorFixed(worst.value, 1)}%
-              </p>
-              <p className="mt-1 font-mono text-2xs text-muted">
-                {meters.length === 1
-                  ? "one meter"
-                  : "highest of " + String(meters.length) + " meters"}
-              </p>
-            </>
+            <p
+              data-pressure={pressure}
+              data-state={worst.state}
+              className="ol-pressure-text text-2xl font-medium leading-none tabular-nums"
+            >
+              {floorFixed(worst.value, 1)}%
+            </p>
           )}
+          {count !== null && <span className={CHIP_NEUTRAL}>{count}</span>}
         </div>
       </header>
 
-      <div className="mt-4 flex-1 divide-y divide-hairline border-t border-hairline pt-3">
+      <div className="mt-4 divide-y divide-hairline border-t border-hairline pt-3">
         {meters.map((meter) => (
           <MeterRow key={meter.meter} meter={meter} now={now} />
         ))}
-        {absent.map((name) => (
-          <AbsentMeterRow key={name} name={name} />
+        {absent.map((code) => (
+          <AbsentMeterRow key={code} code={code} />
         ))}
       </div>
 
-      <p className="mt-3 border-t border-hairline pt-3 font-mono text-2xs text-muted">
+      {view.failure !== null && <FailureLine category={view.failure} />}
+
+      <p className="mt-3 border-t border-hairline pt-3 text-2xs text-muted">
         {worst === null
           ? providerOrigin(view.provider)
           : providerOrigin(view.provider) + " · " + worst.precision}
@@ -253,95 +360,325 @@ export function ProviderCard({ view, now }: { view: ProviderView; now: string })
   );
 }
 
+/* -------------------------------------------------------------- list view */
+
+/**
+ * The same readings as a dense table.
+ *
+ * One row per meter rather than one card per provider, which is what somebody
+ * with six providers and ten meters actually wants to scan. It is built from
+ * exactly the same `ProviderView` list the grid renders, so the two views can
+ * never disagree, and it is a grid with table roles rather than a `<table>`
+ * because the row has to fold at phone width and a table cannot be refolded.
+ *
+ * A provider's name appears once per group. On the rows underneath it is still
+ * in the markup, and still announced, but carried in a visually hidden span so
+ * a screen reader hears which provider a row belongs to while the eye reads a
+ * clean block. The group's first row carries the hairline that separates it
+ * from the one above.
+ */
+export function MeterList({
+  providers,
+  now,
+}: {
+  providers: readonly ProviderView[];
+  now: string;
+}) {
+  const groups = providers
+    .map((provider) => ({
+      provider,
+      meters: [...provider.meters].sort((left, right) =>
+        byMeterOrder(left.meter, right.meter),
+      ),
+    }))
+    .filter((group) => group.meters.length > 0);
+
+  if (groups.length === 0) return null;
+
+  return (
+    <div className={`ol-rise overflow-hidden ${CARD_SURFACE}`}>
+      <div role="table" aria-label="Every meter, one row each" className="ol-list">
+        <div role="rowgroup">
+          <div role="row" className="ol-list-row ol-list-head">
+            <span role="columnheader" className="ol-cell-ident">
+              Provider
+            </span>
+            <span role="columnheader" className="ol-cell-meter">
+              Meter
+            </span>
+            <span role="columnheader" className="ol-cell-bar">
+              Level
+            </span>
+            <span role="columnheader" className="ol-cell-value">
+              Used
+            </span>
+            <span role="columnheader" className="ol-cell-money">
+              Money
+            </span>
+            <span role="columnheader" className="ol-cell-state">
+              Reading
+            </span>
+            <span role="columnheader" className="ol-cell-reset">
+              Resets
+            </span>
+          </div>
+        </div>
+
+        {groups.map((group) => (
+          <div role="rowgroup" key={group.provider.provider}>
+            {group.meters.map((meter, index) => {
+              const percent = floorFixed(meter.value, 1);
+              const pressure: Pressure =
+                meter.state === "unknown" ? "none" : pressureOf(meter.value);
+              const money = amountLine(meter);
+              return (
+                <div
+                  role="row"
+                  key={group.provider.provider + meter.meter}
+                  data-group-start={index === 0 ? "" : undefined}
+                  className="ol-list-row"
+                >
+                  <span role="cell" className="ol-cell-ident">
+                    {index === 0 ? (
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="text-soft">
+                          <ProviderMark provider={group.provider.provider} />
+                        </span>
+                        <span className="ol-brand-font truncate text-sm text-heading">
+                          {providerName(group.provider.provider)}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="sr-only">
+                        {providerName(group.provider.provider)}
+                      </span>
+                    )}
+                  </span>
+                  <span role="cell" className="ol-cell-meter truncate text-sm text-soft">
+                    {meterName(meter.meter)}
+                  </span>
+                  <span role="cell" className="ol-cell-bar">
+                    <SegmentedMeter
+                      value={meter.value}
+                      state={meter.state}
+                      size="sm"
+                      label={meterLabel(meter, percent, now)}
+                    />
+                  </span>
+                  <span
+                    role="cell"
+                    data-pressure={pressure}
+                    className="ol-cell-value ol-pressure-text text-sm font-medium tabular-nums"
+                  >
+                    {meter.state === "unknown" ? "Unknown" : percent + "%"}
+                  </span>
+                  <span
+                    role="cell"
+                    className="ol-cell-money ol-amount-line text-2xs tabular-nums"
+                  >
+                    {money === null ? "" : money.spent + " of " + money.loaded}
+                  </span>
+                  <span role="cell" className="ol-cell-state">
+                    <Freshness state={meter.state} />
+                  </span>
+                  <span role="cell" className="ol-cell-reset text-2xs text-muted">
+                    {meter.state === "unknown"
+                      ? "Not zero, not exhausted"
+                      : countdown(meter.resetAt, now)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- view switch */
+
+export type ViewMode = "grid" | "list";
+
+function GridGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
+      <rect x="3" y="3" width="7.5" height="7.5" rx="1.6" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6" />
+    </svg>
+  );
+}
+
+function ListGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M4 6.5h16M4 12h16M4 17.5h16" />
+    </svg>
+  );
+}
+
+/**
+ * Grid or list, as a segmented control.
+ *
+ * Two toggle buttons rather than a tab list, because these do not switch
+ * between panels of different content: they are two drawings of one thing, and
+ * `aria-pressed` is what says which drawing is on.
+ */
+export function ViewSwitch({
+  view,
+  onSelect,
+}: {
+  view: ViewMode;
+  onSelect: (next: ViewMode) => void;
+}) {
+  const options: readonly { id: ViewMode; label: string; glyph: ReactNode }[] = [
+    { id: "grid", label: "Grid", glyph: <GridGlyph /> },
+    { id: "list", label: "List", glyph: <ListGlyph /> },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="How the meters are laid out"
+      className="inline-flex items-center gap-1 rounded-lg border border-hairline bg-surface p-1"
+    >
+      {options.map((option) => {
+        const on = option.id === view;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={on}
+            title={option.label + " view"}
+            onClick={() => {
+              onSelect(option.id);
+            }}
+            className={`ol-tap focus-ring-inset inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium ${
+              on ? "bg-raised text-heading" : "text-muted hover:text-heading"
+            }`}
+          >
+            {option.glyph}
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ header */
 
 /**
- * The strip above the cards.
+ * The strip above the cards, which is this application's own title bar.
  *
- * Three facts and nothing else: what the engine calls the overall state, which
- * provider it would prefer and why, and when the reading on screen was taken.
- * Every one of them is an enum code out of the engine, printed as it is, with
- * one plain sentence underneath so the code does not have to be learned.
+ * The lockup is the real one: the ring mark and the wordmark in Baloo 2, at
+ * the proportion the site header uses, rendered on the server and handed down
+ * as a prop so the font never enters this bundle. Beside it sit the three
+ * facts the engine has to offer, every one of them an enum code printed as it
+ * is with one plain sentence underneath so the code does not have to be
+ * learned: what it calls the overall state, which provider it would prefer and
+ * why, and when the reading on screen was taken.
  */
 export function HeaderStrip({
+  lockup,
   advice,
   asOf,
   sample,
-  readable,
+  busy,
+  onRefresh,
+  actions,
 }: {
+  lockup: ReactNode;
   advice: Advice | null;
   asOf: string | null;
   sample: boolean;
-  readable: number;
+  busy: boolean;
+  onRefresh: () => void;
+  actions?: ReactNode;
 }) {
   const reason = advice === null || !advice.inject ? "UNKNOWN" : advice.reason;
   const pressure = reasonPressure[reason];
   const recommendation = advice?.recommendation ?? null;
 
   return (
-    <section
-      aria-label="Overall state"
-      className="ol-sheen rounded-xl border border-hairline bg-surface p-4 sm:p-5"
-    >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3">
-          <span className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-hairline bg-raised px-2.5 py-1.5">
+    <section aria-label="Overall state" className={`ol-rise ${CARD_SURFACE}`}>
+      <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+        {lockup}
+        <div className="flex flex-wrap items-center gap-2">
+          {actions}
+          <Button tone="ghost" onClick={onRefresh} disabled={busy}>
+            <RefreshGlyph spinning={busy} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 border-t border-hairline px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className={CHIP_STRONG}>
             <span aria-hidden="true" data-pressure={pressure} className="ol-pressure-dot" />
-            <span className="font-mono text-xs font-medium tracking-widest text-heading">
-              {reason}
-            </span>
+            <span className="font-mono tracking-widest">{reason}</span>
           </span>
-          <p className="max-w-sm font-sans text-xs leading-relaxed text-muted">
+          <p className="max-w-sm text-xs leading-relaxed text-muted">
             {reasonSentence[reason]}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 lg:justify-end">
-          <div className="lg:border-l lg:border-hairline lg:pl-6">
-            {recommendation !== null && recommendation.code === "PREFER" ? (
-              <>
-                <p className="font-mono text-xs font-medium tracking-widest text-heading">
-                  PREFER {recommendation.provider}
-                </p>
-                <p className="mt-1 font-mono text-2xs uppercase tracking-widest text-muted">
-                  {recommendation.reason}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-mono text-xs font-medium tracking-widest text-muted">
-                  NO RECOMMENDATION
-                </p>
-                <p className="mt-1 font-sans text-2xs leading-relaxed text-muted">
-                  {recommendation === null
-                    ? "Nothing has been read yet."
-                    : (noRecommendationSentence[recommendation.reason] ?? "")}
-                </p>
-              </>
-            )}
-          </div>
-
-          <div className="lg:border-l lg:border-hairline lg:pl-6">
-            <p className="font-mono text-2xs uppercase tracking-widest text-muted">
-              {asOf === null ? "reading the clock" : "as of " + asOf}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 lg:justify-end">
+          {recommendation !== null && recommendation.code === "PREFER" ? (
+            <span className={CHIP_ACCENT} title="The provider the engine would route to next">
+              <span className="font-mono tracking-widest">
+                PREFER {recommendation.provider}
+              </span>
+              <span className="font-mono text-2xs tracking-widest">
+                {recommendation.reason}
+              </span>
+            </span>
+          ) : (
+            <span className={CHIP_NEUTRAL}>
+              <span className="font-mono tracking-widest">NO RECOMMENDATION</span>
+            </span>
+          )}
+          {recommendation !== null && recommendation.code === "NONE" && (
+            <p className="text-xs text-muted">
+              {noRecommendationSentence[recommendation.reason] ?? ""}
             </p>
-            <div className="mt-1.5 flex items-center gap-2">
-              {sample ? (
-                <DemoDataChip />
-              ) : (
-                <span className="font-mono text-2xs text-muted">
-                  {readable === 0
-                    ? "no meter read"
-                    : readable === 1
-                      ? "1 meter read"
-                      : String(readable) + " meters read"}
-                </span>
-              )}
-            </div>
-          </div>
+          )}
+          <span className="font-mono text-2xs text-muted">
+            {asOf === null ? "reading the clock" : "as of " + asOf}
+          </span>
+          {sample && <DemoDataChip />}
         </div>
       </div>
     </section>
+  );
+}
+
+function RefreshGlyph({ spinning }: { spinning: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={`h-4 w-4 ${spinning ? "animate-spin" : ""}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M20 11a8 8 0 1 0-.7 4.3" />
+      <path d="M20 5.5V11h-5.5" />
+    </svg>
   );
 }
 
@@ -416,16 +753,56 @@ export function Tabs({
                 move(tabs.length - 1);
               }
             }}
-            className={`focus-ring-inset flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 font-sans text-sm font-medium transition-colors sm:flex-none ${
-              selected
-                ? "bg-raised text-heading"
-                : "text-muted hover:text-heading"
+            className={`ol-brand-font ol-tap focus-ring-inset flex-1 cursor-pointer whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm sm:flex-none ${
+              selected ? "bg-raised text-heading" : "text-muted hover:text-heading"
             }`}
           >
             {tab.label}
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- skeletons */
+
+/**
+ * What the grid looks like while a document is being read.
+ *
+ * Three cards at the shape the real ones take, in the surface tones the real
+ * ones use, so nothing on the page moves when the readings arrive. They are
+ * hidden from the accessibility tree and the state is announced once, in
+ * words, by the live region beside them.
+ */
+export function SkeletonCards({ count = 3 }: { count?: number }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+    >
+      {Array.from({ length: count }, (_unused, index) => (
+        <div key={"skeleton" + String(index)} className={`${CARD_SURFACE} p-5`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="ol-skeleton block h-9 w-9" />
+              <span className="space-y-1.5">
+                <span className="ol-skeleton block h-3 w-24" />
+                <span className="ol-skeleton block h-2 w-14" />
+              </span>
+            </div>
+            <span className="ol-skeleton block h-6 w-14" />
+          </div>
+          <div className="mt-5 space-y-5 border-t border-hairline pt-4">
+            {[0, 1].map((row) => (
+              <div key={"row" + String(row)} className="space-y-2.5">
+                <span className="ol-skeleton block h-2.5 w-28" />
+                <span className="ol-skeleton block h-2 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -447,7 +824,9 @@ export function EmptyState({
   onSample: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-dashed border-hairline-strong bg-surface px-6 py-12 text-center sm:py-16">
+    <div
+      className="ol-rise rounded-xl border border-dashed border-hairline-strong bg-surface px-6 py-12 text-center sm:py-16"
+    >
       <div className="mx-auto flex w-full max-w-md flex-col items-center">
         <div
           aria-hidden="true"
@@ -463,10 +842,8 @@ export function EmptyState({
             />
           ))}
         </div>
-        <h3 className="mt-6 font-sans text-base font-medium text-heading">
-          No reading yet
-        </h3>
-        <p className="mt-2 font-sans text-sm leading-relaxed text-body">
+        <h3 className="ol-brand-font mt-6 text-base text-heading">No reading yet</h3>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
           Nothing has been handed to this page, so every provider is unknown. It
           will stay that way until you give it a document: a missing reading is
           never shown as a zero and never as an exhausted quota.
@@ -477,8 +854,9 @@ export function EmptyState({
           </Button>
           <Button onClick={onSample}>Load sample data</Button>
         </div>
-        <p className="mt-6 font-mono text-2xs leading-relaxed text-muted">
-          Or install the command line tool and run openlimiter export, then
+        <p className="mt-6 text-xs leading-relaxed text-muted">
+          Or install the command line tool and run{" "}
+          <code className="font-mono text-heading">openlimiter export</code>, then
           paste what it prints.
         </p>
       </div>
@@ -500,12 +878,12 @@ export function Panel({
   action?: ReactNode;
 }) {
   return (
-    <section className="ol-sheen rounded-xl border border-hairline bg-surface p-4 sm:p-6">
+    <section className={`ol-rise ${CARD_SURFACE} p-5 sm:p-6`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-sans text-base font-medium text-heading">{title}</h2>
+          <h2 className="ol-brand-font text-base text-heading">{title}</h2>
           {description !== undefined && (
-            <p className="mt-1 max-w-2xl font-sans text-sm leading-relaxed text-body">
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
               {description}
             </p>
           )}
@@ -517,32 +895,46 @@ export function Panel({
   );
 }
 
+/**
+ * The button, at the site's own metrics.
+ *
+ * Thirty eight pixels tall, an eight pixel radius, sixteen pixels of
+ * horizontal padding and fourteen pixel medium text, with a border on every
+ * tone so a filled control and a ghost one line up on the same row. These are
+ * the strings components/ui.tsx uses for the marketing pages, as an element
+ * that can be pressed rather than one that navigates.
+ */
 const buttonBase =
-  "focus-ring inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 font-sans text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+  "ol-tap lift-sm focus-ring inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
 
 const buttonTone = {
-  primary: "bg-accent-solid text-on-accent hover:bg-accent-solid-hover",
-  secondary:
-    "border border-hairline bg-canvas text-heading hover:border-hairline-strong hover:bg-raised",
-  quiet: "text-body hover:text-heading",
+  primary: "border-transparent bg-solid text-on-solid hover:bg-solid-hover",
+  ghost:
+    "border-hairline-strong bg-transparent text-heading hover:border-heading hover:bg-surface",
+  quiet: "border-transparent text-muted hover:text-heading",
 } as const;
 
 export function Button({
-  tone = "secondary",
+  tone = "ghost",
   onClick,
   disabled = false,
+  label,
   children,
 }: {
   tone?: keyof typeof buttonTone;
   onClick: () => void;
   disabled?: boolean;
+  /** Accessible name, for a control whose text alone is not enough. */
+  label?: string;
   children: ReactNode;
 }) {
+  const naming = label === undefined ? {} : { "aria-label": label, title: label };
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      {...naming}
       className={`${buttonBase} ${buttonTone[tone]}`}
     >
       {children}
@@ -553,7 +945,7 @@ export function Button({
 /** The one chip that marks synthetic readings, wherever they are shown. */
 export function DemoDataChip() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-raised px-2 py-0.5 font-mono text-2xs uppercase tracking-wider text-muted">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-raised px-2 py-1 font-mono text-2xs uppercase tracking-wider text-muted">
       <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent-solid" />
       Demo data
     </span>
@@ -563,7 +955,7 @@ export function DemoDataChip() {
 export function CodeBlock({ text, label }: { text: string; label: string }) {
   return (
     <figure>
-      <figcaption className="mb-2 font-mono text-2xs uppercase tracking-widest text-muted">
+      <figcaption className="mb-2 text-2xs uppercase tracking-widest text-muted">
         {label}
       </figcaption>
       <pre className="overflow-x-auto rounded-lg border border-hairline bg-code p-4 font-mono text-xs leading-relaxed text-body">
@@ -572,29 +964,3 @@ export function CodeBlock({ text, label }: { text: string; label: string }) {
     </figure>
   );
 }
-
-/**
- * A wall clock time that never renders on the server.
- *
- * The exact instant is always in the title attribute, because "in 3 days" is
- * useful and "at 14:02 on Sunday" is what somebody actually plans around.
- */
-export function Instant({ value, prefix }: { value: string | null; prefix: string }) {
-  const [rendered, setRendered] = useState<string | null>(null);
-  useEffect(() => {
-    if (value === null) {
-      setRendered(null);
-      return;
-    }
-    const parsed = Date.parse(value);
-    setRendered(Number.isFinite(parsed) ? new Date(parsed).toLocaleString() : null);
-  }, [value]);
-  if (value === null) return <span className="text-muted">no reset window</span>;
-  return (
-    <span title={value}>
-      {prefix} {rendered ?? value}
-    </span>
-  );
-}
-
-export { providerName };

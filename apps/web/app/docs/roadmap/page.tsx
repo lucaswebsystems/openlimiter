@@ -76,18 +76,28 @@ export default function RoadmapPage() {
         },
         {
           id: "sync",
-          title: "Planned: encrypted synchronisation",
+          title: "Planned: OpenLimiter Pro",
           body: (
             <>
               <P>
-                Encrypted synchronisation of quota state across your own devices. This is the one
-                planned capability that would cost money to run, which is why it is also the one
-                thing the{" "}
-                <DocLink href="/#pricing">paid hosted add on</DocLink> would cover.
+                Everything that can only run on a server, gathered into one planned paid tier at 5
+                USD a month, founding price. Nothing that runs locally today moves behind it: Pro
+                sells servers and service, not switches. See{" "}
+                <DocLink href="/#pricing">pricing</DocLink> for the card as it stands.
               </P>
               <Bullets
                 items={[
-                  <>Status: planned. No service exists and there is no checkout.</>,
+                  <>Status: planned. No service exists, there is no checkout and no waiting list.</>,
+                  <>Encrypted synchronisation of quota state across your own devices.</>,
+                  <>Push notifications to your phone when a window nears its cap.</>,
+                  <>
+                    A smart limiter: quota aware routing between your models, driven by live budget
+                    state.
+                  </>,
+                  <>Email alerts and a weekly digest, with delivery rules for quiet hours.</>,
+                  <>Hosted usage history and burn trends across every device.</>,
+                  <>Priority connector requests, so your provider gets built first.</>,
+                  <>A team dashboard tier, later than the rest.</>,
                   <>
                     The local first guarantee does not change: the CLI would keep working with no
                     account and no network.

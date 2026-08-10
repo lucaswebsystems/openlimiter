@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { HeroBackdrop } from "./hero-backdrop";
-import { providerMarks } from "./provider-marks";
+import { heroMarks } from "./tool-marks";
 import { ButtonLink, IconButtonLink, SHELL } from "./ui";
 import {
   DOWNLOAD_DISCLAIMER,
@@ -132,6 +132,7 @@ export function Hero() {
           </ButtonLink>
           <IconButtonLink
             href={MACOS_APPLE_SILICON_URL}
+            external
             label="Download OpenLimiter for macOS, Apple silicon"
           >
             <AppleGlyph />
@@ -156,13 +157,15 @@ export function Hero() {
 
         <div className="flex flex-wrap items-center gap-2 pt-6">
           <span className="text-xs text-muted">Supports</span>
-          <div className="flex items-center gap-1">
-            {providerMarks.map(({ name, Mark }) => (
+          <div className="flex items-center gap-1.5">
+            {heroMarks.map(({ name, Mark }) => (
               <span
                 key={name}
-                className="inline-flex items-center justify-center rounded-full p-1.5 text-muted"
+                title={name}
+                className="inline-flex items-center justify-center rounded-lg border border-hairline bg-surface p-1.5 text-soft"
               >
-                <Mark />
+                <Mark className="h-[18px] w-[18px]" />
+                <span className="sr-only">{name}</span>
               </span>
             ))}
           </div>

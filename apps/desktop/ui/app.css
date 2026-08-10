@@ -1,76 +1,22 @@
 /*
- * The window, in the product's one design language.
+ * The window's components, in the product's one design language.
  *
- * Every value here mirrors a token in apps/web/app/globals.css or in
- * apps/web/app/app/theme.css by name, so the window, the web dashboard and the
- * statusline read as one product. There is no font file, no image and no
- * dependency: the system typeface, the OpenLimiter blue and the three pressure
- * colours are the whole design, which keeps the bundle small and the first
- * paint instant.
+ * Every colour, radius and font here is one of the variables theme.css
+ * defines, and every shape mirrors one in apps/web/components/ui.tsx, so the
+ * window and the web dashboard are the same design rather than two designs
+ * that agree about colour. A card is a twelve pixel radius on a hairline over
+ * the surface tone. A button is thirty eight pixels tall with an eight pixel
+ * radius. A chip is a pill. None of that is invented here.
  *
- * The pressure scale is the same one the dashboard uses and is read off the
- * same thresholds the engine already applies:
+ * Type is split by what a thing is rather than by where it sits. The monospace
+ * face carries code and only code: a provider's enum code, an engine reason
+ * code, a clock reading, a file path, and the blocks an agent would actually
+ * be handed. Every label, name, heading, button and sentence is the system
+ * sans the rest of the product is set in.
  *
- *   healthy   below 60 percent      teal
- *   watch     60 to 79 percent      amber
- *   critical  80 percent and above  red
- *
- * Contrast against the three backgrounds these colours land on is at worst
- * 5.25 to 1 in light and 7.61 to 1 in dark, so every one of them clears AA for
- * normal text, which it must: the number beside a bar is painted in the bar's
- * own colour.
+ * Not one literal colour appears below this line. theme.css is the only file
+ * in this window allowed to name one.
  */
-
-:root {
-  color-scheme: light dark;
-
-  --canvas: #f8f8f9;
-  --surface: #f1f1f3;
-  --raised: #ebebed;
-  --code: #eeeef0;
-  --hairline: #e0e0e3;
-  --hairline-strong: #c6c6cb;
-  --heading: #0d0d0f;
-  --body: #46464d;
-  --soft: #46464d;
-  --muted: #55555e;
-  --accent: #0866ff;
-
-  --meter-healthy: #0a6d5d;
-  --meter-watch: #845309;
-  --meter-critical: #b42318;
-  --meter-empty: #dcdce1;
-  --meter-ghost: #c6c6cb;
-  --sheen: rgb(13 13 15 / 0.04);
-  /* How much colour a stale bar keeps. Fading means mixing toward the surface,
-     which is lighter here and darker in the dark theme, so the two need
-     different amounts to stay above 3 to 1 against the card behind them. */
-  --stale-mix: 82%;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --canvas: #0d0d0f;
-    --surface: #141416;
-    --raised: #1a1a1d;
-    --code: #0a0a0c;
-    --hairline: #24242a;
-    --hairline-strong: #3c3c44;
-    --heading: #fafafa;
-    --body: #b6b6bd;
-    --soft: #b6b6bd;
-    --muted: #aaaab2;
-    --accent: #7db4ff;
-
-    --meter-healthy: #3ddbb8;
-    --meter-watch: #f2b544;
-    --meter-critical: #ff8a80;
-    --meter-empty: #2a2a30;
-    --meter-ghost: #3c3c44;
-    --sheen: rgb(255 255 255 / 0.045);
-    --stale-mix: 55%;
-  }
-}
 
 * {
   box-sizing: border-box;
@@ -82,11 +28,15 @@
   display: none !important;
 }
 
+html,
+body {
+  background: var(--canvas);
+}
+
 body {
   margin: 0;
-  background: var(--canvas);
   color: var(--body);
-  font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   /* A window is dragged by its title bar, never by selecting its contents. */
   user-select: none;
@@ -96,77 +46,83 @@ body {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* ------------------------------------------------------------------- chrome */
+/* ------------------------------------------------------------------ shapes */
 
-.bar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 16px;
-  background: color-mix(in srgb, var(--canvas) 88%, transparent);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--hairline);
-}
-
-.identity {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.logo {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
+/* The card, at the site's own metrics: twelve pixel radius, one hairline, the
+   surface tone, and one pixel of light along the top edge. */
+.surface {
   border: 1px solid var(--hairline);
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--surface);
-  color: var(--accent);
+  box-shadow: inset 0 1px 0 0 var(--sheen);
+}
+
+/* The chip, at the site's own metrics: a pill, a hairline, twelve pixel text. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--raised);
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--heading);
   flex: none;
 }
 
-h1 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--heading);
-}
-
-h2 {
-  margin: 0 0 8px;
-  font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.chip.muted {
   color: var(--muted);
 }
 
-.sub {
-  margin: 1px 0 0;
-  font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--muted);
+.chip.accent {
+  border-color: var(--accent-subtle);
+  background: var(--accent-subtle);
+  color: var(--accent);
 }
 
+/* A quieter second value inside a chip. Size carries the hierarchy, never
+   opacity: fading a token is how a measured contrast ratio stops being the
+   ratio that was measured. */
+.chip .dim {
+  font-size: 11px;
+}
+
+.tracked {
+  letter-spacing: 0.1em;
+}
+
+/* The button, at the site's own metrics: thirty eight pixels tall, an eight
+   pixel radius, sixteen pixels of horizontal padding, fourteen pixel medium
+   text, and a border on every tone so two of them line up on a row. */
 button {
-  padding: 6px 11px;
-  border: 1px solid var(--hairline);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--hairline-strong);
   border-radius: 8px;
-  background: var(--surface);
+  background: transparent;
   color: var(--heading);
-  font: 500 12px/1.4 inherit;
+  font: 500 14px/1.4 inherit;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    translate 0.2s ease;
 }
 
 button:hover {
-  background: var(--raised);
-  border-color: var(--hairline-strong);
+  background: var(--surface);
+  border-color: var(--heading);
+  translate: 0 -1px;
+}
+
+button:active {
+  translate: 0 0;
 }
 
 button:focus-visible {
@@ -177,44 +133,96 @@ button:focus-visible {
 button[disabled] {
   opacity: 0.5;
   cursor: default;
+  translate: 0 0;
 }
 
-main {
-  padding: 12px 16px 22px;
+/* A bare icon control, the shape the site's theme toggle takes. */
+button.icon {
+  padding: 8px;
+  border-color: transparent;
+  color: var(--muted);
 }
 
-/* -------------------------------------------------------------------- strip */
+button.icon:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--heading);
+}
+
+/* ------------------------------------------------------------------ header */
 
 .strip {
-  display: grid;
-  gap: 10px;
-  margin: 12px 16px 0;
-  padding: 12px 14px;
+  margin: 16px;
   border: 1px solid var(--hairline);
   border-radius: 12px;
   background: var(--surface);
   box-shadow: inset 0 1px 0 0 var(--sheen);
 }
 
-.strip-main {
+.strip-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+}
+
+.lockup {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 9px;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  background: var(--raised);
-  font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.14em;
-  color: var(--heading);
+.lockup svg {
   flex: none;
+  color: var(--brand);
+}
+
+/* The wordmark, in the lockup's own face at the lockup's own weight. */
+.wordmark {
+  font-family: var(--font-brand);
+  font-weight: 600;
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--heading);
+}
+
+.rule {
+  width: 1px;
+  height: 22px;
+  flex: none;
+  background: var(--hairline);
+}
+
+h1 {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.strip-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--hairline);
 }
 
 .pressure-dot {
@@ -222,15 +230,19 @@ main {
   height: 8px;
   border-radius: 50%;
   background: var(--muted);
+  flex: none;
 }
 
-.pressure-dot[data-pressure="healthy"] { background: var(--meter-healthy); }
+.pressure-dot[data-pressure="ok"] { background: var(--meter-ok); }
+.pressure-dot[data-pressure="high"] { background: var(--meter-high); }
 .pressure-dot[data-pressure="watch"] { background: var(--meter-watch); }
 .pressure-dot[data-pressure="critical"] { background: var(--meter-critical); }
 
 .strip-line {
   margin: 0;
-  font-size: 11px;
+  flex: 1 1 200px;
+  min-width: 0;
+  font-size: 12px;
   line-height: 1.45;
   color: var(--muted);
 }
@@ -238,51 +250,73 @@ main {
 .strip-side {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
+  align-items: center;
+  gap: 8px 12px;
   min-width: 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--hairline);
 }
 
-.rec {
+.rec-line {
   margin: 0;
-  font: 500 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.1em;
-  color: var(--heading);
-}
-
-.rec-sub {
-  margin: 0;
-  font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.08em;
+  font-size: 12px;
+  line-height: 1.45;
   color: var(--muted);
+}
+
+.stamp {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/*
+  The toggle offers the theme you are not in, and the swap is pure CSS keyed
+  off the same attribute the palette is, so the correct icon is right on the
+  very first paint with no script reading a browser global.
+*/
+.icon-to-dark {
+  display: none;
+}
+
+:root[data-theme="light"] .icon-to-dark {
+  display: block;
+}
+
+:root[data-theme="light"] .icon-to-light {
+  display: none;
 }
 
 /* --------------------------------------------------------------------- tabs */
 
+/* A segmented control sized to its own labels, exactly as on the web
+   dashboard, rather than a bar stretched across whatever the window is. */
 .tabs {
-  display: flex;
+  display: inline-flex;
+  width: max-content;
+  max-width: calc(100% - 32px);
   gap: 4px;
-  margin: 12px 16px 0;
+  margin: 0 16px;
   padding: 4px;
   border: 1px solid var(--hairline);
-  border-radius: 11px;
+  border-radius: 12px;
   background: var(--surface);
 }
 
 .tabs button {
-  flex: 1;
-  border: 0;
+  flex: none;
+  font-family: var(--font-brand);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border-color: transparent;
   background: transparent;
   color: var(--muted);
   border-radius: 8px;
-  padding: 6px 10px;
+  padding: 6px 14px;
 }
 
 .tabs button:hover {
   background: transparent;
+  border-color: transparent;
   color: var(--heading);
+  translate: 0 0;
 }
 
 .tabs button[aria-selected="true"] {
@@ -290,19 +324,38 @@ main {
   color: var(--heading);
 }
 
+main {
+  padding: 16px 16px 24px;
+}
+
 /* -------------------------------------------------------------------- cards */
 
+/* Cards size to their own content. Stretching them to the tallest in the row
+   opens a void under the short ones, and a void inside a card reads as
+   something missing rather than as breathing room. */
 .cards {
   display: grid;
-  gap: 10px;
+  gap: 16px;
+  align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 
 .card {
   border: 1px solid var(--hairline);
   border-radius: 12px;
   background: var(--surface);
-  padding: 12px 14px;
+  padding: 20px;
   box-shadow: inset 0 1px 0 0 var(--sheen);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    translate 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--hairline-strong);
+  background: var(--raised);
+  translate: 0 -2px;
 }
 
 .card.unknown {
@@ -310,25 +363,30 @@ main {
   border-color: var(--hairline-strong);
 }
 
+.card.unknown:hover {
+  background: var(--surface);
+  translate: 0 0;
+}
+
 .card-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
 .card-id {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 12px;
   min-width: 0;
 }
 
 .card-mark {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--hairline);
   border-radius: 8px;
   background: var(--raised);
@@ -337,49 +395,53 @@ main {
 }
 
 .name {
-  font-size: 13px;
+  font-family: var(--font-brand);
   font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 14px;
   color: var(--heading);
-  line-height: 1.2;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .code {
   margin-top: 2px;
-  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: 0.14em;
   color: var(--muted);
 }
 
 .peak {
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
   flex: none;
 }
 
 .peak-value {
-  font: 600 17px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
 /* A card with no reading says so quietly. There is no number to shout. */
 .peak-value.none {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
 }
 
-.peak-note {
-  margin-top: 4px;
-  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--muted);
-}
-
 .meters {
-  margin-top: 11px;
+  margin-top: 16px;
   border-top: 1px solid var(--hairline);
 }
 
 .meter-row {
-  padding: 10px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--hairline);
 }
 
@@ -392,25 +454,26 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
 .meter-name {
-  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.14em;
+  font-size: 14px;
   color: var(--soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.meter-name.absent {
+  color: var(--muted);
+}
+
 .freshness {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  gap: 6px;
+  font-size: 11px;
   color: var(--muted);
   flex: none;
 }
@@ -435,37 +498,268 @@ main {
 .meter-line {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 10px;
 }
 
 .meter-value {
-  width: 58px;
+  width: 56px;
   flex: none;
   text-align: right;
-  font: 600 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
 
 /* The word unknown is not a reading, so it is not typeset like one. */
 .meter-value.none {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
 }
 
+/*
+ * The money reading, for a plan bought in credits rather than rationed.
+ *
+ * The dollars are the reading on a plan like this, so they take the place the
+ * percentage takes everywhere else, in the bar's own colour, and the
+ * percentage drops to the line underneath. Nothing about the plan is painted
+ * in a band colour except the figure that is actually the reading.
+ */
+.meter-money {
+  flex: none;
+  text-align: right;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-money .spent {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.meter-money .word {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.meter-money .loaded {
+  display: block;
+  font-size: 11px;
+  color: var(--soft);
+}
+
+/* Sits inside .meter-foot, which owns the spacing above it. */
 .meter-reset {
-  margin: 8px 0 0;
-  font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
   color: var(--muted);
 }
 
 .origin {
-  margin: 11px 0 0;
-  padding-top: 10px;
+  margin: 12px 0 0;
+  padding-top: 12px;
   border-top: 1px solid var(--hairline);
-  font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.35;
   color: var(--muted);
+}
+
+/* The line under a meter: the countdown, and for a priced plan the percentage
+   that the money reading displaced. */
+.meter-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.meter-foot .sep {
+  opacity: 0.6;
+}
+
+.meter-percent {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  The failure line on a card.
+
+  Red, because it is the one thing on a card that is not a reading. Its text is
+  always one of the fixed sentences from the core's failure vocabulary, set
+  through textContent, so nothing a provider wrote can reach this element.
+*/
+.card-error {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--meter-error);
+}
+
+/* --------------------------------------------------------------- list view */
+
+/* The segmented control beside Refresh. */
+.viewswitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--surface);
+  flex: none;
+}
+
+.viewswitch .seg {
+  padding: 4px 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 6px;
+}
+
+.viewswitch .seg:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--heading);
+  translate: 0 0;
+}
+
+.viewswitch .seg[aria-pressed="true"] {
+  background: var(--raised);
+  color: var(--heading);
+}
+
+/*
+  The same readings as a dense table.
+
+  One row per meter rather than one card per provider, built from the same
+  snapshots the cards are, so the two views cannot disagree. It is a grid with
+  table roles rather than a real table, because the row has to fold when the
+  window is narrow and a table row cannot be refolded. Seven columns wide; at
+  560 the same cells become an identity line with its reading on the right, the
+  bar on a full width line, and one muted line of detail. Nothing scrolls
+  sideways at any window size.
+*/
+.list {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 1px 0 0 var(--sheen);
+  overflow: hidden;
+}
+
+.list-row {
+  display: grid;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 10px 16px;
+  grid-template-columns:
+    minmax(6.5rem, 1.1fr) minmax(5.5rem, 0.9fr) minmax(4.5rem, 1.3fr)
+    3.5rem minmax(0, 6rem) 4.25rem minmax(0, 7rem);
+}
+
+.list-row[data-group-start="true"] {
+  border-top: 1px solid var(--hairline);
+}
+
+.list-head {
+  border-bottom: 1px solid var(--hairline);
+  padding-top: 11px;
+  padding-bottom: 11px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.list-row:not(.list-head):hover {
+  background: var(--raised);
+}
+
+.cell-ident {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cell-ident .name {
+  font-size: 13px;
+}
+
+.cell-meter {
+  font-size: 13px;
+  color: var(--soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-value {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.cell-money {
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--soft);
+}
+
+.cell-reset {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* The name is in every row for a screen reader and drawn once for the eye. */
+.only-reader {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@media (max-width: 560px) {
+  .list-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ident meter value"
+      "bar   bar   bar"
+      "state money reset";
+    gap: 6px 10px;
+    padding: 14px 16px;
+  }
+
+  .cell-ident { grid-area: ident; }
+  .cell-meter { grid-area: meter; justify-self: start; color: var(--muted); font-size: 11px; }
+  .cell-bar { grid-area: bar; }
+  .cell-value { grid-area: value; }
+  .cell-state { grid-area: state; justify-self: start; }
+  .cell-money { grid-area: money; justify-self: center; text-align: center; }
+  .cell-reset { grid-area: reset; justify-self: end; text-align: right; }
+  .list-head { display: none; }
 }
 
 /* -------------------------------------------------------------------- meter */
@@ -473,14 +767,15 @@ main {
 .meter {
   display: flex;
   align-items: stretch;
-  gap: 3px;
+  gap: var(--meter-gap);
   flex: 1;
   min-width: 0;
   --pressure-base: var(--meter-ghost);
   --pressure: var(--pressure-base);
 }
 
-.meter[data-pressure="healthy"] { --pressure-base: var(--meter-healthy); }
+.meter[data-pressure="ok"] { --pressure-base: var(--meter-ok); }
+.meter[data-pressure="high"] { --pressure-base: var(--meter-high); }
 .meter[data-pressure="watch"] { --pressure-base: var(--meter-watch); }
 .meter[data-pressure="critical"] { --pressure-base: var(--meter-critical); }
 
@@ -491,8 +786,8 @@ main {
 .block {
   flex: 1 1 0;
   min-width: 0;
-  height: 12px;
-  border-radius: 2px;
+  height: var(--meter-height);
+  border-radius: var(--meter-radius);
   background-color: var(--meter-empty);
 }
 
@@ -515,8 +810,9 @@ main {
 }
 
 /* The number keeps its full colour whatever its freshness: a percentage has to
-   stay legible, and the hollow dot and the word STALE carry the state. */
-.value[data-pressure="healthy"] { color: var(--meter-healthy); }
+   stay legible, and the hollow dot and the word stale carry the state. */
+.value[data-pressure="ok"] { color: var(--meter-ok); }
+.value[data-pressure="high"] { color: var(--meter-high); }
 .value[data-pressure="watch"] { color: var(--meter-watch); }
 .value[data-pressure="critical"] { color: var(--meter-critical); }
 
@@ -526,44 +822,47 @@ main {
   border: 1px dashed var(--hairline-strong);
   border-radius: 12px;
   background: var(--surface);
-  padding: 28px 20px;
+  padding: 48px 24px;
   text-align: center;
 }
 
 .empty .meter {
-  max-width: 180px;
-  margin: 0 auto 18px;
+  max-width: 224px;
+  margin: 0 auto 24px;
 }
 
 .empty h3 {
   margin: 0;
-  font-size: 13px;
+  font-family: var(--font-brand);
   font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 16px;
   color: var(--heading);
 }
 
 .empty p {
   margin: 8px auto 0;
   max-width: 34em;
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 
 .ways {
   list-style: none;
-  margin: 16px auto 0;
+  margin: 20px auto 0;
   padding: 0;
   max-width: 34em;
   text-align: left;
   display: grid;
-  gap: 7px;
+  gap: 8px;
 }
 
 .ways li {
   display: flex;
-  gap: 8px;
-  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
   color: var(--muted);
 }
 
@@ -575,17 +874,26 @@ main {
 
 /* ------------------------------------------------------------------- blocks */
 
+h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-brand);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 14px;
+  color: var(--heading);
+}
+
 .block-section + .block-section {
-  margin-top: 16px;
+  margin-top: 20px;
 }
 
 pre {
   margin: 0;
-  padding: 12px;
+  padding: 16px;
   border: 1px solid var(--hairline);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--code);
-  font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--body);
   white-space: pre-wrap;
   word-break: break-word;
@@ -593,25 +901,97 @@ pre {
   user-select: text;
 }
 
+/*
+  The footnote.
+
+  The site sets its closing line at twelve pixels in the muted step over a
+  hairline, and this is the same line doing the same job, so it is set the same
+  way. The path above it stays monospace, because a path is code.
+*/
 footer {
-  margin-top: 18px;
-  padding-top: 14px;
+  margin-top: 24px;
+  padding-top: 16px;
   border-top: 1px solid var(--hairline);
 }
 
 footer p {
-  margin: 0 0 6px;
-  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
   color: var(--muted);
 }
 
-/* Only the path breaks anywhere. A sentence breaks between its words. */
 #where {
+  margin-bottom: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  /* Only the path breaks anywhere. A sentence breaks between its words. */
   word-break: break-all;
+  user-select: text;
+}
+
+/* ------------------------------------------------------------------- motion */
+
+/*
+  The entrance, in the site's own motion language.
+
+  Twenty pixels of rise and a fade over 560 milliseconds on the same curve the
+  marketing pages use, staggered seventy milliseconds apart across the cards.
+  It runs on the elements themselves with `backwards`, so a card is hidden only
+  while its own delay is counting down and is painted complete the moment the
+  animation ends, whatever else happens. Nothing here can leave content hidden.
+*/
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.card,
+.empty {
+  animation: rise-in 560ms cubic-bezier(0, 0, 0.58, 1) backwards;
+}
+
+.card:nth-child(1) { animation-delay: 0ms; }
+.card:nth-child(2) { animation-delay: 70ms; }
+.card:nth-child(3) { animation-delay: 140ms; }
+.card:nth-child(4) { animation-delay: 210ms; }
+.card:nth-child(5) { animation-delay: 280ms; }
+.card:nth-child(n + 6) { animation-delay: 350ms; }
+
+/* A panel cross fades in on the same curve over a shorter distance. */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+[role="tabpanel"]:not([hidden]) {
+  animation: panel-in 220ms cubic-bezier(0, 0, 0.58, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
+  }
+
+  button:hover,
+  .card:hover {
+    translate: 0 0;
   }
 }

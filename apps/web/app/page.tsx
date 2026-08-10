@@ -6,6 +6,7 @@ import { Faq, faqItems } from "@/components/faq";
 import { Hero } from "@/components/hero";
 import { IntegrationStrip } from "@/components/integration-strip";
 import { JsonLd } from "@/components/json-ld";
+import { Pricing } from "@/components/pricing";
 import { RunsWhere } from "@/components/runs-where";
 import { Scriptable } from "@/components/scriptable";
 import { SHELL } from "@/components/ui";
@@ -70,6 +71,7 @@ export default function Home() {
           <WebApp />
           <AgentContext />
           <Scriptable />
+          <Pricing />
           <Faq />
           <AboutCard />
         </div>

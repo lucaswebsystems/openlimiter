@@ -6,12 +6,15 @@ import { reveal } from "@/lib/motion";
 /**
  * Runs where you work.
  *
- * The three panels are phone sized because that is the shape the web app takes
- * on a phone, and the web app is real: it is at /app, it runs the same engine,
- * and it installs to a home screen. What the panels hold is still the command
- * line tool's own captured output at phone width rather than a screenshot of
- * the browser, which the note underneath says in the open. The iOS and Android
- * applications remain planned and unbuilt, and nothing here suggests otherwise.
+ * The three shells hold real captures of the web app at phone size, which is
+ * why the note underneath calls them screenshots rather than a mockup. The
+ * numbers inside them come from the project's synthetic fixtures, so every
+ * shell carries a demo data chip. The iOS and Android applications remain
+ * planned and unbuilt, and nothing here suggests otherwise.
+ *
+ * There is no transcript on this section any more. The statusline and the hook
+ * are shown once each, in the two sections that exist to explain them, rather
+ * than a third time here.
  */
 export function RunsWhere() {
   return (
@@ -24,10 +27,9 @@ export function RunsWhere() {
         <PhonePanels />
       </div>
       <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-relaxed text-muted" {...reveal}>
-        These three panels are the real snapshot at phone width, not a mockup of an application.
-        Every provider, meter and percentage in them is parsed from verbatim captured output of the
-        command line tool against synthetic fixtures, which is why each one carries a demo data
-        chip. The same reading opens in a browser in the{" "}
+        Those are screenshots of the web app running at phone size, against the project&apos;s
+        synthetic fixtures, which is why each one carries a demo data chip. The same reading opens
+        in any browser at the{" "}
         <Link
           href="/app"
           className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"

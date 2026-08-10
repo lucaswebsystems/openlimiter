@@ -1,97 +1,86 @@
-import type { ReactNode } from "react";
 import { DemoDataChip } from "./ui";
-import { hookCapture, statuslineCapture } from "@/lib/cli-capture";
-import { humanise, parseDemoRows, worstPerProvider } from "@/lib/snapshot";
 
 /**
- * Three phone sized panels.
+ * Three phone sized panels, and what is inside them.
  *
- * These are not screenshots of the web app, and nothing here pretends they are.
- * What they hold is the real snapshot at phone width: every provider, meter and
- * percentage below is parsed out of the verbatim `openlimiter demo` capture in
- * lib/cli-capture.ts, and the two transcript panels are that file's statusline
- * and hook captures printed character for character. Nothing was drawn to fill
- * the space, and every panel carries a demo data chip.
+ * These were a hand built mock of the snapshot at phone width, because no
+ * capture of the web app on a phone existed. Three do now, so the shells hold
+ * real screenshots of the running web app at phone size, taken against the
+ * project's synthetic demo fixtures. Every shell still carries a demo data
+ * chip, because the numbers in the picture are fixtures rather than an account.
+ *
+ * The three entries below are the whole contract with the files. Each one is
+ * served from public/ at its natural pixel size, and only that size is written
+ * here, so the captures can be retaken at any time and these shells follow
+ * them. Nothing in this component depends on what is inside a picture.
  */
 
-function Phone({ children, label }: { children: ReactNode; label: string }) {
+interface PhoneShot {
+  src: string;
+  width: number;
+  height: number;
+  label: string;
+  alt: string;
+}
+
+const shots: readonly PhoneShot[] = [
+  {
+    src: "/screenshots/phone-1.png",
+    width: 780,
+    height: 1688,
+    label: "Meters",
+    alt: "The web app on a phone, showing the overall verdict at the top and one card per provider below it, each with a meter bar, a percentage, a freshness state and a reset countdown.",
+  },
+  {
+    src: "/screenshots/phone-2.png",
+    width: 780,
+    height: 1688,
+    label: "Agent context",
+    alt: "The web app on a phone, showing the bounded block of budget state a coding agent receives, fenced in an untrusted data boundary.",
+  },
+  {
+    src: "/screenshots/phone-3.png",
+    width: 780,
+    height: 1688,
+    label: "Ingest",
+    alt: "The web app on a phone, showing the box a quota document is pasted or dropped into, and where such a document comes from.",
+  },
+];
+
+function Phone({ shot, className = "" }: { shot: PhoneShot; className?: string }) {
   return (
-    <div className="w-[240px] flex-none overflow-hidden rounded-phone border-4 border-frame bg-code shadow-2xl ring-1 ring-hairline">
-      <div className="flex h-[496px] flex-col">
-        <div className="flex items-center justify-between px-4 pb-2 pt-4">
-          <span className="text-xs font-medium text-heading">{label}</span>
+    <div className={`flex-none ${className}`}>
+      <div className="elev-2 w-[210px] overflow-hidden rounded-phone border-4 border-frame bg-code sm:w-[240px]">
+        <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-4">
+          <span className="text-xs font-medium text-heading">{shot.label}</span>
           <DemoDataChip />
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden px-4 pb-5">{children}</div>
+        <div className="h-[440px] overflow-hidden px-3 pb-3 sm:h-[496px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={shot.src}
+            width={shot.width}
+            height={shot.height}
+            alt={shot.alt}
+            loading="lazy"
+            className="block h-full w-full rounded-xl border border-hairline object-cover object-top"
+          />
+        </div>
       </div>
     </div>
   );
 }
 
-function MeterRow({
-  provider,
-  meter,
-  percent,
-}: {
-  provider: string;
-  meter: string;
-  percent: number;
-}) {
-  return (
-    <li className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium text-heading">{humanise(provider)}</span>
-        <span className="font-mono text-2xs text-muted">{percent.toFixed(0)}%</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-track">
-        <div
-          className="h-full rounded-full bg-accent-solid"
-          style={{ width: `${percent}%` }}
-          role="img"
-          aria-label={`${humanise(provider)}, ${humanise(meter)} meter, ${percent.toFixed(0)} percent of the window used`}
-        />
-      </div>
-      <p className="font-mono text-2xs text-muted">{humanise(meter)}</p>
-    </li>
-  );
-}
-
-function TranscriptPanel({ text }: { text: string }) {
-  return (
-    <pre className="h-full overflow-hidden whitespace-pre-wrap break-words font-mono text-2xs leading-5 text-soft">
-      {text}
-    </pre>
-  );
-}
-
 export function PhonePanels() {
-  const rows = parseDemoRows();
-  const worst = worstPerProvider(rows);
-
   return (
-    <div className="flex items-center justify-center gap-6 overflow-hidden">
-      <div className="hidden md:block">
-        <Phone label="Statusline">
-          <TranscriptPanel text={statuslineCapture.output} />
-        </Phone>
-      </div>
-      <Phone label="Snapshot">
-        <ul className="space-y-4">
-          {worst.map((row) => (
-            <MeterRow
-              key={row.provider}
-              provider={row.provider}
-              meter={row.meter}
-              percent={row.usagePercent}
-            />
-          ))}
-        </ul>
-      </Phone>
-      <div className="hidden md:block">
-        <Phone label="Agent context">
-          <TranscriptPanel text={hookCapture.output} />
-        </Phone>
-      </div>
+    /* Below the medium breakpoint only the first shell is on the screen, and
+       it is the meters view rather than whichever one happened to be in the
+       middle: three phones do not fit on a phone, and the one that survives
+       should be the one that shows what the product is for. */
+    <div className="flex items-center justify-center gap-4 sm:gap-6">
+      <Phone shot={shots[0]} />
+      <Phone shot={shots[1]} className="hidden md:block" />
+      <Phone shot={shots[2]} className="hidden md:block" />
     </div>
   );
 }

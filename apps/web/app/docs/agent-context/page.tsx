@@ -24,7 +24,7 @@ export default function AgentContextPage() {
               </P>
               <CodeBlock
                 label="example output, synthetic values"
-                code={`OpenLimiter NEAR_CAP CLAUDE 87.5% UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL`}
+                code={`OpenLimiter NEAR_CAP NONE UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL  CLAUDE ####. 87.5%`}
               />
               <P>
                 Usage is truncated, never rounded upward, so a meter at 99.99 percent reads as 99.9

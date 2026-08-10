@@ -2,6 +2,7 @@ import type {
   ConnectorLabels,
   ProviderCode,
   RawMeter,
+  SnapshotAmounts,
   SnapshotPrecision,
   SnapshotSource,
   SnapshotWindow
@@ -47,6 +48,15 @@ export function rawMeter(input: {
   observedAt: string;
   expiresAt: string;
   labels: ConnectorLabels;
+  /**
+   * Money, when the provider's own documented payload states it.
+   *
+   * Passed through untouched. The normalizer is the only thing that decides
+   * whether these are believable, and it drops all three together or keeps all
+   * three together, so a connector never has to reason about the pair.
+   */
+  amounts?: SnapshotAmounts;
 }): RawMeter {
-  return { ...input, unit: "PERCENT" };
+  const { amounts, ...rest } = input;
+  return { ...rest, unit: "PERCENT", ...(amounts === undefined ? {} : amounts) };
 }

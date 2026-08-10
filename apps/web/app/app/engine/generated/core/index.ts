@@ -15,6 +15,7 @@
  * reports for a file that is not there.
  */
 export * from "./types";
+export * from "./failures";
 export * from "./format";
 export * from "./forecast";
 export * from "./freshness";
