@@ -1,4 +1,4 @@
-import { BrandMark } from "./brand";
+import { BrandLockup } from "./brand";
 import { ButtonLink, GitHubMark } from "./ui";
 import { reveal } from "@/lib/motion";
 import { AUTHOR_EMAIL, AUTHOR_NAME, COFFEE_URL, REPO_URL, SPONSORS_URL } from "@/lib/site";
@@ -81,7 +81,7 @@ export function AboutCard() {
     >
       <div className="grid gap-10 lg:grid-cols-[1.15fr_1fr] lg:gap-16">
         <div className="space-y-5">
-          <BrandMark className="h-9 w-9 text-brand" />
+          <BrandLockup markClassName="h-8 w-8 flex-none text-brand" wordClassName="text-xl" />
           <p className="text-xl leading-relaxed text-heading md:text-2xl">
             OpenLimiter is an independent open source project for people who hold several AI coding
             subscriptions at once and would rather know which one still has room than find out the

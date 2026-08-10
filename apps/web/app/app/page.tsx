@@ -1,5 +1,5 @@
 import { Dashboard } from "./dashboard";
-import { BrandLockup, BrandMark } from "@/components/brand";
+import { BrandLockup } from "@/components/brand";
 import { SHELL } from "@/components/ui";
 import { wordmarkFont } from "@/lib/fonts";
 
@@ -38,7 +38,10 @@ const PROMISES = ["No upload", "No account", "No analytics", "No request leaves 
 function Splash() {
   return (
     <div className="ol-splash" aria-hidden="true">
-      <BrandMark className="ol-splash-mark h-16 w-16" />
+      <BrandLockup
+        markClassName="ol-splash-mark h-12 w-12 flex-none text-brand"
+        wordClassName="text-3xl"
+      />
     </div>
   );
 }
@@ -58,30 +61,16 @@ export default function AppPage() {
         <Dashboard
           lockup={
             <div className="flex min-w-0 items-center gap-3">
-              {/*
-                Two headers, one markup, swapped by display mode in theme.css.
-
-                In a browser tab the site's own header is directly above this
-                one and already carries the lockup, so repeating it is two of
-                the same logo a hundred pixels apart. Here the mark stands
-                alone at twenty pixels, in the four segment telling that holds
-                at that size, and the page's name is the heading.
-
-                Installed, there is no site header at all, so the full lockup
-                comes back: it is the only brand on the screen, and the window
-                should say what it is. The desktop application counts as the
-                installed case and carries the same lockup.
-              */}
-              <BrandMark
-                className="ol-appmark-small h-5 w-5 flex-none text-brand"
-                variant="small"
+              {/* One header for every context. The brand rule is the full
+                  lockup on every product surface: mark alone is reserved for
+                  the favicon and the desktop icon. In a browser tab the site
+                  header above also carries the lockup; the divider and the
+                  page name keep this one reading as application chrome rather
+                  than a repeat. */}
+              <BrandLockup
+                markClassName="h-7 w-7 flex-none text-brand sm:h-8 sm:w-8"
+                wordClassName="text-lg sm:text-xl"
               />
-              <span className="ol-appmark-full items-center gap-2.5">
-                <BrandLockup
-                  markClassName="h-8 w-8 flex-none text-brand sm:h-9 sm:w-9"
-                  wordClassName="text-xl sm:text-2xl"
-                />
-              </span>
               <span aria-hidden="true" className="h-6 w-px flex-none bg-hairline" />
               <h1 className="ol-brand-font truncate text-base text-heading">
                 Quota dashboard

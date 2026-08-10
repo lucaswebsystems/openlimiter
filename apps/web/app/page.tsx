@@ -1,6 +1,6 @@
 import { AboutCard } from "@/components/about-card";
 import { AgentContext } from "@/components/agent-context";
-import { BrandMark } from "@/components/brand";
+import { BrandLockup } from "@/components/brand";
 import { DeviceFrame } from "@/components/device-frame";
 import { Faq, faqItems } from "@/components/faq";
 import { Hero } from "@/components/hero";
@@ -42,7 +42,7 @@ import { reveal } from "@/lib/motion";
 function BridgeBand() {
   return (
     <div className="flex flex-col items-center gap-1.5 px-6 pb-16 pt-4" {...reveal}>
-      <BrandMark className="h-7 w-7 text-brand" />
+      <BrandLockup markClassName="h-6 w-6 flex-none text-brand" wordClassName="text-base" />
       <p className="text-center text-lg text-soft">
         When you step away from the desk, the numbers are still on your own disk.
       </p>
