@@ -1,0 +1,7 @@
+# The repository is authored with LF endings everywhere, and two things break
+# when a checkout rewrites them: bash scripts stop running, and the provider
+# spec staleness check reads CRLF yaml against LF built json and calls it
+# stale, which failed continuous integration on the Windows runner only.
+# One rule ends both: every text file is LF, in the index and in the working
+# tree, on every platform. Git detects binary files on its own under text=auto.
+* text=auto eol=lf

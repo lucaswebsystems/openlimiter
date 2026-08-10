@@ -31,13 +31,14 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    ".next-caps/types/**/*.ts",
     ".next-fold-build/types/**/*.ts",
     ".next-fold/types/**/*.ts",
     ".next-phone-install-verify/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-caps/types/**/*.ts"
+    ".next-fable/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

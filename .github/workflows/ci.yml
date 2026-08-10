@@ -68,6 +68,21 @@ jobs:
         working-directory: apps/web
         run: pnpm build
 
+      # tauri::generate_context! refuses to compile when frontendDist does not
+      # exist, so the desktop user interface is assembled exactly the way the
+      # release workflow assembles it before the crate is tested.
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: pnpm install --ignore-workspace
+
+      - name: Generate icons
+        working-directory: apps/desktop
+        run: node scripts/icons.mjs
+
+      - name: Assemble the desktop user interface
+        working-directory: apps/desktop
+        run: node scripts/build-ui.mjs
+
       - name: Run desktop cargo tests
         working-directory: apps/desktop/src-tauri
         run: cargo test
