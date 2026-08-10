@@ -66,6 +66,9 @@ function Phone({
           is on screen and it is full width at base; at md (834px) three appear
           without overflow; at lg and up each phone is at least 300px wide. */}
       <div className="phone-body [--screen:min(320px,calc(100vw-3.5rem))] md:[--screen:216px] lg:[--screen:300px] xl:[--screen:350px]">
+        <div className="phone-status-bar">
+          <span aria-hidden="true" className="phone-island" />
+        </div>
         <div style={{ aspectRatio: "390 / 844" }} className="phone-screen">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -83,7 +86,6 @@ function Phone({
             className="shot-light"
             loading="lazy"
           />
-          <span aria-hidden="true" className="phone-island" />
         </div>
       </div>
       {/* Outside the frame, always. A watermark inside the screen would be part
