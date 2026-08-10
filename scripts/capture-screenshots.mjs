@@ -46,6 +46,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPOSITORY = path.resolve(HERE, "..");
 const DESKTOP_DIST = path.join(REPOSITORY, "apps", "desktop", "ui", "dist");
 const OUTPUT = path.join(REPOSITORY, "apps", "web", "public", "screenshots");
+const WALLPAPER = path.join(REPOSITORY, ".media", "images", "image_001.png");
 
 /** Where the built site is already being served. Nothing is started here. */
 const SITE = process.env.OPENLIMITER_SITE ?? "http://127.0.0.1:3111";
@@ -208,22 +209,22 @@ const MENU_GLYPHS = `
 <svg viewBox="0 0 30 24" width="19" height="15" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="8" width="21" height="10" rx="3"/><rect x="4" y="10" width="14" height="6" rx="1.6" fill="currentColor" stroke="none"/><path d="M25.4 11.6v4.2" stroke-linecap="round" stroke-width="2.4"/></svg>
 `;
 
-function scenePage(theme, windowUrl) {
+async function scenePage(theme, windowUrl) {
   const skin = AURORA[theme];
-  const bands = skin.bands
-    .map(
-      (band) =>
-        `<span class="band" style="left:${band.x};top:${band.y};width:${band.w};height:${band.h};background:${band.color}"></span>`,
-    )
-    .join("");
+  /* The desk is a photograph now, Lucas's call (2026-08-10): a nature
+     landscape in the spirit of a current macOS default, generated on this
+     machine so there is no third party licence, frozen in the media ledger.
+     One picture for both themes, exactly as a real desk keeps its wallpaper
+     when the system theme flips; the aurora skin still paints the menu bar,
+     the title bar and the window chrome, and its base gradient stays
+     underneath as the paint before the photograph arrives. */
+  const wallpaper = `data:image/png;base64,${(await readFile(WALLPAPER)).toString("base64")}`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>scene</title><style>
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{width:${SCENE.width}px;height:${SCENE.height}px;overflow:hidden}
   body{font-family:ui-sans-serif,system-ui,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-  .desk{position:relative;width:100%;height:100%;background:${skin.base};overflow:hidden}
-  .band{position:absolute;border-radius:50%;filter:blur(120px);will-change:transform}
-  .grain{position:absolute;inset:0;background-image:url("${GRAIN}");background-size:240px 240px;opacity:${String(skin.grain)};mix-blend-mode:overlay;pointer-events:none}
+  .desk{position:relative;width:100%;height:100%;background:url("${wallpaper}") center / cover no-repeat, ${skin.base};overflow:hidden}
   .menubar{position:absolute;inset:0 0 auto 0;height:${String(MENUBAR_HEIGHT)}px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;background:${skin.menubar};backdrop-filter:blur(28px);color:${skin.menubarText};font-size:13px;line-height:1}
   .menu-left{display:flex;align-items:center;gap:18px}
   .menu-left .app{font-weight:700}
@@ -239,8 +240,6 @@ function scenePage(theme, windowUrl) {
   iframe{display:block;width:100%;height:${String(WINDOW.height - WINDOW.titlebar)}px;border:0;background:transparent}
 </style></head>
 <body><div class="desk">
-  ${bands}
-  <div class="grain"></div>
   <div class="menubar">
     <div class="menu-left"><span class="app">OpenLimiter</span><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span></div>
     <div class="menu-right">${MENU_GLYPHS}<span class="clock">Tue 21:41</span></div>
@@ -438,7 +437,7 @@ async function main() {
   }
   const { server, port } = await startDesk(pages);
   for (const theme of ["dark", "light"]) {
-    pages.set("/scene-" + theme, scenePage(theme, `/window-${theme}`));
+    pages.set("/scene-" + theme, await scenePage(theme, `/window-${theme}`));
   }
 
   /* A machine that already has a Chromium can name it rather than downloading
