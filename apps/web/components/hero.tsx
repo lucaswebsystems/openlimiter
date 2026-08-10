@@ -197,7 +197,13 @@ export function Hero() {
       <div aria-hidden="true" className="hero-scrim-side" />
       <div aria-hidden="true" className="hero-scrim-top" />
 
-      <div className="relative z-10 flex h-full items-center">
+      {/* The centering box excludes the header's band: the bar floats OVER the
+          fold, so content centered in the full height can rise underneath it on
+          a small screen, which put the headline behind the controls the day the
+          bar grew. Reserving the bar's own height plus a small gap above (and a
+          matching breath below) keeps the centre optically where it was while
+          making the collision impossible at any viewport. */}
+      <div className="relative z-10 flex h-full items-center pb-4 pt-[calc(var(--ol-header-h)+0.5rem)]">
         <div className={`${SHELL} w-full`}>
           <div className="max-w-2xl">
             <h1 className="fold-enter fold-enter-title text-4xl font-medium leading-tight tracking-tight text-heading sm:text-5xl lg:text-6xl">
