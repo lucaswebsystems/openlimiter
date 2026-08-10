@@ -62,7 +62,7 @@ async function DocsLine() {
   const linkClass = "focus-ring rounded text-accent transition-colors hover:text-accent-hover";
 
   return (
-    <p className="text-sm leading-relaxed text-muted" {...reveal}>
+    <p className="mx-auto max-w-[70ch] text-center text-sm leading-relaxed text-muted" {...reveal}>
       {t.rich("docsLine", {
         agentContext: (chunks) => (
           <SiteLink href="/docs/agent-context" className={linkClass}>

@@ -101,7 +101,7 @@ export function Scriptable({ title, lead, tablistAriaLabel, tabLabels, note }: S
         <CliTranscript capture={current.capture} />
       </div>
 
-      <p className="max-w-lg text-xs leading-relaxed text-muted" {...revealSm}>
+      <p className="mx-auto max-w-[70ch] text-center text-xs leading-relaxed text-muted" {...revealSm}>
         {note}
       </p>
     </section>

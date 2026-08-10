@@ -102,7 +102,7 @@ export default async function ChangelogPage({ params }: LocaleParams) {
 
       {/* One sentence with the file's own name linked inside it, so it stays one
           message with one tag rather than three fragments. */}
-      <p className="mt-16 max-w-xl text-sm leading-relaxed text-muted" {...revealSm}>
+      <p className="mx-auto mt-16 max-w-[70ch] text-center text-sm leading-relaxed text-muted" {...revealSm}>
         {t.rich("sourceNote", {
           file: (chunks) => (
             <a

@@ -140,12 +140,14 @@ export default async function DownloadPage({ params }: LocaleParams) {
     <PageShell title={t("title")} lead={t("lead")}>
       <ShellSections>
         <section>
-          <h2 className="text-2xl font-medium text-heading" {...reveal}>
-            {t("available.title")}
-          </h2>
-          <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-            {t("available.lead")}
-          </p>
+          <div className="text-center">
+            <h2 className="text-2xl font-medium text-heading" {...reveal}>
+              {t("available.title")}
+            </h2>
+            <p className="mx-auto mt-2 max-w-[70ch] text-base text-muted" {...reveal}>
+              {t("available.lead")}
+            </p>
+          </div>
           <div className="mt-8 space-y-4" {...revealGroup}>
             {available.map((target) => (
               <TargetCard key={target.id} target={target} />
@@ -154,12 +156,14 @@ export default async function DownloadPage({ params }: LocaleParams) {
         </section>
 
         <section>
-          <h2 className="text-2xl font-medium text-heading" {...reveal}>
-            {t("phone.title")}
-          </h2>
-          <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-            {t("phone.lead")}
-          </p>
+          <div className="text-center">
+            <h2 className="text-2xl font-medium text-heading" {...reveal}>
+              {t("phone.title")}
+            </h2>
+            <p className="mx-auto mt-2 max-w-[70ch] text-base text-muted" {...reveal}>
+              {t("phone.lead")}
+            </p>
+          </div>
           <div
             className="mt-8 flex flex-col items-start gap-5 rounded-xl border border-hairline bg-surface p-6 sm:flex-row sm:items-center"
             {...reveal}
@@ -180,12 +184,14 @@ export default async function DownloadPage({ params }: LocaleParams) {
 
         {building.length > 0 && (
           <section>
-            <h2 className="text-2xl font-medium text-heading" {...reveal}>
-              {t("building.title")}
-            </h2>
-            <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-              {t("building.lead")}
-            </p>
+            <div className="text-center">
+              <h2 className="text-2xl font-medium text-heading" {...reveal}>
+                {t("building.title")}
+              </h2>
+              <p className="mx-auto mt-2 max-w-[70ch] text-base text-muted" {...reveal}>
+                {t("building.lead")}
+              </p>
+            </div>
             <div className="mt-8 space-y-4" {...revealGroup}>
               {building.map((target) => (
                 <TargetCard key={target.id} target={target} />
@@ -195,12 +201,14 @@ export default async function DownloadPage({ params }: LocaleParams) {
         )}
 
         <section>
-          <h2 className="text-2xl font-medium text-heading" {...reveal}>
-            {t("notBuilt.title")}
-          </h2>
-          <p className="mt-2 max-w-2xl text-base text-muted" {...reveal}>
-            {t("notBuilt.lead")}
-          </p>
+          <div className="text-center">
+            <h2 className="text-2xl font-medium text-heading" {...reveal}>
+              {t("notBuilt.title")}
+            </h2>
+            <p className="mx-auto mt-2 max-w-[70ch] text-base text-muted" {...reveal}>
+              {t("notBuilt.lead")}
+            </p>
+          </div>
           <div className="mt-8 space-y-4" {...revealGroup}>
             {notBuilt.map((target) => (
               <TargetCard key={target.id} target={target} />
@@ -211,7 +219,7 @@ export default async function DownloadPage({ params }: LocaleParams) {
         {/* One sentence with three links inside it, so it stays one message with
             three tags rather than seven fragments a translator would have to
             reassemble. The word order around the links is theirs to change. */}
-        <p className="max-w-2xl text-sm leading-relaxed text-muted" {...reveal}>
+        <p className="mx-auto max-w-[70ch] text-center text-sm leading-relaxed text-muted" {...reveal}>
           {t.rich("releasesNote", {
             releases: (chunks) => (
               <a

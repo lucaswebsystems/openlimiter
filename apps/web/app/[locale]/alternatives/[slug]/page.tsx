@@ -100,21 +100,21 @@ export default async function AlternativePage({ params }: ComparisonParams) {
         <ShellSections>
           <section>
             <SectionHeading id="what-it-does" title={t("comparison.whatItDoes")} />
-            <p className="max-w-xl text-base leading-relaxed text-soft">
+            <p className="mx-auto max-w-[70ch] text-center text-base leading-relaxed text-soft">
               {t(`entries.${slug}.what`)}
             </p>
           </section>
 
           <section>
             <SectionHeading id="strength" title={t("comparison.strength")} />
-            <p className="max-w-xl text-base leading-relaxed text-soft">
+            <p className="mx-auto max-w-[70ch] text-center text-base leading-relaxed text-soft">
               {t(`entries.${slug}.strength`)}
             </p>
           </section>
 
           <section>
             <SectionHeading id="difference" title={t("comparison.difference")} />
-            <p className="max-w-xl text-base leading-relaxed text-soft">
+            <p className="mx-auto max-w-[70ch] text-center text-base leading-relaxed text-soft">
               {t(`entries.${slug}.difference`)}
             </p>
           </section>

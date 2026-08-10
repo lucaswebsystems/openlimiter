@@ -164,7 +164,7 @@ export function WorksWith() {
         </SiteLink>
       </div>
 
-      <p className="mt-6 max-w-2xl text-sm leading-relaxed text-muted" {...reveal}>
+      <p className="mx-auto mt-6 max-w-[70ch] text-center text-sm leading-relaxed text-muted" {...reveal}>
         {t.rich("footnote", {
           code: (chunks) => <span className="font-mono text-2xs text-heading">{chunks}</span>,
           link: (chunks) => (

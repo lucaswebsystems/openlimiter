@@ -91,7 +91,7 @@ function Column({ title, links }: { title: string; links: readonly FooterLink[] 
   return (
     <div className="space-y-3" {...reveal}>
       <p className="heading-face text-heading">{title}</p>
-      <div className="flex flex-col items-start gap-0.5">
+      <div className="flex flex-col items-center gap-0.5 md:items-start">
         {links.map((link) =>
           link.external === true ? (
             <a
@@ -190,13 +190,13 @@ export function Footer({ localised = true }: { localised?: boolean }) {
        footer put a floating circle on top of the last sentence of the page.
        The button is 44 pixels tall and sits 20 from the edge, so 96 clears it
        with room left over. Wide screens never had the collision. */
-    <footer className={`${SHELL} pb-24 pt-4 sm:pb-8 md:pb-16`}>
+    <footer className={`${SHELL} pb-24 pt-4 text-center sm:pb-8 md:pb-16 md:text-left`}>
       <div className="grid gap-10 border-t border-hairline pt-10 text-sm lg:grid-cols-[2fr_1fr_1fr]">
-        <div className="max-w-sm space-y-4" {...reveal}>
+        <div className="mx-auto flex max-w-sm flex-col items-center space-y-4 md:mx-0 md:items-start" {...reveal}>
           <SiteLink
             href="/"
             aria-label={common("homeAria")}
-            className="focus-ring inline-flex rounded"
+            className="focus-ring inline-flex items-center justify-center rounded md:justify-start"
           >
             <BrandLockup
               markClassName="h-8 w-8 flex-none text-brand"
@@ -215,7 +215,7 @@ export function Footer({ localised = true }: { localised?: boolean }) {
                 name: (chunks) => <span className="text-heading">{chunks}</span>,
               })}
             </p>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 md:justify-start">
               <a
                 href={AUTHOR_SITE}
                 target="_blank"

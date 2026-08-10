@@ -317,8 +317,8 @@ export function SectionHeading({
   status?: string;
 }) {
   return (
-    <div className="mb-12 space-y-2" {...reveal}>
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="mb-12 text-center" {...reveal}>
+      <div className="flex flex-wrap items-center justify-center gap-3">
         <h2 id={id} className="text-3xl font-medium text-heading">
           {title}
         </h2>
@@ -328,7 +328,9 @@ export function SectionHeading({
           </Chip>
         )}
       </div>
-      {lead !== undefined && <p className="max-w-lg text-base text-muted">{lead}</p>}
+      {lead !== undefined && (
+        <p className="mx-auto mt-2 max-w-[70ch] text-base text-muted">{lead}</p>
+      )}
     </div>
   );
 }

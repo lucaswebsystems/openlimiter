@@ -25,7 +25,7 @@ export function RunsWhere() {
       <div {...reveal}>
         <PhonePanels />
       </div>
-      <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-relaxed text-muted" {...reveal}>
+      <p className="mx-auto mt-8 max-w-[70ch] text-center text-sm leading-relaxed text-muted" {...reveal}>
         {t.rich("screenshotsNote", {
           webApp: (chunks) => (
             <SiteLink
