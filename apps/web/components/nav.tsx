@@ -69,10 +69,11 @@ export async function Nav() {
 
   return (
     /* Symmetric padding, and a row that is the height of its own tallest
-       control plus that padding: 64 pixels on a phone, 60 on a desktop. It used
-       to open with 64 pixels of padding above the row and none below it, which
-       is not a header, it is a gap with links in it. */
-    <nav className={`${SHELL} mb-16 py-3`}>
+       control plus that padding: 56 pixels on a phone, 52 on a desktop, both
+       inside the 52 to 56 pixel band a header bar measures at. It used to run
+       64 and 60, a full Tailwind spacing step taller on each side than the row
+       needed. */
+    <nav className={`${SHELL} mb-16 py-2`}>
       <header className="flex items-center justify-between gap-3">
         {/* OPTICALLY FLUSH, NOT MERELY MATHEMATICALLY FLUSH.
             The nav and the hero share SHELL, so the lockup's box already starts
@@ -86,16 +87,30 @@ export async function Nav() {
         <Link
           href="/"
           aria-label="OpenLimiter, home"
-          className="focus-ring -ml-[5px] flex rounded max-[359px]:-ml-[4px]"
+          className="focus-ring -ml-[5px] flex items-center rounded max-[359px]:-ml-[4px]"
         >
           {/* The one instance allowed to play the draw in. See lib/brand.ts.
               It is a step larger on a phone than it used to be: the row is no
               longer competing with five wrapped links, so the mark can be the
-              thing it should have been all along. */}
+              thing it should have been all along.
+
+              Centred by rule, not by the coincidence of two numbers. This link
+              used to lean on `flex` alone: with one child, an auto height
+              container and default stretch, the child's own box happened to
+              set the container's height, so `items-center` had nothing to do
+              and its absence was invisible. It is written above anyway, so
+              centring is never again one accidental equality away from
+              breaking. The wordmark carries `leading-none` for the same reason
+              from the other side: Tailwind's text-2xl pairs a 24 pixel face
+              with a 32 pixel line box, and flex centres that BOX, not the ink
+              in it. Collapsing the line box to the glyph's own em square with
+              `leading-none` makes the box flex centres the same box as the
+              glyph, so the two can never drift apart, on this face or the
+              next one. */}
           <BrandLockup
             draw
             markClassName="h-9 w-9 flex-none text-brand max-[359px]:h-8 max-[359px]:w-8"
-            wordClassName="text-2xl max-[359px]:text-xl"
+            wordClassName="text-2xl leading-none max-[359px]:text-xl"
           />
         </Link>
 
