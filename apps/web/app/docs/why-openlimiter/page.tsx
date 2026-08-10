@@ -104,7 +104,7 @@ export default function WhyPage() {
               </P>
               <Sub id="truncated-not-rounded">Percentages are truncated, never rounded up</Sub>
               <P>
-                A meter at 99.99 percent renders as 99.9 percent. A cap is only ever claimed once
+                A meter at 99.99% renders as 99.9%. A cap is only ever claimed once
                 it has actually been reached.
               </P>
               <Sub id="one-bad-row">One bad row does not lose a provider</Sub>

@@ -181,8 +181,8 @@ export function meterCountLabel(count: number): string | null {
 
 /** The plain sentence under an overall state chip. */
 export const reasonSentence: Record<AdviceReason, string> = {
-  HEALTHY: "Every readable meter is under 80 percent.",
-  NEAR_CAP: "At least one readable meter is at 80 percent or more.",
+  HEALTHY: "Every readable meter is under 80%.",
+  NEAR_CAP: "At least one readable meter is at 80% or more.",
   AT_CAP: "At least one readable meter has reached its cap.",
   UNKNOWN: "Nothing readable has been supplied yet.",
 };
@@ -206,7 +206,7 @@ export const reasonPressure: Record<AdviceReason, Pressure> = {
 export const noRecommendationSentence: Record<string, string> = {
   NO_KNOWN_PROVIDER: "No provider has a readable meter.",
   NO_FRESH_DATA: "Every reading has aged past its own expiry.",
-  NO_HEALTHY_PROVIDER: "Every readable provider is at 80 percent or more.",
+  NO_HEALTHY_PROVIDER: "Every readable provider is at 80% or more.",
 };
 
 const PROVIDER_NAMES: Record<ProviderCode, string> = {

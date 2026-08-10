@@ -89,7 +89,7 @@ export const alternatives: readonly Alternative[] = [
     source:
       "Mixed, and documented per provider: mostly by running each vendor's command line tool, plus a local database for OpenCode Go, local credentials for Grok, and an optional browser cookie path for Kimi.",
     strength:
-      "It documents exactly how every single provider is read, which is rarer than it should be, and it publishes explicit remaining quota bands: healthy above 50 percent, warning between 20 and 50, critical below 20, depleted at zero.",
+      "It documents exactly how every single provider is read, which is rarer than it should be, and it publishes explicit remaining quota bands: healthy above 50%, warning between 20 and 50, critical below 20, depleted at zero.",
     difference:
       "There is no documented command line tool, JSON export or local endpoint, so nothing downstream can consume what it shows. It is a display surface for human eyes. Its per provider reliance on each vendor tool being installed also means coverage quietly shrinks on a machine that lacks them.",
     caveat:

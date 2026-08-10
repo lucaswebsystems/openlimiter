@@ -29,7 +29,7 @@ export const ANNOUNCE_STORAGE_KEY = "openlimiter-announce";
 
 /** The whole sentence, and the one a screen reader is given. */
 export const ANNOUNCE_MESSAGE =
-  "Founding promo: OpenLimiter Pro at 50 percent off for early supporters";
+  "Founding promo: OpenLimiter Pro at 50% OFF for early supporters";
 
 /**
  * The first word, split off so a narrow screen can drop it and keep a sentence
@@ -39,7 +39,7 @@ export const ANNOUNCE_MESSAGE =
  */
 export const ANNOUNCE_LEAD = "Founding p";
 export const ANNOUNCE_LEAD_SHORT = "P";
-export const ANNOUNCE_REST = "romo: OpenLimiter Pro at 50 percent off for early supporters";
+export const ANNOUNCE_REST = "romo: OpenLimiter Pro at 50% OFF for early supporters";
 
 /** Where the bar goes: the section that explains both numbers. */
 export const ANNOUNCE_HREF = "/#pricing";

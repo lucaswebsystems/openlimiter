@@ -27,8 +27,8 @@ export default function AgentContextPage() {
                 code={`OpenLimiter NEAR_CAP NONE UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL  CLAUDE ####. 87.5%`}
               />
               <P>
-                Usage is truncated, never rounded upward, so a meter at 99.99 percent reads as 99.9
-                percent. When nothing usable is cached the whole line reduces to{" "}
+                Usage is truncated, never rounded upward, so a meter at 99.99% reads as 99.9%.
+                When nothing usable is cached the whole line reduces to{" "}
                 <Code>OpenLimiter UNKNOWN</Code>.
               </P>
             </>
@@ -76,8 +76,7 @@ unknown=CODEX,ANTIGRAVITY,OPENCODE,MANUAL
                     meaning: (
                       <>
                         The worst state across providers: <Code>HEALTHY</Code>,{" "}
-                        <Code>NEAR_CAP</Code> at 80 percent or above, or <Code>AT_CAP</Code> at 100
-                        percent.
+                        <Code>NEAR_CAP</Code> at 80% or above, or <Code>AT_CAP</Code> at 100%.
                       </>
                     ),
                   },
