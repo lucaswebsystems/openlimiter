@@ -31,10 +31,13 @@ export const contentType = "image/png";
  * 64 unit box for the mark, a 20 unit gap, then the wordmark at 58 units. One
  * scale factor carries all three, so the card cannot drift from the artwork.
  *
- * 1.794 puts the ink of the lockup at 720 pixels across, which is sixty percent
- * of the 1200 pixel card.
+ * 2.392 puts the ink of the lockup at about 960 pixels across, eighty percent
+ * of the 1200 pixel card. The founder judged the sixty percent version lost in
+ * padding on a chat preview; a card this wide against a lockup this long can
+ * never pad equally on all four sides without shrinking the logo, so big and
+ * centred is what reads as balanced.
  */
-const LOCKUP_SCALE = 1.794;
+const LOCKUP_SCALE = 2.392;
 const MARK_BOX = Math.round(64 * LOCKUP_SCALE);
 const GAP = Math.round(20 * LOCKUP_SCALE);
 const FONT_SIZE = Math.round(58 * LOCKUP_SCALE);
