@@ -4,7 +4,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  outputFileTracingRoot: path.resolve(__dirname, "../../"),
+  /* The tracing root exists for the LOCAL monorepo, where sibling lockfiles
+     make Next guess the workspace root. On Vercel the app IS the root, and
+     pointing tracing above it doubles the output path (/vercel/path0 twice)
+     and kills the build, so the setting stays local only. */
+  ...(process.env.VERCEL
+    ? {}
+    : { outputFileTracingRoot: path.resolve(__dirname, "../../") }),
 
   /**
    * Several agent lanes run Next against this app at the same time, and two
