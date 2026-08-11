@@ -260,7 +260,10 @@ export function Footer({ localised = true }: { localised?: boolean }) {
         {...reveal}
       >
         <p className="text-xs leading-relaxed text-muted">
-          © {new Date().getFullYear()} OpenLimiter.com | {t("rights")} |{" "}
+          © {new Date().getFullYear()} OpenLimiter.com
+          <span className="legal-dot" aria-hidden="true" />
+          {t("rights")}
+          <span className="legal-dot" aria-hidden="true" />
           <a
             href={LICENSE_URL}
             target="_blank"
@@ -268,8 +271,8 @@ export function Footer({ localised = true }: { localised?: boolean }) {
             className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
           >
             {t("licensed")}
-          </a>{" "}
-          |{" "}
+          </a>
+          <span className="legal-dot" aria-hidden="true" />
           <SiteLink
             href="/terms"
             className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
