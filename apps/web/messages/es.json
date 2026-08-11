@@ -44,6 +44,9 @@
     "issues": "Incidencias",
     "licenceNote": "Apache 2.0 | Con prioridad local | Cero telemetría en el software | Sin cuentas | Conteos de páginas sin cookies",
     "licenceRead": "Leer la licencia",
+    "rights": "Todos los derechos reservados",
+    "licensed": "Licencia Apache 2.0",
+    "builtBy": "Hecho por",
     "security": "Seguridad"
   },
   "terms": {
@@ -101,7 +104,7 @@
       "webApp": "Abrir la aplicación web",
       "iphone": "Instalar en iPhone",
       "android": "Instalar en Android",
-      "cli": "Instalar la línea de comandos",
+      "cli": "Instalar en la terminal",
       "github": "Ver en GitHub",
       "docs": "Leer la documentación"
     },
@@ -236,7 +239,7 @@
   "webApp": {
     "title": "Aplicación web",
     "status": "disponible",
-    "lead": "Un navegador es la única superficie que ya tiene cualquier dispositivo. Esta corre el mismo motor que la herramienta de línea de comandos, sobre un documento que tú le entregas, sin subir nada y sin ninguna cuenta.",
+    "lead": "Un navegador es la única superficie que todo dispositivo ya tiene. Este corre el mismo motor que la herramienta de línea de comandos, sobre un documento que tú le das, procesado por completo en la pestaña, sin subir nada, sin cuenta alguna, y sin nada que instalar antes de que funcione.",
     "facts": {
       "sameEngine": {
         "title": "El mismo motor, en la pestaña",

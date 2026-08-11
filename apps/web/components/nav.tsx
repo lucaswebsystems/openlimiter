@@ -3,6 +3,7 @@ import { BrandLockup } from "./brand";
 import { HeaderState } from "./header-state";
 import { NavSheet } from "./nav-sheet";
 import { SiteLink } from "./site-link";
+import { GlobeGlyph } from "./hero";
 import { ThemeToggle } from "./theme-toggle";
 import { GitHubMark, SHELL } from "./ui";
 import { fetchStarCount, formatStarCount } from "@/lib/github";
@@ -85,13 +86,22 @@ const proClass =
   "focus-ring inline-flex flex-none items-center rounded-lg bg-accent-solid px-3.5 py-2 " +
   "text-sm font-medium text-on-accent transition-colors duration-200 hover:bg-accent-solid-hover";
 
+/* The web app button, white in both header states, the founder's order:
+   it sits between the theme toggle and Get Pro and carries the same globe
+   the hero's web app button wears. */
+const webAppClass =
+  "focus-ring inline-flex flex-none items-center gap-2 rounded-lg bg-solid px-3.5 py-2 " +
+  "text-sm font-medium text-on-solid transition-colors duration-200 hover:bg-solid-hover";
+
 export async function Nav() {
   const stars = await fetchStarCount();
   const t = await getTranslations("nav");
   const routeLabels = await getTranslations("common.routes");
   const common = await getTranslations("common");
 
-  const links = routes.map((route) => ({ label: routeLabels(route.key), href: route.href }));
+  const links = routes
+    .map((route) => ({ key: route.key, label: routeLabels(route.key), href: route.href }))
+    .filter((link) => link.key !== "webApp");
 
   const starsLabel =
     stars === null ? t("githubAria") : t("githubStarsAria", { count: stars });
@@ -164,6 +174,10 @@ export async function Nav() {
                 {stars !== null && <span className="text-sm">{formatStarCount(stars)}</span>}
               </a>
               <ThemeToggle />
+              <SiteLink href="/app" className={webAppClass}>
+                <GlobeGlyph />
+                {routeLabels("webApp")}
+              </SiteLink>
               <SiteLink href="/#pricing" className={proClass}>
                 {t("getPro")}
               </SiteLink>

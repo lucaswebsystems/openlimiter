@@ -44,6 +44,9 @@
     "issues": "Issues",
     "licenceNote": "Apache 2.0 | Lokal zuerst | Keine Telemetrie in der Software | Keine Konten | Cookielose Seitenaufrufe",
     "licenceRead": "Lizenz lesen",
+    "rights": "Alle Rechte vorbehalten",
+    "licensed": "Apache 2.0 lizenziert",
+    "builtBy": "Gebaut von",
     "security": "Sicherheit"
   },
   "terms": {
@@ -101,7 +104,7 @@
       "webApp": "Web App öffnen",
       "iphone": "Auf dem iPhone installieren",
       "android": "Auf Android installieren",
-      "cli": "Kommandozeile installieren",
+      "cli": "Im Terminal installieren",
       "github": "Auf GitHub ansehen",
       "docs": "Dokumentation lesen"
     },
@@ -236,7 +239,7 @@
   "webApp": {
     "title": "Web App",
     "status": "live",
-    "lead": "Ein Browser ist die eine Oberfläche, die jedes Gerät schon hat. Diese hier läuft mit derselben Engine wie das Kommandozeilen Tool, auf einem Dokument, das du ihr gibst, ohne dass etwas hochgeladen wird und ohne Konto irgendwo.",
+    "lead": "Ein Browser ist die eine Oberfläche, die jedes Gerät schon hat. Dieser fährt denselben Engine wie das Kommandozeilenwerkzeug, auf einem Dokument, das du ihm gibst, vollständig im Tab verarbeitet, ohne Upload, ohne Konto, und ohne dass vorher etwas installiert werden muss.",
     "facts": {
       "sameEngine": {
         "title": "Dieselbe Engine, im Tab",

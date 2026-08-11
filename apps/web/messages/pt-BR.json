@@ -44,6 +44,9 @@
     "issues": "Issues",
     "licenceNote": "Apache 2.0 | Local first | Telemetria zero no software | Sem contas | Contagens de página sem cookies",
     "licenceRead": "Ler a licença",
+    "rights": "Todos os direitos reservados",
+    "licensed": "Licenciado sob Apache 2.0",
+    "builtBy": "Feito por",
     "security": "Segurança"
   },
   "terms": {
@@ -101,7 +104,7 @@
       "webApp": "Abrir o web app",
       "iphone": "Instalar no iPhone",
       "android": "Instalar no Android",
-      "cli": "Instalar a linha de comando",
+      "cli": "Instalar no terminal",
       "github": "Ver no GitHub",
       "docs": "Ler a documentação"
     },
@@ -236,7 +239,7 @@
   "webApp": {
     "title": "Web app",
     "status": "disponível",
-    "lead": "Um navegador é a única superfície que todo dispositivo já tem. Este roda o mesmo motor da ferramenta de linha de comando, sobre um documento que você entrega a ele, sem nada enviado e sem conta em lugar nenhum.",
+    "lead": "Um navegador é a única superfície que todo dispositivo já tem. Este roda o mesmo engine da ferramenta de linha de comando, sobre um documento que você fornece, processado inteiramente na aba, sem nada enviado, sem conta nenhuma, e sem nada para instalar antes de funcionar.",
     "facts": {
       "sameEngine": {
         "title": "O mesmo motor, na aba",

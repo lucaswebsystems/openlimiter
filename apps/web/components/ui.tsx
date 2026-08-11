@@ -329,7 +329,7 @@ export function SectionHeading({
         )}
       </div>
       {lead !== undefined && (
-        <p className="mt-2 w-full text-base text-muted">{lead}</p>
+        <p className="mt-2 w-full text-base text-muted [text-wrap:balance]">{lead}</p>
       )}
     </div>
   );

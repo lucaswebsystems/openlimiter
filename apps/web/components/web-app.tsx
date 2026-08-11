@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
+import { GlobeGlyph } from "./hero";
 import { ButtonLink, IconChip, SectionHeading, SectionPanel } from "./ui";
 import { reveal, revealGroup } from "@/lib/motion";
 
@@ -112,8 +113,9 @@ export function WebApp() {
             </div>
           ))}
         </div>
-        <div className="mt-6 flex flex-wrap gap-3" {...reveal}>
-          <ButtonLink href="/app" tone="primary">
+        <div className="mt-6 flex flex-wrap justify-center gap-3" {...reveal}>
+          <ButtonLink href="/app" tone="primary" className="gap-2">
+            <GlobeGlyph />
             {t("openApp")}
           </ButtonLink>
           <ButtonLink href="/docs/cli">{t("howToProduce")}</ButtonLink>

@@ -44,6 +44,9 @@
     "issues": "Issues",
     "licenceNote": "Apache 2.0 | Local first | Zero telemetry in the software | No accounts | Cookieless page counts",
     "licenceRead": "Read the licence",
+    "rights": "All rights reserved",
+    "licensed": "Apache 2.0 licensed",
+    "builtBy": "Built by",
     "security": "Security"
   },
   "terms": {
@@ -101,7 +104,7 @@
       "webApp": "Open the web app",
       "iphone": "Install on iPhone",
       "android": "Install on Android",
-      "cli": "Install the command line",
+      "cli": "Install in Terminal",
       "github": "View on GitHub",
       "docs": "Read the docs"
     },
@@ -236,7 +239,7 @@
   "webApp": {
     "title": "Web app",
     "status": "live",
-    "lead": "A browser is the one surface every device already has. This one runs the same engine as the command line tool, on a document you give it, with nothing uploaded and no account anywhere.",
+    "lead": "A browser is the one surface every device already has. This one runs the same engine as the command line tool, on a document you give it, parsed entirely in the tab, with nothing uploaded, no account anywhere, and nothing to install before it works.",
     "facts": {
       "sameEngine": {
         "title": "The same engine, in the tab",

@@ -4,7 +4,7 @@ import { HeroFoldMedia } from "./hero-backdrop";
 import { SiteLink } from "./site-link";
 import { heroMarks, toolTitle } from "./tool-marks";
 import { ButtonLink, SHELL } from "./ui";
-import { HERO_BACKDROP_ENABLED, REPO_URL } from "@/lib/site";
+import { HERO_BACKDROP_ENABLED } from "@/lib/site";
 
 /**
  * The first fold, the full Perpeta pattern (founder's order, 2026-08-10).
@@ -38,6 +38,114 @@ import { HERO_BACKDROP_ENABLED, REPO_URL } from "@/lib/site";
  * reveal system: the title and lead are born visible and animate transform
  * only, so the fold's largest paint never waits for hydration.
  */
+
+function WindowsGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M3 5.4 10.6 4.3v7.2H3V5.4Zm0 13.2 7.6 1.1v-7.1H3v6Zm8.7 1.3L21 21V12.6h-9.3v7.3Zm0-15.8v7.4H21V3l-9.3 1.1Z" />
+    </svg>
+  );
+}
+
+function AppleGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M16.36 12.72c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.83-.81-3.01-.79-1.55.02-2.98.9-3.77 2.29-1.61 2.79-.41 6.92 1.15 9.18.77 1.11 1.68 2.35 2.87 2.3 1.15-.05 1.59-.74 2.98-.74 1.39 0 1.78.74 3 .72 1.24-.02 2.02-1.12 2.78-2.24.88-1.28 1.24-2.53 1.26-2.6-.03-.01-2.4-.92-2.42-3.69ZM14.1 5.98c.63-.77 1.06-1.83.94-2.9-.91.04-2.02.61-2.67 1.37-.58.68-1.09 1.77-.95 2.81 1.02.08 2.05-.52 2.68-1.28Z" />
+    </svg>
+  );
+}
+
+/** A minimal Tux silhouette, drawn here, monochrome like every mark. */
+function LinuxGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 2.8c-2.5 0-3.8 2-3.8 4.3 0 1.6-.5 2.9-1.3 4.2-1 1.7-1.8 3.4-1.8 5.1 0 2.8 2.3 4.4 6.9 4.4s6.9-1.6 6.9-4.4c0-1.7-.8-3.4-1.8-5.1-.8-1.3-1.3-2.6-1.3-4.2 0-2.3-1.3-4.3-3.8-4.3Z" />
+      <path d="M9.9 7.1v.01M14.1 7.1v.01" strokeWidth="2.3" />
+      <path d="M10.7 9.3c.5.5 2.1.5 2.6 0" />
+    </svg>
+  );
+}
+
+export function GlobeGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M3.5 12h17M12 3.5c2.2 2.4 3.3 5.3 3.3 8.5s-1.1 6.1-3.3 8.5c-2.2-2.4-3.3-5.3-3.3-8.5S9.8 5.9 12 3.5Z" />
+    </svg>
+  );
+}
+
+/** A phone with the top island: the iPhone the web app installs onto. */
+function IphoneGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="6.8" y="2.6" width="10.4" height="18.8" rx="2.8" />
+      <path d="M10.4 5.2h3.2" />
+    </svg>
+  );
+}
+
+/** The robot head outline, no storefront anywhere in it. */
+function AndroidGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4.6 16.4a7.4 7.4 0 0 1 14.8 0Z" />
+      <path d="m7.6 7.8-1.4-2.2M16.4 7.8l1.4-2.2" />
+      <path d="M9.3 12.9v.01M14.7 12.9v.01" strokeWidth="2.4" />
+    </svg>
+  );
+}
+
+function TerminalGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m4 6 5 6-5 6M12 18h8" />
+    </svg>
+  );
+}
 
 /**
  * THE HEADER'S PRE HYDRATION SYNC, one inline script in the fold itself.
@@ -133,84 +241,76 @@ export function Hero() {
               {t("lead")}
             </p>
 
+            {/* Two rows, seven buttons, every one carrying its monochrome
+               glyph, the founder's exact list (2026-08-11): three desktop
+               downloads and the blue web app on the first line, the three
+               install paths on the second, and nothing else. */}
             <div className="fold-enter fold-enter-row mt-9 space-y-3">
               <div className="flex flex-wrap gap-3">
                 <ButtonLink
                   href="/download#windows"
                   tone="primary"
-                  className="h-11 whitespace-nowrap"
+                  className="h-11 gap-2 whitespace-nowrap"
                   label={t("rows.windows")}
                 >
+                  <WindowsGlyph />
                   {t("rows.windows")}
                 </ButtonLink>
                 <ButtonLink
                   href="/download#macos"
                   tone="solid"
-                  className="h-11 whitespace-nowrap"
+                  className="h-11 gap-2 whitespace-nowrap"
                   label={t("rows.macos")}
                 >
+                  <AppleGlyph />
                   {t("rows.macos")}
                 </ButtonLink>
                 <ButtonLink
                   href="/download#linux"
                   tone="solid"
-                  className="h-11 whitespace-nowrap"
+                  className="h-11 gap-2 whitespace-nowrap"
                   label={t("rows.linux")}
                 >
+                  <LinuxGlyph />
                   {t("rows.linux")}
+                </ButtonLink>
+                <ButtonLink
+                  href="/app"
+                  tone="solid"
+                  className="h-11 gap-2 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover"
+                  label={t("rows.webApp")}
+                >
+                  <GlobeGlyph />
+                  {t("rows.webApp")}
                 </ButtonLink>
               </div>
               <div className="flex flex-wrap gap-3">
                 <ButtonLink
-                  href="/app"
-                  tone="solid"
-                  className="h-11 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover"
-                  label={t("rows.webApp")}
-                >
-                  {t("rows.webApp")}
-                </ButtonLink>
-                <ButtonLink
                   href="/download#iphone"
                   tone="solid"
-                  className="h-11 whitespace-nowrap"
+                  className="h-11 gap-2 whitespace-nowrap"
                   label={t("rows.iphone")}
                 >
+                  <IphoneGlyph />
                   {t("rows.iphone")}
                 </ButtonLink>
                 <ButtonLink
                   href="/download#android"
                   tone="solid"
-                  className="h-11 whitespace-nowrap"
+                  className="h-11 gap-2 whitespace-nowrap"
                   label={t("rows.android")}
                 >
+                  <AndroidGlyph />
                   {t("rows.android")}
                 </ButtonLink>
-              </div>
-              <div className="flex flex-wrap gap-3">
                 <ButtonLink
                   href="/download#npm"
                   tone="solid"
-                  className="h-11 whitespace-nowrap"
+                  className="h-11 gap-2 whitespace-nowrap"
                   label={t("rows.cli")}
                 >
+                  <TerminalGlyph />
                   {t("rows.cli")}
-                </ButtonLink>
-                <ButtonLink
-                  href={REPO_URL}
-                  tone="solid"
-                  external
-                  className="h-11 whitespace-nowrap"
-                  label={t("rows.github")}
-                >
-                  {t("rows.github")}
-                </ButtonLink>
-                <ButtonLink
-                  href="/docs"
-                  tone="solid"
-                  className="h-11 whitespace-nowrap"
-                  label={t("rows.docs")}
-                >
-                  {t("rows.docs")}
                 </ButtonLink>
               </div>
             </div>

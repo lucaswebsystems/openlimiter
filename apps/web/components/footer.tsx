@@ -209,21 +209,22 @@ export function Footer({ localised = true }: { localised?: boolean }) {
   const routes = useTranslations("common.routes");
   const common = useTranslations("common");
 
+  /* Five and six links, an even read (founder's order, 2026-08-11): the
+     licence moved into the bottom bar beside the copyright, where he put it. */
   const product: FooterLink[] = [
     { label: routes("webApp"), href: "/app" },
     { label: routes("download"), href: "/download" },
     { label: routes("changelog"), href: "/changelog" },
+    { label: routes("docs"), href: "/docs" },
+    { label: routes("blog"), href: "/blog" },
   ];
 
   const resources: FooterLink[] = [
-    { label: routes("docs"), href: "/docs" },
     { label: routes("alternatives"), href: "/alternatives" },
-    { label: routes("blog"), href: "/blog" },
     { label: "GitHub", href: REPO_URL, external: true },
     { label: t("issues"), href: ISSUES_URL, external: true },
     { label: "GitHub Sponsors", href: SPONSORS_URL, external: true },
     { label: "Buy me a coffee", href: COFFEE_URL, external: true },
-    { label: t("licenceRead"), href: LICENSE_URL, external: true },
     { label: t("security"), href: "/docs/security" },
   ];
 
@@ -260,14 +261,34 @@ export function Footer({ localised = true }: { localised?: boolean }) {
         {...reveal}
       >
         <p className="text-xs leading-relaxed text-muted">
-          © {new Date().getFullYear()} Lucas Costa. All rights reserved.
+          © {new Date().getFullYear()} OpenLimiter.com | {t("rights")} |{" "}
+          <a
+            href={LICENSE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="focus-ring rounded transition-colors hover:text-heading"
+          >
+            {t("licensed")}
+          </a>{" "}
+          |{" "}
+          <SiteLink
+            href="/terms"
+            className="focus-ring rounded transition-colors hover:text-heading"
+          >
+            {terms("title")}
+          </SiteLink>
         </p>
-        <SiteLink
-          href="/terms"
-          className="focus-ring justify-self-center rounded text-xs leading-relaxed text-accent transition-colors hover:text-accent-hover md:justify-self-end"
-        >
-          {terms("title")}
-        </SiteLink>
+        <p className="justify-self-center text-xs leading-relaxed text-muted md:justify-self-end">
+          {t("builtBy")}{" "}
+          <a
+            href={AUTHOR_SITE}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+          >
+            Lucas Costa
+          </a>
+        </p>
       </div>
     </footer>
   );

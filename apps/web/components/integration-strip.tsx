@@ -375,7 +375,6 @@ function Card({ card }: { card: StripCard }) {
         </div>
         <p className="mt-2.5 line-clamp-3 text-sm leading-relaxed text-muted">{card.detail}</p>
       </div>
-      <CodeChip>{card.tag}</CodeChip>
     </div>
   );
 }

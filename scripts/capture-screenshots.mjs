@@ -356,7 +356,7 @@ const STANDALONE = [
      `env(safe-area-inset-top)` here, so this only supplies the number the device
      would have supplied, and it is what keeps the frame's island from landing on
      the first line of the page. */
-  ".ol-shell { padding-top: 62px !important; }",
+  ".ol-shell { padding-top: 40px !important; }",
 ].join("\n");
 
 /* Each view names the text that proves its panel actually hydrated. The old

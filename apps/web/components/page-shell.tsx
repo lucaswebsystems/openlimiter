@@ -21,9 +21,14 @@ export function PageShell({
 }) {
   return (
     <main id="main" className={`${SHELL} pb-6 md:pb-20`}>
-      <header className="mb-12 space-y-4" {...reveal}>
+      {/* Centered at full wrapper width, the same rule the home sections
+         follow: the founder's standard for every one column surface. The
+         balance keeps the last line from stranding three words. */}
+      <header className="mb-12 space-y-4 text-center" {...reveal}>
         <h1 className="text-3xl font-medium tracking-tight text-heading md:text-5xl">{title}</h1>
-        <p className="max-w-2xl text-lg leading-relaxed text-soft">{lead}</p>
+        <p className="mx-auto max-w-none text-lg leading-relaxed text-soft [text-wrap:balance]">
+          {lead}
+        </p>
       </header>
       {children}
     </main>
