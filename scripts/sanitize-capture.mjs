@@ -19,6 +19,15 @@
  * or a field a provider adds next year cannot survive that even in principle,
  * because nothing is copied across unless this file names it.
  *
+ * Structure alone is not enough, though, and the first version of this file
+ * claimed it was. Refusing every string that is not from a closed vocabulary
+ * left every NUMBER unbounded, so anything the provider put where a percentage
+ * belongs came through as a number: an account identifier, an invoice figure,
+ * a byte count. A number is not identifying, but an ARBITRARY number is only
+ * "not identifying" because nobody looked. So every number now has to pass the
+ * same semantic bound its production parser applies. A capture whose values do
+ * not look like the meter they claim to be is refused rather than reduced.
+ *
  * What survives, per provider, and nothing else:
  *
  *   codex        the percentage, the window length in seconds, and the reset
@@ -75,11 +84,59 @@ function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function finiteNumber(value, what) {
+/*
+ * The semantic bounds, one per kind of number, matching the production parsers.
+ *
+ * A bound is not a formality here. It is the only thing standing between "we
+ * kept the numbers" and "we kept whatever the provider put in that field".
+ */
+
+/** The longest window any of these providers states, and a year is generous. */
+const MAX_WINDOW_SECONDS = 31_536_000;
+
+function boundedNumber(value, what, low, high) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     fail(`${what} is missing or is not a number, so this capture cannot be reduced`);
   }
+  if (typeof value === "boolean") fail(`${what} is a boolean, not a number`);
+  if (value < low || value > high) {
+    fail(
+      `${what} is ${String(value)}, outside the range ${String(low)} to ` +
+        `${String(high)} that a real one occupies. A value that is not the ` +
+        "meter it claims to be is refused rather than reduced, because a number " +
+        "out of range is how something identifying survives as a number."
+    );
+  }
   return value;
+}
+
+/** A percentage, as every production parser bounds one. */
+function percentage(value, what) {
+  return boundedNumber(value, what, 0, 100);
+}
+
+/** A fraction of a whole, inclusive at both ends. */
+function fraction(value, what) {
+  return boundedNumber(value, what, 0, 1);
+}
+
+/**
+ * A countdown, in seconds from the capture instant.
+ *
+ * Must be in the future, because a window that has already reset says nothing
+ * about the window running now, and must be inside a year for the same reason
+ * the parsers refuse a five hour meter claiming to reset in 2038.
+ */
+function countdown(value, what) {
+  const seconds = Math.round(boundedNumber(value, what, 1, MAX_WINDOW_SECONDS));
+  return seconds;
+}
+
+/** A window length the provider states, whole and positive. */
+function windowLength(value, what) {
+  if (value === null || value === undefined) return null;
+  const seconds = boundedNumber(value, what, 1, MAX_WINDOW_SECONDS);
+  return Math.round(seconds);
 }
 
 /* ------------------------------------------------------------------ *
@@ -100,14 +157,23 @@ function reduceCodex(raw, capturedAtSeconds) {
   const primary = isRecord(limit["primary_window"])
     ? limit["primary_window"]
     : fail("no rate_limit.primary_window block");
-  const usedPercent = finiteNumber(primary["used_percent"], "used_percent");
-  const resetAt = finiteNumber(primary["reset_at"], "reset_at");
-  const length = primary["limit_window_seconds"];
+  const usedPercent = percentage(primary["used_percent"], "used_percent");
+  const resetAt = boundedNumber(
+    primary["reset_at"],
+    "reset_at",
+    /* Epoch seconds, and refused if read as milliseconds: the same guard the
+       parser applies, so a millisecond stamp cannot become a countdown thirty
+       thousand years long. */
+    capturedAtSeconds,
+    capturedAtSeconds + MAX_WINDOW_SECONDS
+  );
   return {
     usedPercent,
-    resetsInSeconds: Math.round(resetAt - capturedAtSeconds),
-    limitWindowSeconds:
-      typeof length === "number" && Number.isFinite(length) ? Math.round(length) : null
+    resetsInSeconds: countdown(resetAt - capturedAtSeconds, "the reset countdown"),
+    limitWindowSeconds: windowLength(
+      primary["limit_window_seconds"] ?? null,
+      "limit_window_seconds"
+    )
   };
 }
 
@@ -132,16 +198,19 @@ function reduceAntigravity(raw, capturedAtSeconds) {
       if (typeof id !== "string" || !id.includes("-")) continue;
       const window = rawBucket["window"];
       if (typeof window !== "string") continue;
-      const fraction = finiteNumber(rawBucket["remainingFraction"], "remainingFraction");
+      const remaining = fraction(rawBucket["remainingFraction"], "remainingFraction");
       const reset = rawBucket["resetTime"];
-      const resetSeconds = typeof reset === "string"
-        ? Math.round(Date.parse(reset) / 1_000 - capturedAtSeconds)
-        : null;
+      if (typeof reset !== "string") fail("a bucket states no resetTime");
+      const parsed = Date.parse(reset);
+      if (!Number.isFinite(parsed)) fail("a bucket's resetTime is not a timestamp");
       buckets.push({
         poolPrefix: id.slice(0, id.indexOf("-")),
         window,
-        remainingFraction: fraction,
-        resetsInSeconds: Number.isFinite(resetSeconds) ? resetSeconds : null
+        remainingFraction: remaining,
+        resetsInSeconds: countdown(
+          parsed / 1_000 - capturedAtSeconds,
+          "a bucket's reset countdown"
+        )
       });
     }
     if (buckets.length > 0) reduced.push({ buckets });
@@ -152,6 +221,16 @@ function reduceAntigravity(raw, capturedAtSeconds) {
 
 /** The window labels the OpenCode page renders, in the parser's own order. */
 const OPENCODE_LABELS = ["Rolling Usage", "Weekly Usage", "Monthly Usage"];
+
+/**
+ * How far past the last label the reduction may read.
+ *
+ * The same bound the production parser applies, and for the same reason: this
+ * used to scan from the monthly label to the end of the saved page, so any
+ * percentage below it, an invoice line, a discount, a storage bar, would be
+ * captured as the monthly reading and frozen into a fixture.
+ */
+const OPENCODE_MAX_SEGMENT_CHARS = 2_000;
 const UNITS = { day: 86_400, hour: 3_600, minute: 60, second: 1 };
 
 function flatten(fragment) {
@@ -179,9 +258,10 @@ function reduceOpencode(raw) {
   const windows = [];
   for (let index = 0; index < found.length; index += 1) {
     const next = found[index + 1];
-    const segment = flatten(
-      raw.slice(found[index].at, next === undefined ? raw.length : next.at)
-    );
+    const end = next === undefined
+      ? Math.min(raw.length, found[index].at + OPENCODE_MAX_SEGMENT_CHARS)
+      : next.at;
+    const segment = flatten(raw.slice(found[index].at, end));
     const percent = /(\d{1,3})\s*%/u.exec(segment);
     if (percent === null) fail(`no percentage under "${found[index].label}"`);
     const countdown = /Resets in\s+((?:\d{1,6}\s*(?:day|hour|minute|second)s?\s*)+)/iu
@@ -196,8 +276,13 @@ function reduceOpencode(raw) {
     }
     windows.push({
       label: found[index].label,
-      percent: Number.parseInt(percent[1], 10),
-      resetsInSeconds: seconds
+      percent: percentage(
+        Number.parseInt(percent[1], 10),
+        `the percentage under "${found[index].label}"`
+      ),
+      resetsInSeconds: seconds === null
+        ? null
+        : countdown(seconds, `the countdown under "${found[index].label}"`)
     });
   }
   return { windows };
@@ -253,7 +338,23 @@ const PROVIDERS = {
 function refuseAnythingButNumbersAndKnownWords(reduced, allowedStrings) {
   const problems = [];
   const walk = (value, at) => {
-    if (typeof value === "number" || value === null || typeof value === "boolean") return;
+    if (value === null) return;
+    if (typeof value === "boolean") {
+      problems.push(`${at} is a boolean, which no reduction produces`);
+      return;
+    }
+    if (typeof value === "number") {
+      /*
+       * The last net. Every number above went through a semantic bound, so this
+       * can only fire if a reducer is edited to emit one that did not, which is
+       * exactly when it should. Nothing this file produces is negative, and
+       * nothing is larger than a year in seconds.
+       */
+      if (!Number.isFinite(value) || value < 0 || value > MAX_WINDOW_SECONDS) {
+        problems.push(`${at} carries the unbounded number ${String(value)}`);
+      }
+      return;
+    }
     if (typeof value === "string") {
       if (!allowedStrings.has(value)) {
         problems.push(`${at} carries the string ${JSON.stringify(value)}`);

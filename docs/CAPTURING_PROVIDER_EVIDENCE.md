@@ -36,9 +36,24 @@ Percentages and fractions are kept exactly as they were. A number is not
 identifying, and a rounded one would stop the fixture proving the parser reads
 real values.
 
-The reducer refuses to emit anything that is not a number or a word from a
-closed vocabulary. If a future edit to a reducer starts copying a provider
-string across, the run fails and says which field.
+**Every number must also pass the bound its production parser applies.** A
+percentage must be 0 to 100, a fraction 0 to 1, a countdown between one second
+and a year, and a reset must be in the future. This is not a formality. Refusing
+arbitrary strings while accepting arbitrary numbers is only privacy-preserving
+because nobody looked: anything the provider put where a percentage belongs, an
+account identifier, an invoice figure, a byte count, would have come through as
+a number. A value that is not the meter it claims to be is refused rather than
+reduced, and the message says which field and what range a real one occupies.
+
+The OpenCode reduction stops 2,000 characters past the last window label, the
+same bound the parser uses. It used to read to the end of the saved page, so any
+percentage below the monthly label, an invoice line, a discount, a storage bar,
+would have been captured as the monthly reading and frozen into a fixture.
+
+The reducer also refuses to emit anything that is not a bounded number or a word
+from a closed vocabulary. If a future edit to a reducer starts copying a provider
+string across, or emits a number that skipped its bound, the run fails and says
+which field.
 
 ## Getting the raw payload
 
