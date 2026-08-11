@@ -70,6 +70,21 @@ verification:
 # second wallet and is deliberately not modelled here: it needs its own identity
 # before it can have a meter, and folding it into this one would add two pools
 # together and call the result a reading.
+# The four honesty labels, in the exact words every surface must print.
+#
+# These are OpenLimiter's own vocabulary, not the provider's, and they are the
+# whole answer to "how much should I trust this number". They live here because
+# three surfaces have to say the same thing about one provider, and the way that
+# goes wrong is each surface keeping its own copy until one of them softens a
+# word. The desktop registry is generated from this block; a test proves the
+# connector's own labels are identical to it.
+honesty:
+  connector_id: antigravity
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
 meters:
   - id: primary
     label: Primary quota

@@ -1,5 +1,6 @@
 import { freshness, normalizeMeters, type RawMeter } from "@openlimiter/core";
 import { describe, expect, it } from "vitest";
+import providerSpecs from "../../../provider_specs/provider-specs.json" with { type: "json" };
 import {
   FIXTURE_NOW,
   MANUAL_FILE_MARKER,
@@ -175,6 +176,44 @@ describe("connector contracts", () => {
     expect(manualConnector.detect({})).toBe(false);
     expect(manualConnector.detect({ [MANUAL_FILE_MARKER]: "missing" })).toBe(false);
     expect(MANUAL_FILE_NAME).toBe("manual.json");
+  });
+
+  it("carries exactly the honesty labels the registry publishes", () => {
+    /* Two sources for four words a person reads to decide whether to trust a
+       number, so they are pinned to each other. The registry is what every
+       surface renders; the connector is what stamps each row. A drift between
+       them is a card describing one thing and a meter describing another. */
+    const registry = providerSpecs as {
+      providers: readonly {
+        id: string;
+        honesty: {
+          connectorId: string;
+          credentialOrigin: string;
+          dataInterfaceStatus: string;
+          automationRisk: string;
+          verification: string;
+        } | null;
+      }[];
+    };
+    const described = new Map(
+      registry.providers
+        .filter((entry) => entry.honesty !== null)
+        .map((entry) => [entry.honesty!.connectorId, entry.honesty!])
+    );
+    for (const connector of connectors) {
+      const stated = described.get(connector.id);
+      expect(stated, "no registry entry describes " + connector.id).toBeDefined();
+      expect({
+        credentialOrigin: stated?.credentialOrigin,
+        dataInterfaceStatus: stated?.dataInterfaceStatus,
+        automationRisk: stated?.automationRisk,
+        verification: stated?.verification
+      }).toEqual(connector.labels);
+    }
+    /* And nothing in the registry describes a connector that does not exist. */
+    for (const connectorId of described.keys()) {
+      expect(connectors.some((connector) => connector.id === connectorId)).toBe(true);
+    }
   });
 
   it("declares what its payload is, and only OpenCode reads text", () => {

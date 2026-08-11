@@ -31,6 +31,7 @@ import {
   mergeSnapshots,
   normalizeMetersReport,
 } from "./engine/core/index.js";
+import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import { parseAntigravityPayload } from "./engine/connectors/antigravity.js";
 import { parseCodexPayload } from "./engine/connectors/codex.js";
 import { parseOpencodePayload } from "./engine/connectors/opencode.js";
@@ -1392,12 +1393,58 @@ function updateConnectSectionVisibility() {
   });
 }
 
-const HONESTY_LABELS_BY_PROVIDER = {
-  CODEX: ["UNVERIFIED"],
-  ANTIGRAVITY: ["UNVERIFIED"],
-  OPENCODE: ["UNVERIFIED", "browser-session", "authenticated-scrape", "high automation risk"],
-  OPENROUTER: ["UNVERIFIED"],
-};
+/**
+ * The honesty labels, read from the generated registry and from nowhere else.
+ *
+ * They used to be hard coded here AND in index.html, which is how two of them
+ * ended up printing only UNVERIFIED while their connectors also claimed
+ * official-local-tool, internal-endpoint and high, and how OpenCode's frozen
+ * value `high` became the softer prose "high automation risk". Four exact wire
+ * words per provider, in a fixed order, or nothing at all: a provider the
+ * registry does not describe gets no chips rather than reassuring ones.
+ */
+const HONESTY_LABELS_BY_PROVIDER = (() => {
+  const byProvider = {};
+  const providers = Array.isArray(PROVIDER_SPECS?.providers)
+    ? PROVIDER_SPECS.providers
+    : [];
+  for (const entry of providers) {
+    const honesty = entry?.honesty;
+    if (honesty === undefined || honesty === null) continue;
+    const code = String(honesty.connectorId ?? "").toUpperCase();
+    if (code === "") continue;
+    byProvider[code] = [
+      honesty.verification,
+      honesty.credentialOrigin,
+      honesty.dataInterfaceStatus,
+      honesty.automationRisk,
+    ].filter((word) => typeof word === "string" && word !== "");
+  }
+  return byProvider;
+})();
+
+/**
+ * Fill every static honesty placeholder from the generated registry.
+ *
+ * The connect sections carry an empty container and a provider attribute; the
+ * words come from here. Idempotent, so a re render cannot double the chips.
+ */
+function fillStaticHonestyLabels() {
+  document.querySelectorAll("[data-honesty-provider]").forEach((node) => {
+    const provider = node.dataset.honestyProvider ?? "";
+    const labels = HONESTY_LABELS_BY_PROVIDER[provider];
+    if (labels === undefined) return;
+    node.replaceChildren();
+    for (const label of labels) {
+      const chip = document.createElement("span");
+      chip.className = "chip muted";
+      chip.textContent = label;
+      node.appendChild(chip);
+    }
+  });
+}
+
+fillStaticHonestyLabels();
 
 function decorateConnectionCardsHonestyLabels() {
   const cardElements = document.querySelectorAll("#connections-cards .conn-card");

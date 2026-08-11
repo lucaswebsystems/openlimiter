@@ -51,6 +51,21 @@ verification:
   fixture_ids:
     - manual.documented.plan
 
+# The four honesty labels, in the exact words every surface must print.
+#
+# These are OpenLimiter's own vocabulary, not the provider's, and they are the
+# whole answer to "how much should I trust this number". They live here because
+# three surfaces have to say the same thing about one provider, and the way that
+# goes wrong is each surface keeping its own copy until one of them softens a
+# word. The desktop registry is generated from this block; a test proves the
+# connector's own labels are identical to it.
+honesty:
+  connector_id: manual
+  credential_origin: user-entered
+  data_interface_status: manual
+  automation_risk: low
+  verification: UNVERIFIED
+
 meters:
   - id: custom
     label: Manually entered meter

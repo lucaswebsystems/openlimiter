@@ -224,9 +224,7 @@
         <section id="openrouter-add" class="surface conn-block" hidden aria-labelledby="openrouter-add-title">
           <div class="conn-head">
             <h2 id="openrouter-add-title">Connect OpenRouter</h2>
-            <div class="honesty-labels">
-              <span class="chip muted">UNVERIFIED</span>
-            </div>
+            <div class="honesty-labels" data-honesty-provider="OPENROUTER"></div>
           </div>
           <p class="conn-lead">
             OpenRouter is read live from this machine. Two kinds of key work
@@ -285,9 +283,7 @@
         <section id="codex-add" class="surface conn-block" hidden aria-labelledby="codex-add-title">
           <div class="conn-head">
             <h2 id="codex-add-title">Connect Codex</h2>
-            <div class="honesty-labels">
-              <span class="chip muted">UNVERIFIED</span>
-            </div>
+            <div class="honesty-labels" data-honesty-provider="CODEX"></div>
           </div>
           <p class="conn-lead">
             Codex requires the session token the Codex CLI stores.
@@ -328,9 +324,7 @@
         <section id="antigravity-add" class="surface conn-block" hidden aria-labelledby="antigravity-add-title">
           <div class="conn-head">
             <h2 id="antigravity-add-title">Connect Antigravity</h2>
-            <div class="honesty-labels">
-              <span class="chip muted">UNVERIFIED</span>
-            </div>
+            <div class="honesty-labels" data-honesty-provider="ANTIGRAVITY"></div>
           </div>
           <p class="conn-lead">
             Antigravity requires the session token.
@@ -371,12 +365,11 @@
         <section id="opencode-add" class="surface conn-block" hidden aria-labelledby="opencode-add-title">
           <div class="conn-head">
             <h2 id="opencode-add-title">Connect OpenCode</h2>
-            <div class="honesty-labels">
-              <span class="chip muted">UNVERIFIED</span>
-              <span class="chip muted">browser-session</span>
-              <span class="chip muted">authenticated-scrape</span>
-              <span class="chip muted">high automation risk</span>
-            </div>
+            <!-- Filled from provider-specs.generated.js. Never written here:
+                 a label typed into markup is a label that can drift from the
+                 registry, and the softened "high automation risk" is exactly
+                 what that produced. -->
+            <div class="honesty-labels" data-honesty-provider="OPENCODE"></div>
           </div>
           <p class="conn-lead">
             OpenCode requires the browser session cookie.

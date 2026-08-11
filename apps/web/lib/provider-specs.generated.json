@@ -17,6 +17,13 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": {
+        "connectorId": "claude",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "native-statusline-payload",
+        "automationRisk": "low",
+        "verification": "UNVERIFIED"
+      },
       "lastVerifiedAt": null,
       "readers": [
         "statusline_payload"
@@ -75,6 +82,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -118,6 +126,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -161,6 +170,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -215,6 +225,13 @@
           }
         ]
       },
+      "honesty": {
+        "connectorId": "antigravity",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
       "lastVerifiedAt": null,
       "readers": [
         "experimental"
@@ -258,6 +275,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "local_file"
@@ -301,6 +319,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "local_command"
@@ -344,6 +363,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -387,6 +407,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -430,6 +451,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "local_command"
@@ -483,6 +505,13 @@
             "lastVerifiedAt": null
           }
         ]
+      },
+      "honesty": {
+        "connectorId": "codex",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
       },
       "lastVerifiedAt": null,
       "readers": [
@@ -538,6 +567,13 @@
           }
         ]
       },
+      "honesty": {
+        "connectorId": "opencode",
+        "credentialOrigin": "browser-session",
+        "dataInterfaceStatus": "authenticated-scrape",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
       "lastVerifiedAt": null,
       "readers": [
         "experimental"
@@ -581,6 +617,13 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": {
+        "connectorId": "manual",
+        "credentialOrigin": "user-entered",
+        "dataInterfaceStatus": "manual",
+        "automationRisk": "low",
+        "verification": "UNVERIFIED"
+      },
       "lastVerifiedAt": null,
       "readers": [
         "manual"
@@ -643,6 +686,13 @@
           }
         ]
       },
+      "honesty": {
+        "connectorId": "openrouter",
+        "credentialOrigin": "user-key",
+        "dataInterfaceStatus": "documented-api",
+        "automationRisk": "low",
+        "verification": "UNVERIFIED"
+      },
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -686,6 +736,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "manual"
@@ -729,6 +780,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "manual"
@@ -772,6 +824,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -815,6 +868,7 @@
         "verification": "unverified"
       },
       "collection": null,
+      "honesty": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"

@@ -401,6 +401,42 @@ const CREDENTIAL_KINDS = new Set([
 const COLLECTION_SUPPORT = new Set(["implemented"]);
 
 /*
+ * The honesty vocabularies, mirroring ConnectorLabels in
+ * packages/core/src/types.ts. Closed, because these four words are the ones a
+ * person reads to decide whether to trust a number, and a surface that could
+ * invent a fifth could soften any of them.
+ */
+const CREDENTIAL_ORIGINS = new Set([
+  "official-local-tool",
+  "user-key",
+  "browser-session",
+  "user-entered"
+]);
+const DATA_INTERFACE_STATUSES = new Set([
+  "native-statusline-payload",
+  "documented-api",
+  "internal-endpoint",
+  "authenticated-scrape",
+  "manual"
+]);
+const AUTOMATION_RISKS = new Set(["low", "high"]);
+const CONNECTOR_IDS = new Set([
+  "claude",
+  "openrouter",
+  "codex",
+  "antigravity",
+  "opencode",
+  "manual"
+]);
+const HONESTY_KEYS = new Set([
+  "connector_id",
+  "credential_origin",
+  "data_interface_status",
+  "automation_risk",
+  "verification"
+]);
+
+/*
  * How the evidence behind a live reader stands today.
  *
  *   documented      the provider publishes the response shape.
@@ -814,6 +850,55 @@ function validateSpec(document, file, relative, fixtureIds) {
     fail(file, "a product with no reader cannot be verified");
   }
 
+  /*
+   * The honesty block, present exactly when a spec describes a shipped
+   * connector. A spec without one is research: it documents an interface
+   * nothing in this repository reads, so it has no labels to print.
+   */
+  const honestyBlock = document["honesty"];
+  let honesty = null;
+  if (honestyBlock !== undefined && honestyBlock !== null) {
+    const where = file + " honesty";
+    if (!isPlainObject(honestyBlock)) fail(where, "honesty must be a block");
+    for (const key of Object.keys(honestyBlock)) {
+      if (!HONESTY_KEYS.has(key)) fail(where, "honesty may not carry " + key);
+    }
+    const connectorId = requireString(honestyBlock, where, "connector_id", CONNECTOR_IDS);
+    const credentialOrigin =
+      requireString(honestyBlock, where, "credential_origin", CREDENTIAL_ORIGINS);
+    const dataInterfaceStatus =
+      requireString(honestyBlock, where, "data_interface_status", DATA_INTERFACE_STATUSES);
+    const automationRisk =
+      requireString(honestyBlock, where, "automation_risk", AUTOMATION_RISKS);
+    /*
+     * One value, always. Nothing in this product has earned any other, and a
+     * spec that could write "verified" here could do it without a human ever
+     * checking an account.
+     */
+    const verification = requireString(honestyBlock, where, "verification");
+    if (verification !== "UNVERIFIED") {
+      fail(where, "verification is UNVERIFIED until a verifier exists");
+    }
+    /* A scrape or an internal endpoint is never low risk. The pair would read
+       as reassurance nobody is entitled to. */
+    if (
+      (dataInterfaceStatus === "authenticated-scrape" ||
+        dataInterfaceStatus === "internal-endpoint") &&
+      automationRisk !== "high"
+    ) {
+      fail(where, dataInterfaceStatus + " cannot be anything but high risk");
+    }
+    honesty = {
+      connectorId,
+      credentialOrigin,
+      dataInterfaceStatus,
+      automationRisk,
+      verification
+    };
+  } else if (status === "provisional" && reader === "implemented") {
+    fail(file, "a shipped reader must publish its honesty labels");
+  }
+
   const ids = new Set();
   const meters = [];
   for (const meter of requireArray(document, file, "meters")) {
@@ -833,6 +918,7 @@ function validateSpec(document, file, relative, fixtureIds) {
     sourceStatus: status,
     support: { parser, reader, auth, verification: verificationStatus },
     collection,
+    honesty,
     lastVerifiedAt: lastVerified,
     readers: connectionReaders,
     authModes: connectionAuthModes,
@@ -983,6 +1069,33 @@ export const ARTIFACT_FILES = [
   COMPILED_FILE,
   path.join(repositoryRoot, "apps", "web", "lib", "provider-specs.generated.json")
 ];
+
+/*
+ * The desktop window's copy.
+ *
+ * A module rather than JSON, because the window loads files directly with no
+ * bundler and no fetch: an import is the only way it can read this. Same bytes
+ * of payload as the canonical artifact, and compared against it on every run,
+ * so a desktop card can never render a label the registry does not state. It
+ * existed as a requirement and not as a file until now, which is exactly how
+ * the honesty labels ended up hard coded in two places.
+ */
+export const DESKTOP_ARTIFACT_FILE = path.join(
+  repositoryRoot, "apps", "desktop", "ui", "provider-specs.generated.js"
+);
+
+function compileDesktopRegistry(json) {
+  return "/*\n" +
+    " * Generated from provider_specs by scripts/validate-provider-specs.mjs.\n" +
+    " * Do not edit by hand.\n" +
+    " * Regenerate with: node scripts/validate-provider-specs.mjs --emit\n" +
+    " *\n" +
+    " * The desktop window renders honesty labels from here and from nowhere\n" +
+    " * else. Hard coding one in index.html or app.js is how a surface ends up\n" +
+    " * softening a word the registry froze.\n" +
+    " */\n" +
+    "export const PROVIDER_SPECS = " + json.trimEnd() + ";\n";
+}
 
 /**
  * Version of the compiled shape, for the surfaces that read it.
@@ -1149,21 +1262,24 @@ async function main() {
    */
   if (problems.length === 0) {
     const wanted = compileRegistry(compiled);
-    for (const target of ARTIFACT_FILES) {
+    const desktopWanted = compileDesktopRegistry(wanted);
+    for (const target of [...ARTIFACT_FILES, DESKTOP_ARTIFACT_FILE]) {
+      const isDesktop = target === DESKTOP_ARTIFACT_FILE;
+      const expected = isDesktop ? desktopWanted : wanted;
       const current = await readTarget(target);
       const shown = path.relative(repositoryRoot, target)
         .split(path.sep).join("/");
       if (emit) {
-        if (current === wanted) {
+        if (current === expected) {
           console.log("PASS " + shown + " already current");
         } else {
-          await writeFile(target, wanted, "utf8");
+          await writeFile(target, expected, "utf8");
           console.log("WROTE " + shown);
         }
       } else if (current === null) {
         problems.push(shown + " is missing. Run: node " +
           "scripts/validate-provider-specs.mjs --emit");
-      } else if (current !== wanted) {
+      } else if (current !== expected) {
         problems.push(shown + " is stale relative to the yaml. Run: node " +
           "scripts/validate-provider-specs.mjs --emit");
       } else {

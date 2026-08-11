@@ -1,4 +1,13 @@
-{
+/*
+ * Generated from provider_specs by scripts/validate-provider-specs.mjs.
+ * Do not edit by hand.
+ * Regenerate with: node scripts/validate-provider-specs.mjs --emit
+ *
+ * The desktop window renders honesty labels from here and from nowhere
+ * else. Hard coding one in index.html or app.js is how a surface ends up
+ * softening a word the registry froze.
+ */
+export const PROVIDER_SPECS = {
   "schema": 1,
   "note": "Generated from provider_specs/**/*.yaml by scripts/validate-provider-specs.mjs. Do not edit by hand. Regenerate with: node scripts/validate-provider-specs.mjs --emit",
   "providers": [
@@ -898,4 +907,4 @@
       ]
     }
   ]
-}
+};
