@@ -4,7 +4,75 @@ All notable project changes appear in this file.
 
 ## [Unreleased]
 
-## [0.3.1] (2026-08-10)
+## [0.4.0] (2026-08-11)
+
+Connect and See. This release turns OpenLimiter from a technical ingestion tool
+into what it was always trying to be: connect your AI tools, see your limits
+instantly. Nothing you could do before has been removed; the technical surfaces
+moved to an Advanced area where developers expect them.
+
+### Changed
+
+- **First launch opens Connections; a returning launch opens Home.** With
+  nothing connected the app shows detected local tools first and the provider
+  catalogue beneath, one truthful status and one obvious action per row, and no
+  JSON, terminal command, or ingestion surface anywhere on that path. With
+  connections present the app opens on Home, most constrained meter first, exact
+  continuous bar, reset countdown, then the other windows that source actually
+  reports, then freshness and provenance. The web dashboard follows the same
+  shape. Paste, import, agent context and diagnostics live under Advanced.
+- **The snapshot table grew a source column and sharper bars.** Every row now
+  names how its numbers reached this machine, rows sort most constrained first,
+  and on terminals that can draw them the table bar gains eighth block
+  resolution so 91 and 97 no longer share a picture. NO_COLOR and plain
+  terminals keep the exact ASCII rendering of before. Scripts should parse
+  `openlimiter export`, not the table; the table is for people.
+- **The docs read in the order a person arrives**: why, connections, providers
+  first; configuration, cli, ingestion and agent context grouped as the
+  advanced area. No page changed its address.
+- The site and README stop describing the product this release replaced, in all
+  five languages. Local mode keeps its zero telemetry sentence, scoped
+  honestly; a live connection is described as talking only to that provider's
+  own endpoint; and the announce bar now says plainly that Pro is a founding
+  price, coming soon, instead of dressing that up as a discount.
+
+### Added
+
+- **One click Claude Code connect, under a strict protocol.** The card first
+  proves the CLI actually runs (an absolute path is resolved and executed
+  before anything else), reads your settings without following symlinks, and
+  refuses outright when a statusline or hook it did not write is present,
+  offering the guided manual path instead. With your explicit consent it then
+  writes exactly two entries, after a timestamped backup, atomically. Disconnect
+  proves the file still matches what was installed and restores it byte for
+  byte, or removes only its own entries and says so. Provider authentication
+  files are never touched, in any flow, ever.
+- **A seventeen provider catalogue with honest states.** Five providers are
+  connectable today and say exactly how (Antigravity: Windows experimental,
+  macOS and Linux manual; OpenCode: manual everywhere). Twelve more are
+  Planned, and a planned row is structurally incapable of claiming Connected.
+- **Trusted per reader refresh cadences.** Every connection carries its
+  reader's own base cadence (OpenRouter and Codex five minutes, Antigravity ten,
+  OpenCode manual refresh only, Claude event driven), the UI can never lower
+  one, and a record without a cadence gets its reader's default rather than a
+  runaway poll.
+- The Codex connection reads the local Codex login, sends the account header
+  the API actually requires, and stores only the access token in the operating
+  system credential store, with the account identifier on the connection record
+  where an identifier belongs.
+
+### Fixed
+
+- Three Windows defects that would have made one click connect fail on every
+  Windows machine: the resolved CLI path arrived in a form cmd.exe cannot
+  execute, the probe's quoting never survived the spawn, and the detection
+  answer used a word the window did not accept.
+- The Codex credential no longer exceeds what the Windows credential store can
+  hold.
+- The web app's file import button now works from the Advanced tab, not only
+  from Connections.
+- next 15.5.21 plus forced postcss and sharp patches close every advisory the
+  dependency audit reported, and the audit now reports none.
 
 ### Changed
 
