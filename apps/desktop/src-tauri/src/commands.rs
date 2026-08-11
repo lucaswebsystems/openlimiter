@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -7,12 +8,19 @@ use tauri::{AppHandle, Emitter, State};
 use zeroize::Zeroizing;
 
 use crate::cache_write::{CacheWriteBegin, CacheWriteError, CacheWriter, MAX_JSON_FILE_BYTES};
+use crate::claude_connect::{
+    self, ClaudeApplyOutcome, ClaudeConnectError, ClaudeConnectInput, ClaudeDisconnectOutcome,
+    ClaudePreflightVerdict,
+};
 use crate::claude_detect::{self, LocalToolDetection};
 use crate::connections::{
     now_epoch_ms, valid_alias, validate_record, ConnectionRecord, ConnectionsStore, StoreError,
     MAX_ATTEMPT_GENERATION, MAX_CONSECUTIVE_FAILURES, MAX_ID_CHARS,
 };
-use crate::credentials::{mask_label, CredentialError, KeyringStore, SecretStore};
+use crate::credentials::{
+    mask_label, parse_codex_session, read_codex_cli_secret_in_home, CodexCredentialError,
+    CredentialError, KeyringStore, SecretStore, MASK_DOTS,
+};
 use crate::net::{fetch_endpoint, NetError, ReqwestTransport, Transport};
 use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId, RouteError};
 
@@ -91,13 +99,15 @@ pub enum CommandFailure {
     /// refuses the pairing before anything is stored; reachable only by a
     /// tampered file, and even then nothing is fetched.
     RouteRefused,
+    /// The Codex CLI login file is missing, unsafe, or incomplete.
+    CodexLoginRequired,
 }
 
 impl CommandFailure {
     /// Every variant, for the redaction test that formats them all. The
     /// product itself never needs the list.
     #[cfg(test)]
-    pub const ALL: [CommandFailure; 16] = [
+    pub const ALL: [CommandFailure; 17] = [
         CommandFailure::InvalidInput,
         CommandFailure::NotFound,
         CommandFailure::Full,
@@ -114,6 +124,7 @@ impl CommandFailure {
         CommandFailure::TooSoon,
         CommandFailure::NotJson,
         CommandFailure::RouteRefused,
+        CommandFailure::CodexLoginRequired,
     ];
 }
 
@@ -144,6 +155,7 @@ impl fmt::Display for CommandFailure {
             CommandFailure::RouteRefused => {
                 "this connection pairs a credential with a provider it does not belong to"
             }
+            CommandFailure::CodexLoginRequired => "Codex needs a current login. Run codex login.",
         };
         formatter.write_str(sentence)
     }
@@ -177,6 +189,15 @@ impl From<CredentialError> for CommandFailure {
     }
 }
 
+impl From<CodexCredentialError> for CommandFailure {
+    fn from(error: CodexCredentialError) -> Self {
+        match error {
+            CodexCredentialError::LoginRequired => CommandFailure::CodexLoginRequired,
+            CodexCredentialError::InvalidEnvelope => CommandFailure::Protocol,
+        }
+    }
+}
+
 impl From<StoreError> for CommandFailure {
     fn from(error: StoreError) -> Self {
         match error {
@@ -197,6 +218,16 @@ impl From<CacheWriteError> for CommandFailure {
             CacheWriteError::StaleGeneration => CommandFailure::StaleGeneration,
             CacheWriteError::TooLarge => CommandFailure::TooLarge,
             CacheWriteError::NotJson => CommandFailure::NotJson,
+        }
+    }
+}
+
+impl From<ClaudeConnectError> for CommandFailure {
+    fn from(error: ClaudeConnectError) -> Self {
+        match error {
+            ClaudeConnectError::CleanPreflightRequired => CommandFailure::InvalidInput,
+            ClaudeConnectError::SettingsUnreadable => CommandFailure::Corrupt,
+            ClaudeConnectError::Storage => CommandFailure::Storage,
         }
     }
 }
@@ -236,6 +267,8 @@ pub const STATUS_ATTEMPT_OPEN: &str = "CONNECTING";
 pub const STATUS_COMPLETED: &str = "CONNECTED";
 /// The status of a connection whose credential the provider rejected.
 pub const STATUS_AUTH_EXPIRED: &str = "AUTH_EXPIRED";
+/// Codex authentication is repaired by the vendor login command.
+pub const STATUS_NEEDS_AUTH: &str = "NEEDS_AUTH";
 /// The status of a connection that failed in a way retrying may fix.
 pub const STATUS_DEGRADED: &str = "DEGRADED";
 /// The status of a connection that failed in a way retrying will not fix.
@@ -402,12 +435,28 @@ pub(crate) fn connect_core(
         account_alias,
         secret,
     } = input;
-    /* Routing first: a credential that does not belong to this provider has no
-    address, so the request is refused before the secret is even wrapped. */
-    let route = reader_route(provider_id, credential_kind)?;
     /* The secret is moved into a zeroizing wrapper before anything can fail,
     so every return path below scrubs it, including the rejections. */
     let secret = Zeroizing::new(secret);
+    connect_with_secret(
+        connections,
+        secrets,
+        provider_id,
+        credential_kind,
+        account_alias,
+        &secret,
+    )
+}
+
+fn connect_with_secret(
+    connections: &ConnectionsStore,
+    secrets: &impl SecretStore,
+    provider_id: ProviderId,
+    credential_kind: CredentialKind,
+    account_alias: String,
+    secret: &str,
+) -> Result<ConnectionRecord, CommandFailure> {
+    let route = reader_route(provider_id, credential_kind)?;
     /* Caps first, before anything is cloned, masked, or stored: see the
     boundary note at `capped_connection_id`. */
     /* The bound belongs to the credential KIND, so a cookie is not held to a
@@ -421,14 +470,24 @@ pub(crate) fn connect_core(
     if trimmed.is_empty() {
         return Err(CommandFailure::InvalidInput);
     }
+    if credential_kind == CredentialKind::CodexSession && parse_codex_session(trimmed).is_err() {
+        return Err(CommandFailure::Protocol);
+    }
     let record = ConnectionRecord {
         id: uuid::Uuid::new_v4().to_string(),
         provider_id,
         reader_id: route.reader_id,
         credential_kind,
         account_alias,
-        masked_label: mask_label(trimmed),
+        /* The Codex slot is a JSON envelope. Masking its edges would expose an
+        account suffix rather than a token suffix, so it is fully masked. */
+        masked_label: if credential_kind == CredentialKind::CodexSession {
+            MASK_DOTS.to_string()
+        } else {
+            mask_label(trimmed)
+        },
         created_at: now_epoch_ms(),
+        base_seconds: route.reader_id.base_seconds(),
         last_attempt_at: None,
         last_success_at: None,
         attempt_generation: 0,
@@ -454,6 +513,38 @@ pub(crate) fn connect_core(
     Ok(record)
 }
 
+/// The real connect boundary. Codex ignores any webview supplied secret and
+/// imports both fields from the bounded vendor login file instead.
+pub(crate) fn connect_from_home_core(
+    connections: &ConnectionsStore,
+    secrets: &impl SecretStore,
+    input: ConnectProviderInput,
+    home: Option<&Path>,
+) -> Result<ConnectionRecord, CommandFailure> {
+    if input.provider_id != ProviderId::Codex
+        || input.credential_kind != CredentialKind::CodexSession
+    {
+        return connect_core(connections, secrets, input);
+    }
+    let ConnectProviderInput {
+        provider_id,
+        credential_kind,
+        account_alias,
+        secret,
+    } = input;
+    let _discarded_webview_secret = Zeroizing::new(secret);
+    let home = home.ok_or(CommandFailure::CodexLoginRequired)?;
+    let imported = read_codex_cli_secret_in_home(home)?;
+    connect_with_secret(
+        connections,
+        secrets,
+        provider_id,
+        credential_kind,
+        account_alias,
+        &imported,
+    )
+}
+
 /// The status a non `2xx` answer puts a connection in, and whether it counts
 /// as a consecutive failure.
 ///
@@ -461,11 +552,12 @@ pub(crate) fn connect_core(
 /// is an authentication status whatever the body said. The strategy's rule is
 /// that Rust handles transport failures, authentication statuses, rate limiting
 /// and server errors without waiting for TypeScript, and this is that table.
-fn status_verdict(status: u16, failures_after: u32) -> (&'static str, bool) {
+fn status_verdict(status: u16, failures_after: u32, reader_id: ReaderId) -> (&'static str, bool) {
     match status {
         200..=299 => (STATUS_ATTEMPT_OPEN, false),
         /* The provider says the credential is no longer good. Retrying cannot
         fix it, so it never becomes a failure count: it needs a person. */
+        401 | 403 if reader_id == ReaderId::CodexUsage => (STATUS_NEEDS_AUTH, false),
         401 | 403 => (STATUS_AUTH_EXPIRED, false),
         /* Rate limited and server side faults are both worth retrying, so they
         degrade and escalate on repetition like any other failure. */
@@ -495,7 +587,10 @@ fn open_attempt(
 ) -> Result<ConnectionRecord, CommandFailure> {
     let at = now_epoch_ms();
     let updated = connections.update(id, |it| {
-        it.attempt_generation = it.attempt_generation.saturating_add(1).min(MAX_ATTEMPT_GENERATION);
+        it.attempt_generation = it
+            .attempt_generation
+            .saturating_add(1)
+            .min(MAX_ATTEMPT_GENERATION);
         it.last_attempt_at = Some(at);
         it.status = STATUS_ATTEMPT_OPEN.to_string();
     })?;
@@ -512,15 +607,22 @@ fn settle_request(
     generation: u64,
 ) -> Result<(), CommandFailure> {
     connections.update(id, |it| {
-        let failures_after = it.consecutive_failures.saturating_add(1).min(MAX_CONSECUTIVE_FAILURES);
+        let failures_after = it
+            .consecutive_failures
+            .saturating_add(1)
+            .min(MAX_CONSECUTIVE_FAILURES);
         /* The witness. Set only when THIS process watched this attempt come
         back in the 200 range carrying a body, and cleared otherwise, so a
         witness can never outlive the attempt that earned it. Everything the
         completion path is allowed to believe rests on this line. */
-        it.body_delivered_generation = if delivered_body { Some(generation) } else { None };
+        it.body_delivered_generation = if delivered_body {
+            Some(generation)
+        } else {
+            None
+        };
         match status {
             Some(status) => {
-                let (next, counted) = status_verdict(status, failures_after);
+                let (next, counted) = status_verdict(status, failures_after, it.reader_id);
                 if counted {
                     it.consecutive_failures = failures_after;
                 }
@@ -759,7 +861,8 @@ pub async fn connect_provider(
     secrets: State<'_, KeyringStore>,
     input: ConnectProviderInput,
 ) -> Result<ConnectionRecord, CommandFailure> {
-    connect_core(&connections, &*secrets, input)
+    let home = crate::state::home();
+    connect_from_home_core(&connections, &*secrets, input, home.as_deref())
 }
 
 #[tauri::command]
@@ -822,6 +925,31 @@ pub fn detect_local_tools() -> LocalToolDetection {
 }
 
 #[tauri::command]
+pub async fn claude_connect_preflight(input: ClaudeConnectInput) -> ClaudePreflightVerdict {
+    tauri::async_runtime::spawn_blocking(move || claude_connect::preflight(input))
+        .await
+        .unwrap_or_else(|_| claude_connect::unavailable_preflight())
+}
+
+#[tauri::command]
+pub async fn claude_connect_apply(
+    input: ClaudeConnectInput,
+) -> Result<ClaudeApplyOutcome, CommandFailure> {
+    tauri::async_runtime::spawn_blocking(move || claude_connect::apply(input))
+        .await
+        .map_err(|_| CommandFailure::Storage)?
+        .map_err(CommandFailure::from)
+}
+
+#[tauri::command]
+pub async fn claude_disconnect() -> Result<ClaudeDisconnectOutcome, CommandFailure> {
+    tauri::async_runtime::spawn_blocking(claude_connect::disconnect)
+        .await
+        .map_err(|_| CommandFailure::Storage)?
+        .map_err(CommandFailure::from)
+}
+
+#[tauri::command]
 pub async fn cache_begin_write(
     writer: State<'_, Arc<CacheWriter>>,
 ) -> Result<CacheWriteBegin, CommandFailure> {
@@ -864,10 +992,10 @@ pub async fn cache_commit_write(
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::credentials::encode_codex_session;
     use crate::net::{ProviderEndpoint, TransportFailure};
     use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
@@ -891,6 +1019,12 @@ mod tests {
             account_alias: "personal".to_string(),
             secret: format!("  {SECRET_MARKER}  "),
         }
+    }
+
+    fn codex_test_secret() -> String {
+        encode_codex_session("codex-access-token-for-tests", "codex-account-for-tests")
+            .expect("fixture envelope")
+            .to_string()
     }
 
     fn probe(connection_id: &str) -> ProbeInput {
@@ -959,7 +1093,10 @@ mod tests {
             secret: big,
         };
         let record = connect_core(&connections, &secrets, cookie).expect("connect");
-        assert_eq!(record.credential_kind, CredentialKind::OpencodeBrowserSession);
+        assert_eq!(
+            record.credential_kind,
+            CredentialKind::OpencodeBrowserSession
+        );
         assert_eq!(secrets.stored_count(), 1);
 
         /* And it still has a ceiling of its own. */
@@ -1038,6 +1175,61 @@ mod tests {
             std::fs::read_to_string(dir.path().join(crate::connections::CONNECTIONS_FILE_NAME))
                 .expect("read");
         assert!(!text.contains(SECRET_MARKER));
+    }
+
+    #[test]
+    fn codex_connect_imports_both_fields_and_ignores_the_webview_secret() {
+        const TOKEN: &str = "codex-token-import-canary-123456789";
+        const ACCOUNT: &str = "codex-account-import-canary-987654321";
+        const WEBVIEW: &str = "webview-secret-must-be-ignored";
+        let dir = TempDir::new();
+        let codex = dir.path().join(".codex");
+        std::fs::create_dir_all(&codex).expect("directory");
+        std::fs::write(
+            codex.join("auth.json"),
+            format!(r#"{{"tokens":{{"access_token":"{TOKEN}","account_id":"{ACCOUNT}"}}}}"#),
+        )
+        .expect("fixture");
+        let (connections, secrets) = stores(&dir);
+        let input = ConnectProviderInput {
+            provider_id: ProviderId::Codex,
+            credential_kind: CredentialKind::CodexSession,
+            account_alias: "personal".to_string(),
+            secret: WEBVIEW.to_string(),
+        };
+        let record = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
+            .expect("connect");
+        let stored = secrets.read_secret(&record.id).expect("stored envelope");
+        let session = parse_codex_session(&stored).expect("structured");
+        assert_eq!(session.access_token, TOKEN);
+        assert_eq!(session.account_id, ACCOUNT);
+        assert!(!stored.contains(WEBVIEW));
+        let wire = serde_json::to_string(&record).expect("record wire");
+        for canary in [TOKEN, ACCOUNT, WEBVIEW] {
+            assert!(!wire.contains(canary));
+        }
+        assert_eq!(record.masked_label, MASK_DOTS);
+    }
+
+    #[test]
+    fn missing_codex_login_names_the_vendor_login_command_without_leaking_input() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let input = ConnectProviderInput {
+            provider_id: ProviderId::Codex,
+            credential_kind: CredentialKind::CodexSession,
+            account_alias: "personal".to_string(),
+            secret: SECRET_MARKER.to_string(),
+        };
+        let failure = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
+            .expect_err("login absent");
+        assert_eq!(failure, CommandFailure::CodexLoginRequired);
+        assert_eq!(
+            failure.to_string(),
+            "Codex needs a current login. Run codex login."
+        );
+        assert!(!failure.to_string().contains(SECRET_MARKER));
+        assert_eq!(secrets.stored_count(), 0);
     }
 
     #[test]
@@ -1164,6 +1356,9 @@ mod tests {
                 let mut input = connect_input();
                 input.provider_id = provider;
                 input.credential_kind = credential;
+                if credential == CredentialKind::CodexSession {
+                    input.secret = codex_test_secret();
+                }
                 let outcome = connect_core(&connections, &secrets, input);
                 if reader_route(provider, credential).is_ok() {
                     assert!(outcome.is_ok());
@@ -1236,7 +1431,10 @@ mod tests {
             transport.recorded_urls(),
             vec![crate::net::OPENROUTER_CREDITS_URL]
         );
-        assert_eq!(transport.recorded_secrets(), vec![SECRET_MARKER.to_string()]);
+        assert_eq!(
+            transport.recorded_secrets(),
+            vec![SECRET_MARKER.to_string()]
+        );
     }
 
     #[tokio::test]
@@ -1277,14 +1475,17 @@ mod tests {
             let mut input = connect_input();
             input.provider_id = provider;
             input.credential_kind = credential;
+            if credential == CredentialKind::CodexSession {
+                input.secret = codex_test_secret();
+            }
             let record = connect_core(&connections, &secrets, input).expect("connect");
             let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
             test_core(&connections, &secrets, &transport, probe(&record.id))
                 .await
                 .expect("probe");
             /* OpenCode is two hops, both inside its own origin: the entry point
-               names the workspace and the workspace page carries the meters.
-               Every other provider is one address exactly. */
+            names the workspace and the workspace page carries the meters.
+            Every other provider is one address exactly. */
             let expected: Vec<String> = if endpoint.needs_workspace() {
                 vec![
                     endpoint.url().to_string(),
@@ -1362,6 +1563,31 @@ mod tests {
         let after = connections.get(&record.id).expect("get");
         assert_eq!(after.last_success_at, None);
         assert_eq!(after.status, STATUS_AUTH_EXPIRED);
+    }
+
+    #[tokio::test]
+    async fn codex_auth_failure_becomes_needs_auth_for_codex_login() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let input = ConnectProviderInput {
+            provider_id: ProviderId::Codex,
+            credential_kind: CredentialKind::CodexSession,
+            account_alias: "personal".to_string(),
+            secret: codex_test_secret(),
+        };
+        let record = connect_core(&connections, &secrets, input).expect("connect");
+        let transport = RecordingTransport::replying(401, Vec::new(), None);
+        test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("probe");
+        assert_eq!(
+            connections.get(&record.id).expect("record").status,
+            STATUS_NEEDS_AUTH
+        );
+        assert_eq!(
+            CommandFailure::CodexLoginRequired.to_string(),
+            "Codex needs a current login. Run codex login."
+        );
     }
 
     #[tokio::test]
@@ -1566,7 +1792,6 @@ mod tests {
         );
     }
 
-
     /* --------------------------------------------- the forgery, closed */
 
     /// Complete an attempt whose outcome came back however the case needs, and
@@ -1717,6 +1942,12 @@ mod tests {
         let second = test_core(&connections, &secrets, &transport, probe(&record.id))
             .await
             .expect("probe");
+        connections
+            .update(&record.id, |current| {
+                current.last_completion_at =
+                    Some(now_epoch_ms().saturating_add(MIN_COMPLETION_INTERVAL_MS));
+            })
+            .expect("hold the test inside the completion floor");
         assert_eq!(
             complete_attempt_core(&connections, complete(&second)).map(|_| ()),
             Err(CommandFailure::TooSoon),
@@ -1739,7 +1970,10 @@ mod tests {
             .await
             .expect("probe");
         assert_eq!(
-            connections.get(&record.id).expect("get").body_delivered_generation,
+            connections
+                .get(&record.id)
+                .expect("get")
+                .body_delivered_generation,
             Some(generation_of(&first))
         );
         /* A later attempt that delivers nothing clears it, so the earlier
@@ -1749,7 +1983,10 @@ mod tests {
             .await
             .expect("probe");
         assert_eq!(
-            connections.get(&record.id).expect("get").body_delivered_generation,
+            connections
+                .get(&record.id)
+                .expect("get")
+                .body_delivered_generation,
             None
         );
     }
@@ -1767,7 +2004,6 @@ mod tests {
         assert_eq!(outcome.map(|_| ()), Err(StoreError::InvalidField));
     }
 
-
     /* ------------------------------- the completion is one operation */
 
     /// A connected connection with an unspent witness, and its generation.
@@ -1776,9 +2012,13 @@ mod tests {
     /// is the only way to exercise a lock window.
     async fn witnessed(
         dir: &TempDir,
-    ) -> (std::sync::Arc<ConnectionsStore>, InMemorySecrets, String, u64) {
-        let connections =
-            std::sync::Arc::new(ConnectionsStore::at(Some(dir.path().to_path_buf())));
+    ) -> (
+        std::sync::Arc<ConnectionsStore>,
+        InMemorySecrets,
+        String,
+        u64,
+    ) {
+        let connections = std::sync::Arc::new(ConnectionsStore::at(Some(dir.path().to_path_buf())));
         let secrets = InMemorySecrets::new();
         let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
         let transport = RecordingTransport::replying(200, b"{\"ok\":true}".to_vec(), None);
@@ -1860,7 +2100,10 @@ mod tests {
                 }
             }
             let after = connections.get(&id).expect("get");
-            assert_eq!(after.body_delivered_generation, None, "the witness survived");
+            assert_eq!(
+                after.body_delivered_generation, None,
+                "the witness survived"
+            );
             assert!(after.last_completion_at.is_some());
         }
     }
@@ -2052,7 +2295,10 @@ mod tests {
             .next()
             .expect("the module has a body before its tests");
         let inputs: Vec<&str> = head.split(marker.as_str()).skip(1).collect();
-        assert!(inputs.len() >= 6, "the command inputs are still declared here");
+        assert!(
+            inputs.len() >= 6,
+            "the command inputs are still declared here"
+        );
         for block in inputs {
             assert!(
                 block.starts_with("\n#[serde(deny_unknown_fields)]"),
@@ -2177,8 +2423,8 @@ mod tests {
             .collect();
         assert_eq!(
             signatures.len(),
-            10,
-            "ten commands, exactly the design's verbs"
+            13,
+            "the frozen commands plus the three Claude Code connection verbs"
         );
         for signature in &signatures {
             assert!(

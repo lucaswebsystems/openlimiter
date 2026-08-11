@@ -181,10 +181,37 @@ fn rename_with_retry(from: &Path, to: &Path) -> Result<(), FsFailure> {
 /// `<target>.<pid>.<uuid>.tmp`, flushed to stable storage, then renamed over
 /// the destination.
 pub fn atomic_write(target: &Path, contents: &str) -> Result<(), FsFailure> {
+    atomic_write_tagged(target, contents, None)
+}
+
+/// The same atomic replace with an optional marker in the temporary name.
+/// Claude settings use a marker so a later run can identify and clean a file
+/// left between the flush and rename steps of a crashed process.
+pub fn atomic_write_with_marker(
+    target: &Path,
+    contents: &str,
+    marker: &str,
+) -> Result<(), FsFailure> {
+    if marker.is_empty()
+        || !marker
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+    {
+        return Err(FsFailure::Io);
+    }
+    atomic_write_tagged(target, contents, Some(marker))
+}
+
+fn atomic_write_tagged(
+    target: &Path,
+    contents: &str,
+    marker: Option<&str>,
+) -> Result<(), FsFailure> {
     reject_symlink(target)?;
     let mut temp_name = target.as_os_str().to_owned();
+    let marker = marker.map(|value| format!(".{value}")).unwrap_or_default();
     temp_name.push(format!(
-        ".{}.{}.tmp",
+        "{marker}.{}.{}.tmp",
         std::process::id(),
         uuid::Uuid::new_v4()
     ));

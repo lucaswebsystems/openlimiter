@@ -43,6 +43,7 @@ rustls = { version = "0.23", default-features = false, features = [
 ] }
 uuid = { version = "1", features = ["v4"] }
 zeroize = "1"
+sha2 = "0.10"
 # Only the interval timer for the collector metronome; every listed feature is
 # already in the dependency tree through tauri and reqwest.
 tokio = { version = "1", features = ["time"] }

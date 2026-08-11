@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   REFRESH_BACKOFF_CEILING_SECONDS,
+  REFRESH_FALLBACK_BASE_SECONDS,
   REFRESH_RETRY_AFTER_CEILING_SECONDS,
+  SCHEDULE_EXEMPT_INSTANT,
   isDue,
   nextRefreshAt,
   refreshDelaySeconds
@@ -179,14 +181,19 @@ describe("refresh delay", () => {
     }
   });
 
-  it("treats an unusable base interval as one second", () => {
-    expect(refreshDelaySeconds({ attempt: 0, baseSeconds: 0, random: middle })).toBe(1);
-    expect(refreshDelaySeconds({ attempt: 0, baseSeconds: -60, random: middle })).toBe(1);
+  it("never turns a missing or invalid cadence into one second polling", () => {
+    expect(refreshDelaySeconds({ attempt: 0, baseSeconds: -60, random: middle }))
+      .toBe(REFRESH_FALLBACK_BASE_SECONDS);
     expect(refreshDelaySeconds({
       attempt: 0,
       baseSeconds: Number.NaN,
       random: middle
-    })).toBe(1);
+    })).toBe(REFRESH_FALLBACK_BASE_SECONDS);
+  });
+
+  it("marks zero as schedule exempt", () => {
+    expect(refreshDelaySeconds({ attempt: 0, baseSeconds: 0, random: middle }))
+      .toBe(Number.POSITIVE_INFINITY);
   });
 });
 
@@ -203,6 +210,11 @@ describe("next refresh instant", () => {
   it("refuses to guess from a clock it cannot read", () => {
     expect(nextRefreshAt("not a date", { attempt: 0, baseSeconds: 60, random: middle }))
       .toBeNull();
+  });
+
+  it("keeps a manual connection out of the background schedule", () => {
+    expect(nextRefreshAt(NOW, { attempt: 0, baseSeconds: 0, random: middle }))
+      .toBe(SCHEDULE_EXEMPT_INSTANT);
   });
 });
 

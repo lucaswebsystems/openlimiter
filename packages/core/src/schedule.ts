@@ -24,6 +24,15 @@ export const REFRESH_RETRY_AFTER_CEILING_SECONDS = 86_400;
 /** How far either side of the computed delay the jitter may move it. */
 export const REFRESH_JITTER_RATIO = 0.2;
 
+/** The reader supplied sentinel for a connection that only refreshes by hand. */
+export const SCHEDULE_EXEMPT_BASE_SECONDS = 0;
+
+/** Missing wire cadence fails closed to the most conservative live default. */
+export const REFRESH_FALLBACK_BASE_SECONDS = 300;
+
+/** A stable scheduled instant for a connection exempt from background reads. */
+export const SCHEDULE_EXEMPT_INSTANT = "9999-12-31T23:59:59.999Z";
+
 export interface RefreshInput {
   /**
    * Consecutive failures behind this schedule. Zero means the last attempt
@@ -50,7 +59,12 @@ function usableRandom(random: () => number): number {
 }
 
 function usableBase(baseSeconds: number): number {
-  if (!Number.isFinite(baseSeconds) || baseSeconds <= 0) return 1;
+  if (!Number.isFinite(baseSeconds) || baseSeconds < 0) {
+    return REFRESH_FALLBACK_BASE_SECONDS;
+  }
+  if (baseSeconds === SCHEDULE_EXEMPT_BASE_SECONDS) {
+    return Number.POSITIVE_INFINITY;
+  }
   return Math.min(baseSeconds, REFRESH_BACKOFF_CEILING_SECONDS);
 }
 
@@ -89,6 +103,7 @@ function usableRetryAfter(value: number | null | undefined): number | null {
  */
 export function refreshDelaySeconds(input: RefreshInput): number {
   const base = usableBase(input.baseSeconds);
+  if (base === Number.POSITIVE_INFINITY) return base;
   const attempt = usableAttempt(input.attempt);
   const backoff = Math.min(
     base * Math.pow(2, attempt),
@@ -107,6 +122,9 @@ export function refreshDelaySeconds(input: RefreshInput): number {
 export function nextRefreshAt(now: string, input: RefreshInput): string | null {
   const current = Date.parse(now);
   if (!Number.isFinite(current)) return null;
+  if (input.baseSeconds === SCHEDULE_EXEMPT_BASE_SECONDS) {
+    return SCHEDULE_EXEMPT_INSTANT;
+  }
   const milliseconds = current + Math.round(refreshDelaySeconds(input) * 1_000);
   if (!Number.isFinite(milliseconds)) return null;
   const next = new Date(milliseconds);
