@@ -30,8 +30,8 @@
     "closeMenu": "Cerrar menú"
   },
   "announce": {
-    "message": "Promoción fundadora: OpenLimiter Pro al 50% de descuento para quienes lo apoyen desde el inicio",
-    "short": "OpenLimiter Pro al 50% OFF",
+    "message": "OpenLimiter Pro: un precio fundador para quienes lo apoyen desde el inicio, próximamente",
+    "short": "OpenLimiter Pro: precio fundador, próximamente",
     "dismiss": "Cerrar este aviso"
   },
   "footer": {
@@ -151,7 +151,7 @@
   },
   "integrations": {
     "title": "Qué lee, dónde queda",
-    "lead": "Sin testimonios, sin muro de avatares, sin contador de usuarios. Cada tarjeta de abajo, o distribuye un connector en este release, o dice claramente que todavía no tiene uno, así que el propio muro es un informe de estado.",
+    "lead": "Sin testimonios, sin muro de avatares, sin contador de usuarios. Cada tarjeta de abajo, o distribuye un connector en este release, o dice claramente que todavía no tiene uno, así que el propio muro es un informe de estado. Conectar un proveedor normalmente ocurre en la aplicación de escritorio; las superficies de abajo son las rutas para desarrolladores, bajo Avanzado, para quien quiera usarlas directamente.",
     "plannedChip": "planeado",
     "plannedLine": "Connector planeado. Mide su quota hoy mismo con manual entry o con ingest.",
     "connectors": {
@@ -192,7 +192,7 @@
       },
       "shell": {
         "name": "Cualquier shell",
-        "detail": "Toda la instantánea como tabla para ti, o como JSON para un script. Sin llamadas de red, sin cuenta, sin daemon en el medio."
+        "detail": "Toda la instantánea como tabla para ti, o como JSON para un script, leída directamente desde la caché local, sin daemon en el medio. El modo local tiene cero telemetría y ninguna cuenta; cuando un proveedor se conecta a través de la aplicación de escritorio, esa conexión habla solo con el propio endpoint del proveedor, nunca con OpenLimiter."
       },
       "fileWriter": {
         "name": "Cualquier herramienta que pueda escribir un archivo",
@@ -211,7 +211,7 @@
   },
   "worksWith": {
     "title": "Funciona con tus herramientas",
-    "lead": "Un meter sobre cada suscripción que ya tienes. Cada connector lee una forma que algo en tu máquina ya escribió, y en este release ninguno de ellos toca la red.",
+    "lead": "Un meter sobre cada suscripción que ya tienes. Conecta un proveedor desde la aplicación de escritorio, o alimenta uno mediante manual entry o ingest, bajo Avanzado. El modo local tiene cero telemetría y ninguna cuenta; una conexión en vivo habla solo con el propio endpoint de ese proveedor, nunca con OpenLimiter, porque todavía no existe ninguna nube de OpenLimiter.",
     "groups": {
       "today": {
         "label": "Ya distribuidos",
@@ -229,7 +229,7 @@
     },
     "feedIn": "Cómo alimentar uno",
     "footnote": "Cada connector se distribuye marcado <code>UNVERIFIED</code>, que es el valor por defecto honesto: todavía ningún verificador explícito confirmó una forma contra una cuenta real. Tres de ellos leen interfaces internas de herramientas de otros, que pueden cambiar sin aviso, y cuando eso pasa, ese proveedor falla de forma segura hacia unknown en vez de adivinar. <link>Cada connector y su estado real</link>.",
-    "manualNote": "Cada herramienta de esta página se puede medir hoy mismo. Anota los números con manual entry, o pásale una carga con ingest desde cualquier script que controles, y termina en la misma instantánea que un connector."
+    "manualNote": "Cada herramienta de esta página se puede medir hoy mismo. Conéctala desde la aplicación de escritorio, o, bajo Avanzado, anota los números con manual entry, o pásale una carga con ingest desde cualquier script que controles. De cualquier forma, termina en la misma instantánea que un connector."
   },
   "runsWhere": {
     "title": "Corre donde trabajas",
@@ -326,7 +326,7 @@
       "lead": "Lector significa que algo en OpenLimiter va y busca el número. Auth significa que se guarda y se usa una credencial. Cada celda de arriba se lee en tiempo de compilación desde el registro de proveedores revisado, en vez de escribirse en esta página, así que aquí no se puede declarar una etapa sin que antes una persona cambie una especificación.",
       "unspecified": "{count} de los {total} connectors todavía no tienen una especificación revisada, y cada una de sus celdas dice Sin declarar en vez de adivinar.",
       "elsewhere": "El registro describe {count} productos más sin ningún connector, y por eso no son filas aquí.",
-      "tail": "Nada en esta página se llama connected."
+      "tail": "Una fila en esta página solo se llama Conectado una vez que se confirma un lector en vivo para ella, nunca solo por la fuerza de un parser."
     }
   },
   "cliTranscript": {
@@ -386,7 +386,7 @@
     "items": {
       "whatLeaves": {
         "question": "¿Qué sale realmente de mi máquina?",
-        "answer": "Nada. No hay telemetría, no hay analítica y no hay ningún servidor de OpenLimiter para recibir algo. Este release no realiza ninguna salida hacia proveedores: cada connector es un parser sobre datos que otra cosa ya escribió en tu disco o pasó por entrada estándar."
+        "answer": "En el modo local, nada: no hay telemetría, no hay analítica, y no hay ningún servidor de OpenLimiter para recibir algo, porque todavía no existe ninguna nube de OpenLimiter. Cuando conectas un proveedor en la aplicación de escritorio, esa conexión habla solo con el propio endpoint del proveedor a través de una lista de permitidos, y la credencial permanece en el almacén de credenciales de tu sistema operativo. De cualquier forma, nada se reporta jamás a OpenLimiter."
       },
       "safeToPoint": {
         "question": "¿Es seguro apuntarlo a mis herramientas?",
@@ -422,7 +422,7 @@
       },
       "pro": {
         "question": "¿Qué es OpenLimiter Pro?",
-        "answer": "Un nivel de pago planeado a $5 al mes, precio fundador, para las cosas que solo pueden correr en servidores: sincronización cifrada entre tus dispositivos, notificaciones push a tu teléfono, un smart limiter que enruta entre tus modelos a partir del estado de presupuesto en vivo, alertas por correo y un resumen semanal, reglas de entrega, historial y tendencias de consumo alojados, solicitudes de connector prioritarias y un nivel de equipo más adelante. No está construido. No hay checkout ni lista de espera, y nada de lo que corre localmente hoy se muda jamás detrás de eso."
+        "answer": "Un nivel de pago planeado a $5 al mes, precio fundador, para las cosas que solo pueden correr en servidores: sincronización cifrada entre tus dispositivos, notificaciones push a tu teléfono, alertas por correo y un resumen semanal, historial de uso y previsiones alojados, barreras de presupuesto para tu propio uso, soporte para más de una cuenta por proveedor, gestión de dispositivos, y un nivel de equipo más adelante. No está construido. No hay checkout ni lista de espera, y nada de lo que corre localmente hoy se muda jamás detrás de eso."
       }
     }
   },
@@ -456,11 +456,11 @@
       "lines": {
         "sync": "Sincronización cifrada del estado de quota entre tus propios dispositivos",
         "push": "Notificaciones push a tu teléfono cuando una ventana se acerca a su límite",
-        "smartLimiter": "Smart limiter: enrutamiento consciente de quota entre tus modelos, guiado por el estado de presupuesto en vivo",
+        "smartLimiter": "Barreras de presupuesto: los umbrales y alertas que configuras para tu propio uso",
         "email": "Alertas por correo y un resumen semanal",
-        "deliveryRules": "Reglas de entrega de alertas, para que una hora tranquila siga tranquila",
-        "history": "Historial de uso y tendencias de consumo alojados en todos tus dispositivos",
-        "priority": "Solicitudes de connector prioritarias, para que tu proveedor se construya primero",
+        "deliveryRules": "Más de una cuenta por proveedor, cada una medida por separado",
+        "history": "Historial de uso y previsiones alojados en todos tus dispositivos",
+        "priority": "Gestión de dispositivos: mira qué dispositivos tienen sesión iniciada, y elimina el que ya no uses",
         "team": "Un nivel de panel de equipo, más adelante que el resto"
       }
     },
@@ -473,7 +473,7 @@
     "commitments": {
       "runsLocal": {
         "title": "Corre en tu máquina",
-        "detail": "Cada connector de este release es un parser sobre algo que ya está en tu disco. Sin salida hacia proveedores, sin daemon, sin cuenta."
+        "detail": "El modo local tiene cero telemetría y ninguna cuenta. Cuando conectas un proveedor en la aplicación de escritorio, esa conexión habla solo con el propio endpoint del proveedor a través de una lista de permitidos, con la credencial guardada en el almacén de credenciales de tu sistema operativo. Nada se reporta jamás a OpenLimiter, porque todavía no existe ninguna nube de OpenLimiter."
       },
       "reportsNobody": {
         "title": "No le reporta a nadie",
@@ -630,7 +630,7 @@
           },
           "first-data": {
             "title": "Dale algo que medir",
-            "parser": "OpenLimiter nunca contacta a un proveedor en este release. Analiza datos que algo más ya puso frente a él. Hasta que una de las rutas de ingesta corra, cada orden honestamente reporta unknown.",
+            "parser": "La herramienta de línea de comandos nunca contacta a un proveedor por su cuenta. Analiza datos que algo más ya puso frente a ella. Hasta que una de las rutas de ingesta corra, cada orden honestamente reporta unknown.",
             "statusline": "La ruta que no necesita trabajo extra es el statusline de Claude Code. Claude Code corre tu comando de statusline en cada render y escribe un objeto JSON que describe la sesión actual en la entrada estándar de ese comando. Cuando ese objeto lleva un bloque de límite de tasa, OpenLimiter lo valida, lo guarda en caché y renderiza los números frescos en la misma llamada.",
             "terminalLabel": "terminal",
             "fallback": "No todas las versiones de Claude Code envían campos de límite de tasa. Si la tuya no lo hace, esta ruta se queda en silencio y las dos rutas manuales siguen funcionando. La <docs>página de ingesta</docs> cubre las tres."
@@ -675,7 +675,7 @@
             "title": "Qué hace OpenLimiter al respecto",
             "intro": "OpenLimiter lee la quota de las suscripciones de IA compatibles en tu propia máquina, normaliza cada lectura en un solo esquema, y alimenta el propio contexto de los agentes de programación con un estado de presupuesto acotado más consejos de enrutamiento. El primer adaptador es un statusline y un prompt hook para Claude Code.",
             "bullets": {
-              "read": "<strong>Leer.</strong> Los connectors analizan formas que un proveedor o una herramienta local ya produjo. En este release no realizan ningún acceso de red.",
+              "read": "<strong>Leer.</strong> Los connectors analizan formas que un proveedor o una herramienta local ya produjo. En el modo local nada sale de tu máquina; cuando conectas un proveedor desde la aplicación de escritorio, esa conexión habla solo con el propio endpoint del proveedor.",
               "normalise": "<strong>Normalizar.</strong> Un esquema de instantánea único, con enums cerrados, porcentajes acotados y vigencia derivada. Unknown se queda unknown y nunca se convierte en un cero fabricado.",
               "advise": "<strong>Aconsejar.</strong> Un statusline compacto para ti, y un bloque de contexto acotado para tu agente que solo lleva códigos enum, números y marcas de tiempo."
             }
@@ -755,7 +755,7 @@
           },
           "how-data-arrives": {
             "title": "Cómo llegan los datos en realidad",
-            "intro": "Esta es la parte que sorprende a la gente, así que vale la pena decirla con claridad. En este release ningún connector realiza acceso de red. Cada uno de ellos es un parser, y algo más le tiene que entregar un documento.",
+            "intro": "Esta es la parte que sorprende a la gente, así que vale la pena decirla con claridad. En la herramienta de línea de comandos, ningún connector realiza acceso de red por su cuenta. Cada uno de ellos es un parser, y algo más le tiene que entregar un documento.",
             "bullets": {
               "claude": "<code>claude</code> se alimenta con la carga del statusline que llega por entrada estándar. Esa ruta es automática una vez que Claude Code está conectado.",
               "manual": "<code>manual</code> se alimenta con un documento que colocas en el directorio de estado.",
@@ -802,8 +802,8 @@
         "sections": {
           "chips": {
             "title": "El chip de un proveedor hoy",
-            "intro": "Que exista un parser no es una conexión, así que ninguna tarjeta del panel se etiqueta jamás como connected solo por eso. Cada proveedor lleva en cambio un chip que nombra cómo llegaron sus números realmente a este dispositivo. Hay tres, hoy.",
-            "caption": "Los tres chips de fuente que muestra el panel hoy",
+            "intro": "Que exista un parser no es una conexión, así que ninguna tarjeta se etiqueta jamás como conectada solo por eso. Cada proveedor lleva en cambio un chip que nombra cómo llegaron sus números realmente a este dispositivo: uno de los tres de abajo antes de que exista una conexión en vivo, o Conectado en cuanto vinculas ese proveedor desde la aplicación de escritorio.",
+            "caption": "Los tres chips de fuente que se muestran antes de que un proveedor tenga una conexión en vivo",
             "columns": {
               "chip": "chip",
               "providers": "proveedores",
@@ -879,13 +879,13 @@
             },
             "what-this-is-not-claiming": {
               "title": "Lo que esta página no está afirmando",
-              "body": "No que los trece estén en pantalla. Lo que el panel realmente renderiza hoy es el vocabulario más simple de tres chips de arriba, construido para un release donde nada realiza una lectura de red. Los trece estados son reales y están probados en el paquete núcleo del que está construido este producto, y nombran el ciclo de vida general que sigue cualquier conexión una vez que existe un lector en vivo. Ninguna superficie muestra esas palabras todavía, porque hoy nada hace lo que pondría a una conexión en uno de ellos: sin lector, sin solicitud, nada que falle, expire o necesite una credencial."
+              "body": "No que los trece estén en pantalla en todas partes. La aplicación web y la herramienta de línea de comandos siguen mostrando el vocabulario más simple de tres chips de arriba, porque ninguna de las dos lee a un proveedor en vivo por su cuenta. Los trece estados son reales y están probados en el paquete núcleo del que está construido este producto, y nombran el ciclo de vida general que sigue una conexión dondequiera que exista un lector en vivo, que hoy es la propia pantalla de Conexiones de la aplicación de escritorio, en vez de esta página."
             }
           },
           "what-changes": {
-            "title": "Qué cambia cuando se distribuye una conexión en vivo",
-            "intro": "Nada en esta página es una fecha o una promesa. Cuando un proveedor gana un lector real, la descripción honesta de él deja de ser un chip fijo y pasa a ser el que corresponda de los trece estados de arriba en ese momento: detectado, esperando una credencial, conectando, conectado, o, cuando algo sale mal, degradado, obsoleto o necesitando una revisión. Esa es la razón para nombrar todo el vocabulario ahora, antes de que nada de esto sea alcanzable, para que la frase que lee una persona no cambie el día en que el estado debajo de ella empiece a moverse.",
-            "noReader": "Ningún proveedor tiene ese lector hoy. Consulta el <roadmap>roadmap</roadmap> para ver qué está planeado y qué no, y <providers>proveedores compatibles</providers> para ver qué puede hacer realmente cada connector ahora mismo."
+            "title": "Qué cambia con una conexión en vivo",
+            "intro": "Nada en esta página es una fecha o una promesa para la aplicación web o la herramienta de línea de comandos, que permanecen en los tres chips de arriba porque ninguna de las dos lee a un proveedor en vivo. Cuando un proveedor gana un lector real, la descripción honesta de él deja de ser un chip fijo y pasa a ser el que corresponda de los trece estados de arriba en ese momento: detectado, esperando una credencial, conectando, conectado, o, cuando algo sale mal, degradado, obsoleto o necesitando una revisión. Esa es la razón para nombrar aquí todo el vocabulario, para que la frase que lee una persona no cambie mientras el estado debajo de ella se mueve.",
+            "noReader": "No todos los proveedores tienen ese lector hoy; la propia pantalla de Conexiones de la aplicación de escritorio es donde aparece primero uno en vivo. Consulta el <roadmap>roadmap</roadmap> para ver qué está planeado y qué no, y <providers>proveedores compatibles</providers> para ver qué puede hacer realmente cada connector ahora mismo."
           }
         }
       },
@@ -1235,7 +1235,7 @@
               "noServer": "<strong>No hay servidor de OpenLimiter.</strong> Nada se envía a los autores del proyecto, porque no hay a dónde enviarlo.",
               "noTelemetry": "<strong>No hay telemetría.</strong> Ninguna orden envía uso, diagnósticos, identificadores, prompts ni estado de quota a ningún lado.",
               "hookNoNetwork": "<strong>El hook no hace ninguna solicitud de red.</strong> Lee la caché local y nada más.",
-              "noEgress": "<strong>Este release no realiza ninguna salida en absoluto.</strong> Ningún connector contacta a un proveedor. Cada uno de ellos es un parser sobre datos que algo más ya produjo.",
+              "noEgress": "<strong>No existe ninguna nube de OpenLimiter a la que algo pueda reportarse.</strong> El modo local tiene cero telemetría y ninguna cuenta. Cuando conectas un proveedor en la aplicación de escritorio, esa conexión habla solo con el propio endpoint del proveedor a través de una lista de permitidos, y la credencial permanece en el almacén de credenciales de tu sistema operativo.",
               "unknownNeverZero": "<strong>Unknown nunca se convierte en cero.</strong> Lo ausente, lo expirado, lo malformado y lo no reconocido, todo se resuelve como unknown.",
               "readOnlyArtifacts": "<strong>Los artefactos de autenticación del proveedor son de solo lectura.</strong> Nunca se reescriben, respaldan, reparan ni migran."
             }
@@ -1270,8 +1270,8 @@
             }
           },
           "future-egress": {
-            "title": "Si un futuro connector va a la red",
-            "intro": "Este release no realiza ninguna salida hacia proveedores. Un futuro connector que sí lo haga tendría que cumplir todo lo siguiente antes de poder distribuirse.",
+            "title": "Qué puede hacer una conexión en vivo",
+            "intro": "El modo local no realiza ninguna salida hacia proveedores en absoluto. Cuando conectas un proveedor en la aplicación de escritorio, esa conexión tiene que cumplir todo lo siguiente.",
             "bullets": {
               "oneHost": "Declarar un único host de proveedor exacto.",
               "transport": "Usar transporte seguro y rechazar cualquier redirección fuera de ese host.",
@@ -1322,9 +1322,9 @@
               "status": "Estado: planeado. No existe ningún servicio, no hay checkout y no hay lista de espera.",
               "sync": "Sincronización cifrada del estado de quota entre tus propios dispositivos.",
               "push": "Notificaciones push a tu teléfono cuando una ventana se acerca a su límite.",
-              "smartLimiter": "Un smart limiter: enrutamiento consciente de quota entre tus modelos, guiado por el estado de presupuesto en vivo.",
+              "smartLimiter": "Barreras de presupuesto: los umbrales y alertas que configuras para tu propio uso.",
               "email": "Alertas por correo y un resumen semanal, con reglas de entrega para horas tranquilas.",
-              "history": "Historial de uso y tendencias de consumo alojados en todos tus dispositivos.",
+              "history": "Historial de uso y previsiones alojados en todos tus dispositivos.",
               "priority": "Solicitudes de connector prioritarias, para que tu proveedor se construya primero.",
               "team": "Un nivel de panel de equipo, más adelante que el resto.",
               "localFirst": "La garantía de prioridad local no cambia: la CLI seguiría funcionando sin cuenta y sin red."

@@ -30,8 +30,8 @@
     "closeMenu": "Menü schließen"
   },
   "announce": {
-    "message": "Gründeraktion: OpenLimiter Pro mit 50 % Rabatt für frühe Unterstützer",
-    "short": "OpenLimiter Pro 50% guenstiger",
+    "message": "OpenLimiter Pro: ein Gründerpreis für frühe Unterstützer, bald verfügbar",
+    "short": "OpenLimiter Pro: Gründerpreis, bald verfügbar",
     "dismiss": "Diese Ankündigung schließen"
   },
   "footer": {
@@ -151,7 +151,7 @@
   },
   "integrations": {
     "title": "Was es liest, wo es landet",
-    "lead": "Keine Testimonials, keine Avatar Wand, keine Nutzerzahl. Jede Karte unten liefert entweder einen Connector in diesem Release, oder sagt offen, dass es noch keinen dafür gibt, und damit ist die Wand selbst ein Statusbericht.",
+    "lead": "Keine Testimonials, keine Avatar Wand, keine Nutzerzahl. Jede Karte unten liefert entweder einen Connector in diesem Release, oder sagt offen, dass es noch keinen dafür gibt, und damit ist die Wand selbst ein Statusbericht. Eine Verbindung zu einem Provider läuft normalerweise über die Desktop Anwendung; die Oberflächen unten sind die Entwicklerpfade unter Erweitert, für alle, die sie direkt nutzen wollen.",
     "plannedChip": "geplant",
     "plannedLine": "Geplanter Connector. Trag ihn schon heute per manual entry oder ingest in den Meter ein.",
     "connectors": {
@@ -192,7 +192,7 @@
       },
       "shell": {
         "name": "Jede Shell",
-        "detail": "Der ganze Snapshot als Tabelle für dich oder als JSON für ein Skript. Kein Netzwerkaufruf, kein Konto, kein Daemon dazwischen."
+        "detail": "Der ganze Snapshot als Tabelle für dich oder als JSON für ein Skript, direkt aus dem lokalen Cache gelesen, ohne Daemon dazwischen. Der lokale Modus hat null Telemetrie und kein Konto; wenn ein Provider über die Desktop Anwendung verbunden wird, spricht diese Verbindung nur mit dem eigenen Endpoint des Providers, nie mit OpenLimiter."
       },
       "fileWriter": {
         "name": "Jedes Tool, das eine Datei schreiben kann",
@@ -211,7 +211,7 @@
   },
   "worksWith": {
     "title": "Funktioniert mit deinen Tools",
-    "lead": "Ein Meter über jedes Abo, das du schon hast. Jeder Connector liest eine Form, die etwas auf deinem Rechner ohnehin schon geschrieben hat, und in diesem Release fasst keiner von ihnen das Netzwerk an.",
+    "lead": "Ein Meter über jedes Abo, das du schon hast. Verbinde einen Provider über die Desktop Anwendung, oder speise einen unter Erweitert per manual entry oder ingest ein. Der lokale Modus hat null Telemetrie und kein Konto; eine echte Verbindung spricht nur mit dem eigenen Endpoint dieses Providers, nie mit OpenLimiter, weil es noch keine OpenLimiter Cloud gibt.",
     "groups": {
       "today": {
         "label": "Ab heute dabei",
@@ -229,7 +229,7 @@
     },
     "feedIn": "So fütterst du einen",
     "footnote": "Jeder Connector wird als <code>UNVERIFIED</code> ausgeliefert, der ehrliche Standard: Noch hat kein expliziter Verifier eine Form gegen ein echtes Konto bestätigt. Drei von ihnen lesen Schnittstellen, die intern zum Tooling eines anderen gehören und sich ohne Ankündigung ändern können, und tut eine das, fällt dieser Provider geschlossen auf unknown zurück, statt zu raten. <link>Jeder Connector und sein echter Stand</link>.",
-    "manualNote": "Jedes Tool auf dieser Seite lässt sich schon heute in den Meter aufnehmen. Trag die Zahlen per manual entry ein, oder leite eine Payload per ingest aus einem beliebigen Skript ein, das du kontrollierst, und sie landet im selben Snapshot wie ein Connector."
+    "manualNote": "Jedes Tool auf dieser Seite lässt sich schon heute in den Meter aufnehmen. Verbinde es über die Desktop Anwendung, oder trag unter Erweitert die Zahlen per manual entry ein, oder leite eine Payload per ingest aus einem beliebigen Skript ein, das du kontrollierst. So oder so landet es im selben Snapshot wie ein Connector."
   },
   "runsWhere": {
     "title": "Läuft, wo du arbeitest",
@@ -326,7 +326,7 @@
       "lead": "Reader bedeutet: Etwas in OpenLimiter holt die Zahl selbst. Auth bedeutet: Eine Zugangsdaten wird gehalten und genutzt. Jede Zelle oben wird zur Build Zeit aus der geprüften Provider Registry ausgelesen statt in diese Seite geschrieben, sodass eine Stufe hier nicht beansprucht werden kann, ohne dass zuerst ein Mensch eine Spezifikation ändert.",
       "unspecified": "{count} der {total} Connectors haben noch keine geprüfte Spezifikation, und jede ihrer Zellen liest Nicht angegeben, statt zu raten.",
       "elsewhere": "Die Registry beschreibt {count} weitere Produkte ganz ohne Connector, weshalb sie hier keine Zeile haben.",
-      "tail": "Nichts auf dieser Seite heißt verbunden."
+      "tail": "Eine Zeile auf dieser Seite heißt erst dann Verbunden, wenn ein echter Reader dafür bestätigt ist, nie allein auf der Stärke eines Parsers."
     }
   },
   "cliTranscript": {
@@ -386,7 +386,7 @@
     "items": {
       "whatLeaves": {
         "question": "Was verlässt meinen Rechner wirklich?",
-        "answer": "Nichts. Es gibt keine Telemetrie, keine Analytics und keinen OpenLimiter Server, der irgendetwas empfangen könnte. Dieses Release führt überhaupt keinen Provider Egress aus: Jeder Connector ist ein Parser über Daten, die etwas anderes bereits auf deine Festplatte geschrieben oder an die Standardeingabe geleitet hat."
+        "answer": "Im lokalen Modus nichts: Es gibt keine Telemetrie, keine Analytics, und keinen OpenLimiter Server, der irgendetwas empfangen könnte, weil es noch keine OpenLimiter Cloud gibt. Verbindest du einen Provider in der Desktop Anwendung, spricht diese Verbindung ausschließlich über eine Allowlist mit dem eigenen Endpoint des Providers, und die Zugangsdaten bleiben im Zugangsdatenspeicher deines Betriebssystems. So oder so meldet sich nichts jemals bei OpenLimiter."
       },
       "safeToPoint": {
         "question": "Ist es sicher, es auf meine Tools anzusetzen?",
@@ -422,7 +422,7 @@
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
-        "answer": "Eine geplante Bezahlstufe für 5 $ im Monat, Gründerpreis, für das, was nur auf Servern laufen kann: verschlüsselte Synchronisierung über deine Geräte hinweg, Push Benachrichtigungen auf dein Handy, ein smart limiter, der zwischen deinen Modellen anhand von live Budgetstatus routet, E Mail Alerts und ein wöchentliches Digest, Delivery Rules, gehostete History und Burn Trends, priorisierte Connector Anfragen, und später eine Team Stufe. Es ist nicht gebaut. Es gibt kein Checkout und keine Warteliste, und nichts, was heute lokal läuft, wandert je dahinter."
+        "answer": "Eine geplante Bezahlstufe für 5 $ im Monat, Gründerpreis, für das, was nur auf Servern laufen kann: verschlüsselte Synchronisierung über deine Geräte hinweg, Push Benachrichtigungen auf dein Handy, E Mail Alerts und ein wöchentliches Digest, gehostete Nutzungshistorie und Prognosen, Budgetleitplanken für deine eigene Nutzung, Unterstützung für mehr als ein Konto pro Provider, Geräteverwaltung, und später eine Team Stufe. Es ist nicht gebaut. Es gibt kein Checkout und keine Warteliste, und nichts, was heute lokal läuft, wandert je dahinter."
       }
     }
   },
@@ -456,11 +456,11 @@
       "lines": {
         "sync": "Verschlüsselte Synchronisierung von Quotastatus über deine eigenen Geräte hinweg",
         "push": "Push Benachrichtigungen auf dein Handy, wenn ein Fenster sich seiner Grenze nähert",
-        "smartLimiter": "Smart limiter: quotabewusstes Routing zwischen deinen Modellen, gesteuert von live Budgetstatus",
+        "smartLimiter": "Budgetleitplanken: die Schwellenwerte und Alerts, die du selbst für deine eigene Nutzung festlegst",
         "email": "E Mail Alerts und ein wöchentliches Digest",
-        "deliveryRules": "Delivery Rules für Alerts, damit eine stille Stunde still bleibt",
-        "history": "Gehostete Nutzungshistorie und Burn Trends über jedes Gerät hinweg",
-        "priority": "Priorisierte Connector Anfragen, damit dein Provider zuerst gebaut wird",
+        "deliveryRules": "Mehr als ein Konto pro Provider, jedes einzeln gemessen",
+        "history": "Gehostete Nutzungshistorie und Prognosen über jedes Gerät hinweg",
+        "priority": "Geräteverwaltung: sieh, welche Geräte angemeldet sind, und entferne eines, das du nicht mehr nutzt",
         "team": "Eine Team Dashboard Stufe, später als der Rest"
       }
     },
@@ -473,7 +473,7 @@
     "commitments": {
       "runsLocal": {
         "title": "Es läuft auf deinem Rechner",
-        "detail": "Jeder Connector in diesem Release ist ein Parser über etwas, das schon auf deiner Festplatte liegt. Kein Provider Egress, kein Daemon, kein Konto."
+        "detail": "Der lokale Modus hat null Telemetrie und kein Konto. Verbindest du einen Provider in der Desktop Anwendung, spricht diese Verbindung ausschließlich über eine Allowlist mit dem eigenen Endpoint des Providers, wobei die Zugangsdaten im Zugangsdatenspeicher deines Betriebssystems gehalten werden. Nichts meldet sich jemals bei OpenLimiter, weil es noch keine OpenLimiter Cloud gibt."
       },
       "reportsNobody": {
         "title": "Es berichtet niemandem",
@@ -630,7 +630,7 @@
           },
           "first-data": {
             "title": "Gib ihm etwas zum Messen",
-            "parser": "OpenLimiter kontaktiert in diesem Release nie einen Provider. Es parst Daten, die etwas anderes ihm bereits vorgelegt hat. Bis einer der Ingestionswege läuft, meldet jeder Befehl ehrlich unknown.",
+            "parser": "Das Kommandozeilen Tool kontaktiert von sich aus nie einen Provider. Es parst Daten, die etwas anderes ihm bereits vorgelegt hat. Bis einer der Ingestionswege läuft, meldet jeder Befehl ehrlich unknown.",
             "statusline": "Der Weg, der keine zusätzliche Arbeit braucht, ist die Claude Code Statusline. Claude Code führt deinen Statusline Befehl bei jedem Rendern aus und schreibt ein JSON Objekt, das die aktuelle Session beschreibt, an die Standardeingabe dieses Befehls. Trägt dieses Objekt einen Rate Limit Block, validiert OpenLimiter ihn, cacht ihn, und rendert die frischen Zahlen im selben Aufruf.",
             "terminalLabel": "Terminal",
             "fallback": "Nicht jede Claude Code Version sendet Rate Limit Felder. Tut deine das nicht, bleibt dieser Weg still, und die beiden manuellen Wege funktionieren trotzdem. Die <docs>Ingestion Seite</docs> deckt alle drei ab."
@@ -675,7 +675,7 @@
             "title": "Was OpenLimiter dagegen tut",
             "intro": "OpenLimiter liest Quota für unterstützte KI Abos auf deinem eigenen Rechner, normalisiert jeden Wert auf ein Schema, und speist begrenzten Budgetstatus plus Routingempfehlungen in den eigenen Context der Coding Agenten ein. Der erste Adapter ist eine Claude Code Statusline und ein Prompt Hook.",
             "bullets": {
-              "read": "<strong>Lesen.</strong> Connectors parsen Formen, die ein Provider oder ein lokales Tool bereits erzeugt hat. Sie führen in diesem Release keinen Netzwerkzugriff aus.",
+              "read": "<strong>Lesen.</strong> Connectors parsen Formen, die ein Provider oder ein lokales Tool bereits erzeugt hat. Im lokalen Modus verlässt nichts deinen Rechner; verbindest du einen Provider über die Desktop Anwendung, spricht diese Verbindung nur mit dem eigenen Endpoint des Providers.",
               "normalise": "<strong>Normalisieren.</strong> Ein Snapshot Schema mit geschlossenen Enums, begrenzten Prozentwerten und abgeleiteter Aktualität. Unknown bleibt unknown und wird nie zu einer erfundenen Null.",
               "advise": "<strong>Empfehlen.</strong> Eine kompakte Statusline für dich, und ein begrenzter Context Block für deinen Agenten, der nur Enum Codes, Zahlen und Zeitstempel trägt."
             }
@@ -755,7 +755,7 @@
           },
           "how-data-arrives": {
             "title": "Wie Daten wirklich ankommen",
-            "intro": "Das ist der Teil, der Leute überrascht, es lohnt sich also, ihn klar auszusprechen. In diesem Release führt kein Connector einen Netzwerkzugriff aus. Jeder von ihnen ist ein Parser, und etwas anderes muss ihm ein Dokument übergeben.",
+            "intro": "Das ist der Teil, der Leute überrascht, es lohnt sich also, ihn klar auszusprechen. Im Kommandozeilen Tool führt kein Connector von sich aus einen Netzwerkzugriff aus. Jeder von ihnen ist ein Parser, und etwas anderes muss ihm ein Dokument übergeben.",
             "bullets": {
               "claude": "<code>claude</code> wird von der Statusline Payload gefüttert, die an der Standardeingabe ankommt. Dieser Weg läuft automatisch, sobald Claude Code verdrahtet ist.",
               "manual": "<code>manual</code> wird von einem Dokument gefüttert, das du im Statusverzeichnis ablegst.",
@@ -802,8 +802,8 @@
         "sections": {
           "chips": {
             "title": "Der Chip auf einem Provider heute",
-            "intro": "Dass ein Parser existiert, ist keine Verbindung, keine Karte im Dashboard wird also allein deswegen als verbunden bezeichnet. Jeder Provider trägt stattdessen einen Chip, der benennt, wie seine Zahlen dieses Gerät tatsächlich erreicht haben. Davon gibt es heute drei.",
-            "caption": "Die drei Quell Chips, die das Dashboard heute zeigt",
+            "intro": "Dass ein Parser existiert, ist keine Verbindung, keine Karte wird also allein deswegen als verbunden bezeichnet. Jeder Provider trägt stattdessen einen Chip, der benennt, wie seine Zahlen dieses Gerät tatsächlich erreicht haben: einen der drei unten, bevor eine echte Verbindung besteht, oder Verbunden, sobald du diesen Provider über die Desktop Anwendung verknüpfst.",
+            "caption": "Die drei Quell Chips, die gezeigt werden, bevor ein Provider eine echte Verbindung hat",
             "columns": {
               "chip": "Chip",
               "providers": "Provider",
@@ -879,13 +879,13 @@
             },
             "what-this-is-not-claiming": {
               "title": "Was diese Seite nicht behauptet",
-              "body": "Nicht, dass alle dreizehn auf dem Bildschirm stehen. Was das Dashboard heute tatsächlich zeigt, ist das einfachere Vokabular der drei Chips oben, gebaut für ein Release, in dem nichts einen Netzwerklesezugriff ausführt. Die dreizehn Zustände sind real und getestet im Core Paket, aus dem dieses Produkt gebaut ist, und sie benennen den allgemeinen Lebenszyklus, den jede Verbindung durchläuft, sobald ein echter Reader existiert. Keine Oberfläche zeigt diese Wörter bislang, weil heute nichts das tut, was eine Verbindung in einen von ihnen bringen würde: kein Reader, keine Anfrage, nichts, das fehlschlagen, ablaufen, oder Zugangsdaten brauchen könnte."
+              "body": "Nicht, dass alle dreizehn überall auf dem Bildschirm stehen. Die Web App und das Kommandozeilen Tool zeigen weiterhin das einfachere Vokabular der drei Chips oben, weil keines von beiden von sich aus einen Provider live liest. Die dreizehn Zustände sind real und getestet im Core Paket, aus dem dieses Produkt gebaut ist, und sie benennen den allgemeinen Lebenszyklus, den eine Verbindung durchläuft, wo immer ein echter Reader existiert, was heute der Verbindungen Bildschirm der Desktop Anwendung selbst ist, statt dieser Seite."
             }
           },
           "what-changes": {
-            "title": "Was sich ändert, wenn eine echte Verbindung startet",
-            "intro": "Nichts auf dieser Seite ist ein Datum oder ein Versprechen. Bekommt ein Provider einen echten Reader, hört die ehrliche Beschreibung davon auf, ein fester Chip zu sein, und wird zu dem der dreizehn Zustände oben, der in diesem Moment tatsächlich passt: gefunden, wartet auf Zugangsdaten, verbindet sich, verbunden, oder, wenn etwas schiefgeht, beeinträchtigt, veraltet, oder braucht einen Blick. Das ist der Grund, das ganze Vokabular jetzt zu benennen, bevor irgendetwas davon erreichbar ist, damit sich der Satz, den jemand liest, nicht an dem Tag ändert, an dem sich der Zustand darunter zu bewegen beginnt.",
-            "noReader": "Kein Provider hat diesen Reader heute. Sieh die <roadmap>Roadmap</roadmap> dafür, was geplant ist und was nicht, und <providers>unterstützte Provider</providers> dafür, was jeder Connector gerade jetzt wirklich kann."
+            "title": "Was eine echte Verbindung ändert",
+            "intro": "Nichts auf dieser Seite ist ein Datum oder ein Versprechen für die Web App oder das Kommandozeilen Tool, die bei den drei Chips oben bleiben, weil keines von beiden einen Provider live liest. Bekommt ein Provider einen echten Reader, hört die ehrliche Beschreibung davon auf, ein fester Chip zu sein, und wird zu dem der dreizehn Zustände oben, der in diesem Moment tatsächlich passt: gefunden, wartet auf Zugangsdaten, verbindet sich, verbunden, oder, wenn etwas schiefgeht, beeinträchtigt, veraltet, oder braucht einen Blick. Das ist der Grund, das ganze Vokabular hier zu benennen, damit sich der Satz, den jemand liest, nicht ändert, während sich der Zustand darunter bewegt.",
+            "noReader": "Nicht jeder Provider hat diesen Reader heute; der eigene Verbindungen Bildschirm der Desktop Anwendung ist dort, wo ein echter zuerst auftaucht. Sieh die <roadmap>Roadmap</roadmap> dafür, was geplant ist und was nicht, und <providers>unterstützte Provider</providers> dafür, was jeder Connector gerade jetzt wirklich kann."
           }
         }
       },
@@ -1235,7 +1235,7 @@
               "noServer": "<strong>Es gibt keinen OpenLimiter Server.</strong> Nichts wird an die Projektautoren gesendet, weil es nirgendwohin zu senden gibt.",
               "noTelemetry": "<strong>Es gibt keine Telemetrie.</strong> Kein Befehl sendet Nutzung, Diagnosen, Identifikatoren, Prompts, oder Quotastatus irgendwohin.",
               "hookNoNetwork": "<strong>Der Hook stellt keine Netzwerkanfrage.</strong> Er liest den lokalen Cache und sonst nichts.",
-              "noEgress": "<strong>Dieses Release führt überhaupt keinen Egress aus.</strong> Kein Connector kontaktiert einen Provider. Jeder von ihnen ist ein Parser über Daten, die etwas anderes bereits erzeugt hat.",
+              "noEgress": "<strong>Es gibt keine OpenLimiter Cloud, bei der sich etwas melden könnte.</strong> Der lokale Modus hat null Telemetrie und kein Konto. Verbindest du einen Provider in der Desktop Anwendung, spricht diese Verbindung ausschließlich über eine Allowlist mit dem eigenen Endpoint des Providers, und die Zugangsdaten bleiben im Zugangsdatenspeicher deines Betriebssystems.",
               "unknownNeverZero": "<strong>Unknown wird nie zu null.</strong> Fehlende, abgelaufene, fehlerhafte und nicht erkannte Eingaben lösen sich alle in unknown auf.",
               "readOnlyArtifacts": "<strong>Provider Authentifizierungsartefakte sind nur lesend.</strong> Sie werden nie umgeschrieben, gesichert, repariert oder migriert."
             }
@@ -1270,8 +1270,8 @@
             }
           },
           "future-egress": {
-            "title": "Falls ein künftiger Connector ins Netzwerk geht",
-            "intro": "Dieses Release führt keinen Provider Egress aus. Ein künftiger Connector, der das tut, müsste alles Folgende erfüllen, bevor er ausgeliefert werden könnte.",
+            "title": "Was eine echte Verbindung tun darf",
+            "intro": "Der lokale Modus führt überhaupt keinen Provider Egress aus. Verbindest du einen Provider in der Desktop Anwendung, muss diese Verbindung alles Folgende erfüllen.",
             "bullets": {
               "oneHost": "Einen einzigen exakten Provider Host erklären.",
               "transport": "Sicheren Transport nutzen und jede Umleitung außerhalb dieses Hosts ablehnen.",
@@ -1322,9 +1322,9 @@
               "status": "Status: geplant. Es existiert kein Dienst, es gibt kein Checkout und keine Warteliste.",
               "sync": "Verschlüsselte Synchronisierung von Quotastatus über deine eigenen Geräte hinweg.",
               "push": "Push Benachrichtigungen auf dein Handy, wenn ein Fenster sich seiner Grenze nähert.",
-              "smartLimiter": "Ein smart limiter: quotabewusstes Routing zwischen deinen Modellen, gesteuert von live Budgetstatus.",
+              "smartLimiter": "Budgetleitplanken: die Schwellenwerte und Alerts, die du selbst für deine eigene Nutzung festlegst.",
               "email": "E Mail Alerts und ein wöchentliches Digest, mit Delivery Rules für stille Stunden.",
-              "history": "Gehostete Nutzungshistorie und Burn Trends über jedes Gerät hinweg.",
+              "history": "Gehostete Nutzungshistorie und Prognosen über jedes Gerät hinweg.",
               "priority": "Priorisierte Connector Anfragen, damit dein Provider zuerst gebaut wird.",
               "team": "Eine Team Dashboard Stufe, später als der Rest.",
               "localFirst": "Die Garantie lokal zuerst ändert sich nicht: Die CLI würde weiterlaufen, ohne Konto und ohne Netzwerk."
