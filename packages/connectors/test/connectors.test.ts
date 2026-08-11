@@ -195,11 +195,22 @@ describe("connector contracts", () => {
         } | null;
       }[];
     };
-    const described = new Map(
-      registry.providers
-        .filter((entry) => entry.honesty !== null)
-        .map((entry) => [entry.honesty!.connectorId, entry.honesty!])
-    );
+    /*
+     * Built by hand rather than from a Map constructor, because a Map silently
+     * keeps the last of two entries with the same key. Two specs claiming one
+     * connector id would therefore have compared cleanly against whichever
+     * happened to compile second, which is the drift this test exists to catch.
+     */
+    const described = new Map<string, NonNullable<typeof registry.providers[0]["honesty"]>>();
+    for (const entry of registry.providers) {
+      if (entry.honesty === null) continue;
+      const connectorId = entry.honesty.connectorId;
+      expect(
+        described.has(connectorId),
+        "two specs claim connector_id " + connectorId
+      ).toBe(false);
+      described.set(connectorId, entry.honesty);
+    }
     for (const connector of connectors) {
       const stated = described.get(connector.id);
       expect(stated, "no registry entry describes " + connector.id).toBeDefined();

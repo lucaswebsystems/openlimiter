@@ -32,10 +32,6 @@ import {
   normalizeMetersReport,
 } from "./engine/core/index.js";
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
-import { parseAntigravityPayload } from "./engine/connectors/antigravity.js";
-import { parseCodexPayload } from "./engine/connectors/codex.js";
-import { parseOpencodePayload } from "./engine/connectors/opencode.js";
-import { parseOpenrouterPayload } from "./engine/connectors/openrouter.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import {
   buildAgentContext,
@@ -65,6 +61,7 @@ import {
   connectionsTabShown,
   initConnections,
   noteMetersRefreshed,
+  snapshotsFromBody,
   stateWord,
 } from "./connections.js";
 
@@ -1192,14 +1189,6 @@ void stateDirectory().then((result) => {
 
 /* ----------------------------------------------------------- provider connect */
 
-const PARSER_BY_READER = {
-  openrouter_key: parseOpenrouterPayload,
-  openrouter_credits: parseOpenrouterPayload,
-  codex_usage: parseCodexPayload,
-  antigravity_quota: parseAntigravityPayload,
-  opencode_usage: parseOpencodePayload,
-};
-
 const TRANSPORT_FAILURE_SENTENCES = {
   timeout: "The provider did not answer before the time limit (timeout).",
   connect: "The network connection to the provider could not be opened (connect).",
@@ -1219,24 +1208,33 @@ function setCardNote(node, text, tone) {
   node.dataset.tone = tone ?? "plain";
 }
 
+/**
+ * What a test that never reached a parse looks like.
+ *
+ * Every field stated, because the absent ones were the bug: `snapshots` used to
+ * be missing on these paths, and the caller asked `snapshots !== null`, which
+ * `undefined` satisfies. A refused probe therefore reported a parsed test.
+ */
+const NOTHING_TESTED = { ok: false, snapshots: null, drifted: false, generation: null };
+
 async function testConnectionHelper(connectionId) {
   const result = await testProvider({ connectionId });
   if (!result.ok) {
     if (result.reason === BACKEND_ABSENT) {
-      return { ok: false, note: "This build has no connection backend yet." };
+      return { ...NOTHING_TESTED, note: "This build has no connection backend yet." };
     }
-    return { ok: false, note: result.message };
+    return { ...NOTHING_TESTED, note: result.message };
   }
   const outcome = normalizeProbeOutcome(result.value);
   if (outcome.kind === "unreadable") {
     return {
-      ok: false,
+      ...NOTHING_TESTED,
       note: "The backend's answer could not be read, so nothing is claimed from it.",
     };
   }
   if (outcome.kind === "transport_failure") {
     return {
-      ok: false,
+      ...NOTHING_TESTED,
       generation: outcome.attemptGeneration,
       note: formatTransportFailure(outcome.failure),
     };
@@ -1249,23 +1247,16 @@ async function testConnectionHelper(connectionId) {
       note: "The provider answered " + String(outcome.status) + ".",
     };
   }
-  const parser = PARSER_BY_READER[outcome.readerId];
-  if (!parser) {
-    return {
-      ok: false,
-      generation: outcome.attemptGeneration,
-      note: "No reader parser is available for " + outcome.readerId + ".",
-    };
-  }
+  /*
+   * One dispatcher for the whole window, imported rather than repeated.
+   *
+   * This function used to JSON.parse the body itself, which meant an OpenCode
+   * page, the only body in the product that is HTML, became drift on the connect
+   * form while parsing correctly on the cards. A second copy of a rule is a
+   * second copy that will disagree with the first.
+   */
   const now = new Date().toISOString();
-  let document = null;
-  try {
-    document = JSON.parse(outcome.body);
-  } catch {
-    document = null;
-  }
-  const meters = document !== null ? parser(document, now) : null;
-  const snapshots = (meters !== null && meters.length > 0) ? meters : null;
+  const snapshots = snapshotsFromBody(outcome.readerId, outcome.body, now);
   return {
     ok: snapshots !== null,
     generation: outcome.attemptGeneration,
@@ -1351,9 +1342,12 @@ async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, k
   }
 
   const tested = await testConnectionHelper(targetId);
-  if (tested.snapshots !== null) {
+  /* ok is true only when a connector returned rows. Asking `snapshots !== null`
+     was satisfied by `undefined` on every path that never reached a parse, so a
+     refused probe closed the attempt as a parsed test. */
+  if (tested.ok === true) {
     await closeAttemptHelper(targetId, tested.generation, "parsed_test");
-  } else if (tested.drifted) {
+  } else if (tested.drifted === true) {
     await closeAttemptHelper(targetId, tested.generation, "drift");
   }
 
@@ -1372,7 +1366,7 @@ async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, k
     setCardNote(
       noteEl,
       "Test finished. " + sentence,
-      tested.snapshots !== null ? "ok" : "bad"
+      tested.ok === true ? "ok" : "bad"
     );
   }
 

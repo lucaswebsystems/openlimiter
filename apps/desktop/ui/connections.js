@@ -326,12 +326,18 @@ function parseJson(text) {
  * The parser is the mirrored connector the READER names and the validator is
  * the mirrored normalizer: nothing about the shape of a reading is decided
  * here, and nothing here chooses which parser runs.
+ *
+ * Exported because it is the ONLY place in this window that turns a body into
+ * rows. app.js used to carry a second copy, and the copy did what a second copy
+ * always does: it drifted. It kept an unconditional JSON.parse after the shared
+ * one had learned about text, so every real OpenCode page became drift on the
+ * connect form while parsing correctly everywhere else.
  * The one thing this function adds is provenance, remote_api over
  * remote_http, because provenance is written by whatever performed the read
  * and this pipeline is the reader. A body the parser refuses produces null,
  * and null writes nothing anywhere.
  */
-function snapshotsFromBody(readerId, body, now) {
+export function snapshotsFromBody(readerId, body, now) {
   const parse = Object.prototype.hasOwnProperty.call(PARSER_BY_READER, readerId)
     ? PARSER_BY_READER[readerId]
     : null;

@@ -66,17 +66,59 @@ export const opencodeInput = {
 export const opencodeEncoding = "text" as const;
 
 /**
- * How far past its own label the LAST window's segment may be read.
+ * How far this reader will search for a window's own container, in characters.
  *
- * Every other window's segment ends where the next label begins, which bounds
- * it naturally. The last one has no next label, and reading to the end of the
- * document is how an unrelated percentage becomes a quota reading: a footer, a
- * billing figure, a discount, a progress indicator, anything at all further
- * down the page would be picked up as the monthly meter. Two thousand
- * characters is what the reference reader bounds it to, and it is generous for
- * one rendered block.
+ * A bound on WORK, not a boundary. The boundary is structural: see
+ * `windowContainer`. A character count alone was tried and it does not close
+ * the hole, because "the first percentage within two thousand characters after
+ * the label" still reaches a footer when the window's own percentage is absent.
+ * That is the difference between bounding how far a reader wanders and
+ * bounding where it is allowed to look at all.
  */
 export const OPENCODE_MAX_SEGMENT_CHARS = 2_000;
+
+/**
+ * Elements that never close, so a scan must not wait for a closing tag.
+ *
+ * Not exhaustive HTML: exhaustive for what a rendered page puts inside a meter
+ * block. An element outside this list that never closes makes the container
+ * scan run past its own end, and the scan answers null rather than guessing,
+ * which is the direction that costs a reading instead of inventing one.
+ */
+const VOID_ELEMENTS = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input",
+  "link", "meta", "param", "source", "track", "wbr"
+]);
+
+/** One tag as the scanner sees it. */
+interface Tag {
+  readonly at: number;
+  readonly end: number;
+  readonly name: string;
+  readonly closing: boolean;
+  readonly selfClosing: boolean;
+}
+
+/** Every tag in a slice of text, in order. Comments are not tags. */
+function tagsIn(html: string, from: number, to: number): Tag[] {
+  const tags: Tag[] = [];
+  const pattern = /<!--[\s\S]*?-->|<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9-]*)([^>]*)>/gu;
+  const slice = html.slice(from, to);
+  for (const match of slice.matchAll(pattern)) {
+    /* A comment matched the first alternative and has no tag name. */
+    if (match[2] === undefined) continue;
+    const name = match[2].toLowerCase();
+    const attributes = match[3] ?? "";
+    tags.push({
+      at: from + (match.index ?? 0),
+      end: from + (match.index ?? 0) + match[0].length,
+      name,
+      closing: match[1] === "/",
+      selfClosing: attributes.trimEnd().endsWith("/") || VOID_ELEMENTS.has(name)
+    });
+  }
+  return tags;
+}
 
 /**
  * Largest page this reader will look at, in characters.
@@ -128,6 +170,100 @@ function flatten(fragment: string): string {
   return fragment.replace(MARKUP, " ").split(/\s+/u).filter(Boolean).join(" ");
 }
 
+/** How many ancestors of a label this reader will consider. */
+const MAX_CONTAINER_DEPTH = 6;
+
+/**
+ * The element that encloses a position, as a half open range, or null.
+ *
+ * Found by walking backwards to the nearest element still open at that point,
+ * then forwards to its own closing tag. Both walks are bounded, and every
+ * failure answers null: an unbalanced page is one this reader declines rather
+ * than one it reads approximately.
+ */
+function enclosingElement(
+  html: string,
+  at: number
+): { readonly openedAt: number; readonly from: number; readonly to: number } | null {
+  const searchFrom = Math.max(0, at - OPENCODE_MAX_SEGMENT_CHARS);
+  const before = tagsIn(html, searchFrom, at);
+  /* Backwards: a closing tag means a sibling element already finished, so the
+     next opening tag going left belongs to it and not to us. */
+  let pendingCloses = 0;
+  let container: Tag | null = null;
+  for (let index = before.length - 1; index >= 0; index -= 1) {
+    const tag = before[index]!;
+    if (tag.selfClosing) continue;
+    if (tag.closing) {
+      pendingCloses += 1;
+      continue;
+    }
+    if (pendingCloses > 0) {
+      pendingCloses -= 1;
+      continue;
+    }
+    container = tag;
+    break;
+  }
+  if (container === null) return null;
+  /* Forwards from just inside the container to its own close, counting depth so
+     a nested element of the same name cannot end the region early. */
+  const searchTo = Math.min(html.length, container.end + OPENCODE_MAX_SEGMENT_CHARS);
+  let depth = 0;
+  for (const tag of tagsIn(html, container.end, searchTo)) {
+    if (tag.selfClosing) continue;
+    if (!tag.closing) {
+      depth += 1;
+      continue;
+    }
+    if (depth === 0) {
+      return tag.name === container.name
+        ? { openedAt: container.at, from: container.end, to: tag.at }
+        /* A closing tag for something else pops above our container, which
+           means the page is unbalanced here. Decline it. */
+        : null;
+    }
+    depth -= 1;
+  }
+  return null;
+}
+
+/**
+ * The region a window's reading may be read from, or null.
+ *
+ * This is the fix for the final segment attack, and the reason a character count
+ * could not be. A window's figure is not inside the heading that names it: it is
+ * a SIBLING of that heading, in a shared block. So the readable region is an
+ * ancestor of the label, and the right ancestor is the nearest one that holds a
+ * percentage while naming no other window.
+ *
+ * Both halves of that rule carry weight. Requiring a percentage is what walks
+ * past the bare heading element. Refusing a region that names another window is
+ * what stops the walk at the meter block instead of continuing up to the page
+ * body, which contains every window's figure and would let any of them stand in
+ * for any other. When no ancestor satisfies both, there is no region, and a
+ * window with no region is refused rather than approximated: that is the case
+ * the audit named, a monthly block that rendered no figure and a footer a few
+ * characters later that did.
+ */
+function windowRegion(
+  html: string,
+  labelAt: number,
+  otherLabels: readonly string[]
+): string | null {
+  let position = labelAt;
+  for (let level = 0; level < MAX_CONTAINER_DEPTH; level += 1) {
+    const element = enclosingElement(html, position);
+    if (element === null) return null;
+    const segment = flatten(html.slice(element.from, element.to));
+    if (otherLabels.some((label) => segment.includes(label))) return null;
+    if (PERCENT.test(segment)) return segment;
+    /* No figure at this level, so try the block above it. */
+    position = element.openedAt;
+  }
+  return null;
+}
+
 interface ParsedWindow {
   percent: number;
   seconds: number;
@@ -142,24 +278,33 @@ interface ParsedWindow {
  * it.
  */
 function parseWindows(html: string, now: string): ParsedWindow[] | null {
-  const found: { at: number; seconds: number }[] = [];
+  const found: { at: number; seconds: number; label: string }[] = [];
   for (const window of OPENCODE_WINDOWS) {
     const at = html.indexOf(window.label);
     if (at < 0) return null;
-    found.push({ at, seconds: window.seconds });
+    /* One occurrence only. A page rendering a label twice gives this reader two
+       candidate containers and no way to know which is the meter. */
+    if (html.indexOf(window.label, at + window.label.length) >= 0) return null;
+    found.push({ at, seconds: window.seconds, label: window.label });
   }
   found.sort((left, right) => left.at - right.at);
   const windows: ParsedWindow[] = [];
-  for (let index = 0; index < found.length; index += 1) {
-    const start = found[index]!;
-    const next = found[index + 1];
-    /* The last segment is bounded explicitly. See
-       OPENCODE_MAX_SEGMENT_CHARS: without it, any percentage anywhere below the
-       final label would be read as that window's reading. */
-    const end = next === undefined
-      ? Math.min(html.length, start.at + OPENCODE_MAX_SEGMENT_CHARS)
-      : next.at;
-    const segment = flatten(html.slice(start.at, end));
+  for (const start of found) {
+    /*
+     * The readable region is this window's own CONTAINER, and nothing past it.
+     *
+     * A character count was not enough, and the way it failed is worth stating:
+     * "the first percentage within two thousand characters after the label"
+     * still reaches a footer whenever the window's own percentage is absent, so
+     * a page that stopped rendering one meter would report an unrelated figure
+     * as that meter. Outside the container is outside, at any distance.
+     */
+    const segment = windowRegion(
+      html,
+      start.at,
+      found.filter((entry) => entry.label !== start.label).map((entry) => entry.label)
+    );
+    if (segment === null) return null;
     const percentMatch = PERCENT.exec(segment);
     if (percentMatch === null) return null;
     const percent = Number.parseInt(percentMatch[1] ?? "", 10);

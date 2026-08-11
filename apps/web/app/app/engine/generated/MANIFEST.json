@@ -17,7 +17,7 @@
     "connectors/codex.ts": "c3585affe65fc726",
     "connectors/fixtures.ts": "d1c1b338ce4c11f7",
     "connectors/manual.ts": "418604ac5bcbe4d2",
-    "connectors/opencode.ts": "13671c5ad4841f34",
+    "connectors/opencode.ts": "33058c80bb58a818",
     "connectors/openrouter.ts": "5f769739e57aa9f3",
     "connectors/index.ts": "5d3d9d51c917208f",
     "adapters/claude-code.ts": "fad517bcf4d12f10"

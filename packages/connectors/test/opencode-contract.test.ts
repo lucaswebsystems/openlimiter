@@ -132,6 +132,82 @@ describe("opencode: the shape a real account produced", () => {
 });
 
 describe("opencode: the last window is bounded", () => {
+  /**
+   * The page with one window's percentage removed, and an unrelated one nearby.
+   *
+   * This is the exact shape the delta audit named, and the one the character cap
+   * did not stop: the monthly block renders no figure of its own, and a footer a
+   * few dozen characters later says 97%. Under a distance bound that footer IS
+   * the first percentage after the label, so it became the monthly quota.
+   */
+  function monthlyMissingWithFooter(footerPercent: number): string {
+    const page = opencodePage(
+      { percent: 10, resetsIn: "20 hours" },
+      { percent: 20, resetsIn: "5 days" },
+      { percent: 30, resetsIn: "21 days" },
+      NOW
+    );
+    return page
+      .replace('<div class="bar"><span><!--$-->30%<!--/--></span></div>', "")
+      .replace(
+        "</main>",
+        "</main><footer><p>Plan used " + String(footerPercent) + "%</p></footer>"
+      );
+  }
+
+  it("refuses a window whose own percentage is missing, whatever is nearby", () => {
+    /* Fails without the container boundary: the footer's figure is well inside
+       the old two thousand character window, so the parse used to succeed and
+       report 97 as the monthly reading. */
+    const hostile = monthlyMissingWithFooter(97);
+    expect(hostile).not.toContain("30%");
+    expect(hostile).toContain("97%");
+    expect(parseOpencodePayload(hostile, NOW)).toBeNull();
+  });
+
+  it("does not let a nearby figure become the binding window", () => {
+    /* The consequence spelled out. 97 is higher than every real reading here, so
+       under the old bound it would not merely appear, it would WIN, and the
+       product would recommend against a provider on a number from a footer. */
+    const meters = parseOpencodePayload(monthlyMissingWithFooter(97), NOW);
+    expect(meters).toBeNull();
+    const rendered = JSON.stringify(meters);
+    expect(rendered).not.toContain("97");
+  });
+
+  it("reads a window whose figure sits in a sibling of its heading", () => {
+    /* The other half of the same claim: the boundary is the container, so a
+       percentage in a sibling element of the label is still in range. That is
+       the ordinary page, and it must keep parsing. */
+    const meters = parseOpencodePayload(page(10, 20, 30), NOW);
+    expect(meters?.[0]?.value).toBe(30);
+  });
+
+  it("refuses a page that renders a window label twice", () => {
+    /* Two candidate containers and no way to know which one is the meter. */
+    const doubled = page(10, 20, 30).replace(
+      "</main>",
+      "<section><h3>Monthly Usage</h3><div>99%</div></section></main>"
+    );
+    expect(parseOpencodePayload(doubled, NOW)).toBeNull();
+  });
+
+  it("refuses a container that holds two window labels", () => {
+    /* One block naming two windows cannot be attributed to either. */
+    const merged = opencodePage(
+      { percent: 10, resetsIn: null },
+      { percent: 20, resetsIn: null },
+      { percent: 30, resetsIn: null },
+      NOW
+    ).replace("</section><section><h3>Weekly Usage</h3>", "<h3>Weekly Usage</h3>");
+    expect(parseOpencodePayload(merged, NOW)).toBeNull();
+  });
+
+  it("refuses an unbalanced page rather than reading it approximately", () => {
+    const unbalanced = page(10, 20, 30).replace("</section></main>", "</main>");
+    expect(parseOpencodePayload(unbalanced, NOW)).toBeNull();
+  });
+
   it("does not read a percentage from below the final label", () => {
     /* The failure this bound exists for. Everything after the last label used
        to be that window's segment, so a footer, a billing figure, a discount or
@@ -156,7 +232,7 @@ describe("opencode: the last window is bounded", () => {
     expect(parseOpencodePayload(pushed, NOW)).toBeNull();
   });
 
-  it("bounds the final segment at the same distance the reference reader does", () => {
+  it("keeps the reference reader's search bound", () => {
     expect(OPENCODE_MAX_SEGMENT_CHARS).toBe(2_000);
   });
 });
