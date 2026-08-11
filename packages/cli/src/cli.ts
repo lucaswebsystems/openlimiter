@@ -248,7 +248,7 @@ function demoSnapshots(now: string): Snapshot[] {
     ...(parseOpencodePayload(opencodeFixture(now), now) ?? []),
     ...(parseManualPayload(manualFixture(now), now) ?? [])
   ];
-  return normalizeMeters(raw);
+  return normalizeMeters(withProvenance(raw, INGEST_PROVENANCE));
 }
 
 function doctorRows(

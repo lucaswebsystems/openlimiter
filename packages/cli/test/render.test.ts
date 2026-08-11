@@ -297,7 +297,7 @@ describe("fields", () => {
 });
 
 describe("table", () => {
-  it("keeps eight columns on every row so a script can split it", () => {
+  it("keeps nine columns on every row so a script can split it", () => {
     const table = renderTable(
       [
         reading({ usedAmount: 12.47, limitAmount: 20, currency: "USD" }),
@@ -312,9 +312,19 @@ describe("table", () => {
       false
     );
     const lines = table.split("\n");
-    expect(lines[0]).toBe(TABLE_HEADER);
-    expect(TABLE_HEADER.split(" ")).toHaveLength(8);
-    for (const line of lines) expect(line.split(" ")).toHaveLength(8);
+    /* The unpadded TABLE_HEADER carries nine column names, one per source field. */
+    expect(TABLE_HEADER.split(" ")).toHaveLength(9);
+    /* The padded header, split by whitespace, gives the same nine names. */
+    const headerTokens = lines[0]!.trim().split(/\s+/);
+    expect(headerTokens).toEqual(["PROVIDER", "METER", "BAR", "USAGE", "AMOUNT", "STATE", "RESET", "IN", "SOURCE"]);
+    /* Every data row carries a bar, an exact percent, and a reset indicator. */
+    for (const line of lines.slice(1)) {
+      const tokens = line.split(/\s+/);
+      expect(tokens.length).toBeGreaterThanOrEqual(9);
+      expect(tokens[2]).toHaveLength(10);
+      expect(tokens[3]).toMatch(/^\d+\.\d\d(PERCENT|TOKENS|REQUESTS)/);
+      expect(tokens[7]).not.toBe("");
+    }
   });
 
   it("shows the percent and the time to reset on every row", () => {
