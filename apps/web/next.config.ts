@@ -42,6 +42,12 @@ const nextConfig: NextConfig = {
    */
   experimental: {
     globalNotFound: true,
+    /* The /app prerender crashes only when the server bundle is minified, a
+       terser interaction inside the mirrored engine that dev, tests, and the
+       unminified build all pass. Server minification stays off until the root
+       cause is found (follow-up recorded 2026-08-11); the cost is bundle size
+       on the server only, never a user facing byte. */
+    serverMinification: false,
   },
 
   /**
