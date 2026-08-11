@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   ClaudeMark,
   CodexMark,
@@ -379,10 +379,34 @@ function Card({ card }: { card: StripCard }) {
   );
 }
 
-function Row({ cards, reverse = false }: { cards: readonly StripCard[]; reverse?: boolean }) {
+/*
+  Two velocities: the top row is slowed to roughly half speed (15.334s per card)
+  so its wide span reads calm, while the bottom row stays at its 7.667s pace.
+
+  Every card is a fixed 280px, 330 from `sm`, with a 1rem gap between them, so a
+  track is exactly as long as the number of cards on it. Pinning seconds PER
+  CARD keeps the speed constant when cards are added or removed.
+*/
+const SECONDS_PER_CARD = 7.667;
+const FIRST_ROW_SECONDS_PER_CARD = 15.334;
+
+function Row({
+  cards,
+  reverse = false,
+  secondsPerCard = SECONDS_PER_CARD,
+}: {
+  cards: readonly StripCard[];
+  reverse?: boolean;
+  secondsPerCard?: number;
+}) {
   return (
     <div className="strip">
-      <div className={`strip-track ${reverse ? "strip-track-reverse" : ""}`}>
+      <div
+        className={`strip-track ${reverse ? "strip-track-reverse" : ""}`}
+        style={
+          { "--strip-duration": `${(cards.length * secondsPerCard).toFixed(2)}s` } as CSSProperties
+        }
+      >
         {cards.map((card) => (
           <Card key={card.name} card={card} />
         ))}
@@ -408,7 +432,7 @@ export function IntegrationStrip() {
     <section>
       <SectionHeading title={t("title")} lead={t("lead")} />
       <div className={`${VIEWPORT_BLEED} space-y-4`} {...reveal}>
-        <Row cards={connectors} />
+        <Row cards={connectors} secondsPerCard={FIRST_ROW_SECONDS_PER_CARD} />
         <Row cards={surfaces} reverse />
       </div>
     </section>
