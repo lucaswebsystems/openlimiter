@@ -188,6 +188,7 @@ export function parseAntigravityPayload(
 export const antigravityConnector: ConnectorContract = {
   id: "antigravity",
   displayName: "Antigravity",
+  encoding: "json",
   labels: antigravityLabels,
   detect(environment) {
     return environment["ANTIGRAVITY_USAGE_PAYLOAD"] === "1";

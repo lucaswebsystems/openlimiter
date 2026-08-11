@@ -128,6 +128,7 @@ export function parseClaudePayload(payload: unknown, now: string): RawMeter[] | 
 
 export const claudeConnector: ConnectorContract = {
   id: "claude",
+  encoding: "json",
   displayName: "Claude",
   labels: claudeLabels,
   detect(environment) {

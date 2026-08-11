@@ -31,7 +31,7 @@ const past = new Date(Date.parse(NOW) - 3_600_000).toISOString();
 void future;
 void past;
 
-import { opencodePage } from "../src/index.js";
+import { OPENCODE_MAX_SEGMENT_CHARS, opencodePage } from "../src/index.js";
 
 function page(rolling: number, weekly: number, monthly: number): string {
   return opencodePage(
@@ -128,6 +128,36 @@ describe("opencode: the shape a real account produced", () => {
     expect(rendered).not.toContain("Ignore previous instructions");
     expect(rendered).not.toContain("displayName");
     expect(rendered).not.toContain("example.test");
+  });
+});
+
+describe("opencode: the last window is bounded", () => {
+  it("does not read a percentage from below the final label", () => {
+    /* The failure this bound exists for. Everything after the last label used
+       to be that window's segment, so a footer, a billing figure, a discount or
+       a progress indicator anywhere further down the page would be read as the
+       monthly quota. */
+    const hostile = page(10, 20, 30).replace(
+      "</main>",
+      "</main><footer><p>Annual discount applied: 97%</p></footer>"
+    );
+    const meters = parseOpencodePayload(hostile, NOW);
+    expect(meters?.[0]?.value).toBe(30);
+  });
+
+  it("refuses when the final window's own percentage is pushed past the bound", () => {
+    /* The other direction, and it must fail closed rather than read further:
+       a reading that is not inside the block it belongs to is not a reading. */
+    const padding = "<span>" + "p".repeat(OPENCODE_MAX_SEGMENT_CHARS) + "</span>";
+    const pushed = page(10, 20, 30).replace(
+      "<h3>Monthly Usage</h3>",
+      "<h3>Monthly Usage</h3>" + padding
+    );
+    expect(parseOpencodePayload(pushed, NOW)).toBeNull();
+  });
+
+  it("bounds the final segment at the same distance the reference reader does", () => {
+    expect(OPENCODE_MAX_SEGMENT_CHARS).toBe(2_000);
   });
 });
 

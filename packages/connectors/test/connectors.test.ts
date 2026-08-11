@@ -177,6 +177,16 @@ describe("connector contracts", () => {
     expect(MANUAL_FILE_NAME).toBe("manual.json");
   });
 
+  it("declares what its payload is, and only OpenCode reads text", () => {
+    /* Every payload boundary in the product asks a connector this rather than
+       assuming JSON. Assuming it made the OpenCode reader unreachable from the
+       ingest command entirely, because a logged in HTML page is not JSON. */
+    for (const connector of connectors) {
+      const expected = connector.id === "opencode" ? "text" : "json";
+      expect(connector.encoding).toBe(expected);
+    }
+  });
+
   it("returns unknown for missing input", async () => {
     for (const connector of connectors) {
       await expect(connector.read({

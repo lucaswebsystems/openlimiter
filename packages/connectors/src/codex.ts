@@ -102,6 +102,7 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
 export const codexConnector: ConnectorContract = {
   id: "codex",
   displayName: "Codex",
+  encoding: "json",
   labels: codexLabels,
   detect(environment) {
     return environment["CODEX_USAGE_PAYLOAD"] === "1";

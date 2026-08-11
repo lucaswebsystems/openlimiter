@@ -53,6 +53,7 @@ import {
   MANUAL_PROVENANCE,
   STATUSLINE_PROVENANCE,
   environmentWithLocalMarkers,
+  STDIN_BYTE_LIMIT,
   parseJsonText,
   persistSnapshots,
   readManualDocument,
@@ -471,22 +472,45 @@ async function ingestCommand(
     return fail(EXIT_USAGE, "openlimiter ingest: the payload flag needs a value.");
   }
   const text = inline ?? await dependencies.readStandardInput();
-  const document = parseJsonText(text);
-  if (!document.ok) {
-    return text === null || text.trim() === ""
-      ? fail(EXIT_USAGE, "openlimiter ingest: no input was supplied on standard input.")
-      : fail(EXIT_FAILURE, "openlimiter ingest: input is not valid JSON.");
+  if (text === null || text.trim() === "") {
+    return fail(EXIT_USAGE, "openlimiter ingest: no input was supplied on standard input.");
   }
+  /*
+   * The connector says what its payload IS, and this boundary obeys it.
+   *
+   * Assuming JSON here made the OpenCode reader unreachable from this command
+   * entirely: its payload is a logged in HTML page, so every real capture died
+   * at JSON.parse with "input is not valid JSON" and no page could ever be
+   * ingested. A text connector is handed the raw text, bounded exactly as the
+   * JSON path is bounded, and nothing is parsed on its behalf.
+   */
   let meters: readonly RawMeter[] | null;
   if (provider === undefined) {
+    const document = parseJsonText(text);
+    if (!document.ok) {
+      return fail(EXIT_FAILURE, "openlimiter ingest: input is not valid JSON.");
+    }
     meters = parseManualPayload(document.value, now);
   } else {
     const connector = connectors.find((candidate) => candidate.id === provider);
     if (connector === undefined) {
       return fail(EXIT_USAGE, "openlimiter ingest: unknown provider.");
     }
+    let payload: unknown;
+    if (connector.encoding === "text") {
+      if (text.length > STDIN_BYTE_LIMIT) {
+        return fail(EXIT_FAILURE, "openlimiter ingest: input is larger than accepted.");
+      }
+      payload = text;
+    } else {
+      const document = parseJsonText(text);
+      if (!document.ok) {
+        return fail(EXIT_FAILURE, "openlimiter ingest: input is not valid JSON.");
+      }
+      payload = document.value;
+    }
     const result = await connector.read({
-      payload: document.value,
+      payload,
       now,
       environment: dependencies.environment
     });

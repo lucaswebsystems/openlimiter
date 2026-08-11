@@ -349,6 +349,37 @@ describe("CLI", () => {
       expect(rows[0]?.provenance?.observedVia).not.toBe("claude_code_statusline");
     });
 
+    it("ingests an OpenCode page, which is text rather than JSON", async () => {
+      /* This is the regression the encoding declaration exists for. The ingest
+         command used to JSON.parse every payload, so a real OpenCode capture,
+         a logged in HTML page, died with "input is not valid JSON" and the
+         reader was unreachable from the command line entirely. */
+      const directory = await temporaryDirectory();
+      const result = await runCli(
+        ["ingest", "--provider", "opencode", "--payload", opencodeFixture(FIXTURE_NOW)],
+        { stateDirectory: directory, now: () => FIXTURE_NOW }
+      );
+      expect(result.exitCode).toBe(0);
+      const rows = await exported(directory);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.provider).toBe("OPENCODE");
+      expect(rows[0]?.provenance).toEqual({
+        sourceKind: "explicit_ingest",
+        observedVia: "ingest_command"
+      });
+    });
+
+    it("still refuses a JSON connector's payload when it is not JSON", async () => {
+      /* The text path is per connector, not a general relaxation. */
+      const directory = await temporaryDirectory();
+      const result = await runCli(
+        ["ingest", "--provider", "codex", "--payload", "<html>not json</html>"],
+        { stateDirectory: directory, now: () => FIXTURE_NOW }
+      );
+      expect(result.exitCode).not.toBe(0);
+      expect(result.stderr).toContain("not valid JSON");
+    });
+
     it("stamps the manual document read from disk as a manual document", async () => {
       const directory = await temporaryDirectory();
       await writeFile(

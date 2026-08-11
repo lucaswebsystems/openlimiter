@@ -84,6 +84,7 @@ export function parseManualPayload(payload: unknown, now: string): RawMeter[] | 
 
 export const manualConnector: ConnectorContract = {
   id: "manual",
+  encoding: "json",
   displayName: "Manual",
   labels: manualLabels,
   detect(environment) {

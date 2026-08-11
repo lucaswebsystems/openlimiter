@@ -59,6 +59,19 @@ export const opencodeInput = {
 export const opencodeEncoding = "text" as const;
 
 /**
+ * How far past its own label the LAST window's segment may be read.
+ *
+ * Every other window's segment ends where the next label begins, which bounds
+ * it naturally. The last one has no next label, and reading to the end of the
+ * document is how an unrelated percentage becomes a quota reading: a footer, a
+ * billing figure, a discount, a progress indicator, anything at all further
+ * down the page would be picked up as the monthly meter. Two thousand
+ * characters is what the reference reader bounds it to, and it is generous for
+ * one rendered block.
+ */
+export const OPENCODE_MAX_SEGMENT_CHARS = 2_000;
+
+/**
  * Largest page this reader will look at, in characters.
  *
  * The transport already bounds the response at one mebibyte. This is the second
@@ -133,7 +146,12 @@ function parseWindows(html: string, now: string): ParsedWindow[] | null {
   for (let index = 0; index < found.length; index += 1) {
     const start = found[index]!;
     const next = found[index + 1];
-    const end = next === undefined ? html.length : next.at;
+    /* The last segment is bounded explicitly. See
+       OPENCODE_MAX_SEGMENT_CHARS: without it, any percentage anywhere below the
+       final label would be read as that window's reading. */
+    const end = next === undefined
+      ? Math.min(html.length, start.at + OPENCODE_MAX_SEGMENT_CHARS)
+      : next.at;
     const segment = flatten(html.slice(start.at, end));
     const percentMatch = PERCENT.exec(segment);
     if (percentMatch === null) return null;
@@ -188,6 +206,7 @@ export function parseOpencodePayload(payload: unknown, now: string): RawMeter[] 
 export const opencodeConnector: ConnectorContract = {
   id: "opencode",
   displayName: "OpenCode",
+  encoding: "text",
   labels: opencodeLabels,
   detect(environment) {
     return environment["OPENCODE_SESSION_PRESENT"] === "1";

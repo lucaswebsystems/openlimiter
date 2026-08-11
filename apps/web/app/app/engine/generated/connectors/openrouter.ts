@@ -67,6 +67,7 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
 
 export const openrouterConnector: ConnectorContract = {
   id: "openrouter",
+  encoding: "json",
   displayName: "OpenRouter",
   labels: openrouterLabels,
   detect(environment) {

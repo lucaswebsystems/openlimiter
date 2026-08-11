@@ -189,10 +189,24 @@ export type ConnectorResult =
   | { ok: true; meters: readonly RawMeter[] }
   | { ok: false; reason: "unknown" | "unavailable" | "not_configured" };
 
+/**
+ * What a connector's payload IS, before its parser sees it.
+ *
+ * Almost every provider answers JSON. OpenCode answers a logged in HTML page,
+ * because it publishes no usage interface at all. That difference cannot live
+ * only in the reader that happens to know about it: the desktop pipeline, the
+ * ingest command and the web engine all hand payloads to parsers, and any one
+ * of them that assumes JSON silently breaks the text reader. So the connector
+ * declares it, and every payload boundary asks.
+ */
+export type ConnectorEncoding = "json" | "text";
+
 export interface ConnectorContract {
   readonly id: Lowercase<ProviderCode>;
   readonly displayName: string;
   readonly labels: ConnectorLabels;
+  /** Whether this connector's parser wants parsed JSON or the raw text. */
+  readonly encoding: ConnectorEncoding;
   detect(environment: Readonly<Record<string, string | undefined>>): boolean;
   read(context: ConnectorReadContext): Promise<ConnectorResult>;
 }
