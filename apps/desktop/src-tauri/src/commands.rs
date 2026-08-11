@@ -190,9 +190,11 @@ impl From<CacheWriteError> for CommandFailure {
     }
 }
 
-/// Largest secret `connect_provider` will accept, in bytes. Real provider
-/// keys are under two hundred bytes; four kibibytes is generosity, not need.
-pub const MAX_SECRET_BYTES: usize = 4_096;
+/* How large a secret may be is no longer one number. The bound belongs to the
+credential KIND and lives beside the kinds themselves, in
+`CredentialKind::max_secret_bytes`: a key and a whole Cookie header are not the
+same shape of thing, and one bound for both either refuses real sessions or
+gives keys slack they have no use for. */
 
 /// Why explicit caps sit at the top of every core function although Tauri
 /// carries the request first: Tauri's IPC deserializes the whole payload
@@ -374,7 +376,11 @@ pub(crate) fn connect_core(
     let secret = Zeroizing::new(secret);
     /* Caps first, before anything is cloned, masked, or stored: see the
     boundary note at `capped_connection_id`. */
-    if secret.len() > MAX_SECRET_BYTES {
+    /* The bound belongs to the credential KIND, so a cookie is not held to a
+    key's size and a key is not given a cookie's slack. Over the bound is
+    refused whole; nothing is ever truncated, because half a credential fails
+    authentication in a way nobody can debug. */
+    if secret.len() > credential_kind.max_secret_bytes() {
         return Err(CommandFailure::InvalidInput);
     }
     let trimmed = secret.trim();
@@ -742,6 +748,7 @@ pub async fn cache_commit_write(
 mod tests {
     use super::*;
     use crate::net::{ProviderEndpoint, TransportFailure};
+    use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
 
     const SECRET_MARKER: &str = "SECRET-MARKER-4f9a-do-not-echo-1234";
@@ -797,13 +804,55 @@ mod tests {
         let dir = TempDir::new();
         let (connections, secrets) = stores(&dir);
         let mut input = connect_input();
-        input.secret = "x".repeat(MAX_SECRET_BYTES + 1);
+        input.secret = "x".repeat(MAX_KEY_SECRET_BYTES + 1);
         assert_eq!(
             connect_core(&connections, &secrets, input).map(|_| ()),
             Err(CommandFailure::InvalidInput)
         );
         assert_eq!(secrets.stored_count(), 0, "nothing reached the store");
         assert_eq!(connections.list().expect("list").len(), 0);
+    }
+
+    #[test]
+    fn a_browser_session_may_be_larger_than_a_key_and_is_still_bounded() {
+        /* A real Cookie header is kilobytes. A real key is not. Both bounds are
+        exercised at the command boundary, and the oversized case must store
+        nothing rather than store a shortened secret. */
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let big = "c".repeat(MAX_KEY_SECRET_BYTES + 1);
+
+        let mut key = connect_input();
+        key.secret = big.clone();
+        assert_eq!(
+            connect_core(&connections, &secrets, key).map(|_| ()),
+            Err(CommandFailure::InvalidInput)
+        );
+        assert_eq!(secrets.stored_count(), 0);
+
+        /* The same length is ordinary for a browser session. */
+        let cookie = ConnectProviderInput {
+            provider_id: ProviderId::Opencode,
+            credential_kind: CredentialKind::OpencodeBrowserSession,
+            account_alias: "personal".to_string(),
+            secret: big,
+        };
+        let record = connect_core(&connections, &secrets, cookie).expect("connect");
+        assert_eq!(record.credential_kind, CredentialKind::OpencodeBrowserSession);
+        assert_eq!(secrets.stored_count(), 1);
+
+        /* And it still has a ceiling of its own. */
+        let oversized = ConnectProviderInput {
+            provider_id: ProviderId::Opencode,
+            credential_kind: CredentialKind::OpencodeBrowserSession,
+            account_alias: "personal".to_string(),
+            secret: "c".repeat(MAX_BROWSER_SESSION_BYTES + 1),
+        };
+        assert_eq!(
+            connect_core(&connections, &secrets, oversized).map(|_| ()),
+            Err(CommandFailure::InvalidInput)
+        );
+        assert_eq!(secrets.stored_count(), 1, "nothing more reached the store");
     }
 
     #[test]

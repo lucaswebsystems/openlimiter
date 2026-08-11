@@ -108,6 +108,16 @@ impl ReaderId {
     }
 }
 
+/// Largest key shaped secret accepted, in bytes. Real provider keys and access
+/// tokens are well under two hundred bytes; four kibibytes is generosity.
+pub const MAX_KEY_SECRET_BYTES: usize = 4_096;
+
+/// Largest browser session accepted, in bytes. A Cookie header carries several
+/// signed values at once, so it is measured in kilobytes rather than hundreds
+/// of bytes. See `CredentialKind::max_secret_bytes` for why this is not one
+/// number for everything.
+pub const MAX_BROWSER_SESSION_BYTES: usize = 16_384;
+
 /// What kind of secret a connection holds.
 ///
 /// The kind is not decoration: it decides the address the secret may be sent
@@ -139,6 +149,30 @@ impl CredentialKind {
         CredentialKind::AntigravitySession,
         CredentialKind::OpencodeBrowserSession,
     ];
+
+    /// The largest secret of this kind that will be accepted, in bytes.
+    ///
+    /// Per kind, because the kinds are not the same shape of thing. An API key
+    /// or an access token is a compact string and four kibibytes is already
+    /// generous for one. A browser session is a whole Cookie header, which
+    /// carries several signed values at once and is routinely several
+    /// kilobytes, so holding it to a key's bound would refuse perfectly
+    /// ordinary real sessions.
+    ///
+    /// Sixteen kibibytes is a bound, not a target. Anything above it is refused
+    /// with the ordinary fixed error and NEVER truncated: half a cookie is not
+    /// a smaller cookie, it is a credential that fails authentication in a way
+    /// nobody can debug, and a silently shortened secret is the worst outcome
+    /// available here.
+    pub const fn max_secret_bytes(self) -> usize {
+        match self {
+            CredentialKind::OpencodeBrowserSession => MAX_BROWSER_SESSION_BYTES,
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession => MAX_KEY_SECRET_BYTES,
+        }
+    }
 
     /// The one provider this kind of credential can ever belong to.
     #[cfg_attr(not(test), allow(dead_code))]
@@ -395,6 +429,19 @@ mod tests {
             let wire = serde_json::to_string(&provider).expect("serializable");
             assert_eq!(wire.to_uppercase(), format!("\"{code}\""));
         }
+    }
+
+    #[test]
+    fn only_a_browser_session_gets_the_larger_bound() {
+        for credential in CredentialKind::ALL {
+            let expected = if credential == CredentialKind::OpencodeBrowserSession {
+                MAX_BROWSER_SESSION_BYTES
+            } else {
+                MAX_KEY_SECRET_BYTES
+            };
+            assert_eq!(credential.max_secret_bytes(), expected);
+        }
+        assert!(MAX_BROWSER_SESSION_BYTES > MAX_KEY_SECRET_BYTES);
     }
 
     #[test]

@@ -65,14 +65,28 @@ pub const OPENCODE_WORKSPACE_URL_SUFFIX: &str = "/go";
 /// Every address this process may speak to. Adding a provider means adding a
 /// variant here, in code, in review; nothing at runtime can.
 ///
-/// One variant is not one request. `OpencodeUsage` owns two constant addresses
+/// DECISION, ratified 2026-08-10, and settled: do not reopen it.
+///
+/// One variant is not one request. `OpencodeUsage` owns TWO constant addresses,
 /// because reading that provider takes two hops: the entry point names the
-/// workspace, and the workspace page carries the meters. Both addresses are
-/// built here, from constants here, and the workspace handle between them is a
-/// `WorkspaceHandle`, whose only constructor refuses anything that is not the
-/// provider's own opaque token. Nothing outside this file, and in particular
-/// nothing arriving over IPC, from YAML, or from a provider response body, can
-/// widen or redirect either address.
+/// workspace, and the workspace page carries the meters. OpenCode's meters are
+/// per account and live behind a per workspace path, so no single constant
+/// address reaches them.
+///
+/// The rejected alternative was a sixth enum variant for the entry point. It
+/// was rejected because the endpoint vocabulary is the frozen contract shared
+/// with the registry and the webview, and widening it there to describe an
+/// implementation detail of one reader would have leaked a hop into a
+/// vocabulary that names DESTINATIONS. One reader, one variant; how many
+/// requests that reader takes is this file's business.
+///
+/// The closure property is unchanged and is what makes the concession safe.
+/// Both addresses are built here, from constants here. The workspace handle
+/// between them is a `WorkspaceHandle`, whose only constructor refuses anything
+/// that is not the provider's own opaque token, and which is obtained by
+/// parsing a redirect target rather than by following it. Nothing outside this
+/// file, and in particular nothing arriving over IPC, from YAML, or from a
+/// provider response body, can widen or redirect either address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderEndpoint {
@@ -172,14 +186,21 @@ const WORKSPACE_PATH_MARKER: &str = "/workspace/";
 /// The status this reader reports when OpenCode's entry point leads anywhere
 /// that is not a workspace.
 ///
-/// An interpretation, and stated as one. The entry point answers a redirect to
-/// the workspace when the session is alive, and a login page or a redirect to
-/// the auth host when it is not. Neither of those carries a status that means
-/// "your session is dead" on its own, and the transport failure vocabulary is
-/// closed, so there is no sixth kind to invent. 401 is what the situation
-/// actually is: unauthenticated. It is reported rather than guessed at, and the
-/// connection lands in AUTH_EXPIRED, which is the state that tells a person to
-/// paste the session again.
+/// DECISION, ratified 2026-08-10, and settled: do not reopen it.
+///
+/// The entry point answers a redirect to the workspace when the session is
+/// alive, and a login page or a redirect to the auth host when it is not.
+/// Neither of those carries a status that means "your session is dead" on its
+/// own, and the transport failure vocabulary is closed at five kinds, so there
+/// is no sixth to invent for this. 401 is reported because 401 is what the
+/// situation IS: unauthenticated. The alternatives were all worse. Reporting
+/// the raw first hop status would call a dead session a redirect and land the
+/// connection in DEGRADED, where the scheduler would retry a session that can
+/// only be fixed by a person. Reporting a transport failure would claim the
+/// network broke when it plainly did not.
+///
+/// The consequence is deliberate: the connection lands in AUTH_EXPIRED, which
+/// is the one state whose sentence tells a person to paste the session again.
 pub const OPENCODE_SESSION_DEAD_STATUS: u16 = 401;
 
 /// The two verbs the allowlist uses, closed so no third can be requested.
