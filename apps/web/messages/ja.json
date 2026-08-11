@@ -137,7 +137,7 @@
     "shots": {
       "meters": {
         "label": "Meter",
-        "alt": "スマートフォン上のWebアプリ。上部に全体の判定が表示され、その下にプロバイダーごとのカードが並び、それぞれにmeterバー、パーセンテージ、鮮度の状態、リセットまでのカウントダウンが表示されています。"
+        "alt": "スマートフォン上のWebアプリ。上部に全体の判定とルーティングの推奨が表示され、その下にプロバイダーごとのカードが並び、それぞれにmeterバー、パーセンテージ、鮮度の状態、リセットまでのカウントダウンが表示されています。"
       },
       "agentContext": {
         "label": "Agent context",
@@ -145,7 +145,7 @@
       },
       "connections": {
         "label": "接続",
-        "alt": "スマートフォン上のWebアプリ。各プロバイダーが現在どこから読み取れるかと、quotaドキュメントを貼り付けたりドロップしたりするためのボックスが表示されています。"
+        "alt": "スマートフォン上のWebアプリ。各プロバイダーが現在どこから読み取れるか、どれがインポートのみに対応しているか、そしてquotaドキュメントを貼り付けたりドロップしたりするためのボックスが表示されています。"
       }
     }
   },
@@ -675,7 +675,7 @@
             "title": "OpenLimiterがそれに対してすること",
             "intro": "OpenLimiterは、あなたのマシン上で対応するAIサブスクリプションのquotaを読み取り、すべての値を1つのスキーマへ正規化し、範囲の定まった予算状態とルーティングのアドバイスを、コーディングエージェント自身のコンテキストへ渡します。最初のadapterは、Claude Codeのstatuslineとprompt hookです。",
             "bullets": {
-              "read": "<strong>読み取る。</strong>connectorは、プロバイダーやローカルのツールがすでに生成した構造をパースします。ローカルモードでは、何もマシンの外に出ません。デスクトップアプリケーションからプロバイダーを接続すると、その接続はプロバイダー自身のエンドポイントとだけ通信します。",
+              "read": "<strong>読み取る。</strong>connectorは、プロバイダーやローカルのツールがすでに生成した構造をパースします。ローカルモードでは、デスクトップアプリケーションからプロバイダーを接続するまで、何もマシンの外に出ません。接続した後は、その接続はプロバイダー自身のエンドポイントとだけ通信します。",
               "normalise": "<strong>正規化する。</strong>閉じたenum、範囲の定まったパーセンテージ、そこから導かれる鮮度を持つ、1つのスナップショットスキーマです。unknownはunknownのままで、作り出された0になることは決してありません。",
               "advise": "<strong>アドバイスする。</strong>あなたにはコンパクトなstatuslineを、エージェントにはenumコード、数値、タイムスタンプだけを運ぶ、範囲の定まったコンテキストブロックを渡します。"
             }
@@ -759,7 +759,7 @@
             "bullets": {
               "claude": "<code>claude</code>には、標準入力に届くstatuslineペイロードが供給されます。Claude Codeが組み込まれていれば、この経路は自動です。",
               "manual": "<code>manual</code>には、状態ディレクトリに置いたドキュメントが供給されます。",
-              "ingestOnly": "<code>codex</code>、<code>antigravity</code>、<code>opencode</code>、<code>openrouter</code>には、まだローカルのリーダーがありません。<code>openlimiter ingest --provider '<id>'</code>を通じてのみデータを受け取ります。"
+              "ingestOnly": "コマンドラインツールでは、<code>codex</code>、<code>antigravity</code>、<code>opencode</code>、<code>openrouter</code>には引き続き専用のリーダーがなく、<code>openlimiter ingest --provider '<id>'</code>を通じてのみデータを受け取ります。デスクトップアプリケーションはCodexとOpenRouterをライブで読み取り、AntigravityとOpenCodeには手動の実験的な貼り付け経路を提供します。"
             },
             "exactShapes": "3つの経路すべてと、それぞれが受け付ける正確な構造は<docs>取り込みのページ</docs>に記載されています。"
           },

@@ -30,6 +30,16 @@ Read accepts a caller supplied context and returns either meters or a closed fai
 
 Every connector is read only. Missing or unrecognized input returns unknown. A single unusable row is dropped and the remaining rows still count, because one bad window is not a reason to forget a whole provider.
 
+## Desktop connection layer
+
+For providers whose credentials it holds, the desktop application fetches the response itself and hands the body to the same read only connector the CLI uses, so parsing still happens in exactly one place regardless of who fetched the bytes. A secret crosses from the webview into Rust exactly once, on connection, and from that moment it lives in the operating system's own credential store, Windows Credential Manager, macOS Keychain, or the Linux Secret Service, under an opaque connection id. No command reads a stored secret back to the webview; only a masked label ever returns.
+
+Every request Rust can make is closed by construction. One enum names every reachable address, each carrying a single constant endpoint that belongs to one provider, and nothing arriving over IPC, from a provider response, or from configuration can widen or redirect it. Redirects are refused outright, so an allowlisted address can never forward a request, or the credential attached to it, anywhere else.
+
+Each reader carries its own trusted collection cadence rather than one shared timer: three hundred seconds for OpenRouter and Codex, six hundred for Antigravity, and an explicit exemption for OpenCode, whose browser held session is read only when a person asks. Claude Code carries no reader or cadence at all, because its numbers already arrive on their own once the statusline is wired.
+
+A desktop observation still lands in the one cache the CLI owns. Rust never interprets a snapshot; it holds the cache's own lock protocol, hands the current text to the webview together with a generation stamp, waits for the same merge function the core package uses everywhere else, and only then replaces the file atomically. One schema, one cache, and one merge implementation, regardless of which surface produced the reading.
+
 ## One binary, one schema, one cache
 
 One binary gives agent tools and people the same commands.

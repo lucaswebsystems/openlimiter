@@ -23,9 +23,9 @@
 
 ## What is OpenLimiter
 
-OpenLimiter is an open source, cross platform tool that connects your AI providers and shows your quota limits at a glance. The free tier lets you connect providers from the desktop app or the web app and see every real quota window. It runs on your machine and needs no account.
+OpenLimiter is an open source, cross platform tool that connects your AI providers and shows your quota limits at a glance. The free tier lets you connect providers from the desktop app and see every real quota window; the web app views that same quota state and imports a document or takes manual entry instead of connecting anything itself. It runs on your machine and needs no account.
 
-In local mode, OpenLimiter has zero telemetry and nothing leaves your machine. Optional cloud features, when they exist, are opt in and separately documented.
+In local mode, OpenLimiter has zero telemetry and no OpenLimiter account, and nothing ever phones home to OpenLimiter. A connected reader talks only to its own provider's allowlisted endpoint, so provider traffic leaves your machine exactly when you connect a provider. Optional cloud features, when they exist, are opt in and separately documented.
 
 OpenLimiter only ever advises. It never routes requests automatically, bypasses limits, or mutates a provider's authentication files. With your explicit consent, the desktop app can detect whether Claude Code is wired and guide you through the setup with a copy and paste snippet. Apache License 2.0.
 
@@ -119,11 +119,11 @@ The statusline includes a PREFER recommendation that names the provider with the
 
 | Provider | Interface | Honesty label | Notes |
 |---|---|---|---|
-| Claude | `native-statusline-payload` | UNVERIFIED, low automation risk | Reads the JSON Claude Code already writes to the statusline command's standard input |
-| OpenRouter | `documented-api` | UNVERIFIED, low automation risk | No local reader ships; supply an explicit documented API response with `ingest --provider openrouter` |
-| Codex | `internal-endpoint` | UNVERIFIED, high automation risk | Unofficial, can change or disappear without notice; data arrives only through `ingest --provider codex` |
-| Antigravity | `internal-endpoint` | UNVERIFIED, high automation risk | Unofficial, can change or disappear without notice; data arrives only through `ingest --provider antigravity` |
-| OpenCode | `authenticated-scrape` | UNVERIFIED, high automation risk | No local reader or browser automation ships; supply an explicit payload with `ingest --provider opencode` |
+| Claude | `native-statusline-payload` | UNVERIFIED, low automation risk | Reads the JSON Claude Code already writes to the statusline command's standard input, once you consent to the desktop app's guided setup |
+| OpenRouter | `documented-api` | UNVERIFIED, low automation risk | The desktop app reads this live once you supply your key. The CLI still has no reader of its own; feed it an explicit documented API response with `ingest --provider openrouter` |
+| Codex | `internal-endpoint` | UNVERIFIED, high automation risk | The desktop app reads this live from your local Codex login. Unofficial, can change or disappear without notice. The CLI still only ingests, with `ingest --provider codex` |
+| Antigravity | `internal-endpoint` | UNVERIFIED, high automation risk | No live reader; the desktop app offers a manual, experimental paste path. Unofficial, can change or disappear without notice. The CLI accepts `ingest --provider antigravity` |
+| OpenCode | `authenticated-scrape` | UNVERIFIED, high automation risk | No live reader or browser automation; the desktop app offers a manual, experimental paste path. The CLI accepts an explicit payload with `ingest --provider opencode` |
 | Manual | `manual` | UNVERIFIED, low automation risk | You supply the numbers yourself, on disk or through `ingest` |
 
 None of the six is verified against a live account yet. Missing, expired, or malformed input always becomes unknown, never zero or exhausted. A parser existing in the codebase is not the same as a provider being connected; each row above states its own interface status and honesty label.
@@ -134,7 +134,7 @@ OpenLimiter Pro is a planned paid tier at a $5 founding price. The services on t
 
 ## Security
 
-Everything a provider or a script hands to OpenLimiter is treated as untrusted. Connectors keep only known numeric fields and timestamps, and the block the hook emits is wrapped in an explicit untrusted data boundary. No connector rewrites, backs up, or migrates a provider's authentication files. In local mode, OpenLimiter has no telemetry of any kind.
+Everything a provider or a script hands to OpenLimiter is treated as untrusted. Connectors keep only known numeric fields and timestamps, and the block the hook emits is wrapped in an explicit untrusted data boundary. No connector rewrites, backs up, or migrates a provider's authentication files. In local mode, OpenLimiter has no telemetry of any kind. When you connect a provider in the desktop app, that connection talks only to the provider's own allowlisted endpoint, and the credential stays in your operating system's credential store.
 
 Report a vulnerability privately through the repository [Security tab](https://github.com/lucaswebsystems/openlimiter/security/advisories/new), as described in [SECURITY.md](SECURITY.md). The full threat model is in [THREAT_MODEL.md](THREAT_MODEL.md); the planned, not yet built, encrypted sync design is specified in [docs/SYNC_ARCHITECTURE.md](docs/SYNC_ARCHITECTURE.md).
 
