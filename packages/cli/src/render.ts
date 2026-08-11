@@ -382,8 +382,12 @@ function provenanceChip(provenance: SnapshotProvenance | undefined): string {
   return "[" + label + "]";
 }
 
-function buildRow(snapshot: Snapshot, now: string, color: boolean): Row {
-  const state = freshness(snapshot.observedAt, snapshot.expiresAt, now);
+function buildRow(
+  snapshot: Snapshot,
+  state: SnapshotState,
+  now: string,
+  color: boolean
+): Row {
   return {
     provider: truncateIdentity(providerIdentity(snapshot), MAX_PROVIDER_WIDTH),
     meter: snapshot.meter,
@@ -425,29 +429,61 @@ function renderRows(rows: readonly Row[]): string {
 }
 
 /**
- * Sort providers by their most constrained meter, then keep each provider's
- * rows together so a person reads one account at a time.
+ * Sort providers by freshness and then their most constrained known meter.
+ * Keep each provider's rows together so a person reads one account at a time.
  */
+interface FreshSnapshot {
+  snapshot: Snapshot;
+  state: SnapshotState;
+}
+
+function providerRank(group: readonly FreshSnapshot[]): {
+  tier: number;
+  pressure: number;
+} {
+  const known = group.filter((entry) => entry.state !== "unknown");
+  if (known.length === 0) return { tier: 2, pressure: 0 };
+  const fresh = known.filter((entry) => entry.state === "fresh");
+  const ranked = fresh.length > 0 ? fresh : known;
+  return {
+    tier: fresh.length > 0 ? 0 : 1,
+    pressure: Math.max(...ranked.map((entry) => entry.snapshot.value))
+  };
+}
+
 function orderSnapshots(
-  snapshots: readonly Snapshot[]
-): Snapshot[] {
-  const grouped = new Map<string, Snapshot[]>();
+  snapshots: readonly Snapshot[],
+  now: string
+): FreshSnapshot[] {
+  const grouped = new Map<string, FreshSnapshot[]>();
   for (const snapshot of snapshots) {
     const group = grouped.get(snapshot.provider) ?? [];
-    group.push(snapshot);
+    group.push({
+      snapshot,
+      state: freshness(snapshot.observedAt, snapshot.expiresAt, now)
+    });
     grouped.set(snapshot.provider, group);
   }
   const ordered = [...grouped.entries()].sort((left, right) => {
-    const leftMax = Math.max(...left[1].map((snapshot) => snapshot.value));
-    const rightMax = Math.max(...right[1].map((snapshot) => snapshot.value));
-    if (rightMax !== leftMax) return rightMax - leftMax;
+    const leftRank = providerRank(left[1]);
+    const rightRank = providerRank(right[1]);
+    if (leftRank.tier !== rightRank.tier) return leftRank.tier - rightRank.tier;
+    if (rightRank.pressure !== leftRank.pressure) {
+      return rightRank.pressure - leftRank.pressure;
+    }
     return left[0].localeCompare(right[0]);
   });
-  const result: Snapshot[] = [];
+  const result: FreshSnapshot[] = [];
   for (const [, group] of ordered) {
     result.push(...[...group].sort((left, right) => {
-      if (right.value !== left.value) return right.value - left.value;
-      return left.meter.localeCompare(right.meter);
+      const stateRank = { fresh: 0, stale: 1, unknown: 2 } as const;
+      if (stateRank[left.state] !== stateRank[right.state]) {
+        return stateRank[left.state] - stateRank[right.state];
+      }
+      if (right.snapshot.value !== left.snapshot.value) {
+        return right.snapshot.value - left.snapshot.value;
+      }
+      return left.snapshot.meter.localeCompare(right.snapshot.meter);
     }));
   }
   return result;
@@ -459,7 +495,7 @@ export function renderTable(
   color: boolean
 ): string {
   if (snapshots.length === 0) return "No bounded quota data is available.";
-  const rows = orderSnapshots(snapshots).map((snapshot) =>
-    buildRow(snapshot, now, color));
+  const rows = orderSnapshots(snapshots, now).map(({ snapshot, state }) =>
+    buildRow(snapshot, state, now, color));
   return renderRows(rows);
 }

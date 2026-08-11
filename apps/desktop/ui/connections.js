@@ -144,6 +144,9 @@ let options = null;
 
 let el = null;
 
+/** Serializes due passes so bootstrap and the metronome cannot double read. */
+let dueRefreshTail = Promise.resolve(false);
+
 function grabElements() {
   el = {
     panel: document.getElementById("panel-connections"),
@@ -627,6 +630,33 @@ async function runRefresh(record) {
   return { succeeded: committed, note };
 }
 
+/** The manual refresh action shared by a connection card and its catalogue row. */
+async function refreshNow(record) {
+  const outcome = await runRefresh(record);
+  if (outcome.succeeded) options.onMetersChanged();
+  return outcome;
+}
+
+/** Refresh every currently due connection, sequentially, on one shared queue. */
+function refreshDueConnections(now) {
+  const pass = dueRefreshTail.then(async () => {
+    const due = session.connections.filter(
+      (record) =>
+        KNOWN_STATES.has(record.state) &&
+        SCHEDULED_STATES.has(record.state) &&
+        isDue(nextAtOf(record), now),
+    );
+    let changed = false;
+    for (const record of due) {
+      const outcome = await runRefresh(record);
+      changed = changed || outcome.succeeded;
+    }
+    return changed;
+  });
+  dueRefreshTail = pass.catch(() => false);
+  return pass;
+}
+
 /**
  * One tick from the Rust metronome.
  *
@@ -641,17 +671,7 @@ async function onTick() {
   writeHeartbeat(now);
   await syncConnections();
   if (session.backendPresent === true) {
-    const due = session.connections.filter(
-      (record) =>
-        KNOWN_STATES.has(record.state) &&
-        SCHEDULED_STATES.has(record.state) &&
-        isDue(nextAtOf(record), now),
-    );
-    let changed = false;
-    for (const record of due) {
-      const outcome = await runRefresh(record);
-      changed = changed || outcome.succeeded;
-    }
+    const changed = await refreshDueConnections(now);
     if (changed) options.onMetersChanged();
   }
   render();
@@ -978,9 +998,8 @@ function connectionCard(record, now) {
     void (async () => {
       busy(true);
       setNote(note, "Refreshing.", "plain");
-      const outcome = await runRefresh(record);
+      const outcome = await refreshNow(record);
       if (outcome.succeeded) {
-        options.onMetersChanged();
         keepCardNote(
           record.id,
           note,
@@ -1443,6 +1462,7 @@ function renderCatalogue() {
     states.claude = claudeState;
   }
 
+  const records = {};
   const providers = ["openrouter", "codex", "antigravity", "opencode"];
   for (const id of providers) {
     const matching = session.connections.filter(
@@ -1450,6 +1470,7 @@ function renderCatalogue() {
     );
     if (matching.length > 0) {
       const best = matching.find((entry) => entry.state === "CONNECTED") ?? matching[0];
+      records[id] = best;
       if (KNOWN_STATES.has(best.state)) {
         states[id] = best.state;
       }
@@ -1495,7 +1516,24 @@ function renderCatalogue() {
       }[rowData.providerId];
 
       btn.addEventListener("click", () => {
-        if (targetId) {
+        if (rowData.action === connectionNextAction.CONNECTED) {
+          const record = records[rowData.providerId];
+          if (record === undefined) return;
+          void (async () => {
+            btn.disabled = true;
+            await refreshNow(record);
+            render();
+          })();
+          return;
+        }
+        if (rowData.action === connectionNextAction.ERROR) {
+          const diagnosticsTab = document.getElementById("tab-advanced");
+          if (diagnosticsTab) diagnosticsTab.click();
+          const diagnosticsPanel = document.getElementById("panel-advanced");
+          if (diagnosticsPanel) diagnosticsPanel.focus();
+          return;
+        }
+        if (rowData.action === connectionNextAction.NOT_CONFIGURED && targetId) {
           const targetEl = document.getElementById(targetId);
           if (targetEl) {
             targetEl.hidden = false;
@@ -1734,6 +1772,8 @@ export function connectionsTabShown() {
 async function bootstrap() {
   await syncConnections();
   if (session.backendPresent === true) {
+    const changed = await refreshDueConnections(new Date().toISOString());
+    if (changed) options.onMetersChanged();
     await detectClaude();
     await runClaudePreflight();
   }

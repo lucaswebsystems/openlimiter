@@ -342,6 +342,34 @@ describe("table", () => {
     expect(table).toContain("5h0m");
   });
 
+  it("sorts fresh pressure first and all unknown providers last by name", () => {
+    const table = renderTable(
+      [
+        reading({
+          provider: "CODEX",
+          value: 99,
+          observedAt: "2025-12-31T00:00:00.000Z",
+          expiresAt: "2025-12-31T01:00:00.000Z"
+        }),
+        reading({ provider: "CLAUDE", value: 80 }),
+        reading({
+          provider: "OPENROUTER",
+          value: 100,
+          observedAt: "not an instant"
+        }),
+        reading({
+          provider: "ANTIGRAVITY",
+          value: 1,
+          observedAt: "not an instant"
+        })
+      ],
+      NOW,
+      false
+    );
+    const providers = table.split("\n").slice(1).map((line) => line.trim().split(/\s+/)[0]);
+    expect(providers).toEqual(["CLAUDE", "CODEX", "ANTIGRAVITY", "OPENROUTER"]);
+  });
+
   it("says so plainly when there is nothing to show", () => {
     expect(renderTable([], NOW, false)).toBe("No bounded quota data is available.");
   });

@@ -24,7 +24,7 @@ describe("provider catalogue", () => {
   it("states the experimental and manual platform boundaries exactly", () => {
     const byId = new Map(queryProviderCatalogue(providerSpecs).map((entry) => [entry.providerId, entry]));
     expect(byId.get("antigravity")?.capabilities).toEqual({
-      windows: { mode: "automatic", maturity: "experimental", label: "Experimental" },
+      windows: { mode: "manual", maturity: "experimental", label: "Manual experimental" },
       macos: { mode: "manual", maturity: "supported", label: "Manual" },
       linux: { mode: "manual", maturity: "supported", label: "Manual" }
     });
@@ -105,4 +105,3 @@ describe("catalogue rows", () => {
     }
   });
 });
-
