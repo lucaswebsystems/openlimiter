@@ -31,7 +31,7 @@
   },
   "announce": {
     "message": "Founding promo: OpenLimiter Pro at 50% OFF for early supporters",
-    "short": "Promo: OpenLimiter Pro at 50% OFF for early supporters",
+    "short": "OpenLimiter Pro at 50% OFF",
     "dismiss": "Close this announcement"
   },
   "footer": {
