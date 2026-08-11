@@ -1,6 +1,6 @@
 {
   "name": "@openlimiter/desktop",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "OpenLimiter in a window and beside the clock, on Windows, macOS and Linux.",
   "license": "Apache-2.0",

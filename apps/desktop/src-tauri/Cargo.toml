@@ -1,6 +1,6 @@
 [package]
 name = "openlimiter-desktop"
-version = "0.3.0"
+version = "0.3.1"
 description = "A local quota meter for AI subscriptions, in a window and beside the clock."
 authors = ["Lucas Costa"]
 license = "Apache-2.0"

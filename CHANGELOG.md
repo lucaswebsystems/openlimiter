@@ -4,6 +4,12 @@ All notable project changes appear in this file.
 
 ## [Unreleased]
 
+## [0.3.1] (2026-08-10)
+
+### Changed
+
+- The desktop application's OpenAI Codex tile draws the official OpenAI mark, matching the website, instead of an initials tile.
+
 ## [0.3.0] (2026-08-10)
 
 ### Fixed
