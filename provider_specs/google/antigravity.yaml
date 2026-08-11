@@ -1,22 +1,20 @@
-# Antigravity, Google's coding tool. Documents an existing shipped
-# connector, packages/connectors/src/antigravity.ts, not third party
-# research: like Codex, its header comment states "This interface is
-# UNOFFICIAL and may break." The parser is real and exercised by the
-# fixture named below; nothing in this repository locates or fetches the
-# payload it parses, some external process must already have written it
-# and handed it in, which is why reader is absent even though parser is
-# implemented.
+# Antigravity, Google's coding tool.
 #
-# parseAntigravityPayload reads quota.used_percent and quota.reset_at, the
-# second parsed as a date string through futureInstant. The window carries
-# no duration or calendar rule in the parser, internally typed only as
-# "fixed," which this registry states as provider_defined rather than
-# guessing a length the code does not state. A payload missing either
-# field is refused whole, so this one meter is not marked optional.
+# Google publishes nothing about this surface, so it is an internal endpoint and
+# stays unverified. Its own connector header states "This interface is
+# UNOFFICIAL and may break."
 #
-# This file covers Antigravity specifically. Google's other surfaces,
-# consumer Gemini, Gemini CLI, and the Gemini API, are and must stay
-# separate credentials and separate spec files; see google/gemini-cli.yaml.
+# The reader is live. The request, its method, its body, its headers and its
+# permitted statuses are Rust constants in
+# apps/desktop/src-tauri/src/net.rs, documented there with the date they were
+# observed, including the reason the user agent header is not optional. They are
+# deliberately absent from this file.
+#
+# What the parser reads is stated once, in the meters block below.
+#
+# This file covers Antigravity specifically. Google's other surfaces, consumer
+# Gemini, Gemini CLI, and the Gemini API, are and must stay separate credentials
+# and separate spec files; see google/gemini-cli.yaml.
 
 provider_id: google
 product_id: antigravity
@@ -37,16 +35,8 @@ support:
   reader: implemented
   auth: implemented
 
-# The live collection block. See openai/codex.yaml for why no URL, method or
+# The live collection block. See openai/codex.yaml for why no address, method or
 # header appears in this file.
-#
-# Request contract, recorded 2026-08-07 from a working reader:
-#   POST https://daily-cloudcode-pa.googleapis.com/v1internal:
-#     retrieveUserQuotaSummary with an empty JSON object as the whole body
-#   Authorization: Bearer <the login the Antigravity client already holds>
-#   a NON EMPTY User-Agent, which is not optional: the same valid token is
-#     answered 403 when the header is absent, measured 2026-08-07
-#   redirects refused, response bounded
 collection:
   reader: implemented
   auth: implemented

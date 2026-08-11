@@ -1,23 +1,19 @@
-# OpenCode. Documents an existing shipped connector,
-# packages/connectors/src/opencode.ts, not third party research, and the
-# riskiest of the four connectors in this batch. Its own code carries an
-# explicit honesty flag, opencodeHonesty, literally valued
-# "UNVERIFIED_AUTHENTICATED_SCRAPE_HIGH_RISK," and its labels state
-# credentialOrigin "browser-session" and dataInterfaceStatus
-# "authenticated-scrape": the payload this parser reads comes from an
-# authenticated web session, not a file a local tool wrote for itself. The
-# parser is real and exercised by the fixture named below; nothing in this
-# repository captures a browser session or fetches the payload itself,
-# which is why reader is absent even though parser is implemented.
+# OpenCode, and the riskiest reader in the registry.
 #
-# parseOpencodePayload reads usage.percent and usage.reset_at, the second
-# parsed as a date string through futureInstant. The fixture also carries
-# an account_label field the parser never reads; it is not modelled as a
-# meter here because the parser does not consume it. The window carries no
-# duration or calendar rule in the parser, internally typed only as
-# "fixed," stated here as provider_defined rather than guessing a length
-# the code does not state. A payload missing either field is refused
-# whole, so this one meter is not marked optional.
+# OpenCode publishes no usage interface of any kind. The plan percentages exist
+# only inside the HTML of a logged in workspace page, which is why this reader is
+# an authenticated scrape and why its four honesty labels do not improve with
+# evidence: credentialOrigin browser-session, dataInterfaceStatus
+# authenticated-scrape, automationRisk high, verification UNVERIFIED. Those
+# describe the method, not how much is known about it. The connector carries the
+# same statement as an explicit flag, opencodeHonesty.
+#
+# The reader is live. Both requests it makes, and the rule that the workspace
+# handle between them is parsed out of a redirect rather than followed, are Rust
+# constants and comments in apps/desktop/src-tauri/src/net.rs. They are
+# deliberately absent from this file.
+#
+# What the parser reads is stated once, in the meters block below.
 
 provider_id: opencode
 product_id: opencode
@@ -39,20 +35,7 @@ support:
   auth: implemented
 
 # The live collection block, and the least trustworthy one in the registry.
-#
-# OpenCode publishes no usage interface of any kind. The plan percentages exist
-# only on the logged in workspace page, which the site server renders into its
-# html, so this reader is an authenticated scrape and every surface says so
-# permanently: credentialOrigin browser-session, dataInterfaceStatus
-# authenticated-scrape, automationRisk high, verification UNVERIFIED. Those four
-# labels are not provisional and do not improve with a capture.
-#
-# Request contract, recorded 2026-08-07 from a working reader:
-#   GET https://opencode.ai/auth to learn the workspace handle, then
-#   GET https://opencode.ai/workspace/<handle>/go for the meters
-#   Cookie: <a session the operator pastes in once>
-#   redirects refused; the handle is read out of the redirect target and is
-#     accepted only when it matches the provider's own opaque token shape
+# See the file header for what that means and where the requests are defined.
 collection:
   reader: implemented
   auth: implemented

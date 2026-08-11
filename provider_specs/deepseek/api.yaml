@@ -1,7 +1,7 @@
 # DeepSeek. The cleanest official_api case in this whole research pass: a
 # single GET call with the same bearer key used for inference, no admin or
-# management tier gate. GET https://api.deepseek.com/user/balance,
-# documented at the source_url with a full example response:
+# management tier gate. The balance endpoint is documented at the docs_url
+# below, with a full example response:
 # { "is_available": true, "balance_infos": [ { "currency": "CNY",
 #   "total_balance": "110.00", "granted_balance": "10.00",
 #   "topped_up_balance": "100.00" } ] }

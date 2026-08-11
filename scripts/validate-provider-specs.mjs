@@ -216,6 +216,40 @@ function parseSequence(tokens, start, indent) {
   return { value, next: index };
 }
 
+/*
+ * Addresses may not appear in a specification at all, comments included.
+ *
+ * The tokenizer drops comment lines before anything else sees them, so a
+ * literal runtime URL could sit in a spec forever without any check noticing.
+ * That matters more than it looks. The whole claim of this registry is that it
+ * cannot influence where a credential is sent, and a file whose comments print
+ * the exact address a reader uses is a file that reads, to a human, as the
+ * place addresses are configured. Somebody eventually moves the value out of
+ * the comment and into a key.
+ *
+ * A docs_url is the one exception, because a link to a provider's published
+ * documentation is the opposite of a runtime address: it is how a reviewer
+ * checks the shape by hand. So it is allowed on that key alone, and refused
+ * everywhere else, comments included.
+ */
+const URL_LITERAL = /\bhttps?:\/\//giu;
+
+export function refuseUrlLiterals(text, file) {
+  const lines = text.split(/\r?\n/u);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    URL_LITERAL.lastIndex = 0;
+    if (!URL_LITERAL.test(line)) continue;
+    if (/^\s*docs_url:/u.test(line)) continue;
+    fail(
+      file + " line " + String(index + 1),
+      "a specification may not contain a literal address. Every URL is a Rust " +
+        "constant in apps/desktop/src-tauri/src/net.rs; naming one here, even " +
+        "in a comment, makes this file look like where addresses are configured"
+    );
+  }
+}
+
 export function parseYamlSubset(text, file) {
   const tokens = tokenize(text, file);
   if (tokens.length === 0) fail(file, "the document is empty");
@@ -646,6 +680,11 @@ function validateSpec(document, file, relative, fixtureIds) {
   let collection = null;
   if (collectionBlock !== undefined && collectionBlock !== null) {
     if (!isPlainObject(collectionBlock)) fail(at, "collection must be a block");
+    for (const key of Object.keys(collectionBlock)) {
+      if (!["reader", "auth", "readers"].includes(key)) {
+        fail(at, "collection may not carry " + key);
+      }
+    }
     /* A reader is not an auth flow. Shipping the first without the second is
        a connection that can be pointed somewhere and never authenticated. */
     requireString(collectionBlock, at, "reader", COLLECTION_SUPPORT);
@@ -658,12 +697,37 @@ function validateSpec(document, file, relative, fixtureIds) {
      * ever describe one of them, and the half it left out would be a live
      * reader no surface could name.
      */
+    /*
+     * Nothing but these keys, ever.
+     *
+     * The point of this block is to say WHICH closed identifier a reader uses,
+     * never where it goes. Without this check a spec could carry a url, a
+     * method or a headers block: the compiler would drop them silently, and the
+     * file would read to a human as though the registry decided the address.
+     * A registry that appears to name a destination is one somebody will
+     * eventually wire up.
+     */
+    const READER_KEYS = new Set([
+      "reader_id",
+      "endpoint_id",
+      "credential_kind",
+      "evidence_fixture",
+      "evidence_status",
+      "last_verified_at"
+    ]);
     const entries = requireArray(collectionBlock, at, "readers");
     const readers = [];
     const seenReaders = new Set();
     const seenCredentials = new Set();
+    const seenEndpoints = new Set();
     for (const entry of entries) {
       if (!isPlainObject(entry)) fail(at, "each reader must be a block");
+      for (const key of Object.keys(entry)) {
+        if (!READER_KEYS.has(key)) {
+          fail(at, "a reader may not carry " + key +
+            ": an address is a Rust constant, never a registry value");
+        }
+      }
       const readerId = requireString(entry, at, "reader_id", READER_IDS);
       const endpointId = requireString(entry, at, "endpoint_id", ENDPOINT_IDS);
       const credentialKind =
@@ -691,6 +755,11 @@ function validateSpec(document, file, relative, fixtureIds) {
         fail(at, "duplicate credential_kind " + credentialKind);
       }
       seenCredentials.add(credentialKind);
+      /* An endpoint is one destination. Two readers of one product sharing it
+         would mean two credentials reaching the same address, which is the
+         pairing the whole routing table exists to keep apart. */
+      if (seenEndpoints.has(endpointId)) fail(at, "duplicate endpoint_id " + endpointId);
+      seenEndpoints.add(endpointId);
       /* The fixture named here has to be a fixture that exists. */
       if (!fixtureIds.has(evidenceFixture)) {
         fail(at, "evidence_fixture " + evidenceFixture +
@@ -1004,6 +1073,9 @@ async function main() {
     }
     try {
       const text = await readFile(file.path, "utf8");
+      /* Before parsing, because this reads the raw bytes including the comment
+         lines the tokenizer is about to discard. */
+      refuseUrlLiterals(text, shown);
       const document = parseYamlSubset(text, shown);
       const entry = validateSpec(document, shown, file.relative, fixtureIds);
       if (seen.has(entry.id)) {
@@ -1022,6 +1094,37 @@ async function main() {
    * fatal only under --require-captures, and never quietly dropped: this list
    * is the honest answer to "which of these numbers has anybody actually seen".
    */
+  /*
+   * Closed identifiers are closed across the WHOLE registry, not per file.
+   *
+   * Each of these names one thing in the Rust routing table: one reader, one
+   * destination, one kind of credential. Two specifications claiming the same
+   * one would compile without complaint and leave two products believing they
+   * own the same address, which the per file checks above cannot see.
+   */
+  const globallyUnique = new Map();
+  for (const entry of compiled) {
+    if (entry.collection === null) continue;
+    for (const reader of entry.collection.readers) {
+      for (const [field, value] of [
+        ["reader_id", reader.readerId],
+        ["endpoint_id", reader.endpointId],
+        ["credential_kind", reader.credentialKind]
+      ]) {
+        const key = field + " " + value;
+        const owner = globallyUnique.get(key);
+        if (owner !== undefined && owner !== entry.id) {
+          problems.push(
+            entry.id + ": " + field + " " + value +
+              " is already claimed by " + owner +
+              ". A closed identifier names one thing in the whole registry."
+          );
+        }
+        globallyUnique.set(key, entry.id);
+      }
+    }
+  }
+
   const pending = [];
   for (const entry of compiled) {
     if (entry.collection === null) continue;

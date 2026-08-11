@@ -1,18 +1,19 @@
-# Codex, OpenAI's coding CLI. Documents an existing shipped connector,
-# packages/connectors/src/codex.ts, not third party research: OpenAI
-# publishes no interface for this, and the connector's own header comment
-# says so plainly, "This interface is UNOFFICIAL and may break." The parser
-# is real and exercised by the fixture named below; nothing in this
-# repository locates or fetches the payload it parses, some external
-# process must already have written it and handed it in, which is why
-# reader is absent even though parser is implemented.
+# Codex, OpenAI's coding CLI.
 #
-# parseCodexPayload reads rate_limits.primary_window.used_percent and
-# rate_limits.primary_window.reset_at, the second parsed as a date string
-# through futureInstant, not as Claude Code's Unix epoch seconds. The
-# window length, five hours, is not read from the payload: it is hard
-# coded in the parser alongside the meter name PRIMARY. A payload missing
-# either field is refused whole, so this one meter is not marked optional.
+# OpenAI publishes no consumer quota interface, so this is an internal endpoint
+# and every surface says so: source_status provisional, verification unverified,
+# and the connector's own header comment states "This interface is UNOFFICIAL
+# and may break."
+#
+# The reader is live. The request it makes, its method, its headers and its
+# permitted statuses are Rust constants in
+# apps/desktop/src-tauri/src/net.rs, documented there with the date they were
+# observed. They are deliberately absent from this file: a registry that names
+# an address is a registry that appears to choose one.
+#
+# What the parser reads is stated once, in the meters block below, and nothing
+# here paraphrases it. The last time this file described the parser in prose,
+# the prose went stale and described a shape the code had stopped reading.
 
 provider_id: openai
 product_id: codex
@@ -33,19 +34,12 @@ support:
   reader: implemented
   auth: implemented
 
-# The live collection block. Every identifier below is closed: the same five
-# words appear in apps/desktop/src-tauri/src/reader_registry.rs, in the desktop
-# window's wire vocabulary, and here. The literal URL, the method, the headers
-# and the permitted statuses are NOT here and never will be: they are Rust
+# The live collection block. Every identifier below is closed: the same words
+# appear in apps/desktop/src-tauri/src/reader_registry.rs, in the desktop
+# window's wire vocabulary, and here. The address, the method, the headers and
+# the permitted statuses are NOT here and never will be: they are Rust
 # constants, so no YAML file, no IPC payload and no provider response can move
 # where a credential is sent.
-#
-# Request contract, recorded 2026-08-07 from a working reader:
-#   GET https://chatgpt.com/backend-api/wham/usage
-#   Authorization: Bearer <the session the Codex client already holds>
-#   User-Agent and Accept are fixed product headers
-#   redirects refused, response bounded
-#   401 and 403 mean the login lapsed; the Codex client owns renewing it
 collection:
   reader: implemented
   auth: implemented
