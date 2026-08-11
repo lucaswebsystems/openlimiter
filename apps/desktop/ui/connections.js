@@ -1533,7 +1533,11 @@ function renderCatalogue() {
           if (diagnosticsPanel) diagnosticsPanel.focus();
           return;
         }
-        if (rowData.action === connectionNextAction.NOT_CONFIGURED && targetId) {
+        /* Every remaining state is a setup shaped action: not configured,
+           detected, needs auth, expired, ready to enable. Each one resolves
+           by taking the person to the provider's own setup card, so the
+           default is that card rather than a silently dropped click. */
+        if (targetId) {
           const targetEl = document.getElementById(targetId);
           if (targetEl) {
             targetEl.hidden = false;
