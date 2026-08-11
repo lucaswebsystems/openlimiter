@@ -23,21 +23,28 @@ export const size = {
 export const contentType = "image/png";
 
 export default function AppleIcon() {
+  /* The ring sits at 60 percent of the tile on a dark ground, the way the
+     Claude and ChatGPT home screen icons breathe, instead of edge to edge:
+     the founder photographed the old crop next to them and it read as a
+     mistake (2026-08-11). */
+  const markSize = Math.round(size.width * 0.6);
   return new ImageResponse(
     (
       <div
         style={{
-          background: iconMark.background,
+          alignItems: "center",
+          background: "#16161a",
           display: "flex",
           height: "100%",
+          justifyContent: "center",
           width: "100%",
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={markDataUri(iconMark.mark, "full", "ring")}
-          width={size.width}
-          height={size.height}
+          width={markSize}
+          height={markSize}
           alt=""
         />
       </div>

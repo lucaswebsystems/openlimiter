@@ -195,8 +195,16 @@
   lost.
 */
 @media (display-mode: standalone) {
+  /* The site header stopped being a nav element when the fold shipped its
+     floating bar, and this selector silently stopped matching: the installed
+     app wore the marketing header under the iPhone status bar, with the
+     bar's margin as a dead gap, until the founder photographed it. Name the
+     class and the element both, so a future rename fails loudly in the
+     capture instead of silently here. */
+  .site-header,
   body > nav,
-  body > footer {
+  body > footer,
+  footer {
     display: none;
   }
 
