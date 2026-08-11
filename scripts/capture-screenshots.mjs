@@ -368,8 +368,8 @@ const STANDALONE = [
    wave, and a capture of the loading skeleton looked like an open sheet over
    a blurred void. Waiting for real content cannot rot the same way. */
 const PHONE_VIEWS = [
-  { file: "phone-1", tab: "tab-meters", panel: "#panel-meters", proof: "Claude", scrollY: 150 },
-  { file: "phone-2", tab: "tab-context", panel: "#panel-context", proof: "NEAR_CAP", selector: "#panel-context pre" },
+  { file: "phone-1", tab: "tab-home", panel: "#panel-home", proof: "Claude", scrollY: 150 },
+  { file: "phone-2", tab: "tab-advanced", panel: "#panel-advanced", proof: "NEAR_CAP", selector: "#panel-advanced pre" },
   { file: "phone-3", tab: "tab-connections", panel: "#panel-connections", proof: "OpenRouter", selector: "#panel-connections" },
 ];
 

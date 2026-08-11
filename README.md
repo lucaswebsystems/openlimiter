@@ -31,18 +31,18 @@ OpenLimiter only ever advises. It never routes requests automatically, bypasses 
 
 ## Demo data
 
-Every block below is real CLI output, not mockup text. Captured 9 August 2026, straight from the built binary, against the project's own synthetic fixtures. No capture here contains a real credential or a real account.
+Every block below is real CLI output, not mockup text. Captured 11 August 2026, straight from the built binary, against the project's own synthetic fixtures. No capture here contains a real credential or a real account. Rows sort most constrained first, and the SOURCE column names how each reading reached this machine; scripts should parse `openlimiter export`, the table is for people.
 
 ```text
 $ NO_COLOR=1 node packages/cli/dist/bin.js demo
-PROVIDER METER BAR USAGE AMOUNT STATE RESET IN
-CLAUDE FIVE_HOUR ####...... 42.00PERCENT NONE fresh 2026-08-10T05:59:48.766Z 5h0m
-CLAUDE SEVEN_DAY ######.... 64.00PERCENT NONE fresh 2026-08-17T00:59:48.766Z 7d0h
-OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE
-CODEX PRIMARY ########.. 84.00PERCENT NONE fresh 2026-08-10T05:59:48.766Z 5h0m
-ANTIGRAVITY PRIMARY ##........ 28.00PERCENT NONE fresh 2026-08-11T00:59:48.766Z 1d0h
-OPENCODE PRIMARY #########. 92.00PERCENT NONE fresh 2026-08-11T00:59:48.766Z 1d0h
-MANUAL MONTHLY ###....... 35.00PERCENT NONE fresh 2026-09-10T00:59:48.766Z 31d0h
+PROVIDER    METER     BAR        USAGE        AMOUNT        STATE RESET                    IN    SOURCE
+OPENCODE    PRIMARY   #########. 92.00PERCENT NONE          fresh 2026-08-12T11:48:23.828Z 20h0m [import only]
+CODEX       PRIMARY   ########.. 84.00PERCENT NONE          fresh 2026-08-11T20:48:23.000Z 4h59m [import only]
+CLAUDE      SEVEN_DAY ######.... 64.00PERCENT NONE          fresh 2026-08-18T15:48:23.000Z 6d23h [import only]
+CLAUDE      FIVE_HOUR ####...... 42.00PERCENT NONE          fresh 2026-08-11T20:48:23.000Z 4h59m [import only]
+OPENROUTER  CREDITS   ######.... 62.35PERCENT $12.47/$20.00 fresh NONE                     NONE  [import only]
+MANUAL      MONTHLY   ###....... 35.00PERCENT NONE          fresh 2026-09-11T15:48:23.828Z 31d0h [import only]
+ANTIGRAVITY PRIMARY   ##........ 28.00PERCENT NONE          fresh 2026-08-11T20:48:23.828Z 5h0m  [import only]
 
 $ node packages/cli/dist/bin.js statusline
 OpenLimiter NEAR_CAP PREFER ANTIGRAVITY  CLAUDE ###.. 64.0%  CODEX ####. 84.0%  ANTIGRAVITY #.... 28.0%  OPENCODE ####. 92.0%
