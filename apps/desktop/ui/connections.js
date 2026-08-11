@@ -53,6 +53,7 @@ import {
   CACHE_DOCUMENT_VERSION,
   CONNECTION_STATES,
   MAX_CACHE_ENTRIES,
+  applyCollectionReport,
   canonicalJson,
   connectionNextAction,
   connectionSentence,
@@ -60,6 +61,7 @@ import {
   mergeSnapshots,
   nextRefreshAt,
   normalizeMetersReport,
+  readSuppressions,
 } from "./engine/core/index.js";
 import { parseAntigravityPayload } from "./engine/connectors/antigravity.js";
 import { parseCodexPayload } from "./engine/connectors/codex.js";
@@ -328,8 +330,14 @@ function snapshotsFromBody(readerId, body, now) {
 }
 
 /**
- * Fold freshly parsed snapshots into the snapshot cache, through the Rust
- * lock handshake, with the same merge every other writer uses.
+ * Fold one collection report into the snapshot cache, through the Rust lock
+ * handshake, with the same pure fold every other writer uses.
+ *
+ * A report rather than a list of rows, because only a report can say that a
+ * provider DRIFTED. Drift removes that identity's rows and leaves a standing
+ * suppression in the document, which is what makes the provider read unknown
+ * on the statusline, in the agent context and on the dashboard in the same
+ * instant, rather than only on the card the person happens to be looking at.
  *
  * begin hands over the cache text and a generation stamp; commit presents
  * the stamp back and is refused with stale_generation when the cache moved
@@ -339,7 +347,7 @@ function snapshotsFromBody(readerId, body, now) {
  * not retried again: the tick cadence retries soon enough, and a loop here
  * would fight the CLI for the lock.
  */
-async function commitToCache(snapshots) {
+async function applyReportToCache(report) {
   for (let round = 0; round < 2; round += 1) {
     const begun = await backend.cacheBeginWrite();
     if (!begun.ok) {
@@ -363,14 +371,38 @@ async function commitToCache(snapshots) {
       document !== null && Array.isArray(document.snapshots)
         ? normalizeMetersReport(document.snapshots).snapshots
         : [];
-    const merged = mergeSnapshots(existingRows, snapshots);
-    if (merged.length > MAX_CACHE_ENTRIES) {
+    /* A suppression list this build cannot read is not treated as an empty
+       one. Writing over it would quietly un suppress every identity it was
+       protecting, so the write is refused and the reader keeps showing
+       unknown until a person looks at the file. */
+    const read = readSuppressions(document?.suppressions);
+    if (!read.ok) {
+      return {
+        ok: false,
+        message:
+          "The cache carries drift suppressions this build cannot read, so " +
+          "nothing was written and every affected provider stays unknown.",
+      };
+    }
+    const after = applyCollectionReport(
+      { snapshots: existingRows, suppressions: read.suppressions },
+      report,
+    );
+    if (after.snapshots.length > MAX_CACHE_ENTRIES) {
       return {
         ok: false,
         message: "The merged cache would exceed its bounds, so nothing was written.",
       };
     }
-    const text = canonicalJson({ snapshots: merged, version: CACHE_DOCUMENT_VERSION });
+    const text = canonicalJson(
+      after.suppressions.length === 0
+        ? { snapshots: after.snapshots, version: CACHE_DOCUMENT_VERSION }
+        : {
+            snapshots: after.snapshots,
+            suppressions: after.suppressions,
+            version: CACHE_DOCUMENT_VERSION,
+          },
+    );
     const commit = await backend.cacheCommitWrite({
       text,
       generation: handshake.generation,
@@ -496,12 +528,29 @@ async function runRefresh(record) {
   const attempt = await probe(record, true);
   if (attempt.absent) return { succeeded: false, note: null };
 
+  const observedAt = new Date().toISOString();
   let note = attempt.note;
   let committed = false;
-  if (attempt.snapshots !== null) {
-    const commit = await commitToCache(attempt.snapshots);
+  if (attempt.snapshots !== null && record.provider !== null) {
+    const commit = await applyReportToCache({
+      ok: true,
+      provider: record.provider,
+      observedAt,
+      snapshots: attempt.snapshots,
+    });
     committed = commit.ok;
     if (!commit.ok) note = commit.message;
+  } else if (attempt.drifted && record.provider !== null) {
+    /* The provider answered well and this build could not read the answer.
+       The rows go, the suppression stays, and nothing downstream may show a
+       number for this provider until a later run parses again. */
+    const suppressed = await applyReportToCache({
+      ok: false,
+      provider: record.provider,
+      observedAt,
+      reason: "drift",
+    });
+    if (!suppressed.ok) note = suppressed.message;
   }
   /* The disposition is the honest description of what this run achieved, and
      nothing else may be sent: a 2xx that drifted is drift, and a parse that

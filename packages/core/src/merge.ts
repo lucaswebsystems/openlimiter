@@ -13,10 +13,12 @@ export const MAX_CACHE_ENTRIES = 64;
  * changing identity or duplicating itself. Two rows for the same meter under
  * different accounts are two rows, which is the whole point of the field.
  */
-function identity(snapshot: Snapshot): string {
+export function snapshotIdentity(snapshot: Snapshot): string {
   const base = snapshot.provider + " " + snapshot.meter;
   return snapshot.accountId === undefined ? base : base + " " + snapshot.accountId;
 }
+
+const identity = snapshotIdentity;
 
 function compareIdentity(left: Snapshot, right: Snapshot): number {
   const leftKey = identity(left);

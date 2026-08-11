@@ -12,6 +12,14 @@ import {
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
+import {
+  applyCollectionReport,
+  readSuppressions,
+  visibleSnapshots,
+  type CacheState,
+  type CacheSuppression,
+  type CollectionReport
+} from "./collection.js";
 import { MAX_CACHE_ENTRIES, mergeSnapshots } from "./merge.js";
 import { canonicalJson, normalizeMeter, normalizeMeters } from "./normalizer.js";
 import type { RawMeter, Snapshot } from "./types.js";
@@ -132,7 +140,17 @@ export async function readJsonFileSafely(
 }
 
 export type CacheReadResult =
-  | { ok: true; snapshots: Snapshot[]; dropped: number }
+  | {
+      ok: true;
+      /** The rows a surface may use: suppressed identities are already gone. */
+      snapshots: Snapshot[];
+      /** Rows that failed validation and were dropped. */
+      dropped: number;
+      /** Rows dropped because a drift suppression covers them. */
+      suppressed: number;
+      /** The standing suppressions, for a writer that has to preserve them. */
+      suppressions: CacheSuppression[];
+    }
   | { ok: false; reason: "missing" | "corrupt" | "unsafe" };
 
 /**
@@ -141,6 +159,17 @@ export type CacheReadResult =
  * A row that fails validation is dropped and counted. The surviving rows are
  * still returned, because one bad row is not a reason to forget every other
  * provider. No value is ever repaired or invented.
+ *
+ * The rows that come back have already had drift suppressions applied, so
+ * there is no way for a caller to obtain the raw list and forget to filter it.
+ * That matters more than it looks: `buildAdvice` and every surface downstream
+ * of it read through here, which is what makes a drifted provider go unknown
+ * on the statusline, in the agent context and on the dashboard at the same
+ * instant rather than only on a connection card.
+ *
+ * A suppression list that cannot be believed empties the whole document. See
+ * `readSuppressions`: the failure direction has to be unknown, because the
+ * alternative is showing a number the cache itself was trying to withdraw.
  */
 export async function readSnapshotCache(
   directory = resolveStateDirectory()
@@ -156,8 +185,65 @@ export async function readSnapshotCache(
   const rawSnapshots = document.value["snapshots"];
   if (!Array.isArray(rawSnapshots)) return { ok: false, reason: "corrupt" };
   if (rawSnapshots.length > MAX_CACHE_ENTRIES) return { ok: false, reason: "corrupt" };
-  const snapshots = normalizeMeters(rawSnapshots as RawMeter[]);
-  return { ok: true, snapshots, dropped: rawSnapshots.length - snapshots.length };
+  const version = document.value["version"];
+  /* Absent is version 1, which predates the field. A version this build does
+     not know is refused rather than read with today's meanings. */
+  if (version !== undefined && version !== 1 && version !== CACHE_DOCUMENT_VERSION) {
+    return { ok: false, reason: "corrupt" };
+  }
+  const validated = normalizeMeters(rawSnapshots as RawMeter[]);
+  const dropped = rawSnapshots.length - validated.length;
+  const read = readSuppressions(document.value["suppressions"]);
+  if (!read.ok) {
+    /* Unreadable suppressions make every identity in the document unknown.
+       Nothing is repaired, and nothing is shown on the strength of a list we
+       could not parse. */
+    return { ok: true, snapshots: [], dropped, suppressed: validated.length, suppressions: [] };
+  }
+  const snapshots = visibleSnapshots({
+    snapshots: validated,
+    suppressions: read.suppressions
+  });
+  return {
+    ok: true,
+    snapshots,
+    dropped,
+    suppressed: validated.length - snapshots.length,
+    suppressions: read.suppressions
+  };
+}
+
+/**
+ * The cache document as stored, suppressions included and unfiltered.
+ *
+ * `readSnapshotCache` above is what a surface uses, and it hides suppressed
+ * rows. A writer needs the other thing: the rows exactly as they are on disk,
+ * so a fold can remove them properly instead of merging around a filtered view
+ * and quietly resurrecting what it could not see.
+ */
+export async function readCacheState(
+  directory = resolveStateDirectory()
+): Promise<{ ok: true; state: CacheState } | { ok: false; reason: "missing" | "corrupt" | "unsafe" }> {
+  try {
+    await rejectSymlink(directory);
+  } catch {
+    return { ok: false, reason: "unsafe" };
+  }
+  const document = await readJsonFileSafely(path.join(directory, CACHE_FILE_NAME));
+  if (!document.ok) return document;
+  if (!isRecord(document.value)) return { ok: false, reason: "corrupt" };
+  const rawSnapshots = document.value["snapshots"];
+  if (!Array.isArray(rawSnapshots)) return { ok: false, reason: "corrupt" };
+  if (rawSnapshots.length > MAX_CACHE_ENTRIES) return { ok: false, reason: "corrupt" };
+  const read = readSuppressions(document.value["suppressions"]);
+  if (!read.ok) return { ok: false, reason: "corrupt" };
+  return {
+    ok: true,
+    state: {
+      snapshots: normalizeMeters(rawSnapshots as RawMeter[]),
+      suppressions: read.suppressions
+    }
+  };
 }
 
 function delay(milliseconds: number): Promise<void> {
@@ -321,32 +407,33 @@ async function withCacheLock<Result>(
 /**
  * Document version of the snapshot cache.
  *
- * Deliberately still 1 after `accountId` and `provenance` were added to a row.
+ * It stayed at 1 through `accountId` and `provenance`, because both were
+ * optional fields an old reader could ignore without being wrong.
  *
- * Both fields are strictly optional and are written only when a source states
- * them, so a row that predates them is byte identical to the row this build
- * writes, and every reader in the repository ignores fields it does not know:
- * the CLI, the desktop UI and the web app all reach the same normalizer, which
- * reads named fields and never rejects a document for carrying extra ones. No
- * reader parses the cache with a closed shape, so nothing exists that a version
- * bump would protect.
+ * Version 2 is the first change that fails that test. A `suppressions` array is
+ * an instruction to DISTRUST rows that are still present in the document, so a
+ * reader that ignores it does not miss a nicety, it shows a number the writer
+ * was withdrawing. That is a misread rather than an omission, which is exactly
+ * what the version number is for.
  *
- * Bump this to 2 only for a change an old reader would misread rather than
- * ignore: a field whose meaning changes, a required field, or a row whose
- * identity moves. A reader added then must still accept 1.
+ * A version 1 document is still read, and read correctly: it has no
+ * suppressions, which is true of it.
  */
-export const CACHE_DOCUMENT_VERSION = 1;
+export const CACHE_DOCUMENT_VERSION = 2;
 
 async function replaceCache(
   directory: string,
-  snapshots: readonly Snapshot[]
+  snapshots: readonly Snapshot[],
+  suppressions: readonly CacheSuppression[] = []
 ): Promise<void> {
   const file = path.join(directory, CACHE_FILE_NAME);
   await rejectSymlink(file);
-  await writeFileAtomically(
-    file,
-    canonicalJson({ snapshots, version: CACHE_DOCUMENT_VERSION })
-  );
+  /* The suppressions key is written only when there is something to say, so a
+     machine that has never drifted keeps writing the document it always did. */
+  const document = suppressions.length === 0
+    ? { snapshots, version: CACHE_DOCUMENT_VERSION }
+    : { snapshots, suppressions, version: CACHE_DOCUMENT_VERSION };
+  await writeFileAtomically(file, canonicalJson(document));
 }
 
 /**
@@ -385,14 +472,47 @@ export async function mergeSnapshotCache(
 ): Promise<CacheMergeResult> {
   rejectOutOfBounds(incoming);
   return await withCacheLock(directory, async () => {
-    const cached = await readSnapshotCache(directory);
-    const existing = cached.ok ? cached.snapshots : [];
-    const merged = mergeSnapshots(existing, incoming);
-    if (canonicalJson(merged) === canonicalJson(existing)) {
+    const cached = await readCacheState(directory);
+    const state: CacheState = cached.ok
+      ? cached.state
+      : { snapshots: [], suppressions: [] };
+    const merged = mergeSnapshots(state.snapshots, incoming);
+    if (canonicalJson(merged) === canonicalJson(state.snapshots)) {
       return { merged, written: false };
     }
     rejectOutOfBounds(merged);
-    await replaceCache(directory, merged);
+    await replaceCache(directory, merged, state.suppressions);
     return { merged, written: true };
+  });
+}
+
+/**
+ * Fold one collection report into the cache under the lock.
+ *
+ * The verb the desktop and the command line tool should both reach for, because
+ * it is the only one that can record a drift. `mergeSnapshotCache` above says
+ * "here are some rows"; this says "here is what a run of one provider actually
+ * achieved", and only the second can express that a provider stopped making
+ * sense. Reading, folding and writing all happen inside one lock, so a drift
+ * and a concurrent refresh cannot interleave into a document where a
+ * suppression exists and the row it suppresses has already been replaced.
+ */
+export async function applyCollectionReportToCache(
+  report: CollectionReport,
+  directory = resolveStateDirectory()
+): Promise<{ state: CacheState; written: boolean }> {
+  if (report.ok) rejectOutOfBounds(report.snapshots);
+  return await withCacheLock(directory, async () => {
+    const cached = await readCacheState(directory);
+    const before: CacheState = cached.ok
+      ? cached.state
+      : { snapshots: [], suppressions: [] };
+    const after = applyCollectionReport(before, report);
+    if (canonicalJson(after) === canonicalJson(before)) {
+      return { state: after, written: false };
+    }
+    rejectOutOfBounds(after.snapshots);
+    await replaceCache(directory, after.snapshots, after.suppressions);
+    return { state: after, written: true };
   });
 }

@@ -39,6 +39,7 @@ const COPY = {
     from: path.join(REPOSITORY, "packages", "core", "dist"),
     files: [
       "types.js",
+      "collection.js",
       "connection-state.js",
       "failures.js",
       "format.js",
@@ -90,8 +91,13 @@ export async function readSnapshotCache() {
  * The desktop's refresh pipeline writes the cache document through the Rust
  * lock handshake and must produce the exact document the CLI writes, version
  * field included. Bump this only when packages/core/src/cache.ts bumps.
+ *
+ * Version 2 added the suppressions array, which is an instruction to distrust
+ * rows that are still in the document. A reader that ignores it shows a number
+ * the writer was withdrawing, which is a misread rather than an omission, and
+ * that is what the number is for.
  */
-export const CACHE_DOCUMENT_VERSION = 1;
+export const CACHE_DOCUMENT_VERSION = 2;
 `;
 
 function assertBuilt() {

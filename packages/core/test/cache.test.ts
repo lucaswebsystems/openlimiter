@@ -62,10 +62,15 @@ describe("snapshot cache", () => {
     expect(await readSnapshotCache(directory)).toEqual({
       ok: true,
       snapshots: [snapshot()],
-      dropped: 0
+      dropped: 0,
+      suppressed: 0,
+      suppressions: []
     });
     const raw = await readFile(path.join(directory, CACHE_FILE_NAME), "utf8");
-    expect(raw).toContain('"version":1');
+    expect(raw).toContain('"version":2');
+    /* A document with nothing to withdraw carries no suppressions key at all,
+       so a machine that has never drifted keeps writing what it always did. */
+    expect(raw).not.toContain('"suppressions"');
     expect(raw.indexOf('"snapshots"')).toBeLessThan(raw.indexOf('"version"'));
   });
 
@@ -95,8 +100,12 @@ describe("snapshot cache", () => {
       }),
       "utf8"
     );
+    /* A version 1 document is still read, and read correctly: it carries no
+       suppressions, which is true of it rather than merely assumed. */
     expect(await readSnapshotCache(directory)).toEqual({
       ok: true,
+      suppressed: 0,
+      suppressions: [],
       snapshots: [snapshot({ meter: "SEVEN_DAY", value: 64 })],
       dropped: 1
     });
