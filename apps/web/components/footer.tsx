@@ -164,6 +164,10 @@ function ContactColumn() {
           <GlobeMark />
           lucaswebsystems.com
         </a>
+        <a href={`mailto:${AUTHOR_EMAIL}`} className={contactClass}>
+          <MailMark />
+          {AUTHOR_EMAIL}
+        </a>
         <a
           href={AUTHOR_GITHUB}
           target="_blank"
@@ -172,10 +176,6 @@ function ContactColumn() {
         >
           <GitHubMark />
           GitHub
-        </a>
-        <a href={`mailto:${AUTHOR_EMAIL}`} className={contactClass}>
-          <MailMark />
-          {AUTHOR_EMAIL}
         </a>
         <a
           href={AUTHOR_LINKEDIN}
@@ -234,7 +234,7 @@ export function Footer({ localised = true }: { localised?: boolean }) {
        The button is 44 pixels tall and sits 20 from the edge, so 96 clears it
        with room left over. Wide screens never had the collision. */
     <footer className={`${SHELL} pb-24 pt-4 text-center sm:pb-8 md:pb-16 md:text-left`}>
-      <div className="grid gap-8 border-t border-hairline pt-10 text-sm lg:grid-cols-[minmax(0,18rem)_repeat(4,minmax(0,1fr))]">
+      <div className="grid gap-8 border-t border-hairline pt-10 text-sm lg:grid-cols-[minmax(0,18rem)_minmax(0,0.75fr)_minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="mx-auto grid w-full max-w-[18rem] grid-rows-[2rem_auto] gap-3 md:mx-0" {...reveal}>
           <SiteLink
             href="/"
@@ -265,14 +265,14 @@ export function Footer({ localised = true }: { localised?: boolean }) {
             href={LICENSE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="focus-ring rounded transition-colors hover:text-heading"
+            className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
           >
             {t("licensed")}
           </a>{" "}
           |{" "}
           <SiteLink
             href="/terms"
-            className="focus-ring rounded transition-colors hover:text-heading"
+            className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
           >
             {terms("title")}
           </SiteLink>
