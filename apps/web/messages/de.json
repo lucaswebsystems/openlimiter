@@ -137,7 +137,7 @@
     "shots": {
       "meters": {
         "label": "Meter",
-        "alt": "Die Web App auf einem Handy, oben mit dem Gesamturteil und darunter einer Karte pro Provider, jede mit Meter Balken, Prozentangabe, Aktualitätsstatus und Reset Countdown."
+        "alt": "Die Web App auf einem Handy, oben mit dem Gesamturteil und der Routingempfehlung, darunter einer Karte pro Provider, jede mit Meter Balken, Prozentangabe, Aktualitätsstatus und Reset Countdown."
       },
       "agentContext": {
         "label": "Agent context",
@@ -145,7 +145,7 @@
       },
       "connections": {
         "label": "Verbindungen",
-        "alt": "Die Web App auf einem Handy, mit dem, was heute je Provider ausgelesen werden kann, und dem Feld, in das ein Quota Dokument eingefügt oder hineingezogen wird."
+        "alt": "Die Web App auf einem Handy, mit dem, was heute je Provider ausgelesen werden kann, welche davon nur Importe entgegennehmen, und dem Feld, in das ein Quota Dokument eingefügt oder hineingezogen wird."
       }
     }
   },
@@ -675,7 +675,7 @@
             "title": "Was OpenLimiter dagegen tut",
             "intro": "OpenLimiter liest Quota für unterstützte KI Abos auf deinem eigenen Rechner, normalisiert jeden Wert auf ein Schema, und speist begrenzten Budgetstatus plus Routingempfehlungen in den eigenen Context der Coding Agenten ein. Der erste Adapter ist eine Claude Code Statusline und ein Prompt Hook.",
             "bullets": {
-              "read": "<strong>Lesen.</strong> Connectors parsen Formen, die ein Provider oder ein lokales Tool bereits erzeugt hat. Im lokalen Modus verlässt nichts deinen Rechner; verbindest du einen Provider über die Desktop Anwendung, spricht diese Verbindung nur mit dem eigenen Endpoint des Providers.",
+              "read": "<strong>Lesen.</strong> Connectors parsen Formen, die ein Provider oder ein lokales Tool bereits erzeugt hat. Im lokalen Modus verlässt nichts deinen Rechner, bis du einen Provider über die Desktop Anwendung verbindest; ab dann spricht diese Verbindung nur mit dem eigenen Endpoint des Providers.",
               "normalise": "<strong>Normalisieren.</strong> Ein Snapshot Schema mit geschlossenen Enums, begrenzten Prozentwerten und abgeleiteter Aktualität. Unknown bleibt unknown und wird nie zu einer erfundenen Null.",
               "advise": "<strong>Empfehlen.</strong> Eine kompakte Statusline für dich, und ein begrenzter Context Block für deinen Agenten, der nur Enum Codes, Zahlen und Zeitstempel trägt."
             }
@@ -759,7 +759,7 @@
             "bullets": {
               "claude": "<code>claude</code> wird von der Statusline Payload gefüttert, die an der Standardeingabe ankommt. Dieser Weg läuft automatisch, sobald Claude Code verdrahtet ist.",
               "manual": "<code>manual</code> wird von einem Dokument gefüttert, das du im Statusverzeichnis ablegst.",
-              "ingestOnly": "<code>codex</code>, <code>antigravity</code>, <code>opencode</code> und <code>openrouter</code> haben noch keinen lokalen Reader. Sie nehmen Daten nur über <code>openlimiter ingest --provider '<id>'</code> entgegen."
+              "ingestOnly": "Im Kommandozeilen Tool haben <code>codex</code>, <code>antigravity</code>, <code>opencode</code> und <code>openrouter</code> weiterhin keinen eigenen Reader; es nimmt Daten nur über <code>openlimiter ingest --provider '<id>'</code> entgegen. Die Desktop Anwendung liest Codex und OpenRouter live, und bietet für Antigravity und OpenCode einen manuellen, experimentellen Weg zum Einfügen."
             },
             "exactShapes": "Die <docs>Ingestion Seite</docs> dokumentiert alle drei Wege und die genauen Formen, die sie akzeptieren."
           },

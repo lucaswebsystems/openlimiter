@@ -137,7 +137,7 @@
     "shots": {
       "meters": {
         "label": "Meters",
-        "alt": "La aplicación web en un teléfono, mostrando el veredicto general arriba y una tarjeta por proveedor debajo, cada una con una barra de meter, un porcentaje, un estado de vigencia y una cuenta regresiva de reinicio."
+        "alt": "La aplicación web en un teléfono, mostrando el veredicto general y la recomendación de enrutamiento arriba, y una tarjeta por proveedor debajo, cada una con una barra de meter, un porcentaje, un estado de vigencia y una cuenta regresiva de reinicio."
       },
       "agentContext": {
         "label": "Agent context",
@@ -145,7 +145,7 @@
       },
       "connections": {
         "label": "Conexiones",
-        "alt": "La aplicación web en un teléfono, mostrando de dónde se puede leer cada proveedor hoy y el cuadro donde se pega o se suelta un documento de quota."
+        "alt": "La aplicación web en un teléfono, mostrando de dónde se puede leer cada proveedor hoy, cuáles solo aceptan importación, y el cuadro donde se pega o se suelta un documento de quota."
       }
     }
   },
@@ -675,7 +675,7 @@
             "title": "Qué hace OpenLimiter al respecto",
             "intro": "OpenLimiter lee la quota de las suscripciones de IA compatibles en tu propia máquina, normaliza cada lectura en un solo esquema, y alimenta el propio contexto de los agentes de programación con un estado de presupuesto acotado más consejos de enrutamiento. El primer adaptador es un statusline y un prompt hook para Claude Code.",
             "bullets": {
-              "read": "<strong>Leer.</strong> Los connectors analizan formas que un proveedor o una herramienta local ya produjo. En el modo local nada sale de tu máquina; cuando conectas un proveedor desde la aplicación de escritorio, esa conexión habla solo con el propio endpoint del proveedor.",
+              "read": "<strong>Leer.</strong> Los connectors analizan formas que un proveedor o una herramienta local ya produjo. En el modo local nada sale de tu máquina hasta que conectas un proveedor desde la aplicación de escritorio; a partir de ahí, esa conexión habla solo con el propio endpoint del proveedor.",
               "normalise": "<strong>Normalizar.</strong> Un esquema de instantánea único, con enums cerrados, porcentajes acotados y vigencia derivada. Unknown se queda unknown y nunca se convierte en un cero fabricado.",
               "advise": "<strong>Aconsejar.</strong> Un statusline compacto para ti, y un bloque de contexto acotado para tu agente que solo lleva códigos enum, números y marcas de tiempo."
             }
@@ -759,7 +759,7 @@
             "bullets": {
               "claude": "<code>claude</code> se alimenta con la carga del statusline que llega por entrada estándar. Esa ruta es automática una vez que Claude Code está conectado.",
               "manual": "<code>manual</code> se alimenta con un documento que colocas en el directorio de estado.",
-              "ingestOnly": "<code>codex</code>, <code>antigravity</code>, <code>opencode</code> y <code>openrouter</code> todavía no tienen un lector local. Aceptan datos a través de <code>openlimiter ingest --provider '<id>'</code> y nada más."
+              "ingestOnly": "En la herramienta de línea de comandos, <code>codex</code>, <code>antigravity</code>, <code>opencode</code> y <code>openrouter</code> todavía no tienen un lector propio; solo acepta datos a través de <code>openlimiter ingest --provider '<id>'</code>. La aplicación de escritorio lee Codex y OpenRouter en vivo, y ofrece una vía manual y experimental para pegar los datos de Antigravity y OpenCode."
             },
             "exactShapes": "La <docs>página de ingesta</docs> documenta las tres rutas y las formas exactas que aceptan."
           },

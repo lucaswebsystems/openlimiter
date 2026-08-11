@@ -137,7 +137,7 @@
     "shots": {
       "meters": {
         "label": "Meters",
-        "alt": "The web app on a phone, showing the overall verdict at the top and one card per provider below it, each with a meter bar, a percentage, a freshness state and a reset countdown."
+        "alt": "The web app on a phone, showing the overall verdict and routing recommendation at the top, then one card per provider below it, each with a meter bar, a percentage, a freshness state and a reset countdown."
       },
       "agentContext": {
         "label": "Agent context",
@@ -145,7 +145,7 @@
       },
       "connections": {
         "label": "Connections",
-        "alt": "The web app on a phone, showing what each provider can be read from today and the box a quota document is pasted or dropped into."
+        "alt": "The web app on a phone, showing what each provider can be read from today, which ones are import only, and the box a quota document is pasted or dropped into."
       }
     }
   },
@@ -675,7 +675,7 @@
             "title": "What OpenLimiter does about it",
             "intro": "OpenLimiter reads quota for supported AI subscriptions on your own machine, normalises every reading into one schema, and feeds bounded budget state plus routing advice into the coding agents' own context. The first adapter is a Claude Code statusline and prompt hook.",
             "bullets": {
-              "read": "<strong>Read.</strong> Connectors parse shapes that a provider or a local tool already produced. In local mode nothing leaves your machine; when you connect a provider from the desktop application, that connection talks only to the provider's own endpoint.",
+              "read": "<strong>Read.</strong> Connectors parse shapes that a provider or a local tool already produced. In local mode nothing leaves your machine until you connect a provider from the desktop application; from then on, that connection talks only to the provider's own endpoint.",
               "normalise": "<strong>Normalise.</strong> One snapshot schema with closed enums, bounded percentages, and derived freshness. Unknown stays unknown and never becomes a fabricated zero.",
               "advise": "<strong>Advise.</strong> A compact statusline for you, and a bounded context block for your agent that carries enum codes, numbers, and timestamps only."
             }
@@ -759,7 +759,7 @@
             "bullets": {
               "claude": "<code>claude</code> is fed by the statusline payload arriving on standard input. That path is automatic once Claude Code is wired up.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "<code>codex</code>, <code>antigravity</code>, <code>opencode</code> and <code>openrouter</code> have no local reader yet. They accept data through <code>openlimiter ingest --provider '<id>'</code> and nothing else."
+              "ingestOnly": "In the command line tool, <code>codex</code>, <code>antigravity</code>, <code>opencode</code> and <code>openrouter</code> still have no reader of their own; it only accepts data through <code>openlimiter ingest --provider '<id>'</code>. The desktop application reads Codex and OpenRouter live, and offers a manual, experimental paste path for Antigravity and OpenCode."
             },
             "exactShapes": "The <docs>ingestion page</docs> documents all three paths and the exact shapes they accept."
           },
