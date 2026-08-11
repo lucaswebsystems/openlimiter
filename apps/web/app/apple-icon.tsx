@@ -23,11 +23,11 @@ export const size = {
 export const contentType = "image/png";
 
 export default function AppleIcon() {
-  /* The ring sits at 60 percent of the tile on a dark ground, the way the
+  /* The ring sits at 78 percent of the tile on a dark ground, the way the
      Claude and ChatGPT home screen icons breathe, instead of edge to edge:
      the founder photographed the old crop next to them and it read as a
      mistake (2026-08-11). */
-  const markSize = Math.round(size.width * 0.6);
+  const markSize = Math.round(size.width * 0.78);
   return new ImageResponse(
     (
       <div
