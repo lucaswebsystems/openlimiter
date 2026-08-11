@@ -270,12 +270,12 @@ const elements = {
   tabs: [
     document.getElementById("tab-meters"),
     document.getElementById("tab-connections"),
-    document.getElementById("tab-context"),
+    document.getElementById("tab-advanced"),
   ],
   panels: [
     document.getElementById("panel-meters"),
     document.getElementById("panel-connections"),
-    document.getElementById("panel-context"),
+    document.getElementById("panel-advanced"),
   ],
 };
 
@@ -644,14 +644,18 @@ function card(provider, snapshots, now, failure) {
       snapshot,
       state: freshness(snapshot.observedAt, snapshot.expiresAt, now),
     }))
-    /* Rows read in window order, shortest first and money last. The provider's
-       own headline number is chosen separately, below, and is still the meter
-       under the most pressure rather than whichever one happens to sort first. */
-    .sort((left, right) => byMeterOrder(left.snapshot.meter, right.snapshot.meter));
-  const worst = readings
-    .filter((entry) => entry.state !== "unknown")
-    .slice()
-    .sort((left, right) => right.snapshot.value - left.snapshot.value)[0];
+    /* Most constrained real meter first, then other real windows, then unknown meters. */
+    .sort((left, right) => {
+      const leftUnknown = left.state === "unknown";
+      const rightUnknown = right.state === "unknown";
+      if (leftUnknown !== rightUnknown) return leftUnknown ? 1 : -1;
+      if (!leftUnknown && !rightUnknown) {
+        const difference = right.snapshot.value - left.snapshot.value;
+        if (difference !== 0) return difference;
+      }
+      return byMeterOrder(left.snapshot.meter, right.snapshot.meter);
+    });
+  const worst = readings.find((entry) => entry.state !== "unknown");
 
   const node = element("div", readings.length === 0 ? "card unknown" : "card");
 
@@ -899,12 +903,20 @@ try {
 
 /* -------------------------------------------------------------------- tabs */
 
-function selectTab(index) {
+let initialTabDetermined = false;
+
+function selectTab(index, isUserClick = false) {
+  if (isUserClick) {
+    initialTabDetermined = true;
+  }
   elements.tabs.forEach((tab, position) => {
+    if (!tab) return;
     const selected = position === index;
     tab.setAttribute("aria-selected", selected ? "true" : "false");
     tab.tabIndex = selected ? 0 : -1;
-    elements.panels[position].hidden = !selected;
+    if (elements.panels[position]) {
+      elements.panels[position].hidden = !selected;
+    }
   });
   /* Bringing the Connections tab on screen re-asks the backend whether it is
      there, so an absent block never describes a build that has since changed. */
@@ -916,15 +928,16 @@ function selectTab(index) {
 }
 
 elements.tabs.forEach((tab, index) => {
+  if (!tab) return;
   tab.addEventListener("click", () => {
-    selectTab(index);
+    selectTab(index, true);
   });
   tab.addEventListener("keydown", (event) => {
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
     event.preventDefault();
     const step = event.key === "ArrowRight" ? 1 : -1;
     const next = (index + step + elements.tabs.length) % elements.tabs.length;
-    selectTab(next);
+    selectTab(next, true);
     elements.tabs[next].focus();
   });
 });
@@ -1051,6 +1064,20 @@ async function refresh() {
     const failureByProvider = new Map(
       failures.map((failure) => [failure.provider, failure.category]),
     );
+
+    if (!initialTabDetermined) {
+      initialTabDetermined = true;
+      const connectionsRes = await listConnections();
+      const connList = connectionsRes.ok ? normalizeConnectionList(connectionsRes.value) : [];
+      const hasConnections =
+        connList.length > 0 ||
+        snapshots.some((s) => freshness(s.observedAt, s.expiresAt, now) !== "unknown");
+      if (hasConnections) {
+        selectTab(0);
+      } else {
+        selectTab(1);
+      }
+    }
 
     /*
      * A card per provider that has something to say, and no card at all for a
