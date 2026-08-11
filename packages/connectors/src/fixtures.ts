@@ -516,6 +516,16 @@ export interface SanitizedLiveFixture {
   readonly id: string;
   readonly connector: ConnectorId;
   readonly status: "captured" | "pending_capture";
+  /**
+   * The reduced capture, when one exists.
+   *
+   * Written only by `scripts/sanitize-capture.mjs`, which keeps numbers and
+   * closed vocabulary words and discards every other field of the real
+   * response rather than redacting it. Resets are stored as SECONDS FROM
+   * CAPTURE, never as instants, so a fixture replays against any clock and
+   * does not record when somebody was working.
+   */
+  readonly capture?: unknown;
   /** Capture date, or null while pending. */
   readonly capturedAt: string | null;
   /** Provider client version at capture, or null while pending. */
@@ -629,6 +639,108 @@ export const opencodeSanitizedLive: SanitizedLiveFixture = {
   expectedMeters: 0,
   build: () => null
 };
+
+/* ------------------------------------------------------------------ *
+ * Rebuilding a payload from a reduced capture
+ *
+ * A capture holds numbers. A parser wants the provider's own shape. These turn
+ * one into the other, against a supplied clock, so a capture taken months ago
+ * still produces a payload whose resets are in the future. They are the only
+ * readers of the `capture` field, and they are written to fail closed: a
+ * capture they cannot read rebuilds as null, which every parser refuses.
+ * ------------------------------------------------------------------ */
+
+function captureRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function captureNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function rebuildCodexCapture(capture: unknown, now: string): unknown {
+  const reduced = captureRecord(capture);
+  const percent = captureNumber(reduced?.["usedPercent"]);
+  const resetsIn = captureNumber(reduced?.["resetsInSeconds"]);
+  if (percent === null || resetsIn === null) return null;
+  const length = captureNumber(reduced?.["limitWindowSeconds"]);
+  const primary: Record<string, unknown> = {
+    used_percent: percent,
+    reset_at: epochOffset(now, resetsIn)
+  };
+  if (length !== null) primary["limit_window_seconds"] = length;
+  return { rate_limit: { primary_window: primary } };
+}
+
+export function rebuildAntigravityCapture(capture: unknown, now: string): unknown {
+  const reduced = captureRecord(capture);
+  const groups = reduced?.["groups"];
+  if (!Array.isArray(groups)) return null;
+  const rebuilt: unknown[] = [];
+  for (const entry of groups) {
+    const group = captureRecord(entry);
+    const buckets = group?.["buckets"];
+    if (!Array.isArray(buckets)) return null;
+    const rebuiltBuckets: unknown[] = [];
+    for (const rawBucket of buckets) {
+      const bucket = captureRecord(rawBucket);
+      const prefix = bucket?.["poolPrefix"];
+      const window = bucket?.["window"];
+      const fraction = captureNumber(bucket?.["remainingFraction"]);
+      const resetsIn = captureNumber(bucket?.["resetsInSeconds"]);
+      if (typeof prefix !== "string" || typeof window !== "string") return null;
+      if (fraction === null || resetsIn === null) return null;
+      rebuiltBuckets.push({
+        /* The id's tail named a model and a plan and was discarded, so a
+           neutral one is synthesised from the prefix the parser matches on. */
+        bucketId: prefix + "-captured",
+        window,
+        remainingFraction: fraction,
+        resetTime: rfc3339Offset(now, resetsIn)
+      });
+    }
+    rebuilt.push({ buckets: rebuiltBuckets });
+  }
+  return { groups: rebuilt };
+}
+
+function captureDurationWords(seconds: number): string {
+  const days = Math.floor(seconds / 86_400);
+  const hours = Math.floor((seconds % 86_400) / 3_600);
+  const minutes = Math.floor((seconds % 3_600) / 60);
+  const parts: string[] = [];
+  if (days > 0) parts.push(String(days) + (days === 1 ? " day" : " days"));
+  if (hours > 0) parts.push(String(hours) + (hours === 1 ? " hour" : " hours"));
+  if (parts.length === 0 && minutes > 0) {
+    parts.push(String(minutes) + (minutes === 1 ? " minute" : " minutes"));
+  }
+  return parts.join(" ");
+}
+
+export function rebuildOpencodeCapture(capture: unknown, now: string): unknown {
+  const reduced = captureRecord(capture);
+  const windows = reduced?.["windows"];
+  if (!Array.isArray(windows) || windows.length !== 3) return null;
+  const byLabel = new Map<string, { percent: number; resetsIn: string | null }>();
+  for (const entry of windows) {
+    const window = captureRecord(entry);
+    const label = window?.["label"];
+    const percent = captureNumber(window?.["percent"]);
+    if (typeof label !== "string" || percent === null) return null;
+    const resetsIn = captureNumber(window?.["resetsInSeconds"]);
+    byLabel.set(label, {
+      percent,
+      resetsIn: resetsIn === null ? null : captureDurationWords(resetsIn)
+    });
+  }
+  const rolling = byLabel.get("Rolling Usage");
+  const weekly = byLabel.get("Weekly Usage");
+  const monthly = byLabel.get("Monthly Usage");
+  if (rolling === undefined || weekly === undefined || monthly === undefined) return null;
+  return opencodePage(rolling, weekly, monthly, now);
+}
 
 export const sanitizedLiveFixtures: readonly SanitizedLiveFixture[] = [
   claudeSanitizedLive,

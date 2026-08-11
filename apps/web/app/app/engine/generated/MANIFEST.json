@@ -15,7 +15,7 @@
     "connectors/antigravity.ts": "0f7538687545dd8b",
     "connectors/claude.ts": "0332bf9a77f6da73",
     "connectors/codex.ts": "acc9c60e1b9b0243",
-    "connectors/fixtures.ts": "e6acb2c6bf951385",
+    "connectors/fixtures.ts": "d1c1b338ce4c11f7",
     "connectors/manual.ts": "6f78cc480072b7b7",
     "connectors/opencode.ts": "957216ebdcb84377",
     "connectors/openrouter.ts": "40986dd728a641af",
