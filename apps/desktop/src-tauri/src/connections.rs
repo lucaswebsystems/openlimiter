@@ -436,8 +436,53 @@ impl ConnectionsStore {
         self.save(connections)
     }
 
+    /// Decide and change one record inside a single held lock.
+    ///
+    /// `update` below takes a closure that cannot refuse, which forces any
+    /// caller that must CHECK the record before writing it to read first. That
+    /// is two lock acquisitions with a window between them, and in that window
+    /// another caller can read the same record and reach the same decision, or
+    /// a different operation can move the very field that was just checked.
+    ///
+    /// This takes a closure that can refuse. The check and the write happen
+    /// under one lock, so a decision made about a record is applied to the
+    /// record it was made about, or not at all. A refusal writes nothing: the
+    /// document is only saved once the closure has said yes.
+    ///
+    /// `E` carries the caller's own failure vocabulary and must be able to
+    /// represent a storage failure, so the caller sees one error type rather
+    /// than a nest of them.
+    pub fn compare_and_mutate<F, E>(&self, id: &str, decide: F) -> Result<ConnectionRecord, E>
+    where
+        F: FnOnce(&mut ConnectionRecord) -> Result<(), E>,
+        E: From<StoreError>,
+    {
+        let _held = self.guard.lock().map_err(|_| E::from(StoreError::Io))?;
+        let mut connections = self.load().map_err(E::from)?;
+        let record = connections
+            .iter_mut()
+            .find(|record| record.id == id)
+            .ok_or_else(|| E::from(StoreError::NotFound))?;
+        /* The decision, taken with the lock still held and the record in hand.
+        A refusal returns before anything is validated or saved. */
+        decide(record)?;
+        let identity_kept = record.id == id;
+        let changed = record.clone();
+        validate_record(&changed).map_err(E::from)?;
+        if !identity_kept {
+            return Err(E::from(StoreError::InvalidField));
+        }
+        self.save(connections).map_err(E::from)?;
+        Ok(changed)
+    }
+
     /// Change one record in place and persist the whole document. The changed
     /// record is revalidated before anything touches the disk.
+    ///
+    /// For a mutation that needs no decision. Anything that must read the
+    /// record before deciding whether to write it belongs in
+    /// `compare_and_mutate` above, or it will read under one lock and write
+    /// under another.
     pub fn update<F>(&self, id: &str, mutate: F) -> Result<ConnectionRecord, StoreError>
     where
         F: FnOnce(&mut ConnectionRecord),
@@ -1022,6 +1067,84 @@ mod tests {
         );
         std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), &text).expect("write");
         assert_eq!(store.list(), Err(StoreError::Corrupt));
+    }
+
+    #[test]
+    fn compare_and_mutate_holds_one_lock_across_the_decision_and_the_write() {
+        /*
+         * What this proves, exactly, and what it does not.
+         *
+         * It proves the PRIMITIVE really holds one lock across the decision and
+         * the write: while the closure runs, another thread's read of the same
+         * store cannot complete. That is the property `complete_attempt_core`
+         * relies on, and without it the structural test that merely checks the
+         * caller uses this function would be cosmetic.
+         *
+         * It does not catch the original bug on its own, because the bug lived
+         * in the CALLER, which read through `get` and wrote through `update`.
+         * The two together are what make the guarantee deterministic: this test
+         * says the primitive is atomic, and the structural test in commands.rs
+         * says the completion goes through it and never through a separate read.
+         */
+        let dir = TempDir::new();
+        let store = std::sync::Arc::new(ConnectionsStore::at(Some(dir.path().to_path_buf())));
+        store.insert(record("abc-123")).expect("insert");
+
+        let reader_finished = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let reader_started = std::sync::Arc::new(std::sync::Barrier::new(2));
+
+        let observed_inside: std::sync::Arc<std::sync::atomic::AtomicBool> =
+            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        let outcome = {
+            let store_for_reader = std::sync::Arc::clone(&store);
+            let finished = std::sync::Arc::clone(&reader_finished);
+            let started = std::sync::Arc::clone(&reader_started);
+            let inside = std::sync::Arc::clone(&observed_inside);
+            let reader = std::thread::spawn(move || {
+                started.wait();
+                let _ = store_for_reader.get("abc-123");
+                finished.store(true, std::sync::atomic::Ordering::SeqCst);
+            });
+            let result = store.compare_and_mutate::<_, StoreError>("abc-123", |record| {
+                /* Release the reader and give it every chance to finish. */
+                reader_started.wait();
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                inside.store(
+                    !reader_finished.load(std::sync::atomic::Ordering::SeqCst),
+                    std::sync::atomic::Ordering::SeqCst,
+                );
+                record.status = "CONNECTED".to_string();
+                Ok(())
+            });
+            reader.join().expect("the reader did not panic");
+            result
+        };
+
+        assert!(outcome.is_ok());
+        assert!(
+            observed_inside.load(std::sync::atomic::Ordering::SeqCst),
+            "another reader completed while the decision was still being made, so the \
+             decision and the write it authorises do not share one lock"
+        );
+        assert_eq!(store.get("abc-123").expect("get").status, "CONNECTED");
+    }
+
+    #[test]
+    fn a_refused_decision_writes_nothing() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        store.insert(record("abc-123")).expect("insert");
+        let outcome = store.compare_and_mutate::<_, StoreError>("abc-123", |record| {
+            record.status = "CONNECTED".to_string();
+            Err(StoreError::NotFound)
+        });
+        assert_eq!(outcome.map(|_| ()), Err(StoreError::NotFound));
+        assert_eq!(
+            store.get("abc-123").expect("get").status,
+            "READY_TO_ENABLE",
+            "a refusal must leave the record exactly as it was"
+        );
     }
 
     #[test]

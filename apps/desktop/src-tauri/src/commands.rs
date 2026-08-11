@@ -621,66 +621,99 @@ pub(crate) async fn refresh_core<T: Transport>(
 /// The generation check is the whole point: a completion is a claim about one
 /// specific request, and a claim about a request that has been superseded is
 /// refused rather than applied to the newer one.
+///
+/// All of it happens inside ONE locked compare and mutate. It used to read the
+/// record, decide, and then write in a second locked operation, and the window
+/// between the two was wide enough to lose the whole guarantee: two concurrent
+/// completions could both read an unspent witness and both pass, so one real
+/// provider response would stamp two successes, and a probe arriving in that
+/// window could move the generation so a completion was applied to an attempt
+/// it had already been superseded by. A check that is not held together with
+/// the write it authorises is not a check.
 pub(crate) fn complete_attempt_core(
     connections: &ConnectionsStore,
     input: CompleteAttemptInput,
 ) -> Result<ConnectionRecord, CommandFailure> {
     capped_connection_id(&input.connection_id)?;
-    let record = connections.get(&input.connection_id)?;
-    if record.attempt_generation != input.attempt_generation {
-        return Err(CommandFailure::StaleGeneration);
-    }
-    /*
-     * The invariant that makes CONNECTED mean something.
-     *
-     * A generation on its own is only a number the webview was told. Checking
-     * nothing else, a webview could learn it from an attempt that came back
-     * 401, or 500, or that never reached the provider at all, and then close
-     * that attempt as parsed and be marked CONNECTED with a success timestamp.
-     * That is a claim about a network read that never happened.
-     *
-     * So the completion is refused unless RUST watched this exact attempt
-     * return a body. Every disposition needs it, not just the successful ones:
-     * drift claims a body failed to parse and cache_failure claims one parsed,
-     * and neither is possible without a body. When no body arrived there is
-     * nothing to complete, and Rust has already settled the status itself.
-     */
-    if record.body_delivered_generation != Some(input.attempt_generation) {
-        return Err(CommandFailure::NoDeliveredBody);
-    }
     let at = now_epoch_ms();
-    /* The second bound: a completion already costs a real round trip, and this
-    stops a loop of them churning the record. Compared with saturating
-    arithmetic so a clock that moved backwards cannot open a window. */
-    if let Some(previous) = record.last_completion_at {
-        if at.saturating_sub(previous) < MIN_COMPLETION_INTERVAL_MS {
-            return Err(CommandFailure::TooSoon);
+    connections.compare_and_mutate(&input.connection_id, |record| {
+        if record.attempt_generation != input.attempt_generation {
+            return Err(CommandFailure::StaleGeneration);
         }
-    }
-    let updated = connections.update(&record.id, |it| {
-        it.last_completion_at = Some(at);
-        /* The witness is spent. One attempt, one completion: a replay of the
-        same generation finds nothing to stand on. */
-        it.body_delivered_generation = None;
+        /*
+         * The invariant that makes CONNECTED mean something.
+         *
+         * A generation on its own is only a number the webview was told.
+         * Checking nothing else, a webview could learn it from an attempt that
+         * came back 401, or 500, or that never reached the provider at all, and
+         * then close that attempt as parsed and be marked CONNECTED with a
+         * success timestamp. That is a claim about a read that never happened.
+         *
+         * So the completion is refused unless RUST watched this exact attempt
+         * return a body. Every disposition needs it, not just the successful
+         * ones: drift claims a body failed to parse and cache_failure claims
+         * one parsed, and neither is possible without a body. When no body
+         * arrived there is nothing to complete, and Rust has already settled
+         * the status itself.
+         */
+        if record.body_delivered_generation != Some(input.attempt_generation) {
+            return Err(CommandFailure::NoDeliveredBody);
+        }
+        /* The second bound: a completion already costs a real round trip, and
+        this stops a loop of them churning the record. Compared with saturating
+        arithmetic so a clock that moved backwards cannot open a window. */
+        if let Some(previous) = record.last_completion_at {
+            if at.saturating_sub(previous) < MIN_COMPLETION_INTERVAL_MS {
+                return Err(CommandFailure::TooSoon);
+            }
+        }
+
+        /*
+         * The invariant that makes CONNECTED mean something.
+         *
+         * A generation on its own is only a number the webview was told.
+         * Checking nothing else, a webview could learn it from an attempt that
+         * came back 401, or 500, or that never reached the provider at all, and
+         * then close that attempt as parsed and be marked CONNECTED with a
+         * success timestamp. That is a claim about a read that never happened.
+         *
+         * So the completion is refused unless RUST watched this exact attempt
+         * return a body. Every disposition needs it, not just the successful
+         * ones: drift claims a body failed to parse and cache_failure claims
+         * one parsed, and neither is possible without a body. When no body
+         * arrived there is nothing to complete, and Rust has already settled
+         * the status itself.
+         */
+
+        /* The second bound: a completion already costs a real round trip, and
+        this stops a loop of them churning the record. Compared with saturating
+        arithmetic so a clock that moved backwards cannot open a window. */
+
+        record.last_completion_at = Some(at);
+        /* The witness is spent, in the same locked operation that just checked
+        it. One attempt, one completion: a second caller that read the same
+        witness a moment earlier cannot exist, because there was no moment
+        earlier to read it in. */
+        record.body_delivered_generation = None;
         match input.disposition {
-        /* Both of these are completions: a connector understood the body, and
-        for a refresh the rows also reached the cache. Only here does
-        last_success_at move. */
-        AttemptDisposition::ParsedTest | AttemptDisposition::CacheCommitted => {
-            it.last_success_at = Some(at);
-            it.ever_connected = true;
-            it.consecutive_failures = 0;
-            it.status = STATUS_COMPLETED.to_string();
+            /* Both of these are completions: a connector understood the body,
+            and for a refresh the rows also reached the cache. Only here does
+            last_success_at move. */
+            AttemptDisposition::ParsedTest | AttemptDisposition::CacheCommitted => {
+                record.last_success_at = Some(at);
+                record.ever_connected = true;
+                record.consecutive_failures = 0;
+                record.status = STATUS_COMPLETED.to_string();
+            }
+            /* The provider answered well and no longer means what it meant. The
+            connection is in error and the success stamp does not move, so
+            nothing downstream can read this as a working refresh. */
+            AttemptDisposition::Drift | AttemptDisposition::CacheFailure => {
+                record.status = STATUS_ERROR.to_string();
+            }
         }
-        /* The provider answered well and no longer means what it meant. The
-        connection is in error and the success stamp does not move, so nothing
-        downstream can read this as a working refresh. */
-        AttemptDisposition::Drift | AttemptDisposition::CacheFailure => {
-            it.status = STATUS_ERROR.to_string();
-        }
-        }
-    })?;
-    Ok(updated)
+        Ok(())
+    })
 }
 
 pub(crate) fn disconnect_core(
@@ -1732,6 +1765,220 @@ mod tests {
             it.body_delivered_generation = Some(it.attempt_generation + 1);
         });
         assert_eq!(outcome.map(|_| ()), Err(StoreError::InvalidField));
+    }
+
+
+    /* ------------------------------- the completion is one operation */
+
+    /// A connected connection with an unspent witness, and its generation.
+    ///
+    /// Returned as an `Arc` so several threads can drive the same store, which
+    /// is the only way to exercise a lock window.
+    async fn witnessed(
+        dir: &TempDir,
+    ) -> (std::sync::Arc<ConnectionsStore>, InMemorySecrets, String, u64) {
+        let connections =
+            std::sync::Arc::new(ConnectionsStore::at(Some(dir.path().to_path_buf())));
+        let secrets = InMemorySecrets::new();
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let transport = RecordingTransport::replying(200, b"{\"ok\":true}".to_vec(), None);
+        let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("probe");
+        let generation = generation_of(&outcome);
+        (connections, secrets, record.id, generation)
+    }
+
+    #[tokio::test]
+    async fn two_concurrent_completions_cannot_share_one_witness() {
+        /*
+         * THE RACE. The completion used to read and validate the record under
+         * one lock, then write under another. Two callers arriving together both
+         * read an unspent witness, both passed every check, and both wrote: one
+         * real provider response stamping two successes.
+         *
+         * The barrier is what makes this a test rather than a hope. Spawning
+         * threads one after another lets the early ones finish before the late
+         * ones start, which is why an earlier version of this test caught the
+         * bug about one run in five. Released together, every thread reaches the
+         * read before any of them reaches the write, which is precisely the
+         * window the finding describes.
+         */
+        const RACERS: usize = 12;
+        for round in 0..24 {
+            let dir = TempDir::new();
+            let (connections, _secrets, id, generation) = witnessed(&dir).await;
+            let gate = std::sync::Arc::new(std::sync::Barrier::new(RACERS));
+            let mut threads = Vec::new();
+            for racer in 0..RACERS {
+                let store = std::sync::Arc::clone(&connections);
+                let start = std::sync::Arc::clone(&gate);
+                let connection_id = id.clone();
+                threads.push(std::thread::spawn(move || {
+                    start.wait();
+                    /* Staggered by microseconds across the racers and swept
+                    across the rounds. Released at exactly the same instant they
+                    pile onto the lock and hand off one at a time, which is the
+                    one arrangement that does NOT land in the window; offset by a
+                    hair, they overlap it. Under the fixed code every offset is
+                    safe, so the sweep costs nothing and it is what makes the
+                    unfixed code fail. */
+                    std::thread::sleep(std::time::Duration::from_micros(
+                        (racer as u64) * (round as u64 % 6),
+                    ));
+                    complete_attempt_core(
+                        &store,
+                        CompleteAttemptInput {
+                            connection_id,
+                            attempt_generation: generation,
+                            disposition: AttemptDisposition::CacheCommitted,
+                        },
+                    )
+                }));
+            }
+            let outcomes: Vec<_> = threads
+                .into_iter()
+                .map(|thread| thread.join().expect("the thread did not panic"))
+                .collect();
+            let accepted = outcomes.iter().filter(|outcome| outcome.is_ok()).count();
+            assert_eq!(
+                accepted, 1,
+                "round {round}: one witness accepted {accepted} completions"
+            );
+            /* And every refusal is a typed one, not a storage accident. */
+            for outcome in &outcomes {
+                if let Err(failure) = outcome {
+                    assert!(
+                        matches!(
+                            failure,
+                            CommandFailure::NoDeliveredBody
+                                | CommandFailure::TooSoon
+                                | CommandFailure::StaleGeneration
+                        ),
+                        "an unexpected failure came out of the race: {failure:?}"
+                    );
+                }
+            }
+            let after = connections.get(&id).expect("get");
+            assert_eq!(after.body_delivered_generation, None, "the witness survived");
+            assert!(after.last_completion_at.is_some());
+        }
+    }
+
+    #[tokio::test]
+    async fn a_completion_is_never_applied_to_a_generation_it_did_not_check() {
+        /*
+         * THE INTERLEAVING. A probe arriving between the check and the write
+         * moved the generation, so the completion was applied to an attempt it
+         * had already been superseded by.
+         *
+         * The assertion is exact rather than statistical: a completion returns
+         * the record AS MUTATED under the lock, so its generation must equal the
+         * one the caller presented. If a probe slipped in between, the returned
+         * record carries the newer generation and this fails outright.
+         *
+         * A barrier releases both sides together, and the probe side is delayed
+         * by a sweep of small amounts across rounds, because the window sits a
+         * few microseconds after the read and one fixed delay would either
+         * always miss it or always land before it. Under the fixed code every
+         * one of these timings is safe, so the sweep costs nothing and it is
+         * what makes the unfixed code fail.
+         */
+        for round in 0..40u64 {
+            let dir = TempDir::new();
+            let (connections, secrets, id, generation) = witnessed(&dir).await;
+            let secrets = std::sync::Arc::new(secrets);
+            let gate = std::sync::Arc::new(std::sync::Barrier::new(2));
+
+            let completing = {
+                let store = std::sync::Arc::clone(&connections);
+                let start = std::sync::Arc::clone(&gate);
+                let connection_id = id.clone();
+                std::thread::spawn(move || {
+                    start.wait();
+                    complete_attempt_core(
+                        &store,
+                        CompleteAttemptInput {
+                            connection_id,
+                            attempt_generation: generation,
+                            disposition: AttemptDisposition::CacheCommitted,
+                        },
+                    )
+                })
+            };
+            let probing = {
+                let store = std::sync::Arc::clone(&connections);
+                let store_secrets = std::sync::Arc::clone(&secrets);
+                let start = std::sync::Arc::clone(&gate);
+                let connection_id = id.clone();
+                std::thread::spawn(move || {
+                    start.wait();
+                    std::thread::sleep(std::time::Duration::from_micros(round * 25));
+                    let runtime = tokio::runtime::Builder::new_current_thread()
+                        .build()
+                        .expect("a runtime for the probe");
+                    let transport =
+                        RecordingTransport::replying(200, b"{\"ok\":true}".to_vec(), None);
+                    runtime.block_on(test_core(
+                        &store,
+                        &*store_secrets,
+                        &transport,
+                        ProbeInput { connection_id },
+                    ))
+                })
+            };
+
+            let completed = completing.join().expect("the completion did not panic");
+            probing
+                .join()
+                .expect("the probe did not panic")
+                .expect("the probe itself must succeed");
+
+            match completed {
+                Ok(updated) => assert_eq!(
+                    updated.attempt_generation, generation,
+                    "round {round}: a completion for generation {generation} was applied to a \
+                     record already at {}",
+                    updated.attempt_generation
+                ),
+                /* Losing the race is correct: the probe got there first, so the
+                completion is about a superseded attempt. */
+                Err(failure) => assert!(
+                    matches!(
+                        failure,
+                        CommandFailure::StaleGeneration | CommandFailure::NoDeliveredBody
+                    ),
+                    "round {round}: an unexpected failure: {failure:?}"
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn the_completion_reads_and_writes_under_one_lock() {
+        /*
+         * The structural half, so the property survives an edit that the
+         * scheduler happens not to catch. A `get` inside this function would be
+         * a read under a lock the write does not hold.
+         */
+        let source = include_str!("commands.rs");
+        let body = source
+            .split("pub(crate) fn complete_attempt_core(")
+            .nth(1)
+            .and_then(|rest| rest.split("\npub(crate) fn ").next())
+            .expect("the completion is declared here");
+        assert!(
+            body.contains("compare_and_mutate"),
+            "the completion must decide and write inside one locked operation"
+        );
+        assert!(
+            !body.contains("connections.get("),
+            "the completion must not read the record under a separate lock"
+        );
+        assert!(
+            !body.contains("connections.update("),
+            "the completion must not write under a lock that did not make the decision"
+        );
     }
 
     /* -------------------------------------------------- remaining verbs */
