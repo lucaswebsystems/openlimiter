@@ -109,6 +109,10 @@ const FAILURE_SENTENCES = {
   too_large: "The answer was too large to accept.",
   busy: "Another write held the cache. Trying again may succeed.",
   stale_generation: "The cache moved underneath this write. Trying again may succeed.",
+  no_delivered_body:
+    "That read never received an answer from the provider, so there is nothing " +
+    "to record from it.",
+  too_soon: "That was too soon after the last one. Trying again shortly may succeed.",
   not_json: "The text was not valid JSON.",
 };
 

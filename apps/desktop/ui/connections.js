@@ -498,7 +498,11 @@ async function probe(record, refresh) {
     };
   }
   const inTwoHundreds = outcome.status >= 200 && outcome.status <= 299;
-  if (!inTwoHundreds || outcome.body === null) {
+  /* An empty body is not an answer. No parser here can read a meter out of zero
+     bytes, and the backend refuses to complete an attempt that delivered one, so
+     calling it drift would report a provider interface change that did not
+     happen. It is a read that produced nothing, which is what it says. */
+  if (!inTwoHundreds || outcome.body === null || outcome.body === "") {
     return {
       ...empty,
       generation: outcome.attemptGeneration,

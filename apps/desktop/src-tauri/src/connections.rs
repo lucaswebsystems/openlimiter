@@ -108,6 +108,23 @@ pub struct ConnectionRecord {
     pub last_success_at: Option<u64>,
     #[serde(default)]
     pub attempt_generation: u64,
+    /// The generation of the most recent attempt that Rust itself watched
+    /// return a `2xx` WITH A BODY, and handed to the webview.
+    ///
+    /// This is the witness that makes a completion checkable. Without it, an
+    /// attempt generation is only a number the webview was told, so a webview
+    /// could learn it from an attempt that returned 401, or from one that
+    /// returned nothing at all, and then close that attempt as a success. With
+    /// it, Rust can answer the only question that matters: was there ever a
+    /// body for the webview to have parsed?
+    ///
+    /// Cleared whenever an attempt does not deliver a body, so a witness can
+    /// never outlive the attempt it belongs to.
+    #[serde(default)]
+    pub body_delivered_generation: Option<u64>,
+    /// When a completion was last accepted, so the transition can be rated.
+    #[serde(default)]
+    pub last_completion_at: Option<u64>,
     #[serde(default)]
     pub ever_connected: bool,
     #[serde(default)]
@@ -215,6 +232,10 @@ fn migrate_legacy_record(legacy: LegacyConnectionRecord) -> Result<ConnectionRec
         last_attempt_at: later_of(legacy.last_test_at, legacy.last_refresh_at),
         last_success_at: legacy.last_refresh_at,
         attempt_generation: 0,
+        /* No legacy document recorded either, and a witness cannot be invented:
+        the first completion after a migration needs a real attempt. */
+        body_delivered_generation: None,
+        last_completion_at: None,
         ever_connected: legacy.last_test_at.is_some() || legacy.last_refresh_at.is_some(),
         consecutive_failures: 0,
         status: legacy.status,
@@ -509,7 +530,13 @@ pub(crate) fn validate_record(record: &ConnectionRecord) -> Result<(), StoreErro
         && record.last_attempt_at.is_none_or(valid_timestamp)
         && record.last_success_at.is_none_or(valid_timestamp)
         && record.attempt_generation <= MAX_ATTEMPT_GENERATION
-        && record.consecutive_failures <= MAX_CONSECUTIVE_FAILURES;
+        && record.consecutive_failures <= MAX_CONSECUTIVE_FAILURES
+        && record.last_completion_at.is_none_or(valid_timestamp)
+        /* A witness for a generation that has not happened yet is a tampered
+        document, not a state this build can reach. */
+        && record
+            .body_delivered_generation
+            .is_none_or(|generation| generation <= record.attempt_generation);
     if valid {
         Ok(())
     } else {
@@ -534,6 +561,8 @@ mod tests {
             last_attempt_at: None,
             last_success_at: None,
             attempt_generation: 0,
+            body_delivered_generation: None,
+            last_completion_at: None,
             ever_connected: false,
             consecutive_failures: 0,
             status: "READY_TO_ENABLE".to_string(),

@@ -80,6 +80,11 @@ pub enum CommandFailure {
     TooLarge,
     Busy,
     StaleGeneration,
+    /// The attempt being completed never delivered a body to the webview, so
+    /// there is nothing it could have parsed and nothing to complete.
+    NoDeliveredBody,
+    /// Completions are arriving faster than the floor allows.
+    TooSoon,
     NotJson,
     /// The stored credential does not belong to the stored provider, so no
     /// address exists for it. Unreachable through the connect path, which
@@ -92,7 +97,7 @@ impl CommandFailure {
     /// Every variant, for the redaction test that formats them all. The
     /// product itself never needs the list.
     #[cfg(test)]
-    pub const ALL: [CommandFailure; 14] = [
+    pub const ALL: [CommandFailure; 16] = [
         CommandFailure::InvalidInput,
         CommandFailure::NotFound,
         CommandFailure::Full,
@@ -105,6 +110,8 @@ impl CommandFailure {
         CommandFailure::TooLarge,
         CommandFailure::Busy,
         CommandFailure::StaleGeneration,
+        CommandFailure::NoDeliveredBody,
+        CommandFailure::TooSoon,
         CommandFailure::NotJson,
         CommandFailure::RouteRefused,
     ];
@@ -129,6 +136,10 @@ impl fmt::Display for CommandFailure {
             CommandFailure::StaleGeneration => {
                 "this write session is no longer current and was refused"
             }
+            CommandFailure::NoDeliveredBody => {
+                "this attempt never received a provider body, so it cannot be completed"
+            }
+            CommandFailure::TooSoon => "completions are arriving faster than allowed",
             CommandFailure::NotJson => "the cache text is not a JSON document",
             CommandFailure::RouteRefused => {
                 "this connection pairs a credential with a provider it does not belong to"
@@ -229,6 +240,15 @@ pub const STATUS_AUTH_EXPIRED: &str = "AUTH_EXPIRED";
 pub const STATUS_DEGRADED: &str = "DEGRADED";
 /// The status of a connection that failed in a way retrying will not fix.
 pub const STATUS_ERROR: &str = "ERROR";
+
+/// Shortest gap between two accepted completions on one connection.
+///
+/// A completion already costs a real network round trip, because it is refused
+/// unless Rust watched that exact attempt return a body. This floor is the
+/// second bound: it stops a webview looping probe and complete as fast as the
+/// provider will answer, churning the connections file and the success stamp.
+/// Short enough that a person pressing Test and then Refresh never notices.
+pub const MIN_COMPLETION_INTERVAL_MS: u64 = 250;
 
 /// How many consecutive failures turn a degraded connection into a broken one,
 /// mirroring `NETWORK_FAILURE_ERROR_THRESHOLD` in
@@ -398,6 +418,8 @@ pub(crate) fn connect_core(
         last_attempt_at: None,
         last_success_at: None,
         attempt_generation: 0,
+        body_delivered_generation: None,
+        last_completion_at: None,
         ever_connected: false,
         consecutive_failures: 0,
         /* Derived, never accepted. A stored credential means ready to enable
@@ -472,9 +494,16 @@ fn settle_request(
     connections: &ConnectionsStore,
     id: &str,
     status: Option<u16>,
+    delivered_body: bool,
+    generation: u64,
 ) -> Result<(), CommandFailure> {
     connections.update(id, |it| {
         let failures_after = it.consecutive_failures.saturating_add(1).min(MAX_CONSECUTIVE_FAILURES);
+        /* The witness. Set only when THIS process watched this attempt come
+        back in the 200 range carrying a body, and cleared otherwise, so a
+        witness can never outlive the attempt that earned it. Everything the
+        completion path is allowed to believe rests on this line. */
+        it.body_delivered_generation = if delivered_body { Some(generation) } else { None };
         match status {
             Some(status) => {
                 let (next, counted) = status_verdict(status, failures_after);
@@ -514,7 +543,20 @@ async fn probe_core<T: Transport>(
     let fetched = fetch_endpoint(transport, route.endpoint, route.auth, &secret).await;
     match fetched {
         Ok(outcome) => {
-            settle_request(connections, &record.id, Some(outcome.status))?;
+            /* A 2xx with no body is not a delivered body, and neither is a 2xx
+            with an EMPTY one: no parser in the product can read a meter out of
+            zero bytes, so allowing it would leave a forgery surface for nothing
+            in return. The transport drops every non 2xx body unread, so this is
+            exactly "the webview received something it could have parsed". */
+            let delivered = (200..=299).contains(&outcome.status)
+                && outcome.body.as_deref().is_some_and(|body| !body.is_empty());
+            settle_request(
+                connections,
+                &record.id,
+                Some(outcome.status),
+                delivered,
+                attempt_generation,
+            )?;
             Ok(ProbeOutcome::Response {
                 connection_id: record.id,
                 reader_id: route.reader_id,
@@ -525,7 +567,7 @@ async fn probe_core<T: Transport>(
             })
         }
         Err(error) => {
-            settle_request(connections, &record.id, None)?;
+            settle_request(connections, &record.id, None, false, attempt_generation)?;
             Ok(ProbeOutcome::TransportFailure {
                 connection_id: record.id,
                 reader_id: route.reader_id,
@@ -574,8 +616,39 @@ pub(crate) fn complete_attempt_core(
     if record.attempt_generation != input.attempt_generation {
         return Err(CommandFailure::StaleGeneration);
     }
+    /*
+     * The invariant that makes CONNECTED mean something.
+     *
+     * A generation on its own is only a number the webview was told. Checking
+     * nothing else, a webview could learn it from an attempt that came back
+     * 401, or 500, or that never reached the provider at all, and then close
+     * that attempt as parsed and be marked CONNECTED with a success timestamp.
+     * That is a claim about a network read that never happened.
+     *
+     * So the completion is refused unless RUST watched this exact attempt
+     * return a body. Every disposition needs it, not just the successful ones:
+     * drift claims a body failed to parse and cache_failure claims one parsed,
+     * and neither is possible without a body. When no body arrived there is
+     * nothing to complete, and Rust has already settled the status itself.
+     */
+    if record.body_delivered_generation != Some(input.attempt_generation) {
+        return Err(CommandFailure::NoDeliveredBody);
+    }
     let at = now_epoch_ms();
-    let updated = connections.update(&record.id, |it| match input.disposition {
+    /* The second bound: a completion already costs a real round trip, and this
+    stops a loop of them churning the record. Compared with saturating
+    arithmetic so a clock that moved backwards cannot open a window. */
+    if let Some(previous) = record.last_completion_at {
+        if at.saturating_sub(previous) < MIN_COMPLETION_INTERVAL_MS {
+            return Err(CommandFailure::TooSoon);
+        }
+    }
+    let updated = connections.update(&record.id, |it| {
+        it.last_completion_at = Some(at);
+        /* The witness is spent. One attempt, one completion: a replay of the
+        same generation finds nothing to stand on. */
+        it.body_delivered_generation = None;
+        match input.disposition {
         /* Both of these are completions: a connector understood the body, and
         for a refresh the rows also reached the cache. Only here does
         last_success_at move. */
@@ -590,6 +663,7 @@ pub(crate) fn complete_attempt_core(
         downstream can read this as a working refresh. */
         AttemptDisposition::Drift | AttemptDisposition::CacheFailure => {
             it.status = STATUS_ERROR.to_string();
+        }
         }
     })?;
     Ok(updated)
@@ -1404,6 +1478,207 @@ mod tests {
             connections.get(&record.id).expect("get").last_success_at,
             None
         );
+    }
+
+
+    /* --------------------------------------------- the forgery, closed */
+
+    /// Complete an attempt whose outcome came back however the case needs, and
+    /// report what the backend said.
+    async fn complete_after(
+        status: u16,
+        body: Vec<u8>,
+        disposition: AttemptDisposition,
+    ) -> (Result<ConnectionRecord, CommandFailure>, ConnectionRecord) {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let transport = RecordingTransport::replying(status, body, None);
+        let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("probe");
+        let attempted = connections.get(&record.id).expect("get");
+        let completed = complete_attempt_core(
+            &connections,
+            CompleteAttemptInput {
+                connection_id: record.id.clone(),
+                attempt_generation: generation_of(&outcome),
+                disposition,
+            },
+        );
+        let after = connections.get(&record.id).expect("get");
+        let _ = attempted;
+        (completed, after)
+    }
+
+    #[tokio::test]
+    async fn an_attempt_the_provider_refused_cannot_be_completed_as_a_success() {
+        /* THE FORGERY. The webview learns the generation from every outcome,
+        including a refusal, so generation equality alone let it close a 401 as
+        a parsed success and be marked CONNECTED with a success timestamp: a
+        claim about a network read that never happened. */
+        for status in [401u16, 403, 429, 500, 503] {
+            let (outcome, after) =
+                complete_after(status, b"denied".to_vec(), AttemptDisposition::ParsedTest).await;
+            assert_eq!(
+                outcome.map(|_| ()),
+                Err(CommandFailure::NoDeliveredBody),
+                "status {status} was completable as a success"
+            );
+            assert_ne!(after.status, STATUS_COMPLETED);
+            assert_eq!(after.last_success_at, None);
+            assert!(!after.ever_connected);
+        }
+    }
+
+    #[tokio::test]
+    async fn no_disposition_at_all_survives_a_missing_body() {
+        /* Every disposition needs the witness, not only the successful ones:
+        drift claims a body failed to parse and cache_failure claims one parsed,
+        and neither is possible without a body. */
+        for disposition in [
+            AttemptDisposition::ParsedTest,
+            AttemptDisposition::CacheCommitted,
+            AttemptDisposition::Drift,
+            AttemptDisposition::CacheFailure,
+        ] {
+            let (outcome, _) = complete_after(401, b"denied".to_vec(), disposition).await;
+            assert_eq!(outcome.map(|_| ()), Err(CommandFailure::NoDeliveredBody));
+        }
+    }
+
+    #[tokio::test]
+    async fn a_transport_failure_cannot_be_completed_at_all() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let transport = FailingTransport::with(TransportFailure::Timeout);
+        let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("probe");
+        let completed = complete_attempt_core(
+            &connections,
+            CompleteAttemptInput {
+                connection_id: record.id.clone(),
+                attempt_generation: generation_of(&outcome),
+                disposition: AttemptDisposition::CacheCommitted,
+            },
+        );
+        assert_eq!(completed.map(|_| ()), Err(CommandFailure::NoDeliveredBody));
+        assert_eq!(
+            connections.get(&record.id).expect("get").last_success_at,
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn an_empty_two_hundred_body_is_not_something_to_have_parsed() {
+        /* No parser in the product reads a meter out of zero bytes, so allowing
+        this would leave a forgery surface and buy nothing. */
+        let (outcome, after) =
+            complete_after(200, Vec::new(), AttemptDisposition::ParsedTest).await;
+        assert_eq!(outcome.map(|_| ()), Err(CommandFailure::NoDeliveredBody));
+        assert_eq!(after.last_success_at, None);
+    }
+
+    #[tokio::test]
+    async fn a_completion_cannot_be_replayed_against_its_own_generation() {
+        /* One attempt, one completion. The witness is spent when it is used, so
+        a replay of the same generation finds nothing to stand on and cannot
+        keep refreshing the success stamp off one real read. */
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let transport = RecordingTransport::replying(200, b"{\"ok\":true}".to_vec(), None);
+        let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("probe");
+        let input = || CompleteAttemptInput {
+            connection_id: record.id.clone(),
+            attempt_generation: generation_of(&outcome),
+            disposition: AttemptDisposition::ParsedTest,
+        };
+        complete_attempt_core(&connections, input()).expect("the first completion stands");
+        assert_eq!(
+            complete_attempt_core(&connections, input()).map(|_| ()),
+            Err(CommandFailure::NoDeliveredBody)
+        );
+    }
+
+    #[tokio::test]
+    async fn completions_are_rated_even_when_every_one_is_witnessed() {
+        /* The second bound. Each completion here is backed by a real attempt
+        that really delivered a body, so the witness cannot refuse them; the
+        floor is what stops a webview looping probe and complete as fast as a
+        provider will answer. */
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let transport = RecordingTransport::replying(200, b"{\"ok\":true}".to_vec(), None);
+        let complete = |outcome: &ProbeOutcome| CompleteAttemptInput {
+            connection_id: record.id.clone(),
+            attempt_generation: generation_of(outcome),
+            disposition: AttemptDisposition::CacheCommitted,
+        };
+
+        let first = test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("probe");
+        complete_attempt_core(&connections, complete(&first)).expect("the first stands");
+        let stamped = connections.get(&record.id).expect("get").last_success_at;
+        assert!(stamped.is_some());
+
+        let second = test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("probe");
+        assert_eq!(
+            complete_attempt_core(&connections, complete(&second)).map(|_| ()),
+            Err(CommandFailure::TooSoon),
+            "a second completion inside the floor must be refused"
+        );
+        /* Refused, and the earlier stamp is left exactly as it was. */
+        assert_eq!(
+            connections.get(&record.id).expect("get").last_success_at,
+            stamped
+        );
+    }
+
+    #[tokio::test]
+    async fn the_witness_does_not_outlive_the_attempt_that_earned_it() {
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let good = RecordingTransport::replying(200, b"{\"ok\":true}".to_vec(), None);
+        let first = test_core(&connections, &secrets, &good, probe(&record.id))
+            .await
+            .expect("probe");
+        assert_eq!(
+            connections.get(&record.id).expect("get").body_delivered_generation,
+            Some(generation_of(&first))
+        );
+        /* A later attempt that delivers nothing clears it, so the earlier
+        witness cannot be spent late. */
+        let bad = RecordingTransport::replying(401, b"denied".to_vec(), None);
+        test_core(&connections, &secrets, &bad, probe(&record.id))
+            .await
+            .expect("probe");
+        assert_eq!(
+            connections.get(&record.id).expect("get").body_delivered_generation,
+            None
+        );
+    }
+
+    #[test]
+    fn a_witness_ahead_of_its_own_attempt_is_a_tampered_document() {
+        /* The only way to forge a witness is to edit the file, and a witness for
+        a generation that has not happened is refused on the way in. */
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let record = connect_core(&connections, &secrets, connect_input()).expect("connect");
+        let outcome = connections.update(&record.id, |it| {
+            it.body_delivered_generation = Some(it.attempt_generation + 1);
+        });
+        assert_eq!(outcome.map(|_| ()), Err(StoreError::InvalidField));
     }
 
     /* -------------------------------------------------- remaining verbs */
