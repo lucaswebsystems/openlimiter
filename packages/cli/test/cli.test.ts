@@ -108,8 +108,9 @@ describe("CLI", () => {
       payloads
     });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("CLAUDE FIVE_HOUR ####...... 42.00PERCENT");
-    expect(result.stdout).toContain("OPENROUTER CREDITS ######.... 62.35PERCENT");
+    /* The padded table carries every bounded meter with its percent and bar. */
+    expect(result.stdout).toMatch(/CLAUDE\s+FIVE_HOUR\s+[^\s]{10}\s+42\.00PERCENT/);
+    expect(result.stdout).toMatch(/OPENROUTER\s+CREDITS\s+[^\s]{10}\s+62\.35PERCENT/);
     expect(result.stdout.includes("demo@example.test")).toBe(false);
   });
 
@@ -145,20 +146,22 @@ describe("CLI", () => {
         payloads
       });
       expect(result.stdout).toBe([
-        "PROVIDER METER BAR USAGE AMOUNT STATE RESET IN",
-        "ANTIGRAVITY PRIMARY ##........ 28.00PERCENT NONE fresh " +
-          "2026-01-01T05:00:00.000Z 5h0m",
-        "CLAUDE FIVE_HOUR ####...... 42.00PERCENT NONE fresh " +
-          "2026-01-01T05:00:00.000Z 5h0m",
-        "CLAUDE SEVEN_DAY ######.... 64.00PERCENT NONE fresh " +
-          "2026-01-08T00:00:00.000Z 7d0h",
-        "CODEX PRIMARY ########.. 84.00PERCENT NONE fresh " +
-          "2026-01-01T05:00:00.000Z 5h0m",
-        "MANUAL MONTHLY ###....... 35.00PERCENT NONE fresh " +
-          "2026-02-01T00:00:00.000Z 31d0h",
-        "OPENCODE PRIMARY #########. 92.00PERCENT NONE fresh " +
-          "2026-01-01T20:00:00.000Z 20h0m",
-        "OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE"
+        "PROVIDER    METER     BAR        USAGE        AMOUNT        " +
+          "STATE RESET                    IN    SOURCE       ",
+        "OPENCODE    PRIMARY   #########. 92.00PERCENT NONE          " +
+          "fresh 2026-01-01T20:00:00.000Z 20h0m [import only]",
+        "CODEX       PRIMARY   ########.. 84.00PERCENT NONE          " +
+          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "CLAUDE      SEVEN_DAY ######.... 64.00PERCENT NONE          " +
+          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "CLAUDE      FIVE_HOUR ####...... 42.00PERCENT NONE          " +
+          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "OPENROUTER  CREDITS   ######.... 62.35PERCENT $12.47/$20.00 " +
+          "fresh NONE                     NONE  [import only]",
+        "MANUAL      MONTHLY   ###....... 35.00PERCENT NONE          " +
+          "fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
+        "ANTIGRAVITY PRIMARY   ##........ 28.00PERCENT NONE          " +
+          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]"
       ].join("\n"));
     });
 
@@ -512,7 +515,7 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW
     });
     expect(refreshed.exitCode).toBe(0);
-    expect(refreshed.stdout).toContain("MANUAL MONTHLY ###....... 35.00PERCENT");
+    expect(refreshed.stdout).toMatch(/MANUAL\s+MONTHLY\s+[^\s]{10}\s+35\.00PERCENT/);
     const doctor = await runCli(["doctor"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -536,7 +539,7 @@ describe("CLI", () => {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
-    expect(refreshed.stdout).toContain("MANUAL MONTHLY ###....... 35.00PERCENT");
+    expect(refreshed.stdout).toMatch(/MANUAL\s+MONTHLY\s+[^\s]{10}\s+35\.00PERCENT/);
     expect(refreshed.stdout.includes("bad name")).toBe(false);
   });
 
@@ -690,7 +693,7 @@ describe("CLI", () => {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
-    expect(demo.stdout).toContain("MANUAL MONTHLY ###....... 35.00PERCENT");
+    expect(demo.stdout).toMatch(/MANUAL\s+MONTHLY\s+[^\s]{10}\s+35\.00PERCENT/);
     const emptyExport = await runCli(["export"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -713,11 +716,15 @@ describe("CLI", () => {
     const lines = demo.stdout.split("\n").slice(1);
     expect(lines.length).toBeGreaterThan(0);
     for (const line of lines) {
-      const columns = line.split(" ");
-      expect(columns).toHaveLength(8);
-      expect(columns[2]).toMatch(/^[#.]{10}$/u);
-      expect(columns[3]).toMatch(/^\d+\.\d\dPERCENT$/u);
-      expect(columns[7]).not.toBe("");
+      const tokens = line.split(/\s+/);
+      /* Nine named columns; the SOURCE chip may span multiple tokens. */
+      expect(tokens.length).toBeGreaterThanOrEqual(9);
+      /* Bar column always spans exactly ten visible characters. */
+      expect(tokens[2]).toHaveLength(10);
+      /* USAGE carries an exact percent with two decimal places. */
+      expect(tokens[3]).toMatch(/^\d+\.\d\dPERCENT$/u);
+      /* The IN column (time to reset) is never empty. */
+      expect(tokens[7]).not.toBe("");
     }
   });
 
@@ -810,7 +817,7 @@ describe("CLI", () => {
       colorOutput: false,
       payloads: { claude: payloads.claude }
     });
-    expect(result.stdout).toContain("CLAUDE FIVE_HOUR");
+    expect(result.stdout).toMatch(/CLAUDE\s+FIVE_HOUR/);
     for (const category of [
       "PAYLOAD_UNREADABLE",
       "SESSION_EXPIRED",
@@ -959,12 +966,13 @@ describe("CLI", () => {
       });
       expect(set.exitCode).toBe(0);
     }
-    const statusline = await runCli(["statusline"], {
-      stateDirectory: directory,
-      now: () => FIXTURE_NOW,
-      /* Colour is off for this run, and the configuration overrules it. */
-      colorOutput: false
-    });
+        const statusline = await runCli(["statusline"], {
+          stateDirectory: directory,
+          environment: {},
+          now: () => FIXTURE_NOW,
+          /* Colour is off for this run, and the configuration overrules it. */
+          colorOutput: false
+        });
     expect(statusline.stdout).toContain(ESCAPE + "[31m");
     expect(statusline.stdout).toContain("CLAUDE:FIVE_HOUR");
     expect(statusline.stdout).toContain("CLAUDE:SEVEN_DAY");

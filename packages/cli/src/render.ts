@@ -1,10 +1,12 @@
 import {
+  collectionIdentity,
   failureSentence,
   floorFixed,
   freshness,
   type FailureCategory,
   type ProviderFailure,
   type Snapshot,
+  type SnapshotProvenance,
   type SnapshotState
 } from "@openlimiter/core";
 
@@ -13,7 +15,7 @@ import {
  *
  * This is the command line tool's presentation layer and nothing else lives
  * here. Every number arrives already decided by the engine; this module only
- * chooses a colour band, a bar, and a form of words.
+ * chooses a colour band, a bar, a source chip, and a form of words.
  *
  * THE PRESSURE BANDS, AND WHY RED IS NOT WHERE THE ENGINE WARNS
  * -------------------------------------------------------------
@@ -144,6 +146,26 @@ export function supports256Color(
 }
 
 /**
+ * Whether this terminal can draw the eighth block glyphs used for sub character
+ * bar resolution.
+ *
+ * Three things veto it, and any one is enough: the NO_COLOR convention, a
+ * stream that is not a terminal, and a platform whose default console draws box
+ * characters as empty rectangles. A fallback to plain ASCII blocks keeps the
+ * output readable on the platforms that need it.
+ */
+export function supportsEighthBlocks(
+  environment: Readonly<Record<string, string | undefined>>,
+  isTty: boolean,
+  platform: string
+): boolean {
+  if (environment["NO_COLOR"] !== undefined) return false;
+  if (!isTty) return false;
+  if (platform === "win32" && environment["WT_SESSION"] === undefined) return false;
+  return true;
+}
+
+/**
  * The one place a band becomes a colour.
  *
  * Both the ten block table bar and the five block statusline bar come through
@@ -159,6 +181,9 @@ function paint(text: string, code: string, color: boolean): string {
   return color ? ESCAPE + code + "m" + text + RESET : text;
 }
 
+/** The eighth block glyphs, from one eighth to seven eighths. */
+const EIGHTH_GLYPHS = ["", "\u258f", "\u258e", "\u258d", "\u258c", "\u258b", "\u258a", "\u2589"];
+
 /**
  * The segmented bar.
  *
@@ -168,6 +193,11 @@ function paint(text: string, code: string, color: boolean): string {
  * it is the same positions in plain ASCII, because a terminal that reported no
  * colour support may also be a log file, and a log file should carry no escape
  * codes at all.
+ *
+ * The table bar also gains sub character resolution when the terminal can draw
+ * the eighth block glyphs, so readings that differ by a few percent no longer
+ * share the same bar. A terminal that cannot draw them falls back to the whole
+ * block rendering, exactly as before.
  *
  * The block count is the only thing the caller chooses. The band, and therefore
  * the colour, comes from the reading alone, so the same percentage is the same
@@ -183,15 +213,33 @@ export function meterBar(
   state: SnapshotState,
   color: boolean,
   segments = BAR_SEGMENTS,
-  wide = supports256Color(process.env)
+  wide = supports256Color(process.env),
+  eighthBlocks = supportsEighthBlocks(
+    process.env,
+    process.stdout.isTTY === true,
+    process.platform
+  )
 ): string {
   const known = state !== "unknown";
+  const band: Pressure = known ? pressureOf(percent) : "none";
+
+  if (segments === BAR_SEGMENTS && known && eighthBlocks) {
+    const bounded = Math.min(100, Math.max(0, percent));
+    const totalEighths = Math.round((bounded / 100) * segments * 8);
+    const full = Math.floor(totalEighths / 8);
+    const remainder = totalEighths % 8;
+    const empty = Math.max(0, segments - full - (remainder > 0 ? 1 : 0));
+    const glyphs = "\u2588".repeat(full) +
+      (remainder > 0 ? EIGHTH_GLYPHS[remainder] : "") +
+      "\u2591".repeat(empty);
+    return paint(glyphs, bandCode(band, wide), color);
+  }
+
   const filled = known ? filledSegments(percent, segments) : 0;
   const empty = Math.max(0, segments - filled);
   const glyphs = color
-    ? "█".repeat(filled) + "░".repeat(empty)
+    ? "\u2588".repeat(filled) + "\u2591".repeat(empty)
     : "#".repeat(filled) + ".".repeat(empty);
-  const band: Pressure = known ? pressureOf(percent) : "none";
   return paint(glyphs, bandCode(band, wide), color);
 }
 
@@ -259,14 +307,151 @@ export function amountField(snapshot: Snapshot): string {
 
 /* ------------------------------------------------------------------- table */
 
+/** The column order and the header labels that sit above them. */
+const COLUMNS: { readonly key: keyof Row; readonly header: string }[] = [
+  { key: "provider", header: "PROVIDER" },
+  { key: "meter", header: "METER" },
+  { key: "bar", header: "BAR" },
+  { key: "usage", header: "USAGE" },
+  { key: "amount", header: "AMOUNT" },
+  { key: "state", header: "STATE" },
+  { key: "reset", header: "RESET" },
+  { key: "remaining", header: "IN" },
+  { key: "chip", header: "SOURCE" }
+];
+
+export const TABLE_HEADER = COLUMNS.map((column) => column.header).join(" ");
+
+/** How wide the provider identity may grow before it is truncated. */
+const MAX_PROVIDER_WIDTH = 13;
+
+/** The one ellipsis, kept as a single character so truncation costs one cell. */
+const ELLIPSIS = "\u2026";
+
+interface Row {
+  provider: string;
+  meter: string;
+  bar: string;
+  usage: string;
+  amount: string;
+  state: string;
+  reset: string;
+  remaining: string;
+  chip: string;
+}
+
+/** The provider identity, with its account when one is present. */
+function providerIdentity(snapshot: Snapshot): string {
+  return collectionIdentity(snapshot.provider, snapshot.accountId);
+}
+
+/** Trim an identity to the column width, keeping the leftmost characters. */
+function truncateIdentity(text: string, maxWidth: number): string {
+  if (text.length <= maxWidth) return text;
+  return text.slice(0, Math.max(0, maxWidth - 1)) + ELLIPSIS;
+}
+
 /**
- * The snapshot table.
+ * Map a snapshot's provenance to a connection state based source chip.
  *
- * Eight columns, always eight, separated by one space. AMOUNT and RESET read
- * NONE where a provider has none rather than disappearing, because a table
- * whose column count moves with its data cannot be parsed by anything.
+ * The vocabulary is the one in packages/core/src/connection-state.ts, because
+ * a parser is not a connection and only the product's own lifecycle words may
+ * describe where a reading came from.
  */
-export const TABLE_HEADER = "PROVIDER METER BAR USAGE AMOUNT STATE RESET IN";
+function provenanceConnectionState(provenance: SnapshotProvenance | undefined): string {
+  if (provenance === undefined) return "NOT_CONFIGURED";
+  if (provenance.sourceKind === "statusline_payload") return "CONNECTED";
+  if (provenance.sourceKind === "explicit_ingest") return "IMPORT_ONLY";
+  if (provenance.sourceKind === "manual_document") return "MANUAL";
+  if (provenance.sourceKind === "remote_api") return "CONNECTED";
+  return "ERROR";
+}
+
+/** One short bracket chip describing the snapshot's source. */
+function provenanceChip(provenance: SnapshotProvenance | undefined): string {
+  if (
+    provenance?.sourceKind === "statusline_payload" &&
+    provenance.observedVia === "claude_code_statusline"
+  ) {
+    return "[local cli]";
+  }
+  const state = provenanceConnectionState(provenance);
+  const label = state === "IMPORT_ONLY"
+    ? "import only"
+    : state.replace(/_/gu, " ").toLowerCase();
+  return "[" + label + "]";
+}
+
+function buildRow(snapshot: Snapshot, now: string, color: boolean): Row {
+  const state = freshness(snapshot.observedAt, snapshot.expiresAt, now);
+  return {
+    provider: truncateIdentity(providerIdentity(snapshot), MAX_PROVIDER_WIDTH),
+    meter: snapshot.meter,
+    bar: meterBar(snapshot.value, state, color),
+    usage: floorFixed(snapshot.value, 2) + snapshot.unit,
+    amount: amountField(snapshot),
+    state,
+    reset: snapshot.resetAt ?? "NONE",
+    remaining: timeToReset(snapshot.resetAt, now),
+    chip: provenanceChip(snapshot.provenance)
+  };
+}
+
+/** The visible width of a field, which differs from its string length for bars. */
+function visibleWidth(key: keyof Row, value: string): number {
+  if (key === "bar") return BAR_SEGMENTS;
+  return value.length;
+}
+
+/** Render rows with every column padded to its widest value so lines align. */
+function renderRows(rows: readonly Row[]): string {
+  const widths: Record<keyof Row, number> = {} as Record<keyof Row, number>;
+  for (const column of COLUMNS) {
+    widths[column.key] = Math.max(
+      column.header.length,
+      ...rows.map((row) => visibleWidth(column.key, row[column.key]))
+    );
+  }
+  const header = COLUMNS
+    .map((column) => column.header.padEnd(widths[column.key]))
+    .join(" ");
+  const lines = [header];
+  for (const row of rows) {
+    lines.push(COLUMNS
+      .map((column) => row[column.key].padEnd(widths[column.key]))
+      .join(" "));
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Sort providers by their most constrained meter, then keep each provider's
+ * rows together so a person reads one account at a time.
+ */
+function orderSnapshots(
+  snapshots: readonly Snapshot[]
+): Snapshot[] {
+  const grouped = new Map<string, Snapshot[]>();
+  for (const snapshot of snapshots) {
+    const group = grouped.get(snapshot.provider) ?? [];
+    group.push(snapshot);
+    grouped.set(snapshot.provider, group);
+  }
+  const ordered = [...grouped.entries()].sort((left, right) => {
+    const leftMax = Math.max(...left[1].map((snapshot) => snapshot.value));
+    const rightMax = Math.max(...right[1].map((snapshot) => snapshot.value));
+    if (rightMax !== leftMax) return rightMax - leftMax;
+    return left[0].localeCompare(right[0]);
+  });
+  const result: Snapshot[] = [];
+  for (const [, group] of ordered) {
+    result.push(...[...group].sort((left, right) => {
+      if (right.value !== left.value) return right.value - left.value;
+      return left.meter.localeCompare(right.meter);
+    }));
+  }
+  return result;
+}
 
 export function renderTable(
   snapshots: readonly Snapshot[],
@@ -274,19 +459,7 @@ export function renderTable(
   color: boolean
 ): string {
   if (snapshots.length === 0) return "No bounded quota data is available.";
-  const lines = [TABLE_HEADER];
-  for (const snapshot of snapshots) {
-    const state = freshness(snapshot.observedAt, snapshot.expiresAt, now);
-    lines.push([
-      snapshot.provider,
-      snapshot.meter,
-      meterBar(snapshot.value, state, color),
-      floorFixed(snapshot.value, 2) + snapshot.unit,
-      amountField(snapshot),
-      state,
-      snapshot.resetAt ?? "NONE",
-      timeToReset(snapshot.resetAt, now)
-    ].join(" "));
-  }
-  return lines.join("\n");
+  const rows = orderSnapshots(snapshots).map((snapshot) =>
+    buildRow(snapshot, now, color));
+  return renderRows(rows);
 }
