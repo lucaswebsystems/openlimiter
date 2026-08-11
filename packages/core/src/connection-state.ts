@@ -249,6 +249,7 @@ export interface ProviderCatalogueEntry {
 }
 
 interface GeneratedProviderEntry {
+  id?: unknown;
   displayName?: unknown;
   authModes?: unknown;
   platforms?: unknown;
@@ -369,3 +370,54 @@ export function queryProviderCatalogue(
   }
   return catalogue;
 }
+
+export interface PlannedProviderEntry {
+  specId: string;
+  displayName: string;
+  action: "Planned";
+}
+
+export type CatalogueRow =
+  | ({ availability: "connectable" } & ProviderCatalogueEntry)
+  | ({ availability: "planned" } & PlannedProviderEntry);
+
+/**
+ * The connections surface showing connectable providers and planned products.
+ *
+ * The product catalogue presents every supported or planned provider in document
+ * order after the connectable set. Planned rows carry no connection state because
+ * no background collector or credential exists for them.
+ */
+export function queryCatalogueRows(
+  generated: GeneratedProviderDocument,
+  states: Readonly<Partial<Record<CatalogueProviderId, ConnectionState>>> = {}
+): readonly CatalogueRow[] {
+  const connectableRows: CatalogueRow[] = queryProviderCatalogue(generated, states).map(
+    (entry) => ({
+      availability: "connectable" as const,
+      ...entry
+    })
+  );
+
+  if (!Array.isArray(generated.providers)) return connectableRows;
+
+  const plannedRows: CatalogueRow[] = [];
+  for (const candidate of generated.providers) {
+    if (candidate === null || typeof candidate !== "object") continue;
+    const entry = candidate as GeneratedProviderEntry;
+    const connectorId = entry.honesty?.connectorId;
+    if (connectorId === "manual") continue;
+    if (isCatalogueProviderId(connectorId)) continue;
+    if (typeof entry.id !== "string" || typeof entry.displayName !== "string") continue;
+
+    plannedRows.push({
+      availability: "planned",
+      specId: entry.id,
+      displayName: entry.displayName,
+      action: "Planned"
+    });
+  }
+
+  return [...connectableRows, ...plannedRows];
+}
+

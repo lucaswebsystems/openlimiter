@@ -1509,6 +1509,13 @@ initConnections({
 });
 
 document.getElementById("codex-submit")?.addEventListener("click", () => {
+  /* Codex is the one provider whose secret never crosses this window. The
+     backend imports the token and the account identifier from the Codex login
+     file on this machine and discards whatever the window sent, so the field
+     is hidden and refilled here: the submit path clears it on every press, and
+     an empty field would be refused before the import ever ran. */
+  const codexField = document.getElementById("codex-key");
+  if (codexField) codexField.value = "imported from the codex login file";
   void handleConnectSubmit({
     providerId: "codex",
     credentialKind: "codex_session",

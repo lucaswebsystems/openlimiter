@@ -94,13 +94,62 @@ trait CliRuntime {
 
 struct SystemCliRuntime;
 
+/// Drop the Windows verbatim prefix that canonicalization adds.
+///
+/// `std::fs::canonicalize` answers on Windows with an extended length path,
+/// `\\?\C:\...`, and the command interpreter cannot run one: it reports that
+/// the path does not exist. That matters twice over, because this same string
+/// is both what the probe executes and what gets written into the Claude Code
+/// settings file, so a verbatim path means the check can never pass and the
+/// entry we wrote could never run either. The prefix is removed rather than
+/// canonicalization being dropped, because canonicalization is what proves the
+/// path is real and resolves every link before anything is written down. The
+/// cost is the old length limit, which a command line tool inside the user
+/// profile is nowhere near.
+fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
+    let Some(text) = path.to_str() else {
+        return path;
+    };
+    if let Some(share) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{share}"));
+    }
+    match text.strip_prefix(r"\\?\") {
+        /* Only a plain drive letter is unwrapped. Anything else keeps the
+           prefix, because a device path without it names something different. */
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
+        _ => path,
+    }
+}
+
+/// Hand one already quoted line to the command interpreter, unescaped.
+///
+/// The interpreter wants a single argument that it parses itself, quotes and
+/// all. The ordinary argument path escapes an embedded quote as a backslash
+/// quote pair, which the interpreter does not understand: it reads the
+/// backslash literally and then cannot find the program. So the line is passed
+/// through verbatim on Windows, which is the only platform that reaches here.
+#[cfg(windows)]
+fn push_interpreter_line(command: &mut Command, line: String) {
+    use std::os::windows::process::CommandExt as _;
+    command.raw_arg(line);
+}
+
+#[cfg(not(windows))]
+fn push_interpreter_line(command: &mut Command, line: String) {
+    command.arg(line);
+}
+
 fn regular_absolute(candidate: &Path) -> Option<PathBuf> {
     let absolute = std::fs::canonicalize(candidate).ok()?;
     if !absolute.is_absolute() || !absolute.metadata().ok()?.is_file() {
         return None;
     }
-    absolute.to_str()?;
-    Some(absolute)
+    let usable = without_verbatim_prefix(absolute);
+    if !usable.is_absolute() {
+        return None;
+    }
+    usable.to_str()?;
+    Some(usable)
 }
 
 fn executable_names() -> &'static [&'static str] {
@@ -178,11 +227,8 @@ impl CliRuntime for SystemCliRuntime {
             }
             let mut command =
                 Command::new(std::env::var_os("ComSpec").unwrap_or_else(|| "cmd.exe".into()));
-            command
-                .arg("/d")
-                .arg("/s")
-                .arg("/c")
-                .arg(format!("\"{text}\" statusline --probe"));
+            command.arg("/d").arg("/s").arg("/c");
+            push_interpreter_line(&mut command, format!("\"{text}\" statusline --probe"));
             command
         } else {
             let mut command = Command::new(path);
@@ -1093,6 +1139,48 @@ mod tests {
         let file = claude.join("settings.json");
         std::fs::write(&file, text).expect("settings");
         file
+    }
+
+    #[test]
+    fn a_resolved_path_never_keeps_the_verbatim_prefix() {
+        /* The command interpreter refuses a verbatim path outright, so a
+        resolved tool carrying one would fail its own probe and would also be
+        written into the settings file as an entry that can never run. */
+        assert_eq!(
+            without_verbatim_prefix(PathBuf::from(r"\\?\C:\tools\openlimiter.cmd")),
+            PathBuf::from(r"C:\tools\openlimiter.cmd")
+        );
+        assert_eq!(
+            without_verbatim_prefix(PathBuf::from(r"\\?\UNC\server\share\openlimiter.cmd")),
+            PathBuf::from(r"\\server\share\openlimiter.cmd")
+        );
+        /* A path that never had the prefix is returned exactly as it came. */
+        assert_eq!(
+            without_verbatim_prefix(PathBuf::from("/usr/local/bin/openlimiter")),
+            PathBuf::from("/usr/local/bin/openlimiter")
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn a_real_resolved_tool_is_runnable_by_the_command_interpreter() {
+        /* The regression this closes: a canonicalized path that the probe
+        cannot execute made every Windows machine report the tool as broken. */
+        let dir = TempDir::new();
+        let bin = dir.path().join("npm");
+        std::fs::create_dir_all(&bin).expect("directory");
+        let file = bin.join("openlimiter.cmd");
+        std::fs::write(&file, "@echo off\r\nexit /b 0\r\n").expect("tool");
+        let resolved = regular_absolute(&file).expect("resolved");
+        assert!(
+            !resolved.to_str().expect("text").starts_with(r"\\?\"),
+            "a resolved tool path must not carry the verbatim prefix"
+        );
+        assert!(
+            SystemCliRuntime.probe(&resolved),
+            "the probe refused a runnable tool at {}",
+            resolved.display()
+        );
     }
 
     #[test]
