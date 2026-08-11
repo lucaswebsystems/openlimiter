@@ -94,6 +94,17 @@
       },
       "allOptions": "Todas las opciones de descarga"
     },
+    "rows": {
+      "windows": "Descargar para Windows",
+      "macos": "Descargar para macOS",
+      "linux": "Descargar para Linux",
+      "webApp": "Abrir la aplicación web",
+      "iphone": "Instalar en iPhone",
+      "android": "Instalar en Android",
+      "cli": "Instalar la línea de comandos",
+      "github": "Ver en GitHub",
+      "docs": "Leer la documentación"
+    },
     "supports": {
       "label": "Compatible con",
       "manualEntry": "y manual entry"
@@ -113,7 +124,7 @@
   },
   "deviceFrame": {
     "title": "Todos tus planes en una sola pantalla",
-    "lead": "Una tarjeta por proveedor: el meter, qué tan vigente es esa lectura y cuándo se reinicia la ventana. Lo que ves aquí es lo que se instala.",
+    "lead": "Una tarjeta por proveedor: el meter, qué tan vigente es esa lectura y cuándo se reinicia la ventana. Cada número se lee de tu propia máquina, y lo que ves en esta captura es exactamente lo que se instala.",
     "screenshot": {
       "alt": "La aplicación de escritorio de OpenLimiter, mostrando una tarjeta por proveedor con un meter, un porcentaje, un estado de vigencia y una cuenta regresiva de reinicio, sobre datos de demostración sintéticos."
     },
@@ -137,7 +148,7 @@
   },
   "integrations": {
     "title": "Qué lee, dónde queda",
-    "lead": "Sin testimonios, sin muro de avatares, sin contador de usuarios. Cada tarjeta de abajo, o distribuye un connector en este release, o dice claramente que todavía no tiene uno.",
+    "lead": "Sin testimonios, sin muro de avatares, sin contador de usuarios. Cada tarjeta de abajo, o distribuye un connector en este release, o dice claramente que todavía no tiene uno, así que el propio muro es un informe de estado.",
     "plannedChip": "planeado",
     "plannedLine": "Connector planeado. Mide su quota hoy mismo con manual entry o con ingest.",
     "connectors": {

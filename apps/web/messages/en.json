@@ -94,6 +94,17 @@
       },
       "allOptions": "All download options"
     },
+    "rows": {
+      "windows": "Download for Windows",
+      "macos": "Download for macOS",
+      "linux": "Download for Linux",
+      "webApp": "Open the web app",
+      "iphone": "Install on iPhone",
+      "android": "Install on Android",
+      "cli": "Install the command line",
+      "github": "View on GitHub",
+      "docs": "Read the docs"
+    },
     "supports": {
       "label": "Supports",
       "manualEntry": "and manual entry"
@@ -113,7 +124,7 @@
   },
   "deviceFrame": {
     "title": "Every plan on one screen",
-    "lead": "A card per provider: the meter, how fresh that reading is, and when the window resets. What you see here is what installs.",
+    "lead": "A card per provider: the meter, how fresh that reading is, and when the window resets. Every number is read from your own machine, and what you see in this capture is exactly what installs.",
     "screenshot": {
       "alt": "The OpenLimiter desktop application, showing one card per provider with a meter, a percentage, a freshness state and a reset countdown, over synthetic demo data."
     },
@@ -137,7 +148,7 @@
   },
   "integrations": {
     "title": "What it reads, where it lands",
-    "lead": "No testimonials, no avatar wall, no user count. Every card below either ships a connector in this release or says plainly that it does not have one yet.",
+    "lead": "No testimonials, no avatar wall, no user count. Every card below either ships a connector in this release or says plainly that it does not have one yet, so the wall itself is a status report.",
     "plannedChip": "planned",
     "plannedLine": "Planned connector. Meter it today through manual entry or ingest.",
     "connectors": {
@@ -214,13 +225,13 @@
       "plannedChip": "planned"
     },
     "feedIn": "How to feed one in",
-    "footnote": "Every connector ships marked <code>UNVERIFIED</code>, which is the honest default: no explicit verifier has confirmed a shape against a live account yet. Three of them read interfaces that are internal to somebody else's tooling and can change without notice, and when one does, that provider fails closed to unknown rather than guessing. <link>Every connector and its real state</link>.",
+    "footnote": "Every connector ships marked <code>UNVERIFIED</code>, the honest default: no verifier has confirmed a shape against a live account yet. Three read interfaces internal to somebody else's tooling, and when one changes, that provider fails closed to unknown rather than guessing. <link>Every connector and its real state</link>.",
     "manualNote": "Every tool on this page can be metered today. Write the numbers down with manual entry, or pipe a payload in with ingest from any script you control, and it lands in the same snapshot as a connector."
   },
   "runsWhere": {
     "title": "Runs where you work",
     "lead": "Windows, macOS and Linux, from a terminal, a statusline, a prompt hook or a script, and in any browser through the web app. One local cache, read by whatever you point at it.",
-    "screenshotsNote": "Those are screenshots of the web app running at phone size, against the project's synthetic fixtures, declared here in words rather than stamped over the pictures. The same reading opens in any browser at the <webApp>web app</webApp>, which installs to a home screen. Native iOS and Android applications are planned and not built."
+    "screenshotsNote": "Screenshots of the web app at phone size, against the project's synthetic fixtures, declared here in words rather than stamped over the pictures. The same reading opens in the <webApp>web app</webApp> and installs to a home screen. Native mobile applications are planned and not built."
   },
   "webApp": {
     "title": "Web app",

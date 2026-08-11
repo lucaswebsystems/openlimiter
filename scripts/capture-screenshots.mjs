@@ -407,6 +407,7 @@ async function capturePhone(browser, theme, snapshots) {
     );
     if (view.selector) {
       await page.locator(view.selector).first().scrollIntoViewIfNeeded();
+      await page.evaluate(() => window.scrollBy(0, -120));
     } else if (typeof view.scrollY === "number") {
       await page.evaluate((y) => window.scrollTo(0, y), view.scrollY);
     }

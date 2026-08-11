@@ -141,6 +141,9 @@ export function ClaudeMark({ className }: ToolMarkProps) {
  * from red-orange at top through green to blue at the base.
  */
 export function AntigravityMark({ className = "h-5 w-5" }: ToolMarkProps) {
+  /* The real arch, in the site's monochrome standard: every provider mark
+     renders currentColor with the theme, founder's order (2026-08-11), so the
+     gradient the mark ships with elsewhere stays off this site. */
   return (
     <svg
       viewBox="0 0 24 24"
@@ -148,22 +151,9 @@ export function AntigravityMark({ className = "h-5 w-5" }: ToolMarkProps) {
       aria-hidden="true"
       focusable="false"
     >
-      <defs>
-        <linearGradient
-          id="openlimiter-antigravity-gradient"
-          x1="0%"
-          y1="0%"
-          x2="0%"
-          y2="100%"
-        >
-          <stop offset="0%" stopColor="#E8710A" />
-          <stop offset="50%" stopColor="#34A853" />
-          <stop offset="100%" stopColor="#4285F4" />
-        </linearGradient>
-      </defs>
       <path
         d="M12 1.8C14.8 1.8 17.1 7.8 19.6 14.2C20.5 16.5 21.4 19 21.4 20.2C21.4 21.8 19.8 22.4 17.8 20.6C16.3 16.8 14.1 12.5 12 12.5C9.9 12.5 7.7 16.8 6.2 20.6C4.2 22.4 2.6 21.8 2.6 20.2C2.6 19 3.5 16.5 4.4 14.2C6.9 7.8 9.2 1.8 12 1.8Z"
-        fill="url(#openlimiter-antigravity-gradient)"
+        fill="currentColor"
       />
     </svg>
   );

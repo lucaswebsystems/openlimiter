@@ -361,7 +361,7 @@ function Card({ card }: { card: StripCard }) {
           <div className="flex min-w-0 items-center gap-3">
             <span
               aria-hidden="true"
-              className={`flex-none ${planned ? "text-soft" : "text-accent"}`}
+              className={`flex-none ${planned ? "text-soft" : "text-heading"}`}
             >
               <card.Mark className="h-5 w-5" />
             </span>

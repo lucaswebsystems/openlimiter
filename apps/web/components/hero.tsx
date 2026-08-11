@@ -3,12 +3,8 @@ import { preload } from "react-dom";
 import { HeroFoldMedia } from "./hero-backdrop";
 import { SiteLink } from "./site-link";
 import { heroMarks, toolTitle } from "./tool-marks";
-import { ButtonLink, IconButtonLink, SHELL } from "./ui";
-import {
-  MACOS_APPLE_SILICON_URL,
-  WINDOWS_SETUP_URL,
-} from "@/lib/downloads";
-import { HERO_BACKDROP_ENABLED } from "@/lib/site";
+import { ButtonLink, SHELL } from "./ui";
+import { HERO_BACKDROP_ENABLED, REPO_URL } from "@/lib/site";
 
 /**
  * The first fold, the full Perpeta pattern (founder's order, 2026-08-10).
@@ -31,107 +27,17 @@ import { HERO_BACKDROP_ENABLED } from "@/lib/site";
  * picture is whatever the frame behind it says it is. The primary keeps its
  * white solid; everything else sits on a solid surface fill.
  *
- * Six targets, honestly. Windows and macOS go straight to the packaged file
- * on the release. The web app is a route on this site. iPhone and Android go
- * to the download page rows where the real install flow lives, and their
- * accessible names say what a reader gets there, the web app installing to
- * the home screen, never a store app, because there is nothing in any store.
- * The CLI goes to its reference in the docs. The line under the row says the
- * rest in the open, including that the desktop builds are not code signed
- * yet.
+ * Nine targets, honestly. Desktop platforms, mobile install guides and npm go
+ * to their rows on the download page. The web app is a route on this site,
+ * GitHub is the repository, and the docs stay on this site. The mobile labels
+ * describe installation without claiming that a store app exists. The line
+ * under the rows says the rest in the open, including that the desktop builds
+ * are not code signed yet.
  *
  * The entrance runs on the fold-enter CSS classes rather than the scroll
  * reveal system: the title and lead are born visible and animate transform
  * only, so the fold's largest paint never waits for hydration.
  */
-
-function AppleGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
-      <path d="M16.36 12.72c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.83-.81-3.01-.79-1.55.02-2.98.9-3.77 2.29-1.61 2.79-.41 6.92 1.15 9.18.77 1.11 1.68 2.35 2.87 2.3 1.15-.05 1.59-.74 2.98-.74 1.39 0 1.78.74 3 .72 1.24-.02 2.02-1.12 2.78-2.24.88-1.28 1.24-2.53 1.26-2.6-.03-.01-2.4-.92-2.42-3.69ZM14.1 5.98c.63-.77 1.06-1.83.94-2.9-.91.04-2.02.61-2.67 1.37-.58.68-1.09 1.77-.95 2.81 1.02.08 2.05-.52 2.68-1.28Z" />
-    </svg>
-  );
-}
-
-/** A phone with the top island: the iPhone the web app installs onto. */
-function IphoneGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <rect x="6.8" y="2.6" width="10.4" height="18.8" rx="2.8" />
-      <path d="M10.4 5.2h3.2" />
-    </svg>
-  );
-}
-
-/** The robot head outline, no storefront anywhere in it. */
-function AndroidGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M4.6 16.4a7.4 7.4 0 0 1 14.8 0Z" />
-      <path d="m7.6 7.8-1.4-2.2M16.4 7.8l1.4-2.2" />
-      <path d="M9.3 12.9v.01M14.7 12.9v.01" strokeWidth="2.4" />
-    </svg>
-  );
-}
-
-function TerminalGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m4 6 5 6-5 6M12 18h8" />
-    </svg>
-  );
-}
-
-function GlobeGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M3.5 12h17M12 3.5c2.2 2.4 3.3 5.3 3.3 8.5s-1.1 6.1-3.3 8.5c-2.2-2.4-3.3-5.3-3.3-8.5S9.8 5.9 12 3.5Z" />
-    </svg>
-  );
-}
-
-function WindowsGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
-      <path d="M3 5.4 10.6 4.3v7.2H3V5.4Zm0 13.2 7.6 1.1v-7.1H3v6Zm8.7 1.3L21 21V12.6h-9.3v7.3Zm0-15.8v7.4H21V3l-9.3 1.1Z" />
-    </svg>
-  );
-}
 
 /**
  * THE HEADER'S PRE HYDRATION SYNC, one inline script in the fold itself.
@@ -223,45 +129,86 @@ export function Hero() {
               {t("lead")}
             </p>
 
-            <div className="fold-enter fold-enter-row mt-9 flex flex-wrap items-center gap-3">
-              <ButtonLink
-                href={WINDOWS_SETUP_URL}
-                tone="primary"
-                external
-                label={t("downloads.windows.aria")}
-              >
-                <WindowsGlyph />
-                {t("downloads.windows.label")}
-              </ButtonLink>
-              <ButtonLink href="/app" tone="solid" label={t("downloads.webApp.aria")}>
-                <GlobeGlyph />
-                {t("downloads.webApp.label")}
-              </ButtonLink>
-              <IconButtonLink
-                href={MACOS_APPLE_SILICON_URL}
-                external
-                solid
-                label={t("downloads.macos.aria")}
-              >
-                <AppleGlyph />
-              </IconButtonLink>
-              <IconButtonLink
-                href="/download#iphone"
-                solid
-                label={t("downloads.iphone.aria")}
-              >
-                <IphoneGlyph />
-              </IconButtonLink>
-              <IconButtonLink
-                href="/download#android"
-                solid
-                label={t("downloads.android.aria")}
-              >
-                <AndroidGlyph />
-              </IconButtonLink>
-              <IconButtonLink href="/docs/cli" solid label={t("downloads.cli.aria")}>
-                <TerminalGlyph />
-              </IconButtonLink>
+            <div className="fold-enter fold-enter-row mt-9 space-y-3">
+              <div className="flex flex-wrap gap-3">
+                <ButtonLink
+                  href="/download#windows"
+                  tone="primary"
+                  className="h-11 whitespace-nowrap"
+                  label={t("rows.windows")}
+                >
+                  {t("rows.windows")}
+                </ButtonLink>
+                <ButtonLink
+                  href="/download#macos"
+                  tone="solid"
+                  className="h-11 whitespace-nowrap"
+                  label={t("rows.macos")}
+                >
+                  {t("rows.macos")}
+                </ButtonLink>
+                <ButtonLink
+                  href="/download#linux"
+                  tone="solid"
+                  className="h-11 whitespace-nowrap"
+                  label={t("rows.linux")}
+                >
+                  {t("rows.linux")}
+                </ButtonLink>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <ButtonLink
+                  href="/app"
+                  tone="solid"
+                  className="h-11 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover"
+                  label={t("rows.webApp")}
+                >
+                  {t("rows.webApp")}
+                </ButtonLink>
+                <ButtonLink
+                  href="/download#iphone"
+                  tone="solid"
+                  className="h-11 whitespace-nowrap"
+                  label={t("rows.iphone")}
+                >
+                  {t("rows.iphone")}
+                </ButtonLink>
+                <ButtonLink
+                  href="/download#android"
+                  tone="solid"
+                  className="h-11 whitespace-nowrap"
+                  label={t("rows.android")}
+                >
+                  {t("rows.android")}
+                </ButtonLink>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <ButtonLink
+                  href="/download#npm"
+                  tone="solid"
+                  className="h-11 whitespace-nowrap"
+                  label={t("rows.cli")}
+                >
+                  {t("rows.cli")}
+                </ButtonLink>
+                <ButtonLink
+                  href={REPO_URL}
+                  tone="solid"
+                  external
+                  className="h-11 whitespace-nowrap"
+                  label={t("rows.github")}
+                >
+                  {t("rows.github")}
+                </ButtonLink>
+                <ButtonLink
+                  href="/docs"
+                  tone="solid"
+                  className="h-11 whitespace-nowrap"
+                  label={t("rows.docs")}
+                >
+                  {t("rows.docs")}
+                </ButtonLink>
+              </div>
             </div>
 
             <div className="fold-enter fold-enter-note space-y-1.5 pt-4">

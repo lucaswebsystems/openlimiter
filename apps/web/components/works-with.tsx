@@ -50,7 +50,7 @@ function ToolTile({ tool }: { tool: Tool }) {
       }`}
       {...reveal}
     >
-      <span aria-hidden="true" className={`flex-none ${planned ? "text-soft" : "text-accent"}`}>
+      <span aria-hidden="true" className={`flex-none ${planned ? "text-soft" : "text-heading"}`}>
         <tool.Mark className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">

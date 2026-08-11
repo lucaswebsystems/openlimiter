@@ -66,10 +66,11 @@ function Phone({
           is on screen and it is full width at base; at md (834px) three appear
           without overflow; at lg and up each phone is at least 300px wide. */}
       <div className="phone-body [--screen:min(320px,calc(100vw-3.5rem))] md:[--screen:216px] lg:[--screen:300px] xl:[--screen:350px]">
-        <div className="phone-status-bar">
-          <span aria-hidden="true" className="phone-island" />
-        </div>
         <div style={{ aspectRatio: "390 / 844" }} className="phone-screen">
+          <span
+            aria-hidden="true"
+            className="absolute left-1/2 top-[calc(var(--screen)*0.035)] z-10 h-[calc(var(--screen)*0.0168)] w-[calc(var(--screen)*0.24)] -translate-x-1/2 rounded-full bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255_/_0.08)]"
+          />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             {...common}

@@ -94,6 +94,17 @@
       },
       "allOptions": "Todas as opções de download"
     },
+    "rows": {
+      "windows": "Baixar para Windows",
+      "macos": "Baixar para macOS",
+      "linux": "Baixar para Linux",
+      "webApp": "Abrir o web app",
+      "iphone": "Instalar no iPhone",
+      "android": "Instalar no Android",
+      "cli": "Instalar a linha de comando",
+      "github": "Ver no GitHub",
+      "docs": "Ler a documentação"
+    },
     "supports": {
       "label": "Compatível com",
       "manualEntry": "e manual entry"
@@ -113,7 +124,7 @@
   },
   "deviceFrame": {
     "title": "Todo plano em uma tela",
-    "lead": "Um cartão por provedor: o meter, quão recente é essa leitura, e quando a janela reinicia. O que você vê aqui é o que se instala.",
+    "lead": "Um cartão por provedor: o meter, quão recente é essa leitura, e quando a janela reinicia. Cada número é lido da sua própria máquina, e o que você vê nesta captura é exatamente o que se instala.",
     "screenshot": {
       "alt": "O aplicativo de desktop do OpenLimiter, mostrando um cartão por provedor com um meter, uma porcentagem, um estado de atualização e uma contagem regressiva de reinício, sobre dados sintéticos de demonstração."
     },
@@ -137,7 +148,7 @@
   },
   "integrations": {
     "title": "O que ele lê, onde isso chega",
-    "lead": "Sem depoimentos, sem mural de avatares, sem contador de usuários. Cada cartão abaixo ou já traz um connector nesta versão, ou diz claramente que ainda não tem um.",
+    "lead": "Sem depoimentos, sem mural de avatares, sem contador de usuários. Cada cartão abaixo ou já traz um connector nesta versão, ou diz claramente que ainda não tem um, então o próprio mural é um relatório de status.",
     "plannedChip": "planejado",
     "plannedLine": "Connector planejado. Meça isso hoje por manual entry ou ingest.",
     "connectors": {

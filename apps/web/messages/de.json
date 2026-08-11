@@ -94,6 +94,17 @@
       },
       "allOptions": "Alle Download Optionen"
     },
+    "rows": {
+      "windows": "Für Windows herunterladen",
+      "macos": "Für macOS herunterladen",
+      "linux": "Für Linux herunterladen",
+      "webApp": "Web App öffnen",
+      "iphone": "Auf dem iPhone installieren",
+      "android": "Auf Android installieren",
+      "cli": "Kommandozeile installieren",
+      "github": "Auf GitHub ansehen",
+      "docs": "Dokumentation lesen"
+    },
     "supports": {
       "label": "Unterstützt",
       "manualEntry": "und manual entry"
@@ -113,7 +124,7 @@
   },
   "deviceFrame": {
     "title": "Jeder Plan auf einem Bildschirm",
-    "lead": "Eine Karte pro Provider: der Meter, wie frisch dieser Wert ist, und wann sich das Fenster zurücksetzt. Was du hier siehst, ist das, was du installierst.",
+    "lead": "Eine Karte pro Provider: der Meter, wie frisch dieser Wert ist, und wann sich das Fenster zurücksetzt. Jede Zahl wird von deiner eigenen Maschine gelesen, und was du in dieser Aufnahme siehst, ist genau das, was du installierst.",
     "screenshot": {
       "alt": "Die OpenLimiter Desktop Anwendung zeigt eine Karte pro Provider mit Meter, Prozentangabe, Aktualitätsstatus und Reset Countdown, über synthetischen Demodaten."
     },
@@ -137,7 +148,7 @@
   },
   "integrations": {
     "title": "Was es liest, wo es landet",
-    "lead": "Keine Testimonials, keine Avatar Wand, keine Nutzerzahl. Jede Karte unten liefert entweder einen Connector in diesem Release, oder sagt offen, dass es noch keinen dafür gibt.",
+    "lead": "Keine Testimonials, keine Avatar Wand, keine Nutzerzahl. Jede Karte unten liefert entweder einen Connector in diesem Release, oder sagt offen, dass es noch keinen dafür gibt, und damit ist die Wand selbst ein Statusbericht.",
     "plannedChip": "geplant",
     "plannedLine": "Geplanter Connector. Trag ihn schon heute per manual entry oder ingest in den Meter ein.",
     "connectors": {
