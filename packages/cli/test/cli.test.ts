@@ -147,7 +147,7 @@ describe("CLI", () => {
       expect(result.stdout).toBe([
         "PROVIDER METER BAR USAGE AMOUNT STATE RESET IN",
         "ANTIGRAVITY PRIMARY ##........ 28.00PERCENT NONE fresh " +
-          "2026-01-02T00:00:00.000Z 1d0h",
+          "2026-01-01T05:00:00.000Z 5h0m",
         "CLAUDE FIVE_HOUR ####...... 42.00PERCENT NONE fresh " +
           "2026-01-01T05:00:00.000Z 5h0m",
         "CLAUDE SEVEN_DAY ######.... 64.00PERCENT NONE fresh " +
@@ -157,7 +157,7 @@ describe("CLI", () => {
         "MANUAL MONTHLY ###....... 35.00PERCENT NONE fresh " +
           "2026-02-01T00:00:00.000Z 31d0h",
         "OPENCODE PRIMARY #########. 92.00PERCENT NONE fresh " +
-          "2026-01-02T00:00:00.000Z 1d0h",
+          "2026-01-01T20:00:00.000Z 20h0m",
         "OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE"
       ].join("\n"));
     });
@@ -178,9 +178,9 @@ describe("CLI", () => {
         "provider=CODEX state=fresh usage_percent=84.00 " +
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=ANTIGRAVITY state=fresh usage_percent=28.00 " +
-          "reset_at=2026-01-02T00:00:00.000Z",
+          "reset_at=2026-01-01T05:00:00.000Z",
         "provider=OPENCODE state=fresh usage_percent=92.00 " +
-          "reset_at=2026-01-02T00:00:00.000Z",
+          "reset_at=2026-01-01T20:00:00.000Z",
         "provider=MANUAL state=fresh usage_percent=35.00 " +
           "reset_at=2026-02-01T00:00:00.000Z",
         "unknown=NONE",

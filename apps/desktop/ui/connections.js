@@ -292,6 +292,25 @@ const PARSER_BY_READER = {
   opencode_usage: parseOpencodePayload,
 };
 
+/**
+ * What each reader's body IS, before a parser sees it.
+ *
+ * Four of the five answer JSON. OpenCode answers a logged in HTML page, because
+ * it publishes no usage interface at all, so its body is handed over as the raw
+ * text it arrived as. Running that through a JSON parser first would turn every
+ * real OpenCode response into a parse failure, and a parse failure is drift:
+ * the provider would go permanently unknown for a reason that was entirely
+ * ours. A reader missing from this table is not defaulted to JSON, it is
+ * refused, for the same reason the parser table has no fallback entry.
+ */
+const ENCODING_BY_READER = {
+  openrouter_key: "json",
+  openrouter_credits: "json",
+  codex_usage: "json",
+  antigravity_quota: "json",
+  opencode_usage: "text",
+};
+
 function parseJson(text) {
   if (typeof text !== "string" || text.trim() === "") return null;
   try {
@@ -316,8 +335,11 @@ function snapshotsFromBody(readerId, body, now) {
   const parse = Object.prototype.hasOwnProperty.call(PARSER_BY_READER, readerId)
     ? PARSER_BY_READER[readerId]
     : null;
-  if (parse === null) return null;
-  const document = parseJson(body);
+  const encoding = Object.prototype.hasOwnProperty.call(ENCODING_BY_READER, readerId)
+    ? ENCODING_BY_READER[readerId]
+    : null;
+  if (parse === null || encoding === null) return null;
+  const document = encoding === "text" ? body : parseJson(body);
   if (document === null) return null;
   const meters = parse(document, now);
   if (meters === null || meters.length === 0) return null;

@@ -490,7 +490,13 @@ describe("fixture classes", () => {
       expect(fixture.note.length).toBeGreaterThan(20);
       if (fixture.sourceStatus === "provisional") {
         expect(fixture.docsUrl).toBeNull();
-        expect(fixture.note).toContain("prototype");
+        /* A provisional fixture has to say where its shape came from and admit
+           what that is worth. The three live readers now cite a dated
+           observation against a real account rather than an undated prototype,
+           which is better evidence and still not a published contract, so the
+           note must carry the date AND the admission. */
+        expect(fixture.note).toMatch(/20\d\d-\d\d-\d\d/u);
+        expect(fixture.note).toContain("design evidence only");
       }
     }
     const claude = documentedFixtures.find((fixture) => fixture.connector === "claude");

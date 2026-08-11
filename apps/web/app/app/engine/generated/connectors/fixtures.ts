@@ -67,6 +67,21 @@ function offset(now: string, seconds: number): string {
  * to a seconds field is the exact mistake this connector's fixtures exist to
  * catch. The instant moves with the supplied clock; the encoding does not.
  */
+/**
+ * A reset instant in the encoding Google's quota summary uses.
+ *
+ * RFC3339 with an explicit offset, and with the seven fractional digits the
+ * Antigravity client actually writes, because a fixture that prints three would
+ * never exercise the normalisation the parser has to do.
+ */
+function rfc3339Offset(now: string, seconds: number): string {
+  const base = Date.parse(now);
+  const anchor = Number.isFinite(base) ? base : Date.parse(FIXTURE_NOW);
+  return new Date(anchor + seconds * 1_000)
+    .toISOString()
+    .replace(/\.(\d{3})Z$/u, ".$10000Z");
+}
+
 function epochOffset(now: string, seconds: number): number {
   const base = Date.parse(now);
   const anchor = Number.isFinite(base) ? base : Date.parse(FIXTURE_NOW);
@@ -139,21 +154,59 @@ export function openrouterFixture(): Record<string, unknown> {
  */
 export function codexFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
   return {
-    rate_limits: {
+    rate_limit: {
       primary_window: {
         used_percent: 84,
-        reset_at: offset(now, FIVE_HOURS)
+        reset_at: epochOffset(now, FIVE_HOURS),
+        limit_window_seconds: FIVE_HOURS
       }
     }
   };
 }
 
+/**
+ * The Antigravity demo payload, in the observed shape.
+ *
+ * Two windows on the tracked pool, and a third party pool beside it that the
+ * parser must leave alone. The five hour window is the binding one at 28
+ * percent, which keeps the demo's routing advice exactly where it was: the
+ * policy stops recommending a provider at 80, so Codex at 84 drops out and
+ * Antigravity is the lowest reading still in the running.
+ *
+ * `remainingFraction` is what the provider states, so 0.72 remaining is 28 used.
+ */
 export function antigravityFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
   return {
-    quota: {
-      used_percent: 28,
-      reset_at: offset(now, ONE_DAY)
-    }
+    groups: [
+      {
+        displayName: "Gemini models",
+        buckets: [
+          {
+            bucketId: "gemini-pro-5h",
+            window: "5h",
+            remainingFraction: 0.72,
+            resetTime: rfc3339Offset(now, FIVE_HOURS)
+          },
+          {
+            bucketId: "gemini-pro-weekly",
+            window: "weekly",
+            remainingFraction: 0.9,
+            resetTime: rfc3339Offset(now, SEVEN_DAYS)
+          }
+        ]
+      },
+      {
+        displayName: "Third party models",
+        buckets: [
+          {
+            bucketId: "3p-claude-5h",
+            window: "5h",
+            remainingFraction: 0.5,
+            resetTime: rfc3339Offset(now, FIVE_HOURS)
+          }
+        ]
+      }
+    ]
   };
 }
 
@@ -165,14 +218,51 @@ export function antigravityFixture(now: string = FIXTURE_NOW): Record<string, un
  * critical threshold and every surface has to draw it. With Codex at 84 above,
  * the demo set now lands one meter in each of the four bands.
  */
-export function opencodeFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
-  return {
-    usage: {
-      percent: 92,
-      reset_at: offset(now, ONE_DAY),
-      account_label: "demo@example.test"
-    }
-  };
+export function opencodeFixture(now: string = FIXTURE_NOW): string {
+  return opencodePage(
+    { percent: 92, resetsIn: "20 hours" },
+    { percent: 40, resetsIn: "5 days 20 hours" },
+    { percent: 15, resetsIn: "21 days" },
+    now
+  );
+}
+
+/** One window block as the workspace page renders it, hydration markers and all. */
+function opencodeWindowBlock(
+  label: string,
+  window: { percent: number; resetsIn: string | null }
+): string {
+  const reset = window.resetsIn === null
+    ? ""
+    : `<p class="muted">Resets in<!--/--> <!--$-->${window.resetsIn}<!--/--></p>`;
+  return `<section><h3>${label}</h3>` +
+    `<div class="bar"><span><!--$-->${String(window.percent)}%<!--/--></span></div>` +
+    reset +
+    `</section>`;
+}
+
+/**
+ * The OpenCode workspace page, as HTML, because that is the only place these
+ * numbers exist.
+ *
+ * Built rather than pasted so a fixture can move its numbers without anybody
+ * hand editing markup, and deliberately carrying the framework's hydration
+ * comments: a fixture of clean HTML would pass while the real page failed.
+ * The `now` parameter is accepted for symmetry with the other builders; the
+ * page states durations rather than instants, so it does not use one.
+ */
+export function opencodePage(
+  rolling: { percent: number; resetsIn: string | null },
+  weekly: { percent: number; resetsIn: string | null },
+  monthly: { percent: number; resetsIn: string | null },
+  now: string = FIXTURE_NOW
+): string {
+  void now;
+  return `<!doctype html><html><body><main>` +
+    opencodeWindowBlock("Rolling Usage", rolling) +
+    opencodeWindowBlock("Weekly Usage", weekly) +
+    opencodeWindowBlock("Monthly Usage", monthly) +
+    `</main></body></html>`;
 }
 
 export function manualFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
@@ -292,8 +382,9 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
     docsUrl: null,
     reviewedAt: FIXTURE_REVIEWED_AT,
     sourceStatus: "provisional",
-    note: "Shape observed in the original prototype. No public document exists, " +
-      "so this proves internal consistency only.",
+    note: "Shape observed against a real account on 2026-08-07 by the reference " +
+      "reader: rate_limit.primary_window, singular, with reset_at in epoch " +
+      "seconds. OpenAI publishes nothing, so this is design evidence only.",
     expectedMeters: 1,
     build: (now) => codexFixture(now)
   },
@@ -303,8 +394,10 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
     docsUrl: null,
     reviewedAt: FIXTURE_REVIEWED_AT,
     sourceStatus: "provisional",
-    note: "Shape observed in the original prototype. No public document exists, " +
-      "so this proves internal consistency only.",
+    note: "Shape observed against a real Google AI Pro account on 2026-08-07 by " +
+      "the reference reader: groups of buckets carrying remainingFraction and " +
+      "an RFC3339 resetTime. Google publishes nothing, so this is design " +
+      "evidence only.",
     expectedMeters: 1,
     build: (now) => antigravityFixture(now)
   },
@@ -314,8 +407,9 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
     docsUrl: null,
     reviewedAt: FIXTURE_REVIEWED_AT,
     sourceStatus: "provisional",
-    note: "Shape observed in the original prototype behind an authenticated page. " +
-      "No public document exists, so this proves internal consistency only.",
+    note: "The logged in workspace page as observed on 2026-08-03: three labelled " +
+      "windows rendered into HTML. OpenCode publishes no usage interface at " +
+      "all, so this is design evidence only and stays a scrape.",
     expectedMeters: 1,
     build: (now) => opencodeFixture(now)
   },
@@ -464,8 +558,90 @@ export const claudeSanitizedLive: SanitizedLiveFixture = {
   build: () => null
 };
 
+/**
+ * PENDING CAPTURE: Codex usage.
+ *
+ * The REQUEST contract for this reader is known, reproducible and recorded, in
+ * `provider_specs/openai/codex.yaml` and in the endpoint constants in
+ * `apps/desktop/src-tauri/src/net.rs`: the method, the address, the
+ * authentication, the fixed headers and the behaviour of an expired login were
+ * all taken from a reader that ran against a real account on 2026-08-07.
+ *
+ * The RESPONSE is a different question, and it is open. No sanitized response
+ * from that account has been committed here, and the shape the shipped parser
+ * reads was observed in the original prototype rather than captured through
+ * this code. Writing a payload from memory to make this slot look full would
+ * rebuild exactly the fault the fixture classes exist to prevent, so the slot
+ * stays empty and loud: every test that would use it skips and says why, the
+ * provider stays UNVERIFIED, and the registry validator reports the gap on
+ * every run and fails outright under --require-captures.
+ */
+export const codexSanitizedLive: SanitizedLiveFixture = {
+  id: "codex.sanitized_live.usage",
+  connector: "codex",
+  status: "pending_capture",
+  capturedAt: null,
+  providerVersion: null,
+  skipReason: "PENDING CAPTURE: no sanitized live Codex usage response exists " +
+    "yet. The request contract is recorded; the response is not. Capture one " +
+    "on a real account, reduce it to numbers and window lengths only, paste " +
+    "the result here, then remove this reason.",
+  expectedMeters: 0,
+  build: () => null
+};
+
+/**
+ * PENDING CAPTURE: Antigravity quota summary.
+ *
+ * Same standing as the Codex slot above. The request is recorded, including the
+ * detail that the endpoint answers 403 to a valid token when the user agent
+ * header is missing, which was measured on 2026-08-07. No sanitized response
+ * has been committed, so nothing here claims to know the shape of one.
+ */
+export const antigravitySanitizedLive: SanitizedLiveFixture = {
+  id: "antigravity.sanitized_live.quota",
+  connector: "antigravity",
+  status: "pending_capture",
+  capturedAt: null,
+  providerVersion: null,
+  skipReason: "PENDING CAPTURE: no sanitized live Antigravity quota summary " +
+    "exists yet. The request contract is recorded; the response is not. " +
+    "Capture one on a real account, reduce it to fractions and window " +
+    "lengths only, paste the result here, then remove this reason.",
+  expectedMeters: 0,
+  build: () => null
+};
+
+/**
+ * PENDING CAPTURE: OpenCode workspace usage.
+ *
+ * The weakest evidence of the three, and permanently so. There is no interface
+ * to capture: the meters exist only inside the html of a logged in page, so any
+ * capture is a capture of a layout. That is why this provider's labels do not
+ * improve when the slot is filled: browser-session, authenticated-scrape,
+ * automationRisk high and UNVERIFIED are properties of the method, not of how
+ * much evidence has been gathered about it.
+ */
+export const opencodeSanitizedLive: SanitizedLiveFixture = {
+  id: "opencode.sanitized_live.usage",
+  connector: "opencode",
+  status: "pending_capture",
+  capturedAt: null,
+  providerVersion: null,
+  skipReason: "PENDING CAPTURE: no sanitized live OpenCode workspace page " +
+    "exists yet. Capture one on a real account, reduce it to the window " +
+    "labels, percentages and remaining durations only, paste the result " +
+    "here, then remove this reason. The honesty labels do not change when " +
+    "it lands.",
+  expectedMeters: 0,
+  build: () => null
+};
+
 export const sanitizedLiveFixtures: readonly SanitizedLiveFixture[] = [
-  claudeSanitizedLive
+  claudeSanitizedLive,
+  codexSanitizedLive,
+  antigravitySanitizedLive,
+  opencodeSanitizedLive
 ];
 
 /* ------------------------------------------------------------------ *

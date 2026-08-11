@@ -186,13 +186,35 @@ describe("connector contracts", () => {
     }
   });
 
-  it("rejects expired provider windows", () => {
+  it("rejects expired provider windows, for every source that states an instant", () => {
     const later = "2027-01-01T00:00:00.000Z";
     expect(parseClaudePayload(claudeFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseCodexPayload(codexFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseAntigravityPayload(antigravityFixture(FIXTURE_NOW), later)).toBeNull();
-    expect(parseOpencodePayload(opencodeFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseManualPayload(manualFixture(FIXTURE_NOW), later)).toBeNull();
+  });
+
+  it("cannot expire an OpenCode page by its reset, and expires it by age instead", () => {
+    /* OpenCode is the one source that states a COUNTDOWN rather than an
+       instant: its page prints "Resets in 20 hours", so a page read a year
+       late still yields a reset twenty hours from whenever it was read. The
+       reset therefore cannot detect staleness for this provider, and pretending
+       otherwise would be the wrong kind of confidence.
+       What does detect it is the snapshot's own expiry, which every source
+       carries and which is stamped from the reading clock. This states both
+       halves so the gap is documented rather than discovered. */
+    const later = "2027-01-01T00:00:00.000Z";
+    const meters = parseOpencodePayload(opencodeFixture(FIXTURE_NOW), later);
+    expect(meters).toHaveLength(1);
+    const reading = meters?.[0];
+    expect(Date.parse(String(reading?.resetAt))).toBeGreaterThan(Date.parse(later));
+    /* Read at the clock it was observed at, it is fresh; a minute later it is
+       stale, whatever its countdown says. */
+    expect(freshness(String(reading?.observedAt), String(reading?.expiresAt), later))
+      .toBe("fresh");
+    const stale = new Date(Date.parse(later) + 120_000).toISOString();
+    expect(freshness(String(reading?.observedAt), String(reading?.expiresAt), stale))
+      .toBe("stale");
   });
 
   it("keeps every fixture valid against the real clock", () => {
