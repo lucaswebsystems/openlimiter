@@ -30,8 +30,8 @@
     "closeMenu": "Close menu"
   },
   "announce": {
-    "message": "Founding promo: OpenLimiter Pro at 50% OFF for early supporters",
-    "short": "OpenLimiter Pro at 50% OFF",
+    "message": "OpenLimiter Pro: a founding price for early supporters, coming soon",
+    "short": "OpenLimiter Pro: founding price, coming soon",
     "dismiss": "Close this announcement"
   },
   "footer": {
@@ -151,7 +151,7 @@
   },
   "integrations": {
     "title": "What it reads, where it lands",
-    "lead": "No testimonials, no avatar wall, no user count. Every card below either ships a connector in this release or says plainly that it does not have one yet, so the wall itself is a status report.",
+    "lead": "No testimonials, no avatar wall, no user count. Every card below either ships a connector in this release or says plainly that it does not have one yet, so the wall itself is a status report. Connecting a provider normally happens in the desktop application; the surfaces below are the developer paths, under Advanced, for anyone who wants them directly.",
     "plannedChip": "planned",
     "plannedLine": "Planned connector. Meter it today through manual entry or ingest.",
     "connectors": {
@@ -192,7 +192,7 @@
       },
       "shell": {
         "name": "Any shell",
-        "detail": "The whole snapshot as a table for you or as JSON for a script. No network call, no account, no daemon in the middle."
+        "detail": "The whole snapshot as a table for you or as JSON for a script, read straight from the local cache with no daemon in the middle. Local mode has zero telemetry and no account; when a provider is connected through the desktop application, that connection talks only to the provider's own endpoint, never to OpenLimiter."
       },
       "fileWriter": {
         "name": "Any tool that can write a file",
@@ -211,7 +211,7 @@
   },
   "worksWith": {
     "title": "Works with your tools",
-    "lead": "One meter over every subscription you already hold. Each connector reads a shape that something on your machine already wrote, and in this release not one of them touches the network.",
+    "lead": "One meter over every subscription you already hold. Connect a provider from the desktop application, or feed one in through manual entry or ingest under Advanced. Local mode has zero telemetry and no account; a live connection talks only to that provider's own endpoint, never to OpenLimiter, because no OpenLimiter cloud exists yet.",
     "groups": {
       "today": {
         "label": "Ships today",
@@ -229,7 +229,7 @@
     },
     "feedIn": "How to feed one in",
     "footnote": "Every connector ships marked <code>UNVERIFIED</code>, the honest default: no verifier has confirmed a shape against a live account yet. Three read interfaces internal to somebody else's tooling, and when one changes, that provider fails closed to unknown rather than guessing. <link>Every connector and its real state</link>.",
-    "manualNote": "Every tool on this page can be metered today. Write the numbers down with manual entry, or pipe a payload in with ingest from any script you control, and it lands in the same snapshot as a connector."
+    "manualNote": "Every tool on this page can be metered today. Connect it from the desktop application, or, under Advanced, write the numbers down with manual entry or pipe a payload in with ingest from any script you control. Either way it lands in the same snapshot as a connector."
   },
   "runsWhere": {
     "title": "Runs where you work",
@@ -326,7 +326,7 @@
       "lead": "Reader means something in OpenLimiter goes and fetches the number. Auth means a credential is held and used. Every cell above is read at build time from the reviewed provider registry rather than written into this page, so a stage cannot be claimed here without a human changing a spec first.",
       "unspecified": "{count} of the {total} connectors have no reviewed spec yet, and every one of their cells reads Unstated rather than guessing.",
       "elsewhere": "The registry describes {count} further products with no connector at all, which is why they are not rows here.",
-      "tail": "Nothing on this page is called connected."
+      "tail": "A row on this page is only ever called Connected once a live reader for it is confirmed, never on the strength of a parser alone."
     }
   },
   "cliTranscript": {
@@ -386,7 +386,7 @@
     "items": {
       "whatLeaves": {
         "question": "What actually leaves my machine?",
-        "answer": "Nothing. There is no telemetry, no analytics, and no OpenLimiter server to receive anything. This release performs no provider egress at all: every connector is a parser over data that something else already wrote to your disk or piped to standard input."
+        "answer": "In local mode, nothing: there is no telemetry, no analytics, and no OpenLimiter server to receive anything, because no OpenLimiter cloud exists yet. When you connect a provider in the desktop application, that connection talks only to the provider's own endpoint over an allowlist, and the credential stays in your operating system's credential store. Either way, nothing ever phones home to OpenLimiter."
       },
       "safeToPoint": {
         "question": "Is it safe to point at my tools?",
@@ -422,7 +422,7 @@
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "A planned paid tier at $5 a month, founding price, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, a smart limiter that routes between your models from live budget state, email alerts and a weekly digest, delivery rules, hosted history and burn trends, priority connector requests, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it."
+        "answer": "A planned paid tier at $5 a month, founding price, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, email alerts and a weekly digest, hosted usage history and forecasting, budget guardrails for your own usage, support for more than one account per provider, device management, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it."
       }
     }
   },
@@ -456,11 +456,11 @@
       "lines": {
         "sync": "Encrypted synchronisation of quota state across your own devices",
         "push": "Push notifications to your phone when a window nears its cap",
-        "smartLimiter": "Smart limiter: quota aware routing between your models, driven by live budget state",
+        "smartLimiter": "Budget guardrails: the thresholds and alerts you set around your own usage",
         "email": "Email alerts and a weekly digest",
-        "deliveryRules": "Alert delivery rules, so a quiet hour stays quiet",
-        "history": "Hosted usage history and burn trends across every device",
-        "priority": "Priority connector requests, so your provider gets built first",
+        "deliveryRules": "More than one account per provider, each metered on its own",
+        "history": "Hosted usage history and forecasting across every device",
+        "priority": "Device management: see which devices are signed in, and remove one you no longer use",
         "team": "A team dashboard tier, later than the rest"
       }
     },
@@ -473,7 +473,7 @@
     "commitments": {
       "runsLocal": {
         "title": "It runs on your machine",
-        "detail": "Every connector in this release is a parser over something already on your disk. No provider egress, no daemon, no account."
+        "detail": "Local mode has zero telemetry and no account. When you connect a provider in the desktop application, that connection talks only to the provider's own endpoint over an allowlist, with the credential held in your operating system's credential store. Nothing phones home to OpenLimiter, because no OpenLimiter cloud exists yet."
       },
       "reportsNobody": {
         "title": "It reports to nobody",
@@ -630,7 +630,7 @@
           },
           "first-data": {
             "title": "Give it something to meter",
-            "parser": "OpenLimiter never contacts a provider in this release. It parses data that something else already put in front of it. Until one of the ingestion paths runs, every command honestly reports unknown.",
+            "parser": "The command line tool never contacts a provider on its own. It parses data that something else already put in front of it. Until one of the ingestion paths runs, every command honestly reports unknown.",
             "statusline": "The path that needs no extra work is the Claude Code statusline. Claude Code runs your statusline command on every render and writes a JSON object describing the current session to that command's standard input. When that object carries a rate limit block, OpenLimiter validates it, caches it, and renders the fresh numbers in the same call.",
             "terminalLabel": "terminal",
             "fallback": "Not every Claude Code version sends rate limit fields. If yours does not, this path stays quiet and the two manual paths still work. The <docs>ingestion page</docs> covers all three."
@@ -675,7 +675,7 @@
             "title": "What OpenLimiter does about it",
             "intro": "OpenLimiter reads quota for supported AI subscriptions on your own machine, normalises every reading into one schema, and feeds bounded budget state plus routing advice into the coding agents' own context. The first adapter is a Claude Code statusline and prompt hook.",
             "bullets": {
-              "read": "<strong>Read.</strong> Connectors parse shapes that a provider or a local tool already produced. They perform no network access in this release.",
+              "read": "<strong>Read.</strong> Connectors parse shapes that a provider or a local tool already produced. In local mode nothing leaves your machine; when you connect a provider from the desktop application, that connection talks only to the provider's own endpoint.",
               "normalise": "<strong>Normalise.</strong> One snapshot schema with closed enums, bounded percentages, and derived freshness. Unknown stays unknown and never becomes a fabricated zero.",
               "advise": "<strong>Advise.</strong> A compact statusline for you, and a bounded context block for your agent that carries enum codes, numbers, and timestamps only."
             }
@@ -755,7 +755,7 @@
           },
           "how-data-arrives": {
             "title": "How data actually arrives",
-            "intro": "This is the part that surprises people, so it is worth stating plainly. In this release no connector performs network access. Every one of them is a parser, and something else has to hand it a document.",
+            "intro": "This is the part that surprises people, so it is worth stating plainly. In the command line tool, no connector performs network access on its own. Every one of them is a parser, and something else has to hand it a document.",
             "bullets": {
               "claude": "<code>claude</code> is fed by the statusline payload arriving on standard input. That path is automatic once Claude Code is wired up.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
@@ -802,8 +802,8 @@
         "sections": {
           "chips": {
             "title": "The chip on a provider today",
-            "intro": "A parser existing is not a connection, so no card in the dashboard is ever labelled connected on the strength of one. Every provider instead carries a chip naming how its numbers actually reached this device. There are three, today.",
-            "caption": "The three source chips shown in the dashboard today",
+            "intro": "A parser existing is not a connection, so no card is ever labelled connected on the strength of one. Every provider instead carries a chip naming how its numbers actually reached this device: one of the three below before a live connection exists, or Connected once you link that provider from the desktop application.",
+            "caption": "The three source chips shown before a provider has a live connection",
             "columns": {
               "chip": "chip",
               "providers": "providers",
@@ -879,13 +879,13 @@
             },
             "what-this-is-not-claiming": {
               "title": "What this page is not claiming",
-              "body": "Not that all thirteen are on screen. What the dashboard actually renders today is the simpler, three chip vocabulary above, built for a release where nothing performs a network read. The thirteen states are real and tested in the core package this product is built from, and they name the general lifecycle any connection follows once a live reader exists. No surface renders those words yet, because nothing today does the thing that would put a connection into one of them: no reader, no request, nothing to fail, expire, or need a credential for."
+              "body": "Not that all thirteen are on screen everywhere. The web app and the command line tool still render the simpler three chip vocabulary above, because neither one reads a provider live on its own. The thirteen states are real and tested in the core package this product is built from, and they name the general lifecycle a connection follows wherever a live reader exists, which today is the desktop application's own Connections screen rather than this page."
             }
           },
           "what-changes": {
-            "title": "What changes when a live connection ships",
-            "intro": "Nothing on this page is a date or a promise. When a provider gains a real reader, the honest description of it stops being a fixed chip and starts being whichever of the thirteen states above actually fits at that moment: detected, waiting on a credential, connecting, connected, or, when something goes wrong, degraded, stale, or needing a look. That is the reason to name the whole vocabulary now, before any of it is reachable, so the sentence a person reads does not change on the day the state underneath it starts moving.",
-            "noReader": "No provider has that reader today. See the <roadmap>roadmap</roadmap> for what is planned and what is not, and <providers>supported providers</providers> for what each connector can actually do right now."
+            "title": "What a live connection changes",
+            "intro": "Nothing on this page is a date or a promise for the web app or the command line tool, which stay on the three chips above because neither reads a provider live. When a provider gains a real reader, the honest description of it stops being a fixed chip and starts being whichever of the thirteen states above actually fits at that moment: detected, waiting on a credential, connecting, connected, or, when something goes wrong, degraded, stale, or needing a look. That is the reason to name the whole vocabulary here, so the sentence a person reads does not change as the state underneath it moves.",
+            "noReader": "Not every provider has that reader today; the desktop application's own Connections screen is where a live one shows up first. See the <roadmap>roadmap</roadmap> for what is planned and what is not, and <providers>supported providers</providers> for what each connector can actually do right now."
           }
         }
       },
@@ -1235,7 +1235,7 @@
               "noServer": "<strong>There is no OpenLimiter server.</strong> Nothing is sent to the project authors, because there is nowhere to send it.",
               "noTelemetry": "<strong>There is no telemetry.</strong> No command sends usage, diagnostics, identifiers, prompts, or quota state anywhere.",
               "hookNoNetwork": "<strong>The hook makes no network request.</strong> It reads the local cache and nothing else.",
-              "noEgress": "<strong>This release performs no egress at all.</strong> No connector contacts a provider. Every one of them is a parser over data something else already produced.",
+              "noEgress": "<strong>No OpenLimiter cloud exists to phone home to.</strong> Local mode has zero telemetry and no account. When you connect a provider in the desktop application, that connection talks only to the provider's own endpoint over an allowlist, and the credential stays in your operating system's credential store.",
               "unknownNeverZero": "<strong>Unknown never becomes zero.</strong> Missing, expired, malformed, and unrecognised input all resolve to unknown.",
               "readOnlyArtifacts": "<strong>Provider authentication artifacts are read only.</strong> They are never rewritten, backed up, repaired, or migrated."
             }
@@ -1270,8 +1270,8 @@
             }
           },
           "future-egress": {
-            "title": "If a future connector goes to the network",
-            "intro": "This release performs no provider egress. A future connector that does would have to satisfy all of the following before it could ship.",
+            "title": "What a live connection is allowed to do",
+            "intro": "Local mode performs no provider egress at all. When you connect a provider in the desktop application, that connection has to satisfy all of the following.",
             "bullets": {
               "oneHost": "Declare one exact provider host.",
               "transport": "Use secure transport and reject any redirect outside that host.",
@@ -1322,9 +1322,9 @@
               "status": "Status: planned. No service exists, there is no checkout and no waiting list.",
               "sync": "Encrypted synchronisation of quota state across your own devices.",
               "push": "Push notifications to your phone when a window nears its cap.",
-              "smartLimiter": "A smart limiter: quota aware routing between your models, driven by live budget state.",
+              "smartLimiter": "Budget guardrails: the thresholds and alerts you set around your own usage.",
               "email": "Email alerts and a weekly digest, with delivery rules for quiet hours.",
-              "history": "Hosted usage history and burn trends across every device.",
+              "history": "Hosted usage history and forecasting across every device.",
               "priority": "Priority connector requests, so your provider gets built first.",
               "team": "A team dashboard tier, later than the rest.",
               "localFirst": "The local first guarantee does not change: the CLI would keep working with no account and no network."
