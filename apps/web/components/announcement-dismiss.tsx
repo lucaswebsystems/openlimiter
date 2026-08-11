@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ANNOUNCE_ATTR, ANNOUNCE_OFF, ANNOUNCE_STORAGE_KEY } from "@/lib/announce";
+import { ANNOUNCE_ATTR, ANNOUNCE_OFF } from "@/lib/announce";
 
 /**
  * The close control, and the only client side code the bar has.
@@ -18,11 +18,9 @@ import { ANNOUNCE_ATTR, ANNOUNCE_OFF, ANNOUNCE_STORAGE_KEY } from "@/lib/announc
 export function AnnouncementDismiss() {
   const t = useTranslations("announce");
   function dismiss() {
-    try {
-      window.localStorage.setItem(ANNOUNCE_STORAGE_KEY, ANNOUNCE_OFF);
-    } catch {
-      /* Storage refused. The attribute below still closes it for this page. */
-    }
+    /* Closing hides the bar for THIS page only, by the founder's order
+       (2026-08-11): the promo returns on the next load. Nothing is written
+       to storage, so a reader who closed it once still sees it tomorrow. */
     document.documentElement.setAttribute(ANNOUNCE_ATTR, ANNOUNCE_OFF);
   }
 

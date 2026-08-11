@@ -31,15 +31,20 @@ export const ANNOUNCE_ATTR = "data-announce";
 /** The value that attribute takes. Nothing else is ever written to it. */
 export const ANNOUNCE_OFF = "off";
 
-/** Storage key holding that choice. */
-export const ANNOUNCE_STORAGE_KEY = "openlimiter-announce";
+/** The legacy storage key, cleared on sight. See the arm script below. */
+const ANNOUNCE_LEGACY_KEY = "openlimiter-announce";
 
 /** Where the bar goes: the section that explains both numbers. */
 export const ANNOUNCE_HREF = "/#pricing";
 
+/**
+ * The bar returns on every load, the founder's order (2026-08-11): closing it
+ * hides it for that page and nothing more. This script only clears the key the
+ * previous behaviour wrote, so a reader who dismissed the bar once is not
+ * silently kept from ever seeing it again.
+ */
 export const announceArmScript = [
   "(function(){try{",
-  `if(window.localStorage.getItem("${ANNOUNCE_STORAGE_KEY}")==="${ANNOUNCE_OFF}"){`,
-  `document.documentElement.setAttribute("${ANNOUNCE_ATTR}","${ANNOUNCE_OFF}")}`,
+  `window.localStorage.removeItem("${ANNOUNCE_LEGACY_KEY}");`,
   "}catch(e){}})();",
 ].join("");

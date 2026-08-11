@@ -58,6 +58,18 @@ export async function AnnouncementBar() {
           className="focus-ring-inset group flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded text-xs font-medium"
         >
           <span className="sr-only">{t("message")}</span>
+          {/* A small spark on the left, drawn here: the promo is a founding
+             offer rather than a warning, so the mark is celebratory and not a
+             megaphone. Founder's ask (2026-08-11). */}
+          <svg
+            viewBox="0 0 24 24"
+            className="h-3.5 w-3.5 flex-none"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M12 2.5l1.7 5.1 5.1 1.7-5.1 1.7L12 16.1l-1.7-5.1-5.1-1.7 5.1-1.7L12 2.5Z" />
+            <path d="M18.5 15.2l.85 2.45 2.45.85-2.45.85-.85 2.45-.85-2.45-2.45-.85 2.45-.85.85-2.45Z" />
+          </svg>
           {/* Two whole sentences rather than one sentence split across widths.
               It used to be spliced mid word, so a narrow screen could drop the
               first syllable and still open on a capital, and a word cut in half
