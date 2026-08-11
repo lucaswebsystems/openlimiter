@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import type { CSSProperties, ReactNode } from "react";
 import {
+  AntigravityMark,
   ClaudeMark,
   CodexMark,
   CopilotMark,
@@ -92,7 +93,7 @@ function getConnectors(t: ReturnType<typeof useTranslations<"integrations">>): S
     },
     {
       name: "Antigravity",
-      Mark: GoogleMark,
+      Mark: AntigravityMark,
       state: "today",
       tag: t("connectors.antigravity.tag"),
       detail: t("connectors.antigravity.detail"),
