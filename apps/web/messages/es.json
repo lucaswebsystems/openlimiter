@@ -38,7 +38,9 @@
     "blurb": "Conciencia de quota para agentes de programación con IA. Lee lo que a tus suscripciones les queda, en tu propia máquina, entrega a tus agentes un bloque acotado de ese estado y nunca inventa un número que no tiene.",
     "builtBy": "Creado por <name>{author}</name>",
     "product": "Producto",
+    "resources": "Recursos",
     "community": "Comunidad",
+    "trust": "Confianza",
     "issues": "Incidencias",
     "licenceNote": "Apache 2.0 | Con prioridad local | Cero telemetría en el software | Sin cuentas | Conteos de páginas sin cookies",
     "licenceRead": "Leer la licencia",
@@ -60,8 +62,8 @@
   },
   "hero": {
     "title": {
-      "limits": "Conoce tus límites.",
-      "route": "Rodéalos."
+      "limits": "Controla los límites y el uso de todos tus LLM.",
+      "route": "En tiempo real, desde tu escritorio, tu móvil o tu terminal."
     },
     "lead": "Lee la quota de tus suscripciones de IA de forma local. Dale a tus agentes un estado de presupuesto acotado y consejos. Código abierto, con prioridad local, multiplataforma.",
     "downloads": {

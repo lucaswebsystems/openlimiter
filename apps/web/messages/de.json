@@ -38,7 +38,9 @@
     "blurb": "Quotabewusstsein für KI Coding Agenten. Es liest, was von deinen Abos auf deinem eigenen Rechner noch übrig ist, gibt deinen Agenten einen begrenzten Ausschnitt davon und erfindet nie eine Zahl, die es nicht hat.",
     "builtBy": "Gebaut von <name>{author}</name>",
     "product": "Produkt",
+    "resources": "Ressourcen",
     "community": "Community",
+    "trust": "Vertrauen",
     "issues": "Issues",
     "licenceNote": "Apache 2.0 | Lokal zuerst | Keine Telemetrie in der Software | Keine Konten | Cookielose Seitenaufrufe",
     "licenceRead": "Lizenz lesen",
@@ -60,8 +62,8 @@
   },
   "hero": {
     "title": {
-      "limits": "Kenn deine Limits.",
-      "route": "Route drumherum."
+      "limits": "Behalte Limits und Verbrauch aller deiner LLMs im Blick.",
+      "route": "In Echtzeit, am Desktop, am Handy oder direkt im Terminal."
     },
     "lead": "Lies dein KI Abo Quota lokal aus. Gib Agenten begrenzten Budgetstatus und Empfehlungen. Open Source, lokal zuerst, plattformübergreifend.",
     "downloads": {

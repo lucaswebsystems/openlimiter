@@ -468,7 +468,10 @@ export function ConnectionMatrix() {
         </table>
       </div>
 
-      <p className="mx-auto mt-4 max-w-[70ch] text-center text-sm leading-relaxed text-muted">
+      {/* Full container width, matching the table and the card grid above it.
+          Capped at a 70ch measure this note sat as a narrow column under a full
+          width block and read as a different, smaller page. */}
+      <p className="mt-4 w-full text-center text-sm leading-relaxed text-muted">
         {t("footnote.lead")}{" "}
         {unspecified > 0 && (
           <>

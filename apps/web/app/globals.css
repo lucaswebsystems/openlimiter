@@ -624,11 +624,14 @@ body:has(.ol-shell) .announce-bar {
   );
 }
 
+/* The duration arrives per row from integration-strip.tsx, scaled by that row's
+   card count, so both rows share one pixels per second rather than one lap
+   time. The fallback is the old figure, for a row that forgets to set it. */
 .strip-track {
   display: flex;
   width: max-content;
   gap: 1rem;
-  animation: strip-slide 46s linear infinite;
+  animation: strip-slide var(--strip-duration, 46s) linear infinite;
 }
 
 .strip-track-reverse {

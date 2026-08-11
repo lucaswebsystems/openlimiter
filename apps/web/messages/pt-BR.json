@@ -38,7 +38,9 @@
     "blurb": "Consciência de quota para agentes de codificação com IA. Ele lê o que sobrou das suas assinaturas na sua própria máquina, entrega aos seus agentes um bloco limitado desse estado e nunca inventa um número que não tem.",
     "builtBy": "Feito por <name>{author}</name>",
     "product": "Produto",
+    "resources": "Recursos",
     "community": "Comunidade",
+    "trust": "Confiança",
     "issues": "Issues",
     "licenceNote": "Apache 2.0 | Local first | Telemetria zero no software | Sem contas | Contagens de página sem cookies",
     "licenceRead": "Ler a licença",
@@ -60,8 +62,8 @@
   },
   "hero": {
     "title": {
-      "limits": "Conheça seus limites.",
-      "route": "Contorne eles."
+      "limits": "Acompanhe os limites e o uso de todas as suas LLMs.",
+      "route": "Em tempo real, no desktop, no celular ou direto do terminal."
     },
     "lead": "Leia a quota das suas assinaturas de IA localmente. Dê aos agentes um estado de orçamento limitado e recomendações. Código aberto, local first, multiplataforma.",
     "downloads": {

@@ -20,22 +20,8 @@ import {
 /**
  * The footer.
  *
- * A brand block that says who made this and how to reach him, then two columns
- * of links that all point at something that exists.
- *
- * IT USED TO BE THREE COLUMNS AND FIFTEEN LINKS
- * ---------------------------------------------
- * The Download column listed every platform separately, which duplicated the
- * one job the download page already does better: it reads the visitor's system
- * and offers the right file first. So the whole column collapsed into a single
- * Download link. Discussions went with it, because Issues is where anything
- * actionable actually lands.
- *
- * Roadmap and Security left the columns too, and only one of them needed
- * somewhere else to live. Roadmap is a documentation page and is linked from
- * the documentation. Security is a trust surface, and a trust surface that
- * takes two navigations to reach is a trust surface nobody reads, so it sits in
- * the licence line at the bottom beside the licence itself.
+ * A brand block, then four focused columns for product, resources, community,
+ * and trust links. Every link points at something that exists.
  *
  * There is no Discord link anywhere on this site, by instruction.
  *
@@ -167,9 +153,14 @@ export function Footer({ localised = true }: { localised?: boolean }) {
   const common = useTranslations("common");
 
   const product: FooterLink[] = [
-    { label: routes("docs"), href: "/docs" },
+    { label: routes("webApp"), href: "/app" },
     { label: routes("download"), href: "/download" },
     { label: routes("changelog"), href: "/changelog" },
+  ];
+
+  const resources: FooterLink[] = [
+    { label: routes("docs"), href: "/docs" },
+    { label: routes("alternatives"), href: "/alternatives" },
     { label: routes("blog"), href: "/blog" },
   ];
 
@@ -184,6 +175,11 @@ export function Footer({ localised = true }: { localised?: boolean }) {
     { label: "Buy me a coffee", href: COFFEE_URL, external: true },
   ];
 
+  const trust: FooterLink[] = [
+    { label: t("licenceRead"), href: LICENSE_URL, external: true },
+    { label: t("security"), href: "/docs/security" },
+  ];
+
   return (
     /* The bottom padding is generous on a phone because the back to top button
        is fixed in that corner, and the licence line is centred, so a tight
@@ -191,7 +187,7 @@ export function Footer({ localised = true }: { localised?: boolean }) {
        The button is 44 pixels tall and sits 20 from the edge, so 96 clears it
        with room left over. Wide screens never had the collision. */
     <footer className={`${SHELL} pb-24 pt-4 text-center sm:pb-8 md:pb-16 md:text-left`}>
-      <div className="grid gap-10 border-t border-hairline pt-10 text-sm lg:grid-cols-[2fr_1fr_1fr]">
+      <div className="grid gap-10 border-t border-hairline pt-10 text-sm lg:grid-cols-[2fr_1fr_1fr_1fr_1fr]">
         <div className="mx-auto flex max-w-sm flex-col items-center space-y-4 md:mx-0 md:items-start" {...reveal}>
           <SiteLink
             href="/"
@@ -205,16 +201,6 @@ export function Footer({ localised = true }: { localised?: boolean }) {
           </SiteLink>
           <p className="leading-relaxed text-muted">{t("blurb")}</p>
           <div className="space-y-2">
-            <p className="text-muted">
-              {/* One sentence, one argument and one tag: the name is a fact from
-                  lib/site.ts rather than a word to translate, and the tag is what
-                  lifts it out of the grey. A translator moves both around the
-                  sentence and edits neither. */}
-              {t.rich("builtBy", {
-                author: AUTHOR_NAME,
-                name: (chunks) => <span className="text-heading">{chunks}</span>,
-              })}
-            </p>
             <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 md:justify-start">
               <a
                 href={AUTHOR_SITE}
@@ -252,7 +238,9 @@ export function Footer({ localised = true }: { localised?: boolean }) {
         </div>
 
         <Column title={t("product")} links={product} />
+        <Column title={t("resources")} links={resources} />
         <Column title={t("community")} links={community} />
+        <Column title={t("trust")} links={trust} />
       </div>
 
       {/* The switcher sits between the columns and the licence line, centred on
@@ -263,31 +251,41 @@ export function Footer({ localised = true }: { localised?: boolean }) {
         </div>
       )}
 
-      {/* Centred, and capped at a readable measure, so the last line of the page
-          reads as a closing statement rather than as one more left aligned
-          column heading. */}
-      <p
-        className={`mx-auto max-w-none text-center text-xs leading-relaxed text-muted ${localised ? "pt-6" : "pt-10"}`}
+      <div
+        className={`grid gap-3 text-center md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:text-left ${localised ? "pt-6" : "pt-10"}`}
         {...reveal}
       >
-        © {new Date().getFullYear()} Lucas Costa{" | "}
-        {t("licenceNote")}{" | "}
+        <p className="text-xs leading-relaxed text-muted">
+          © {new Date().getFullYear()} Lucas Costa{" | "}
+          {t("licenceNote")}{" | "}
+          <a
+            href={LICENSE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+          >
+            {t("licenceRead")}
+          </a>
+          {" | "}
+          <SiteLink
+            href="/docs/security"
+            className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+          >
+            {t("security")}
+          </SiteLink>
+        </p>
         <a
-          href={LICENSE_URL}
+          href={AUTHOR_SITE}
           target="_blank"
           rel="noopener noreferrer"
-          className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+          className="focus-ring justify-self-center rounded text-xs leading-relaxed text-accent transition-colors hover:text-accent-hover md:justify-self-end"
         >
-          {t("licenceRead")}
+          {t.rich("builtBy", {
+            author: AUTHOR_NAME,
+            name: (chunks) => chunks,
+          })}
         </a>
-        {" | "}
-        <SiteLink
-          href="/docs/security"
-          className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
-        >
-          {t("security")}
-        </SiteLink>
-      </p>
+      </div>
     </footer>
   );
 }

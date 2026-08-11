@@ -38,7 +38,9 @@
     "blurb": "Quota awareness for AI coding agents. It reads what your subscriptions have left on your own machine, hands your agents a bounded block of that state, and never invents a number it does not have.",
     "builtBy": "Built by <name>{author}</name>",
     "product": "Product",
+    "resources": "Resources",
     "community": "Community",
+    "trust": "Trust",
     "issues": "Issues",
     "licenceNote": "Apache 2.0 | Local first | Zero telemetry in the software | No accounts | Cookieless page counts",
     "licenceRead": "Read the licence",
@@ -60,8 +62,8 @@
   },
   "hero": {
     "title": {
-      "limits": "Know your limits.",
-      "route": "Route around them."
+      "limits": "Stay on top of your LLM limits and usage.",
+      "route": "In real time, from your desktop, your phone, or your terminal."
     },
     "lead": "Read your AI subscription quota locally. Give agents bounded budget state and advice. Open source, local first, cross platform.",
     "downloads": {

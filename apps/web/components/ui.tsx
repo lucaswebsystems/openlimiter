@@ -303,7 +303,7 @@ export function DemoDataChip() {
 /**
  * The heading block that opens every section, at the reference's exact rhythm:
  * a 30 pixel medium heading, an optional status chip on the same line, a 16
- * pixel muted lead capped at 512 pixels, and 48 pixels of air underneath.
+ * pixel muted lead across the section wrapper, and 48 pixels of air underneath.
  */
 export function SectionHeading({
   id,
@@ -329,7 +329,7 @@ export function SectionHeading({
         )}
       </div>
       {lead !== undefined && (
-        <p className="mx-auto mt-2 max-w-[70ch] text-base text-muted">{lead}</p>
+        <p className="mt-2 w-full text-base text-muted">{lead}</p>
       )}
     </div>
   );
