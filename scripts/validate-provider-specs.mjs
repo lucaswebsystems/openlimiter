@@ -258,7 +258,11 @@ export function refuseUrlLiterals(text, file) {
       }
       URL_LITERAL.lastIndex = 0;
       if (!URL_LITERAL.test(value)) continue;
-      if (!SINGLE_HTTPS_URL.test(value)) {
+      /* One whitespace free scalar can still be two addresses joined by a
+         comma or a fragment, so the count of URL literals inside the value
+         is bound to exactly one, in addition to the shape of the whole. */
+      const literalCount = (value.match(URL_LITERAL) ?? []).length;
+      if (literalCount !== 1 || !SINGLE_HTTPS_URL.test(value)) {
         fail(
           where,
           "docs_url must be exactly one https address and nothing else. A value " +
