@@ -32,13 +32,20 @@ import { rememberLocale } from "@/lib/locale-choice";
  * for a language IS choosing it, so the choice is recorded here exactly as the
  * banner records it.
  */
-export function LocaleSwitcher() {
+export function LocaleSwitcher({ vertical = false }: { vertical?: boolean }) {
   const current = useLocale();
   const pathname = usePathname();
   const t = useTranslations("localeSwitcher");
 
   return (
-    <nav aria-label={t("label")} className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+    <nav
+      aria-label={t("label")}
+      className={
+        vertical
+          ? "flex flex-col items-center gap-0.5 md:items-start"
+          : "flex flex-wrap items-center gap-x-4 gap-y-1.5"
+      }
+    >
       {LOCALES.map((locale) => {
         const face = LOCALE_FACES[locale];
         const FlagIcon = LOCALE_FLAG_ICONS[locale];

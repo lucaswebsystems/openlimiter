@@ -8,7 +8,6 @@ import {
   AUTHOR_EMAIL,
   AUTHOR_GITHUB,
   AUTHOR_LINKEDIN,
-  AUTHOR_NAME,
   AUTHOR_SITE,
   COFFEE_URL,
   ISSUES_URL,
@@ -20,16 +19,16 @@ import {
 /**
  * The footer.
  *
- * A brand block, then four focused columns for product, resources, community,
- * and trust links. Every link points at something that exists.
+ * Five columns: the brand, product links, resources, contact details, and the
+ * language switcher. Every link points at something that exists.
  *
  * There is no Discord link anywhere on this site, by instruction.
  *
  * THE LANGUAGE SWITCHER LIVES HERE
  * --------------------------------
- * Bottom of every page that has translations, above the licence line. A reader
- * looking for their language looks at the foot of the page, and a control in the
- * header would be a sixth thing competing with the product's own navigation.
+ * The fifth column of every page that has translations. A reader looking for
+ * their language looks at the foot of the page, and a control in the header
+ * would be a sixth thing competing with the product's own navigation.
  * The three English only trees render this footer with `localised` off, because
  * a switcher there would point at pages that do not exist.
  */
@@ -147,8 +146,60 @@ function MailMark({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
+function ContactColumn() {
+  return (
+    <div className="space-y-3" {...reveal}>
+      <p className="heading-face text-heading">Contact</p>
+      <div className="flex flex-col items-center gap-2 md:items-start">
+        <a
+          href={AUTHOR_SITE}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={contactClass}
+        >
+          <GlobeMark />
+          lucaswebsystems.com
+        </a>
+        <a
+          href={AUTHOR_GITHUB}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={contactClass}
+        >
+          <GitHubMark />
+          GitHub
+        </a>
+        <a href={`mailto:${AUTHOR_EMAIL}`} className={contactClass}>
+          <MailMark />
+          {AUTHOR_EMAIL}
+        </a>
+        <a
+          href={AUTHOR_LINKEDIN}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={contactClass}
+        >
+          <LinkedInMark />
+          LinkedIn
+        </a>
+      </div>
+    </div>
+  );
+}
+
+function LanguageColumn({ title }: { title: string }) {
+  return (
+    <div className="space-y-3" {...reveal}>
+      <p className="heading-face text-heading">{title}</p>
+      <LocaleSwitcher vertical />
+    </div>
+  );
+}
+
 export function Footer({ localised = true }: { localised?: boolean }) {
   const t = useTranslations("footer");
+  const terms = useTranslations("terms");
+  const localeSwitcher = useTranslations("localeSwitcher");
   const routes = useTranslations("common.routes");
   const common = useTranslations("common");
 
@@ -162,20 +213,10 @@ export function Footer({ localised = true }: { localised?: boolean }) {
     { label: routes("docs"), href: "/docs" },
     { label: routes("alternatives"), href: "/alternatives" },
     { label: routes("blog"), href: "/blog" },
-  ];
-
-  /* Four proper nouns and one word. GitHub, GitHub Sponsors and Buy me a coffee
-     are the names of services and are the same in every language, so they are
-     literals here rather than five identical catalog entries. See
-     messages/GLOSSARY.md. */
-  const community: FooterLink[] = [
     { label: "GitHub", href: REPO_URL, external: true },
     { label: t("issues"), href: ISSUES_URL, external: true },
     { label: "GitHub Sponsors", href: SPONSORS_URL, external: true },
     { label: "Buy me a coffee", href: COFFEE_URL, external: true },
-  ];
-
-  const trust: FooterLink[] = [
     { label: t("licenceRead"), href: LICENSE_URL, external: true },
     { label: t("security"), href: "/docs/security" },
   ];
@@ -200,91 +241,27 @@ export function Footer({ localised = true }: { localised?: boolean }) {
             />
           </SiteLink>
           <p className="leading-relaxed text-muted">{t("blurb")}</p>
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 md:justify-start">
-              <a
-                href={AUTHOR_SITE}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={contactClass}
-              >
-                <GlobeMark />
-                lucaswebsystems.com
-              </a>
-              <a href={`mailto:${AUTHOR_EMAIL}`} className={contactClass}>
-                <MailMark />
-                {AUTHOR_EMAIL}
-              </a>
-              <a
-                href={AUTHOR_LINKEDIN}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={contactClass}
-              >
-                <LinkedInMark />
-                LinkedIn
-              </a>
-              <a
-                href={AUTHOR_GITHUB}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={contactClass}
-              >
-                <GitHubMark />
-                GitHub
-              </a>
-            </div>
-          </div>
         </div>
 
         <Column title={t("product")} links={product} />
         <Column title={t("resources")} links={resources} />
-        <Column title={t("community")} links={community} />
-        <Column title={t("trust")} links={trust} />
+        <ContactColumn />
+        {localised && <LanguageColumn title={localeSwitcher("label")} />}
       </div>
 
-      {/* The switcher sits between the columns and the licence line, centred on
-          the same axis as the sentence under it. */}
-      {localised && (
-        <div className="flex justify-center pt-10 text-sm" {...reveal}>
-          <LocaleSwitcher />
-        </div>
-      )}
-
       <div
-        className={`grid gap-3 text-center md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:text-left ${localised ? "pt-6" : "pt-10"}`}
+        className="grid gap-3 pt-10 text-center md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:text-left"
         {...reveal}
       >
         <p className="text-xs leading-relaxed text-muted">
-          © {new Date().getFullYear()} Lucas Costa{" | "}
-          {t("licenceNote")}{" | "}
-          <a
-            href={LICENSE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
-          >
-            {t("licenceRead")}
-          </a>
-          {" | "}
-          <SiteLink
-            href="/docs/security"
-            className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
-          >
-            {t("security")}
-          </SiteLink>
+          © {new Date().getFullYear()} Lucas Costa. All rights reserved.
         </p>
-        <a
-          href={AUTHOR_SITE}
-          target="_blank"
-          rel="noopener noreferrer"
+        <SiteLink
+          href="/terms"
           className="focus-ring justify-self-center rounded text-xs leading-relaxed text-accent transition-colors hover:text-accent-hover md:justify-self-end"
         >
-          {t.rich("builtBy", {
-            author: AUTHOR_NAME,
-            name: (chunks) => chunks,
-          })}
-        </a>
+          {terms("title")}
+        </SiteLink>
       </div>
     </footer>
   );

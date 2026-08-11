@@ -46,6 +46,11 @@
     "licenceRead": "Leer la licencia",
     "security": "Seguridad"
   },
+  "terms": {
+    "title": "Terms and conditions",
+    "lead": "These terms explain the rules for using the OpenLimiter website and software. They are meant to be clear and practical.",
+    "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software."
+  },
   "localeSwitcher": {
     "label": "Idioma"
   },
