@@ -593,16 +593,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               onImportFile={() => fileInput.current?.click()}
               onEnterDemo={enterDemo}
             />
-            <input
-              ref={fileInput}
-              type="file"
-              accept="application/json,.json,.txt"
-              className="sr-only"
-              onChange={(event) => {
-                acceptFile(event.target.files?.[0]);
-                event.target.value = "";
-              }}
-            />
             {note !== null && (
               <p
                 role="status"
@@ -812,6 +802,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           </Panel>
         </div>
       )}
+      <input
+        ref={fileInput}
+        type="file"
+        accept="application/json,.json,.txt"
+        className="sr-only"
+        onChange={(event) => {
+          acceptFile(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
     </div>
   );
 }

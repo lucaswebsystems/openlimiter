@@ -1,6 +1,10 @@
 use std::fmt;
+use std::path::Path;
 
+use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
+
+use crate::fsx;
 
 /// Provider secrets, held by the operating system and nobody else.
 ///
@@ -19,6 +23,20 @@ use zeroize::Zeroizing;
 /// The service name every entry is filed under, matching the application
 /// identifier in `tauri.conf.json`.
 pub const CREDENTIAL_SERVICE: &str = "com.openlimiter.desktop";
+
+/// Version of the Codex credential envelope held in the one keyring slot.
+pub const CODEX_SESSION_ENVELOPE_VERSION: u8 = 1;
+
+/// Fixed discriminator, so another JSON shaped secret is never mistaken for
+/// a Codex session.
+const CODEX_SESSION_ENVELOPE_KIND: &str = "codex_session";
+
+/// The only Codex CLI credential file this application reads.
+const CODEX_AUTH_FILE_NAME: &str = "auth.json";
+
+/// Bound each field well below the credential slot bound before encoding.
+const MAX_CODEX_TOKEN_BYTES: usize = 3_072;
+const MAX_CODEX_ACCOUNT_ID_BYTES: usize = 512;
 
 /// Below this many characters nothing of a secret is ever shown.
 pub const MASK_VISIBLE_MINIMUM_CHARS: usize = 20;
@@ -74,6 +92,115 @@ pub enum CredentialError {
     NotFound,
     /// The operating system credential store refused the operation.
     Store,
+}
+
+/// Failure while importing or opening a structured Codex session. Both arms
+/// are payload free so neither field can reach an error or log.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CodexCredentialError {
+    LoginRequired,
+    InvalidEnvelope,
+}
+
+impl fmt::Display for CodexCredentialError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sentence = match self {
+            CodexCredentialError::LoginRequired => "Codex needs a current login. Run codex login.",
+            CodexCredentialError::InvalidEnvelope => {
+                "the stored Codex login is not readable as written"
+            }
+        };
+        formatter.write_str(sentence)
+    }
+}
+
+#[derive(Deserialize)]
+struct CodexCliAuth<'a> {
+    #[serde(borrow)]
+    tokens: CodexCliTokens<'a>,
+}
+
+#[derive(Deserialize)]
+struct CodexCliTokens<'a> {
+    #[serde(borrow)]
+    access_token: &'a str,
+    #[serde(borrow)]
+    account_id: &'a str,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CodexSessionEnvelope<'a> {
+    version: u8,
+    kind: &'a str,
+    #[serde(borrow)]
+    access_token: &'a str,
+    #[serde(borrow)]
+    account_id: &'a str,
+}
+
+/// Borrowed fields from a validated envelope. Deliberately has no `Debug`
+/// implementation, so a convenient format call cannot print either value.
+pub(crate) struct CodexSessionParts<'a> {
+    pub access_token: &'a str,
+    pub account_id: &'a str,
+}
+
+fn valid_codex_field(value: &str, max: usize) -> bool {
+    !value.is_empty() && value.len() <= max && !value.chars().any(char::is_control)
+}
+
+pub(crate) fn encode_codex_session(
+    access_token: &str,
+    account_id: &str,
+) -> Result<Zeroizing<String>, CodexCredentialError> {
+    if !valid_codex_field(access_token, MAX_CODEX_TOKEN_BYTES)
+        || !valid_codex_field(account_id, MAX_CODEX_ACCOUNT_ID_BYTES)
+    {
+        return Err(CodexCredentialError::LoginRequired);
+    }
+    let envelope = CodexSessionEnvelope {
+        version: CODEX_SESSION_ENVELOPE_VERSION,
+        kind: CODEX_SESSION_ENVELOPE_KIND,
+        access_token,
+        account_id,
+    };
+    serde_json::to_string(&envelope)
+        .map(Zeroizing::new)
+        .map_err(|_| CodexCredentialError::LoginRequired)
+}
+
+/// Parse the keyring value symmetrically with the importer above.
+pub(crate) fn parse_codex_session(
+    secret: &str,
+) -> Result<CodexSessionParts<'_>, CodexCredentialError> {
+    let envelope: CodexSessionEnvelope<'_> =
+        serde_json::from_str(secret).map_err(|_| CodexCredentialError::InvalidEnvelope)?;
+    if envelope.version != CODEX_SESSION_ENVELOPE_VERSION
+        || envelope.kind != CODEX_SESSION_ENVELOPE_KIND
+        || !valid_codex_field(envelope.access_token, MAX_CODEX_TOKEN_BYTES)
+        || !valid_codex_field(envelope.account_id, MAX_CODEX_ACCOUNT_ID_BYTES)
+    {
+        return Err(CodexCredentialError::InvalidEnvelope);
+    }
+    Ok(CodexSessionParts {
+        access_token: envelope.access_token,
+        account_id: envelope.account_id,
+    })
+}
+
+/// Read the Codex CLI login with the shared bounded, no follow primitive and
+/// reduce it immediately to the versioned keyring envelope.
+pub(crate) fn read_codex_cli_secret_in_home(
+    home: &Path,
+) -> Result<Zeroizing<String>, CodexCredentialError> {
+    let directory = home.join(".codex");
+    fsx::reject_symlink(&directory).map_err(|_| CodexCredentialError::LoginRequired)?;
+    let file = directory.join(CODEX_AUTH_FILE_NAME);
+    let raw = fsx::bounded_read(&file).ok_or(CodexCredentialError::LoginRequired)?;
+    let raw = Zeroizing::new(raw);
+    let auth: CodexCliAuth<'_> =
+        serde_json::from_str(&raw).map_err(|_| CodexCredentialError::LoginRequired)?;
+    encode_codex_session(auth.tokens.access_token, auth.tokens.account_id)
 }
 
 impl fmt::Display for CredentialError {
@@ -132,6 +259,10 @@ impl SecretStore for KeyringStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
+
+    const TOKEN_CANARY: &str = "codex-token-canary-never-print-123456789";
+    const ACCOUNT_CANARY: &str = "account-canary-never-print-987654321";
 
     #[test]
     fn empty_secret_masks_completely() {
@@ -208,5 +339,81 @@ mod tests {
             CredentialError::Store.to_string(),
             "the system credential store refused the operation"
         );
+    }
+
+    #[test]
+    fn sanitized_codex_fixture_round_trips_through_the_one_slot_envelope() {
+        let dir = TempDir::new();
+        let codex = dir.path().join(".codex");
+        std::fs::create_dir_all(&codex).expect("directory");
+        std::fs::write(
+            codex.join(CODEX_AUTH_FILE_NAME),
+            format!(
+                r#"{{"tokens":{{"access_token":"{TOKEN_CANARY}","account_id":"{ACCOUNT_CANARY}","refresh_token":"ignored"}},"last_refresh":"ignored"}}"#,
+            ),
+        )
+        .expect("fixture");
+        let encoded = read_codex_cli_secret_in_home(dir.path()).expect("imported");
+        let decoded = parse_codex_session(&encoded).expect("decoded");
+        assert_eq!(decoded.access_token, TOKEN_CANARY);
+        assert_eq!(decoded.account_id, ACCOUNT_CANARY);
+        let value: serde_json::Value = serde_json::from_str(&encoded).expect("json envelope");
+        assert_eq!(value["version"], CODEX_SESSION_ENVELOPE_VERSION);
+        assert_eq!(value["kind"], CODEX_SESSION_ENVELOPE_KIND);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn codex_import_refuses_a_symlinked_auth_directory() {
+        let dir = TempDir::new();
+        let real = dir.path().join("real-codex");
+        std::fs::create_dir_all(&real).expect("directory");
+        std::fs::write(real.join(CODEX_AUTH_FILE_NAME), "{}").expect("fixture");
+        std::os::unix::fs::symlink(&real, dir.path().join(".codex")).expect("symlink");
+        assert!(matches!(
+            read_codex_cli_secret_in_home(dir.path()),
+            Err(CodexCredentialError::LoginRequired)
+        ));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn codex_import_refuses_a_symlinked_auth_directory_where_creatable() {
+        let dir = TempDir::new();
+        let real = dir.path().join("real-codex");
+        std::fs::create_dir_all(&real).expect("directory");
+        std::fs::write(real.join(CODEX_AUTH_FILE_NAME), "{}").expect("fixture");
+        if std::os::windows::fs::symlink_dir(&real, dir.path().join(".codex")).is_err() {
+            return;
+        }
+        assert!(matches!(
+            read_codex_cli_secret_in_home(dir.path()),
+            Err(CodexCredentialError::LoginRequired)
+        ));
+    }
+
+    #[test]
+    fn codex_failures_never_carry_the_token_or_account_id() {
+        for failure in [
+            CodexCredentialError::LoginRequired,
+            CodexCredentialError::InvalidEnvelope,
+        ] {
+            let display = failure.to_string();
+            let debug = format!("{failure:?}");
+            for canary in [TOKEN_CANARY, ACCOUNT_CANARY] {
+                assert!(!display.contains(canary));
+                assert!(!debug.contains(canary));
+            }
+        }
+        let malformed = format!(
+            r#"{{"version":1,"kind":"wrong","access_token":"{TOKEN_CANARY}","account_id":"{ACCOUNT_CANARY}"}}"#,
+        );
+        let failure = match parse_codex_session(&malformed) {
+            Ok(_) => panic!("wrong kind was accepted"),
+            Err(failure) => failure,
+        };
+        let sentence = failure.to_string();
+        assert!(!sentence.contains(TOKEN_CANARY));
+        assert!(!sentence.contains(ACCOUNT_CANARY));
     }
 }

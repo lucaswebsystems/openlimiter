@@ -102,6 +102,11 @@ pub struct ConnectionRecord {
     pub account_alias: String,
     pub masked_label: String,
     pub created_at: u64,
+    /// Rust owned base collection cadence. Zero means schedule exempt.
+    /// Recomputed from `reader_id` on every read, so disk and IPC cannot lower
+    /// it or turn a missing legacy field into one second polling.
+    #[serde(default)]
+    pub base_seconds: u64,
     #[serde(default)]
     pub last_attempt_at: Option<u64>,
     #[serde(default)]
@@ -219,8 +224,7 @@ fn migrate_legacy_record(legacy: LegacyConnectionRecord) -> Result<ConnectionRec
         unwrapped, because a panic here would take the whole store down. */
         _ => return Err(StoreError::Corrupt),
     };
-    let route =
-        reader_route(provider_id, credential_kind).map_err(|_| StoreError::Corrupt)?;
+    let route = reader_route(provider_id, credential_kind).map_err(|_| StoreError::Corrupt)?;
     let record = ConnectionRecord {
         id: legacy.id,
         provider_id,
@@ -229,6 +233,7 @@ fn migrate_legacy_record(legacy: LegacyConnectionRecord) -> Result<ConnectionRec
         account_alias: legacy.account_alias,
         masked_label: legacy.masked_label,
         created_at: legacy.created_at,
+        base_seconds: route.reader_id.base_seconds(),
         last_attempt_at: later_of(legacy.last_test_at, legacy.last_refresh_at),
         last_success_at: legacy.last_refresh_at,
         attempt_generation: 0,
@@ -337,7 +342,7 @@ impl ConnectionsStore {
         reads AND writes, so the file survives. */
         let probe: DocumentVersionProbe =
             serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
-        let connections = match probe.version {
+        let mut connections = match probe.version {
             CONNECTIONS_DOCUMENT_VERSION => {
                 let document: ConnectionsDocument =
                     serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
@@ -361,6 +366,11 @@ impl ConnectionsStore {
             }
             _ => return Err(StoreError::Corrupt),
         };
+        /* Cadence is policy, not stored input. This also hydrates every version
+        2 record written before the field existed. */
+        for record in &mut connections {
+            record.base_seconds = record.reader_id.base_seconds();
+        }
         if connections.len() > MAX_CONNECTIONS {
             return Err(StoreError::Corrupt);
         }
@@ -572,6 +582,7 @@ pub(crate) fn validate_record(record: &ConnectionRecord) -> Result<(), StoreErro
         && valid_alias(&record.account_alias)
         && valid_masked_label(&record.masked_label)
         && valid_timestamp(record.created_at)
+        && record.base_seconds == record.reader_id.base_seconds()
         && record.last_attempt_at.is_none_or(valid_timestamp)
         && record.last_success_at.is_none_or(valid_timestamp)
         && record.attempt_generation <= MAX_ATTEMPT_GENERATION
@@ -603,6 +614,7 @@ mod tests {
             account_alias: "personal".to_string(),
             masked_label: "sk-········cdef".to_string(),
             created_at: 1_770_000_000_000,
+            base_seconds: ReaderId::OpenrouterKey.base_seconds(),
             last_attempt_at: None,
             last_success_at: None,
             attempt_generation: 0,
@@ -684,6 +696,40 @@ mod tests {
     }
 
     #[test]
+    fn connected_list_records_always_serialize_a_finite_trusted_base() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let mut connected = record("connected");
+        connected.status = "CONNECTED".to_string();
+        store.insert(connected).expect("insert");
+        let listed = store.list().expect("list");
+        let wire = serde_json::to_value(&listed).expect("serializable");
+        let base = wire[0]["base_seconds"]
+            .as_u64()
+            .expect("finite integer base");
+        assert_eq!(base, 300);
+        assert_ne!(base, 1);
+    }
+
+    #[test]
+    fn a_version_two_record_without_cadence_gets_its_reader_default_on_read() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        write_document(
+            &dir,
+            &[record_json(
+                "legacy-v2",
+                "personal",
+                "openrouter_inference_key",
+            )],
+        );
+        let listed = store.list().expect("legacy version two remains readable");
+        assert_eq!(listed[0].status, "CONNECTED");
+        assert_eq!(listed[0].base_seconds, 300);
+        assert_ne!(listed[0].base_seconds, 1);
+    }
+
+    #[test]
     fn duplicate_id_is_refused() {
         let dir = TempDir::new();
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
@@ -759,6 +805,7 @@ mod tests {
                     the pairing, not a mismatched third field. */
                     Err(_) => ReaderId::OpenrouterKey,
                 };
+                candidate.base_seconds = candidate.reader_id.base_seconds();
                 let outcome = store.insert(candidate);
                 if route.is_ok() {
                     assert!(outcome.is_ok(), "a real pairing must be storable");
@@ -806,7 +853,11 @@ mod tests {
         let oversized_alias = "a".repeat(MAX_ALIAS_CHARS + 1);
         write_document(
             &dir,
-            &[record_json("abc-123", &oversized_alias, "openrouter_inference_key")],
+            &[record_json(
+                "abc-123",
+                &oversized_alias,
+                "openrouter_inference_key",
+            )],
         );
         assert_eq!(store.list(), Err(StoreError::Corrupt));
         assert_eq!(store.insert(record("z9")), Err(StoreError::Corrupt));
@@ -818,7 +869,11 @@ mod tests {
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         write_document(
             &dir,
-            &[record_json("../../evil", "personal", "openrouter_inference_key")],
+            &[record_json(
+                "../../evil",
+                "personal",
+                "openrouter_inference_key",
+            )],
         );
         assert_eq!(store.list(), Err(StoreError::Corrupt));
         assert_eq!(store.get("../../evil"), Err(StoreError::Corrupt));
@@ -831,7 +886,11 @@ mod tests {
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         write_document(
             &dir,
-            &[record_json("abc-123", "personal", "opencode_browser_session")],
+            &[record_json(
+                "abc-123",
+                "personal",
+                "opencode_browser_session",
+            )],
         );
         assert_eq!(store.list(), Err(StoreError::Corrupt));
         assert_eq!(store.insert(record("z9")), Err(StoreError::Corrupt));
@@ -857,7 +916,11 @@ mod tests {
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         write_document(
             &dir,
-            &[record_json("abc-123", "personal", "openrouter_inference_key")],
+            &[record_json(
+                "abc-123",
+                "personal",
+                "openrouter_inference_key",
+            )],
         );
         let listed = store.list().expect("valid document loads");
         assert_eq!(listed.len(), 1);
@@ -958,7 +1021,10 @@ mod tests {
         the secret becomes unreachable and the connection silently dies. */
         assert_eq!(inference.id, "abc-123");
         assert_eq!(inference.provider_id, ProviderId::Openrouter);
-        assert_eq!(inference.credential_kind, CredentialKind::OpenrouterInferenceKey);
+        assert_eq!(
+            inference.credential_kind,
+            CredentialKind::OpenrouterInferenceKey
+        );
         assert_eq!(inference.reader_id, ReaderId::OpenrouterKey);
         assert_eq!(inference.masked_label, "sk-········cdef");
         assert_eq!(inference.created_at, 1_770_000_000_000);
@@ -972,7 +1038,10 @@ mod tests {
         assert_eq!(inference.status, "CONNECTED");
 
         let management = &listed[1];
-        assert_eq!(management.credential_kind, CredentialKind::OpenrouterManagementKey);
+        assert_eq!(
+            management.credential_kind,
+            CredentialKind::OpenrouterManagementKey
+        );
         assert_eq!(management.reader_id, ReaderId::OpenrouterCredits);
         /* Neither old stamp existed, so nothing is invented and nothing claims
         this connection ever worked. */
@@ -987,7 +1056,12 @@ mod tests {
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         write_legacy_document(
             &dir,
-            &[legacy_record_json("abc-123", "inference", "1770000050000", "null")],
+            &[legacy_record_json(
+                "abc-123",
+                "inference",
+                "1770000050000",
+                "null",
+            )],
         );
         let listed = store.list().expect("list");
         assert_eq!(listed[0].last_attempt_at, Some(1_770_000_050_000));

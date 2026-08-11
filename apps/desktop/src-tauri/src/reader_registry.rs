@@ -106,6 +106,20 @@ impl ReaderId {
             ReaderId::OpencodeUsage => ProviderId::Opencode,
         }
     }
+
+    /// The trusted background cadence for this reader, in seconds.
+    ///
+    /// Zero is the explicit schedule exemption used by OpenCode. Its session
+    /// is browser held and HTTP only, so collection happens only when a person
+    /// asks for it. Local Claude observations do not have a `ReaderId` or a
+    /// connection record at all: they arrive through the statusline event.
+    pub const fn base_seconds(self) -> u64 {
+        match self {
+            ReaderId::OpenrouterKey | ReaderId::OpenrouterCredits | ReaderId::CodexUsage => 300,
+            ReaderId::AntigravityQuota => 600,
+            ReaderId::OpencodeUsage => 0,
+        }
+    }
 }
 
 /// Largest key shaped secret accepted, in bytes. Real provider keys and access
@@ -339,7 +353,10 @@ mod tests {
         }
         assert_eq!(routed, 5);
         assert_eq!(refused, 15);
-        assert_eq!(routed + refused, ProviderId::ALL.len() * CredentialKind::ALL.len());
+        assert_eq!(
+            routed + refused,
+            ProviderId::ALL.len() * CredentialKind::ALL.len()
+        );
     }
 
     #[test]
@@ -350,7 +367,10 @@ mod tests {
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
                 if let Ok(route) = reader_route(provider, credential) {
-                    assert!(!seen.contains(&route.reader_id), "a reader was routed twice");
+                    assert!(
+                        !seen.contains(&route.reader_id),
+                        "a reader was routed twice"
+                    );
                     seen.push(route.reader_id);
                 }
             }
@@ -428,6 +448,20 @@ mod tests {
             assert_eq!(provider.code(), code);
             let wire = serde_json::to_string(&provider).expect("serializable");
             assert_eq!(wire.to_uppercase(), format!("\"{code}\""));
+        }
+    }
+
+    #[test]
+    fn every_reader_has_the_frozen_cadence() {
+        let expected = [
+            (ReaderId::OpenrouterKey, 300),
+            (ReaderId::OpenrouterCredits, 300),
+            (ReaderId::CodexUsage, 300),
+            (ReaderId::AntigravityQuota, 600),
+            (ReaderId::OpencodeUsage, 0),
+        ];
+        for (reader, seconds) in expected {
+            assert_eq!(reader.base_seconds(), seconds);
         }
     }
 

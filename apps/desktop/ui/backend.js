@@ -114,6 +114,7 @@ const FAILURE_SENTENCES = {
     "to record from it.",
   too_soon: "That was too soon after the last one. Trying again shortly may succeed.",
   not_json: "The text was not valid JSON.",
+  codex_login_required: "Codex needs a current login. Run codex login.",
 };
 
 function absent(command) {
@@ -383,6 +384,33 @@ export async function updateConnection({ connectionId, accountAlias }) {
 /** What supported local tools exist on this machine, without reading secrets. */
 export async function detectLocalTools() {
   return call("detect_local_tools");
+}
+
+/** Check the real CLI and Claude Code settings without changing either. */
+export async function claudeConnectPreflight({ configuredCliPath } = {}) {
+  return call("claude_connect_preflight", {
+    input: {
+      ...(configuredCliPath === undefined
+        ? {}
+        : { configured_cli_path: configuredCliPath }),
+    },
+  });
+}
+
+/** Back up Claude Code settings and add only the OpenLimiter entries. */
+export async function claudeConnectApply({ configuredCliPath } = {}) {
+  return call("claude_connect_apply", {
+    input: {
+      ...(configuredCliPath === undefined
+        ? {}
+        : { configured_cli_path: configuredCliPath }),
+    },
+  });
+}
+
+/** Remove only the entries owned by OpenLimiter. */
+export async function claudeDisconnect() {
+  return call("claude_disconnect");
 }
 
 /* ---------------------------------------------------------- cache handshake */

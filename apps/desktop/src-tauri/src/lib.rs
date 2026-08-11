@@ -1,4 +1,5 @@
 mod cache_write;
+mod claude_connect;
 mod claude_detect;
 mod commands;
 mod connections;
@@ -104,6 +105,9 @@ pub fn run() {
             commands::update_connection,
             commands::complete_attempt,
             commands::detect_local_tools,
+            commands::claude_connect_preflight,
+            commands::claude_connect_apply,
+            commands::claude_disconnect,
             commands::cache_begin_write,
             commands::cache_commit_write
         ])

@@ -5,6 +5,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
+use crate::credentials::parse_codex_session;
 use crate::reader_registry::AuthApplication;
 
 /// The network layer, closed by construction.
@@ -159,14 +160,12 @@ pub const ANTIGRAVITY_EMPTY_BODY: &str = "{}";
 
 /// The user agent the Codex usage endpoint is addressed with. A constant, and
 /// an honest one: it names the client whose session is being used.
-pub const CODEX_USER_AGENT: &str = "codex-cli";
+pub const CODEX_USER_AGENT: &str = "codex-cli/0.144.1";
 
 /// The account header the ChatGPT backend reads alongside the bearer token.
 ///
-/// Sent empty. The stored secret is an access token and nothing else, so there
-/// is no account identifier to put here, and an empty value is accepted. Naming
-/// the header at all is what keeps a future maintainer from concluding it was
-/// forgotten.
+/// The account identifier is imported beside the access token from the Codex
+/// session envelope. It is never accepted as a caller supplied request field.
 pub const CODEX_ACCOUNT_HEADER: &str = "chatgpt-account-id";
 
 /// The user agent the Antigravity quota summary is addressed with.
@@ -267,10 +266,7 @@ impl WorkspaceHandle {
     /// yields nothing, which the caller reads as a dead session.
     pub fn from_redirect_target(target: &str) -> Option<Self> {
         let after = target.split_once(WORKSPACE_PATH_MARKER)?.1;
-        let candidate = after
-            .split(['/', '?', '#'])
-            .next()
-            .unwrap_or_default();
+        let candidate = after.split(['/', '?', '#']).next().unwrap_or_default();
         Self::parse(candidate)
     }
 }
@@ -318,6 +314,8 @@ pub struct EndpointRequest<'a> {
     pub url: &'a str,
     pub method: HttpMethod,
     pub auth: AuthApplication,
+    /// Present only for the Codex account header. Never serialized or logged.
+    pub codex_account_id: Option<&'a str>,
     pub body: Option<&'static str>,
 }
 
@@ -395,13 +393,32 @@ pub async fn fetch_endpoint<T: Transport>(
     if endpoint.needs_workspace() {
         return fetch_through_workspace(transport, endpoint, auth, secret).await;
     }
+    if auth == AuthApplication::CodexSessionBearer {
+        let session = parse_codex_session(secret).map_err(|_| NetError::Protocol)?;
+        let request = EndpointRequest {
+            url: endpoint.url(),
+            method: endpoint.method(),
+            auth,
+            codex_account_id: Some(session.account_id),
+            body: endpoint.body(),
+        };
+        let reply = transport
+            .send(&request, session.access_token)
+            .await
+            .map_err(NetError::from)?;
+        return outcome_of(reply);
+    }
     let request = EndpointRequest {
         url: endpoint.url(),
         method: endpoint.method(),
         auth,
+        codex_account_id: None,
         body: endpoint.body(),
     };
-    let reply = transport.send(&request, secret).await.map_err(NetError::from)?;
+    let reply = transport
+        .send(&request, secret)
+        .await
+        .map_err(NetError::from)?;
     outcome_of(reply)
 }
 
@@ -429,9 +446,13 @@ async fn fetch_through_workspace<T: Transport>(
         url: endpoint.url(),
         method: endpoint.method(),
         auth,
+        codex_account_id: None,
         body: None,
     };
-    let found = transport.send(&discovery, secret).await.map_err(NetError::from)?;
+    let found = transport
+        .send(&discovery, secret)
+        .await
+        .map_err(NetError::from)?;
     let Some(workspace) = found.location_workspace.clone() else {
         return Ok(EndpointOutcome {
             status: OPENCODE_SESSION_DEAD_STATUS,
@@ -444,9 +465,13 @@ async fn fetch_through_workspace<T: Transport>(
         url: &url,
         method: endpoint.method(),
         auth,
+        codex_account_id: None,
         body: None,
     };
-    let reply = transport.send(&request, secret).await.map_err(NetError::from)?;
+    let reply = transport
+        .send(&request, secret)
+        .await
+        .map_err(NetError::from)?;
     outcome_of(reply)
 }
 
@@ -562,6 +587,60 @@ fn location_workspace(headers: &reqwest::header::HeaderMap) -> Option<WorkspaceH
     WorkspaceHandle::from_redirect_target(value)
 }
 
+/// Build the authenticated request without sending it. Keeping construction
+/// separate lets tests inspect header presence while no socket is opened.
+fn authenticated_builder(
+    client: &reqwest::Client,
+    request: &EndpointRequest<'_>,
+    secret: &str,
+) -> Result<reqwest::RequestBuilder, TransportFailure> {
+    let mut builder = match request.method {
+        HttpMethod::Get => client.get(request.url),
+        HttpMethod::Post => client.post(request.url),
+    };
+    let mut credential = Zeroizing::new(String::with_capacity("Bearer ".len() + secret.len()));
+    match request.auth {
+        AuthApplication::BearerAuthorization
+        | AuthApplication::CodexSessionBearer
+        | AuthApplication::AntigravitySessionBearer => {
+            credential.push_str("Bearer ");
+            credential.push_str(secret);
+        }
+        AuthApplication::BrowserSessionCookie => credential.push_str(secret),
+    }
+    let mut header_value = reqwest::header::HeaderValue::from_str(&credential)
+        .map_err(|_| TransportFailure::Protocol)?;
+    header_value.set_sensitive(true);
+    builder = match request.auth {
+        AuthApplication::BearerAuthorization => {
+            builder.header(reqwest::header::AUTHORIZATION, header_value)
+        }
+        AuthApplication::CodexSessionBearer => {
+            let account_id = request.codex_account_id.ok_or(TransportFailure::Protocol)?;
+            let mut account_header = reqwest::header::HeaderValue::from_str(account_id)
+                .map_err(|_| TransportFailure::Protocol)?;
+            account_header.set_sensitive(true);
+            builder
+                .header(reqwest::header::AUTHORIZATION, header_value)
+                .header(reqwest::header::USER_AGENT, CODEX_USER_AGENT)
+                .header(reqwest::header::ACCEPT, "application/json")
+                .header(CODEX_ACCOUNT_HEADER, account_header)
+        }
+        AuthApplication::AntigravitySessionBearer => builder
+            .header(reqwest::header::AUTHORIZATION, header_value)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::USER_AGENT, ANTIGRAVITY_USER_AGENT),
+        AuthApplication::BrowserSessionCookie => builder
+            .header(reqwest::header::COOKIE, header_value)
+            .header(reqwest::header::USER_AGENT, OPENCODE_USER_AGENT)
+            .header(reqwest::header::ACCEPT, "text/html"),
+    };
+    if let Some(body) = request.body {
+        builder = builder.body(body);
+    }
+    Ok(builder)
+}
+
 impl Transport for ReqwestTransport {
     async fn send(
         &self,
@@ -571,53 +650,7 @@ impl Transport for ReqwestTransport {
         let Some(client) = &self.client else {
             return Err(TransportFailure::Protocol);
         };
-        let mut builder = match request.method {
-            HttpMethod::Get => client.get(request.url),
-            HttpMethod::Post => client.post(request.url),
-        };
-        /* The credential buffer is built without reallocation and zeroized on
-        drop. reqwest's own copy is marked sensitive so it never appears in
-        debug output, whichever header it lands in. */
-        let mut credential = Zeroizing::new(String::with_capacity(
-            "Bearer ".len() + secret.len(),
-        ));
-        match request.auth {
-            AuthApplication::BearerAuthorization
-            | AuthApplication::CodexSessionBearer
-            | AuthApplication::AntigravitySessionBearer => {
-                credential.push_str("Bearer ");
-                credential.push_str(secret);
-            }
-            AuthApplication::BrowserSessionCookie => credential.push_str(secret),
-        }
-        let mut header_value = reqwest::header::HeaderValue::from_str(&credential)
-            .map_err(|_| TransportFailure::Protocol)?;
-        header_value.set_sensitive(true);
-        builder = match request.auth {
-            AuthApplication::BearerAuthorization => {
-                builder.header(reqwest::header::AUTHORIZATION, header_value)
-            }
-            AuthApplication::CodexSessionBearer => builder
-                .header(reqwest::header::AUTHORIZATION, header_value)
-                .header(reqwest::header::USER_AGENT, CODEX_USER_AGENT)
-                .header(reqwest::header::ACCEPT, "application/json")
-                /* Empty on purpose: the stored secret is a token and nothing
-                else, and the endpoint accepts an empty value here. */
-                .header(CODEX_ACCOUNT_HEADER, ""),
-            AuthApplication::AntigravitySessionBearer => builder
-                .header(reqwest::header::AUTHORIZATION, header_value)
-                .header(reqwest::header::CONTENT_TYPE, "application/json")
-                /* See ANTIGRAVITY_USER_AGENT: without this the same valid
-                token is refused 403. */
-                .header(reqwest::header::USER_AGENT, ANTIGRAVITY_USER_AGENT),
-            AuthApplication::BrowserSessionCookie => builder
-                .header(reqwest::header::COOKIE, header_value)
-                .header(reqwest::header::USER_AGENT, OPENCODE_USER_AGENT)
-                .header(reqwest::header::ACCEPT, "text/html"),
-        };
-        if let Some(body) = request.body {
-            builder = builder.body(body);
-        }
+        let builder = authenticated_builder(client, request, secret)?;
         let response = builder.send().await.map_err(|error| classify(&error))?;
         let status = response.status().as_u16();
         let retry_after_seconds = parse_retry_after(response.headers());
@@ -653,6 +686,7 @@ impl Transport for ReqwestTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::credentials::encode_codex_session;
     use crate::reader_registry::{reader_route, CredentialKind, ProviderId};
     use crate::test_support::RecordingTransport;
 
@@ -672,20 +706,25 @@ mod tests {
         panic!("every endpoint is reachable through a route");
     }
 
+    fn secret_for(endpoint: ProviderEndpoint) -> String {
+        if endpoint == ProviderEndpoint::CodexUsage {
+            return encode_codex_session("fake-codex-access-token", "fake-account-id")
+                .expect("fixture envelope")
+                .to_string();
+        }
+        "fake-secret-for-tests-only".to_string()
+    }
+
     /* ------------------------------------------------------- the allowlist */
 
     #[tokio::test]
     async fn the_transport_double_sees_only_addresses_this_file_built() {
         let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
         for endpoint in ProviderEndpoint::ALL {
-            fetch_endpoint(
-                &transport,
-                endpoint,
-                auth_for(endpoint),
-                "fake-secret-for-tests-only",
-            )
-            .await
-            .expect("fetch");
+            let secret = secret_for(endpoint);
+            fetch_endpoint(&transport, endpoint, auth_for(endpoint), &secret)
+                .await
+                .expect("fetch");
         }
         assert_eq!(
             transport.recorded_urls(),
@@ -710,7 +749,9 @@ mod tests {
             assert!(endpoint.url().starts_with("https://"));
         }
         let handle = WorkspaceHandle::parse("wrk_abc123").expect("a handle");
-        assert!(handle.workspace_url().starts_with("https://opencode.ai/workspace/"));
+        assert!(handle
+            .workspace_url()
+            .starts_with("https://opencode.ai/workspace/"));
         assert!(handle.workspace_url().ends_with("/go"));
     }
 
@@ -742,9 +783,15 @@ mod tests {
         for endpoint in ProviderEndpoint::ALL {
             let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
             let auth = auth_for(endpoint);
-            fetch_endpoint(&transport, endpoint, auth, "fake").await.expect("fetch");
+            let secret = secret_for(endpoint);
+            fetch_endpoint(&transport, endpoint, auth, &secret)
+                .await
+                .expect("fetch");
             for observed in transport.recorded_auths() {
-                assert_eq!(observed, auth, "an endpoint was reached with another scheme");
+                assert_eq!(
+                    observed, auth,
+                    "an endpoint was reached with another scheme"
+                );
             }
             for observed in transport.recorded_methods() {
                 assert_eq!(observed, endpoint.method());
@@ -762,16 +809,71 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn every_endpoint_is_handed_the_stored_secret_and_nothing_else() {
+    async fn every_endpoint_is_handed_only_its_outbound_credential() {
         for endpoint in ProviderEndpoint::ALL {
             let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
-            fetch_endpoint(&transport, endpoint, auth_for(endpoint), "the-stored-secret")
+            let stored = if endpoint == ProviderEndpoint::CodexUsage {
+                encode_codex_session("the-stored-secret", "account-123")
+                    .expect("fixture")
+                    .to_string()
+            } else {
+                "the-stored-secret".to_string()
+            };
+            fetch_endpoint(&transport, endpoint, auth_for(endpoint), &stored)
                 .await
                 .expect("fetch");
             for observed in transport.recorded_secrets() {
                 assert_eq!(observed, "the-stored-secret");
             }
         }
+    }
+
+    #[tokio::test]
+    async fn codex_carries_the_real_account_id_beside_the_access_token() {
+        let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        let stored =
+            encode_codex_session("access-token-canary", "account-id-canary").expect("fixture");
+        fetch_endpoint(
+            &transport,
+            ProviderEndpoint::CodexUsage,
+            AuthApplication::CodexSessionBearer,
+            &stored,
+        )
+        .await
+        .expect("fetch");
+        assert_eq!(transport.recorded_secrets(), vec!["access-token-canary"]);
+        assert_eq!(
+            transport.recorded_codex_account_ids(),
+            vec![Some("account-id-canary".to_string())]
+        );
+    }
+
+    #[test]
+    fn the_codex_request_has_every_required_header_with_the_real_account_id() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        let request = EndpointRequest {
+            url: CODEX_USAGE_URL,
+            method: HttpMethod::Get,
+            auth: AuthApplication::CodexSessionBearer,
+            codex_account_id: Some("account-id-canary"),
+            body: None,
+        };
+        let built = authenticated_builder(&client, &request, "access-token-canary")
+            .expect("headers")
+            .build()
+            .expect("request");
+        let headers = built.headers();
+        assert_eq!(headers[CODEX_ACCOUNT_HEADER], "account-id-canary");
+        assert_eq!(
+            headers[reqwest::header::AUTHORIZATION],
+            "Bearer access-token-canary"
+        );
+        assert_eq!(headers[reqwest::header::USER_AGENT], CODEX_USER_AGENT);
+        assert_eq!(CODEX_USER_AGENT, "codex-cli/0.144.1");
+        assert_eq!(headers[reqwest::header::ACCEPT], "application/json");
+        assert!(headers[CODEX_ACCOUNT_HEADER].is_sensitive());
+        assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
     }
 
     /* -------------------------------------------------- the workspace hop */
@@ -843,9 +945,8 @@ mod tests {
         /* A dead OpenCode session: the entry point leads to a login rather than
         to a workspace. Reported as unauthenticated, with no body and with the
         second hop never made. */
-        let transport =
-            RecordingTransport::replying(302, b"<html>login</html>".to_vec(), None)
-                .without_workspace();
+        let transport = RecordingTransport::replying(302, b"<html>login</html>".to_vec(), None)
+            .without_workspace();
         let outcome = fetch_endpoint(
             &transport,
             ProviderEndpoint::OpencodeUsage,
@@ -888,7 +989,8 @@ mod tests {
                 b"try later, THE-BODY-MARKER".to_vec(),
                 Some(120),
             );
-            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), "fake")
+            let secret = secret_for(endpoint);
+            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), &secret)
                 .await
                 .expect("fetch");
             assert_eq!(outcome.body, None, "a failed body reached the caller");
@@ -901,7 +1003,8 @@ mod tests {
         for endpoint in ProviderEndpoint::ALL {
             let transport =
                 RecordingTransport::replying(200, vec![b'x'; MAX_RESPONSE_BYTES + 1], None);
-            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), "fake").await;
+            let secret = secret_for(endpoint);
+            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), &secret).await;
             assert_eq!(outcome, Err(NetError::TooLarge));
         }
     }
@@ -910,7 +1013,8 @@ mod tests {
     async fn non_utf8_body_is_a_typed_rejection_for_every_endpoint() {
         for endpoint in ProviderEndpoint::ALL {
             let transport = RecordingTransport::replying(200, vec![0xff, 0xfe, 0x00], None);
-            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), "fake").await;
+            let secret = secret_for(endpoint);
+            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), &secret).await;
             assert_eq!(outcome, Err(NetError::Protocol));
         }
     }
@@ -942,7 +1046,11 @@ mod tests {
             .split("mod tests")
             .next()
             .expect("the module has a body before its tests");
-        assert_eq!(head.matches("https://").count(), 6, "an address appeared outside the constants");
+        assert_eq!(
+            head.matches("https://").count(),
+            6,
+            "an address appeared outside the constants"
+        );
     }
 
     #[test]
