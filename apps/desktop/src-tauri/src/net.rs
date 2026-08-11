@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-use crate::credentials::parse_codex_session;
+use crate::credentials::{valid_codex_account_id, valid_codex_token};
 use crate::reader_registry::AuthApplication;
 
 /// The network layer, closed by construction.
@@ -389,24 +389,33 @@ pub async fn fetch_endpoint<T: Transport>(
     endpoint: ProviderEndpoint,
     auth: AuthApplication,
     secret: &str,
+    codex_account_id: Option<&str>,
 ) -> Result<EndpointOutcome, NetError> {
     if endpoint.needs_workspace() {
         return fetch_through_workspace(transport, endpoint, auth, secret).await;
     }
     if auth == AuthApplication::CodexSessionBearer {
-        let session = parse_codex_session(secret).map_err(|_| NetError::Protocol)?;
+        let account_id = codex_account_id
+            .filter(|value| valid_codex_account_id(value))
+            .ok_or(NetError::Protocol)?;
+        if !valid_codex_token(secret) {
+            return Err(NetError::Protocol);
+        }
         let request = EndpointRequest {
             url: endpoint.url(),
             method: endpoint.method(),
             auth,
-            codex_account_id: Some(session.account_id),
+            codex_account_id: Some(account_id),
             body: endpoint.body(),
         };
         let reply = transport
-            .send(&request, session.access_token)
+            .send(&request, secret)
             .await
             .map_err(NetError::from)?;
         return outcome_of(reply);
+    }
+    if codex_account_id.is_some() {
+        return Err(NetError::Protocol);
     }
     let request = EndpointRequest {
         url: endpoint.url(),
@@ -686,7 +695,6 @@ impl Transport for ReqwestTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::credentials::encode_codex_session;
     use crate::reader_registry::{reader_route, CredentialKind, ProviderId};
     use crate::test_support::RecordingTransport;
 
@@ -708,11 +716,13 @@ mod tests {
 
     fn secret_for(endpoint: ProviderEndpoint) -> String {
         if endpoint == ProviderEndpoint::CodexUsage {
-            return encode_codex_session("fake-codex-access-token", "fake-account-id")
-                .expect("fixture envelope")
-                .to_string();
+            return "fake-codex-access-token".to_string();
         }
         "fake-secret-for-tests-only".to_string()
+    }
+
+    fn account_for(endpoint: ProviderEndpoint) -> Option<&'static str> {
+        (endpoint == ProviderEndpoint::CodexUsage).then_some("fake-account-id")
     }
 
     /* ------------------------------------------------------- the allowlist */
@@ -722,9 +732,15 @@ mod tests {
         let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
         for endpoint in ProviderEndpoint::ALL {
             let secret = secret_for(endpoint);
-            fetch_endpoint(&transport, endpoint, auth_for(endpoint), &secret)
-                .await
-                .expect("fetch");
+            fetch_endpoint(
+                &transport,
+                endpoint,
+                auth_for(endpoint),
+                &secret,
+                account_for(endpoint),
+            )
+            .await
+            .expect("fetch");
         }
         assert_eq!(
             transport.recorded_urls(),
@@ -784,7 +800,7 @@ mod tests {
             let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
             let auth = auth_for(endpoint);
             let secret = secret_for(endpoint);
-            fetch_endpoint(&transport, endpoint, auth, &secret)
+            fetch_endpoint(&transport, endpoint, auth, &secret, account_for(endpoint))
                 .await
                 .expect("fetch");
             for observed in transport.recorded_auths() {
@@ -812,16 +828,16 @@ mod tests {
     async fn every_endpoint_is_handed_only_its_outbound_credential() {
         for endpoint in ProviderEndpoint::ALL {
             let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
-            let stored = if endpoint == ProviderEndpoint::CodexUsage {
-                encode_codex_session("the-stored-secret", "account-123")
-                    .expect("fixture")
-                    .to_string()
-            } else {
-                "the-stored-secret".to_string()
-            };
-            fetch_endpoint(&transport, endpoint, auth_for(endpoint), &stored)
-                .await
-                .expect("fetch");
+            let stored = "the-stored-secret";
+            fetch_endpoint(
+                &transport,
+                endpoint,
+                auth_for(endpoint),
+                stored,
+                account_for(endpoint),
+            )
+            .await
+            .expect("fetch");
             for observed in transport.recorded_secrets() {
                 assert_eq!(observed, "the-stored-secret");
             }
@@ -831,13 +847,12 @@ mod tests {
     #[tokio::test]
     async fn codex_carries_the_real_account_id_beside_the_access_token() {
         let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
-        let stored =
-            encode_codex_session("access-token-canary", "account-id-canary").expect("fixture");
         fetch_endpoint(
             &transport,
             ProviderEndpoint::CodexUsage,
             AuthApplication::CodexSessionBearer,
-            &stored,
+            "access-token-canary",
+            Some("account-id-canary"),
         )
         .await
         .expect("fetch");
@@ -952,6 +967,7 @@ mod tests {
             ProviderEndpoint::OpencodeUsage,
             auth_for(ProviderEndpoint::OpencodeUsage),
             "fake",
+            None,
         )
         .await
         .expect("fetch");
@@ -974,6 +990,7 @@ mod tests {
             ProviderEndpoint::OpenrouterKey,
             AuthApplication::BearerAuthorization,
             "fake",
+            None,
         )
         .await
         .expect("fetch");
@@ -990,9 +1007,15 @@ mod tests {
                 Some(120),
             );
             let secret = secret_for(endpoint);
-            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), &secret)
-                .await
-                .expect("fetch");
+            let outcome = fetch_endpoint(
+                &transport,
+                endpoint,
+                auth_for(endpoint),
+                &secret,
+                account_for(endpoint),
+            )
+            .await
+            .expect("fetch");
             assert_eq!(outcome.body, None, "a failed body reached the caller");
             assert_eq!(outcome.retry_after_seconds, Some(120));
         }
@@ -1004,7 +1027,14 @@ mod tests {
             let transport =
                 RecordingTransport::replying(200, vec![b'x'; MAX_RESPONSE_BYTES + 1], None);
             let secret = secret_for(endpoint);
-            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), &secret).await;
+            let outcome = fetch_endpoint(
+                &transport,
+                endpoint,
+                auth_for(endpoint),
+                &secret,
+                account_for(endpoint),
+            )
+            .await;
             assert_eq!(outcome, Err(NetError::TooLarge));
         }
     }
@@ -1014,7 +1044,14 @@ mod tests {
         for endpoint in ProviderEndpoint::ALL {
             let transport = RecordingTransport::replying(200, vec![0xff, 0xfe, 0x00], None);
             let secret = secret_for(endpoint);
-            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), &secret).await;
+            let outcome = fetch_endpoint(
+                &transport,
+                endpoint,
+                auth_for(endpoint),
+                &secret,
+                account_for(endpoint),
+            )
+            .await;
             assert_eq!(outcome, Err(NetError::Protocol));
         }
     }

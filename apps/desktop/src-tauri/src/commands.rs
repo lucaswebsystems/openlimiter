@@ -18,8 +18,8 @@ use crate::connections::{
     MAX_ATTEMPT_GENERATION, MAX_CONSECUTIVE_FAILURES, MAX_ID_CHARS,
 };
 use crate::credentials::{
-    mask_label, parse_codex_session, read_codex_cli_secret_in_home, CodexCredentialError,
-    CredentialError, KeyringStore, SecretStore, MASK_DOTS,
+    mask_label, parse_codex_session_v1, read_codex_cli_secret_in_home, valid_codex_account_id,
+    valid_codex_token, CodexCredentialError, CredentialError, KeyringStore, SecretStore, MASK_DOTS,
 };
 use crate::net::{fetch_endpoint, NetError, ReqwestTransport, Transport};
 use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId, RouteError};
@@ -438,6 +438,18 @@ pub(crate) fn connect_core(
     /* The secret is moved into a zeroizing wrapper before anything can fail,
     so every return path below scrubs it, including the rejections. */
     let secret = Zeroizing::new(secret);
+    if credential_kind == CredentialKind::CodexSession {
+        let session = parse_codex_session_v1(&secret)?;
+        return connect_with_secret(
+            connections,
+            secrets,
+            provider_id,
+            credential_kind,
+            account_alias,
+            session.access_token,
+            Some(session.account_id),
+        );
+    }
     connect_with_secret(
         connections,
         secrets,
@@ -445,6 +457,7 @@ pub(crate) fn connect_core(
         credential_kind,
         account_alias,
         &secret,
+        None,
     )
 }
 
@@ -455,6 +468,7 @@ fn connect_with_secret(
     credential_kind: CredentialKind,
     account_alias: String,
     secret: &str,
+    codex_account_id: Option<&str>,
 ) -> Result<ConnectionRecord, CommandFailure> {
     let route = reader_route(provider_id, credential_kind)?;
     /* Caps first, before anything is cloned, masked, or stored: see the
@@ -470,8 +484,12 @@ fn connect_with_secret(
     if trimmed.is_empty() {
         return Err(CommandFailure::InvalidInput);
     }
-    if credential_kind == CredentialKind::CodexSession && parse_codex_session(trimmed).is_err() {
-        return Err(CommandFailure::Protocol);
+    if credential_kind == CredentialKind::CodexSession {
+        if !valid_codex_token(trimmed) || !codex_account_id.is_some_and(valid_codex_account_id) {
+            return Err(CommandFailure::Protocol);
+        }
+    } else if codex_account_id.is_some() {
+        return Err(CommandFailure::InvalidInput);
     }
     let record = ConnectionRecord {
         id: uuid::Uuid::new_v4().to_string(),
@@ -479,8 +497,8 @@ fn connect_with_secret(
         reader_id: route.reader_id,
         credential_kind,
         account_alias,
-        /* The Codex slot is a JSON envelope. Masking its edges would expose an
-        account suffix rather than a token suffix, so it is fully masked. */
+        codex_account_id: codex_account_id.map(str::to_string),
+        /* Codex tokens stay fully masked so no token edge enters the record. */
         masked_label: if credential_kind == CredentialKind::CodexSession {
             MASK_DOTS.to_string()
         } else {
@@ -514,7 +532,8 @@ fn connect_with_secret(
 }
 
 /// The real connect boundary. Codex ignores any webview supplied secret and
-/// imports both fields from the bounded vendor login file instead.
+/// imports both fields from the bounded vendor login file instead, then sends
+/// each field to its own persistent store.
 pub(crate) fn connect_from_home_core(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
@@ -541,7 +560,8 @@ pub(crate) fn connect_from_home_core(
         provider_id,
         credential_kind,
         account_alias,
-        &imported,
+        &imported.access_token,
+        Some(&imported.account_id),
     )
 }
 
@@ -572,6 +592,54 @@ fn escalated(failures_after: u32) -> &'static str {
     } else {
         STATUS_DEGRADED
     }
+}
+
+/// Split a legacy v1 Codex envelope exactly once. The connection update lands
+/// first; if the smaller token write fails, the new field is rolled back so
+/// the old envelope remains a complete retryable source.
+fn migrate_codex_credential_if_needed(
+    connections: &ConnectionsStore,
+    secrets: &impl SecretStore,
+    record: &mut ConnectionRecord,
+    stored: &str,
+) -> Result<Option<Zeroizing<String>>, CommandFailure> {
+    if record.credential_kind != CredentialKind::CodexSession {
+        return Ok(None);
+    }
+    let Ok(legacy) = parse_codex_session_v1(stored) else {
+        if valid_codex_token(stored)
+            && record
+                .codex_account_id
+                .as_deref()
+                .is_some_and(valid_codex_account_id)
+        {
+            return Ok(None);
+        }
+        return Err(CommandFailure::Protocol);
+    };
+    if record
+        .codex_account_id
+        .as_deref()
+        .is_some_and(|account_id| account_id != legacy.account_id)
+    {
+        return Err(CommandFailure::Protocol);
+    }
+    let token = Zeroizing::new(legacy.access_token.to_string());
+    let account_id = legacy.account_id.to_string();
+    let added_account_id = record.codex_account_id.is_none();
+    if added_account_id {
+        *record = connections.update(&record.id, |it| {
+            it.codex_account_id = Some(account_id.clone());
+        })?;
+    }
+    if let Err(error) = secrets.store_secret(&record.id, &token) {
+        if added_account_id {
+            let _ = connections.update(&record.id, |it| it.codex_account_id = None);
+            record.codex_account_id = None;
+        }
+        return Err(error.into());
+    }
+    Ok(Some(token))
 }
 
 /// Open one attempt: bump the generation, stamp the attempt time, and hand back
@@ -646,17 +714,26 @@ async fn probe_core<T: Transport>(
     input: ProbeInput,
 ) -> Result<ProbeOutcome, CommandFailure> {
     capped_connection_id(&input.connection_id)?;
-    let record = connections.get(&input.connection_id)?;
+    let mut record = connections.get(&input.connection_id)?;
     /* The address comes from the record's own provider and credential kind,
     through the one routing function, and from nowhere else. A tampered record
     whose pairing has no route is refused here, before the secret is read. */
     let route = reader_route(record.provider_id, record.credential_kind)?;
-    let opened = open_attempt(connections, &record.id)?;
-    let attempt_generation = opened.attempt_generation;
     /* The secret is read inside this privileged call, used for one request,
     and dropped. It is never part of the return value. */
     let secret = secrets.read_secret(&record.id)?;
-    let fetched = fetch_endpoint(transport, route.endpoint, route.auth, &secret).await;
+    let migrated = migrate_codex_credential_if_needed(connections, secrets, &mut record, &secret)?;
+    let request_secret = migrated.as_deref().unwrap_or(&secret);
+    let opened = open_attempt(connections, &record.id)?;
+    let attempt_generation = opened.attempt_generation;
+    let fetched = fetch_endpoint(
+        transport,
+        route.endpoint,
+        route.auth,
+        request_secret,
+        record.codex_account_id.as_deref(),
+    )
+    .await;
     match fetched {
         Ok(outcome) => {
             /* A 2xx with no body is not a delivered body, and neither is a 2xx
@@ -995,7 +1072,7 @@ pub async fn cache_commit_write(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::credentials::encode_codex_session;
+    use crate::credentials::encode_codex_session_v1;
     use crate::net::{ProviderEndpoint, TransportFailure};
     use crate::reader_registry::{MAX_BROWSER_SESSION_BYTES, MAX_KEY_SECRET_BYTES};
     use crate::test_support::{FailingTransport, InMemorySecrets, RecordingTransport, TempDir};
@@ -1012,6 +1089,36 @@ mod tests {
         )
     }
 
+    /// Models Windows Credential Manager's 2560 byte UTF 16 blob ceiling.
+    struct WindowsCeilingSecrets {
+        inner: InMemorySecrets,
+    }
+
+    impl WindowsCeilingSecrets {
+        fn new() -> Self {
+            Self {
+                inner: InMemorySecrets::new(),
+            }
+        }
+    }
+
+    impl SecretStore for WindowsCeilingSecrets {
+        fn store_secret(&self, connection_id: &str, secret: &str) -> Result<(), CredentialError> {
+            if secret.encode_utf16().count() * 2 > 2_560 {
+                return Err(CredentialError::Store);
+            }
+            self.inner.store_secret(connection_id, secret)
+        }
+
+        fn read_secret(&self, connection_id: &str) -> Result<Zeroizing<String>, CredentialError> {
+            self.inner.read_secret(connection_id)
+        }
+
+        fn delete_secret(&self, connection_id: &str) -> Result<(), CredentialError> {
+            self.inner.delete_secret(connection_id)
+        }
+    }
+
     fn connect_input() -> ConnectProviderInput {
         ConnectProviderInput {
             provider_id: ProviderId::Openrouter,
@@ -1022,7 +1129,7 @@ mod tests {
     }
 
     fn codex_test_secret() -> String {
-        encode_codex_session("codex-access-token-for-tests", "codex-account-for-tests")
+        encode_codex_session_v1("codex-access-token-for-tests", "codex-account-for-tests")
             .expect("fixture envelope")
             .to_string()
     }
@@ -1199,16 +1306,58 @@ mod tests {
         };
         let record = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
             .expect("connect");
-        let stored = secrets.read_secret(&record.id).expect("stored envelope");
-        let session = parse_codex_session(&stored).expect("structured");
-        assert_eq!(session.access_token, TOKEN);
-        assert_eq!(session.account_id, ACCOUNT);
+        let stored = secrets.read_secret(&record.id).expect("stored token");
+        assert_eq!(stored.as_str(), TOKEN);
+        assert_eq!(record.codex_account_id.as_deref(), Some(ACCOUNT));
         assert!(!stored.contains(WEBVIEW));
         let wire = serde_json::to_string(&record).expect("record wire");
-        for canary in [TOKEN, ACCOUNT, WEBVIEW] {
+        for canary in [TOKEN, WEBVIEW] {
             assert!(!wire.contains(canary));
         }
+        assert!(wire.contains(ACCOUNT));
+        assert!(!format!("{record:?}").contains(ACCOUNT));
+        let file =
+            std::fs::read_to_string(dir.path().join(crate::connections::CONNECTIONS_FILE_NAME))
+                .expect("connections file");
+        assert!(file.contains(ACCOUNT));
+        assert!(!file.contains(TOKEN));
         assert_eq!(record.masked_label, MASK_DOTS);
+    }
+
+    #[test]
+    fn realistic_codex_token_fits_the_windows_credential_ceiling() {
+        let token = format!("eyJ.{}", "t".repeat(1_196));
+        let account_id = format!("acct-{}", "a".repeat(75));
+        let legacy = encode_codex_session_v1(&token, &account_id).expect("legacy envelope");
+        assert!(legacy.encode_utf16().count() * 2 > 2_560);
+        assert!(token.encode_utf16().count() * 2 <= 2_560);
+
+        let dir = TempDir::new();
+        let codex = dir.path().join(".codex");
+        std::fs::create_dir_all(&codex).expect("directory");
+        std::fs::write(
+            codex.join("auth.json"),
+            format!(r#"{{"tokens":{{"access_token":"{token}","account_id":"{account_id}"}}}}"#),
+        )
+        .expect("fixture");
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = WindowsCeilingSecrets::new();
+        let input = ConnectProviderInput {
+            provider_id: ProviderId::Codex,
+            credential_kind: CredentialKind::CodexSession,
+            account_alias: "personal".to_string(),
+            secret: "ignored".to_string(),
+        };
+        let record = connect_from_home_core(&connections, &secrets, input, Some(dir.path()))
+            .expect("the token only write fits");
+        assert_eq!(
+            secrets.read_secret(&record.id).expect("stored").as_str(),
+            token
+        );
+        assert_eq!(
+            record.codex_account_id.as_deref(),
+            Some(account_id.as_str())
+        );
     }
 
     #[test]
@@ -1412,6 +1561,54 @@ mod tests {
     }
 
     /* ------------------------------------------------------------- probe */
+
+    #[tokio::test]
+    async fn a_legacy_codex_envelope_is_split_and_rewritten_once() {
+        const TOKEN: &str = "codex-migration-token-never-log";
+        const ACCOUNT: &str = "codex-migration-account-never-log";
+        let dir = TempDir::new();
+        let (connections, secrets) = stores(&dir);
+        let legacy = encode_codex_session_v1(TOKEN, ACCOUNT)
+            .expect("legacy")
+            .to_string();
+        let input = ConnectProviderInput {
+            provider_id: ProviderId::Codex,
+            credential_kind: CredentialKind::CodexSession,
+            account_alias: "personal".to_string(),
+            secret: legacy.clone(),
+        };
+        let record = connect_core(&connections, &secrets, input).expect("initial record");
+        connections
+            .update(&record.id, |it| it.codex_account_id = None)
+            .expect("legacy record shape");
+        secrets
+            .store_secret(&record.id, &legacy)
+            .expect("legacy credential shape");
+
+        let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        let outcome = test_core(&connections, &secrets, &transport, probe(&record.id))
+            .await
+            .expect("migrated probe");
+        assert_eq!(
+            secrets.read_secret(&record.id).expect("rewritten").as_str(),
+            TOKEN
+        );
+        let migrated = connections.get(&record.id).expect("migrated record");
+        assert_eq!(migrated.codex_account_id.as_deref(), Some(ACCOUNT));
+        assert_eq!(transport.recorded_secrets(), vec![TOKEN.to_string()]);
+        assert_eq!(
+            transport.recorded_codex_account_ids(),
+            vec![Some(ACCOUNT.to_string())]
+        );
+        for rendered in [
+            format!("{outcome:?}"),
+            format!("{migrated:?}"),
+            CommandFailure::Protocol.to_string(),
+        ] {
+            assert!(!rendered.contains(TOKEN));
+            assert!(!rendered.contains(ACCOUNT));
+        }
+    }
 
     #[tokio::test]
     async fn a_probe_routes_from_the_record_and_never_from_the_caller() {

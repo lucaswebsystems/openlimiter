@@ -24,7 +24,7 @@ use crate::fsx;
 /// identifier in `tauri.conf.json`.
 pub const CREDENTIAL_SERVICE: &str = "com.openlimiter.desktop";
 
-/// Version of the Codex credential envelope held in the one keyring slot.
+/// Version of the legacy Codex credential envelope migrated out of keyring.
 pub const CODEX_SESSION_ENVELOPE_VERSION: u8 = 1;
 
 /// Fixed discriminator, so another JSON shaped secret is never mistaken for
@@ -34,7 +34,7 @@ const CODEX_SESSION_ENVELOPE_KIND: &str = "codex_session";
 /// The only Codex CLI credential file this application reads.
 const CODEX_AUTH_FILE_NAME: &str = "auth.json";
 
-/// Bound each field well below the credential slot bound before encoding.
+/// Bound each imported field before it reaches either persistent store.
 const MAX_CODEX_TOKEN_BYTES: usize = 3_072;
 const MAX_CODEX_ACCOUNT_ID_BYTES: usize = 512;
 
@@ -138,24 +138,40 @@ struct CodexSessionEnvelope<'a> {
     account_id: &'a str,
 }
 
-/// Borrowed fields from a validated envelope. Deliberately has no `Debug`
-/// implementation, so a convenient format call cannot print either value.
-pub(crate) struct CodexSessionParts<'a> {
+/// Borrowed fields from a validated legacy envelope. Deliberately has no
+/// `Debug` implementation, so a convenient format call cannot print either
+/// value during its one time migration.
+pub(crate) struct LegacyCodexSessionParts<'a> {
     pub access_token: &'a str,
     pub account_id: &'a str,
+}
+
+/// The two values imported from the Codex CLI login. The token owns a
+/// zeroizing allocation; this type deliberately has no `Debug` implementation.
+pub(crate) struct CodexCliSession {
+    pub access_token: Zeroizing<String>,
+    pub account_id: String,
 }
 
 fn valid_codex_field(value: &str, max: usize) -> bool {
     !value.is_empty() && value.len() <= max && !value.chars().any(char::is_control)
 }
 
-pub(crate) fn encode_codex_session(
+pub(crate) fn valid_codex_token(value: &str) -> bool {
+    valid_codex_field(value, MAX_CODEX_TOKEN_BYTES)
+}
+
+pub(crate) fn valid_codex_account_id(value: &str) -> bool {
+    valid_codex_field(value, MAX_CODEX_ACCOUNT_ID_BYTES)
+}
+
+/// Encode only the old shape, for migration fixtures and compatibility tests.
+#[cfg(test)]
+pub(crate) fn encode_codex_session_v1(
     access_token: &str,
     account_id: &str,
 ) -> Result<Zeroizing<String>, CodexCredentialError> {
-    if !valid_codex_field(access_token, MAX_CODEX_TOKEN_BYTES)
-        || !valid_codex_field(account_id, MAX_CODEX_ACCOUNT_ID_BYTES)
-    {
+    if !valid_codex_token(access_token) || !valid_codex_account_id(account_id) {
         return Err(CodexCredentialError::LoginRequired);
     }
     let envelope = CodexSessionEnvelope {
@@ -169,30 +185,30 @@ pub(crate) fn encode_codex_session(
         .map_err(|_| CodexCredentialError::LoginRequired)
 }
 
-/// Parse the keyring value symmetrically with the importer above.
-pub(crate) fn parse_codex_session(
+/// Parse the legacy keyring value for its one time split migration.
+pub(crate) fn parse_codex_session_v1(
     secret: &str,
-) -> Result<CodexSessionParts<'_>, CodexCredentialError> {
+) -> Result<LegacyCodexSessionParts<'_>, CodexCredentialError> {
     let envelope: CodexSessionEnvelope<'_> =
         serde_json::from_str(secret).map_err(|_| CodexCredentialError::InvalidEnvelope)?;
     if envelope.version != CODEX_SESSION_ENVELOPE_VERSION
         || envelope.kind != CODEX_SESSION_ENVELOPE_KIND
-        || !valid_codex_field(envelope.access_token, MAX_CODEX_TOKEN_BYTES)
-        || !valid_codex_field(envelope.account_id, MAX_CODEX_ACCOUNT_ID_BYTES)
+        || !valid_codex_token(envelope.access_token)
+        || !valid_codex_account_id(envelope.account_id)
     {
         return Err(CodexCredentialError::InvalidEnvelope);
     }
-    Ok(CodexSessionParts {
+    Ok(LegacyCodexSessionParts {
         access_token: envelope.access_token,
         account_id: envelope.account_id,
     })
 }
 
 /// Read the Codex CLI login with the shared bounded, no follow primitive and
-/// reduce it immediately to the versioned keyring envelope.
+/// split it immediately into the material destined for the two stores.
 pub(crate) fn read_codex_cli_secret_in_home(
     home: &Path,
-) -> Result<Zeroizing<String>, CodexCredentialError> {
+) -> Result<CodexCliSession, CodexCredentialError> {
     let directory = home.join(".codex");
     fsx::reject_symlink(&directory).map_err(|_| CodexCredentialError::LoginRequired)?;
     let file = directory.join(CODEX_AUTH_FILE_NAME);
@@ -200,7 +216,15 @@ pub(crate) fn read_codex_cli_secret_in_home(
     let raw = Zeroizing::new(raw);
     let auth: CodexCliAuth<'_> =
         serde_json::from_str(&raw).map_err(|_| CodexCredentialError::LoginRequired)?;
-    encode_codex_session(auth.tokens.access_token, auth.tokens.account_id)
+    if !valid_codex_token(auth.tokens.access_token)
+        || !valid_codex_account_id(auth.tokens.account_id)
+    {
+        return Err(CodexCredentialError::LoginRequired);
+    }
+    Ok(CodexCliSession {
+        access_token: Zeroizing::new(auth.tokens.access_token.to_string()),
+        account_id: auth.tokens.account_id.to_string(),
+    })
 }
 
 impl fmt::Display for CredentialError {
@@ -342,7 +366,7 @@ mod tests {
     }
 
     #[test]
-    fn sanitized_codex_fixture_round_trips_through_the_one_slot_envelope() {
+    fn sanitized_codex_fixture_is_split_for_the_two_stores() {
         let dir = TempDir::new();
         let codex = dir.path().join(".codex");
         std::fs::create_dir_all(&codex).expect("directory");
@@ -353,13 +377,17 @@ mod tests {
             ),
         )
         .expect("fixture");
-        let encoded = read_codex_cli_secret_in_home(dir.path()).expect("imported");
-        let decoded = parse_codex_session(&encoded).expect("decoded");
+        let imported = read_codex_cli_secret_in_home(dir.path()).expect("imported");
+        assert_eq!(imported.access_token.as_str(), TOKEN_CANARY);
+        assert_eq!(imported.account_id, ACCOUNT_CANARY);
+    }
+
+    #[test]
+    fn legacy_codex_envelope_still_parses_for_migration() {
+        let encoded = encode_codex_session_v1(TOKEN_CANARY, ACCOUNT_CANARY).expect("legacy");
+        let decoded = parse_codex_session_v1(&encoded).expect("decoded");
         assert_eq!(decoded.access_token, TOKEN_CANARY);
         assert_eq!(decoded.account_id, ACCOUNT_CANARY);
-        let value: serde_json::Value = serde_json::from_str(&encoded).expect("json envelope");
-        assert_eq!(value["version"], CODEX_SESSION_ENVELOPE_VERSION);
-        assert_eq!(value["kind"], CODEX_SESSION_ENVELOPE_KIND);
     }
 
     #[cfg(unix)]
@@ -408,7 +436,7 @@ mod tests {
         let malformed = format!(
             r#"{{"version":1,"kind":"wrong","access_token":"{TOKEN_CANARY}","account_id":"{ACCOUNT_CANARY}"}}"#,
         );
-        let failure = match parse_codex_session(&malformed) {
+        let failure = match parse_codex_session_v1(&malformed) {
             Ok(_) => panic!("wrong kind was accepted"),
             Err(failure) => failure,
         };
