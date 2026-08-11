@@ -5,7 +5,8 @@ use std::sync::Mutex;
 use zeroize::Zeroizing;
 
 use crate::credentials::{CredentialError, SecretStore};
-use crate::net::{Transport, TransportFailure, TransportReply};
+use crate::net::{EndpointRequest, HttpMethod, Transport, TransportFailure, TransportReply, WorkspaceHandle};
+use crate::reader_registry::AuthApplication;
 
 /// Doubles for the tests, and only for the tests.
 ///
@@ -99,8 +100,14 @@ pub(crate) struct RecordingTransport {
     status: u16,
     body: Vec<u8>,
     retry_after_seconds: Option<u64>,
-    urls: Mutex<Vec<&'static str>>,
+    /// A workspace handle the double pretends a redirect named, so the two hop
+    /// OpenCode read can be exercised without a socket.
+    workspace: Option<WorkspaceHandle>,
+    urls: Mutex<Vec<String>>,
     secrets: Mutex<Vec<String>>,
+    methods: Mutex<Vec<HttpMethod>>,
+    auths: Mutex<Vec<AuthApplication>>,
+    bodies: Mutex<Vec<Option<&'static str>>>,
 }
 
 impl RecordingTransport {
@@ -109,12 +116,26 @@ impl RecordingTransport {
             status,
             body,
             retry_after_seconds,
+            /* Every OpenCode read is two hops, so the default double names a
+            workspace: a double that never did would make the second hop
+            unreachable in every test that is not about a dead session. */
+            workspace: WorkspaceHandle::parse("wrk_testworkspace"),
             urls: Mutex::new(Vec::new()),
             secrets: Mutex::new(Vec::new()),
+            methods: Mutex::new(Vec::new()),
+            auths: Mutex::new(Vec::new()),
+            bodies: Mutex::new(Vec::new()),
         }
     }
 
-    pub(crate) fn recorded_urls(&self) -> Vec<&'static str> {
+    /// A double whose entry point names no workspace, which is what a dead
+    /// OpenCode session looks like from outside.
+    pub(crate) fn without_workspace(mut self) -> Self {
+        self.workspace = None;
+        self
+    }
+
+    pub(crate) fn recorded_urls(&self) -> Vec<String> {
         self.urls.lock().expect("the url record is intact").clone()
     }
 
@@ -123,6 +144,18 @@ impl RecordingTransport {
             .lock()
             .expect("the secret record is intact")
             .clone()
+    }
+
+    pub(crate) fn recorded_methods(&self) -> Vec<HttpMethod> {
+        self.methods.lock().expect("the method record is intact").clone()
+    }
+
+    pub(crate) fn recorded_auths(&self) -> Vec<AuthApplication> {
+        self.auths.lock().expect("the auth record is intact").clone()
+    }
+
+    pub(crate) fn recorded_bodies(&self) -> Vec<Option<&'static str>> {
+        self.bodies.lock().expect("the body record is intact").clone()
     }
 }
 
@@ -139,33 +172,46 @@ impl FailingTransport {
 }
 
 impl Transport for FailingTransport {
-    async fn get(
+    async fn send(
         &self,
-        _url: &'static str,
-        _bearer_secret: &str,
+        _request: &EndpointRequest<'_>,
+        _secret: &str,
     ) -> Result<TransportReply, TransportFailure> {
         Err(self.failure)
     }
 }
 
 impl Transport for RecordingTransport {
-    async fn get(
+    async fn send(
         &self,
-        url: &'static str,
-        bearer_secret: &str,
+        request: &EndpointRequest<'_>,
+        secret: &str,
     ) -> Result<TransportReply, TransportFailure> {
         self.urls
             .lock()
             .expect("the url record is intact")
-            .push(url);
+            .push(request.url.to_string());
         self.secrets
             .lock()
             .expect("the secret record is intact")
-            .push(bearer_secret.to_string());
+            .push(secret.to_string());
+        self.methods
+            .lock()
+            .expect("the method record is intact")
+            .push(request.method);
+        self.auths
+            .lock()
+            .expect("the auth record is intact")
+            .push(request.auth);
+        self.bodies
+            .lock()
+            .expect("the body record is intact")
+            .push(request.body);
         Ok(TransportReply {
             status: self.status,
             body: self.body.clone(),
             retry_after_seconds: self.retry_after_seconds,
+            location_workspace: self.workspace.clone(),
         })
     }
 }

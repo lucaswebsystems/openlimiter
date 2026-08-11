@@ -43,6 +43,11 @@ pub enum ProviderId {
 
 impl ProviderId {
     /// The whole vocabulary, for the tests that must exhaust every pairing.
+    /* Exhaustive lists and the reverse lookups over them exist for the tests
+    that must sweep every pairing. The product itself only ever holds one
+    variant at a time, so they are dead code outside a test build and are
+    marked as such rather than deleted: the sweep is the security property. */
+    #[cfg_attr(not(test), allow(dead_code))]
     pub const ALL: [ProviderId; 4] = [
         ProviderId::Openrouter,
         ProviderId::Codex,
@@ -52,6 +57,7 @@ impl ProviderId {
 
     /// The uppercase provider code the TypeScript engine speaks, so a record
     /// and a snapshot row name one provider with one word.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub const fn code(self) -> &'static str {
         match self {
             ProviderId::Openrouter => "OPENROUTER",
@@ -76,6 +82,11 @@ pub enum ReaderId {
 }
 
 impl ReaderId {
+    /* Exhaustive lists and the reverse lookups over them exist for the tests
+    that must sweep every pairing. The product itself only ever holds one
+    variant at a time, so they are dead code outside a test build and are
+    marked as such rather than deleted: the sweep is the security property. */
+    #[cfg_attr(not(test), allow(dead_code))]
     pub const ALL: [ReaderId; 5] = [
         ReaderId::OpenrouterKey,
         ReaderId::OpenrouterCredits,
@@ -86,6 +97,7 @@ impl ReaderId {
 
     /// Which provider this reader belongs to, so a record's reader and its
     /// provider can be checked against each other rather than trusted.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub const fn provider(self) -> ProviderId {
         match self {
             ReaderId::OpenrouterKey | ReaderId::OpenrouterCredits => ProviderId::Openrouter,
@@ -115,6 +127,11 @@ pub enum CredentialKind {
 }
 
 impl CredentialKind {
+    /* Exhaustive lists and the reverse lookups over them exist for the tests
+    that must sweep every pairing. The product itself only ever holds one
+    variant at a time, so they are dead code outside a test build and are
+    marked as such rather than deleted: the sweep is the security property. */
+    #[cfg_attr(not(test), allow(dead_code))]
     pub const ALL: [CredentialKind; 5] = [
         CredentialKind::OpenrouterInferenceKey,
         CredentialKind::OpenrouterManagementKey,
@@ -124,6 +141,7 @@ impl CredentialKind {
     ];
 
     /// The one provider this kind of credential can ever belong to.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub const fn provider(self) -> ProviderId {
         match self {
             CredentialKind::OpenrouterInferenceKey | CredentialKind::OpenrouterManagementKey => {
@@ -357,6 +375,25 @@ mod tests {
         ];
         for (actual, expected) in pairs {
             assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
+    fn the_uppercase_codes_are_the_ones_the_engine_speaks() {
+        /* The desktop window uppercases a record's provider id to reach the
+        engine's PROVIDER_CODES vocabulary, so the two spellings have to be one
+        another exactly. A mismatch here is a provider whose rows key under a
+        name no surface looks for. */
+        let pairs = [
+            (ProviderId::Openrouter, "OPENROUTER"),
+            (ProviderId::Codex, "CODEX"),
+            (ProviderId::Antigravity, "ANTIGRAVITY"),
+            (ProviderId::Opencode, "OPENCODE"),
+        ];
+        for (provider, code) in pairs {
+            assert_eq!(provider.code(), code);
+            let wire = serde_json::to_string(&provider).expect("serializable");
+            assert_eq!(wire.to_uppercase(), format!("\"{code}\""));
         }
     }
 

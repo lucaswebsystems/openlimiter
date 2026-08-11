@@ -5,6 +5,8 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
+use crate::reader_registry::AuthApplication;
+
 /// The network layer, closed by construction.
 ///
 /// There is no command that fetches a URL. There is an enum of provider
@@ -84,6 +86,7 @@ pub enum ProviderEndpoint {
 impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub const ALL: [ProviderEndpoint; 5] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
@@ -140,6 +143,45 @@ impl ProviderEndpoint {
 /// The empty JSON object the quota summary expects as its whole request body.
 pub const ANTIGRAVITY_EMPTY_BODY: &str = "{}";
 
+/// The user agent the Codex usage endpoint is addressed with. A constant, and
+/// an honest one: it names the client whose session is being used.
+pub const CODEX_USER_AGENT: &str = "codex-cli";
+
+/// The account header the ChatGPT backend reads alongside the bearer token.
+///
+/// Sent empty. The stored secret is an access token and nothing else, so there
+/// is no account identifier to put here, and an empty value is accepted. Naming
+/// the header at all is what keeps a future maintainer from concluding it was
+/// forgotten.
+pub const CODEX_ACCOUNT_HEADER: &str = "chatgpt-account-id";
+
+/// The user agent the Antigravity quota summary is addressed with.
+///
+/// NOT optional, and not cosmetic. Measured on 2026-08-07: the same valid token
+/// is answered 403 "the caller does not have permission" when the request
+/// carries no user agent, and 200 when it carries any. A reader that starts
+/// reporting 403 should be checked here before the login is blamed.
+pub const ANTIGRAVITY_USER_AGENT: &str = "openlimiter-usage-meter";
+
+/// The user agent the OpenCode workspace page is addressed with.
+pub const OPENCODE_USER_AGENT: &str = "openlimiter-usage-meter";
+
+/// The path segment that precedes a workspace handle in a redirect target.
+const WORKSPACE_PATH_MARKER: &str = "/workspace/";
+
+/// The status this reader reports when OpenCode's entry point leads anywhere
+/// that is not a workspace.
+///
+/// An interpretation, and stated as one. The entry point answers a redirect to
+/// the workspace when the session is alive, and a login page or a redirect to
+/// the auth host when it is not. Neither of those carries a status that means
+/// "your session is dead" on its own, and the transport failure vocabulary is
+/// closed, so there is no sixth kind to invent. 401 is what the situation
+/// actually is: unauthenticated. It is reported rather than guessed at, and the
+/// connection lands in AUTH_EXPIRED, which is the state that tells a person to
+/// paste the session again.
+pub const OPENCODE_SESSION_DEAD_STATUS: u16 = 401;
+
 /// The two verbs the allowlist uses, closed so no third can be requested.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -190,8 +232,25 @@ impl WorkspaceHandle {
         url
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// The workspace named by a redirect target, if it names one.
+    ///
+    /// The only thing ever read out of a `Location` header, and the header text
+    /// goes no further than this function: what comes back is either a handle
+    /// that has already been proven to be one, or nothing. A target pointing at
+    /// another host, at a login page, or at a path this does not recognise
+    /// yields nothing, which the caller reads as a dead session.
+    pub fn from_redirect_target(target: &str) -> Option<Self> {
+        let after = target.split_once(WORKSPACE_PATH_MARKER)?.1;
+        let candidate = after
+            .split(['/', '?', '#'])
+            .next()
+            .unwrap_or_default();
+        Self::parse(candidate)
     }
 }
 
@@ -201,6 +260,14 @@ pub struct TransportReply {
     pub status: u16,
     pub body: Vec<u8>,
     pub retry_after_seconds: Option<u64>,
+    /// The workspace a redirect named, when it named one.
+    ///
+    /// Deliberately a parsed handle rather than the header text. Redirects stay
+    /// disabled, so this is how the OpenCode reader learns where its meters
+    /// live without ever following an address the provider chose: it reads one
+    /// opaque token out of the target, validates it, and builds the second
+    /// address from its own constants.
+    pub location_workspace: Option<WorkspaceHandle>,
 }
 
 /// Transport failure with everything identifying removed. No payloads, so
@@ -218,14 +285,28 @@ pub enum TransportFailure {
     TooLarge,
 }
 
+/// One outbound request, and the only shape the transport can be handed.
+///
+/// There is no public constructor that takes a caller supplied URL. Every value
+/// of this type is built by `fetch_endpoint` below out of a `ProviderEndpoint`,
+/// its constant method, its constant body, and at most one `WorkspaceHandle`
+/// that the transport itself parsed out of a redirect. `auth` names a scheme
+/// rather than carrying a header map, so no caller can decide which header a
+/// secret is written into.
+pub struct EndpointRequest<'a> {
+    pub url: &'a str,
+    pub method: HttpMethod,
+    pub auth: AuthApplication,
+    pub body: Option<&'static str>,
+}
+
 /// The one verb the subsystem needs from HTTP, behind a trait so tests inject
-/// a recording double and no test ever opens a socket. The URL parameter is
-/// `&'static str` on purpose: only the constants above can be handed in.
+/// a recording double and no test ever opens a socket.
 pub trait Transport: Send + Sync {
-    fn get(
+    fn send(
         &self,
-        url: &'static str,
-        bearer_secret: &str,
+        request: &EndpointRequest<'_>,
+        secret: &str,
     ) -> impl Future<Output = Result<TransportReply, TransportFailure>> + Send;
 }
 
@@ -287,12 +368,69 @@ pub struct EndpointOutcome {
 pub async fn fetch_endpoint<T: Transport>(
     transport: &T,
     endpoint: ProviderEndpoint,
+    auth: AuthApplication,
     secret: &str,
 ) -> Result<EndpointOutcome, NetError> {
-    let reply = transport
-        .get(endpoint.url(), secret)
-        .await
-        .map_err(NetError::from)?;
+    if endpoint.needs_workspace() {
+        return fetch_through_workspace(transport, endpoint, auth, secret).await;
+    }
+    let request = EndpointRequest {
+        url: endpoint.url(),
+        method: endpoint.method(),
+        auth,
+        body: endpoint.body(),
+    };
+    let reply = transport.send(&request, secret).await.map_err(NetError::from)?;
+    outcome_of(reply)
+}
+
+/// The two hop read, for the one provider that publishes no interface at all.
+///
+/// OpenCode's meters live only on a logged in workspace page, and the workspace
+/// is per account, so one constant address cannot reach them. This is the whole
+/// concession, and it is kept as narrow as it can be:
+///
+///   both addresses are built here, from constants here;
+///   redirects stay disabled, so the entry point cannot forward the session
+///     cookie anywhere; instead the redirect TARGET is read for one opaque
+///     token and discarded;
+///   the token must satisfy `WorkspaceHandle`, so a host, a scheme, a query or
+///     a traversal cannot survive into the second address;
+///   an entry point that names no workspace is a dead session, reported as an
+///     authentication status rather than as a successful read of nothing.
+async fn fetch_through_workspace<T: Transport>(
+    transport: &T,
+    endpoint: ProviderEndpoint,
+    auth: AuthApplication,
+    secret: &str,
+) -> Result<EndpointOutcome, NetError> {
+    let discovery = EndpointRequest {
+        url: endpoint.url(),
+        method: endpoint.method(),
+        auth,
+        body: None,
+    };
+    let found = transport.send(&discovery, secret).await.map_err(NetError::from)?;
+    let Some(workspace) = found.location_workspace.clone() else {
+        return Ok(EndpointOutcome {
+            status: OPENCODE_SESSION_DEAD_STATUS,
+            body: None,
+            retry_after_seconds: found.retry_after_seconds,
+        });
+    };
+    let url = workspace.workspace_url();
+    let request = EndpointRequest {
+        url: &url,
+        method: endpoint.method(),
+        auth,
+        body: None,
+    };
+    let reply = transport.send(&request, secret).await.map_err(NetError::from)?;
+    outcome_of(reply)
+}
+
+/// One transport reply as an outcome, with the same rules for every endpoint.
+fn outcome_of(reply: TransportReply) -> Result<EndpointOutcome, NetError> {
     let success = (200..=299).contains(&reply.status);
     if !success {
         /* The body of a failed response is dropped, never parsed, never
@@ -393,40 +531,85 @@ fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     trimmed.parse::<u64>().ok()
 }
 
+/// The workspace a response's `Location` header names, if it names one.
+///
+/// The header value is read here and nowhere else, and only a validated handle
+/// leaves this function. A header that is not valid text, or that points at
+/// anything other than a workspace path, yields nothing.
+fn location_workspace(headers: &reqwest::header::HeaderMap) -> Option<WorkspaceHandle> {
+    let value = headers.get(reqwest::header::LOCATION)?.to_str().ok()?;
+    WorkspaceHandle::from_redirect_target(value)
+}
+
 impl Transport for ReqwestTransport {
-    async fn get(
+    async fn send(
         &self,
-        url: &'static str,
-        bearer_secret: &str,
+        request: &EndpointRequest<'_>,
+        secret: &str,
     ) -> Result<TransportReply, TransportFailure> {
         let Some(client) = &self.client else {
             return Err(TransportFailure::Protocol);
         };
-        /* The header buffer is built without reallocation and zeroized on
+        let mut builder = match request.method {
+            HttpMethod::Get => client.get(request.url),
+            HttpMethod::Post => client.post(request.url),
+        };
+        /* The credential buffer is built without reallocation and zeroized on
         drop. reqwest's own copy is marked sensitive so it never appears in
-        debug output. */
-        let mut bearer =
-            Zeroizing::new(String::with_capacity("Bearer ".len() + bearer_secret.len()));
-        bearer.push_str("Bearer ");
-        bearer.push_str(bearer_secret);
-        let mut authorization = reqwest::header::HeaderValue::from_str(&bearer)
+        debug output, whichever header it lands in. */
+        let mut credential = Zeroizing::new(String::with_capacity(
+            "Bearer ".len() + secret.len(),
+        ));
+        match request.auth {
+            AuthApplication::BearerAuthorization
+            | AuthApplication::CodexSessionBearer
+            | AuthApplication::AntigravitySessionBearer => {
+                credential.push_str("Bearer ");
+                credential.push_str(secret);
+            }
+            AuthApplication::BrowserSessionCookie => credential.push_str(secret),
+        }
+        let mut header_value = reqwest::header::HeaderValue::from_str(&credential)
             .map_err(|_| TransportFailure::Protocol)?;
-        authorization.set_sensitive(true);
-        let response = client
-            .get(url)
-            .header(reqwest::header::AUTHORIZATION, authorization)
-            .send()
-            .await
-            .map_err(|error| classify(&error))?;
+        header_value.set_sensitive(true);
+        builder = match request.auth {
+            AuthApplication::BearerAuthorization => {
+                builder.header(reqwest::header::AUTHORIZATION, header_value)
+            }
+            AuthApplication::CodexSessionBearer => builder
+                .header(reqwest::header::AUTHORIZATION, header_value)
+                .header(reqwest::header::USER_AGENT, CODEX_USER_AGENT)
+                .header(reqwest::header::ACCEPT, "application/json")
+                /* Empty on purpose: the stored secret is a token and nothing
+                else, and the endpoint accepts an empty value here. */
+                .header(CODEX_ACCOUNT_HEADER, ""),
+            AuthApplication::AntigravitySessionBearer => builder
+                .header(reqwest::header::AUTHORIZATION, header_value)
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                /* See ANTIGRAVITY_USER_AGENT: without this the same valid
+                token is refused 403. */
+                .header(reqwest::header::USER_AGENT, ANTIGRAVITY_USER_AGENT),
+            AuthApplication::BrowserSessionCookie => builder
+                .header(reqwest::header::COOKIE, header_value)
+                .header(reqwest::header::USER_AGENT, OPENCODE_USER_AGENT)
+                .header(reqwest::header::ACCEPT, "text/html"),
+        };
+        if let Some(body) = request.body {
+            builder = builder.body(body);
+        }
+        let response = builder.send().await.map_err(|error| classify(&error))?;
         let status = response.status().as_u16();
         let retry_after_seconds = parse_retry_after(response.headers());
+        let discovered = location_workspace(response.headers());
         if !(200..=299).contains(&status) {
             /* Dropped unread: the connection is closed with the body still on
-            the wire. */
+            the wire. The redirect target is not a body, and only one validated
+            token of it survives. */
             return Ok(TransportReply {
                 status,
                 body: Vec::new(),
                 retry_after_seconds,
+                location_workspace: discovered,
             });
         }
         let mut body = Vec::new();
@@ -441,6 +624,7 @@ impl Transport for ReqwestTransport {
             status,
             body,
             retry_after_seconds,
+            location_workspace: discovered,
         })
     }
 }
@@ -448,24 +632,51 @@ impl Transport for ReqwestTransport {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::reader_registry::{reader_route, CredentialKind, ProviderId};
     use crate::test_support::RecordingTransport;
 
+    /// The authentication scheme each endpoint is really reached with, taken
+    /// from the routing function rather than restated, so a test can never
+    /// disagree with the product about which scheme an endpoint uses.
+    fn auth_for(endpoint: ProviderEndpoint) -> AuthApplication {
+        for provider in ProviderId::ALL {
+            for credential in CredentialKind::ALL {
+                if let Ok(route) = reader_route(provider, credential) {
+                    if route.endpoint == endpoint {
+                        return route.auth;
+                    }
+                }
+            }
+        }
+        panic!("every endpoint is reachable through a route");
+    }
+
+    /* ------------------------------------------------------- the allowlist */
+
     #[tokio::test]
-    async fn transport_double_sees_only_the_constant_urls() {
+    async fn the_transport_double_sees_only_addresses_this_file_built() {
         let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
         for endpoint in ProviderEndpoint::ALL {
-            fetch_endpoint(&transport, endpoint, "fake-secret-for-tests-only")
-                .await
-                .expect("fetch");
+            fetch_endpoint(
+                &transport,
+                endpoint,
+                auth_for(endpoint),
+                "fake-secret-for-tests-only",
+            )
+            .await
+            .expect("fetch");
         }
         assert_eq!(
             transport.recorded_urls(),
             vec![
-                OPENROUTER_KEY_URL,
-                OPENROUTER_CREDITS_URL,
-                CODEX_USAGE_URL,
-                ANTIGRAVITY_QUOTA_URL,
-                OPENCODE_AUTH_URL
+                OPENROUTER_KEY_URL.to_string(),
+                OPENROUTER_CREDITS_URL.to_string(),
+                CODEX_USAGE_URL.to_string(),
+                ANTIGRAVITY_QUOTA_URL.to_string(),
+                /* Two hops, both built here from constants and one validated
+                handle. */
+                OPENCODE_AUTH_URL.to_string(),
+                "https://opencode.ai/workspace/wrk_testworkspace/go".to_string(),
             ]
         );
     }
@@ -505,6 +716,45 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn every_endpoint_is_reached_with_its_own_scheme_method_and_body() {
+        for endpoint in ProviderEndpoint::ALL {
+            let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+            let auth = auth_for(endpoint);
+            fetch_endpoint(&transport, endpoint, auth, "fake").await.expect("fetch");
+            for observed in transport.recorded_auths() {
+                assert_eq!(observed, auth, "an endpoint was reached with another scheme");
+            }
+            for observed in transport.recorded_methods() {
+                assert_eq!(observed, endpoint.method());
+            }
+            /* Only the quota summary carries a body, and only the constant one.
+            The OpenCode hops carry none at all. */
+            for observed in transport.recorded_bodies() {
+                if endpoint == ProviderEndpoint::AntigravityQuota {
+                    assert_eq!(observed, Some(ANTIGRAVITY_EMPTY_BODY));
+                } else {
+                    assert_eq!(observed, None);
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn every_endpoint_is_handed_the_stored_secret_and_nothing_else() {
+        for endpoint in ProviderEndpoint::ALL {
+            let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+            fetch_endpoint(&transport, endpoint, auth_for(endpoint), "the-stored-secret")
+                .await
+                .expect("fetch");
+            for observed in transport.recorded_secrets() {
+                assert_eq!(observed, "the-stored-secret");
+            }
+        }
+    }
+
+    /* -------------------------------------------------- the workspace hop */
+
     #[test]
     fn a_workspace_handle_refuses_everything_that_is_not_one() {
         /* The one non constant part of any address, so the hostile cases are
@@ -520,7 +770,7 @@ mod tests {
             "wrk_abc#frag",
             "wrk_abc def",
             "https://evil.test/wrk_abc",
-            "wrk_évil",
+            "wrk_\u{e9}vil",
             "../wrk_abc",
         ] {
             assert!(
@@ -534,40 +784,144 @@ mod tests {
         assert_eq!(handle.as_str(), "wrk_Abc123");
     }
 
+    #[test]
+    fn a_redirect_target_yields_a_handle_or_nothing_at_all() {
+        /* What the reader may learn from a redirect: one opaque token, and only
+        when the target actually names a workspace. Everything else is a dead
+        session, not a new address. */
+        let accepted = [
+            ("/workspace/wrk_abc123", "wrk_abc123"),
+            ("/workspace/wrk_abc123/go", "wrk_abc123"),
+            ("https://opencode.ai/workspace/wrk_abc123/go", "wrk_abc123"),
+            ("/workspace/wrk_abc123?tab=go", "wrk_abc123"),
+        ];
+        for (target, expected) in accepted {
+            assert_eq!(
+                WorkspaceHandle::from_redirect_target(target).map(|it| it.as_str().to_string()),
+                Some(expected.to_string())
+            );
+        }
+        for refused in [
+            "/auth",
+            "https://auth.example.test/authorize?next=/workspace/",
+            "/workspace/",
+            "/workspace/not-a-handle",
+            "/workspace/../../evil",
+            "https://evil.test/",
+            "",
+        ] {
+            assert!(
+                WorkspaceHandle::from_redirect_target(refused).is_none(),
+                "a redirect target named a workspace it should not have"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn an_entry_point_naming_no_workspace_is_an_authentication_status() {
+        /* A dead OpenCode session: the entry point leads to a login rather than
+        to a workspace. Reported as unauthenticated, with no body and with the
+        second hop never made. */
+        let transport =
+            RecordingTransport::replying(302, b"<html>login</html>".to_vec(), None)
+                .without_workspace();
+        let outcome = fetch_endpoint(
+            &transport,
+            ProviderEndpoint::OpencodeUsage,
+            auth_for(ProviderEndpoint::OpencodeUsage),
+            "fake",
+        )
+        .await
+        .expect("fetch");
+        assert_eq!(outcome.status, OPENCODE_SESSION_DEAD_STATUS);
+        assert_eq!(outcome.body, None);
+        assert_eq!(
+            transport.recorded_urls(),
+            vec![OPENCODE_AUTH_URL.to_string()],
+            "the second hop must not be made without a workspace"
+        );
+    }
+
+    /* -------------------------------------------------------- the outcome */
+
     #[tokio::test]
     async fn success_body_comes_back_as_text() {
         let transport = RecordingTransport::replying(200, b"{\"data\":{}}".to_vec(), None);
-        let outcome = fetch_endpoint(&transport, ProviderEndpoint::OpenrouterKey, "fake")
-            .await
-            .expect("fetch");
+        let outcome = fetch_endpoint(
+            &transport,
+            ProviderEndpoint::OpenrouterKey,
+            AuthApplication::BearerAuthorization,
+            "fake",
+        )
+        .await
+        .expect("fetch");
         assert_eq!(outcome.status, 200);
         assert_eq!(outcome.body.as_deref(), Some("{\"data\":{}}"));
     }
 
     #[tokio::test]
-    async fn failure_body_is_dropped() {
-        let transport =
-            RecordingTransport::replying(429, b"try later, THE-BODY-MARKER".to_vec(), Some(120));
-        let outcome = fetch_endpoint(&transport, ProviderEndpoint::OpenrouterKey, "fake")
-            .await
-            .expect("fetch");
-        assert_eq!(outcome.status, 429);
-        assert_eq!(outcome.body, None);
-        assert_eq!(outcome.retry_after_seconds, Some(120));
+    async fn failure_body_is_dropped_for_every_endpoint() {
+        for endpoint in ProviderEndpoint::ALL {
+            let transport = RecordingTransport::replying(
+                429,
+                b"try later, THE-BODY-MARKER".to_vec(),
+                Some(120),
+            );
+            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), "fake")
+                .await
+                .expect("fetch");
+            assert_eq!(outcome.body, None, "a failed body reached the caller");
+            assert_eq!(outcome.retry_after_seconds, Some(120));
+        }
     }
 
     #[tokio::test]
-    async fn oversized_body_is_a_typed_rejection() {
-        let transport = RecordingTransport::replying(200, vec![b'x'; MAX_RESPONSE_BYTES + 1], None);
-        let outcome = fetch_endpoint(&transport, ProviderEndpoint::OpenrouterKey, "fake").await;
-        assert_eq!(outcome, Err(NetError::TooLarge));
+    async fn oversized_body_is_a_typed_rejection_for_every_endpoint() {
+        for endpoint in ProviderEndpoint::ALL {
+            let transport =
+                RecordingTransport::replying(200, vec![b'x'; MAX_RESPONSE_BYTES + 1], None);
+            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), "fake").await;
+            assert_eq!(outcome, Err(NetError::TooLarge));
+        }
     }
 
     #[tokio::test]
-    async fn non_utf8_body_is_a_typed_rejection() {
-        let transport = RecordingTransport::replying(200, vec![0xff, 0xfe, 0x00], None);
-        let outcome = fetch_endpoint(&transport, ProviderEndpoint::OpenrouterKey, "fake").await;
-        assert_eq!(outcome, Err(NetError::Protocol));
+    async fn non_utf8_body_is_a_typed_rejection_for_every_endpoint() {
+        for endpoint in ProviderEndpoint::ALL {
+            let transport = RecordingTransport::replying(200, vec![0xff, 0xfe, 0x00], None);
+            let outcome = fetch_endpoint(&transport, endpoint, auth_for(endpoint), "fake").await;
+            assert_eq!(outcome, Err(NetError::Protocol));
+        }
+    }
+
+    /* ------------------------------------------------------------ hygiene */
+
+    #[test]
+    fn redirects_stay_disabled_and_the_client_speaks_https_only() {
+        /* The builder's settings cannot be read back off a built client, so the
+        guarantee is pinned against the source that sets it. A change here is a
+        change to whether an allowlisted address can forward a credential. */
+        let source = include_str!("net.rs");
+        let head = source
+            .split("mod tests")
+            .next()
+            .expect("the module has a body before its tests");
+        assert!(head.contains("redirect(reqwest::redirect::Policy::none())"));
+        assert!(head.contains("https_only(true)"));
+        assert!(head.contains("timeout(Duration::from_secs(NETWORK_TIMEOUT_SECONDS))"));
+    }
+
+    #[test]
+    fn no_address_is_assembled_from_anything_but_constants_and_a_handle() {
+        /* The closure claim: the only string concatenation that produces a URL
+        in this file is workspace_url, and it joins two constants around a
+        validated handle. */
+        let source = include_str!("net.rs");
+        let head = source
+            .split("mod tests")
+            .next()
+            .expect("the module has a body before its tests");
+        assert_eq!(head.matches("https://").count(), 6, "an address appeared outside the constants");
     }
 
     #[test]
@@ -600,6 +954,8 @@ mod tests {
                 "Bearer SECRET-MARKER-4f9a-do-not-echo-1234",
                 "THE-BODY-MARKER",
                 OPENROUTER_KEY_URL,
+                CODEX_USAGE_URL,
+                ANTIGRAVITY_QUOTA_URL,
             ] {
                 assert!(!error.to_string().contains(marker));
             }
@@ -620,5 +976,24 @@ mod tests {
         assert_eq!(parse_retry_after(&headers), Some(15));
         headers.insert(reqwest::header::RETRY_AFTER, "".parse().unwrap());
         assert_eq!(parse_retry_after(&headers), None);
+    }
+
+    #[test]
+    fn a_location_header_yields_only_a_handle() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::LOCATION,
+            "/workspace/wrk_abc123/go".parse().unwrap(),
+        );
+        assert_eq!(
+            location_workspace(&headers).map(|it| it.as_str().to_string()),
+            Some("wrk_abc123".to_string())
+        );
+        headers.insert(
+            reqwest::header::LOCATION,
+            "https://auth.example.test/authorize".parse().unwrap(),
+        );
+        assert_eq!(location_workspace(&headers), None);
+        assert_eq!(location_workspace(&reqwest::header::HeaderMap::new()), None);
     }
 }

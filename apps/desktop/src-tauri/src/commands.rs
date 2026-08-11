@@ -505,7 +505,7 @@ async fn probe_core<T: Transport>(
     /* The secret is read inside this privileged call, used for one request,
     and dropped. It is never part of the return value. */
     let secret = secrets.read_secret(&record.id)?;
-    let fetched = fetch_endpoint(transport, route.endpoint, &secret).await;
+    let fetched = fetch_endpoint(transport, route.endpoint, route.auth, &secret).await;
     match fetched {
         Ok(outcome) => {
             settle_request(connections, &record.id, Some(outcome.status))?;
@@ -1073,9 +1073,20 @@ mod tests {
             test_core(&connections, &secrets, &transport, probe(&record.id))
                 .await
                 .expect("probe");
+            /* OpenCode is two hops, both inside its own origin: the entry point
+               names the workspace and the workspace page carries the meters.
+               Every other provider is one address exactly. */
+            let expected: Vec<String> = if endpoint.needs_workspace() {
+                vec![
+                    endpoint.url().to_string(),
+                    "https://opencode.ai/workspace/wrk_testworkspace/go".to_string(),
+                ]
+            } else {
+                vec![endpoint.url().to_string()]
+            };
             assert_eq!(
                 transport.recorded_urls(),
-                vec![endpoint.url()],
+                expected,
                 "a provider reached an address that is not its own"
             );
         }
