@@ -1,0 +1,25 @@
+# Gitleaks policy for this repository.
+#
+# Two things are allowlisted, and the reasons matter more than the entries.
+# The directories are build output and package caches: gitignored, never
+# pushed, and full of third party sample keys that are not ours to rotate.
+# The one literal is this repo's own synthetic masking test fixture, a
+# sequential hex string that was never a credential anywhere. Nothing else
+# is excepted; a real key must always fail this scan.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Build output, package caches, and the synthetic masking test literal"
+paths = [
+  '''\.pnpm-store/''',
+  '''target/debug/''',
+  '''target/release/''',
+  '''\.test-dist/''',
+  '''node_modules/''',
+  '''\.next[^/]*/''',
+]
+regexes = [
+  '''sk-or-v1-0123456789abcdef0123456789abcdef''',
+]
