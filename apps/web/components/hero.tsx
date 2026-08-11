@@ -226,14 +226,14 @@ export function Hero() {
           making the collision impossible at any viewport. */}
       <div className="relative z-10 flex h-full items-center pb-4 pt-[calc(var(--ol-header-h)+0.5rem)]">
         <div className={`${SHELL} w-full`}>
-          <div className="max-w-2xl">
-            <h1 className="fold-enter fold-enter-title text-4xl font-medium leading-tight tracking-tight text-heading sm:text-5xl lg:text-6xl">
+          <div>
+            <h1 className="fold-enter fold-enter-title text-4xl font-medium leading-tight tracking-tight text-heading sm:text-5xl lg:text-[3.25rem]">
               {t.rich("title.limits", {
-                accent: (chunks) => <span className="text-accent">{chunks}</span>,
+                accent: (chunks) => <span className="text-brand">{chunks}</span>,
               })}
               <br />
               {t.rich("title.route", {
-                accent: (chunks) => <span className="text-accent">{chunks}</span>,
+                accent: (chunks) => <span className="text-brand">{chunks}</span>,
               })}
             </h1>
 
@@ -315,37 +315,35 @@ export function Hero() {
               </div>
             </div>
 
-            <div className="fold-enter fold-enter-note space-y-1.5 pt-4">
-              <p className="max-w-xl text-xs leading-relaxed text-body">{t("disclaimer")}</p>
-              <SiteLink
-                href="/download"
-                className="focus-ring inline-block rounded text-sm text-heading underline decoration-1 underline-offset-4 transition-colors hover:text-accent"
-              >
-                {t("downloads.allOptions")}
-              </SiteLink>
-            </div>
+          </div>
+        </div>
+      </div>
 
-            <div className="fold-enter fold-enter-marks flex flex-wrap items-center gap-2 pt-7">
-              <span className="text-xs text-body">{t("supports.label")}</span>
-              <div className="flex items-center gap-3">
-                {heroMarks.map((tool) => (
-                  <span
-                    key={tool.name}
-                    title={toolTitle(tool, tToolTitle)}
-                    className="inline-flex items-center justify-center text-heading"
-                  >
-                    <tool.Mark className="h-[18px] w-[18px]" />
-                    <span className="sr-only">{toolTitle(tool, tToolTitle)}</span>
-                  </span>
-                ))}
-              </div>
-              <SiteLink
-                href="/docs/providers"
-                className="focus-ring rounded text-xs text-heading underline decoration-1 underline-offset-4 transition-colors hover:text-accent"
-              >
-                {t("supports.manualEntry")}
-              </SiteLink>
+      {/* The supports row rides the fold's bottom edge, the founder's call:
+         the disclaimer and the all downloads link left the fold entirely, the
+         download page owns that story. */}
+      <div className="absolute inset-x-0 bottom-6 z-10">
+        <div className={SHELL}>
+          <div className="fold-enter fold-enter-marks flex flex-wrap items-center gap-2">
+            <span className="text-xs text-body">{t("supports.label")}</span>
+            <div className="flex items-center gap-3">
+              {heroMarks.map((tool) => (
+                <span
+                  key={tool.name}
+                  title={toolTitle(tool, tToolTitle)}
+                  className="inline-flex items-center justify-center text-heading"
+                >
+                  <tool.Mark className="h-[18px] w-[18px]" />
+                  <span className="sr-only">{toolTitle(tool, tToolTitle)}</span>
+                </span>
+              ))}
             </div>
+            <SiteLink
+              href="/docs/providers"
+              className="focus-ring rounded text-xs text-heading underline decoration-1 underline-offset-4 transition-colors hover:text-accent"
+            >
+              {t("supports.manualEntry")}
+            </SiteLink>
           </div>
         </div>
       </div>
