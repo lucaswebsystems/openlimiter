@@ -5,9 +5,13 @@ import {
   connectionSentence,
   failureSentence,
   floorFixed,
+  queryCatalogueRows,
   type Advice,
+  type CatalogueRow,
   type FailureCategory,
   type MeterView,
+  type PlannedProviderEntry,
+  type ProviderCatalogueEntry,
   type ProviderView,
 } from "./engine";
 import {
@@ -34,6 +38,7 @@ import {
   type Pressure,
   type SourceState,
 } from "./language";
+import registry from "../../lib/provider-specs.generated.json";
 import { ProviderMark } from "./marks";
 
 /**
@@ -975,6 +980,99 @@ function PlugGlyph() {
       <path d="M6 9h12v3a6 6 0 0 1-12 0Z" />
       <path d="M12 18v3" />
     </svg>
+  );
+}
+
+/* ---------------------------------------------------------- provider catalogue */
+
+/*
+ * What a browser can honestly claim about each connectable provider.
+ *
+ * This page holds no credential and makes no provider request, so every
+ * connectable provider is import only here whatever the desktop application
+ * can do. The same answer already lives in CONNECTION_FACTS in language.ts,
+ * and the two must never disagree.
+ */
+const BROWSER_CATALOGUE_STATES = {
+  claude: "IMPORT_ONLY",
+  openrouter: "IMPORT_ONLY",
+  codex: "IMPORT_ONLY",
+  antigravity: "IMPORT_ONLY",
+  opencode: "IMPORT_ONLY",
+} as const;
+
+/**
+ * Every provider OpenLimiter knows about, read from the generated catalogue.
+ *
+ * This is a read only list. The page cannot connect anything, so nothing here
+ * is drawn as a button or a link that could be mistaken for a connect action.
+ * Connectable rows say what state the browser honestly sees them in and what
+ * the core state machine would do next; planned rows simply say OpenLimiter
+ * does not read them yet.
+ */
+export function ProviderCatalogue() {
+  const rows = queryCatalogueRows(registry, BROWSER_CATALOGUE_STATES);
+
+  return (
+    <ul className="divide-y divide-hairline border-t border-hairline">
+      {rows.map((row) => (
+        <li key={rowKey(row)} className="py-4">
+          {row.availability === "connectable" ? (
+            <ConnectableCatalogueRow row={row} />
+          ) : (
+            <PlannedCatalogueRow row={row} />
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function rowKey(row: CatalogueRow): string {
+  return row.availability === "connectable" ? row.providerId : row.specId;
+}
+
+function ConnectableCatalogueRow({ row }: { row: ProviderCatalogueEntry }) {
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
+            {row.displayName}
+          </span>
+          <span className={`${CHIP_NEUTRAL} flex-none`}>
+            <span className="font-mono tracking-widest">
+              {row.connectionState}
+            </span>
+          </span>
+        </div>
+        <p className="text-xs text-muted">{row.action}</p>
+      </div>
+      <p className="text-xs leading-relaxed text-body">
+        {connectionSentence[row.connectionState]}
+      </p>
+      <div className="flex flex-wrap gap-x-2 gap-y-1 text-2xs text-muted">
+        <span>Windows: {row.capabilities.windows.label}</span>
+        <span>macOS: {row.capabilities.macos.label}</span>
+        <span>Linux: {row.capabilities.linux.label}</span>
+      </div>
+    </div>
+  );
+}
+
+function PlannedCatalogueRow({ row }: { row: PlannedProviderEntry }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
+          {row.displayName}
+        </span>
+        <span className={`${CHIP_NEUTRAL} flex-none`}>Planned</span>
+      </div>
+      <p className="text-xs leading-relaxed text-muted">
+        OpenLimiter does not read this product yet.
+      </p>
+    </div>
   );
 }
 

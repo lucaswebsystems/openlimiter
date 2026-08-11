@@ -61,12 +61,14 @@ import {
   mergeSnapshots,
   nextRefreshAt,
   normalizeMetersReport,
+  queryCatalogueRows,
   readSuppressions,
 } from "./engine/core/index.js";
 import { parseAntigravityPayload } from "./engine/connectors/antigravity.js";
 import { parseCodexPayload } from "./engine/connectors/codex.js";
 import { parseOpencodePayload } from "./engine/connectors/opencode.js";
 import { parseOpenrouterPayload } from "./engine/connectors/openrouter.js";
+import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import * as backend from "./backend.js";
 
 /** The event the Rust metronome emits, about once a minute. */
@@ -132,6 +134,9 @@ const session = {
   /** The last detect_local_tools answer for Claude Code, normalized. */
   claude: null,
   claudeProbed: false,
+  /** Preflight verdict object for Claude Code connection flow. */
+  claudeVerdict: null,
+  claudeConsentOpen: false,
 };
 
 /** Wired by initConnections. Nothing here runs before that. */
@@ -163,6 +168,8 @@ function grabElements() {
     claudeCopy: document.getElementById("claude-copy"),
     claudeVerify: document.getElementById("claude-verify"),
     claudeNote: document.getElementById("claude-note"),
+    claudeBody: document.getElementById("claude-body"),
+    catalogueRows: document.getElementById("catalogue-rows"),
   };
 }
 
@@ -679,7 +686,19 @@ function normalizeDetection(value) {
     entry = pick(value, ["claudeCode", "claude_code", "claude", "CLAUDE"]) ?? value;
   }
   if (entry === null || typeof entry !== "object") return null;
-  const found = pick(entry, ["installed", "present", "found", "detected"]);
+  /* The backend's own spelling comes first. It reports the presence of the
+     Claude Code settings file, which is the only evidence of the tool this
+     detection gathers, and leaving it out of this list is why the card used to
+     say the answer could not be read on a machine where Claude Code was
+     plainly installed. The other spellings stay as a tolerance. */
+  const found = pick(entry, [
+    "claude_settings_present",
+    "claudeSettingsPresent",
+    "installed",
+    "present",
+    "found",
+    "detected",
+  ]);
   const wired = pick(entry, [
     "statuslineWired",
     "statusline_wired",
@@ -694,6 +713,65 @@ function normalizeDetection(value) {
     wired: typeof wired === "boolean" ? wired : null,
     state: typeof state === "string" && KNOWN_STATES.has(state) ? state : null,
   };
+}
+
+/**
+ * Normalizes the preflight verdict object, reading snake_case fields defensively.
+ * An unreadable verdict returns null, never a guess.
+ */
+function normalizePreflight(value) {
+  if (value === null || typeof value !== "object") return null;
+  const kind = pick(value, ["kind"]);
+  const validKinds = new Set([
+    "ready",
+    "cli_missing",
+    "cli_not_working",
+    "settings_unknown",
+    "guided_manual",
+  ]);
+  if (typeof kind !== "string" || !validKinds.has(kind)) return null;
+
+  const cliFound = pick(value, ["cli_found", "cliFound"]);
+  const cliWorking = pick(value, ["cli_working", "cliWorking"]);
+  const settingsPresent = pick(value, ["settings_present", "settingsPresent"]);
+  const settingsShapeKnown = pick(value, ["settings_shape_known", "settingsShapeKnown"]);
+  const foreignStatusLine = pick(value, ["foreign_status_line", "foreignStatusLine"]);
+  const foreignUserPromptSubmitHooks = pick(
+    value,
+    ["foreign_user_prompt_submit_hooks", "foreignUserPromptSubmitHooks"],
+  );
+  const cliPath = pick(value, ["cli_path", "cliPath"]);
+  const installCommand = pick(value, ["install_command", "installCommand"]);
+
+  return {
+    kind,
+    cliFound: typeof cliFound === "boolean" ? cliFound : false,
+    cliWorking: typeof cliWorking === "boolean" ? cliWorking : false,
+    settingsPresent: typeof settingsPresent === "boolean" ? settingsPresent : false,
+    settingsShapeKnown: typeof settingsShapeKnown === "boolean" ? settingsShapeKnown : false,
+    foreignStatusLine: typeof foreignStatusLine === "boolean" ? foreignStatusLine : false,
+    foreignUserPromptSubmitHooks:
+      typeof foreignUserPromptSubmitHooks === "boolean"
+        ? foreignUserPromptSubmitHooks
+        : false,
+    cliPath: typeof cliPath === "string" ? cliPath : null,
+    installCommand:
+      typeof installCommand === "string"
+        ? installCommand
+        : "npm install -g openlimiter",
+  };
+}
+
+/** Check the real CLI and Claude Code settings without changing either. */
+async function runClaudePreflight() {
+  const result = await backend.claudeConnectPreflight();
+  if (!result.ok) {
+    if (result.reason === backend.BACKEND_ABSENT) session.backendPresent = false;
+    session.claudeVerdict = null;
+    return;
+  }
+  session.backendPresent = true;
+  session.claudeVerdict = normalizePreflight(result.value);
 }
 
 async function detectClaude() {
@@ -1004,6 +1082,8 @@ function renderSchedulerLine() {
 
 function renderClaude() {
   el.claudeSnippet.textContent = CLAUDE_SETUP_SNIPPET;
+  if (el.claudeBody) el.claudeBody.textContent = "";
+
   /* No backend, no look. Saying "looking" while nothing can look would be a
      claim about an activity this build cannot perform. */
   if (session.backendPresent === false) {
@@ -1011,8 +1091,8 @@ function renderClaude() {
     el.claudeSentence.textContent =
       "Detecting a local tool needs the connection backend, and this build has none.";
     el.claudeDetail.textContent =
-      "The setup block below still works: copy it, wire it by hand, and the statusline reports on its own.";
-    el.claudeVerify.disabled = true;
+      "This build has no connection backend yet.";
+    if (el.claudeVerify) el.claudeVerify.disabled = true;
     return;
   }
   const state = session.claudeProbed ? claudeStateOf() : null;
@@ -1022,24 +1102,418 @@ function renderClaude() {
       ? "The detection answer could not be read, so nothing is claimed about this machine."
       : "Looking for Claude Code on this machine.";
     el.claudeDetail.textContent = "";
-    el.claudeVerify.disabled = false;
+    if (el.claudeVerify) el.claudeVerify.disabled = false;
+  } else {
+    el.claudeState.hidden = false;
+    el.claudeState.dataset.connectionState = state;
+    el.claudeState.title = connectionSentence[state];
+    el.claudeStateCode.textContent = state;
+    el.claudeSentence.textContent = connectionSentence[state];
+    const detection = session.claude;
+    el.claudeDetail.textContent =
+      state === "NOT_CONFIGURED"
+        ? "Claude Code was not found on this machine."
+        : state === "DETECTED"
+          ? "Claude Code was found. Its statusline command does not point at OpenLimiter yet."
+          : detection !== null && detection.wired === true
+            ? "Claude Code was found and its statusline command points at OpenLimiter."
+            : "Claude Code was found.";
+    if (el.claudeVerify) el.claudeVerify.disabled = false;
+  }
+
+  if (!el.claudeBody) return;
+
+  const detection = session.claude;
+  const wired = detection !== null && detection.wired === true;
+
+  if (wired) {
+    const actions = element("div", "conn-actions");
+    const disconnectBtn = element("button", undefined, "Disconnect");
+    disconnectBtn.type = "button";
+    disconnectBtn.addEventListener("click", () => {
+      void (async () => {
+        disconnectBtn.disabled = true;
+        setNote(el.claudeNote, "Disconnecting.", "plain");
+        const result = await backend.claudeDisconnect();
+        if (result.ok) {
+          const outcome = result.value?.kind;
+          if (outcome === "restored_exact") {
+            setNote(
+              el.claudeNote,
+              "The previous settings were restored byte for byte from the timestamped copy.",
+              "ok",
+            );
+          } else if (outcome === "removed_owned_entries") {
+            setNote(
+              el.claudeNote,
+              "The settings file changed after OpenLimiter wrote to it, so the copy was not restored, and only the OpenLimiter entries were removed while everything else was left exactly as it is.",
+              "ok",
+            );
+          } else if (outcome === "nothing_to_remove") {
+            setNote(
+              el.claudeNote,
+              "There was nothing of OpenLimiter's to remove.",
+              "plain",
+            );
+          } else {
+            setNote(el.claudeNote, "Disconnected.", "ok");
+          }
+        } else {
+          setNote(
+            el.claudeNote,
+            result.reason === backend.BACKEND_ABSENT
+              ? "This build has no connection backend yet."
+              : result.message,
+            "bad",
+          );
+        }
+        await runClaudePreflight();
+        await detectClaude();
+        render();
+      })();
+    });
+    actions.append(disconnectBtn);
+    el.claudeBody.append(actions);
     return;
   }
-  el.claudeState.hidden = false;
-  el.claudeState.dataset.connectionState = state;
-  el.claudeState.title = connectionSentence[state];
-  el.claudeStateCode.textContent = state;
-  el.claudeSentence.textContent = connectionSentence[state];
-  const detection = session.claude;
-  el.claudeDetail.textContent =
-    state === "NOT_CONFIGURED"
-      ? "Claude Code was not found on this machine."
-      : state === "DETECTED"
-        ? "Claude Code was found. Its statusline command does not point at OpenLimiter yet."
-        : detection !== null && detection.wired === true
-          ? "Claude Code was found and its statusline command points at OpenLimiter."
-          : "Claude Code was found.";
-  el.claudeVerify.disabled = false;
+
+  const verdict = session.claudeVerdict;
+  if (verdict === null) {
+    const actions = element("div", "conn-actions");
+    const verifyBtn = element("button", undefined, "Verify");
+    verifyBtn.type = "button";
+    verifyBtn.addEventListener("click", () => {
+      void verifyClaude();
+    });
+    actions.append(verifyBtn);
+    el.claudeBody.append(actions);
+    return;
+  }
+
+  switch (verdict.kind) {
+    case "ready": {
+      if (session.claudeConsentOpen) {
+        const consentBox = element("div", "conn-block surface");
+        const heading = element("h2", undefined, "Claude Code connection details");
+        consentBox.append(heading);
+
+        const explanation = element("div", "conn-detail");
+        const p1 = element(
+          "p",
+          undefined,
+          "The file that will change is the Claude Code settings file in your home directory.",
+        );
+        const p2 = element(
+          "p",
+          undefined,
+          "A timestamped copy of that file is written beside it first, before any change.",
+        );
+        const p3 = element(
+          "p",
+          undefined,
+          "The two entries that will be added are the statusLine command and one UserPromptSubmit hook, both pointing at the absolute path of the OpenLimiter command line tool:",
+        );
+        const monoPath = element("pre", "mono", verdict.cliPath ?? "OpenLimiter CLI path");
+        const p4 = element("p", undefined, "Nothing else in the file is touched.");
+        const p5 = element(
+          "p",
+          undefined,
+          "No credential, token or login file of any kind is read or written, ever.",
+        );
+
+        explanation.append(p1, p2, p3, monoPath, p4, p5);
+        consentBox.append(explanation);
+
+        const actions = element("div", "conn-actions");
+        const applyBtn = element("button", undefined, "Write these two entries");
+        applyBtn.type = "button";
+
+        const cancelBtn = element("button", undefined, "Cancel");
+        cancelBtn.type = "button";
+
+        applyBtn.addEventListener("click", () => {
+          void (async () => {
+            applyBtn.disabled = true;
+            cancelBtn.disabled = true;
+            setNote(
+              el.claudeNote,
+              "Writing the timestamped backup copy and adding entries.",
+              "plain",
+            );
+            const result = await backend.claudeConnectApply();
+            if (result.ok) {
+              const outcome = result.value?.kind;
+              if (outcome === "applied") {
+                setNote(
+                  el.claudeNote,
+                  "The two entries were written and a timestamped copy of the previous settings sits beside the settings file.",
+                  "ok",
+                );
+              } else if (outcome === "already_applied") {
+                setNote(
+                  el.claudeNote,
+                  "Those two entries were already in place, so nothing changed.",
+                  "plain",
+                );
+              } else {
+                setNote(el.claudeNote, "Applied configuration.", "ok");
+              }
+            } else {
+              setNote(
+                el.claudeNote,
+                result.reason === backend.BACKEND_ABSENT
+                  ? "This build has no connection backend yet."
+                  : result.message,
+                "bad",
+              );
+            }
+            session.claudeConsentOpen = false;
+            await runClaudePreflight();
+            await detectClaude();
+            render();
+          })();
+        });
+
+        cancelBtn.addEventListener("click", () => {
+          session.claudeConsentOpen = false;
+          render();
+        });
+
+        actions.append(applyBtn, cancelBtn);
+        consentBox.append(actions);
+        el.claudeBody.append(consentBox);
+      } else {
+        const actions = element("div", "conn-actions");
+        const connectBtn = element("button", undefined, "Connect Claude Code");
+        connectBtn.type = "button";
+        connectBtn.addEventListener("click", () => {
+          session.claudeConsentOpen = true;
+          render();
+        });
+        actions.append(connectBtn);
+        el.claudeBody.append(actions);
+      }
+      break;
+    }
+
+    case "cli_missing": {
+      const p = element(
+        "p",
+        "conn-detail",
+        "Claude Code may be on this machine but the OpenLimiter command line tool is not, and the one click connection needs a real absolute path to it.",
+      );
+      const mono = element("pre", "mono", verdict.installCommand);
+      const actions = element("div", "conn-actions");
+
+      const copyBtn = element("button", undefined, "Copy install command");
+      copyBtn.type = "button";
+      copyBtn.addEventListener("click", () => {
+        void (async () => {
+          try {
+            await window.navigator.clipboard.writeText(verdict.installCommand);
+            setNote(el.claudeNote, "Copied install command.", "ok");
+          } catch {
+            setNote(el.claudeNote, "Copying was refused.", "bad");
+          }
+        })();
+      });
+
+      const recheckBtn = element("button", undefined, "Check again");
+      recheckBtn.type = "button";
+      recheckBtn.addEventListener("click", () => {
+        void (async () => {
+          setNote(el.claudeNote, "Checking.", "plain");
+          await runClaudePreflight();
+          await detectClaude();
+          render();
+        })();
+      });
+
+      actions.append(copyBtn, recheckBtn);
+      el.claudeBody.append(p, mono, actions);
+      break;
+    }
+
+    case "cli_not_working": {
+      const p = element(
+        "p",
+        "conn-detail",
+        "The command line tool was found but did not answer when it was run, so nothing was written and nothing will be.",
+      );
+      const mono = element("pre", "mono", verdict.cliPath ?? "CLI path missing");
+      const actions = element("div", "conn-actions");
+
+      const recheckBtn = element("button", undefined, "Check again");
+      recheckBtn.type = "button";
+      recheckBtn.addEventListener("click", () => {
+        void (async () => {
+          setNote(el.claudeNote, "Checking.", "plain");
+          await runClaudePreflight();
+          await detectClaude();
+          render();
+        })();
+      });
+
+      actions.append(recheckBtn);
+      el.claudeBody.append(p, mono, actions);
+      break;
+    }
+
+    case "guided_manual": {
+      let refusal = "OpenLimiter will not touch an entry somebody else put there.";
+      if (verdict.foreignStatusLine && verdict.foreignUserPromptSubmitHooks) {
+        refusal =
+          "OpenLimiter will not touch a statusLine entry and a UserPromptSubmit hook that belong to another tool.";
+      } else if (verdict.foreignStatusLine) {
+        refusal =
+          "OpenLimiter will not touch a statusLine entry that belongs to another tool.";
+      } else if (verdict.foreignUserPromptSubmitHooks) {
+        refusal =
+          "OpenLimiter will not touch a UserPromptSubmit hook that belongs to another tool.";
+      }
+
+      const refusalP = element("p", "conn-detail", refusal);
+      const instructionP = element(
+        "p",
+        "conn-lead",
+        "Merge the block below into your settings file by hand, then press Verify.",
+      );
+      const mono = element("pre", "mono", CLAUDE_SETUP_SNIPPET);
+
+      const actions = element("div", "conn-actions");
+      const copyBtn = element("button", undefined, "Copy settings block");
+      copyBtn.type = "button";
+      copyBtn.addEventListener("click", () => {
+        void copyClaudeSnippet();
+      });
+
+      const verifyBtn = element("button", undefined, "Verify");
+      verifyBtn.type = "button";
+      verifyBtn.addEventListener("click", () => {
+        void verifyClaude();
+      });
+
+      actions.append(copyBtn, verifyBtn);
+      el.claudeBody.append(refusalP, instructionP, mono, actions);
+      break;
+    }
+
+    case "settings_unknown": {
+      const p = element(
+        "p",
+        "conn-detail",
+        "The settings file is not in a shape this build understands, so nothing was written.",
+      );
+      const instructionP = element(
+        "p",
+        "conn-lead",
+        "Merge the block below into your settings file by hand, then press Verify.",
+      );
+      const mono = element("pre", "mono", CLAUDE_SETUP_SNIPPET);
+
+      const actions = element("div", "conn-actions");
+      const copyBtn = element("button", undefined, "Copy settings block");
+      copyBtn.type = "button";
+      copyBtn.addEventListener("click", () => {
+        void copyClaudeSnippet();
+      });
+
+      const verifyBtn = element("button", undefined, "Verify");
+      verifyBtn.type = "button";
+      verifyBtn.addEventListener("click", () => {
+        void verifyClaude();
+      });
+
+      actions.append(copyBtn, verifyBtn);
+      el.claudeBody.append(p, instructionP, mono, actions);
+      break;
+    }
+  }
+}
+
+/** Render the provider catalogue using live connection evidence only. */
+function renderCatalogue() {
+  if (!el.catalogueRows) return;
+  el.catalogueRows.textContent = "";
+
+  const states = {};
+
+  const claudeState = claudeStateOf();
+  if (claudeState !== null) {
+    states.claude = claudeState;
+  }
+
+  const providers = ["openrouter", "codex", "antigravity", "opencode"];
+  for (const id of providers) {
+    const matching = session.connections.filter(
+      (entry) => typeof entry.provider === "string" && entry.provider.toLowerCase() === id,
+    );
+    if (matching.length > 0) {
+      const best = matching.find((entry) => entry.state === "CONNECTED") ?? matching[0];
+      if (KNOWN_STATES.has(best.state)) {
+        states[id] = best.state;
+      }
+    }
+  }
+
+  const rows = queryCatalogueRows(PROVIDER_SPECS, states);
+
+  for (const rowData of rows) {
+    const rowEl = element("div", "catalogue-row");
+
+    const identEl = element("div", "catalogue-ident");
+    identEl.append(element("span", "name", rowData.displayName));
+
+    if (rowData.availability === "connectable") {
+      identEl.append(stateChip(rowData.connectionState));
+    } else {
+      const plannedChip = element("span", "chip muted", "Planned");
+      identEl.append(plannedChip);
+    }
+    rowEl.append(identEl);
+
+    if (rowData.availability === "connectable") {
+      const caps = rowData.capabilities;
+      const platformText =
+        "Windows " +
+        caps.windows.label +
+        " · macOS " +
+        caps.macos.label +
+        " · Linux " +
+        caps.linux.label;
+      rowEl.append(element("div", "catalogue-platforms", platformText));
+
+      const actionEl = element("div", "catalogue-action");
+      const btn = element("button", undefined, rowData.action);
+      btn.type = "button";
+      const targetId = {
+        claude: "claude-card",
+        openrouter: "openrouter-add",
+        codex: "codex-add",
+        antigravity: "antigravity-add",
+        opencode: "opencode-add",
+      }[rowData.providerId];
+
+      btn.addEventListener("click", () => {
+        if (targetId) {
+          const targetEl = document.getElementById(targetId);
+          if (targetEl) {
+            targetEl.hidden = false;
+            targetEl.scrollIntoView({ behavior: "smooth" });
+            targetEl.focus();
+          }
+        }
+      });
+      actionEl.append(btn);
+      rowEl.append(actionEl);
+    }
+    /* A planned row gets no action column at all. The chip beside its name
+       already says Planned, and printing the same word twice in one row reads
+       as two facts when there is only one. There is nothing to press, so there
+       is nothing here. */
+
+    el.catalogueRows.append(rowEl);
+  }
 }
 
 function render() {
@@ -1071,6 +1545,7 @@ function render() {
   );
 
   renderClaude();
+  renderCatalogue();
 }
 
 /* ---------------------------------------------------------------- actions */
@@ -1192,9 +1667,10 @@ async function copyClaudeSnippet() {
 }
 
 async function verifyClaude() {
-  el.claudeVerify.disabled = true;
+  if (el.claudeVerify) el.claudeVerify.disabled = true;
   setNote(el.claudeNote, "Detecting.", "plain");
   await detectClaude();
+  await runClaudePreflight();
   const state = claudeStateOf();
   setNote(
     el.claudeNote,
@@ -1247,8 +1723,9 @@ export function connectionsTabShown() {
   if (!session.ready) return;
   void (async () => {
     await syncConnections();
-    if (session.backendPresent === true && !session.claudeProbed) {
+    if (session.backendPresent === true) {
       await detectClaude();
+      await runClaudePreflight();
     }
     render();
   })();
@@ -1256,7 +1733,10 @@ export function connectionsTabShown() {
 
 async function bootstrap() {
   await syncConnections();
-  if (session.backendPresent === true) await detectClaude();
+  if (session.backendPresent === true) {
+    await detectClaude();
+    await runClaudePreflight();
+  }
   render();
 }
 
@@ -1275,9 +1755,11 @@ export function initConnections(configuration) {
   el.claudeCopy.addEventListener("click", () => {
     void copyClaudeSnippet();
   });
-  el.claudeVerify.addEventListener("click", () => {
-    void verifyClaude();
-  });
+  if (el.claudeVerify) {
+    el.claudeVerify.addEventListener("click", () => {
+      void verifyClaude();
+    });
+  }
 
   void backend.listen(TICK_EVENT, () => {
     void onTick();

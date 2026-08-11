@@ -10,9 +10,13 @@ import {
   mergeSnapshots,
   normalizeMeters,
   normalizeMetersReport,
+  queryCatalogueRows,
   type Advice,
+  type CatalogueRow,
   type ConnectionState,
   type FailureCategory,
+  type PlannedProviderEntry,
+  type ProviderCatalogueEntry,
   type ProviderCode,
   type ProviderFailure,
   type RawMeter,
@@ -50,8 +54,11 @@ import { buildAgentContext, renderClaudeStatusline } from "./generated/adapters/
 
 export type {
   Advice,
+  CatalogueRow,
   ConnectionState,
   FailureCategory,
+  PlannedProviderEntry,
+  ProviderCatalogueEntry,
   ProviderCode,
   ProviderFailure,
   Snapshot,
@@ -64,9 +71,11 @@ export {
   PROVIDER_CODES,
   buildAgentContext,
   /* The connection state machine's two human tables, so the Connections tab
-     renders the same sentence and next action every other surface does. */
+     renders the same sentence and next action every other surface does, plus
+     the catalogue query that joins generated provider facts to the same states. */
   connectionNextAction,
   connectionSentence,
+  queryCatalogueRows,
   failureSentence,
   floorFixed,
   renderClaudeStatusline,

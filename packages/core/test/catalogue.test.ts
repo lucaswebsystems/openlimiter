@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import providerSpecs from "../../../provider_specs/provider-specs.json" with { type: "json" };
 import {
   CONNECTION_STATES,
+  queryCatalogueRows,
   queryProviderCatalogue,
   type CatalogueProviderId,
   type ConnectionState
@@ -59,3 +60,49 @@ describe("provider catalogue", () => {
     expect(codex?.action).toBe("Run codex login");
   });
 });
+
+describe("catalogue rows", () => {
+  it("derives all seventeen catalogue rows in document order", () => {
+    const rows = queryCatalogueRows(providerSpecs);
+    expect(rows).toHaveLength(17);
+
+    const connectableRows = rows.slice(0, 5);
+    expect(connectableRows.every((row) => row.availability === "connectable")).toBe(true);
+    expect(
+      connectableRows.map((row) => (row.availability === "connectable" ? row.providerId : undefined))
+    ).toEqual(["claude", "openrouter", "codex", "antigravity", "opencode"]);
+
+    const plannedRows = rows.slice(5);
+    expect(plannedRows).toHaveLength(12);
+    for (const row of plannedRows) {
+      expect(row.availability).toBe("planned");
+      expect(row.action).toBe("Planned");
+      expect("connectionState" in row).toBe(false);
+    }
+
+    for (const row of rows) {
+      expect(row.displayName).not.toBe("Manual");
+      if (row.availability === "planned") {
+        expect(row.specId).not.toBe("openlimiter/manual");
+      }
+    }
+  });
+
+  it("applies connection state overrides to the connectable claude row only", () => {
+    const rows = queryCatalogueRows(providerSpecs, { claude: "CONNECTED" });
+    const connectableRows = rows.filter(
+      (row): row is Extract<typeof row, { availability: "connectable" }> =>
+        row.availability === "connectable"
+    );
+
+    const claudeRow = connectableRows.find((row) => row.providerId === "claude");
+    expect(claudeRow?.connectionState).toBe("CONNECTED");
+
+    for (const row of connectableRows) {
+      if (row.providerId !== "claude") {
+        expect(row.connectionState).toBe("NOT_CONFIGURED");
+      }
+    }
+  });
+});
+

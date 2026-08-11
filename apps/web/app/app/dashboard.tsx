@@ -21,6 +21,7 @@ import {
   MeterList,
   Panel,
   ProviderCard,
+  ProviderCatalogue,
   SettingsMenu,
   SkeletonCards,
   Tabs,
@@ -608,6 +609,14 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               a shape against a live account yet. A shape that changes fails
               closed to unknown rather than guessing.
             </p>
+          </Panel>
+
+          <Panel
+            title="Provider catalogue"
+            description="Seventeen products, five of which this page can read from an imported document, twelve of which OpenLimiter does not read yet, and none of which this page can connect."
+            demo={demo}
+          >
+            <ProviderCatalogue />
           </Panel>
 
           <Panel

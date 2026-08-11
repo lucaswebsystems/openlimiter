@@ -218,3 +218,213 @@ export const connectionNextAction = {
   UNSUPPORTED: "Add manual plan",
   ERROR: "View diagnostics"
 } as const satisfies Record<ConnectionState, string>;
+
+/** The five providers on the Connect and See catalogue surface. */
+export const CATALOGUE_PROVIDER_IDS = [
+  "claude",
+  "openrouter",
+  "codex",
+  "antigravity",
+  "opencode"
+] as const;
+
+export type CatalogueProviderId = (typeof CATALOGUE_PROVIDER_IDS)[number];
+export type CataloguePlatform = "windows" | "macos" | "linux";
+export type CatalogueCapabilityMode = "automatic" | "manual" | "event_driven";
+export type CatalogueCapabilityMaturity = "supported" | "experimental";
+export type CatalogueCapabilityLabel =
+  | "Supported"
+  | "Event driven"
+  | "Experimental"
+  | "Manual"
+  | "Manual experimental";
+export type CatalogueAuthMode = "existing_local_cli" | "api_key" | "manual";
+
+export interface CataloguePlatformCapability {
+  mode: CatalogueCapabilityMode;
+  maturity: CatalogueCapabilityMaturity;
+  label: CatalogueCapabilityLabel;
+}
+
+export interface ProviderCatalogueEntry {
+  providerId: CatalogueProviderId;
+  displayName: string;
+  connectionState: ConnectionState;
+  capabilities: Readonly<Record<CataloguePlatform, CataloguePlatformCapability>>;
+  authMode: CatalogueAuthMode;
+  action: string;
+}
+
+interface GeneratedProviderEntry {
+  id?: unknown;
+  displayName?: unknown;
+  authModes?: unknown;
+  platforms?: unknown;
+  honesty?: { connectorId?: unknown } | null;
+}
+
+export interface GeneratedProviderDocument {
+  providers?: unknown;
+}
+
+const supported = {
+  mode: "automatic",
+  maturity: "supported",
+  label: "Supported"
+} as const satisfies CataloguePlatformCapability;
+
+const eventDriven = {
+  mode: "event_driven",
+  maturity: "supported",
+  label: "Event driven"
+} as const satisfies CataloguePlatformCapability;
+
+const experimental = {
+  mode: "automatic",
+  maturity: "experimental",
+  label: "Experimental"
+} as const satisfies CataloguePlatformCapability;
+
+const manual = {
+  mode: "manual",
+  maturity: "supported",
+  label: "Manual"
+} as const satisfies CataloguePlatformCapability;
+
+const manualExperimental = {
+  mode: "manual",
+  maturity: "experimental",
+  label: "Manual experimental"
+} as const satisfies CataloguePlatformCapability;
+
+const catalogueCapabilities = {
+  claude: { windows: eventDriven, macos: eventDriven, linux: eventDriven },
+  openrouter: { windows: supported, macos: supported, linux: supported },
+  codex: { windows: supported, macos: supported, linux: supported },
+  antigravity: { windows: experimental, macos: manual, linux: manual },
+  opencode: {
+    windows: manualExperimental,
+    macos: manualExperimental,
+    linux: manualExperimental
+  }
+} as const satisfies Record<
+  CatalogueProviderId,
+  Readonly<Record<CataloguePlatform, CataloguePlatformCapability>>
+>;
+
+function isCatalogueProviderId(value: unknown): value is CatalogueProviderId {
+  return typeof value === "string" &&
+    (CATALOGUE_PROVIDER_IDS as readonly string[]).includes(value);
+}
+
+function isCatalogueAuthMode(value: unknown): value is CatalogueAuthMode {
+  return value === "existing_local_cli" || value === "api_key" || value === "manual";
+}
+
+function catalogueState(value: unknown): ConnectionState {
+  return typeof value === "string" &&
+    (CONNECTION_STATES as readonly string[]).includes(value)
+    ? value as ConnectionState
+    : "NOT_CONFIGURED";
+}
+
+function actionFor(providerId: CatalogueProviderId, state: ConnectionState): string {
+  if (providerId === "codex" && (state === "NEEDS_AUTH" || state === "AUTH_EXPIRED")) {
+    return "Run codex login";
+  }
+  return connectionNextAction[state];
+}
+
+/**
+ * Join generated provider facts to the closed connection state model.
+ *
+ * The generated document supplies identity, display name, auth mode and the
+ * platform set. Product capability maturity is the frozen overlay above. No
+ * site or local application is inspected at runtime.
+ */
+export function queryProviderCatalogue(
+  generated: GeneratedProviderDocument,
+  states: Readonly<Partial<Record<CatalogueProviderId, ConnectionState>>> = {}
+): readonly ProviderCatalogueEntry[] {
+  if (!Array.isArray(generated.providers)) return [];
+  const found = new Map<CatalogueProviderId, GeneratedProviderEntry>();
+  for (const candidate of generated.providers) {
+    if (candidate === null || typeof candidate !== "object") continue;
+    const entry = candidate as GeneratedProviderEntry;
+    const providerId = entry.honesty?.connectorId;
+    if (!isCatalogueProviderId(providerId)) continue;
+    found.set(providerId, entry);
+  }
+  const catalogue: ProviderCatalogueEntry[] = [];
+  for (const providerId of CATALOGUE_PROVIDER_IDS) {
+    const source = found.get(providerId);
+    if (source === undefined || typeof source.displayName !== "string") continue;
+    if (!Array.isArray(source.authModes) || !isCatalogueAuthMode(source.authModes[0])) continue;
+    const platforms = source.platforms;
+    if (!Array.isArray(platforms)) continue;
+    const hasEveryPlatform = (["windows", "macos", "linux"] as const)
+      .every((platform) => platforms.includes(platform));
+    if (!hasEveryPlatform) continue;
+    const connectionState = catalogueState(states[providerId]);
+    catalogue.push({
+      providerId,
+      displayName: source.displayName,
+      connectionState,
+      capabilities: catalogueCapabilities[providerId],
+      authMode: source.authModes[0],
+      action: actionFor(providerId, connectionState)
+    });
+  }
+  return catalogue;
+}
+
+export interface PlannedProviderEntry {
+  specId: string;
+  displayName: string;
+  action: "Planned";
+}
+
+export type CatalogueRow =
+  | ({ availability: "connectable" } & ProviderCatalogueEntry)
+  | ({ availability: "planned" } & PlannedProviderEntry);
+
+/**
+ * The connections surface showing connectable providers and planned products.
+ *
+ * The product catalogue presents every supported or planned provider in document
+ * order after the connectable set. Planned rows carry no connection state because
+ * no background collector or credential exists for them.
+ */
+export function queryCatalogueRows(
+  generated: GeneratedProviderDocument,
+  states: Readonly<Partial<Record<CatalogueProviderId, ConnectionState>>> = {}
+): readonly CatalogueRow[] {
+  const connectableRows: CatalogueRow[] = queryProviderCatalogue(generated, states).map(
+    (entry) => ({
+      availability: "connectable" as const,
+      ...entry
+    })
+  );
+
+  if (!Array.isArray(generated.providers)) return connectableRows;
+
+  const plannedRows: CatalogueRow[] = [];
+  for (const candidate of generated.providers) {
+    if (candidate === null || typeof candidate !== "object") continue;
+    const entry = candidate as GeneratedProviderEntry;
+    const connectorId = entry.honesty?.connectorId;
+    if (connectorId === "manual") continue;
+    if (isCatalogueProviderId(connectorId)) continue;
+    if (typeof entry.id !== "string" || typeof entry.displayName !== "string") continue;
+
+    plannedRows.push({
+      availability: "planned",
+      specId: entry.id,
+      displayName: entry.displayName,
+      action: "Planned"
+    });
+  }
+
+  return [...connectableRows, ...plannedRows];
+}
+

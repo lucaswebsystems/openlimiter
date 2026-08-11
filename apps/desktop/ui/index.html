@@ -204,7 +204,7 @@
         <div id="connections-cards" class="connections"></div>
 
         <!-- Detected local tools first -->
-        <section id="claude-card" class="surface conn-block" aria-labelledby="claude-card-title">
+        <section id="claude-card" class="surface conn-block" aria-labelledby="claude-card-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="claude-card-title">Claude Code</h2>
             <span id="claude-state" class="chip muted conn-state" hidden>
@@ -216,16 +216,11 @@
             Looking for Claude Code on this machine.
           </p>
           <p id="claude-detail" class="conn-detail"></p>
-          <div class="conn-actions">
-            <button type="button" id="claude-verify">Verify</button>
-          </div>
+          <div id="claude-body"></div>
           <p id="claude-note" class="conn-note" role="status"></p>
         </section>
 
-        <!-- Provider catalogue beneath -->
-        <!-- Adding OpenRouter. The one secret in this window passes through
-             this field once, is cleared on submit, and is never logged. -->
-        <section id="openrouter-add" class="surface conn-block" hidden aria-labelledby="openrouter-add-title">
+        <section id="openrouter-add" class="surface conn-block" hidden aria-labelledby="openrouter-add-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="openrouter-add-title">Connect OpenRouter</h2>
             <div class="honesty-labels" data-honesty-provider="OPENROUTER"></div>
@@ -284,13 +279,15 @@
         </section>
 
         <!-- Connect Codex -->
-        <section id="codex-add" class="surface conn-block" hidden aria-labelledby="codex-add-title">
+        <section id="codex-add" class="surface conn-block" hidden aria-labelledby="codex-add-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="codex-add-title">Connect Codex</h2>
             <div class="honesty-labels" data-honesty-provider="CODEX"></div>
           </div>
           <p class="conn-lead">
-            Codex requires the session token the Codex CLI stores.
+            OpenLimiter reads the token and the account identifier from the login
+            file the Codex command line tool already keeps on this machine. There
+            is nothing to paste here.
           </p>
           <label class="field-label" for="codex-alias">
             Account alias, so two accounts stay apart
@@ -303,29 +300,24 @@
             spellcheck="false"
             placeholder="default"
           />
-          <label class="field-label" for="codex-key">Paste the session token</label>
-          <input
-            id="codex-key"
-            class="field"
-            type="password"
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
-            placeholder="session-..."
-          />
+          <!-- The window never carries this secret. The backend imports both
+               fields from the Codex login file and discards whatever arrives
+               from here, so the field stays hidden rather than asking a person
+               for a value that is thrown away. -->
+          <input id="codex-key" type="hidden" value="imported from the codex login file" />
           <p class="field-note">
-            The field is cleared the moment you submit. The token goes to the
-            operating system credential store, and after that only a masked
-            label is ever shown.
+            Run codex login in a terminal if this fails. The token goes straight
+            to the operating system credential store, and after that only a
+            masked label is ever shown.
           </p>
           <div class="conn-actions">
-            <button type="button" id="codex-submit">Test and save</button>
+            <button type="button" id="codex-submit">Connect from the Codex login</button>
           </div>
           <p id="codex-note" class="conn-note" role="status"></p>
         </section>
 
         <!-- Connect Antigravity -->
-        <section id="antigravity-add" class="surface conn-block" hidden aria-labelledby="antigravity-add-title">
+        <section id="antigravity-add" class="surface conn-block" hidden aria-labelledby="antigravity-add-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="antigravity-add-title">Connect Antigravity</h2>
             <div class="honesty-labels" data-honesty-provider="ANTIGRAVITY"></div>
@@ -366,7 +358,7 @@
         </section>
 
         <!-- Connect OpenCode -->
-        <section id="opencode-add" class="surface conn-block" hidden aria-labelledby="opencode-add-title">
+        <section id="opencode-add" class="surface conn-block" hidden aria-labelledby="opencode-add-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="opencode-add-title">Connect OpenCode</h2>
             <div class="honesty-labels" data-honesty-provider="OPENCODE"></div>
@@ -405,6 +397,13 @@
           </div>
           <p id="opencode-note" class="conn-note" role="status"></p>
         </section>
+
+        <!-- Provider catalogue -->
+        <section id="provider-catalogue" class="surface conn-block" aria-labelledby="provider-catalogue-title" tabindex="-1">
+          <div class="conn-head"><h2 id="provider-catalogue-title">Provider catalogue</h2></div>
+          <p class="conn-lead">Seventeen products, what OpenLimiter can read today and what it cannot read yet.</p>
+          <div id="catalogue-rows" class="list"></div>
+        </section>
       </section>
 
       <!-- Advanced Section -->
@@ -441,10 +440,7 @@
         <div class="surface conn-block">
           <h2>Statusline manual configuration</h2>
           <p class="conn-lead">
-            OpenLimiter never edits your Claude Code settings. Copy the block,
-            add it to settings.json yourself, then press Verify on the Connections tab.
-            Once the statusline command points at OpenLimiter, the reading arrives on
-            its own every time Claude Code renders.
+            OpenLimiter changes Claude Code settings only when you ask it to on the Connections tab, only after you have seen exactly what it will write, and only after a timestamped copy of the file is made. This block is the manual path, for when you would rather do it yourself, or when the automatic path refuses.
           </p>
           <pre id="claude-snippet"></pre>
           <div class="conn-actions">

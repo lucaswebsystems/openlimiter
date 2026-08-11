@@ -1370,3 +1370,37 @@ button.confirming {
     translate: 0 0;
   }
 }
+
+/* Layout rules for provider catalogue rows */
+.catalogue-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.catalogue-row:last-child {
+  border-bottom: 0;
+}
+
+.catalogue-ident {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.catalogue-platforms {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.catalogue-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
