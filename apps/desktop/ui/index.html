@@ -222,7 +222,12 @@
         <!-- Adding OpenRouter. The one secret in this window passes through
              this field once, is cleared on submit, and is never logged. -->
         <section id="openrouter-add" class="surface conn-block" hidden aria-labelledby="openrouter-add-title">
-          <h2 id="openrouter-add-title">Connect OpenRouter</h2>
+          <div class="conn-head">
+            <h2 id="openrouter-add-title">Connect OpenRouter</h2>
+            <div class="honesty-labels">
+              <span class="chip muted">UNVERIFIED</span>
+            </div>
+          </div>
           <p class="conn-lead">
             OpenRouter is read live from this machine. Two kinds of key work
             here, and they answer two different questions.
@@ -274,6 +279,138 @@
             <button type="button" id="openrouter-submit">Test and save</button>
           </div>
           <p id="openrouter-note" class="conn-note" role="status"></p>
+        </section>
+
+        <!-- Connect Codex -->
+        <section id="codex-add" class="surface conn-block" hidden aria-labelledby="codex-add-title">
+          <div class="conn-head">
+            <h2 id="codex-add-title">Connect Codex</h2>
+            <div class="honesty-labels">
+              <span class="chip muted">UNVERIFIED</span>
+            </div>
+          </div>
+          <p class="conn-lead">
+            Codex requires the session token the Codex CLI stores.
+          </p>
+          <label class="field-label" for="codex-alias">
+            Account alias, so two accounts stay apart
+          </label>
+          <input
+            id="codex-alias"
+            class="field"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="default"
+          />
+          <label class="field-label" for="codex-key">Paste the session token</label>
+          <input
+            id="codex-key"
+            class="field"
+            type="password"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="session-..."
+          />
+          <p class="field-note">
+            The field is cleared the moment you submit. The token goes to the
+            operating system credential store, and after that only a masked
+            label is ever shown.
+          </p>
+          <div class="conn-actions">
+            <button type="button" id="codex-submit">Test and save</button>
+          </div>
+          <p id="codex-note" class="conn-note" role="status"></p>
+        </section>
+
+        <!-- Connect Antigravity -->
+        <section id="antigravity-add" class="surface conn-block" hidden aria-labelledby="antigravity-add-title">
+          <div class="conn-head">
+            <h2 id="antigravity-add-title">Connect Antigravity</h2>
+            <div class="honesty-labels">
+              <span class="chip muted">UNVERIFIED</span>
+            </div>
+          </div>
+          <p class="conn-lead">
+            Antigravity requires the session token.
+          </p>
+          <label class="field-label" for="antigravity-alias">
+            Account alias, so two accounts stay apart
+          </label>
+          <input
+            id="antigravity-alias"
+            class="field"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="default"
+          />
+          <label class="field-label" for="antigravity-key">Paste the session token</label>
+          <input
+            id="antigravity-key"
+            class="field"
+            type="password"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="session-..."
+          />
+          <p class="field-note">
+            The field is cleared the moment you submit. The token goes to the
+            operating system credential store, and after that only a masked
+            label is ever shown.
+          </p>
+          <div class="conn-actions">
+            <button type="button" id="antigravity-submit">Test and save</button>
+          </div>
+          <p id="antigravity-note" class="conn-note" role="status"></p>
+        </section>
+
+        <!-- Connect OpenCode -->
+        <section id="opencode-add" class="surface conn-block" hidden aria-labelledby="opencode-add-title">
+          <div class="conn-head">
+            <h2 id="opencode-add-title">Connect OpenCode</h2>
+            <div class="honesty-labels">
+              <span class="chip muted">UNVERIFIED</span>
+              <span class="chip muted">browser-session</span>
+              <span class="chip muted">authenticated-scrape</span>
+              <span class="chip muted">high automation risk</span>
+            </div>
+          </div>
+          <p class="conn-lead">
+            OpenCode requires the browser session cookie.
+          </p>
+          <label class="field-label" for="opencode-alias">
+            Account alias, so two accounts stay apart
+          </label>
+          <input
+            id="opencode-alias"
+            class="field"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="default"
+          />
+          <label class="field-label" for="opencode-key">Paste the browser session cookie</label>
+          <input
+            id="opencode-key"
+            class="field"
+            type="password"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="cookie-..."
+          />
+          <p class="field-note">
+            The field is cleared the moment you submit. The cookie goes to the
+            operating system credential store, and after that only a masked
+            label is ever shown.
+          </p>
+          <div class="conn-actions">
+            <button type="button" id="opencode-submit">Test and save</button>
+          </div>
+          <p id="opencode-note" class="conn-note" role="status"></p>
         </section>
 
         <!-- Claude Code. Copy plus verify only: this window never edits

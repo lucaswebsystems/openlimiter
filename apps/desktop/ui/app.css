@@ -1095,6 +1095,13 @@ footer p {
   margin: 0;
 }
 
+.honesty-labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 .conn-sentence {
   margin: 10px 0 0;
   font-size: 13px;

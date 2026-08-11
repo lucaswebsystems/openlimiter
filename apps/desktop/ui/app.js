@@ -31,6 +31,10 @@ import {
   mergeSnapshots,
   normalizeMetersReport,
 } from "./engine/core/index.js";
+import { parseAntigravityPayload } from "./engine/connectors/antigravity.js";
+import { parseCodexPayload } from "./engine/connectors/codex.js";
+import { parseOpencodePayload } from "./engine/connectors/opencode.js";
+import { parseOpenrouterPayload } from "./engine/connectors/openrouter.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import {
   buildAgentContext,
@@ -41,11 +45,19 @@ import {
    instead of a module level crash, and a static serve of these files renders
    the empty state rather than nothing at all. */
 import {
+  BACKEND_ABSENT,
+  completeAttempt,
+  connectProvider,
+  listConnections,
   listen,
+  normalizeConnection,
+  normalizeConnectionList,
+  normalizeProbeOutcome,
   readCache,
   readManual,
   setTrayStatus,
   stateDirectory,
+  testProvider,
 } from "./backend.js";
 import {
   connectionFactFor,
@@ -900,6 +912,8 @@ function selectTab(index) {
      there, so an absent block never describes a build that has since changed. */
   if (elements.tabs[index] === document.getElementById("tab-connections")) {
     connectionsTabShown();
+    updateConnectSectionVisibility();
+    decorateConnectionCardsHonestyLabels();
   }
 }
 
@@ -1175,6 +1189,245 @@ void stateDirectory().then((result) => {
     : "Reading " + directory;
 });
 
+/* ----------------------------------------------------------- provider connect */
+
+const PARSER_BY_READER = {
+  openrouter_key: parseOpenrouterPayload,
+  openrouter_credits: parseOpenrouterPayload,
+  codex_usage: parseCodexPayload,
+  antigravity_quota: parseAntigravityPayload,
+  opencode_usage: parseOpencodePayload,
+};
+
+const TRANSPORT_FAILURE_SENTENCES = {
+  timeout: "The provider did not answer before the time limit (timeout).",
+  connect: "The network connection to the provider could not be opened (connect).",
+  tls: "TLS handshake or security negotiation with the provider failed (tls).",
+  oversize: "The answer was too large to accept (oversize).",
+  invalid_utf8: "The provider response contained invalid UTF-8 (invalid_utf8).",
+};
+
+function formatTransportFailure(failureKind) {
+  return TRANSPORT_FAILURE_SENTENCES[failureKind] ??
+    "The read did not reach the provider (" + failureKind + ").";
+}
+
+function setCardNote(node, text, tone) {
+  if (!node) return;
+  node.textContent = text;
+  node.dataset.tone = tone ?? "plain";
+}
+
+async function testConnectionHelper(connectionId) {
+  const result = await testProvider({ connectionId });
+  if (!result.ok) {
+    if (result.reason === BACKEND_ABSENT) {
+      return { ok: false, note: "This build has no connection backend yet." };
+    }
+    return { ok: false, note: result.message };
+  }
+  const outcome = normalizeProbeOutcome(result.value);
+  if (outcome.kind === "unreadable") {
+    return {
+      ok: false,
+      note: "The backend's answer could not be read, so nothing is claimed from it.",
+    };
+  }
+  if (outcome.kind === "transport_failure") {
+    return {
+      ok: false,
+      generation: outcome.attemptGeneration,
+      note: formatTransportFailure(outcome.failure),
+    };
+  }
+  const inTwoHundreds = outcome.status >= 200 && outcome.status <= 299;
+  if (!inTwoHundreds || outcome.body === null) {
+    return {
+      ok: false,
+      generation: outcome.attemptGeneration,
+      note: "The provider answered " + String(outcome.status) + ".",
+    };
+  }
+  const parser = PARSER_BY_READER[outcome.readerId];
+  if (!parser) {
+    return {
+      ok: false,
+      generation: outcome.attemptGeneration,
+      note: "No reader parser is available for " + outcome.readerId + ".",
+    };
+  }
+  const now = new Date().toISOString();
+  let document = null;
+  try {
+    document = JSON.parse(outcome.body);
+  } catch {
+    document = null;
+  }
+  const meters = document !== null ? parser(document, now) : null;
+  const snapshots = (meters !== null && meters.length > 0) ? meters : null;
+  return {
+    ok: snapshots !== null,
+    generation: outcome.attemptGeneration,
+    snapshots,
+    drifted: snapshots === null,
+    note: snapshots === null
+      ? "The provider answered, and this build could not read the answer."
+      : null,
+  };
+}
+
+async function closeAttemptHelper(connectionId, generation, disposition) {
+  if (generation === null || generation === undefined) return { ok: false, stale: false };
+  const result = await completeAttempt({
+    connectionId,
+    attemptGeneration: generation,
+    disposition,
+  });
+  if (!result.ok && result.kind === "stale_generation") {
+    await listConnections();
+    return { ok: false, stale: true };
+  }
+  return { ok: result.ok, stale: false };
+}
+
+async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, keyInputId, submitBtnId, noteElId }) {
+  const input = document.getElementById(keyInputId);
+  const aliasInput = document.getElementById(aliasInputId);
+  const noteEl = document.getElementById(noteElId);
+  const submitBtn = document.getElementById(submitBtnId);
+
+  if (!input || !submitBtn || !noteEl) return;
+
+  const secret = input.value.trim();
+  input.value = "";
+
+  if (secret === "") {
+    setCardNote(noteEl, "Nothing was pasted, so nothing was stored.", "bad");
+    return;
+  }
+
+  const alias = aliasInput ? (aliasInput.value.trim() || "default") : "default";
+  submitBtn.disabled = true;
+  setCardNote(noteEl, "Storing the credential in the credential store.", "plain");
+
+  const connected = await connectProvider({
+    providerId,
+    credentialKind,
+    accountAlias: alias,
+    secret,
+  });
+
+  if (!connected.ok) {
+    if (connected.reason === BACKEND_ABSENT) {
+      setCardNote(noteEl, "This build has no connection backend yet.", "bad");
+    } else {
+      setCardNote(noteEl, "Connecting failed. " + connected.message, "bad");
+    }
+    submitBtn.disabled = false;
+    return;
+  }
+
+  setCardNote(noteEl, "Stored. Testing the connection now.", "plain");
+  const connectionId = typeof connected.value === "string"
+    ? connected.value
+    : (normalizeConnection(connected.value)?.id ?? null);
+
+  const listRes = await listConnections();
+  let record = null;
+  if (listRes.ok) {
+    const connections = normalizeConnectionList(listRes.value);
+    record = (connectionId !== null
+      ? connections.find((e) => e.id === connectionId)
+      : undefined) ?? connections.filter((e) => e.provider === providerId.toUpperCase()).at(-1);
+  }
+
+  const targetId = record ? record.id : connectionId;
+  if (!targetId) {
+    setCardNote(noteEl, "The credential was stored, and no connection record came back to test.", "bad");
+    submitBtn.disabled = false;
+    connectionsTabShown();
+    return;
+  }
+
+  const tested = await testConnectionHelper(targetId);
+  if (tested.snapshots !== null) {
+    await closeAttemptHelper(targetId, tested.generation, "parsed_test");
+  } else if (tested.drifted) {
+    await closeAttemptHelper(targetId, tested.generation, "drift");
+  }
+
+  const freshListRes = await listConnections();
+  let settledState = null;
+  if (freshListRes.ok) {
+    const connections = normalizeConnectionList(freshListRes.value);
+    const settled = connections.find((e) => e.id === targetId);
+    if (settled) settledState = settled.state;
+  }
+
+  if (tested.note !== null) {
+    setCardNote(noteEl, "The test failed. " + tested.note, "bad");
+  } else {
+    const sentence = settledState ? (connectionSentence[settledState] || settledState) : "Connected.";
+    setCardNote(
+      noteEl,
+      "Test finished. " + sentence,
+      tested.snapshots !== null ? "ok" : "bad"
+    );
+  }
+
+  if (aliasInput) aliasInput.value = "";
+  submitBtn.disabled = false;
+  connectionsTabShown();
+}
+
+function updateConnectSectionVisibility() {
+  listConnections().then((result) => {
+    const absent = !result.ok && result.reason === BACKEND_ABSENT;
+    for (const id of ["codex-add", "antigravity-add", "opencode-add"]) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.hidden = absent;
+      }
+    }
+  });
+}
+
+const HONESTY_LABELS_BY_PROVIDER = {
+  CODEX: ["UNVERIFIED"],
+  ANTIGRAVITY: ["UNVERIFIED"],
+  OPENCODE: ["UNVERIFIED", "browser-session", "authenticated-scrape", "high automation risk"],
+  OPENROUTER: ["UNVERIFIED"],
+};
+
+function decorateConnectionCardsHonestyLabels() {
+  const cardElements = document.querySelectorAll("#connections-cards .conn-card");
+  cardElements.forEach((cardNode) => {
+    const nameEl = cardNode.querySelector(".card-id .name");
+    const headEl = cardNode.querySelector(".conn-head");
+    if (!nameEl || !headEl) return;
+    const nameText = nameEl.textContent.trim().toUpperCase();
+    let providerKey = null;
+    if (nameText.includes("CODEX")) providerKey = "CODEX";
+    else if (nameText.includes("ANTIGRAVITY")) providerKey = "ANTIGRAVITY";
+    else if (nameText.includes("OPENCODE")) providerKey = "OPENCODE";
+    else if (nameText.includes("OPENROUTER")) providerKey = "OPENROUTER";
+
+    if (providerKey && HONESTY_LABELS_BY_PROVIDER[providerKey]) {
+      if (!cardNode.querySelector(".card-honesty-labels")) {
+        const labelsContainer = document.createElement("div");
+        labelsContainer.className = "card-honesty-labels honesty-labels";
+        HONESTY_LABELS_BY_PROVIDER[providerKey].forEach((label) => {
+          const chip = document.createElement("span");
+          chip.className = "chip muted";
+          chip.textContent = label;
+          labelsContainer.appendChild(chip);
+        });
+        headEl.appendChild(labelsContainer);
+      }
+    }
+  });
+}
+
 /* The Connections tab. It owns the collector tick, the connection cards, the
    OpenRouter connect flow and the Claude Code enable card, and it borrows
    from this file only the four small facts it cannot know itself. */
@@ -1186,6 +1439,49 @@ initConnections({
   },
   hasFreshLocalClaude: () => freshLocalClaude,
 });
+
+document.getElementById("codex-submit")?.addEventListener("click", () => {
+  void handleConnectSubmit({
+    providerId: "codex",
+    credentialKind: "codex_session",
+    aliasInputId: "codex-alias",
+    keyInputId: "codex-key",
+    submitBtnId: "codex-submit",
+    noteElId: "codex-note",
+  });
+});
+
+document.getElementById("antigravity-submit")?.addEventListener("click", () => {
+  void handleConnectSubmit({
+    providerId: "antigravity",
+    credentialKind: "antigravity_session",
+    aliasInputId: "antigravity-alias",
+    keyInputId: "antigravity-key",
+    submitBtnId: "antigravity-submit",
+    noteElId: "antigravity-note",
+  });
+});
+
+document.getElementById("opencode-submit")?.addEventListener("click", () => {
+  void handleConnectSubmit({
+    providerId: "opencode",
+    credentialKind: "opencode_browser_session",
+    aliasInputId: "opencode-alias",
+    keyInputId: "opencode-key",
+    submitBtnId: "opencode-submit",
+    noteElId: "opencode-note",
+  });
+});
+
+updateConnectSectionVisibility();
+
+const cardsContainer = document.getElementById("connections-cards");
+if (cardsContainer) {
+  const observer = new MutationObserver(() => {
+    decorateConnectionCardsHonestyLabels();
+  });
+  observer.observe(cardsContainer, { childList: true, subtree: true });
+}
 
 void refresh();
 window.setInterval(() => {
