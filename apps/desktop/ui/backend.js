@@ -59,9 +59,10 @@
  * SECRETS. connectProvider is the only function here that ever carries one.
  * The secret crosses this module exactly once, inside the invoke payload, on
  * its way to the operating system credential store. It is never logged, never
- * stored on any object that outlives the call, and never returned: the only
- * thing a caller ever gets back about a credential is the masked label the
- * Rust side chose to publish. There is no console call anywhere in this file.
+ * stored on any object that outlives the call, and never returned. A Codex
+ * connection may carry its nonsecret account identifier beside the masked
+ * label, but neither value is ever logged. There is no console call anywhere
+ * in this file.
  */
 
 /**

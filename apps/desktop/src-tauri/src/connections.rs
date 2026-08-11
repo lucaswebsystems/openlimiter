@@ -93,13 +93,17 @@ pub const MAX_TIMESTAMP_EPOCH_MS: u64 = 4_102_444_800_000;
 /// last asked; `last_success_at` says when a read last completed all the way
 /// through parsing, and for a refresh through the cache commit. A `2xx` moves
 /// the first and never the second, which is the whole point of having two.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConnectionRecord {
     pub id: String,
     pub provider_id: ProviderId,
     pub reader_id: ReaderId,
     pub credential_kind: CredentialKind,
     pub account_alias: String,
+    /// The Codex account header value. It identifies an account but grants no
+    /// access, so it belongs in this record rather than the credential store.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub codex_account_id: Option<String>,
     pub masked_label: String,
     pub created_at: u64,
     /// Rust owned base collection cadence. Zero means schedule exempt.
@@ -135,6 +139,34 @@ pub struct ConnectionRecord {
     #[serde(default)]
     pub consecutive_failures: u32,
     pub status: String,
+}
+
+/// Account identifiers are intentionally absent from debug output because a
+/// debug rendering can become a log line even though the field is not secret.
+impl fmt::Debug for ConnectionRecord {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let codex_account_id = self.codex_account_id.as_ref().map(|_| "[redacted]");
+        formatter
+            .debug_struct("ConnectionRecord")
+            .field("id", &self.id)
+            .field("provider_id", &self.provider_id)
+            .field("reader_id", &self.reader_id)
+            .field("credential_kind", &self.credential_kind)
+            .field("account_alias", &self.account_alias)
+            .field("codex_account_id", &codex_account_id)
+            .field("masked_label", &self.masked_label)
+            .field("created_at", &self.created_at)
+            .field("base_seconds", &self.base_seconds)
+            .field("last_attempt_at", &self.last_attempt_at)
+            .field("last_success_at", &self.last_success_at)
+            .field("attempt_generation", &self.attempt_generation)
+            .field("body_delivered_generation", &self.body_delivered_generation)
+            .field("last_completion_at", &self.last_completion_at)
+            .field("ever_connected", &self.ever_connected)
+            .field("consecutive_failures", &self.consecutive_failures)
+            .field("status", &self.status)
+            .finish()
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -231,6 +263,7 @@ fn migrate_legacy_record(legacy: LegacyConnectionRecord) -> Result<ConnectionRec
         reader_id: route.reader_id,
         credential_kind,
         account_alias: legacy.account_alias,
+        codex_account_id: None,
         masked_label: legacy.masked_label,
         created_at: legacy.created_at,
         base_seconds: route.reader_id.base_seconds(),
@@ -576,8 +609,16 @@ fn routing_agrees(record: &ConnectionRecord) -> bool {
 }
 
 pub(crate) fn validate_record(record: &ConnectionRecord) -> Result<(), StoreError> {
+    let codex_account_id_valid = match record.provider_id {
+        ProviderId::Codex => record
+            .codex_account_id
+            .as_deref()
+            .is_none_or(crate::credentials::valid_codex_account_id),
+        _ => record.codex_account_id.is_none(),
+    };
     let valid = valid_id(&record.id)
         && routing_agrees(record)
+        && codex_account_id_valid
         && CONNECTION_STATES.contains(&record.status.as_str())
         && valid_alias(&record.account_alias)
         && valid_masked_label(&record.masked_label)
@@ -612,6 +653,7 @@ mod tests {
             reader_id: ReaderId::OpenrouterKey,
             credential_kind: CredentialKind::OpenrouterInferenceKey,
             account_alias: "personal".to_string(),
+            codex_account_id: None,
             masked_label: "sk-········cdef".to_string(),
             created_at: 1_770_000_000_000,
             base_seconds: ReaderId::OpenrouterKey.base_seconds(),

@@ -115,7 +115,7 @@ fn without_verbatim_prefix(path: PathBuf) -> PathBuf {
     }
     match text.strip_prefix(r"\\?\") {
         /* Only a plain drive letter is unwrapped. Anything else keeps the
-           prefix, because a device path without it names something different. */
+        prefix, because a device path without it names something different. */
         Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
         _ => path,
     }
@@ -138,6 +138,17 @@ fn push_interpreter_line(command: &mut Command, line: String) {
 fn push_interpreter_line(command: &mut Command, line: String) {
     command.arg(line);
 }
+
+#[cfg(windows)]
+fn suppress_probe_window(command: &mut Command) {
+    use std::os::windows::process::CommandExt as _;
+    // Windows preflight probes must never flash a console window.
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    command.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(windows))]
+fn suppress_probe_window(_command: &mut Command) {}
 
 fn regular_absolute(candidate: &Path) -> Option<PathBuf> {
     let absolute = std::fs::canonicalize(candidate).ok()?;
@@ -239,6 +250,7 @@ impl CliRuntime for SystemCliRuntime {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
+        suppress_probe_window(&mut command);
         let Ok(mut child) = command.spawn() else {
             return false;
         };
