@@ -49,12 +49,13 @@ support:
 collection:
   reader: implemented
   auth: implemented
-  reader_id: codex_usage
-  endpoint_id: codex_usage
-  credential_kind: codex_session
-  evidence_fixture: codex.sanitized_live.usage
-  evidence_status: pending_capture
-  last_verified_at: null
+  readers:
+    - reader_id: codex_usage
+      endpoint_id: codex_usage
+      credential_kind: codex_session
+      evidence_fixture: codex.sanitized_live.usage
+      evidence_status: pending_capture
+      last_verified_at: null
 
 connections:
   - reader: experimental
@@ -71,6 +72,10 @@ verification:
     - codex.provisional.usage
     - codex.sanitized_live.usage
 
+# The window is provider_defined rather than a fixed rolling length because the
+# payload states its own: limit_window_seconds. A registry that hard coded five
+# hours would be describing a plan rather than the interface, and the parser
+# reports an unknown window when the field is absent rather than assuming one.
 meters:
   - id: primary
     label: Primary window
@@ -78,10 +83,10 @@ meters:
     unit: percent_used
     scope: account
     window:
-      kind: rolling
-      duration_seconds: 18000
-    source_path: rate_limits.primary_window.used_percent
-    reset_path: rate_limits.primary_window.reset_at
-    reset_encoding: iso8601
+      kind: provider_defined
+    source_format: json_path
+    source_path: rate_limit.primary_window.used_percent
+    reset_path: rate_limit.primary_window.reset_at
+    reset_encoding: unix_seconds
     optional: false
     meter_code: PRIMARY

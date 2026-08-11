@@ -30,23 +30,31 @@ support:
 # The live collection block. This provider is the one with a published response
 # shape, so its evidence fixture is a documented one rather than a capture.
 #
-# KNOWN GAP, and it is a contract question rather than an omission: OpenRouter
-# ships TWO readers, openrouter_key for an inference key and openrouter_credits
-# for a management key, and this block holds one reader_id, one endpoint_id and
-# one credential_kind. The inference path is stated here because it is the one
-# the desktop offers first. Routing for BOTH paths is complete and exhaustively
-# tested in reader_registry.rs; only this registry cannot yet express the
-# second, and it must not be faked by inventing a shape the contract does not
-# define.
+# Both readers, which is why the block holds a list. An inference key can only
+# read its own limit, so it reaches the key endpoint; a management key reads the
+# account's credits. Two addresses, two credential kinds, one product. The
+# routing for both is exhaustively tested in reader_registry.rs, and the
+# registry now says the same thing the Rust does.
+#
+# The credits reader is the one interface in this registry with a published
+# response shape, so its evidence is a documented fixture rather than a capture.
+# The key reader shares that document: the same page publishes both responses.
 collection:
   reader: implemented
   auth: implemented
-  reader_id: openrouter_key
-  endpoint_id: openrouter_key
-  credential_kind: openrouter_inference_key
-  evidence_fixture: openrouter.documented.credits
-  evidence_status: documented
-  last_verified_at: "2026-08-10"
+  readers:
+    - reader_id: openrouter_key
+      endpoint_id: openrouter_key
+      credential_kind: openrouter_inference_key
+      evidence_fixture: openrouter.documented.credits
+      evidence_status: documented
+      last_verified_at: "2026-08-10"
+    - reader_id: openrouter_credits
+      endpoint_id: openrouter_credits
+      credential_kind: openrouter_management_key
+      evidence_fixture: openrouter.documented.credits
+      evidence_status: documented
+      last_verified_at: "2026-08-10"
 
 connections:
   - reader: official_remote_api

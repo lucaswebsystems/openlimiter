@@ -56,12 +56,13 @@ support:
 collection:
   reader: implemented
   auth: implemented
-  reader_id: opencode_usage
-  endpoint_id: opencode_usage
-  credential_kind: opencode_browser_session
-  evidence_fixture: opencode.sanitized_live.usage
-  evidence_status: pending_capture
-  last_verified_at: null
+  readers:
+    - reader_id: opencode_usage
+      endpoint_id: opencode_usage
+      credential_kind: opencode_browser_session
+      evidence_fixture: opencode.sanitized_live.usage
+      evidence_status: pending_capture
+      last_verified_at: null
 
 connections:
   - reader: experimental
@@ -78,6 +79,15 @@ verification:
     - opencode.provisional.usage
     - opencode.sanitized_live.usage
 
+# There is no path to this meter, because there is no interface. The number is
+# rendered into the HTML of a logged in page beside a label, so the registry
+# states the LABEL it is found by and states source_format html_label rather
+# than inventing a dotted path to a document that has none. The reset is a
+# countdown in words, "Resets in 5 days 20 hours", not a timestamp.
+#
+# The meter reports whichever of the three windows is binding. All three labels
+# must be present for any of them to be believed: a page that has changed enough
+# to lose one has changed enough not to be trusted for the other two.
 meters:
   - id: primary
     label: Primary usage
@@ -86,8 +96,9 @@ meters:
     scope: account
     window:
       kind: provider_defined
-    source_path: usage.percent
-    reset_path: usage.reset_at
-    reset_encoding: iso8601
+    source_format: html_label
+    source_label: Rolling Usage
+    reset_path: null
+    reset_encoding: duration_words
     optional: false
     meter_code: PRIMARY

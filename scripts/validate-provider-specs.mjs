@@ -288,7 +288,26 @@ const WINDOW_KINDS = new Set([
   "lifetime",
   "provider_defined"
 ]);
-const RESET_ENCODINGS = new Set(["unix_seconds", "unix_milliseconds", "iso8601", "none"]);
+const RESET_ENCODINGS = new Set([
+  "unix_seconds",
+  "unix_milliseconds",
+  "iso8601",
+  "rfc3339",
+  "duration_words",
+  "none"
+]);
+
+/*
+ * Where a meter's number lives in whatever the provider returned.
+ *
+ * `json_path` is the ordinary case and keeps the dotted path rule. `html_label`
+ * exists for exactly one provider: OpenCode publishes no interface at all, so
+ * its meters are found by the LABEL rendered beside them on a logged in page.
+ * A dotted path cannot describe that, and writing one anyway would be the
+ * registry stating a location that does not exist. A meter that is found by
+ * label carries `source_label` and no `source_path`.
+ */
+const SOURCE_FORMATS = new Set(["json_path", "html_label"]);
 const UNITS = new Set(["percent_used", "tokens", "requests", "currency"]);
 const VERIFICATION_STATUS = new Set([
   "unverified",
@@ -459,13 +478,36 @@ function validateMeter(meter, where) {
       fail(at + " window", "a rolling window needs a duration in seconds");
     }
   }
-  const sourcePath = requireString(meter, at, "source_path");
-  if (!DOTTED_PATH.test(sourcePath)) fail(at, "source_path is not a dotted path");
+  /*
+   * Absent means json_path, so every spec written before a scraped provider
+   * existed still validates and still means what it said.
+   */
+  const sourceFormat = meter["source_format"] === undefined
+    ? "json_path"
+    : requireString(meter, at, "source_format", SOURCE_FORMATS);
+  const sourcePath = meter["source_path"];
+  const sourceLabel = meter["source_label"];
+  if (sourceFormat === "json_path") {
+    if (typeof sourcePath !== "string" || !DOTTED_PATH.test(sourcePath)) {
+      fail(at, "source_path is not a dotted path");
+    }
+    if (sourceLabel !== undefined) {
+      fail(at, "a json_path meter has no source_label");
+    }
+  } else {
+    if (typeof sourceLabel !== "string" || sourceLabel === "") {
+      fail(at, "an html_label meter must state the source_label it is found by");
+    }
+    if (sourcePath !== undefined && sourcePath !== null) {
+      fail(at, "an html_label meter has no source_path, because there is no path");
+    }
+  }
   const resetPath = meter["reset_path"];
   if (resetPath !== null && typeof resetPath !== "string") {
     fail(at, "reset_path must be a dotted path or null");
   }
-  if (typeof resetPath === "string" && !DOTTED_PATH.test(resetPath)) {
+  if (typeof resetPath === "string" && sourceFormat === "json_path" &&
+      !DOTTED_PATH.test(resetPath)) {
     fail(at, "reset_path is not a dotted path");
   }
   const encoding = requireString(meter, at, "reset_encoding", RESET_ENCODINGS);
@@ -474,11 +516,26 @@ function validateMeter(meter, where) {
    * has nothing to read. Either mistake would silently cost a reset countdown,
    * so the pair has to agree.
    */
-  if (resetPath === null && encoding !== "none") {
-    fail(at, "a meter with no reset path must state reset_encoding none");
-  }
-  if (typeof resetPath === "string" && encoding === "none") {
-    fail(at, "a meter with a reset path must state how it is encoded");
+  if (sourceFormat === "json_path") {
+    if (resetPath === null && encoding !== "none") {
+      fail(at, "a meter with no reset path must state reset_encoding none");
+    }
+    if (typeof resetPath === "string" && encoding === "none") {
+      fail(at, "a meter with a reset path must state how it is encoded");
+    }
+  } else {
+    /*
+     * A scraped meter's reset has no path either: it is a countdown rendered
+     * beside the label, so the encoding says how to read the words and the path
+     * stays null. Only that one encoding makes sense here, and stating any
+     * other would be claiming a document shape that does not exist.
+     */
+    if (resetPath !== null) {
+      fail(at, "an html_label meter has no reset path, because there is no path");
+    }
+    if (encoding !== "duration_words" && encoding !== "none") {
+      fail(at, "an html_label meter reads its reset as duration_words, or not at all");
+    }
   }
   const optional = requireBoolean(meter, at, "optional");
   const code = meter["meter_code"];
@@ -492,6 +549,7 @@ function validateMeter(meter, where) {
     kind: meter["kind"],
     unit: meter["unit"],
     scope: meter["scope"],
+    sourceFormat,
     window: windowKind === "rolling"
       ? { kind: windowKind, durationSeconds: window["duration_seconds"] }
       : { kind: windowKind },
@@ -592,35 +650,66 @@ function validateSpec(document, file, relative, fixtureIds) {
        a connection that can be pointed somewhere and never authenticated. */
     requireString(collectionBlock, at, "reader", COLLECTION_SUPPORT);
     requireString(collectionBlock, at, "auth", COLLECTION_SUPPORT);
-    const readerId = requireString(collectionBlock, at, "reader_id", READER_IDS);
-    const endpointId = requireString(collectionBlock, at, "endpoint_id", ENDPOINT_IDS);
-    const credentialKind =
-      requireString(collectionBlock, at, "credential_kind", CREDENTIAL_KINDS);
-    const evidenceFixture = requireString(collectionBlock, at, "evidence_fixture");
-    const evidenceStatus =
-      requireString(collectionBlock, at, "evidence_status", EVIDENCE_STATUS);
-    const collectionVerifiedAt = collectionBlock["last_verified_at"];
-    if (collectionVerifiedAt !== null && !isCalendarDate(collectionVerifiedAt)) {
-      fail(at, "last_verified_at must be a real calendar date or null");
-    }
-    /* A reviewed date on a reader nobody has captured would be a date about
-       nothing. It is allowed only once the evidence is real. */
-    if (evidenceStatus === "pending_capture" && collectionVerifiedAt !== null) {
-      fail(at, "a pending capture cannot carry a last_verified_at date");
-    }
-    if (evidenceStatus !== "pending_capture" && collectionVerifiedAt === null) {
-      fail(at, "evidence that exists must state the day it was last verified");
-    }
-    /* The fixture named here has to be a fixture that exists. */
-    if (!fixtureIds.has(evidenceFixture)) {
-      fail(at, "evidence_fixture " + evidenceFixture +
-        " names no fixture in packages/connectors/src/fixtures.ts");
-    }
-    /* And it has to be one this spec already claims. */
-    const claimed = verification["fixture_ids"];
-    if (Array.isArray(claimed) && !claimed.includes(evidenceFixture)) {
-      fail(at, "evidence_fixture " + evidenceFixture +
-        " is not among this spec's verification fixture_ids");
+    /*
+     * A LIST, because a product can ship more than one reader against one
+     * account. OpenRouter does: an inference key reads its own limit and a
+     * management key reads the account's credits, two addresses and two
+     * credential kinds under one provider. A single valued block could only
+     * ever describe one of them, and the half it left out would be a live
+     * reader no surface could name.
+     */
+    const entries = requireArray(collectionBlock, at, "readers");
+    const readers = [];
+    const seenReaders = new Set();
+    const seenCredentials = new Set();
+    for (const entry of entries) {
+      if (!isPlainObject(entry)) fail(at, "each reader must be a block");
+      const readerId = requireString(entry, at, "reader_id", READER_IDS);
+      const endpointId = requireString(entry, at, "endpoint_id", ENDPOINT_IDS);
+      const credentialKind =
+        requireString(entry, at, "credential_kind", CREDENTIAL_KINDS);
+      const evidenceFixture = requireString(entry, at, "evidence_fixture");
+      const evidenceStatus =
+        requireString(entry, at, "evidence_status", EVIDENCE_STATUS);
+      const readerVerifiedAt = entry["last_verified_at"];
+      if (readerVerifiedAt !== null && !isCalendarDate(readerVerifiedAt)) {
+        fail(at, "last_verified_at must be a real calendar date or null");
+      }
+      /* A reviewed date on a reader nobody has captured would be a date about
+         nothing. It is allowed only once the evidence is real. */
+      if (evidenceStatus === "pending_capture" && readerVerifiedAt !== null) {
+        fail(at, "a pending capture cannot carry a last_verified_at date");
+      }
+      if (evidenceStatus !== "pending_capture" && readerVerifiedAt === null) {
+        fail(at, "evidence that exists must state the day it was last verified");
+      }
+      /* One reader is one address is one credential. Two entries sharing
+         either would mean the routing table could not tell them apart. */
+      if (seenReaders.has(readerId)) fail(at, "duplicate reader_id " + readerId);
+      seenReaders.add(readerId);
+      if (seenCredentials.has(credentialKind)) {
+        fail(at, "duplicate credential_kind " + credentialKind);
+      }
+      seenCredentials.add(credentialKind);
+      /* The fixture named here has to be a fixture that exists. */
+      if (!fixtureIds.has(evidenceFixture)) {
+        fail(at, "evidence_fixture " + evidenceFixture +
+          " names no fixture in packages/connectors/src/fixtures.ts");
+      }
+      /* And it has to be one this spec already claims. */
+      const claimed = verification["fixture_ids"];
+      if (Array.isArray(claimed) && !claimed.includes(evidenceFixture)) {
+        fail(at, "evidence_fixture " + evidenceFixture +
+          " is not among this spec's verification fixture_ids");
+      }
+      readers.push({
+        readerId,
+        endpointId,
+        credentialKind,
+        evidenceFixture,
+        evidenceStatus,
+        lastVerifiedAt: readerVerifiedAt
+      });
     }
     if (reader !== "implemented") {
       fail(file, "a spec with a collection block must state support.reader implemented");
@@ -628,14 +717,7 @@ function validateSpec(document, file, relative, fixtureIds) {
     if (auth !== "implemented") {
       fail(file, "a live reader needs an implemented authentication path");
     }
-    collection = {
-      readerId,
-      endpointId,
-      credentialKind,
-      evidenceFixture,
-      evidenceStatus,
-      lastVerifiedAt: collectionVerifiedAt
-    };
+    collection = { readers };
   } else if (
     reader === "implemented" &&
     !connectionReaders.every((entry) => LOCAL_READERS.has(entry))
@@ -940,14 +1022,16 @@ async function main() {
    * fatal only under --require-captures, and never quietly dropped: this list
    * is the honest answer to "which of these numbers has anybody actually seen".
    */
-  const pending = compiled.filter(
-    (entry) => entry.collection !== null &&
-      entry.collection.evidenceStatus === "pending_capture"
-  );
-  for (const entry of pending) {
-    const sentence = entry.id +
-      ": live reader " + entry.collection.readerId +
-      " ships on a PENDING sanitized capture, so it stays UNVERIFIED";
+  const pending = [];
+  for (const entry of compiled) {
+    if (entry.collection === null) continue;
+    for (const reader of entry.collection.readers) {
+      if (reader.evidenceStatus !== "pending_capture") continue;
+      pending.push(entry.id + ": live reader " + reader.readerId +
+        " ships on a PENDING sanitized capture, so it stays UNVERIFIED");
+    }
+  }
+  for (const sentence of pending) {
     if (requireCaptures) {
       problems.push(sentence);
     } else {

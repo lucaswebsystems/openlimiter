@@ -50,12 +50,13 @@ support:
 collection:
   reader: implemented
   auth: implemented
-  reader_id: antigravity_quota
-  endpoint_id: antigravity_quota
-  credential_kind: antigravity_session
-  evidence_fixture: antigravity.sanitized_live.quota
-  evidence_status: pending_capture
-  last_verified_at: null
+  readers:
+    - reader_id: antigravity_quota
+      endpoint_id: antigravity_quota
+      credential_kind: antigravity_session
+      evidence_fixture: antigravity.sanitized_live.quota
+      evidence_status: pending_capture
+      last_verified_at: null
 
 connections:
   - reader: experimental
@@ -72,6 +73,13 @@ verification:
     - antigravity.provisional.quota
     - antigravity.sanitized_live.quota
 
+# The response states remaining quota as a FRACTION between zero and one, per
+# bucket, over two windows. Usage is one minus that fraction, and the meter
+# below reports whichever window is binding, meaning the one that will stop the
+# work first. The third party pool that rides the same subscription is a real
+# second wallet and is deliberately not modelled here: it needs its own identity
+# before it can have a meter, and folding it into this one would add two pools
+# together and call the result a reading.
 meters:
   - id: primary
     label: Primary quota
@@ -80,8 +88,9 @@ meters:
     scope: account
     window:
       kind: provider_defined
-    source_path: quota.used_percent
-    reset_path: quota.reset_at
-    reset_encoding: iso8601
+    source_format: json_path
+    source_path: groups.buckets.remainingFraction
+    reset_path: groups.buckets.resetTime
+    reset_encoding: rfc3339
     optional: false
     meter_code: PRIMARY
