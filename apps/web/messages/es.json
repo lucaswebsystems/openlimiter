@@ -70,8 +70,8 @@
   },
   "hero": {
     "title": {
-      "limits": "Sigue el uso de <accent>todos tus LLM</accent>.",
-      "route": "<accent>Tiempo real</accent>. Escritorio, móvil y terminal."
+      "limits": "Sigue el uso de <accent>todos tus LLM.</accent>",
+      "route": "<accent>Tiempo real.</accent> Escritorio, móvil y terminal."
     },
     "lead": "Lee la quota de tus suscripciones de IA de forma local. Dale a tus agentes un estado de presupuesto acotado y consejos. Código abierto, con prioridad local, multiplataforma.",
     "downloads": {

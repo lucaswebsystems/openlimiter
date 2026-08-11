@@ -250,7 +250,7 @@ export function Hero() {
                 <ButtonLink
                   href="/download#windows"
                   tone="primary"
-                  className="h-11 gap-2 whitespace-nowrap"
+                  className="hidden h-11 gap-2 whitespace-nowrap lg:inline-flex"
                   label={t("rows.windows")}
                 >
                   <WindowsGlyph />
@@ -259,7 +259,7 @@ export function Hero() {
                 <ButtonLink
                   href="/download#macos"
                   tone="solid"
-                  className="h-11 gap-2 whitespace-nowrap"
+                  className="hidden h-11 gap-2 whitespace-nowrap lg:inline-flex"
                   label={t("rows.macos")}
                 >
                   <AppleGlyph />
@@ -268,7 +268,7 @@ export function Hero() {
                 <ButtonLink
                   href="/download#linux"
                   tone="solid"
-                  className="h-11 gap-2 whitespace-nowrap"
+                  className="hidden h-11 gap-2 whitespace-nowrap lg:inline-flex"
                   label={t("rows.linux")}
                 >
                   <LinuxGlyph />
@@ -322,7 +322,7 @@ export function Hero() {
       {/* The supports row rides the fold's bottom edge, the founder's call:
          the disclaimer and the all downloads link left the fold entirely, the
          download page owns that story. */}
-      <div className="absolute inset-x-0 bottom-6 z-10">
+      <div className="absolute inset-x-0 bottom-6 z-10 hidden lg:block">
         <div className={SHELL}>
           <div className="fold-enter fold-enter-marks flex flex-wrap items-center gap-2">
             <span className="text-xs text-body">{t("supports.label")}</span>

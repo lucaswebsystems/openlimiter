@@ -149,7 +149,7 @@
      breathes, at least 10 to 15px of air above and below the controls. 76px
      where the sheet trigger sets the row (56 + 10 each side), 80px where the
      desktop controls do (52 + 14 each side). */
-  --ol-header-h: 0rem;
+  --ol-header-h: 4.75rem;
 }
 
 @media (min-width: 1024px) {
@@ -808,14 +808,16 @@ body:has(.ol-shell) .announce-bar {
 .hero-fold {
   position: relative;
   isolation: isolate;
-  /* MOBILE NEVER PULLS UNDER THE HEADER. A fixed negative pull assumes the
-     bar sits at the viewport's very top, and the promo banner above it broke
-     that assumption on a real iPhone: the headline slid behind the bar. Below
-     the breakpoint the fold flows in normal order under whatever is above it
-     and fills the rest of the first screen, growing with its own content
-     instead of clipping it on short phones. */
-  margin-top: 0;
-  min-height: calc(100svh - 4.75rem);
+  /* The footage runs UNDER the header on every screen, the founder's rule.
+     The pull is measured from the header's own box rather than from a fixed
+     guess, because on mobile the bar can sit below a promo banner: the
+     wrapper margin the header carries is what the fold reclaims, and the
+     bar's height is added back as padding inside the copy block (below), so
+     nothing can land behind the bar the way it did when this was a fixed
+     negative number. The island grows with its content on a short phone
+     instead of clipping the buttons. */
+  margin-top: calc(-1 * var(--ol-header-h) - 4rem);
+  min-height: 100svh;
   overflow: hidden;
 }
 
@@ -824,7 +826,6 @@ body:has(.ol-shell) .announce-bar {
     height: 100vh;
     height: 100svh;
     min-height: 0;
-    margin-top: calc(-1 * var(--ol-header-h) - 4rem);
   }
 }
 

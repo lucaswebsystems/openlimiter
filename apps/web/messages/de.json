@@ -70,8 +70,8 @@
   },
   "hero": {
     "title": {
-      "limits": "Verfolge die Nutzung <accent>aller deiner LLMs</accent>.",
-      "route": "<accent>Echtzeit</accent>. Desktop, Handy und Terminal."
+      "limits": "Verfolge die Nutzung <accent>aller deiner LLMs.</accent>",
+      "route": "<accent>Echtzeit.</accent> Desktop, Handy und Terminal."
     },
     "lead": "Lies dein KI Abo Quota lokal aus. Gib Agenten begrenzten Budgetstatus und Empfehlungen. Open Source, lokal zuerst, plattformübergreifend.",
     "downloads": {

@@ -70,8 +70,8 @@
   },
   "hero": {
     "title": {
-      "limits": "Acompanhe o uso de <accent>todas as suas LLMs</accent>.",
-      "route": "<accent>Tempo real</accent>. Desktop, celular e terminal."
+      "limits": "Acompanhe o uso de <accent>todas as suas LLMs.</accent>",
+      "route": "<accent>Tempo real.</accent> Desktop, celular e terminal."
     },
     "lead": "Leia a quota das suas assinaturas de IA localmente. Dê aos agentes um estado de orçamento limitado e recomendações. Código aberto, local first, multiplataforma.",
     "downloads": {
