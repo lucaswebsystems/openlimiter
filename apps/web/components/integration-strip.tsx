@@ -8,7 +8,6 @@ import {
   CursorMark,
   DeepSeekMark,
   GeminiMark,
-  GoogleMark,
   ManualMark,
   MistralMark,
   OllamaMark,
@@ -18,7 +17,7 @@ import {
   XaiMark,
   type ToolMarkProps,
 } from "./tool-marks";
-import { Chip, CodeChip, SectionHeading, VIEWPORT_BLEED } from "./ui";
+import { Chip, SectionHeading, VIEWPORT_BLEED } from "./ui";
 import { reveal } from "@/lib/motion";
 
 /**

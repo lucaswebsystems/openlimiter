@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Open source, cross platform, multi provider quota advice for coding agents.
+  Open source, cross platform tool to connect your AI providers and see your quota limits at a glance.
 </p>
 
 <p align="center">
@@ -23,9 +23,11 @@
 
 ## What is OpenLimiter
 
-OpenLimiter is an open source, cross platform, multi provider AI subscription quota meter. It accepts bounded local inputs, stores quota state on your machine, and feeds budget state plus routing advice into a coding agent's own context, today through a Claude Code statusline and a UserPromptSubmit prompt hook.
+OpenLimiter is an open source, cross platform tool that connects your AI providers and shows your quota limits at a glance. The free tier lets you connect providers from the desktop app or the web app and see every real quota window. It runs on your machine and needs no account.
 
-It is local first: zero telemetry, no accounts, nothing leaves your machine. It only ever advises. OpenLimiter never routes requests automatically, bypasses limits, or mutates a provider's authentication files. Apache License 2.0.
+In local mode, OpenLimiter has zero telemetry and nothing leaves your machine. Optional cloud features, when they exist, are opt in and separately documented.
+
+OpenLimiter only ever advises. It never routes requests automatically, bypasses limits, or mutates a provider's authentication files. With your explicit consent, the desktop app can detect whether Claude Code is wired and guide you through the setup with a copy and paste snippet. Apache License 2.0.
 
 ## Demo data
 
@@ -97,7 +99,21 @@ connectors → normalizer → snapshot cache → statusline, hook, export
 | Hook | emits the UserPromptSubmit agent context block |
 | Export | prints the cache as canonical JSON |
 
-The desktop application ships for Windows, macOS and Linux on the [releases page](https://github.com/lucaswebsystems/openlimiter/releases/latest), and the [web app](https://openlimiter.com/app) installs to a phone home screen and works offline. Encrypted sync and the OpenLimiter Pro services are planned, not built; the design is specified in [docs/SYNC_ARCHITECTURE.md](docs/SYNC_ARCHITECTURE.md), and progress lives on the [roadmap](https://openlimiter.com/docs/roadmap).
+The desktop application ships for Windows, macOS and Linux on the [releases page](https://github.com/lucaswebsystems/openlimiter/releases/latest), and the [web app](https://openlimiter.com/app) installs to a phone home screen and works offline.
+
+## Advanced
+
+The CLI, the agent context hook, and the statusline are powerful tools for developers who want quota state inside a coding agent's own context.
+
+| Command | Role |
+|---|---|
+| `openlimiter ingest` | accepts a provider payload on standard input or through a flag and writes normalized snapshots to the cache |
+| `openlimiter hook` | emits a UserPromptSubmit agent context block wrapped in an explicit untrusted data boundary |
+| `openlimiter statusline` | renders the Claude Code statusline with pressure bars and routing advice |
+| `openlimiter snapshot` | prints the current cache as a table |
+| `openlimiter serve` | publishes read only quota on your local network behind a rotating token |
+
+The statusline includes a PREFER recommendation that names the provider with the lowest usage. This is advice only. OpenLimiter does not route requests, switch providers, or intercept API calls. Automatic routing is not shipped and is not planned for v1.
 
 ## Providers
 
@@ -110,11 +126,15 @@ The desktop application ships for Windows, macOS and Linux on the [releases page
 | OpenCode | `authenticated-scrape` | UNVERIFIED, high automation risk | No local reader or browser automation ships; supply an explicit payload with `ingest --provider opencode` |
 | Manual | `manual` | UNVERIFIED, low automation risk | You supply the numbers yourself, on disk or through `ingest` |
 
-None of the six is verified against a live account yet. Missing, expired, or malformed input always becomes unknown, never zero or exhausted.
+None of the six is verified against a live account yet. Missing, expired, or malformed input always becomes unknown, never zero or exhausted. A parser existing in the codebase is not the same as a provider being connected; each row above states its own interface status and honesty label.
+
+## Pro
+
+OpenLimiter Pro is a planned paid tier at a $5 founding price. The services on the roadmap are encrypted sync across devices, phone and email alerts when a window is nearing its cap, usage history and forecasting, budget guardrails, multiple account support, and device management. None of these are built yet. There is no checkout and no release date. Progress lives on the [roadmap](https://openlimiter.com/docs/roadmap), and the sync design is specified in [docs/SYNC_ARCHITECTURE.md](docs/SYNC_ARCHITECTURE.md).
 
 ## Security
 
-Everything a provider or a script hands to OpenLimiter is treated as untrusted. Connectors keep only known numeric fields and timestamps, and the block the hook emits is wrapped in an explicit untrusted data boundary. No connector rewrites, backs up, or migrates a provider's authentication files, and OpenLimiter has no telemetry of any kind.
+Everything a provider or a script hands to OpenLimiter is treated as untrusted. Connectors keep only known numeric fields and timestamps, and the block the hook emits is wrapped in an explicit untrusted data boundary. No connector rewrites, backs up, or migrates a provider's authentication files. In local mode, OpenLimiter has no telemetry of any kind.
 
 Report a vulnerability privately through the repository [Security tab](https://github.com/lucaswebsystems/openlimiter/security/advisories/new), as described in [SECURITY.md](SECURITY.md). The full threat model is in [THREAT_MODEL.md](THREAT_MODEL.md); the planned, not yet built, encrypted sync design is specified in [docs/SYNC_ARCHITECTURE.md](docs/SYNC_ARCHITECTURE.md).
 

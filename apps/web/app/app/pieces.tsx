@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  connectionNextAction,
   connectionSentence,
   failureSentence,
   floorFixed,
@@ -12,7 +11,6 @@ import {
   type ProviderView,
 } from "./engine";
 import {
-  CLAUDE_STATUSLINE_WIRING,
   CONNECTION_FACTS,
   amountLine,
   amountSentence,
@@ -362,9 +360,10 @@ export function ProviderCard({
   demo?: boolean;
 }) {
   const worst = view.worst;
-  const meters = [...view.meters].sort((left, right) =>
-    byMeterOrder(left.meter, right.meter),
-  );
+  const meters = [...view.meters].sort((left, right) => {
+    const diff = right.value - left.value;
+    return diff !== 0 ? diff : byMeterOrder(left.meter, right.meter);
+  });
   const expected = EXPECTED_METERS[view.provider] ?? [];
   const absent = expected
     .filter((code) => !meters.some((meter) => meter.meter === code))
@@ -470,9 +469,10 @@ export function MeterList({
   const groups = providers
     .map((provider) => ({
       provider,
-      meters: [...provider.meters].sort((left, right) =>
-        byMeterOrder(left.meter, right.meter),
-      ),
+      meters: [...provider.meters].sort((left, right) => {
+        const diff = right.value - left.value;
+        return diff !== 0 ? diff : byMeterOrder(left.meter, right.meter);
+      }),
     }))
     .filter((group) => group.meters.length > 0);
 
@@ -993,19 +993,32 @@ function PlugGlyph() {
  * sentences come from packages/core, so a block here and a card on the
  * desktop describe one state with one sentence.
  */
-export function ConnectionList() {
+export function ConnectionList({
+  onImportFile,
+  onEnterDemo,
+}: {
+  onImportFile?: () => void;
+  onEnterDemo?: () => void;
+}) {
   return (
     <ul className="divide-y divide-hairline border-t border-hairline">
       {CONNECTION_FACTS.map((fact) => (
         <li key={fact.provider} className="py-4">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="grid h-7 w-7 flex-none place-items-center rounded-md border border-hairline bg-raised text-soft">
-              <ProviderMark provider={fact.provider} />
-            </span>
-            <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
-              {providerName(fact.provider)}
-            </span>
-            <SourceChip state={fact.state} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="grid h-7 w-7 flex-none place-items-center rounded-md border border-hairline bg-raised text-soft">
+                <ProviderMark provider={fact.provider} />
+              </span>
+              <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
+                {providerName(fact.provider)}
+              </span>
+              <SourceChip state={fact.state} />
+            </div>
+            {onImportFile && (
+              <Button tone="ghost" onClick={onImportFile} className="text-xs">
+                {fact.provider === "MANUAL" ? "Add manual entry" : "Choose file"}
+              </Button>
+            )}
           </div>
           <p className="mt-2 text-xs leading-relaxed text-muted">{fact.line}</p>
 
@@ -1017,35 +1030,65 @@ export function ConnectionList() {
               </span>
             </p>
             <p className="mt-1.5 text-xs leading-relaxed text-body">
-              {connectionSentence[fact.browserState]}{" "}
-              <span className="text-muted">
-                Next action: {connectionNextAction[fact.browserState]}.
-              </span>
+              {connectionSentence[fact.browserState]}
             </p>
-            {fact.provider === "CLAUDE" && (
-              <>
-                <p className="mt-2 text-xs leading-relaxed text-muted">
-                  On a machine running Claude Code, this wiring makes the
-                  reading arrive on its own. In this browser, you paste the
-                  payload that command receives.
-                </p>
-                <pre className="mt-2 overflow-x-auto rounded-md border border-hairline bg-code p-3 font-mono text-2xs leading-relaxed text-body">
-                  <code>{CLAUDE_STATUSLINE_WIRING}</code>
-                </pre>
-              </>
-            )}
-            {fact.documentPath !== null && (
-              <p className="mt-2 text-xs leading-relaxed text-muted">
-                Document path:{" "}
-                <code className="font-mono text-2xs text-heading">
-                  {fact.documentPath}
-                </code>
-              </p>
-            )}
           </div>
         </li>
       ))}
+
+      <li key="DEMO" className="py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="grid h-7 w-7 flex-none place-items-center rounded-md border border-hairline bg-raised text-soft">
+              <SparkGlyph />
+            </span>
+            <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
+              Demo mode
+            </span>
+            <span className={CHIP_NEUTRAL}>SYNTHETIC</span>
+          </div>
+          {onEnterDemo && (
+            <Button tone="primary" onClick={onEnterDemo} className="text-xs">
+              Explore demo mode
+            </Button>
+          )}
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-muted">
+          Explore the dashboard with synthetic fixture data to see how quota
+          meters and reset countdowns behave without connecting real accounts.
+        </p>
+
+        <div className="mt-3 rounded-lg border border-hairline bg-raised p-3">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted">
+            <span className="uppercase tracking-widest">In this browser</span>
+            <span className="font-mono tracking-widest text-heading">
+              DEMO
+            </span>
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-body">
+            Loads synthetic fixtures without reading any account. Real readings stay untouched.
+          </p>
+        </div>
+      </li>
     </ul>
+  );
+}
+
+function SparkGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="m12 3 1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3Z" />
+    </svg>
   );
 }
 
