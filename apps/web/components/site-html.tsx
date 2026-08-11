@@ -116,8 +116,18 @@ export async function SiteHtml({
             {t("skipToContent")}
           </a>
           <AnnouncementBar />
-          <Nav />
-          {children}
+          {/* THE OVERLAP CELL. The header and the page share one grid cell, so
+             the header floats over the fold without consuming a row and
+             without any negative margin anywhere. Whether the announcement
+             bar exists above or not, the header and the page begin at the
+             same layout coordinate: nothing has to know the bar's height,
+             which is the whole class of bug this replaces (four founder
+             photographs, 2026-08-10 and 11, all of them a negative pull
+             disagreeing with what sat above it). */}
+          <div className="page-overlap">
+            <Nav />
+            {children}
+          </div>
           <Footer localised={localised} />
           {/* The one client component the motion system has. See lib/motion.ts. */}
           <Reveal />

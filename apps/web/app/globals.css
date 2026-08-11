@@ -808,39 +808,38 @@ body:has(.ol-shell) .announce-bar {
 .hero-fold {
   position: relative;
   isolation: isolate;
-  /* The footage runs UNDER the header on every screen, the founder's rule.
-     The pull is measured from the header's own box rather than from a fixed
-     guess, because on mobile the bar can sit below a promo banner: the
-     wrapper margin the header carries is what the fold reclaims, and the
-     bar's height is added back as padding inside the copy block (below), so
-     nothing can land behind the bar the way it did when this was a fixed
-     negative number. The island grows with its content on a short phone
-     instead of clipping the buttons. */
-  margin-top: calc(-1 * var(--ol-header-h) - 4rem);
+  /* No negative margin anywhere. The header shares this section's grid cell
+     (see .page-overlap), so the footage already runs under the bar and the
+     fold simply owns the first screen. The copy block inside reserves the
+     bar's height as padding so nothing can land behind it. */
   min-height: 100svh;
   overflow: hidden;
 }
 
-@media (min-width: 1024px) {
-  .hero-fold {
-    height: 100vh;
-    height: 100svh;
-    min-height: 0;
-  }
+/* The overlap cell: the header and the page occupy the same grid area, the
+   header pinned to its start edge. This is the invariant that ends the
+   negative margin era, so nothing below reads the bar's height to place
+   itself. */
+.page-overlap {
+  display: grid;
+  grid-template-columns: 100%;
 }
 
-/* A static bar over the fold is still OVER the footage: below the breakpoint
-   the coats stay off and the ink stays heading white on any page that carries
-   a fold, which is what removes the hard light-on-black seam the audit
-   photographed at 390. The bar only exists at the top of the page there, and
-   the top of a fold page is footage by definition. */
-@media (max-width: 1023.98px) {
-  body:has(.hero-fold) .site-header .hdr-layers > span {
-    opacity: 0 !important;
-  }
-  body:has(.hero-fold) .site-header .hdr-ink {
-    color: var(--ol-heading);
-  }
+.page-overlap > .site-header,
+.page-overlap > * {
+  grid-area: 1 / 1;
+}
+
+.page-overlap > .site-header {
+  align-self: start;
+}
+
+/* A page without a fold has nothing to slide under the bar, so it opens with
+   the air the header's old flow margin used to provide, sized by the bar
+   itself plus a breath. One rule, keyed off the same absence the frosted bar
+   default already keys off. */
+body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
+  padding-top: calc(var(--ol-header-h) + 2.5rem);
 }
 
 /* The header watcher's top marker: one bar height of the fold's top, sized by
@@ -1161,15 +1160,9 @@ body:has(.ol-shell) .announce-bar {
 }
 
 .site-header {
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 50;
-}
-
-@media (min-width: 1024px) {
-  .site-header {
-    position: sticky;
-    top: 0;
-  }
 }
 
 .site-header-row {

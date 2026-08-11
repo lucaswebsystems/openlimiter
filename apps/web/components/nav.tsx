@@ -112,7 +112,7 @@ export async function Nav() {
        onto this element before React hydrates, exactly like the theme arm
        script writes `data-theme` on the root. The attribute is state, owned
        by that script and the HeaderState watcher, never rendered by React. */
-    <header className="site-header mb-16" suppressHydrationWarning>
+    <header className="site-header" suppressHydrationWarning>
       <HeaderState />
       {/* The glass, three layers, opacity only. See globals.css. */}
       <span className="hdr-layers" aria-hidden="true">

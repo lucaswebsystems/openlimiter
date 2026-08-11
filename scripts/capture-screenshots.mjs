@@ -347,7 +347,11 @@ function startDesk(pages) {
  * part of the product at all.
  */
 const STANDALONE = [
-  "body > nav, body > footer { display: none !important; }",
+  /* The installed app hides the marketing chrome. Names the header's
+     class AND both element shapes, because the capture is the only guard
+     this contract has: Sol caught this rule still matching an element the
+     header stopped being months of commits ago. */
+  ".site-header, body > nav, body > footer, body > footer, footer { display: none !important; }",
   ".ol-appmark-small { display: none !important; }",
   ".ol-appmark-full { display: flex !important; }",
   "nextjs-portal { display: none !important; }",
