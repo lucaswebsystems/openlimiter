@@ -355,7 +355,7 @@ function Card({ card }: { card: StripCard }) {
   const t = useTranslations("integrations");
   const planned = card.state === "planned";
   return (
-    <div className="lift elev-1 flex h-[192px] w-[280px] flex-none flex-col justify-between gap-3 rounded-2xl border border-hairline bg-surface p-4 hover:border-hairline-strong hover:bg-raised sm:w-[330px]">
+    <div className="lift elev-1 flex h-[136px] w-[280px] flex-none flex-col gap-2 rounded-2xl border border-hairline bg-surface p-4 hover:border-hairline-strong hover:bg-raised sm:w-[330px]">
       <div className="min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">

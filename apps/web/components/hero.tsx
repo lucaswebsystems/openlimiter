@@ -227,14 +227,20 @@ export function Hero() {
       <div className="relative z-10 flex h-full items-center pb-4 pt-[calc(var(--ol-header-h)+0.5rem)]">
         <div className={`${SHELL} w-full`}>
           <div>
-            <h1 className="fold-enter fold-enter-title text-4xl font-medium leading-tight tracking-tight text-heading sm:text-5xl lg:text-[3.25rem]">
-              {t.rich("title.limits", {
-                accent: (chunks) => <span className="text-brand">{chunks}</span>,
-              })}
-              <br />
-              {t.rich("title.route", {
-                accent: (chunks) => <span className="text-brand">{chunks}</span>,
-              })}
+            <h1 className="fold-enter fold-enter-title text-[1.375rem] font-medium leading-tight tracking-tight text-heading min-[400px]:text-2xl sm:text-4xl lg:text-[3.25rem]">
+              {/* One flowing paragraph on a phone, two measured lines from the
+                 large breakpoint: the founder wants three lines on mobile, not
+                 a hard break that costs five. */}
+              <span className="lg:block">
+                {t.rich("title.limits", {
+                  accent: (chunks) => <span className="text-brand">{chunks}</span>,
+                })}
+              </span>{" "}
+              <span className="lg:block">
+                {t.rich("title.route", {
+                  accent: (chunks) => <span className="text-brand">{chunks}</span>,
+                })}
+              </span>
             </h1>
 
             <p className="fold-enter fold-enter-lead mt-6 max-w-xl text-lg leading-relaxed text-body">
@@ -246,69 +252,46 @@ export function Hero() {
                downloads and the blue web app on the first line, the three
                install paths on the second, and nothing else. */}
             <div className="fold-enter fold-enter-row mt-9 space-y-3">
-              <div className="flex flex-wrap gap-3">
-                <ButtonLink
-                  href="/download#windows"
-                  tone="primary"
-                  className="hidden h-11 gap-2 whitespace-nowrap lg:inline-flex"
-                  label={t("rows.windows")}
-                >
+              {/* A phone gets the three paths a phone can take, the founder's
+                 order (2026-08-11): the web app and the two install guides.
+                 The desktop platforms and the terminal appear from the large
+                 breakpoint, where they mean something. Separate rows per
+                 breakpoint rather than utility overrides on one row, because
+                 a display utility on a button fights the button's own. */}
+              <div className="hidden flex-wrap gap-3 lg:flex">
+                <ButtonLink href="/download#windows" tone="primary" className="h-11 gap-2 whitespace-nowrap" label={t("rows.windows")}>
                   <WindowsGlyph />
                   {t("rows.windows")}
                 </ButtonLink>
-                <ButtonLink
-                  href="/download#macos"
-                  tone="solid"
-                  className="hidden h-11 gap-2 whitespace-nowrap lg:inline-flex"
-                  label={t("rows.macos")}
-                >
+                <ButtonLink href="/download#macos" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.macos")}>
                   <AppleGlyph />
                   {t("rows.macos")}
                 </ButtonLink>
-                <ButtonLink
-                  href="/download#linux"
-                  tone="solid"
-                  className="hidden h-11 gap-2 whitespace-nowrap lg:inline-flex"
-                  label={t("rows.linux")}
-                >
+                <ButtonLink href="/download#linux" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.linux")}>
                   <LinuxGlyph />
                   {t("rows.linux")}
                 </ButtonLink>
-                <ButtonLink
-                  href="/app"
-                  tone="solid"
-                  className="h-11 gap-2 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover"
-                  label={t("rows.webApp")}
-                >
+                <ButtonLink href="/app" tone="solid" className="h-11 gap-2 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover" label={t("rows.webApp")}>
                   <GlobeGlyph />
                   {t("rows.webApp")}
                 </ButtonLink>
               </div>
               <div className="flex flex-wrap gap-3">
-                <ButtonLink
-                  href="/download#iphone"
-                  tone="solid"
-                  className="h-11 gap-2 whitespace-nowrap"
-                  label={t("rows.iphone")}
-                >
+                <ButtonLink href="/app" tone="solid" className="h-11 gap-2 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover lg:hidden" label={t("rows.webApp")}>
+                  <GlobeGlyph />
+                  {t("rows.webApp")}
+                </ButtonLink>
+                <ButtonLink href="/download#iphone" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.iphone")}>
                   <IphoneGlyph />
                   {t("rows.iphone")}
                 </ButtonLink>
-                <ButtonLink
-                  href="/download#android"
-                  tone="solid"
-                  className="h-11 gap-2 whitespace-nowrap"
-                  label={t("rows.android")}
-                >
+                <ButtonLink href="/download#android" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.android")}>
                   <AndroidGlyph />
                   {t("rows.android")}
                 </ButtonLink>
-                <ButtonLink
-                  href="/download#npm"
-                  tone="solid"
-                  className="h-11 gap-2 whitespace-nowrap"
-                  label={t("rows.cli")}
-                >
+              </div>
+              <div className="hidden flex-wrap gap-3 lg:flex">
+                <ButtonLink href="/download#npm" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.cli")}>
                   <TerminalGlyph />
                   {t("rows.cli")}
                 </ButtonLink>
