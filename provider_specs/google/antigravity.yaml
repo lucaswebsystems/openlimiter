@@ -34,12 +34,32 @@ availability:
 
 support:
   parser: implemented
-  reader: absent
-  auth: not_required
+  reader: implemented
+  auth: implemented
+
+# The live collection block. See openai/codex.yaml for why no URL, method or
+# header appears in this file.
+#
+# Request contract, recorded 2026-08-07 from a working reader:
+#   POST https://daily-cloudcode-pa.googleapis.com/v1internal:
+#     retrieveUserQuotaSummary with an empty JSON object as the whole body
+#   Authorization: Bearer <the login the Antigravity client already holds>
+#   a NON EMPTY User-Agent, which is not optional: the same valid token is
+#     answered 403 when the header is absent, measured 2026-08-07
+#   redirects refused, response bounded
+collection:
+  reader: implemented
+  auth: implemented
+  reader_id: antigravity_quota
+  endpoint_id: antigravity_quota
+  credential_kind: antigravity_session
+  evidence_fixture: antigravity.sanitized_live.quota
+  evidence_status: pending_capture
+  last_verified_at: null
 
 connections:
-  - reader: explicit_import
-    auth_mode: none
+  - reader: experimental
+    auth_mode: existing_local_cli
     platforms:
       - windows
       - macos
@@ -50,6 +70,7 @@ verification:
   last_verified_at: null
   fixture_ids:
     - antigravity.provisional.quota
+    - antigravity.sanitized_live.quota
 
 meters:
   - id: primary

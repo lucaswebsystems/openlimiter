@@ -5,6 +5,7 @@ mod connections;
 mod credentials;
 mod fsx;
 mod net;
+mod reader_registry;
 mod state;
 #[cfg(test)]
 mod test_support;
@@ -101,6 +102,7 @@ pub fn run() {
             commands::disconnect_provider,
             commands::list_connections,
             commands::update_connection,
+            commands::complete_attempt,
             commands::detect_local_tools,
             commands::cache_begin_write,
             commands::cache_commit_write

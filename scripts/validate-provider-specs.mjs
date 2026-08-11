@@ -310,6 +310,84 @@ const PARSER_SUPPORT = new Set(["implemented", "absent"]);
 const READER_SUPPORT = new Set(["implemented", "absent"]);
 const AUTH_SUPPORT = new Set(["implemented", "not_required", "absent"]);
 
+/*
+ * The collection vocabularies, frozen.
+ *
+ * These three sets are the registry's half of one identifier that also exists
+ * as a Rust enum in apps/desktop/src-tauri/src/reader_registry.rs and as a
+ * frozen list in apps/desktop/ui/backend.js. Spelling one of them differently
+ * in any of the three places is how a reader ends up selecting the wrong
+ * parser, so all three are closed and all three are checked.
+ *
+ * What is deliberately NOT here: a URL, a method, a header, a permitted status.
+ * Those are Rust constants. A registry that could state an address would be a
+ * registry that could redirect a credential, and this file is edited far more
+ * often, and reviewed far less carefully, than the network layer.
+ */
+const READER_IDS = new Set([
+  "openrouter_key",
+  "openrouter_credits",
+  "codex_usage",
+  "antigravity_quota",
+  "opencode_usage"
+]);
+const ENDPOINT_IDS = new Set([
+  "openrouter_key",
+  "openrouter_credits",
+  "codex_usage",
+  "antigravity_quota",
+  "opencode_usage"
+]);
+const CREDENTIAL_KINDS = new Set([
+  "openrouter_inference_key",
+  "openrouter_management_key",
+  "codex_session",
+  "antigravity_session",
+  "opencode_browser_session"
+]);
+const COLLECTION_SUPPORT = new Set(["implemented"]);
+
+/*
+ * How the evidence behind a live reader stands today.
+ *
+ *   documented      the provider publishes the response shape.
+ *   captured        a sanitized capture from a real account is in the tree.
+ *   pending_capture the request contract is known and no sanitized response
+ *                   has been committed. The reader may ship; the provider
+ *                   stays UNVERIFIED and this file says so out loud.
+ *
+ * pending_capture is a real state rather than a hole because inventing a
+ * capture is the exact fault the fixture classes exist to prevent. Run this
+ * script with --require-captures to make it fatal, which is what the release
+ * gate does.
+ */
+const EVIDENCE_STATUS = new Set(["documented", "captured", "pending_capture"]);
+
+/*
+ * The interface honesty labels that may never sit beside a documented API
+ * claim. A provider whose connector says it reads an internal endpoint or
+ * scrapes an authenticated page has not got an official interface, whatever
+ * its source_status says, and the two must not disagree.
+ */
+const UNOFFICIAL_READERS = new Set(["experimental", "gateway_observation"]);
+
+/*
+ * Readers that never leave the machine.
+ *
+ * A local reader has no address, no credential kind and no endpoint, so the
+ * collection block does not apply to it: the block exists to pin down where a
+ * secret is sent, and these send nothing anywhere. A spec whose connections are
+ * all local therefore ships a reader with no block, correctly.
+ */
+const LOCAL_READERS = new Set([
+  "statusline_payload",
+  "local_event",
+  "local_file",
+  "local_command",
+  "manual",
+  "explicit_import"
+]);
+
 const IDENTIFIER = /^[a-z][a-z0-9_-]*$/u;
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
 const DOTTED_PATH = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/u;
@@ -422,7 +500,7 @@ function validateMeter(meter, where) {
   };
 }
 
-function validateSpec(document, file, relative) {
+function validateSpec(document, file, relative, fixtureIds) {
   if (!isPlainObject(document)) fail(file, "the document must be a block");
   const providerId = requireString(document, file, "provider_id");
   const productId = requireString(document, file, "product_id");
@@ -498,6 +576,85 @@ function validateSpec(document, file, relative) {
   const parser = requireString(support, file + " support", "parser", PARSER_SUPPORT);
   const reader = requireString(support, file + " support", "reader", READER_SUPPORT);
   const auth = requireString(support, file + " support", "auth", AUTH_SUPPORT);
+
+  /*
+   * The collection block: present exactly when a live reader ships, absent
+   * exactly when one does not. Both halves are checked, because a block with
+   * no reader would publish a route nothing implements, and a reader with no
+   * block would ship an address no surface can describe.
+   */
+  const collectionBlock = document["collection"];
+  const at = file + " collection";
+  let collection = null;
+  if (collectionBlock !== undefined && collectionBlock !== null) {
+    if (!isPlainObject(collectionBlock)) fail(at, "collection must be a block");
+    /* A reader is not an auth flow. Shipping the first without the second is
+       a connection that can be pointed somewhere and never authenticated. */
+    requireString(collectionBlock, at, "reader", COLLECTION_SUPPORT);
+    requireString(collectionBlock, at, "auth", COLLECTION_SUPPORT);
+    const readerId = requireString(collectionBlock, at, "reader_id", READER_IDS);
+    const endpointId = requireString(collectionBlock, at, "endpoint_id", ENDPOINT_IDS);
+    const credentialKind =
+      requireString(collectionBlock, at, "credential_kind", CREDENTIAL_KINDS);
+    const evidenceFixture = requireString(collectionBlock, at, "evidence_fixture");
+    const evidenceStatus =
+      requireString(collectionBlock, at, "evidence_status", EVIDENCE_STATUS);
+    const collectionVerifiedAt = collectionBlock["last_verified_at"];
+    if (collectionVerifiedAt !== null && !isCalendarDate(collectionVerifiedAt)) {
+      fail(at, "last_verified_at must be a real calendar date or null");
+    }
+    /* A reviewed date on a reader nobody has captured would be a date about
+       nothing. It is allowed only once the evidence is real. */
+    if (evidenceStatus === "pending_capture" && collectionVerifiedAt !== null) {
+      fail(at, "a pending capture cannot carry a last_verified_at date");
+    }
+    if (evidenceStatus !== "pending_capture" && collectionVerifiedAt === null) {
+      fail(at, "evidence that exists must state the day it was last verified");
+    }
+    /* The fixture named here has to be a fixture that exists. */
+    if (!fixtureIds.has(evidenceFixture)) {
+      fail(at, "evidence_fixture " + evidenceFixture +
+        " names no fixture in packages/connectors/src/fixtures.ts");
+    }
+    /* And it has to be one this spec already claims. */
+    const claimed = verification["fixture_ids"];
+    if (Array.isArray(claimed) && !claimed.includes(evidenceFixture)) {
+      fail(at, "evidence_fixture " + evidenceFixture +
+        " is not among this spec's verification fixture_ids");
+    }
+    if (reader !== "implemented") {
+      fail(file, "a spec with a collection block must state support.reader implemented");
+    }
+    if (auth !== "implemented") {
+      fail(file, "a live reader needs an implemented authentication path");
+    }
+    collection = {
+      readerId,
+      endpointId,
+      credentialKind,
+      evidenceFixture,
+      evidenceStatus,
+      lastVerifiedAt: collectionVerifiedAt
+    };
+  } else if (
+    reader === "implemented" &&
+    !connectionReaders.every((entry) => LOCAL_READERS.has(entry))
+  ) {
+    fail(
+      file,
+      "a shipped remote reader must publish a collection block naming its " +
+        "reader_id, endpoint_id, credential_kind and evidence fixture"
+    );
+  }
+
+  /*
+   * A provider cannot call its interface official while its own connections
+   * describe an experiment or a gateway observation. The label and the claim
+   * have to agree, because the label is what a person reads.
+   */
+  if (status === "official" && connectionReaders.some((entry) => UNOFFICIAL_READERS.has(entry))) {
+    fail(file, "a documented source cannot also declare an unofficial reader");
+  }
   /*
    * The one combination that would be a lie. Calling a product verified while
    * stating that nothing can read it means the verification was of a paste.
@@ -524,6 +681,7 @@ function validateSpec(document, file, relative) {
     reviewedAt,
     sourceStatus: status,
     support: { parser, reader, auth, verification: verificationStatus },
+    collection,
     lastVerifiedAt: lastVerified,
     readers: connectionReaders,
     authModes: connectionAuthModes,
@@ -715,9 +873,38 @@ async function readTarget(target) {
   }
 }
 
+/**
+ * Where the fixture classes live, so a named fixture can be proven to exist.
+ *
+ * Read as text rather than imported: this script has zero dependencies and
+ * runs before anything is compiled, so it cannot load TypeScript. Every fixture
+ * declares its own `id`, and the ids are what this collects, so deleting a
+ * fixture that a spec names is caught here rather than at run time.
+ */
+export const FIXTURES_FILE = path.join(
+  repositoryRoot, "packages", "connectors", "src", "fixtures.ts"
+);
+
+const FIXTURE_ID_PATTERN = /\bid:\s*"([a-z0-9_.-]+)"/gu;
+
+async function readFixtureIds() {
+  const text = await readFile(FIXTURES_FILE, "utf8");
+  const found = new Set();
+  for (const match of text.matchAll(FIXTURE_ID_PATTERN)) found.add(match[1]);
+  return found;
+}
+
 async function main() {
   selfTest();
   const emit = process.argv.includes("--emit");
+  /*
+   * The release gate's switch. Off, a live reader whose sanitized capture has
+   * not been taken passes with a loud WARN. On, it fails. Off is the default so
+   * that the rest of the suite can run while a capture is outstanding; the
+   * release gate turns it on, and the WARN below is never silent either way.
+   */
+  const requireCaptures = process.argv.includes("--require-captures");
+  const fixtureIds = await readFixtureIds();
   const files = await specFiles();
   if (files.length === 0) {
     console.error("FAIL provider_specs holds no spec files");
@@ -736,7 +923,7 @@ async function main() {
     try {
       const text = await readFile(file.path, "utf8");
       const document = parseYamlSubset(text, shown);
-      const entry = validateSpec(document, shown, file.relative);
+      const entry = validateSpec(document, shown, file.relative, fixtureIds);
       if (seen.has(entry.id)) {
         problems.push(shown + ": duplicate provider and product of " + seen.get(entry.id));
       }
@@ -745,6 +932,26 @@ async function main() {
       console.log("PASS " + shown);
     } catch (error) {
       problems.push(error instanceof SpecError ? error.message : String(error));
+    }
+  }
+
+  /*
+   * Live readers still standing on an uncaptured interface. Reported every run,
+   * fatal only under --require-captures, and never quietly dropped: this list
+   * is the honest answer to "which of these numbers has anybody actually seen".
+   */
+  const pending = compiled.filter(
+    (entry) => entry.collection !== null &&
+      entry.collection.evidenceStatus === "pending_capture"
+  );
+  for (const entry of pending) {
+    const sentence = entry.id +
+      ": live reader " + entry.collection.readerId +
+      " ships on a PENDING sanitized capture, so it stays UNVERIFIED";
+    if (requireCaptures) {
+      problems.push(sentence);
+    } else {
+      console.log("WARN " + sentence);
     }
   }
 

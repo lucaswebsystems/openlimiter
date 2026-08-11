@@ -16,6 +16,7 @@
         "auth": "not_required",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "statusline_payload"
@@ -71,6 +72,7 @@
         "auth": "absent",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -112,6 +114,7 @@
         "auth": "absent",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -153,6 +156,7 @@
         "auth": "absent",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -190,16 +194,24 @@
       "sourceStatus": "provisional",
       "support": {
         "parser": "implemented",
-        "reader": "absent",
-        "auth": "not_required",
+        "reader": "implemented",
+        "auth": "implemented",
         "verification": "unverified"
+      },
+      "collection": {
+        "readerId": "antigravity_quota",
+        "endpointId": "antigravity_quota",
+        "credentialKind": "antigravity_session",
+        "evidenceFixture": "antigravity.sanitized_live.quota",
+        "evidenceStatus": "pending_capture",
+        "lastVerifiedAt": null
       },
       "lastVerifiedAt": null,
       "readers": [
-        "explicit_import"
+        "experimental"
       ],
       "authModes": [
-        "none"
+        "existing_local_cli"
       ],
       "platforms": [
         "linux",
@@ -235,6 +247,7 @@
         "auth": "not_required",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "local_file"
@@ -276,6 +289,7 @@
         "auth": "not_required",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "local_command"
@@ -317,6 +331,7 @@
         "auth": "absent",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -358,6 +373,7 @@
         "auth": "absent",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -399,6 +415,7 @@
         "auth": "not_required",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "local_command"
@@ -436,16 +453,24 @@
       "sourceStatus": "provisional",
       "support": {
         "parser": "implemented",
-        "reader": "absent",
-        "auth": "not_required",
+        "reader": "implemented",
+        "auth": "implemented",
         "verification": "unverified"
+      },
+      "collection": {
+        "readerId": "codex_usage",
+        "endpointId": "codex_usage",
+        "credentialKind": "codex_session",
+        "evidenceFixture": "codex.sanitized_live.usage",
+        "evidenceStatus": "pending_capture",
+        "lastVerifiedAt": null
       },
       "lastVerifiedAt": null,
       "readers": [
-        "explicit_import"
+        "experimental"
       ],
       "authModes": [
-        "none"
+        "existing_local_cli"
       ],
       "platforms": [
         "linux",
@@ -478,16 +503,24 @@
       "sourceStatus": "provisional",
       "support": {
         "parser": "implemented",
-        "reader": "absent",
-        "auth": "not_required",
+        "reader": "implemented",
+        "auth": "implemented",
         "verification": "unverified"
+      },
+      "collection": {
+        "readerId": "opencode_usage",
+        "endpointId": "opencode_usage",
+        "credentialKind": "opencode_browser_session",
+        "evidenceFixture": "opencode.sanitized_live.usage",
+        "evidenceStatus": "pending_capture",
+        "lastVerifiedAt": null
       },
       "lastVerifiedAt": null,
       "readers": [
-        "explicit_import"
+        "experimental"
       ],
       "authModes": [
-        "none"
+        "manual"
       ],
       "platforms": [
         "linux",
@@ -523,6 +556,7 @@
         "auth": "not_required",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "manual"
@@ -560,9 +594,17 @@
       "sourceStatus": "official",
       "support": {
         "parser": "implemented",
-        "reader": "absent",
+        "reader": "implemented",
         "auth": "implemented",
         "verification": "unverified"
+      },
+      "collection": {
+        "readerId": "openrouter_key",
+        "endpointId": "openrouter_key",
+        "credentialKind": "openrouter_inference_key",
+        "evidenceFixture": "openrouter.documented.credits",
+        "evidenceStatus": "documented",
+        "lastVerifiedAt": "2026-08-10"
       },
       "lastVerifiedAt": null,
       "readers": [
@@ -605,6 +647,7 @@
         "auth": "not_required",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "manual"
@@ -646,6 +689,7 @@
         "auth": "not_required",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "manual"
@@ -687,6 +731,7 @@
         "auth": "absent",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"
@@ -728,6 +773,7 @@
         "auth": "absent",
         "verification": "unverified"
       },
+      "collection": null,
       "lastVerifiedAt": null,
       "readers": [
         "official_remote_api"

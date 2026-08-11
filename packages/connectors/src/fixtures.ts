@@ -457,8 +457,90 @@ export const claudeSanitizedLive: SanitizedLiveFixture = {
   build: () => null
 };
 
+/**
+ * PENDING CAPTURE: Codex usage.
+ *
+ * The REQUEST contract for this reader is known, reproducible and recorded, in
+ * `provider_specs/openai/codex.yaml` and in the endpoint constants in
+ * `apps/desktop/src-tauri/src/net.rs`: the method, the address, the
+ * authentication, the fixed headers and the behaviour of an expired login were
+ * all taken from a reader that ran against a real account on 2026-08-07.
+ *
+ * The RESPONSE is a different question, and it is open. No sanitized response
+ * from that account has been committed here, and the shape the shipped parser
+ * reads was observed in the original prototype rather than captured through
+ * this code. Writing a payload from memory to make this slot look full would
+ * rebuild exactly the fault the fixture classes exist to prevent, so the slot
+ * stays empty and loud: every test that would use it skips and says why, the
+ * provider stays UNVERIFIED, and the registry validator reports the gap on
+ * every run and fails outright under --require-captures.
+ */
+export const codexSanitizedLive: SanitizedLiveFixture = {
+  id: "codex.sanitized_live.usage",
+  connector: "codex",
+  status: "pending_capture",
+  capturedAt: null,
+  providerVersion: null,
+  skipReason: "PENDING CAPTURE: no sanitized live Codex usage response exists " +
+    "yet. The request contract is recorded; the response is not. Capture one " +
+    "on a real account, reduce it to numbers and window lengths only, paste " +
+    "the result here, then remove this reason.",
+  expectedMeters: 0,
+  build: () => null
+};
+
+/**
+ * PENDING CAPTURE: Antigravity quota summary.
+ *
+ * Same standing as the Codex slot above. The request is recorded, including the
+ * detail that the endpoint answers 403 to a valid token when the user agent
+ * header is missing, which was measured on 2026-08-07. No sanitized response
+ * has been committed, so nothing here claims to know the shape of one.
+ */
+export const antigravitySanitizedLive: SanitizedLiveFixture = {
+  id: "antigravity.sanitized_live.quota",
+  connector: "antigravity",
+  status: "pending_capture",
+  capturedAt: null,
+  providerVersion: null,
+  skipReason: "PENDING CAPTURE: no sanitized live Antigravity quota summary " +
+    "exists yet. The request contract is recorded; the response is not. " +
+    "Capture one on a real account, reduce it to fractions and window " +
+    "lengths only, paste the result here, then remove this reason.",
+  expectedMeters: 0,
+  build: () => null
+};
+
+/**
+ * PENDING CAPTURE: OpenCode workspace usage.
+ *
+ * The weakest evidence of the three, and permanently so. There is no interface
+ * to capture: the meters exist only inside the html of a logged in page, so any
+ * capture is a capture of a layout. That is why this provider's labels do not
+ * improve when the slot is filled: browser-session, authenticated-scrape,
+ * automationRisk high and UNVERIFIED are properties of the method, not of how
+ * much evidence has been gathered about it.
+ */
+export const opencodeSanitizedLive: SanitizedLiveFixture = {
+  id: "opencode.sanitized_live.usage",
+  connector: "opencode",
+  status: "pending_capture",
+  capturedAt: null,
+  providerVersion: null,
+  skipReason: "PENDING CAPTURE: no sanitized live OpenCode workspace page " +
+    "exists yet. Capture one on a real account, reduce it to the window " +
+    "labels, percentages and remaining durations only, paste the result " +
+    "here, then remove this reason. The honesty labels do not change when " +
+    "it lands.",
+  expectedMeters: 0,
+  build: () => null
+};
+
 export const sanitizedLiveFixtures: readonly SanitizedLiveFixture[] = [
-  claudeSanitizedLive
+  claudeSanitizedLive,
+  codexSanitizedLive,
+  antigravitySanitizedLive,
+  opencodeSanitizedLive
 ];
 
 /* ------------------------------------------------------------------ *

@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::fsx;
+use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId};
 
 /// Connection records, owned solely by desktop Rust.
 ///
@@ -21,8 +22,17 @@ use crate::fsx;
 /// crash leaves the previous document rather than half of a new one.
 pub const CONNECTIONS_FILE_NAME: &str = "connections.json";
 
-/// Version of the document, for a future reader that must tell shapes apart.
-pub const CONNECTIONS_DOCUMENT_VERSION: u64 = 1;
+/// Version of the document this build writes.
+///
+/// Version 2 replaced every free form string that mattered with a closed enum,
+/// and replaced two timestamps that described what a probe DID with three
+/// fields that describe what a probe ACHIEVED. The change is a real one for an
+/// old reader, not a new optional field it could ignore, which is why the
+/// number moved.
+pub const CONNECTIONS_DOCUMENT_VERSION: u64 = 2;
+
+/// The version this build still reads, and migrates, and never writes.
+pub const CONNECTIONS_DOCUMENT_VERSION_LEGACY: u64 = 1;
 
 /// More connections than any person holds subscriptions; a bound, not a goal.
 pub const MAX_CONNECTIONS: usize = 100;
@@ -34,15 +44,20 @@ pub const MAX_ID_CHARS: usize = 64;
 /// Longest an account alias may be, in characters.
 pub const MAX_ALIAS_CHARS: usize = 80;
 
-/// Providers this subsystem can hold a connection for: the record level
-/// counterpart of the endpoint allowlist in `net.rs`, spelled exactly as
-/// `PROVIDER_CODES` spells it in `packages/core/src/types.ts:1-8`. Adding a
-/// provider means adding it here, in code, in review.
-pub const PROVIDER_IDS: [&str; 1] = ["OPENROUTER"];
+/// The version 1 provider vocabulary, kept only so a legacy document can be
+/// migrated. Version 2 records carry a `ProviderId`, which no string can widen.
+const LEGACY_PROVIDER_IDS: [&str; 1] = ["OPENROUTER"];
 
-/// The credential kinds the design names for OpenRouter: the inference key
-/// path and the management key path.
-pub const KEY_KINDS: [&str; 2] = ["inference", "management"];
+/// The version 1 credential vocabulary, kept only for the migration below.
+const LEGACY_KEY_KINDS: [&str; 2] = ["inference", "management"];
+
+/// Highest consecutive failure count a stored record may claim. A counter, not
+/// a clock: anything above this is a tampered document, not a bad week.
+pub const MAX_CONSECUTIVE_FAILURES: u32 = 1_000_000;
+
+/// Highest attempt generation a stored record may claim. One probe per second
+/// for three hundred years would not reach it; a document that does was edited.
+pub const MAX_ATTEMPT_GENERATION: u64 = 10_000_000_000;
 
 /// The connection state vocabulary, mirroring `CONNECTION_STATES` in
 /// `packages/core/src/connection-state.ts:12-26`. The state machine itself
@@ -71,18 +86,32 @@ pub const MAX_TIMESTAMP_EPOCH_MS: u64 = 4_102_444_800_000;
 /// One connection, exactly the fields the design names. Timestamps are unix
 /// epoch milliseconds, the representation the engine's own clock uses, so no
 /// date arithmetic exists on this side of the boundary.
+///
+/// Three fields carry the attempt protocol. `attempt_generation` is bumped by
+/// Rust before every request, so a completion that arrives from a webview that
+/// has moved on is refused rather than believed. `last_attempt_at` says when we
+/// last asked; `last_success_at` says when a read last completed all the way
+/// through parsing, and for a refresh through the cache commit. A `2xx` moves
+/// the first and never the second, which is the whole point of having two.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConnectionRecord {
     pub id: String,
-    pub provider_id: String,
+    pub provider_id: ProviderId,
+    pub reader_id: ReaderId,
+    pub credential_kind: CredentialKind,
     pub account_alias: String,
-    pub key_kind: String,
     pub masked_label: String,
     pub created_at: u64,
     #[serde(default)]
-    pub last_test_at: Option<u64>,
+    pub last_attempt_at: Option<u64>,
     #[serde(default)]
-    pub last_refresh_at: Option<u64>,
+    pub last_success_at: Option<u64>,
+    #[serde(default)]
+    pub attempt_generation: u64,
+    #[serde(default)]
+    pub ever_connected: bool,
+    #[serde(default)]
+    pub consecutive_failures: u32,
     pub status: String,
 }
 
@@ -90,6 +119,108 @@ pub struct ConnectionRecord {
 struct ConnectionsDocument {
     version: u64,
     connections: Vec<ConnectionRecord>,
+}
+
+/// Just enough of any document to learn which shape the rest of it is.
+///
+/// Read first and separately, so a version this build does not know is refused
+/// before its records are parsed as anything. `deny_unknown_fields` is
+/// deliberately absent: the probe is meant to succeed on a document whose other
+/// fields it has no opinion about.
+#[derive(Deserialize)]
+struct DocumentVersionProbe {
+    version: u64,
+}
+
+/// One version 1 record, exactly as version 1 wrote it.
+///
+/// This shape exists only to be migrated. It is never constructed by this
+/// build, never written, and every field of it is validated on the way through
+/// the migration below, so a hand edited legacy document cannot smuggle a
+/// provider, a credential kind, or a status past the enums.
+#[derive(Deserialize)]
+struct LegacyConnectionRecord {
+    id: String,
+    provider_id: String,
+    account_alias: String,
+    key_kind: String,
+    masked_label: String,
+    created_at: u64,
+    #[serde(default)]
+    last_test_at: Option<u64>,
+    #[serde(default)]
+    last_refresh_at: Option<u64>,
+    status: String,
+}
+
+#[derive(Deserialize)]
+struct LegacyConnectionsDocument {
+    connections: Vec<LegacyConnectionRecord>,
+}
+
+/// The later of two optional instants, or whichever one exists, or neither.
+fn later_of(left: Option<u64>, right: Option<u64>) -> Option<u64> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(left.max(right)),
+        (Some(only), None) | (None, Some(only)) => Some(only),
+        (None, None) => None,
+    }
+}
+
+/// Turn one version 1 record into a version 2 record, deterministically.
+///
+/// Deterministic means the same legacy record always produces the same version
+/// 2 record, with no clock read and no invented value:
+///
+///   1. `id`, provider, alias, mask and creation time are preserved, and `id`
+///      is the credential store's lookup key, so the secret stays reachable.
+///   2. `key_kind` becomes the OpenRouter credential enum, and the reader that
+///      credential routes to comes from `reader_route`, not from a guess.
+///   3. `last_refresh_at` becomes `last_success_at`, because that field only
+///      ever advanced on a refresh that came back in the 200 range.
+///   4. `last_attempt_at` becomes the later of the old test and refresh stamps.
+///   5. `ever_connected` is set when either old stamp exists.
+///   6. `attempt_generation` and `consecutive_failures` start at zero: no
+///      legacy document recorded either, and inventing a count would be worse
+///      than starting a real one.
+///
+/// Anything outside the legacy vocabulary returns `Corrupt`, which blocks the
+/// write path, so the file survives untouched instead of being rewritten as a
+/// version 2 document that quietly dropped a record.
+fn migrate_legacy_record(legacy: LegacyConnectionRecord) -> Result<ConnectionRecord, StoreError> {
+    if !LEGACY_PROVIDER_IDS.contains(&legacy.provider_id.as_str()) {
+        return Err(StoreError::Corrupt);
+    }
+    if !LEGACY_KEY_KINDS.contains(&legacy.key_kind.as_str()) {
+        return Err(StoreError::Corrupt);
+    }
+    let provider_id = ProviderId::Openrouter;
+    let credential_kind = match legacy.key_kind.as_str() {
+        "inference" => CredentialKind::OpenrouterInferenceKey,
+        "management" => CredentialKind::OpenrouterManagementKey,
+        /* Unreachable: the vocabulary was checked above. Stated rather than
+        unwrapped, because a panic here would take the whole store down. */
+        _ => return Err(StoreError::Corrupt),
+    };
+    let route =
+        reader_route(provider_id, credential_kind).map_err(|_| StoreError::Corrupt)?;
+    let record = ConnectionRecord {
+        id: legacy.id,
+        provider_id,
+        reader_id: route.reader_id,
+        credential_kind,
+        account_alias: legacy.account_alias,
+        masked_label: legacy.masked_label,
+        created_at: legacy.created_at,
+        last_attempt_at: later_of(legacy.last_test_at, legacy.last_refresh_at),
+        last_success_at: legacy.last_refresh_at,
+        attempt_generation: 0,
+        ever_connected: legacy.last_test_at.is_some() || legacy.last_refresh_at.is_some(),
+        consecutive_failures: 0,
+        status: legacy.status,
+    };
+    validate_record(&record).map_err(|_| StoreError::Corrupt)?;
+    Ok(record)
 }
 
 /// Storage failure with everything identifying removed. Payload free, fixed
@@ -178,34 +309,57 @@ impl ConnectionsStore {
                 Err(_) => Ok(Vec::new()),
             };
         };
-        let document: ConnectionsDocument =
+        /* The version is read first and on its own, so a shape this build does
+        not know is refused before any record of it is parsed. A future version
+        must NOT be accepted: saving it back would rewrite it as version 2, a
+        silent downgrade of a shape written by a later build. Corrupt blocks
+        reads AND writes, so the file survives. */
+        let probe: DocumentVersionProbe =
             serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
-        /* A version this build does not know is a document it must not touch:
-        accepting it would rewrite it as version 1 on the next save, a silent
-        downgrade of a future shape. Corrupt blocks reads AND writes here. */
-        if document.version != CONNECTIONS_DOCUMENT_VERSION {
-            return Err(StoreError::Corrupt);
-        }
-        if document.connections.len() > MAX_CONNECTIONS {
+        let connections = match probe.version {
+            CONNECTIONS_DOCUMENT_VERSION => {
+                let document: ConnectionsDocument =
+                    serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
+                document.connections
+            }
+            CONNECTIONS_DOCUMENT_VERSION_LEGACY => {
+                /* Migrated in memory only. Nothing is written here: version 2
+                reaches the disk on the next successful mutation, so a person
+                who opens the application and changes nothing still has the
+                document their previous build wrote. */
+                let document: LegacyConnectionsDocument =
+                    serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
+                if document.connections.len() > MAX_CONNECTIONS {
+                    return Err(StoreError::Corrupt);
+                }
+                let mut migrated = Vec::with_capacity(document.connections.len());
+                for legacy in document.connections {
+                    migrated.push(migrate_legacy_record(legacy)?);
+                }
+                migrated
+            }
+            _ => return Err(StoreError::Corrupt),
+        };
+        if connections.len() > MAX_CONNECTIONS {
             return Err(StoreError::Corrupt);
         }
         /* The file is input, not truth. Every record is validated on the way
         in, exactly as it is on the way out, so a tampered document is a typed
         corrupt error that blocks writes and never reaches the credential
         store or the webview as trusted data. */
-        for record in &document.connections {
+        for record in &connections {
             if validate_record(record).is_err() {
                 return Err(StoreError::Corrupt);
             }
         }
-        let mut seen: Vec<&str> = Vec::with_capacity(document.connections.len());
-        for record in &document.connections {
+        let mut seen: Vec<&str> = Vec::with_capacity(connections.len());
+        for record in &connections {
             if seen.contains(&record.id.as_str()) {
                 return Err(StoreError::Corrupt);
             }
             seen.push(&record.id);
         }
-        Ok(document.connections)
+        Ok(connections)
     }
 
     fn save(&self, connections: Vec<ConnectionRecord>) -> Result<(), StoreError> {
@@ -331,16 +485,31 @@ fn valid_timestamp(value: u64) -> bool {
     value > 0 && value <= MAX_TIMESTAMP_EPOCH_MS
 }
 
+/// Whether this record's three closed identifiers agree with each other.
+///
+/// The enums alone stop a foreign word. They do not stop a CODEX record filed
+/// with an OpenRouter management key, which is the confused deputy the audit
+/// named: it would pair one provider's secret with another provider's address.
+/// So the pairing is checked against the one routing function, and the record's
+/// stored reader must be the reader that pairing actually routes to.
+fn routing_agrees(record: &ConnectionRecord) -> bool {
+    match reader_route(record.provider_id, record.credential_kind) {
+        Ok(route) => route.reader_id == record.reader_id,
+        Err(_) => false,
+    }
+}
+
 pub(crate) fn validate_record(record: &ConnectionRecord) -> Result<(), StoreError> {
     let valid = valid_id(&record.id)
-        && PROVIDER_IDS.contains(&record.provider_id.as_str())
-        && KEY_KINDS.contains(&record.key_kind.as_str())
+        && routing_agrees(record)
         && CONNECTION_STATES.contains(&record.status.as_str())
         && valid_alias(&record.account_alias)
         && valid_masked_label(&record.masked_label)
         && valid_timestamp(record.created_at)
-        && record.last_test_at.is_none_or(valid_timestamp)
-        && record.last_refresh_at.is_none_or(valid_timestamp);
+        && record.last_attempt_at.is_none_or(valid_timestamp)
+        && record.last_success_at.is_none_or(valid_timestamp)
+        && record.attempt_generation <= MAX_ATTEMPT_GENERATION
+        && record.consecutive_failures <= MAX_CONSECUTIVE_FAILURES;
     if valid {
         Ok(())
     } else {
@@ -356,29 +525,62 @@ mod tests {
     fn record(id: &str) -> ConnectionRecord {
         ConnectionRecord {
             id: id.to_string(),
-            provider_id: "OPENROUTER".to_string(),
+            provider_id: ProviderId::Openrouter,
+            reader_id: ReaderId::OpenrouterKey,
+            credential_kind: CredentialKind::OpenrouterInferenceKey,
             account_alias: "personal".to_string(),
-            key_kind: "inference".to_string(),
             masked_label: "sk-········cdef".to_string(),
             created_at: 1_770_000_000_000,
-            last_test_at: None,
-            last_refresh_at: None,
+            last_attempt_at: None,
+            last_success_at: None,
+            attempt_generation: 0,
+            ever_connected: false,
+            consecutive_failures: 0,
             status: "READY_TO_ENABLE".to_string(),
         }
     }
 
-    fn record_json(id: &str, alias: &str, kind: &str) -> String {
+    /// One version 2 record as JSON, for the tampering tests.
+    fn record_json(id: &str, alias: &str, credential_kind: &str) -> String {
+        let reader = if credential_kind == "openrouter_management_key" {
+            "openrouter_credits"
+        } else {
+            "openrouter_key"
+        };
         format!(
             concat!(
-                r#"{{"id":"{}","provider_id":"OPENROUTER","account_alias":"{}","#,
-                r#""key_kind":"{}","masked_label":"sk-········cdef","#,
+                r#"{{"id":"{}","provider_id":"openrouter","reader_id":"{}","#,
+                r#""credential_kind":"{}","account_alias":"{}","#,
+                r#""masked_label":"sk-········cdef","#,
                 r#""created_at":1770000000000,"status":"CONNECTED"}}"#
             ),
-            id, alias, kind
+            id, reader, credential_kind, alias
+        )
+    }
+
+    /// One version 1 record as version 1 wrote it, for the migration tests.
+    fn legacy_record_json(id: &str, kind: &str, test_at: &str, refresh_at: &str) -> String {
+        format!(
+            concat!(
+                r#"{{"id":"{}","provider_id":"OPENROUTER","account_alias":"personal","#,
+                r#""key_kind":"{}","masked_label":"sk-········cdef","#,
+                r#""created_at":1770000000000,"last_test_at":{},"last_refresh_at":{},"#,
+                r#""status":"CONNECTED"}}"#
+            ),
+            id, kind, test_at, refresh_at
         )
     }
 
     fn write_document(dir: &TempDir, records: &[String]) {
+        let text = format!(
+            r#"{{"version":{},"connections":[{}]}}"#,
+            CONNECTIONS_DOCUMENT_VERSION,
+            records.join(",")
+        );
+        std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), text).expect("write");
+    }
+
+    fn write_legacy_document(dir: &TempDir, records: &[String]) {
         let text = format!(r#"{{"version":1,"connections":[{}]}}"#, records.join(","));
         std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), text).expect("write");
     }
@@ -391,11 +593,14 @@ mod tests {
         store.insert(record("one")).expect("insert");
         store.insert(record("two")).expect("insert");
         assert_eq!(store.list().expect("list").len(), 2);
-        assert_eq!(store.get("one").expect("get").provider_id, "OPENROUTER");
+        assert_eq!(
+            store.get("one").expect("get").provider_id,
+            ProviderId::Openrouter
+        );
         let updated = store
             .update("one", |it| {
                 it.status = "CONNECTED".to_string();
-                it.last_refresh_at = Some(1_770_000_100_000);
+                it.last_success_at = Some(1_770_000_100_000);
             })
             .expect("update");
         assert_eq!(updated.status, "CONNECTED");
@@ -440,24 +645,72 @@ mod tests {
     fn record_bounds_are_enforced() {
         let dir = TempDir::new();
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
-        let mut empty_provider = record("one");
-        empty_provider.provider_id = String::new();
-        assert_eq!(store.insert(empty_provider), Err(StoreError::InvalidField));
         let mut oversized = record("two");
         oversized.account_alias = "a".repeat(MAX_ALIAS_CHARS + 1);
         assert_eq!(store.insert(oversized), Err(StoreError::InvalidField));
-        let mut foreign_provider = record("three");
-        foreign_provider.provider_id = "EVILCORP".to_string();
-        assert_eq!(
-            store.insert(foreign_provider),
-            Err(StoreError::InvalidField)
-        );
         let mut foreign_status = record("four");
         foreign_status.status = "TOTALLY_FINE".to_string();
         assert_eq!(store.insert(foreign_status), Err(StoreError::InvalidField));
         let mut naked_label = record("five");
         naked_label.masked_label = "sk-or-v1-full-secret".to_string();
         assert_eq!(store.insert(naked_label), Err(StoreError::InvalidField));
+        let mut wild_generation = record("six");
+        wild_generation.attempt_generation = MAX_ATTEMPT_GENERATION + 1;
+        assert_eq!(store.insert(wild_generation), Err(StoreError::InvalidField));
+        let mut wild_failures = record("seven");
+        wild_failures.consecutive_failures = MAX_CONSECUTIVE_FAILURES + 1;
+        assert_eq!(store.insert(wild_failures), Err(StoreError::InvalidField));
+    }
+
+    #[test]
+    fn every_wrong_provider_and_credential_pairing_is_refused() {
+        /* The endpoint confusion matrix at the record level: every provider
+        paired with every credential kind, and only the five real pairings may
+        be stored at all. A record that could be stored with a foreign
+        credential is a record whose secret could be sent to a foreign host. */
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let mut stored = 0usize;
+        for (index, provider) in ProviderId::ALL.into_iter().enumerate() {
+            for (inner, credential) in CredentialKind::ALL.into_iter().enumerate() {
+                let id = format!("pair-{index}-{inner}");
+                let route = reader_route(provider, credential);
+                let mut candidate = record(&id);
+                candidate.provider_id = provider;
+                candidate.credential_kind = credential;
+                candidate.reader_id = match route {
+                    Ok(route) => route.reader_id,
+                    /* A wrong pairing has no reader, so the record carries the
+                    provider's own reader and is still refused: the refusal is
+                    the pairing, not a mismatched third field. */
+                    Err(_) => ReaderId::OpenrouterKey,
+                };
+                let outcome = store.insert(candidate);
+                if route.is_ok() {
+                    assert!(outcome.is_ok(), "a real pairing must be storable");
+                    stored += 1;
+                } else {
+                    assert_eq!(
+                        outcome,
+                        Err(StoreError::InvalidField),
+                        "a foreign credential must never be storable"
+                    );
+                }
+            }
+        }
+        assert_eq!(stored, 5);
+        assert_eq!(store.list().expect("list").len(), 5);
+    }
+
+    #[test]
+    fn a_record_whose_reader_does_not_match_its_route_is_refused() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let mut crossed = record("one");
+        /* An inference key filed against the credits reader: both identifiers
+        are real, and the pairing is not. */
+        crossed.reader_id = ReaderId::OpenrouterCredits;
+        assert_eq!(store.insert(crossed), Err(StoreError::InvalidField));
     }
 
     #[test]
@@ -479,7 +732,7 @@ mod tests {
         let oversized_alias = "a".repeat(MAX_ALIAS_CHARS + 1);
         write_document(
             &dir,
-            &[record_json("abc-123", &oversized_alias, "inference")],
+            &[record_json("abc-123", &oversized_alias, "openrouter_inference_key")],
         );
         assert_eq!(store.list(), Err(StoreError::Corrupt));
         assert_eq!(store.insert(record("z9")), Err(StoreError::Corrupt));
@@ -489,7 +742,10 @@ mod tests {
     fn tampered_hostile_id_is_corrupt_and_blocks_writes() {
         let dir = TempDir::new();
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
-        write_document(&dir, &[record_json("../../evil", "personal", "inference")]);
+        write_document(
+            &dir,
+            &[record_json("../../evil", "personal", "openrouter_inference_key")],
+        );
         assert_eq!(store.list(), Err(StoreError::Corrupt));
         assert_eq!(store.get("../../evil"), Err(StoreError::Corrupt));
         assert_eq!(store.insert(record("z9")), Err(StoreError::Corrupt));
@@ -501,7 +757,7 @@ mod tests {
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         write_document(
             &dir,
-            &[record_json("abc-123", "personal", "browser_cookie")],
+            &[record_json("abc-123", "personal", "opencode_browser_session")],
         );
         assert_eq!(store.list(), Err(StoreError::Corrupt));
         assert_eq!(store.insert(record("z9")), Err(StoreError::Corrupt));
@@ -514,8 +770,8 @@ mod tests {
         write_document(
             &dir,
             &[
-                record_json("abc-123", "personal", "inference"),
-                record_json("abc-123", "work", "management"),
+                record_json("abc-123", "personal", "openrouter_inference_key"),
+                record_json("abc-123", "work", "openrouter_management_key"),
             ],
         );
         assert_eq!(store.list(), Err(StoreError::Corrupt));
@@ -525,10 +781,14 @@ mod tests {
     fn a_valid_handwritten_document_loads() {
         let dir = TempDir::new();
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
-        write_document(&dir, &[record_json("abc-123", "personal", "inference")]);
+        write_document(
+            &dir,
+            &[record_json("abc-123", "personal", "openrouter_inference_key")],
+        );
         let listed = store.list().expect("valid document loads");
         assert_eq!(listed.len(), 1);
-        assert_eq!(listed[0].provider_id, "OPENROUTER");
+        assert_eq!(listed[0].provider_id, ProviderId::Openrouter);
+        assert_eq!(listed[0].reader_id, ReaderId::OpenrouterKey);
     }
 
     #[test]
@@ -576,8 +836,8 @@ mod tests {
     fn future_document_version_is_corrupt_and_blocks_writes() {
         let dir = TempDir::new();
         let text = format!(
-            r#"{{"version":2,"connections":[{}]}}"#,
-            record_json("one", "personal", "inference")
+            r#"{{"version":3,"connections":[{}]}}"#,
+            record_json("one", "personal", "openrouter_inference_key")
         );
         std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), text.clone()).expect("write");
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
@@ -599,7 +859,148 @@ mod tests {
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         store.insert(record("one")).expect("insert");
         let text = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
-        assert!(text.contains("\"version\":1"));
+        assert!(text.contains("\"version\":2"));
         assert!(!text.contains("secret"));
+    }
+
+    /* ------------------------------------------------ version 1 migration */
+
+    #[test]
+    fn version_one_migrates_without_changing_the_credential_lookup_id() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        write_legacy_document(
+            &dir,
+            &[
+                legacy_record_json("abc-123", "inference", "1770000050000", "1770000090000"),
+                legacy_record_json("def-456", "management", "null", "null"),
+            ],
+        );
+        let listed = store.list().expect("a version 1 document is readable");
+        assert_eq!(listed.len(), 2);
+
+        let inference = &listed[0];
+        /* The id is the credential store's key. It must be byte identical, or
+        the secret becomes unreachable and the connection silently dies. */
+        assert_eq!(inference.id, "abc-123");
+        assert_eq!(inference.provider_id, ProviderId::Openrouter);
+        assert_eq!(inference.credential_kind, CredentialKind::OpenrouterInferenceKey);
+        assert_eq!(inference.reader_id, ReaderId::OpenrouterKey);
+        assert_eq!(inference.masked_label, "sk-········cdef");
+        assert_eq!(inference.created_at, 1_770_000_000_000);
+        /* last_refresh_at became last_success_at, and last_attempt_at became
+        the later of the two old stamps. */
+        assert_eq!(inference.last_success_at, Some(1_770_000_090_000));
+        assert_eq!(inference.last_attempt_at, Some(1_770_000_090_000));
+        assert!(inference.ever_connected);
+        assert_eq!(inference.attempt_generation, 0);
+        assert_eq!(inference.consecutive_failures, 0);
+        assert_eq!(inference.status, "CONNECTED");
+
+        let management = &listed[1];
+        assert_eq!(management.credential_kind, CredentialKind::OpenrouterManagementKey);
+        assert_eq!(management.reader_id, ReaderId::OpenrouterCredits);
+        /* Neither old stamp existed, so nothing is invented and nothing claims
+        this connection ever worked. */
+        assert_eq!(management.last_success_at, None);
+        assert_eq!(management.last_attempt_at, None);
+        assert!(!management.ever_connected);
+    }
+
+    #[test]
+    fn a_test_only_legacy_record_counts_as_ever_connected_but_not_as_a_success() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        write_legacy_document(
+            &dir,
+            &[legacy_record_json("abc-123", "inference", "1770000050000", "null")],
+        );
+        let listed = store.list().expect("list");
+        assert_eq!(listed[0].last_attempt_at, Some(1_770_000_050_000));
+        assert_eq!(listed[0].last_success_at, None);
+        assert!(listed[0].ever_connected);
+    }
+
+    #[test]
+    fn reading_a_version_one_document_does_not_rewrite_it() {
+        /* The migration is in memory. Version 2 reaches the disk on the next
+        successful mutation and not before, so opening the application and
+        changing nothing leaves the previous build's file exactly as it was. */
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        write_legacy_document(
+            &dir,
+            &[legacy_record_json("abc-123", "inference", "null", "null")],
+        );
+        let before = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
+        store.list().expect("list");
+        store.get("abc-123").expect("get");
+        let after = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
+        assert_eq!(before, after);
+    }
+
+    #[test]
+    fn the_next_successful_mutation_writes_version_two() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        write_legacy_document(
+            &dir,
+            &[legacy_record_json("abc-123", "inference", "null", "null")],
+        );
+        store
+            .update("abc-123", |it| it.status = "CONNECTED".to_string())
+            .expect("update");
+        let text = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
+        assert!(text.contains("\"version\":2"));
+        assert!(text.contains("\"credential_kind\":\"openrouter_inference_key\""));
+        assert!(text.contains("\"reader_id\":\"openrouter_key\""));
+        assert!(!text.contains("key_kind"));
+        /* And the id, which is the secret's lookup key, is untouched. */
+        assert!(text.contains("\"id\":\"abc-123\""));
+    }
+
+    #[test]
+    fn a_legacy_document_with_an_unknown_enum_value_is_corrupt_and_survives() {
+        for hostile in [
+            legacy_record_json("abc-123", "browser_cookie", "null", "null"),
+            legacy_record_json("abc-123", "inference", "null", "null")
+                .replace("OPENROUTER", "EVILCORP"),
+            legacy_record_json("abc-123", "inference", "null", "null")
+                .replace("CONNECTED", "TOTALLY_FINE"),
+        ] {
+            let dir = TempDir::new();
+            let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+            write_legacy_document(&dir, &[hostile]);
+            let before =
+                std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
+            assert_eq!(store.list(), Err(StoreError::Corrupt));
+            assert_eq!(store.insert(record("z9")), Err(StoreError::Corrupt));
+            let after =
+                std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
+            assert_eq!(after, before, "a refused document must survive untouched");
+        }
+    }
+
+    #[test]
+    fn a_version_two_record_with_legacy_fields_only_is_refused() {
+        /* A version 2 header over version 1 records: the shape and the version
+        disagree, which is corrupt rather than something to reconcile. */
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let text = format!(
+            r#"{{"version":2,"connections":[{}]}}"#,
+            legacy_record_json("abc-123", "inference", "null", "null")
+        );
+        std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), &text).expect("write");
+        assert_eq!(store.list(), Err(StoreError::Corrupt));
+    }
+
+    #[test]
+    fn later_of_picks_the_later_instant_or_the_only_one() {
+        assert_eq!(later_of(Some(2), Some(1)), Some(2));
+        assert_eq!(later_of(Some(1), Some(2)), Some(2));
+        assert_eq!(later_of(Some(7), None), Some(7));
+        assert_eq!(later_of(None, Some(7)), Some(7));
+        assert_eq!(later_of(None, None), None);
     }
 }

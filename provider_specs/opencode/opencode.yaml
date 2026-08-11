@@ -35,12 +35,37 @@ availability:
 
 support:
   parser: implemented
-  reader: absent
-  auth: not_required
+  reader: implemented
+  auth: implemented
+
+# The live collection block, and the least trustworthy one in the registry.
+#
+# OpenCode publishes no usage interface of any kind. The plan percentages exist
+# only on the logged in workspace page, which the site server renders into its
+# html, so this reader is an authenticated scrape and every surface says so
+# permanently: credentialOrigin browser-session, dataInterfaceStatus
+# authenticated-scrape, automationRisk high, verification UNVERIFIED. Those four
+# labels are not provisional and do not improve with a capture.
+#
+# Request contract, recorded 2026-08-07 from a working reader:
+#   GET https://opencode.ai/auth to learn the workspace handle, then
+#   GET https://opencode.ai/workspace/<handle>/go for the meters
+#   Cookie: <a session the operator pastes in once>
+#   redirects refused; the handle is read out of the redirect target and is
+#     accepted only when it matches the provider's own opaque token shape
+collection:
+  reader: implemented
+  auth: implemented
+  reader_id: opencode_usage
+  endpoint_id: opencode_usage
+  credential_kind: opencode_browser_session
+  evidence_fixture: opencode.sanitized_live.usage
+  evidence_status: pending_capture
+  last_verified_at: null
 
 connections:
-  - reader: explicit_import
-    auth_mode: none
+  - reader: experimental
+    auth_mode: manual
     platforms:
       - windows
       - macos
@@ -51,6 +76,7 @@ verification:
   last_verified_at: null
   fixture_ids:
     - opencode.provisional.usage
+    - opencode.sanitized_live.usage
 
 meters:
   - id: primary

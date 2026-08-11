@@ -30,12 +30,35 @@ availability:
 
 support:
   parser: implemented
-  reader: absent
-  auth: not_required
+  reader: implemented
+  auth: implemented
+
+# The live collection block. Every identifier below is closed: the same five
+# words appear in apps/desktop/src-tauri/src/reader_registry.rs, in the desktop
+# window's wire vocabulary, and here. The literal URL, the method, the headers
+# and the permitted statuses are NOT here and never will be: they are Rust
+# constants, so no YAML file, no IPC payload and no provider response can move
+# where a credential is sent.
+#
+# Request contract, recorded 2026-08-07 from a working reader:
+#   GET https://chatgpt.com/backend-api/wham/usage
+#   Authorization: Bearer <the session the Codex client already holds>
+#   User-Agent and Accept are fixed product headers
+#   redirects refused, response bounded
+#   401 and 403 mean the login lapsed; the Codex client owns renewing it
+collection:
+  reader: implemented
+  auth: implemented
+  reader_id: codex_usage
+  endpoint_id: codex_usage
+  credential_kind: codex_session
+  evidence_fixture: codex.sanitized_live.usage
+  evidence_status: pending_capture
+  last_verified_at: null
 
 connections:
-  - reader: explicit_import
-    auth_mode: none
+  - reader: experimental
+    auth_mode: existing_local_cli
     platforms:
       - windows
       - macos
@@ -46,6 +69,7 @@ verification:
   last_verified_at: null
   fixture_ids:
     - codex.provisional.usage
+    - codex.sanitized_live.usage
 
 meters:
   - id: primary

@@ -19,14 +19,34 @@ availability:
   appears_after: credential_stored
   absence_is_error: true
 
-# Parser and credential storage exist. Nothing in this repository makes an
-# HTTP request to OpenRouter, so there is no reader: a payload reaches the
-# product only when a person runs the ingest command. This entry says so
-# rather than letting a working parser imply a working connection.
+# Parser, credential storage and a live reader all exist: the desktop probes
+# this endpoint itself through the closed allowlist in
+# apps/desktop/src-tauri/src/net.rs.
 support:
   parser: implemented
-  reader: absent
+  reader: implemented
   auth: implemented
+
+# The live collection block. This provider is the one with a published response
+# shape, so its evidence fixture is a documented one rather than a capture.
+#
+# KNOWN GAP, and it is a contract question rather than an omission: OpenRouter
+# ships TWO readers, openrouter_key for an inference key and openrouter_credits
+# for a management key, and this block holds one reader_id, one endpoint_id and
+# one credential_kind. The inference path is stated here because it is the one
+# the desktop offers first. Routing for BOTH paths is complete and exhaustively
+# tested in reader_registry.rs; only this registry cannot yet express the
+# second, and it must not be faked by inventing a shape the contract does not
+# define.
+collection:
+  reader: implemented
+  auth: implemented
+  reader_id: openrouter_key
+  endpoint_id: openrouter_key
+  credential_kind: openrouter_inference_key
+  evidence_fixture: openrouter.documented.credits
+  evidence_status: documented
+  last_verified_at: "2026-08-10"
 
 connections:
   - reader: official_remote_api

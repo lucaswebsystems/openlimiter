@@ -10,12 +10,25 @@
  *   { input: {...} } with snake_case fields inside;
  *
  *   ConnectProviderInput is flat:
- *     { provider_id, account_alias, key_kind, status, secret };
+ *     { provider_id, credential_kind, account_alias, secret }, where the
+ *     first two are closed snake_case identifiers and NEITHER an endpoint nor
+ *     a starting status may be named;
  *
- *   ProbeInput is { connection_id, endpoint } where endpoint is the closed
- *   string "openrouter_key" or "openrouter_credits";
+ *   ProbeInput is { connection_id } and nothing else. The endpoint is derived
+ *   in Rust from the stored connection's provider and credential kind, so
+ *   this window cannot pair a secret with an address;
  *
- *   UpdateConnectionInput is { connection_id, account_alias?, status? };
+ *   a probe answers with a tagged union, ProbeOutcome, whose kind is
+ *   "response" or "transport_failure", and every arm carries connection_id,
+ *   reader_id and attempt_generation;
+ *
+ *   CompleteAttemptInput is { connection_id, attempt_generation, disposition }
+ *   where disposition is one of parsed_test, cache_committed, drift or
+ *   cache_failure. An attempt is only a success once it completes;
+ *
+ *   UpdateConnectionInput is { connection_id, account_alias? }. There is no
+ *   status input: connection state is written by Rust from what a read
+ *   achieved, never by this window;
  *
  *   list_connections, detect_local_tools and cache_begin_write take no
  *   arguments; cache_commit_write takes { input: { text, generation } };
@@ -25,8 +38,8 @@
  *
  *   ConnectionRecord timestamps are epoch milliseconds or null;
  *
- *   EndpointOutcome is { status, body, retry_after_seconds } with body null
- *   on every response outside the 200s.
+ *   a "response" arm carries { status, body, retry_after_seconds } with body
+ *   null on every response outside the 200s.
  *
  * A command that is not registered at all reports BACKEND_ABSENT, the
  * interface renders an honest "this build has no connection backend yet"
@@ -207,17 +220,51 @@ export async function listen(event, handler) {
 /* ------------------------------------------------------ connection commands */
 
 /**
- * The interface's key kind words, mapped to the bare wire words.
+ * The closed provider vocabulary the wire speaks, lowercase.
  *
- * The backend validates key_kind against exactly ["inference", "management"]
- * and rejects anything else as invalid_input before the secret reaches the
- * credential store. The interface speaks in fuller words, so the translation
- * happens here, at the boundary, in one place. Anything that is not a
- * management key is an inference key, because those are the only two kinds
- * the wire has.
+ * Shorter than the engine's PROVIDER_CODES: CLAUDE is a local statusline
+ * payload and MANUAL is a document a person maintains, so neither holds a
+ * credential and neither can be connected through this path.
  */
-function wireKeyKind(kind) {
-  return /management/iu.test(String(kind ?? "")) ? "management" : "inference";
+export const WIRE_PROVIDER_IDS = Object.freeze([
+  "openrouter",
+  "codex",
+  "antigravity",
+  "opencode",
+]);
+
+/** The closed credential vocabulary the wire speaks. */
+export const WIRE_CREDENTIAL_KINDS = Object.freeze([
+  "openrouter_inference_key",
+  "openrouter_management_key",
+  "codex_session",
+  "antigravity_session",
+  "opencode_browser_session",
+]);
+
+/** The closed reader vocabulary, which is how a parser gets selected. */
+export const WIRE_READER_IDS = Object.freeze([
+  "openrouter_key",
+  "openrouter_credits",
+  "codex_usage",
+  "antigravity_quota",
+  "opencode_usage",
+]);
+
+/** The four ways an attempt may be closed. */
+export const ATTEMPT_DISPOSITIONS = Object.freeze([
+  "parsed_test",
+  "cache_committed",
+  "drift",
+  "cache_failure",
+]);
+
+function refusedInput(command) {
+  return failed(
+    command,
+    "invalid_input",
+    FAILURE_SENTENCES.invalid_input + " (invalid_input)",
+  );
 }
 
 /**
@@ -225,32 +272,79 @@ function wireKeyKind(kind) {
  *
  * The one call that carries a secret. See the header: it crosses here once,
  * inside the payload, and nothing about it is kept or logged on this side.
- * provider_id crosses uppercase and key_kind crosses as a bare wire word,
- * because the backend validates both against closed sets.
+ *
+ * Both identifiers cross as the exact closed words the registry, the Rust and
+ * this file all spell one way. An identifier outside its vocabulary is refused
+ * here rather than coerced into a neighbouring one: guessing which provider
+ * somebody meant is how a secret ends up at the wrong address.
  */
-export async function connectProvider({ providerId, accountAlias, keyKind, status, secret }) {
+export async function connectProvider({
+  providerId,
+  credentialKind,
+  accountAlias,
+  secret,
+}) {
+  const provider = String(providerId ?? "").toLowerCase();
+  const credential = String(credentialKind ?? "").toLowerCase();
+  if (!WIRE_PROVIDER_IDS.includes(provider)) return refusedInput("connect_provider");
+  if (!WIRE_CREDENTIAL_KINDS.includes(credential)) {
+    return refusedInput("connect_provider");
+  }
   return call("connect_provider", {
     input: {
-      provider_id: String(providerId).toUpperCase(),
+      provider_id: provider,
+      credential_kind: credential,
       account_alias: accountAlias,
-      key_kind: wireKeyKind(keyKind),
-      status,
       secret,
     },
   });
 }
 
-/** Ask the provider a question that proves the stored credential works. */
-export async function testProvider({ connectionId, endpoint }) {
+/**
+ * Ask the provider a question that proves the stored credential works.
+ *
+ * No endpoint crosses. Rust derives the address from the stored connection,
+ * which is the whole point of the version 2 contract: this window can name a
+ * connection and can name nothing about where that connection reads from.
+ */
+export async function testProvider({ connectionId }) {
   return call("test_provider", {
-    input: { connection_id: connectionId, endpoint },
+    input: { connection_id: connectionId },
   });
 }
 
 /** Perform one collection read for this connection, now. */
-export async function refreshProvider({ connectionId, endpoint }) {
+export async function refreshProvider({ connectionId }) {
   return call("refresh_provider", {
-    input: { connection_id: connectionId, endpoint },
+    input: { connection_id: connectionId },
+  });
+}
+
+/**
+ * Close the attempt a probe opened, with what actually happened downstream.
+ *
+ * The generation binds this completion to that exact request. A completion
+ * presenting a generation the backend has already moved past is refused with
+ * stale_generation, which is how a slow parse from a superseded attempt can
+ * never stamp a success onto a newer one.
+ */
+export async function completeAttempt({
+  connectionId,
+  attemptGeneration,
+  disposition,
+}) {
+  if (!ATTEMPT_DISPOSITIONS.includes(disposition)) {
+    return refusedInput("complete_attempt");
+  }
+  if (typeof attemptGeneration !== "number" || !Number.isFinite(attemptGeneration)) {
+    return refusedInput("complete_attempt");
+  }
+  return call("complete_attempt", {
+    input: {
+      connection_id: connectionId,
+      attempt_generation: attemptGeneration,
+      disposition,
+    },
   });
 }
 
@@ -267,14 +361,18 @@ export async function listConnections() {
 }
 
 /**
- * Change a connection record: the alias, or the state the mirrored core state
- * machine computed. Never the secret. The backend stamps its own timestamps
- * off the status transition, which is why a successful refresh ends here.
+ * Change a connection record's account alias. That is the whole verb.
+ *
+ * There is no status parameter and no status field on the wire. A connection's
+ * state follows from what a read achieved, and Rust is the only thing that
+ * observes that: it stamps the state when a probe settles and again when an
+ * attempt completes. A window that could write the state could claim a
+ * connection was working while nothing had ever been read from it, which is
+ * exactly the dishonesty this product exists to remove.
  */
-export async function updateConnection({ connectionId, accountAlias, status }) {
+export async function updateConnection({ connectionId, accountAlias }) {
   const input = { connection_id: connectionId };
   if (accountAlias !== undefined) input.account_alias = accountAlias;
-  if (status !== undefined) input.status = status;
   return call("update_connection", { input });
 }
 
@@ -371,26 +469,21 @@ export function normalizeConnection(record) {
        list and shows an unrecognised code as the code, claiming nothing. */
     state: pick(record, ["status", "state", "connection_state", "connectionState"]),
     sourceType: pick(record, ["source_type", "sourceType", "reader_kind", "readerKind"]),
-    credentialKind: pick(record, [
-      "key_kind",
-      "keyKind",
-      "credential_kind",
-      "credentialKind",
-    ]),
+    credentialKind: pick(record, ["credential_kind", "credentialKind"]),
+    /* Which reader this connection uses, and therefore which parser its body
+       may be handed to. Read from the record, never chosen here. */
+    readerId: pick(record, ["reader_id", "readerId"]),
+    attemptGeneration: numberOf(
+      pick(record, ["attempt_generation", "attemptGeneration"]),
+    ),
     maskedLabel: pick(record, [
       "masked_label",
       "maskedLabel",
       "credential_label",
       "credentialLabel",
     ]),
-    lastSuccessAt: instantOf(
-      pick(record, [
-        "last_success_at",
-        "lastSuccessAt",
-        "last_successful_refresh_at",
-        "lastSuccessfulRefreshAt",
-      ]),
-    ),
+    lastSuccessAt: instantOf(pick(record, ["last_success_at", "lastSuccessAt"])),
+    lastAttemptAt: instantOf(pick(record, ["last_attempt_at", "lastAttemptAt"])),
     nextRefreshAt: instantOf(
       pick(record, ["next_refresh_at", "nextRefreshAt", "next_attempt_at", "nextAttemptAt"]),
     ),
@@ -403,7 +496,7 @@ export function normalizeConnection(record) {
       ]),
     ),
     consecutiveFailures: numberOf(
-      pick(record, ["consecutive_failures", "consecutiveFailures", "failure_count", "failureCount"]),
+      pick(record, ["consecutive_failures", "consecutiveFailures"]),
     ),
     everConnected:
       pick(record, ["ever_connected", "everConnected"]) === true,
@@ -426,19 +519,49 @@ export function normalizeConnectionList(value) {
 }
 
 /**
- * An EndpointOutcome in one canonical shape:
- * { status, body, retryAfterSeconds }, with body null outside the 200s
- * exactly as the backend sends it. A status this cannot read is null, and a
- * null status is an answer nothing downstream may claim anything from.
+ * A ProbeOutcome in one canonical shape.
+ *
+ * The union is mirrored exactly, with no third possibility invented: a value
+ * whose kind is not one of the two, or whose reader is not in the closed
+ * reader vocabulary, or whose generation or connection cannot be read, is
+ * { kind: "unreadable" }. Unreadable is a failure everywhere downstream, never
+ * a quietly emptied response, because a body with no reader has no parser and
+ * a completion with no generation cannot be honest.
  */
-export function normalizeOutcome(value) {
-  if (value === null || typeof value !== "object") {
-    return { status: null, body: null, retryAfterSeconds: null };
-  }
-  const status = numberOf(value.status);
-  const body = typeof value.body === "string" ? value.body : null;
-  const retryAfterSeconds = numberOf(
-    value.retry_after_seconds ?? value.retryAfterSeconds,
+export function normalizeProbeOutcome(value) {
+  const unreadable = { kind: "unreadable" };
+  if (value === null || typeof value !== "object") return unreadable;
+  const readerId = value.reader_id ?? value.readerId ?? null;
+  if (!WIRE_READER_IDS.includes(readerId)) return unreadable;
+  const attemptGeneration = numberOf(
+    value.attempt_generation ?? value.attemptGeneration,
   );
-  return { status, body, retryAfterSeconds };
+  if (attemptGeneration === null) return unreadable;
+  const connectionId = value.connection_id ?? value.connectionId ?? null;
+  if (typeof connectionId !== "string" || connectionId === "") return unreadable;
+  const base = { connectionId, readerId, attemptGeneration };
+  if (value.kind === "response") {
+    const status = numberOf(value.status);
+    if (status === null) return unreadable;
+    return {
+      kind: "response",
+      ...base,
+      status,
+      body: typeof value.body === "string" ? value.body : null,
+      retryAfterSeconds: numberOf(
+        value.retry_after_seconds ?? value.retryAfterSeconds,
+      ),
+    };
+  }
+  if (value.kind === "transport_failure") {
+    return {
+      kind: "transport_failure",
+      ...base,
+      failure:
+        typeof value.failure === "string" && value.failure !== ""
+          ? value.failure
+          : "unknown",
+    };
+  }
+  return unreadable;
 }

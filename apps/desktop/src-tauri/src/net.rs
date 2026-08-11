@@ -30,29 +30,168 @@ pub const OPENROUTER_KEY_URL: &str = "https://openrouter.ai/api/v1/key";
 /// The OpenRouter management credits report.
 pub const OPENROUTER_CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 
+/// The Codex usage report, read with the session the Codex client holds.
+///
+/// Evidence, recorded 2026-08-07 from a working reader and restated in
+/// `provider_specs/openai/codex.yaml`: `GET`, bearer authorization, a product
+/// user agent, and `Accept: application/json`. OpenAI publishes no consumer
+/// quota API, so this is an internal endpoint and every surface says so.
+pub const CODEX_USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
+
+/// The Antigravity quota summary, on Google's metadata plane.
+///
+/// Evidence, recorded 2026-08-07: `POST` with an empty JSON object as the
+/// body, bearer authorization, and a NON EMPTY user agent. The user agent is
+/// not decoration: the same valid token answers 403 without one.
+pub const ANTIGRAVITY_QUOTA_URL: &str =
+    "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
+
+/// The first of the two constant addresses the OpenCode reader uses: the
+/// authenticated entry point, whose redirect names the workspace.
+///
+/// OpenCode publishes no usage interface at all. The plan percentages exist
+/// only on the logged in workspace page, which is why this provider is
+/// permanently labelled an authenticated scrape with a high automation risk.
+pub const OPENCODE_AUTH_URL: &str = "https://opencode.ai/auth";
+
+/// The prefix of the second constant address, before the workspace handle.
+pub const OPENCODE_WORKSPACE_URL_PREFIX: &str = "https://opencode.ai/workspace/";
+
+/// The suffix of the second constant address, after the workspace handle.
+pub const OPENCODE_WORKSPACE_URL_SUFFIX: &str = "/go";
+
 /// Every address this process may speak to. Adding a provider means adding a
 /// variant here, in code, in review; nothing at runtime can.
+///
+/// One variant is not one request. `OpencodeUsage` owns two constant addresses
+/// because reading that provider takes two hops: the entry point names the
+/// workspace, and the workspace page carries the meters. Both addresses are
+/// built here, from constants here, and the workspace handle between them is a
+/// `WorkspaceHandle`, whose only constructor refuses anything that is not the
+/// provider's own opaque token. Nothing outside this file, and in particular
+/// nothing arriving over IPC, from YAML, or from a provider response body, can
+/// widen or redirect either address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderEndpoint {
     OpenrouterKey,
     OpenrouterCredits,
+    CodexUsage,
+    AntigravityQuota,
+    OpencodeUsage,
 }
 
 impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
-    #[cfg(test)]
-    pub const ALL: [ProviderEndpoint; 2] = [
+    pub const ALL: [ProviderEndpoint; 5] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
+        ProviderEndpoint::CodexUsage,
+        ProviderEndpoint::AntigravityQuota,
+        ProviderEndpoint::OpencodeUsage,
     ];
 
+    /// The address the first request of this endpoint goes to.
+    ///
+    /// For four of the five that is the whole endpoint. For `OpencodeUsage` it
+    /// is the entry point, and `workspace_url` below builds the second hop.
     pub const fn url(self) -> &'static str {
         match self {
             ProviderEndpoint::OpenrouterKey => OPENROUTER_KEY_URL,
             ProviderEndpoint::OpenrouterCredits => OPENROUTER_CREDITS_URL,
+            ProviderEndpoint::CodexUsage => CODEX_USAGE_URL,
+            ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_QUOTA_URL,
+            ProviderEndpoint::OpencodeUsage => OPENCODE_AUTH_URL,
         }
+    }
+
+    /// Whether this endpoint's read takes a second hop through a workspace.
+    pub const fn needs_workspace(self) -> bool {
+        matches!(self, ProviderEndpoint::OpencodeUsage)
+    }
+
+    /// The HTTP verb this endpoint answers. A constant per variant, never a
+    /// parameter: a caller that could choose the method could turn a read into
+    /// a write.
+    pub const fn method(self) -> HttpMethod {
+        match self {
+            ProviderEndpoint::OpenrouterKey
+            | ProviderEndpoint::OpenrouterCredits
+            | ProviderEndpoint::CodexUsage
+            | ProviderEndpoint::OpencodeUsage => HttpMethod::Get,
+            ProviderEndpoint::AntigravityQuota => HttpMethod::Post,
+        }
+    }
+
+    /// The request body, when the endpoint demands one. A constant, so no
+    /// caller supplied bytes ever leave this process.
+    pub const fn body(self) -> Option<&'static str> {
+        match self {
+            ProviderEndpoint::AntigravityQuota => Some(ANTIGRAVITY_EMPTY_BODY),
+            ProviderEndpoint::OpenrouterKey
+            | ProviderEndpoint::OpenrouterCredits
+            | ProviderEndpoint::CodexUsage
+            | ProviderEndpoint::OpencodeUsage => None,
+        }
+    }
+}
+
+/// The empty JSON object the quota summary expects as its whole request body.
+pub const ANTIGRAVITY_EMPTY_BODY: &str = "{}";
+
+/// The two verbs the allowlist uses, closed so no third can be requested.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HttpMethod {
+    Get,
+    Post,
+}
+
+/// Longest a workspace handle may be, in characters.
+const MAX_WORKSPACE_HANDLE_CHARS: usize = 64;
+
+/// The provider's own opaque handle for one workspace, validated on the way in.
+///
+/// This is the only value in the network layer that is not a compile time
+/// constant, and it exists because OpenCode's meters live behind a per
+/// workspace path. It is therefore the narrowest possible type: it can only be
+/// built from text matching `wrk_` followed by ASCII alphanumerics, so a path
+/// traversal, a host, a query string, or a scheme cannot survive construction,
+/// and the value can only be joined between two constants by `workspace_url`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkspaceHandle(String);
+
+impl WorkspaceHandle {
+    /// The handle, or nothing at all. Nothing is trimmed, repaired or escaped:
+    /// text that is not already a handle is not a handle.
+    pub fn parse(text: &str) -> Option<Self> {
+        let rest = text.strip_prefix("wrk_")?;
+        if rest.is_empty() || text.len() > MAX_WORKSPACE_HANDLE_CHARS {
+            return None;
+        }
+        if !rest.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+            return None;
+        }
+        Some(Self(text.to_string()))
+    }
+
+    /// The workspace page address for this handle: two constants and a handle
+    /// that has already been proven to be one.
+    pub fn workspace_url(&self) -> String {
+        let mut url = String::with_capacity(
+            OPENCODE_WORKSPACE_URL_PREFIX.len()
+                + self.0.len()
+                + OPENCODE_WORKSPACE_URL_SUFFIX.len(),
+        );
+        url.push_str(OPENCODE_WORKSPACE_URL_PREFIX);
+        url.push_str(&self.0);
+        url.push_str(OPENCODE_WORKSPACE_URL_SUFFIX);
+        url
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -71,6 +210,10 @@ pub struct TransportReply {
 pub enum TransportFailure {
     Timeout,
     Connect,
+    /// The transport layer security handshake itself failed, which is a
+    /// different fact from a refused connection: a certificate a machine does
+    /// not trust is a machine problem, not a provider outage.
+    Tls,
     Protocol,
     TooLarge,
 }
@@ -93,6 +236,7 @@ pub trait Transport: Send + Sync {
 pub enum NetError {
     Timeout,
     Connect,
+    Tls,
     Protocol,
     TooLarge,
 }
@@ -102,6 +246,7 @@ impl fmt::Display for NetError {
         let sentence = match self {
             NetError::Timeout => "the provider did not answer within the time allowed",
             NetError::Connect => "the provider could not be reached",
+            NetError::Tls => "the secure connection to the provider could not be established",
             NetError::Protocol => "the provider answered in a way this application does not speak",
             NetError::TooLarge => {
                 "the provider answered with more data than this application accepts"
@@ -116,6 +261,7 @@ impl From<TransportFailure> for NetError {
         match failure {
             TransportFailure::Timeout => NetError::Timeout,
             TransportFailure::Connect => NetError::Connect,
+            TransportFailure::Tls => NetError::Tls,
             TransportFailure::Protocol => NetError::Protocol,
             TransportFailure::TooLarge => NetError::TooLarge,
         }
@@ -208,10 +354,31 @@ fn classify(error: &reqwest::Error) -> TransportFailure {
     if error.is_timeout() {
         return TransportFailure::Timeout;
     }
+    /* Checked before the connect test, because reqwest reports a failed
+    handshake as a connect failure too and the narrower fact is the useful
+    one. The error is never formatted: reqwest errors carry URLs. */
+    if is_tls(error) {
+        return TransportFailure::Tls;
+    }
     if error.is_connect() {
         return TransportFailure::Connect;
     }
     TransportFailure::Protocol
+}
+
+/// Whether anything in this error's chain came from the TLS stack.
+///
+/// Matched on the source chain's type name rather than on its message, so no
+/// provider or platform text is ever read, formatted, or compared.
+fn is_tls(error: &reqwest::Error) -> bool {
+    let mut source: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(error);
+    while let Some(current) = source {
+        if current.downcast_ref::<rustls::Error>().is_some() {
+            return true;
+        }
+        source = current.source();
+    }
+    false
 }
 
 /// Parse a Retry-After header value that is a plain count of seconds. The
@@ -293,15 +460,78 @@ mod tests {
         }
         assert_eq!(
             transport.recorded_urls(),
-            vec![OPENROUTER_KEY_URL, OPENROUTER_CREDITS_URL]
+            vec![
+                OPENROUTER_KEY_URL,
+                OPENROUTER_CREDITS_URL,
+                CODEX_USAGE_URL,
+                ANTIGRAVITY_QUOTA_URL,
+                OPENCODE_AUTH_URL
+            ]
         );
     }
 
     #[test]
-    fn every_allowlisted_url_is_https_openrouter() {
+    fn every_allowlisted_address_is_https() {
+        /* Every address the process can reach, including the one built from a
+        workspace handle, and none of them may be plain HTTP. */
         for endpoint in ProviderEndpoint::ALL {
-            assert!(endpoint.url().starts_with("https://openrouter.ai/"));
+            assert!(endpoint.url().starts_with("https://"));
         }
+        let handle = WorkspaceHandle::parse("wrk_abc123").expect("a handle");
+        assert!(handle.workspace_url().starts_with("https://opencode.ai/workspace/"));
+        assert!(handle.workspace_url().ends_with("/go"));
+    }
+
+    #[test]
+    fn only_the_quota_summary_posts_and_only_it_carries_a_body() {
+        for endpoint in ProviderEndpoint::ALL {
+            let expected_post = endpoint == ProviderEndpoint::AntigravityQuota;
+            assert_eq!(endpoint.method() == HttpMethod::Post, expected_post);
+            assert_eq!(endpoint.body().is_some(), expected_post);
+        }
+        assert_eq!(
+            ProviderEndpoint::AntigravityQuota.body(),
+            Some(ANTIGRAVITY_EMPTY_BODY)
+        );
+    }
+
+    #[test]
+    fn only_opencode_needs_a_second_hop() {
+        for endpoint in ProviderEndpoint::ALL {
+            assert_eq!(
+                endpoint.needs_workspace(),
+                endpoint == ProviderEndpoint::OpencodeUsage
+            );
+        }
+    }
+
+    #[test]
+    fn a_workspace_handle_refuses_everything_that_is_not_one() {
+        /* The one non constant part of any address, so the hostile cases are
+        stated rather than assumed: traversal, a host, a query, a scheme, an
+        empty handle, a wrong prefix, and anything over the bound. */
+        for hostile in [
+            "",
+            "wrk_",
+            "workspace",
+            "wrk-abc",
+            "wrk_abc/../../evil",
+            "wrk_abc?x=1",
+            "wrk_abc#frag",
+            "wrk_abc def",
+            "https://evil.test/wrk_abc",
+            "wrk_évil",
+            "../wrk_abc",
+        ] {
+            assert!(
+                WorkspaceHandle::parse(hostile).is_none(),
+                "a hostile workspace handle was accepted"
+            );
+        }
+        assert!(WorkspaceHandle::parse(&("wrk_".to_string() + &"a".repeat(61))).is_none());
+        assert!(WorkspaceHandle::parse(&("wrk_".to_string() + &"a".repeat(60))).is_some());
+        let handle = WorkspaceHandle::parse("wrk_Abc123").expect("a handle");
+        assert_eq!(handle.as_str(), "wrk_Abc123");
     }
 
     #[tokio::test]
@@ -350,6 +580,10 @@ mod tests {
                 "the provider did not answer within the time allowed",
             ),
             (NetError::Connect, "the provider could not be reached"),
+            (
+                NetError::Tls,
+                "the secure connection to the provider could not be established",
+            ),
             (
                 NetError::Protocol,
                 "the provider answered in a way this application does not speak",

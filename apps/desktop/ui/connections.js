@@ -30,17 +30,24 @@
  * stamp stops advancing while the process clock does not.
  *
  * A refresh is a pipeline, and every stage of it is the one implementation
- * the rest of the product runs. The backend performs the HTTP read and hands
- * back an EndpointOutcome. The body is parsed by the mirrored OpenRouter
- * connector, validated by the mirrored normalizer, stamped remote_api, and
- * folded into the snapshot cache through the Rust lock handshake with the
- * mirrored merge: cache_begin_write hands over the current text and a
- * generation stamp, this module merges, cache_commit_write presents the
- * stamp back, and a stale_generation or busy refusal is retried exactly once
- * from a fresh begin. The connection's next state is computed by the
- * mirrored state machine and written back through update_connection, which
- * is also where the backend stamps its timestamps. Nothing a parser did not
- * produce is ever written anywhere.
+ * the rest of the product runs. The backend chooses the address, performs the
+ * read, and hands back a ProbeOutcome carrying the reader that was used and
+ * the generation of that attempt. The body is parsed by the connector that
+ * reader names, and by no other: this module never picks a parser by provider
+ * name, by guessing, or by trying several. The rows are validated by the
+ * mirrored normalizer, stamped remote_api, and folded into the snapshot cache
+ * through the Rust lock handshake with the mirrored merge: cache_begin_write
+ * hands over the current text and a generation stamp, this module merges,
+ * cache_commit_write presents the stamp back, and a stale_generation or busy
+ * refusal is retried exactly once from a fresh begin.
+ *
+ * Then, and only then, the attempt is CLOSED with what actually happened:
+ * complete_attempt with parsed_test, cache_committed, drift or cache_failure.
+ * That call is the only thing that can move a connection to CONNECTED, and it
+ * is refused if the generation has moved on. This window writes no connection
+ * state of its own: a status field no longer exists on the wire, because a
+ * surface that can declare itself connected will eventually do so while
+ * nothing has been read.
  */
 import {
   CACHE_DOCUMENT_VERSION,
@@ -51,10 +58,12 @@ import {
   connectionSentence,
   isDue,
   mergeSnapshots,
-  nextConnectionState,
   nextRefreshAt,
   normalizeMetersReport,
 } from "./engine/core/index.js";
+import { parseAntigravityPayload } from "./engine/connectors/antigravity.js";
+import { parseCodexPayload } from "./engine/connectors/codex.js";
+import { parseOpencodePayload } from "./engine/connectors/opencode.js";
 import { parseOpenrouterPayload } from "./engine/connectors/openrouter.js";
 import * as backend from "./backend.js";
 
@@ -266,19 +275,20 @@ async function syncConnections() {
 }
 
 /**
- * Which allowlisted endpoint a connection's key kind may ask.
+ * Which parser may read a body, keyed by the reader that fetched it.
  *
- * This mapping is deliberately this side's policy, per the contract: the
- * backend exposes the two closed endpoint names and the interface decides
- * which one a key kind uses. An inference key can only read its own limit,
- * so it probes openrouter_key; a management key reads the account's credits,
- * so it probes openrouter_credits.
+ * The backend states the reader on every outcome, and this table is the only
+ * way a body ever reaches a parser. There is no fallback entry and no default:
+ * a reader this build does not know produces no parse at all, which is honest
+ * unknown rather than a body handed to whichever parser happened to be nearby.
  */
-function endpointFor(credentialKind) {
-  return /management/iu.test(String(credentialKind ?? ""))
-    ? "openrouter_credits"
-    : "openrouter_key";
-}
+const PARSER_BY_READER = {
+  openrouter_key: parseOpenrouterPayload,
+  openrouter_credits: parseOpenrouterPayload,
+  codex_usage: parseCodexPayload,
+  antigravity_quota: parseAntigravityPayload,
+  opencode_usage: parseOpencodePayload,
+};
 
 function parseJson(text) {
   if (typeof text !== "string" || text.trim() === "") return null;
@@ -292,17 +302,22 @@ function parseJson(text) {
 /**
  * A 2xx body as validated snapshots, stamped with how they arrived, or null.
  *
- * The parser is the mirrored OpenRouter connector and the validator is the
- * mirrored normalizer: nothing about the shape of a reading is decided here.
+ * The parser is the mirrored connector the READER names and the validator is
+ * the mirrored normalizer: nothing about the shape of a reading is decided
+ * here, and nothing here chooses which parser runs.
  * The one thing this function adds is provenance, remote_api over
  * remote_http, because provenance is written by whatever performed the read
  * and this pipeline is the reader. A body the parser refuses produces null,
  * and null writes nothing anywhere.
  */
-function snapshotsFromBody(body, now) {
+function snapshotsFromBody(readerId, body, now) {
+  const parse = Object.prototype.hasOwnProperty.call(PARSER_BY_READER, readerId)
+    ? PARSER_BY_READER[readerId]
+    : null;
+  if (parse === null) return null;
   const document = parseJson(body);
   if (document === null) return null;
-  const meters = parseOpenrouterPayload(document, now);
+  const meters = parse(document, now);
   if (meters === null || meters.length === 0) return null;
   const stamped = meters.map((meter) => ({
     ...meter,
@@ -379,113 +394,140 @@ async function commitToCache(snapshots) {
 }
 
 /**
- * One probe of one connection: the HTTP read, the parse, and the state the
- * mirrored machine assigns to what happened. Shared by Test Connection and
- * by the refresh pipeline; only the latter goes on to touch the cache.
+ * One probe of one connection: the read, and the parse of whatever came back.
+ *
+ * Shared by Test Connection and by the refresh pipeline; only the latter goes
+ * on to touch the cache. Nothing here writes a connection state: the backend
+ * has already settled the record by the time this returns, and the attempt is
+ * closed separately once the outcome downstream is known.
+ *
+ * The shape returned is deliberately small:
+ *
+ *   absent      the backend does not carry this command at all
+ *   generation  the attempt this probe opened, or null when there is none
+ *   snapshots   validated rows, or null when nothing could be believed
+ *   drifted     the provider answered 2xx and the parser refused the body,
+ *               which is the one signal that means the interface changed
+ *   note        a sentence for the card, or null
  */
 async function probe(record, refresh) {
-  const endpoint = endpointFor(record.credentialKind);
   const command = refresh ? backend.refreshProvider : backend.testProvider;
-  const result = await command({ connectionId: record.id, endpoint });
+  const result = await command({ connectionId: record.id });
   const now = new Date().toISOString();
+  const empty = {
+    absent: false,
+    generation: null,
+    snapshots: null,
+    drifted: false,
+    retryAfterSeconds: null,
+    note: null,
+  };
   if (!result.ok) {
     if (result.reason === backend.BACKEND_ABSENT) {
       session.backendPresent = false;
-      return { outcome: null, snapshots: null, event: null, note: null, absent: true };
+      return { ...empty, absent: true };
     }
-    /*
-     * timeout and connect are reads that never reached the provider, which
-     * is exactly the machine's network_failure event. Every other kind is a
-     * local fault, storage or input, and a local fault is not a provider
-     * event: the state holds and the sentence is shown.
-     */
-    const event =
-      result.kind === "timeout" || result.kind === "connect"
-        ? {
-            kind: "network_failure",
-            consecutive: (session.schedule[record.id]?.attempt ?? 0) + 1,
-          }
-        : null;
-    return { outcome: null, snapshots: null, event, note: result.message, absent: false };
+    return { ...empty, note: result.message };
   }
-  const outcome = backend.normalizeOutcome(result.value);
-  if (outcome.status === null) {
+  const outcome = backend.normalizeProbeOutcome(result.value);
+  if (outcome.kind === "unreadable") {
     return {
-      outcome,
-      snapshots: null,
-      event: null,
+      ...empty,
       note: "The backend's answer could not be read, so nothing is claimed from it.",
-      absent: false,
+    };
+  }
+  if (outcome.kind === "transport_failure") {
+    return {
+      ...empty,
+      generation: outcome.attemptGeneration,
+      note: "The read did not reach the provider (" + outcome.failure + ").",
     };
   }
   const inTwoHundreds = outcome.status >= 200 && outcome.status <= 299;
-  const snapshots =
-    inTwoHundreds && outcome.body !== null
-      ? snapshotsFromBody(outcome.body, now)
-      : null;
+  if (!inTwoHundreds || outcome.body === null) {
+    return {
+      ...empty,
+      generation: outcome.attemptGeneration,
+      retryAfterSeconds: outcome.retryAfterSeconds,
+      note: "The provider answered " + String(outcome.status) + ".",
+    };
+  }
+  const snapshots = snapshotsFromBody(outcome.readerId, outcome.body, now);
   return {
-    outcome,
-    snapshots,
-    event: {
-      kind: "http_response",
-      status: outcome.status,
-      parsed: snapshots !== null,
-    },
-    note: null,
     absent: false,
+    generation: outcome.attemptGeneration,
+    snapshots,
+    /* A well formed answer the parser could not read is the definition of
+       drift: the credential is fine and the interface is not. */
+    drifted: snapshots === null,
+    retryAfterSeconds: outcome.retryAfterSeconds,
+    note:
+      snapshots === null
+        ? "The provider answered, and this build could not read the answer. " +
+          "The reading is unknown rather than guessed."
+        : null,
   };
 }
 
 /**
- * Advance the record through the mirrored machine and persist the result.
+ * Close the attempt with what actually happened, and let Rust settle the state.
  *
- * The status sent over the wire is always one of the machine's own 13
- * states: it either came out of nextConnectionState, which cannot produce
- * anything else, or it is a record state this build recognised. A record
- * whose state this build does not know is never echoed back at the backend,
- * because repeating a word is not the same as vouching for it.
+ * A completion is refused when the generation has moved, which is the point:
+ * a slow parse belonging to a superseded request must not stamp a success onto
+ * the request that replaced it.
  */
-async function settleState(record, event, stampSuccess) {
-  let next = record.state;
-  if (event !== null && KNOWN_STATES.has(record.state)) {
-    next = nextConnectionState(record.state, event, {
-      everConnected: record.everConnected,
-    });
-  }
-  if ((next !== record.state || stampSuccess) && KNOWN_STATES.has(next)) {
-    await backend.updateConnection({ connectionId: record.id, status: next });
-  }
-  return next;
+async function closeAttempt(record, generation, disposition) {
+  if (generation === null) return { ok: false, stale: false };
+  const result = await backend.completeAttempt({
+    connectionId: record.id,
+    attemptGeneration: generation,
+    disposition,
+  });
+  return { ok: result.ok, stale: result.kind === "stale_generation" };
 }
 
 /**
  * One refresh for one connection: probe, parse, commit to the cache through
- * the handshake, settle the state, and do the bookkeeping the schedule
- * needs. Success means validated snapshots reached the cache in this run,
- * which is the one fact that lets a meters row say Connected.
+ * the handshake, and close the attempt. Success means validated snapshots
+ * reached the cache in this run, which is the one fact that lets a meters row
+ * say Connected.
  */
 async function runRefresh(record) {
-  const attempt0 = await probe(record, true);
-  if (attempt0.absent) return { succeeded: false, note: null };
+  const attempt = await probe(record, true);
+  if (attempt.absent) return { succeeded: false, note: null };
 
-  let note = attempt0.note;
+  let note = attempt.note;
   let committed = false;
-  if (attempt0.snapshots !== null) {
-    const commit = await commitToCache(attempt0.snapshots);
+  if (attempt.snapshots !== null) {
+    const commit = await commitToCache(attempt.snapshots);
     committed = commit.ok;
     if (!commit.ok) note = commit.message;
   }
-  await settleState(record, attempt0.event, committed);
+  /* The disposition is the honest description of what this run achieved, and
+     nothing else may be sent: a 2xx that drifted is drift, and a parse that
+     could not be written is a cache failure, never a quiet success. */
+  if (attempt.generation !== null) {
+    const disposition = committed
+      ? "cache_committed"
+      : attempt.drifted
+        ? "drift"
+        : attempt.snapshots !== null
+          ? "cache_failure"
+          : null;
+    if (disposition !== null) {
+      await closeAttempt(record, attempt.generation, disposition);
+    }
+  }
 
   const after = new Date().toISOString();
   const previous = session.schedule[record.id];
-  const attempt = committed ? 0 : (previous?.attempt ?? 0) + 1;
+  const attemptCount = committed ? 0 : (previous?.attempt ?? 0) + 1;
   session.schedule[record.id] = {
-    attempt,
+    attempt: attemptCount,
     nextAt: nextRefreshAt(after, {
-      attempt,
+      attempt: attemptCount,
       baseSeconds: baseOf(record),
-      retryAfterSeconds: attempt0.outcome?.retryAfterSeconds ?? null,
+      retryAfterSeconds: attempt.retryAfterSeconds,
       random: Math.random,
     }),
   };
@@ -750,16 +792,23 @@ function connectionCard(record, now) {
         render();
         return;
       }
-      const next = await settleState(record, asked.event, false);
+      /* A test completes only when a connector actually understood the body.
+         Anything else leaves the backend's own verdict standing. */
+      if (asked.snapshots !== null) {
+        await closeAttempt(record, asked.generation, "parsed_test");
+      } else if (asked.drifted) {
+        await closeAttempt(record, asked.generation, "drift");
+      }
       await syncConnections();
+      const settled = session.connections.find((entry) => entry.id === record.id);
       if (asked.note !== null) {
         keepCardNote(record.id, note, "The test failed. " + asked.note, "bad");
       } else {
         keepCardNote(
           record.id,
           note,
-          sentenceFor(next),
-          asked.event?.parsed === true ? "ok" : "bad",
+          sentenceFor(settled?.state ?? record.state),
+          asked.snapshots !== null ? "ok" : "bad",
         );
       }
       render();
@@ -963,13 +1012,16 @@ async function submitOpenrouter() {
   const alias = el.openrouterAlias.value.trim() || "default";
   el.openrouterSubmit.disabled = true;
   setNote(el.openrouterNote, "Storing the key in the credential store.", "plain");
+  /* The two OpenRouter credential kinds, as the wire spells them. A stored
+     and untested credential lands in READY_TO_ENABLE, which the backend
+     derives: this window no longer states a starting state. */
+  const credentialKind = /management/iu.test(String(kind))
+    ? "openrouter_management_key"
+    : "openrouter_inference_key";
   const connected = await backend.connectProvider({
-    providerId: "OPENROUTER",
+    providerId: "openrouter",
+    credentialKind,
     accountAlias: alias,
-    keyKind: kind,
-    /* A stored, untested credential is READY_TO_ENABLE in the machine's own
-       vocabulary: ready to start collecting, claiming nothing more. */
-    status: "READY_TO_ENABLE",
     secret,
   });
   if (!connected.ok) {
@@ -1011,15 +1063,20 @@ async function submitOpenrouter() {
     render();
     return;
   }
-  const next = await settleState(record, asked.event, false);
+  if (asked.snapshots !== null) {
+    await closeAttempt(record, asked.generation, "parsed_test");
+  } else if (asked.drifted) {
+    await closeAttempt(record, asked.generation, "drift");
+  }
   await syncConnections();
+  const settled = session.connections.find((entry) => entry.id === record.id);
   if (asked.note !== null) {
     setNote(el.openrouterNote, "The test failed. " + asked.note, "bad");
   } else {
     setNote(
       el.openrouterNote,
-      "Test finished. " + sentenceFor(next),
-      asked.event?.parsed === true ? "ok" : "bad",
+      "Test finished. " + sentenceFor(settled?.state ?? record.state),
+      asked.snapshots !== null ? "ok" : "bad",
     );
   }
   el.openrouterAlias.value = "";

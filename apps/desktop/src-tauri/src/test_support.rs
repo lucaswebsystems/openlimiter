@@ -126,6 +126,28 @@ impl RecordingTransport {
     }
 }
 
+/// A transport that always fails the same typed way, so the probe path's
+/// transport failure arm can be exercised without a socket or a real fault.
+pub(crate) struct FailingTransport {
+    failure: TransportFailure,
+}
+
+impl FailingTransport {
+    pub(crate) fn with(failure: TransportFailure) -> Self {
+        Self { failure }
+    }
+}
+
+impl Transport for FailingTransport {
+    async fn get(
+        &self,
+        _url: &'static str,
+        _bearer_secret: &str,
+    ) -> Result<TransportReply, TransportFailure> {
+        Err(self.failure)
+    }
+}
+
 impl Transport for RecordingTransport {
     async fn get(
         &self,
