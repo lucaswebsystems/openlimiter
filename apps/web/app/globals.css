@@ -808,18 +808,22 @@ body:has(.ol-shell) .announce-bar {
 .hero-fold {
   position: relative;
   isolation: isolate;
-  height: 100vh;
-  height: 100svh;
-  /* Below the sticky breakpoint the height token is zero on purpose (no bar
-     to offset anchors under), so the pull spells the static bar's own 76px
-     out loud instead of reading the token: the audit caught the fold sliding
-     76px down on phones when this line trusted the zeroed value. */
-  margin-top: calc(-4.75rem - 4rem);
+  /* MOBILE NEVER PULLS UNDER THE HEADER. A fixed negative pull assumes the
+     bar sits at the viewport's very top, and the promo banner above it broke
+     that assumption on a real iPhone: the headline slid behind the bar. Below
+     the breakpoint the fold flows in normal order under whatever is above it
+     and fills the rest of the first screen, growing with its own content
+     instead of clipping it on short phones. */
+  margin-top: 0;
+  min-height: calc(100svh - 4.75rem);
   overflow: hidden;
 }
 
 @media (min-width: 1024px) {
   .hero-fold {
+    height: 100vh;
+    height: 100svh;
+    min-height: 0;
     margin-top: calc(-1 * var(--ol-header-h) - 4rem);
   }
 }
