@@ -120,9 +120,13 @@ export function Hero() {
         <div className={`${SHELL} w-full`}>
           <div className="max-w-2xl">
             <h1 className="fold-enter fold-enter-title text-4xl font-medium leading-tight tracking-tight text-heading sm:text-5xl lg:text-6xl">
-              {t("title.limits")}
+              {t.rich("title.limits", {
+                accent: (chunks) => <span className="text-accent">{chunks}</span>,
+              })}
               <br />
-              {t("title.route")}
+              {t.rich("title.route", {
+                accent: (chunks) => <span className="text-accent">{chunks}</span>,
+              })}
             </h1>
 
             <p className="fold-enter fold-enter-lead mt-6 max-w-xl text-lg leading-relaxed text-body">

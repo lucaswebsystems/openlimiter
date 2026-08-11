@@ -67,8 +67,8 @@
   },
   "hero": {
     "title": {
-      "limits": "Behalte Limits und Verbrauch aller deiner LLMs im Blick.",
-      "route": "In Echtzeit, am Desktop, am Handy oder direkt im Terminal."
+      "limits": "Verfolge die Nutzung <accent>aller deiner LLMs</accent> live.",
+      "route": "Echtzeit auf Desktop, Handy und Terminal."
     },
     "lead": "Lies dein KI Abo Quota lokal aus. Gib Agenten begrenzten Budgetstatus und Empfehlungen. Open Source, lokal zuerst, plattformübergreifend.",
     "downloads": {

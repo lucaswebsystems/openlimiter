@@ -67,8 +67,8 @@
   },
   "hero": {
     "title": {
-      "limits": "Stay on top of your LLM limits and usage.",
-      "route": "In real time, from your desktop, your phone, or your terminal."
+      "limits": "Track <accent>all your LLMs</accent> usage live.",
+      "route": "Real time on desktop, mobile and terminal."
     },
     "lead": "Read your AI subscription quota locally. Give agents bounded budget state and advice. Open source, local first, cross platform.",
     "downloads": {
