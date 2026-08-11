@@ -261,8 +261,10 @@ pub const FAILURE_ERROR_THRESHOLD: u32 = 3;
 /// and a kind of credential, both from closed vocabularies, and nothing else:
 /// no endpoint, no URL, no header, and no starting status. Which address that
 /// pairing reaches is decided by `reader_route`, and the starting status is
-/// derived from the fact that a credential was stored.
+/// derived from the fact that a credential was stored. Anything else in the
+/// payload is refused, not ignored.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConnectProviderInput {
     pub provider_id: ProviderId,
     pub credential_kind: CredentialKind,
@@ -274,25 +276,35 @@ pub struct ConnectProviderInput {
 ///
 /// This is the shape the audit's confused deputy finding turned on. The old
 /// input carried an `endpoint`, so a webview could pair any stored secret with
-/// any address in the allowlist. There is no such field now, and a payload that
-/// carries one is simply ignored by serde, so an old caller cannot influence
-/// routing even by accident.
+/// any address in the allowlist.
+///
+/// There is no such field now, and `deny_unknown_fields` means a payload that
+/// carries one is REFUSED rather than quietly ignored. Ignoring it was safe in
+/// the narrow sense, since nothing read it, but a caller sending an endpoint is
+/// a caller that believes it can choose one, and the honest answer to that
+/// belief is an error rather than silent success. It also keeps the acceptance
+/// requirement literally true: IPC rejects endpoint, URL, header and caller
+/// supplied status fields.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProbeInput {
     pub connection_id: String,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DisconnectInput {
     pub connection_id: String,
 }
 
 /// What `update_connection` accepts: the account alias, and only that.
 ///
-/// The status input is gone. A connection's state is a consequence of what a
-/// read achieved, which Rust observes and stamps, so a window that could write
-/// it could claim a connection was working while nothing had been read.
+/// The status input is gone, and a payload still carrying one is refused rather
+/// than ignored. A connection's state is a consequence of what a read achieved,
+/// which Rust observes and stamps, so a window that could write it could claim
+/// a connection was working while nothing had been read.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateConnectionInput {
     pub connection_id: String,
     #[serde(default)]
@@ -300,6 +312,7 @@ pub struct UpdateConnectionInput {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CacheCommitInput {
     pub text: String,
     pub generation: u64,
@@ -371,6 +384,7 @@ pub enum AttemptDisposition {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CompleteAttemptInput {
     pub connection_id: String,
     pub attempt_generation: u64,
@@ -1051,19 +1065,58 @@ mod tests {
     }
 
     #[test]
-    fn an_endpoint_field_on_the_wire_changes_nothing() {
-        /* Belt and braces for the field removal: a payload from an older
-        window still carries `endpoint`, and it must be inert rather than
-        honoured. */
-        let payload = r#"{"connection_id":"abc-123","endpoint":"openrouter_credits"}"#;
-        let parsed: ProbeInput = serde_json::from_str(payload).expect("parses");
-        assert_eq!(parsed.connection_id, "abc-123");
-        let connect_payload = concat!(
-            r#"{"provider_id":"openrouter","credential_kind":"openrouter_inference_key","#,
-            r#""account_alias":"personal","secret":"x","status":"CONNECTED"}"#
+    fn a_forbidden_field_on_the_wire_is_refused_rather_than_ignored() {
+        /* The acceptance requirement is that IPC REJECTS endpoint, URL, header
+        and caller supplied status fields. Ignoring them was safe in the narrow
+        sense, because nothing read them, but a caller sending an endpoint is a
+        caller that believes it can choose one, and silence tells it that it
+        can. Every input denies unknown fields, so the belief gets an error. */
+        let refused = [
+            r#"{"connection_id":"abc-123","endpoint":"openrouter_credits"}"#,
+            r#"{"connection_id":"abc-123","url":"https://evil.test/"}"#,
+            r#"{"connection_id":"abc-123","headers":{"Authorization":"Bearer x"}}"#,
+            r#"{"connection_id":"abc-123","method":"POST"}"#,
+            r#"{"connection_id":"abc-123","status":"CONNECTED"}"#,
+        ];
+        for payload in refused {
+            assert!(
+                serde_json::from_str::<ProbeInput>(payload).is_err(),
+                "a probe payload carrying a forbidden field was accepted"
+            );
+        }
+        /* And the clean shape still parses, so the denial is not simply
+        breaking the command. */
+        let clean: ProbeInput =
+            serde_json::from_str(r#"{"connection_id":"abc-123"}"#).expect("parses");
+        assert_eq!(clean.connection_id, "abc-123");
+    }
+
+    #[test]
+    fn connect_refuses_a_payload_that_states_a_status_or_an_endpoint() {
+        let base = concat!(
+            r#""provider_id":"openrouter","credential_kind":"openrouter_inference_key","#,
+            r#""account_alias":"personal","secret":"x""#
         );
-        let parsed: ConnectProviderInput = serde_json::from_str(connect_payload).expect("parses");
-        assert_eq!(parsed.provider_id, ProviderId::Openrouter);
+        for extra in [
+            r#""status":"CONNECTED""#,
+            r#""endpoint":"openrouter_credits""#,
+            r#""reader_id":"openrouter_credits""#,
+            r#""url":"https://evil.test/""#,
+            r#""key_kind":"inference""#,
+        ] {
+            let payload = format!("{{{base},{extra}}}");
+            assert!(
+                serde_json::from_str::<ConnectProviderInput>(&payload).is_err(),
+                "a connect payload carried a forbidden field and was accepted"
+            );
+        }
+        let clean = format!("{{{base}}}");
+        assert_eq!(
+            serde_json::from_str::<ConnectProviderInput>(&clean)
+                .expect("parses")
+                .provider_id,
+            ProviderId::Openrouter
+        );
     }
 
     #[test]
@@ -1726,11 +1779,39 @@ mod tests {
     }
 
     #[test]
-    fn a_status_field_on_an_update_payload_changes_nothing() {
-        let payload = r#"{"connection_id":"abc-123","status":"CONNECTED"}"#;
-        let parsed: UpdateConnectionInput = serde_json::from_str(payload).expect("parses");
+    fn an_update_payload_that_states_a_status_is_refused() {
+        assert!(
+            serde_json::from_str::<UpdateConnectionInput>(
+                r#"{"connection_id":"abc-123","status":"CONNECTED"}"#
+            )
+            .is_err(),
+            "a caller supplied status was accepted"
+        );
+        let parsed: UpdateConnectionInput =
+            serde_json::from_str(r#"{"connection_id":"abc-123","account_alias":"work"}"#)
+                .expect("parses");
         assert_eq!(parsed.connection_id, "abc-123");
-        assert_eq!(parsed.account_alias, None);
+        assert_eq!(parsed.account_alias.as_deref(), Some("work"));
+    }
+
+    #[test]
+    fn every_command_input_denies_unknown_fields() {
+        /* Stated against the source, so an input added later cannot quietly
+        skip the attribute. */
+        let marker = "#[derive(".to_string() + "Deserialize)]";
+        let source = include_str!("commands.rs");
+        let head = source
+            .split("mod tests")
+            .next()
+            .expect("the module has a body before its tests");
+        let inputs: Vec<&str> = head.split(marker.as_str()).skip(1).collect();
+        assert!(inputs.len() >= 6, "the command inputs are still declared here");
+        for block in inputs {
+            assert!(
+                block.starts_with("\n#[serde(deny_unknown_fields)]"),
+                "an input does not deny unknown fields"
+            );
+        }
     }
 
     /* -------------------------------------------------------- redaction */
