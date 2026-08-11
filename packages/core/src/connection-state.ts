@@ -272,12 +272,6 @@ const eventDriven = {
   label: "Event driven"
 } as const satisfies CataloguePlatformCapability;
 
-const experimental = {
-  mode: "automatic",
-  maturity: "experimental",
-  label: "Experimental"
-} as const satisfies CataloguePlatformCapability;
-
 const manual = {
   mode: "manual",
   maturity: "supported",
@@ -294,7 +288,8 @@ const catalogueCapabilities = {
   claude: { windows: eventDriven, macos: eventDriven, linux: eventDriven },
   openrouter: { windows: supported, macos: supported, linux: supported },
   codex: { windows: supported, macos: supported, linux: supported },
-  antigravity: { windows: experimental, macos: manual, linux: manual },
+  // The label states what this UI can do today; discovery returns only when its result reaches this surface.
+  antigravity: { windows: manualExperimental, macos: manual, linux: manual },
   opencode: {
     windows: manualExperimental,
     macos: manualExperimental,
@@ -420,4 +415,3 @@ export function queryCatalogueRows(
 
   return [...connectableRows, ...plannedRows];
 }
-

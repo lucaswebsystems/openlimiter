@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "openlimiter",
   "version": "0.4.0",
   "description": "A local command line meter for AI quota, usage, and reset times.",

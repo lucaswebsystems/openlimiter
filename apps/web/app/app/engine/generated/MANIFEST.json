@@ -2,7 +2,7 @@
   "generatedBy": "app/app/engine/sync.mjs",
   "sources": {
     "core/types.ts": "a313c791e4eb043d",
-    "core/connection-state.ts": "8438bc5f0e5aa23c",
+    "core/connection-state.ts": "bb658f1a3aca769a",
     "core/failures.ts": "ba4c61d57e521d94",
     "core/format.ts": "060178a0ef47ac5d",
     "core/forecast.ts": "5155cb1a6fde4a0e",
