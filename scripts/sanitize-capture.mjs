@@ -94,6 +94,27 @@ function isRecord(value) {
 /** The longest window any of these providers states, and a year is generous. */
 const MAX_WINDOW_SECONDS = 31_536_000;
 
+/**
+ * Slack allowed between a machine's clock and a provider's, in seconds.
+ *
+ * The same hour `CLOCK_SKEW_SECONDS` allows in packages/connectors/src/shared.ts.
+ */
+const CLOCK_SKEW_SECONDS = 3_600;
+
+/**
+ * The furthest ahead a window of a given length may plausibly reset.
+ *
+ * Byte for byte the production rule, `plausibleResetHorizon`. It is copied
+ * rather than loosened because the point of this script is to refuse a capture
+ * the production parser would refuse: a reduction that accepted a five hour
+ * meter resetting eleven months out would freeze a fixture the reader then
+ * declines, and the mismatch would look like a parser bug rather than a bad
+ * capture.
+ */
+function plausibleResetHorizon(windowSeconds) {
+  return windowSeconds * 2 + CLOCK_SKEW_SECONDS;
+}
+
 function boundedNumber(value, what, low, high) {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     fail(`${what} is missing or is not a number, so this capture cannot be reduced`);
@@ -127,16 +148,36 @@ function fraction(value, what) {
  * about the window running now, and must be inside a year for the same reason
  * the parsers refuse a five hour meter claiming to reset in 2038.
  */
-function countdown(value, what) {
-  const seconds = Math.round(boundedNumber(value, what, 1, MAX_WINDOW_SECONDS));
-  return seconds;
+function countdown(value, what, horizonSeconds = MAX_WINDOW_SECONDS) {
+  if (!Number.isInteger(value)) {
+    fail(
+      `${what} is ${String(value)}, which is not a whole number of seconds. ` +
+        "A countdown is stored as seconds from capture and is refused rather " +
+        "than rounded, so a reduction cannot smooth a value into range."
+    );
+  }
+  return boundedNumber(value, what, 1, Math.min(horizonSeconds, MAX_WINDOW_SECONDS));
 }
 
-/** A window length the provider states, whole and positive. */
+/**
+ * A window length the provider states, whole and positive.
+ *
+ * An INTEGER, and refused rather than rounded, because production refuses it:
+ * `windowSeconds` in packages/connectors/src/shared.ts requires
+ * Number.isInteger. Rounding here would freeze a fixture whose window length
+ * the reader then rejects, so the capture would look valid and the parse would
+ * not. Where production refuses, this refuses.
+ */
 function windowLength(value, what) {
   if (value === null || value === undefined) return null;
-  const seconds = boundedNumber(value, what, 1, MAX_WINDOW_SECONDS);
-  return Math.round(seconds);
+  if (!Number.isInteger(value)) {
+    fail(
+      `${what} is ${String(value)}, which is not a whole number of seconds. ` +
+        "The production parser requires an integer here and refuses anything " +
+        "else, so this is refused rather than rounded into looking valid."
+    );
+  }
+  return boundedNumber(value, what, 1, MAX_WINDOW_SECONDS);
 }
 
 /* ------------------------------------------------------------------ *
@@ -158,6 +199,20 @@ function reduceCodex(raw, capturedAtSeconds) {
     ? limit["primary_window"]
     : fail("no rate_limit.primary_window block");
   const usedPercent = percentage(primary["used_percent"], "used_percent");
+  const length = windowLength(
+    primary["limit_window_seconds"] ?? null,
+    "limit_window_seconds"
+  );
+  /*
+   * The reset horizon is the WINDOW'S, exactly as the parser computes it.
+   *
+   * A year was too generous: parseCodexPayload bounds the reset at
+   * plausibleResetHorizon(limit_window_seconds), so a five hour window may only
+   * reset about eleven hours out. Accepting more here would freeze a capture the
+   * reader then refuses. When the payload states no length there is no horizon
+   * to compute, and production has none either, so the year stands.
+   */
+  const horizon = length === null ? MAX_WINDOW_SECONDS : plausibleResetHorizon(length);
   const resetAt = boundedNumber(
     primary["reset_at"],
     "reset_at",
@@ -165,15 +220,16 @@ function reduceCodex(raw, capturedAtSeconds) {
        parser applies, so a millisecond stamp cannot become a countdown thirty
        thousand years long. */
     capturedAtSeconds,
-    capturedAtSeconds + MAX_WINDOW_SECONDS
+    capturedAtSeconds + horizon
   );
   return {
     usedPercent,
-    resetsInSeconds: countdown(resetAt - capturedAtSeconds, "the reset countdown"),
-    limitWindowSeconds: windowLength(
-      primary["limit_window_seconds"] ?? null,
-      "limit_window_seconds"
-    )
+    resetsInSeconds: countdown(
+      resetAt - capturedAtSeconds,
+      "the reset countdown",
+      horizon
+    ),
+    limitWindowSeconds: length
   };
 }
 
@@ -199,6 +255,13 @@ function reduceAntigravity(raw, capturedAtSeconds) {
       const window = rawBucket["window"];
       if (typeof window !== "string") continue;
       const remaining = fraction(rawBucket["remainingFraction"], "remainingFraction");
+      /* The window's own length, so its reset can be held to the window's own
+         horizon exactly as parseAntigravityPayload holds it. A window name this
+         build does not know is refused below, by the allowlist. */
+      const windowSeconds = ANTIGRAVITY_WINDOW_SECONDS[window.toLowerCase()];
+      if (windowSeconds === undefined) {
+        fail(`window ${JSON.stringify(window)} is not one this build knows.`);
+      }
       const reset = rawBucket["resetTime"];
       if (typeof reset !== "string") fail("a bucket states no resetTime");
       const parsed = Date.parse(reset);
@@ -208,8 +271,9 @@ function reduceAntigravity(raw, capturedAtSeconds) {
         window,
         remainingFraction: remaining,
         resetsInSeconds: countdown(
-          parsed / 1_000 - capturedAtSeconds,
-          "a bucket's reset countdown"
+          Math.trunc(parsed / 1_000) - capturedAtSeconds,
+          "a bucket's reset countdown",
+          plausibleResetHorizon(windowSeconds)
         )
       });
     }
@@ -218,6 +282,12 @@ function reduceAntigravity(raw, capturedAtSeconds) {
   if (reduced.length === 0) fail("no readable buckets survived the reduction");
   return { groups: reduced };
 }
+
+/**
+ * The Antigravity window names and their lengths, mirroring
+ * ANTIGRAVITY_WINDOWS in packages/connectors/src/antigravity.ts.
+ */
+const ANTIGRAVITY_WINDOW_SECONDS = { "5h": 18_000, weekly: 604_800 };
 
 /** The window labels the OpenCode page renders, in the parser's own order. */
 const OPENCODE_LABELS = ["Rolling Usage", "Weekly Usage", "Monthly Usage"];
@@ -231,6 +301,8 @@ const OPENCODE_LABELS = ["Rolling Usage", "Weekly Usage", "Monthly Usage"];
  * captured as the monthly reading and frozen into a fixture.
  */
 const OPENCODE_MAX_SEGMENT_CHARS = 2_000;
+
+
 const UNITS = { day: 86_400, hour: 3_600, minute: 60, second: 1 };
 
 function flatten(fragment) {
@@ -264,12 +336,14 @@ function reduceOpencode(raw) {
     const segment = flatten(raw.slice(found[index].at, end));
     const percent = /(\d{1,3})\s*%/u.exec(segment);
     if (percent === null) fail(`no percentage under "${found[index].label}"`);
-    const countdown = /Resets in\s+((?:\d{1,6}\s*(?:day|hour|minute|second)s?\s*)+)/iu
+    /* Named for what it is, and not `countdown`, which is the bounding function
+       above: shadowing it made every OpenCode reduction throw. */
+    const resetWords = /Resets in\s+((?:\d{1,6}\s*(?:day|hour|minute|second)s?\s*)+)/iu
       .exec(segment);
     let seconds = null;
-    if (countdown !== null) {
+    if (resetWords !== null) {
       seconds = 0;
-      for (const [, count, unit] of countdown[1]
+      for (const [, count, unit] of resetWords[1]
         .matchAll(/(\d{1,6})\s*(day|hour|minute|second)s?/giu)) {
         seconds += Number.parseInt(count, 10) * UNITS[unit.toLowerCase()];
       }
@@ -280,6 +354,14 @@ function reduceOpencode(raw) {
         Number.parseInt(percent[1], 10),
         `the percentage under "${found[index].label}"`
       ),
+      /*
+       * No window horizon here, deliberately, because parseOpencodePayload
+       * applies none: it bounds the countdown only at a year, through
+       * durationSecondsFromWords. Mirroring production means matching it in both
+       * directions. A horizon was tried and it refused the demo page's own
+       * twenty hour rolling figure, which the reader accepts, and a sanitizer
+       * stricter than its parser rejects captures that would have worked.
+       */
       resetsInSeconds: seconds === null
         ? null
         : countdown(seconds, `the countdown under "${found[index].label}"`)

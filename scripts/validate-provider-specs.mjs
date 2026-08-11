@@ -229,20 +229,50 @@ function parseSequence(tokens, start, indent) {
  *
  * A docs_url is the one exception, because a link to a provider's published
  * documentation is the opposite of a runtime address: it is how a reviewer
- * checks the shape by hand. So it is allowed on that key alone, and refused
- * everywhere else, comments included.
+ * checks the shape by hand.
+ *
+ * The exception is granted to that key's VALUE and not to its line. Exempting
+ * the line was a bypass: `docs_url: https://real.docs/x  # or https://runtime/y`
+ * carried a second address through untouched, and so would a docs_url whose
+ * value was two URLs. So the value is required to be exactly one address and
+ * nothing else, and the rest of the line is scanned like any other.
  */
 const URL_LITERAL = /\bhttps?:\/\//giu;
+const SINGLE_HTTPS_URL = /^https:\/\/[^\s"']+$/u;
 
 export function refuseUrlLiterals(text, file) {
   const lines = text.split(/\r?\n/u);
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
+    const where = file + " line " + String(index + 1);
+    const documentation = /^\s*docs_url:\s*(.*)$/u.exec(line);
+    if (documentation !== null) {
+      /* Quotes are stripped the way the scalar reader strips them, so a quoted
+         and an unquoted docs_url are held to the same rule. */
+      let value = (documentation[1] ?? "").trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"') && value.length >= 2) ||
+        (value.startsWith("'") && value.endsWith("'") && value.length >= 2)
+      ) {
+        value = value.slice(1, -1);
+      }
+      URL_LITERAL.lastIndex = 0;
+      if (!URL_LITERAL.test(value)) continue;
+      if (!SINGLE_HTTPS_URL.test(value)) {
+        fail(
+          where,
+          "docs_url must be exactly one https address and nothing else. A value " +
+            "carrying a second address, a trailing comment or any other text is " +
+            "how a runtime URL reaches a specification through the one key that " +
+            "is allowed to hold a link"
+        );
+      }
+      continue;
+    }
     URL_LITERAL.lastIndex = 0;
     if (!URL_LITERAL.test(line)) continue;
-    if (/^\s*docs_url:/u.test(line)) continue;
     fail(
-      file + " line " + String(index + 1),
+      where,
       "a specification may not contain a literal address. Every URL is a Rust " +
         "constant in apps/desktop/src-tauri/src/net.rs; naming one here, even " +
         "in a comment, makes this file look like where addresses are configured"
@@ -1216,25 +1246,32 @@ async function main() {
    * own the same address, which the per file checks above cannot see.
    */
   const globallyUnique = new Map();
+  const claim = (entry, field, value) => {
+    const key = field + " " + value;
+    const owner = globallyUnique.get(key);
+    if (owner !== undefined && owner !== entry.id) {
+      problems.push(
+        entry.id + ": " + field + " " + value +
+          " is already claimed by " + owner +
+          ". A closed identifier names one thing in the whole registry."
+      );
+    }
+    globallyUnique.set(key, entry.id);
+  };
   for (const entry of compiled) {
+    /*
+     * connector_id belongs here too, and its omission was a bypass. A connector
+     * has exactly one set of honesty labels, and the desktop reads them by
+     * connector id: two specs claiming the same one would generate an artifact
+     * where whichever compiled last silently wins, which is the same class of
+     * fault as two products claiming one endpoint.
+     */
+    if (entry.honesty !== null) claim(entry, "connector_id", entry.honesty.connectorId);
     if (entry.collection === null) continue;
     for (const reader of entry.collection.readers) {
-      for (const [field, value] of [
-        ["reader_id", reader.readerId],
-        ["endpoint_id", reader.endpointId],
-        ["credential_kind", reader.credentialKind]
-      ]) {
-        const key = field + " " + value;
-        const owner = globallyUnique.get(key);
-        if (owner !== undefined && owner !== entry.id) {
-          problems.push(
-            entry.id + ": " + field + " " + value +
-              " is already claimed by " + owner +
-              ". A closed identifier names one thing in the whole registry."
-          );
-        }
-        globallyUnique.set(key, entry.id);
-      }
+      claim(entry, "reader_id", reader.readerId);
+      claim(entry, "endpoint_id", reader.endpointId);
+      claim(entry, "credential_kind", reader.credentialKind);
     }
   }
 
