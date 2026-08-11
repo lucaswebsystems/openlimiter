@@ -45,18 +45,39 @@ export const docGroups: readonly DocGroup[] = [
         id: "why-openlimiter",
         href: "/docs/why-openlimiter",
       },
+      {
+        id: "connections",
+        href: "/docs/connections",
+      },
+      {
+        id: "providers",
+        href: "/docs/providers",
+      },
     ],
   },
   {
     id: "using",
     pages: [
       {
-        id: "providers",
-        href: "/docs/providers",
+        id: "security",
+        href: "/docs/security",
       },
       {
-        id: "connections",
-        href: "/docs/connections",
+        id: "roadmap",
+        href: "/docs/roadmap",
+      },
+    ],
+  },
+  {
+    id: "reference",
+    pages: [
+      {
+        id: "configuration",
+        href: "/docs/configuration",
+      },
+      {
+        id: "cli",
+        href: "/docs/cli",
       },
       {
         id: "ingestion",
@@ -65,27 +86,6 @@ export const docGroups: readonly DocGroup[] = [
       {
         id: "agent-context",
         href: "/docs/agent-context",
-      },
-      {
-        id: "configuration",
-        href: "/docs/configuration",
-      },
-    ],
-  },
-  {
-    id: "reference",
-    pages: [
-      {
-        id: "cli",
-        href: "/docs/cli",
-      },
-      {
-        id: "security",
-        href: "/docs/security",
-      },
-      {
-        id: "roadmap",
-        href: "/docs/roadmap",
       },
     ],
   },
