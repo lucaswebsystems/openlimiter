@@ -71,7 +71,7 @@
   "hero": {
     "title": {
       "limits": "Track usage across <accent>all your LLMs</accent>.",
-      "route": "<accent>Real time</accent>. Desktop, mobile, and terminal."
+      "route": "<accent>Real time</accent>. Desktop, mobile and terminal."
     },
     "lead": "Read your AI subscription quota locally. Give agents bounded budget state and advice. Open source, local first, cross platform.",
     "downloads": {
