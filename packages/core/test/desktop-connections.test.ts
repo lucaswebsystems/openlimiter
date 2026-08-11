@@ -15,9 +15,14 @@ describe("desktop connection wiring", () => {
     expect(source).toMatch(/function refreshDueConnections\(now\)[\s\S]*for \(const record of due\)[\s\S]*await runRefresh\(record\)/u);
   });
 
-  it("dispatches catalogue refresh and diagnostics without setup scrolling", () => {
+  it("dispatches catalogue refresh and diagnostics, and no click falls through", () => {
     expect(source).toMatch(/rowData\.action === connectionNextAction\.CONNECTED[\s\S]*await refreshNow\(record\)/u);
     expect(source).toMatch(/rowData\.action === connectionNextAction\.ERROR[\s\S]*diagnosticsTab\.click\(\)/u);
-    expect(source).toMatch(/rowData\.action === connectionNextAction\.NOT_CONFIGURED && targetId/u);
+    /* Every state that is not connected or error resolves to the provider's
+       own setup card, unconditionally, so a click can never be silently
+       dropped. The old pin required a NOT_CONFIGURED guard here; that guard
+       was the bug. */
+    expect(source).not.toMatch(/connectionNextAction\.NOT_CONFIGURED && targetId/u);
+    expect(source).toMatch(/setup shaped[\s\S]*if \(targetId\)[\s\S]*scrollIntoView/u);
   });
 });
