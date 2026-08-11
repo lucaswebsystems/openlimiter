@@ -28,7 +28,7 @@ import {
   type TabDefinition,
   type ViewMode,
 } from "./pieces";
-import { providerName } from "./language";
+import { CLAUDE_STATUSLINE_WIRING, providerName } from "./language";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
@@ -128,9 +128,9 @@ function loadView(): ViewMode {
 }
 
 const TABS: readonly TabDefinition[] = [
-  { id: "meters", label: "Meters" },
+  { id: "home", label: "Home" },
   { id: "connections", label: "Connections" },
-  { id: "context", label: "Agent context" },
+  { id: "advanced", label: "Advanced" },
 ];
 
 const messages = {
@@ -241,7 +241,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
      the stored choice is read after mount rather than during render. */
   const [view, setView] = useState<ViewMode>("grid");
   const [dragging, setDragging] = useState(false);
-  const [tab, setTab] = useState<string>("meters");
+  const [tab, setTab] = useState<string>("connections");
   const fileInput = useRef<HTMLInputElement | null>(null);
   const textArea = useRef<HTMLTextAreaElement | null>(null);
   const busyTimer = useRef<number | null>(null);
@@ -250,11 +250,22 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
   useEffect(() => {
     migrateLegacy();
-    setLive(loadStore(LIVE_KEY));
-    setDemoSnapshots(loadStore(DEMO_KEY));
-    setMode(loadMode());
+    const storedLive = loadStore(LIVE_KEY);
+    const storedDemo = loadStore(DEMO_KEY);
+    const storedMode = loadMode();
+    setLive(storedLive);
+    setDemoSnapshots(storedDemo);
+    setMode(storedMode);
     setNow(new Date().toISOString());
     setView(loadView());
+
+    const activeSnapshots = storedMode === "demo" ? storedDemo : storedLive;
+    if (activeSnapshots.length > 0) {
+      setTab("home");
+    } else {
+      setTab("connections");
+    }
+
     /* The launch splash waits on this and nothing else. */
     document.documentElement.setAttribute(READY_ATTR, "1");
     const timer = window.setInterval(() => {
@@ -298,7 +309,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         setNote({
           tone: "bad",
           message:
-            "Demo mode is on, so this document was not read. Real readings are never mixed into synthetic ones. Leave demo mode and paste it again.",
+            "Demo mode is on, so this document was not read. Real readings are never mixed into synthetic ones. Leave demo mode and supply it again.",
         });
         return;
       }
@@ -328,7 +339,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             result.recognised.join(", ") +
             ".",
         });
-        setTab("meters");
+        setTab("home");
       });
     },
     [mode, work],
@@ -374,7 +385,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         message:
           "Demo mode is on. These are the project's synthetic fixtures: no account, no credential and no real usage. Your own readings are kept where they are.",
       });
-      setTab("meters");
+      setTab("home");
     });
   }, [work]);
 
@@ -404,6 +415,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     }
     setText("");
     setNote(null);
+    setTab("connections");
     try {
       window.localStorage.removeItem(demo ? DEMO_KEY : LIVE_KEY);
     } catch {
@@ -439,13 +451,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
   const openConnections = useCallback(() => {
     setTab("connections");
-  }, []);
-
-  const focusImport = useCallback(() => {
-    setTab("connections");
-    window.setTimeout(() => {
-      textArea.current?.focus();
-    }, 0);
   }, []);
 
   /* One store is on screen at a time, and this is where that is decided. */
@@ -523,11 +528,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         {busy ? "Reading." : "Ready."}
       </p>
 
-      {tab === "meters" && (
+      {tab === "home" && (
         <div
-          id="panel-meters"
+          id="panel-home"
           role="tabpanel"
-          aria-labelledby="tab-meters"
+          aria-labelledby="tab-home"
           tabIndex={-1}
           className="ol-panel"
         >
@@ -571,43 +576,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         </div>
       )}
 
-      {tab === "context" && (
-        <div
-          id="panel-context"
-          role="tabpanel"
-          aria-labelledby="tab-context"
-          tabIndex={-1}
-          className="ol-panel"
-        >
-          <Panel
-            title="What an agent would be told"
-            description="This is the block the prompt hook injects, built here by the same adapter the command line tool uses. It carries bounded numbers, enum codes and timestamps, inside a boundary that tells the agent to treat the contents as untrusted."
-            action={demo ? <DemoDataChip /> : undefined}
-            demo={demo}
-          >
-            {dash === null || dash.agentContext === "" ? (
-              <p className="text-sm leading-relaxed text-body">
-                Nothing at all. Every provider is unknown, and silence beats
-                noise, so the hook injects no block rather than a block full of
-                guesses.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {/* The blocks themselves are byte for byte what the hook would
-                    inject. Where the numbers in them are synthetic, the chrome
-                    around the block says so and the block is left alone. */}
-                <CodeBlock
-                  label="UserPromptSubmit hook"
-                  text={dash.agentContext}
-                  synthetic={demo}
-                />
-                <CodeBlock label="Statusline" text={dash.statusline} synthetic={demo} />
-              </div>
-            )}
-          </Panel>
-        </div>
-      )}
-
       {tab === "connections" && (
         <div
           id="panel-connections"
@@ -618,10 +586,33 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         >
           <Panel
             title="Connections"
-            description="What OpenLimiter can read today, and how. One provider reports on its own; the rest parse a document you supply. Nothing here signs in to anything, and no credential is stored on this page."
+            description="What OpenLimiter can read today, and how. Manual entry, provider file imports, and demo mode. Nothing here signs in to anything, and no credential is stored on this page."
             demo={demo}
           >
-            <ConnectionList />
+            <ConnectionList
+              onImportFile={() => fileInput.current?.click()}
+              onEnterDemo={enterDemo}
+            />
+            <input
+              ref={fileInput}
+              type="file"
+              accept="application/json,.json,.txt"
+              className="sr-only"
+              onChange={(event) => {
+                acceptFile(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+            {note !== null && (
+              <p
+                role="status"
+                className={`mt-3 text-sm leading-relaxed ${
+                  note.tone === "bad" ? "text-heading" : "text-body"
+                }`}
+              >
+                {note.message}
+              </p>
+            )}
             <p className="mt-4 text-xs leading-relaxed text-muted">
               Every connector ships marked UNVERIFIED: no verifier has confirmed
               a shape against a live account yet. A shape that changes fails
@@ -642,7 +633,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                 <p className="mt-2 text-sm leading-relaxed text-muted">
                   Provider quota endpoints are not built to answer a web page
                   from another origin, and the browser enforces that boundary
-                  itself: the cross origin rules, CORS, stop the call before it
+                  itself: the cross origin rules stop the call before it
                   leaves. A page that promised live provider reads would be
                   promising a request the platform is designed to refuse.
                 </p>
@@ -660,21 +651,21 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                 </p>
               </div>
             </div>
-            <p className="mt-5 text-sm leading-relaxed text-muted">
-              The desktop application&apos;s Connections tab is where a live
-              connection lives: it stores the key, tests it, refreshes on a
-              schedule, and the same readings then appear in the command line
-              tool and on this page through{" "}
-              <code className="font-mono text-xs text-heading">
-                openlimiter export
-              </code>
-              .
-            </p>
           </Panel>
+        </div>
+      )}
 
+      {tab === "advanced" && (
+        <div
+          id="panel-advanced"
+          role="tabpanel"
+          aria-labelledby="tab-advanced"
+          tabIndex={-1}
+          className="ol-panel space-y-5"
+        >
           <Panel
             title="Import a document"
-            description="Paste a Claude Code statusline payload, a manual quota document, or the output of openlimiter export. Drop a JSON file on the box if that is easier."
+            description="Paste a statusline payload, a manual quota document, or exported readings. Drop a JSON file on the box if that is easier."
             demo={demo}
           >
             {demo && (
@@ -735,16 +726,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               >
                 Choose a file
               </Button>
-              <input
-                ref={fileInput}
-                type="file"
-                accept="application/json,.json,.txt"
-                className="sr-only"
-                onChange={(event) => {
-                  acceptFile(event.target.files?.[0]);
-                  event.target.value = "";
-                }}
-              />
             </div>
             {note !== null && (
               <p
@@ -755,6 +736,40 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               >
                 {note.message}
               </p>
+            )}
+          </Panel>
+
+          <Panel
+            title="Claude Code statusline configuration"
+            description="On a machine running Claude Code, this wiring makes the reading arrive on its own. In this browser, paste the payload that command receives into the import box above."
+            demo={demo}
+          >
+            <pre className="overflow-x-auto rounded-md border border-hairline bg-code p-3 font-mono text-xs leading-relaxed text-body">
+              <code>{CLAUDE_STATUSLINE_WIRING}</code>
+            </pre>
+          </Panel>
+
+          <Panel
+            title="What an agent would be told"
+            description="This is the block the prompt hook injects, built here by the same adapter the command line tool uses. It carries bounded numbers, enum codes and timestamps, inside a boundary that tells the agent to treat the contents as untrusted."
+            action={demo ? <DemoDataChip /> : undefined}
+            demo={demo}
+          >
+            {dash === null || dash.agentContext === "" ? (
+              <p className="text-sm leading-relaxed text-body">
+                Nothing at all. Every provider is unknown, and silence beats
+                noise, so the hook injects no block rather than a block full of
+                guesses.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                <CodeBlock
+                  label="UserPromptSubmit hook"
+                  text={dash.agentContext}
+                  synthetic={demo}
+                />
+                <CodeBlock label="Statusline" text={dash.statusline} synthetic={demo} />
+              </div>
             )}
           </Panel>
 
@@ -793,17 +808,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               </code>{" "}
               there and scan the code it prints. Your phone then reads the live
               quota on that machine directly, with no cloud in the middle.
-            </p>
-            <p className="mt-4 text-xs leading-relaxed text-muted">
-              Prefer the keyboard?{" "}
-              <button
-                type="button"
-                onClick={focusImport}
-                className="focus-ring cursor-pointer rounded text-accent underline-offset-2 hover:underline"
-              >
-                Jump to the import box
-              </button>
-              .
             </p>
           </Panel>
         </div>

@@ -407,37 +407,37 @@ export const CONNECTION_FACTS: readonly ConnectionFact[] = [
   {
     provider: "OPENROUTER",
     state: "IMPORT_ONLY",
-    line: "The documented credits response parses. This page holds no key and makes no request, so paste or ingest the response. A live OpenRouter connection is the desktop application's job.",
+    line: "The documented credits response parses. This page holds no key and makes no request, so supply the response file. A live OpenRouter connection is the desktop application's job.",
     browserState: "IMPORT_ONLY",
-    documentPath: "openlimiter ingest --provider openrouter",
+    documentPath: null,
   },
   {
     provider: "CODEX",
     state: "IMPORT_ONLY",
     line: "The usage payload the Codex tooling produces parses. Internal shape, no reader, so the document comes from you.",
     browserState: "IMPORT_ONLY",
-    documentPath: "openlimiter ingest --provider codex",
+    documentPath: null,
   },
   {
     provider: "ANTIGRAVITY",
     state: "IMPORT_ONLY",
     line: "The quota payload the Antigravity tooling produces parses. Internal shape, no reader, so the document comes from you.",
     browserState: "IMPORT_ONLY",
-    documentPath: "openlimiter ingest --provider antigravity",
+    documentPath: null,
   },
   {
     provider: "OPENCODE",
     state: "IMPORT_ONLY",
     line: "The usage view behind an existing session parses. Nothing here opens or holds that session.",
     browserState: "IMPORT_ONLY",
-    documentPath: "openlimiter ingest --provider opencode",
+    documentPath: null,
   },
   {
     provider: "MANUAL",
     state: "MANUAL",
     line: "Write down what you know for anything with no interface at all. It never breaks and it never guesses.",
     browserState: "MANUAL",
-    documentPath: "manual.json in the state directory, or openlimiter ingest --provider manual",
+    documentPath: null,
   },
 ];
 
