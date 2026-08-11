@@ -220,7 +220,6 @@ export function Footer({ localised = true }: { localised?: boolean }) {
   ];
 
   const resources: FooterLink[] = [
-    { label: routes("alternatives"), href: "/alternatives" },
     { label: "GitHub", href: REPO_URL, external: true },
     { label: t("issues"), href: ISSUES_URL, external: true },
     { label: "GitHub Sponsors", href: SPONSORS_URL, external: true },

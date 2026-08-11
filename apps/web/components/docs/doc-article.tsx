@@ -84,12 +84,15 @@ export async function DocArticle({
           </nav>
 
           <h1
-            className="mt-5 font-sans text-3xl font-medium tracking-tight text-heading sm:text-4xl"
+            className="mt-5 text-center font-sans text-3xl font-medium tracking-tight text-heading sm:text-4xl"
             {...reveal}
           >
             {title}
           </h1>
-          <p className="mt-4 font-sans text-base leading-8 text-body" {...reveal}>
+          <p
+            className="mt-4 text-center font-sans text-base leading-8 text-body [text-wrap:balance]"
+            {...reveal}
+          >
             {lead}
           </p>
         </div>
