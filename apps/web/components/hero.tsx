@@ -247,10 +247,11 @@ export function Hero() {
               {t("lead")}
             </p>
 
-            {/* Two rows, seven buttons, every one carrying its monochrome
-               glyph, the founder's exact list (2026-08-11): three desktop
-               downloads and the blue web app on the first line, the three
-               install paths on the second, and nothing else. */}
+            {/* Three rows, seven buttons, every one carrying its monochrome
+               glyph, the founder's list (2026-08-13): the three desktop
+               downloads on the first line, the two phone installs on the
+               second, the terminal with the blue web app beside it on the
+               third, and nothing else. */}
             <div className="fold-enter fold-enter-row mt-9 space-y-3">
               {/* A phone gets the three paths a phone can take, the founder's
                  order (2026-08-11): the web app and the two install guides.
@@ -271,10 +272,6 @@ export function Hero() {
                   <LinuxGlyph />
                   {t("rows.linux")}
                 </ButtonLink>
-                <ButtonLink href="/app" tone="solid" className="h-11 gap-2 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover" label={t("rows.webApp")}>
-                  <GlobeGlyph />
-                  {t("rows.webApp")}
-                </ButtonLink>
               </div>
               <div className="flex flex-wrap gap-3">
                 <ButtonLink href="/app" tone="solid" className="h-11 gap-2 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover lg:hidden" label={t("rows.webApp")}>
@@ -294,6 +291,10 @@ export function Hero() {
                 <ButtonLink href="/download#npm" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.cli")}>
                   <TerminalGlyph />
                   {t("rows.cli")}
+                </ButtonLink>
+                <ButtonLink href="/app" tone="solid" className="h-11 gap-2 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover" label={t("rows.webApp")}>
+                  <GlobeGlyph />
+                  {t("rows.webApp")}
                 </ButtonLink>
               </div>
             </div>
