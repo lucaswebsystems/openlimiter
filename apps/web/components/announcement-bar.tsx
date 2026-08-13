@@ -52,7 +52,7 @@ export async function AnnouncementBar() {
 
   return (
     <div className="announce-bar bg-announce text-announce-fg">
-      <div className={`${SHELL} flex h-9 items-center gap-2`}>
+      <div className={`${SHELL} flex h-[var(--ol-announce-h)] items-center gap-2`}>
         <SiteLink
           href={ANNOUNCE_HREF}
           className="focus-ring-inset group flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded text-xs font-medium"

@@ -135,6 +135,7 @@
 
   --ol-announce: #0866ff;
   --ol-announce-fg: #ffffff;
+  --ol-announce-h: 2.25rem;
 
   /* The frosted header's fixed dark coat. Its own tokens rather than a read of
      the surface tokens, because the header's tint layers sit OUTSIDE the dark
@@ -406,6 +407,14 @@ body {
   accent outline on an accent band is invisible. Inside the bar it is drawn in
   the bar's own foreground token instead.
 */
+:root[data-announce="off"] {
+  --ol-announce-h: 0px;
+}
+
+body:has(.ol-shell) {
+  --ol-announce-h: 0px;
+}
+
 :root[data-announce="off"] .announce-bar,
 body:has(.ol-shell) .announce-bar {
   display: none;
@@ -812,7 +821,7 @@ body:has(.ol-shell) .announce-bar {
      (see .page-overlap), so the footage already runs under the bar and the
      fold simply owns the first screen. The copy block inside reserves the
      bar's height as padding so nothing can land behind it. */
-  min-height: 100svh;
+  min-height: calc(100svh - var(--ol-announce-h, 0px));
   overflow: hidden;
 }
 

@@ -30,8 +30,8 @@
     "closeMenu": "Close menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro: a founding price for early supporters, coming soon",
-    "short": "OpenLimiter Pro: founding price, coming soon",
+    "message": "OpenLimiter Pro: 50% OFF founding price for early supporters, coming soon",
+    "short": "OpenLimiter Pro: 50% OFF, coming soon",
     "dismiss": "Close this announcement"
   },
   "footer": {

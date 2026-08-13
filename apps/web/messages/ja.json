@@ -30,8 +30,8 @@
     "closeMenu": "メニューを閉じる"
   },
   "announce": {
-    "message": "OpenLimiter Pro：先行支援者向けの先行価格、近日提供予定",
-    "short": "OpenLimiter Pro：先行価格、近日提供予定",
+    "message": "OpenLimiter Pro：先行支援者向けの先行価格が50% OFF、近日提供予定",
+    "short": "OpenLimiter Pro：50% OFF、近日提供予定",
     "dismiss": "このお知らせを閉じる"
   },
   "footer": {

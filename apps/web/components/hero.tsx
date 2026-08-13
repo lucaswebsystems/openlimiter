@@ -224,7 +224,7 @@ export function Hero() {
           bar grew. Reserving the bar's own height plus a small gap above (and a
           matching breath below) keeps the centre optically where it was while
           making the collision impossible at any viewport. */}
-      <div className="relative z-10 flex h-full items-center pb-4 pt-[calc(var(--ol-header-h)+0.5rem)]">
+      <div className="relative z-10 flex min-h-[inherit] items-center pb-4 pt-[calc(var(--ol-header-h)+0.5rem)] lg:pb-20">
         <div className={`${SHELL} w-full`}>
           <div>
             <h1 className="fold-enter fold-enter-title text-[1.375rem] font-medium leading-tight tracking-tight text-heading min-[400px]:text-2xl sm:text-4xl lg:text-[3.25rem]">

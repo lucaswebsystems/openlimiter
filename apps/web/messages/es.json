@@ -30,8 +30,8 @@
     "closeMenu": "Cerrar menú"
   },
   "announce": {
-    "message": "OpenLimiter Pro: un precio fundador para quienes lo apoyen desde el inicio, próximamente",
-    "short": "OpenLimiter Pro: precio fundador, próximamente",
+    "message": "OpenLimiter Pro: 50% de descuento en el precio fundador para quienes lo apoyen desde el inicio, próximamente",
+    "short": "OpenLimiter Pro: 50% de descuento, próximamente",
     "dismiss": "Cerrar este aviso"
   },
   "footer": {
