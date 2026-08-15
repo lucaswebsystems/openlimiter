@@ -21,17 +21,14 @@ import {
   byMeterOrder,
   countdown,
   freshnessWord,
-  meterCountLabel,
   meterFraction,
   meterLabel,
   meterName,
   meterWidth,
-  noRecommendationSentence,
   pressureOf,
   providerName,
   providerOrigin,
   reasonPressure,
-  reasonSentence,
   sourceStateLabel,
   sourceStateOf,
   sourceStateSentence,
@@ -374,7 +371,6 @@ export function ProviderCard({
     .filter((code) => !meters.some((meter) => meter.meter === code))
     .sort(byMeterOrder);
   const pressure: Pressure = worst === null ? "none" : pressureOf(worst.value);
-  const count = meterCountLabel(meters.length);
   /* One row answers for the card, and its source literal and its provenance
      have to come from that same row: pairing one meter's stamp with another
      meter's literal is how a card ends up describing an arrival nothing here
@@ -418,7 +414,6 @@ export function ProviderCard({
               {floorFixed(worst.value, 1)}%
             </p>
           )}
-          {count !== null && <span className={CHIP_NEUTRAL}>{count}</span>}
         </div>
       </header>
 
@@ -445,234 +440,9 @@ export function ProviderCard({
   );
 }
 
-/* -------------------------------------------------------------- list view */
 
-/**
- * The same readings as a dense table.
- *
- * One row per meter rather than one card per provider, which is what somebody
- * with six providers and ten meters actually wants to scan. It is built from
- * exactly the same `ProviderView` list the grid renders, so the two views can
- * never disagree, and it is a grid with table roles rather than a `<table>`
- * because the row has to fold at phone width and a table cannot be refolded.
- *
- * A provider's name appears once per group. On the rows underneath it is still
- * in the markup, and still announced, but carried in a visually hidden span so
- * a screen reader hears which provider a row belongs to while the eye reads a
- * clean block. The group's first row carries the hairline that separates it
- * from the one above.
- */
-export function MeterList({
-  providers,
-  now,
-  demo = false,
-}: {
-  providers: readonly ProviderView[];
-  now: string;
-  demo?: boolean;
-}) {
-  const groups = providers
-    .map((provider) => ({
-      provider,
-      meters: [...provider.meters].sort((left, right) => {
-        const diff = right.value - left.value;
-        return diff !== 0 ? diff : byMeterOrder(left.meter, right.meter);
-      }),
-    }))
-    .filter((group) => group.meters.length > 0);
 
-  if (groups.length === 0) return null;
 
-  return (
-    <div data-demo={demo ? "" : undefined} className={`ol-rise overflow-hidden ${CARD_SURFACE}`}>
-      {demo && <DemoStrip className="" />}
-      <div role="table" aria-label="Every meter, one row each" className="ol-list">
-        <div role="rowgroup">
-          <div role="row" className="ol-list-row ol-list-head">
-            <span role="columnheader" className="ol-cell-ident">
-              Provider
-            </span>
-            <span role="columnheader" className="ol-cell-meter">
-              Meter
-            </span>
-            <span role="columnheader" className="ol-cell-bar">
-              Level
-            </span>
-            <span role="columnheader" className="ol-cell-value">
-              Used
-            </span>
-            <span role="columnheader" className="ol-cell-money">
-              Money
-            </span>
-            <span role="columnheader" className="ol-cell-state">
-              Reading
-            </span>
-            <span role="columnheader" className="ol-cell-reset">
-              Resets
-            </span>
-          </div>
-        </div>
-
-        {groups.map((group) => (
-          <div role="rowgroup" key={group.provider.provider}>
-            {group.meters.map((meter, index) => {
-              const percent = floorFixed(meter.value, 1);
-              const pressure: Pressure =
-                meter.state === "unknown" ? "none" : pressureOf(meter.value);
-              const money = amountLine(meter);
-              return (
-                <div
-                  role="row"
-                  key={group.provider.provider + meter.meter}
-                  data-group-start={index === 0 ? "" : undefined}
-                  className="ol-list-row"
-                >
-                  <span role="cell" className="ol-cell-ident">
-                    {index === 0 ? (
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="text-soft">
-                          <ProviderMark provider={group.provider.provider} />
-                        </span>
-                        <span className="ol-brand-font truncate text-sm text-heading">
-                          {providerName(group.provider.provider)}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="sr-only">
-                        {providerName(group.provider.provider)}
-                      </span>
-                    )}
-                    {/* Where the number came from, on the row the number is on,
-                        because a dense table is exactly where a reading is
-                        easiest to mistake for a live account. */}
-                    <SourceChip
-                      state={sourceStateOf(
-                        group.provider.provider,
-                        meter.source,
-                        meter.provenance,
-                      )}
-                    />
-                  </span>
-                  <span role="cell" className="ol-cell-meter truncate text-sm text-soft">
-                    {meterName(meter.meter)}
-                  </span>
-                  <span role="cell" className="ol-cell-bar">
-                    <QuotaMeter
-                      value={meter.value}
-                      state={meter.state}
-                      size="sm"
-                      label={meterLabel(meter, percent, now)}
-                    />
-                  </span>
-                  <span
-                    role="cell"
-                    data-pressure={pressure}
-                    className="ol-cell-value ol-pressure-text text-sm font-medium tabular-nums"
-                  >
-                    {meter.state === "unknown" ? "Unknown" : percent + "%"}
-                  </span>
-                  <span
-                    role="cell"
-                    className="ol-cell-money ol-amount-line text-2xs tabular-nums"
-                  >
-                    {money === null ? "" : money.spent + " of " + money.loaded}
-                  </span>
-                  <span role="cell" className="ol-cell-state">
-                    <Freshness state={meter.state} />
-                  </span>
-                  <span role="cell" className="ol-cell-reset text-2xs text-muted">
-                    {meter.state === "unknown"
-                      ? "Not zero, not exhausted"
-                      : countdown(meter.resetAt, now)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------- view switch */
-
-export type ViewMode = "grid" | "list";
-
-function GridGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden="true">
-      <rect x="3" y="3" width="7.5" height="7.5" rx="1.6" />
-      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6" />
-      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6" />
-      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6" />
-    </svg>
-  );
-}
-
-function ListGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <path d="M4 6.5h16M4 12h16M4 17.5h16" />
-    </svg>
-  );
-}
-
-/**
- * Grid or list, as a segmented control.
- *
- * Two toggle buttons rather than a tab list, because these do not switch
- * between panels of different content: they are two drawings of one thing, and
- * `aria-pressed` is what says which drawing is on.
- */
-export function ViewSwitch({
-  view,
-  onSelect,
-}: {
-  view: ViewMode;
-  onSelect: (next: ViewMode) => void;
-}) {
-  const options: readonly { id: ViewMode; label: string; glyph: ReactNode }[] = [
-    { id: "grid", label: "Grid", glyph: <GridGlyph /> },
-    { id: "list", label: "List", glyph: <ListGlyph /> },
-  ];
-  return (
-    <div
-      role="group"
-      aria-label="How the meters are laid out"
-      className="inline-flex items-center gap-1 rounded-lg border border-hairline bg-surface p-1"
-    >
-      {options.map((option) => {
-        const on = option.id === view;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            aria-pressed={on}
-            title={option.label + " view"}
-            onClick={() => {
-              onSelect(option.id);
-            }}
-            className={`ol-tap focus-ring-inset inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium ${
-              on ? "bg-raised text-heading" : "text-muted hover:text-heading"
-            }`}
-          >
-            {option.glyph}
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ header */
 
@@ -742,13 +512,10 @@ export function HeaderStrip({
             <span aria-hidden="true" data-pressure={pressure} className="ol-pressure-dot" />
             <span className="font-mono tracking-widest">{reason}</span>
           </span>
-          <p className="max-w-sm text-xs leading-relaxed text-muted">
-            {reasonSentence[reason]}
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 lg:justify-end">
-          {recommendation !== null && recommendation.code === "PREFER" ? (
+          {recommendation !== null && recommendation.code === "PREFER" && (
             <span className={CHIP_ACCENT} title="The provider the engine would route to next">
               <span className="font-mono tracking-widest">
                 PREFER {recommendation.provider}
@@ -757,15 +524,6 @@ export function HeaderStrip({
                 {recommendation.reason}
               </span>
             </span>
-          ) : (
-            <span className={CHIP_NEUTRAL}>
-              <span className="font-mono tracking-widest">NO RECOMMENDATION</span>
-            </span>
-          )}
-          {recommendation !== null && recommendation.code === "NONE" && (
-            <p className="text-xs text-muted">
-              {noRecommendationSentence[recommendation.reason] ?? ""}
-            </p>
           )}
           <span className="font-mono text-2xs text-muted">
             {asOf === null ? "reading the clock" : "as of " + asOf}

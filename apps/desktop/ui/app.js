@@ -215,13 +215,6 @@ const CLOCK_GLYPH =
 
 /* The same sentences apps/web/app/app/language.ts renders, word for word,
    with the % sign the reference uses rather than the word. */
-const REASON_SENTENCE = {
-  HEALTHY: "Every readable meter is under 80%.",
-  NEAR_CAP: "At least one readable meter is at 80% or more.",
-  AT_CAP: "At least one readable meter has reached its cap.",
-  UNKNOWN: "No provider has reported yet, so nothing is claimed.",
-};
-
 const REASON_PRESSURE = {
   HEALTHY: "ok",
   NEAR_CAP: "high",
@@ -229,28 +222,16 @@ const REASON_PRESSURE = {
   UNKNOWN: "none",
 };
 
-const NO_RECOMMENDATION_SENTENCE = {
-  NO_KNOWN_PROVIDER: "No provider has a readable meter.",
-  NO_FRESH_DATA: "Every reading has aged past its own expiry.",
-  NO_HEALTHY_PROVIDER: "Every readable provider is at 80% or more.",
-};
-
 const elements = {
   cards: document.getElementById("cards"),
-  absent: document.getElementById("absent"),
-  list: document.getElementById("list"),
-  viewGrid: document.getElementById("view-grid"),
-  viewList: document.getElementById("view-list"),
   empty: document.getElementById("empty"),
   context: document.getElementById("context"),
   statusline: document.getElementById("statusline"),
   stamp: document.getElementById("stamp"),
   reasonCode: document.getElementById("reason-code"),
-  reasonLine: document.getElementById("reason-line"),
   recChip: document.getElementById("rec-chip"),
   recCode: document.getElementById("rec-code"),
   recDetail: document.getElementById("rec-detail"),
-  recReason: document.getElementById("rec-reason"),
   stateDot: document.getElementById("state-dot"),
   refresh: document.getElementById("refresh"),
   theme: document.getElementById("theme"),
@@ -669,11 +650,6 @@ function card(provider, snapshots, now, failure) {
     peakValue.dataset.state = worst.state;
   }
   peak.append(peakValue);
-  /* One meter is the ordinary case, so saying so is filler. The count is shown
-     only where it earns its place, and then as a chip rather than a caption. */
-  if (readings.length > 1) {
-    peak.append(element("span", "chip muted", readings.length + " meters"));
-  }
   head.append(peak);
   node.append(head);
 
@@ -739,155 +715,7 @@ function card(provider, snapshots, now, failure) {
   return node;
 }
 
-/* --------------------------------------------------------------- list view */
 
-/** One cell of the list, with its table role and its column class. */
-function cell(className, text) {
-  const node = element("span", className, text);
-  node.setAttribute("role", "cell");
-  return node;
-}
-
-/**
- * The same readings as a dense table.
- *
- * Built from the same grouped snapshots the cards are built from, so the two
- * views cannot disagree about a number. A provider's name is drawn once per
- * group and carried invisibly on the rows underneath, where a screen reader
- * still reads it out.
- */
-function listView(groups, now) {
-  const root = document.createDocumentFragment();
-
-  const head = element("div", "list-row list-head");
-  head.setAttribute("role", "row");
-  for (const [className, label] of [
-    ["cell-ident", "Provider"],
-    ["cell-meter", "Meter"],
-    ["cell-bar", "Level"],
-    ["cell-value", "Used"],
-    ["cell-money", "Money"],
-    ["cell-state", "Reading"],
-    ["cell-reset", "Resets"],
-  ]) {
-    const node = element("span", className, label);
-    node.setAttribute("role", "columnheader");
-    head.append(node);
-  }
-  root.append(head);
-
-  for (const group of groups) {
-    group.readings.forEach((entry, index) => {
-      const snapshot = entry.snapshot;
-      const money = amountLine(snapshot);
-      const row = element("div", "list-row");
-      row.setAttribute("role", "row");
-      if (index === 0) row.dataset.groupStart = "true";
-
-      const ident = cell("cell-ident");
-      if (index === 0) {
-        const identity = element("span", "ident-line");
-        const mark = element("span");
-        mark.innerHTML = MARKS[group.provider] ?? "";
-        identity.append(mark);
-        identity.append(
-          element("span", "name", PROVIDER_NAMES[group.provider] ?? group.provider),
-        );
-        ident.append(identity);
-      } else {
-        ident.append(
-          element("span", "only-reader", PROVIDER_NAMES[group.provider] ?? group.provider),
-        );
-      }
-      /* Where this row's number came from, on this row, because a dense table
-         is where a reading is easiest to mistake for a live account. */
-      ident.append(sourceChip(group.provider, snapshot.source, snapshot.provenance));
-      row.append(ident);
-
-      row.append(cell("cell-meter", meterName(snapshot.meter)));
-
-      const bars = cell("cell-bar");
-      const bar = meterBar(snapshot.value, entry.state, true);
-      bar.setAttribute(
-        "aria-label",
-        meterName(snapshot.meter) +
-          " at " +
-          floorFixed(snapshot.value, 1) +
-          " percent, " +
-          entry.state,
-      );
-      bars.append(bar);
-      row.append(bars);
-
-      const value = cell(
-        "cell-value" + (entry.state === "unknown" ? "" : " value"),
-        entry.state === "unknown" ? "Unknown" : floorFixed(snapshot.value, 1) + "%",
-      );
-      if (entry.state !== "unknown") value.dataset.pressure = pressureOf(snapshot.value);
-      row.append(value);
-
-      row.append(
-        cell("cell-money", money === null ? "" : money.spent + " of " + money.loaded),
-      );
-
-      const state = cell("cell-state");
-      state.append(freshnessTag(entry.state));
-      row.append(state);
-
-      row.append(
-        cell(
-          "cell-reset",
-          entry.state === "unknown"
-            ? "Not zero, not exhausted"
-            : countdown(snapshot.resetAt, now),
-        ),
-      );
-      root.append(row);
-    });
-  }
-  return root;
-}
-
-/* --------------------------------------------------------------- view mode */
-
-/** Where the layout choice is kept, on this machine only. */
-const VIEW_KEY = "openlimiter-view";
-
-let currentView = "grid";
-
-function applyView(next) {
-  currentView = next === "list" ? "list" : "grid";
-  const list = currentView === "list";
-  elements.viewGrid.setAttribute("aria-pressed", list ? "false" : "true");
-  elements.viewList.setAttribute("aria-pressed", list ? "true" : "false");
-  /* The empty state owns visibility while there is nothing to show, so this
-     only ever hides a container the render step decided to fill. */
-  if (!elements.empty.hidden) return;
-  elements.cards.hidden = list;
-  elements.list.hidden = !list;
-}
-
-function chooseView(next) {
-  applyView(next);
-  try {
-    window.localStorage.setItem(VIEW_KEY, currentView);
-  } catch {
-    /* Storage refused. The choice still applies to this window. */
-  }
-}
-
-elements.viewGrid.addEventListener("click", () => {
-  chooseView("grid");
-});
-elements.viewList.addEventListener("click", () => {
-  chooseView("list");
-});
-
-try {
-  applyView(window.localStorage.getItem(VIEW_KEY));
-} catch {
-  applyView("grid");
-}
 
 /* -------------------------------------------------------------------- tabs */
 
@@ -1093,36 +921,10 @@ async function refresh() {
       );
     }
 
-    const missing = PROVIDER_CODES.filter((provider) => !carded.includes(provider));
-    elements.absent.textContent =
-      missing.length === 0
-        ? ""
-        : "Not connected yet: " +
-          missing.map((provider) => PROVIDER_NAMES[provider] ?? provider).join(", ") +
-          ". A provider with no reading gets no card and no number, because a " +
-          "missing reading is not a zero and not an exhausted quota.";
-    elements.absent.hidden = missing.length === 0 || carded.length === 0;
-
-    /* The list is the same readings in the same order, grouped by provider,
-       from the same snapshots the cards were built from. */
-    const groups = PROVIDER_CODES.map((provider) => ({
-      provider,
-      readings: snapshots
-        .filter((snapshot) => snapshot.provider === provider)
-        .map((snapshot) => ({
-          snapshot,
-          state: freshness(snapshot.observedAt, snapshot.expiresAt, now),
-        }))
-        .sort((left, right) => byMeterOrder(left.snapshot.meter, right.snapshot.meter)),
-    })).filter((group) => group.readings.length > 0);
-    elements.list.textContent = "";
-    elements.list.append(listView(groups, now));
-
     /* A failure is worth showing even when it left nothing readable behind. */
     const nothing = snapshots.length === 0 && failures.length === 0;
     elements.empty.hidden = !nothing;
-    elements.cards.hidden = nothing || currentView === "list";
-    elements.list.hidden = nothing || currentView !== "list";
+    elements.cards.hidden = nothing;
 
     const context = buildAgentContext(advice);
     elements.context.textContent = context === ""
@@ -1132,23 +934,16 @@ async function refresh() {
 
     const reason = advice.inject ? advice.reason : "UNKNOWN";
     elements.reasonCode.textContent = reason;
-    elements.reasonLine.textContent = REASON_SENTENCE[reason];
     elements.stateDot.dataset.pressure = REASON_PRESSURE[reason];
 
     const recommendation = advice.recommendation;
     if (recommendation.code === "PREFER") {
       elements.recChip.className = "chip accent";
+      elements.recChip.hidden = false;
       elements.recCode.textContent = "PREFER " + recommendation.provider;
       elements.recDetail.textContent = recommendation.reason;
-      elements.recReason.textContent = "";
-      elements.recReason.hidden = true;
     } else {
-      elements.recChip.className = "chip muted";
-      elements.recCode.textContent = "NO RECOMMENDATION";
-      elements.recDetail.textContent = "";
-      elements.recReason.textContent =
-        NO_RECOMMENDATION_SENTENCE[recommendation.reason] ?? "";
-      elements.recReason.hidden = false;
+      elements.recChip.hidden = true;
     }
 
     elements.stamp.textContent = "as of " + new Date().toLocaleTimeString();

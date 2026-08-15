@@ -197,26 +197,6 @@ export function byMeterOrder(left: string, right: string): number {
 }
 
 /**
- * How many meters a card is showing, when that is worth saying.
- *
- * One meter is the ordinary case and stating it is filler, so a card with one
- * meter says nothing at all. This returns null there and the caller renders
- * nothing rather than an empty chip.
- */
-export function meterCountLabel(count: number): string | null {
-  return count < 2 ? null : String(count) + " meters";
-}
-
-/** The plain sentence under an overall state chip. */
-export const reasonSentence: Record<AdviceReason, string> = {
-  HEALTHY: "Every readable meter is under 80%.",
-  NEAR_CAP: "At least one readable meter is at 80% or more.",
-  AT_CAP: "At least one readable meter has reached its cap.",
-  /* Not "nothing readable has been supplied": that sentence described a parser
-     to its author rather than a state to its reader, and the audit named it. */
-  UNKNOWN: "No provider has reported yet, so nothing is claimed.",
-};
-
 /**
  * The band an overall reason code is painted in.
  *
@@ -230,13 +210,6 @@ export const reasonPressure: Record<AdviceReason, Pressure> = {
   NEAR_CAP: "high",
   AT_CAP: "critical",
   UNKNOWN: "none",
-};
-
-/** Why there is no provider to prefer, when there is none. */
-export const noRecommendationSentence: Record<string, string> = {
-  NO_KNOWN_PROVIDER: "No provider has a readable meter.",
-  NO_FRESH_DATA: "Every reading has aged past its own expiry.",
-  NO_HEALTHY_PROVIDER: "Every readable provider is at 80% or more.",
 };
 
 const PROVIDER_NAMES: Record<ProviderCode, string> = {

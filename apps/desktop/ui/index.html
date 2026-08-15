@@ -45,29 +45,8 @@
             <path d="M 79.204 31.069 A 72 72 0 0 1 89.980 28.701" fill="none" stroke="currentColor" stroke-opacity="0.25" stroke-width="34" stroke-linecap="butt" />
           </svg>
           <span class="wordmark">OpenLimiter</span>
-          <span class="rule" aria-hidden="true"></span>
-          <h1>Quota dashboard</h1>
         </div>
         <div class="actions">
-          <!-- Grid or list. Two drawings of one thing, so aria-pressed rather
-               than a tab list, and the choice is remembered per machine. -->
-          <div class="viewswitch" role="group" aria-label="How the meters are laid out">
-            <button type="button" id="view-grid" class="seg" aria-pressed="true" title="Grid view">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true" focusable="false">
-                <rect x="3" y="3" width="7.5" height="7.5" rx="1.6" />
-                <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.6" />
-                <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.6" />
-                <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.6" />
-              </svg>
-              Grid
-            </button>
-            <button type="button" id="view-list" class="seg" aria-pressed="false" title="List view">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false">
-                <path d="M4 6.5h16M4 12h16M4 17.5h16" />
-              </svg>
-              List
-            </button>
-          </div>
           <button
             type="button"
             id="theme"
@@ -108,13 +87,11 @@
           <span class="pressure-dot" id="state-dot" aria-hidden="true"></span>
           <span class="mono tracked" id="reason-code">UNKNOWN</span>
         </span>
-        <p class="strip-line" id="reason-line">No provider has reported yet, so nothing is claimed.</p>
         <div class="strip-side">
-          <span class="chip muted" id="rec-chip">
-            <span class="mono tracked" id="rec-code">NO RECOMMENDATION</span>
+          <span class="chip muted" id="rec-chip" hidden>
+            <span class="mono tracked" id="rec-code"></span>
             <span class="mono tracked dim" id="rec-detail"></span>
           </span>
-          <p class="rec-line" id="rec-reason">Nothing has been read yet.</p>
           <span class="mono stamp" id="stamp">reading the cache</span>
         </div>
       </div>
@@ -155,10 +132,6 @@
     <main>
       <section id="panel-meters" role="tabpanel" aria-labelledby="tab-meters" tabindex="-1">
         <div id="cards" class="cards"></div>
-        <div id="list" class="list" role="table" aria-label="Every meter, one row each" hidden></div>
-        <!-- The providers with no card, accounted for in one quiet line rather
-             than as a grid of empty outlines. -->
-        <p id="absent" class="absent" hidden></p>
 
         <!-- Home view empty state. -->
         <div id="empty" class="empty" hidden>
@@ -174,6 +147,16 @@
             Connect a provider or local tool on the Connections tab to view meters here.
           </p>
         </div>
+
+        <details>
+          <summary>About</summary>
+          <p>
+            A provider with no reading gets no card and no number, because a missing reading is not a zero and not an exhausted quota.
+          </p>
+          <p>
+            Local first. Readings stay on this machine. A credential you connect goes to the operating system credential store and is never shown to this window again, and the only requests ever made are the provider reads set up on the Connections tab.
+          </p>
+        </details>
       </section>
 
       <section
@@ -463,12 +446,6 @@
       </section>
 
       <footer>
-        <p>
-          Local first. Readings stay on this machine. A credential you connect
-          goes to the operating system credential store and is never shown to
-          this window again, and the only requests ever made are the provider
-          reads set up on the Connections tab.
-        </p>
       </footer>
     </main>
 

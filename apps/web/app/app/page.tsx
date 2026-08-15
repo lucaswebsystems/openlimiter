@@ -71,10 +71,6 @@ export default function AppPage() {
                 markClassName="h-7 w-7 flex-none text-brand sm:h-8 sm:w-8"
                 wordClassName="text-lg sm:text-xl"
               />
-              <span aria-hidden="true" className="h-6 w-px flex-none bg-hairline" />
-              <h1 className="ol-brand-font truncate text-base text-heading">
-                Quota dashboard
-              </h1>
             </div>
           }
         />

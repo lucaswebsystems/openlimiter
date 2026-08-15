@@ -18,18 +18,15 @@ import {
   DemoDataChip,
   FirstRunState,
   HeaderStrip,
-  MeterList,
   Panel,
   ProviderCard,
   ProviderCatalogue,
   SettingsMenu,
   SkeletonCards,
   Tabs,
-  ViewSwitch,
   type TabDefinition,
-  type ViewMode,
 } from "./pieces";
-import { CLAUDE_STATUSLINE_WIRING, providerName } from "./language";
+import { CLAUDE_STATUSLINE_WIRING } from "./language";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 /**
@@ -111,22 +108,10 @@ const BUSY_FLOOR_MILLISECONDS = 240;
 /** Set on the document once this component has mounted. Clears the splash. */
 const READY_ATTR = "data-ol-ready";
 
-/** Where the grid or list choice is remembered, on this device only. */
-const STORAGE_VIEW_KEY = "openlimiter-app-view";
-
 type Mode = "live" | "demo";
 
 /** One frozen empty list, so demo mode does not rebuild the view every tick. */
 const NO_FAILURES: readonly ProviderFailure[] = [];
-
-function loadView(): ViewMode {
-  if (typeof window === "undefined") return "grid";
-  try {
-    return window.localStorage.getItem(STORAGE_VIEW_KEY) === "list" ? "list" : "grid";
-  } catch {
-    return "grid";
-  }
-}
 
 const TABS: readonly TabDefinition[] = [
   { id: "home", label: "Home" },
@@ -238,9 +223,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [note, setNote] = useState<{ tone: "ok" | "bad"; message: string } | null>(null);
   const [now, setNow] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  /* Grid until this device says otherwise, and the server has no device, so
-     the stored choice is read after mount rather than during render. */
-  const [view, setView] = useState<ViewMode>("grid");
   const [dragging, setDragging] = useState(false);
   const [tab, setTab] = useState<string>("connections");
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -258,7 +240,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setDemoSnapshots(storedDemo);
     setMode(storedMode);
     setNow(new Date().toISOString());
-    setView(loadView());
 
     const activeSnapshots = storedMode === "demo" ? storedDemo : storedLive;
     if (activeSnapshots.length > 0) {
@@ -440,16 +421,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     [read],
   );
 
-  /** Remember the layout, on this device only, and apply it now. */
-  const chooseView = useCallback((next: ViewMode) => {
-    setView(next);
-    try {
-      window.localStorage.setItem(STORAGE_VIEW_KEY, next);
-    } catch {
-      /* Storage refused. The choice still applies to this page. */
-    }
-  }, []);
-
   const openConnections = useCallback(() => {
     setTab("connections");
   }, []);
@@ -458,8 +429,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const shown = demo ? demoSnapshots : live;
   const shownFailures = demo ? NO_FAILURES : failures;
 
-  /* The rendered shape of every reading. Named apart from `view` above, which
-     is the layout choice: one is what is shown, the other is how. */
+  /* The rendered shape of every reading. */
   const dash = useMemo(
     () => (now === null ? null : dashboardView(shown, now, shownFailures)),
     [shown, now, shownFailures],
@@ -502,7 +472,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         onRefresh={refresh}
         actions={
           <>
-            <ViewSwitch view={view} onSelect={chooseView} />
             <InstallControl />
             <ThemeToggle className="mr-1 h-9 w-9" />
             <SettingsMenu
@@ -540,40 +509,31 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           {busy || dash === null ? (
             <SkeletonCards />
           ) : hasReadings ? (
-            <>
-              {view === "list" ? (
-                <MeterList providers={carded} now={now ?? ""} demo={demo} />
-              ) : (
-                <div className="ol-stagger grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {carded.map((provider) => (
-                    <ProviderCard
-                      key={provider.provider}
-                      view={provider}
-                      now={now ?? ""}
-                      demo={demo}
-                    />
-                  ))}
-                </div>
-              )}
-              {dash.unknown.length > 0 && (
-                <p className="mt-4 text-xs leading-relaxed text-muted">
-                  Not connected yet:{" "}
-                  {dash.unknown.map((code) => providerName(code)).join(", ")}. A
-                  provider with no reading gets no card and no number, because a
-                  missing reading is not a zero and not an exhausted quota.{" "}
-                  <button
-                    type="button"
-                    onClick={openConnections}
-                    className="focus-ring cursor-pointer rounded text-accent underline-offset-2 hover:underline"
-                  >
-                    See what can be connected
-                  </button>
-                </p>
-              )}
-            </>
+            <div className="ol-stagger grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {carded.map((provider) => (
+                <ProviderCard
+                  key={provider.provider}
+                  view={provider}
+                  now={now ?? ""}
+                  demo={demo}
+                />
+              ))}
+            </div>
           ) : (
             <FirstRunState onConnect={openConnections} />
           )}
+
+          <details className="mt-6 text-xs text-muted">
+            <summary className="cursor-pointer select-none font-medium text-soft hover:text-heading">About</summary>
+            <div className="mt-2 space-y-2 leading-relaxed">
+              <p>
+                A provider with no reading gets no card and no number, because a missing reading is not a zero and not an exhausted quota.
+              </p>
+              <p>
+                Local first. Readings stay on this machine. A credential you connect goes to the operating system credential store and is never shown to this window again, and the only requests ever made are the provider reads set up on the Connections tab.
+              </p>
+            </div>
+          </details>
         </div>
       )}
 
