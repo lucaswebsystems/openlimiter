@@ -920,13 +920,52 @@ footer p {
 
 .conn-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .conn-head h2 {
   margin: 0;
+}
+
+.conn-toggle-btn {
+  margin-left: auto;
+}
+
+.conn-expanded-content {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+.conn-why-needed {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.conn-why-needed summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--muted);
+  user-select: none;
+}
+
+.conn-why-needed summary:hover {
+  color: var(--heading);
+}
+
+.conn-why-content {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--raised);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .honesty-labels {

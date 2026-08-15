@@ -201,184 +201,242 @@
           <p id="claude-detail" class="conn-detail"></p>
           <div id="claude-body"></div>
           <p id="claude-note" class="conn-note" role="status"></p>
+          <details class="conn-why-needed">
+            <summary>Why this is needed</summary>
+            <div class="conn-why-content">
+              <div class="honesty-labels" data-honesty-provider="CLAUDE"></div>
+              <p class="conn-lead">
+                OpenLimiter reads the statusline payload local tools write. A timestamped copy of your settings is created before any change.
+              </p>
+            </div>
+          </details>
         </section>
 
+        <!-- Connect OpenRouter -->
         <section id="openrouter-add" class="surface conn-block" hidden aria-labelledby="openrouter-add-title" tabindex="-1">
           <div class="conn-head">
-            <h2 id="openrouter-add-title">Connect OpenRouter</h2>
-            <div class="honesty-labels" data-honesty-provider="OPENROUTER"></div>
+            <h2 id="openrouter-add-title">OpenRouter</h2>
+            <span class="chip muted conn-state" id="openrouter-status-chip">
+              <span class="state-dot" aria-hidden="true"></span>
+              <span class="mono tracked" id="openrouter-status-code">NOT CONNECTED</span>
+            </span>
+            <button type="button" id="openrouter-toggle-btn" class="conn-toggle-btn" aria-expanded="false" aria-controls="openrouter-expand">Connect</button>
           </div>
-          <p class="conn-lead">
-            OpenRouter is read live from this machine. Two kinds of key work
-            here, and they answer two different questions.
-          </p>
-          <fieldset class="kinds">
-            <legend class="only-reader">Which kind of key to store</legend>
-            <label class="kind">
-              <input type="radio" name="openrouter-kind" value="api_key" checked />
-              <span class="kind-words">
-                <b>Inference key</b>
-                <span>Reads the limit set on the key itself, and how much of that limit remains.</span>
-              </span>
+          <div id="openrouter-expand" class="conn-expanded-content" hidden>
+            <fieldset class="kinds">
+              <legend class="only-reader">Which kind of key to store</legend>
+              <label class="kind">
+                <input type="radio" name="openrouter-kind" value="api_key" checked />
+                <span class="kind-words">
+                  <b>Inference key</b>
+                  <span>Reads the limit set on the key itself, and how much of that limit remains.</span>
+                </span>
+              </label>
+              <label class="kind">
+                <input type="radio" name="openrouter-kind" value="management_key" />
+                <span class="kind-words">
+                  <b>Management key</b>
+                  <span>Reads the credits on the whole account.</span>
+                </span>
+              </label>
+            </fieldset>
+            <label class="field-label" for="openrouter-alias">
+              Account alias, so two accounts stay apart
             </label>
-            <label class="kind">
-              <input type="radio" name="openrouter-kind" value="management_key" />
-              <span class="kind-words">
-                <b>Management key</b>
-                <span>Reads the credits on the whole account.</span>
-              </span>
-            </label>
-          </fieldset>
-          <label class="field-label" for="openrouter-alias">
-            Account alias, so two accounts stay apart
-          </label>
-          <input
-            id="openrouter-alias"
-            class="field"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="default"
-          />
-          <label class="field-label" for="openrouter-key">Paste the key</label>
-          <input
-            id="openrouter-key"
-            class="field"
-            type="password"
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
-            placeholder="sk-or-..."
-          />
-          <p class="field-note">
-            The field is cleared the moment you submit. The key goes to the
-            operating system credential store, and after that only a masked
-            label is ever shown.
-          </p>
-          <div class="conn-actions">
-            <button type="button" id="openrouter-submit">Test and save</button>
+            <input
+              id="openrouter-alias"
+              class="field"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="default"
+            />
+            <label class="field-label" for="openrouter-key">Paste the key</label>
+            <input
+              id="openrouter-key"
+              class="field"
+              type="password"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="sk-or-..."
+            />
+            <div class="conn-actions">
+              <button type="button" id="openrouter-submit">Test and save</button>
+            </div>
+            <p id="openrouter-note" class="conn-note" role="status"></p>
+            <details class="conn-why-needed">
+              <summary>Why this is needed</summary>
+              <div class="conn-why-content">
+                <div class="honesty-labels" data-honesty-provider="OPENROUTER"></div>
+                <p class="conn-lead">
+                  OpenRouter is read live from this machine. Two kinds of key work
+                  here, and they answer two different questions.
+                </p>
+                <p class="field-note">
+                  The field is cleared the moment you submit. The key goes to the
+                  operating system credential store, and after that only a masked
+                  label is ever shown.
+                </p>
+              </div>
+            </details>
           </div>
-          <p id="openrouter-note" class="conn-note" role="status"></p>
         </section>
 
         <!-- Connect Codex -->
         <section id="codex-add" class="surface conn-block" hidden aria-labelledby="codex-add-title" tabindex="-1">
           <div class="conn-head">
-            <h2 id="codex-add-title">Connect Codex</h2>
-            <div class="honesty-labels" data-honesty-provider="CODEX"></div>
+            <h2 id="codex-add-title">Codex</h2>
+            <span class="chip muted conn-state" id="codex-status-chip">
+              <span class="state-dot" aria-hidden="true"></span>
+              <span class="mono tracked" id="codex-status-code">NOT CONNECTED</span>
+            </span>
+            <button type="button" id="codex-toggle-btn" class="conn-toggle-btn" aria-expanded="false" aria-controls="codex-expand">Connect</button>
           </div>
-          <p class="conn-lead">
-            OpenLimiter reads the token and the account identifier from the login
-            file the Codex command line tool already keeps on this machine. There
-            is nothing to paste here.
-          </p>
-          <label class="field-label" for="codex-alias">
-            Account alias, so two accounts stay apart
-          </label>
-          <input
-            id="codex-alias"
-            class="field"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="default"
-          />
-          <!-- The window never carries this secret. The backend imports both
-               fields from the Codex login file and discards whatever arrives
-               from here, so the field stays hidden rather than asking a person
-               for a value that is thrown away. -->
-          <input id="codex-key" type="hidden" value="imported from the codex login file" />
-          <p class="field-note">
-            Run codex login in a terminal if this fails. The token goes straight
-            to the operating system credential store, and after that only a
-            masked label is ever shown.
-          </p>
-          <div class="conn-actions">
-            <button type="button" id="codex-submit">Connect from the Codex login</button>
+          <div id="codex-expand" class="conn-expanded-content" hidden>
+            <label class="field-label" for="codex-alias">
+              Account alias, so two accounts stay apart
+            </label>
+            <input
+              id="codex-alias"
+              class="field"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="default"
+            />
+            <!-- The window never carries this secret. The backend imports both
+                 fields from the Codex login file and discards whatever arrives
+                 from here, so the field stays hidden rather than asking a person
+                 for a value that is thrown away. -->
+            <input id="codex-key" type="hidden" value="imported from the codex login file" />
+            <div class="conn-actions">
+              <button type="button" id="codex-submit">Connect from the Codex login</button>
+            </div>
+            <p id="codex-note" class="conn-note" role="status"></p>
+            <details class="conn-why-needed">
+              <summary>Why this is needed</summary>
+              <div class="conn-why-content">
+                <div class="honesty-labels" data-honesty-provider="CODEX"></div>
+                <p class="conn-lead">
+                  OpenLimiter reads the token and the account identifier from the login
+                  file the Codex command line tool already keeps on this machine. There
+                  is nothing to paste here.
+                </p>
+                <p class="field-note">
+                  Run codex login in a terminal if this fails. The token goes straight
+                  to the operating system credential store, and after that only a
+                  masked label is ever shown.
+                </p>
+              </div>
+            </details>
           </div>
-          <p id="codex-note" class="conn-note" role="status"></p>
         </section>
 
         <!-- Connect Antigravity -->
         <section id="antigravity-add" class="surface conn-block" hidden aria-labelledby="antigravity-add-title" tabindex="-1">
           <div class="conn-head">
-            <h2 id="antigravity-add-title">Connect Antigravity</h2>
-            <div class="honesty-labels" data-honesty-provider="ANTIGRAVITY"></div>
+            <h2 id="antigravity-add-title">Antigravity</h2>
+            <span class="chip muted conn-state" id="antigravity-status-chip">
+              <span class="state-dot" aria-hidden="true"></span>
+              <span class="mono tracked" id="antigravity-status-code">NOT CONNECTED</span>
+            </span>
+            <button type="button" id="antigravity-toggle-btn" class="conn-toggle-btn" aria-expanded="false" aria-controls="antigravity-expand">Connect</button>
           </div>
-          <p class="conn-lead">
-            Antigravity requires the session token.
-          </p>
-          <label class="field-label" for="antigravity-alias">
-            Account alias, so two accounts stay apart
-          </label>
-          <input
-            id="antigravity-alias"
-            class="field"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="default"
-          />
-          <label class="field-label" for="antigravity-key">Paste the session token</label>
-          <input
-            id="antigravity-key"
-            class="field"
-            type="password"
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
-            placeholder="session-..."
-          />
-          <p class="field-note">
-            The field is cleared the moment you submit. The token goes to the
-            operating system credential store, and after that only a masked
-            label is ever shown.
-          </p>
-          <div class="conn-actions">
-            <button type="button" id="antigravity-submit">Test and save</button>
+          <div id="antigravity-expand" class="conn-expanded-content" hidden>
+            <label class="field-label" for="antigravity-alias">
+              Account alias, so two accounts stay apart
+            </label>
+            <input
+              id="antigravity-alias"
+              class="field"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="default"
+            />
+            <label class="field-label" for="antigravity-key">Paste the session token</label>
+            <input
+              id="antigravity-key"
+              class="field"
+              type="password"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="session-..."
+            />
+            <div class="conn-actions">
+              <button type="button" id="antigravity-submit">Test and save</button>
+            </div>
+            <p id="antigravity-note" class="conn-note" role="status"></p>
+            <details class="conn-why-needed">
+              <summary>Why this is needed</summary>
+              <div class="conn-why-content">
+                <div class="honesty-labels" data-honesty-provider="ANTIGRAVITY"></div>
+                <p class="conn-lead">
+                  Antigravity requires the session token.
+                </p>
+                <p class="field-note">
+                  The field is cleared the moment you submit. The token goes to the
+                  operating system credential store, and after that only a masked
+                  label is ever shown.
+                </p>
+              </div>
+            </details>
           </div>
-          <p id="antigravity-note" class="conn-note" role="status"></p>
         </section>
 
         <!-- Connect OpenCode -->
         <section id="opencode-add" class="surface conn-block" hidden aria-labelledby="opencode-add-title" tabindex="-1">
           <div class="conn-head">
-            <h2 id="opencode-add-title">Connect OpenCode</h2>
-            <div class="honesty-labels" data-honesty-provider="OPENCODE"></div>
+            <h2 id="opencode-add-title">OpenCode</h2>
+            <span class="chip muted conn-state" id="opencode-status-chip">
+              <span class="state-dot" aria-hidden="true"></span>
+              <span class="mono tracked" id="opencode-status-code">NOT CONNECTED</span>
+            </span>
+            <button type="button" id="opencode-toggle-btn" class="conn-toggle-btn" aria-expanded="false" aria-controls="opencode-expand">Connect</button>
           </div>
-          <p class="conn-lead">
-            OpenCode requires the browser session cookie.
-          </p>
-          <label class="field-label" for="opencode-alias">
-            Account alias, so two accounts stay apart
-          </label>
-          <input
-            id="opencode-alias"
-            class="field"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="default"
-          />
-          <label class="field-label" for="opencode-key">Paste the browser session cookie</label>
-          <input
-            id="opencode-key"
-            class="field"
-            type="password"
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
-            placeholder="cookie-..."
-          />
-          <p class="field-note">
-            The field is cleared the moment you submit. The cookie goes to the
-            operating system credential store, and after that only a masked
-            label is ever shown.
-          </p>
-          <div class="conn-actions">
-            <button type="button" id="opencode-submit">Test and save</button>
+          <div id="opencode-expand" class="conn-expanded-content" hidden>
+            <label class="field-label" for="opencode-alias">
+              Account alias, so two accounts stay apart
+            </label>
+            <input
+              id="opencode-alias"
+              class="field"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="default"
+            />
+            <label class="field-label" for="opencode-key">Paste the browser session cookie</label>
+            <input
+              id="opencode-key"
+              class="field"
+              type="password"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="cookie-..."
+            />
+            <div class="conn-actions">
+              <button type="button" id="opencode-submit">Test and save</button>
+            </div>
+            <p id="opencode-note" class="conn-note" role="status"></p>
+            <details class="conn-why-needed">
+              <summary>Why this is needed</summary>
+              <div class="conn-why-content">
+                <div class="honesty-labels" data-honesty-provider="OPENCODE"></div>
+                <p class="conn-lead">
+                  OpenCode requires the browser session cookie.
+                </p>
+                <p class="field-note">
+                  The field is cleared the moment you submit. The cookie goes to the
+                  operating system credential store, and after that only a masked
+                  label is ever shown.
+                </p>
+              </div>
+            </details>
           </div>
-          <p id="opencode-note" class="conn-note" role="status"></p>
         </section>
 
         <!-- Provider catalogue -->

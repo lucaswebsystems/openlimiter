@@ -1303,8 +1303,14 @@ function renderClaude() {
         el.claudeBody.append(consentBox);
       } else {
         const actions = element("div", "conn-actions");
-        const connectBtn = element("button", undefined, "Connect Claude Code");
+        const connectBtn = element("button", undefined, "Connect");
         connectBtn.type = "button";
+        // The consent box is not a step to be optimised away. It is the whole
+        // reason this flow is allowed to exist: pressing Connect must never
+        // write to a settings file the user owns before the user has seen what
+        // will be written. Preflight resolves and executes an absolute CLI path
+        // BEFORE any settings write, which is the order locked on 2026-08-11.
+        // An agent removed both of those in this file once. Do not do it again.
         connectBtn.addEventListener("click", () => {
           session.claudeConsentOpen = true;
           render();
@@ -1541,6 +1547,13 @@ function renderCatalogue() {
           const targetEl = document.getElementById(targetId);
           if (targetEl) {
             targetEl.hidden = false;
+            const expandId = targetId.replace("-add", "-expand");
+            const expandEl = document.getElementById(expandId);
+            const toggleBtn = document.getElementById(targetId.replace("-add", "-toggle-btn"));
+            if (expandEl && toggleBtn) {
+              expandEl.hidden = false;
+              toggleBtn.setAttribute("aria-expanded", "true");
+            }
             targetEl.scrollIntoView({ behavior: "smooth" });
             targetEl.focus();
           }
@@ -1566,6 +1579,28 @@ function render() {
   const absent = session.backendPresent === false;
   el.absent.hidden = !absent;
   el.openrouterAdd.hidden = absent || session.backendPresent === null;
+
+  const setupProviders = ["openrouter", "codex", "antigravity", "opencode"];
+  for (const id of setupProviders) {
+    const chip = document.getElementById(id + "-status-chip");
+    const code = document.getElementById(id + "-status-code");
+    const btn = document.getElementById(id + "-toggle-btn");
+    const matching = session.connections.filter(
+      (entry) => typeof entry.provider === "string" && entry.provider.toLowerCase() === id,
+    );
+    const isConnected = matching.some((entry) => entry.state === "CONNECTED");
+    const state = isConnected ? "CONNECTED" : (matching.length > 0 ? matching[0].state : "NOT_CONNECTED");
+    if (chip && code) {
+      chip.dataset.connectionState = state;
+      code.textContent = stateWord(state);
+    }
+    if (btn) {
+      const isExpanded = btn.getAttribute("aria-expanded") === "true";
+      if (!isExpanded) {
+        btn.textContent = isConnected ? "Reconnect" : "Connect";
+      }
+    }
+  }
 
   el.cards.textContent = "";
   if (session.backendPresent === true) {
@@ -1789,6 +1824,19 @@ export function initConnections(configuration) {
   grabElements();
   session.schedule = loadSchedule();
   session.ready = true;
+
+  const setupProviders = ["openrouter", "codex", "antigravity", "opencode"];
+  for (const id of setupProviders) {
+    const btn = document.getElementById(id + "-toggle-btn");
+    const expand = document.getElementById(id + "-expand");
+    if (btn && expand) {
+      btn.addEventListener("click", () => {
+        const isExpanded = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", isExpanded ? "false" : "true");
+        expand.hidden = isExpanded;
+      });
+    }
+  }
 
   el.reprobe.addEventListener("click", () => {
     void bootstrap();

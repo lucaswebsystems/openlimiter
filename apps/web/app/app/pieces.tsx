@@ -849,6 +849,16 @@ function PlannedCatalogueRow({ row }: { row: PlannedProviderEntry }) {
  * sentences come from packages/core, so a block here and a card on the
  * desktop describe one state with one sentence.
  */
+function getHonestyBadges(providerId: string): string[] {
+  const providers = (registry as { providers?: Array<{ honesty?: { connectorId?: string; verification?: string; credentialOrigin?: string; dataInterfaceStatus?: string; automationRisk?: string } }> }).providers ?? [];
+  const spec = providers.find(
+    (p) => (p.honesty?.connectorId ?? "").toUpperCase() === providerId.toUpperCase()
+  );
+  if (!spec?.honesty) return ["UNVERIFIED", "user-key", "documented-api", "low"];
+  const h = spec.honesty;
+  return [h.verification, h.credentialOrigin, h.dataInterfaceStatus, h.automationRisk].filter(Boolean) as string[];
+}
+
 export function ConnectionList({
   onImportFile,
   onEnterDemo,
@@ -868,7 +878,11 @@ export function ConnectionList({
               <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
                 {providerName(fact.provider)}
               </span>
-              <SourceChip state={fact.state} />
+              <span className={`${CHIP_NEUTRAL} flex-none`}>
+                <span className="font-mono tracking-widest">
+                  {fact.browserState}
+                </span>
+              </span>
             </div>
             {onImportFile && (
               <Button tone="ghost" onClick={onImportFile} className="text-xs">
@@ -876,19 +890,25 @@ export function ConnectionList({
               </Button>
             )}
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-muted">{fact.line}</p>
 
-          <div className="mt-3 rounded-lg border border-hairline bg-raised p-3">
-            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted">
-              <span className="uppercase tracking-widest">In this browser</span>
-              <span className="font-mono tracking-widest text-heading">
-                {fact.browserState}
-              </span>
-            </p>
-            <p className="mt-1.5 text-xs leading-relaxed text-body">
-              {connectionSentence[fact.browserState]}
-            </p>
-          </div>
+          <details className="mt-3 text-xs">
+            <summary className="cursor-pointer select-none font-medium text-muted hover:text-heading">
+              Why this is needed
+            </summary>
+            <div className="mt-2 space-y-2 rounded-lg border border-hairline bg-raised p-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {getHonestyBadges(fact.provider).map((badge) => (
+                  <span key={badge} className={`${CHIP_NEUTRAL} flex-none`}>
+                    {badge}
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs leading-relaxed text-muted">{fact.line}</p>
+              <p className="text-xs leading-relaxed text-body">
+                {connectionSentence[fact.browserState]}
+              </p>
+            </div>
+          </details>
         </li>
       ))}
 
@@ -909,22 +929,21 @@ export function ConnectionList({
             </Button>
           )}
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-muted">
-          Explore the dashboard with synthetic fixture data to see how quota
-          meters and reset countdowns behave without connecting real accounts.
-        </p>
 
-        <div className="mt-3 rounded-lg border border-hairline bg-raised p-3">
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted">
-            <span className="uppercase tracking-widest">In this browser</span>
-            <span className="font-mono tracking-widest text-heading">
-              DEMO
-            </span>
-          </p>
-          <p className="mt-1.5 text-xs leading-relaxed text-body">
-            Loads synthetic fixtures without reading any account. Real readings stay untouched.
-          </p>
-        </div>
+        <details className="mt-3 text-xs">
+          <summary className="cursor-pointer select-none font-medium text-muted hover:text-heading">
+            Why this is needed
+          </summary>
+          <div className="mt-2 space-y-2 rounded-lg border border-hairline bg-raised p-3">
+            <p className="text-xs leading-relaxed text-muted">
+              Explore the dashboard with synthetic fixture data to see how quota
+              meters and reset countdowns behave without connecting real accounts.
+            </p>
+            <p className="text-xs leading-relaxed text-body">
+              Loads synthetic fixtures without reading any account. Real readings stay untouched.
+            </p>
+          </div>
+        </details>
       </li>
     </ul>
   );
