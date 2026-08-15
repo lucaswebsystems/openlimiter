@@ -366,22 +366,6 @@ export async function listConnections() {
   return call("list_connections");
 }
 
-/**
- * Change a connection record's account alias. That is the whole verb.
- *
- * There is no status parameter and no status field on the wire. A connection's
- * state follows from what a read achieved, and Rust is the only thing that
- * observes that: it stamps the state when a probe settles and again when an
- * attempt completes. A window that could write the state could claim a
- * connection was working while nothing had ever been read from it, which is
- * exactly the dishonesty this product exists to remove.
- */
-export async function updateConnection({ connectionId, accountAlias }) {
-  const input = { connection_id: connectionId };
-  if (accountAlias !== undefined) input.account_alias = accountAlias;
-  return call("update_connection", { input });
-}
-
 /** What supported local tools exist on this machine, without reading secrets. */
 export async function detectLocalTools() {
   return call("detect_local_tools");

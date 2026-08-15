@@ -61,6 +61,3 @@ export const iconMark = {
   background: "transparent",
   mark: imagePalette.brand,
 } as const;
-
-export type ImagePalette = typeof imagePalette;
-export type ImagePaletteToken = keyof ImagePalette;

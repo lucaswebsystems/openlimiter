@@ -89,12 +89,6 @@ export interface DownloadTarget {
   hrefExternal?: boolean;
 }
 
-/** The Windows build the hero's primary button points at. */
-export const WINDOWS_SETUP_URL = releaseAsset(WINDOWS_SETUP);
-
-/** The macOS build the hero's Apple button points at. */
-export const MACOS_APPLE_SILICON_URL = releaseAsset(MACOS_APPLE_SILICON);
-
 const BUILD_FROM_SOURCE = `git clone https://github.com/lucaswebsystems/openlimiter
 cd openlimiter
 pnpm install
@@ -164,30 +158,4 @@ export const downloadTargets: readonly DownloadTarget[] = [
   },
 ];
 
-/**
- * The one line that sits under the hero buttons, so nothing there overpromises.
- *
- * The download page reads the same sentence from `download.lead` in the
- * catalogs, because that page is published in five languages. This constant is
- * what the fold still renders.
- */
-/*
- * The sentence under the fold's download buttons used to be written here, as
- * `DOWNLOAD_DISCLAIMER`, and was read by both this page's lead and the hero. It
- * is one sentence rendered in two places, so it moved to `hero.disclaimer` and
- * `download.lead` in the catalogs, next to the surfaces that say it. This note
- * records where it went.
- */
 
-/** The five rows a reader thinks of as a platform, in the order they read. */
-const PLATFORM_IDS = ["npm", "source", "windows", "macos", "linux"] as const;
-
-/** What the footer lists under Download. Platforms only, in that order. */
-export const platformTargets: readonly DownloadTarget[] = PLATFORM_IDS.map(
-  (id) => downloadTargets.find((target) => target.id === id),
-).filter((target): target is DownloadTarget => target !== undefined);
-
-export function findTarget(id: string): DownloadTarget | undefined {
-  return downloadTargets.find((target) => target.state === "available" && target.id === id) ??
-    downloadTargets.find((target) => target.id === id);
-}

@@ -35,19 +35,10 @@ export const REPO_OWNER = "lucaswebsystems";
 export const REPO_NAME = "openlimiter";
 export const REPO_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`;
 export const ISSUES_URL = `${REPO_URL}/issues`;
-export const DISCUSSIONS_URL = `${REPO_URL}/discussions`;
 export const RELEASES_URL = `${REPO_URL}/releases`;
-/** Where a reader gets the packaged Windows build. */
-export const RELEASES_LATEST_URL = `${REPO_URL}/releases/latest`;
 export const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE`;
 
-/** The licence itself, by name and by the canonical text of the licence. */
-export const LICENSE_NAME = "Apache 2.0";
 export const LICENSE_SPDX_URL = "https://www.apache.org/licenses/LICENSE-2.0";
-
-/** The published command line package. */
-export const NPM_PACKAGE = "openlimiter";
-export const NPM_URL = `https://www.npmjs.com/package/${NPM_PACKAGE}`;
 
 /**
  * A square logo that lives at a fixed path, unlike the generated icon routes,
@@ -56,8 +47,6 @@ export const NPM_URL = `https://www.npmjs.com/package/${NPM_PACKAGE}`;
  */
 export const LOGO_URL = `${SITE_URL}/icons/openlimiter-512.png`;
 export const LOGO_SIZE = 512;
-export const CONTRIBUTING_URL = `${REPO_URL}/blob/main/CONTRIBUTING.md`;
-export const SECURITY_URL = `${REPO_URL}/blob/main/SECURITY.md`;
 
 /**
  * The two ways to support the work, both live and both claimed. Sponsorship is
