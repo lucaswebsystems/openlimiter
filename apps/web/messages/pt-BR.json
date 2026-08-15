@@ -30,13 +30,13 @@
     "closeMenu": "Fechar menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro: 50% OFF no preço de fundador para os primeiros apoiadores, em breve",
-    "short": "OpenLimiter Pro: 50% OFF, em breve",
+    "message": "OpenLimiter Pro: $10 por mês, e os primeiros 30 dias serão gratuitos. Em breve",
+    "short": "OpenLimiter Pro: primeiros 30 dias grátis, em breve",
     "dismiss": "Fechar este aviso"
   },
   "footer": {
     "blurb": "Consciência de quota para agentes de codificação com IA. Ele lê o que sobrou das suas assinaturas na sua própria máquina, entrega aos seus agentes um bloco limitado desse estado e nunca inventa um número que não tem.",
-    "builtBy": "Feito por <name>{author}</name>",
+    "builtBy": "Feito por",
     "product": "Produto",
     "resources": "Recursos",
     "community": "Comunidade",
@@ -46,7 +46,6 @@
     "licenceRead": "Ler a licença",
     "rights": "Todos os direitos reservados",
     "licensed": "Licenciado sob Apache 2.0",
-    "builtBy": "Feito por",
     "security": "Segurança"
   },
   "terms": {
@@ -422,7 +421,7 @@
       },
       "pro": {
         "question": "O que é o OpenLimiter Pro?",
-        "answer": "Uma camada paga planejada, a $5 por mês, preço de fundador, para as coisas que só rodam em servidores: sincronização criptografada entre seus dispositivos, notificações push para o celular, alertas por email e um resumo semanal, histórico de uso e previsões hospedados, barreiras de orçamento para o seu próprio uso, suporte para mais de uma conta por provedor, gerenciamento de dispositivos, e uma camada de equipe mais adiante. Ainda não foi construído. Não há checkout e não há lista de espera, e nada que roda localmente hoje algum dia fica atrás dela."
+        "answer": "Uma camada paga planejada, a $10 por mês, com os primeiros 30 dias gratuitos, para as coisas que só rodam em servidores: sincronização criptografada entre seus dispositivos, notificações push para o celular, alertas por email e um resumo semanal, histórico de uso e previsões hospedados, barreiras de orçamento para o seu próprio uso, suporte para mais de uma conta por provedor, gerenciamento de dispositivos, e uma camada de equipe mais adiante. Ainda não foi construído. Não há checkout e não há lista de espera, e nada que roda localmente hoje algum dia fica atrás dela."
       }
     }
   },
@@ -449,8 +448,8 @@
     "pro": {
       "status": "não construído",
       "perMonth": "por mês",
-      "foundingChip": "preço de fundador",
-      "priceNote": "{regular} é o preço regular planejado. Os primeiros apoiadores mantêm {founding}.",
+      "trialChip": "30 dias grátis",
+      "priceNote": "Os primeiros 30 dias serão gratuitos quando o Pro chegar, sem precisar de cartão. Quando terminarem, os serviços de servidor do Pro param e nada do que roda na sua máquina muda.",
       "lead": "Serviços que rodam em servidores, não na sua máquina. Cada linha abaixo está a caminho e nenhuma delas existe ainda: não há checkout, não há formulário de cartão e não há lista de espera.",
       "footnote": "Nada local algum dia fica atrás deste plano. O Pro vende servidores e serviço, não interruptores.",
       "lines": {
@@ -1317,7 +1316,7 @@
           },
           "sync": {
             "title": "Planejado: OpenLimiter Pro",
-            "intro": "Tudo que só pode rodar num servidor, reunido numa única camada paga planejada, a $5 por mês, preço de fundador. Nada que roda localmente hoje algum dia fica atrás dela: o Pro vende servidores e serviço, não interruptores. Veja <pricing>preços</pricing> para o cartão como ele está.",
+            "intro": "Tudo que só pode rodar num servidor, reunido numa única camada paga planejada, a $10 por mês, com os primeiros 30 dias gratuitos. Nada que roda localmente hoje algum dia fica atrás dela: o Pro vende servidores e serviço, não interruptores. Veja <pricing>preços</pricing> para o cartão como ele está.",
             "bullets": {
               "status": "Status: planejado. Nenhum serviço existe, não há checkout e não há lista de espera.",
               "sync": "Sincronização criptografada do estado de quota entre seus próprios dispositivos.",

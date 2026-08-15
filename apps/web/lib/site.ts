@@ -57,28 +57,35 @@ export const SPONSORS_URL = "https://github.com/sponsors/lucaswebsystems";
 export const COFFEE_URL = "https://buymeacoffee.com/lucaswebsystems";
 
 /**
- * OpenLimiter Pro, and the exact words allowed around its two numbers.
+ * OpenLimiter Pro, and the exact words allowed around its one number.
  *
  * Pro is not built. It has never been sold, at any price, to anybody, and no
  * surface on this site may imply otherwise.
  *
- * `PRO_PRICE` is the founding price, the one an early supporter would pay.
- * `PRO_REGULAR_PRICE` is the **planned** regular price, and it is written in
- * the future tense wherever it appears, because it is a plan rather than a
- * price anything was ever charged at. It is never framed as a discount from a
- * former price, never given an end date, and never given a countdown, because
- * all three would be inventing a history the product does not have.
+ * THERE IS ONE PRICE NOW.
+ * ----------------------
+ * The $5 founding price and the struck $10 regular price were both retired on
+ * 2026-08-15 and replaced by a single $10 with the first month free. Nobody had
+ * ever paid either number, so no promise was broken by dropping them, and one
+ * price survives translation into five languages where three price sentences
+ * kept disagreeing with each other.
  *
- * The only sentence the regular price is allowed to appear in is
- * `pricing.pro.priceNote` in the catalogs, which is rendered once, on the
- * pricing card. Every other surface, the FAQ and the roadmap included, names
- * the founding price alone.
+ * There is no `PRO_REGULAR_PRICE` any more, and nothing may reintroduce a
+ * struck price, a percentage off, an end date or a countdown. All four invent a
+ * history this product does not have.
  *
- * That sentence takes both numbers as arguments rather than spelling them out,
- * so a translation cannot change a price. The numbers are here and only here.
+ * THE FREE MONTH IS WRITTEN IN THE FUTURE TENSE, EVERYWHERE.
+ * ---------------------------------------------------------
+ * The trial cannot begin until there is a service to trial. Its clock starts at
+ * first sign in, and sign in does not open until the Pro rails and the first
+ * service are both live. So no surface may invite a reader to start a free
+ * month today: it says the first month *will be* free, never that it is
+ * available now. The day that stops being true, this comment is what changes
+ * first.
+ *
+ * The number lives here and only here, so a translation cannot change a price.
  */
-export const PRO_PRICE = "$5";
-export const PRO_REGULAR_PRICE = "$10";
+export const PRO_PRICE = "$10";
 
 export const AUTHOR_NAME = "Lucas Costa";
 export const AUTHOR_EMAIL = "lucas@lucaswebsystems.com";

@@ -2,7 +2,7 @@ import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { ButtonLink, Chip, SectionHeading } from "./ui";
 import { reveal, revealGroup } from "@/lib/motion";
-import { LICENSE_URL, PRO_PRICE, PRO_REGULAR_PRICE, REPO_URL } from "@/lib/site";
+import { LICENSE_URL, PRO_PRICE, REPO_URL } from "@/lib/site";
 
 /**
  * Pricing.
@@ -24,13 +24,21 @@ import { LICENSE_URL, PRO_PRICE, PRO_REGULAR_PRICE, REPO_URL } from "@/lib/site"
  * is marked because it will be free when it lands, which is the whole reason
  * for listing it on that side of the section.
  *
- * THE TWO NUMBERS STAY IN CODE
+ * THE ONE NUMBER STAYS IN CODE
  * ----------------------------
- * `PRO_PRICE` and `PRO_REGULAR_PRICE` are still read from lib/site.ts and are
- * passed into the sentence about them as arguments rather than being typed into
- * five catalogs. A price that could be edited in a translation is a price that
- * can disagree with itself in one language, and the rule about how these two
- * numbers may be described is the strictest rule on the site.
+ * `PRO_PRICE` is read from lib/site.ts rather than typed into five catalogs. A
+ * price that can be edited in a translation is a price that can disagree with
+ * itself in one language, and the rule about how it may be described is the
+ * strictest rule on the site.
+ *
+ * There used to be two numbers here: a struck $10 regular price and a $5
+ * founding price. Both were retired on 2026-08-15 for a single $10 with the
+ * first month free. Nothing may put a struck price, a percentage off or a
+ * countdown back on this card.
+ *
+ * The offer is written in the future tense on purpose. The trial clock starts
+ * at first sign in, sign in is not open yet, and this card must never read as
+ * an invitation to start a free month today.
  */
 
 function CheckGlyph() {
@@ -218,28 +226,20 @@ export async function Pricing() {
           price={
             <>
               <p className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                {/* The planned regular price, shown struck through so the
-                    founding price reads as the lower of the two. It is hidden
-                    from assistive technology and restated in full below,
-                    because a struck number read on its own sounds like a price
-                    that was once charged, and this one never was. */}
-                <span
-                  aria-hidden="true"
-                  className="text-lg font-medium text-muted line-through decoration-1"
-                >
-                  {PRO_REGULAR_PRICE}
-                </span>
+                {/* One number, and no struck price beside it. A struck number
+                    reads as a price that was once charged, and this product has
+                    never charged anybody anything. The chip carries the offer
+                    instead, which is a fact about the future rather than a
+                    claim about the past. */}
                 <span className="text-4xl font-medium tracking-tight text-heading">
                   {PRO_PRICE}
                 </span>
                 <span className="text-sm text-muted">{t("pro.perMonth")}</span>
                 <Chip tone="accent" className="uppercase tracking-wider">
-                  {t("pro.foundingChip")}
+                  {t("pro.trialChip")}
                 </Chip>
               </p>
-              <p className="mt-2 text-xs leading-relaxed text-muted">
-                {t("pro.priceNote", { regular: PRO_REGULAR_PRICE, founding: PRO_PRICE })}
-              </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted">{t("pro.priceNote")}</p>
             </>
           }
           lead={t("pro.lead")}

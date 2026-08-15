@@ -30,13 +30,13 @@
     "closeMenu": "Menü schließen"
   },
   "announce": {
-    "message": "OpenLimiter Pro: 50% Rabatt auf den Gründerpreis für frühe Unterstützer, bald verfügbar",
-    "short": "OpenLimiter Pro: 50% Rabatt, bald verfügbar",
+    "message": "OpenLimiter Pro: 10 $ im Monat, und die ersten 30 Tage werden kostenlos sein, bald verfügbar",
+    "short": "OpenLimiter Pro: erste 30 Tage kostenlos, bald verfügbar",
     "dismiss": "Diese Ankündigung schließen"
   },
   "footer": {
     "blurb": "Quotabewusstsein für KI Coding Agenten. Es liest, was von deinen Abos auf deinem eigenen Rechner noch übrig ist, gibt deinen Agenten einen begrenzten Ausschnitt davon und erfindet nie eine Zahl, die es nicht hat.",
-    "builtBy": "Gebaut von <name>{author}</name>",
+    "builtBy": "Gebaut von",
     "product": "Produkt",
     "resources": "Ressourcen",
     "community": "Community",
@@ -46,7 +46,6 @@
     "licenceRead": "Lizenz lesen",
     "rights": "Alle Rechte vorbehalten",
     "licensed": "Apache 2.0 lizenziert",
-    "builtBy": "Gebaut von",
     "security": "Sicherheit"
   },
   "terms": {
@@ -422,7 +421,7 @@
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
-        "answer": "Eine geplante Bezahlstufe für 5 $ im Monat, Gründerpreis, für das, was nur auf Servern laufen kann: verschlüsselte Synchronisierung über deine Geräte hinweg, Push Benachrichtigungen auf dein Handy, E Mail Alerts und ein wöchentliches Digest, gehostete Nutzungshistorie und Prognosen, Budgetleitplanken für deine eigene Nutzung, Unterstützung für mehr als ein Konto pro Provider, Geräteverwaltung, und später eine Team Stufe. Es ist nicht gebaut. Es gibt kein Checkout und keine Warteliste, und nichts, was heute lokal läuft, wandert je dahinter."
+        "answer": "Eine geplante Bezahlstufe für 10 $ im Monat, mit den ersten 30 Tagen kostenlos, für das, was nur auf Servern laufen kann: verschlüsselte Synchronisierung über deine Geräte hinweg, Push Benachrichtigungen auf dein Handy, E Mail Alerts und ein wöchentliches Digest, gehostete Nutzungshistorie und Prognosen, Budgetleitplanken für deine eigene Nutzung, Unterstützung für mehr als ein Konto pro Provider, Geräteverwaltung, und später eine Team Stufe. Es ist nicht gebaut. Es gibt kein Checkout und keine Warteliste, und nichts, was heute lokal läuft, wandert je dahinter."
       }
     }
   },
@@ -449,8 +448,8 @@
     "pro": {
       "status": "nicht gebaut",
       "perMonth": "im Monat",
-      "foundingChip": "Gründerpreis",
-      "priceNote": "{regular} ist der geplante reguläre Preis. Frühe Unterstützer behalten {founding}.",
+      "trialChip": "30 Tage kostenlos",
+      "priceNote": "Die ersten 30 Tage werden kostenlos sein, sobald Pro erscheint, ganz ohne Karte. Wenn sie enden, stoppen die Pro Serverdienste und nichts, was auf deinem Rechner läuft, ändert sich.",
       "lead": "Dienste, die auf Servern laufen statt auf deinem Rechner. Jede Zeile unten kommt erst noch, und nichts davon existiert bereits: kein Checkout, kein Kartenformular und keine Warteliste.",
       "footnote": "Nichts Lokales wandert je hinter diesen Plan. Pro verkauft Server und Service, keine Schalter.",
       "lines": {
@@ -1317,7 +1316,7 @@
           },
           "sync": {
             "title": "Geplant: OpenLimiter Pro",
-            "intro": "Alles, was nur auf einem Server laufen kann, gesammelt in einer geplanten Bezahlstufe für 5 $ im Monat, Gründerpreis. Nichts, was heute lokal läuft, wandert dahinter: Pro verkauft Server und Service, keine Schalter. Sieh <pricing>Preise</pricing> für den Stand der Karte.",
+            "intro": "Alles, was nur auf einem Server laufen kann, gesammelt in einer geplanten Bezahlstufe für 10 $ im Monat, mit den ersten 30 Tagen kostenlos. Nichts, was heute lokal läuft, wandert dahinter: Pro verkauft Server und Service, keine Schalter. Sieh <pricing>Preise</pricing> für den Stand der Karte.",
             "bullets": {
               "status": "Status: geplant. Es existiert kein Dienst, es gibt kein Checkout und keine Warteliste.",
               "sync": "Verschlüsselte Synchronisierung von Quotastatus über deine eigenen Geräte hinweg.",

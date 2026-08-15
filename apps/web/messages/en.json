@@ -30,13 +30,13 @@
     "closeMenu": "Close menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro: 50% OFF founding price for early supporters, coming soon",
-    "short": "OpenLimiter Pro: 50% OFF, coming soon",
+    "message": "OpenLimiter Pro: $10 a month, and the first 30 days will be free. Coming soon",
+    "short": "OpenLimiter Pro: first 30 days free, coming soon",
     "dismiss": "Close this announcement"
   },
   "footer": {
     "blurb": "Quota awareness for AI coding agents. It reads what your subscriptions have left on your own machine, hands your agents a bounded block of that state, and never invents a number it does not have.",
-    "builtBy": "Built by <name>{author}</name>",
+    "builtBy": "Built by",
     "product": "Product",
     "resources": "Resources",
     "community": "Community",
@@ -46,7 +46,6 @@
     "licenceRead": "Read the licence",
     "rights": "All rights reserved",
     "licensed": "Apache 2.0 licensed",
-    "builtBy": "Built by",
     "security": "Security"
   },
   "terms": {
@@ -422,7 +421,7 @@
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "A planned paid tier at $5 a month, founding price, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, email alerts and a weekly digest, hosted usage history and forecasting, budget guardrails for your own usage, support for more than one account per provider, device management, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it."
+        "answer": "A planned paid tier at $10 a month with the first 30 days free, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, email alerts and a weekly digest, hosted usage history and forecasting, budget guardrails for your own usage, support for more than one account per provider, device management, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it."
       }
     }
   },
@@ -449,8 +448,8 @@
     "pro": {
       "status": "not built",
       "perMonth": "a month",
-      "foundingChip": "founding price",
-      "priceNote": "{regular} is the planned regular price. Early supporters keep {founding}.",
+      "trialChip": "30 days free",
+      "priceNote": "The first 30 days will be free when Pro ships, with no card required. When they end, the Pro server services stop and nothing that runs on your machine changes.",
       "lead": "Services that run on servers rather than on your machine. Every line below is coming and none of it exists yet: there is no checkout, no card form and no waiting list.",
       "footnote": "Nothing local ever moves behind this plan. Pro sells servers and service, not switches.",
       "lines": {
@@ -1317,7 +1316,7 @@
           },
           "sync": {
             "title": "Planned: OpenLimiter Pro",
-            "intro": "Everything that can only run on a server, gathered into one planned paid tier at $5 a month, founding price. Nothing that runs locally today moves behind it: Pro sells servers and service, not switches. See <pricing>pricing</pricing> for the card as it stands.",
+            "intro": "Everything that can only run on a server, gathered into one planned paid tier at $10 a month, with the first 30 days free. Nothing that runs locally today moves behind it: Pro sells servers and service, not switches. See <pricing>pricing</pricing> for the card as it stands.",
             "bullets": {
               "status": "Status: planned. No service exists, there is no checkout and no waiting list.",
               "sync": "Encrypted synchronisation of quota state across your own devices.",
