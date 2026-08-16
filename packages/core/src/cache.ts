@@ -33,7 +33,7 @@ export const MAX_JSON_FILE_BYTES = 1_048_576;
 /** A lock older than this is treated as abandoned and reclaimed. */
 export const LOCK_STALE_MILLISECONDS = 5_000;
 
-const LOCK_ATTEMPT_LIMIT = 40;
+/** The longest pause between lock acquisition attempts. It is not a deadline. */
 const LOCK_BACKOFF_CEILING_MILLISECONDS = 25;
 
 export interface StateDirectoryOptions {
@@ -323,8 +323,10 @@ export async function writeFileAtomically(
 async function reclaimStaleLock(lockPath: string): Promise<boolean> {
   const now = Date.now();
   let heldSince: number | null = null;
+  let observedContents: string | null = null;
   try {
-    const parsed: unknown = JSON.parse(await readFile(lockPath, "utf8"));
+    observedContents = await readFile(lockPath, "utf8");
+    const parsed: unknown = JSON.parse(observedContents);
     const stamp = isRecord(parsed) ? parsed["at"] : undefined;
     if (typeof stamp === "number" && Number.isFinite(stamp) && stamp <= now) {
       heldSince = stamp;
@@ -332,36 +334,83 @@ async function reclaimStaleLock(lockPath: string): Promise<boolean> {
   } catch {
     heldSince = null;
   }
+  let observedDevice: number;
+  let observedInode: number;
+  let modificationTime: number;
+  try {
+    const observed = await lstat(lockPath);
+    observedDevice = observed.dev;
+    observedInode = observed.ino;
+    modificationTime = observed.mtimeMs;
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return true;
+    throw error;
+  }
   if (heldSince === null) {
-    try {
-      heldSince = (await lstat(lockPath)).mtimeMs;
-    } catch {
-      return true;
-    }
+    heldSince = modificationTime;
     if (!Number.isFinite(heldSince) || heldSince > now) heldSince = now;
   }
   if (now - heldSince < LOCK_STALE_MILLISECONDS) return false;
-  await unlink(lockPath).catch(() => undefined);
-  return true;
+  try {
+    if (
+      observedContents !== null &&
+      (await readFile(lockPath, "utf8")) !== observedContents
+    ) return false;
+    const observed = await lstat(lockPath);
+    if (observed.dev !== observedDevice || observed.ino !== observedInode) return false;
+    await unlink(lockPath);
+    return true;
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return true;
+    throw error;
+  }
+}
+
+const transientLockCodes = new Set(["EEXIST", "EPERM", "EACCES", "EBUSY"]);
+
+async function lockPathExists(lockPath: string): Promise<boolean> {
+  try {
+    await lstat(lockPath);
+    return true;
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return false;
+    throw error;
+  }
 }
 
 async function acquireLock(
   lockPath: string
 ): Promise<{ handle: FileHandle; token: string }> {
-  const token = JSON.stringify({ at: Date.now(), pid: process.pid });
-  for (let attempt = 0; attempt < LOCK_ATTEMPT_LIMIT; attempt += 1) {
+  /* Contention has no deadline. A live owner releases the lock and an
+     abandoned owner becomes stale, so neither case should discard this write. */
+  for (let attempt = 0; ; attempt += 1) {
     try {
       const handle = await open(lockPath, "wx", 0o600);
-      await handle.writeFile(token, "utf8").catch(() => undefined);
-      return { handle, token };
+      const token = JSON.stringify({
+        at: Date.now(),
+        id: randomUUID(),
+        pid: process.pid
+      });
+      try {
+        await handle.writeFile(token, "utf8");
+        return { handle, token };
+      } catch (error) {
+        await handle.close().catch(() => undefined);
+        await unlink(lockPath).catch(() => undefined);
+        throw error;
+      }
     } catch (error) {
-      if (errorCode(error) !== "EEXIST") throw error;
+      const code = errorCode(error);
+      if (
+        code === undefined ||
+        !transientLockCodes.has(code) ||
+        !(await lockPathExists(lockPath))
+      ) throw error;
       if (!(await reclaimStaleLock(lockPath))) {
         await delay(backoffMilliseconds(attempt));
       }
     }
   }
-  throw new Error("Cache lock is busy");
 }
 
 async function releaseLock(lockPath: string, token: string): Promise<void> {
@@ -382,6 +431,11 @@ function rejectOutOfBounds(snapshots: readonly Snapshot[]): void {
   ) throw new Error("Snapshot bounds rejected");
 }
 
+/* Writers in this process take FIFO turns before competing for the filesystem
+   lock. Other processes still use the same lock, while one busy provider can
+   no longer make an earlier local waiter lose a bounded polling race. */
+const processLockQueues = new Map<string, Promise<void>>();
+
 /**
  * Run one cache mutation while holding the single cache lock.
  *
@@ -392,15 +446,33 @@ async function withCacheLock<Result>(
   directory: string,
   action: () => Promise<Result>
 ): Promise<Result> {
-  await prepareStateDirectory(directory);
-  const lockPath = path.join(directory, CACHE_LOCK_NAME);
-  await rejectSymlink(lockPath);
-  const { handle, token } = await acquireLock(lockPath);
+  const absoluteDirectory = path.resolve(directory);
+  const queueKey = process.platform === "win32"
+    ? absoluteDirectory.toLowerCase()
+    : absoluteDirectory;
+  const previousTurn = processLockQueues.get(queueKey);
+  let finishTurn: () => void = () => undefined;
+  const currentTurn = new Promise<void>((resolve) => {
+    finishTurn = resolve;
+  });
+  processLockQueues.set(queueKey, currentTurn);
+  if (previousTurn !== undefined) await previousTurn;
   try {
-    return await action();
+    await prepareStateDirectory(absoluteDirectory);
+    const lockPath = path.join(absoluteDirectory, CACHE_LOCK_NAME);
+    await rejectSymlink(lockPath);
+    const { handle, token } = await acquireLock(lockPath);
+    try {
+      return await action();
+    } finally {
+      await handle.close().catch(() => undefined);
+      await releaseLock(lockPath, token);
+    }
   } finally {
-    await handle.close().catch(() => undefined);
-    await releaseLock(lockPath, token);
+    finishTurn();
+    if (processLockQueues.get(queueKey) === currentTurn) {
+      processLockQueues.delete(queueKey);
+    }
   }
 }
 
