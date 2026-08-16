@@ -868,79 +868,53 @@ function fact(label, value) {
 
 /* ------------------------------------------------------------------ cards */
 
-/**
- * One connection record as one card: every field the connection architecture
- * names, each rendered from the record or rendered as an honest absence.
- * Nothing on the card is a default pretending to be data.
- */
-function connectionCard(record, now) {
-  const node = element("div", "surface conn-card");
+const STATE_CONSTRAINT_RANK = {
+  ERROR: 100,
+  AUTH_EXPIRED: 90,
+  NEEDS_AUTH: 80,
+  DEGRADED: 70,
+  STALE: 60,
+  UNSUPPORTED: 50,
+  IMPORT_ONLY: 45,
+  MANUAL: 40,
+  CONNECTING: 35,
+  READY_TO_ENABLE: 30,
+  DETECTED: 20,
+  NOT_CONFIGURED: 10,
+  CONNECTED: 0,
+};
 
-  const head = element("div", "conn-head");
-  const identity = element("div", "card-id");
-  const mark = element("span", "card-mark");
-  mark.innerHTML = record.provider === null ? "" : options.markFor(record.provider);
-  identity.append(mark);
-  const names = element("div");
-  names.append(
-    element(
-      "div",
-      "name",
-      record.provider === null ? "Unknown provider" : options.providerName(record.provider),
-    ),
-  );
-  if (record.product !== null) {
-    names.append(element("div", "code", String(record.product)));
+export function mostConstrainedState(states) {
+  if (!states || states.length === 0) return "NOT_CONNECTED";
+  let worst = states[0];
+  let worstRank = STATE_CONSTRAINT_RANK[worst] ?? 0;
+  for (let i = 1; i < states.length; i++) {
+    const s = states[i];
+    const rank = STATE_CONSTRAINT_RANK[s] ?? 0;
+    if (rank > worstRank) {
+      worst = s;
+      worstRank = rank;
+    }
   }
-  identity.append(names);
-  head.append(identity);
-  /* A record that carries no state gets a placeholder code, not a claim:
-     NOT_CONFIGURED is a real state with a real sentence, and this is not it. */
-  head.append(stateChip(record.state ?? "UNSTATED"));
-  node.append(head);
+  return worst;
+}
 
-  node.append(element("p", "conn-sentence", sentenceFor(record.state)));
+function renderAccountRow(record, now) {
+  const row = element("div", "conn-account-row");
 
-  const facts = element("dl", "conn-facts");
-  facts.append(
-    fact("Account", record.accountAlias === null ? "No alias set" : String(record.accountAlias)),
-  );
-  facts.append(
-    fact("Source", record.sourceType === null ? "Not stated" : String(record.sourceType)),
-  );
-  facts.append(
-    fact(
-      "Credential",
-      record.credentialKind === null && record.maskedLabel === null
-        ? "None stored"
-        : [record.credentialKind, record.maskedLabel]
-            .filter((part) => part !== null)
-            .map((part) => String(part))
-            .join(" · "),
-    ),
-  );
-  facts.append(
-    fact(
-      "Last successful refresh",
-      timeWord(record.lastSuccessAt) ?? "None recorded",
-    ),
-  );
-  const next = nextAtOf(record);
-  facts.append(
-    fact(
-      "Next refresh",
-      !KNOWN_STATES.has(record.state) || !SCHEDULED_STATES.has(record.state)
-        ? "Not scheduled"
-        : next === null || isDue(next, now)
-          ? "At the next collector tick"
-          : (timeWord(next) ?? "At the next collector tick"),
-    ),
-  );
-  node.append(facts);
+  const head = element("div", "conn-account-head");
+  const accountName =
+    (record.accountAlias && String(record.accountAlias).trim()) ||
+    (record.maskedLabel && String(record.maskedLabel).trim()) ||
+    "Unnamed connection";
+
+  const titleEl = element("span", "account-name", accountName);
+  const chip = stateChip(record.state ?? "UNSTATED");
+  head.append(titleEl, chip);
+  row.append(head);
 
   const note = element("p", "conn-note");
   note.setAttribute("role", "status");
-  /* The last action's sentence survives the redraw that action caused. */
   const kept = session.cardNotes[record.id];
   if (kept !== undefined) setNote(note, kept.text, kept.tone);
 
@@ -951,18 +925,18 @@ function connectionCard(record, now) {
     );
   }
 
-  const test = element("button", undefined, "Test connection");
-  test.type = "button";
-  const refreshNow = element("button", undefined, "Refresh now");
-  refreshNow.type = "button";
-  const disconnect = element("button", undefined, "Disconnect");
-  disconnect.type = "button";
-  const controls = [test, refreshNow, disconnect];
+  const testBtn = element("button", undefined, "Test connection");
+  testBtn.type = "button";
+  const refreshBtn = element("button", undefined, "Refresh now");
+  refreshBtn.type = "button";
+  const disconnectBtn = element("button", undefined, "Disconnect");
+  disconnectBtn.type = "button";
+  const controls = [testBtn, refreshBtn, disconnectBtn];
   const busy = (on) => {
-    for (const control of controls) control.disabled = on;
+    for (const ctrl of controls) ctrl.disabled = on;
   };
 
-  test.addEventListener("click", () => {
+  testBtn.addEventListener("click", () => {
     void (async () => {
       busy(true);
       setNote(note, "Asking the provider.", "plain");
@@ -972,8 +946,6 @@ function connectionCard(record, now) {
         render();
         return;
       }
-      /* A test completes only when a connector actually understood the body.
-         Anything else leaves the backend's own verdict standing. */
       if (asked.snapshots !== null) {
         await closeAttempt(record, asked.generation, "parsed_test");
       } else if (asked.drifted) {
@@ -995,7 +967,7 @@ function connectionCard(record, now) {
     })();
   });
 
-  refreshNow.addEventListener("click", () => {
+  refreshBtn.addEventListener("click", () => {
     void (async () => {
       busy(true);
       setNote(note, "Refreshing.", "plain");
@@ -1017,17 +989,19 @@ function connectionCard(record, now) {
     })();
   });
 
-  /* Disconnect asks twice. The second press within a few seconds is the
-     consent; anything later starts over. No dialog, no framework. */
   let confirming = null;
-  disconnect.addEventListener("click", () => {
+  /* Disconnect asks twice. The second press within four seconds is the
+     confirmation, and the button says so rather than opening a dialog: a
+     misclick here costs somebody a credential they have to go and find again,
+     and a browser confirm() would block the whole window. */
+  disconnectBtn.addEventListener("click", () => {
     if (confirming === null) {
-      disconnect.textContent = "Press again to disconnect";
-      disconnect.classList.add("confirming");
+      disconnectBtn.textContent = "Press again to disconnect";
+      disconnectBtn.classList.add("confirming");
       confirming = window.setTimeout(() => {
         confirming = null;
-        disconnect.textContent = "Disconnect";
-        disconnect.classList.remove("confirming");
+        disconnectBtn.textContent = "Disconnect";
+        disconnectBtn.classList.remove("confirming");
       }, 4_000);
       return;
     }
@@ -1037,9 +1011,6 @@ function connectionCard(record, now) {
       busy(true);
       const result = await backend.disconnectProvider(record.id);
       if (result.ok) {
-        /* The credential is gone, so the schedule entry has nothing to
-           schedule, the note has no card to sit on, and the live mark no
-           longer has a connection behind it. */
         delete session.schedule[record.id];
         delete session.cardNotes[record.id];
         saveSchedule();
@@ -1067,10 +1038,22 @@ function connectionCard(record, now) {
     })();
   });
 
-  actions.append(test, refreshNow, disconnect);
-  node.append(actions);
-  node.append(note);
-  return node;
+  actions.append(testBtn, refreshBtn, disconnectBtn);
+  row.append(actions);
+  row.append(note);
+  return row;
+}
+
+function renderProviderAccounts(providerId, records, now) {
+  const container = document.getElementById(providerId + "-accounts");
+  if (!container) return;
+  container.textContent = "";
+  if (!records || records.length === 0) return;
+  const list = element("div", "conn-account-list");
+  for (const rec of records) {
+    list.append(renderAccountRow(rec, now));
+  }
+  container.append(list);
 }
 
 /* ----------------------------------------------------------------- render */
@@ -1498,8 +1481,9 @@ function renderCatalogue() {
     if (matching.length > 0) {
       const best = matching.find((entry) => entry.state === "CONNECTED") ?? matching[0];
       records[id] = best;
-      if (KNOWN_STATES.has(best.state)) {
-        states[id] = best.state;
+      const validStates = matching.map((e) => e.state).filter((s) => KNOWN_STATES.has(s));
+      if (validStates.length > 0) {
+        states[id] = mostConstrainedState(validStates);
       }
     }
   }
@@ -1609,11 +1593,15 @@ function render() {
     const matching = session.connections.filter(
       (entry) => typeof entry.provider === "string" && entry.provider.toLowerCase() === id,
     );
+    const hasConnections = matching.length > 0;
     const isConnected = matching.some((entry) => entry.state === "CONNECTED");
-    const state = isConnected ? "CONNECTED" : (matching.length > 0 ? matching[0].state : "NOT_CONNECTED");
+    const state = hasConnections
+      ? mostConstrainedState(matching.map((entry) => entry.state))
+      : "NOT_CONNECTED";
     if (chip && code) {
       chip.dataset.connectionState = state;
       code.textContent = stateWord(state);
+      chip.title = sentenceFor(state);
     }
     if (btn) {
       const isExpanded = btn.getAttribute("aria-expanded") === "true";
@@ -1621,20 +1609,21 @@ function render() {
         btn.textContent = isConnected ? "Reconnect" : "Connect";
       }
     }
+    renderProviderAccounts(id, matching, now);
   }
 
-  el.cards.textContent = "";
-  if (session.backendPresent === true) {
-    for (const record of session.connections) {
-      el.cards.append(connectionCard(record, now));
-    }
-    if (session.listError !== null) {
-      const line = element("p", "conn-note");
-      line.dataset.tone = "bad";
-      line.setAttribute("role", "status");
-      line.textContent = "Listing connections failed: " + session.listError;
-      el.cards.append(line);
-    }
+  const claudeMatching = session.connections.filter(
+    (entry) => typeof entry.provider === "string" && entry.provider.toLowerCase() === "claude",
+  );
+  renderProviderAccounts("claude", claudeMatching, now);
+
+  if (el.cards) el.cards.textContent = "";
+  if (session.backendPresent === true && session.listError !== null && el.cards) {
+    const line = element("p", "conn-note");
+    line.dataset.tone = "bad";
+    line.setAttribute("role", "status");
+    line.textContent = "Listing connections failed: " + session.listError;
+    el.cards.append(line);
   }
   el.empty.hidden = !(
     session.backendPresent === true &&

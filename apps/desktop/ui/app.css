@@ -934,6 +934,36 @@ footer p {
   margin-left: auto;
 }
 
+.conn-accounts {
+  margin-top: 10px;
+}
+
+.conn-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.conn-account-row {
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.conn-account-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.account-name {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--heading);
+}
+
 .conn-expanded-content {
   margin-top: 14px;
   padding-top: 14px;

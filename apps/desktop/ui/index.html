@@ -184,8 +184,6 @@
           No connections exist yet. Connect a provider or local tool below.
         </p>
 
-        <div id="connections-cards" class="connections"></div>
-
         <!-- Detected local tools first -->
         <section id="claude-card" class="surface conn-block" aria-labelledby="claude-card-title" tabindex="-1">
           <div class="conn-head">
@@ -195,6 +193,7 @@
               <span class="mono tracked" id="claude-state-code"></span>
             </span>
           </div>
+          <div id="claude-accounts" class="conn-accounts"></div>
           <p id="claude-sentence" class="conn-lead">
             Looking for Claude Code on this machine.
           </p>
@@ -222,6 +221,7 @@
             </span>
             <button type="button" id="openrouter-toggle-btn" class="conn-toggle-btn" aria-expanded="false" aria-controls="openrouter-expand">Connect</button>
           </div>
+          <div id="openrouter-accounts" class="conn-accounts"></div>
           <div id="openrouter-expand" class="conn-expanded-content" hidden>
             <fieldset class="kinds">
               <legend class="only-reader">Which kind of key to store</legend>
@@ -293,6 +293,7 @@
             </span>
             <button type="button" id="codex-toggle-btn" class="conn-toggle-btn" aria-expanded="false" aria-controls="codex-expand">Connect</button>
           </div>
+          <div id="codex-accounts" class="conn-accounts"></div>
           <div id="codex-expand" class="conn-expanded-content" hidden>
             <label class="field-label" for="codex-alias">
               Account alias, so two accounts stay apart
@@ -343,6 +344,7 @@
             </span>
             <button type="button" id="antigravity-toggle-btn" class="conn-toggle-btn" aria-expanded="false" aria-controls="antigravity-expand">Connect</button>
           </div>
+          <div id="antigravity-accounts" class="conn-accounts"></div>
           <div id="antigravity-expand" class="conn-expanded-content" hidden>
             <label class="field-label" for="antigravity-alias">
               Account alias, so two accounts stay apart
@@ -396,6 +398,7 @@
             </span>
             <button type="button" id="opencode-toggle-btn" class="conn-toggle-btn" aria-expanded="false" aria-controls="opencode-expand">Connect</button>
           </div>
+          <div id="opencode-accounts" class="conn-accounts"></div>
           <div id="opencode-expand" class="conn-expanded-content" hidden>
             <label class="field-label" for="opencode-alias">
               Account alias, so two accounts stay apart
