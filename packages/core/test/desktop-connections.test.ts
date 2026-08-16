@@ -8,11 +8,17 @@ const source = readFileSync(
 );
 
 describe("desktop connection wiring", () => {
-  it("shares one serialized due refresh pass between bootstrap and ticks", () => {
-    expect(source).toContain("let dueRefreshTail = Promise.resolve(false)");
-    expect(source.match(/await refreshDueConnections\(/gu)).toHaveLength(2);
-    expect(source).toMatch(/async function bootstrap\(\)[\s\S]*await syncConnections\(\)[\s\S]*await refreshDueConnections\([\s\S]*render\(\)/u);
-    expect(source).toMatch(/function refreshDueConnections\(now\)[\s\S]*for \(const record of due\)[\s\S]*await runRefresh\(record\)/u);
+  it("renders native collector state and never schedules work during bootstrap", () => {
+    expect(source).toMatch(
+      /async function runRefresh\(record\)[\s\S]*backend\.refreshProvider\([\s\S]*normalizeCollectionOutcome/u
+    );
+    expect(source).toMatch(
+      /async function bootstrap\(\)[\s\S]*await syncConnections\(\)[\s\S]*await syncCollectorStatus\(\)[\s\S]*render\(\)/u
+    );
+    expect(source).not.toMatch(
+      /async function bootstrap\(\)[\s\S]*refreshDueConnections/u
+    );
+    expect(source).toContain('backend.listen(COLLECTOR_UPDATED_EVENT');
   });
 
   it("dispatches catalogue refresh and diagnostics, and no click falls through", () => {

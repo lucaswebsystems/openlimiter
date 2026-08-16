@@ -1,10 +1,17 @@
 mod cache_write;
 mod claude_connect;
 mod claude_detect;
+mod collector;
+mod collector_runtime;
+mod collector_schedule;
 mod commands;
 mod connections;
 mod credentials;
 mod fsx;
+mod native_opencode;
+mod native_readers;
+mod native_snapshot;
+mod native_time;
 mod net;
 mod reader_registry;
 mod state;
@@ -13,19 +20,17 @@ mod test_support;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, WindowEvent};
+use tauri::{AppHandle, Manager, WindowEvent};
 
 /// OpenLimiter for the desktop.
 ///
 /// A window and a tray icon around the engine that already exists. Rust does
 /// only what the webview cannot: find the state directory, read and replace
 /// state files, keep provider secrets in the operating system credential
-/// store, speak HTTPS to a closed allowlist of provider endpoints, and tick a
-/// metronome the operating system will not throttle. Every rule about what
-/// the numbers mean stays in the TypeScript engine that the command line tool
-/// and the web application both use, so there is exactly one implementation
-/// of freshness, validation, advice, scheduling and merging in the whole
-/// project.
+/// store, speak HTTPS to a closed allowlist of provider endpoints, and run the
+/// durable collector the operating system will not throttle. The webview
+/// retains freshness, advice and rendering policy, while native readers close
+/// remote collection before any result crosses IPC.
 ///
 /// The webview itself gains nothing: its content security policy and its
 /// capabilities are unchanged, every request leaves from this process, and a
@@ -33,9 +38,6 @@ use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 /// the boundary.
 /// The identifier the tray is registered under, so a command can find it again.
 const TRAY_ID: &str = "openlimiter-tray";
-
-/// The event the webview listens for when the tray asks for a refresh.
-const REFRESH_EVENT: &str = "openlimiter://refresh";
 
 /// The snapshot cache as text, or nothing when there is nothing to read.
 #[tauri::command]
@@ -92,6 +94,7 @@ pub fn run() {
             cache_write::CacheWriter::at_state_directory(),
         ))
         .manage(net::ReqwestTransport::new())
+        .manage(collector_runtime::CollectorRuntime::default())
         .invoke_handler(tauri::generate_handler![
             read_cache,
             read_manual,
@@ -100,21 +103,20 @@ pub fn run() {
             commands::connect_provider,
             commands::test_provider,
             commands::refresh_provider,
+            commands::collector_status,
             commands::disconnect_provider,
             commands::list_connections,
             commands::update_connection,
-            commands::complete_attempt,
             commands::detect_local_tools,
             commands::claude_connect_preflight,
             commands::claude_connect_apply,
-            commands::claude_disconnect,
-            commands::cache_begin_write,
-            commands::cache_commit_write
+            commands::claude_disconnect
         ])
         .setup(|app| {
-            /* The metronome outlives every window: it ticks the hidden
-            webview awake for as long as the tray process runs. */
-            commands::spawn_collector_metronome(app.handle().clone());
+            /* The full collector outlives every window. Its schedule, reads,
+            parsing and cache commits never depend on a webview receiving an
+            event or being allowed to run a timer. */
+            collector_runtime::spawn_collector(app.handle().clone());
             let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
             let refresh = MenuItem::with_id(app, "refresh", "Refresh", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -134,7 +136,7 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_window(app),
                     "refresh" => {
-                        let _ = app.emit(REFRESH_EVENT, ());
+                        collector_runtime::refresh_all(app.clone());
                     }
                     "quit" => app.exit(0),
                     _ => {}
@@ -154,8 +156,8 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             /* Closing the window hides it instead of ending the process. The
-            webview stays alive, which is what keeps the tray reading current
-            while the application sits behind the clock. Quit is on the menu. */
+            native collector and tray continue independently. Quit is on the
+            menu. */
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();

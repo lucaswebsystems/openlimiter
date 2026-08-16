@@ -81,6 +81,47 @@ pub enum ReaderId {
     OpencodeUsage,
 }
 
+/// A source's scheduling shape, without pretending every source has a timer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SchedulePolicy {
+    EventDriven,
+    Interval { base_seconds: u64 },
+    ExplicitOnly,
+}
+
+impl SchedulePolicy {
+    /// The trusted interval only when this policy actually has one.
+    pub const fn interval_seconds(self) -> Option<u64> {
+        match self {
+            SchedulePolicy::EventDriven | SchedulePolicy::ExplicitOnly => None,
+            SchedulePolicy::Interval { base_seconds } => Some(base_seconds),
+        }
+    }
+}
+
+/// Every source the native scheduler must reason about.
+///
+/// Claude has no `ReaderId` and no connection record. Naming it here is how
+/// the scheduler can prove that the statusline event never becomes a poll.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CollectionSource {
+    #[cfg_attr(not(test), allow(dead_code))]
+    ClaudeStatusline,
+    Reader(ReaderId),
+}
+
+impl CollectionSource {
+    pub const fn schedule_policy(self) -> SchedulePolicy {
+        match self {
+            CollectionSource::ClaudeStatusline => SchedulePolicy::EventDriven,
+            CollectionSource::Reader(ReaderId::OpencodeUsage) => SchedulePolicy::ExplicitOnly,
+            CollectionSource::Reader(reader) => SchedulePolicy::Interval {
+                base_seconds: reader.base_seconds(),
+            },
+        }
+    }
+}
+
 impl ReaderId {
     /* Exhaustive lists and the reverse lookups over them exist for the tests
     that must sweep every pairing. The product itself only ever holds one
@@ -463,6 +504,16 @@ mod tests {
         for (reader, seconds) in expected {
             assert_eq!(reader.base_seconds(), seconds);
         }
+    }
+
+    #[test]
+    fn codex_refresh_is_a_read_surface_and_never_inference() {
+        let route = reader_route(ProviderId::Codex, CredentialKind::CodexSession)
+            .expect("Codex session route");
+        assert_eq!(route.reader_id, ReaderId::CodexUsage);
+        assert_eq!(route.endpoint, ProviderEndpoint::CodexUsage);
+        assert_eq!(route.endpoint.method(), crate::net::HttpMethod::Get);
+        assert_eq!(route.endpoint.body(), None);
     }
 
     #[test]

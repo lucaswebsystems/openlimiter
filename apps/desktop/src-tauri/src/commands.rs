@@ -1,10 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
-
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::State;
 use zeroize::Zeroizing;
 
 use crate::cache_write::{CacheWriteBegin, CacheWriteError, CacheWriter, MAX_JSON_FILE_BYTES};
@@ -33,43 +31,8 @@ use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId,
 /// zeroized after it lands in the operating system credential store. No
 /// command returns a secret, so no readback path exists.
 ///
-/// No policy lives here. Backoff, due times, state transitions, and merge
-/// semantics belong to `packages/core` in the webview; these commands move
-/// bytes, stamp facts, and enforce bounds.
-/// The event the metronome emits to wake the webview's collector.
-pub const COLLECTOR_TICK_EVENT: &str = "collector-tick";
-
-/// How often the metronome ticks. The tick carries no policy: the webview
-/// decides what, if anything, is due.
-pub const COLLECTOR_TICK_INTERVAL_SECONDS: u64 = 60;
-
-/// What a tick carries: a sequence number, so the webview can observe a
-/// stalled or restarted metronome. Nothing else.
-#[derive(Clone, Copy, Debug, Serialize)]
-pub struct CollectorTick {
-    pub seq: u64,
-}
-
-/// Start the metronome: a tokio interval task that emits `collector-tick` to
-/// the webview for as long as the process runs. Rust owns the clock because
-/// hidden webview timers are throttled by the operating system; the webview
-/// owns every decision about what a tick means.
-pub fn spawn_collector_metronome(app: AppHandle) {
-    tauri::async_runtime::spawn(async move {
-        let mut interval =
-            tokio::time::interval(Duration::from_secs(COLLECTOR_TICK_INTERVAL_SECONDS));
-        /* A machine waking from sleep gets one prompt tick, not a burst of
-        every tick it slept through. */
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        let mut seq: u64 = 0;
-        loop {
-            interval.tick().await;
-            seq = seq.wrapping_add(1);
-            let _ = app.emit(COLLECTOR_TICK_EVENT, CollectorTick { seq });
-        }
-    });
-}
-
+/// Scheduling and cache policy live in the native collector. These commands
+/// keep the IPC boundary small, stamp facts, and enforce bounds.
 /// Every way a connection command can fail, closed and payload free. The
 /// serialized form is `{"kind":"..."}` so the webview can match on it, and
 /// the `Display` sentence is a constant per variant.
@@ -506,6 +469,7 @@ fn connect_with_secret(
         },
         created_at: now_epoch_ms(),
         base_seconds: route.reader_id.base_seconds(),
+        next_refresh_at: None,
         last_attempt_at: None,
         last_success_at: None,
         attempt_generation: 0,
@@ -707,7 +671,7 @@ fn settle_request(
     Ok(())
 }
 
-async fn probe_core<T: Transport>(
+pub(crate) async fn probe_core<T: Transport>(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
     transport: &T,
@@ -777,16 +741,8 @@ async fn probe_core<T: Transport>(
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) async fn test_core<T: Transport>(
-    connections: &ConnectionsStore,
-    secrets: &impl SecretStore,
-    transport: &T,
-    input: ProbeInput,
-) -> Result<ProbeOutcome, CommandFailure> {
-    probe_core(connections, secrets, transport, input).await
-}
-
-pub(crate) async fn refresh_core<T: Transport>(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
     transport: &T,
@@ -947,9 +903,22 @@ pub async fn test_provider(
     connections: State<'_, ConnectionsStore>,
     secrets: State<'_, KeyringStore>,
     transport: State<'_, ReqwestTransport>,
+    writer: State<'_, Arc<CacheWriter>>,
+    runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
     input: ProbeInput,
-) -> Result<ProbeOutcome, CommandFailure> {
-    test_core(&connections, &*secrets, &*transport, input).await
+) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
+    let outcome = crate::collector_runtime::run_guarded(
+        &runtime,
+        &connections,
+        &*secrets,
+        &*transport,
+        Arc::clone(&writer),
+        input.connection_id,
+        crate::collector::CollectionMode::Test,
+    )
+    .await?;
+    runtime.record_pass(outcome.failure(), true);
+    Ok(outcome)
 }
 
 #[tauri::command]
@@ -957,9 +926,29 @@ pub async fn refresh_provider(
     connections: State<'_, ConnectionsStore>,
     secrets: State<'_, KeyringStore>,
     transport: State<'_, ReqwestTransport>,
+    writer: State<'_, Arc<CacheWriter>>,
+    runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
     input: ProbeInput,
-) -> Result<ProbeOutcome, CommandFailure> {
-    refresh_core(&connections, &*secrets, &*transport, input).await
+) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
+    let outcome = crate::collector_runtime::run_guarded(
+        &runtime,
+        &connections,
+        &*secrets,
+        &*transport,
+        Arc::clone(&writer),
+        input.connection_id,
+        crate::collector::CollectionMode::Refresh,
+    )
+    .await?;
+    runtime.record_pass(outcome.failure(), true);
+    Ok(outcome)
+}
+
+#[tauri::command]
+pub fn collector_status(
+    runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
+) -> crate::collector_runtime::CollectorStatus {
+    runtime.status()
 }
 
 #[tauri::command]
@@ -978,8 +967,8 @@ pub async fn list_connections(
     Ok(connections.list()?)
 }
 
-/// Close the attempt this outcome opened, with what the parser and the cache
-/// write actually achieved.
+/// Legacy completion declaration retained for its boundary tests. It is not
+/// registered with Tauri now that native collection owns the transaction.
 #[tauri::command]
 pub async fn complete_attempt(
     connections: State<'_, ConnectionsStore>,
@@ -1026,13 +1015,13 @@ pub async fn claude_disconnect() -> Result<ClaudeDisconnectOutcome, CommandFailu
         .map_err(CommandFailure::from)
 }
 
+/// Legacy cache handshake declaration retained for its boundary tests. It is
+/// not registered with Tauri now that native collection owns cache writes.
 #[tauri::command]
 pub async fn cache_begin_write(
     writer: State<'_, Arc<CacheWriter>>,
 ) -> Result<CacheWriteBegin, CommandFailure> {
     let writer = Arc::clone(&writer);
-    /* The lock protocol can sleep through its bounded backoff, so it runs on
-    the blocking pool rather than on the event loop. */
     let begun = tauri::async_runtime::spawn_blocking(move || writer.begin())
         .await
         .map_err(|_| CommandFailure::Storage)??;
@@ -1040,6 +1029,7 @@ pub async fn cache_begin_write(
 }
 
 /// The commit with its boundary cap in front, testable without a runtime.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn cache_commit_core(
     writer: &CacheWriter,
     text: &str,
@@ -1056,6 +1046,8 @@ pub(crate) fn cache_commit_core(
     Ok(())
 }
 
+/// Legacy cache handshake declaration retained for its boundary tests. It is
+/// not registered with Tauri now that native collection owns cache writes.
 #[tauri::command]
 pub async fn cache_commit_write(
     writer: State<'_, Arc<CacheWriter>>,
@@ -2620,8 +2612,8 @@ mod tests {
             .collect();
         assert_eq!(
             signatures.len(),
-            13,
-            "the frozen commands plus the three Claude Code connection verbs"
+            14,
+            "the frozen commands plus the native collector status command"
         );
         for signature in &signatures {
             assert!(

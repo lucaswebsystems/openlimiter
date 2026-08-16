@@ -43,13 +43,11 @@ import {
    the empty state rather than nothing at all. */
 import {
   BACKEND_ABSENT,
-  completeAttempt,
   connectProvider,
   listConnections,
-  listen,
+  normalizeCollectionOutcome,
   normalizeConnection,
   normalizeConnectionList,
-  normalizeProbeOutcome,
   readCache,
   readManual,
   setTrayStatus,
@@ -61,15 +59,11 @@ import {
   connectionsTabShown,
   initConnections,
   noteMetersRefreshed,
-  snapshotsFromBody,
   stateWord,
 } from "./connections.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
-
-/** The event the tray sends when its Refresh item is chosen. */
-const REFRESH_EVENT = "openlimiter://refresh";
 
 const PROVIDER_NAMES = {
   CLAUDE: "Claude",
@@ -985,11 +979,6 @@ elements.theme.addEventListener("click", () => {
   }
 });
 
-/* The tray's Refresh item reaches the window through this one event. */
-void listen(REFRESH_EVENT, () => {
-  void refresh();
-});
-
 void stateDirectory().then((result) => {
   const directory = result.ok ? result.value : null;
   elements.where.textContent = directory === null
@@ -998,19 +987,6 @@ void stateDirectory().then((result) => {
 });
 
 /* ----------------------------------------------------------- provider connect */
-
-const TRANSPORT_FAILURE_SENTENCES = {
-  timeout: "The provider did not answer before the time limit (timeout).",
-  connect: "The network connection to the provider could not be opened (connect).",
-  tls: "TLS handshake or security negotiation with the provider failed (tls).",
-  oversize: "The answer was too large to accept (oversize).",
-  invalid_utf8: "The provider response contained invalid UTF-8 (invalid_utf8).",
-};
-
-function formatTransportFailure(failureKind) {
-  return TRANSPORT_FAILURE_SENTENCES[failureKind] ??
-    "The read did not reach the provider (" + failureKind + ").";
-}
 
 function setCardNote(node, text, tone) {
   if (!node) return;
@@ -1035,61 +1011,12 @@ async function testConnectionHelper(connectionId) {
     }
     return { ...NOTHING_TESTED, note: result.message };
   }
-  const outcome = normalizeProbeOutcome(result.value);
-  if (outcome.kind === "unreadable") {
-    return {
-      ...NOTHING_TESTED,
-      note: "The backend's answer could not be read, so nothing is claimed from it.",
-    };
-  }
-  if (outcome.kind === "transport_failure") {
-    return {
-      ...NOTHING_TESTED,
-      generation: outcome.attemptGeneration,
-      note: formatTransportFailure(outcome.failure),
-    };
-  }
-  const inTwoHundreds = outcome.status >= 200 && outcome.status <= 299;
-  if (!inTwoHundreds || outcome.body === null) {
-    return {
-      ok: false,
-      generation: outcome.attemptGeneration,
-      note: "The provider answered " + String(outcome.status) + ".",
-    };
-  }
-  /*
-   * One dispatcher for the whole window, imported rather than repeated.
-   *
-   * This function used to JSON.parse the body itself, which meant an OpenCode
-   * page, the only body in the product that is HTML, became drift on the connect
-   * form while parsing correctly on the cards. A second copy of a rule is a
-   * second copy that will disagree with the first.
-   */
-  const now = new Date().toISOString();
-  const snapshots = snapshotsFromBody(outcome.readerId, outcome.body, now);
+  const outcome = normalizeCollectionOutcome(result.value);
   return {
-    ok: snapshots !== null,
-    generation: outcome.attemptGeneration,
-    snapshots,
-    drifted: snapshots === null,
-    note: snapshots === null
-      ? "The provider answered, and this build could not read the answer."
-      : null,
+    ...NOTHING_TESTED,
+    ok: outcome.kind === "tested",
+    note: outcome.succeeded ? null : outcome.message,
   };
-}
-
-async function closeAttemptHelper(connectionId, generation, disposition) {
-  if (generation === null || generation === undefined) return { ok: false, stale: false };
-  const result = await completeAttempt({
-    connectionId,
-    attemptGeneration: generation,
-    disposition,
-  });
-  if (!result.ok && result.kind === "stale_generation") {
-    await listConnections();
-    return { ok: false, stale: true };
-  }
-  return { ok: result.ok, stale: false };
 }
 
 async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, keyInputId, submitBtnId, noteElId }) {
@@ -1152,15 +1079,6 @@ async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, k
   }
 
   const tested = await testConnectionHelper(targetId);
-  /* ok is true only when a connector returned rows. Asking `snapshots !== null`
-     was satisfied by `undefined` on every path that never reached a parse, so a
-     refused probe closed the attempt as a parsed test. */
-  if (tested.ok === true) {
-    await closeAttemptHelper(targetId, tested.generation, "parsed_test");
-  } else if (tested.drifted === true) {
-    await closeAttemptHelper(targetId, tested.generation, "drift");
-  }
-
   const freshListRes = await listConnections();
   let settledState = null;
   if (freshListRes.ok) {

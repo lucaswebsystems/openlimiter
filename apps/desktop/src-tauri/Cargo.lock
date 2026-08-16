@@ -2542,6 +2542,7 @@ name = "openlimiter-desktop"
 version = "0.4.0"
 dependencies = [
  "keyring",
+ "regex",
  "reqwest",
  "rustls",
  "serde",
@@ -2549,6 +2550,7 @@ dependencies = [
  "sha2",
  "tauri",
  "tauri-build",
+ "time",
  "tokio",
  "uuid",
  "zeroize",

@@ -17,37 +17,16 @@
  *   card here and a block on the web dashboard describe one state with one
  *   sentence;
  *
- *   when a connection is due for a refresh comes from
- *   packages/core/src/schedule.ts, the same arithmetic on every surface:
- *   doubling per consecutive failure capped at an hour, jitter on our own
- *   backoff only, and a provider's Retry-After respected as a floor.
+ *   the durable schedule and collector outcome come from Rust. This module
+ *   renders those facts and can ask Rust for one explicit refresh.
  *
- * The clock belongs to Rust. Hidden webviews get their timers throttled by
- * the operating system, so the backend runs the metronome and emits a
- * collector-tick event about once a minute. This module wakes on the tick,
- * asks the schedule which connections are due, refreshes exactly those, and
- * writes a heartbeat stamp so a webview that has died is observable: the
- * stamp stops advancing while the process clock does not.
+ * The whole collection transaction belongs to Rust. Its persisted schedule,
+ * provider read, parser, cache fold, completion and backoff continue when this
+ * renderer is hidden or reloaded. A collector-updated event asks this module
+ * only to reread and render state.
  *
- * A refresh is a pipeline, and every stage of it is the one implementation
- * the rest of the product runs. The backend chooses the address, performs the
- * read, and hands back a ProbeOutcome carrying the reader that was used and
- * the generation of that attempt. The body is parsed by the connector that
- * reader names, and by no other: this module never picks a parser by provider
- * name, by guessing, or by trying several. The rows are validated by the
- * mirrored normalizer, stamped remote_api, and folded into the snapshot cache
- * through the Rust lock handshake with the mirrored merge: cache_begin_write
- * hands over the current text and a generation stamp, this module merges,
- * cache_commit_write presents the stamp back, and a stale_generation or busy
- * refusal is retried exactly once from a fresh begin.
- *
- * Then, and only then, the attempt is CLOSED with what actually happened:
- * complete_attempt with parsed_test, cache_committed, drift or cache_failure.
- * That call is the only thing that can move a connection to CONNECTED, and it
- * is refused if the generation has moved on. This window writes no connection
- * state of its own: a status field no longer exists on the wire, because a
- * surface that can declare itself connected will eventually do so while
- * nothing has been read.
+ * The IPC result contains only a closed success or failure. It carries no
+ * provider body, credential, cache generation, or writable connection state.
  */
 import {
   CACHE_DOCUMENT_VERSION,
@@ -57,9 +36,7 @@ import {
   canonicalJson,
   connectionNextAction,
   connectionSentence,
-  isDue,
   mergeSnapshots,
-  nextRefreshAt,
   normalizeMetersReport,
   queryCatalogueRows,
   readSuppressions,
@@ -71,25 +48,8 @@ import { parseOpenrouterPayload } from "./engine/connectors/openrouter.js";
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import * as backend from "./backend.js";
 
-/** The event the Rust metronome emits, about once a minute. */
-const TICK_EVENT = "collector-tick";
-
-/** Where the heartbeat stamp lives, so a dead webview is observable. */
-const HEARTBEAT_KEY = "openlimiter-collector-heartbeat";
-
-/** Where the per connection schedule survives a window restart. */
-const SCHEDULE_KEY = "openlimiter-schedule";
-
-/**
- * The states the scheduler refreshes on its own.
- *
- * These are the three states the core's own next actions describe as being in
- * rotation: CONNECTED refreshes on its interval, DEGRADED waits out its
- * backoff and retries, STALE is overdue and refreshes at the next chance. A
- * connection waiting on a credential, or one that failed hard enough to need
- * a person, is never retried behind that person's back.
- */
-const SCHEDULED_STATES = new Set(["CONNECTED", "DEGRADED", "STALE"]);
+/** The event Rust emits after a native collection pass changes observable state. */
+const COLLECTOR_UPDATED_EVENT = "collector-updated";
 
 /** The 13 states as a set, to check a record's claim before believing it. */
 const KNOWN_STATES = new Set(CONNECTION_STATES);
@@ -120,8 +80,6 @@ const session = {
   connections: [],
   /** Providers whose refresh_provider came back CONNECTED in this run. */
   liveRefreshOk: new Set(),
-  /** Per connection id: { attempt, nextAt }, the core schedule's inputs. */
-  schedule: {},
   /**
    * Per connection id: the last action's feedback line, { text, tone }.
    * Kept here rather than only in the DOM because every render rebuilds the
@@ -129,8 +87,8 @@ const session = {
    * never read by anyone.
    */
   cardNotes: {},
-  ticksThisRun: 0,
-  lastTickAt: null,
+  /** Native heartbeat state, retained by Rust across renderer reloads. */
+  collectorStatus: null,
   /** The last detect_local_tools answer for Claude Code, normalized. */
   claude: null,
   claudeProbed: false,
@@ -143,9 +101,6 @@ const session = {
 let options = null;
 
 let el = null;
-
-/** Serializes due passes so bootstrap and the metronome cannot double read. */
-let dueRefreshTail = Promise.resolve(false);
 
 function grabElements() {
   el = {
@@ -174,44 +129,6 @@ function grabElements() {
     claudeBody: document.getElementById("claude-body"),
     catalogueRows: document.getElementById("catalogue-rows"),
   };
-}
-
-/* ------------------------------------------------------------------ storage */
-
-function loadSchedule() {
-  try {
-    const raw = window.localStorage.getItem(SCHEDULE_KEY);
-    if (raw === null) return {};
-    const parsed = JSON.parse(raw);
-    return parsed !== null && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveSchedule() {
-  try {
-    window.localStorage.setItem(SCHEDULE_KEY, JSON.stringify(session.schedule));
-  } catch {
-    /* Storage refused. The schedule still applies to this window. */
-  }
-}
-
-function storedHeartbeat() {
-  try {
-    return window.localStorage.getItem(HEARTBEAT_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeHeartbeat(now) {
-  session.lastTickAt = now;
-  try {
-    window.localStorage.setItem(HEARTBEAT_KEY, now);
-  } catch {
-    /* Storage refused. The in memory stamp still renders. */
-  }
 }
 
 /* ----------------------------------------------------------------- language */
@@ -243,30 +160,6 @@ function timeWord(iso) {
   return new Date(parsed).toLocaleString();
 }
 
-/* ---------------------------------------------------------------- schedule */
-
-/**
- * When this connection may next be asked, from the webview's own schedule
- * first and the record's stamp second. Null means the core calls it due.
- */
-function nextAtOf(record) {
-  const local = session.schedule[record.id];
-  return local?.nextAt ?? record.nextRefreshAt ?? null;
-}
-
-/**
- * The base interval handed to the core.
- *
- * When the record carries none this passes the absence straight through, and
- * the core's own clamp answers: usableBase treats an unusable base as one
- * second, which in practice means "due at every tick", with the tick cadence
- * owned by the Rust metronome. That is the core's decision, deliberately not
- * repeated or replaced here.
- */
-function baseOf(record) {
-  return record.baseSeconds ?? Number.NaN;
-}
-
 /* ----------------------------------------------------------------- backend */
 
 async function syncConnections() {
@@ -284,6 +177,16 @@ async function syncConnections() {
   session.backendPresent = true;
   session.listError = null;
   session.connections = backend.normalizeConnectionList(result.value);
+}
+
+async function syncCollectorStatus() {
+  const result = await backend.collectorStatus();
+  if (!result.ok) {
+    if (result.reason === backend.BACKEND_ABSENT) session.backendPresent = false;
+    return;
+  }
+  session.backendPresent = true;
+  session.collectorStatus = backend.normalizeCollectorStatus(result.value);
 }
 
 /**
@@ -567,62 +470,18 @@ async function closeAttempt(record, generation, disposition) {
  * say Connected.
  */
 async function runRefresh(record) {
-  const attempt = await probe(record, true);
-  if (attempt.absent) return { succeeded: false, note: null };
-
-  const observedAt = new Date().toISOString();
-  let note = attempt.note;
-  let committed = false;
-  if (attempt.snapshots !== null && record.provider !== null) {
-    const commit = await applyReportToCache({
-      ok: true,
-      provider: record.provider,
-      observedAt,
-      snapshots: attempt.snapshots,
-    });
-    committed = commit.ok;
-    if (!commit.ok) note = commit.message;
-  } else if (attempt.drifted && record.provider !== null) {
-    /* The provider answered well and this build could not read the answer.
-       The rows go, the suppression stays, and nothing downstream may show a
-       number for this provider until a later run parses again. */
-    const suppressed = await applyReportToCache({
-      ok: false,
-      provider: record.provider,
-      observedAt,
-      reason: "drift",
-    });
-    if (!suppressed.ok) note = suppressed.message;
-  }
-  /* The disposition is the honest description of what this run achieved, and
-     nothing else may be sent: a 2xx that drifted is drift, and a parse that
-     could not be written is a cache failure, never a quiet success. */
-  if (attempt.generation !== null) {
-    const disposition = committed
-      ? "cache_committed"
-      : attempt.drifted
-        ? "drift"
-        : attempt.snapshots !== null
-          ? "cache_failure"
-          : null;
-    if (disposition !== null) {
-      await closeAttempt(record, attempt.generation, disposition);
+  const result = await backend.refreshProvider({ connectionId: record.id });
+  if (!result.ok) {
+    if (result.reason === backend.BACKEND_ABSENT) {
+      session.backendPresent = false;
+      return { succeeded: false, note: "This build has no connection backend yet." };
     }
+    return { succeeded: false, note: result.message };
   }
-
-  const after = new Date().toISOString();
-  const previous = session.schedule[record.id];
-  const attemptCount = committed ? 0 : (previous?.attempt ?? 0) + 1;
-  session.schedule[record.id] = {
-    attempt: attemptCount,
-    nextAt: nextRefreshAt(after, {
-      attempt: attemptCount,
-      baseSeconds: baseOf(record),
-      retryAfterSeconds: attempt.retryAfterSeconds,
-      random: Math.random,
-    }),
-  };
-  saveSchedule();
+  const outcome = backend.normalizeCollectionOutcome(result.value);
+  const committed = outcome.kind === "cache_committed";
+  const note = outcome.succeeded ? null : outcome.message;
+  await syncCollectorStatus();
   await syncConnections();
   if (committed && record.provider !== null) {
     session.liveRefreshOk.add(record.provider);
@@ -630,51 +489,30 @@ async function runRefresh(record) {
   return { succeeded: committed, note };
 }
 
+async function runTest(record) {
+  const result = await backend.testProvider({ connectionId: record.id });
+  if (!result.ok) {
+    if (result.reason === backend.BACKEND_ABSENT) {
+      session.backendPresent = false;
+      return { succeeded: false, absent: true, note: "This build has no connection backend yet." };
+    }
+    return { succeeded: false, absent: false, note: result.message };
+  }
+  const outcome = backend.normalizeCollectionOutcome(result.value);
+  await syncCollectorStatus();
+  await syncConnections();
+  return {
+    succeeded: outcome.kind === "tested",
+    absent: false,
+    note: outcome.succeeded ? null : outcome.message,
+  };
+}
+
 /** The manual refresh action shared by a connection card and its catalogue row. */
 async function refreshNow(record) {
   const outcome = await runRefresh(record);
   if (outcome.succeeded) options.onMetersChanged();
   return outcome;
-}
-
-/** Refresh every currently due connection, sequentially, on one shared queue. */
-function refreshDueConnections(now) {
-  const pass = dueRefreshTail.then(async () => {
-    const due = session.connections.filter(
-      (record) =>
-        KNOWN_STATES.has(record.state) &&
-        SCHEDULED_STATES.has(record.state) &&
-        isDue(nextAtOf(record), now),
-    );
-    let changed = false;
-    for (const record of due) {
-      const outcome = await runRefresh(record);
-      changed = changed || outcome.succeeded;
-    }
-    return changed;
-  });
-  dueRefreshTail = pass.catch(() => false);
-  return pass;
-}
-
-/**
- * One tick from the Rust metronome.
- *
- * Heartbeat first, unconditionally, because the stamp's whole job is to
- * advance whenever this webview is alive to receive a tick. Then the due
- * connections, one at a time rather than in a burst, so a machine with five
- * connections does not open five requests in one instant.
- */
-async function onTick() {
-  const now = new Date().toISOString();
-  session.ticksThisRun += 1;
-  writeHeartbeat(now);
-  await syncConnections();
-  if (session.backendPresent === true) {
-    const changed = await refreshDueConnections(now);
-    if (changed) options.onMetersChanged();
-  }
-  render();
 }
 
 /* ---------------------------------------------------------- claude detection */
@@ -940,18 +778,12 @@ function renderAccountRow(record, now) {
     void (async () => {
       busy(true);
       setNote(note, "Asking the provider.", "plain");
-      const asked = await probe(record, false);
+      const asked = await runTest(record);
       if (asked.absent) {
         keepCardNote(record.id, note, "This build has no connection backend yet.", "bad");
         render();
         return;
       }
-      if (asked.snapshots !== null) {
-        await closeAttempt(record, asked.generation, "parsed_test");
-      } else if (asked.drifted) {
-        await closeAttempt(record, asked.generation, "drift");
-      }
-      await syncConnections();
       const settled = session.connections.find((entry) => entry.id === record.id);
       if (asked.note !== null) {
         keepCardNote(record.id, note, "The test failed. " + asked.note, "bad");
@@ -960,7 +792,7 @@ function renderAccountRow(record, now) {
           record.id,
           note,
           sentenceFor(settled?.state ?? record.state),
-          asked.snapshots !== null ? "ok" : "bad",
+          asked.succeeded ? "ok" : "bad",
         );
       }
       render();
@@ -1011,9 +843,7 @@ function renderAccountRow(record, now) {
       busy(true);
       const result = await backend.disconnectProvider(record.id);
       if (result.ok) {
-        delete session.schedule[record.id];
         delete session.cardNotes[record.id];
-        saveSchedule();
         if (
           record.provider !== null &&
           !session.connections.some(
@@ -1061,26 +891,26 @@ function renderProviderAccounts(providerId, records, now) {
 function renderSchedulerLine() {
   if (session.backendPresent === false) {
     el.schedulerLine.textContent =
-      "No collector tick can arrive: this build has no connection backend.";
+      "The native collector is unavailable: this build has no connection backend.";
     return;
   }
-  const stored = storedHeartbeat();
-  const stamp = timeWord(session.lastTickAt ?? stored);
-  if (session.lastTickAt === null) {
-    el.schedulerLine.textContent =
-      stamp === null
-        ? "No collector tick has been received yet in this run."
-        : "No collector tick has been received yet in this run. Last heartbeat written " +
-          stamp +
-          ".";
+  const status = session.collectorStatus;
+  if (status === null || status.lastPassAt === null) {
+    el.schedulerLine.textContent = "The native collector is starting.";
     return;
   }
+  const stamp = timeWord(status.lastPassAt);
+  const failure = status.lastFailure;
   el.schedulerLine.textContent =
-    "Collector heartbeat " +
+    "Native collector checked " +
     stamp +
-    ". Ticks received this run: " +
-    String(session.ticksThisRun) +
-    ".";
+    ". Passes this process: " +
+    String(status.ticks) +
+    "." +
+    (failure === null
+      ? ""
+      : " Last failure: " +
+        (backend.COLLECTOR_FAILURE_SENTENCES[failure] ?? failure));
 }
 
 function renderClaude() {
@@ -1699,19 +1529,13 @@ async function submitOpenrouter() {
     return;
   }
   setNote(el.openrouterNote, "Stored. Testing the connection now.", "plain");
-  const asked = await probe(record, false);
+  const asked = await runTest(record);
   if (asked.absent) {
     setNote(el.openrouterNote, "This build has no connection backend yet.", "bad");
     el.openrouterSubmit.disabled = false;
     render();
     return;
   }
-  if (asked.snapshots !== null) {
-    await closeAttempt(record, asked.generation, "parsed_test");
-  } else if (asked.drifted) {
-    await closeAttempt(record, asked.generation, "drift");
-  }
-  await syncConnections();
   const settled = session.connections.find((entry) => entry.id === record.id);
   if (asked.note !== null) {
     setNote(el.openrouterNote, "The test failed. " + asked.note, "bad");
@@ -1719,7 +1543,7 @@ async function submitOpenrouter() {
     setNote(
       el.openrouterNote,
       "Test finished. " + sentenceFor(settled?.state ?? record.state),
-      asked.snapshots !== null ? "ok" : "bad",
+      asked.succeeded ? "ok" : "bad",
     );
   }
   el.openrouterAlias.value = "";
@@ -1787,7 +1611,7 @@ export function connectionFactFor(provider) {
     records.find((entry) => entry.state === "CONNECTED") ?? records[0];
   return {
     state: KNOWN_STATES.has(best.state) ? best.state : null,
-    liveOk: session.liveRefreshOk.has(provider),
+    liveOk: best.state === "CONNECTED",
   };
 }
 
@@ -1810,6 +1634,7 @@ export function connectionsTabShown() {
   if (!session.ready) return;
   void (async () => {
     await syncConnections();
+    await syncCollectorStatus();
     if (session.backendPresent === true) {
       await detectClaude();
       await runClaudePreflight();
@@ -1820,9 +1645,8 @@ export function connectionsTabShown() {
 
 async function bootstrap() {
   await syncConnections();
+  await syncCollectorStatus();
   if (session.backendPresent === true) {
-    const changed = await refreshDueConnections(new Date().toISOString());
-    if (changed) options.onMetersChanged();
     await detectClaude();
     await runClaudePreflight();
   }
@@ -1832,7 +1656,6 @@ async function bootstrap() {
 export function initConnections(configuration) {
   options = configuration;
   grabElements();
-  session.schedule = loadSchedule();
   session.ready = true;
 
   const setupProviders = ["openrouter", "codex", "antigravity", "opencode"];
@@ -1863,8 +1686,13 @@ export function initConnections(configuration) {
     });
   }
 
-  void backend.listen(TICK_EVENT, () => {
-    void onTick();
+  void backend.listen(COLLECTOR_UPDATED_EVENT, () => {
+    void (async () => {
+      await syncCollectorStatus();
+      await syncConnections();
+      options.onMetersChanged();
+      render();
+    })();
   });
   void bootstrap();
 }

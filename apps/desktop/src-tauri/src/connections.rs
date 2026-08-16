@@ -111,6 +111,10 @@ pub struct ConnectionRecord {
     /// it or turn a missing legacy field into one second polling.
     #[serde(default)]
     pub base_seconds: u64,
+    /// Durable native schedule. Absent means immediately due for interval
+    /// readers and means no schedule at all for event or explicit only sources.
+    #[serde(default)]
+    pub next_refresh_at: Option<u64>,
     #[serde(default)]
     pub last_attempt_at: Option<u64>,
     #[serde(default)]
@@ -157,6 +161,7 @@ impl fmt::Debug for ConnectionRecord {
             .field("masked_label", &self.masked_label)
             .field("created_at", &self.created_at)
             .field("base_seconds", &self.base_seconds)
+            .field("next_refresh_at", &self.next_refresh_at)
             .field("last_attempt_at", &self.last_attempt_at)
             .field("last_success_at", &self.last_success_at)
             .field("attempt_generation", &self.attempt_generation)
@@ -267,6 +272,7 @@ fn migrate_legacy_record(legacy: LegacyConnectionRecord) -> Result<ConnectionRec
         masked_label: legacy.masked_label,
         created_at: legacy.created_at,
         base_seconds: route.reader_id.base_seconds(),
+        next_refresh_at: None,
         last_attempt_at: later_of(legacy.last_test_at, legacy.last_refresh_at),
         last_success_at: legacy.last_refresh_at,
         attempt_generation: 0,
@@ -624,6 +630,7 @@ pub(crate) fn validate_record(record: &ConnectionRecord) -> Result<(), StoreErro
         && valid_masked_label(&record.masked_label)
         && valid_timestamp(record.created_at)
         && record.base_seconds == record.reader_id.base_seconds()
+        && record.next_refresh_at.is_none_or(valid_timestamp)
         && record.last_attempt_at.is_none_or(valid_timestamp)
         && record.last_success_at.is_none_or(valid_timestamp)
         && record.attempt_generation <= MAX_ATTEMPT_GENERATION
@@ -657,6 +664,7 @@ mod tests {
             masked_label: "sk-········cdef".to_string(),
             created_at: 1_770_000_000_000,
             base_seconds: ReaderId::OpenrouterKey.base_seconds(),
+            next_refresh_at: None,
             last_attempt_at: None,
             last_success_at: None,
             attempt_generation: 0,

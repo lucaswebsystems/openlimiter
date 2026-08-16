@@ -18,28 +18,21 @@
  *   in Rust from the stored connection's provider and credential kind, so
  *   this window cannot pair a secret with an address;
  *
- *   a probe answers with a tagged union, ProbeOutcome, whose kind is
- *   "response" or "transport_failure", and every arm carries connection_id,
- *   reader_id and attempt_generation;
- *
- *   CompleteAttemptInput is { connection_id, attempt_generation, disposition }
- *   where disposition is one of parsed_test, cache_committed, drift or
- *   cache_failure. An attempt is only a success once it completes;
+ *   test_provider and refresh_provider answer with a body free tagged union:
+ *   tested, cache_committed, or failed. Parsing, cache mutation and attempt
+ *   completion have already happened in Rust when that result arrives;
  *
  *   UpdateConnectionInput is { connection_id, account_alias? }. There is no
  *   status input: connection state is written by Rust from what a read
  *   achieved, never by this window;
  *
- *   list_connections, detect_local_tools and cache_begin_write take no
- *   arguments; cache_commit_write takes { input: { text, generation } };
+ *   list_connections, detect_local_tools and collector_status take no
+ *   arguments;
  *
  *   a failing command REJECTS with an object { kind }, out of a closed set of
  *   kinds, and this module is the one place those codes become sentences;
  *
- *   ConnectionRecord timestamps are epoch milliseconds or null;
- *
- *   a "response" arm carries { status, body, retry_after_seconds } with body
- *   null on every response outside the 200s.
+ *   ConnectionRecord timestamps are epoch milliseconds or null.
  *
  * A command that is not registered at all reports BACKEND_ABSENT, the
  * interface renders an honest "this build has no connection backend yet"
@@ -326,6 +319,11 @@ export async function refreshProvider({ connectionId }) {
   });
 }
 
+/** The native collector heartbeat and its last closed failure, if any. */
+export async function collectorStatus() {
+  return call("collector_status");
+}
+
 /**
  * Close the attempt a probe opened, with what actually happened downstream.
  *
@@ -581,4 +579,69 @@ export function normalizeProbeOutcome(value) {
     };
   }
   return unreadable;
+}
+
+export const COLLECTOR_FAILURE_SENTENCES = Object.freeze({
+  timeout: "The provider did not answer before the time limit.",
+  connect: "The network connection to the provider could not be opened.",
+  tls: "TLS negotiation with the provider failed.",
+  oversize: "The provider answer was too large to accept.",
+  invalid_utf8: "The provider answer was not valid UTF-8.",
+  provider_response: "The provider refused the quota read.",
+  empty_body: "The provider returned no quota document.",
+  drift: "The provider answered, but its quota document no longer matched the reader.",
+  cache: "The quota was read, but the local cache could not be updated.",
+  busy: "That connection already has a collection in progress.",
+  internal: "The native collector could not complete its local transaction.",
+});
+
+/** A native collection result, with no response body anywhere on the wire. */
+export function normalizeCollectionOutcome(value) {
+  const unreadable = {
+    kind: "unreadable",
+    succeeded: false,
+    reason: "internal",
+    status: null,
+    message: "The backend's collection result could not be read.",
+  };
+  if (value === null || typeof value !== "object") return unreadable;
+  const connectionId = value.connection_id ?? value.connectionId;
+  if (typeof connectionId !== "string" || connectionId === "") return unreadable;
+  if (value.kind === "tested" || value.kind === "cache_committed") {
+    return {
+      kind: value.kind,
+      connectionId,
+      succeeded: true,
+      reason: null,
+      status: null,
+      message: null,
+    };
+  }
+  if (value.kind !== "failed") return unreadable;
+  const reason = typeof value.reason === "string" ? value.reason : "internal";
+  const status = numberOf(value.status);
+  const base = COLLECTOR_FAILURE_SENTENCES[reason] ??
+    "The native collector reported " + reason + ".";
+  return {
+    kind: "failed",
+    connectionId,
+    succeeded: false,
+    reason,
+    status,
+    message: status === null ? base : base + " Provider status: " + String(status) + ".",
+  };
+}
+
+/** Collector status survives a renderer reload because Rust owns it. */
+export function normalizeCollectorStatus(value) {
+  if (value === null || typeof value !== "object") {
+    return { ticks: 0, lastPassAt: null, lastFailure: "internal" };
+  }
+  const ticks = numberOf(value.ticks);
+  const lastFailure = value.last_failure ?? value.lastFailure ?? null;
+  return {
+    ticks: ticks === null ? 0 : ticks,
+    lastPassAt: instantOf(value.last_pass_at ?? value.lastPassAt),
+    lastFailure: typeof lastFailure === "string" ? lastFailure : null,
+  };
 }

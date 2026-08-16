@@ -11,13 +11,10 @@ use crate::fsx;
 
 /// The lock holding handshake over the CLI owned snapshot cache.
 ///
-/// The cache has one merge implementation, `mergeSnapshots` in
-/// `packages/core/src/merge.ts`, and it runs in the webview. So a desktop
-/// write is a handshake: `begin` takes the cache lock with the core's exact
-/// protocol and hands the current text to the webview together with a
-/// generation stamp, the webview merges, and `commit` verifies the stamp,
-/// replaces the file atomically, and releases. Rust never interprets a
-/// snapshot; it moves bytes under the same lock discipline the CLI uses.
+/// The writer implements the cache's cross process lock protocol. Native
+/// collection now uses begin, folds while it owns the generation, and uses
+/// commit to replace the file atomically. The handshake methods remain
+/// directly testable, but are no longer registered as webview commands.
 ///
 /// Possession is continuous, not checked. `begin` keeps the lock file's
 /// handle OPEN from acquisition through commit, exactly as the core's own
@@ -337,6 +334,29 @@ impl CacheWriter {
     /// as `StaleGeneration` with the cache untouched.
     pub fn commit(&self, text: &str, generation: u64) -> Result<(), CacheWriteError> {
         self.commit_with_gap(text, generation, || {})
+    }
+
+    /// End one native mutation without writing, but only when it still owns
+    /// the named generation. This keeps a refused cache fold from holding the
+    /// shared lock until another writer happens to arrive.
+    pub fn abort(&self, generation: u64) {
+        let Ok(directory) = self.directory() else {
+            return;
+        };
+        let Ok(mut inner) = self.inner.lock() else {
+            return;
+        };
+        let current = matches!(
+            &inner.pending,
+            Some(pending) if pending.generation == generation
+        );
+        if current {
+            let session = inner
+                .pending
+                .take()
+                .expect("the generation was just matched");
+            release_session(&directory.join(CACHE_LOCK_NAME), session);
+        }
     }
 
     /// The commit with a seam where a test injects the exact adversarial
@@ -663,6 +683,20 @@ mod tests {
         assert_eq!(
             writer.commit("{}", 1),
             Err(CacheWriteError::StaleGeneration)
+        );
+    }
+
+    #[test]
+    fn abort_releases_a_native_fold_that_writes_nothing() {
+        let dir = TempDir::new();
+        let writer = writer(&dir);
+        let begun = writer.begin().expect("begin");
+        assert!(lock_path(&dir).is_file());
+        writer.abort(begun.generation);
+        assert!(!lock_path(&dir).exists());
+        assert!(
+            writer.begin().is_ok(),
+            "a later writer may acquire the lock"
         );
     }
 }
