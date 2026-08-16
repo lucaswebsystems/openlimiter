@@ -83,7 +83,7 @@ export const TOKEN_PARAMETER = "t";
  * in the tab's own memory and is sent as an Authorization header, so no URL
  * anywhere on the phone carries the capability.
  *
- * docs/SYNC_ARCHITECTURE.md already required exactly this of pairing links.
+ * A pairing link is a credential in a URL, so it gets the same treatment as one.
  */
 export const TOKEN_FRAGMENT_PREFIX = "#" + TOKEN_PARAMETER + "=";
 

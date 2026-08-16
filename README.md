@@ -37,7 +37,7 @@ Every block below is real CLI output, not mockup text. Captured 11 August 2026, 
 $ NO_COLOR=1 node packages/cli/dist/bin.js demo
 PROVIDER    METER     BAR        USAGE        AMOUNT        STATE RESET                    IN    SOURCE
 OPENCODE    PRIMARY   #########. 92.00PERCENT NONE          fresh 2026-08-12T11:48:23.828Z 20h0m [import only]
-CODEX       PRIMARY   ########.. 84.00PERCENT NONE          fresh 2026-08-11T20:48:23.000Z 4h59m [import only]
+CODEX       FIVE_HOUR ########.. 84.00PERCENT NONE          fresh 2026-08-11T20:48:23.000Z 4h59m [import only]
 CLAUDE      SEVEN_DAY ######.... 64.00PERCENT NONE          fresh 2026-08-18T15:48:23.000Z 6d23h [import only]
 CLAUDE      FIVE_HOUR ####...... 42.00PERCENT NONE          fresh 2026-08-11T20:48:23.000Z 4h59m [import only]
 OPENROUTER  CREDITS   ######.... 62.35PERCENT $12.47/$20.00 fresh NONE                     NONE  [import only]
@@ -130,7 +130,7 @@ None of the six is verified against a live account yet. Missing, expired, or mal
 
 ## Pro
 
-OpenLimiter Pro is a planned paid tier at $10 a month, and the first 30 days will be free. The services on the roadmap are encrypted sync across devices, phone and email alerts when a window is nearing its cap, usage history and forecasting, budget guardrails, and device management. None of these are built yet. There is no checkout and no release date. Progress lives on the [roadmap](https://openlimiter.com/docs/roadmap), and the sync design is specified in [docs/SYNC_ARCHITECTURE.md](docs/SYNC_ARCHITECTURE.md).
+OpenLimiter Pro is a planned paid tier at $10 a month, and the first 30 days will be free. The services on the roadmap are sync across your devices, phone and email alerts when a window is nearing its cap, usage history and forecasting, budget guardrails, and device management. None of these are built yet. There is no checkout and no release date. Progress lives on the [roadmap](https://openlimiter.com/docs/roadmap).
 
 Multiple accounts per provider is **not** on that list, and will not be. Using more than one account of the same provider is a property of how connections are stored and identified, not a switch, and selling it would contradict both the rule that nothing local is ever paywalled and the rule that the free tier has no connection cap. It works for everybody, on every plan.
 
@@ -138,7 +138,7 @@ Multiple accounts per provider is **not** on that list, and will not be. Using m
 
 Everything a provider or a script hands to OpenLimiter is treated as untrusted. Connectors keep only known numeric fields and timestamps, and the block the hook emits is wrapped in an explicit untrusted data boundary. No connector rewrites, backs up, or migrates a provider's authentication files. In local mode, OpenLimiter has no telemetry of any kind. When you connect a provider in the desktop app, that connection talks only to the provider's own allowlisted endpoint, and the credential stays in your operating system's credential store.
 
-Report a vulnerability privately through the repository [Security tab](https://github.com/lucaswebsystems/openlimiter/security/advisories/new), as described in [SECURITY.md](SECURITY.md). The full threat model is in [THREAT_MODEL.md](THREAT_MODEL.md); the planned, not yet built, encrypted sync design is specified in [docs/SYNC_ARCHITECTURE.md](docs/SYNC_ARCHITECTURE.md).
+Report a vulnerability privately through the repository [Security tab](https://github.com/lucaswebsystems/openlimiter/security/advisories/new), as described in [SECURITY.md](SECURITY.md). The full threat model is in [THREAT_MODEL.md](THREAT_MODEL.md).
 
 ## Support
 
