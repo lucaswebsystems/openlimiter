@@ -59,7 +59,7 @@ describe("codex: the shape a real account produced", () => {
     expect(meters).toHaveLength(1);
     expect(meters?.[0]?.provider).toBe("CODEX");
     expect(meters?.[0]?.unit).toBe("PERCENT");
-    expect(meters?.[0]?.meter).toBe("PRIMARY");
+    expect(meters?.[0]?.meter).toBe("FIVE_HOUR");
   });
 
   it("reads the reading the provider actually stated", () => {
@@ -83,18 +83,88 @@ describe("codex: the shape a real account produced", () => {
     expect(meters?.[0]?.window).toEqual({ kind: "unknown" });
   });
 
-  it("does not model the secondary window into the primary meter", () => {
-    /* Plans differ in whether they have one. Folding it in would report
-       whichever window this build happened to read last. */
+  it("parses a weekly-only primary bucket", () => {
     const meters = parseCodexPayload(
       {
         rate_limit: {
-          primary_window: { used_percent: 84, reset_at: epoch(FIVE_HOURS), limit_window_seconds: 18_000 },
-          secondary_window: { used_percent: 96, reset_at: epoch(SEVEN_DAYS), limit_window_seconds: 604_800 }
+          primary_window: {
+            used_percent: 42,
+            reset_at: epoch(SEVEN_DAYS),
+            limit_window_seconds: SEVEN_DAYS
+          }
         }
       },
       NOW
     );
+    expect(meters).not.toBeNull();
+    expect(meters).toHaveLength(1);
+    expect(meters?.[0]?.value).toBe(42);
+    expect(meters?.[0]?.window).toEqual({ kind: "rolling", durationSeconds: SEVEN_DAYS });
+  });
+
+  it("parses five hour plus weekly windows into separate meters", () => {
+    const meters = parseCodexPayload(
+      {
+        rate_limit: {
+          primary_window: {
+            used_percent: 84,
+            reset_at: epoch(FIVE_HOURS),
+            limit_window_seconds: FIVE_HOURS
+          },
+          secondary_window: {
+            used_percent: 96,
+            reset_at: epoch(SEVEN_DAYS),
+            limit_window_seconds: SEVEN_DAYS
+          }
+        }
+      },
+      NOW
+    );
+    expect(meters).not.toBeNull();
+    expect(meters).toHaveLength(2);
+    expect(meters?.[0]?.value).toBe(84);
+    expect(meters?.[0]?.window).toEqual({ kind: "rolling", durationSeconds: FIVE_HOURS });
+    expect(meters?.[1]?.value).toBe(96);
+    expect(meters?.[1]?.window).toEqual({ kind: "rolling", durationSeconds: SEVEN_DAYS });
+  });
+
+  it("parses a payload with a missing secondary window", () => {
+    const meters = parseCodexPayload(
+      {
+        rate_limit: {
+          primary_window: {
+            used_percent: 84,
+            reset_at: epoch(FIVE_HOURS),
+            limit_window_seconds: FIVE_HOURS
+          }
+        }
+      },
+      NOW
+    );
+    expect(meters).not.toBeNull();
+    expect(meters).toHaveLength(1);
+    expect(meters?.[0]?.value).toBe(84);
+  });
+
+  it("drops a malformed window and keeps the valid window", () => {
+    const meters = parseCodexPayload(
+      {
+        rate_limit: {
+          primary_window: {
+            used_percent: 84,
+            reset_at: epoch(FIVE_HOURS),
+            limit_window_seconds: FIVE_HOURS
+          },
+          secondary_window: {
+            used_percent: "invalid",
+            reset_at: epoch(SEVEN_DAYS),
+            limit_window_seconds: SEVEN_DAYS
+          }
+        }
+      },
+      NOW
+    );
+    expect(meters).not.toBeNull();
     expect(meters).toHaveLength(1);
     expect(meters?.[0]?.value).toBe(84);
   });
@@ -195,7 +265,7 @@ describe("codex: everything it must refuse", () => {
        obviously contains a number that obviously looks like a usage figure, in
        a place this reader was not told to look. Searching for it would make the
        meter work right up until the day it silently reported the wrong pool. */
-    expect(parseCodexPayload({ meta: { used_percent: 84 }, rate_limit: { secondary_window: { used_percent: 84, reset_at: epoch(FIVE_HOURS) } } }, NOW)).toBeNull();
+    expect(parseCodexPayload({ meta: { used_percent: 84 }, rate_limit: { secondary_window: { used_percent: "unusable" } } }, NOW)).toBeNull();
   });
 
   it("does not reuse the previous successful parse when the next payload fails", () => {

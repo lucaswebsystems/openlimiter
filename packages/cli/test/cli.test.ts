@@ -150,7 +150,7 @@ describe("CLI", () => {
           "STATE RESET                    IN    SOURCE       ",
         "OPENCODE    PRIMARY   #########. 92.00PERCENT NONE          " +
           "fresh 2026-01-01T20:00:00.000Z 20h0m [import only]",
-        "CODEX       PRIMARY   ########.. 84.00PERCENT NONE          " +
+        "CODEX       FIVE_HOUR ########.. 84.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
         "CLAUDE      SEVEN_DAY ######.... 64.00PERCENT NONE          " +
           "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
