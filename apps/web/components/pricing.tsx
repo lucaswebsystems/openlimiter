@@ -102,7 +102,12 @@ const PRO_LINES: readonly { id: string }[] = [
   { id: "push" },
   { id: "smartLimiter" },
   { id: "email" },
-  { id: "deliveryRules" },
+  /* "More than one account per provider" used to sit here and has been retired.
+     Using two accounts of the same provider is a property of how connections are
+     stored and identified, not a switch that can be sold: the schema needs an
+     account identity either way. Charging for it would contradict both "nothing
+     local is ever paywalled" and "the free tier has no connection cap". Three
+     independent reviews reached that conclusion separately. Do not put it back. */
   { id: "history" },
   { id: "priority" },
   { id: "team" },

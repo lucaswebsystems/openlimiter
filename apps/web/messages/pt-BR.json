@@ -421,7 +421,7 @@
       },
       "pro": {
         "question": "O que é o OpenLimiter Pro?",
-        "answer": "Uma camada paga planejada, a $10 por mês, com os primeiros 30 dias gratuitos, para as coisas que só rodam em servidores: sincronização criptografada entre seus dispositivos, notificações push para o celular, alertas por email e um resumo semanal, histórico de uso e previsões hospedados, barreiras de orçamento para o seu próprio uso, suporte para mais de uma conta por provedor, gerenciamento de dispositivos, e uma camada de equipe mais adiante. Ainda não foi construído. Não há checkout e não há lista de espera, e nada que roda localmente hoje algum dia fica atrás dela."
+        "answer": "Uma camada paga planejada, a $10 por mês, com os primeiros 30 dias gratuitos, para as coisas que só rodam em servidores: sincronização criptografada entre seus dispositivos, notificações push para o celular, alertas por email e um resumo semanal, histórico de uso e previsões hospedados, barreiras de orçamento para o seu próprio uso, gerenciamento de dispositivos, e uma camada de equipe mais adiante. Ainda não foi construído. Não há checkout e não há lista de espera, e nada que roda localmente hoje algum dia fica atrás dela."
       }
     }
   },
@@ -457,7 +457,6 @@
         "push": "Notificações push para o celular quando uma janela se aproxima do limite",
         "smartLimiter": "Barreiras de orçamento: os limites e alertas que você configura para o seu próprio uso",
         "email": "Alertas por email e um resumo semanal",
-        "deliveryRules": "Mais de uma conta por provedor, cada uma medida separadamente",
         "history": "Histórico de uso e previsões hospedados em cada dispositivo",
         "priority": "Gerenciamento de dispositivos: veja quais dispositivos estão conectados, e remova um que você não usa mais",
         "team": "Uma camada de painel para equipes, mais adiante que o resto"

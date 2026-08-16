@@ -421,7 +421,7 @@
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
-        "answer": "Eine geplante Bezahlstufe für 10 $ im Monat, mit den ersten 30 Tagen kostenlos, für das, was nur auf Servern laufen kann: verschlüsselte Synchronisierung über deine Geräte hinweg, Push Benachrichtigungen auf dein Handy, E Mail Alerts und ein wöchentliches Digest, gehostete Nutzungshistorie und Prognosen, Budgetleitplanken für deine eigene Nutzung, Unterstützung für mehr als ein Konto pro Provider, Geräteverwaltung, und später eine Team Stufe. Es ist nicht gebaut. Es gibt kein Checkout und keine Warteliste, und nichts, was heute lokal läuft, wandert je dahinter."
+        "answer": "Eine geplante Bezahlstufe für 10 $ im Monat, mit den ersten 30 Tagen kostenlos, für das, was nur auf Servern laufen kann: verschlüsselte Synchronisierung über deine Geräte hinweg, Push Benachrichtigungen auf dein Handy, E Mail Alerts und ein wöchentliches Digest, gehostete Nutzungshistorie und Prognosen, Budgetleitplanken für deine eigene Nutzung, Geräteverwaltung, und später eine Team Stufe. Es ist nicht gebaut. Es gibt kein Checkout und keine Warteliste, und nichts, was heute lokal läuft, wandert je dahinter."
       }
     }
   },
@@ -457,7 +457,6 @@
         "push": "Push Benachrichtigungen auf dein Handy, wenn ein Fenster sich seiner Grenze nähert",
         "smartLimiter": "Budgetleitplanken: die Schwellenwerte und Alerts, die du selbst für deine eigene Nutzung festlegst",
         "email": "E Mail Alerts und ein wöchentliches Digest",
-        "deliveryRules": "Mehr als ein Konto pro Provider, jedes einzeln gemessen",
         "history": "Gehostete Nutzungshistorie und Prognosen über jedes Gerät hinweg",
         "priority": "Geräteverwaltung: sieh, welche Geräte angemeldet sind, und entferne eines, das du nicht mehr nutzt",
         "team": "Eine Team Dashboard Stufe, später als der Rest"

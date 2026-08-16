@@ -421,7 +421,7 @@
       },
       "pro": {
         "question": "¿Qué es OpenLimiter Pro?",
-        "answer": "Un nivel de pago planeado a $10 al mes, con los primeros 30 días gratis, para las cosas que solo pueden correr en servidores: sincronización cifrada entre tus dispositivos, notificaciones push a tu teléfono, alertas por correo y un resumen semanal, historial de uso y previsiones alojados, barreras de presupuesto para tu propio uso, soporte para más de una cuenta por proveedor, gestión de dispositivos, y un nivel de equipo más adelante. No está construido. No hay checkout ni lista de espera, y nada de lo que corre localmente hoy se muda jamás detrás de eso."
+        "answer": "Un nivel de pago planeado a $10 al mes, con los primeros 30 días gratis, para las cosas que solo pueden correr en servidores: sincronización cifrada entre tus dispositivos, notificaciones push a tu teléfono, alertas por correo y un resumen semanal, historial de uso y previsiones alojados, barreras de presupuesto para tu propio uso, gestión de dispositivos, y un nivel de equipo más adelante. No está construido. No hay checkout ni lista de espera, y nada de lo que corre localmente hoy se muda jamás detrás de eso."
       }
     }
   },
@@ -457,7 +457,6 @@
         "push": "Notificaciones push a tu teléfono cuando una ventana se acerca a su límite",
         "smartLimiter": "Barreras de presupuesto: los umbrales y alertas que configuras para tu propio uso",
         "email": "Alertas por correo y un resumen semanal",
-        "deliveryRules": "Más de una cuenta por proveedor, cada una medida por separado",
         "history": "Historial de uso y previsiones alojados en todos tus dispositivos",
         "priority": "Gestión de dispositivos: mira qué dispositivos tienen sesión iniciada, y elimina el que ya no uses",
         "team": "Un nivel de panel de equipo, más adelante que el resto"

@@ -122,15 +122,17 @@ The statusline includes a PREFER recommendation that names the provider with the
 | Claude | `native-statusline-payload` | UNVERIFIED, low automation risk | Reads the JSON Claude Code already writes to the statusline command's standard input, once you consent to the desktop app's guided setup |
 | OpenRouter | `documented-api` | UNVERIFIED, low automation risk | The desktop app reads this live once you supply your key. The CLI still has no reader of its own; feed it an explicit documented API response with `ingest --provider openrouter` |
 | Codex | `internal-endpoint` | UNVERIFIED, high automation risk | The desktop app reads this live from your local Codex login. Unofficial, can change or disappear without notice. The CLI still only ingests, with `ingest --provider codex` |
-| Antigravity | `internal-endpoint` | UNVERIFIED, high automation risk | No live reader; the desktop app offers a manual, experimental paste path. Unofficial, can change or disappear without notice. The CLI accepts `ingest --provider antigravity` |
-| OpenCode | `authenticated-scrape` | UNVERIFIED, high automation risk | No live reader or browser automation; the desktop app offers a manual, experimental paste path. The CLI accepts an explicit payload with `ingest --provider opencode` |
+| Antigravity | `internal-endpoint` | UNVERIFIED, high automation risk | The desktop app reads this live from your local Antigravity session. Unofficial, can change or disappear without notice. The CLI still only ingests, with `ingest --provider antigravity` |
+| OpenCode | `authenticated-scrape` | UNVERIFIED, high automation risk | The desktop app reads this live from a browser session you supply, and that path is experimental and opt in by design. The CLI still only ingests, with `ingest --provider opencode` |
 | Manual | `manual` | UNVERIFIED, low automation risk | You supply the numbers yourself, on disk or through `ingest` |
 
 None of the six is verified against a live account yet. Missing, expired, or malformed input always becomes unknown, never zero or exhausted. A parser existing in the codebase is not the same as a provider being connected; each row above states its own interface status and honesty label.
 
 ## Pro
 
-OpenLimiter Pro is a planned paid tier at a $5 founding price. The services on the roadmap are encrypted sync across devices, phone and email alerts when a window is nearing its cap, usage history and forecasting, budget guardrails, multiple account support, and device management. None of these are built yet. There is no checkout and no release date. Progress lives on the [roadmap](https://openlimiter.com/docs/roadmap), and the sync design is specified in [docs/SYNC_ARCHITECTURE.md](docs/SYNC_ARCHITECTURE.md).
+OpenLimiter Pro is a planned paid tier at $10 a month, and the first 30 days will be free. The services on the roadmap are encrypted sync across devices, phone and email alerts when a window is nearing its cap, usage history and forecasting, budget guardrails, and device management. None of these are built yet. There is no checkout and no release date. Progress lives on the [roadmap](https://openlimiter.com/docs/roadmap), and the sync design is specified in [docs/SYNC_ARCHITECTURE.md](docs/SYNC_ARCHITECTURE.md).
+
+Multiple accounts per provider is **not** on that list, and will not be. Using more than one account of the same provider is a property of how connections are stored and identified, not a switch, and selling it would contradict both the rule that nothing local is ever paywalled and the rule that the free tier has no connection cap. It works for everybody, on every plan.
 
 ## Security
 

@@ -421,7 +421,7 @@
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "A planned paid tier at $10 a month with the first 30 days free, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, email alerts and a weekly digest, hosted usage history and forecasting, budget guardrails for your own usage, support for more than one account per provider, device management, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it."
+        "answer": "A planned paid tier at $10 a month with the first 30 days free, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, email alerts and a weekly digest, hosted usage history and forecasting, budget guardrails for your own usage, device management, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it."
       }
     }
   },
@@ -457,7 +457,6 @@
         "push": "Push notifications to your phone when a window nears its cap",
         "smartLimiter": "Budget guardrails: the thresholds and alerts you set around your own usage",
         "email": "Email alerts and a weekly digest",
-        "deliveryRules": "More than one account per provider, each metered on its own",
         "history": "Hosted usage history and forecasting across every device",
         "priority": "Device management: see which devices are signed in, and remove one you no longer use",
         "team": "A team dashboard tier, later than the rest"
