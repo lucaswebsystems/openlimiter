@@ -19,6 +19,44 @@ export const STDIN_BYTE_LIMIT = 262_144;
 /** Hard ceiling on how long a command waits for standard input. */
 export const STDIN_TIMEOUT_MILLISECONDS = 500;
 
+/**
+ * Read one status line payload as bytes, once.
+ *
+ * Wrapper mode needs the bytes rather than decoded text because the foreign
+ * command must receive exactly what Claude wrote. There is deliberately no
+ * payload logging and no intermediate file.
+ */
+export async function readStandardInputBuffer(
+  stream: NodeJS.ReadStream = process.stdin,
+  timeoutMilliseconds = STDIN_TIMEOUT_MILLISECONDS
+): Promise<Buffer> {
+  if (stream.isTTY === true) return Buffer.alloc(0);
+  return await new Promise<Buffer>((resolve) => {
+    const chunks: Buffer[] = [];
+    let settled = false;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      stream.off("data", onData);
+      stream.off("end", onEnd);
+      stream.off("error", onError);
+      stream.pause();
+      resolve(Buffer.concat(chunks));
+    };
+    const onData = (chunk: Buffer | string): void => {
+      chunks.push(Buffer.from(chunk));
+    };
+    const onEnd = (): void => finish();
+    const onError = (): void => finish();
+    const timer = setTimeout(finish, timeoutMilliseconds);
+    stream.on("data", onData);
+    stream.on("end", onEnd);
+    stream.on("error", onError);
+    stream.resume();
+  });
+}
+
 /** Largest manual document accepted from the state directory. */
 export const MANUAL_FILE_BYTE_LIMIT = 65_536;
 

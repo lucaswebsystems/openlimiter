@@ -744,6 +744,7 @@ function normalizePreflight(value) {
   const kind = pick(value, ["kind"]);
   const validKinds = new Set([
     "ready",
+    "wrappable_status_line",
     "cli_missing",
     "cli_not_working",
     "settings_unknown",
@@ -1210,7 +1211,9 @@ function renderClaude() {
   }
 
   switch (verdict.kind) {
-    case "ready": {
+    case "ready":
+    case "wrappable_status_line": {
+      const wrappingStatusLine = verdict.kind === "wrappable_status_line";
       if (session.claudeConsentOpen) {
         const consentBox = element("div", "conn-block surface");
         const heading = element("h2", undefined, "Claude Code connection details");
@@ -1230,10 +1233,18 @@ function renderClaude() {
         const p3 = element(
           "p",
           undefined,
-          "The two entries that will be added are the statusLine command and one UserPromptSubmit hook, both pointing at the absolute path of the OpenLimiter command line tool:",
+          wrappingStatusLine
+            ? "The existing statusLine command will be replaced by an OpenLimiter wrapper. It captures quota, then runs the existing command and returns its output unchanged. One OpenLimiter UserPromptSubmit hook will also be added. Both use this absolute command line tool path:"
+            : "The two entries that will be added are the statusLine command and one UserPromptSubmit hook, both pointing at the absolute path of the OpenLimiter command line tool:",
         );
         const monoPath = element("pre", "mono", verdict.cliPath ?? "OpenLimiter CLI path");
-        const p4 = element("p", undefined, "Nothing else in the file is touched.");
+        const p4 = element(
+          "p",
+          undefined,
+          wrappingStatusLine
+            ? "Disconnect restores the existing statusLine command exactly. Nothing else in the file is touched."
+            : "Nothing else in the file is touched.",
+        );
         const p5 = element(
           "p",
           undefined,
@@ -1244,7 +1255,11 @@ function renderClaude() {
         consentBox.append(explanation);
 
         const actions = element("div", "conn-actions");
-        const applyBtn = element("button", undefined, "Write these two entries");
+        const applyBtn = element(
+          "button",
+          undefined,
+          wrappingStatusLine ? "Write wrapper and hook" : "Write these two entries",
+        );
         applyBtn.type = "button";
 
         const cancelBtn = element("button", undefined, "Cancel");
@@ -1256,7 +1271,9 @@ function renderClaude() {
             cancelBtn.disabled = true;
             setNote(
               el.claudeNote,
-              "Writing the timestamped backup copy and adding entries.",
+              wrappingStatusLine
+                ? "Writing the timestamped backup copy, wrapper, and hook."
+                : "Writing the timestamped backup copy and adding entries.",
               "plain",
             );
             const result = await backend.claudeConnectApply();
@@ -1265,13 +1282,17 @@ function renderClaude() {
               if (outcome === "applied") {
                 setNote(
                   el.claudeNote,
-                  "The two entries were written and a timestamped copy of the previous settings sits beside the settings file.",
+                  wrappingStatusLine
+                    ? "The wrapper and hook were written, and a timestamped copy of the previous settings sits beside the settings file."
+                    : "The two entries were written and a timestamped copy of the previous settings sits beside the settings file.",
                   "ok",
                 );
               } else if (outcome === "already_applied") {
                 setNote(
                   el.claudeNote,
-                  "Those two entries were already in place, so nothing changed.",
+                  wrappingStatusLine
+                    ? "The wrapper and hook were already in place, so nothing changed."
+                    : "Those two entries were already in place, so nothing changed.",
                   "plain",
                 );
               } else {

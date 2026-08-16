@@ -6,3 +6,4 @@ export * from "./qr.js";
 export * from "./render.js";
 export * from "./serve.js";
 export * from "./statusline.js";
+export * from "./statusline-wrapper.js";

@@ -12,6 +12,7 @@ use crate::fsx;
 
 pub const CLAUDE_INSTALL_COMMAND: &str = "npm install -g openlimiter";
 const CLI_CONFIG_ENV: &str = "OPENLIMITER_CLI_PATH";
+const STATUSLINE_WRAPPER_FLAG: &str = "OPENLIMITER_CLAUDE_STATUSLINE_WRAPPER";
 const CLI_PROBE_TIMEOUT_SECONDS: u64 = 10;
 const SETTINGS_TEMP_MARKER: &str = "openlimiter";
 const CONNECTION_STATE_FILE: &str = "claude-connect-state.json";
@@ -21,10 +22,17 @@ const CONNECTION_STATE_VERSION: u8 = 1;
 #[serde(rename_all = "snake_case")]
 pub enum ClaudePreflightKind {
     Ready,
+    WrappableStatusLine,
     CliMissing,
     CliNotWorking,
     SettingsUnknown,
     GuidedManual,
+}
+
+fn statusline_wrapper_enabled() -> bool {
+    std::env::var(STATUSLINE_WRAPPER_FLAG)
+        .ok()
+        .is_some_and(|value| value == "1" || value.eq_ignore_ascii_case("true"))
 }
 
 /// Typed facts only. No settings value is ever copied into this IPC shape.
@@ -318,6 +326,51 @@ fn quoted_command(path: &Path, verb: &str) -> Option<String> {
     Some(format!("\"{escaped}\" {verb}"))
 }
 
+fn base64url_encode(text: &str) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let bytes = text.as_bytes();
+    let mut output = String::with_capacity((bytes.len() * 4).div_ceil(3));
+    for chunk in bytes.chunks(3) {
+        let first = chunk[0];
+        output.push(ALPHABET[(first >> 2) as usize] as char);
+        let second = chunk.get(1).copied();
+        output.push(ALPHABET[(((first & 0b11) << 4) | second.unwrap_or(0) >> 4) as usize] as char);
+        let Some(second) = second else {
+            continue;
+        };
+        let third = chunk.get(2).copied();
+        output
+            .push(ALPHABET[(((second & 0b1111) << 2) | third.unwrap_or(0) >> 6) as usize] as char);
+        if let Some(third) = third {
+            output.push(ALPHABET[(third & 0b11_1111) as usize] as char);
+        }
+    }
+    output
+}
+
+fn wrapped_statusline_command(path: &Path, original: &str) -> Option<String> {
+    if original.is_empty() || original.contains('\0') {
+        return None;
+    }
+    quoted_command(
+        path,
+        &format!("statusline --wrap {}", base64url_encode(original)),
+    )
+}
+
+fn current_wrapper_command(command: &str, cli_path: &Path) -> bool {
+    let Some(prefix) = quoted_command(cli_path, "statusline --wrap ") else {
+        return false;
+    };
+    let Some(encoded) = command.strip_prefix(&prefix) else {
+        return false;
+    };
+    !encoded.is_empty()
+        && encoded
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
 fn legacy_owned_command(command: &str, verb: &str) -> bool {
     let words: Vec<&str> = command.split_whitespace().collect();
     matches!(words.as_slice(), ["openlimiter", found] if *found == verb)
@@ -357,11 +410,30 @@ fn exact_hook_entry(value: &serde_json::Value, cli_path: &Path) -> bool {
     hooks.len() == 1 && exact_command_object(&hooks[0], "hook", cli_path)
 }
 
-#[derive(Clone, Copy)]
 struct SettingsAnalysis {
     shape_known: bool,
     foreign_status_line: bool,
     foreign_user_prompt_submit_hooks: bool,
+    wrappable_status_line_command: Option<Zeroizing<String>>,
+}
+
+fn wrappable_status_line_command(
+    value: &serde_json::Value,
+    cli_path: &Path,
+) -> Option<Zeroizing<String>> {
+    let object = value.as_object()?;
+    if object.get("type").and_then(serde_json::Value::as_str) != Some("command") {
+        return None;
+    }
+    let command = object.get("command").and_then(serde_json::Value::as_str)?;
+    if command.is_empty()
+        || command.contains('\0')
+        || owned_command(command, "statusline", cli_path)
+        || current_wrapper_command(command, cli_path)
+    {
+        return None;
+    }
+    Some(Zeroizing::new(command.to_string()))
 }
 
 fn analyze_settings(text: &str, cli_path: &Path) -> SettingsAnalysis {
@@ -370,6 +442,7 @@ fn analyze_settings(text: &str, cli_path: &Path) -> SettingsAnalysis {
             shape_known: false,
             foreign_status_line: false,
             foreign_user_prompt_submit_hooks: false,
+            wrappable_status_line_command: None,
         };
     };
     let Some(root) = settings.as_object() else {
@@ -377,16 +450,21 @@ fn analyze_settings(text: &str, cli_path: &Path) -> SettingsAnalysis {
             shape_known: false,
             foreign_status_line: false,
             foreign_user_prompt_submit_hooks: false,
+            wrappable_status_line_command: None,
         };
     };
     let foreign_status_line = root
         .get("statusLine")
         .is_some_and(|value| !exact_command_object(value, "statusline", cli_path));
+    let wrappable_status_line_command = root
+        .get("statusLine")
+        .and_then(|value| wrappable_status_line_command(value, cli_path));
     let Some(hooks) = root.get("hooks") else {
         return SettingsAnalysis {
             shape_known: true,
             foreign_status_line,
             foreign_user_prompt_submit_hooks: false,
+            wrappable_status_line_command,
         };
     };
     let Some(hooks) = hooks.as_object() else {
@@ -394,6 +472,7 @@ fn analyze_settings(text: &str, cli_path: &Path) -> SettingsAnalysis {
             shape_known: false,
             foreign_status_line,
             foreign_user_prompt_submit_hooks: false,
+            wrappable_status_line_command,
         };
     };
     let Some(entries) = hooks.get("UserPromptSubmit") else {
@@ -401,6 +480,7 @@ fn analyze_settings(text: &str, cli_path: &Path) -> SettingsAnalysis {
             shape_known: true,
             foreign_status_line,
             foreign_user_prompt_submit_hooks: false,
+            wrappable_status_line_command,
         };
     };
     let Some(entries) = entries.as_array() else {
@@ -408,6 +488,7 @@ fn analyze_settings(text: &str, cli_path: &Path) -> SettingsAnalysis {
             shape_known: false,
             foreign_status_line,
             foreign_user_prompt_submit_hooks: false,
+            wrappable_status_line_command,
         };
     };
     SettingsAnalysis {
@@ -416,6 +497,7 @@ fn analyze_settings(text: &str, cli_path: &Path) -> SettingsAnalysis {
         foreign_user_prompt_submit_hooks: entries
             .iter()
             .any(|entry| !exact_hook_entry(entry, cli_path)),
+        wrappable_status_line_command,
     }
 }
 
@@ -429,6 +511,7 @@ fn prepare_preflight(
     home: Option<&Path>,
     configured: Option<&str>,
     runtime: &impl CliRuntime,
+    wrapper_feature_enabled: bool,
 ) -> PreparedPreflight {
     let cli_path = runtime.resolve(configured);
     let cli_working = cli_path.as_deref().is_some_and(|path| runtime.probe(path));
@@ -447,6 +530,7 @@ fn prepare_preflight(
             shape_known: false,
             foreign_status_line: false,
             foreign_user_prompt_submit_hooks: false,
+            wrappable_status_line_command: None,
         });
     let kind = if cli_path.is_none() {
         ClaudePreflightKind::CliMissing
@@ -454,8 +538,14 @@ fn prepare_preflight(
         ClaudePreflightKind::CliNotWorking
     } else if !analysis.shape_known {
         ClaudePreflightKind::SettingsUnknown
-    } else if analysis.foreign_status_line || analysis.foreign_user_prompt_submit_hooks {
+    } else if analysis.foreign_user_prompt_submit_hooks {
         ClaudePreflightKind::GuidedManual
+    } else if analysis.foreign_status_line {
+        if wrapper_feature_enabled && analysis.wrappable_status_line_command.is_some() {
+            ClaudePreflightKind::WrappableStatusLine
+        } else {
+            ClaudePreflightKind::GuidedManual
+        }
     } else {
         ClaudePreflightKind::Ready
     };
@@ -486,6 +576,7 @@ pub fn preflight(input: ClaudeConnectInput) -> ClaudePreflightVerdict {
         home.as_deref(),
         input.configured_cli_path.as_deref(),
         &SystemCliRuntime,
+        statusline_wrapper_enabled(),
     )
     .verdict
 }
@@ -723,12 +814,16 @@ fn remove_array_element(text: &str, array_start: usize, index: usize) -> Option<
     Some(output)
 }
 
-fn command_value(path: &Path, verb: &str) -> Option<String> {
+fn serialized_command_value(command: &str) -> Option<String> {
     serde_json::to_string(&serde_json::json!({
         "type": "command",
-        "command": quoted_command(path, verb)?,
+        "command": command,
     }))
     .ok()
+}
+
+fn command_value(path: &Path, verb: &str) -> Option<String> {
+    serialized_command_value(&quoted_command(path, verb)?)
 }
 
 fn hook_entry_value(path: &Path) -> Option<String> {
@@ -736,9 +831,27 @@ fn hook_entry_value(path: &Path) -> Option<String> {
     serde_json::to_string(&serde_json::json!({ "hooks": [command] })).ok()
 }
 
-fn apply_surgical(text: &str, cli_path: &Path) -> Option<(String, bool)> {
-    let status_line = command_value(cli_path, "statusline")?;
-    let mut output = set_object_member(text, 0, "statusLine", &status_line)?;
+fn apply_surgical(
+    text: &str,
+    cli_path: &Path,
+    original_statusline_command: Option<&str>,
+) -> Option<(String, bool)> {
+    let mut output = match original_statusline_command {
+        Some(original) => {
+            let wrapper =
+                serde_json::to_string(&wrapped_statusline_command(cli_path, original)?).ok()?;
+            let root = object_layout(text, 0)?;
+            let status_line = root
+                .members
+                .iter()
+                .find(|member| member.key == "statusLine")?;
+            set_object_member(text, status_line.value_start, "command", &wrapper)?
+        }
+        None => {
+            let status_line = command_value(cli_path, "statusline")?;
+            set_object_member(text, 0, "statusLine", &status_line)?
+        }
+    };
     let hook_entry = hook_entry_value(cli_path)?;
     let user_prompt_submit = format!("[{hook_entry}]");
     let root = object_layout(&output, 0)?;
@@ -760,14 +873,27 @@ fn apply_surgical(text: &str, cli_path: &Path) -> Option<(String, bool)> {
     Some((output, inserted_hooks_container))
 }
 
-fn exact_current_command_object(value: &serde_json::Value, verb: &str, cli_path: &Path) -> bool {
+fn exact_serialized_command_object(value: &serde_json::Value, command: &str) -> bool {
     let Some(object) = value.as_object() else {
         return false;
     };
     object.len() == 2
         && object.get("type").and_then(serde_json::Value::as_str) == Some("command")
-        && object.get("command").and_then(serde_json::Value::as_str)
-            == quoted_command(cli_path, verb).as_deref()
+        && object.get("command").and_then(serde_json::Value::as_str) == Some(command)
+}
+
+fn command_object_runs(value: &serde_json::Value, command: &str) -> bool {
+    let Some(object) = value.as_object() else {
+        return false;
+    };
+    object.get("type").and_then(serde_json::Value::as_str) == Some("command")
+        && object.get("command").and_then(serde_json::Value::as_str) == Some(command)
+}
+
+fn exact_current_command_object(value: &serde_json::Value, verb: &str, cli_path: &Path) -> bool {
+    quoted_command(cli_path, verb)
+        .as_deref()
+        .is_some_and(|command| exact_serialized_command_object(value, command))
 }
 
 fn exact_current_hook_entry(value: &serde_json::Value, cli_path: &Path) -> bool {
@@ -786,6 +912,7 @@ fn remove_owned_entries(
     text: &str,
     cli_path: &Path,
     inserted_hooks_container: bool,
+    original_settings: Option<&str>,
 ) -> Option<(String, bool)> {
     let mut output = text.to_string();
     let mut changed = false;
@@ -858,7 +985,32 @@ fn remove_owned_entries(
     {
         let value: serde_json::Value =
             serde_json::from_str(&output[status.value_start..status.value_end]).ok()?;
-        if exact_current_command_object(&value, "statusline", cli_path) {
+        if let Some(original_settings) = original_settings {
+            let original_root = object_layout(original_settings, 0)?;
+            let original = original_root
+                .members
+                .iter()
+                .find(|member| member.key == "statusLine")?;
+            let original_value = &original_settings[original.value_start..original.value_end];
+            let original_status_line = object_layout(original_settings, original.value_start)?;
+            let original_command_value = original_status_line
+                .members
+                .iter()
+                .find(|member| member.key == "command")
+                .map(|member| &original_settings[member.value_start..member.value_end])?;
+            let parsed: serde_json::Value = serde_json::from_str(original_value).ok()?;
+            let original_command = wrappable_status_line_command(&parsed, cli_path)?;
+            let expected = wrapped_statusline_command(cli_path, &original_command)?;
+            if command_object_runs(&value, &expected) {
+                output = set_object_member(
+                    &output,
+                    status.value_start,
+                    "command",
+                    original_command_value,
+                )?;
+                changed = true;
+            }
+        } else if exact_current_command_object(&value, "statusline", cli_path) {
             let (next, removed) = remove_object_member(&output, 0, "statusLine")?;
             output = next;
             changed |= removed;
@@ -877,6 +1029,8 @@ struct ClaudeConnectionState {
     before_digest: String,
     after_digest: String,
     inserted_hooks_container: bool,
+    #[serde(default)]
+    wrapped_status_line: bool,
 }
 
 fn digest_text(text: &str) -> String {
@@ -989,14 +1143,29 @@ fn backup_name() -> String {
     )
 }
 
+fn backup_before_change<T>(
+    backup: impl FnOnce() -> Result<(), ClaudeConnectError>,
+    change: impl FnOnce() -> Result<T, ClaudeConnectError>,
+) -> Result<T, ClaudeConnectError> {
+    backup()?;
+    change()
+}
+
 fn apply_with_runtime(
     home: &Path,
     state_directory: &Path,
     input: ClaudeConnectInput,
     runtime: &impl CliRuntime,
+    wrapper_feature_enabled: bool,
 ) -> Result<ClaudeApplyOutcome, ClaudeConnectError> {
-    let prepared = prepare_preflight(Some(home), input.configured_cli_path.as_deref(), runtime);
-    if prepared.verdict.kind != ClaudePreflightKind::Ready {
+    let prepared = prepare_preflight(
+        Some(home),
+        input.configured_cli_path.as_deref(),
+        runtime,
+        wrapper_feature_enabled,
+    );
+    let wrapped_status_line = prepared.verdict.kind == ClaudePreflightKind::WrappableStatusLine;
+    if prepared.verdict.kind != ClaudePreflightKind::Ready && !wrapped_status_line {
         return Err(ClaudeConnectError::CleanPreflightRequired);
     }
     let cli_path = prepared
@@ -1012,15 +1181,35 @@ fn apply_with_runtime(
         }
         return Err(ClaudeConnectError::CleanPreflightRequired);
     }
-    let (after, inserted_hooks_container) =
-        apply_surgical(&settings.text, &cli_path).ok_or(ClaudeConnectError::SettingsUnreadable)?;
     let parent = settings.file.parent().ok_or(ClaudeConnectError::Storage)?;
     fsx::ensure_private_dir(parent).map_err(|_| ClaudeConnectError::Storage)?;
     let backup_file_name = backup_name();
     let backup = parent.join(&backup_file_name);
-    fsx::atomic_write(&backup, &settings.text).map_err(|_| ClaudeConnectError::Storage)?;
-    fsx::atomic_write_with_marker(&settings.file, &after, SETTINGS_TEMP_MARKER)
-        .map_err(|_| ClaudeConnectError::Storage)?;
+    let (after, inserted_hooks_container) = backup_before_change(
+        || fsx::atomic_write(&backup, &settings.text).map_err(|_| ClaudeConnectError::Storage),
+        || {
+            let original_statusline_command = if wrapped_status_line {
+                Some(
+                    analyze_settings(&settings.text, &cli_path)
+                        .wrappable_status_line_command
+                        .ok_or(ClaudeConnectError::CleanPreflightRequired)?,
+                )
+            } else {
+                None
+            };
+            let result = apply_surgical(
+                &settings.text,
+                &cli_path,
+                original_statusline_command
+                    .as_ref()
+                    .map(|command| command.as_str()),
+            )
+            .ok_or(ClaudeConnectError::SettingsUnreadable)?;
+            fsx::atomic_write_with_marker(&settings.file, &result.0, SETTINGS_TEMP_MARKER)
+                .map_err(|_| ClaudeConnectError::Storage)?;
+            Ok(result)
+        },
+    )?;
     let state = ClaudeConnectionState {
         version: CONNECTION_STATE_VERSION,
         cli_path: cli_path
@@ -1031,6 +1220,7 @@ fn apply_with_runtime(
         before_digest: digest_text(&settings.text),
         after_digest: digest_text(&after),
         inserted_hooks_container,
+        wrapped_status_line,
     };
     if let Err(error) = write_connection_state(state_directory, &state) {
         let _ = fsx::atomic_write_with_marker(&settings.file, &settings.text, SETTINGS_TEMP_MARKER);
@@ -1042,7 +1232,13 @@ fn apply_with_runtime(
 pub fn apply(input: ClaudeConnectInput) -> Result<ClaudeApplyOutcome, ClaudeConnectError> {
     let home = crate::state::home().ok_or(ClaudeConnectError::Storage)?;
     let state_directory = crate::state::state_directory().ok_or(ClaudeConnectError::Storage)?;
-    apply_with_runtime(&home, &state_directory, input, &SystemCliRuntime)
+    apply_with_runtime(
+        &home,
+        &state_directory,
+        input,
+        &SystemCliRuntime,
+        statusline_wrapper_enabled(),
+    )
 }
 
 fn disconnect_in(
@@ -1055,7 +1251,7 @@ fn disconnect_in(
     let settings = settings_in_home(home)?;
     cleanup_stale_temporaries(&settings.file)?;
     let current_digest = digest_text(&settings.text);
-    let next = if current_digest == state.after_digest {
+    let before = if current_digest == state.after_digest || state.wrapped_status_line {
         let backup = settings
             .file
             .parent()
@@ -1065,22 +1261,34 @@ fn disconnect_in(
         if digest_text(&before) != state.before_digest {
             return Err(ClaudeConnectError::Storage);
         }
+        Some(Zeroizing::new(before))
+    } else {
+        None
+    };
+    let next = if current_digest == state.after_digest {
+        let before = before.as_ref().ok_or(ClaudeConnectError::Storage)?;
         let restored = remove_owned_entries(
             &settings.text,
             Path::new(&state.cli_path),
             state.inserted_hooks_container,
+            state.wrapped_status_line.then_some(before.as_str()),
         )
         .ok_or(ClaudeConnectError::SettingsUnreadable)?
         .0;
-        if restored != before {
+        if restored != **before {
             return Err(ClaudeConnectError::Storage);
         }
-        (before, ClaudeDisconnectOutcome::RestoredExact)
+        (before.to_string(), ClaudeDisconnectOutcome::RestoredExact)
     } else {
         let (edited, changed) = remove_owned_entries(
             &settings.text,
             Path::new(&state.cli_path),
             state.inserted_hooks_container,
+            if state.wrapped_status_line {
+                Some(before.as_ref().ok_or(ClaudeConnectError::Storage)?.as_str())
+            } else {
+                None
+            },
         )
         .ok_or(ClaudeConnectError::SettingsUnreadable)?;
         (
@@ -1203,13 +1411,73 @@ mod tests {
             r#"{"statusLine":{"type":"command","command":"other meter"}}"#,
         );
         let runtime = FakeRuntime::working(absolute_cli(&dir));
-        let verdict = prepare_preflight(Some(dir.path()), None, &runtime).verdict;
+        let verdict = prepare_preflight(Some(dir.path()), None, &runtime, false).verdict;
         assert_eq!(verdict.kind, ClaudePreflightKind::GuidedManual);
         assert!(verdict.cli_found);
         assert!(verdict.cli_working);
         assert!(verdict.settings_shape_known);
         assert!(verdict.foreign_status_line);
         assert!(!verdict.foreign_user_prompt_submit_hooks);
+    }
+
+    #[test]
+    fn enabled_flag_offers_a_readable_foreign_status_line_wrapper() {
+        let dir = TempDir::new();
+        write_settings(
+            &dir,
+            r#"{"statusLine":{"type":"command","command":"other meter"}}"#,
+        );
+        let runtime = FakeRuntime::working(absolute_cli(&dir));
+        let verdict = prepare_preflight(Some(dir.path()), None, &runtime, true).verdict;
+        assert_eq!(verdict.kind, ClaudePreflightKind::WrappableStatusLine);
+        assert!(verdict.foreign_status_line);
+        assert!(!verdict.foreign_user_prompt_submit_hooks);
+    }
+
+    #[test]
+    fn enabled_flag_still_refuses_a_foreign_prompt_hook() {
+        let dir = TempDir::new();
+        write_settings(
+            &dir,
+            concat!(
+                r#"{"statusLine":{"type":"command","command":"other meter"},"#,
+                r#""hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"other hook"}]}]}}"#,
+            ),
+        );
+        let runtime = FakeRuntime::working(absolute_cli(&dir));
+        let verdict = prepare_preflight(Some(dir.path()), None, &runtime, true).verdict;
+        assert_eq!(verdict.kind, ClaudePreflightKind::GuidedManual);
+        assert!(verdict.foreign_status_line);
+        assert!(verdict.foreign_user_prompt_submit_hooks);
+    }
+
+    #[test]
+    fn enabled_flag_refuses_an_unreadable_status_line_command() {
+        let dir = TempDir::new();
+        write_settings(&dir, r#"{"statusLine":{"type":"command","command":42}}"#);
+        let runtime = FakeRuntime::working(absolute_cli(&dir));
+        let verdict = prepare_preflight(Some(dir.path()), None, &runtime, true).verdict;
+        assert_eq!(verdict.kind, ClaudePreflightKind::GuidedManual);
+        assert!(verdict.foreign_status_line);
+    }
+
+    #[test]
+    fn enabled_flag_never_wraps_an_existing_wrapper_again() {
+        let dir = TempDir::new();
+        let cli = absolute_cli(&dir);
+        let wrapper = wrapped_statusline_command(&cli, "foreign status").expect("wrapper");
+        let settings = serde_json::to_string(&serde_json::json!({
+            "statusLine": {
+                "type": "command",
+                "command": wrapper
+            }
+        }))
+        .expect("settings");
+        write_settings(&dir, &settings);
+        let runtime = FakeRuntime::working(cli);
+        let verdict = prepare_preflight(Some(dir.path()), None, &runtime, true).verdict;
+        assert_eq!(verdict.kind, ClaudePreflightKind::GuidedManual);
+        assert!(verdict.foreign_status_line);
     }
 
     #[test]
@@ -1220,7 +1488,7 @@ mod tests {
             r#"{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"other hook"}]}]}}"#,
         );
         let runtime = FakeRuntime::working(absolute_cli(&dir));
-        let verdict = prepare_preflight(Some(dir.path()), None, &runtime).verdict;
+        let verdict = prepare_preflight(Some(dir.path()), None, &runtime, false).verdict;
         assert_eq!(verdict.kind, ClaudePreflightKind::GuidedManual);
         assert!(!verdict.foreign_status_line);
         assert!(verdict.foreign_user_prompt_submit_hooks);
@@ -1234,7 +1502,7 @@ mod tests {
             path: None,
             works: false,
         };
-        let verdict = prepare_preflight(Some(dir.path()), None, &runtime).verdict;
+        let verdict = prepare_preflight(Some(dir.path()), None, &runtime, false).verdict;
         assert_eq!(verdict.kind, ClaudePreflightKind::CliMissing);
         assert!(!verdict.cli_found);
         assert!(!verdict.cli_working);
@@ -1256,7 +1524,13 @@ mod tests {
         let cli = absolute_cli(&dir);
         let runtime = FakeRuntime::working(cli);
         assert_eq!(
-            apply_with_runtime(dir.path(), &state, ClaudeConnectInput::default(), &runtime),
+            apply_with_runtime(
+                dir.path(),
+                &state,
+                ClaudeConnectInput::default(),
+                &runtime,
+                false,
+            ),
             Ok(ClaudeApplyOutcome::Applied)
         );
         assert_ne!(std::fs::read_to_string(&file).expect("applied"), original);
@@ -1268,14 +1542,170 @@ mod tests {
     }
 
     #[test]
+    fn wrapper_transport_encodes_every_shell_quoting_landmine() {
+        let dir = TempDir::new();
+        let cli = absolute_cli(&dir);
+        let original = r#""C:\Program Files\meter\status.cmd" "double quoted" 'single quoted' C:\Users\Name\file & 100%"#;
+        let encoded = base64url_encode(original);
+        assert_eq!(
+            encoded,
+            "IkM6XFByb2dyYW0gRmlsZXNcbWV0ZXJcc3RhdHVzLmNtZCIgImRvdWJsZSBxdW90ZWQiICdzaW5nbGUgcXVvdGVkJyBDOlxVc2Vyc1xOYW1lXGZpbGUgJiAxMDAl"
+        );
+        assert!(encoded
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')));
+        let wrapped = wrapped_statusline_command(&cli, original).expect("wrapper");
+        assert!(wrapped.ends_with(&format!("statusline --wrap {encoded}")));
+        assert!(!wrapped.contains(original));
+    }
+
+    #[test]
+    fn wrapper_connect_then_disconnect_restores_the_original_command_exactly() {
+        let dir = TempDir::new();
+        let original_command = r#""C:\Program Files\meter\status.cmd" "double quoted" 'single quoted' C:\Users\Name\file & 100%"#;
+        let original_settings = serde_json::to_string(&serde_json::json!({
+            "statusLine": {
+                "type": "command",
+                "command": original_command,
+                "padding": 0
+            },
+            "keep": true
+        }))
+        .expect("settings");
+        let file = write_settings(&dir, &original_settings);
+        let state = dir.path().join("state");
+        let cli = absolute_cli(&dir);
+        let runtime = FakeRuntime::working(cli.clone());
+        assert_eq!(
+            apply_with_runtime(
+                dir.path(),
+                &state,
+                ClaudeConnectInput::default(),
+                &runtime,
+                true,
+            ),
+            Ok(ClaudeApplyOutcome::Applied)
+        );
+        let applied_text = std::fs::read_to_string(&file).expect("applied");
+        let applied: serde_json::Value = serde_json::from_str(&applied_text).expect("json");
+        assert_eq!(
+            applied["statusLine"]["command"],
+            wrapped_statusline_command(&cli, original_command).expect("wrapper command")
+        );
+        let claude = file.parent().expect("claude directory");
+        let backups: Vec<PathBuf> = std::fs::read_dir(claude)
+            .expect("backups")
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(valid_backup_name)
+            })
+            .collect();
+        assert_eq!(backups.len(), 1);
+        assert_eq!(
+            std::fs::read_to_string(&backups[0]).expect("backup"),
+            original_settings
+        );
+        assert_eq!(
+            disconnect_in(dir.path(), &state),
+            Ok(ClaudeDisconnectOutcome::RestoredExact)
+        );
+        assert_eq!(
+            std::fs::read_to_string(file).expect("restored"),
+            original_settings
+        );
+    }
+
+    #[test]
+    fn modified_disconnect_restores_only_the_original_status_line() {
+        let dir = TempDir::new();
+        let original_command = "foreign status --value exact";
+        let original_settings = serde_json::to_string(&serde_json::json!({
+            "statusLine": {
+                "type": "command",
+                "command": original_command,
+                "padding": 0
+            },
+            "keep": 1
+        }))
+        .expect("settings");
+        let file = write_settings(&dir, &original_settings);
+        let state = dir.path().join("state");
+        let cli = absolute_cli(&dir);
+        let runtime = FakeRuntime::working(cli);
+        apply_with_runtime(
+            dir.path(),
+            &state,
+            ClaudeConnectInput::default(),
+            &runtime,
+            true,
+        )
+        .expect("apply");
+        let applied = std::fs::read_to_string(&file).expect("applied");
+        let mut modified: serde_json::Value = serde_json::from_str(&applied).expect("json");
+        let root = modified.as_object_mut().expect("object");
+        root.insert("keep".to_string(), serde_json::json!(2));
+        root.insert("foreign".to_string(), serde_json::json!(true));
+        root.get_mut("statusLine")
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("status line")
+            .insert("padding".to_string(), serde_json::json!(7));
+        std::fs::write(
+            &file,
+            serde_json::to_string(&modified).expect("modified settings"),
+        )
+        .expect("user edit");
+        assert_eq!(
+            disconnect_in(dir.path(), &state),
+            Ok(ClaudeDisconnectOutcome::RemovedOwnedEntries)
+        );
+        let after: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(file).expect("after")).expect("json");
+        assert_eq!(after["statusLine"]["command"], original_command);
+        assert_eq!(after["statusLine"]["padding"], 7);
+        assert_eq!(after["keep"], 2);
+        assert_eq!(after["foreign"], true);
+        assert!(after.get("hooks").is_none());
+    }
+
+    #[test]
+    fn backup_primitive_runs_before_any_change() {
+        use std::cell::RefCell;
+
+        let events = RefCell::new(Vec::new());
+        let value = backup_before_change(
+            || {
+                events.borrow_mut().push("backup");
+                Ok(())
+            },
+            || {
+                assert_eq!(&*events.borrow(), &["backup"]);
+                events.borrow_mut().push("change");
+                Ok(42)
+            },
+        )
+        .expect("ordered");
+        assert_eq!(value, 42);
+        assert_eq!(&*events.borrow(), &["backup", "change"]);
+    }
+
+    #[test]
     fn apply_writes_the_absolute_cli_path_to_both_commands() {
         let dir = TempDir::new();
         let file = write_settings(&dir, "{}");
         let state = dir.path().join("state");
         let cli = absolute_cli(&dir);
         let runtime = FakeRuntime::working(cli.clone());
-        apply_with_runtime(dir.path(), &state, ClaudeConnectInput::default(), &runtime)
-            .expect("apply");
+        apply_with_runtime(
+            dir.path(),
+            &state,
+            ClaudeConnectInput::default(),
+            &runtime,
+            false,
+        )
+        .expect("apply");
         let settings: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(file).expect("settings")).expect("json");
         let expected_status = quoted_command(&cli, "statusline").expect("command");
@@ -1295,8 +1725,14 @@ mod tests {
         let state = dir.path().join("state");
         let cli = absolute_cli(&dir);
         let runtime = FakeRuntime::working(cli);
-        apply_with_runtime(dir.path(), &state, ClaudeConnectInput::default(), &runtime)
-            .expect("apply");
+        apply_with_runtime(
+            dir.path(),
+            &state,
+            ClaudeConnectInput::default(),
+            &runtime,
+            false,
+        )
+        .expect("apply");
         let applied = std::fs::read_to_string(&file).expect("applied");
         let modified = applied.replacen("\"keep\":1", "\"keep\":2,\"newForeignKey\":true", 1);
         std::fs::write(&file, modified).expect("user edit");
@@ -1320,7 +1756,7 @@ mod tests {
             &format!(r#"{{"unrelatedSecret":"{SETTINGS_CANARY}"}}"#),
         );
         let runtime = FakeRuntime::working(absolute_cli(&dir));
-        let prepared = prepare_preflight(Some(dir.path()), None, &runtime);
+        let prepared = prepare_preflight(Some(dir.path()), None, &runtime, false);
         let payload = serde_json::to_string(&prepared.verdict).expect("wire");
         let outcomes = format!(
             "{:?}{:?}{:?}",
