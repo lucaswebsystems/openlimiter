@@ -112,8 +112,8 @@
       "manualEntry": "und manual entry"
     },
     "backdrop": {
-      "play": "Video abspielen",
-      "pause": "Video pausieren"
+      "play": "Animation abspielen",
+      "pause": "Animation pausieren"
     },
     "disclaimer": "Windows, macOS und Linux haben alle gepackte Desktop Builds im Release, und npm ist die empfohlene Kommandozeilen Installation. Die Web App braucht nichts Installiertes. Die Desktop Builds sind noch nicht codesigniert, daher warnen Windows und macOS beim ersten Start. Die mobilen Anwendungen sind nicht gebaut."
   },

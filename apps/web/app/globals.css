@@ -909,6 +909,42 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
   opacity: 1;
 }
 
+/* The WebGL meter field, in the same box the footage occupies and under the
+   same brightness the scrims above were measured against. It is NOT mirrored:
+   the flip exists to park the footage's bright subject on the right, and this
+   scene is symmetric, so there is nothing to move.
+
+   It starts at zero opacity and is raised by [data-ready] only after its first
+   frame has actually rendered, which is what keeps the poster on ::before as
+   the element the page paints first. A canvas that faded in before it had
+   anything to show would be a blank rectangle over a finished still. */
+.hero-fold-media [data-hero-canvas] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+
+.hero-fold-media [data-hero-canvas][data-ready] {
+  opacity: 1;
+}
+
+.hero-fold-media [data-hero-canvas] canvas {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+/* The visitor's setting outranks the flag, and it does so in CSS as well as in
+   JavaScript. The component already refuses to mount under reduced motion; this
+   is the second lock, so a future edit that loses the first one cannot put
+   moving pixels in front of somebody who asked for none. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-fold-media [data-hero-canvas] {
+    display: none;
+  }
+}
+
 /*
   The two scrims, ported stop for stop from the pattern that measured them.
 

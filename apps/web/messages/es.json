@@ -112,8 +112,8 @@
       "manualEntry": "y manual entry"
     },
     "backdrop": {
-      "play": "Reproducir video",
-      "pause": "Pausar video"
+      "play": "Reproducir animación",
+      "pause": "Pausar animación"
     },
     "disclaimer": "Windows, macOS y Linux tienen compilaciones de escritorio empaquetadas en el release, y npm es la instalación de línea de comandos recomendada. La aplicación web no necesita nada instalado. Las compilaciones de escritorio todavía no están firmadas, así que Windows y macOS avisan en la primera ejecución. Las aplicaciones móviles no están construidas."
   },

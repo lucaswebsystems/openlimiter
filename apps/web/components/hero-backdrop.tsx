@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { HeroCanvas } from "./hero-canvas";
+import { HERO_CANVAS_ENABLED } from "@/lib/motion-flags";
 
 /**
  * The fold's media: poster always, footage for whoever can receive it.
@@ -109,6 +111,15 @@ export function HeroFoldMedia({
   }, [streaming, paused]);
 
   const toggle = () => {
+    /* With the meter field on there is no video element to ask, so the pill
+       owns the state outright and the canvas follows it. WCAG 2.2.2 does not
+       care which renderer is moving: content that starts by itself, runs over
+       five seconds and loops needs a way to stop, and swapping footage for a
+       shader does not retire that. */
+    if (HERO_CANVAS_ENABLED) {
+      setPaused((was) => !was);
+      return;
+    }
     const video = videoRef.current;
     if (video === null) return;
     if (video.paused) {
@@ -123,7 +134,13 @@ export function HeroFoldMedia({
   return (
     <>
       <div ref={boxRef} aria-hidden="true" className="hero-fold-media">
-        {streaming && (
+        {/* The meter field replaces the footage rather than stacking on it. Two
+            moving backgrounds in one fold is noise, not depth. Setting
+            HERO_CANVAS_ENABLED to false in lib/motion-flags.ts restores the
+            footage exactly as it was, which is what makes this an A and a B
+            rather than a one way door. */}
+        {HERO_CANVAS_ENABLED && streaming && <HeroCanvas paused={paused} />}
+        {streaming && !HERO_CANVAS_ENABLED && (
           <video
             ref={videoRef}
             autoPlay

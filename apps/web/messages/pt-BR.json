@@ -112,8 +112,8 @@
       "manualEntry": "e manual entry"
     },
     "backdrop": {
-      "play": "Reproduzir vídeo",
-      "pause": "Pausar vídeo"
+      "play": "Reproduzir animação",
+      "pause": "Pausar animação"
     },
     "disclaimer": "Windows, macOS e Linux têm builds de desktop empacotadas no release, e o npm é a instalação de linha de comando recomendada. O web app não precisa de nada instalado. As builds de desktop ainda não são assinadas digitalmente, então Windows e macOS avisam na primeira execução. Os aplicativos móveis não foram construídos."
   },

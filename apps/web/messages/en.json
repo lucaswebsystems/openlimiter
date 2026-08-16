@@ -112,8 +112,8 @@
       "manualEntry": "and manual entry"
     },
     "backdrop": {
-      "play": "Play video",
-      "pause": "Pause video"
+      "play": "Play motion",
+      "pause": "Pause motion"
     },
     "disclaimer": "Windows, macOS and Linux all have packaged desktop builds on the release, and npm is the recommended command line install. The web app needs nothing installed. The desktop builds are not code signed yet, so Windows and macOS warn on first run. The mobile applications are not built."
   },
