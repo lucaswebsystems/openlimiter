@@ -13,6 +13,7 @@ mod native_readers;
 mod native_snapshot;
 mod native_time;
 mod net;
+mod provider_detection;
 mod reader_registry;
 mod state;
 #[cfg(test)]
@@ -81,6 +82,7 @@ pub fn run() {
             cache_write::CacheWriter::at_state_directory(),
         ))
         .manage(net::ReqwestTransport::new())
+        .manage(provider_detection::DetectionStore::scan())
         .manage(collector_runtime::CollectorRuntime::default())
         .invoke_handler(tauri::generate_handler![
             read_cache,
@@ -95,6 +97,8 @@ pub fn run() {
             commands::list_connections,
             commands::update_connection,
             commands::detect_local_tools,
+            commands::list_detected_providers,
+            commands::rescan_detected_providers,
             commands::claude_connect_preflight,
             commands::claude_connect_apply,
             commands::claude_disconnect

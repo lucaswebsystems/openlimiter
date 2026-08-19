@@ -20,6 +20,7 @@ use crate::credentials::{
     valid_codex_token, CodexCredentialError, CredentialError, KeyringStore, SecretStore, MASK_DOTS,
 };
 use crate::net::{fetch_endpoint, NetError, ReqwestTransport, Transport};
+use crate::provider_detection::{DetectionReport, DetectionStore};
 use crate::reader_registry::{reader_route, CredentialKind, ProviderId, ReaderId, RouteError};
 
 /// The connection command surface: one Tauri command per verb, serde structs
@@ -988,6 +989,16 @@ pub async fn update_connection(
 #[tauri::command]
 pub fn detect_local_tools() -> LocalToolDetection {
     claude_detect::detect()
+}
+
+#[tauri::command]
+pub fn list_detected_providers(detection: State<'_, DetectionStore>) -> DetectionReport {
+    detection.report()
+}
+
+#[tauri::command]
+pub fn rescan_detected_providers(detection: State<'_, DetectionStore>) -> DetectionReport {
+    detection.rescan()
 }
 
 #[tauri::command]
