@@ -1,8 +1,10 @@
+import { normalizeMeters } from "@openlimiter/core";
 import { describe, expect, it } from "vitest";
 import {
   parseCodexPayload,
   codexLabels,
   codexFixture,
+  codexNoResetFixture,
   codexSanitizedLive,
   FIXTURE_NOW,
   hostileFixture
@@ -221,6 +223,76 @@ describe("codex: the evidence behind it", () => {
   });
 });
 
+describe("codex: a window with no reset time is kept, not dropped", () => {
+  /* The reference reader passes reset_at straight through and still renders the
+     percent, so a window that states a percent and omits its reset is a real
+     reading. It used to be dropped here, which silently discarded a number the
+     provider actually stated. Now it is kept with the reset marked unknown. */
+  it("keeps a percent that arrives with no reset_at, marking the reset unknown", () => {
+    const meters = parseCodexPayload(codexNoResetFixture(NOW), NOW);
+    expect(meters).not.toBeNull();
+    expect(meters).toHaveLength(1);
+    expect(meters?.[0]?.value).toBe(73);
+    expect(meters?.[0]?.resetAt).toBeNull();
+    /* The length is still stated, so the window still names itself. */
+    expect(meters?.[0]?.meter).toBe("FIVE_HOUR");
+    expect(meters?.[0]?.window).toEqual({ kind: "rolling", durationSeconds: FIVE_HOURS });
+  });
+
+  it("keeps a no reset window whose length is also absent as an unknown window", () => {
+    const meters = parseCodexPayload(
+      { rate_limit: { primary_window: { used_percent: 55 } } },
+      NOW
+    );
+    expect(meters).toHaveLength(1);
+    expect(meters?.[0]?.value).toBe(55);
+    expect(meters?.[0]?.resetAt).toBeNull();
+    expect(meters?.[0]?.meter).toBe("PRIMARY");
+    expect(meters?.[0]?.window).toEqual({ kind: "unknown" });
+  });
+
+  it("keeps a valid window beside one that has no reset time", () => {
+    const meters = parseCodexPayload(
+      {
+        rate_limit: {
+          primary_window: { used_percent: 73, limit_window_seconds: FIVE_HOURS },
+          secondary_window: {
+            used_percent: 96,
+            reset_at: epoch(SEVEN_DAYS),
+            limit_window_seconds: SEVEN_DAYS
+          }
+        }
+      },
+      NOW
+    );
+    expect(meters).toHaveLength(2);
+    expect(meters?.[0]?.resetAt).toBeNull();
+    expect(meters?.[1]?.resetAt).not.toBeNull();
+    expect(meters?.[1]?.value).toBe(96);
+  });
+
+  it("still refuses a reset that is present but corrupt, which is drift not absence", () => {
+    /* A corrupt reset is not the same as no reset. A present reset in the past
+       or in the wrong encoding still drops its window, so a lone bad reset
+       window is still the whole payload refused. */
+    expect(parseCodexPayload(
+      { rate_limit: { primary_window: { used_percent: 84, reset_at: epoch(-FIVE_HOURS), limit_window_seconds: FIVE_HOURS } } },
+      NOW
+    )).toBeNull();
+    expect(parseCodexPayload(
+      { rate_limit: { primary_window: { used_percent: 84, reset_at: "2026-01-01T00:00:00.000Z", limit_window_seconds: FIVE_HOURS } } },
+      NOW
+    )).toBeNull();
+  });
+
+  it("normalizes the no reset window end to end, keeping resetAt null", () => {
+    const normalized = normalizeMeters(parseCodexPayload(codexNoResetFixture(NOW), NOW) ?? []);
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]?.resetAt).toBeNull();
+    expect(normalized[0]?.value).toBe(73);
+  });
+});
+
 describe("codex: everything it must refuse", () => {
   /* One table, because a hostile case that lives in prose gets forgotten and a
      hostile case that lives in a row gets run. Every entry answers null. */
@@ -243,7 +315,9 @@ describe("codex: everything it must refuse", () => {
     ["a percentage above one hundred", { rate_limit: { primary_window: { used_percent: 100.1, reset_at: epoch(FIVE_HOURS) } } }],
     ["a percentage that is not finite", { rate_limit: { primary_window: { used_percent: Number.POSITIVE_INFINITY, reset_at: epoch(FIVE_HOURS) } } }],
     ["a percentage that is not a number at all", { rate_limit: { primary_window: { used_percent: Number.NaN, reset_at: epoch(FIVE_HOURS) } } }],
-    ["a missing reset", { rate_limit: { primary_window: { used_percent: 84 } } }],
+    /* A missing reset_at is no longer refused: it is a real window with an
+       unknown reset time, kept and proven in the "no reset time" suite below.
+       Only a reset that is PRESENT but unreadable is refused here. */
     ["a reset in milliseconds rather than seconds", { rate_limit: { primary_window: { used_percent: 84, reset_at: Date.parse(future) } } }],
     ["a reset as an ISO string, which this endpoint does not speak", { rate_limit: { primary_window: { used_percent: 84, reset_at: future } } }],
     ["a reset that already happened", { rate_limit: { primary_window: { used_percent: 84, reset_at: epoch(-FIVE_HOURS) } } }],

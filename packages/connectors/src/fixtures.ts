@@ -158,6 +158,28 @@ export function codexFixture(now: string = FIXTURE_NOW): Record<string, unknown>
 }
 
 /**
+ * A Codex window that states a percent and no reset time at all.
+ *
+ * The reference reader passes `reset_at` straight through, so when the provider
+ * omits it the window arrives with a real percent and no countdown. This is a
+ * separate builder rather than a change to `codexFixture` above, so the demo
+ * numbers and every existing expectation stay exactly as they were, and the
+ * no reset case gets its own fixture to exercise. The window keeps its length,
+ * so it still names itself FIVE_HOUR; the only thing missing is the reset.
+ */
+export function codexNoResetFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  void now;
+  return {
+    rate_limit: {
+      primary_window: {
+        used_percent: 73,
+        limit_window_seconds: FIVE_HOURS
+      }
+    }
+  };
+}
+
+/**
  * The Antigravity demo payload, in the observed shape.
  *
  * Two windows on the tracked pool, and a third party pool beside it that the

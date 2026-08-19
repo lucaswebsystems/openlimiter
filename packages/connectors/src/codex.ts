@@ -96,13 +96,33 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
     const percent = boundedNumber(windowRecord["used_percent"]);
     if (percent === null) continue;
     const length = windowSeconds(windowRecord["limit_window_seconds"]);
-    const resetAt = futureInstantFromEpochSeconds(
-      windowRecord["reset_at"],
-      now,
-      length === null ? undefined : plausibleResetHorizon(length)
-    );
+    /*
+     * A window may arrive with no reset_at at all. The reference reader emits
+     * exactly that: it passes `pw.get("reset_at")` straight through, which is
+     * null when the field is absent, and it still renders the percent. Dropping
+     * such a window silently discards a real reading, which is a worse failure
+     * than a missing countdown: the number the provider actually stated would
+     * vanish. So an ABSENT reset_at keeps the window with an unknown reset time,
+     * meaning resetAt stays null and the surface shows the percent with no
+     * countdown.
+     *
+     * A reset_at that is PRESENT but unreadable is a different thing. A reset in
+     * milliseconds, in the past, past its plausible horizon, or in the wrong
+     * type is drift, not an absence, and it still drops the window. A corrupt
+     * reset is not the same as no reset, and only the corrupt one is refused.
+     */
+    const resetProvided =
+      windowRecord["reset_at"] !== undefined && windowRecord["reset_at"] !== null;
+    const resetAt = resetProvided
+      ? futureInstantFromEpochSeconds(
+          windowRecord["reset_at"],
+          now,
+          length === null ? undefined : plausibleResetHorizon(length)
+        )
+      : null;
     const expiresAt = shortExpiry(now);
-    if (resetAt === null || expiresAt === null) continue;
+    if (expiresAt === null) continue;
+    if (resetProvided && resetAt === null) continue;
     meters.push(
       rawMeter({
         provider: "CODEX",
