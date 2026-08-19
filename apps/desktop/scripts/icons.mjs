@@ -136,12 +136,24 @@ for (const [name, size] of pngs) {
 
 /* The tray. Tileless, because a tray icon sits directly on the taskbar rather
    than among application icons, and a filled square there is a filled square on
-   somebody's clock. Nothing reads these yet: src/lib.rs builds the tray from the
-   window icon, and these are here for when it takes an icon of its own. */
-for (const size of [16, 24, 32]) {
-  const name = "tray-" + String(size) + ".png";
-  writeFileSync(path.join(OUT, name), renderPng(size, RING));
-  process.stdout.write("Wrote " + name + " at " + String(size) + " pixels.\n");
+   somebody's clock. The geometry never changes. Only the ink does, using the
+   same five pressure colours the window uses. Rust selects one from the worst
+   provider reading and embeds the thirty two pixel render directly in the
+   binary, while the smaller renders remain available to platform packaging. */
+const trayTreatments = {
+  unknown: { ...RING, ink: [0xaa, 0xaa, 0xb2] },
+  ok: { ...RING, ink: [0x4a, 0xde, 0x80] },
+  watch: { ...RING, ink: [0xfb, 0xbf, 0x24] },
+  high: { ...RING, ink: [0xfb, 0x92, 0x3c] },
+  critical: { ...RING, ink: [0xff, 0x8a, 0x80] },
+};
+
+for (const [state, treatment] of Object.entries(trayTreatments)) {
+  for (const size of [16, 24, 32]) {
+    const name = "tray-" + state + "-" + String(size) + ".png";
+    writeFileSync(path.join(OUT, name), renderPng(size, treatment));
+    process.stdout.write("Wrote " + name + " at " + String(size) + " pixels.\n");
+  }
 }
 
 /* Every size Windows asks for, from the 16 pixel one beside a window title to

@@ -197,7 +197,7 @@ export async function stateDirectory() {
   return call("state_directory");
 }
 
-/** Put the current pressure on the tray. */
+/** Put one normalized percentage per provider on the native tray. */
 export async function setTrayStatus(status) {
   return call("set_tray_status", status);
 }

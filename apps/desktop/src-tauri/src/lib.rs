@@ -17,8 +17,8 @@ mod reader_registry;
 mod state;
 #[cfg(test)]
 mod test_support;
+mod tray;
 
-use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent};
 
@@ -36,9 +36,6 @@ use tauri::{AppHandle, Manager, WindowEvent};
 /// capabilities are unchanged, every request leaves from this process, and a
 /// secret that has entered `connect_provider` can never be read back across
 /// the boundary.
-/// The identifier the tray is registered under, so a command can find it again.
-const TRAY_ID: &str = "openlimiter-tray";
-
 /// The snapshot cache as text, or nothing when there is nothing to read.
 #[tauri::command]
 fn read_cache() -> Option<String> {
@@ -57,24 +54,14 @@ fn state_directory() -> Option<String> {
     state::state_directory().map(|path| path.to_string_lossy().into_owned())
 }
 
-/// Put the current pressure on the tray.
+/// Put the current provider readings on the tray.
 ///
-/// The webview works out what the highest pressure provider is, using the same
-/// advice engine as the statusline, and hands the finished line here. On macOS
-/// it also becomes the text beside the menu bar icon.
+/// The window sends one normalized percentage per provider. Rust derives the
+/// worst headroom, pressure icon, tooltip and native menu from that bounded
+/// input, so every shell surface moves together.
 #[tauri::command]
-fn set_tray_status(app: AppHandle, tooltip: String, title: String) -> Result<(), String> {
-    let Some(tray) = app.tray_by_id(TRAY_ID) else {
-        return Ok(());
-    };
-    tray.set_tooltip(Some(tooltip))
-        .map_err(|error| error.to_string())?;
-    #[cfg(target_os = "macos")]
-    tray.set_title(Some(title))
-        .map_err(|error| error.to_string())?;
-    #[cfg(not(target_os = "macos"))]
-    let _ = title;
-    Ok(())
+fn set_tray_status(app: AppHandle, providers: Vec<tray::ProviderStatus>) -> Result<(), String> {
+    tray::update(&app, providers)
 }
 
 fn show_window(app: &AppHandle) {
@@ -117,17 +104,13 @@ pub fn run() {
             parsing and cache commits never depend on a webview receiving an
             event or being allowed to run a timer. */
             collector_runtime::spawn_collector(app.handle().clone());
-            let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
-            let refresh = MenuItem::with_id(app, "refresh", "Refresh", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &refresh, &quit])?;
+            let initial = tray::view(Vec::new()).expect("an empty tray view is valid");
+            let menu = tray::menu(app.handle(), &initial)?;
+            let icon = tray::icon(&initial)?;
 
-            TrayIconBuilder::with_id(TRAY_ID)
-                .icon(
-                    app.default_window_icon()
-                        .expect("the bundle always carries a window icon")
-                        .clone(),
-                )
+            TrayIconBuilder::with_id(tray::ID)
+                .icon(icon)
+                .icon_as_template(false)
                 .menu(&menu)
                 .tooltip("OpenLimiter")
                 /* The left click opens the window. Only the right click opens

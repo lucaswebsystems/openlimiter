@@ -20,8 +20,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-# tray-icon is the one feature this application actually needs beyond the core.
-tauri = { version = "2", features = ["tray-icon"] }
+# tray-icon provides the shell and image-png decodes the generated pressure
+# icons embedded below it. Both are local Tauri capabilities.
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The v1 feature is exactly the three stores the connection design names:

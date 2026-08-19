@@ -815,34 +815,15 @@ async function collect(now) {
   };
 }
 
-/**
- * The line that goes on the tray.
- *
- * The provider under the most pressure is the one worth glancing at, and it is
- * chosen by the advice engine rather than by this file, so the tray, the
- * statusline and the agent context can never disagree about who is closest to
- * a cap.
- */
-function trayText(advice) {
-  if (!advice.inject || advice.providers.length === 0) {
-    return { title: "OpenLimiter", tooltip: "OpenLimiter: no reading yet." };
-  }
-  const worst = [...advice.providers].sort(
-    (left, right) => right.usagePercent - left.usagePercent,
-  )[0];
-  const short = floorFixed(worst.usagePercent, 0) + "%";
-  const name = PROVIDER_NAMES[worst.provider] ?? worst.provider;
-  return {
-    title: short,
-    tooltip:
-      "OpenLimiter " +
-      advice.reason.toLowerCase().replace("_", " ") +
-      ". Highest: " +
-      name +
-      " at " +
-      floorFixed(worst.usagePercent, 1) +
-      "%.",
-  };
+/** One bounded percentage per provider for the native tray menu. */
+function trayProviders(advice) {
+  const byProvider = new Map(
+    advice.providers.map((entry) => [entry.provider, entry.usagePercent]),
+  );
+  return PROVIDER_CODES.map((provider) => ({
+    provider,
+    usage_percent: byProvider.get(provider) ?? null,
+  }));
 }
 
 let refreshing = false;
@@ -942,8 +923,7 @@ async function refresh() {
 
     elements.stamp.textContent = "as of " + new Date().toLocaleTimeString();
 
-    const tray = trayText(advice);
-    await setTrayStatus(tray);
+    await setTrayStatus({ providers: trayProviders(advice) });
     /* The Claude card's ready or collecting split reads the cache through
        the flag set above, so it is told the cache moved. */
     noteMetersRefreshed();
