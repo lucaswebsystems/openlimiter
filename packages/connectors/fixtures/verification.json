@@ -5,6 +5,11 @@
       "fixtureVerified": true,
       "evidence": "documented",
       "reason": "The statusline payload is a shape Anthropic publishes, and the frozen fixture parses to the two windows the documentation states, so the parser is fixture verified. The honesty label stays UNVERIFIED until a sanitized live capture is taken on a real Pro or Max account."
+    },
+    "openrouter": {
+      "fixtureVerified": true,
+      "evidence": "documented",
+      "reason": "The credits response is a documented OpenRouter API shape, and the frozen fixture parses to one credits meter reading 62.35 percent from the two money figures, so the parser is fixture verified. The honesty label stays UNVERIFIED because a fixture proves the parser, not the account behind it."
     }
   }
 }
