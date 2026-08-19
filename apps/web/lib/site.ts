@@ -49,9 +49,9 @@ export const LOGO_URL = `${SITE_URL}/icons/openlimiter-512.png`;
 export const LOGO_SIZE = 512;
 
 /**
- * The two ways to support the work, both live and both claimed. Sponsorship is
- * the only money anywhere near this project: there is no checkout, no paid
- * tier, and no local feature held back to create one.
+ * The two voluntary ways to support the work, both live and both claimed.
+ * Neither unlocks product access. Pro checkout is separate, and no local
+ * feature is held back to create a paid tier.
  */
 export const SPONSORS_URL = "https://github.com/sponsors/lucaswebsystems";
 export const COFFEE_URL = "https://buymeacoffee.com/lucaswebsystems";
