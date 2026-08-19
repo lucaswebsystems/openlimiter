@@ -1,0 +1,19 @@
+{
+  "hook_event_name": "Status",
+  "session_id": "REDACTED-SESSION-ID",
+  "transcript_path": "REDACTED",
+  "cwd": "REDACTED",
+  "version": "1.0.0",
+  "model": { "id": "REDACTED", "display_name": "REDACTED" },
+  "workspace": { "current_dir": "REDACTED", "project_dir": "REDACTED" },
+  "rate_limits": {
+    "five_hour": {
+      "used_percentage": 47.5,
+      "resets_at": 1786114800
+    },
+    "seven_day": {
+      "used_percentage": 63.2,
+      "resets_at": 1786536000
+    }
+  }
+}

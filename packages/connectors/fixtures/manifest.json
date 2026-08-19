@@ -1,0 +1,68 @@
+{
+  "note": "Frozen redacted sample responses, one file per provider. Each file is a real response shape sourced from the recorded evidence in Product Idea/reference-implementation, with every identifying value removed. The parser named below reads the file against captureClock and must return exactly the meters listed. captureClock is the instant these fixtures were pinned to, chosen so every reset instant in every file still lands in the future of that clock and inside its window's plausibility horizon.",
+  "captureClock": "2026-08-07T12:00:00.000Z",
+  "providers": [
+    {
+      "provider": "CLAUDE",
+      "connector": "claude",
+      "file": "claude.statusline.json",
+      "encoding": "json",
+      "parser": "parseClaudePayload",
+      "evidence": "documented",
+      "expectedMeters": 2,
+      "expect": [
+        { "meter": "FIVE_HOUR", "value": 47.5 },
+        { "meter": "SEVEN_DAY", "value": 63.2 }
+      ]
+    },
+    {
+      "provider": "OPENROUTER",
+      "connector": "openrouter",
+      "file": "openrouter.credits.json",
+      "encoding": "json",
+      "parser": "parseOpenrouterPayload",
+      "evidence": "documented",
+      "expectedMeters": 1,
+      "expect": [
+        { "meter": "CREDITS", "value": 62.35, "usedAmount": 12.47, "limitAmount": 20 }
+      ]
+    },
+    {
+      "provider": "CODEX",
+      "connector": "codex",
+      "file": "codex.usage.json",
+      "encoding": "json",
+      "parser": "parseCodexPayload",
+      "evidence": "observed",
+      "expectedMeters": 2,
+      "expect": [
+        { "meter": "FIVE_HOUR", "value": 84 },
+        { "meter": "SEVEN_DAY", "value": 96 }
+      ]
+    },
+    {
+      "provider": "ANTIGRAVITY",
+      "connector": "antigravity",
+      "file": "antigravity.quota.json",
+      "encoding": "json",
+      "parser": "parseAntigravityPayload",
+      "evidence": "observed",
+      "expectedMeters": 1,
+      "expect": [
+        { "meter": "PRIMARY", "value": 72 }
+      ]
+    },
+    {
+      "provider": "OPENCODE",
+      "connector": "opencode",
+      "file": "opencode.workspace.html",
+      "encoding": "text",
+      "parser": "parseOpencodePayload",
+      "evidence": "scrape",
+      "expectedMeters": 1,
+      "expect": [
+        { "meter": "PRIMARY", "value": 92 }
+      ]
+    }
+  ]
+}
