@@ -20,6 +20,11 @@
       "fixtureVerified": true,
       "evidence": "observed",
       "reason": "The quota summary was observed against a real Google AI Pro account and is recorded in the reference implementation that reads it live. The frozen fixture parses to the binding gemini window at 72 percent while leaving the third party pool alone, so the parser is fixture verified. The honesty label stays UNVERIFIED because the endpoint is internal and Google publishes nothing about it."
+    },
+    "opencode": {
+      "fixtureVerified": false,
+      "evidence": "scrape",
+      "reason": "Left UNVERIFIED on purpose: the evidence is too thin for a trustworthy fixture. OpenCode publishes no usage interface at all, so the only source is the HTML of a logged in workspace page, and any fixture is a snapshot of a layout rather than a contract. The parser reads the frozen page correctly, but a passing scrape proves only that one frozen layout still parses, not that the provider exposes anything stable, so it is not marked fixture verified. This matches the connector's own labels: authenticated-scrape, automationRisk high."
     }
   }
 }
