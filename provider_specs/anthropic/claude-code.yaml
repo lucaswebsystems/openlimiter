@@ -1,10 +1,11 @@
-# Claude Code subscription quota, read from the local statusline payload.
+# Claude Code statusline fallback.
 #
-# This file is the registry entry, not the parser. The parser lives at
-# packages/connectors/src/claude.ts and must agree with the paths below.
-# Nothing reads a provider's documentation at run time: a human reads it,
-# records what it said and when, and the product trusts this file until a
-# human changes it.
+# The native desktop now uses the locally stored OAuth login as its primary
+# source. That source is closed inside Rust because it carries a credential and
+# reaches a private endpoint. This registry entry describes the documented
+# statusline parser that remains available when the primary source cannot run.
+# The parser lives at packages/connectors/src/claude.ts and must agree with the
+# paths below.
 
 provider_id: anthropic
 product_id: claude-code

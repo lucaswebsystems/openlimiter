@@ -15,27 +15,33 @@ Status of all five: **accepted 2026-08-16**.
 
 ## ADR 1: Claude Code quota source
 
-**Decision.** Claude Code's documented `statusLine` payload is the primary and
-only source of Claude quota. OpenLimiter never polls an Anthropic endpoint to
-learn a subscription's remaining quota.
+**Decision.** The native desktop reads the OAuth token Claude Code already
+stored locally and asks the private usage route for the five hour and seven day
+windows. This is the primary source. The documented `statusLine` payload stays
+as a fallback and is never deleted.
 
-**Why.** The payload is provider generated and server authoritative. It carries
-`rate_limits.five_hour` and `rate_limits.seven_day`, each with
-`used_percentage` and a `resets_at` in epoch seconds, and it arrives naturally
-after a real Claude response. That means no estimation, no OAuth refresh, no
-polling cadence to tune, and no path by which monitoring consumes the quota it
-is monitoring. `packages/connectors/src/claude.ts` already parses exactly this
-shape.
+OpenLimiter never mints or refreshes a token. An expired login becomes the
+message "Reopen Claude Code to refresh this login." The token remains in the
+vendor file and never crosses IPC or enters the OpenLimiter credential store.
 
-Both windows are independently optional. When `rate_limits` is absent the reader
-keeps the previous observation until its stale TTL expires and **never writes a
-zero**, because a missing reading is not an empty quota.
+**Why.** The OAuth response is available at launch and carries stable account
+scope, which makes zero setup and multiple accounts possible. The statusline
+arrives only after a Claude response and names no account. It is still valuable
+when the private route changes or refuses access, so current OAuth data takes
+precedence and a later statusline event becomes eligible again after that data
+expires.
 
-**Argument against.** It is a single point of failure with no fallback: a user
-who has not sent a Claude message since connecting sees nothing, and the honest
-answer is "waiting for your first Claude response" rather than a number. A
-polling source would fill that gap. We accept the gap, because the alternative
-is a monitor that spends the user's quota to report on it.
+The private route is unsupported. It is read no more than once per account in
+fifteen minutes. A rate limit response waits at least one hour, even when its
+header says zero. A blocked route waits one day and falls back to statusline or
+manual entry. A response with an unexpected shape removes the questionable
+reading and creates the same visible unknown state as every other contract
+drift.
+
+**Argument against.** Anthropic has blocked this class of integration before,
+effective April 4, 2026. The endpoint can disappear without notice. The cache,
+typed fallback and manual path are therefore part of the source contract, not
+optional recovery work.
 
 ---
 
@@ -111,10 +117,11 @@ from its provider.
 connection, not a global cadence. Three shapes exist and adapters are not forced
 into one:
 
-- **Event driven.** Claude's statusLine. No polling at all, no cadence, no timer.
-- **Subscription.** Codex app-server notifications, where the protocol offers
+1. **Polled.** Claude OAuth usage, with a fifteen minute floor and longer typed
+   backoff after provider refusal. Statusline remains an event driven fallback.
+2. **Subscription.** Codex app-server notifications, where the protocol offers
   them, with a read on connect and on explicit refresh.
-- **Polled.** Documented remote read APIs only, at a cadence the reader declares
+3. **Polled.** Documented remote read APIs only, at a cadence the reader declares
   and the UI can never lower.
 
 **Why.** A universal five minute poll is the pattern this design deliberately
