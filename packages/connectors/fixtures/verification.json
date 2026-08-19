@@ -10,6 +10,11 @@
       "fixtureVerified": true,
       "evidence": "documented",
       "reason": "The credits response is a documented OpenRouter API shape, and the frozen fixture parses to one credits meter reading 62.35 percent from the two money figures, so the parser is fixture verified. The honesty label stays UNVERIFIED because a fixture proves the parser, not the account behind it."
+    },
+    "codex": {
+      "fixtureVerified": true,
+      "evidence": "observed",
+      "reason": "The usage response was observed against a real account and is recorded in the reference implementation that reads it live. The frozen fixture parses to the two windows it states, so the parser is fixture verified. The honesty label stays UNVERIFIED because the endpoint is internal and OpenAI publishes nothing about it: a trustworthy fixture does not make an internal endpoint official."
     }
   }
 }
