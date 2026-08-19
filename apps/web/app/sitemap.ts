@@ -25,6 +25,7 @@ import { SITE_URL } from "@/lib/site";
 /** The localised routes, in the order a reader meets them. */
 const LOCALISED_ROUTES: readonly { route: string; priority: number }[] = [
   { route: "/", priority: 1 },
+  { route: "/pricing", priority: 0.9 },
   { route: "/download", priority: 0.9 },
   { route: "/pro", priority: 0.9 },
   { route: "/changelog", priority: 0.7 },

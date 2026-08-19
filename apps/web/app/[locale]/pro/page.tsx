@@ -8,7 +8,15 @@ import { pageMetadata } from "@/lib/metadata";
 export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
   const locale = await pageLocale(params);
   const t = await getTranslations("proPortal");
-  return pageMetadata({ title: t("title"), description: t("lead"), route: "/pro", locale });
+  return {
+    ...pageMetadata({ title: t("title"), description: t("lead"), route: "/pro", locale }),
+    robots: {
+      index: false,
+      follow: false,
+      noarchive: true,
+      nosnippet: true,
+    },
+  };
 }
 
 export default async function ProPage({ params }: LocaleParams) {
