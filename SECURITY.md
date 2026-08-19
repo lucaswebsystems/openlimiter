@@ -16,7 +16,11 @@ Connector drift without a security impact is a compatibility issue. Please use t
 
 ## Telemetry
 
-OpenLimiter has no telemetry. No command sends usage, diagnostics, identifiers, prompts, or quota state to the project authors.
+Local mode has no telemetry. No local command sends usage, diagnostics, identifiers, prompts, or quota state to the project authors.
+
+OpenLimiter Pro is an explicit opt in hosted service. After sign in, the desktop may send selected provider code, meter code, bounded usage percentage, and reset time for alerts, history, forecasts, and coding agent routing context. Provider credentials, prompts, source code, provider response bodies, and diagnostics never enter Pro.
+
+The Pro session and local trust anchor stay in the operating system credential store. Signed device entitlements are checked offline against public keys embedded in the desktop build. Hosted routing context is treated as untrusted data and rebuilt from a closed shape before it reaches the coding agent hook.
 
 ## Supported versions
 

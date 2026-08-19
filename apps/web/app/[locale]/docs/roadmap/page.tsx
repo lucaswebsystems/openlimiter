@@ -70,13 +70,9 @@ export default async function RoadmapPage({ params }: LocaleParams) {
               <Bullets
                 items={[
                   t("sync.bullets.status"),
-                  t("sync.bullets.sync"),
-                  t("sync.bullets.push"),
-                  t("sync.bullets.smartLimiter"),
-                  t("sync.bullets.email"),
+                  t("sync.bullets.alerts"),
                   t("sync.bullets.history"),
-                  t("sync.bullets.priority"),
-                  t("sync.bullets.team"),
+                  t("sync.bullets.routing"),
                   t("sync.bullets.localFirst"),
                 ]}
               />

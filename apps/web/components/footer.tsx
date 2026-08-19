@@ -29,7 +29,7 @@ import {
  * The fifth column of every page that has translations. A reader looking for
  * their language looks at the foot of the page, and a control in the header
  * would be a sixth thing competing with the product's own navigation.
- * The three English only trees render this footer with `localised` off, because
+ * The two English only trees render this footer with `localised` off, because
  * a switcher there would point at pages that do not exist.
  */
 

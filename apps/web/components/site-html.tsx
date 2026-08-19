@@ -17,9 +17,9 @@ import { themeArmScript } from "@/lib/theme";
 import "@/app/globals.css";
 
 /**
- * The document, in one place, for all four root layouts.
+ * The document, in one place, for all three root layouts.
  *
- * WHY THERE ARE FOUR ROOT LAYOUTS
+ * WHY THERE ARE THREE ROOT LAYOUTS
  * -------------------------------
  * `html lang` has to say the truth about the page, and a Next layout can only
  * know the locale if the locale is in its own segment, which means
@@ -27,16 +27,16 @@ import "@/app/globals.css";
  * Next allows more than one topmost layout only when there is no
  * `app/layout.tsx` above them, so that file is gone and each tree now renders
  * its own document element: the localised marketing site, the web application,
- * the founder console and the blog.
+ * and the blog.
  *
- * Four documents is only a good trade if there is still one definition of what
+ * Three documents is only a good trade if there is still one definition of what
  * a document is, which is this file. Every root layout is a few lines that hand
  * it a locale and some children. Nothing about the chrome can drift between
  * them, because there is nowhere for it to drift to.
  *
  * WHAT REACHES THE CLIENT
  * -----------------------
- * The provider is handed four namespaces rather than the whole catalog. The site
+ * The provider is handed five namespaces rather than the whole catalog. The site
  * is server rendered almost everywhere, and the handful of components that do
  * hydrate need labels for a menu, a toggle, a dismiss button and a language
  * list. Serialising every documentation page's prose into the HTML so a theme
@@ -44,7 +44,13 @@ import "@/app/globals.css";
  * nothing.
  */
 
-const CLIENT_NAMESPACES = ["common", "nav", "announce", "localeSwitcher"] as const;
+const CLIENT_NAMESPACES = [
+  "common",
+  "nav",
+  "announce",
+  "localeSwitcher",
+  "proPortal",
+] as const;
 
 /**
  * The offer banner's copy, in every language, gathered at build time.
@@ -69,7 +75,7 @@ export async function SiteHtml({
   locale,
   children,
   /**
-   * Off for the three English only trees. A switcher on the dashboard would
+   * Off for the two English only trees. A switcher on the dashboard would
    * offer a Portuguese dashboard that does not exist, and decision 4 is that the
    * control points at the same page in another language or it does not appear.
    */
@@ -95,7 +101,7 @@ export async function SiteHtml({
           literal `<head>`; the rule only fires because the element now lives in a
           component rather than directly in the layout file. `next/head` is the
           Pages Router's API and would be wrong here. The element moved because
-          four root layouts share one document. */}
+          three root layouts share one document. */}
       <head>
         {/* Applies a stored theme choice before first paint. See lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: themeArmScript }} />

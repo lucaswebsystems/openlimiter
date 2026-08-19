@@ -70,14 +70,9 @@ keep it in English: it is a status value, not an adjective.
 
 ## 3. Prices, numbers and dates
 
-Never edit a number. `$5` and `$10` reach the sentence as arguments, so what you
-translate is the sentence around them:
-
-    "pro.priceNote": "{regular} is the planned regular price. Early supporters keep {founding}."
-
-Keep `{regular}` and `{founding}` exactly as written, both of them, spelled the
-same way. The gate fails a message whose arguments do not match the English
-message's.
+Never edit a price. `$5` monthly and `$50` yearly come from `lib/site.ts`, so a
+translation supplies only the sentence around each value. The thirty day trial
+is a duration, not a discount percentage or a countdown.
 
 Same for `{count}`, `{name}` and every other brace. A plural looks like this and
 the inner structure is ICU rather than prose:
@@ -89,10 +84,9 @@ Translate the words inside the braces. Keep `#`, keep the keywords `plural`,
 (`few`, `many`, `zero`) where the rules require them. Japanese needs only
 `other`.
 
-**Never state a price OpenLimiter has not charged.** Pro is not built and has
-never been sold. `$10` is a planned price and is always written in the future
-tense. Do not add a discount framing, an end date or a countdown that the English
-does not have.
+The public contract is `$5` monthly or `$50` yearly, with the first thirty days
+free. Do not add another price, a discount percentage, an end date, or a
+countdown that the English does not have.
 
 ## 4. Tags inside a message
 
@@ -110,8 +104,10 @@ or renamed tag throws at render time.
 
 The English copy is plain, declarative and specific, and it never claims
 something the product does not do. Several sentences exist purely to say what
-OpenLimiter refuses to do: it does not upload anything, it does not route
-requests for you, it does not invent a number it does not have, Pro is not built.
+OpenLimiter refuses to do: local mode sends nothing to OpenLimiter, provider
+credentials never enter Pro, it does not execute a route for you, and it does
+not invent a number it does not have. Pro sends only selected bounded quota
+snapshots after an explicit sign in.
 
 Translate that flatly. Do not soften a refusal into a promise, do not add
 marketing enthusiasm the English does not have, and do not turn a hedge into a

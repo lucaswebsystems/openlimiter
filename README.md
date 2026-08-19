@@ -25,7 +25,7 @@
 
 OpenLimiter is an open source, cross platform tool that connects your AI providers and shows your quota limits at a glance. The free tier lets you connect providers from the desktop app and see every real quota window; the web app views that same quota state and imports a document or takes manual entry instead of connecting anything itself. It runs on your machine and needs no account.
 
-In local mode, OpenLimiter has zero telemetry and no OpenLimiter account, and nothing ever phones home to OpenLimiter. A connected reader talks only to its own provider's allowlisted endpoint, so provider traffic leaves your machine exactly when you connect a provider. Optional cloud features, when they exist, are opt in and separately documented.
+In local mode, OpenLimiter has zero telemetry and no OpenLimiter account. A connected reader talks only to its own provider through a fixed allowlist, so provider traffic leaves your machine exactly when you connect that provider. Optional Pro sends selected bounded quota snapshots to the hosted service only after you sign in. Provider credentials, prompts, and source code never enter Pro.
 
 OpenLimiter only ever advises. It never routes requests automatically, bypasses limits, or mutates a provider's authentication files. With your explicit consent, the desktop app can detect whether Claude Code is wired and guide you through the setup with a copy and paste snippet. Apache License 2.0.
 
@@ -113,7 +113,7 @@ The CLI, the agent context hook, and the statusline are powerful tools for devel
 | `openlimiter snapshot` | prints the current cache as a table |
 | `openlimiter serve` | publishes read only quota on your local network behind a rotating token |
 
-The statusline includes a PREFER recommendation that names the provider with the lowest usage. This is advice only. OpenLimiter does not route requests, switch providers, or intercept API calls. Automatic routing is not shipped and is not planned for v1.
+The statusline includes a PREFER recommendation that names the provider with the lowest usage. This is advice only. Pro can add live hosted budget state to the same coding agent context so the agent can choose a plan with room. OpenLimiter does not intercept, execute, or redirect a request, and it never changes agent authentication.
 
 ## Providers
 
@@ -130,13 +130,13 @@ None of the six is verified against a live account yet. Missing, expired, or mal
 
 ## Pro
 
-OpenLimiter Pro is a planned paid tier at $10 a month, and the first 30 days will be free. The services on the roadmap are sync across your devices, phone and email alerts when a window is nearing its cap, usage history and forecasting, budget guardrails, and device management. None of these are built yet. There is no checkout and no release date. Progress lives on the [roadmap](https://openlimiter.com/docs/roadmap).
+OpenLimiter Pro is the optional hosted tier at $5 a month or $50 a year. The first 30 days are free and begin at first sign in. It contains exactly three services: email when a provider crosses your threshold or resets, ninety day usage history with burn rate forecasts, and live budget context for coding agent routing. Phone features and quota synchronization are not part of Pro. The checkout portal and signed entitlement client are included in this source tree, while the hosted implementation remains private.
 
 Multiple accounts per provider is **not** on that list, and will not be. Using more than one account of the same provider is a property of how connections are stored and identified, not a switch, and selling it would contradict both the rule that nothing local is ever paywalled and the rule that the free tier has no connection cap. It works for everybody, on every plan.
 
 ## Security
 
-Everything a provider or a script hands to OpenLimiter is treated as untrusted. Connectors keep only known numeric fields and timestamps, and the block the hook emits is wrapped in an explicit untrusted data boundary. No connector rewrites, backs up, or migrates a provider's authentication files. In local mode, OpenLimiter has no telemetry of any kind. When you connect a provider in the desktop app, that connection talks only to the provider's own allowlisted endpoint, and the credential stays in your operating system's credential store.
+Everything a provider or a script hands to OpenLimiter is treated as untrusted. Connectors keep only known numeric fields and timestamps, and every block the hook emits is rebuilt from a bounded schema inside an explicit untrusted data boundary. No connector rewrites, backs up, or migrates a provider authentication file. In local mode, OpenLimiter has no telemetry of any kind. When Pro is enabled, it receives only selected bounded quota snapshots after sign in. Provider credentials remain in the operating system credential store.
 
 Report a vulnerability privately through the repository [Security tab](https://github.com/lucaswebsystems/openlimiter/security/advisories/new), as described in [SECURITY.md](SECURITY.md). The full threat model is in [THREAT_MODEL.md](THREAT_MODEL.md).
 

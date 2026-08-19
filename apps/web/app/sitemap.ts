@@ -17,16 +17,16 @@ import { SITE_URL } from "@/lib/site";
  * five thin duplicates, and it is built from `localePath`, which is the same
  * function the canonical tags and the footer switcher use.
  *
- * An English only route appears once, with no alternates at all. The blog, the
- * web application and the founder console are English by decision, and claiming
- * a translation that does not exist is worse than claiming nothing. The console
- * is absent entirely, as it always was: it is noindexed and internal.
+ * An English only route appears once, with no alternates at all. The blog and
+ * web application are English by decision, and claiming a translation that
+ * does not exist is worse than claiming nothing.
  */
 
 /** The localised routes, in the order a reader meets them. */
 const LOCALISED_ROUTES: readonly { route: string; priority: number }[] = [
   { route: "/", priority: 1 },
   { route: "/download", priority: 0.9 },
+  { route: "/pro", priority: 0.9 },
   { route: "/changelog", priority: 0.7 },
   { route: "/terms", priority: 0.5 },
   ...docPages.map((page) => ({ route: page.href, priority: 0.8 })),

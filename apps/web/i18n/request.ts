@@ -6,7 +6,7 @@ import { routing } from "./routing";
  * What a request is told about its language.
  *
  * `requestLocale` is the `[locale]` segment when the route has one. The three
- * trees that sit outside it, the web application, the console and the blog, have
+ * trees that sit outside it, the web application and the blog, have
  * no segment to read, so they land on the default and get the English catalog.
  * That is deliberate: those surfaces stay English and still render the shared
  * chrome, and the chrome reads its labels from a catalog like everything else.

@@ -75,11 +75,7 @@ const linkClass =
   "hdr-ink focus-ring rounded text-sm text-muted transition-colors duration-200 hover:text-heading";
 
 /**
- * The one filled control in the header, and it goes to the price on this page.
- *
- * It is not a checkout, because there is no checkout: nothing here takes money
- * yet, and a button that looked like it did would be the first untrue thing on
- * the site. It scrolls to the pricing section, where the plan says what it is.
+ * The one filled control in the header opens the Pro sign in and checkout page.
  * Solid in both header states, so it never turns into a ghost over footage.
  */
 const proClass =
@@ -178,7 +174,7 @@ export async function Nav() {
                 <GlobeGlyph />
                 {routeLabels("webApp")}
               </SiteLink>
-              <SiteLink href="/#pricing" className={proClass}>
+              <SiteLink href="/pro" className={proClass}>
                 {t("getPro")}
               </SiteLink>
             </div>
@@ -187,7 +183,7 @@ export async function Nav() {
                 at 768 wrapped the wide row into two lines, so the sheet owns
                 that width too: two controls beside the mark, and never a third. */}
             <div className="flex items-center gap-2 lg:hidden">
-              <SiteLink href="/#pricing" className={proClass}>
+              <SiteLink href="/pro" className={proClass}>
                 {t("getPro")}
               </SiteLink>
               <NavSheet

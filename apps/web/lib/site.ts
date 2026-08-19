@@ -56,36 +56,8 @@ export const LOGO_SIZE = 512;
 export const SPONSORS_URL = "https://github.com/sponsors/lucaswebsystems";
 export const COFFEE_URL = "https://buymeacoffee.com/lucaswebsystems";
 
-/**
- * OpenLimiter Pro, and the exact words allowed around its one number.
- *
- * Pro is not built. It has never been sold, at any price, to anybody, and no
- * surface on this site may imply otherwise.
- *
- * THERE IS ONE PRICE NOW.
- * ----------------------
- * The $5 founding price and the struck $10 regular price were both retired on
- * 2026-08-15 and replaced by a single $10 with the first month free. Nobody had
- * ever paid either number, so no promise was broken by dropping them, and one
- * price survives translation into five languages where three price sentences
- * kept disagreeing with each other.
- *
- * There is no `PRO_REGULAR_PRICE` any more, and nothing may reintroduce a
- * struck price, a percentage off, an end date or a countdown. All four invent a
- * history this product does not have.
- *
- * THE FREE MONTH IS WRITTEN IN THE FUTURE TENSE, EVERYWHERE.
- * ---------------------------------------------------------
- * The trial cannot begin until there is a service to trial. Its clock starts at
- * first sign in, and sign in does not open until the Pro rails and the first
- * service are both live. So no surface may invite a reader to start a free
- * month today: it says the first month *will be* free, never that it is
- * available now. The day that stops being true, this comment is what changes
- * first.
- *
- * The number lives here and only here, so a translation cannot change a price.
- */
-export const PRO_PRICE = "$10";
+export const PRO_MONTHLY_PRICE = "$5";
+export const PRO_YEARLY_PRICE = "$50";
 
 export const AUTHOR_NAME = "Lucas Costa";
 export const AUTHOR_EMAIL = "lucas@lucaswebsystems.com";

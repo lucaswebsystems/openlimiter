@@ -57,7 +57,7 @@ export const LOCALE_HINT_MAX_AGE = 60 * 60 * 24;
 export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 /**
- * The three trees that exist in English only.
+ * The two trees that exist in English only.
  *
  * They live outside `app/[locale]`, so a locale prefix in front of any of them
  * is a 404. Two places have to know that and they both read it from here: the
@@ -67,7 +67,7 @@ export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
  * A new English only tree is added here in the same commit that creates it, or
  * it breaks in Portuguese and nowhere else.
  */
-export const UNLOCALISED_PREFIXES = ["/app", "/admin", "/blog"] as const;
+export const UNLOCALISED_PREFIXES = ["/app", "/blog"] as const;
 
 export function isUnlocalisedRoute(pathname: string): boolean {
   return UNLOCALISED_PREFIXES.some(

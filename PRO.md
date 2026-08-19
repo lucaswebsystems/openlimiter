@@ -1,113 +1,57 @@
-# What is open, what is not, and why
+# OpenLimiter Pro
 
-OpenLimiter is open source under Apache 2.0. OpenLimiter Pro is a set of services
-that run on servers, and the code that runs those servers is private.
+OpenLimiter is open source under Apache 2.0. OpenLimiter Pro is an optional set of hosted services whose server implementation is private.
 
-This document exists because that split deserves a plain explanation rather than
-a discovery. If you are deciding whether to depend on this project, the answer
-you want is here.
+## The public and private line
 
-## The line
+This public repository contains the entire local product, every connector, the engine, the command line tool, both dashboards, the local agent context block, and the Pro client contract. The Pro client includes sign in, checkout, offline entitlement verification, silent refresh, hosted calls, and the bounded context file read by the coding agent hook.
 
-**Public, in this repository, Apache 2.0:**
+The separate private repository contains payment event handling, entitlement issuance, database migrations, and hosted service logic. No private key or server secret belongs in this repository.
 
-- The entire local product. Every connector, every meter, the whole engine.
-- The command line tool and the statusline.
-- Both dashboards, the desktop window and the web application.
-- The agent context block and its routing advice.
-- The Pro **client**: the sign in screen, the code that reads your entitlement,
-  and the calls it makes to the Pro API.
-
-**Private, in a separate repository:**
-
-- The Pro server: database schema, edge functions, the payment webhook.
-- Entitlement logic. The decision about whether an account is entitled is made
-  on the server and never in the client.
-- Every key and secret, which live in the hosting provider and nowhere else.
-
-## Why the client is public even though it is part of a paid feature
-
-Because hiding it would buy nothing, and because you should be able to read the
-code that runs on your own machine.
-
-The client asks a server whether an account is entitled. Publishing that code
-tells you exactly what it sends and what it receives, which is the point: a
-program that talks to a network on your behalf should be inspectable. Hiding it
-would make the product less trustworthy without making it more profitable.
-
-## The honest version of the moat
-
-It would be easy to write that keeping the server private makes Pro impossible
-to bypass. That would not be true, and this project does not say untrue things
-about itself.
-
-Anyone can read the public client, see the shape of the API, and stand up their
-own server that returns an entitlement. Nothing stops that. For a determined
-developer it is an afternoon.
-
-What actually makes Pro worth paying for is not that the alternative is
-impossible. It is that the alternative is running a multi device, encrypted,
-always available sync service yourself, keeping it patched, and being your own
-on call engineer for it. That costs more than ten dollars a month in time alone,
-long before it costs anything in infrastructure.
-
-If you would rather run it yourself, you genuinely can, and that is a feature of
-this licence rather than a hole in it.
+Publishing the client is deliberate. You can inspect every network value the application sends and every rule used to accept a signed entitlement on your machine. The private service remains the operated product.
 
 ## Nothing local is ever paywalled
 
-This is the oldest promise in the project and the one that constrains everything
-else.
+Every feature that runs on your machine is free and stays free. This promise covers every connector, every meter, every local notification, every dashboard, every command line feature, every statusline option, local advice, manual entry, and local ingestion.
 
-Every feature that runs on your machine is free, and stays free, and is covered
-by a licence that cannot be revoked for the code already published. Pro sells
-servers and service, never a switch that disables something you already had.
+An entitlement check protects only a hosted service call. If Pro access ends, the hosted services stop. The local application does not lose a feature, change a meter, or require a reinstall.
 
-The practical consequence is what happens when a Pro subscription ends: the
-server services stop, and **the application does not change**. Same connectors,
-same meters, same command line tool, same dashboards, same everything. You keep
-using the product exactly as you did before you ever had an account.
+## What Pro contains
 
-This is also the reason a local paywall would be pointless even if the promise
-did not exist. This binary is Apache 2.0. A check that disabled a local feature
-would be removed by the first person who forked the repository, and the only
-people it would ever inconvenience are the ones who did not.
+Pro contains exactly three hosted services.
 
-## The trial
+1. Email when a provider crosses a chosen threshold or resets.
+2. Ninety day usage history with burn rate forecasts.
+3. Live budget context for coding agent routing.
 
-When Pro ships, the first 30 days will be free, with no card required.
+The routing context is advice. The coding agent chooses whether to follow it. OpenLimiter never intercepts, executes, redirects, or authenticates an agent request.
 
-Three details that matter:
+Phone features, quota synchronization between devices, device management, weekly digests, team dashboards, and priority requests are not part of Pro.
 
-- The clock starts at **first sign in**, not at download. You can use OpenLimiter
-  forever without an account, and until you make one, no clock is running.
-- It is **30 days**, not "a month". A calendar month is 28 to 31 days depending
-  on which one you are standing in, and a trial should not be vaguer than that.
-- When it ends, the Pro server services stop and nothing local changes. There is
-  no lockout, no downgrade of the application, and nothing to reinstall.
+## Price and trial
 
-**Pro does not exist yet.** There is no checkout, no card form and no waiting
-list, and no trial is running for anybody. Every sentence about Pro on the
-website and in this document is written in the future tense on purpose. When
-that stops being true, this section is one of the things that changes.
+Pro costs $5 per month or $50 per year. The first 30 days are free and require no card. The clock starts at first sign in, not at download, and it cannot be restarted by creating another checkout session for the same account.
 
-## If this project is ever abandoned
+When the trial or subscription ends, only hosted access ends. Local mode remains unchanged.
 
-The local product is Apache 2.0 and published. That cannot be taken back, and it
-does not depend on anybody continuing to care.
+## Entitlement behavior
 
-The server side is a different question, and it is one every paid service should
-answer before it takes money rather than after. The commitments will be written
-here before the first payment is accepted, not after.
+The desktop verifies an Ed25519 signed device entitlement offline against public keys embedded at build time. The token lasts five days, requests a silent refresh after three days, and permits ten additional days of offline grace after expiry.
 
-## Questions this document should answer but does not yet
+Each token is bound to one device identifier and carries a monotonic sequence plus a one time identifier. The client keeps its trust anchor and session in the operating system credential store. Older sequences are rejected. A pending request identifier makes retry idempotent, and a cache write can be recovered if the process stops before the trust write completes.
 
-Held open honestly rather than left implied:
+The token carries trusted server time. A local clock rollback beyond the accepted tolerance fails closed and requires a server refresh. Multiple embedded public keys may coexist, so a new signing key can overlap the old key during rotation. If the service is unavailable, a verified token continues through its bounded grace period. Revocation stops refresh, so hosted access ends when that grace period ends.
 
-- The merchant of record, the jurisdiction, and who handles VAT and sales tax.
-- Refunds, cancellation and what happens to a disputed payment.
-- The privacy notice, the data deletion path, and how long payment records are
-  kept.
+## What Pro sends
 
-None of these are optional and none of them are written yet. They are gates on
-the first Pro release, not follow ups after it.
+After explicit sign in, the desktop may send selected provider code, meter code, bounded usage percentage, and reset time to the hosted service. That data supports alerts, history, forecasts, and routing context.
+
+Provider credentials, provider response bodies, prompts, source code, local configuration, and diagnostics never enter Pro. The returned routing context is treated as untrusted data and rebuilt from a closed shape before the coding agent hook reads it.
+
+Local mode sends no data to OpenLimiter and needs no account.
+
+## Public build configuration
+
+The web portal needs `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Both are public Supabase client values. The desktop build needs `OPENLIMITER_PRO_URL` and `OPENLIMITER_PRO_PUBLIC_KEYS` at compile time. The key list uses comma separated `identifier:value` entries so two verification keys can overlap during rotation.
+
+None of these values grants server write authority. Service role values, Stripe secrets, webhook secrets, and Ed25519 private keys must never enter a public build.

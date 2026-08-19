@@ -2,13 +2,13 @@
 
 ## Protected assets
 
-Protected assets include provider credentials, browser sessions, quota state, local configuration, and agent context integrity.
+Protected assets include provider credentials, browser sessions, quota state, local configuration, Pro sessions, entitlement trust state, and agent context integrity.
 
 ## Agent context injection boundary
 
 Provider text is untrusted data. Connector parsers select known numeric fields and known timestamps. They discard labels, messages, account text, markup, and unknown fields.
 
-The advice engine emits only provider enum codes, reason enum codes, bounded percentages, freshness enum codes, and timestamps. The Claude Code adapter validates these values again and wraps them in an explicit untrusted data boundary.
+The advice engine emits only provider enum codes, reason enum codes, bounded percentages, freshness enum codes, and timestamps. The Claude Code adapter validates these values again and wraps them in an explicit untrusted data boundary. Optional hosted routing context is also parsed and rebuilt from a closed provider and percentage shape before it is appended.
 
 If every provider is unknown, the adapter injects nothing.
 
@@ -30,7 +30,7 @@ A well formed response whose meaning has changed is the dangerous case, because 
 
 ## Egress allowlist
 
-The desktop application performs provider egress. Nothing else in the project does: the command line tool and the web application still read only local state.
+The desktop application performs provider egress. Local command line and hook paths still read only local state.
 
 Every address the desktop process can reach is a compile time constant in `apps/desktop/src-tauri/src/net.rs`, reachable only through the closed `ProviderEndpoint` enum. There is no command that fetches a URL, and no URL, host, header, or method crosses IPC, appears in a provider specification, or is read out of a provider response. The transport speaks HTTPS only, refuses redirects, applies a fifteen second total budget, and bounds a response at one mebibyte. A body outside the 200 range is dropped unread.
 
@@ -39,6 +39,12 @@ Which address a stored secret may be sent to is decided by `reader_route`, exhau
 One reader takes two requests. OpenCode publishes no usage interface, so its meters are read from a logged in workspace page whose path is per account. Both addresses are still constants; the workspace handle between them is parsed out of a redirect target, validated against the provider's own opaque token shape, and joined between two constants. The redirect is never followed.
 
 No connector may send cache content, other provider state, prompts, source code, or diagnostics.
+
+Optional Pro adds a separate egress boundary. The desktop build carries one trusted HTTPS service origin and calls only fixed entitlement and hosted service paths. After explicit sign in it may send selected provider code, meter code, bounded usage percentage, and reset time. It never sends provider credentials, provider response bodies, prompts, source code, local configuration, or diagnostics. The session and trust anchor live in the operating system credential store.
+
+The web Pro portal talks to the configured Supabase project for magic link authentication and the closed checkout function. A successful checkout redirects to Stripe. The project URL and anonymous Supabase key are public build values. No service role value, Stripe secret, signing private key, or private database shape appears in this repository.
+
+The Pro client verifies a short lived Ed25519 device entitlement offline. Device binding, monotonic sequence, one time identifiers, and an idempotent pending request reject copied or replayed state. Trusted server time makes a clock rollback fail closed. Multiple embedded public keys permit overlap during rotation. Service downtime is bounded by the signed grace period. Revocation stops refresh, so hosted access ends after that grace period.
 
 ## Completion integrity
 
@@ -60,4 +66,6 @@ This is accepted rather than fixed tonight, for a stated reason. Closing the par
 
 ## Telemetry
 
-OpenLimiter has no telemetry. It does not send usage, diagnostics, identifiers, prompts, or quota state to the project authors.
+Local mode has no telemetry. It does not send usage, diagnostics, identifiers, prompts, or quota state to the project authors.
+
+Pro is explicit opt in service data, not hidden telemetry. It receives the selected bounded quota fields described above only after sign in. The public website keeps cookieless page counts as documented separately.

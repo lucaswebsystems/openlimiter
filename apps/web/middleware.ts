@@ -15,7 +15,7 @@ import {
  * Everything else here is a file on disk built once. This runs on the edge in
  * front of those files and does three things, in this order, and nothing else.
  *
- *   1. Gets out of the way of the three trees that are not localised.
+ *   1. Gets out of the way of the two trees that are not localised.
  *   2. Sends a returning reader who has chosen a language to that language, at
  *      the bare root only.
  *   3. Notes what Accept-Language asked for, with a country fallback when it
@@ -90,7 +90,7 @@ export default function middleware(request: NextRequest): NextResponse {
   /*
     THE MOST LOAD BEARING LINE IN THIS FILE.
 
-    The three English only trees must not be rewritten into `app/[locale]`. Hand
+    The two English only trees must not be rewritten into `app/[locale]`. Hand
     `/blog` to the rewrite and it becomes `/en/blog`, a route that does not
     exist, and the blog returns 404 in production and nowhere else. The list
     lives in i18n/routing.ts because the link component has to obey it too.

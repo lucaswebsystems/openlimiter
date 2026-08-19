@@ -5,6 +5,7 @@ dist/
 out/
 .env
 .env.*
+!.env.example
 *.local
 coverage/
 .test-dist/

@@ -2,44 +2,7 @@ import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { ButtonLink, Chip, SectionHeading } from "./ui";
 import { reveal, revealGroup } from "@/lib/motion";
-import { LICENSE_URL, PRO_PRICE, REPO_URL } from "@/lib/site";
-
-/**
- * Pricing.
- *
- * The section exists to answer one question honestly: what costs money, and
- * what never will. The answer is a line, not a table. Everything that runs on
- * your own machine is free under Apache 2.0 and stays free. The only thing
- * that could ever be sold is a service that runs on somebody's servers, and
- * servers cost money whoever owns them.
- *
- * The rule this file is written under: **nothing here is for sale today.**
- * OpenLimiter Pro is not built. There is no checkout, no card form, no waiting
- * list and no email capture, and the card says so in its own heading rather
- * than in small print underneath. Every line in the Pro list is a service that
- * does not exist yet, which is why the list is marked once at the top rather
- * than pretending some of it is closer than the rest.
- *
- * The one line in the free list that is not shipped is marked in place, and it
- * is marked because it will be free when it lands, which is the whole reason
- * for listing it on that side of the section.
- *
- * THE ONE NUMBER STAYS IN CODE
- * ----------------------------
- * `PRO_PRICE` is read from lib/site.ts rather than typed into five catalogs. A
- * price that can be edited in a translation is a price that can disagree with
- * itself in one language, and the rule about how it may be described is the
- * strictest rule on the site.
- *
- * There used to be two numbers here: a struck $10 regular price and a $5
- * founding price. Both were retired on 2026-08-15 for a single $10 with the
- * first month free. Nothing may put a struck price, a percentage off or a
- * countdown back on this card.
- *
- * The offer is written in the future tense on purpose. The trial clock starts
- * at first sign in, sign in is not open yet, and this card must never read as
- * an invitation to start a free month today.
- */
+import { LICENSE_URL, PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE, REPO_URL } from "@/lib/site";
 
 function CheckGlyph() {
   return (
@@ -98,19 +61,9 @@ const FREE_LINES: readonly { id: string; planned?: boolean }[] = [
 ];
 
 const PRO_LINES: readonly { id: string }[] = [
-  { id: "sync" },
-  { id: "push" },
-  { id: "smartLimiter" },
-  { id: "email" },
-  /* "More than one account per provider" used to sit here and has been retired.
-     Using two accounts of the same provider is a property of how connections are
-     stored and identified, not a switch that can be sold: the schema needs an
-     account identity either way. Charging for it would contradict both "nothing
-     local is ever paywalled" and "the free tier has no connection cap". Three
-     independent reviews reached that conclusion separately. Do not put it back. */
+  { id: "alerts" },
   { id: "history" },
-  { id: "priority" },
-  { id: "team" },
+  { id: "routing" },
 ];
 
 function PlanList({
@@ -227,32 +180,37 @@ export async function Pricing() {
         <PlanCard
           title="OpenLimiter Pro"
           status={t("pro.status")}
-          statusTone="neutral"
+          statusTone="accent"
           price={
             <>
               <p className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                {/* One number, and no struck price beside it. A struck number
-                    reads as a price that was once charged, and this product has
-                    never charged anybody anything. The chip carries the offer
-                    instead, which is a fact about the future rather than a
-                    claim about the past. */}
                 <span className="text-4xl font-medium tracking-tight text-heading">
-                  {PRO_PRICE}
+                  {PRO_MONTHLY_PRICE}
                 </span>
                 <span className="text-sm text-muted">{t("pro.perMonth")}</span>
                 <Chip tone="accent" className="uppercase tracking-wider">
                   {t("pro.trialChip")}
                 </Chip>
               </p>
+              <p className="mt-2 text-sm text-muted">
+                {t("pro.or")} <strong>{PRO_YEARLY_PRICE}</strong> {t("pro.perYear")}
+              </p>
               <p className="mt-2 text-xs leading-relaxed text-muted">{t("pro.priceNote")}</p>
             </>
           }
           lead={t("pro.lead")}
-          footnote={t("pro.footnote")}
+          footnote={
+            <div className="space-y-4">
+              <p>{t("pro.footnote")}</p>
+              <ButtonLink href="/pro" tone="primary">
+                {t("pro.cta")}
+              </ButtonLink>
+            </div>
+          }
         >
           <PlanList
             lines={PRO_LINES}
-            glyph="planned"
+            glyph="check"
             label={(id) => t(`pro.lines.${id}`)}
             plannedLabel={t("plannedChip")}
           />
