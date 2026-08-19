@@ -71,6 +71,7 @@ async function TargetCard({ target }: { target: DownloadTarget }) {
   const command = shipped ? target.command : undefined;
   const href = shipped ? target.href : undefined;
   const assets = shipped ? target.assets : undefined;
+  const instructions = shipped ? target.instructions : undefined;
 
   /* Every word this row shows sits under the row's own id, so no row can borrow
      another row's prose. A row with no note and no requirement has no such key,
@@ -107,6 +108,21 @@ async function TargetCard({ target }: { target: DownloadTarget }) {
 
       {t.has(words("note")) && (
         <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">{t(words("note"))}</p>
+      )}
+
+      {instructions !== undefined && instructions.length > 0 && (
+        <div className="mt-4 grid gap-3">
+          {instructions.map((instruction) => (
+            <div key={instruction.id}>
+              <p className="mb-1.5 text-xs font-medium text-soft">
+                {t(words(`instructions.${instruction.id}`))}
+              </p>
+              <pre className="overflow-x-auto rounded-lg border border-hairline bg-code p-4 font-mono text-2xs leading-6 text-soft">
+                <code>{instruction.command}</code>
+              </pre>
+            </div>
+          ))}
+        </div>
       )}
 
       {href !== undefined && (

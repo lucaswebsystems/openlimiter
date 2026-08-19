@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "OpenLimiter, quota awareness for AI coding agents",
-    "description": "OpenLimiter reads the quota of your AI subscriptions on your own machine and hands your coding agents bounded budget state plus routing advice. Open source, local first, zero telemetry."
+    "description": "OpenLimiter reads the quota of your AI subscriptions on your own machine and gives coding agents bounded budget state plus routing advice. Open source, local first, with zero telemetry in local mode."
   },
   "common": {
     "skipToContent": "Skip to content",
@@ -30,8 +30,8 @@
     "closeMenu": "Close menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro: $10 a month, and the first 30 days will be free. Coming soon",
-    "short": "OpenLimiter Pro: first 30 days free, coming soon",
+    "message": "OpenLimiter Pro: $5 a month or $50 a year. The first 30 days are free",
+    "short": "OpenLimiter Pro: first 30 days free",
     "dismiss": "Close this announcement"
   },
   "footer": {
@@ -210,7 +210,7 @@
   },
   "worksWith": {
     "title": "Works with your tools",
-    "lead": "One meter over every subscription you already hold. Connect a provider from the desktop application, or feed one in through manual entry or ingest under Advanced. Local mode has zero telemetry and no account; a live connection talks only to that provider's own endpoint, never to OpenLimiter, because no OpenLimiter cloud exists yet.",
+    "lead": "One meter over every subscription you already hold. Connect a provider from the desktop application, or use manual entry or ingest under Advanced. Local mode has zero telemetry and no account. Pro sends only selected bounded quota snapshots to the hosted service after you sign in.",
     "groups": {
       "today": {
         "label": "Ships today",
@@ -385,7 +385,7 @@
     "items": {
       "whatLeaves": {
         "question": "What actually leaves my machine?",
-        "answer": "In local mode, nothing: there is no telemetry, no analytics, and no OpenLimiter server to receive anything, because no OpenLimiter cloud exists yet. When you connect a provider in the desktop application, that connection talks only to the provider's own endpoint over an allowlist, and the credential stays in your operating system's credential store. Either way, nothing ever phones home to OpenLimiter."
+        "answer": "In local mode, nothing leaves for OpenLimiter. Provider connections talk only to that provider through a fixed allowlist, and credentials stay in the operating system credential store. If you choose Pro, selected bounded quota snapshots go to the hosted service for alerts, history, forecasts, and agent routing. Provider credentials never go there."
       },
       "safeToPoint": {
         "question": "Is it safe to point at my tools?",
@@ -421,7 +421,7 @@
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "A planned paid tier at $10 a month with the first 30 days free, for the things that can only run on servers: encrypted synchronisation across your devices, push notifications to your phone, email alerts and a weekly digest, hosted usage history and forecasting, budget guardrails for your own usage, device management, and a team tier later. It is not built. There is no checkout and no waiting list, and nothing that runs locally today ever moves behind it."
+        "answer": "OpenLimiter Pro is the optional hosted tier at $5 a month or $50 a year, with the first 30 days free. It contains exactly three services: threshold and reset email alerts, ninety day history with forecasts, and live budget context for coding agent routing. Every local feature remains free."
       }
     }
   },
@@ -446,21 +446,20 @@
       }
     },
     "pro": {
-      "status": "not built",
+      "status": "available",
       "perMonth": "a month",
+      "or": "or",
+      "perYear": "a year",
       "trialChip": "30 days free",
-      "priceNote": "The first 30 days will be free when Pro ships, with no card required. When they end, the Pro server services stop and nothing that runs on your machine changes.",
-      "lead": "Services that run on servers rather than on your machine. Every line below is coming and none of it exists yet: there is no checkout, no card form and no waiting list.",
-      "footnote": "Nothing local ever moves behind this plan. Pro sells servers and service, not switches.",
+      "priceNote": "The first 30 days are free with no card required. When access ends, only the hosted services stop. Nothing local changes.",
+      "lead": "Exactly three hosted services, protected by a signed Pro entitlement.",
+      "footnote": "Nothing local ever moves behind this plan. Pro sells hosted service, never local switches.",
       "lines": {
-        "sync": "Encrypted synchronisation of quota state across your own devices",
-        "push": "Push notifications to your phone when a window nears its cap",
-        "smartLimiter": "Budget guardrails: the thresholds and alerts you set around your own usage",
-        "email": "Email alerts and a weekly digest",
-        "history": "Hosted usage history and forecasting across every device",
-        "priority": "Device management: see which devices are signed in, and remove one you no longer use",
-        "team": "A team dashboard tier, later than the rest"
-      }
+        "alerts": "Email when a provider crosses your threshold or resets",
+        "history": "Ninety day usage history with burn rate forecasts",
+        "routing": "Live budget context that advises your coding agent which plan has room"
+      },
+      "cta": "Start 30 days free"
     },
     "roadmapCta": "What is actually planned",
     "sourceCta": "Read the source"
@@ -471,11 +470,11 @@
     "commitments": {
       "runsLocal": {
         "title": "It runs on your machine",
-        "detail": "Local mode has zero telemetry and no account. When you connect a provider in the desktop application, that connection talks only to the provider's own endpoint over an allowlist, with the credential held in your operating system's credential store. Nothing phones home to OpenLimiter, because no OpenLimiter cloud exists yet."
+        "detail": "Local mode has zero telemetry and no account. Provider connections talk only to that provider through a fixed allowlist, with credentials held by the operating system. Pro is optional and sends selected bounded quota snapshots only after sign in."
       },
       "reportsNobody": {
         "title": "It reports to nobody",
-        "detail": "The software has no telemetry, no analytics, and no OpenLimiter server for anything to reach. This website keeps cookieless page counts only, with no cookies and nothing personal."
+        "detail": "Local mode reports to nobody and has no analytics. The website keeps cookieless page counts. Pro is optional and receives selected bounded quota snapshots only after sign in, never provider credentials."
       },
       "unknownStaysUnknown": {
         "title": "Unknown stays unknown",
@@ -535,7 +534,7 @@
           "setup": "Windows installer",
           "msi": "Windows MSI"
         },
-        "note": "Neither Windows build is code signed yet, so SmartScreen warns the first time you run it. Choose More info, then Run anyway.",
+        "note": "Neither Windows build is code signed yet, so SmartScreen warns on first run. Choose More info, then Run anyway. Continue only when the file came from the official OpenLimiter release link.",
         "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins. PowerShell or any terminal you like."
       },
       "macos": {
@@ -545,7 +544,10 @@
           "appleSilicon": "Apple silicon DMG",
           "intel": "Intel DMG"
         },
-        "note": "The disk images are not notarised yet, so Gatekeeper refuses to open the application on a double click. Right click it and choose Open the first time, then confirm.",
+        "note": "The disk images are not code signed or notarised, so Gatekeeper blocks the first launch. Drag OpenLimiter to Applications and try to open it once. Then open System Settings, Privacy & Security, choose Open Anyway beside OpenLimiter, and confirm Open. Use the command below only when that control is absent and the file came from the official release link.",
+        "instructions": {
+          "gatekeeper": "Terminal fallback after the blocked launch"
+        },
         "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins."
       },
       "linux": {
@@ -556,7 +558,12 @@
           "deb": "deb for Debian and Ubuntu",
           "rpm": "rpm for Fedora and openSUSE"
         },
-        "note": "The AppImage needs its executable bit set before it will run. Tick that box in your file manager, or run chmod +x on the file you downloaded.",
+        "note": "Choose one artifact. AppImage works without installation after its executable bit is set. Debian and Ubuntu use the deb file. Fedora and openSUSE use the rpm file. The commands below use the exact release file names.",
+        "instructions": {
+          "appImage": "Run the AppImage",
+          "deb": "Install on Debian or Ubuntu",
+          "rpm": "Install on Fedora or openSUSE"
+        },
         "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins."
       },
       "web-app": {
@@ -566,7 +573,7 @@
       },
       "desktop": {
         "name": "Desktop application",
-        "summary": "A tray icon beside the system clock, reading the same local cache the command line tool writes, so quota is glanceable with no terminal open. It is packaged for Windows, macOS and Linux, and every build is attached to the same release. There is no automatic update channel yet, so a new version means downloading it again.",
+        "summary": "A tray icon beside the system clock reads the same local cache as the command line tool, so quota is visible with no terminal open. It is packaged for Windows, macOS and Linux, and every build is attached to the same release. Automatic updates begin with the first updater enabled release. Earlier versions still need a manual download.",
         "note": "None of the desktop builds are code signed yet. Windows SmartScreen and macOS Gatekeeper both warn on first run, and each platform row above says how to get past it."
       },
       "iphone": {
@@ -1233,7 +1240,7 @@
               "noServer": "<strong>There is no OpenLimiter server.</strong> Nothing is sent to the project authors, because there is nowhere to send it.",
               "noTelemetry": "<strong>There is no telemetry.</strong> No command sends usage, diagnostics, identifiers, prompts, or quota state anywhere.",
               "hookNoNetwork": "<strong>The hook makes no network request.</strong> It reads the local cache and nothing else.",
-              "noEgress": "<strong>No OpenLimiter cloud exists to phone home to.</strong> Local mode has zero telemetry and no account. When you connect a provider in the desktop application, that connection talks only to the provider's own endpoint over an allowlist, and the credential stays in your operating system's credential store.",
+              "noEgress": "<strong>Local mode sends nothing to OpenLimiter.</strong> Provider connections talk only to that provider through a fixed allowlist. Optional Pro sends selected bounded quota snapshots to the hosted service after sign in, never provider credentials.",
               "unknownNeverZero": "<strong>Unknown never becomes zero.</strong> Missing, expired, malformed, and unrecognised input all resolve to unknown.",
               "readOnlyArtifacts": "<strong>Provider authentication artifacts are read only.</strong> They are never rewritten, backed up, repaired, or migrated."
             }
@@ -1288,13 +1295,13 @@
       },
       "roadmap": {
         "title": "Roadmap",
-        "description": "What is planned and not yet built: mobile applications, encrypted sync, and signed builds with an automatic update channel.",
-        "lead": "What is on this page is not yet built, with one exception noted at the top so nothing here reads as a promise about something that already ships. None of the planned work can be downloaded, bought, or waited for on a list. It is written down so the shape of the project is honest about where it is going.",
+        "description": "What remains planned and not yet built: native mobile applications, code signing, and an automatic update channel.",
+        "lead": "OpenLimiter Pro is built. The items still marked planned below cannot be downloaded yet and have no waiting list. The distinction keeps this page honest about what ships now.",
         "sections": {
           "not-available": {
             "title": "Read this first",
             "calloutTitle": "Planned means not built",
-            "calloutBody": "Everything called planned below does not exist today. There is no mobile application in any store and no synchronisation service running anywhere. What works today is documented on the rest of this site, and the difference between the two is deliberate."
+            "calloutBody": "Every item marked planned below does not exist today. There is no native mobile application in any store, no code signing, and no automatic update channel. OpenLimiter Pro is listed separately as built."
           },
           "desktop": {
             "title": "Shipped: the desktop application",
@@ -1310,22 +1317,18 @@
             "intro": "Applications for iOS and Android, so a long running window can be checked away from the desk. The web app already installs to a phone home screen and works offline, which is the part of this that exists.",
             "bullets": {
               "status": "Status: planned. Nothing is submitted to any store.",
-              "dependsOnSync": "A phone cannot read a file on your laptop, so a native application that shows the numbers on your desk machine depends on the synchronisation work below."
+              "dependsOnSync": "Native mobile remains separate future work and is not part of OpenLimiter Pro. The web app already installs to a phone home screen and works offline."
             }
           },
           "sync": {
-            "title": "Planned: OpenLimiter Pro",
-            "intro": "Everything that can only run on a server, gathered into one planned paid tier at $10 a month, with the first 30 days free. Nothing that runs locally today moves behind it: Pro sells servers and service, not switches. See <pricing>pricing</pricing> for the card as it stands.",
+            "title": "Built: OpenLimiter Pro",
+            "intro": "OpenLimiter Pro is built as one optional hosted tier at $5 a month or $50 a year, with the first 30 days free. Nothing local moves behind it. See <pricing>pricing</pricing> for the current offer.",
             "bullets": {
-              "status": "Status: planned. No service exists, there is no checkout and no waiting list.",
-              "sync": "Encrypted synchronisation of quota state across your own devices.",
-              "push": "Push notifications to your phone when a window nears its cap.",
-              "smartLimiter": "Budget guardrails: the thresholds and alerts you set around your own usage.",
-              "email": "Email alerts and a weekly digest, with delivery rules for quiet hours.",
-              "history": "Hosted usage history and forecasting across every device.",
-              "priority": "Priority connector requests, so your provider gets built first.",
-              "team": "A team dashboard tier, later than the rest.",
-              "localFirst": "The local first guarantee does not change: the CLI would keep working with no account and no network."
+              "status": "Status: service rails are built. Checkout requires the production Supabase and Stripe configuration.",
+              "alerts": "Threshold and reset email alerts.",
+              "history": "Ninety day hosted usage history with burn rate forecasts.",
+              "routing": "Live budget context for coding agent routing.",
+              "localFirst": "The local first guarantee does not change. The command line tool and desktop local features work with no Pro account."
             }
           },
           "following": {
@@ -1335,5 +1338,22 @@
         }
       }
     }
+  },
+  "proPortal": {
+    "title": "OpenLimiter Pro",
+    "lead": "Sign in to start one 30 day period, then choose $5 a month or $50 a year. Local features never require this account.",
+    "configMissing": "Pro checkout is not configured in this build yet.",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "sendLink": "Send sign in link",
+    "linkSent": "Check your email for the sign in link.",
+    "signedIn": "You are signed in.",
+    "trialActive": "Your Pro access is ready. Local features remain free even when it ends.",
+    "checkoutMonthly": "Choose $5 monthly",
+    "checkoutYearly": "Choose $50 yearly",
+    "working": "Working",
+    "signOut": "Sign out",
+    "privacy": "Provider credentials never enter this page.",
+    "error": "Pro could not complete that request. Try again."
   }
 }

@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "OpenLimiter, consciência de quota para agentes de codificação com IA",
-    "description": "O OpenLimiter lê a quota das suas assinaturas de IA na sua própria máquina e entrega aos seus agentes de codificação um estado de orçamento limitado, além de recomendações de roteamento. Código aberto, local first, telemetria zero."
+    "description": "O OpenLimiter lê a quota das suas assinaturas de IA na sua máquina e entrega aos agentes de código um estado limitado do orçamento com orientação de rota. Código aberto, local primeiro, sem telemetria no modo local."
   },
   "common": {
     "skipToContent": "Pular para o conteúdo",
@@ -30,8 +30,8 @@
     "closeMenu": "Fechar menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro: $10 por mês, e os primeiros 30 dias serão gratuitos. Em breve",
-    "short": "OpenLimiter Pro: primeiros 30 dias grátis, em breve",
+    "message": "OpenLimiter Pro: $5 por mês ou $50 por ano. Os primeiros 30 dias são gratuitos",
+    "short": "OpenLimiter Pro: primeiros 30 dias gratuitos",
     "dismiss": "Fechar este aviso"
   },
   "footer": {
@@ -210,7 +210,7 @@
   },
   "worksWith": {
     "title": "Funciona com suas ferramentas",
-    "lead": "Um meter sobre cada assinatura que você já mantém. Conecte um provedor a partir do aplicativo de desktop, ou alimente um por manual entry ou ingest, em Avançado. O modo local tem telemetria zero e nenhuma conta; uma conexão ao vivo fala só com o próprio endpoint desse provedor, nunca com o OpenLimiter, porque ainda não existe nenhuma nuvem do OpenLimiter.",
+    "lead": "Um medidor para cada assinatura. Conecte um provedor pelo aplicativo de desktop ou use a entrada manual. O modo local não tem telemetria nem conta. O Pro envia dados limitados de quota ao serviço somente depois do login.",
     "groups": {
       "today": {
         "label": "Já disponíveis",
@@ -385,7 +385,7 @@
     "items": {
       "whatLeaves": {
         "question": "O que realmente sai da minha máquina?",
-        "answer": "No modo local, nada: não há telemetria, não há analytics, e não há nenhum servidor do OpenLimiter para receber qualquer coisa, porque ainda não existe nenhuma nuvem do OpenLimiter. Quando você conecta um provedor no aplicativo de desktop, essa conexão fala só com o próprio endpoint do provedor através de uma lista de permissões, e a credencial fica guardada no gerenciador de credenciais do seu sistema operacional. De um jeito ou de outro, nada se reporta jamais para o OpenLimiter."
+        "answer": "No modo local, nada sai para o OpenLimiter. As conexões falam somente com cada provedor e as credenciais ficam no gerenciador do sistema operacional. Se você escolher o Pro, dados limitados de quota vão ao serviço para alertas, histórico, previsões e rota do agente. As credenciais do provedor nunca vão para lá."
       },
       "safeToPoint": {
         "question": "É seguro apontar para minhas ferramentas?",
@@ -421,7 +421,7 @@
       },
       "pro": {
         "question": "O que é o OpenLimiter Pro?",
-        "answer": "Uma camada paga planejada, a $10 por mês, com os primeiros 30 dias gratuitos, para as coisas que só rodam em servidores: sincronização criptografada entre seus dispositivos, notificações push para o celular, alertas por email e um resumo semanal, histórico de uso e previsões hospedados, barreiras de orçamento para o seu próprio uso, gerenciamento de dispositivos, e uma camada de equipe mais adiante. Ainda não foi construído. Não há checkout e não há lista de espera, e nada que roda localmente hoje algum dia fica atrás dela."
+        "answer": "O OpenLimiter Pro é a camada hospedada opcional por $5 ao mês ou $50 ao ano, com os primeiros 30 dias gratuitos. Ela contém exatamente três serviços: alertas por email ao cruzar um limite ou resetar, noventa dias de histórico com previsões e contexto de orçamento para a rota do agente de código. Todos os recursos locais continuam gratuitos."
       }
     }
   },
@@ -446,21 +446,20 @@
       }
     },
     "pro": {
-      "status": "não construído",
+      "status": "disponível",
       "perMonth": "por mês",
-      "trialChip": "30 dias grátis",
-      "priceNote": "Os primeiros 30 dias serão gratuitos quando o Pro chegar, sem precisar de cartão. Quando terminarem, os serviços de servidor do Pro param e nada do que roda na sua máquina muda.",
-      "lead": "Serviços que rodam em servidores, não na sua máquina. Cada linha abaixo está a caminho e nenhuma delas existe ainda: não há checkout, não há formulário de cartão e não há lista de espera.",
-      "footnote": "Nada local algum dia fica atrás deste plano. O Pro vende servidores e serviço, não interruptores.",
+      "or": "ou",
+      "perYear": "por ano",
+      "trialChip": "30 dias gratuitos",
+      "priceNote": "Os primeiros 30 dias são gratuitos e não exigem cartão. Quando o acesso termina, somente os serviços hospedados param. Nada local muda.",
+      "lead": "Exatamente três serviços hospedados, protegidos por uma permissão Pro assinada.",
+      "footnote": "Nada local fica atrás deste plano. O Pro vende serviço hospedado, nunca interruptores locais.",
       "lines": {
-        "sync": "Sincronização criptografada do estado de quota entre seus próprios dispositivos",
-        "push": "Notificações push para o celular quando uma janela se aproxima do limite",
-        "smartLimiter": "Barreiras de orçamento: os limites e alertas que você configura para o seu próprio uso",
-        "email": "Alertas por email e um resumo semanal",
-        "history": "Histórico de uso e previsões hospedados em cada dispositivo",
-        "priority": "Gerenciamento de dispositivos: veja quais dispositivos estão conectados, e remova um que você não usa mais",
-        "team": "Uma camada de painel para equipes, mais adiante que o resto"
-      }
+        "alerts": "Email quando um provedor cruza seu limite ou reseta",
+        "history": "Noventa dias de histórico com previsões de consumo",
+        "routing": "Contexto de orçamento que orienta o agente para o plano com espaço"
+      },
+      "cta": "Começar 30 dias gratuitos"
     },
     "roadmapCta": "O que está realmente planejado",
     "sourceCta": "Ler o código fonte"
@@ -471,11 +470,11 @@
     "commitments": {
       "runsLocal": {
         "title": "Ele roda na sua máquina",
-        "detail": "O modo local tem telemetria zero e nenhuma conta. Quando você conecta um provedor no aplicativo de desktop, essa conexão fala só com o próprio endpoint do provedor através de uma lista de permissões, com a credencial guardada no gerenciador de credenciais do seu sistema operacional. Nada se reporta jamais para o OpenLimiter, porque ainda não existe nenhuma nuvem do OpenLimiter."
+        "detail": "O modo local não tem telemetria nem conta. As conexões falam somente com cada provedor e as credenciais ficam no sistema operacional. O Pro é opcional e envia dados limitados de quota somente depois do login."
       },
       "reportsNobody": {
         "title": "Ele não reporta para ninguém",
-        "detail": "O software não tem telemetria, não tem analytics, e não tem servidor do OpenLimiter para nada alcançar. Este site mantém apenas contagens de página sem cookies, sem nada pessoal."
+        "detail": "O modo local não reporta nada a ninguém e não tem analytics. O site conta páginas sem cookies. O Pro é opcional e recebe dados limitados de quota somente depois do login, nunca credenciais do provedor."
       },
       "unknownStaysUnknown": {
         "title": "Unknown continua unknown",
@@ -535,7 +534,7 @@
           "setup": "Instalador para Windows",
           "msi": "MSI para Windows"
         },
-        "note": "Nenhuma das duas builds do Windows é assinada digitalmente ainda, então o SmartScreen avisa na primeira vez que você a executa. Escolha Mais informações e depois Executar assim mesmo.",
+        "note": "Nenhuma das duas builds do Windows é assinada digitalmente ainda, então o SmartScreen avisa na primeira inicialização. Escolha Mais informações e depois Executar assim mesmo. Continue somente se o arquivo veio do link oficial de release do OpenLimiter.",
         "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa. PowerShell ou qualquer terminal de sua preferência."
       },
       "macos": {
@@ -545,7 +544,10 @@
           "appleSilicon": "DMG Apple silicon",
           "intel": "DMG Intel"
         },
-        "note": "As imagens de disco ainda não são notarizadas, então o Gatekeeper se recusa a abrir o aplicativo com um duplo clique. Clique com o botão direito e escolha Abrir na primeira vez, depois confirme.",
+        "note": "As imagens de disco não são assinadas nem notarizadas, então o Gatekeeper bloqueia a primeira inicialização. Arraste o OpenLimiter para Aplicativos e tente abrir o aplicativo uma vez. Depois abra Ajustes do Sistema, Privacidade e Segurança, escolha Abrir Mesmo Assim ao lado do OpenLimiter e confirme Abrir. Use o comando abaixo somente se esse controle não aparecer e o arquivo tiver vindo do link oficial do release.",
+        "instructions": {
+          "gatekeeper": "Alternativa pelo Terminal após a inicialização bloqueada"
+        },
         "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa."
       },
       "linux": {
@@ -556,7 +558,12 @@
           "deb": "deb para Debian e Ubuntu",
           "rpm": "rpm para Fedora e openSUSE"
         },
-        "note": "O AppImage precisa ter o bit de execução marcado antes de rodar. Marque essa opção no seu gerenciador de arquivos, ou rode chmod +x no arquivo baixado.",
+        "note": "Escolha um artefato. O AppImage funciona sem instalação depois que o bit de execução é definido. Debian e Ubuntu usam o arquivo deb. Fedora e openSUSE usam o arquivo rpm. Os comandos abaixo usam os nomes exatos dos arquivos do release.",
+        "instructions": {
+          "appImage": "Executar o AppImage",
+          "deb": "Instalar no Debian ou Ubuntu",
+          "rpm": "Instalar no Fedora ou openSUSE"
+        },
         "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa."
       },
       "web-app": {
@@ -566,7 +573,7 @@
       },
       "desktop": {
         "name": "Aplicativo de desktop",
-        "summary": "Um ícone de bandeja ao lado do relógio do sistema, lendo o mesmo cache local que a ferramenta de linha de comando escreve, então a quota fica visível de relance sem nenhum terminal aberto. Ele é empacotado para Windows, macOS e Linux, e toda build está anexada ao mesmo release. Ainda não há canal de atualização automática, então uma versão nova precisa ser baixada de novo.",
+        "summary": "Um ícone de bandeja ao lado do relógio do sistema lê o mesmo cache local que a ferramenta de linha de comando, então a quota fica visível sem nenhum terminal aberto. Ele é empacotado para Windows, macOS e Linux, e toda build fica anexada ao mesmo release. As atualizações automáticas começam com o primeiro release que ativar o atualizador. Versões anteriores ainda exigem download manual.",
         "note": "Nenhuma das builds de desktop é assinada digitalmente ainda. O SmartScreen do Windows e o Gatekeeper do macOS avisam na primeira execução, e cada linha de plataforma acima diz como contornar isso."
       },
       "iphone": {
@@ -1233,7 +1240,7 @@
               "noServer": "<strong>Não há servidor do OpenLimiter.</strong> Nada é enviado aos autores do projeto, porque não há para onde enviar.",
               "noTelemetry": "<strong>Não há telemetria.</strong> Nenhum comando envia uso, diagnósticos, identificadores, prompts, ou estado de quota para lugar nenhum.",
               "hookNoNetwork": "<strong>O hook não faz nenhuma requisição de rede.</strong> Ele lê o cache local e mais nada.",
-              "noEgress": "<strong>Não existe nenhuma nuvem do OpenLimiter para algo se reportar.</strong> O modo local tem telemetria zero e nenhuma conta. Quando você conecta um provedor no aplicativo de desktop, essa conexão fala só com o próprio endpoint do provedor através de uma lista de permissões, e a credencial fica guardada no gerenciador de credenciais do seu sistema operacional.",
+              "noEgress": "<strong>O modo local não envia nada ao OpenLimiter.</strong> As conexões falam somente com cada provedor. O Pro opcional envia dados limitados de quota ao serviço depois do login, nunca credenciais do provedor.",
               "unknownNeverZero": "<strong>Unknown nunca vira zero.</strong> Entrada ausente, expirada, malformada, e não reconhecida, todas se resolvem para unknown.",
               "readOnlyArtifacts": "<strong>Artefatos de autenticação de provedor são só leitura.</strong> Nunca são reescritos, salvos, consertados, ou migrados."
             }
@@ -1288,13 +1295,13 @@
       },
       "roadmap": {
         "title": "Roadmap",
-        "description": "O que está planejado e ainda não construído: aplicativos móveis, sincronização criptografada, e builds assinadas com um canal de atualização automática.",
-        "lead": "O que está nesta página ainda não foi construído, com uma exceção anotada no topo para nada aqui parecer uma promessa sobre algo que já vem hoje. Nenhum do trabalho planejado pode ser baixado, comprado, ou esperado numa lista. Está escrito para que a direção do projeto seja honesta sobre para onde ele está indo.",
+        "description": "O que continua planejado e ainda não foi construído: aplicativos móveis nativos, assinatura de código e um canal de atualização automática.",
+        "lead": "O OpenLimiter Pro está construído. Os itens ainda marcados como planejados não podem ser baixados e não têm lista de espera. Essa distinção mantém a página honesta.",
         "sections": {
           "not-available": {
             "title": "Leia isto primeiro",
             "calloutTitle": "Planejado significa ainda não construído",
-            "calloutBody": "Tudo chamado de planejado abaixo não existe hoje. Não há aplicativo móvel em nenhuma loja e nenhum serviço de sincronização rodando em lugar nenhum. O que funciona hoje está documentado no resto deste site, e a diferença entre os dois é deliberada."
+            "calloutBody": "Cada item marcado como planejado abaixo não existe hoje. Não há aplicativo móvel nativo em loja, assinatura de código nem canal de atualização automática. O OpenLimiter Pro aparece separadamente como construído."
           },
           "desktop": {
             "title": "Lançado: o aplicativo de desktop",
@@ -1310,22 +1317,18 @@
             "intro": "Aplicativos para iOS e Android, para uma janela de longa duração poder ser checada longe da mesa. O web app já se instala numa tela de início de celular e funciona offline, que é a parte disso que já existe.",
             "bullets": {
               "status": "Status: planejado. Nada foi enviado para nenhuma loja.",
-              "dependsOnSync": "Um celular não consegue ler um arquivo no seu laptop, então um aplicativo nativo que mostre os números da sua máquina de mesa depende do trabalho de sincronização abaixo."
+              "dependsOnSync": "Aplicativos móveis nativos continuam como trabalho futuro separado e não fazem parte do OpenLimiter Pro. O web app já instala na tela inicial e funciona offline."
             }
           },
           "sync": {
-            "title": "Planejado: OpenLimiter Pro",
-            "intro": "Tudo que só pode rodar num servidor, reunido numa única camada paga planejada, a $10 por mês, com os primeiros 30 dias gratuitos. Nada que roda localmente hoje algum dia fica atrás dela: o Pro vende servidores e serviço, não interruptores. Veja <pricing>preços</pricing> para o cartão como ele está.",
+            "title": "Construído: OpenLimiter Pro",
+            "intro": "O OpenLimiter Pro está construído como uma camada hospedada opcional por $5 ao mês ou $50 ao ano, com os primeiros 30 dias gratuitos. Nada local fica atrás dela. Veja <pricing>preços</pricing> para a oferta atual.",
             "bullets": {
-              "status": "Status: planejado. Nenhum serviço existe, não há checkout e não há lista de espera.",
-              "sync": "Sincronização criptografada do estado de quota entre seus próprios dispositivos.",
-              "push": "Notificações push para o celular quando uma janela se aproxima do limite.",
-              "smartLimiter": "Barreiras de orçamento: os limites e alertas que você configura para o seu próprio uso.",
-              "email": "Alertas por email e um resumo semanal, com regras de entrega para horas silenciosas.",
-              "history": "Histórico de uso e previsões hospedados em cada dispositivo.",
-              "priority": "Pedidos prioritários de connector, para seu provedor ser construído primeiro.",
-              "team": "Uma camada de painel para equipes, mais adiante que o resto.",
-              "localFirst": "A garantia local first não muda: a CLI continuaria funcionando sem conta e sem rede."
+              "status": "Status: a infraestrutura do serviço está construída. O checkout exige a configuração de produção do Supabase e do Stripe.",
+              "alerts": "Alertas por email ao cruzar um limite ou resetar.",
+              "history": "Noventa dias de histórico hospedado com previsões de consumo.",
+              "routing": "Contexto de orçamento para a rota do agente de código.",
+              "localFirst": "A garantia local não muda. A linha de comando e os recursos locais do desktop funcionam sem uma conta Pro."
             }
           },
           "following": {
@@ -1335,5 +1338,22 @@
         }
       }
     }
+  },
+  "proPortal": {
+    "title": "OpenLimiter Pro",
+    "lead": "Entre para iniciar um único período de 30 dias, depois escolha $5 por mês ou $50 por ano. Recursos locais nunca exigem esta conta.",
+    "configMissing": "O checkout do Pro ainda não está configurado nesta build.",
+    "emailLabel": "Email",
+    "emailPlaceholder": "voce@example.com",
+    "sendLink": "Enviar link de acesso",
+    "linkSent": "Confira seu email para encontrar o link.",
+    "signedIn": "Você entrou.",
+    "trialActive": "Seu acesso Pro está pronto. Recursos locais continuam gratuitos quando ele terminar.",
+    "checkoutMonthly": "Escolher $5 mensal",
+    "checkoutYearly": "Escolher $50 anual",
+    "working": "Processando",
+    "signOut": "Sair",
+    "privacy": "Credenciais de provedor nunca entram nesta página.",
+    "error": "O Pro não concluiu a solicitação. Tente novamente."
   }
 }

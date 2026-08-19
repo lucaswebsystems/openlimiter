@@ -72,6 +72,14 @@ export interface DownloadAsset {
   primary?: boolean;
 }
 
+/** One command that completes installation or clears a platform warning. */
+export interface DownloadInstruction {
+  /** Catalog key below `download.targets.<target>.instructions`. */
+  id: string;
+  /** The exact command to copy. */
+  command: string;
+}
+
 export interface DownloadTarget {
   /**
    * Anchor id on /download, and the fragment every button links to. It is the
@@ -83,6 +91,8 @@ export interface DownloadTarget {
   command?: string;
   /** Every packaged file for this platform, for the rows that have them. */
   assets?: readonly DownloadAsset[];
+  /** Commands that install the selected artifact or clear its first run block. */
+  instructions?: readonly DownloadInstruction[];
   /** Where the artifact actually is, for the rows that have exactly one. */
   href?: string;
   /** Whether the control that points at `href` leaves this site. */
@@ -115,7 +125,6 @@ export const downloadTargets: readonly DownloadTarget[] = [
       { id: "setup", href: releaseAsset(WINDOWS_SETUP), primary: true },
       { id: "msi", href: releaseAsset(WINDOWS_MSI) },
     ],
-    command: BUILD_FROM_SOURCE,
   },
   {
     id: "macos",
@@ -124,7 +133,12 @@ export const downloadTargets: readonly DownloadTarget[] = [
       { id: "appleSilicon", href: releaseAsset(MACOS_APPLE_SILICON), primary: true },
       { id: "intel", href: releaseAsset(MACOS_INTEL) },
     ],
-    command: BUILD_FROM_SOURCE,
+    instructions: [
+      {
+        id: "gatekeeper",
+        command: "xattr -dr com.apple.quarantine /Applications/OpenLimiter.app",
+      },
+    ],
   },
   {
     id: "linux",
@@ -134,7 +148,14 @@ export const downloadTargets: readonly DownloadTarget[] = [
       { id: "deb", href: releaseAsset(LINUX_DEB) },
       { id: "rpm", href: releaseAsset(LINUX_RPM) },
     ],
-    command: BUILD_FROM_SOURCE,
+    instructions: [
+      {
+        id: "appImage",
+        command: `chmod +x ${LINUX_APPIMAGE}\n./${LINUX_APPIMAGE}`,
+      },
+      { id: "deb", command: `sudo apt install ./${LINUX_DEB}` },
+      { id: "rpm", command: `sudo dnf install ./${LINUX_RPM}` },
+    ],
   },
   {
     id: "web-app",
@@ -157,5 +178,4 @@ export const downloadTargets: readonly DownloadTarget[] = [
     state: "planned",
   },
 ];
-
 
