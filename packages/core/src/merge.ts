@@ -31,6 +31,27 @@ function observedMilliseconds(snapshot: Snapshot): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function isClaudeStatuslineFallback(snapshot: Snapshot): boolean {
+  return snapshot.provider === "CLAUDE" &&
+    snapshot.accountId === undefined &&
+    snapshot.provenance?.sourceKind === "statusline_payload" &&
+    snapshot.provenance.observedVia === "claude_code_statusline";
+}
+
+function scopedClaudeCoversFallback(
+  candidate: Snapshot,
+  snapshots: readonly Snapshot[]
+): boolean {
+  if (!isClaudeStatuslineFallback(candidate)) return false;
+  const fallbackObserved = observedMilliseconds(candidate);
+  return snapshots.some((snapshot) =>
+    snapshot.provider === "CLAUDE" &&
+    snapshot.meter === candidate.meter &&
+    snapshot.accountId !== undefined &&
+    Date.parse(snapshot.expiresAt) > fallbackObserved
+  );
+}
+
 /**
  * Combine cached snapshots with freshly observed ones.
  *
@@ -46,7 +67,10 @@ export function mergeSnapshots(
   const byIdentity = new Map<string, Snapshot>();
   for (const snapshot of existing) byIdentity.set(identity(snapshot), snapshot);
   for (const snapshot of incoming) byIdentity.set(identity(snapshot), snapshot);
-  const merged = [...byIdentity.values()];
+  const combined = [...byIdentity.values()];
+  const merged = combined.filter(
+    (snapshot) => !scopedClaudeCoversFallback(snapshot, combined)
+  );
   if (merged.length <= limit) return merged.sort(compareIdentity);
   return merged
     .sort((left, right) => observedMilliseconds(right) - observedMilliseconds(left))

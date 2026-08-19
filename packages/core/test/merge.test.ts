@@ -42,4 +42,59 @@ describe("snapshot merge", () => {
       merged.some((entry) => entry.meter === "METER_" + String(MAX_CACHE_ENTRIES + 7))
     ).toBe(true);
   });
+
+  it("keeps the Claude statusline behind a current OAuth account", () => {
+    const oauth = snapshot({
+      accountId: "claude-personal",
+      observedAt: "2026-01-01T00:00:00.000Z",
+      expiresAt: "2026-01-01T00:20:00.000Z",
+      source: "internal_payload",
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" }
+    });
+    const statusline = snapshot({
+      observedAt: "2026-01-01T00:10:00.000Z",
+      expiresAt: "2026-01-01T00:15:00.000Z",
+      provenance: {
+        sourceKind: "statusline_payload",
+        observedVia: "claude_code_statusline"
+      }
+    });
+    const merged = mergeSnapshots([oauth], [statusline]);
+    expect(merged).toEqual([oauth]);
+  });
+
+  it("restores the Claude statusline after the OAuth account expires", () => {
+    const oauth = snapshot({
+      accountId: "claude-personal",
+      observedAt: "2026-01-01T00:00:00.000Z",
+      expiresAt: "2026-01-01T00:20:00.000Z",
+      source: "internal_payload",
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" }
+    });
+    const statusline = snapshot({
+      observedAt: "2026-01-01T00:21:00.000Z",
+      expiresAt: "2026-01-01T00:26:00.000Z",
+      provenance: {
+        sourceKind: "statusline_payload",
+        observedVia: "claude_code_statusline"
+      }
+    });
+    const merged = mergeSnapshots([oauth], [statusline]);
+    expect(merged).toHaveLength(2);
+    expect(merged.some((entry) => entry.accountId === undefined)).toBe(true);
+  });
+
+  it("does not demote an explicit Claude import", () => {
+    const oauth = snapshot({
+      accountId: "claude-personal",
+      expiresAt: "2026-01-01T00:20:00.000Z",
+      source: "internal_payload",
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" }
+    });
+    const imported = snapshot({
+      observedAt: "2026-01-01T00:10:00.000Z",
+      provenance: { sourceKind: "explicit_ingest", observedVia: "ingest_command" }
+    });
+    expect(mergeSnapshots([oauth], [imported])).toHaveLength(2);
+  });
 });
