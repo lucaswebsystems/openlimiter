@@ -57,7 +57,7 @@ impl DetectedProviderId {
     }
 
     const fn supports_automatic_collection(self) -> bool {
-        matches!(self, Self::Claude | Self::Codex | Self::Antigravity)
+        matches!(self, Self::Claude)
     }
 }
 
@@ -1261,6 +1261,19 @@ mod tests {
                 let unique: BTreeSet<_> = candidates.iter().map(|entry| &entry.path).collect();
                 assert_eq!(unique.len(), candidates.len());
             }
+        }
+    }
+
+    #[test]
+    fn only_a_wired_zero_setup_reader_claims_automatic_collection() {
+        assert!(DetectedProviderId::Claude.supports_automatic_collection());
+        for provider in [
+            DetectedProviderId::Codex,
+            DetectedProviderId::Antigravity,
+            DetectedProviderId::Opencode,
+            DetectedProviderId::Openrouter,
+        ] {
+            assert!(!provider.supports_automatic_collection());
         }
     }
 
