@@ -15,6 +15,11 @@
       "fixtureVerified": true,
       "evidence": "observed",
       "reason": "The usage response was observed against a real account and is recorded in the reference implementation that reads it live. The frozen fixture parses to the two windows it states, so the parser is fixture verified. The honesty label stays UNVERIFIED because the endpoint is internal and OpenAI publishes nothing about it: a trustworthy fixture does not make an internal endpoint official."
+    },
+    "antigravity": {
+      "fixtureVerified": true,
+      "evidence": "observed",
+      "reason": "The quota summary was observed against a real Google AI Pro account and is recorded in the reference implementation that reads it live. The frozen fixture parses to the binding gemini window at 72 percent while leaving the third party pool alone, so the parser is fixture verified. The honesty label stays UNVERIFIED because the endpoint is internal and Google publishes nothing about it."
     }
   }
 }
