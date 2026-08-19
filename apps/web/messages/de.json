@@ -894,6 +894,94 @@
           }
         }
       },
+      "zero-setup": {
+        "title": "Erkennung ohne Einrichtung",
+        "metaTitle": "Erkennung ohne Einrichtung, Datenschutz und Fehlerbehebung",
+        "description": "Wie OpenLimiter lokale Anmeldungen findet, was jeder unterstützte Anbieter meldet, was das Gerät verlässt und wie sich ein unbekannter Zustand beheben lässt.",
+        "lead": "Die Desktop Anwendung sucht nach Anbieterwerkzeugen und Anmeldungen, die auf diesem Gerät bereits vorhanden sind. Sie kann ohne OpenLimiter Konto und ohne kopierte Zugangsdaten beginnen, während jede fehlende oder unsichere Messung sichtbar unbekannt bleibt.",
+        "sections": {
+          "what-it-does": {
+            "title": "Was OpenLimiter macht",
+            "body": "OpenLimiter vereint jedes Quota Fenster, das ein unterstützter Anbieter bereitstellt, zeigt die Nutzung und den nächsten Reset und gibt dir und deinem Coding Agent begrenzte Routing Empfehlungen. Es ist ein Messgerät und Ratgeber. Es verbraucht nie Quota, ändert keinen Tarif und wählt keinen Anbieter ohne dich.",
+            "calloutTitle": "Lokal bleibt kostenlos",
+            "calloutBody": "Das lokale Messgerät, alle lokalen Konnektoren, die Desktop Anwendung und das Kommandozeilen Werkzeug bleiben für immer kostenlos und quelloffen. Der optionale Bezahlplan enthält nur gehostete Warnungen, Verlauf, Prognosen und Agent Routing."
+          },
+          "discovery": {
+            "title": "So funktioniert die Erkennung",
+            "intro": "Beim Start durchsucht die Desktop Anwendung begrenzt bekannte Orte. Sie durchsucht nicht die gesamte Festplatte, folgt keinen symbolischen Links und sendet kein Erkennungsergebnis irgendwohin.",
+            "bullets": {
+              "paths": "Windows prüft AppData Roaming und Local. macOS prüft Application Support und Anbieterordner im persönlichen Verzeichnis. Linux prüft XDG Orte und Anbieterordner im persönlichen Verzeichnis.",
+              "states": "Jeder Anbieter wird zu <code>present</code>, <code>installed_logged_out</code> oder <code>absent</code>. Unbekannte Quota ist von der Erkennung getrennt und wird nie zu null.",
+              "accounts": "Verschiedene lokale Profile werden zu verschiedenen Konten. Die Oberfläche zeigt eine undurchsichtige Identität und niemals ein Token, eine rohe Konto Kennung oder einen Pfad zu Zugangsdaten.",
+              "refresh": "Ein Anbieter Token wird direkt vor einer Anfrage erneut aus seiner ursprünglichen Datei gelesen. Bei einer abgelaufenen Anmeldung sollst du das jeweilige Anbieter CLI erneut öffnen. OpenLimiter erstellt oder erneuert das Token nie.",
+              "macos": "Die automatische Suche liest den Keychain nicht. Wenn ein Werkzeug unter macOS seine Anmeldung nur dort speichert, kann es als installiert, aber abgemeldet erscheinen. Die manuelle Eingabe bleibt verfügbar."
+            }
+          },
+          "providers": {
+            "title": "Unterstützte Anbieter und Messungen",
+            "intro": "Die Desktop Anwendung unterstützt fünf Anbieterfamilien. Jede Zeile nennt die Messung und ihre Quelle offen.",
+            "caption": "Unterstützte Anbieter Messungen und ihre Quelle",
+            "columns": {
+              "provider": "Anbieter",
+              "reports": "was gemeldet wird",
+              "source": "wie es gelesen wird"
+            },
+            "rows": {
+              "claude": {
+                "name": "Claude Code",
+                "reports": "Nutzung der fünf Stunden Sitzung und Nutzung über sieben Tage, mit Reset Zeiten.",
+                "source": "Die lokale Claude Code OAuth Anmeldung und der Anthropic Nutzungsendpunkt. Claude Code Statusline Daten bleiben ein Fallback."
+              },
+              "codex": {
+                "name": "Codex",
+                "reports": "Das primäre Quota Fenster, den genutzten Prozentsatz und seinen Reset, wenn der Anbieter einen liefert.",
+                "source": "Die lokale Codex Anmeldung und ein nicht unterstützter OpenAI Nutzungsendpunkt."
+              },
+              "antigravity": {
+                "name": "Antigravity",
+                "reports": "Den knappsten Quota Bereich, den genutzten Prozentsatz und seinen Reset.",
+                "source": "Die lokale Antigravity Anmeldung und ein nicht unterstützter Google Quota Endpunkt."
+              },
+              "opencode": {
+                "name": "OpenCode",
+                "reports": "Das knappste rollierende Nutzungsfenster und den Countdown bis zum Reset.",
+                "source": "Eine bestehende Browser Sitzung und das authentifizierte Auslesen der Workspace Seite."
+              },
+              "openrouter": {
+                "name": "OpenRouter",
+                "reports": "Verbrauchte Credits im Verhältnis zum Gesamtwert, einschließlich Betrag in US Dollar und ohne Reset.",
+                "source": "Ein von dir bereitgestellter Schlüssel und die dokumentierte OpenRouter Credits API."
+              }
+            },
+            "riskTitle": "Einige Schnittstellen werden nicht unterstützt",
+            "riskBody": "Claude OAuth, Codex, Antigravity und OpenCode hängen von privaten Anbieter Schnittstellen ab, die sich ändern oder verschwinden können. Eine Vertragsänderung erzeugt für diesen Anbieter sichtbar unbekannt und lässt alle anderen Anbieter weiterarbeiten. OpenRouter nutzt eine dokumentierte API."
+          },
+          "privacy": {
+            "title": "Datenschutzgrenze",
+            "intro": "Der lokale Modus ist so gebaut, dass OpenLimiter beraten kann, ohne zu einem weiteren Besitzer deiner Anbieteridentität zu werden.",
+            "bullets": {
+              "local": "Die Erkennung liest nur begrenzte Dateien an bekannten Anbieterorten auf diesem Gerät.",
+              "endpoint": "Anbieter Zugangsdaten werden nur an den Endpunkt des Anbieters gesendet, der sie ausgestellt hat. Sie gehen nie an OpenLimiter oder einen anderen Anbieter.",
+              "telemetry": "Der lokale Modus sendet keine Telemetrie, Quota Snapshots, Diagnosen, Prompts oder Kennungen an OpenLimiter.",
+              "advice": "OpenLimiter berät nur. Es sendet keine Prompts, ändert keine Abonnements und routet Arbeit nicht selbstständig.",
+              "refresh": "OpenLimiter erstellt, erneuert oder repariert ein Anbieter Token niemals still."
+            }
+          },
+          "unknown": {
+            "title": "Wenn ein Anbieter unbekannt zeigt",
+            "intro": "Unbekannt bedeutet, dass keine aktuelle Messung jede Vertragsprüfung bestanden hat. Es bedeutet nicht null Nutzung und beweist nicht, dass das Abonnement leer ist.",
+            "steps": {
+              "login": "Öffne das Anbieter CLI und bestätige, dass es installiert und angemeldet ist. Wenn die Meldung eine abgelaufene Anmeldung nennt, schließe und öffne dieses CLI erneut, damit es seine eigenen Zugangsdaten erneuern kann.",
+              "rescan": "Kehre zu OpenLimiter zurück, suche erneut nach Anbietern und fordere eine Aktualisierung für dieses Konto an.",
+              "wait": "Wenn der Anbieter Anfragen kürzlich begrenzt hat, behalte die Messung aus dem Cache und warte bis zum nächsten Versuch. Wiederholte Klicks umgehen den Rückzug des Anbieters nicht.",
+              "interface": "Prüfe die Quellenbezeichnung. Private Endpunkte und authentifizierte Seiten können sich ohne Hinweis ändern. Eine Vertragsänderung bleibt absichtlich unbekannt, bis der Konnektor aktualisiert ist.",
+              "manual": "Nutze die manuelle Eingabe, wenn automatische Erfassung nicht verfügbar ist. Ein blockierter Anbieter deaktiviert die anderen nicht."
+            },
+            "calloutTitle": "Unbekannt ist ein Sicherheitsergebnis",
+            "calloutBody": "OpenLimiter errät nie einen fehlenden Prozentsatz oder Reset. Ein sichtbares Unbekannt schützt Routing Empfehlungen vor einer plausiblen, aber falschen Zahl."
+          }
+        }
+      },
       "ingestion": {
         "title": "Ingestion",
         "description": "Die drei Offline Wege, die Quota Daten vor OpenLimiter bringen, und was jeder davon erwartet.",

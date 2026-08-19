@@ -894,6 +894,94 @@
           }
         }
       },
+      "zero-setup": {
+        "title": "Zero setup detection",
+        "metaTitle": "Zero setup detection, privacy and troubleshooting",
+        "description": "How OpenLimiter finds local provider logins, what each supported provider reports, what leaves the device, and how to recover from unknown.",
+        "lead": "The desktop application looks for provider tools and logins already present on this device. It can begin with no OpenLimiter account and no copied credential, while every missing or uncertain reading stays visibly unknown.",
+        "sections": {
+          "what-it-does": {
+            "title": "What OpenLimiter does",
+            "body": "OpenLimiter combines every quota window a supported provider exposes, shows how much is used and when it resets, and gives bounded routing advice to you and your coding agent. It is a meter and adviser. It never spends quota, changes a plan, or chooses a provider without you.",
+            "calloutTitle": "Local stays free",
+            "calloutBody": "The local meter, every local connector, the desktop application and the command line tool are free forever and open source. The optional paid plan contains hosted alerts, history, forecasts and agent routing only."
+          },
+          "discovery": {
+            "title": "How discovery works",
+            "intro": "At launch, the desktop application performs a bounded scan of known locations. It does not crawl the disk, follow symbolic links, or send a discovery result anywhere.",
+            "bullets": {
+              "paths": "Windows checks AppData Roaming and Local. macOS checks Application Support and provider folders in the home directory. Linux checks XDG locations and provider folders in the home directory.",
+              "states": "Each provider becomes <code>present</code>, <code>installed_logged_out</code> or <code>absent</code>. Unknown quota is separate from detection and never becomes zero.",
+              "accounts": "Distinct local profiles become distinct accounts. The interface exposes an opaque identity and never exposes a token, raw account identifier or credential path.",
+              "refresh": "A provider token is read again from its original file immediately before a provider request. A stale login tells you to reopen that provider CLI. OpenLimiter never mints or refreshes it.",
+              "macos": "The automatic scan does not read Keychain. If a macOS tool keeps its login only there, it can appear installed but logged out. Manual entry remains available."
+            }
+          },
+          "providers": {
+            "title": "Supported providers and readings",
+            "intro": "The desktop application supports five provider families. Every row below names the reading and the source honestly.",
+            "caption": "Supported provider readings and their source",
+            "columns": {
+              "provider": "provider",
+              "reports": "what it reports",
+              "source": "how it is read"
+            },
+            "rows": {
+              "claude": {
+                "name": "Claude Code",
+                "reports": "Five hour session usage and seven day usage, with reset times.",
+                "source": "The local Claude Code OAuth login and Anthropic usage endpoint. Claude Code statusline data remains a fallback."
+              },
+              "codex": {
+                "name": "Codex",
+                "reports": "The primary quota window, percent used, and its reset when the provider supplies one.",
+                "source": "The local Codex login and an unsupported OpenAI usage endpoint."
+              },
+              "antigravity": {
+                "name": "Antigravity",
+                "reports": "The most binding quota bucket, percent used, and its reset.",
+                "source": "The local Antigravity login and an unsupported Google quota endpoint."
+              },
+              "opencode": {
+                "name": "OpenCode",
+                "reports": "The most binding rolling usage window and its reset countdown.",
+                "source": "An existing browser session and an authenticated workspace page scrape."
+              },
+              "openrouter": {
+                "name": "OpenRouter",
+                "reports": "Credits used against total credits, including the amount in US dollars and no reset.",
+                "source": "A key you supply and the documented OpenRouter credits API."
+              }
+            },
+            "riskTitle": "Some interfaces are unsupported",
+            "riskBody": "Claude OAuth, Codex, Antigravity and OpenCode depend on private provider interfaces that can change or disappear. A contract change produces visible unknown for that provider and leaves every other provider working. OpenRouter uses a documented API."
+          },
+          "privacy": {
+            "title": "Privacy boundary",
+            "intro": "Local mode is designed so OpenLimiter can advise without becoming another holder of your provider identity.",
+            "bullets": {
+              "local": "Detection reads only bounded files in known provider locations on this device.",
+              "endpoint": "A provider credential is sent only to the endpoint of the provider that issued it. It is never sent to OpenLimiter or another provider.",
+              "telemetry": "Local mode sends zero telemetry, quota snapshots, diagnostics, prompts or identifiers to OpenLimiter.",
+              "advice": "OpenLimiter only advises. It does not submit prompts, change subscriptions or route work by itself.",
+              "refresh": "OpenLimiter never creates, renews or silently repairs a provider token."
+            }
+          },
+          "unknown": {
+            "title": "When a provider shows unknown",
+            "intro": "Unknown means no current reading passed every contract check. It is not zero usage and it is not proof that the subscription is empty.",
+            "steps": {
+              "login": "Open the provider CLI and confirm that it is installed and signed in. If the message says the login is stale, close and reopen that CLI so it can refresh its own credential.",
+              "rescan": "Return to OpenLimiter and rescan providers, then request a refresh for that account.",
+              "wait": "If the provider recently limited requests, leave the cached reading in place and wait for the retry time. Repeated clicks do not bypass provider backoff.",
+              "interface": "Check the source label. Private endpoints and authenticated pages can change without notice. A contract change intentionally stays unknown until the connector is updated.",
+              "manual": "Use manual entry when automatic collection is unavailable. One blocked provider does not disable the others."
+            },
+            "calloutTitle": "Unknown is a safety result",
+            "calloutBody": "OpenLimiter never guesses a missing percentage or reset. A visible unknown protects routing advice from a plausible but wrong number."
+          }
+        }
+      },
       "ingestion": {
         "title": "Ingestion",
         "description": "The three offline paths that put quota data in front of OpenLimiter, and what each one expects.",

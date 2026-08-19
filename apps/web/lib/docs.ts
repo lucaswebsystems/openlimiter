@@ -50,6 +50,10 @@ export const docGroups: readonly DocGroup[] = [
         href: "/docs/connections",
       },
       {
+        id: "zero-setup",
+        href: "/docs/zero-setup",
+      },
+      {
         id: "providers",
         href: "/docs/providers",
       },

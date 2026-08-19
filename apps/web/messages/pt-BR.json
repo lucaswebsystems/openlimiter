@@ -894,6 +894,94 @@
           }
         }
       },
+      "zero-setup": {
+        "title": "Detecção sem configuração",
+        "metaTitle": "Detecção sem configuração, privacidade e solução de problemas",
+        "description": "Como o OpenLimiter encontra logins locais, o que cada provedor informa, o que sai do dispositivo e como resolver um estado desconhecido.",
+        "lead": "O aplicativo desktop procura ferramentas e logins de provedores que já existem neste dispositivo. Ele pode começar sem conta OpenLimiter e sem copiar credenciais, enquanto toda leitura ausente ou incerta permanece visivelmente desconhecida.",
+        "sections": {
+          "what-it-does": {
+            "title": "O que o OpenLimiter faz",
+            "body": "O OpenLimiter reúne todas as janelas de quota expostas por um provedor compatível, mostra quanto foi usado e quando ocorre o reset, e oferece orientação limitada de roteamento para você e seu agente de código. Ele é um medidor e conselheiro. Nunca gasta quota, altera um plano nem escolhe um provedor sem você.",
+            "calloutTitle": "O local continua gratuito",
+            "calloutBody": "O medidor local, todos os conectores locais, o aplicativo desktop e a ferramenta de linha de comando são gratuitos para sempre e têm código aberto. O plano pago opcional contém somente alertas hospedados, histórico, previsões e roteamento de agentes."
+          },
+          "discovery": {
+            "title": "Como a detecção funciona",
+            "intro": "Na inicialização, o aplicativo desktop faz uma varredura limitada em locais conhecidos. Ele não percorre o disco inteiro, não segue links simbólicos e não envia o resultado da detecção para lugar algum.",
+            "bullets": {
+              "paths": "O Windows verifica AppData Roaming e Local. O macOS verifica Application Support e pastas dos provedores no diretório pessoal. O Linux verifica locais XDG e pastas dos provedores no diretório pessoal.",
+              "states": "Cada provedor fica como <code>present</code>, <code>installed_logged_out</code> ou <code>absent</code>. Quota desconhecida é separada da detecção e nunca vira zero.",
+              "accounts": "Perfis locais distintos viram contas distintas. A interface expõe uma identidade opaca e nunca expõe token, identificador bruto de conta ou caminho de credencial.",
+              "refresh": "O token do provedor é lido novamente do arquivo original imediatamente antes de uma chamada ao provedor. Um login vencido orienta você a reabrir o CLI daquele provedor. O OpenLimiter nunca cria nem renova esse token.",
+              "macos": "A varredura automática não lê o Keychain. Se uma ferramenta no macOS guardar o login somente ali, ela pode aparecer instalada, mas sem login. A entrada manual continua disponível."
+            }
+          },
+          "providers": {
+            "title": "Provedores e leituras compatíveis",
+            "intro": "O aplicativo desktop é compatível com cinco famílias de provedores. Cada linha abaixo nomeia a leitura e a fonte com clareza.",
+            "caption": "Leituras compatíveis e suas fontes",
+            "columns": {
+              "provider": "provedor",
+              "reports": "o que informa",
+              "source": "como é lido"
+            },
+            "rows": {
+              "claude": {
+                "name": "Claude Code",
+                "reports": "Uso da sessão de cinco horas e uso de sete dias, com horários de reset.",
+                "source": "O login OAuth local do Claude Code e o endpoint de uso da Anthropic. Os dados de statusline do Claude Code continuam como fallback."
+              },
+              "codex": {
+                "name": "Codex",
+                "reports": "A janela principal de quota, o percentual usado e seu reset quando o provedor o fornece.",
+                "source": "O login local do Codex e um endpoint de uso não oficial da OpenAI."
+              },
+              "antigravity": {
+                "name": "Antigravity",
+                "reports": "O grupo de quota mais restritivo, o percentual usado e seu reset.",
+                "source": "O login local do Antigravity e um endpoint de quota não oficial do Google."
+              },
+              "opencode": {
+                "name": "OpenCode",
+                "reports": "A janela móvel de uso mais restritiva e sua contagem regressiva de reset.",
+                "source": "Uma sessão existente do navegador e a leitura autenticada da página do workspace."
+              },
+              "openrouter": {
+                "name": "OpenRouter",
+                "reports": "Créditos usados sobre o total, incluindo o valor em dólares americanos e sem reset.",
+                "source": "Uma chave fornecida por você e a API documentada de créditos do OpenRouter."
+              }
+            },
+            "riskTitle": "Algumas interfaces não são oficiais",
+            "riskBody": "Claude OAuth, Codex, Antigravity e OpenCode dependem de interfaces privadas dos provedores, que podem mudar ou desaparecer. Uma mudança de contrato produz desconhecido visível para aquele provedor e mantém todos os outros funcionando. O OpenRouter usa uma API documentada."
+          },
+          "privacy": {
+            "title": "Limite de privacidade",
+            "intro": "O modo local foi projetado para que o OpenLimiter possa aconselhar sem se tornar mais um detentor da identidade do provedor.",
+            "bullets": {
+              "local": "A detecção lê somente arquivos limitados em locais conhecidos dos provedores neste dispositivo.",
+              "endpoint": "Uma credencial do provedor é enviada somente ao endpoint do provedor que a emitiu. Ela nunca é enviada ao OpenLimiter nem a outro provedor.",
+              "telemetry": "O modo local não envia telemetria, snapshots de quota, diagnósticos, prompts nem identificadores ao OpenLimiter.",
+              "advice": "O OpenLimiter somente aconselha. Ele não envia prompts, altera assinaturas nem roteia trabalho por conta própria.",
+              "refresh": "O OpenLimiter nunca cria, renova ou repara silenciosamente um token de provedor."
+            }
+          },
+          "unknown": {
+            "title": "Quando um provedor mostra desconhecido",
+            "intro": "Desconhecido significa que nenhuma leitura atual passou em todas as verificações de contrato. Não significa uso zero nem prova que a assinatura está vazia.",
+            "steps": {
+              "login": "Abra o CLI do provedor e confirme que ele está instalado e autenticado. Se a mensagem disser que o login venceu, feche e reabra esse CLI para que ele renove a própria credencial.",
+              "rescan": "Volte ao OpenLimiter, repita a detecção dos provedores e solicite uma atualização para essa conta.",
+              "wait": "Se o provedor limitou chamadas recentemente, mantenha a leitura em cache e aguarde o horário da nova tentativa. Cliques repetidos não ignoram o recuo do provedor.",
+              "interface": "Verifique o rótulo da fonte. Endpoints privados e páginas autenticadas podem mudar sem aviso. Uma mudança de contrato permanece desconhecida de propósito até que o conector seja atualizado.",
+              "manual": "Use a entrada manual quando a coleta automática estiver indisponível. Um provedor bloqueado não desativa os demais."
+            },
+            "calloutTitle": "Desconhecido é um resultado de segurança",
+            "calloutBody": "O OpenLimiter nunca adivinha um percentual ou reset ausente. Um desconhecido visível protege a orientação de roteamento contra um número plausível, porém errado."
+          }
+        }
+      },
       "ingestion": {
         "title": "Ingestão",
         "description": "Os três caminhos offline que colocam dados de quota na frente do OpenLimiter, e o que cada um espera.",
