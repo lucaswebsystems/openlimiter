@@ -194,8 +194,10 @@ pub fn update<R: Runtime>(app: &AppHandle<R>, statuses: Vec<ProviderStatus>) -> 
     let menu = menu(app, &view).map_err(|_| "the tray menu could not be built".to_string())?;
     tray.set_icon_with_as_template(Some(icon), false)
         .map_err(|_| "the tray icon could not be updated".to_string())?;
+    #[cfg(not(target_os = "linux"))]
     tray.set_tooltip(Some(&view.tooltip))
         .map_err(|_| "the tray tooltip could not be updated".to_string())?;
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     tray.set_title(Some(&view.title))
         .map_err(|_| "the tray title could not be updated".to_string())?;
     tray.set_menu(Some(menu))
