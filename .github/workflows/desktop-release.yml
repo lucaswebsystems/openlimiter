@@ -123,19 +123,19 @@ jobs:
           - os: macos-latest
             label: macOS (Apple silicon)
             target: aarch64-apple-darwin
-            args: "--target aarch64-apple-darwin"
+            args: "--target aarch64-apple-darwin --bundles app,dmg"
           - os: macos-latest
             label: macOS (Intel)
             target: x86_64-apple-darwin
-            args: "--target x86_64-apple-darwin"
+            args: "--target x86_64-apple-darwin --bundles app,dmg"
           - os: ubuntu-22.04
             label: Linux
             target: x86_64-unknown-linux-gnu
-            args: ""
+            args: "--bundles appimage,deb,rpm"
           - os: windows-latest
             label: Windows
             target: x86_64-pc-windows-msvc
-            args: ""
+            args: "--bundles nsis,msi"
 
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +144,7 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
 
       - name: Install pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -184,6 +184,49 @@ jobs:
       - name: Assemble the desktop user interface
         working-directory: apps/desktop
         run: node scripts/build-ui.mjs
+
+      - name: Prepare signed updater configuration
+        shell: bash
+        env:
+          UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+          UPDATER_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${UPDATER_PUBLIC_KEY:-}" ]; then
+            echo "TAURI_UPDATER_PUBLIC_KEY is required to create a release draft."
+            exit 1
+          fi
+
+          if [ -z "${UPDATER_PRIVATE_KEY:-}" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY is required to sign update artifacts."
+            exit 1
+          fi
+
+          patch="${RUNNER_TEMP}/openlimiter-updater.json"
+          UPDATER_CONFIG="${patch}" node <<'NODE'
+          const fs = require("node:fs");
+
+          const configuration = {
+            bundle: { createUpdaterArtifacts: true },
+            plugins: {
+              updater: {
+                pubkey: process.env.UPDATER_PUBLIC_KEY,
+                endpoints: [
+                  "https://github.com/lucaswebsystems/openlimiter/releases/latest/download/latest.json",
+                ],
+                windows: { installMode: "passive" },
+              },
+            },
+          };
+
+          fs.writeFileSync(
+            process.env.UPDATER_CONFIG,
+            `${JSON.stringify(configuration, null, 2)}\n`,
+          );
+          NODE
+
+          echo "UPDATER_CONFIG=${patch}" >> "${GITHUB_ENV}"
 
       # Everything the signing steps below decide is carried to the build step
       # in two environment variables, EXTRA_ARGS and the credentials themselves,
@@ -299,14 +342,18 @@ jobs:
           echo "macOS: signing as ${APPLE_SIGNING_IDENTITY}, then notarising."
 
       - name: Build and publish the installers
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENLIMITER_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: apps/desktop
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: OpenLimiter ${{ inputs.tag || github.ref_name }}
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
-          includeUpdaterJson: false
-          args: ${{ matrix.args }} ${{ env.EXTRA_ARGS }}
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          args: ${{ matrix.args }} --config ${{ env.UPDATER_CONFIG }} ${{ env.EXTRA_ARGS }}

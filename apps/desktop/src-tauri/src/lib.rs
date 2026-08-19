@@ -21,6 +21,7 @@ mod state;
 #[cfg(test)]
 mod test_support;
 mod tray;
+mod updates;
 
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, WindowEvent};
@@ -87,6 +88,8 @@ pub fn run() {
         .manage(provider_detection::DetectionStore::scan())
         .manage(claude_oauth::ClaudeOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
+        .manage(updates::PendingUpdate::default())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             read_cache,
             read_manual,
@@ -112,7 +115,9 @@ pub fn run() {
             pro::pro_service,
             pro::pro_sync_agent_context,
             pro::pro_sync_hosted,
-            pro::pro_disconnect
+            pro::pro_disconnect,
+            updates::check_for_update,
+            updates::install_update
         ])
         .setup(|app| {
             /* The full collector outlives every window. Its schedule, reads,

@@ -116,6 +116,11 @@ const FAILURE_SENTENCES = {
   network: "The Pro service could not be reached.",
   service: "The Pro service returned an unusable response.",
   entitlement_required: "This hosted service needs an active Pro entitlement.",
+  updater_unconfigured: "Updates are not configured in this build.",
+  update_check_failed: "The update check could not be completed.",
+  no_pending_update: "No downloaded update is waiting to be installed.",
+  update_install_failed: "The update could not be installed.",
+  update_state_unavailable: "The pending update state could not be read.",
 };
 
 function absent(command) {
@@ -407,6 +412,16 @@ export async function proSyncHosted() {
 /** Remove the Pro session, trust anchor, token, and hosted context. */
 export async function proDisconnect() {
   return call("pro_disconnect");
+}
+
+/** Check the signed release channel without installing anything. */
+export async function checkForUpdate() {
+  return call("check_for_update");
+}
+
+/** Install only the update returned by the most recent successful check. */
+export async function installUpdate() {
+  return call("install_update");
 }
 
 /* ------------------------------------------------------------ record shapes */
