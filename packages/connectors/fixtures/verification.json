@@ -1,0 +1,10 @@
+{
+  "note": "Fixture verification markers, one per provider. fixtureVerified true means this provider ships a frozen redacted sample whose parser test passes, so the parser is proven to read a real shaped response offline. This is NOT the honesty verification label in provider_specs, which stays UNVERIFIED for every provider whose interface the vendor does not officially publish. A fixture can be trusted while the interface behind it is still unofficial. Providers are added here one at a time as their fixture test passes.",
+  "providers": {
+    "claude": {
+      "fixtureVerified": true,
+      "evidence": "documented",
+      "reason": "The statusline payload is a shape Anthropic publishes, and the frozen fixture parses to the two windows the documentation states, so the parser is fixture verified. The honesty label stays UNVERIFIED until a sanitized live capture is taken on a real Pro or Max account."
+    }
+  }
+}

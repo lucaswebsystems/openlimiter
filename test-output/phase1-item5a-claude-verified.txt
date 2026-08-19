@@ -1,0 +1,767 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.7 [39m[90mC:/Users/lucas/Desktop/Claude/Personal/OpenLimiter/openlimiter[39m
+
+ [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mmatches the error correction codewords published in annex I[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mpicks the smallest version that holds the payload[32m 14[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mrefuses a payload larger than it can encode[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mdraws the fixed patterns exactly where the standard puts them[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mwrites format bits that decode back to level M and the chosen mask[32m 7[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mreads back every payload it encodes[32m 11[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mrenders a quiet zone on every side[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/qr.test.js[2m > [22mQR encoder[2m > [22mstates its own colours when asked, so a dark terminal cannot invert it[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection states[2m > [22mnames the thirteen states from the connection architecture[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection states[2m > [22mgives every state a sentence and a next action[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection states[2m > [22manswers every state and event pair for a connection that never worked[32m 6[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection states[2m > [22manswers every state and event pair for a connection that worked once[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection states[2m > [22mis pure and repeatable for a connection that never worked[32m 5[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection states[2m > [22mis pure and repeatable for a connection that worked once[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mconnects on a parsed success[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mcalls a response we cannot parse an error, not a provider fault[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22masks for a credential after 401 when nothing ever worked[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22masks for a credential after 403 when nothing ever worked[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mcalls 401 expiry from any state once it has worked[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mcalls 403 expiry from any state once it has worked[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mremembers a credential worked even after an unrelated error[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mdegrades on 429[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mdegrades on 500[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mdegrades on 502[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mdegrades on 503[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mdegrades on 599[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22merrors on a status that is neither success, auth nor overload[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mdegrades on one network failure and errors on repeated ones[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mgoes stale only from a state that has a reading[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mreturns to not configured from anywhere on disconnect[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mwalks the ordinary first run path[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mrecovers from expired authentication only after a new credential[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mnever promotes a declared source to connected[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/connection-state.test.js[2m > [22mconnection transitions[2m > [22mlets the product declare a source at any time[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 0 in the healthy band[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 42 in the healthy band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 58 in the healthy band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 59 in the healthy band[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 59.99 in the healthy band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 60 in the watch band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 64 in the watch band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 79 in the watch band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 79.99 in the watch band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 80 in the urgent band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 84 in the urgent band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 89 in the urgent band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 89.99 in the urgent band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 90 in the critical band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 92 in the critical band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mputs 100 in the critical band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mopens the orange band at the engine's own NEAR_CAP threshold[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mkeeps the human red later than the agent warning at eighty[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mpressure bands[2m > [22mhas no band for a number that is not one[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mthe fourth colour[2m > [22mreads a 256 colour claim off TERM or COLORTERM[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mthe fourth colour[2m > [22mclaims nothing for a terminal that claims nothing[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mthe fourth colour[2m > [22mpaints the urgent band orange where there is an orange[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mthe fourth colour[2m > [22mfalls back to the yellow of the band below where there is not[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mthe fourth colour[2m > [22mleaves every other band on the same code at either palette[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mlights 0 percent as 0 of ten blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mlights 9.9 percent as 0 of ten blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mlights 10 percent as 1 of ten blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mlights 42 percent as 4 of ten blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mlights 62.35 percent as 6 of ten blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mlights 92 percent as 9 of ten blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mlights 99.99 percent as 9 of ten blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mlights 100 percent as 10 of ten blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mnever rounds a reading upward into a block it has not earned[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mdraws ten positions whatever the reading[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mdraws an unknown reading as ten empty positions, never as a zero bar[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mpaints all four band colours when colour and a palette are allowed[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22mdraws the urgent band in yellow on a terminal with no orange[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mmeter bar[2m > [22memits no control character at all when colour is refused[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mdraws five positions whatever the reading[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mlights 0 percent as 0 of five blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mlights 19.9 percent as 0 of five blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mlights 20 percent as 1 of five blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mlights 42 percent as 2 of five blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mlights 62.35 percent as 3 of five blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mlights 92 percent as 4 of five blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mlights 99.99 percent as 4 of five blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mlights 100 percent as 5 of five blocks[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mkeeps the band, and therefore the colour, at either density[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mstatusline bar[2m > [22mdraws an unknown reading as five empty positions[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mcolour support[2m > [22mfollows the terminal when nothing objects[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mcolour support[2m > [22mobeys NO_COLOR whatever its value, including empty[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mfields[2m > [22mprints money only when the reading carries all of it[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mfields[2m > [22mnever rounds a spend upward[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mfields[2m > [22mstates the time left without a space, so a row stays parseable[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mtable[2m > [22mkeeps nine columns on every row so a script can split it[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mtable[2m > [22mshows the percent and the time to reset on every row[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mtable[2m > [22msorts fresh pressure first and all unknown providers last by name[32m 18[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mtable[2m > [22msays so plainly when there is nothing to show[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mfailure lines[2m > [22mprints our own sentence in red, never the provider's words[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/render.test.js[2m > [22mfailure lines[2m > [22mdrops the colour without dropping the sentence[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a matching shape passes[2m > [22mCLAUDE parses to an explicit ok with its meters[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a matching shape passes[2m > [22mOPENROUTER parses to an explicit ok with its meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a matching shape passes[2m > [22mCODEX parses to an explicit ok with its meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a matching shape passes[2m > [22mANTIGRAVITY parses to an explicit ok with its meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a matching shape passes[2m > [22mOPENCODE parses to an explicit ok with its meters[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a matching shape passes[2m > [22mMANUAL parses to an explicit ok with its meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a matching shape passes[2m > [22mreads the number the provider actually stated, through the gate[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a mismatched shape becomes a visible unknown[2m > [22mCLAUDE degrades to unknown, still named, with no meters[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a mismatched shape becomes a visible unknown[2m > [22mOPENROUTER degrades to unknown, still named, with no meters[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a mismatched shape becomes a visible unknown[2m > [22mCODEX degrades to unknown, still named, with no meters[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a mismatched shape becomes a visible unknown[2m > [22mANTIGRAVITY degrades to unknown, still named, with no meters[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a mismatched shape becomes a visible unknown[2m > [22mOPENCODE degrades to unknown, still named, with no meters[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: a mismatched shape becomes a visible unknown[2m > [22mMANUAL degrades to unknown, still named, with no meters[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: absence is unknown, never a silent drop[2m > [22mCLAUDE with no payload is an explicit unknown[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: absence is unknown, never a silent drop[2m > [22mOPENROUTER with no payload is an explicit unknown[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: absence is unknown, never a silent drop[2m > [22mCODEX with no payload is an explicit unknown[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: absence is unknown, never a silent drop[2m > [22mANTIGRAVITY with no payload is an explicit unknown[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: absence is unknown, never a silent drop[2m > [22mOPENCODE with no payload is an explicit unknown[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: absence is unknown, never a silent drop[2m > [22mMANUAL with no payload is an explicit unknown[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: absence is unknown, never a silent drop[2m > [22malways returns a tagged outcome, never null or undefined[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/contract-gate.test.js[2m > [22mcontract gate: absence is unknown, never a silent drop[2m > [22mnames the hostile and injection shapes unknown, carrying no injected text[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the shape a real account produced[2m > [22mparses the observed shape into exactly one meter[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the shape a real account produced[2m > [22mreads the reading the provider actually stated[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the shape a real account produced[2m > [22mnames the binding window, not the first one on the page[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the shape a real account produced[2m > [22mmatches windows by label, never by position[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the shape a real account produced[2m > [22mreads a countdown through the framework's hydration markers[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the shape a real account produced[2m > [22mkeeps the reading when a window states no countdown[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the shape a real account produced[2m > [22mstamps OpenLimiter's own labels after parsing, not the provider's[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the shape a real account produced[2m > [22mnever lets provider text reach a field a person reads[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the last window is bounded[2m > [22mrefuses a window whose own percentage is missing, whatever is nearby[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the last window is bounded[2m > [22mdoes not let a nearby figure become the binding window[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the last window is bounded[2m > [22mreads a window whose figure sits in a sibling of its heading[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the last window is bounded[2m > [22mrefuses a page that renders a window label twice[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the last window is bounded[2m > [22mrefuses a container that holds two window labels[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the last window is bounded[2m > [22mrefuses an unbalanced page rather than reading it approximately[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the last window is bounded[2m > [22mdoes not read a percentage from below the final label[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the last window is bounded[2m > [22mrefuses when the final window's own percentage is pushed past the bound[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the last window is bounded[2m > [22mkeeps the reference reader's search bound[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the evidence behind it[2m > [22mhas a sanitized live fixture slot, and says out loud that it is empty[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: the evidence behind it[2m > [22mstays UNVERIFIED whatever the evidence says[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses THE SHAPE THIS CONNECTOR SHIPPED WITH, which is now drift[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses no payload at all[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a null payload[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses an empty object[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses an empty array[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses an array root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a string root, which is what an html error page arrives as[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a number root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a page missing the rolling window[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a page missing the weekly window[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a page missing the monthly window[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a window with no percentage[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses an empty page[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a login page[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses the page as a parsed object rather than text[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a percentage above one hundred[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses a page over the bound this reader will look at[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mnever finds a plausible percentage somewhere else in the document[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mdoes not reuse the previous successful parse when the next payload fails[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/opencode-contract.test.js[2m > [22mopencode: everything it must refuse[2m > [22mrefuses prompt injection and an enormous number at the root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: the documented shape[2m > [22mparses the documented builder into exactly one credits meter[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: the documented shape[2m > [22mreads the percentage the two money figures imply[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: the documented shape[2m > [22mhas a published docs url for the shape it reads[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: the documented shape[2m > [22mstates the credits window as a lifetime balance with no reset[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: the documented shape[2m > [22mstamps OpenLimiter's own labels after parsing, not the provider's[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: the documented shape[2m > [22mnever lets provider text reach a field a person reads[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: the frozen sample response file[2m > [22mparses the frozen redacted file into one credits meter[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: the frozen sample response file[2m > [22mreads the exact numbers the frozen file states[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: the frozen sample response file[2m > [22msurvives normalization with its amounts intact[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: money edge cases[2m > [22mkeeps the percent when the amounts are too large to believe[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: money edge cases[2m > [22mstates no money at all when nothing has been spent[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses no payload at all[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses a null payload[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses an empty object[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses an empty array[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses an array root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses a string root, which is what an html error page arrives as[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses a number root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses data present but not an object[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses data as an array[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses missing total_credits[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses missing total_usage[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses credits as a string[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses usage as a string[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses zero credits, which cannot be divided[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses negative credits[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses negative usage[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses usage above credits, which would be over one hundred percent[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses a non finite credit figure[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses renamed fields[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses an extra wrapper around the documented shape[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mrefuses prompt injection and an enormous number at the root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/openrouter-contract.test.js[2m > [22mopenrouter: everything it must refuse[2m > [22mdoes not reuse the previous successful parse when the next payload fails[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/adapters/test/claude-code.test.js[2m > [22mClaude adapter[2m > [22mrenders only the bounded schema[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/adapters/test/claude-code.test.js[2m > [22mClaude adapter[2m > [22mwraps the same block in a prompt hook payload[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/adapters/test/claude-code.test.js[2m > [22mClaude adapter[2m > [22minjects nothing when all providers are unknown[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/adapters/test/claude-code.test.js[2m > [22mClaude adapter[2m > [22msurfaces a bounded provider preference[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/adapters/test/claude-code.test.js[2m > [22mClaude adapter[2m > [22mrejects hostile runtime values even through an unsafe cast[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/adapters/test/claude-code.test.js[2m > [22mClaude adapter[2m > [22mrejects unbounded numbers and malformed timestamps[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/adapters/test/claude-code.test.js[2m > [22mClaude adapter[2m > [22mnever claims a cap that was not reached[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/adapters/test/claude-code.test.js[2m > [22mClaude adapter[2m > [22mreports a cap that was actually reached[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/adapters/test/claude-code.test.js[2m > [22mClaude adapter[2m > [22mreads only the cache within the hook budget[32m 24[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mpins the capture clock as an instant every fixture reads against[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mcarries one frozen fixture file for all five live providers[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mCLAUDE[2m > [22mparses the frozen file into exactly the expected meters[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mCLAUDE[2m > [22mreads the exact numbers the frozen file states[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mCLAUDE[2m > [22msurvives normalization end to end[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mCLAUDE[2m > [22mcarries no identity in the frozen file[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mOPENROUTER[2m > [22mparses the frozen file into exactly the expected meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mOPENROUTER[2m > [22mreads the exact numbers the frozen file states[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mOPENROUTER[2m > [22msurvives normalization end to end[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mOPENROUTER[2m > [22mcarries no identity in the frozen file[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mCODEX[2m > [22mparses the frozen file into exactly the expected meters[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mCODEX[2m > [22mreads the exact numbers the frozen file states[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mCODEX[2m > [22msurvives normalization end to end[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mCODEX[2m > [22mcarries no identity in the frozen file[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mANTIGRAVITY[2m > [22mparses the frozen file into exactly the expected meters[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mANTIGRAVITY[2m > [22mreads the exact numbers the frozen file states[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mANTIGRAVITY[2m > [22msurvives normalization end to end[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mANTIGRAVITY[2m > [22mcarries no identity in the frozen file[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mOPENCODE[2m > [22mparses the frozen file into exactly the expected meters[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mOPENCODE[2m > [22mreads the exact numbers the frozen file states[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mOPENCODE[2m > [22msurvives normalization end to end[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/frozen-fixtures.test.js[2m > [22mfrozen provider fixtures[2m > [22mOPENCODE[2m > [22mcarries no identity in the frozen file[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'claude' parser[2m > [22mmaps a synthetic fixture to bounded meters[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'claude' parser[2m > [22mfails closed for missing and malformed shapes[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'claude' parser[2m > [22mfails closed for huge numbers and hostile values[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'claude' parser[2m > [22mproduces snapshots that expire to stale[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'claude' parser[2m > [22mdoes not carry hostile extra strings[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'openrouter' parser[2m > [22mmaps a synthetic fixture to bounded meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'openrouter' parser[2m > [22mfails closed for missing and malformed shapes[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'openrouter' parser[2m > [22mfails closed for huge numbers and hostile values[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'openrouter' parser[2m > [22mproduces snapshots that expire to stale[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'openrouter' parser[2m > [22mdoes not carry hostile extra strings[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'codex' parser[2m > [22mmaps a synthetic fixture to bounded meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'codex' parser[2m > [22mfails closed for missing and malformed shapes[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'codex' parser[2m > [22mfails closed for huge numbers and hostile values[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'codex' parser[2m > [22mproduces snapshots that expire to stale[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'codex' parser[2m > [22mdoes not carry hostile extra strings[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'antigravity' parser[2m > [22mmaps a synthetic fixture to bounded meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'antigravity' parser[2m > [22mfails closed for missing and malformed shapes[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'antigravity' parser[2m > [22mfails closed for huge numbers and hostile values[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'antigravity' parser[2m > [22mproduces snapshots that expire to stale[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'antigravity' parser[2m > [22mdoes not carry hostile extra strings[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'opencode' parser[2m > [22mmaps a synthetic fixture to bounded meters[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'opencode' parser[2m > [22mfails closed for missing and malformed shapes[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'opencode' parser[2m > [22mfails closed for huge numbers and hostile values[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'opencode' parser[2m > [22mproduces snapshots that expire to stale[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'opencode' parser[2m > [22mdoes not carry hostile extra strings[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'manual' parser[2m > [22mmaps a synthetic fixture to bounded meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'manual' parser[2m > [22mfails closed for missing and malformed shapes[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'manual' parser[2m > [22mfails closed for huge numbers and hostile values[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'manual' parser[2m > [22mproduces snapshots that expire to stale[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22m'manual' parser[2m > [22mdoes not carry hostile extra strings[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mships six unverified connectors[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mdetects using only explicit environment markers[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mreports the manual connector as undetected without a manual document[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mcarries exactly the honesty labels the registry publishes[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mdeclares what its payload is, and only OpenCode reads text[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mreturns unknown for missing input[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mrejects expired provider windows, for every source that states an instant[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mcannot expire an OpenCode page by its reset, and expires it by age instead[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mkeeps every fixture valid against the real clock[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mkeeps the readable window when the other window is unusable[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mdrops one unusable manual row and keeps the rest[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mconnector contracts[2m > [22mrejects unicode manual meter names[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mopenrouter amounts[2m > [22mcarries the documented credit figures onto the meter[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mopenrouter amounts[2m > [22msurvives normalization with its amounts intact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mopenrouter amounts[2m > [22mkeeps the percent when the amounts are too large to believe[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/connectors.test.js[2m > [22mopenrouter amounts[2m > [22mstates no money at all when the payload states none[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mresolves one platform state directory[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mwrites atomically and reads canonical validated snapshots[32m 35[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mrejects corrupt cache data and out of bounds writes[32m 11[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mdrops one out of bounds row and keeps every other row[32m 5[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mreclaims a stale lock instead of freezing the cache[32m 22[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mreclaims a stale lock that carries no owner stamp[32m 23[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude documented contract[2m > [22mturns the documented payload into two exact meters[32m 5[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude documented contract[2m > [22mpins epoch seconds against hand computed instants[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude documented contract[2m > [22mreads a fractional epoch to the nearest millisecond[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude documented contract[2m > [22mrefuses a five hour reset that is years away[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude documented contract[2m > [22maccepts a reset exactly at the horizon and refuses one second past it[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude documented contract[2m > [22mbounds each window by its own length[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude documented contract[2m > [22mreads an epoch above the signed 32 bit boundary when the clock is there too[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude documented contract[2m > [22mrefuses the invented shape the old parser read[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude window independence[2m > [22myields one meter when only the five hour window is supplied[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude window independence[2m > [22myields one meter when only the seven day window is supplied[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude window independence[2m > [22mnormalizes every window it was actually given, in every combination[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude window independence[2m > [22msays unknown rather than zero when no window is supplied[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude window independence[2m > [22mdrops an undocumented window without disturbing the documented ones[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 0 and keeps it exact[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 0.1 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 1 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 49.9 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 50 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 70 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 84.9 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 85 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 90 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 91 and keeps it exact[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 97 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 99.9 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22maccepts 100 and keeps it exact[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mkeeps neighbouring readings distinguishable[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is over one hundred[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is far over one hundred[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is slightly negative[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is negative[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is not a number[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is infinite[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is null[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is a numeric string[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is an object[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is an empty array[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is an array holding the number[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mrefuses a used_percentage that is a boolean[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude percentage boundaries[2m > [22mignores unknown fields beside a good reading[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude live capture harness[2m > [22mkeeps two readings and throws away everything else[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude live capture harness[2m > [22mrounds a reading to the precision the documentation prints[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude live capture harness[2m > [22mround trips a capture back into a parseable payload[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude live capture harness[2m > [22mrefuses a payload with no rate limits to capture[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mclaude live capture harness[2m > [22mhas no invented live capture standing in for a real one[32m 0[2mms[22m[39m
+ [2m[90m↓[39m[22m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22msanitized live fixtures[2m > [22mclaude.live.pending [PENDING CAPTURE: no sanitized live Claude Code statusline payload exists yet. Capture one on a Pro or Max account with sanitizeClaudeStatusline, paste the result here, then remove this reason.]
+ [2m[90m↓[39m[22m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22msanitized live fixtures[2m > [22mcodex.sanitized_live.usage [PENDING CAPTURE: no sanitized live Codex usage response exists yet. The request contract is recorded; the response is not. Capture one on a real account, reduce it to numbers and window lengths only, paste the result here, then remove this reason.]
+ [2m[90m↓[39m[22m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22msanitized live fixtures[2m > [22mantigravity.sanitized_live.quota [PENDING CAPTURE: no sanitized live Antigravity quota summary exists yet. The request contract is recorded; the response is not. Capture one on a real account, reduce it to fractions and window lengths only, paste the result here, then remove this reason.]
+ [2m[90m↓[39m[22m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22msanitized live fixtures[2m > [22mopencode.sanitized_live.usage [PENDING CAPTURE: no sanitized live OpenCode workspace page exists yet. Capture one on a real account, reduce it to the window labels, percentages and remaining durations only, paste the result here, then remove this reason. The honesty labels do not change when it lands.]
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22msanitized live fixtures[2m > [22mknows whether live captures are being demanded of it[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mdocumented claude.documented.statusline parses to its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mdocumented openrouter.documented.credits parses to its stated meter count[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mdocumented codex.provisional.usage parses to its stated meter count[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mdocumented antigravity.provisional.quota parses to its stated meter count[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mdocumented opencode.provisional.usage parses to its stated meter count[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mdocumented manual.documented.plan parses to its stated meter count[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.epoch_milliseconds yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.epoch_negative yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.epoch_zero yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.epoch_string yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.epoch_iso_string yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.legacy_utilization_field yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.epoch_expired yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.epoch_year_2038 yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.epoch_just_past_horizon yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.edge.epoch_at_horizon yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.edge.horizon_is_per_window yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.edge.missing_five_hour yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.edge.missing_seven_day yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.edge.missing_both_windows yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.edge.rate_limits_absent yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.edge.unknown_window_alongside yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.edge.unknown_window_only yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.window_as_array yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.rate_limits_as_array yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.undefined yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.empty_object yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.array_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.string_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed claude.malformed.hostile_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed openrouter.malformed.undefined yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed openrouter.malformed.empty_object yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed openrouter.malformed.array_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed openrouter.malformed.string_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed openrouter.malformed.hostile_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed codex.malformed.undefined yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed codex.malformed.empty_object yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed codex.malformed.array_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed codex.malformed.string_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed codex.malformed.hostile_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed antigravity.malformed.undefined yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed antigravity.malformed.empty_object yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed antigravity.malformed.array_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed antigravity.malformed.string_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed antigravity.malformed.hostile_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed opencode.malformed.undefined yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed opencode.malformed.empty_object yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed opencode.malformed.array_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed opencode.malformed.string_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed opencode.malformed.hostile_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed manual.malformed.undefined yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed manual.malformed.empty_object yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed manual.malformed.array_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed manual.malformed.string_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mmalformed manual.malformed.hostile_root yields its stated meter count[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mcovers every connector with a documented fixture[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mjudges the date 2026-13-40[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mjudges the date 2026-02-30[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mjudges the date 2026-00-10[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mjudges the date 2026-04-31[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mjudges the date 10-08-2026[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mjudges the date 2026-08-10[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mjudges the date 2024-02-29[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mstates a source for every documented fixture and cites one where official[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/claude-contract.test.js[2m > [22mfixture classes[2m > [22mgives every fixture a unique id[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mprovider ordering[2m > [22mputs every subscription plan before the credit and API meters[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mprovider ordering[2m > [22mrenders the cells in that order and nothing else[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mprovider ordering[2m > [22mhonours a configured order and lets the rest follow the default[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mprovider ordering[2m > [22mignores an id it does not know and an id named twice[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mprovider ordering[2m > [22mdraws the configured order in the line itself[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mmeter ordering[2m > [22mclasses a meter as 0[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mmeter ordering[2m > [22mclasses a meter as 1[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mmeter ordering[2m > [22mclasses a meter as 2[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mmeter ordering[2m > [22mclasses a meter as 3[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mmeter ordering[2m > [22mclasses a meter as 4[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mmeter ordering[2m > [22mclasses a meter as 5[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mmeter ordering[2m > [22mclasses a meter as 6[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mmeter ordering[2m > [22mclasses a meter as 7[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mmeter ordering[2m > [22morders a provider's meters session, daily, weekly, monthly, credits[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mworst against all[2m > [22mshows only the meter closest to its cap by default[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mworst against all[2m > [22mshows every meter as its own cell when asked[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mworst against all[2m > [22mkeeps the worst cell agreeing with the reason code above it[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mthe cell[2m > [22mis a name, a five block bar and a truncated percent[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mthe cell[2m > [22mdraws the bar in ASCII and never rounds a block upward[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mthe cell[2m > [22mleaves a reading with no percentage out of the line entirely[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mthe head[2m > [22mleads with the reason code and carries the recommendation[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mthe head[2m > [22mnames the providers it has nothing for[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mthe head[2m > [22msays so plainly when there is nothing bounded at all[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mstacking[2m > [22mfits one row when the budget allows it[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mstacking[2m > [22mbreaks into a second row at the default budget[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mstacking[2m > [22mbreaks between cells and never inside one[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mstacking[2m > [22mnever spends more than the budget on a row[32m 18[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mstacking[2m > [22mstops at one row when told to, and says what it dropped[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mstacking[2m > [22mkeeps the worst providers when it has to drop some[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mstacking[2m > [22mends the last row with the dropped count and nothing after it[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mstacking[2m > [22mcounts every dropped cell exactly once[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mstacking[2m > [22mkeeps the head even when not one cell fits beside it[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mcolour[2m > [22mpaints each cell in its own band[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mcolour[2m > [22mdraws all four bands in one line, orange included[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mcolour[2m > [22mdegrades the orange band to yellow where there is no orange[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mcolour[2m > [22mmeasures the same width whether or not the orange is available[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mcolour[2m > [22mmeasures the budget on the text, not on the escape codes[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mcolour[2m > [22memits no control character at all when colour is refused[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mcolour[2m > [22mlets always beat a host that is not a terminal, and never beat everything[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline.test.js[2m > [22mcolour[2m > [22mobeys NO_COLOR over every setting, including always[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline-wrapper.test.js[2m > [22mClaude statusline wrapper[2m > [22mround trips Windows and POSIX quoting landmines without shell quoting them[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline-wrapper.test.js[2m > [22mClaude statusline wrapper[2m > [22mpasses the same buffered bytes to a special command without changing it[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline-wrapper.test.js[2m > [22mClaude statusline wrapper[2m > [22mfails open when the original command cannot be spawned[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline-wrapper.test.js[2m > [22mClaude statusline wrapper[2m > [22mbounds a hung original and returns only what it printed[32m 27[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline-wrapper.test.js[2m > [22mClaude statusline wrapper[2m > [22mpropagates a nonzero original exit and preserves its output[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline-wrapper.test.js[2m > [22mClaude statusline wrapper[2m > [22mpreserves an original command that prints nothing[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline-wrapper.test.js[2m > [22mClaude statusline wrapper[2m > [22muses the existing Claude ingest path when rate limits are present[32m 53[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/statusline-wrapper.test.js[2m > [22mClaude statusline wrapper[2m > [22mkeeps a payload without rate limits invisible and preserves the original[32m 10[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22minitializes every connector as enabled and stores only the prompted key[32m 26[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22manswers the quota route with the bounded advice fields and nothing else[32m 109[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22manswers the quota route for a bearer token in the header[32m 42[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mrefuses every data route without the token[32m 47[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mrefreshes only from supplied payloads and writes a bounded cache[32m 142[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mrefuses an Authorization header that is an empty bearer value[32m 36[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mrefuses an Authorization header that is a bare token with no scheme[32m 46[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mgolden demo output[2m > [22mpins the whole snapshot table[32m 53[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mgolden demo output[2m > [22mpins the whole hook and agent context block[32m 51[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mlets several concurrent writers through[32m 281[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the shape a real account produced[2m > [22mparses the observed shape into exactly one meter[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the shape a real account produced[2m > [22mreads the reading the provider actually stated[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the shape a real account produced[2m > [22mreads usage as one minus the fraction the provider says remains[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the shape a real account produced[2m > [22mnames the binding window, not the first one[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the shape a real account produced[2m > [22mleaves the third party pool alone instead of conflating two wallets[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the shape a real account produced[2m > [22mis not fooled by a third party bucket whose name contains the pool name[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the shape a real account produced[2m > [22mreads the seven fractional digits the client actually writes[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the shape a real account produced[2m > [22mstamps OpenLimiter's own labels after parsing, not the provider's[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the shape a real account produced[2m > [22mnever lets provider text reach a field a person reads[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the evidence behind it[2m > [22mhas a sanitized live fixture slot, and says out loud that it is empty[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: the evidence behind it[2m > [22mstays UNVERIFIED whatever the evidence says[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses THE SHAPE THIS CONNECTOR SHIPPED WITH, which is now drift[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses no payload at all[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a null payload[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses an empty object[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses an empty array[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses an array root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a string root, which is what an html error page arrives as[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a number root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a missing groups list[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses groups as an object rather than a list[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses an empty groups list[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a group with no buckets[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a group whose buckets are not a list[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a bucket that is not an object[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses no tracked pool at all[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses two groups both claiming the tracked pool[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a bucket id with no prefix separator[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a missing fraction[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a fraction as a string[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a fraction as a boolean, which arithmetic would silently accept[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a fraction above one[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a negative fraction[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a fraction that is not finite[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a fraction stated as a percentage instead[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a window name this build does not know[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a missing window name[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a missing reset[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a reset in epoch seconds rather than RFC3339[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a reset that already happened[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses a reset past the plausible horizon for its window[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses renamed meter fields[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses an extra wrapper around the observed shape[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mnever finds a plausible percentage somewhere else in the document[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mdoes not reuse the previous successful parse when the next payload fails[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/antigravity-contract.test.js[2m > [22mantigravity: everything it must refuse[2m > [22mrefuses prompt injection and an enormous number at the root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mrefuses an Authorization header that is the wrong scheme[32m 32[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mrefuses an Authorization header that is a scheme and nothing else[32m 41[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mdoes not let a header claim override the token it presents[32m 41[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mparses the observed shape into exactly one meter[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mreads the reading the provider actually stated[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mtakes the window length from the payload rather than assuming one[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mreports an unknown window rather than inventing a length[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mparses a weekly-only primary bucket[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mparses five hour plus weekly windows into separate meters[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mparses a payload with a missing secondary window[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mdrops a malformed window and keeps the valid window[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mstamps OpenLimiter's own labels after parsing, not the provider's[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the shape a real account produced[2m > [22mnever lets provider text reach a field a person reads[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the evidence behind it[2m > [22mhas a sanitized live fixture slot, and says out loud that it is empty[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: the evidence behind it[2m > [22mstays UNVERIFIED whatever the evidence says[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses THE SHAPE THIS CONNECTOR SHIPPED WITH, which is now drift[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses no payload at all[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a null payload[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses an empty object[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses an empty array[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses an array root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a string root, which is what an html error page arrives as[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a number root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a missing percentage[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a percentage as a string[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a percentage as an object[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a percentage as an array[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a null percentage[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a negative percentage[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a percentage above one hundred[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a percentage that is not finite[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a percentage that is not a number at all[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a missing reset[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a reset in milliseconds rather than seconds[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a reset as an ISO string, which this endpoint does not speak[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a reset that already happened[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a reset past the plausible horizon for its stated window[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses renamed meter fields[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a renamed window[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses an extra wrapper around the observed shape[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses a window that is an array[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mnever finds a plausible percentage somewhere else in the document[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mdoes not reuse the previous successful parse when the next payload fails[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/codex-contract.test.js[2m > [22mcodex: everything it must refuse[2m > [22mrefuses prompt injection and an enormous number at the root[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/catalogue.test.js[2m > [22mprovider catalogue[2m > [22mderives the five ship entries from generated provider data[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/catalogue.test.js[2m > [22mprovider catalogue[2m > [22mstates the experimental and manual platform boundaries exactly[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/catalogue.test.js[2m > [22mprovider catalogue[2m > [22mreturns one action for every provider and every connection state[32m 6[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/catalogue.test.js[2m > [22mcatalogue rows[2m > [22mderives all seventeen catalogue rows in document order[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/catalogue.test.js[2m > [22mcatalogue rows[2m > [22mapplies connection state overrides to the connectable claude row only[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mgolden demo output[2m > [22mstamps provenance without moving a byte of the rendered output[32m 57[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mgolden demo output[2m > [22mpins the whole statusline[32m 19[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mrenders statusline and identical dry run hook output from cache[32m 64[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mkeeps every concurrent merge instead of losing rows[32m 176[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/failures.test.js[2m > [22mfailure vocabulary[2m > [22mhas one fixed sentence for every category and no others[32m 5[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/failures.test.js[2m > [22mfailure vocabulary[2m > [22mwrites its sentences without a dash of any kind[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/failures.test.js[2m > [22mfailure vocabulary[2m > [22mmaps every connector refusal onto a category[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/failures.test.js[2m > [22mfailure vocabulary[2m > [22mkeeps the most specific answer when one provider fails twice[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/failures.test.js[2m > [22mfailure vocabulary[2m > [22mreturns nothing for no failures[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mcollection identity[2m > [22mkeeps an absent account distinct from an account called default[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mcollection identity[2m > [22mmatches a row on provider and account together[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mcollection identity[2m > [22mmatches a row with no account only against a report with no account[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mapplying a collection report[2m > [22mreplaces the rows of one identity and leaves every other provider alone[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mapplying a collection report[2m > [22mdrops a meter a successful run stopped reporting[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mapplying a collection report[2m > [22mremoves the rows and records a suppression on drift[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mapplying a collection report[2m > [22mreplaces an earlier suppression rather than accumulating them[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mapplying a collection report[2m > [22mkeeps one suppression per account of the same provider[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mapplying a collection report[2m > [22mpreserves the prior row through every failure that is not drift[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mapplying a collection report[2m > [22mclears the suppression when a later run parses again[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mapplying a collection report[2m > [22mignores a report whose instant cannot be read[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mapplying a collection report[2m > [22mbounds the suppression list[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mwhat a read may see[2m > [22mhides a row observed before the suppression that covers it[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mwhat a read may see[2m > [22mhides a row observed in the same instant as the suppression[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mwhat a read may see[2m > [22mshows a row observed strictly after the suppression[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mwhat a read may see[2m > [22mhides a row whose own observation cannot be read[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mwhat a read may see[2m > [22msuppresses one account without touching another[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mwhat a read may see[2m > [22msuppresses one provider without touching another[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mreading a suppression list back[2m > [22mreads an absent list as none, because that is what it is[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mreading a suppression list back[2m > [22mreads a well formed list[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mreading a suppression list back[2m > [22mrefuses every malformed shape whole rather than salvaging part of it[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22mreading a suppression list back[2m > [22mrefuses a list over its bound[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22madvice never sees a suppressed row[2m > [22mreports a drifted provider unknown while its neighbour still reads[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/collection.test.js[2m > [22madvice never sees a suppressed row[2m > [22mrestores the provider once a later run parses again[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mskips the write when a merge changes nothing[32m 33[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mrefuses a cache path that is not a regular file[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mrejects a symbolic state directory[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/cache.test.js[2m > [22msnapshot cache[2m > [22mrejects a symbolic cache file[32m 26[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/desktop-connections.test.js[2m > [22mdesktop connection wiring[2m > [22mrenders native collector state and never schedules work during bootstrap[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/desktop-connections.test.js[2m > [22mdesktop connection wiring[2m > [22mdispatches catalogue refresh and diagnostics, and no click falls through[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mdoubles for attempt 0[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mdoubles for attempt 1[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mdoubles for attempt 2[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mdoubles for attempt 3[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mdoubles for attempt 4[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mdoubles for attempt 5[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mstops growing at the ceiling[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mjitters up to a fifth either side[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mhonours a Retry-After that is longer than our own backoff[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mignores a Retry-After shorter than our own backoff[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mnever retries before a Retry-After of a day, with the lowest random[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mnever retries before a Retry-After of a day, with the highest random[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mnever retries before a Retry-After of a day, with the midpoint[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mnever retries before a Retry-After of a day, with a quarter[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mkeeps Retry-After as a floor even when jitter cuts the backoff below it[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mstill jitters our own backoff when a Retry-After is present but smaller[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mlets a long Retry-After exceed our ceiling but not run away[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mignores a Retry-After that is not a number[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mignores a Retry-After that is infinite[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mignores a Retry-After that is negative[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mignores a Retry-After that is zero[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22msurvives a hostile random source[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mnever turns a missing or invalid cadence into one second polling[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mrefresh delay[2m > [22mmarks zero as schedule exempt[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mnext refresh instant[2m > [22madds the delay to the supplied clock[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mnext refresh instant[2m > [22mrefuses to guess from a clock it cannot read[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mnext refresh instant[2m > [22mkeeps a manual connection out of the background schedule[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mdue check[2m > [22mcompares absolute instants[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mdue check[2m > [22mtreats a schedule it cannot read as due[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/schedule.test.js[2m > [22mdue check[2m > [22mtreats a clock it cannot read as not due[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22maccepts a[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22maccepts 0[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22maccepts work[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22maccepts claude-work[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22maccepts personal-2[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22maccepts aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for account id [32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for account id -leading[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for account id Work[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for account id claude work[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for account id claude_work[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for account id claude.work[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for account id claude/work[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for account id Ω[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for account id aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for a non string account id 42[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for a non string account id null[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for a non string account id true[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for a non string account id {}[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mrefuses the whole reading for a non string account id [32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22maccount identity[2m > [22mleaves a reading without an account exactly as it was[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mkeeps a provenance stated in our own vocabulary[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mkeeps the reading and falls back to unknown provenance[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mkeeps the reading and falls back to unknown provenance[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mkeeps the reading and falls back to unknown provenance[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mkeeps the reading and falls back to unknown provenance[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mkeeps the reading and falls back to unknown provenance[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mkeeps the reading and falls back to unknown provenance[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mkeeps the reading and falls back to unknown provenance[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mfalls back to unknown provenance for a non object a string[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mfalls back to unknown provenance for a non object 7[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mfalls back to unknown provenance for a non object [32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mfalls back to unknown provenance for a non object null[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mfalls back to unknown provenance for a non object true[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mnever lets provider text through a provenance field[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mobservation provenance[2m > [22mleaves a reading without provenance exactly as it was[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mmerge identity[2m > [22mkeys a reading without an account exactly as it always did[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mmerge identity[2m > [22mkeeps two accounts on the same meter apart[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mmerge identity[2m > [22mreplaces a reading only when the account matches[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mmerge identity[2m > [22mtreats an unnamed account as its own row, not as a default one[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/identity.test.js[2m > [22mmerge identity[2m > [22morders the same input the same way whether accounts are present or not[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/merge.test.js[2m > [22msnapshot merge[2m > [22mreplaces one meter and keeps every other meter[32m 6[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/merge.test.js[2m > [22msnapshot merge[2m > [22morders the result the same way for the same input[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/merge.test.js[2m > [22msnapshot merge[2m > [22mstays bounded and keeps the most recently observed rows[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer[2m > [22maccepts a bounded snapshot[32m 12[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer[2m > [22mrejects unsafe numeric value NaN[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer[2m > [22mrejects unsafe numeric value Infinity[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer[2m > [22mrejects unsafe numeric value -1[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer[2m > [22mrejects unsafe numeric value 101[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer[2m > [22mrejects unsafe numeric value 1000000000001[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer[2m > [22mrejects hostile identifiers and invalid dates[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer[2m > [22mserializes keys canonically[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mpasses valid amounts through untouched[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mkeeps a reading that carries no amounts at all[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a negative spend while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a negative limit while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a spend above the limit while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for an absurd spend while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for an absurd limit while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for an infinite spend while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a spend that is not a number while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a spend given as text while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a currency we do not support while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a currency that is hostile text while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a missing limit while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a missing currency while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mdrops the whole set for a missing spend while the percent survives[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22maccepts a spend exactly equal to the limit and to the ceiling[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer amounts[2m > [22mnever lets provider text reach a normalized reading[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer report[2m > [22mattributes a rejected reading to its provider and keeps the rest[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer report[2m > [22mcounts a rejection it cannot attribute without naming a provider[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/normalizer.test.js[2m > [22mnormalizer report[2m > [22mreports one provider once however many of its rows were refused[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mstill accepts the query token for one release of compatibility[32m 65[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mprovenance by ingestion path[2m > [22mstamps a Claude Code session payload as a live statusline reading[32m 17[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mprovenance by ingestion path[2m > [22mstamps an ingested payload as an import, not as a live reading[32m 55[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mrefuses a token that is close but not equal[32m 74[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/forecast.test.js[2m > [22mforecast[2m > [22mcomputes burn and exhaustion time[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/forecast.test.js[2m > [22mforecast[2m > [22mfails closed when observations do not form a burn rate[32m 8[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mprovenance by ingestion path[2m > [22mingests an OpenCode page, which is text rather than JSON[32m 88[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mprovenance by ingestion path[2m > [22mstill refuses a JSON connector's payload when it is not JSON[32m 9[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/policy.test.js[2m > [22mpolicy[2m > [22minjects nothing when every provider is unknown[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/policy.test.js[2m > [22mpolicy[2m > [22muses bounded codes and identifies unknown providers[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/policy.test.js[2m > [22mpolicy[2m > [22muses the worst meter for a provider[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/policy.test.js[2m > [22mpolicy[2m > [22mrecommends the fresh provider with the lowest healthy usage[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/policy.test.js[2m > [22mpolicy[2m > [22mbreaks a usage tie by expected provider order[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/policy.test.js[2m > [22mpolicy[2m > [22mrecommends nothing when every fresh provider is near its cap[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/policy.test.js[2m > [22mpolicy[2m > [22mnever recommends stale data[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mserves the empty page shell on the root route without a token[32m 156[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mmoves the token out of the address and into a header[32m 29[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mprovenance by ingestion path[2m > [22mstamps the manual document read from disk as a manual document[32m 103[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mprovenance by ingestion path[2m > [22mkeeps every stamp inside our own vocabulary[32m 16[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mreturns safe empty output when cache input is unavailable[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mingests a Claude Code statusline payload from standard input[32m 22[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mfalls back to the cache when standard input carries nothing usable[32m 7[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mkeeps a statusline payload out of the cache when it is hostile[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/freshness.test.js[2m > [22mfreshness[2m > [22mseparates fresh and stale values[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/freshness.test.js[2m > [22mfreshness[2m > [22mfails closed on invalid chronology[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/format.test.js[2m > [22mhonest number rendering[2m > [22mnever rounds a usage value upward[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/format.test.js[2m > [22mhonest number rendering[2m > [22mreports a reached cap exactly[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/format.test.js[2m > [22mhonest number rendering[2m > [22mignores binary floating point noise[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/core/test/format.test.js[2m > [22mhonest number rendering[2m > [22mstays bounded for values that are not finite[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/fixture-verification.test.js[2m > [22mfixture verification markers[2m > [22mkeeps the marker separate from the honesty label, which stays UNVERIFIED[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/fixture-verification.test.js[2m > [22mfixture verification markers[2m > [22mmarks only known live providers[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/fixture-verification.test.js[2m > [22mfixture verification markers[2m > [22mclaude[2m > [22mcarries an explicit boolean and a non empty reason[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/connectors/test/fixture-verification.test.js[2m > [22mfixture verification markers[2m > [22mclaude[2m > [22monly claims verified when its frozen fixture actually parses[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mbootstraps an address printed by an older build, then scrubs it[32m 43[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mprints an address whose token is in the fragment, never the query[32m 31[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mrefuses a request that carries any origin at all[32m 32[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mrefuses a host header that is a name, which is what rebinding needs[32m 26[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mjudges host headers without a socket[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mreads the manual document from the state directory[32m 30[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mdrops an unusable manual row and keeps the usable one[32m 30[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mmerges an ingested document into the existing cache[32m 24[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mroutes an ingest payload through a named provider parser[32m 13[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mrefuses ingest input that carries no bounded meter[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mseparates success, missing data, and genuine failure by exit code[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mkeeps hook and statusline at exit code zero when everything is missing[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mreports a genuine failure when quota state cannot be read[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mkeeps doctor output redacted and marks drift[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mhas no route that writes, and answers nothing but reads[32m 28[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mreports every provider unknown when there is no cache to read[32m 5[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mgives every start a different token[32m 21[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mprints an address, a code, and the safety notes[32m 24[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mcan be asked to leave the code out[32m 19[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mrejects a port that is not a port[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mdefaults to the documented port[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/serve.test.js[2m > [22mserve[2m > [22mnames serve in the help output[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mrenders demo fixtures without writing cache and exports canonical JSON[32m 17[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mdraws a bar, a percent and a time to reset on every demo row[32m 2[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mexercises all four pressure bands in the demo[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mprints no escape code anywhere when colour is refused[32m 0[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mshows the OpenRouter dollar figures beside its percent[32m 1[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mreports a refused payload in red, in our own words[32m 14[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mstays silent about a connector that was never handed anything[32m 12[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mreports a corrupt cache in red from doctor[32m 4[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22msays nothing failed when doctor finds a healthy cache[32m 14[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mdraws the statusline as cells with bars, and never money[32m 11[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mreturns the 0.1.0 line byte for byte when bars are turned off[32m 23[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mstacks the statusline into a second row at the default budget[32m 24[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mobeys the configured order, meter mode and colour setting[32m 63[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mkeeps drawing the statusline when the configuration is nonsense[32m 16[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mkeeps the agent context free of money and of failure text[32m 16[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mprints every statusline key, with or without a configuration file[32m 10[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mreads back every key it was told to write[32m 49[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mkeeps a configured statusline when init runs a second time[32m 25[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mrefuses a value it cannot use, and says what it wanted[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mrejects every key that is not a statusline key[32m 12[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mnames NONE as the way back to the built in order[32m 19[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mreports a configuration it cannot read rather than replacing it[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mCLI[2m > [22mfails open on an unsafe state path[32m 3[2mms[22m[39m
+ [32m✓[39m .test-dist/packages/cli/test/cli.test.js[2m > [22mcredential adapter[2m > [22mdelegates only to the injected operating system driver[32m 0[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m30 passed[39m[22m[90m (30)[39m
+[2m      Tests [22m [1m[32m754 passed[39m[22m[2m | [22m[33m4 skipped[39m[90m (758)[39m
+[2m   Start at [22m 18:48:24
+[2m   Duration [22m 1.91s[2m (transform 791ms, setup 0ms, collect 4.21s, tests 3.38s, environment 11ms, prepare 5.81s)[22m
+
