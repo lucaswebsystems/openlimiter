@@ -14,6 +14,7 @@ mod native_readers;
 mod native_snapshot;
 mod native_time;
 mod net;
+mod pro;
 mod provider_detection;
 mod reader_registry;
 mod state;
@@ -104,13 +105,21 @@ pub fn run() {
             commands::refresh_detected_claude,
             commands::claude_connect_preflight,
             commands::claude_connect_apply,
-            commands::claude_disconnect
+            commands::claude_disconnect,
+            pro::pro_status,
+            pro::pro_set_session,
+            pro::pro_refresh,
+            pro::pro_service,
+            pro::pro_sync_agent_context,
+            pro::pro_sync_hosted,
+            pro::pro_disconnect
         ])
         .setup(|app| {
             /* The full collector outlives every window. Its schedule, reads,
             parsing and cache commits never depend on a webview receiving an
             event or being allowed to run a timer. */
             collector_runtime::spawn_collector(app.handle().clone());
+            pro::spawn_silent_refresh();
             let initial = tray::view(Vec::new()).expect("an empty tray view is valid");
             let menu = tray::menu(app.handle(), &initial)?;
             let icon = tray::icon(&initial)?;

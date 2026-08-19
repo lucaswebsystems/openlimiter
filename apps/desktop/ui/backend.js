@@ -50,13 +50,12 @@
  * branch on stale_generation or busy, and `message` is the human sentence
  * with the raw kind kept visible inside it.
  *
- * SECRETS. connectProvider is the only function here that ever carries one.
- * The secret crosses this module exactly once, inside the invoke payload, on
- * its way to the operating system credential store. It is never logged, never
- * stored on any object that outlives the call, and never returned. A Codex
- * connection may carry its nonsecret account identifier beside the masked
- * label, but neither value is ever logged. There is no console call anywhere
- * in this file.
+ * SECRETS. connectProvider carries a provider credential and proSetSession
+ * carries a Supabase access token. Each value crosses this module once on its
+ * way to the operating system credential store. Neither value is logged,
+ * retained here, or returned. A Codex connection may carry its nonsecret
+ * account identifier beside the masked label, but neither value is ever
+ * logged. There is no console call anywhere in this file.
  */
 
 /**
@@ -110,6 +109,13 @@ const FAILURE_SENTENCES = {
   too_soon: "That was too soon after the last one. Trying again shortly may succeed.",
   not_json: "The text was not valid JSON.",
   codex_login_required: "Codex needs a current login. Run codex login.",
+  unconfigured: "The Pro service is not configured in this build.",
+  no_session: "No Pro session is stored on this machine.",
+  invalid_entitlement: "The stored Pro entitlement could not be verified.",
+  clock_invalid: "The local clock needs a Pro service refresh.",
+  network: "The Pro service could not be reached.",
+  service: "The Pro service returned an unusable response.",
+  entitlement_required: "This hosted service needs an active Pro entitlement.",
 };
 
 function absent(command) {
@@ -355,6 +361,52 @@ export async function claudeConnectApply({ configuredCliPath } = {}) {
 /** Remove only the entries owned by OpenLimiter. */
 export async function claudeDisconnect() {
   return call("claude_disconnect");
+}
+
+const PRO_ACTIONS = new Set([
+  "account_status",
+  "ingest_snapshot",
+  "save_alert_rule",
+  "delete_alert_rule",
+  "list_alert_rules",
+  "history",
+  "agent_context",
+  "dispatch_alerts",
+]);
+
+/** Read the locally verified Pro state without contacting the service. */
+export async function proStatus() {
+  return call("pro_status");
+}
+
+/** Store one authenticated Pro session and exchange its first device token. */
+export async function proSetSession(accessToken) {
+  return call("pro_set_session", {
+    input: { access_token: accessToken },
+  });
+}
+
+/** Refresh the signed device entitlement now. */
+export async function proRefresh() {
+  return call("pro_refresh");
+}
+
+/** Call one closed hosted service action. */
+export async function proService(action, payload = {}) {
+  if (!PRO_ACTIONS.has(action) || payload === null || typeof payload !== "object") {
+    return refusedInput("pro_service");
+  }
+  return call("pro_service", { input: { action, payload } });
+}
+
+/** Send the current bounded snapshot and update coding agent context. */
+export async function proSyncHosted() {
+  return call("pro_sync_hosted");
+}
+
+/** Remove the Pro session, trust anchor, token, and hosted context. */
+export async function proDisconnect() {
+  return call("pro_disconnect");
 }
 
 /* ------------------------------------------------------------ record shapes */
