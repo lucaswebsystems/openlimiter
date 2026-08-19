@@ -64,7 +64,7 @@ export default async function RoadmapPage({ params }: LocaleParams) {
             <>
               <P>
                 {t.rich("sync.intro", {
-                  pricing: (chunks) => <DocLink href="/#pricing">{chunks}</DocLink>,
+                  pricing: (chunks) => <DocLink href="/pricing">{chunks}</DocLink>,
                 })}
               </P>
               <Bullets

@@ -35,7 +35,7 @@ export const ANNOUNCE_OFF = "off";
 const ANNOUNCE_LEGACY_KEY = "openlimiter-announce";
 
 /** Where the bar goes: the section that explains both numbers. */
-export const ANNOUNCE_HREF = "/#pricing";
+export const ANNOUNCE_HREF = "/pricing";
 
 /**
  * The bar returns on every load, the founder's order (2026-08-11): closing it
