@@ -9,6 +9,7 @@
     "typecheck": "pnpm -r --workspace-concurrency=1 --if-present typecheck",
     "openlimiter": "node packages/cli/dist/bin.js",
     "test:compile": "tsc -p tsconfig.test.json",
+    "test:fixtures": "pnpm test:compile && pnpm vitest:safe run --configLoader runner --config vitest.config.mjs contract fixtures",
     "test:specs": "node scripts/validate-provider-specs.mjs",
     "test:i18n": "node apps/web/scripts/check-i18n.mjs",
     "specs:emit": "node scripts/validate-provider-specs.mjs --emit",

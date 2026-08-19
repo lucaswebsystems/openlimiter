@@ -60,6 +60,18 @@ jobs:
       - name: Workspace test
         run: pnpm test
 
+      # The frozen redacted fixtures in packages/connectors/fixtures stand in
+      # for live captures, so the parser, contract and gate suites run fully
+      # OFFLINE here: no provider call, no network, and no secret. This runs
+      # them as their own explicit step so the fixture coverage cannot quietly
+      # stop running, and REQUIRE_LIVE_CAPTURES stays unset so the pending
+      # capture slots skip out loud rather than failing the build. Every
+      # provider parser is proven against its frozen sample, and the contract
+      # gate is proven to degrade a bad shape to a visible unknown, on every
+      # push, with the frozen fixtures as the substitute for a live capture.
+      - name: Fixture and contract tests (offline)
+        run: pnpm test:fixtures
+
       - name: Install web standalone dependencies
         working-directory: apps/web
         run: pnpm install --ignore-workspace --frozen-lockfile
