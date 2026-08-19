@@ -4,6 +4,52 @@ All notable project changes appear in this file.
 
 ## [Unreleased]
 
+This section is the version 1.0 launch candidate. It becomes a published release
+only after the owner approves the release and creates its tag.
+
+### Added
+
+The desktop application now discovers Claude Code, Codex, Antigravity, OpenCode
+and OpenRouter from the tools and logins already present on Windows, macOS and
+Linux. Every provider is shown as present, installed but logged out, or absent.
+Separate local profiles stay separate accounts, so two Codex accounts no longer
+collapse into one.
+
+Claude Code usage can now be read from the existing local OAuth login. It reports
+the five hour session and seven day windows, caches provider responses, respects
+rate limits, and tells the user to reopen Claude Code when that login is stale.
+The Claude Code statusline remains available as a fallback.
+
+The public site now states the hosted service price as 5 dollars per month or 50
+dollars per year, with the first 30 days free. It also states the permanent
+boundary clearly: the local meter and every local feature remain free and open
+source. Payment buys only hosted threshold alerts, history and forecasts, and
+agent routing.
+
+The downloads page now lists Windows, macOS and Linux artifacts with direct
+installation instructions. It explains the unsigned Windows and macOS warnings
+before download and gives the exact safe recovery steps instead of hiding them.
+
+The documentation now explains automatic discovery, multiple accounts, every
+supported provider reading, the local privacy boundary and the recovery path for
+an unknown reading.
+
+### Changed
+
+An unexpected provider response now becomes a visible unknown reading. It never
+becomes zero and never keeps a plausible number from a contract the provider has
+changed.
+
+Codex keeps a quota percentage when the provider omits the reset time. OpenCode
+remains explicitly unverified until a capture proves its current page layout.
+
+### Distribution
+
+The desktop release configuration prepares AppImage, deb and rpm packages for
+Linux and a signed Tauri update manifest for all desktop platforms. The npm CLI
+package has a reproducible inspection command and a publish workflow prepared
+for the owner. No installer, update, package or site is published by this work.
+
 ## [0.4.0] (2026-08-11)
 
 Connect and See. This release turns OpenLimiter from a technical ingestion tool
