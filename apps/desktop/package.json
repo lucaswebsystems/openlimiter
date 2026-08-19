@@ -18,6 +18,7 @@
   "scripts": {
     "icons": "node scripts/icons.mjs",
     "build:ui": "node scripts/build-ui.mjs",
+    "test:first-run": "node --test ui/first-run.test.mjs",
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri"

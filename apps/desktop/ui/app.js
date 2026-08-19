@@ -44,6 +44,7 @@ import {
 import {
   BACKEND_ABSENT,
   connectProvider,
+  listDetectedProviders,
   listConnections,
   normalizeCollectionOutcome,
   normalizeConnection,
@@ -61,6 +62,7 @@ import {
   noteMetersRefreshed,
   stateWord,
 } from "./connections.js";
+import { initFirstRun } from "./first-run.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
@@ -1238,6 +1240,30 @@ if (cardsContainer) {
   });
   observer.observe(cardsContainer, { childList: true, subtree: true });
 }
+
+initFirstRun({
+  detectProviders: listDetectedProviders,
+  markFor: (code) => MARKS[code] ?? "",
+  onContinue: () => {
+    void refresh();
+  },
+  onInstall: (provider) => {
+    selectTab(1, true);
+    const targetId = {
+      CLAUDE: "claude-card",
+      CODEX: "codex-add",
+      ANTIGRAVITY: "antigravity-add",
+      OPENCODE: "opencode-add",
+    }[provider];
+    window.setTimeout(() => {
+      const target = targetId === undefined ? null : document.getElementById(targetId);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      target?.focus({ preventScroll: true });
+      const toggle = target?.querySelector(".conn-toggle-btn");
+      if (toggle?.getAttribute("aria-expanded") === "false") toggle.click();
+    }, 0);
+  },
+});
 
 void refresh();
 window.setInterval(() => {

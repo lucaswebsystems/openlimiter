@@ -26,7 +26,8 @@
  *   status input: connection state is written by Rust from what a read
  *   achieved, never by this window;
  *
- *   list_connections, detect_local_tools and collector_status take no
+ *   list_connections, detect_local_tools, list_detected_providers and
+ *   collector_status take no
  *   arguments;
  *
  *   a failing command REJECTS with an object { kind }, out of a closed set of
@@ -322,6 +323,11 @@ export async function listConnections() {
 /** What supported local tools exist on this machine, without reading secrets. */
 export async function detectLocalTools() {
   return call("detect_local_tools");
+}
+
+/** The provider and account presence report owned by the native detector. */
+export async function listDetectedProviders() {
+  return call("list_detected_providers");
 }
 
 /** Check the real CLI and Claude Code settings without changing either. */

@@ -18,18 +18,54 @@
        * a light window never flashes dark on its way to being light.
        */
       (function () {
+        var firstRunComplete = false;
         try {
           var stored = window.localStorage.getItem("openlimiter-theme");
           if (stored === "light" || stored === "dark") {
             document.documentElement.setAttribute("data-theme", stored);
           }
+          firstRunComplete =
+            window.localStorage.getItem("openlimiter-first-run-complete-v1") ===
+            "complete";
         } catch (error) {
           /* Storage refused. Dark is already the default. */
         }
+        document.documentElement.setAttribute(
+          "data-first-run",
+          firstRunComplete ? "complete" : "pending",
+        );
       })();
     </script>
   </head>
   <body>
+    <section
+      id="first-run"
+      class="first-run"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="first-run-title"
+      aria-describedby="first-run-intro first-run-helper"
+    >
+      <div class="first-run-panel surface">
+        <p class="first-run-brand">OpenLimiter</p>
+        <p class="first-run-kicker">WELCOME</p>
+        <h1 id="first-run-title">Your limits are already here.</h1>
+        <p id="first-run-intro" class="first-run-intro">
+          OpenLimiter checks the provider tools already on this computer.
+        </p>
+        <div id="first-run-providers" class="first-run-providers" aria-live="polite"></div>
+        <p id="first-run-status" class="first-run-status" role="status">
+          Checking local tools.
+        </p>
+        <button type="button" id="first-run-continue" class="first-run-continue">
+          Continue
+        </button>
+        <p id="first-run-helper" class="first-run-helper">
+          Everything is optional. Continue now and configure anything later.
+        </p>
+      </div>
+    </section>
+
     <header class="strip">
       <div class="strip-top">
         <div class="lockup">

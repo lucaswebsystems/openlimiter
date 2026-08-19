@@ -151,6 +151,7 @@ const WINDOW_FILES = [
   "app.js",
   "backend.js",
   "connections.js",
+  "first-run.js",
 ];
 
 for (const file of WINDOW_FILES) {
