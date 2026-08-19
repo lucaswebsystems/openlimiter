@@ -11,6 +11,9 @@ use crate::claude_connect::{
     ClaudePreflightVerdict,
 };
 use crate::claude_detect::{self, LocalToolDetection};
+use crate::claude_oauth::{
+    self, ClaudeOauthOutcome, ClaudeOauthRuntime, RefreshDetectedClaudeInput,
+};
 use crate::connections::{
     now_epoch_ms, valid_alias, validate_record, ConnectionRecord, ConnectionsStore, StoreError,
     MAX_ATTEMPT_GENERATION, MAX_CONSECUTIVE_FAILURES, MAX_ID_CHARS,
@@ -999,6 +1002,25 @@ pub fn list_detected_providers(detection: State<'_, DetectionStore>) -> Detectio
 #[tauri::command]
 pub fn rescan_detected_providers(detection: State<'_, DetectionStore>) -> DetectionReport {
     detection.rescan()
+}
+
+#[tauri::command]
+pub async fn refresh_detected_claude(
+    input: RefreshDetectedClaudeInput,
+    detection: State<'_, DetectionStore>,
+    runtime: State<'_, ClaudeOauthRuntime>,
+    transport: State<'_, ReqwestTransport>,
+    writer: State<'_, Arc<CacheWriter>>,
+) -> Result<ClaudeOauthOutcome, CommandFailure> {
+    Ok(claude_oauth::collect_account(
+        &detection,
+        &runtime,
+        &*transport,
+        Arc::clone(&writer),
+        input.account_id,
+        now_epoch_ms(),
+    )
+    .await)
 }
 
 #[tauri::command]
@@ -2621,11 +2643,7 @@ mod tests {
             .skip(1)
             .map(|block| block.split('{').next().unwrap_or(""))
             .collect();
-        assert_eq!(
-            signatures.len(),
-            14,
-            "the frozen commands plus the native collector status command"
-        );
+        assert_eq!(signatures.len(), 17, "the reviewed command surface");
         for signature in &signatures {
             assert!(
                 !signature.contains("Zeroizing") && !signature.contains("-> String"),

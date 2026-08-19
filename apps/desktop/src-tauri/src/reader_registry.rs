@@ -254,6 +254,8 @@ impl CredentialKind {
 pub enum AuthApplication {
     /// `Authorization: Bearer <secret>` and nothing else. The OpenRouter path.
     BearerAuthorization,
+    /// A bearer token plus the fixed OAuth usage contract headers Claude Code uses.
+    ClaudeOauthBearer,
     /// A bearer token plus the fixed product headers the ChatGPT backend
     /// demands of the Codex client.
     CodexSessionBearer,

@@ -33,6 +33,9 @@ pub const OPENROUTER_KEY_URL: &str = "https://openrouter.ai/api/v1/key";
 /// The OpenRouter management credits report.
 pub const OPENROUTER_CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 
+/// The Claude account usage report read with Claude Code's existing OAuth token.
+pub const CLAUDE_OAUTH_USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+
 /// The Codex usage report, read with the session the Codex client holds.
 ///
 /// Evidence, recorded 2026-08-07 from a working reader and restated in
@@ -96,18 +99,20 @@ pub enum ProviderEndpoint {
     CodexUsage,
     AntigravityQuota,
     OpencodeUsage,
+    ClaudeOauthUsage,
 }
 
 impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 5] = [
+    pub const ALL: [ProviderEndpoint; 6] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::CodexUsage,
         ProviderEndpoint::AntigravityQuota,
         ProviderEndpoint::OpencodeUsage,
+        ProviderEndpoint::ClaudeOauthUsage,
     ];
 
     /// The address the first request of this endpoint goes to.
@@ -121,6 +126,7 @@ impl ProviderEndpoint {
             ProviderEndpoint::CodexUsage => CODEX_USAGE_URL,
             ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_QUOTA_URL,
             ProviderEndpoint::OpencodeUsage => OPENCODE_AUTH_URL,
+            ProviderEndpoint::ClaudeOauthUsage => CLAUDE_OAUTH_USAGE_URL,
         }
     }
 
@@ -137,7 +143,8 @@ impl ProviderEndpoint {
             ProviderEndpoint::OpenrouterKey
             | ProviderEndpoint::OpenrouterCredits
             | ProviderEndpoint::CodexUsage
-            | ProviderEndpoint::OpencodeUsage => HttpMethod::Get,
+            | ProviderEndpoint::OpencodeUsage
+            | ProviderEndpoint::ClaudeOauthUsage => HttpMethod::Get,
             ProviderEndpoint::AntigravityQuota => HttpMethod::Post,
         }
     }
@@ -150,7 +157,8 @@ impl ProviderEndpoint {
             ProviderEndpoint::OpenrouterKey
             | ProviderEndpoint::OpenrouterCredits
             | ProviderEndpoint::CodexUsage
-            | ProviderEndpoint::OpencodeUsage => None,
+            | ProviderEndpoint::OpencodeUsage
+            | ProviderEndpoint::ClaudeOauthUsage => None,
         }
     }
 }
@@ -167,6 +175,15 @@ pub const CODEX_USER_AGENT: &str = "codex-cli/0.144.1";
 /// The account identifier is imported beside the access token from the Codex
 /// session envelope. It is never accepted as a caller supplied request field.
 pub const CODEX_ACCOUNT_HEADER: &str = "chatgpt-account-id";
+
+/// The beta contract Claude Code sends when it asks for OAuth account usage.
+pub const CLAUDE_OAUTH_BETA_HEADER: &str = "anthropic-beta";
+
+/// The beta contract value observed with the OAuth usage route.
+pub const CLAUDE_OAUTH_BETA_VALUE: &str = "oauth-2025-04-20";
+
+/// An honest product identity for the private usage request.
+pub const CLAUDE_OAUTH_USER_AGENT: &str = "OpenLimiter/0.4.0 (+https://openlimiter.com)";
 
 /// The user agent the Antigravity quota summary is addressed with.
 ///
@@ -610,6 +627,7 @@ fn authenticated_builder(
     let mut credential = Zeroizing::new(String::with_capacity("Bearer ".len() + secret.len()));
     match request.auth {
         AuthApplication::BearerAuthorization
+        | AuthApplication::ClaudeOauthBearer
         | AuthApplication::CodexSessionBearer
         | AuthApplication::AntigravitySessionBearer => {
             credential.push_str("Bearer ");
@@ -624,6 +642,11 @@ fn authenticated_builder(
         AuthApplication::BearerAuthorization => {
             builder.header(reqwest::header::AUTHORIZATION, header_value)
         }
+        AuthApplication::ClaudeOauthBearer => builder
+            .header(reqwest::header::AUTHORIZATION, header_value)
+            .header(reqwest::header::USER_AGENT, CLAUDE_OAUTH_USER_AGENT)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header(CLAUDE_OAUTH_BETA_HEADER, CLAUDE_OAUTH_BETA_VALUE),
         AuthApplication::CodexSessionBearer => {
             let account_id = request.codex_account_id.ok_or(TransportFailure::Protocol)?;
             let mut account_header = reqwest::header::HeaderValue::from_str(account_id)
@@ -702,6 +725,9 @@ mod tests {
     /// from the routing function rather than restated, so a test can never
     /// disagree with the product about which scheme an endpoint uses.
     fn auth_for(endpoint: ProviderEndpoint) -> AuthApplication {
+        if endpoint == ProviderEndpoint::ClaudeOauthUsage {
+            return AuthApplication::ClaudeOauthBearer;
+        }
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
                 if let Ok(route) = reader_route(provider, credential) {
@@ -753,6 +779,7 @@ mod tests {
                 handle. */
                 OPENCODE_AUTH_URL.to_string(),
                 "https://opencode.ai/workspace/wrk_testworkspace/go".to_string(),
+                CLAUDE_OAUTH_USAGE_URL.to_string(),
             ]
         );
     }
@@ -888,6 +915,35 @@ mod tests {
         assert_eq!(CODEX_USER_AGENT, "codex-cli/0.144.1");
         assert_eq!(headers[reqwest::header::ACCEPT], "application/json");
         assert!(headers[CODEX_ACCOUNT_HEADER].is_sensitive());
+        assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
+    }
+
+    #[test]
+    fn the_claude_request_identifies_itself_and_states_the_oauth_contract() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        let request = EndpointRequest {
+            url: CLAUDE_OAUTH_USAGE_URL,
+            method: HttpMethod::Get,
+            auth: AuthApplication::ClaudeOauthBearer,
+            codex_account_id: None,
+            body: None,
+        };
+        let built = authenticated_builder(&client, &request, "oauth-token-canary")
+            .expect("headers")
+            .build()
+            .expect("request");
+        let headers = built.headers();
+        assert_eq!(
+            headers[reqwest::header::AUTHORIZATION],
+            "Bearer oauth-token-canary"
+        );
+        assert_eq!(
+            headers[reqwest::header::USER_AGENT],
+            CLAUDE_OAUTH_USER_AGENT
+        );
+        assert_eq!(headers[reqwest::header::ACCEPT], "application/json");
+        assert_eq!(headers[CLAUDE_OAUTH_BETA_HEADER], CLAUDE_OAUTH_BETA_VALUE);
         assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
     }
 
@@ -1085,7 +1141,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            6,
+            8,
             "an address appeared outside the constants"
         );
     }

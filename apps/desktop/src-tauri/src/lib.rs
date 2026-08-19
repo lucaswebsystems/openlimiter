@@ -1,6 +1,7 @@
 mod cache_write;
 mod claude_connect;
 mod claude_detect;
+mod claude_oauth;
 mod collector;
 mod collector_runtime;
 mod collector_schedule;
@@ -83,6 +84,7 @@ pub fn run() {
         ))
         .manage(net::ReqwestTransport::new())
         .manage(provider_detection::DetectionStore::scan())
+        .manage(claude_oauth::ClaudeOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
         .invoke_handler(tauri::generate_handler![
             read_cache,
@@ -99,6 +101,7 @@ pub fn run() {
             commands::detect_local_tools,
             commands::list_detected_providers,
             commands::rescan_detected_providers,
+            commands::refresh_detected_claude,
             commands::claude_connect_preflight,
             commands::claude_connect_apply,
             commands::claude_disconnect

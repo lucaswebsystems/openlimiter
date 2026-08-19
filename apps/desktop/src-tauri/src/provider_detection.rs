@@ -79,6 +79,14 @@ pub enum DetectedAuthState {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
+pub enum DetectedCollectionState {
+    Waiting,
+    Ready,
+    Fallback,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum IdentityQuality {
     ProviderAccount,
     JwtSubject,
@@ -98,12 +106,15 @@ pub struct DetectedAccount {
     pub account_id: String,
     pub label: String,
     pub auth_state: DetectedAuthState,
+    pub collection_state: DetectedCollectionState,
     pub identity_quality: IdentityQuality,
     pub automatic_collection: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery: Option<RecoveryAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -114,6 +125,8 @@ pub struct ProviderDetection {
     pub manual_entry_available: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery: Option<RecoveryAction>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -931,10 +944,14 @@ fn scan_inventory(context: &DiscoveryContext, now_ms: u64) -> Inventory {
                     account_id: account_id.clone(),
                     label: account_label(provider, parsed.email.as_deref(), &account_id),
                     auth_state,
+                    collection_state: DetectedCollectionState::Waiting,
                     identity_quality: parsed.identity_quality,
                     automatic_collection: provider.supports_automatic_collection(),
                     expires_at: parsed.expires_at_ms.and_then(iso_from_epoch_ms),
                     recovery: stale.then_some(RecoveryAction::ReopenCli),
+                    message: stale.then(|| {
+                        format!("Reopen {} to refresh this login.", provider.display_name())
+                    }),
                 };
                 let key = (provider, account_id.clone());
                 if !accounts.contains_key(&account_id) {
@@ -969,6 +986,14 @@ fn scan_inventory(context: &DiscoveryContext, now_ms: u64) -> Inventory {
                 ProviderPresence::InstalledLoggedOut => Some(RecoveryAction::SignInToCli),
                 ProviderPresence::Absent => Some(RecoveryAction::ManualEntry),
             },
+            message: match state {
+                ProviderPresence::Present => None,
+                ProviderPresence::InstalledLoggedOut => Some(format!(
+                    "Sign in with {} to connect this account.",
+                    provider.display_name()
+                )),
+                ProviderPresence::Absent => Some("Manual entry remains available.".to_string()),
+            },
         });
     }
     Inventory {
@@ -990,7 +1015,9 @@ pub enum DetectedCredentialError {
 
 pub struct DetectedSecret {
     pub access_token: Zeroizing<String>,
+    #[cfg_attr(not(test), allow(dead_code))]
     pub provider_account_id: Option<String>,
+    pub credential_revision: String,
 }
 
 pub struct DetectionStore {
@@ -1066,6 +1093,7 @@ impl DetectionStore {
                 return Err(DetectedCredentialError::Stale);
             }
             return Ok(DetectedSecret {
+                credential_revision: token_digest(&parsed.token),
                 access_token: parsed.token,
                 provider_account_id: parsed.provider_account_id,
             });
@@ -1093,7 +1121,62 @@ impl DetectionStore {
             return;
         };
         account.auth_state = DetectedAuthState::Stale;
+        account.collection_state = DetectedCollectionState::Fallback;
         account.recovery = Some(RecoveryAction::ReopenCli);
+        account.message = Some(format!(
+            "Reopen {} to refresh this login.",
+            provider.display_name()
+        ));
+    }
+
+    pub fn mark_ready(&self, provider: DetectedProviderId, account_id: &str) {
+        self.update_collection(
+            provider,
+            account_id,
+            DetectedCollectionState::Ready,
+            None,
+            None,
+        );
+    }
+
+    pub fn mark_fallback(&self, provider: DetectedProviderId, account_id: &str) {
+        self.update_collection(
+            provider,
+            account_id,
+            DetectedCollectionState::Fallback,
+            Some(RecoveryAction::ManualEntry),
+            Some("Automatic usage is unavailable. Statusline and manual entry remain available."),
+        );
+    }
+
+    fn update_collection(
+        &self,
+        provider: DetectedProviderId,
+        account_id: &str,
+        state: DetectedCollectionState,
+        recovery: Option<RecoveryAction>,
+        message: Option<&str>,
+    ) {
+        let Ok(mut inventory) = self.inventory.write() else {
+            return;
+        };
+        let Some(account) = inventory
+            .report
+            .providers
+            .iter_mut()
+            .find(|entry| entry.provider_id == provider)
+            .and_then(|entry| {
+                entry
+                    .accounts
+                    .iter_mut()
+                    .find(|account| account.account_id == account_id)
+            })
+        else {
+            return;
+        };
+        account.collection_state = state;
+        account.recovery = recovery;
+        account.message = message.map(str::to_string);
     }
 }
 

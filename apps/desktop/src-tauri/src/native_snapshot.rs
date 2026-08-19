@@ -70,6 +70,7 @@ struct Suppression {
 pub enum CacheReport {
     Success(Vec<Snapshot>),
     Drift { observed_at: String },
+    Unavailable,
 }
 
 fn safe_identifier(value: &str, uppercase: bool, maximum: usize) -> bool {
@@ -278,12 +279,15 @@ fn fold(
     report: &CacheReport,
 ) -> Result<String, CacheWriteError> {
     let (mut rows, mut suppressions) = read_document(text)?;
-    rows.retain(|row| {
-        row.provider != provider || !account_matches(row.account_id.as_deref(), account_id)
-    });
-    suppressions.retain(|entry| {
-        entry.provider != provider || !account_matches(entry.account_id.as_deref(), account_id)
-    });
+    let belongs = |existing: Option<&str>| match report {
+        CacheReport::Unavailable => existing == account_id,
+        CacheReport::Success(_) | CacheReport::Drift { .. } => {
+            account_matches(existing, account_id)
+        }
+    };
+    rows.retain(|row| row.provider != provider || !belongs(row.account_id.as_deref()));
+    suppressions
+        .retain(|entry| entry.provider != provider || !belongs(entry.account_id.as_deref()));
     match report {
         CacheReport::Success(incoming) => {
             rows.extend(incoming.iter().cloned().filter_map(normalize_snapshot))
@@ -294,6 +298,7 @@ fn fold(
             reason: "drift".to_string(),
             suppressed_at: observed_at.clone(),
         }),
+        CacheReport::Unavailable => {}
     }
     let mut by_identity = BTreeMap::new();
     for row in rows {
@@ -396,5 +401,38 @@ mod tests {
         assert_eq!(document["snapshots"].as_array().map(Vec::len), Some(0));
         assert_eq!(document["suppressions"].as_array().map(Vec::len), Some(1));
         assert!(!drifted.contains("\"value\":0"));
+    }
+
+    #[test]
+    fn unavailable_removes_only_the_scoped_remote_rows() {
+        let now = epoch_ms_from_rfc3339("2026-08-16T12:00:00.000Z").expect("fixture clock");
+        let mut scoped = parse_body(
+            ReaderId::OpenrouterCredits,
+            r#"{"data":{"total_credits":20,"total_usage":5}}"#,
+            now,
+            "work",
+        )
+        .expect("scoped fixture");
+        let mut fallback = scoped[0].clone();
+        fallback.account_id = None;
+        scoped.push(fallback);
+        let existing = fold(
+            None,
+            "OPENROUTER",
+            Some("work"),
+            &CacheReport::Success(scoped),
+        )
+        .expect("initial fold");
+        let result = fold(
+            Some(&existing),
+            "OPENROUTER",
+            Some("work"),
+            &CacheReport::Unavailable,
+        )
+        .expect("unavailable fold");
+        let document: Value = serde_json::from_str(&result).expect("cache document");
+        let rows = document["snapshots"].as_array().expect("rows");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].get("accountId"), None);
     }
 }
