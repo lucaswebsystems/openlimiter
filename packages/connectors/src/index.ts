@@ -1,6 +1,7 @@
 export * from "./antigravity.js";
 export * from "./claude.js";
 export * from "./codex.js";
+export * from "./contract-gate.js";
 export * from "./fixtures.js";
 export * from "./manual.js";
 export * from "./opencode.js";
