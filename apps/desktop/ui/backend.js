@@ -19,8 +19,8 @@
  *   this window cannot pair a secret with an address;
  *
  *   test_provider and refresh_provider answer with a body free tagged union:
- *   tested, cache_committed, or failed. Parsing, cache mutation and attempt
- *   completion have already happened in Rust when that result arrives;
+ *   tested, cache_committed, or failed. Parsing, cache mutation and backoff
+ *   have already happened in Rust when that result arrives;
  *
  *   UpdateConnectionInput is { connection_id, account_alias? }. There is no
  *   status input: connection state is written by Rust from what a read
@@ -241,23 +241,6 @@ export const WIRE_CREDENTIAL_KINDS = Object.freeze([
   "opencode_browser_session",
 ]);
 
-/** The closed reader vocabulary, which is how a parser gets selected. */
-export const WIRE_READER_IDS = Object.freeze([
-  "openrouter_key",
-  "openrouter_credits",
-  "codex_usage",
-  "antigravity_quota",
-  "opencode_usage",
-]);
-
-/** The four ways an attempt may be closed. */
-export const ATTEMPT_DISPOSITIONS = Object.freeze([
-  "parsed_test",
-  "cache_committed",
-  "drift",
-  "cache_failure",
-]);
-
 function refusedInput(command) {
   return failed(
     command,
@@ -324,34 +307,6 @@ export async function collectorStatus() {
   return call("collector_status");
 }
 
-/**
- * Close the attempt a probe opened, with what actually happened downstream.
- *
- * The generation binds this completion to that exact request. A completion
- * presenting a generation the backend has already moved past is refused with
- * stale_generation, which is how a slow parse from a superseded attempt can
- * never stamp a success onto a newer one.
- */
-export async function completeAttempt({
-  connectionId,
-  attemptGeneration,
-  disposition,
-}) {
-  if (!ATTEMPT_DISPOSITIONS.includes(disposition)) {
-    return refusedInput("complete_attempt");
-  }
-  if (typeof attemptGeneration !== "number" || !Number.isFinite(attemptGeneration)) {
-    return refusedInput("complete_attempt");
-  }
-  return call("complete_attempt", {
-    input: {
-      connection_id: connectionId,
-      attempt_generation: attemptGeneration,
-      disposition,
-    },
-  });
-}
-
 /** Remove the connection and its stored credential. */
 export async function disconnectProvider(connectionId) {
   return call("disconnect_provider", {
@@ -394,43 +349,6 @@ export async function claudeConnectApply({ configuredCliPath } = {}) {
 /** Remove only the entries owned by OpenLimiter. */
 export async function claudeDisconnect() {
   return call("claude_disconnect");
-}
-
-/* ---------------------------------------------------------- cache handshake */
-
-/**
- * Open the cache write handshake: the current cache text under the lock, and
- * the generation stamp the commit must present.
- */
-export async function cacheBeginWrite() {
-  return call("cache_begin_write");
-}
-
-/** Commit the merged cache text, or be refused if the generation moved. */
-export async function cacheCommitWrite({ text, generation }) {
-  return call("cache_commit_write", { input: { text, generation } });
-}
-
-/**
- * The begin handshake's answer in one canonical shape.
- *
- * Null text is an empty cache, which is a real state. A missing generation is
- * not: without the stamp no commit can be honest, so the caller fails closed
- * and writes nothing.
- */
-export function normalizeBeginWrite(value) {
-  if (value === null || typeof value !== "object") {
-    return { text: null, generation: null };
-  }
-  const text = value.text ?? value.cache_text ?? null;
-  const generation = value.generation ?? value.gen ?? null;
-  return {
-    text: typeof text === "string" ? text : null,
-    generation:
-      typeof generation === "number" && Number.isFinite(generation)
-        ? generation
-        : null,
-  };
 }
 
 /* ------------------------------------------------------------ record shapes */
@@ -531,54 +449,6 @@ export function normalizeConnectionList(value) {
     if (record !== null) records.push(record);
   }
   return records;
-}
-
-/**
- * A ProbeOutcome in one canonical shape.
- *
- * The union is mirrored exactly, with no third possibility invented: a value
- * whose kind is not one of the two, or whose reader is not in the closed
- * reader vocabulary, or whose generation or connection cannot be read, is
- * { kind: "unreadable" }. Unreadable is a failure everywhere downstream, never
- * a quietly emptied response, because a body with no reader has no parser and
- * a completion with no generation cannot be honest.
- */
-export function normalizeProbeOutcome(value) {
-  const unreadable = { kind: "unreadable" };
-  if (value === null || typeof value !== "object") return unreadable;
-  const readerId = value.reader_id ?? value.readerId ?? null;
-  if (!WIRE_READER_IDS.includes(readerId)) return unreadable;
-  const attemptGeneration = numberOf(
-    value.attempt_generation ?? value.attemptGeneration,
-  );
-  if (attemptGeneration === null) return unreadable;
-  const connectionId = value.connection_id ?? value.connectionId ?? null;
-  if (typeof connectionId !== "string" || connectionId === "") return unreadable;
-  const base = { connectionId, readerId, attemptGeneration };
-  if (value.kind === "response") {
-    const status = numberOf(value.status);
-    if (status === null) return unreadable;
-    return {
-      kind: "response",
-      ...base,
-      status,
-      body: typeof value.body === "string" ? value.body : null,
-      retryAfterSeconds: numberOf(
-        value.retry_after_seconds ?? value.retryAfterSeconds,
-      ),
-    };
-  }
-  if (value.kind === "transport_failure") {
-    return {
-      kind: "transport_failure",
-      ...base,
-      failure:
-        typeof value.failure === "string" && value.failure !== ""
-          ? value.failure
-          : "unknown",
-    };
-  }
-  return unreadable;
 }
 
 export const COLLECTOR_FAILURE_SENTENCES = Object.freeze({
