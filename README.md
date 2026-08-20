@@ -7,13 +7,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lucaswebsystems/openlimiter/actions/workflows/ci.yml"><img src="https://github.com/lucaswebsystems/openlimiter/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="https://www.npmjs.com/package/openlimiter"><img src="https://img.shields.io/npm/v/openlimiter?color=blue" alt="npm"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
-</p>
-
-<p align="center">
   <a href="https://openlimiter.com">Website</a> ·
   <a href="https://openlimiter.com/docs">Docs</a> ·
   <a href="https://openlimiter.com/docs/roadmap">Roadmap</a> ·
@@ -25,9 +18,9 @@
 
 OpenLimiter is an open source, cross platform tool that connects your AI providers and shows your quota limits at a glance. The free tier lets you connect providers from the desktop app and see every real quota window; the web app views that same quota state and imports a document or takes manual entry instead of connecting anything itself. It runs on your machine and needs no account.
 
-In local mode, OpenLimiter has zero telemetry and no OpenLimiter account. A connected reader talks only to its own provider through a fixed allowlist, so provider traffic leaves your machine exactly when you connect that provider. Optional Pro sends selected bounded quota snapshots to the hosted service only after you sign in. Provider credentials, prompts, and source code never enter Pro.
+OpenLimiter software and the public website have zero telemetry. Local mode needs no OpenLimiter account. A connected reader talks only to its own provider through a fixed allowlist, so provider traffic leaves your machine exactly when you connect that provider. Optional Pro sends selected bounded quota snapshots to the hosted service only after you sign in. Provider credentials, prompts, and source code never enter Pro.
 
-OpenLimiter only ever advises. It never routes requests automatically, bypasses limits, or mutates a provider's authentication files. With your explicit consent, the desktop app can detect whether Claude Code is wired and guide you through the setup with a copy and paste snippet. Apache License 2.0.
+OpenLimiter only ever advises. It never routes requests automatically, bypasses limits, or mutates provider authentication or CLI configuration files. The desktop app detects whether Claude Code is wired, but you copy, merge, and remove the documented settings yourself. Apache License 2.0.
 
 ## Demo data
 
@@ -82,7 +75,7 @@ npm install -g openlimiter
 openlimiter demo
 ```
 
-Wiring the statusline and hook into Claude Code's `settings.json` is covered in the [docs](https://openlimiter.com/docs).
+Wiring the statusline and hook into Claude Code's `settings.json` is a manual step covered in the [docs](https://openlimiter.com/docs). OpenLimiter can verify that wiring, but never edits the file.
 
 ## How it works
 
@@ -119,7 +112,7 @@ The statusline includes a PREFER recommendation that names the provider with the
 
 | Provider | Interface | Honesty label | Notes |
 |---|---|---|---|
-| Claude | `native-statusline-payload` | UNVERIFIED, low automation risk | Reads the JSON Claude Code already writes to the statusline command's standard input, once you consent to the desktop app's guided setup |
+| Claude | `native-statusline-payload` | UNVERIFIED, low automation risk | Reads the JSON Claude Code writes to the statusline command's standard input after you manually add the documented settings |
 | OpenRouter | `documented-api` | UNVERIFIED, low automation risk | The desktop app reads this live once you supply your key. The CLI still has no reader of its own; feed it an explicit documented API response with `ingest --provider openrouter` |
 | Codex | `internal-endpoint` | UNVERIFIED, high automation risk | The desktop app reads this live from your local Codex login. Unofficial, can change or disappear without notice. The CLI still only ingests, with `ingest --provider codex` |
 | Antigravity | `internal-endpoint` | UNVERIFIED, high automation risk | The desktop app reads this live from your local Antigravity session. Unofficial, can change or disappear without notice. The CLI still only ingests, with `ingest --provider antigravity` |
@@ -136,7 +129,7 @@ Multiple accounts per provider is **not** on that list, and will not be. Using m
 
 ## Security
 
-Everything a provider or a script hands to OpenLimiter is treated as untrusted. Connectors keep only known numeric fields and timestamps, and every block the hook emits is rebuilt from a bounded schema inside an explicit untrusted data boundary. No connector rewrites, backs up, or migrates a provider authentication file. In local mode, OpenLimiter has no telemetry of any kind. When Pro is enabled, it receives only selected bounded quota snapshots after sign in. Provider credentials remain in the operating system credential store.
+Everything a provider or a script hands to OpenLimiter is treated as untrusted. Connectors keep only known numeric fields and timestamps, and every block the hook emits is rebuilt from a bounded schema inside an explicit untrusted data boundary. No connector rewrites, backs up, or migrates a provider authentication file or CLI configuration. OpenLimiter does not edit Claude Code settings, even for setup or removal. In local mode, OpenLimiter has no telemetry of any kind. When Pro is enabled, it receives only selected bounded quota snapshots after sign in. Provider credentials remain in the operating system credential store.
 
 Report a vulnerability privately through the repository [Security tab](https://github.com/lucaswebsystems/openlimiter/security/advisories/new), as described in [SECURITY.md](SECURITY.md). The full threat model is in [THREAT_MODEL.md](THREAT_MODEL.md).
 

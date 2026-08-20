@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use sha2::{Digest as _, Sha256};
 use zeroize::Zeroizing;
 
@@ -14,8 +15,11 @@ pub const CLAUDE_INSTALL_COMMAND: &str = "npm install -g openlimiter";
 const CLI_CONFIG_ENV: &str = "OPENLIMITER_CLI_PATH";
 const STATUSLINE_WRAPPER_FLAG: &str = "OPENLIMITER_CLAUDE_STATUSLINE_WRAPPER";
 const CLI_PROBE_TIMEOUT_SECONDS: u64 = 10;
+#[cfg(test)]
 const SETTINGS_TEMP_MARKER: &str = "openlimiter";
+#[cfg(test)]
 const CONNECTION_STATE_FILE: &str = "claude-connect-state.json";
+#[cfg(test)]
 const CONNECTION_STATE_VERSION: u8 = 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -58,6 +62,7 @@ pub struct ClaudeConnectInput {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[cfg(test)]
 pub enum ClaudeApplyOutcome {
     Applied,
     AlreadyApplied,
@@ -65,6 +70,7 @@ pub enum ClaudeApplyOutcome {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[cfg(test)]
 pub enum ClaudeDisconnectOutcome {
     RestoredExact,
     RemovedOwnedEntries,
@@ -73,20 +79,24 @@ pub enum ClaudeDisconnectOutcome {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ClaudeConnectError {
+    #[cfg(test)]
     CleanPreflightRequired,
     SettingsUnreadable,
+    #[cfg(test)]
     Storage,
 }
 
 impl fmt::Display for ClaudeConnectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sentence = match self {
+            #[cfg(test)]
             ClaudeConnectError::CleanPreflightRequired => {
                 "Claude Code needs a clean connection check before this change."
             }
             ClaudeConnectError::SettingsUnreadable => {
                 "Claude Code settings are not readable in a supported shape."
             }
+            #[cfg(test)]
             ClaudeConnectError::Storage => {
                 "Claude Code settings could not be backed up or changed."
             }
@@ -281,6 +291,7 @@ impl CliRuntime for SystemCliRuntime {
 }
 
 struct SettingsRead {
+    #[cfg(test)]
     file: PathBuf,
     text: Zeroizing<String>,
     present: bool,
@@ -292,6 +303,7 @@ fn settings_in_home(home: &Path) -> Result<SettingsRead, ClaudeConnectError> {
     fsx::reject_symlink(&directory).map_err(|_| ClaudeConnectError::SettingsUnreadable)?;
     match std::fs::symlink_metadata(&file) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(SettingsRead {
+            #[cfg(test)]
             file,
             text: Zeroizing::new("{}".to_string()),
             present: false,
@@ -299,6 +311,7 @@ fn settings_in_home(home: &Path) -> Result<SettingsRead, ClaudeConnectError> {
         Err(_) => Err(ClaudeConnectError::SettingsUnreadable),
         Ok(_) => fsx::bounded_read(&file)
             .map(|text| SettingsRead {
+                #[cfg(test)]
                 file,
                 text: Zeroizing::new(text),
                 present: true,
@@ -326,6 +339,7 @@ fn quoted_command(path: &Path, verb: &str) -> Option<String> {
     Some(format!("\"{escaped}\" {verb}"))
 }
 
+#[cfg(test)]
 fn base64url_encode(text: &str) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let bytes = text.as_bytes();
@@ -348,6 +362,7 @@ fn base64url_encode(text: &str) -> String {
     output
 }
 
+#[cfg(test)]
 fn wrapped_statusline_command(path: &Path, original: &str) -> Option<String> {
     if original.is_empty() || original.contains('\0') {
         return None;
@@ -503,7 +518,9 @@ fn analyze_settings(text: &str, cli_path: &Path) -> SettingsAnalysis {
 
 struct PreparedPreflight {
     verdict: ClaudePreflightVerdict,
+    #[cfg(test)]
     cli_path: Option<PathBuf>,
+    #[cfg(test)]
     settings: Option<SettingsRead>,
 }
 
@@ -565,7 +582,9 @@ fn prepare_preflight(
             cli_path: wire_path,
             install_command: CLAUDE_INSTALL_COMMAND,
         },
+        #[cfg(test)]
         cli_path,
+        #[cfg(test)]
         settings,
     }
 }
@@ -596,6 +615,7 @@ pub fn unavailable_preflight() -> ClaudePreflightVerdict {
 }
 
 #[derive(Clone)]
+#[cfg(test)]
 struct MemberSpan {
     key: String,
     key_start: usize,
@@ -603,21 +623,25 @@ struct MemberSpan {
     value_end: usize,
 }
 
+#[cfg(test)]
 struct ObjectLayout {
     open: usize,
     members: Vec<MemberSpan>,
 }
 
 #[derive(Clone, Copy)]
+#[cfg(test)]
 struct ValueSpan {
     start: usize,
     end: usize,
 }
 
+#[cfg(test)]
 struct ArrayLayout {
     elements: Vec<ValueSpan>,
 }
 
+#[cfg(test)]
 fn skip_space(bytes: &[u8], mut at: usize) -> usize {
     while at < bytes.len() && bytes[at].is_ascii_whitespace() {
         at += 1;
@@ -625,6 +649,7 @@ fn skip_space(bytes: &[u8], mut at: usize) -> usize {
     at
 }
 
+#[cfg(test)]
 fn string_end(bytes: &[u8], start: usize) -> Option<usize> {
     if bytes.get(start) != Some(&b'"') {
         return None;
@@ -643,6 +668,7 @@ fn string_end(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
+#[cfg(test)]
 fn compound_end(bytes: &[u8], start: usize) -> Option<usize> {
     let expected = match bytes.get(start)? {
         b'{' => b'}',
@@ -677,6 +703,7 @@ fn compound_end(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
+#[cfg(test)]
 fn value_end(bytes: &[u8], start: usize) -> Option<usize> {
     match bytes.get(start)? {
         b'"' => string_end(bytes, start),
@@ -694,6 +721,7 @@ fn value_end(bytes: &[u8], start: usize) -> Option<usize> {
     }
 }
 
+#[cfg(test)]
 fn object_layout(text: &str, start: usize) -> Option<ObjectLayout> {
     let bytes = text.as_bytes();
     let open = skip_space(bytes, start);
@@ -734,6 +762,7 @@ fn object_layout(text: &str, start: usize) -> Option<ObjectLayout> {
     }
 }
 
+#[cfg(test)]
 fn array_layout(text: &str, start: usize) -> Option<ArrayLayout> {
     let bytes = text.as_bytes();
     let open = skip_space(bytes, start);
@@ -757,6 +786,7 @@ fn array_layout(text: &str, start: usize) -> Option<ArrayLayout> {
     }
 }
 
+#[cfg(test)]
 fn set_object_member(text: &str, object_start: usize, key: &str, value: &str) -> Option<String> {
     let layout = object_layout(text, object_start)?;
     if let Some(member) = layout.members.iter().find(|member| member.key == key) {
@@ -779,6 +809,7 @@ fn set_object_member(text: &str, object_start: usize, key: &str, value: &str) ->
     Some(output)
 }
 
+#[cfg(test)]
 fn remove_object_member(text: &str, object_start: usize, key: &str) -> Option<(String, bool)> {
     let layout = object_layout(text, object_start)?;
     let Some(index) = layout.members.iter().position(|member| member.key == key) else {
@@ -798,6 +829,7 @@ fn remove_object_member(text: &str, object_start: usize, key: &str) -> Option<(S
     Some((output, true))
 }
 
+#[cfg(test)]
 fn remove_array_element(text: &str, array_start: usize, index: usize) -> Option<String> {
     let layout = array_layout(text, array_start)?;
     let element = layout.elements.get(index)?;
@@ -814,6 +846,7 @@ fn remove_array_element(text: &str, array_start: usize, index: usize) -> Option<
     Some(output)
 }
 
+#[cfg(test)]
 fn serialized_command_value(command: &str) -> Option<String> {
     serde_json::to_string(&serde_json::json!({
         "type": "command",
@@ -822,15 +855,18 @@ fn serialized_command_value(command: &str) -> Option<String> {
     .ok()
 }
 
+#[cfg(test)]
 fn command_value(path: &Path, verb: &str) -> Option<String> {
     serialized_command_value(&quoted_command(path, verb)?)
 }
 
+#[cfg(test)]
 fn hook_entry_value(path: &Path) -> Option<String> {
     let command: serde_json::Value = serde_json::from_str(&command_value(path, "hook")?).ok()?;
     serde_json::to_string(&serde_json::json!({ "hooks": [command] })).ok()
 }
 
+#[cfg(test)]
 fn apply_surgical(
     text: &str,
     cli_path: &Path,
@@ -873,6 +909,7 @@ fn apply_surgical(
     Some((output, inserted_hooks_container))
 }
 
+#[cfg(test)]
 fn exact_serialized_command_object(value: &serde_json::Value, command: &str) -> bool {
     let Some(object) = value.as_object() else {
         return false;
@@ -882,6 +919,7 @@ fn exact_serialized_command_object(value: &serde_json::Value, command: &str) -> 
         && object.get("command").and_then(serde_json::Value::as_str) == Some(command)
 }
 
+#[cfg(test)]
 fn command_object_runs(value: &serde_json::Value, command: &str) -> bool {
     let Some(object) = value.as_object() else {
         return false;
@@ -890,12 +928,14 @@ fn command_object_runs(value: &serde_json::Value, command: &str) -> bool {
         && object.get("command").and_then(serde_json::Value::as_str) == Some(command)
 }
 
+#[cfg(test)]
 fn exact_current_command_object(value: &serde_json::Value, verb: &str, cli_path: &Path) -> bool {
     quoted_command(cli_path, verb)
         .as_deref()
         .is_some_and(|command| exact_serialized_command_object(value, command))
 }
 
+#[cfg(test)]
 fn exact_current_hook_entry(value: &serde_json::Value, cli_path: &Path) -> bool {
     let Some(object) = value.as_object() else {
         return false;
@@ -908,6 +948,7 @@ fn exact_current_hook_entry(value: &serde_json::Value, cli_path: &Path) -> bool 
         && exact_current_command_object(&hooks[0], "hook", cli_path)
 }
 
+#[cfg(test)]
 fn remove_owned_entries(
     text: &str,
     cli_path: &Path,
@@ -1022,6 +1063,7 @@ fn remove_owned_entries(
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg(test)]
 struct ClaudeConnectionState {
     version: u8,
     cli_path: String,
@@ -1033,6 +1075,7 @@ struct ClaudeConnectionState {
     wrapped_status_line: bool,
 }
 
+#[cfg(test)]
 fn digest_text(text: &str) -> String {
     let digest = Sha256::digest(text.as_bytes());
     let mut encoded = String::with_capacity(64);
@@ -1043,20 +1086,24 @@ fn digest_text(text: &str) -> String {
     encoded
 }
 
+#[cfg(test)]
 fn valid_digest(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
+#[cfg(test)]
 fn valid_backup_name(value: &str) -> bool {
     value.starts_with("settings.json.openlimiter-backup-")
         && value.ends_with(".json")
         && !value.contains(['/', '\\'])
 }
 
+#[cfg(test)]
 fn state_file(state_directory: &Path) -> PathBuf {
     state_directory.join(CONNECTION_STATE_FILE)
 }
 
+#[cfg(test)]
 fn read_connection_state(
     state_directory: &Path,
 ) -> Result<Option<ClaudeConnectionState>, ClaudeConnectError> {
@@ -1080,6 +1127,7 @@ fn read_connection_state(
     Ok(Some(state))
 }
 
+#[cfg(test)]
 fn write_connection_state(
     state_directory: &Path,
     state: &ClaudeConnectionState,
@@ -1089,6 +1137,7 @@ fn write_connection_state(
     fsx::atomic_write(&state_file(state_directory), &text).map_err(|_| ClaudeConnectError::Storage)
 }
 
+#[cfg(test)]
 fn remove_connection_state(state_directory: &Path) -> Result<(), ClaudeConnectError> {
     let file = state_file(state_directory);
     fsx::reject_symlink(&file).map_err(|_| ClaudeConnectError::Storage)?;
@@ -1099,6 +1148,7 @@ fn remove_connection_state(state_directory: &Path) -> Result<(), ClaudeConnectEr
     }
 }
 
+#[cfg(test)]
 fn cleanup_stale_temporaries(settings_file: &Path) -> Result<(), ClaudeConnectError> {
     let Some(directory) = settings_file.parent() else {
         return Err(ClaudeConnectError::Storage);
@@ -1135,6 +1185,7 @@ fn cleanup_stale_temporaries(settings_file: &Path) -> Result<(), ClaudeConnectEr
     Ok(())
 }
 
+#[cfg(test)]
 fn backup_name() -> String {
     format!(
         "settings.json.openlimiter-backup-{}-{}.json",
@@ -1143,6 +1194,7 @@ fn backup_name() -> String {
     )
 }
 
+#[cfg(test)]
 fn backup_before_change<T>(
     backup: impl FnOnce() -> Result<(), ClaudeConnectError>,
     change: impl FnOnce() -> Result<T, ClaudeConnectError>,
@@ -1151,6 +1203,7 @@ fn backup_before_change<T>(
     change()
 }
 
+#[cfg(test)]
 fn apply_with_runtime(
     home: &Path,
     state_directory: &Path,
@@ -1229,6 +1282,7 @@ fn apply_with_runtime(
     Ok(ClaudeApplyOutcome::Applied)
 }
 
+#[cfg(test)]
 pub fn apply(input: ClaudeConnectInput) -> Result<ClaudeApplyOutcome, ClaudeConnectError> {
     let home = crate::state::home().ok_or(ClaudeConnectError::Storage)?;
     let state_directory = crate::state::state_directory().ok_or(ClaudeConnectError::Storage)?;
@@ -1241,6 +1295,7 @@ pub fn apply(input: ClaudeConnectInput) -> Result<ClaudeApplyOutcome, ClaudeConn
     )
 }
 
+#[cfg(test)]
 fn disconnect_in(
     home: &Path,
     state_directory: &Path,
@@ -1308,6 +1363,7 @@ fn disconnect_in(
     Ok(next.1)
 }
 
+#[cfg(test)]
 pub fn disconnect() -> Result<ClaudeDisconnectOutcome, ClaudeConnectError> {
     let home = crate::state::home().ok_or(ClaudeConnectError::Storage)?;
     let state_directory = crate::state::state_directory().ok_or(ClaudeConnectError::Storage)?;

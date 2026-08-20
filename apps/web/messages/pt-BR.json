@@ -42,7 +42,7 @@
     "community": "Comunidade",
     "trust": "Confiança",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | Local first | Telemetria zero no software | Sem contas | Contagens de página sem cookies",
+    "licenceNote": "Apache 2.0 | Local first | Telemetria zero | Sem rastreamento | Sem contas",
     "licenceRead": "Ler a licença",
     "rights": "Todos os direitos reservados",
     "licensed": "Licenciado sob Apache 2.0",
@@ -474,7 +474,7 @@
       },
       "reportsNobody": {
         "title": "Ele não reporta para ninguém",
-        "detail": "O modo local não reporta nada a ninguém e não tem analytics. O site conta páginas sem cookies. O Pro é opcional e recebe dados limitados de quota somente depois do login, nunca credenciais do provedor."
+        "detail": "O modo local e o site público não reportam nada a ninguém e não têm analytics. O Pro é opcional e recebe dados limitados de quota somente depois do login, nunca credenciais do provedor."
       },
       "unknownStaysUnknown": {
         "title": "Unknown continua unknown",

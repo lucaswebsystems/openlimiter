@@ -6,10 +6,7 @@ use tauri::State;
 use zeroize::Zeroizing;
 
 use crate::cache_write::{CacheWriteBegin, CacheWriteError, CacheWriter, MAX_JSON_FILE_BYTES};
-use crate::claude_connect::{
-    self, ClaudeApplyOutcome, ClaudeConnectError, ClaudeConnectInput, ClaudeDisconnectOutcome,
-    ClaudePreflightVerdict,
-};
+use crate::claude_connect::{self, ClaudeConnectInput, ClaudePreflightVerdict};
 use crate::claude_detect::{self, LocalToolDetection};
 use crate::claude_oauth::{
     self, ClaudeOauthOutcome, ClaudeOauthRuntime, RefreshDetectedClaudeInput,
@@ -185,16 +182,6 @@ impl From<CacheWriteError> for CommandFailure {
             CacheWriteError::StaleGeneration => CommandFailure::StaleGeneration,
             CacheWriteError::TooLarge => CommandFailure::TooLarge,
             CacheWriteError::NotJson => CommandFailure::NotJson,
-        }
-    }
-}
-
-impl From<ClaudeConnectError> for CommandFailure {
-    fn from(error: ClaudeConnectError) -> Self {
-        match error {
-            ClaudeConnectError::CleanPreflightRequired => CommandFailure::InvalidInput,
-            ClaudeConnectError::SettingsUnreadable => CommandFailure::Corrupt,
-            ClaudeConnectError::Storage => CommandFailure::Storage,
         }
     }
 }
@@ -1028,24 +1015,6 @@ pub async fn claude_connect_preflight(input: ClaudeConnectInput) -> ClaudePrefli
     tauri::async_runtime::spawn_blocking(move || claude_connect::preflight(input))
         .await
         .unwrap_or_else(|_| claude_connect::unavailable_preflight())
-}
-
-#[tauri::command]
-pub async fn claude_connect_apply(
-    input: ClaudeConnectInput,
-) -> Result<ClaudeApplyOutcome, CommandFailure> {
-    tauri::async_runtime::spawn_blocking(move || claude_connect::apply(input))
-        .await
-        .map_err(|_| CommandFailure::Storage)?
-        .map_err(CommandFailure::from)
-}
-
-#[tauri::command]
-pub async fn claude_disconnect() -> Result<ClaudeDisconnectOutcome, CommandFailure> {
-    tauri::async_runtime::spawn_blocking(claude_connect::disconnect)
-        .await
-        .map_err(|_| CommandFailure::Storage)?
-        .map_err(CommandFailure::from)
 }
 
 /// Legacy cache handshake declaration retained for its boundary tests. It is
@@ -2529,6 +2498,28 @@ mod tests {
         }
     }
 
+    #[test]
+    fn production_exposes_no_claude_settings_mutation_command() {
+        let commands = include_str!("commands.rs")
+            .split("mod tests")
+            .next()
+            .expect("production commands precede tests");
+        let sources = [
+            commands,
+            include_str!("lib.rs"),
+            include_str!("../../ui/backend.js"),
+            include_str!("../../ui/connections.js"),
+        ];
+        for source in sources {
+            for forbidden in ["claude_connect_apply", "claude_disconnect"] {
+                assert!(
+                    !source.contains(forbidden),
+                    "production still exposes {forbidden}"
+                );
+            }
+        }
+    }
+
     /* -------------------------------------------------------- redaction */
 
     #[test]
@@ -2643,7 +2634,7 @@ mod tests {
             .skip(1)
             .map(|block| block.split('{').next().unwrap_or(""))
             .collect();
-        assert_eq!(signatures.len(), 17, "the reviewed command surface");
+        assert_eq!(signatures.len(), 15, "the reviewed command surface");
         for signature in &signatures {
             assert!(
                 !signature.contains("Zeroizing") && !signature.contains("-> String"),

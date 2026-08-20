@@ -252,19 +252,21 @@ impl CredentialKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthApplication {
-    /// `Authorization: Bearer <secret>` and nothing else. The OpenRouter path.
+    /// `Authorization: Bearer <secret>` with the OpenLimiter identity and JSON
+    /// response preference. The OpenRouter path.
     BearerAuthorization,
     /// A bearer token plus the fixed OAuth usage contract headers Claude Code uses.
     ClaudeOauthBearer,
-    /// A bearer token plus the fixed product headers the ChatGPT backend
-    /// demands of the Codex client.
+    /// A bearer token plus the fixed account header the ChatGPT backend
+    /// requires, while identifying the request as OpenLimiter.
     CodexSessionBearer,
     /// A bearer token plus a non empty user agent. Not optional: the Google
     /// metadata plane answers 403 to a valid token when the header is absent,
     /// which was measured on 2026-08-07 and cost an hour of blaming the login.
     AntigravitySessionBearer,
-    /// `Cookie: <secret>`. The authenticated page path, and the reason
-    /// OpenCode is permanently labelled an authenticated scrape.
+    /// `Cookie: <secret>` with the OpenLimiter identity. The authenticated page
+    /// path, and the reason OpenCode is permanently labelled an authenticated
+    /// scrape.
     BrowserSessionCookie,
 }
 

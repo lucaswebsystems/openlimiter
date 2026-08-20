@@ -42,7 +42,7 @@
     "community": "Community",
     "trust": "Vertrauen",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | Lokal zuerst | Keine Telemetrie in der Software | Keine Konten | Cookielose Seitenaufrufe",
+    "licenceNote": "Apache 2.0 | Lokal zuerst | Keine Telemetrie | Kein Tracking | Keine Konten",
     "licenceRead": "Lizenz lesen",
     "rights": "Alle Rechte vorbehalten",
     "licensed": "Apache 2.0 lizenziert",
@@ -474,7 +474,7 @@
       },
       "reportsNobody": {
         "title": "Es berichtet niemandem",
-        "detail": "Der lokale Modus meldet niemandem etwas und hat keine Analytik. Die Website zählt Seitenaufrufe ohne Cookies. Pro ist optional und erhält erst nach der Anmeldung ausgewählte begrenzte Kontingentdaten, niemals Anbieter Zugangsdaten."
+        "detail": "Der lokale Modus und die öffentliche Website melden niemandem etwas und haben keine Analytik. Pro ist optional und erhält erst nach der Anmeldung ausgewählte begrenzte Kontingentdaten, niemals Anbieter Zugangsdaten."
       },
       "unknownStaysUnknown": {
         "title": "Unknown bleibt unknown",

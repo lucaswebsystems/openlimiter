@@ -42,7 +42,7 @@
     "community": "コミュニティ",
     "trust": "信頼",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | ローカルファースト | ソフトウェアにテレメトリーなし | アカウント不要 | Cookieを使わないページ閲覧数のみ",
+    "licenceNote": "Apache 2.0 | ローカルファースト | テレメトリーなし | 追跡なし | アカウント不要",
     "licenceRead": "ライセンスを読む",
     "rights": "全著作権所有",
     "licensed": "Apache 2.0 ライセンス",
@@ -474,7 +474,7 @@
       },
       "reportsNobody": {
         "title": "誰にも報告しません",
-        "detail": "ローカルモードはどこにも報告せず、分析機能もありません。WebサイトはCookieなしでページ数だけを記録します。Proは任意で、ログイン後に範囲内のquotaデータだけを受け取り、プロバイダーの認証情報は受け取りません。"
+        "detail": "ローカルモードと公開Webサイトはどこにも報告せず、分析機能もありません。Proは任意で、ログイン後に範囲内のquotaデータだけを受け取り、プロバイダーの認証情報は受け取りません。"
       },
       "unknownStaysUnknown": {
         "title": "unknownはunknownのままです",

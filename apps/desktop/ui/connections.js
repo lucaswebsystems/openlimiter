@@ -52,6 +52,18 @@ const CLAUDE_SETUP_SNIPPET = `{
   "statusLine": {
     "type": "command",
     "command": "openlimiter statusline"
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "openlimiter hook"
+          }
+        ]
+      }
+    ]
   }
 }`;
 
@@ -83,7 +95,6 @@ const session = {
   claudeProbed: false,
   /** Preflight verdict object for Claude Code connection flow. */
   claudeVerdict: null,
-  claudeConsentOpen: false,
 };
 
 /** Wired by initConnections. Nothing here runs before that. */
@@ -675,53 +686,19 @@ function renderClaude() {
   const wired = detection !== null && detection.wired === true;
 
   if (wired) {
+    const p = element(
+      "p",
+      "conn-detail",
+      "OpenLimiter detected its statusline wiring. It will not change or remove Claude Code settings. Edit settings.json yourself if you want to change this connection.",
+    );
     const actions = element("div", "conn-actions");
-    const disconnectBtn = element("button", undefined, "Disconnect");
-    disconnectBtn.type = "button";
-    disconnectBtn.addEventListener("click", () => {
-      void (async () => {
-        disconnectBtn.disabled = true;
-        setNote(el.claudeNote, "Disconnecting.", "plain");
-        const result = await backend.claudeDisconnect();
-        if (result.ok) {
-          const outcome = result.value?.kind;
-          if (outcome === "restored_exact") {
-            setNote(
-              el.claudeNote,
-              "The previous settings were restored byte for byte from the timestamped copy.",
-              "ok",
-            );
-          } else if (outcome === "removed_owned_entries") {
-            setNote(
-              el.claudeNote,
-              "The settings file changed after OpenLimiter wrote to it, so the copy was not restored, and only the OpenLimiter entries were removed while everything else was left exactly as it is.",
-              "ok",
-            );
-          } else if (outcome === "nothing_to_remove") {
-            setNote(
-              el.claudeNote,
-              "There was nothing of OpenLimiter's to remove.",
-              "plain",
-            );
-          } else {
-            setNote(el.claudeNote, "Disconnected.", "ok");
-          }
-        } else {
-          setNote(
-            el.claudeNote,
-            result.reason === backend.BACKEND_ABSENT
-              ? "This build has no connection backend yet."
-              : result.message,
-            "bad",
-          );
-        }
-        await runClaudePreflight();
-        await detectClaude();
-        render();
-      })();
+    const verifyBtn = element("button", undefined, "Verify");
+    verifyBtn.type = "button";
+    verifyBtn.addEventListener("click", () => {
+      void verifyClaude();
     });
-    actions.append(disconnectBtn);
-    el.claudeBody.append(actions);
+    actions.append(verifyBtn);
+    el.claudeBody.append(p, actions);
     return;
   }
 
@@ -742,131 +719,33 @@ function renderClaude() {
     case "ready":
     case "wrappable_status_line": {
       const wrappingStatusLine = verdict.kind === "wrappable_status_line";
-      if (session.claudeConsentOpen) {
-        const consentBox = element("div", "conn-block surface");
-        const heading = element("h2", undefined, "Claude Code connection details");
-        consentBox.append(heading);
-
-        const explanation = element("div", "conn-detail");
-        const p1 = element(
-          "p",
-          undefined,
-          "The file that will change is the Claude Code settings file in your home directory.",
-        );
-        const p2 = element(
-          "p",
-          undefined,
-          "A timestamped copy of that file is written beside it first, before any change.",
-        );
-        const p3 = element(
-          "p",
-          undefined,
-          wrappingStatusLine
-            ? "The existing statusLine command will be replaced by an OpenLimiter wrapper. It captures quota, then runs the existing command and returns its output unchanged. One OpenLimiter UserPromptSubmit hook will also be added. Both use this absolute command line tool path:"
-            : "The two entries that will be added are the statusLine command and one UserPromptSubmit hook, both pointing at the absolute path of the OpenLimiter command line tool:",
-        );
-        const monoPath = element("pre", "mono", verdict.cliPath ?? "OpenLimiter CLI path");
-        const p4 = element(
-          "p",
-          undefined,
-          wrappingStatusLine
-            ? "Disconnect restores the existing statusLine command exactly. Nothing else in the file is touched."
-            : "Nothing else in the file is touched.",
-        );
-        const p5 = element(
-          "p",
-          undefined,
-          "No credential, token or login file of any kind is read or written, ever.",
-        );
-
-        explanation.append(p1, p2, p3, monoPath, p4, p5);
-        consentBox.append(explanation);
-
-        const actions = element("div", "conn-actions");
-        const applyBtn = element(
-          "button",
-          undefined,
-          wrappingStatusLine ? "Write wrapper and hook" : "Write these two entries",
-        );
-        applyBtn.type = "button";
-
-        const cancelBtn = element("button", undefined, "Cancel");
-        cancelBtn.type = "button";
-
-        applyBtn.addEventListener("click", () => {
-          void (async () => {
-            applyBtn.disabled = true;
-            cancelBtn.disabled = true;
-            setNote(
-              el.claudeNote,
-              wrappingStatusLine
-                ? "Writing the timestamped backup copy, wrapper, and hook."
-                : "Writing the timestamped backup copy and adding entries.",
-              "plain",
-            );
-            const result = await backend.claudeConnectApply();
-            if (result.ok) {
-              const outcome = result.value?.kind;
-              if (outcome === "applied") {
-                setNote(
-                  el.claudeNote,
-                  wrappingStatusLine
-                    ? "The wrapper and hook were written, and a timestamped copy of the previous settings sits beside the settings file."
-                    : "The two entries were written and a timestamped copy of the previous settings sits beside the settings file.",
-                  "ok",
-                );
-              } else if (outcome === "already_applied") {
-                setNote(
-                  el.claudeNote,
-                  wrappingStatusLine
-                    ? "The wrapper and hook were already in place, so nothing changed."
-                    : "Those two entries were already in place, so nothing changed.",
-                  "plain",
-                );
-              } else {
-                setNote(el.claudeNote, "Applied configuration.", "ok");
-              }
-            } else {
-              setNote(
-                el.claudeNote,
-                result.reason === backend.BACKEND_ABSENT
-                  ? "This build has no connection backend yet."
-                  : result.message,
-                "bad",
-              );
-            }
-            session.claudeConsentOpen = false;
-            await runClaudePreflight();
-            await detectClaude();
-            render();
-          })();
-        });
-
-        cancelBtn.addEventListener("click", () => {
-          session.claudeConsentOpen = false;
-          render();
-        });
-
-        actions.append(applyBtn, cancelBtn);
-        consentBox.append(actions);
-        el.claudeBody.append(consentBox);
-      } else {
-        const actions = element("div", "conn-actions");
-        const connectBtn = element("button", undefined, "Connect");
-        connectBtn.type = "button";
-        // The consent box is not a step to be optimised away. It is the whole
-        // reason this flow is allowed to exist: pressing Connect must never
-        // write to a settings file the user owns before the user has seen what
-        // will be written. Preflight resolves and executes an absolute CLI path
-        // BEFORE any settings write, which is the order locked on 2026-08-11.
-        // An agent removed both of those in this file once. Do not do it again.
-        connectBtn.addEventListener("click", () => {
-          session.claudeConsentOpen = true;
-          render();
-        });
-        actions.append(connectBtn);
-        el.claudeBody.append(actions);
-      }
+      const instruction = element(
+        "p",
+        "conn-lead",
+        wrappingStatusLine
+          ? "An existing statusLine command was found. OpenLimiter will not replace it. Follow the manual documentation to combine the commands yourself, and add the UserPromptSubmit hook by hand."
+          : "Merge the block below into your Claude Code settings by hand, then press Verify.",
+      );
+      const mono = element("pre", "mono", CLAUDE_SETUP_SNIPPET);
+      const path = element(
+        "p",
+        "conn-detail",
+        `Verified OpenLimiter command line tool: ${verdict.cliPath ?? "path unavailable"}`,
+      );
+      const actions = element("div", "conn-actions");
+      const copyBtn = element("button", undefined, "Copy settings block");
+      copyBtn.type = "button";
+      copyBtn.disabled = wrappingStatusLine;
+      copyBtn.addEventListener("click", () => {
+        void copyClaudeSnippet();
+      });
+      const verifyBtn = element("button", undefined, "Verify");
+      verifyBtn.type = "button";
+      verifyBtn.addEventListener("click", () => {
+        void verifyClaude();
+      });
+      actions.append(copyBtn, verifyBtn);
+      el.claudeBody.append(instruction, mono, path, actions);
       break;
     }
 

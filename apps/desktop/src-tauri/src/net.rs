@@ -166,9 +166,13 @@ impl ProviderEndpoint {
 /// The empty JSON object the quota summary expects as its whole request body.
 pub const ANTIGRAVITY_EMPTY_BODY: &str = "{}";
 
-/// The user agent the Codex usage endpoint is addressed with. A constant, and
-/// an honest one: it names the client whose session is being used.
-pub const CODEX_USER_AGENT: &str = "codex-cli/0.144.1";
+/// The identity every provider request carries. It names the software making
+/// the request instead of impersonating the client that originally obtained a
+/// session.
+pub const OPENLIMITER_USER_AGENT: &str = "OpenLimiter/0.4.0 (+https://openlimiter.com)";
+
+/// The user agent the Codex usage endpoint is addressed with.
+pub const CODEX_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
 
 /// The account header the ChatGPT backend reads alongside the bearer token.
 ///
@@ -183,7 +187,7 @@ pub const CLAUDE_OAUTH_BETA_HEADER: &str = "anthropic-beta";
 pub const CLAUDE_OAUTH_BETA_VALUE: &str = "oauth-2025-04-20";
 
 /// An honest product identity for the private usage request.
-pub const CLAUDE_OAUTH_USER_AGENT: &str = "OpenLimiter/0.4.0 (+https://openlimiter.com)";
+pub const CLAUDE_OAUTH_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
 
 /// The user agent the Antigravity quota summary is addressed with.
 ///
@@ -191,10 +195,10 @@ pub const CLAUDE_OAUTH_USER_AGENT: &str = "OpenLimiter/0.4.0 (+https://openlimit
 /// is answered 403 "the caller does not have permission" when the request
 /// carries no user agent, and 200 when it carries any. A reader that starts
 /// reporting 403 should be checked here before the login is blamed.
-pub const ANTIGRAVITY_USER_AGENT: &str = "openlimiter-usage-meter";
+pub const ANTIGRAVITY_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
 
 /// The user agent the OpenCode workspace page is addressed with.
-pub const OPENCODE_USER_AGENT: &str = "openlimiter-usage-meter";
+pub const OPENCODE_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
 
 /// The path segment that precedes a workspace handle in a redirect target.
 const WORKSPACE_PATH_MARKER: &str = "/workspace/";
@@ -639,9 +643,10 @@ fn authenticated_builder(
         .map_err(|_| TransportFailure::Protocol)?;
     header_value.set_sensitive(true);
     builder = match request.auth {
-        AuthApplication::BearerAuthorization => {
-            builder.header(reqwest::header::AUTHORIZATION, header_value)
-        }
+        AuthApplication::BearerAuthorization => builder
+            .header(reqwest::header::AUTHORIZATION, header_value)
+            .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
+            .header(reqwest::header::ACCEPT, "application/json"),
         AuthApplication::ClaudeOauthBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
             .header(reqwest::header::USER_AGENT, CLAUDE_OAUTH_USER_AGENT)
@@ -661,7 +666,8 @@ fn authenticated_builder(
         AuthApplication::AntigravitySessionBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .header(reqwest::header::USER_AGENT, ANTIGRAVITY_USER_AGENT),
+            .header(reqwest::header::USER_AGENT, ANTIGRAVITY_USER_AGENT)
+            .header(reqwest::header::ACCEPT, "application/json"),
         AuthApplication::BrowserSessionCookie => builder
             .header(reqwest::header::COOKIE, header_value)
             .header(reqwest::header::USER_AGENT, OPENCODE_USER_AGENT)
@@ -912,7 +918,7 @@ mod tests {
             "Bearer access-token-canary"
         );
         assert_eq!(headers[reqwest::header::USER_AGENT], CODEX_USER_AGENT);
-        assert_eq!(CODEX_USER_AGENT, "codex-cli/0.144.1");
+        assert_eq!(CODEX_USER_AGENT, OPENLIMITER_USER_AGENT);
         assert_eq!(headers[reqwest::header::ACCEPT], "application/json");
         assert!(headers[CODEX_ACCOUNT_HEADER].is_sensitive());
         assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
@@ -945,6 +951,39 @@ mod tests {
         assert_eq!(headers[reqwest::header::ACCEPT], "application/json");
         assert_eq!(headers[CLAUDE_OAUTH_BETA_HEADER], CLAUDE_OAUTH_BETA_VALUE);
         assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
+    }
+
+    #[test]
+    fn every_provider_request_identifies_openlimiter() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        for (auth, account) in [
+            (AuthApplication::BearerAuthorization, None),
+            (AuthApplication::ClaudeOauthBearer, None),
+            (
+                AuthApplication::CodexSessionBearer,
+                Some("account-id-canary"),
+            ),
+            (AuthApplication::AntigravitySessionBearer, None),
+            (AuthApplication::BrowserSessionCookie, None),
+        ] {
+            let request = EndpointRequest {
+                url: OPENROUTER_KEY_URL,
+                method: HttpMethod::Get,
+                auth,
+                codex_account_id: account,
+                body: None,
+            };
+            let built = authenticated_builder(&client, &request, "credential-canary")
+                .expect("headers")
+                .build()
+                .expect("request");
+            assert_eq!(
+                built.headers()[reqwest::header::USER_AGENT],
+                OPENLIMITER_USER_AGENT,
+                "{auth:?} did not identify OpenLimiter"
+            );
+        }
     }
 
     /* -------------------------------------------------- the workspace hop */

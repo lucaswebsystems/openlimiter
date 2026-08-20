@@ -1,4 +1,4 @@
-import { Baloo_2 } from "next/font/google";
+import localFont from "next/font/local";
 
 /**
  * The display face, and the one instance of it anywhere in this application.
@@ -7,22 +7,22 @@ import { Baloo_2 } from "next/font/google";
  * 600. The site now sets every heading in the same face at the same weight,
  * and so does the product dashboard. Body text, buttons, chips, links,
  * captions and every number stay in the system stack, so the whole thing is
- * two faces and one downloaded file.
+ * two faces and one bundled file.
  *
  * It is loaded exactly once, here. The wordmark takes `className`, every
  * heading on the marketing site reaches the same file through the custom
- * property below, and so does app/app/theme.css. A second `Baloo_2({...})`
- * call anywhere would self host the face a second time for no benefit, so
- * there is not one.
+ * property below, and so does app/app/theme.css. A second font loader call
+ * anywhere would bundle the face a second time for no benefit, so there is
+ * not one.
  *
- * Next self hosts the file at build time, so no request ever leaves the
- * visitor's browser for it, `subsets` holds it to the Latin range, and
- * `display: swap` means a heading is readable from the first paint whatever
- * happens to the file.
+ * The repository carries the font file, so neither a build nor a visitor asks
+ * Google for it. `display: swap` means a heading is readable from the first
+ * paint whatever happens to the file.
  */
-export const wordmarkFont = Baloo_2({
-  subsets: ["latin"],
-  weight: ["600"],
+export const wordmarkFont = localFont({
+  src: "../assets/fonts/Baloo2-SemiBold.ttf",
+  weight: "600",
+  style: "normal",
   display: "swap",
   /**
    * The same face, reachable from a stylesheet.

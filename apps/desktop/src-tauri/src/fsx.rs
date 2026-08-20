@@ -187,6 +187,7 @@ pub fn atomic_write(target: &Path, contents: &str) -> Result<(), FsFailure> {
 /// The same atomic replace with an optional marker in the temporary name.
 /// Claude settings use a marker so a later run can identify and clean a file
 /// left between the flush and rename steps of a crashed process.
+#[cfg(test)]
 pub fn atomic_write_with_marker(
     target: &Path,
     contents: &str,

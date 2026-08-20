@@ -68,4 +68,6 @@ This is accepted rather than fixed tonight, for a stated reason. Closing the par
 
 Local mode has no telemetry. It does not send usage, diagnostics, identifiers, prompts, or quota state to the project authors.
 
-Pro is explicit opt in service data, not hidden telemetry. It receives the selected bounded quota fields described above only after sign in. The public website keeps cookieless page counts as documented separately.
+Provider authentication artifacts and provider CLI configuration are opened read only. OpenLimiter never rewrites, backs up, repairs, migrates, or locks them. Claude Code wiring is a manual user step, while the desktop application performs detection and verification only.
+
+The public website has no analytics or page counting. Pro is explicit opt in service data, not hidden telemetry. It receives the selected bounded quota fields described above only after sign in.

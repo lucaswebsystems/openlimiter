@@ -2,6 +2,7 @@ mod cache_write;
 mod claude_connect;
 mod claude_detect;
 mod claude_oauth;
+mod codex_oauth;
 mod collector;
 mod collector_runtime;
 mod collector_schedule;
@@ -87,6 +88,7 @@ pub fn run() {
         .manage(net::ReqwestTransport::new())
         .manage(provider_detection::DetectionStore::scan())
         .manage(claude_oauth::ClaudeOauthRuntime::default())
+        .manage(codex_oauth::CodexOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
         .manage(updates::PendingUpdate::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -107,8 +109,6 @@ pub fn run() {
             commands::rescan_detected_providers,
             commands::refresh_detected_claude,
             commands::claude_connect_preflight,
-            commands::claude_connect_apply,
-            commands::claude_disconnect,
             pro::pro_status,
             pro::pro_set_session,
             pro::pro_refresh,

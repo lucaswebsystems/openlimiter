@@ -42,7 +42,7 @@
     "community": "Community",
     "trust": "Trust",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | Local first | Zero telemetry in the software | No accounts | Cookieless page counts",
+    "licenceNote": "Apache 2.0 | Local first | Zero telemetry | No tracking | No accounts",
     "licenceRead": "Read the licence",
     "rights": "All rights reserved",
     "licensed": "Apache 2.0 licensed",
@@ -474,7 +474,7 @@
       },
       "reportsNobody": {
         "title": "It reports to nobody",
-        "detail": "Local mode reports to nobody and has no analytics. The website keeps cookieless page counts. Pro is optional and receives selected bounded quota snapshots only after sign in, never provider credentials."
+        "detail": "Local mode and the public website report to nobody and have no analytics. Pro is optional and receives selected bounded quota snapshots only after sign in, never provider credentials."
       },
       "unknownStaysUnknown": {
         "title": "Unknown stays unknown",

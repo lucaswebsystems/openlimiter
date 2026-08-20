@@ -17,8 +17,8 @@
  * Rust sits behind ./backend.js for everything this file cannot do itself:
  * the state directory, the two local files, the system tray, and the
  * connection subsystem the Connections tab drives. Nothing crosses the
- * boundary anywhere else, and nothing leaves the machine except the provider
- * reads a person has explicitly connected.
+ * boundary anywhere else. Network traffic is limited to provider reads a
+ * person explicitly connected and optional Pro sync after sign in.
  */
 import {
   PROVIDER_CODES,

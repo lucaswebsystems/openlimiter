@@ -36,7 +36,7 @@
     "category": "DeveloperTool",
     "copyright": "Copyright 2026 Lucas Costa. Apache License 2.0.",
     "shortDescription": "Quota for the AI subscriptions you already pay for.",
-    "longDescription": "OpenLimiter reads the quota of your AI subscriptions on your own machine and shows it in a window and beside the clock. It is local first: no account, no telemetry, and nothing leaves the machine.",
+    "longDescription": "OpenLimiter reads the quota of your AI subscriptions on your own machine and shows it in a window and beside the clock. It is local first, with no account or telemetry. Network requests go only to a connected provider, while optional Pro sends bounded quota snapshots after sign in.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -352,22 +352,6 @@ export async function claudeConnectPreflight({ configuredCliPath } = {}) {
   });
 }
 
-/** Back up Claude Code settings and add only the OpenLimiter entries. */
-export async function claudeConnectApply({ configuredCliPath } = {}) {
-  return call("claude_connect_apply", {
-    input: {
-      ...(configuredCliPath === undefined
-        ? {}
-        : { configured_cli_path: configuredCliPath }),
-    },
-  });
-}
-
-/** Remove only the entries owned by OpenLimiter. */
-export async function claudeDisconnect() {
-  return call("claude_disconnect");
-}
-
 const PRO_ACTIONS = new Set([
   "account_status",
   "ingest_snapshot",

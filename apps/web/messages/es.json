@@ -42,7 +42,7 @@
     "community": "Comunidad",
     "trust": "Confianza",
     "issues": "Incidencias",
-    "licenceNote": "Apache 2.0 | Con prioridad local | Cero telemetría en el software | Sin cuentas | Conteos de páginas sin cookies",
+    "licenceNote": "Apache 2.0 | Con prioridad local | Cero telemetría | Sin seguimiento | Sin cuentas",
     "licenceRead": "Leer la licencia",
     "rights": "Todos los derechos reservados",
     "licensed": "Licencia Apache 2.0",
@@ -474,7 +474,7 @@
       },
       "reportsNobody": {
         "title": "No le reporta a nadie",
-        "detail": "El modo local no informa a nadie y no tiene analítica. El sitio cuenta páginas sin cookies. Pro es opcional y recibe datos limitados de cuota solo después de iniciar sesión, nunca credenciales del proveedor."
+        "detail": "El modo local y el sitio público no informan a nadie y no tienen analítica. Pro es opcional y recibe datos limitados de cuota solo después de iniciar sesión, nunca credenciales del proveedor."
       },
       "unknownStaysUnknown": {
         "title": "Unknown se queda unknown",

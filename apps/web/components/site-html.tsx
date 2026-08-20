@@ -1,4 +1,3 @@
-import { Analytics } from "@vercel/analytics/react";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
@@ -141,10 +140,6 @@ export async function SiteHtml({
               site is published in and who has never answered the question. It
               overlays the page and reserves no space. See components/locale-offer.tsx. */}
           {offer !== null && <LocaleOffer locale={locale} copy={offer} />}
-          {/* Cookieless, first party page counting. No cookies, no cross site
-              tracking, no personal identifiers: the open source card's telemetry
-              claim stays about the product, and the footer discloses this. */}
-          <Analytics />
         </NextIntlClientProvider>
       </body>
     </html>
