@@ -92,7 +92,7 @@ export const posts: readonly Post[] = [
       },
       {
         kind: "p",
-        text: "The command line tool on npm, the web app, and packaged desktop builds for Windows, macOS and Linux all exist and can be used today. None of the desktop builds are code signed yet, so Windows SmartScreen and macOS Gatekeeper warn the first time you open one. The iOS and Android applications are not built, are in no store, and have no waiting list. Every button on this site leads to the thing it names, or to the download page where each row says plainly which state it is in.",
+        text: "The command line tool on npm, the web app, and packaged desktop builds for Windows and Linux can be used today. Windows ships unsigned, so SmartScreen may appear: choose More info, then Run anyway. macOS is coming soon, and no unsigned macOS build is offered because Gatekeeper blocks it. The iOS and Android applications are not built, are in no store, and have no waiting list. Every button on this site leads to the thing it names, or to the download page where each row says plainly which state it is in.",
       },
       {
         kind: "quote",

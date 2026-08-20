@@ -83,7 +83,7 @@
         "label": "Abrir la aplicación web"
       },
       "macos": {
-        "aria": "Descargar OpenLimiter para macOS, Apple silicon"
+        "aria": "Aplicación de escritorio para macOS próximamente"
       },
       "iphone": {
         "aria": "iPhone: la aplicación web se instala en tu pantalla de inicio, no hay aplicación en la App Store"
@@ -98,7 +98,7 @@
     },
     "rows": {
       "windows": "Descargar para Windows",
-      "macos": "Descargar para macOS",
+      "macos": "macOS próximamente",
       "linux": "Descargar para Linux",
       "webApp": "Abrir la aplicación web",
       "iphone": "Instalar en iPhone",
@@ -115,7 +115,7 @@
       "play": "Reproducir animación",
       "pause": "Pausar animación"
     },
-    "disclaimer": "Windows, macOS y Linux tienen compilaciones de escritorio empaquetadas en el release, y npm es la instalación de línea de comandos recomendada. La aplicación web no necesita nada instalado. Las compilaciones de escritorio todavía no están firmadas, así que Windows y macOS avisan en la primera ejecución. Las aplicaciones móviles no están construidas."
+    "disclaimer": "Las compilaciones de escritorio para Windows y Linux están disponibles. La compilación de Windows no está firmada, así que SmartScreen avisa en el primer inicio: elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente. npm y la aplicación web ya están disponibles. Las aplicaciones móviles nativas no están construidas."
   },
   "home": {
     "docsLine": "Ambas cosas están documentadas en detalle: <agentContext>lo que se le dice a un agente</agentContext> y <cli>cada comando con el que se distribuye</cli>.",
@@ -413,7 +413,7 @@
       },
       "desktopOrPhone": {
         "question": "¿Hay una aplicación de escritorio o de teléfono?",
-        "answer": "La aplicación de escritorio con bandeja del sistema está construida y empaquetada para Windows, macOS y Linux, y cada compilación está adjunta al release en GitHub. Ninguna está firmada todavía, así que Windows SmartScreen y macOS Gatekeeper avisan la primera vez que abres una, y la página de descarga dice cómo superar eso. En un teléfono, la aplicación web se abre en el navegador y se instala en una pantalla de inicio. Las aplicaciones nativas para iOS y Android no están construidas, nada está en una tienda y no hay lista de espera. La página de descarga lista cada plataforma con su estado real."
+        "answer": "La aplicación de escritorio con bandeja del sistema está disponible para Windows y Linux. Windows no está firmado, así que SmartScreen puede aparecer: elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente, y no se ofrece una compilación sin firma porque Gatekeeper la bloquea. En un teléfono, la aplicación web se abre en el navegador y se instala en una pantalla de inicio. Las aplicaciones nativas para iOS y Android no están construidas, nada está en una tienda y no hay lista de espera. La página de descarga lista cada plataforma con su estado real."
       },
       "free": {
         "question": "¿Es gratis?",
@@ -488,17 +488,17 @@
   },
   "download": {
     "metaTitle": "Descargar",
-    "metaDescription": "Consigue OpenLimiter: compilaciones de escritorio empaquetadas para Windows, macOS y Linux, la herramienta de línea de comandos desde npm, o la aplicación web en cualquier navegador. Las aplicaciones móviles no están construidas.",
+    "metaDescription": "Consigue OpenLimiter para Windows o Linux, instala la herramienta de línea de comandos desde npm o abre la aplicación web. macOS llegará próximamente.",
     "title": "Descargar",
-    "lead": "Windows, macOS y Linux tienen compilaciones de escritorio empaquetadas en el release, y npm es la instalación de línea de comandos recomendada. La aplicación web no necesita nada instalado. Las compilaciones de escritorio todavía no están firmadas, así que Windows y macOS avisan en la primera ejecución. Las aplicaciones móviles no están construidas.",
+    "lead": "Las compilaciones de escritorio para Windows y Linux están disponibles. La compilación de Windows no está firmada: en SmartScreen, elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente. npm y la aplicación web también están disponibles.",
     "states": {
       "available": "disponible",
-      "inDevelopment": "en desarrollo",
+      "inDevelopment": "próximamente",
       "planned": "planeado"
     },
     "available": {
       "title": "Disponible ahora",
-      "lead": "Windows, macOS y Linux tienen cada uno una compilación de escritorio empaquetada, y cada enlace de abajo va directo al archivo. La herramienta de línea de comandos es una sola instalación de npm en cualquiera de ellos, o un clonado si prefieres construirla, porque es Node.js puro sin dependencias de terceros en tiempo de ejecución. La aplicación web no necesita nada instalado."
+      "lead": "Windows y Linux tienen compilaciones de escritorio empaquetadas, y cada enlace de abajo va directo al archivo. La herramienta de línea de comandos es una sola instalación de npm en cualquier plataforma, o un clonado si prefieres construirla desde el código fuente. La aplicación web no necesita nada instalado."
     },
     "phone": {
       "title": "En tu teléfono",
@@ -507,8 +507,8 @@
       "scan": "Escanea esto con la cámara de tu teléfono. La aplicación web se abre, y desde ahí la instalas en la pantalla de inicio."
     },
     "building": {
-      "title": "Construido, todavía sin empaquetar para ti",
-      "lead": "Esto existe y funciona. Lo que falta es una compilación que puedas instalar en tu propia plataforma, y hasta que se produzca, esta sección lo dice en vez de apuntarte a algo que no está ahí."
+      "title": "Próximamente",
+      "lead": "La aplicación de escritorio para macOS está construida, pero no se ofrecerá una descarga pública hasta que pueda superar Gatekeeper con normalidad."
     },
     "notBuilt": {
       "title": "Todavía no construido",
@@ -534,21 +534,13 @@
           "setup": "Instalador de Windows",
           "msi": "MSI de Windows"
         },
-        "note": "Ninguna compilación de Windows está firmada todavía, así que SmartScreen avisa en el primer inicio. Elige Más información y luego Ejecutar de todos modos. Continúa solo si el archivo vino del enlace oficial del release de OpenLimiter.",
+        "note": "Compilación de Windows sin firma. SmartScreen: elige Más información y luego Ejecutar de todos modos.",
         "requirement": "Node 24 o más nuevo, y pnpm 9.15.0, que el repositorio fija. PowerShell o cualquier terminal que prefieras."
       },
       "macos": {
         "name": "macOS",
-        "summary": "La aplicación de escritorio se empaqueta para macOS como una imagen de disco por cada familia de chip, Apple silicon e Intel, y ambas están adjuntas al release. La herramienta de línea de comandos corre en cualquiera de las dos desde npm, porque es Node.js puro sin dependencias de terceros en tiempo de ejecución.",
-        "assets": {
-          "appleSilicon": "DMG de Apple silicon",
-          "intel": "DMG de Intel"
-        },
-        "note": "Las imágenes de disco no están firmadas ni notarizadas, así que Gatekeeper bloquea el primer inicio. Arrastra OpenLimiter a Aplicaciones e intenta abrirlo una vez. Después abre Configuración del Sistema, Privacidad y Seguridad, elige Abrir igualmente junto a OpenLimiter y confirma Abrir. Usa el comando de abajo solo si ese control no aparece y el archivo vino del enlace oficial del release.",
-        "instructions": {
-          "gatekeeper": "Alternativa en Terminal después del inicio bloqueado"
-        },
-        "requirement": "Node 24 o más nuevo, y pnpm 9.15.0, que el repositorio fija."
+        "summary": "La aplicación de escritorio para macOS llegará próximamente. No se distribuye una compilación sin firma porque Gatekeeper la bloquea.",
+        "note": "La herramienta de línea de comandos ya está disponible en macOS desde npm."
       },
       "linux": {
         "name": "Linux",
@@ -573,8 +565,8 @@
       },
       "desktop": {
         "name": "Aplicación de escritorio",
-        "summary": "Un ícono de bandeja junto al reloj del sistema lee la misma caché local que la herramienta de línea de comandos, así que la quota se ve sin abrir una terminal. Se empaqueta para Windows, macOS y Linux, y cada compilación está adjunta al mismo release. Las actualizaciones automáticas comienzan con el primer release que active el actualizador. Las versiones anteriores todavía requieren una descarga manual.",
-        "note": "Ninguna de las compilaciones de escritorio está firmada todavía. Windows SmartScreen y macOS Gatekeeper avisan en la primera ejecución, y cada fila de plataforma de arriba dice cómo superar eso."
+        "summary": "Un ícono de bandeja junto al reloj del sistema lee la misma caché local que la herramienta de línea de comandos, así que la quota se ve sin abrir una terminal. Las versiones empaquetadas están disponibles para Windows y Linux. macOS llegará próximamente. Las actualizaciones automáticas comienzan con el primer release que active el actualizador.",
+        "note": "La compilación de Windows no está firmada. SmartScreen: elige Más información y luego Ejecutar de todos modos."
       },
       "iphone": {
         "name": "iOS",
@@ -1393,10 +1385,10 @@
           },
           "desktop": {
             "title": "Distribuido: la aplicación de escritorio",
-            "intro": "Una pequeña aplicación de escritorio con un ícono de bandeja junto al reloj del sistema, que lee la misma caché local que escribe la herramienta de línea de comandos, así que la quota se ve de un vistazo sin abrir una terminal. Está construida, y las compilaciones empaquetadas para Windows, macOS y Linux están todas adjuntas al release en GitHub.",
+            "intro": "Una pequeña aplicación de escritorio con un ícono de bandeja junto al reloj del sistema lee la misma caché local que escribe la herramienta de línea de comandos, así que la quota se ve de un vistazo sin abrir una terminal. Las compilaciones de Windows y Linux están adjuntas al release. macOS llegará próximamente.",
             "bullets": {
-              "status": "Estado: distribuida en Windows, macOS y Linux. Cada compilación está en la página de releases, y la página de descarga enlaza cada archivo directamente.",
-              "signing": "Planeado: firma de código en Windows y notarización en macOS. Hasta que eso esté hecho, SmartScreen y Gatekeeper avisan en la primera ejecución.",
+              "status": "Estado: distribuida en Windows y Linux. macOS llegará próximamente y no tiene descarga pública.",
+              "signing": "Windows se distribuirá sin firma. SmartScreen: elige Más información y luego Ejecutar de todos modos. macOS espera la firma y la notarización.",
               "updates": "Planeado: un canal de actualización automática. Hoy no hay ninguno."
             }
           },

@@ -134,7 +134,7 @@ export async function softwareApplicationSchema(locale: Locale): Promise<JsonLdN
     description: t("description"),
     inLanguage: locale,
     applicationCategory: "DeveloperApplication",
-    operatingSystem: "Windows, macOS, Linux",
+    operatingSystem: "Windows, Linux",
     softwareVersion: CURRENT_VERSION,
     downloadUrl: RELEASES_URL,
     license: LICENSE_SPDX_URL,

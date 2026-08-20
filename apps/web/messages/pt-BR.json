@@ -83,7 +83,7 @@
         "label": "Abrir o web app"
       },
       "macos": {
-        "aria": "Baixar o OpenLimiter para macOS, Apple silicon"
+        "aria": "Aplicativo de desktop para macOS em breve"
       },
       "iphone": {
         "aria": "iPhone: o web app se instala na sua tela de início, não existe app na App Store"
@@ -98,7 +98,7 @@
     },
     "rows": {
       "windows": "Baixar para Windows",
-      "macos": "Baixar para macOS",
+      "macos": "macOS em breve",
       "linux": "Baixar para Linux",
       "webApp": "Abrir o web app",
       "iphone": "Instalar no iPhone",
@@ -115,7 +115,7 @@
       "play": "Reproduzir animação",
       "pause": "Pausar animação"
     },
-    "disclaimer": "Windows, macOS e Linux têm builds de desktop empacotadas no release, e o npm é a instalação de linha de comando recomendada. O web app não precisa de nada instalado. As builds de desktop ainda não são assinadas digitalmente, então Windows e macOS avisam na primeira execução. Os aplicativos móveis não foram construídos."
+    "disclaimer": "As builds de desktop para Windows e Linux estão disponíveis. A build do Windows não é assinada, então o SmartScreen avisa na primeira execução: escolha Mais informações e depois Executar assim mesmo. O macOS chega em breve. O npm e o web app estão disponíveis agora. Os aplicativos móveis nativos não foram construídos."
   },
   "home": {
     "docsLine": "As duas coisas estão documentadas em detalhe: <agentContext>o que um agente recebe</agentContext> e <cli>cada comando que ele já traz</cli>.",
@@ -413,7 +413,7 @@
       },
       "desktopOrPhone": {
         "question": "Existe um aplicativo de desktop ou de celular?",
-        "answer": "O aplicativo de bandeja do sistema está construído e empacotado para Windows, macOS e Linux, e toda build está anexada ao release no GitHub. Nenhuma delas é assinada digitalmente ainda, então o SmartScreen do Windows e o Gatekeeper do macOS avisam na primeira vez que você abre uma, e a página de download diz como contornar isso. No celular, o web app abre no navegador e se instala numa tela de início. Aplicativos nativos para iOS e Android não foram construídos, nada está numa loja, e não há lista de espera. A página de download lista cada plataforma com seu estado real."
+        "answer": "O aplicativo de bandeja do sistema está disponível para Windows e Linux. O Windows não é assinado, então o SmartScreen pode aparecer: escolha Mais informações e depois Executar assim mesmo. O macOS chega em breve, e nenhuma build sem assinatura será oferecida porque o Gatekeeper a bloqueia. No celular, o web app abre no navegador e se instala numa tela de início. Aplicativos nativos para iOS e Android não foram construídos, nada está numa loja, e não há lista de espera. A página de download lista cada plataforma com seu estado real."
       },
       "free": {
         "question": "É grátis?",
@@ -488,17 +488,17 @@
   },
   "download": {
     "metaTitle": "Download",
-    "metaDescription": "Baixe o OpenLimiter: builds de desktop empacotadas para Windows, macOS e Linux, a ferramenta de linha de comando pelo npm, ou o web app em qualquer navegador. Aplicativos móveis ainda não foram construídos.",
+    "metaDescription": "Baixe o OpenLimiter para Windows ou Linux, instale a ferramenta de linha de comando pelo npm ou abra o web app. O macOS chega em breve.",
     "title": "Download",
-    "lead": "Windows, macOS e Linux têm builds de desktop empacotadas no release, e o npm é a instalação de linha de comando recomendada. O web app não precisa de nada instalado. As builds de desktop ainda não são assinadas digitalmente, então Windows e macOS avisam na primeira execução. Os aplicativos móveis não foram construídos.",
+    "lead": "As builds de desktop para Windows e Linux estão disponíveis agora. A build do Windows não é assinada: no SmartScreen, escolha Mais informações e depois Executar assim mesmo. O macOS chega em breve. O npm e o web app também estão disponíveis.",
     "states": {
       "available": "disponível",
-      "inDevelopment": "em desenvolvimento",
+      "inDevelopment": "em breve",
       "planned": "planejado"
     },
     "available": {
       "title": "Disponível agora",
-      "lead": "Windows, macOS e Linux têm, cada um, uma build de desktop empacotada, e cada link abaixo leva direto ao arquivo. A ferramenta de linha de comando é um npm install em qualquer um deles, ou um clone se você preferir construir do zero, porque é Node.js puro, sem dependências de terceiros em tempo de execução. O web app não precisa de nada instalado."
+      "lead": "Windows e Linux têm builds de desktop empacotadas, e cada link abaixo leva direto ao arquivo. A ferramenta de linha de comando é um npm install em qualquer plataforma, ou um clone se você preferir construir do zero. O web app não precisa de nada instalado."
     },
     "phone": {
       "title": "No seu celular",
@@ -507,8 +507,8 @@
       "scan": "Escaneie com a câmera do seu celular. O web app abre, e você o instala na tela de início a partir dali."
     },
     "building": {
-      "title": "Construído, ainda não empacotado para você",
-      "lead": "Isso existe e funciona. O que falta é uma build que você possa instalar na sua própria plataforma, e até que ela exista, esta seção diz isso em vez de te apontar para algo que não está lá."
+      "title": "Em breve",
+      "lead": "O aplicativo de desktop para macOS está construído, mas nenhum download público será oferecido até que ele passe normalmente pelo Gatekeeper."
     },
     "notBuilt": {
       "title": "Ainda não construído",
@@ -534,21 +534,13 @@
           "setup": "Instalador para Windows",
           "msi": "MSI para Windows"
         },
-        "note": "Nenhuma das duas builds do Windows é assinada digitalmente ainda, então o SmartScreen avisa na primeira inicialização. Escolha Mais informações e depois Executar assim mesmo. Continue somente se o arquivo veio do link oficial de release do OpenLimiter.",
+        "note": "Build do Windows sem assinatura. SmartScreen: escolha Mais informações e depois Executar assim mesmo.",
         "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa. PowerShell ou qualquer terminal de sua preferência."
       },
       "macos": {
         "name": "macOS",
-        "summary": "O aplicativo de desktop é empacotado para macOS como uma imagem de disco para cada família de chip, Apple silicon e Intel, e ambas estão anexadas ao release. A ferramenta de linha de comando roda em qualquer um deles pelo npm, porque é Node.js puro, sem dependências de terceiros em tempo de execução.",
-        "assets": {
-          "appleSilicon": "DMG Apple silicon",
-          "intel": "DMG Intel"
-        },
-        "note": "As imagens de disco não são assinadas nem notarizadas, então o Gatekeeper bloqueia a primeira inicialização. Arraste o OpenLimiter para Aplicativos e tente abrir o aplicativo uma vez. Depois abra Ajustes do Sistema, Privacidade e Segurança, escolha Abrir Mesmo Assim ao lado do OpenLimiter e confirme Abrir. Use o comando abaixo somente se esse controle não aparecer e o arquivo tiver vindo do link oficial do release.",
-        "instructions": {
-          "gatekeeper": "Alternativa pelo Terminal após a inicialização bloqueada"
-        },
-        "requirement": "Node 24 ou mais recente, e pnpm 9.15.0, que o repositório fixa."
+        "summary": "O aplicativo de desktop para macOS chega em breve. Nenhuma build sem assinatura será distribuída porque o Gatekeeper a bloqueia.",
+        "note": "A ferramenta de linha de comando já está disponível no macOS pelo npm."
       },
       "linux": {
         "name": "Linux",
@@ -573,8 +565,8 @@
       },
       "desktop": {
         "name": "Aplicativo de desktop",
-        "summary": "Um ícone de bandeja ao lado do relógio do sistema lê o mesmo cache local que a ferramenta de linha de comando, então a quota fica visível sem nenhum terminal aberto. Ele é empacotado para Windows, macOS e Linux, e toda build fica anexada ao mesmo release. As atualizações automáticas começam com o primeiro release que ativar o atualizador. Versões anteriores ainda exigem download manual.",
-        "note": "Nenhuma das builds de desktop é assinada digitalmente ainda. O SmartScreen do Windows e o Gatekeeper do macOS avisam na primeira execução, e cada linha de plataforma acima diz como contornar isso."
+        "summary": "Um ícone de bandeja ao lado do relógio do sistema lê o mesmo cache local que a ferramenta de linha de comando, então a quota fica visível sem nenhum terminal aberto. Os releases empacotados estão disponíveis para Windows e Linux. O macOS chega em breve. As atualizações automáticas começam com o primeiro release que ativar o atualizador.",
+        "note": "A build do Windows não é assinada. SmartScreen: escolha Mais informações e depois Executar assim mesmo."
       },
       "iphone": {
         "name": "iOS",
@@ -1393,10 +1385,10 @@
           },
           "desktop": {
             "title": "Lançado: o aplicativo de desktop",
-            "intro": "Um pequeno aplicativo de desktop com um ícone de bandeja ao lado do relógio do sistema, lendo o mesmo cache local que a ferramenta de linha de comando escreve, então a quota fica visível de relance sem nenhum terminal aberto. Ele está construído, e builds empacotadas para Windows, macOS e Linux estão todas anexadas ao release no GitHub.",
+            "intro": "Um pequeno aplicativo de desktop com um ícone de bandeja ao lado do relógio do sistema lê o mesmo cache local que a ferramenta de linha de comando escreve, então a quota fica visível de relance sem nenhum terminal aberto. As builds para Windows e Linux estão anexadas ao release. O macOS chega em breve.",
             "bullets": {
-              "status": "Status: lançado em Windows, macOS e Linux. Toda build está na página de releases, e a página de download linka cada arquivo diretamente.",
-              "signing": "Planejado: assinatura de código no Windows e notarização no macOS. Até isso ser feito, SmartScreen e Gatekeeper avisam na primeira execução.",
+              "status": "Status: lançado em Windows e Linux. O macOS chega em breve e não tem download público.",
+              "signing": "O Windows será lançado sem assinatura. SmartScreen: escolha Mais informações e depois Executar assim mesmo. O macOS aguarda assinatura e notarização.",
               "updates": "Planejado: um canal de atualização automática. Ainda não há nenhum hoje."
             }
           },

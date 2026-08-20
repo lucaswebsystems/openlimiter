@@ -28,8 +28,8 @@ import { pageMetadata } from "@/lib/metadata";
  *
  * A platform with several packaged files lists every one of them, pointing at
  * the artifact itself rather than at a releases page the reader then has to
- * read. The caveat that comes with an unsigned build renders under those
- * controls, never instead of them.
+ * read. The Windows unsigned build caveat renders as a compact visual notice
+ * under those controls. A coming soon platform receives no artifact control.
  */
 
 export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
@@ -106,9 +106,32 @@ async function TargetCard({ target }: { target: DownloadTarget }) {
         </div>
       )}
 
-      {t.has(words("note")) && (
-        <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">{t(words("note"))}</p>
-      )}
+      {t.has(words("note")) &&
+        (target.id === "windows" ? (
+          <div
+            className="mt-4 flex max-w-2xl items-start gap-3 rounded-lg border border-accent-subtle bg-accent-subtle px-4 py-3 text-accent"
+            role="note"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="mt-0.5 h-4 w-4 flex-none"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 3 20 6v5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-3Z" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <p className="text-xs font-medium leading-relaxed">{t(words("note"))}</p>
+          </div>
+        ) : (
+          <p className="mt-3 max-w-2xl text-xs leading-relaxed text-muted">
+            {t(words("note"))}
+          </p>
+        ))}
 
       {instructions !== undefined && instructions.length > 0 && (
         <div className="mt-4 grid gap-3">

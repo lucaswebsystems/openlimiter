@@ -83,7 +83,7 @@
         "label": "Open the web app"
       },
       "macos": {
-        "aria": "Download OpenLimiter for macOS, Apple silicon"
+        "aria": "OpenLimiter desktop for macOS is coming soon"
       },
       "iphone": {
         "aria": "iPhone: the web app installs to your home screen, there is no App Store app"
@@ -98,7 +98,7 @@
     },
     "rows": {
       "windows": "Download for Windows",
-      "macos": "Download for macOS",
+      "macos": "macOS coming soon",
       "linux": "Download for Linux",
       "webApp": "Open the web app",
       "iphone": "Install on iPhone",
@@ -115,7 +115,7 @@
       "play": "Play motion",
       "pause": "Pause motion"
     },
-    "disclaimer": "Windows, macOS and Linux all have packaged desktop builds on the release, and npm is the recommended command line install. The web app needs nothing installed. The desktop builds are not code signed yet, so Windows and macOS warn on first run. The mobile applications are not built."
+    "disclaimer": "Packaged desktop builds ship for Windows and Linux. The Windows build is unsigned, so SmartScreen warns on first run: choose More info, then Run anyway. macOS is coming soon. npm and the web app are available now. Native mobile applications are not built."
   },
   "home": {
     "docsLine": "Both of those are written up in full: <agentContext>what an agent is told</agentContext> and <cli>every command it ships with</cli>.",
@@ -413,7 +413,7 @@
       },
       "desktopOrPhone": {
         "question": "Is there a desktop or phone app?",
-        "answer": "The desktop tray application is built and packaged for Windows, macOS and Linux, and every build is attached to the release on GitHub. None of them are code signed yet, so Windows SmartScreen and macOS Gatekeeper warn the first time you open one, and the download page says how to get past that. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
+        "answer": "The desktop tray application ships for Windows and Linux. Windows is unsigned, so SmartScreen may appear: choose More info, then Run anyway. macOS is coming soon, and no unsigned macOS build is offered because Gatekeeper blocks it. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
       },
       "free": {
         "question": "Is it free?",
@@ -488,17 +488,17 @@
   },
   "download": {
     "metaTitle": "Download",
-    "metaDescription": "Get OpenLimiter: packaged desktop builds for Windows, macOS and Linux, the command line tool from npm, or the web app in any browser. Mobile applications are not built.",
+    "metaDescription": "Get OpenLimiter for Windows or Linux, install the command line tool from npm, or open the web app. macOS is coming soon.",
     "title": "Download",
-    "lead": "Windows, macOS and Linux all have packaged desktop builds on the release, and npm is the recommended command line install. The web app needs nothing installed. The desktop builds are not code signed yet, so Windows and macOS warn on first run. The mobile applications are not built.",
+    "lead": "Windows and Linux desktop builds are available now. The Windows build is unsigned: in SmartScreen, choose More info, then Run anyway. macOS is coming soon. npm and the web app are also available.",
     "states": {
       "available": "available",
-      "inDevelopment": "in development",
+      "inDevelopment": "coming soon",
       "planned": "planned"
     },
     "available": {
       "title": "Available now",
-      "lead": "Windows, macOS and Linux each have a packaged desktop build, and every link below goes straight to the file. The command line tool is one npm install on any of them, or one clone if you would rather build it, because it is plain Node.js with no third party runtime dependencies. The web app needs nothing installed at all."
+      "lead": "Windows and Linux have packaged desktop builds, and every link below goes straight to the file. The command line tool is one npm install on any platform, or one clone if you prefer to build from source. The web app needs nothing installed."
     },
     "phone": {
       "title": "On your phone",
@@ -507,8 +507,8 @@
       "scan": "Scan this with your phone's camera. The web app opens, and you install it to the home screen from there."
     },
     "building": {
-      "title": "Built, not packaged for you yet",
-      "lead": "This exists and it runs. What is missing is a build you can install on your own platform, and until that is produced this section says so rather than pointing you at something that is not there."
+      "title": "Coming soon",
+      "lead": "The macOS desktop app is built, but no public download is offered until it can pass Gatekeeper normally."
     },
     "notBuilt": {
       "title": "Not built yet",
@@ -534,21 +534,13 @@
           "setup": "Windows installer",
           "msi": "Windows MSI"
         },
-        "note": "Neither Windows build is code signed yet, so SmartScreen warns on first run. Choose More info, then Run anyway. Continue only when the file came from the official OpenLimiter release link.",
+        "note": "Unsigned Windows build. SmartScreen: choose More info, then Run anyway.",
         "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins. PowerShell or any terminal you like."
       },
       "macos": {
         "name": "macOS",
-        "summary": "The desktop application is packaged for macOS as a disk image for each chip family, Apple silicon and Intel, and both are attached to the release. The command line tool runs on either from npm, because it is plain Node.js with no third party runtime dependencies.",
-        "assets": {
-          "appleSilicon": "Apple silicon DMG",
-          "intel": "Intel DMG"
-        },
-        "note": "The disk images are not code signed or notarised, so Gatekeeper blocks the first launch. Drag OpenLimiter to Applications and try to open it once. Then open System Settings, Privacy & Security, choose Open Anyway beside OpenLimiter, and confirm Open. Use the command below only when that control is absent and the file came from the official release link.",
-        "instructions": {
-          "gatekeeper": "Terminal fallback after the blocked launch"
-        },
-        "requirement": "Node 24 or newer and pnpm 9.15.0, which the repository pins."
+        "summary": "The macOS desktop app is coming soon. No unsigned build is distributed because Gatekeeper blocks it.",
+        "note": "The command line tool is available on macOS from npm today."
       },
       "linux": {
         "name": "Linux",
@@ -573,8 +565,8 @@
       },
       "desktop": {
         "name": "Desktop application",
-        "summary": "A tray icon beside the system clock reads the same local cache as the command line tool, so quota is visible with no terminal open. It is packaged for Windows, macOS and Linux, and every build is attached to the same release. Automatic updates begin with the first updater enabled release. Earlier versions still need a manual download.",
-        "note": "None of the desktop builds are code signed yet. Windows SmartScreen and macOS Gatekeeper both warn on first run, and each platform row above says how to get past it."
+        "summary": "A tray icon beside the system clock reads the same local cache as the command line tool, so quota is visible with no terminal open. Packaged releases ship for Windows and Linux. macOS is coming soon. Automatic updates begin with the first updater enabled release.",
+        "note": "The Windows build is unsigned. SmartScreen: choose More info, then Run anyway."
       },
       "iphone": {
         "name": "iOS",
@@ -1393,10 +1385,10 @@
           },
           "desktop": {
             "title": "Shipped: the desktop application",
-            "intro": "A small desktop application with a tray icon next to the system clock, reading the same local cache the command line tool writes, so quota is glanceable without a terminal open. It is built, and packaged builds for Windows, macOS and Linux are all attached to the release on GitHub.",
+            "intro": "A small desktop application with a tray icon next to the system clock reads the same local cache the command line tool writes, so quota is glanceable without a terminal open. Packaged Windows and Linux builds are attached to the release. macOS is coming soon.",
             "bullets": {
-              "status": "Status: shipped on Windows, macOS and Linux. Every build is on the releases page, and the download page links each file directly.",
-              "signing": "Planned: code signing on Windows and notarisation on macOS. Until those are done, SmartScreen and Gatekeeper warn on first run.",
+              "status": "Status: shipped on Windows and Linux. macOS is coming soon and has no public download.",
+              "signing": "Windows ships unsigned. SmartScreen: choose More info, then Run anyway. macOS waits for signing and notarisation.",
               "updates": "Planned: an automatic update channel. There is none today."
             }
           },

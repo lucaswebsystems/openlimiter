@@ -9,13 +9,13 @@ import { CURRENT_VERSION, REPO_URL, type ShipState } from "./site";
  * say so in the chip, in the prose, and in the accessible name of any control
  * that points at them.
  *
- * Windows, macOS and Linux each have packaged desktop builds attached to the
- * release, and every link below is the artifact itself rather than a page that
- * lists artifacts, so a reader lands on the file instead of on a hunt. None of
- * those builds are code signed yet, which the row states plainly and tells the
- * reader how to get past, rather than leaving the operating system to spring it
- * on them. The two rows that are not a file are the web app, which is a route
- * on this site, and the global install, which is a published npm package.
+ * Windows and Linux have packaged desktop builds attached to the release, and
+ * every link below is the artifact itself rather than a page that lists
+ * artifacts. Windows ships unsigned, so its row gives the two SmartScreen
+ * actions plainly. macOS stays in the coming soon section with no artifact or
+ * bypass command because an unsigned build is not being distributed. The two
+ * rows that are not a file are the web app, which is a route on this site, and
+ * the global install, which is a published npm package.
  *
  * STRUCTURE HERE, WORDS IN THE CATALOG
  * ------------------------------------
@@ -51,8 +51,6 @@ import { CURRENT_VERSION, REPO_URL, type ShipState } from "./site";
  */
 const WINDOWS_SETUP = `OpenLimiter_${CURRENT_VERSION}_x64-setup.exe`;
 const WINDOWS_MSI = `OpenLimiter_${CURRENT_VERSION}_x64_en-US.msi`;
-const MACOS_APPLE_SILICON = `OpenLimiter_${CURRENT_VERSION}_aarch64.dmg`;
-const MACOS_INTEL = `OpenLimiter_${CURRENT_VERSION}_x64.dmg`;
 const LINUX_APPIMAGE = `OpenLimiter_${CURRENT_VERSION}_amd64.AppImage`;
 const LINUX_DEB = `OpenLimiter_${CURRENT_VERSION}_amd64.deb`;
 const LINUX_RPM = `OpenLimiter-${CURRENT_VERSION}-1.x86_64.rpm`;
@@ -128,17 +126,7 @@ export const downloadTargets: readonly DownloadTarget[] = [
   },
   {
     id: "macos",
-    state: "available",
-    assets: [
-      { id: "appleSilicon", href: releaseAsset(MACOS_APPLE_SILICON), primary: true },
-      { id: "intel", href: releaseAsset(MACOS_INTEL) },
-    ],
-    instructions: [
-      {
-        id: "gatekeeper",
-        command: "xattr -dr com.apple.quarantine /Applications/OpenLimiter.app",
-      },
-    ],
+    state: "in development",
   },
   {
     id: "linux",
@@ -178,4 +166,3 @@ export const downloadTargets: readonly DownloadTarget[] = [
     state: "planned",
   },
 ];
-

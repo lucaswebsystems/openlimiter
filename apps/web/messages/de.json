@@ -83,7 +83,7 @@
         "label": "Web App öffnen"
       },
       "macos": {
-        "aria": "OpenLimiter für macOS herunterladen, Apple Silicon"
+        "aria": "OpenLimiter Desktop App für macOS kommt bald"
       },
       "iphone": {
         "aria": "iPhone: Die Web App installiert sich auf deinen Startbildschirm, es gibt keine App Store App"
@@ -98,7 +98,7 @@
     },
     "rows": {
       "windows": "Für Windows herunterladen",
-      "macos": "Für macOS herunterladen",
+      "macos": "macOS kommt bald",
       "linux": "Für Linux herunterladen",
       "webApp": "Web App öffnen",
       "iphone": "Auf dem iPhone installieren",
@@ -115,7 +115,7 @@
       "play": "Animation abspielen",
       "pause": "Animation pausieren"
     },
-    "disclaimer": "Windows, macOS und Linux haben alle gepackte Desktop Builds im Release, und npm ist die empfohlene Kommandozeilen Installation. Die Web App braucht nichts Installiertes. Die Desktop Builds sind noch nicht codesigniert, daher warnen Windows und macOS beim ersten Start. Die mobilen Anwendungen sind nicht gebaut."
+    "disclaimer": "Gepackte Desktop Builds gibt es für Windows und Linux. Der Windows Build ist nicht signiert, daher warnt SmartScreen beim ersten Start: Wähl Weitere Informationen und dann Trotzdem ausführen. macOS kommt bald. npm und die Web App sind jetzt verfügbar. Native mobile Anwendungen sind nicht gebaut."
   },
   "home": {
     "docsLine": "Beides ist ausführlich dokumentiert: <agentContext>was ein Agent erfährt</agentContext> und <cli>jeder Befehl, mit dem es ausgeliefert wird</cli>.",
@@ -413,7 +413,7 @@
       },
       "desktopOrPhone": {
         "question": "Gibt es eine Desktop oder Handy App?",
-        "answer": "Die Desktop Tray Anwendung ist gebaut und gepackt für Windows, macOS und Linux, und jeder Build hängt am Release auf GitHub. Keiner davon ist bislang codesigniert, daher warnen Windows SmartScreen und macOS Gatekeeper beim ersten Öffnen, und die Download Seite sagt, wie du daran vorbeikommst. Auf einem Handy öffnet sich die Web App im Browser und installiert sich auf einen Startbildschirm. Native iOS und Android Anwendungen sind nicht gebaut, nichts steht in einem Store, und es gibt keine Warteliste. Die Download Seite listet jede Plattform mit ihrem echten Stand."
+        "answer": "Die Desktop Tray Anwendung gibt es für Windows und Linux. Windows ist nicht signiert, daher kann SmartScreen erscheinen: Wähl Weitere Informationen und dann Trotzdem ausführen. macOS kommt bald, und es wird kein unsignierter macOS Build angeboten, weil Gatekeeper ihn blockiert. Auf einem Handy öffnet sich die Web App im Browser und installiert sich auf einen Startbildschirm. Native iOS und Android Anwendungen sind nicht gebaut, nichts steht in einem Store, und es gibt keine Warteliste. Die Download Seite listet jede Plattform mit ihrem echten Stand."
       },
       "free": {
         "question": "Ist es kostenlos?",
@@ -488,17 +488,17 @@
   },
   "download": {
     "metaTitle": "Download",
-    "metaDescription": "OpenLimiter holen: gepackte Desktop Builds für Windows, macOS und Linux, das Kommandozeilen Tool von npm, oder die Web App in jedem Browser. Mobile Anwendungen sind nicht gebaut.",
+    "metaDescription": "OpenLimiter für Windows oder Linux holen, das Kommandozeilen Tool von npm installieren oder die Web App öffnen. macOS kommt bald.",
     "title": "Download",
-    "lead": "Windows, macOS und Linux haben alle gepackte Desktop Builds im Release, und npm ist die empfohlene Kommandozeilen Installation. Die Web App braucht nichts Installiertes. Die Desktop Builds sind noch nicht codesigniert, daher warnen Windows und macOS beim ersten Start. Die mobilen Anwendungen sind nicht gebaut.",
+    "lead": "Desktop Builds für Windows und Linux sind jetzt verfügbar. Der Windows Build ist nicht signiert: Wähl in SmartScreen Weitere Informationen und dann Trotzdem ausführen. macOS kommt bald. npm und die Web App sind ebenfalls verfügbar.",
     "states": {
       "available": "verfügbar",
-      "inDevelopment": "in Entwicklung",
+      "inDevelopment": "kommt bald",
       "planned": "geplant"
     },
     "available": {
       "title": "Jetzt verfügbar",
-      "lead": "Windows, macOS und Linux haben je einen gepackten Desktop Build, und jeder Link unten führt direkt zur Datei. Das Kommandozeilen Tool ist auf allen dreien eine npm Installation, oder ein Klon, wenn du es lieber selbst baust, weil es reines Node.js ist, ohne Runtime Abhängigkeiten von Dritten. Die Web App braucht überhaupt nichts Installiertes."
+      "lead": "Windows und Linux haben gepackte Desktop Builds, und jeder Link unten führt direkt zur Datei. Das Kommandozeilen Tool ist auf jeder Plattform eine npm Installation, oder ein Klon, wenn du es lieber aus dem Quellcode baust. Die Web App braucht nichts Installiertes."
     },
     "phone": {
       "title": "Auf deinem Handy",
@@ -507,8 +507,8 @@
       "scan": "Scann das mit der Kamera deines Handys. Die Web App öffnet sich, und du installierst sie von dort auf den Startbildschirm."
     },
     "building": {
-      "title": "Gebaut, aber noch nicht für dich gepackt",
-      "lead": "Das existiert und läuft. Was fehlt, ist ein Build, den du auf deiner eigenen Plattform installieren kannst, und bis der entsteht, sagt dieser Abschnitt das offen, statt dich zu etwas zu schicken, das es nicht gibt."
+      "title": "Kommt bald",
+      "lead": "Die macOS Desktop App ist gebaut, aber es gibt keinen öffentlichen Download, bis sie Gatekeeper normal passieren kann."
     },
     "notBuilt": {
       "title": "Noch nicht gebaut",
@@ -534,21 +534,13 @@
           "setup": "Windows Installer",
           "msi": "Windows MSI"
         },
-        "note": "Keiner der beiden Windows Builds ist bisher codesigniert, daher warnt SmartScreen beim ersten Start. Wähl Weitere Informationen und dann Trotzdem ausführen. Fahr nur fort, wenn die Datei vom offiziellen OpenLimiter Release Link stammt.",
+        "note": "Unsignierter Windows Build. SmartScreen: Wähl Weitere Informationen und dann Trotzdem ausführen.",
         "requirement": "Node 24 oder neuer, und pnpm 9.15.0, wie vom Repository festgelegt. PowerShell oder ein beliebiges anderes Terminal."
       },
       "macos": {
         "name": "macOS",
-        "summary": "Die Desktop Anwendung ist für macOS als Disk Image für jede Chip Familie gepackt, Apple Silicon und Intel, beide hängen am Release. Das Kommandozeilen Tool läuft auf beiden von npm, weil es reines Node.js ist, ohne Runtime Abhängigkeiten von Dritten.",
-        "assets": {
-          "appleSilicon": "Apple Silicon DMG",
-          "intel": "Intel DMG"
-        },
-        "note": "Die Disk Images sind weder codesigniert noch notarisiert, daher blockiert Gatekeeper den ersten Start. Zieh OpenLimiter in Programme und versuch einmal, es zu öffnen. Öffne danach Systemeinstellungen, Datenschutz & Sicherheit, wähl bei OpenLimiter Dennoch öffnen und bestätige Öffnen. Nutz den Befehl unten nur, wenn diese Schaltfläche fehlt und die Datei vom offiziellen Release Link stammt.",
-        "instructions": {
-          "gatekeeper": "Terminal Ausweichweg nach dem blockierten Start"
-        },
-        "requirement": "Node 24 oder neuer, und pnpm 9.15.0, wie vom Repository festgelegt."
+        "summary": "Die macOS Desktop App kommt bald. Es wird kein unsignierter Build verteilt, weil Gatekeeper ihn blockiert.",
+        "note": "Das Kommandozeilen Tool ist heute auf macOS über npm verfügbar."
       },
       "linux": {
         "name": "Linux",
@@ -573,8 +565,8 @@
       },
       "desktop": {
         "name": "Desktop Anwendung",
-        "summary": "Ein Tray Icon neben der Systemuhr liest denselben lokalen Cache wie das Kommandozeilen Tool, sodass Quota ohne offenes Terminal sichtbar ist. Die Anwendung ist für Windows, macOS und Linux gepackt, und jeder Build hängt am selben Release. Automatische Updates beginnen mit dem ersten Release, das den Updater aktiviert. Frühere Versionen müssen weiterhin manuell heruntergeladen werden.",
-        "note": "Keiner der Desktop Builds ist bislang codesigniert. Windows SmartScreen und macOS Gatekeeper warnen beide beim ersten Start, und jede Plattformzeile oben sagt, wie du daran vorbeikommst."
+        "summary": "Ein Tray Icon neben der Systemuhr liest denselben lokalen Cache wie das Kommandozeilen Tool, sodass Quota ohne offenes Terminal sichtbar ist. Gepackte Releases gibt es für Windows und Linux. macOS kommt bald. Automatische Updates beginnen mit dem ersten Release, das den Updater aktiviert.",
+        "note": "Der Windows Build ist nicht signiert. SmartScreen: Wähl Weitere Informationen und dann Trotzdem ausführen."
       },
       "iphone": {
         "name": "iOS",
@@ -1393,10 +1385,10 @@
           },
           "desktop": {
             "title": "Ausgeliefert: die Desktop Anwendung",
-            "intro": "Eine kleine Desktop Anwendung mit einem Tray Icon neben der Systemuhr, die denselben lokalen Cache liest, den das Kommandozeilen Tool schreibt, sodass Quota auf einen Blick sichtbar ist, ohne ein Terminal zu öffnen. Sie ist gebaut, und gepackte Builds für Windows, macOS und Linux hängen alle am Release auf GitHub.",
+            "intro": "Eine kleine Desktop Anwendung mit einem Tray Icon neben der Systemuhr liest denselben lokalen Cache, den das Kommandozeilen Tool schreibt, sodass Quota ohne offenes Terminal auf einen Blick sichtbar ist. Die Windows und Linux Builds hängen am Release. macOS kommt bald.",
             "bullets": {
-              "status": "Status: ausgeliefert für Windows, macOS und Linux. Jeder Build steht auf der Releases Seite, und die Download Seite verlinkt jede Datei direkt.",
-              "signing": "Geplant: Code Signing unter Windows und Notarisierung unter macOS. Bis das erledigt ist, warnen SmartScreen und Gatekeeper beim ersten Start.",
+              "status": "Status: ausgeliefert für Windows und Linux. macOS kommt bald und hat keinen öffentlichen Download.",
+              "signing": "Windows wird unsigniert ausgeliefert. SmartScreen: Wähl Weitere Informationen und dann Trotzdem ausführen. macOS wartet auf Signierung und Notarisierung.",
               "updates": "Geplant: ein automatischer Update Kanal. Den gibt es heute nicht."
             }
           },

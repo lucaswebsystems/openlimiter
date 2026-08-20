@@ -13,7 +13,7 @@ OpenLimiter reads quota data that already exists on your disk or is piped to it,
 ## What ships today
 
 - Command line tool, published on npm as `openlimiter`. Install it with `npm install -g openlimiter`. Commands include init, snapshot, statusline, hook, ingest, doctor, demo, export and serve.
-- Desktop tray application for Windows, macOS and Linux, built on continuous integration and attached to the GitHub release. The builds are not code signed, so Windows SmartScreen and macOS Gatekeeper warn on first run.
+- Desktop tray application for Windows and Linux, built on continuous integration and attached to the GitHub release. Windows ships unsigned. In SmartScreen, choose More info, then Run anyway. macOS is coming soon, with no unsigned public build because Gatekeeper blocks it.
 - Web app at https://openlimiter.com/app. It runs the same engine inside a browser tab, on a document you paste or drop. Nothing is uploaded and there is no account.
 - Progressive web app. The web app installs to a phone or desktop home screen from the browser and keeps working offline. There is no iOS or Android application, nothing is in a store, and there is no waiting list.
 - LAN serving with `openlimiter serve`, which publishes read only quota on your local network behind a token that is generated on every start and never written to disk. It is meant for a trusted home or office network, not for the internet.

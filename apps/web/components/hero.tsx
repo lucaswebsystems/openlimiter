@@ -27,12 +27,11 @@ import { HERO_BACKDROP_ENABLED } from "@/lib/site";
  * picture is whatever the frame behind it says it is. The primary keeps its
  * white solid; everything else sits on a solid surface fill.
  *
- * Nine targets, honestly. Desktop platforms, mobile install guides and npm go
- * to their rows on the download page. The web app is a route on this site,
- * GitHub is the repository, and the docs stay on this site. The mobile labels
- * describe installation without claiming that a store app exists. The line
- * under the rows says the rest in the open, including that the desktop builds
- * are not code signed yet.
+ * Nine targets, honestly. Available desktop platforms, the macOS coming soon
+ * status, mobile install guides and npm go to their rows on the download page.
+ * The web app is a route on this site, GitHub is the repository, and the docs
+ * stay on this site. Labels describe the state without turning a planned build
+ * into a download.
  *
  * The entrance runs on the fold-enter CSS classes rather than the scroll
  * reveal system: the title and lead are born visible and animate transform
