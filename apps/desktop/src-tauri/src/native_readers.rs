@@ -138,24 +138,20 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
         if !key.ends_with("_window") {
             continue;
         }
-        let Some(window) = value.as_object() else {
+        if value.is_null() {
             continue;
+        }
+        let window = value.as_object()?;
+        let percent = number(window.get("used_percent"), 100.0)?;
+        let length = match window.get("limit_window_seconds") {
+            Some(value) => Some(window_seconds(Some(value))?),
+            None => None,
         };
-        let Some(percent) = number(window.get("used_percent"), 100.0) else {
-            continue;
-        };
-        let length = window_seconds(window.get("limit_window_seconds"));
         let max_ahead =
             length.map(|seconds| seconds.saturating_mul(2).saturating_add(CLOCK_SKEW_SECONDS));
-        let Some(reset_value) = window.get("reset_at").and_then(Value::as_f64) else {
-            continue;
-        };
-        let Some(reset_at) = future_epoch_seconds(reset_value, now_ms, max_ahead) else {
-            continue;
-        };
-        let Some(meter) = codex_meter_id(length, key) else {
-            continue;
-        };
+        let reset_value = window.get("reset_at")?.as_f64()?;
+        let reset_at = future_epoch_seconds(reset_value, now_ms, max_ahead)?;
+        let meter = codex_meter_id(length, key)?;
         snapshots.push(base_snapshot(
             "CODEX",
             &meter,
@@ -353,5 +349,45 @@ mod tests {
         for reader in ReaderId::ALL {
             assert!(parse_body(reader, "{}", now(), ACCOUNT).is_none());
         }
+    }
+
+    #[test]
+    fn one_malformed_codex_window_rejects_the_whole_response() {
+        let reset_seconds = (now() + 3_600_000) / 1_000;
+        let body = serde_json::json!({
+            "rate_limit": {
+                "primary_window": {
+                    "used_percent": 25,
+                    "limit_window_seconds": 18_000,
+                    "reset_at": reset_seconds
+                },
+                "secondary_window": {
+                    "used_percent": "unknown",
+                    "limit_window_seconds": 604_800,
+                    "reset_at": reset_seconds
+                }
+            }
+        })
+        .to_string();
+        assert!(parse_body(ReaderId::CodexUsage, &body, now(), ACCOUNT).is_none());
+    }
+
+    #[test]
+    fn an_explicitly_absent_codex_secondary_window_is_not_drift() {
+        let reset_seconds = (now() + 3_600_000) / 1_000;
+        let body = serde_json::json!({
+            "rate_limit": {
+                "primary_window": {
+                    "used_percent": 25,
+                    "limit_window_seconds": 18_000,
+                    "reset_at": reset_seconds
+                },
+                "secondary_window": null
+            }
+        })
+        .to_string();
+        let rows = parse_body(ReaderId::CodexUsage, &body, now(), ACCOUNT).expect("usage");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].meter, "FIVE_HOUR");
     }
 }

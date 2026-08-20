@@ -57,7 +57,7 @@ impl DetectedProviderId {
     }
 
     const fn supports_automatic_collection(self) -> bool {
-        matches!(self, Self::Claude)
+        matches!(self, Self::Claude | Self::Codex)
     }
 }
 
@@ -1265,10 +1265,11 @@ mod tests {
     }
 
     #[test]
-    fn only_a_wired_zero_setup_reader_claims_automatic_collection() {
-        assert!(DetectedProviderId::Claude.supports_automatic_collection());
+    fn only_wired_zero_setup_readers_claim_automatic_collection() {
+        for provider in [DetectedProviderId::Claude, DetectedProviderId::Codex] {
+            assert!(provider.supports_automatic_collection());
+        }
         for provider in [
-            DetectedProviderId::Codex,
             DetectedProviderId::Antigravity,
             DetectedProviderId::Opencode,
             DetectedProviderId::Openrouter,
