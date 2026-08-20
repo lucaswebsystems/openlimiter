@@ -109,6 +109,15 @@ pub enum IdentityQuality {
 pub enum RecoveryAction {
     ReopenCli,
     SignInToCli,
+    ConnectApiKey,
+    ManualEntry,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConnectionMode {
+    Automatic,
+    ApiKey,
     ManualEntry,
 }
 
@@ -133,11 +142,64 @@ pub struct ProviderDetection {
     pub provider_id: DetectedProviderId,
     pub state: ProviderPresence,
     pub accounts: Vec<DetectedAccount>,
+    pub connection_mode: ConnectionMode,
     pub manual_entry_available: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery: Option<RecoveryAction>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+}
+
+fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
+    match provider {
+        DetectedProviderId::Claude
+        | DetectedProviderId::Codex
+        | DetectedProviderId::Antigravity => ConnectionMode::Automatic,
+        DetectedProviderId::Openrouter => ConnectionMode::ApiKey,
+        DetectedProviderId::Opencode => ConnectionMode::ManualEntry,
+    }
+}
+
+fn provider_recovery(
+    provider: DetectedProviderId,
+    state: ProviderPresence,
+) -> Option<RecoveryAction> {
+    if state == ProviderPresence::Present {
+        return None;
+    }
+    match provider {
+        DetectedProviderId::Openrouter => Some(RecoveryAction::ConnectApiKey),
+        DetectedProviderId::Opencode => Some(RecoveryAction::ManualEntry),
+        DetectedProviderId::Claude
+        | DetectedProviderId::Codex
+        | DetectedProviderId::Antigravity => match state {
+            ProviderPresence::InstalledLoggedOut => Some(RecoveryAction::SignInToCli),
+            ProviderPresence::Absent => Some(RecoveryAction::ManualEntry),
+            ProviderPresence::Present => None,
+        },
+    }
+}
+
+fn provider_message(provider: DetectedProviderId, state: ProviderPresence) -> Option<String> {
+    match provider {
+        DetectedProviderId::Openrouter => Some(if state == ProviderPresence::Present {
+            "OpenRouter collection uses a user provided API key.".to_string()
+        } else {
+            "Connect an OpenRouter API key to collect its documented credits.".to_string()
+        }),
+        DetectedProviderId::Opencode => Some(
+            "OpenCode exposes no zero setup subscription quota source. Add usage manually."
+                .to_string(),
+        ),
+        _ => match state {
+            ProviderPresence::Present => None,
+            ProviderPresence::InstalledLoggedOut => Some(format!(
+                "Sign in with {} to connect this account.",
+                provider.display_name()
+            )),
+            ProviderPresence::Absent => Some("Manual entry remains available.".to_string()),
+        },
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -1119,20 +1181,10 @@ fn scan_inventory(context: &DiscoveryContext, now_ms: u64) -> Inventory {
             provider_id: provider,
             state,
             accounts,
+            connection_mode: connection_mode(provider),
             manual_entry_available: true,
-            recovery: match state {
-                ProviderPresence::Present => None,
-                ProviderPresence::InstalledLoggedOut => Some(RecoveryAction::SignInToCli),
-                ProviderPresence::Absent => Some(RecoveryAction::ManualEntry),
-            },
-            message: match state {
-                ProviderPresence::Present => None,
-                ProviderPresence::InstalledLoggedOut => Some(format!(
-                    "Sign in with {} to connect this account.",
-                    provider.display_name()
-                )),
-                ProviderPresence::Absent => Some("Manual entry remains available.".to_string()),
-            },
+            recovery: provider_recovery(provider, state),
+            message: provider_message(provider, state),
         });
     }
     Inventory {
@@ -1424,6 +1476,43 @@ mod tests {
         for provider in [DetectedProviderId::Opencode, DetectedProviderId::Openrouter] {
             assert!(!provider.supports_automatic_collection());
         }
+    }
+
+    #[test]
+    fn product_truth_distinguishes_manual_opencode_from_key_based_openrouter() {
+        let dir = TempDir::new();
+        write(
+            &dir.path().join("data").join("opencode").join("auth.json"),
+            r#"{"opencode-go":{"type":"api","key":"fixture-opencode-api-key"}}"#,
+        );
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+
+        let opencode = provider(&inventory.report, DetectedProviderId::Opencode);
+        assert_eq!(opencode.state, ProviderPresence::InstalledLoggedOut);
+        assert!(opencode.accounts.is_empty());
+        assert_eq!(opencode.connection_mode, ConnectionMode::ManualEntry);
+        assert_eq!(opencode.recovery, Some(RecoveryAction::ManualEntry));
+        assert!(opencode
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("no zero setup subscription quota")));
+
+        let openrouter = provider(&inventory.report, DetectedProviderId::Openrouter);
+        assert_eq!(openrouter.state, ProviderPresence::Absent);
+        assert_eq!(openrouter.connection_mode, ConnectionMode::ApiKey);
+        assert_eq!(openrouter.recovery, Some(RecoveryAction::ConnectApiKey));
+        assert!(openrouter
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("OpenRouter API key")));
+
+        let wire = serde_json::to_string(&inventory.report).expect("wire");
+        assert!(wire.contains(r#""connection_mode":"manual_entry""#));
+        assert!(wire.contains(r#""connection_mode":"api_key""#));
+        assert!(!wire.contains("fixture-opencode-api-key"));
     }
 
     #[test]
