@@ -27,7 +27,6 @@ const LOCALISED_ROUTES: readonly { route: string; priority: number }[] = [
   { route: "/", priority: 1 },
   { route: "/pricing", priority: 0.9 },
   { route: "/download", priority: 0.9 },
-  { route: "/pro", priority: 0.9 },
   { route: "/changelog", priority: 0.7 },
   { route: "/terms", priority: 0.5 },
   ...docPages.map((page) => ({ route: page.href, priority: 0.8 })),
