@@ -40,6 +40,17 @@ import {
   parseOpenrouterPayload,
 } from "./generated/connectors";
 import { buildAgentContext, renderClaudeStatusline } from "./generated/adapters/claude-code";
+import {
+  buildProviderDirectory,
+  type ProviderDirectoryRow,
+} from "./generated/ui/provider-connect";
+import {
+  PROVIDER_ROW_TAG,
+  buildProviderAccountRows,
+  defineProviderRowElement,
+  setProviderRowData,
+  type ProviderAccountRowView,
+} from "./generated/ui/provider-row";
 
 /**
  * The engine, as the dashboard uses it.
@@ -78,8 +89,16 @@ export {
   queryCatalogueRows,
   failureSentence,
   floorFixed,
+  PROVIDER_ROW_TAG,
+  buildProviderAccountRows,
+  defineProviderRowElement,
   renderClaudeStatusline,
+  setProviderRowData,
 };
+
+export type { ProviderAccountRowView, ProviderDirectoryRow };
+
+export { buildProviderDirectory };
 
 /** The parsers a pasted document is offered to, in order, with their labels. */
 const PARSERS: readonly {

@@ -7,6 +7,7 @@
     <title>OpenLimiter</title>
     <!-- Tokens first, components second, the same order the web side loads. -->
     <link rel="stylesheet" href="./theme.css" />
+    <link rel="stylesheet" href="./engine/ui/tokens.css" />
     <link rel="stylesheet" href="./app.css" />
     <script>
       /*
@@ -47,18 +48,30 @@
       aria-describedby="first-run-intro first-run-helper"
     >
       <div class="first-run-panel surface">
-        <p class="first-run-brand">OpenLimiter</p>
-        <p class="first-run-kicker">WELCOME</p>
-        <h1 id="first-run-title">Your limits are already here.</h1>
+        <div class="first-run-lockup">
+          <span class="first-run-logo" aria-hidden="true"></span>
+          <span class="first-run-brand">OpenLimiter</span>
+        </div>
+        <h1 id="first-run-title">Your limits, live.</h1>
         <p id="first-run-intro" class="first-run-intro">
-          OpenLimiter checks the provider tools already on this computer.
+          Local tools appear automatically.
         </p>
+        <div id="first-run-launch-note" class="first-run-launch-note" role="note" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3 20 6v5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-3Z" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+          <p>
+            <strong id="first-run-launch-title"></strong>
+            <span id="first-run-launch-detail"></span>
+          </p>
+        </div>
         <div id="first-run-providers" class="first-run-providers" aria-live="polite"></div>
         <p id="first-run-status" class="first-run-status" role="status">
           Checking local tools.
         </p>
         <button type="button" id="first-run-continue" class="first-run-continue">
-          Continue
+          Open dashboard
         </button>
         <p id="first-run-helper" class="first-run-helper">
           No telemetry. Network access starts only when you connect a provider or Pro.
@@ -107,18 +120,22 @@
           <button
             type="button"
             id="refresh"
-            title="Reads the local cache the command line tool and the statusline write. Asking a provider directly is what the Connections tab does, for connections that exist in this build."
+            title="Reads stored data on this computer."
           >
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <path d="M20 11a8 8 0 1 0-.7 4.3" />
               <path d="M20 5.5V11h-5.5" />
             </svg>
-            Reread local data
+            Sync
           </button>
         </div>
       </div>
 
       <div class="strip-state" aria-label="Overall state">
+        <span class="live-chip">
+          <span class="live-dot" aria-hidden="true"></span>
+          Live
+        </span>
         <span class="chip">
           <span class="pressure-dot" id="state-dot" aria-hidden="true"></span>
           <span class="mono tracked" id="reason-code">UNKNOWN</span>
@@ -128,7 +145,7 @@
             <span class="mono tracked" id="rec-code"></span>
             <span class="mono tracked dim" id="rec-detail"></span>
           </span>
-          <span class="mono stamp" id="stamp">reading the cache</span>
+          <span class="mono stamp" id="stamp">Waiting</span>
         </div>
       </div>
     </header>
@@ -151,7 +168,7 @@
         aria-controls="panel-connections"
         tabindex="-1"
       >
-        Connections
+        Accounts
       </button>
       <button
         type="button"
@@ -167,7 +184,7 @@
 
     <main>
       <section id="panel-meters" role="tabpanel" aria-labelledby="tab-meters" tabindex="-1">
-        <div id="cards" class="cards"></div>
+        <div id="provider-rows" class="provider-rows" aria-label="Provider usage by account"></div>
 
         <!-- Home view empty state. -->
         <div id="empty" class="empty" hidden>
@@ -178,21 +195,12 @@
               <path d="M12 18v3" />
             </svg>
           </span>
-          <h3>No providers are connected yet</h3>
-          <p>
-            Connect a provider or local tool on the Connections tab to view meters here.
-          </p>
+          <div class="empty-copy">
+            <h3>No live accounts</h3>
+            <p>Connect a provider to begin.</p>
+          </div>
+          <button type="button" id="empty-connect">Add account</button>
         </div>
-
-        <details>
-          <summary>About</summary>
-          <p>
-            A provider with no reading gets no card and no number, because a missing reading is not a zero and not an exhausted quota.
-          </p>
-          <p>
-            Local first. Readings stay on this machine. A credential you connect goes to the operating system credential store and is never shown to this window again, and the only requests ever made are the provider reads set up on the Connections tab.
-          </p>
-        </details>
       </section>
 
       <section
@@ -202,17 +210,27 @@
         tabindex="-1"
         hidden
       >
+        <div class="accounts-toolbar">
+          <div>
+            <h1>Accounts</h1>
+            <p>Automatic, key and manual access.</p>
+          </div>
+          <button type="button" id="add-account">Add account</button>
+        </div>
+
+        <section id="provider-catalogue" class="surface conn-block provider-directory" aria-labelledby="provider-catalogue-title" tabindex="-1">
+          <div class="conn-head">
+            <h2 id="provider-catalogue-title">Providers</h2>
+            <span class="provider-count">18</span>
+          </div>
+          <div id="catalogue-rows" class="list"></div>
+        </section>
+
         <!-- The honest state for a build whose Rust side does not carry the
              connection commands. Nothing below it is simulated in its place. -->
         <div id="connections-absent" class="backendless" hidden>
-          <h3>This build has no connection backend yet</h3>
-          <p>
-            The window is running against a backend without the connection
-            commands, so nothing here can store a key, ask a provider a
-            question, or detect a local tool. No card below is a simulation,
-            because there are none. The meters view keeps reading the local
-            cache exactly as before.
-          </p>
+          <h3>Connection service unavailable</h3>
+          <p>Detection and secure key storage are unavailable in this build.</p>
           <button type="button" id="connections-reprobe">Check again</button>
         </div>
 
@@ -221,7 +239,7 @@
         </p>
 
         <!-- Detected local tools first -->
-        <section id="claude-card" class="surface conn-block" aria-labelledby="claude-card-title" tabindex="-1">
+        <section id="claude-card" class="surface conn-block provider-editor" hidden aria-labelledby="claude-card-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="claude-card-title">Claude Code</h2>
             <span id="claude-state" class="chip muted conn-state" hidden>
@@ -237,7 +255,7 @@
           <div id="claude-body"></div>
           <p id="claude-note" class="conn-note" role="status"></p>
           <details class="conn-why-needed">
-            <summary>Why this is needed</summary>
+            <summary>Details</summary>
             <div class="conn-why-content">
               <div class="honesty-labels" data-honesty-provider="CLAUDE"></div>
               <p class="conn-lead">
@@ -248,7 +266,7 @@
         </section>
 
         <!-- Connect OpenRouter -->
-        <section id="openrouter-add" class="surface conn-block" hidden aria-labelledby="openrouter-add-title" tabindex="-1">
+        <section id="openrouter-add" class="surface conn-block provider-editor" hidden aria-labelledby="openrouter-add-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="openrouter-add-title">OpenRouter</h2>
             <span class="chip muted conn-state" id="openrouter-status-chip">
@@ -298,11 +316,11 @@
               placeholder="sk-or-..."
             />
             <div class="conn-actions">
-              <button type="button" id="openrouter-submit">Test and save</button>
+              <button type="button" id="openrouter-submit">Save</button>
             </div>
             <p id="openrouter-note" class="conn-note" role="status"></p>
             <details class="conn-why-needed">
-              <summary>Why this is needed</summary>
+              <summary>Details</summary>
               <div class="conn-why-content">
                 <div class="honesty-labels" data-honesty-provider="OPENROUTER"></div>
                 <p class="conn-lead">
@@ -320,7 +338,7 @@
         </section>
 
         <!-- Connect Codex -->
-        <section id="codex-add" class="surface conn-block" hidden aria-labelledby="codex-add-title" tabindex="-1">
+        <section id="codex-add" class="surface conn-block provider-editor" hidden aria-labelledby="codex-add-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="codex-add-title">Codex</h2>
             <span class="chip muted conn-state" id="codex-status-chip">
@@ -348,11 +366,11 @@
                  for a value that is thrown away. -->
             <input id="codex-key" type="hidden" value="imported from the codex login file" />
             <div class="conn-actions">
-              <button type="button" id="codex-submit">Connect from the Codex login</button>
+              <button type="button" id="codex-submit">Use Codex login</button>
             </div>
             <p id="codex-note" class="conn-note" role="status"></p>
             <details class="conn-why-needed">
-              <summary>Why this is needed</summary>
+              <summary>Details</summary>
               <div class="conn-why-content">
                 <div class="honesty-labels" data-honesty-provider="CODEX"></div>
                 <p class="conn-lead">
@@ -371,7 +389,7 @@
         </section>
 
         <!-- Connect Antigravity -->
-        <section id="antigravity-add" class="surface conn-block" hidden aria-labelledby="antigravity-add-title" tabindex="-1">
+        <section id="antigravity-add" class="surface conn-block provider-editor" hidden aria-labelledby="antigravity-add-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="antigravity-add-title">Antigravity</h2>
             <span class="chip muted conn-state" id="antigravity-status-chip">
@@ -404,11 +422,11 @@
               placeholder="session-..."
             />
             <div class="conn-actions">
-              <button type="button" id="antigravity-submit">Test and save</button>
+              <button type="button" id="antigravity-submit">Save</button>
             </div>
             <p id="antigravity-note" class="conn-note" role="status"></p>
             <details class="conn-why-needed">
-              <summary>Why this is needed</summary>
+              <summary>Details</summary>
               <div class="conn-why-content">
                 <div class="honesty-labels" data-honesty-provider="ANTIGRAVITY"></div>
                 <p class="conn-lead">
@@ -425,7 +443,7 @@
         </section>
 
         <!-- Connect OpenCode -->
-        <section id="opencode-add" class="surface conn-block" hidden aria-labelledby="opencode-add-title" tabindex="-1">
+        <section id="opencode-add" class="surface conn-block provider-editor" hidden aria-labelledby="opencode-add-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="opencode-add-title">OpenCode</h2>
             <span class="chip muted conn-state" id="opencode-status-chip">
@@ -458,11 +476,11 @@
               placeholder="cookie-..."
             />
             <div class="conn-actions">
-              <button type="button" id="opencode-submit">Test and save</button>
+              <button type="button" id="opencode-submit">Save</button>
             </div>
             <p id="opencode-note" class="conn-note" role="status"></p>
             <details class="conn-why-needed">
-              <summary>Why this is needed</summary>
+              <summary>Details</summary>
               <div class="conn-why-content">
                 <div class="honesty-labels" data-honesty-provider="OPENCODE"></div>
                 <p class="conn-lead">
@@ -478,12 +496,6 @@
           </div>
         </section>
 
-        <!-- Provider catalogue -->
-        <section id="provider-catalogue" class="surface conn-block" aria-labelledby="provider-catalogue-title" tabindex="-1">
-          <div class="conn-head"><h2 id="provider-catalogue-title">Provider catalogue</h2></div>
-          <p class="conn-lead">Seventeen products, what OpenLimiter can read today and what it cannot read yet.</p>
-          <div id="catalogue-rows" class="list"></div>
-        </section>
       </section>
 
       <!-- Advanced Section -->
@@ -529,7 +541,7 @@
         </div>
 
         <!-- Paste and Ingestion Surfaces -->
-        <div class="surface conn-block">
+        <div id="manual-entry-panel" class="surface conn-block" tabindex="-1">
           <h2>Ingestion and CLI methods</h2>
           <p class="conn-lead">
             Alternative manual methods to supply quota data to OpenLimiter:
@@ -549,4 +561,3 @@
     <script type="module" src="./app.js"></script>
   </body>
 </html>
-

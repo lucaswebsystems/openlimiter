@@ -24,8 +24,6 @@ import { wordmarkFont } from "@/lib/fonts";
  * it is needed.
  */
 
-const PROMISES = ["No upload", "No account", "No analytics", "No request leaves this tab"];
-
 /**
  * The launch splash.
  *
@@ -56,7 +54,7 @@ export default function AppPage() {
           same self hosted file the wordmark already uses. */}
       <main
         id="main"
-        className={`${wordmarkFont.variable} ol-shell ${SHELL} pb-10 pt-2 md:pb-16`}
+        className={`${wordmarkFont.variable} ol-product-shell ol-shell ${SHELL}`}
       >
         <Dashboard
           lockup={
@@ -69,30 +67,11 @@ export default function AppPage() {
                   than a repeat. */}
               <BrandLockup
                 markClassName="h-7 w-7 flex-none text-brand sm:h-8 sm:w-8"
-                wordClassName="text-lg sm:text-xl"
+                wordClassName="ol-product-wordmark text-lg sm:text-xl"
               />
             </div>
           }
         />
-
-        <div className="mt-8 border-t border-hairline pt-6">
-          <ul className="flex flex-wrap gap-2">
-            {PROMISES.map((promise) => (
-              <li
-                key={promise}
-                className="inline-flex items-center rounded-full border border-hairline bg-surface px-2.5 py-1 text-xs text-muted"
-              >
-                {promise}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted">
-            Hand this page a quota document and it applies exactly the rules the
-            command line tool applies: the same validation, the same freshness
-            model, the same advice. Install it to a home screen and it opens
-            like an application, offline included.
-          </p>
-        </div>
       </main>
     </>
   );

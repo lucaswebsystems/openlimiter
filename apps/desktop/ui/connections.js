@@ -32,9 +32,10 @@ import {
   CONNECTION_STATES,
   connectionNextAction,
   connectionSentence,
-  queryCatalogueRows,
 } from "./engine/core/index.js";
+import { buildProviderDirectory } from "./engine/ui/provider-connect.js";
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
+import { normalizeDetections } from "./first-run.js";
 import * as backend from "./backend.js";
 
 /** The event Rust emits after a native collection pass changes observable state. */
@@ -93,8 +94,12 @@ const session = {
   /** The last detect_local_tools answer for Claude Code, normalized. */
   claude: null,
   claudeProbed: false,
+  /** Closed connection states derived from the shared native detection report. */
+  detectedProviderStates: {},
   /** Preflight verdict object for Claude Code connection flow. */
   claudeVerdict: null,
+  /** The one provider editor visible below the shared directory. */
+  activeSetup: null,
 };
 
 /** Wired by initConnections. Nothing here runs before that. */
@@ -187,6 +192,39 @@ async function syncCollectorStatus() {
   }
   session.backendPresent = true;
   session.collectorStatus = backend.normalizeCollectorStatus(result.value);
+}
+
+const DETECTION_CONNECTORS = {
+  CLAUDE: "claude",
+  CODEX: "codex",
+  GROK: "grok",
+  KIMI: "kimi",
+  ANTIGRAVITY: "antigravity",
+  OPENCODE: "opencode",
+};
+
+/** Consume the detector lane's closed report without inspecting the machine here. */
+async function syncProviderDetections() {
+  const result = await backend.listDetectedProviders();
+  if (!result.ok) {
+    if (result.reason === backend.BACKEND_ABSENT) session.backendPresent = false;
+    return;
+  }
+  session.backendPresent = true;
+  const normalized = normalizeDetections(result.value);
+  if (!normalized.available) return;
+  const states = {};
+  for (const provider of normalized.providers) {
+    const connector = DETECTION_CONNECTORS[provider.code];
+    if (connector === undefined) continue;
+    states[connector] =
+      provider.state === "present"
+        ? "DETECTED"
+        : provider.state === "logged_out"
+          ? "NEEDS_AUTH"
+          : "NOT_CONFIGURED";
+  }
+  session.detectedProviderStates = states;
 }
 
 /**
@@ -884,12 +922,83 @@ function renderClaude() {
   }
 }
 
-/** Render the provider catalogue using live connection evidence only. */
+const SETUP_TARGETS = {
+  claude: "claude-card",
+  openrouter: "openrouter-add",
+  codex: "codex-add",
+  antigravity: "antigravity-add",
+  opencode: "opencode-add",
+};
+
+function directoryInitials(name) {
+  return String(name)
+    .replace(/\([^)]*\)/gu, "")
+    .split(/[\s/]+/u)
+    .filter((word) => word !== "")
+    .slice(0, 2)
+    .map((word) => word.charAt(0).toUpperCase())
+    .join("") || "AI";
+}
+
+function directoryMark(rowData) {
+  const mark = element("span", "catalogue-mark");
+  const code = rowData.connectorId === null ? "" : rowData.connectorId.toUpperCase();
+  mark.dataset.provider = code || rowData.specId;
+  mark.setAttribute("aria-hidden", "true");
+  const artwork = code === "" ? "" : options.markFor(code);
+  if (artwork === "") mark.textContent = directoryInitials(rowData.displayName);
+  else mark.innerHTML = artwork;
+  return mark;
+}
+
+function directoryState(rowData) {
+  const state = element("span", "catalogue-state", rowData.stateLabel);
+  state.dataset.tone = rowData.stateTone;
+  const dot = element("span", "state-dot");
+  dot.setAttribute("aria-hidden", "true");
+  state.prepend(dot);
+  return state;
+}
+
+function openManualEntry() {
+  document.getElementById("tab-advanced")?.click();
+  const target = document.getElementById("manual-entry-panel");
+  window.setTimeout(() => {
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    target?.focus({ preventScroll: true });
+  }, 0);
+}
+
+export function openProviderConnection(provider) {
+  const targetId = SETUP_TARGETS[String(provider ?? "").toLowerCase()];
+  /* Every connectable action that is setup shaped resolves to its existing
+     real editor. Anything without one has an honest manual path. */
+  if (targetId) {
+    session.activeSetup = targetId;
+    render();
+    window.setTimeout(() => {
+      const target = document.getElementById(targetId);
+      const expand = document.getElementById(targetId.replace("-add", "-expand"));
+      const toggle = document.getElementById(targetId.replace("-add", "-toggle-btn"));
+      if (expand && toggle) {
+        expand.hidden = false;
+        toggle.setAttribute("aria-expanded", "true");
+        toggle.textContent = "Close";
+      }
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      target?.focus({ preventScroll: true });
+    }, 0);
+    return;
+  }
+  openManualEntry();
+}
+
+/** Render every provider with live connection evidence in one scalable list. */
 function renderCatalogue() {
   if (!el.catalogueRows) return;
   el.catalogueRows.textContent = "";
 
-  const states = {};
+  const states = { ...session.detectedProviderStates };
 
   const claudeState = claudeStateOf();
   if (claudeState !== null) {
@@ -912,48 +1021,63 @@ function renderCatalogue() {
     }
   }
 
-  const rows = queryCatalogueRows(PROVIDER_SPECS, states);
+  const rows = buildProviderDirectory(PROVIDER_SPECS, { states });
+  const count = document.querySelector(".provider-count");
+  if (count) count.textContent = String(rows.length);
+  let group = null;
 
-  for (const rowData of rows) {
+  for (const directoryRow of rows) {
+    const rowData = {
+      ...directoryRow,
+      action: KNOWN_STATES.has(directoryRow.state)
+        ? connectionNextAction[directoryRow.state]
+        : directoryRow.action,
+    };
+    if (rowData.availability !== group) {
+      group = rowData.availability;
+      const groupHead = element("div", "catalogue-group");
+      groupHead.append(
+        element("span", "catalogue-group-name", group === "ready" ? "Ready" : "Planned"),
+        element(
+          "span",
+          "catalogue-group-count",
+          String(rows.filter((row) => row.availability === group).length),
+        ),
+      );
+      el.catalogueRows.append(groupHead);
+    }
+
     const rowEl = element("div", "catalogue-row");
+    rowEl.dataset.access = rowData.access;
+    rowEl.dataset.availability = rowData.availability;
 
     const identEl = element("div", "catalogue-ident");
-    identEl.append(element("span", "name", rowData.displayName));
-
-    if (rowData.availability === "connectable") {
-      identEl.append(stateChip(rowData.connectionState));
-    } else {
-      const plannedChip = element("span", "chip muted", "Planned");
-      identEl.append(plannedChip);
-    }
+    const words = element("span", "catalogue-name");
+    words.append(
+      element("span", "name", rowData.displayName),
+      element("span", "catalogue-description", rowData.description),
+    );
+    identEl.append(directoryMark(rowData), words);
     rowEl.append(identEl);
 
-    if (rowData.availability === "connectable") {
-      const caps = rowData.capabilities;
-      const platformText =
-        "Windows " +
-        caps.windows.label +
-        " · macOS " +
-        caps.macos.label +
-        " · Linux " +
-        caps.linux.label;
-      rowEl.append(element("div", "catalogue-platforms", platformText));
+    const access = element("span", "catalogue-access", rowData.accessLabel);
+    access.dataset.access = rowData.access;
+    rowEl.append(access, directoryState(rowData));
 
+    if (rowData.actionLabel !== null) {
       const actionEl = element("div", "catalogue-action");
-      const btn = element("button", undefined, rowData.action);
+      const btn = element("button", undefined, rowData.actionLabel);
       btn.type = "button";
-      const targetId = {
-        claude: "claude-card",
-        openrouter: "openrouter-add",
-        codex: "codex-add",
-        antigravity: "antigravity-add",
-        opencode: "opencode-add",
-      }[rowData.providerId];
-
+      if (rowData.access === "key" && rowData.availability === "ready") {
+        btn.className = "primary";
+      }
       btn.addEventListener("click", () => {
-        if (rowData.action === connectionNextAction.CONNECTED) {
-          const record = records[rowData.providerId];
-          if (record === undefined) return;
+        if (rowData.action === connectionNextAction.CONNECTED && rowData.connectorId !== null) {
+          const record = records[rowData.connectorId];
+          if (record === undefined) {
+            openProviderConnection(rowData.connectorId);
+            return;
+          }
           void (async () => {
             btn.disabled = true;
             await refreshNow(record);
@@ -964,37 +1088,35 @@ function renderCatalogue() {
         if (rowData.action === connectionNextAction.ERROR) {
           const diagnosticsTab = document.getElementById("tab-advanced");
           if (diagnosticsTab) diagnosticsTab.click();
-          const diagnosticsPanel = document.getElementById("panel-advanced");
-          if (diagnosticsPanel) diagnosticsPanel.focus();
           return;
         }
-        /* Every remaining state is a setup shaped action: not configured,
-           detected, needs auth, expired, ready to enable. Each one resolves
-           by taking the person to the provider's own setup card, so the
-           default is that card rather than a silently dropped click. */
-        if (targetId) {
-          const targetEl = document.getElementById(targetId);
-          if (targetEl) {
-            targetEl.hidden = false;
-            const expandId = targetId.replace("-add", "-expand");
-            const expandEl = document.getElementById(expandId);
-            const toggleBtn = document.getElementById(targetId.replace("-add", "-toggle-btn"));
-            if (expandEl && toggleBtn) {
-              expandEl.hidden = false;
-              toggleBtn.setAttribute("aria-expanded", "true");
-            }
-            targetEl.scrollIntoView({ behavior: "smooth" });
-            targetEl.focus();
-          }
+        if (
+          rowData.availability === "ready" &&
+          rowData.access === "automatic" &&
+          SETUP_TARGETS[rowData.connectorId] === undefined
+        ) {
+          void (async () => {
+            btn.disabled = true;
+            await syncProviderDetections();
+            await syncConnections();
+            render();
+          })();
+          return;
         }
+        if (
+          rowData.action === "manual" ||
+          rowData.action === connectionNextAction.MANUAL ||
+          rowData.action === connectionNextAction.UNSUPPORTED ||
+          rowData.connectorId === "manual"
+        ) {
+          openManualEntry();
+          return;
+        }
+        openProviderConnection(rowData.connectorId);
       });
       actionEl.append(btn);
       rowEl.append(actionEl);
     }
-    /* A planned row gets no action column at all. The chip beside its name
-       already says Planned, and printing the same word twice in one row reads
-       as two facts when there is only one. There is nothing to press, so there
-       is nothing here. */
 
     el.catalogueRows.append(rowEl);
   }
@@ -1007,7 +1129,13 @@ function render() {
 
   const absent = session.backendPresent === false;
   el.absent.hidden = !absent;
-  el.openrouterAdd.hidden = absent || session.backendPresent === null;
+  for (const targetId of Object.values(SETUP_TARGETS)) {
+    const target = document.getElementById(targetId);
+    if (target) {
+      target.hidden =
+        absent || session.backendPresent === null || session.activeSetup !== targetId;
+    }
+  }
 
   const setupProviders = ["openrouter", "codex", "antigravity", "opencode"];
   for (const id of setupProviders) {
@@ -1229,6 +1357,7 @@ export function connectionsTabShown() {
   void (async () => {
     await syncConnections();
     await syncCollectorStatus();
+    await syncProviderDetections();
     if (session.backendPresent === true) {
       await detectClaude();
       await runClaudePreflight();
@@ -1240,6 +1369,7 @@ export function connectionsTabShown() {
 async function bootstrap() {
   await syncConnections();
   await syncCollectorStatus();
+  await syncProviderDetections();
   if (session.backendPresent === true) {
     await detectClaude();
     await runClaudePreflight();
@@ -1260,6 +1390,7 @@ export function initConnections(configuration) {
       btn.addEventListener("click", () => {
         const isExpanded = btn.getAttribute("aria-expanded") === "true";
         btn.setAttribute("aria-expanded", isExpanded ? "false" : "true");
+        btn.textContent = isExpanded ? "Connect" : "Close";
         expand.hidden = isExpanded;
       });
     }

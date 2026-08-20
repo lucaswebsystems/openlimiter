@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   combine,
+  buildProviderAccountRows,
   dashboardView,
   parseQuotaText,
   sampleSnapshots,
+  type ProviderDirectoryRow,
   type ProviderFailure,
   type Snapshot,
 } from "./engine";
@@ -13,16 +15,15 @@ import { InstallControl } from "./install";
 import {
   Button,
   CodeBlock,
-  ConnectionList,
   DemoBanner,
   DemoDataChip,
   FirstRunState,
   HeaderStrip,
   Panel,
-  ProviderCard,
-  ProviderCatalogue,
+  ProviderDirectory,
+  ProviderRows,
   SettingsMenu,
-  SkeletonCards,
+  SkeletonRows,
   Tabs,
   type TabDefinition,
 } from "./pieces";
@@ -115,7 +116,7 @@ const NO_FAILURES: readonly ProviderFailure[] = [];
 
 const TABS: readonly TabDefinition[] = [
   { id: "home", label: "Home" },
-  { id: "connections", label: "Connections" },
+  { id: "connections", label: "Accounts" },
   { id: "advanced", label: "Advanced" },
 ];
 
@@ -225,6 +226,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [tab, setTab] = useState<string>("connections");
+  const [selectedProvider, setSelectedProvider] = useState<ProviderDirectoryRow | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const textArea = useRef<HTMLTextAreaElement | null>(null);
   const busyTimer = useRef<number | null>(null);
@@ -364,8 +366,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       setNow(instant);
       setNote({
         tone: "ok",
-        message:
-          "Demo mode is on. These are the project's synthetic fixtures: no account, no credential and no real usage. Your own readings are kept where they are.",
+        message: "Demo readings only.",
       });
       setTab("home");
     });
@@ -425,6 +426,22 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setTab("connections");
   }, []);
 
+  const focusDirectory = useCallback(() => {
+    setSelectedProvider(null);
+    setTab("connections");
+    window.setTimeout(() => {
+      document
+        .querySelector<HTMLElement>("#provider-directory .ol-directory-action")
+        ?.focus();
+    }, 0);
+  }, []);
+
+  const openManualEntry = useCallback(() => {
+    setSelectedProvider(null);
+    setTab("advanced");
+    window.setTimeout(() => textArea.current?.focus(), 0);
+  }, []);
+
   /* One store is on screen at a time, and this is where that is decided. */
   const shown = demo ? demoSnapshots : live;
   const shownFailures = demo ? NO_FAILURES : failures;
@@ -437,20 +454,12 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
   const hasReadings = shown.length > 0 || shownFailures.length > 0;
 
-  /**
-   * The providers that earned a card.
-   *
-   * A provider with no reading and no failure has nothing to say, and a grid of
-   * empty cards is the first launch defect the audit named: it reads as six
-   * broken connections. They are accounted for in one quiet line underneath
-   * instead.
-   */
-  const carded = useMemo(
+  const providerRows = useMemo(
     () =>
-      (dash?.providers ?? []).filter(
-        (provider) => provider.meters.length > 0 || provider.failure !== null,
-      ),
-    [dash],
+      now === null
+        ? []
+        : buildProviderAccountRows(shown, now, shownFailures, { demo }),
+    [shown, now, shownFailures, demo],
   );
 
   const asOf = useMemo(() => {
@@ -460,7 +469,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   }, [now]);
 
   return (
-    <div className="space-y-5">
+    <div className="ol-dashboard">
       {demo && <DemoBanner onLeave={leaveDemo} />}
 
       <HeaderStrip
@@ -507,33 +516,13 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           className="ol-panel"
         >
           {busy || dash === null ? (
-            <SkeletonCards />
-          ) : hasReadings ? (
-            <div className="ol-stagger grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {carded.map((provider) => (
-                <ProviderCard
-                  key={provider.provider}
-                  view={provider}
-                  now={now ?? ""}
-                  demo={demo}
-                />
-              ))}
-            </div>
+            <SkeletonRows />
           ) : (
-            <FirstRunState onConnect={openConnections} />
-          )}
-
-          <details className="mt-6 text-xs text-muted">
-            <summary className="cursor-pointer select-none font-medium text-soft hover:text-heading">About</summary>
-            <div className="mt-2 space-y-2 leading-relaxed">
-              <p>
-                A provider with no reading gets no card and no number, because a missing reading is not a zero and not an exhausted quota.
-              </p>
-              <p>
-                Local first. Readings stay on this machine. A credential you connect goes to the operating system credential store and is never shown to this window again, and the only requests ever made are the provider reads set up on the Connections tab.
-              </p>
+            <div className="ol-home-stack">
+              {!hasReadings && <FirstRunState onConnect={openConnections} />}
+              <ProviderRows rows={providerRows} />
             </div>
-          </details>
+          )}
         </div>
       )}
 
@@ -543,73 +532,61 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           role="tabpanel"
           aria-labelledby="tab-connections"
           tabIndex={-1}
-          className="ol-panel space-y-5"
+          className="ol-panel"
         >
           <Panel
-            title="Connections"
-            description="What OpenLimiter can read today, and how. Manual entry, provider file imports, and demo mode. Nothing here signs in to anything, and no credential is stored on this page."
+            title="Accounts"
+            description="Automatic, key and manual access."
+            action={
+              <Button tone="primary" onClick={focusDirectory}>
+                Add account
+              </Button>
+            }
             demo={demo}
           >
-            <ConnectionList
-              onImportFile={() => fileInput.current?.click()}
+            <ProviderDirectory
+              onConnect={setSelectedProvider}
+              onManual={openManualEntry}
               onEnterDemo={enterDemo}
             />
+            {selectedProvider !== null && (
+              <section className="ol-connect-prompt" aria-live="polite">
+                <div>
+                  <span className="ol-directory-access" data-access={selectedProvider.access}>
+                    {selectedProvider.accessLabel}
+                  </span>
+                  <strong>{selectedProvider.displayName}</strong>
+                </div>
+                <p>
+                  {selectedProvider.access === "automatic"
+                    ? "Open the desktop app. Local detection starts there."
+                    : "Open the desktop app. Your key stays in the system credential store."}
+                </p>
+                <div className="ol-connect-prompt-actions">
+                  <Button
+                    tone="primary"
+                    onClick={() => {
+                      window.location.assign("/en/download");
+                    }}
+                  >
+                    Get desktop
+                  </Button>
+                  <Button tone="ghost" onClick={() => setSelectedProvider(null)}>
+                    Close
+                  </Button>
+                </div>
+              </section>
+            )}
             {note !== null && (
               <p
                 role="status"
-                className={`mt-3 text-sm leading-relaxed ${
+                className={`ol-inline-note ${
                   note.tone === "bad" ? "text-heading" : "text-body"
                 }`}
               >
                 {note.message}
               </p>
             )}
-            <p className="mt-4 text-xs leading-relaxed text-muted">
-              Every connector ships marked UNVERIFIED: no verifier has confirmed
-              a shape against a live account yet. A shape that changes fails
-              closed to unknown rather than guessing.
-            </p>
-          </Panel>
-
-          <Panel
-            title="Provider catalogue"
-            description="Seventeen products, five of which this page can read from an imported document, twelve of which OpenLimiter does not read yet, and none of which this page can connect."
-            demo={demo}
-          >
-            <ProviderCatalogue />
-          </Panel>
-
-          <Panel
-            title="Why this browser holds no live connection"
-            description="This page makes no request to any provider and stores no credential, and that is a decision, not a gap. Live connections belong in the desktop application."
-            demo={demo}
-          >
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              <div>
-                <h3 className="ol-brand-font text-sm text-heading">
-                  Browsers refuse the request
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
-                  Provider quota endpoints are not built to answer a web page
-                  from another origin, and the browser enforces that boundary
-                  itself: the cross origin rules stop the call before it
-                  leaves. A page that promised live provider reads would be
-                  promising a request the platform is designed to refuse.
-                </p>
-              </div>
-              <div>
-                <h3 className="ol-brand-font text-sm text-heading">
-                  A page is the wrong place for a key
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
-                  A key pasted into a page has to live in browser storage,
-                  where any script that ever runs on this origin can read it.
-                  The desktop application stores keys in the operating system
-                  credential store, and after entry it only ever sees a masked
-                  label.
-                </p>
-              </div>
-            </div>
           </Panel>
         </div>
       )}
@@ -620,17 +597,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           role="tabpanel"
           aria-labelledby="tab-advanced"
           tabIndex={-1}
-          className="ol-panel space-y-5"
+          className="ol-panel ol-advanced-stack"
         >
           <Panel
             title="Import a document"
-            description="Paste a statusline payload, a manual quota document, or exported readings. Drop a JSON file on the box if that is easier."
+            description="Paste or drop a quota document."
             demo={demo}
           >
             {demo && (
               <p className="mb-3 text-sm leading-relaxed text-heading">
-                Demo mode is on, so nothing pasted here is read. Leave demo mode
-                first and your own readings come back exactly as they were.
+                Leave demo mode before importing.
               </p>
             )}
             <div
@@ -700,7 +676,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
           <Panel
             title="Claude Code statusline configuration"
-            description="On a machine running Claude Code, this wiring makes the reading arrive on its own. In this browser, paste the payload that command receives into the import box above."
+            description="Connect Claude Code automatically."
             demo={demo}
           >
             <pre className="overflow-x-auto rounded-md border border-hairline bg-code p-3 font-mono text-xs leading-relaxed text-body">
@@ -710,15 +686,13 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
           <Panel
             title="What an agent would be told"
-            description="This is the block the prompt hook injects, built here by the same adapter the command line tool uses. It carries bounded numbers, enum codes and timestamps, inside a boundary that tells the agent to treat the contents as untrusted."
+            description="Exact context sent to your agent."
             action={demo ? <DemoDataChip /> : undefined}
             demo={demo}
           >
             {dash === null || dash.agentContext === "" ? (
               <p className="text-sm leading-relaxed text-body">
-                Nothing at all. Every provider is unknown, and silence beats
-                noise, so the hook injects no block rather than a block full of
-                guesses.
+                No reliable reading yet.
               </p>
             ) : (
               <div className="space-y-4">
@@ -732,42 +706,21 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             )}
           </Panel>
 
-          <Panel title="Where a document comes from">
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+          <Panel title="Sources">
+            <div className="ol-source-grid">
               <div>
-                <h3 className="ol-brand-font text-sm text-heading">From the tool</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
-                  Run{" "}
-                  <code className="font-mono text-xs text-heading">
-                    openlimiter export
-                  </code>{" "}
-                  and paste what it prints. That is the whole cache, already
-                  validated once.
-                </p>
+                <h3 className="ol-brand-font text-sm text-heading">Tool</h3>
+                <code className="font-mono text-xs text-muted">openlimiter export</code>
               </div>
               <div>
-                <h3 className="ol-brand-font text-sm text-heading">From your agent</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
-                  A Claude Code statusline payload works as it is, including the
-                  rate limit block it already carries.
-                </p>
+                <h3 className="ol-brand-font text-sm text-heading">Agent</h3>
+                <p className="text-xs text-muted">Paste a statusline payload.</p>
               </div>
               <div>
-                <h3 className="ol-brand-font text-sm text-heading">From your own notes</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
-                  A manual quota document covers a provider with no interface at
-                  all. You write down what you know, it does the arithmetic.
-                </p>
+                <h3 className="ol-brand-font text-sm text-heading">Manual</h3>
+                <p className="text-xs text-muted">Import your own limit.</p>
               </div>
             </div>
-            <p className="mt-5 text-sm leading-relaxed text-muted">
-              On the same network as the machine doing the work? Run{" "}
-              <code className="font-mono text-xs text-heading">
-                openlimiter serve
-              </code>{" "}
-              there and scan the code it prints. Your phone then reads the live
-              quota on that machine directly, with no cloud in the middle.
-            </p>
           </Panel>
         </div>
       )}

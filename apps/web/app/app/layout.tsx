@@ -8,6 +8,7 @@ import { imagePalette } from "@/lib/image-palette";
 import { SITE_URL, TITLE_SUFFIX } from "@/lib/site";
 /* The pressure scale and the segmented meter, which only this route uses. */
 import "./theme.css";
+import "./engine/generated/ui/tokens.css";
 
 /**
  * The application shell.

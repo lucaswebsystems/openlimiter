@@ -22,9 +22,11 @@
  *   - `from "@openlimiter/core"` becomes a relative path to the mirrored core.
  *   - `from "./x.js"` becomes `from "./x"`, which is what a bundler wants.
  *   - a header is prepended saying the file is generated.
- * Not one line of logic is touched. `MANIFEST.json` records a hash of every
- * source file, so `--check` fails loudly the moment the packages move ahead of
- * the mirror, and the fix is always to run this script again.
+ *   - the adapter cache helper is omitted because it imports Node file APIs.
+ * The pure parser, policy and rendering logic is unchanged. `MANIFEST.json`
+ * records a hash of every source file, so `--check` fails loudly the moment the
+ * packages move ahead of the mirror, and the fix is always to run this script
+ * again.
  *
  * The node only modules are left out on purpose. `packages/core/src/cache.ts`
  * reads the snapshot cache off a disk that a browser does not have, so the
@@ -66,7 +68,10 @@ const MIRROR = {
       "antigravity.ts",
       "claude.ts",
       "codex.ts",
+      "contract-gate.ts",
       "fixtures.ts",
+      "grok.ts",
+      "kimi.ts",
       "manual.ts",
       "opencode.ts",
       "openrouter.ts",
@@ -77,6 +82,10 @@ const MIRROR = {
     from: path.join(REPOSITORY, "packages", "adapters", "src"),
     files: ["claude-code.ts"],
   },
+  ui: {
+    from: path.join(REPOSITORY, "packages", "ui", "src"),
+    files: ["provider-connect.ts", "provider-row.ts", "tokens.css"],
+  },
 };
 
 const HEADER = [
@@ -86,6 +95,14 @@ const HEADER = [
   " * Mirrored verbatim from the package source by app/app/engine/sync.mjs.",
   " * Only import specifiers were rewritten. Edit the package instead, then run",
   " * the script again.",
+  " */",
+  "",
+].join("\n");
+
+const CSS_HEADER = [
+  "/*",
+  " * Generated file. Do not edit.",
+  " * Mirrored verbatim from packages/ui by app/app/engine/sync.mjs.",
   " */",
   "",
 ].join("\n");
@@ -113,9 +130,45 @@ function coreBarrel(files) {
 
 function rewrite(source, packageName) {
   const depth = packageName === "core" ? "." : "../core";
-  return source
+  const rewritten = source
     .replace(/from "@openlimiter\/core"/gu, `from "${depth}"`)
     .replace(/from "(\.[^"]*)\.js"/gu, 'from "$1"');
+  return packageName === "adapters" ? browserAdapter(rewritten) : rewritten;
+}
+
+function browserAdapter(source) {
+  let browser = source
+    .replace("  readJsonFileSafely,\n", "")
+    .replace("  resolveStateDirectory,\n", "")
+    .replace('import path from "node:path";\n', "");
+
+  const hostedStart = browser.indexOf("const HOSTED_CONTEXT_FILE_NAME");
+  const pureStart = browser.indexOf("function validInstant", hostedStart);
+  if (hostedStart < 0 || pureStart < 0) {
+    if (!source.includes('from "node:path"') && !source.includes("readJsonFileSafely")) {
+      return browser;
+    }
+    throw new Error("The Claude adapter cache boundary changed.");
+  }
+  browser = browser.slice(0, hostedStart) + browser.slice(pureStart);
+
+  const nodeBody = [
+    "  const cached = await readSnapshotCache(directory);",
+    "  const local = cached.ok",
+    "    ? buildAgentContext(buildAdvice(cached.snapshots, now, expectedProviders))",
+    '    : "";',
+    "  const hosted = await hostedContextFromCache(directory);",
+    '  return [local, hosted].filter((context) => context !== "").join("\\n");',
+  ].join("\n");
+  const browserBody = [
+    "  const cached = await readSnapshotCache(directory);",
+    '  if (!cached.ok) return "";',
+    "  return buildAgentContext(buildAdvice(cached.snapshots, now, expectedProviders));",
+  ].join("\n");
+  if (!browser.includes(nodeBody)) {
+    throw new Error("The Claude adapter cache implementation changed.");
+  }
+  return browser.replace(nodeBody, browserBody);
 }
 
 function hash(text) {
@@ -131,7 +184,9 @@ function build() {
       manifest[`${packageName}/${file}`] = hash(source);
       written.set(
         path.join(packageName, file),
-        HEADER + rewrite(source, packageName),
+        file.endsWith(".css")
+          ? CSS_HEADER + source
+          : HEADER + rewrite(source, packageName),
       );
     }
   }

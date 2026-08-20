@@ -19,6 +19,9 @@ describe("desktop connection wiring", () => {
       /async function bootstrap\(\)[\s\S]*refreshDueConnections/u
     );
     expect(source).toContain('backend.listen(COLLECTOR_UPDATED_EVENT');
+    expect(source).toMatch(
+      /async function syncProviderDetections\(\)[\s\S]*backend\.listDetectedProviders\(\)[\s\S]*normalizeDetections/u
+    );
   });
 
   it("dispatches catalogue refresh and diagnostics, and no click falls through", () => {
@@ -30,5 +33,8 @@ describe("desktop connection wiring", () => {
        was the bug. */
     expect(source).not.toMatch(/connectionNextAction\.NOT_CONFIGURED && targetId/u);
     expect(source).toMatch(/setup shaped[\s\S]*if \(targetId\)[\s\S]*scrollIntoView/u);
+    expect(source).toMatch(
+      /rowData\.access === "automatic"[\s\S]*await syncProviderDetections\(\)[\s\S]*await syncConnections\(\)/u
+    );
   });
 });

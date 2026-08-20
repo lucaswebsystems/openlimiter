@@ -21,7 +21,8 @@
  *   written here takes its place, exporting exactly the same surface minus
  *   that one module.
  *
- * Everything else is byte for byte the code the command line tool runs.
+ * The Claude adapter also omits its Node only hosted cache helper. Its pure
+ * context and statusline renderers remain the code the command line tool runs.
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -58,7 +59,10 @@ const COPY = {
       "antigravity.js",
       "claude.js",
       "codex.js",
+      "contract-gate.js",
       "fixtures.js",
+      "grok.js",
+      "kimi.js",
       "manual.js",
       "opencode.js",
       "openrouter.js",
@@ -68,6 +72,10 @@ const COPY = {
   adapters: {
     from: path.join(REPOSITORY, "packages", "adapters", "dist"),
     files: ["claude-code.js"],
+  },
+  ui: {
+    from: path.join(REPOSITORY, "packages", "ui", "dist"),
+    files: ["provider-connect.js", "provider-row.js"],
   },
 };
 
@@ -115,6 +123,27 @@ function assertBuilt() {
   }
 }
 
+function browserSafeAdapter(source) {
+  if (!source.includes('from "node:path"')) return source;
+
+  let browser = source
+    .replace(/\breadJsonFileSafely,\s*/u, "")
+    .replace(/\bresolveStateDirectory,\s*/u, "")
+    .replace(/import path from "node:path";\s*/u, "");
+  const hostedStart = browser.indexOf("const HOSTED_CONTEXT_FILE_NAME");
+  const pureStart = browser.indexOf("function validInstant", hostedStart);
+  if (hostedStart < 0 || pureStart < 0) {
+    throw new Error("The Claude adapter cache boundary changed.");
+  }
+  browser = browser.slice(0, hostedStart) + browser.slice(pureStart);
+
+  const cacheStart = browser.indexOf("export async function agentContextFromCache");
+  if (cacheStart < 0) {
+    throw new Error("The Claude adapter cache export changed.");
+  }
+  return browser.slice(0, cacheStart);
+}
+
 assertBuilt();
 rmSync(DIST, { recursive: true, force: true });
 
@@ -128,11 +157,20 @@ for (const [name, spec] of Object.entries(COPY)) {
       /from "@openlimiter\/core"/gu,
       'from "../core/index.js"',
     );
-    writeFileSync(path.join(target, file), rewritten, "utf8");
+    const browserSource = name === "adapters" ? browserSafeAdapter(rewritten) : rewritten;
+    writeFileSync(path.join(target, file), browserSource, "utf8");
   }
 }
 
 writeFileSync(path.join(ENGINE, "core", "index.js"), CORE_BARREL, "utf8");
+
+/* CSS custom properties inherit through the shared row's shadow root. Copy the
+   canonical product token sheet beside the shared component so the desktop
+   and web surfaces consume the same values rather than matching by hand. */
+copyFileSync(
+  path.join(REPOSITORY, "packages", "ui", "src", "tokens.css"),
+  path.join(ENGINE, "ui", "tokens.css"),
+);
 
 /* The window itself. theme.css holds every colour, radius and the embedded
    wordmark face; app.css draws the components and names no literal. That is
@@ -160,6 +198,6 @@ for (const file of WINDOW_FILES) {
 
 const copied = Object.values(COPY).reduce((total, spec) => total + spec.files.length, 0);
 process.stdout.write(
-  `Assembled ui/dist from ${String(copied)} compiled modules and ` +
+  `Assembled ui/dist from ${String(copied)} compiled modules, one token sheet and ` +
     `${String(WINDOW_FILES.length)} window files.\n`,
 );

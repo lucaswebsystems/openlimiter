@@ -24,6 +24,7 @@ import type { ConnectorResult, ProviderCode } from "./types";
  *   SESSION_EXPIRED      the connector reported its credential no longer works
  *   PAYLOAD_UNREADABLE   the connector could not recognise what it was given
  *   VALIDATION_REJECTED  the connector recognised it, the normalizer refused it
+ *   PROVIDER_DRIFT       a live response changed and withdrew earlier rows
  *
  * Nothing finer is claimed, because nothing finer can be told apart without
  * reading provider text, which is the one thing this module exists to prevent.
@@ -32,7 +33,8 @@ export const FAILURE_CATEGORIES = [
   "NOT_CONFIGURED",
   "SESSION_EXPIRED",
   "PAYLOAD_UNREADABLE",
-  "VALIDATION_REJECTED"
+  "VALIDATION_REJECTED",
+  "PROVIDER_DRIFT"
 ] as const;
 
 export type FailureCategory = (typeof FAILURE_CATEGORIES)[number];
@@ -47,7 +49,8 @@ export const failureSentence: Record<FailureCategory, string> = {
   NOT_CONFIGURED: "Not set up yet, so nothing was read.",
   SESSION_EXPIRED: "Session expired.",
   PAYLOAD_UNREADABLE: "Payload could not be read, so nothing is claimed.",
-  VALIDATION_REJECTED: "Payload failed validation, kept the last good reading."
+  VALIDATION_REJECTED: "Payload failed validation, kept the last good reading.",
+  PROVIDER_DRIFT: "Provider response changed, so usage is unknown."
 };
 
 /** A provider and the one reason it has nothing readable. */
@@ -81,7 +84,8 @@ const severity: Record<FailureCategory, number> = {
   NOT_CONFIGURED: 0,
   PAYLOAD_UNREADABLE: 1,
   SESSION_EXPIRED: 2,
-  VALIDATION_REJECTED: 3
+  VALIDATION_REJECTED: 3,
+  PROVIDER_DRIFT: 4
 };
 
 export function dedupeFailures(

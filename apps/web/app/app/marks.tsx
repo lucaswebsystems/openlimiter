@@ -40,12 +40,27 @@ const MARKS: Record<string, (props: { className?: string }) => React.ReactNode> 
 
 export function ProviderMark({
   provider,
+  label,
   className = "h-4 w-4",
 }: {
   provider: string;
+  label?: string;
   className?: string;
 }) {
   const Drawn = MARKS[provider];
-  if (Drawn === undefined) return null;
+  if (Drawn === undefined) {
+    const initials = (label ?? provider)
+      .replace(/\([^)]*\)/gu, "")
+      .split(/[\s/]+/u)
+      .filter((word) => word !== "")
+      .slice(0, 2)
+      .map((word) => word.charAt(0).toUpperCase())
+      .join("");
+    return (
+      <span className={`${className} ol-provider-initials`} aria-hidden="true">
+        {initials || "AI"}
+      </span>
+    );
+  }
   return <Drawn className={className} />;
 }

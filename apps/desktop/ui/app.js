@@ -25,8 +25,6 @@ import {
   buildAdvice,
   connectionSentence,
   dedupeFailures,
-  failureSentence,
-  floorFixed,
   freshness,
   mergeSnapshots,
   normalizeMetersReport,
@@ -39,6 +37,10 @@ import {
   buildAgentContext,
   renderClaudeStatusline,
 } from "./engine/adapters/claude-code.js";
+import {
+  buildProviderAccountRows,
+  createProviderRowElement,
+} from "./engine/ui/provider-row.js";
 /* Every word the Rust process hears from this file goes through the backend
    adapter, so a build without a given command degrades to an honest absence
    instead of a module level crash, and a static serve of these files renders
@@ -58,11 +60,10 @@ import {
   testProvider,
 } from "./backend.js";
 import {
-  connectionFactFor,
   connectionsTabShown,
   initConnections,
   noteMetersRefreshed,
-  stateWord,
+  openProviderConnection,
 } from "./connections.js";
 import { initFirstRun } from "./first-run.js";
 
@@ -73,96 +74,11 @@ const PROVIDER_NAMES = {
   CLAUDE: "Claude",
   OPENROUTER: "OpenRouter",
   CODEX: "Codex",
+  GROK: "Grok (xAI)",
+  KIMI: "Kimi",
   ANTIGRAVITY: "Antigravity",
   OPENCODE: "OpenCode",
   MANUAL: "Manual",
-};
-
-/** What each provider's meters are read from, in four or five words. */
-const PROVIDER_ORIGIN = {
-  CLAUDE: "Statusline payload",
-  OPENROUTER: "Documented credits API",
-  CODEX: "Provider managed payload",
-  ANTIGRAVITY: "Provider managed payload",
-  OPENCODE: "Authenticated page",
-  MANUAL: "Written down by you",
-};
-
-/** The meters each provider reports, used to draw a card that has no data. */
-const EXPECTED_METERS = {
-  CLAUDE: ["FIVE_HOUR", "SEVEN_DAY"],
-  OPENROUTER: ["CREDITS"],
-  CODEX: ["PRIMARY"],
-  ANTIGRAVITY: ["PRIMARY"],
-  OPENCODE: ["PRIMARY"],
-  MANUAL: ["MONTHLY"],
-};
-
-/**
- * A meter code, in the words a person uses for that stretch of time.
- *
- * The same table apps/web/app/app/language.ts carries, for the same reason:
- * FIVE_HOUR is the right name in a payload and the wrong one on a card. A code
- * nobody here has heard of, which a manual document is free to invent, is
- * title cased rather than dropped or left shouting.
- */
-const METER_NAMES = {
-  FIVE_HOUR: "Current session",
-  SESSION: "Current session",
-  PRIMARY: "Primary window",
-  SECONDARY: "Secondary window",
-  HOURLY: "Hourly",
-  DAILY: "Daily",
-  ONE_DAY: "Daily",
-  SEVEN_DAY: "Weekly",
-  WEEKLY: "Weekly",
-  THIRTY_DAY: "Monthly",
-  MONTHLY: "Monthly",
-  CREDITS: "Credits",
-  BALANCE: "Credits",
-};
-
-/** Shortest window first, money last, which is the order somebody checks. */
-const METER_RANK = {
-  FIVE_HOUR: 10,
-  SESSION: 10,
-  PRIMARY: 15,
-  SECONDARY: 16,
-  HOURLY: 20,
-  DAILY: 30,
-  ONE_DAY: 30,
-  SEVEN_DAY: 40,
-  WEEKLY: 40,
-  THIRTY_DAY: 50,
-  MONTHLY: 50,
-  CREDITS: 60,
-  BALANCE: 60,
-};
-
-function meterName(code) {
-  const known = METER_NAMES[code];
-  if (known !== undefined) return known;
-  const words = String(code)
-    .toLowerCase()
-    .split(/[\s_-]+/u)
-    .filter((word) => word !== "");
-  if (words.length === 0) return code;
-  return words
-    .map((word, index) => (index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word))
-    .join(" ");
-}
-
-/** Unmapped codes sort after every known one, then alphabetically. */
-function byMeterOrder(left, right) {
-  const difference = (METER_RANK[left] ?? 90) - (METER_RANK[right] ?? 90);
-  return difference !== 0 ? difference : String(left).localeCompare(String(right));
-}
-
-/** What a freshness state is called on a card. */
-const FRESHNESS_WORD = {
-  fresh: "Fresh",
-  stale: "Stale",
-  unknown: "Unknown",
 };
 
 /** Where the theme choice is kept, matching the key the site's toggle uses. */
@@ -200,16 +116,45 @@ const MARKS = {
   CODEX:
     FILLED_OPEN +
     '<path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>',
+  GROK:
+    STROKED_OPEN +
+    '<path d="M5 4l14 16M19 4 5 20M8 4h11M5 20h11"/></svg>',
+  KIMI:
+    STROKED_OPEN +
+    '<path d="M6 4v16M18 4 7 13M11 10l8 10"/></svg>',
   MANUAL:
     STROKED_OPEN +
     '<path d="M16.6 3.6a2 2 0 0 1 2.8 2.8L8.5 17.3l-3.7.9.9-3.7Z"/>' +
     '<path d="m14.6 5.6 3.8 3.8M4 21h16"/></svg>',
 };
 
-const CLOCK_GLYPH =
-  '<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" ' +
-  'stroke-width="1.4" stroke-linecap="round" aria-hidden="true" focusable="false">' +
-  '<circle cx="6" cy="6" r="4.6"/><path d="M6 3.4V6l1.9 1.2"/></svg>';
+const PROVIDER_HEADS = {
+  "claude-card-title": "CLAUDE",
+  "openrouter-add-title": "OPENROUTER",
+  "codex-add-title": "CODEX",
+  "antigravity-add-title": "ANTIGRAVITY",
+  "opencode-add-title": "OPENCODE",
+};
+
+function decorateProviderHeads() {
+  for (const [headingId, provider] of Object.entries(PROVIDER_HEADS)) {
+    const heading = document.getElementById(headingId);
+    if (heading === null) continue;
+    const head = heading.closest(".conn-head");
+    if (head === null || head.querySelector(".conn-provider-mark")) continue;
+    const title = document.createElement("span");
+    title.className = "conn-title";
+    const mark = document.createElement("span");
+    mark.className = "conn-provider-mark";
+    mark.dataset.provider = provider;
+    mark.setAttribute("aria-hidden", "true");
+    mark.innerHTML = MARKS[provider] ?? "";
+    head.insertBefore(title, head.firstChild);
+    title.append(mark, heading);
+  }
+}
+
+decorateProviderHeads();
 
 /* The same sentences apps/web/app/app/language.ts renders, word for word,
    with the % sign the reference uses rather than the word. */
@@ -221,7 +166,7 @@ const REASON_PRESSURE = {
 };
 
 const elements = {
-  cards: document.getElementById("cards"),
+  rows: document.getElementById("provider-rows"),
   empty: document.getElementById("empty"),
   context: document.getElementById("context"),
   statusline: document.getElementById("statusline"),
@@ -233,6 +178,8 @@ const elements = {
   stateDot: document.getElementById("state-dot"),
   refresh: document.getElementById("refresh"),
   theme: document.getElementById("theme"),
+  addAccount: document.getElementById("add-account"),
+  emptyConnect: document.getElementById("empty-connect"),
   where: document.getElementById("where"),
   tabs: [
     document.getElementById("tab-meters"),
@@ -245,475 +192,6 @@ const elements = {
     document.getElementById("panel-advanced"),
   ],
 };
-
-/* ---------------------------------------------------------------- language */
-
-/**
- * The band a percentage falls in.
- *
- *   healthy   0 to 60 inclusive
- *   watch     61 to 89
- *   critical  90 and above
- *
- * WHY NINETY, WHEN THE ENGINE SAYS EIGHTY. packages/core/src/policy.ts calls a
- * provider NEAR_CAP at 80 and stops recommending it there. That threshold is
- * not this one and must not be made to match. The agent is warned at 80 so it
- * can route away while there is still room; the human sees red at 90, when the
- * situation is actually worth reacting to. The agent being warned earlier than
- * the human sees red is the correct direction.
- *
- * Nothing here feeds back into the engine: these bands choose a colour and
- * stop. apps/web/app/app/language.ts and packages/cli/src/render.ts carry the
- * same three bands for their own surfaces.
- */
-function pressureOf(percent) {
-  if (!Number.isFinite(percent)) return "none";
-  if (percent >= 90) return "critical";
-  if (percent >= 80) return "high";
-  if (percent >= 60) return "watch";
-  return "ok";
-}
-
-/**
- * A credit plan, in money.
- *
- * Only ever called for a reading the normalizer let through with all three of
- * its money fields intact, so there is no half stated case to handle. The
- * spend is truncated rather than rounded, for the same reason a percentage is.
- */
-function amountLine(snapshot) {
-  if (
-    snapshot.usedAmount === undefined ||
-    snapshot.limitAmount === undefined ||
-    snapshot.currency === undefined
-  ) return null;
-  return {
-    spent: "$" + floorFixed(snapshot.usedAmount, 2),
-    loaded: "$" + floorFixed(snapshot.limitAmount, 2),
-  };
-}
-
-/** The same two figures as one sentence, for a screen reader. */
-function amountSentence(money) {
-  return money === null ? null : money.spent + " spent of " + money.loaded + " loaded";
-}
-
-/**
- * A reading as bar geometry, clamped to the track and nothing else.
- *
- * The bar this feeds is continuous. It used to be ten blocks with a half step
- * every five percent, which drew 91 and 97 identically and rounded away exactly
- * the room somebody opens this window to check. Nothing is bucketed here: the
- * only arithmetic is the clamp, because a track cannot be longer than itself. A
- * value that is not a number is not a zero, so this returns null and the caller
- * draws the unknown track, which has no fill in it.
- *
- * apps/web/app/app/language.ts carries the same two functions, so the window
- * and the browser dashboard cannot draw one reading two lengths.
- */
-function meterFraction(percent) {
-  if (!Number.isFinite(percent)) return null;
-  return Math.min(100, Math.max(0, percent));
-}
-
-/** The same clamped reading as a CSS width, every decimal intact. */
-function meterWidth(percent) {
-  const fraction = meterFraction(percent);
-  return fraction === null ? null : String(fraction) + "%";
-}
-
-/**
- * Where this provider's numbers came from, and almost never the word connected.
- *
- * Same four states and the same tables as the web dashboard's language module.
- * A parser existing is not a connection: the payload for most of these has to
- * be handed over by something else, and the card says so. CONNECTED is earned,
- * not inherited: a row stamped remote_api gets the word only after a live
- * refresh has actually succeeded in this run of this window, because a stamp
- * in the cache can outlive the credential and the build that wrote it.
- * Otherwise the chip carries the connection state machine's own word for what
- * the connection is right now, which sourceChip below decides.
- */
-const SOURCE_LABEL = {
-  LOCAL_CLI: "Local CLI",
-  IMPORT_ONLY: "Import only",
-  MANUAL: "Manual",
-  CONNECTED: "Connected",
-};
-
-const SOURCE_SENTENCE = {
-  LOCAL_CLI: "A tool on this machine writes the payload, and OpenLimiter reads what it wrote.",
-  IMPORT_ONLY:
-    "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document.",
-  MANUAL: "Figures you keep yourself. Nothing is read from an account.",
-  CONNECTED:
-    "OpenLimiter held a credential and asked the provider itself, and that read succeeded in this run of this window.",
-};
-
-const PROVIDER_DEFAULT_SOURCE = {
-  CLAUDE: "LOCAL_CLI",
-  OPENROUTER: "IMPORT_ONLY",
-  CODEX: "IMPORT_ONLY",
-  ANTIGRAVITY: "IMPORT_ONLY",
-  OPENCODE: "IMPORT_ONLY",
-  MANUAL: "MANUAL",
-};
-
-/**
- * A stamped provenance, as a source state. `unknown` maps to nothing, so a
- * stamp the normalizer could not believe never overrules a sound literal.
- */
-const PROVENANCE_SOURCE_STATE = {
-  statusline_payload: "LOCAL_CLI",
-  explicit_ingest: "IMPORT_ONLY",
-  manual_document: "MANUAL",
-  remote_api: "CONNECTED",
-  unknown: null,
-};
-
-/**
- * Provenance first, then the source literal.
- *
- * `source` describes the shape of the document, so a Claude statusline block
- * pasted out of a chat log is still `native_payload` and used to chip as Local
- * CLI. `provenance.sourceKind` is our own word for how the reading arrived and
- * is written by whatever read it, so it wins whenever it is there. Absent or
- * `unknown` falls through to the literal logic unchanged, which is what every
- * row written before provenance existed relies on.
- */
-function sourceStateOf(provider, source, provenance) {
-  const stamped =
-    provenance === undefined || provenance === null
-      ? null
-      : (PROVENANCE_SOURCE_STATE[provenance.sourceKind] ?? null);
-  if (stamped !== null) return stamped;
-  if (source === "native_payload") return "LOCAL_CLI";
-  if (source === "manual_entry") return "MANUAL";
-  if (source !== undefined && source !== null) return "IMPORT_ONLY";
-  return PROVIDER_DEFAULT_SOURCE[provider] ?? "IMPORT_ONLY";
-}
-
-const MINUTE = 60_000;
-const HOUR = 3_600_000;
-const DAY = 86_400_000;
-
-/** A reset window in the words a person would use, two units at most. */
-function countdown(resetAt, now) {
-  if (resetAt === null || resetAt === undefined) return "no reset window";
-  const target = Date.parse(resetAt);
-  const current = Date.parse(now);
-  if (!Number.isFinite(target) || !Number.isFinite(current)) return "no reset window";
-  const remaining = target - current;
-  if (remaining <= 0) return "reset window has passed";
-  if (remaining < MINUTE) return "resets in under a minute";
-  if (remaining < HOUR) return "resets in " + Math.floor(remaining / MINUTE) + "m";
-  if (remaining < DAY) {
-    return (
-      "resets in " +
-      Math.floor(remaining / HOUR) +
-      "h " +
-      Math.floor((remaining % HOUR) / MINUTE) +
-      "m"
-    );
-  }
-  return (
-    "resets in " +
-    Math.floor(remaining / DAY) +
-    "d " +
-    Math.floor((remaining % DAY) / HOUR) +
-    "h"
-  );
-}
-
-/* ------------------------------------------------------------------ dom kit */
-
-function element(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className !== undefined) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
-/**
- * The bar, and it is continuous.
- *
- * A real progressbar rather than an image, so `aria-valuenow` carries the exact
- * reading instead of the drawn approximation of it. The fill's width is set
- * from that same number with every decimal intact, and geometry never depends
- * on which colour band the number falls in.
- *
- * Unknown gets no fill element and no `aria-valuenow` at all, which is how ARIA
- * spells a progressbar with no value. A zero width fill on a full width track
- * is a picture of an exhausted quota, and an absent reading is not that.
- *
- * @param {number} value    the percentage, or anything at all when unknown
- * @param {string} state    fresh, stale or unknown
- * @param {boolean} compact true in the list, where there is no room for a word
- */
-function meterBar(value, state, compact = false) {
-  const unknown = state === "unknown";
-  const width = unknown ? null : meterWidth(value);
-  const bar = element("div", compact ? "meter meter-sm" : "meter");
-  bar.dataset.pressure = width === null ? "none" : pressureOf(value);
-  bar.dataset.state = state;
-  bar.setAttribute("role", "progressbar");
-  bar.setAttribute("aria-valuemin", "0");
-  bar.setAttribute("aria-valuemax", "100");
-  if (width === null) {
-    bar.setAttribute("aria-valuetext", "Unknown");
-    if (!compact) bar.append(element("span", "meter-word", "Unknown"));
-  } else {
-    /* Exact for a machine, speakable for a person: a credit balance of 12.47
-       out of 20 is 62.35000000000001, which is the honest value to expose and
-       an absurd thing to read aloud one digit at a time. */
-    bar.setAttribute("aria-valuenow", String(meterFraction(value)));
-    bar.setAttribute("aria-valuetext", floorFixed(value, 1) + "% used");
-    const fill = element("span", "meter-fill");
-    fill.setAttribute("aria-hidden", "true");
-    fill.style.width = width;
-    bar.append(fill);
-  }
-  return bar;
-}
-
-/**
- * Where a reading came from, as the chip every card and row carries.
- *
- * The one gate in it: a row whose provenance claims a remote read says
- * Connected only when refresh_provider actually came back CONNECTED in this
- * run of this window. Any other remote stamped row, an older build's write,
- * a stalled connection, a build with no connection backend at all, carries
- * the connection state machine's own word instead, and NOT_CONFIGURED when
- * no connection record exists to speak for it. The claim on the chip is
- * always a claim about this exact build.
- */
-function sourceChip(provider, source, provenance) {
-  const state = sourceStateOf(provider, source, provenance);
-  const chip = element("span", "chip muted source-chip");
-  const dot = element("span", "source-dot");
-  dot.setAttribute("aria-hidden", "true");
-  chip.append(dot);
-  if (state === "CONNECTED") {
-    const fact = connectionFactFor(provider);
-    if (fact === null || !fact.liveOk) {
-      const connectionState = fact?.state ?? "NOT_CONFIGURED";
-      /* The word is the machine's, always. The styling is not: a record that
-         says CONNECTED without a live refresh in this run keeps the neutral
-         dot, so the bright dot stays a claim only this run can make. */
-      chip.dataset.source =
-        connectionState === "CONNECTED" ? "CONNECTED_UNVERIFIED" : connectionState;
-      chip.title =
-        connectionState +
-        ". " +
-        connectionSentence[connectionState] +
-        " A row gets the bright Connected dot only after a live refresh succeeds in this run.";
-      chip.append(element("span", undefined, stateWord(connectionState)));
-      return chip;
-    }
-  }
-  chip.dataset.source = state;
-  chip.title = state + ". " + SOURCE_SENTENCE[state];
-  chip.append(element("span", undefined, SOURCE_LABEL[state]));
-  return chip;
-}
-
-function freshnessTag(state) {
-  const tag = element("span", "freshness");
-  const dot = element("span", "fresh-dot");
-  dot.dataset.state = state;
-  tag.append(dot);
-  if (state === "stale") {
-    const clock = element("span");
-    clock.innerHTML = CLOCK_GLYPH;
-    tag.append(clock);
-  }
-  tag.append(element("span", undefined, FRESHNESS_WORD[state] ?? state));
-  return tag;
-}
-
-/**
- * One meter: its name, its freshness, its bar, its reading, its countdown.
- *
- * There are two kinds of reading, because there are two kinds of plan. A
- * rationed plan has spent a share of a window and the percentage is the
- * reading. A plan bought in credits has spent money, so the dollars take that
- * place, in the bar's own colour, and the percentage drops to the line
- * underneath. The web dashboard draws the same two shapes.
- */
-function meterRow(code, value, state, resetAt, now, money) {
-  const name = meterName(code);
-  const row = element("div", "meter-row");
-
-  const head = element("div", "meter-head");
-  head.append(
-    element("span", state === "unknown" ? "meter-name absent" : "meter-name", name),
-  );
-  head.append(freshnessTag(state));
-  row.append(head);
-
-  const line = element("div", "meter-line");
-  const bar = meterBar(value, state);
-  const sentence = amountSentence(money ?? null);
-  bar.setAttribute(
-    "aria-label",
-    name +
-      (state === "unknown"
-        ? " has no reading, so it is unknown"
-        : " at " +
-          floorFixed(value, 1) +
-          " percent, " +
-          state +
-          ", " +
-          countdown(resetAt, now) +
-          (sentence === null ? "" : ", " + sentence)),
-  );
-  line.append(bar);
-
-  if (money !== null && money !== undefined && state !== "unknown") {
-    const block = element("span", "meter-money");
-    const spent = element("span", "spent value", money.spent);
-    spent.dataset.pressure = pressureOf(value);
-    block.append(spent);
-    block.append(element("span", "word", " spent"));
-    block.append(element("span", "loaded", "of " + money.loaded + " loaded"));
-    line.append(block);
-  } else if (state !== "unknown") {
-    const number = element("span", "meter-value value", floorFixed(value, 1) + "%");
-    number.dataset.pressure = pressureOf(value);
-    number.dataset.state = state;
-    line.append(number);
-  }
-  /* An unknown row says so inside its own track and nowhere else, so the value
-     column is left out rather than repeating the word beside the bar. */
-  row.append(line);
-
-  const foot = element("div", "meter-foot");
-  if (money !== null && money !== undefined && state !== "unknown") {
-    foot.append(element("span", "meter-percent", floorFixed(value, 1) + "% used"));
-    const separator = element("span", "sep", "·");
-    separator.setAttribute("aria-hidden", "true");
-    foot.append(separator);
-  }
-  foot.append(
-    element(
-      "span",
-      "meter-reset",
-      state === "unknown" ? "Not zero, not exhausted" : countdown(resetAt, now),
-    ),
-  );
-  row.append(foot);
-  return row;
-}
-
-function card(provider, snapshots, now, failure) {
-  const readings = snapshots
-    .map((snapshot) => ({
-      snapshot,
-      state: freshness(snapshot.observedAt, snapshot.expiresAt, now),
-    }))
-    /* Most constrained real meter first, then other real windows, then unknown meters. */
-    .sort((left, right) => {
-      const leftUnknown = left.state === "unknown";
-      const rightUnknown = right.state === "unknown";
-      if (leftUnknown !== rightUnknown) return leftUnknown ? 1 : -1;
-      if (!leftUnknown && !rightUnknown) {
-        const difference = right.snapshot.value - left.snapshot.value;
-        if (difference !== 0) return difference;
-      }
-      return byMeterOrder(left.snapshot.meter, right.snapshot.meter);
-    });
-  const worst = readings.find((entry) => entry.state !== "unknown");
-
-  const node = element("div", readings.length === 0 ? "card unknown" : "card");
-
-  const head = element("div", "card-head");
-  const identity = element("div", "card-id");
-  const mark = element("span", "card-mark");
-  mark.innerHTML = MARKS[provider] ?? "";
-  identity.append(mark);
-  const names = element("div");
-  names.append(element("div", "name", PROVIDER_NAMES[provider] ?? provider));
-  names.append(element("div", "code", provider));
-  identity.append(names);
-  head.append(identity);
-
-  const peak = element("div", "peak");
-  const peakValue = element(
-    "div",
-    worst === undefined ? "peak-value none" : "peak-value value",
-    worst === undefined ? "No reading" : floorFixed(worst.snapshot.value, 1) + "%",
-  );
-  if (worst !== undefined) {
-    peakValue.dataset.pressure = pressureOf(worst.snapshot.value);
-    peakValue.dataset.state = worst.state;
-  }
-  peak.append(peakValue);
-  head.append(peak);
-  node.append(head);
-
-  const meters = element("div", "meters");
-  for (const entry of readings) {
-    meters.append(
-      meterRow(
-        entry.snapshot.meter,
-        entry.snapshot.value,
-        entry.state,
-        entry.snapshot.resetAt,
-        now,
-        amountLine(entry.snapshot),
-      ),
-    );
-  }
-  const seen = new Set(readings.map((entry) => entry.snapshot.meter));
-  const absent = (EXPECTED_METERS[provider] ?? [])
-    .filter((code) => !seen.has(code))
-    .sort(byMeterOrder);
-  for (const code of absent) {
-    meters.append(meterRow(code, 0, "unknown", null, now, null));
-  }
-  node.append(meters);
-
-  /*
-   * The failure line. Its sentence is a constant out of the core, keyed by a
-   * category the core chose, and it is set with textContent rather than
-   * innerHTML. Nothing a provider wrote can reach this element.
-   */
-  if (failure !== null && failure !== undefined) {
-    const error = element("p", "card-error");
-    error.dataset.failure = failure;
-    error.setAttribute("role", "status");
-    const glyph = element("span", undefined, "!");
-    glyph.setAttribute("aria-hidden", "true");
-    error.append(glyph);
-    error.append(element("span", undefined, failureSentence[failure]));
-    node.append(error);
-  }
-
-  /* Where these numbers came from, on the card that shows them. A parser is
-     still not a connection: the chip says Connected, with the bright dot,
-     only when a live refresh actually reached the cache in this run of this
-     window. Any other remote stamped row carries the connection state
-     machine's own word instead. sourceChip holds the gate. */
-  const origin = element("div", "origin");
-  /* One reading answers for the card, and both of its facts come from that same
-     reading: a literal from one row and a stamp from another would describe an
-     arrival nothing here saw. */
-  const lead = (worst ?? readings[0])?.snapshot;
-  origin.append(sourceChip(provider, lead?.source, lead?.provenance));
-  origin.append(
-    element(
-      "p",
-      "origin-line",
-      worst === undefined
-        ? (PROVIDER_ORIGIN[provider] ?? "")
-        : (PROVIDER_ORIGIN[provider] ?? "") + " · " + worst.snapshot.precision,
-    ),
-  );
-  node.append(origin);
-  return node;
-}
-
-
 
 /* -------------------------------------------------------------------- tabs */
 
@@ -736,7 +214,6 @@ function selectTab(index, isUserClick = false) {
      there, so an absent block never describes a build that has since changed. */
   if (elements.tabs[index] === document.getElementById("tab-connections")) {
     connectionsTabShown();
-    updateConnectSectionVisibility();
     decorateConnectionCardsHonestyLabels();
   }
 }
@@ -755,6 +232,21 @@ elements.tabs.forEach((tab, index) => {
     elements.tabs[next].focus();
   });
 });
+
+function beginAddAccount() {
+  selectTab(1, true);
+  const panel = document.getElementById("panel-connections");
+  panel?.setAttribute("data-adding", "");
+  window.setTimeout(() => panel?.removeAttribute("data-adding"), 1200);
+  window.requestAnimationFrame(() => {
+    const target = document.querySelector("#catalogue-rows .catalogue-action button");
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    target?.focus({ preventScroll: true });
+  });
+}
+
+elements.addAccount?.addEventListener("click", beginAddAccount);
+elements.emptyConnect?.addEventListener("click", beginAddAccount);
 
 /* ------------------------------------------------------------------ reading */
 
@@ -871,10 +363,6 @@ async function refresh() {
             snapshot.source === "native_payload")) &&
         freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh",
     );
-    const failureByProvider = new Map(
-      failures.map((failure) => [failure.provider, failure.category]),
-    );
-
     if (!initialTabDetermined) {
       initialTabDetermined = true;
       const connectionsRes = await listConnections();
@@ -889,36 +377,14 @@ async function refresh() {
       }
     }
 
-    /*
-     * A card per provider that has something to say, and no card at all for a
-     * provider that has nothing.
-     *
-     * This window used to draw all six on every launch, so a fresh install
-     * opened on a wall of empty outlines that read as six broken connections
-     * rather than as a tool nobody has pointed at anything yet. The providers
-     * with no reading are named in one quiet line under the grid instead.
-     */
-    elements.cards.textContent = "";
-    const carded = PROVIDER_CODES.filter(
-      (provider) =>
-        snapshots.some((snapshot) => snapshot.provider === provider) ||
-        failureByProvider.has(provider),
-    );
-    for (const provider of carded) {
-      elements.cards.append(
-        card(
-          provider,
-          snapshots.filter((snapshot) => snapshot.provider === provider),
-          now,
-          failureByProvider.get(provider) ?? null,
-        ),
-      );
+    elements.rows.textContent = "";
+    const providerRows = buildProviderAccountRows(snapshots, now, failures);
+    for (const row of providerRows) {
+      elements.rows.append(createProviderRowElement(row));
     }
 
-    /* A failure is worth showing even when it left nothing readable behind. */
-    const nothing = snapshots.length === 0 && failures.length === 0;
-    elements.empty.hidden = !nothing;
-    elements.cards.hidden = nothing;
+    elements.empty.hidden = true;
+    elements.rows.hidden = false;
 
     const context = buildAgentContext(advice);
     elements.context.textContent = context === ""
@@ -934,20 +400,20 @@ async function refresh() {
     if (recommendation.code === "PREFER") {
       elements.recChip.className = "chip accent";
       elements.recChip.hidden = false;
-      elements.recCode.textContent = "PREFER " + recommendation.provider;
+      elements.recCode.textContent = "NEXT " + recommendation.provider;
       elements.recDetail.textContent = recommendation.reason;
     } else {
       elements.recChip.hidden = true;
     }
 
-    elements.stamp.textContent = "as of " + new Date().toLocaleTimeString();
+    elements.stamp.textContent = new Date().toLocaleTimeString();
 
     await setTrayStatus({ providers: trayProviders(advice) });
     /* The Claude card's ready or collecting split reads the cache through
        the flag set above, so it is told the cache moved. */
     noteMetersRefreshed();
   } catch {
-    elements.stamp.textContent = "The local cache could not be read.";
+    elements.stamp.textContent = "Cache unavailable";
   } finally {
     refreshing = false;
     elements.refresh.disabled = false;
@@ -1102,18 +568,6 @@ async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, k
   connectionsTabShown();
 }
 
-function updateConnectSectionVisibility() {
-  listConnections().then((result) => {
-    const absent = !result.ok && result.reason === BACKEND_ABSENT;
-    for (const id of ["codex-add", "antigravity-add", "opencode-add"]) {
-      const el = document.getElementById(id);
-      if (el) {
-        el.hidden = absent;
-      }
-    }
-  });
-}
-
 /**
  * The honesty labels, read from the generated registry and from nowhere else.
  *
@@ -1248,8 +702,6 @@ document.getElementById("opencode-submit")?.addEventListener("click", () => {
   });
 });
 
-updateConnectSectionVisibility();
-
 const cardsContainer = document.getElementById("connections-cards");
 if (cardsContainer) {
   const observer = new MutationObserver(() => {
@@ -1266,19 +718,7 @@ initFirstRun({
   },
   onInstall: (provider) => {
     selectTab(1, true);
-    const targetId = {
-      CLAUDE: "claude-card",
-      CODEX: "codex-add",
-      ANTIGRAVITY: "antigravity-add",
-      OPENCODE: "opencode-add",
-    }[provider];
-    window.setTimeout(() => {
-      const target = targetId === undefined ? null : document.getElementById(targetId);
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
-      target?.focus({ preventScroll: true });
-      const toggle = target?.querySelector(".conn-toggle-btn");
-      if (toggle?.getAttribute("aria-expanded") === "false") toggle.click();
-    }, 0);
+    openProviderConnection(provider);
   },
 });
 

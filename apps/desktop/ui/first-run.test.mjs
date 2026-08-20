@@ -1,7 +1,25 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeDetections } from "./first-run.js";
+import { launchNotice, normalizeDetections } from "./first-run.js";
+
+test("shows the two SmartScreen actions for an unsigned Windows release", () => {
+  assert.deepEqual(launchNotice("Win32"), {
+    title: "Unsigned Windows build",
+    detail: "SmartScreen: choose More info, then Run anyway.",
+  });
+});
+
+test("keeps an unsigned macOS release unavailable", () => {
+  assert.deepEqual(launchNotice("MacIntel"), {
+    title: "macOS release coming soon",
+    detail: "No public download is available yet.",
+  });
+});
+
+test("does not add a launch warning on Linux", () => {
+  assert.equal(launchNotice("Linux x86_64"), null);
+});
 
 test("normalizes every Lane 1 state and keeps only account counts", () => {
   const result = normalizeDetections({
@@ -79,7 +97,7 @@ test("stale detected accounts name the CLI recovery without exposing identity", 
 test("an unavailable backend never becomes a false absent claim", () => {
   const result = normalizeDetections(null);
   assert.equal(result.available, false);
-  assert.equal(result.providers.length, 6);
+  assert.equal(result.providers.length, 8);
   assert.equal(result.providers.every((entry) => entry.state === "unavailable"), true);
 });
 
@@ -87,6 +105,18 @@ test("unknown providers never enter the first run rows", () => {
   const result = normalizeDetections({
     providers: [{ provider_id: "other", state: "present", accounts: [] }],
   });
-  assert.equal(result.providers.length, 6);
+  assert.equal(result.providers.length, 8);
   assert.equal(result.providers.some((entry) => entry.code === "OTHER"), false);
+});
+
+test("accepts the future detector aliases for Grok and Kimi", () => {
+  const result = normalizeDetections({
+    providers: [
+      { provider_id: "xai", state: "present", accounts: [] },
+      { provider_id: "moonshot", state: "present", accounts: [] },
+    ],
+  });
+
+  assert.equal(result.providers.find((entry) => entry.code === "GROK")?.state, "present");
+  assert.equal(result.providers.find((entry) => entry.code === "KIMI")?.state, "present");
 });

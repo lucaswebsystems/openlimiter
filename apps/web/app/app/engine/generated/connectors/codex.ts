@@ -71,39 +71,89 @@ export const codexEncoding = "json" as const;
  * called rolling, so it is reported as an unknown window rather than as a five
  * hour one this build made up.
  *
- * The secondary window is deliberately NOT modelled. Plans differ in whether
- * they have one, the registry declares a single meter, and folding a second
- * window into the same meter would silently report whichever one this build
- * happened to read last.
+ * Every window carried in the rate limit object is parsed into its own meter,
+ * identified by its own `limit_window_seconds`. Plans may carry a weekly
+ * primary window, a secondary window, or model-specific buckets, and ignoring
+ * any window would present a partial picture of the user's quota.
  */
+/**
+ * The meter id for a window, from its length rather than its name.
+ *
+ * The two lengths that have names here are the two a reader elsewhere already
+ * uses, so a five hour Codex window and a five hour Claude window are called the
+ * same thing and the dashboard can group them. Anything else keeps its own key,
+ * uppercased, which is enough to keep two windows apart without inventing a
+ * vocabulary for buckets we have not seen yet.
+ */
+function meterIdFor(lengthSeconds: number | null, windowKey: string): string {
+  if (lengthSeconds === 18_000) return "FIVE_HOUR";
+  if (lengthSeconds === 604_800) return "SEVEN_DAY";
+  return windowKey.replace(/_window$/, "").toUpperCase();
+}
+
 export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const limits = record(root?.["rate_limit"]);
-  const primary = record(limits?.["primary_window"]);
-  const percent = boundedNumber(primary?.["used_percent"]);
-  if (percent === null) return null;
-  const length = windowSeconds(primary?.["limit_window_seconds"]);
-  const resetAt = futureInstantFromEpochSeconds(
-    primary?.["reset_at"],
-    now,
-    length === null ? undefined : plausibleResetHorizon(length)
-  );
-  const expiresAt = shortExpiry(now);
-  if (resetAt === null || expiresAt === null) return null;
-  return [rawMeter({
-    provider: "CODEX",
-    meter: "PRIMARY",
-    value: percent,
-    window: length === null
-      ? { kind: "unknown" }
-      : { kind: "rolling", durationSeconds: length },
-    resetAt,
-    source: "internal_payload",
-    precision: "estimated",
-    observedAt: now,
-    expiresAt,
-    labels: codexLabels
-  })];
+  if (limits === null) return null;
+  const meters: RawMeter[] = [];
+  for (const windowKey of Object.keys(limits)) {
+    if (!windowKey.endsWith("_window")) continue;
+    const windowRecord = record(limits[windowKey]);
+    if (windowRecord === null) continue;
+    const percent = boundedNumber(windowRecord["used_percent"]);
+    if (percent === null) continue;
+    const length = windowSeconds(windowRecord["limit_window_seconds"]);
+    /*
+     * A window may arrive with no reset_at at all. The reference reader emits
+     * exactly that: it passes `pw.get("reset_at")` straight through, which is
+     * null when the field is absent, and it still renders the percent. Dropping
+     * such a window silently discards a real reading, which is a worse failure
+     * than a missing countdown: the number the provider actually stated would
+     * vanish. So an ABSENT reset_at keeps the window with an unknown reset time,
+     * meaning resetAt stays null and the surface shows the percent with no
+     * countdown.
+     *
+     * A reset_at that is PRESENT but unreadable is a different thing. A reset in
+     * milliseconds, in the past, past its plausible horizon, or in the wrong
+     * type is drift, not an absence, and it still drops the window. A corrupt
+     * reset is not the same as no reset, and only the corrupt one is refused.
+     */
+    const resetProvided =
+      windowRecord["reset_at"] !== undefined && windowRecord["reset_at"] !== null;
+    const resetAt = resetProvided
+      ? futureInstantFromEpochSeconds(
+          windowRecord["reset_at"],
+          now,
+          length === null ? undefined : plausibleResetHorizon(length)
+        )
+      : null;
+    const expiresAt = shortExpiry(now);
+    if (expiresAt === null) continue;
+    if (resetProvided && resetAt === null) continue;
+    meters.push(
+      rawMeter({
+        provider: "CODEX",
+        // Named by the window's OWN length, never by its position in the
+        // payload. Codex can report the bucket it calls "primary" as a weekly
+        // one, so naming from the key would put a seven day number under a
+        // label that reads like a session. Two windows sharing one id was the
+        // first version of this fix and it collided them into one meter.
+        meter: meterIdFor(length, windowKey),
+        value: percent,
+        window:
+          length === null
+            ? { kind: "unknown" }
+            : { kind: "rolling", durationSeconds: length },
+        resetAt,
+        source: "internal_payload",
+        precision: "estimated",
+        observedAt: now,
+        expiresAt,
+        labels: codexLabels
+      })
+    );
+  }
+  return meters.length === 0 ? null : meters;
 }
 
 export const codexConnector: ConnectorContract = {

@@ -1,39 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createElement, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  connectionSentence,
-  failureSentence,
-  floorFixed,
-  queryCatalogueRows,
+  PROVIDER_ROW_TAG,
+  buildProviderDirectory,
+  defineProviderRowElement,
+  setProviderRowData,
   type Advice,
-  type CatalogueRow,
-  type FailureCategory,
-  type MeterView,
-  type PlannedProviderEntry,
-  type ProviderCatalogueEntry,
-  type ProviderView,
+  type ProviderAccountRowView,
+  type ProviderDirectoryRow,
 } from "./engine";
 import {
-  CONNECTION_FACTS,
-  amountLine,
-  amountSentence,
-  byMeterOrder,
-  countdown,
-  freshnessWord,
-  meterFraction,
-  meterLabel,
-  meterName,
-  meterWidth,
-  pressureOf,
-  providerName,
-  providerOrigin,
   reasonPressure,
-  sourceStateLabel,
-  sourceStateOf,
-  sourceStateSentence,
-  type Pressure,
-  type SourceState,
 } from "./language";
 import registry from "../../lib/provider-specs.generated.json";
 import { ProviderMark } from "./marks";
@@ -60,389 +38,44 @@ import { ProviderMark } from "./marks";
  * only choose how to draw them.
  */
 
-/** The meters each provider reports, used to draw a card that has no data yet. */
-const EXPECTED_METERS: Record<string, readonly string[]> = {
-  CLAUDE: ["FIVE_HOUR", "SEVEN_DAY"],
-  OPENROUTER: ["CREDITS"],
-  CODEX: ["PRIMARY"],
-  ANTIGRAVITY: ["PRIMARY"],
-  OPENCODE: ["PRIMARY"],
-  MANUAL: ["MONTHLY"],
-};
-
 /* ------------------------------------------------------------------ shapes */
 
-/** The site's card, verbatim, plus the one pixel of light along its top. */
-const CARD_SURFACE =
-  "ol-sheen rounded-xl border border-hairline bg-surface";
+const CARD_SURFACE = "ol-product-panel";
 
 /** The site's chip: a pill, a hairline, twelve pixel text. */
-const CHIP = "inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs";
+const CHIP = "ol-chip inline-flex items-center gap-2 border px-2.5 py-1 text-xs";
 
-const CHIP_NEUTRAL = `${CHIP} border-hairline bg-raised text-muted`;
 const CHIP_STRONG = `${CHIP} border-hairline bg-raised text-heading`;
 const CHIP_ACCENT = `${CHIP} border-accent-subtle bg-accent-subtle text-accent`;
 
-/* ------------------------------------------------------------------ meters */
+export function ProviderAccountRow({ row }: { row: ProviderAccountRowView }) {
+  const host = useRef<HTMLElement | null>(null);
 
-/**
- * The bar, and it is continuous.
- *
- * It used to be ten blocks with a half step every five percent, which meant the
- * bar only moved twice per ten points: 91 and 97 drew the same picture, and a
- * weekly window four days apart looked untouched. A quota meter whose whole job
- * is to show how much room is left cannot round the room away. So the fill is
- * the number, `width` set from the clamped percentage with every decimal the
- * source carried, and the only arithmetic between the reading and the pixels is
- * the clamp that keeps a track from being longer than itself.
- *
- * Colour and geometry are independent. The four pressure bands paint the fill
- * and never touch its length, which is what lets a red bar and an orange bar be
- * compared by eye.
- *
- * It is a real `progressbar`, so `aria-valuenow` carries the exact reading
- * rather than the drawn approximation of it. Unknown is the one case with no
- * `aria-valuenow` at all, which is how ARIA spells a progressbar that has no
- * value: an absent reading is not zero, and a zero width fill on a full width
- * track is exactly the lie this component exists to stop telling.
- *
- * `aria-valuetext` is the spoken form, and it is here because exact and
- * speakable are not the same requirement. A credit balance of 12.47 out of 20
- * is 62.35000000000001 in binary floating point, and that is the honest value
- * to expose programmatically and an absurd thing to read aloud one digit at a
- * time. So the number stays exact and the sentence stays short.
- */
-export function QuotaMeter({
-  value,
-  state,
-  label,
-  size = "md",
-}: {
-  value: number;
-  state: MeterView["state"];
-  label: string;
-  size?: "md" | "sm";
-}) {
-  const unknown = state === "unknown";
-  const exact = unknown ? null : meterFraction(value);
-  const width = unknown ? null : meterWidth(value);
-  const pressure: Pressure = exact === null ? "none" : pressureOf(value);
+  useEffect(() => {
+    defineProviderRowElement();
+    if (host.current !== null) setProviderRowData(host.current, row);
+  }, [row]);
 
-  return (
-    <div
-      role="progressbar"
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      {...(exact === null
-        ? { "aria-valuetext": "Unknown" }
-        : { "aria-valuenow": exact, "aria-valuetext": floorFixed(exact, 1) + "% used" })}
-      data-pressure={pressure}
-      data-state={state}
-      className={`ol-meter min-w-0 flex-1 ${size === "sm" ? "ol-meter-sm" : ""}`}
-    >
-      {width === null ? (
-        /* Neutral track, no fill element at all, and the word itself at the
-           size that can hold it. The compact bar in the list has no room for a
-           word and does not need one: its row carries an Unknown cell. */
-        size === "md" && <span className="ol-meter-word">Unknown</span>
-      ) : (
-        <span aria-hidden="true" className="ol-meter-fill" style={{ width }} />
-      )}
-    </div>
-  );
-}
-
-function ClockGlyph() {
-  return (
-    <svg
-      viewBox="0 0 12 12"
-      className="h-2.5 w-2.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <circle cx="6" cy="6" r="4.6" />
-      <path d="M6 3.4V6l1.9 1.2" />
-    </svg>
-  );
-}
-
-/** Solid means read just now, hollow means aged, dimmed means never read. */
-export function Freshness({ state }: { state: MeterView["state"] }) {
-  return (
-    <span className="inline-flex flex-none items-center gap-1.5 text-2xs text-muted">
-      <span aria-hidden="true" data-state={state} className="ol-fresh-dot" />
-      {state === "stale" && <ClockGlyph />}
-      {freshnessWord[state]}
-    </span>
-  );
-}
-
-/**
- * What a meter reads, to the right of its bar.
- *
- * Two shapes, because two kinds of plan are being described. A rationed plan
- * has spent a share of a window, and the percentage is the reading. A plan
- * bought in credits has spent money, and the money is the reading: the dollars
- * lead, in the bar's own colour, and the percentage drops to the line
- * underneath where it belongs.
- */
-function MeterReading({
-  meter,
-  percent,
-  pressure,
-}: {
-  meter: MeterView;
-  percent: string;
-  pressure: Pressure;
-}) {
-  const money = amountLine(meter);
-
-  /* The bar itself says Unknown, in the track, so nothing is repeated here. */
-  if (meter.state === "unknown") return null;
-
-  if (money !== null) {
-    return (
-      <span className="shrink-0 text-right leading-tight">
-        <span className="block">
-          <span
-            data-pressure={pressure}
-            className="ol-pressure-text text-sm font-medium tabular-nums"
-          >
-            {money.spent}
-          </span>
-          <span className="text-2xs text-muted"> spent</span>
-        </span>
-        <span className="ol-amount-line block text-2xs tabular-nums">
-          of {money.loaded} loaded
-        </span>
-      </span>
-    );
-  }
-
-  return (
-    <span
-      data-pressure={pressure}
-      data-state={meter.state}
-      className="ol-pressure-text w-14 shrink-0 text-right text-sm font-medium tabular-nums"
-    >
-      {percent}%
-    </span>
-  );
-}
-
-/** One meter: its name, its freshness, its bar, its reading, its countdown. */
-function MeterRow({ meter, now }: { meter: MeterView; now: string }) {
-  const percent = floorFixed(meter.value, 1);
-  const pressure: Pressure = meter.state === "unknown" ? "none" : pressureOf(meter.value);
-  const priced = amountSentence(meter) !== null;
-
-  return (
-    <div className="py-3 first:pt-0 last:pb-0">
-      <div className="flex items-center justify-between gap-3">
-        <span className="truncate text-sm text-soft">{meterName(meter.meter)}</span>
-        <Freshness state={meter.state} />
-      </div>
-      <div className="mt-2.5 flex items-center gap-3">
-        <QuotaMeter
-          value={meter.value}
-          state={meter.state}
-          label={meterLabel(meter, percent, now)}
-        />
-        <MeterReading meter={meter} percent={percent} pressure={pressure} />
-      </div>
-      <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-2xs text-muted">
-        {priced && meter.state !== "unknown" && (
-          <>
-            <span className="tabular-nums">{percent}% used</span>
-            <span aria-hidden="true">·</span>
-          </>
-        )}
-        <span>
-          {meter.state === "unknown"
-            ? "Nothing readable, so nothing is claimed"
-            : countdown(meter.resetAt, now)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/**
- * The one line a card shows when something went wrong.
- *
- * The sentence is a constant out of the engine, keyed by a category the engine
- * chose. Nothing a provider wrote can reach this element, which is the whole
- * reason the vocabulary exists rather than a message string being passed up.
- */
-function FailureLine({ category }: { category: FailureCategory }) {
-  return (
-    <p
-      role="status"
-      data-failure={category}
-      className="ol-error-line mt-3 flex items-start gap-1.5 border-t border-hairline pt-3 text-xs leading-relaxed"
-    >
-      <span aria-hidden="true">!</span>
-      <span>{failureSentence[category]}</span>
-    </p>
-  );
-}
-
-/** A meter a provider reports but has not reported yet. Never a number. */
-function AbsentMeterRow({ code }: { code: string }) {
-  const name = meterName(code);
-  return (
-    <div className="py-3 first:pt-0 last:pb-0">
-      <div className="flex items-center justify-between gap-3">
-        <span className="truncate text-sm text-muted">{name}</span>
-        <Freshness state="unknown" />
-      </div>
-      <div className="mt-2.5 flex items-center gap-3">
-        <QuotaMeter
-          value={Number.NaN}
-          state="unknown"
-          label={name + " has no reading, so it is unknown"}
-        />
-      </div>
-      <p className="mt-2 text-2xs text-muted">Not zero, not exhausted</p>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------- cards */
-
-/* --------------------------------------------------------- connection chip */
-
-/**
- * What this provider's numbers actually came from.
- *
- * The one word this chip will never say is connected. Five of the six parsers
- * here have no reader behind them, so a card showing a full bar has to say, on
- * the card, that somebody handed it that document. The label is the sentence
- * form a person reads and the enum is on the element for anyone quoting it in a
- * bug report, which is the same split the provider code line makes.
- */
-export function SourceChip({ state }: { state: SourceState }) {
-  return (
-    <span
-      data-source={state}
-      title={state + ". " + sourceStateSentence[state]}
-      className={`${CHIP_NEUTRAL} flex-none`}
-    >
-      <span aria-hidden="true" className="ol-source-dot" />
-      {sourceStateLabel[state]}
-    </span>
-  );
-}
-
-/**
- * A provider, and every meter it carries.
- *
- * The rows are in the order somebody reads them, shortest window first and
- * money last, and there are exactly as many of them as the data has. Nothing
- * here knows how many that is: a provider that starts reporting a third window
- * grows a third row on its own.
- *
- * A card is only ever drawn for a provider that has something to say. The
- * decision is the dashboard's, not this component's, because an empty card for
- * every unconfigured provider was the wall of Unknown the first launch used to
- * open on.
- */
-export function ProviderCard({
-  view,
-  now,
-  demo = false,
-}: {
-  view: ProviderView;
-  now: string;
-  demo?: boolean;
-}) {
-  const worst = view.worst;
-  const meters = [...view.meters].sort((left, right) => {
-    const diff = right.value - left.value;
-    return diff !== 0 ? diff : byMeterOrder(left.meter, right.meter);
+  return createElement(PROVIDER_ROW_TAG, {
+    ref: (element: HTMLElement | null) => {
+      host.current = element;
+    },
+    "data-row-key": row.key,
+    suppressHydrationWarning: true,
   });
-  const expected = EXPECTED_METERS[view.provider] ?? [];
-  const absent = expected
-    .filter((code) => !meters.some((meter) => meter.meter === code))
-    .sort(byMeterOrder);
-  const pressure: Pressure = worst === null ? "none" : pressureOf(worst.value);
-  /* One row answers for the card, and its source literal and its provenance
-     have to come from that same row: pairing one meter's stamp with another
-     meter's literal is how a card ends up describing an arrival nothing here
-     actually saw. */
-  const lead = worst ?? meters[0];
-  const source = sourceStateOf(view.provider, lead?.source, lead?.provenance);
-
-  return (
-    <article
-      data-demo={demo ? "" : undefined}
-      className={`ol-rise lift flex flex-col p-5 transition-colors ${CARD_SURFACE} ${
-        meters.length === 0
-          ? "border-dashed border-hairline-strong"
-          : "hover:border-hairline-strong hover:bg-raised"
-      }`}
-    >
-      {demo && <DemoStrip />}
-      <header className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-hairline bg-raised text-soft">
-            <ProviderMark provider={view.provider} />
-          </span>
-          <div className="min-w-0">
-            <h3 className="ol-brand-font truncate text-sm text-heading">
-              {providerName(view.provider)}
-            </h3>
-            <p className="mt-0.5 truncate font-mono text-2xs uppercase tracking-widest text-muted">
-              {view.provider}
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          {worst === null ? (
-            <p className="text-sm text-muted">No reading</p>
-          ) : (
-            <p
-              data-pressure={pressure}
-              data-state={worst.state}
-              className="ol-pressure-text text-2xl font-medium leading-none tabular-nums"
-            >
-              {floorFixed(worst.value, 1)}%
-            </p>
-          )}
-        </div>
-      </header>
-
-      <div className="mt-4 divide-y divide-hairline border-t border-hairline pt-3">
-        {meters.map((meter) => (
-          <MeterRow key={meter.meter} meter={meter} now={now} />
-        ))}
-        {absent.map((code) => (
-          <AbsentMeterRow key={code} code={code} />
-        ))}
-      </div>
-
-      {view.failure !== null && <FailureLine category={view.failure} />}
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-t border-hairline pt-3">
-        <SourceChip state={source} />
-        <p className="text-2xs text-muted">
-          {worst === null
-            ? providerOrigin(view.provider)
-            : providerOrigin(view.provider) + " · " + worst.precision}
-        </p>
-      </div>
-    </article>
-  );
 }
 
-
-
-
+export function ProviderRows({ rows }: { rows: readonly ProviderAccountRowView[] }) {
+  return (
+    <div role="list" aria-label="Provider usage by account" className="ol-telemetry-table">
+      {rows.map((row) => (
+        <div role="listitem" key={row.key} className="ol-rise">
+          <ProviderAccountRow row={row} />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ header */
 
@@ -482,53 +115,43 @@ export function HeaderStrip({
     <section
       aria-label="Overall state"
       data-demo={demo ? "" : undefined}
-      /* Never clipped: the settings disclosure opens out of this panel. */
-      className={`ol-rise ${CARD_SURFACE}`}
+      className="ol-rise ol-commandbar"
     >
       {demo && <DemoStrip className="" />}
-      <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-        {lockup}
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="ol-commandbar-main">
+        <div className="ol-commandbar-brand">{lockup}</div>
+        <div className="ol-commandbar-state">
+          <span className="ol-live-chip">
+            <span aria-hidden="true" className="ol-live-dot" />
+            {busy ? "Reading" : "Live"}
+          </span>
+          <span className={CHIP_STRONG}>
+            <span aria-hidden="true" data-pressure={pressure} className="ol-pressure-dot" />
+            <span className="font-mono tracking-widest">{reason}</span>
+          </span>
+          {recommendation !== null && recommendation.code === "PREFER" && (
+            <span className={CHIP_ACCENT} title="Preferred provider">
+              <span className="font-mono tracking-widest">
+                Next {recommendation.provider}
+              </span>
+            </span>
+          )}
+          <span className="ol-updated font-mono">
+            {asOf === null ? "Waiting" : asOf}
+          </span>
+          {demo && <DemoDataChip />}
+        </div>
+        <div className="ol-commandbar-actions">
           {actions}
           <Button
             tone="ghost"
             onClick={onRefresh}
             disabled={busy}
-            title="Reads this device's stored reading again and advances the clock. Nothing is fetched from a provider."
+            title="Reads stored data on this device."
           >
-            {/* Not `Refresh`. That word promises a round trip to somebody's
-                account, and this button cannot reach one: it re-reads what is
-                already on the device. The desktop window's equivalent says the
-                same thing, so the two surfaces describe one action once. */}
             <RefreshGlyph spinning={busy} />
-            Re-read local data
+            Sync
           </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4 border-t border-hairline px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className={CHIP_STRONG}>
-            <span aria-hidden="true" data-pressure={pressure} className="ol-pressure-dot" />
-            <span className="font-mono tracking-widest">{reason}</span>
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 lg:justify-end">
-          {recommendation !== null && recommendation.code === "PREFER" && (
-            <span className={CHIP_ACCENT} title="The provider the engine would route to next">
-              <span className="font-mono tracking-widest">
-                PREFER {recommendation.provider}
-              </span>
-              <span className="font-mono text-2xs tracking-widest">
-                {recommendation.reason}
-              </span>
-            </span>
-          )}
-          <span className="font-mono text-2xs text-muted">
-            {asOf === null ? "reading the clock" : "as of " + asOf}
-          </span>
-          {demo && <DemoDataChip />}
         </div>
       </div>
     </section>
@@ -594,7 +217,7 @@ export function Tabs({
       ref={container}
       role="tablist"
       aria-label="Dashboard views"
-      className="inline-flex w-full gap-1 rounded-xl border border-hairline bg-surface p-1 sm:w-auto"
+      className="ol-product-tabs"
     >
       {tabs.map((tab, index) => {
         const selected = tab.id === active;
@@ -607,6 +230,7 @@ export function Tabs({
             aria-selected={selected}
             aria-controls={"panel-" + tab.id}
             tabIndex={selected ? 0 : -1}
+            data-selected={selected ? "" : undefined}
             onClick={() => {
               onSelect(tab.id);
             }}
@@ -625,9 +249,7 @@ export function Tabs({
                 move(tabs.length - 1);
               }
             }}
-            className={`ol-brand-font ol-tap focus-ring-inset flex-1 cursor-pointer whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm sm:flex-none ${
-              selected ? "bg-raised text-heading" : "text-muted hover:text-heading"
-            }`}
+            className="ol-product-tab ol-tap focus-ring-inset"
           >
             {tab.label}
           </button>
@@ -639,38 +261,28 @@ export function Tabs({
 
 /* --------------------------------------------------------------- skeletons */
 
-/**
- * What the grid looks like while a document is being read.
- *
- * Three cards at the shape the real ones take, in the surface tones the real
- * ones use, so nothing on the page moves when the readings arrive. They are
- * hidden from the accessibility tree and the state is announced once, in
- * words, by the live region beside them.
- */
-export function SkeletonCards({ count = 3 }: { count?: number }) {
+export function SkeletonRows({ count = 4 }: { count?: number }) {
   return (
-    <div
-      aria-hidden="true"
-      className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
-    >
+    <div aria-hidden="true" className="ol-telemetry-table">
       {Array.from({ length: count }, (_unused, index) => (
-        <div key={"skeleton" + String(index)} className={`${CARD_SURFACE} p-5`}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="ol-skeleton block h-9 w-9" />
-              <span className="space-y-1.5">
-                <span className="ol-skeleton block h-3 w-24" />
-                <span className="ol-skeleton block h-2 w-14" />
-              </span>
-            </div>
-            <span className="ol-skeleton block h-6 w-14" />
+        <div
+          key={"row-skeleton" + String(index)}
+          className="ol-row-skeleton"
+        >
+          <div className="ol-row-skeleton-identity">
+            <span className="ol-skeleton block h-8 w-8" />
+            <span className="space-y-2">
+              <span className="ol-skeleton block h-3 w-24" />
+              <span className="ol-skeleton block h-2 w-16" />
+            </span>
           </div>
-          <div className="mt-5 space-y-5 border-t border-hairline pt-4">
-            {[0, 1].map((row) => (
-              <div key={"row" + String(row)} className="space-y-2.5">
-                <span className="ol-skeleton block h-2.5 w-28" />
-                <span className="ol-skeleton block h-2 w-full" />
-              </div>
+          <div className="ol-row-skeleton-windows">
+            {[0, 1].map((window) => (
+              <span key={"window-skeleton" + String(window)} className="space-y-2">
+                <span className="ol-skeleton block h-2.5 w-20" />
+                <span className="ol-skeleton block h-3 w-16" />
+                <span className="ol-skeleton block h-1.5 w-full" />
+              </span>
             ))}
           </div>
         </div>
@@ -690,34 +302,24 @@ export function SkeletonCards({ count = 3 }: { count?: number }) {
  * beside a provider's name is the closest thing to a fabricated zero this
  * product can draw without inventing a number.
  *
- * So the first launch is one calm block with one action in it. The cards arrive
- * when there is something to put in them.
+ * So the first launch keeps one calm action above the honest fallback rows.
  */
 export function FirstRunState({ onConnect }: { onConnect: () => void }) {
   return (
-    <div className="ol-rise rounded-xl border border-hairline bg-surface px-6 py-14 text-center sm:py-20">
-      <div className="mx-auto flex w-full max-w-md flex-col items-center">
-        <span
-          aria-hidden="true"
-          className="grid h-12 w-12 place-items-center rounded-xl border border-hairline bg-raised text-soft"
-        >
+    <section className="ol-rise ol-empty-row">
+      <div className="ol-empty-identity">
+        <span aria-hidden="true" className="ol-empty-mark">
           <PlugGlyph />
         </span>
-        <h3 className="ol-brand-font mt-5 text-lg text-heading">
-          No providers are connected yet
-        </h3>
-        <p className="mt-2 text-sm leading-relaxed text-muted">
-          OpenLimiter reads the tools already running on this machine and the
-          accounts it supports. Until one of them reports, nothing here is a
-          number: a provider with no reading is never drawn as a zero.
-        </p>
-        <div className="mt-7">
-          <Button tone="primary" onClick={onConnect}>
-            Set up providers
-          </Button>
+        <div>
+          <h3 className="ol-brand-font">No live accounts</h3>
+          <p>Connect a provider to begin.</p>
         </div>
       </div>
-    </div>
+      <Button tone="primary" onClick={onConnect}>
+        Add account
+      </Button>
+    </section>
   );
 }
 
@@ -741,229 +343,104 @@ function PlugGlyph() {
   );
 }
 
-/* ---------------------------------------------------------- provider catalogue */
+/* ---------------------------------------------------------- provider directory */
 
-/*
- * What a browser can honestly claim about each connectable provider.
- *
- * This page holds no credential and makes no provider request, so every
- * connectable provider is import only here whatever the desktop application
- * can do. The same answer already lives in CONNECTION_FACTS in language.ts,
- * and the two must never disagree.
- */
-const BROWSER_CATALOGUE_STATES = {
+const BROWSER_PROVIDER_STATES = {
   claude: "IMPORT_ONLY",
-  openrouter: "IMPORT_ONLY",
   codex: "IMPORT_ONLY",
+  openrouter: "IMPORT_ONLY",
   antigravity: "IMPORT_ONLY",
   opencode: "IMPORT_ONLY",
 } as const;
 
-/**
- * Every provider OpenLimiter knows about, read from the generated catalogue.
- *
- * This is a read only list. The page cannot connect anything, so nothing here
- * is drawn as a button or a link that could be mistaken for a connect action.
- * Connectable rows say what state the browser honestly sees them in and what
- * the core state machine would do next; planned rows simply say OpenLimiter
- * does not read them yet.
- */
-export function ProviderCatalogue() {
-  const rows = queryCatalogueRows(registry, BROWSER_CATALOGUE_STATES);
-
-  return (
-    <ul className="divide-y divide-hairline border-t border-hairline">
-      {rows.map((row) => (
-        <li key={rowKey(row)} className="py-4">
-          {row.availability === "connectable" ? (
-            <ConnectableCatalogueRow row={row} />
-          ) : (
-            <PlannedCatalogueRow row={row} />
-          )}
-        </li>
-      ))}
-    </ul>
-  );
+function providerMarkCode(row: ProviderDirectoryRow): string {
+  return row.connectorId?.toUpperCase() ?? row.specId.toUpperCase();
 }
 
-function rowKey(row: CatalogueRow): string {
-  return row.availability === "connectable" ? row.providerId : row.specId;
-}
-
-function ConnectableCatalogueRow({ row }: { row: ProviderCatalogueEntry }) {
-  return (
-    <div className="space-y-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
-            {row.displayName}
-          </span>
-          <span className={`${CHIP_NEUTRAL} flex-none`}>
-            <span className="font-mono tracking-widest">
-              {row.connectionState}
-            </span>
-          </span>
-        </div>
-        <p className="text-xs text-muted">{row.action}</p>
-      </div>
-      <p className="text-xs leading-relaxed text-body">
-        {connectionSentence[row.connectionState]}
-      </p>
-      <div className="flex flex-wrap gap-x-2 gap-y-1 text-2xs text-muted">
-        <span>Windows: {row.capabilities.windows.label}</span>
-        <span>macOS: {row.capabilities.macos.label}</span>
-        <span>Linux: {row.capabilities.linux.label}</span>
-      </div>
-    </div>
-  );
-}
-
-function PlannedCatalogueRow({ row }: { row: PlannedProviderEntry }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
-          {row.displayName}
-        </span>
-        <span className={`${CHIP_NEUTRAL} flex-none`}>Planned</span>
-      </div>
-      <p className="text-xs leading-relaxed text-muted">
-        OpenLimiter does not read this product yet.
-      </p>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------- connections */
-
-/**
- * What can actually be connected today, one block per provider.
- *
- * This is the page the first launch sends somebody to, and the honest answer
- * is that one provider reports on its own, in the tools on a machine, and
- * everything on THIS page arrives as a document. Each block carries two
- * layers of that truth: the product wide chip and line it always carried,
- * and underneath, the connection state machine's own sentence and next
- * action for what this browser surface can do, with the statusline wiring
- * for Claude and the document path for every import only provider. The
- * sentences come from packages/core, so a block here and a card on the
- * desktop describe one state with one sentence.
- */
-function getHonestyBadges(providerId: string): string[] {
-  const providers = (registry as { providers?: Array<{ honesty?: { connectorId?: string; verification?: string; credentialOrigin?: string; dataInterfaceStatus?: string; automationRisk?: string } }> }).providers ?? [];
-  const spec = providers.find(
-    (p) => (p.honesty?.connectorId ?? "").toUpperCase() === providerId.toUpperCase()
-  );
-  if (!spec?.honesty) return ["UNVERIFIED", "user-key", "documented-api", "low"];
-  const h = spec.honesty;
-  return [h.verification, h.credentialOrigin, h.dataInterfaceStatus, h.automationRisk].filter(Boolean) as string[];
-}
-
-export function ConnectionList({
-  onImportFile,
-  onEnterDemo,
+function DirectoryGroup({
+  label,
+  rows,
+  onConnect,
+  onManual,
 }: {
-  onImportFile?: () => void;
-  onEnterDemo?: () => void;
+  label: string;
+  rows: readonly ProviderDirectoryRow[];
+  onConnect: (row: ProviderDirectoryRow) => void;
+  onManual: (row: ProviderDirectoryRow) => void;
 }) {
   return (
-    <ul className="divide-y divide-hairline border-t border-hairline">
-      {CONNECTION_FACTS.map((fact) => (
-        <li key={fact.provider} className="py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="grid h-7 w-7 flex-none place-items-center rounded-md border border-hairline bg-raised text-soft">
-                <ProviderMark provider={fact.provider} />
+    <section className="ol-directory-group" aria-labelledby={`directory-${label.toLowerCase()}`}>
+      <header className="ol-directory-group-head">
+        <h3 id={`directory-${label.toLowerCase()}`}>{label}</h3>
+        <span>{rows.length}</span>
+      </header>
+      <ul className="ol-directory-list">
+        {rows.map((row) => (
+          <li
+            key={row.key}
+            className="ol-directory-row"
+            data-access={row.access}
+            data-availability={row.availability}
+          >
+            <div className="ol-directory-identity">
+              <span className="ol-provider-mark" data-provider={providerMarkCode(row)}>
+                <ProviderMark provider={providerMarkCode(row)} label={row.displayName} />
               </span>
-              <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
-                {providerName(fact.provider)}
-              </span>
-              <span className={`${CHIP_NEUTRAL} flex-none`}>
-                <span className="font-mono tracking-widest">
-                  {fact.browserState}
-                </span>
+              <span className="ol-directory-name">
+                <strong>{row.displayName}</strong>
+                <span>{row.description}</span>
               </span>
             </div>
-            {onImportFile && (
-              <Button tone="ghost" onClick={onImportFile} className="text-xs">
-                {fact.provider === "MANUAL" ? "Add manual entry" : "Choose file"}
+            <span className="ol-directory-access" data-access={row.access}>
+              {row.accessLabel}
+            </span>
+            <span className="ol-directory-state" data-tone={row.stateTone}>
+              <span aria-hidden="true" />
+              {row.stateLabel}
+            </span>
+            {row.actionLabel !== null && (
+              <Button
+                tone={row.access === "key" && row.availability === "ready" ? "primary" : "ghost"}
+                onClick={() => {
+                  if (row.action === "manual") onManual(row);
+                  else onConnect(row);
+                }}
+                className="ol-directory-action"
+              >
+                {row.actionLabel}
               </Button>
             )}
-          </div>
-
-          <details className="mt-3 text-xs">
-            <summary className="cursor-pointer select-none font-medium text-muted hover:text-heading">
-              Why this is needed
-            </summary>
-            <div className="mt-2 space-y-2 rounded-lg border border-hairline bg-raised p-3">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {getHonestyBadges(fact.provider).map((badge) => (
-                  <span key={badge} className={`${CHIP_NEUTRAL} flex-none`}>
-                    {badge}
-                  </span>
-                ))}
-              </div>
-              <p className="text-xs leading-relaxed text-muted">{fact.line}</p>
-              <p className="text-xs leading-relaxed text-body">
-                {connectionSentence[fact.browserState]}
-              </p>
-            </div>
-          </details>
-        </li>
-      ))}
-
-      <li key="DEMO" className="py-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="grid h-7 w-7 flex-none place-items-center rounded-md border border-hairline bg-raised text-soft">
-              <SparkGlyph />
-            </span>
-            <span className="ol-brand-font min-w-0 truncate text-sm text-heading">
-              Demo mode
-            </span>
-            <span className={CHIP_NEUTRAL}>SYNTHETIC</span>
-          </div>
-          {onEnterDemo && (
-            <Button tone="primary" onClick={onEnterDemo} className="text-xs">
-              Explore demo mode
-            </Button>
-          )}
-        </div>
-
-        <details className="mt-3 text-xs">
-          <summary className="cursor-pointer select-none font-medium text-muted hover:text-heading">
-            Why this is needed
-          </summary>
-          <div className="mt-2 space-y-2 rounded-lg border border-hairline bg-raised p-3">
-            <p className="text-xs leading-relaxed text-muted">
-              Explore the dashboard with synthetic fixture data to see how quota
-              meters and reset countdowns behave without connecting real accounts.
-            </p>
-            <p className="text-xs leading-relaxed text-body">
-              Loads synthetic fixtures without reading any account. Real readings stay untouched.
-            </p>
-          </div>
-        </details>
-      </li>
-    </ul>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
-function SparkGlyph() {
+export function ProviderDirectory({
+  onConnect,
+  onManual,
+  onEnterDemo,
+}: {
+  onConnect: (row: ProviderDirectoryRow) => void;
+  onManual: (row: ProviderDirectoryRow) => void;
+  onEnterDemo?: () => void;
+}) {
+  const rows = buildProviderDirectory(registry, { states: BROWSER_PROVIDER_STATES });
+  const ready = rows.filter((row) => row.availability === "ready");
+  const planned = rows.filter((row) => row.availability === "planned");
+
   return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="m12 3 1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3Z" />
-    </svg>
+    <div id="provider-directory" className="ol-provider-directory">
+      <DirectoryGroup label="Ready" rows={ready} onConnect={onConnect} onManual={onManual} />
+      <DirectoryGroup label="Planned" rows={planned} onConnect={onConnect} onManual={onManual} />
+      {onEnterDemo && (
+        <div className="ol-directory-demo">
+          <span>Preview every meter</span>
+          <Button tone="ghost" onClick={onEnterDemo}>Demo</Button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -981,7 +458,7 @@ export function DemoStrip({ className = "-mx-5 -mt-5 mb-4" }: { className?: stri
   return (
     <p className={`ol-demo-strip ${className}`}>
       <span aria-hidden="true" className="ol-demo-dot" />
-      Demo data · synthetic
+      Demo
     </p>
   );
 }
@@ -1000,13 +477,10 @@ export function DemoBanner({ onLeave }: { onLeave: () => void }) {
       <p className="ol-demo-banner-text">
         <span aria-hidden="true" className="ol-demo-dot" />
         <span className="ol-demo-banner-title">Demo data</span>
-        <span className="ol-demo-banner-detail">
-          Every number below is synthetic. No account was read, and your own
-          readings are untouched.
-        </span>
+        <span className="ol-demo-banner-detail">Sample readings only.</span>
       </p>
       <Button tone="ghost" onClick={onLeave} className="flex-none">
-        Leave demo mode
+        Exit demo
       </Button>
     </div>
   );
@@ -1185,19 +659,17 @@ export function Panel({
   return (
     <section data-demo={demo ? "" : undefined} className={`ol-rise ${CARD_SURFACE}`}>
       {demo && <DemoStrip className="" />}
-      <div className="p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="ol-product-panel-inner">
+        <div className="ol-product-panel-head">
           <div>
-            <h2 className="ol-brand-font text-base text-heading">{title}</h2>
+            <h2 className="ol-brand-font">{title}</h2>
             {description !== undefined && (
-              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">
-                {description}
-              </p>
+              <p>{description}</p>
             )}
           </div>
           {action}
         </div>
-        <div className="mt-4">{children}</div>
+        <div className="ol-product-panel-body">{children}</div>
       </div>
     </section>
   );
@@ -1213,13 +685,12 @@ export function Panel({
  * that can be pressed rather than one that navigates.
  */
 const buttonBase =
-  "ol-tap lift-sm focus-ring inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
+  "ol-control ol-tap focus-ring inline-flex cursor-pointer items-center justify-center gap-2 border text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
 
 const buttonTone = {
-  primary: "border-transparent bg-solid text-on-solid hover:bg-solid-hover",
-  ghost:
-    "border-hairline-strong bg-transparent text-heading hover:border-heading hover:bg-surface",
-  quiet: "border-transparent text-muted hover:text-heading",
+  primary: "ol-control-primary",
+  ghost: "ol-control-ghost",
+  quiet: "ol-control-quiet",
 } as const;
 
 export function Button({
@@ -1266,7 +737,7 @@ export function Button({
 /** The one chip that marks synthetic readings, wherever they are shown. */
 export function DemoDataChip() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-raised px-2 py-1 font-mono text-2xs uppercase tracking-wider text-muted">
+    <span className="ol-chip inline-flex items-center gap-1.5 border border-hairline bg-raised px-2 py-1 font-mono text-2xs uppercase tracking-wider text-muted">
       <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent-solid" />
       Demo data
     </span>
@@ -1301,7 +772,7 @@ export function CodeBlock({
           </span>
         )}
       </figcaption>
-      <pre className="overflow-x-auto rounded-lg border border-hairline bg-code p-4 font-mono text-xs leading-relaxed text-body">
+      <pre className="ol-code-block overflow-x-auto border border-hairline bg-code p-4 font-mono text-xs leading-relaxed text-body">
         <code>{text}</code>
       </pre>
     </figure>

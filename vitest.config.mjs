@@ -14,6 +14,9 @@ export default defineConfig({
       ),
       "@openlimiter/adapters": fileURLToPath(
         new URL("./.test-dist/packages/adapters/src/index.js", import.meta.url)
+      ),
+      "@openlimiter/ui": fileURLToPath(
+        new URL("./.test-dist/packages/ui/src/index.js", import.meta.url)
       )
     }
   },

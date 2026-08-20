@@ -8,7 +8,10 @@
 export * from "./antigravity";
 export * from "./claude";
 export * from "./codex";
+export * from "./contract-gate";
 export * from "./fixtures";
+export * from "./grok";
+export * from "./kimi";
 export * from "./manual";
 export * from "./opencode";
 export * from "./openrouter";
@@ -17,6 +20,8 @@ import type { ConnectorContract } from "../core";
 import { antigravityConnector } from "./antigravity";
 import { claudeConnector } from "./claude";
 import { codexConnector } from "./codex";
+import { grokConnector } from "./grok";
+import { kimiConnector } from "./kimi";
 import { manualConnector } from "./manual";
 import { opencodeConnector } from "./opencode";
 import { openrouterConnector } from "./openrouter";
@@ -27,5 +32,7 @@ export const connectors: readonly ConnectorContract[] = [
   codexConnector,
   antigravityConnector,
   opencodeConnector,
+  grokConnector,
+  kimiConnector,
   manualConnector
 ];
