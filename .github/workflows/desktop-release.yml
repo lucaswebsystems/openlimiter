@@ -22,6 +22,7 @@ jobs:
   build:
     name: ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -42,7 +43,7 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm xvfb
 
       - name: Install pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -94,3 +95,64 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Verify the Windows installer installs and launches
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -LiteralPath "apps/desktop/src-tauri/target/release/bundle/nsis" -Filter "*.exe" | Select-Object -First 1
+          if (-not $installer) {
+            throw "The Windows NSIS installer was not produced"
+          }
+
+          $installDir = Join-Path $env:RUNNER_TEMP "OpenLimiterInstalled"
+          $install = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$installDir") -WindowStyle Hidden -PassThru
+          if (-not $install.WaitForExit(120000)) {
+            & "$env:SystemRoot/System32/taskkill.exe" /PID $install.Id /T /F | Out-Null
+            throw "The Windows installer exceeded its two minute limit"
+          }
+          if ($install.ExitCode -ne 0) {
+            throw "The Windows installer exited with code $($install.ExitCode)"
+          }
+
+          $application = Get-ChildItem -LiteralPath $installDir -Recurse -Filter "OpenLimiter.exe" | Select-Object -First 1
+          if (-not $application) {
+            throw "The installed Windows application was not found"
+          }
+
+          $launched = Start-Process -FilePath $application.FullName -WindowStyle Hidden -PassThru
+          Start-Sleep -Seconds 10
+          if ($launched.HasExited) {
+            throw "The installed Windows application exited during its launch smoke test"
+          }
+          Stop-Process -Id $launched.Id -Force
+          Write-Output "Verified Windows install and launch: $($application.FullName)"
+
+      - name: Verify the Linux package installs and launches
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_file="$(find apps/desktop/src-tauri/target/release/bundle/deb -maxdepth 1 -name '*.deb' -print -quit)"
+          if [ -z "$package_file" ]; then
+            echo "The Linux deb package was not produced" >&2
+            exit 1
+          fi
+
+          sudo timeout 180s apt-get install -y "$package_file"
+          package_name="$(dpkg-deb -f "$package_file" Package)"
+          application="$(dpkg -L "$package_name" | awk '/\/bin\// { print; exit }')"
+          if [ -z "$application" ] || [ ! -x "$application" ]; then
+            echo "The installed Linux application was not found" >&2
+            exit 1
+          fi
+
+          set +e
+          timeout 15s xvfb-run -a "$application"
+          launch_status=$?
+          set -e
+          if [ "$launch_status" -ne 124 ]; then
+            echo "The installed Linux application exited during its launch smoke test with code $launch_status" >&2
+            exit 1
+          fi
+          echo "Verified Linux install and launch: $application"
