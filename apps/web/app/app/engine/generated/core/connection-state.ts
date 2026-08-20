@@ -219,13 +219,15 @@ export const connectionNextAction = {
   ERROR: "View diagnostics"
 } as const satisfies Record<ConnectionState, string>;
 
-/** The five providers on the Connect and See catalogue surface. */
+/** The seven providers on the Connect and See catalogue surface. */
 export const CATALOGUE_PROVIDER_IDS = [
   "claude",
   "openrouter",
   "codex",
   "antigravity",
-  "opencode"
+  "opencode",
+  "grok",
+  "kimi"
 ] as const;
 
 export type CatalogueProviderId = (typeof CATALOGUE_PROVIDER_IDS)[number];
@@ -301,7 +303,9 @@ const catalogueCapabilities = {
     windows: manualExperimental,
     macos: manualExperimental,
     linux: manualExperimental
-  }
+  },
+  grok: { windows: supported, macos: supported, linux: supported },
+  kimi: { windows: supported, macos: supported, linux: supported }
 } as const satisfies Record<
   CatalogueProviderId,
   Readonly<Record<CataloguePlatform, CataloguePlatformCapability>>
@@ -326,6 +330,12 @@ function catalogueState(value: unknown): ConnectionState {
 function actionFor(providerId: CatalogueProviderId, state: ConnectionState): string {
   if (providerId === "codex" && (state === "NEEDS_AUTH" || state === "AUTH_EXPIRED")) {
     return "Run codex login";
+  }
+  if (providerId === "grok" && (state === "NEEDS_AUTH" || state === "AUTH_EXPIRED")) {
+    return "Run grok login";
+  }
+  if (providerId === "kimi" && (state === "NEEDS_AUTH" || state === "AUTH_EXPIRED")) {
+    return "Run kimi login";
   }
   return connectionNextAction[state];
 }

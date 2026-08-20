@@ -1,4 +1,6 @@
-use serde_json::Value;
+use std::collections::BTreeMap;
+
+use serde_json::{Map, Value};
 
 use crate::native_opencode::parse_opencode;
 use crate::native_snapshot::{
@@ -62,6 +64,22 @@ fn base_snapshot(
 fn number(value: Option<&Value>, maximum: f64) -> Option<f64> {
     let value = value?.as_f64()?;
     (value.is_finite() && value >= 0.0 && value <= maximum).then_some(value)
+}
+
+fn numeric_text(value: Option<&Value>, maximum: f64) -> Option<f64> {
+    let value = value?;
+    let number = value
+        .as_f64()
+        .or_else(|| value.as_str()?.trim().parse::<f64>().ok())?;
+    (number.is_finite() && number >= 0.0 && number <= maximum).then_some(number)
+}
+
+fn percent_of(used: f64, limit: f64) -> Option<f64> {
+    if limit <= 0.0 || used > limit {
+        return None;
+    }
+    let percent = used / limit * 100.0;
+    (percent.is_finite() && (0.0..=100.0).contains(&percent)).then_some(percent)
 }
 
 fn window_seconds(value: Option<&Value>) -> Option<u64> {
@@ -254,6 +272,233 @@ fn parse_antigravity(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sn
     )])
 }
 
+fn grok_period(
+    config: &Map<String, Value>,
+    now_ms: u64,
+) -> Option<(String, SnapshotWindow, String)> {
+    let period = config.get("currentPeriod")?.as_object()?;
+    let (meter, duration_seconds) = match period.get("type")?.as_str()? {
+        "USAGE_PERIOD_TYPE_WEEKLY" => ("WEEKLY", Some(604_800)),
+        "USAGE_PERIOD_TYPE_MONTHLY" => ("MONTHLY", None),
+        _ => return None,
+    };
+    let horizon = duration_seconds
+        .unwrap_or(2_678_400u64)
+        .saturating_mul(2)
+        .saturating_add(CLOCK_SKEW_SECONDS);
+    let reset_at = future_rfc3339(period.get("end")?.as_str()?, now_ms, horizon)?;
+    Some((
+        meter.to_string(),
+        SnapshotWindow {
+            kind: "fixed".to_string(),
+            duration_seconds,
+        },
+        reset_at,
+    ))
+}
+
+fn grok_value(object: Option<&Value>) -> Option<f64> {
+    let object = object?.as_object()?;
+    numeric_text(object.get("val"), 1_000_000_000_000.0)
+}
+
+fn parse_grok(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let config = root.get("config")?.as_object()?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
+    let connector_labels = labels("official-local-tool", "internal-endpoint", "high");
+    let mut snapshots = Vec::new();
+
+    if let Some(percent) = number(config.get("creditUsagePercent"), 100.0) {
+        let (meter, window, reset_at) = grok_period(config, now_ms)?;
+        snapshots.push(base_snapshot(
+            "GROK",
+            &meter,
+            percent,
+            window,
+            Some(reset_at),
+            "internal_payload",
+            "estimated",
+            &observed_at,
+            &expires_at,
+            connector_labels.clone(),
+            account_id,
+        ));
+    } else {
+        let limit = grok_value(config.get("monthlyLimit"))?;
+        let used = grok_value(config.get("used"))?;
+        let percent = percent_of(used, limit)?;
+        let reset_at = config
+            .get("billingPeriodEnd")
+            .and_then(Value::as_str)
+            .and_then(|value| {
+                future_rfc3339(
+                    value,
+                    now_ms,
+                    2_678_400u64
+                        .saturating_mul(2)
+                        .saturating_add(CLOCK_SKEW_SECONDS),
+                )
+            });
+        snapshots.push(base_snapshot(
+            "GROK",
+            "MONTHLY",
+            percent,
+            SnapshotWindow {
+                kind: "fixed".to_string(),
+                duration_seconds: None,
+            },
+            reset_at,
+            "internal_payload",
+            "estimated",
+            &observed_at,
+            &expires_at,
+            connector_labels.clone(),
+            account_id,
+        ));
+    }
+
+    let cap = grok_value(config.get("onDemandCap"));
+    let used = grok_value(config.get("onDemandUsed"));
+    match (cap, used) {
+        (Some(cap), Some(used)) if cap > 0.0 => {
+            snapshots.push(base_snapshot(
+                "GROK",
+                "ON_DEMAND_MONTHLY",
+                percent_of(used, cap)?,
+                SnapshotWindow {
+                    kind: "fixed".to_string(),
+                    duration_seconds: None,
+                },
+                None,
+                "internal_payload",
+                "estimated",
+                &observed_at,
+                &expires_at,
+                connector_labels,
+                account_id,
+            ));
+        }
+        (None, None) | (Some(0.0), Some(0.0)) => {}
+        _ => return None,
+    }
+    Some(snapshots)
+}
+
+fn kimi_window_seconds(window: &Map<String, Value>) -> Option<u64> {
+    let duration = window.get("duration")?.as_u64()?;
+    if duration == 0 {
+        return None;
+    }
+    let multiplier = match window.get("timeUnit")?.as_str()? {
+        "TIME_UNIT_MINUTE" => 60,
+        "TIME_UNIT_HOUR" => 3_600,
+        "TIME_UNIT_DAY" => 86_400,
+        "TIME_UNIT_WEEK" => 604_800,
+        _ => return None,
+    };
+    let seconds = duration.checked_mul(multiplier)?;
+    (seconds <= MAX_WINDOW_SECONDS).then_some(seconds)
+}
+
+fn kimi_meter(seconds: u64, ordinal: usize) -> Option<String> {
+    let base = match seconds {
+        300 => "FIVE_MINUTE".to_string(),
+        18_000 => "FIVE_HOUR".to_string(),
+        86_400 => "DAILY".to_string(),
+        604_800 => "SEVEN_DAY".to_string(),
+        _ => format!("WINDOW_{seconds}"),
+    };
+    let meter = if ordinal == 1 {
+        base
+    } else {
+        format!("{base}_{ordinal}")
+    };
+    safe_meter(&meter).then_some(meter)
+}
+
+fn parse_kimi_quota(
+    detail: &Map<String, Value>,
+    now_ms: u64,
+    horizon: u64,
+) -> Option<(f64, String)> {
+    let used = numeric_text(detail.get("used"), 1_000_000_000_000.0)?;
+    let limit = numeric_text(detail.get("limit"), 1_000_000_000_000.0)?;
+    let percent = percent_of(used, limit)?;
+    let reset_at = future_rfc3339(
+        detail.get("resetTime")?.as_str()?,
+        now_ms,
+        horizon.saturating_mul(2).saturating_add(CLOCK_SKEW_SECONDS),
+    )?;
+    Some((percent, reset_at))
+}
+
+fn parse_kimi(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let usage = root.get("usage")?.as_object()?;
+    let (weekly_percent, weekly_reset) = parse_kimi_quota(usage, now_ms, 604_800)?;
+    let observed_at = iso_from_epoch_ms(now_ms)?;
+    let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
+    let connector_labels = labels("official-local-tool", "internal-endpoint", "high");
+    let mut snapshots = vec![base_snapshot(
+        "KIMI",
+        "WEEKLY",
+        weekly_percent,
+        SnapshotWindow {
+            kind: "rolling".to_string(),
+            duration_seconds: Some(604_800),
+        },
+        Some(weekly_reset),
+        "internal_payload",
+        "estimated",
+        &observed_at,
+        &expires_at,
+        connector_labels.clone(),
+        account_id,
+    )];
+    let mut ordinals = BTreeMap::<u64, usize>::new();
+    for entry in root
+        .get("limits")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let entry = entry.as_object()?;
+        let detail = match entry.get("detail").and_then(Value::as_object) {
+            Some(detail) => detail,
+            None => continue,
+        };
+        let has_quota = ["used", "limit", "resetTime"]
+            .iter()
+            .any(|field| detail.contains_key(*field));
+        if !has_quota {
+            continue;
+        }
+        let seconds = kimi_window_seconds(entry.get("window")?.as_object()?)?;
+        let (percent, reset_at) = parse_kimi_quota(detail, now_ms, seconds)?;
+        let ordinal = ordinals.entry(seconds).or_default();
+        *ordinal += 1;
+        snapshots.push(base_snapshot(
+            "KIMI",
+            &kimi_meter(seconds, *ordinal)?,
+            percent,
+            SnapshotWindow {
+                kind: "rolling".to_string(),
+                duration_seconds: Some(seconds),
+            },
+            Some(reset_at),
+            "internal_payload",
+            "estimated",
+            &observed_at,
+            &expires_at,
+            connector_labels.clone(),
+            account_id,
+        ));
+    }
+    Some(snapshots)
+}
+
 pub fn parse_body(
     reader: ReaderId,
     body: &str,
@@ -267,6 +512,8 @@ pub fn parse_body(
         ReaderId::CodexUsage => parse_codex(body, now_ms, account_id),
         ReaderId::AntigravityQuota => parse_antigravity(body, now_ms, account_id),
         ReaderId::OpencodeUsage => parse_opencode(body, now_ms, account_id),
+        ReaderId::GrokUsage => parse_grok(body, now_ms, account_id),
+        ReaderId::KimiUsage => parse_kimi(body, now_ms, account_id),
     }
 }
 

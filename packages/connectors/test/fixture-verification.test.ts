@@ -6,6 +6,8 @@ import {
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
+  parseGrokPayload,
+  parseKimiPayload,
   parseOpencodePayload,
   parseOpenrouterPayload,
   connectors
@@ -34,6 +36,8 @@ const parsers: Readonly<Record<string, Parser>> = {
   parseClaudePayload,
   parseOpenrouterPayload,
   parseCodexPayload,
+  parseGrokPayload,
+  parseKimiPayload,
   parseAntigravityPayload,
   parseOpencodePayload
 };
@@ -75,7 +79,9 @@ const LIVE_PROVIDERS = new Set([
   "openrouter",
   "codex",
   "antigravity",
-  "opencode"
+  "opencode",
+  "grok",
+  "kimi"
 ]);
 
 function loadFixture(entry: ManifestProvider): unknown {

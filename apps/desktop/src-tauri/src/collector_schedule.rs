@@ -114,6 +114,8 @@ mod tests {
             ReaderId::OpencodeUsage => {
                 (ProviderId::Opencode, CredentialKind::OpencodeBrowserSession)
             }
+            ReaderId::GrokUsage => (ProviderId::Grok, CredentialKind::GrokSession),
+            ReaderId::KimiUsage => (ProviderId::Kimi, CredentialKind::KimiSession),
         };
         ConnectionRecord {
             id: id.to_string(),
@@ -146,6 +148,8 @@ mod tests {
             (ReaderId::CodexUsage, Some(300)),
             (ReaderId::AntigravityQuota, Some(600)),
             (ReaderId::OpencodeUsage, None),
+            (ReaderId::GrokUsage, Some(300)),
+            (ReaderId::KimiUsage, Some(300)),
         ];
         for (reader, expected_seconds) in cases {
             let next = scheduled_at(CollectionSource::Reader(reader), NOW, 0, None, 0.5);

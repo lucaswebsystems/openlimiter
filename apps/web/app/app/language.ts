@@ -218,6 +218,8 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   CODEX: "Codex",
   ANTIGRAVITY: "Antigravity",
   OPENCODE: "OpenCode",
+  GROK: "Grok",
+  KIMI: "Kimi",
   MANUAL: "Manual",
 };
 
@@ -232,6 +234,8 @@ const PROVIDER_ORIGIN: Record<ProviderCode, string> = {
   CODEX: "Provider managed payload",
   ANTIGRAVITY: "Provider managed payload",
   OPENCODE: "Authenticated page",
+  GROK: "Official local CLI session",
+  KIMI: "Official local CLI session",
   MANUAL: "Written down by you",
 };
 
@@ -291,6 +295,8 @@ const PROVIDER_DEFAULT_SOURCE: Record<ProviderCode, SourceState> = {
   CODEX: "IMPORT_ONLY",
   ANTIGRAVITY: "IMPORT_ONLY",
   OPENCODE: "IMPORT_ONLY",
+  GROK: "CONNECTED",
+  KIMI: "CONNECTED",
   MANUAL: "MANUAL",
 };
 

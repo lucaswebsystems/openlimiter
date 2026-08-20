@@ -25,6 +25,16 @@
       "fixtureVerified": false,
       "evidence": "scrape",
       "reason": "Left UNVERIFIED on purpose: the evidence is too thin for a trustworthy fixture. OpenCode publishes no usage interface at all, so the only source is the HTML of a logged in workspace page, and any fixture is a snapshot of a layout rather than a contract. The parser reads the frozen page correctly, but a passing scrape proves only that one frozen layout still parses, not that the provider exposes anything stable, so it is not marked fixture verified. This matches the connector's own labels: authenticated-scrape, automationRisk high."
+    },
+    "grok": {
+      "fixtureVerified": true,
+      "evidence": "official_source",
+      "reason": "The official Grok CLI source defines the billing response and request contract. The frozen source derived fixture parses the weekly credit window and the optional monthly on demand cap. This proves the offline collection path, while the interface remains internal and UNVERIFIED."
+    },
+    "kimi": {
+      "fixtureVerified": true,
+      "evidence": "official_source",
+      "reason": "The official Kimi CLI source defines the usage response and its provider defined windows. The frozen source derived fixture parses the weekly summary and five hour limit. This proves the offline collection path, while the interface remains internal and UNVERIFIED."
     }
   }
 }

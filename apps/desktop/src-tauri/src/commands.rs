@@ -1515,10 +1515,10 @@ mod tests {
                 }
             }
         }
-        assert_eq!(accepted, 5);
+        assert_eq!(accepted, 7);
         assert_eq!(
             secrets.stored_count(),
-            5,
+            7,
             "only the real pairings ever stored a secret"
         );
     }

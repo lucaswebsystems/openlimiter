@@ -1,8 +1,8 @@
 # Frozen provider fixtures
 
-One frozen, redacted sample response per provider. These are the real response
-**shapes** a working reader observed, recorded in
-`Product Idea/reference-implementation`, with every identifying value removed.
+One frozen, redacted sample response per provider. Each file comes from either
+a documented response, an observed reader, or the provider's official client
+source, with every identifying value removed.
 They exist so the parser for each provider can be run offline against a real
 shaped response and asserted to produce the right numbers, with no live provider
 call and no network.
@@ -14,6 +14,8 @@ call and no network.
 | `codex.usage.json` | Codex | Internal usage endpoint | observed against a real account |
 | `antigravity.quota.json` | Antigravity | Internal quota summary | observed against a real account |
 | `opencode.workspace.html` | OpenCode | Logged in workspace page (HTML) | scrape of a rendered page |
+| `grok.billing.json` | Grok | Internal billing endpoint | response type in the official Grok CLI source |
+| `kimi.usages.json` | Kimi | Internal usage endpoint | response type in the official Kimi CLI source |
 
 `manifest.json` names, for each file, the parser that reads it, the clock to
 read it against (`captureClock`), and the exact meters a correct parser returns.
@@ -32,7 +34,7 @@ window's plausibility horizon.
 ## Why absolute timestamps
 
 Each file carries absolute reset instants (Claude and Codex in Unix epoch
-seconds, Antigravity in RFC3339) because that is what a real response carries.
+seconds, with Antigravity, Grok, and Kimi in RFC3339) because that is what each response carries.
 The test does not read them against the wall clock; it reads them against the
 fixed `captureClock` in the manifest, so the fixtures are deterministic and
 never rot.

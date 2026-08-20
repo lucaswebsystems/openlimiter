@@ -13,6 +13,10 @@ import {
   codexFixture,
   connectors,
   hostileFixture,
+  grokConnector,
+  grokFixture,
+  kimiConnector,
+  kimiFixture,
   manualConnector,
   manualFixture,
   opencodeConnector,
@@ -22,6 +26,8 @@ import {
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
+  parseGrokPayload,
+  parseKimiPayload,
   parseManualPayload,
   parseOpencodePayload,
   parseOpenrouterPayload
@@ -96,6 +102,20 @@ const cases: readonly {
     }
   },
   {
+    name: "grok",
+    parser: parseGrokPayload,
+    fixture: grokFixture(FIXTURE_NOW),
+    provider: "GROK",
+    huge: { config: { creditUsagePercent: 9e300 } }
+  },
+  {
+    name: "kimi",
+    parser: parseKimiPayload,
+    fixture: kimiFixture(FIXTURE_NOW),
+    provider: "KIMI",
+    huge: { usage: { used: 9e300, limit: 9e300, resetTime: "never" } }
+  },
+  {
     name: "manual",
     parser: parseManualPayload,
     fixture: manualFixture(FIXTURE_NOW),
@@ -154,8 +174,8 @@ describe.each(cases)("$name parser", ({ parser, fixture, provider, huge }) => {
 });
 
 describe("connector contracts", () => {
-  it("ships six unverified connectors", () => {
-    expect(connectors).toHaveLength(6);
+  it("ships eight unverified connectors", () => {
+    expect(connectors).toHaveLength(8);
     expect(connectors.every((connector) => connector.labels.verification === "UNVERIFIED"))
       .toBe(true);
   });
@@ -168,6 +188,8 @@ describe("connector contracts", () => {
     expect(codexConnector.detect({ CODEX_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(antigravityConnector.detect({ ANTIGRAVITY_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(opencodeConnector.detect({ OPENCODE_SESSION_PRESENT: "1" })).toBe(true);
+    expect(grokConnector.detect({ GROK_USAGE_PAYLOAD: "1" })).toBe(true);
+    expect(kimiConnector.detect({ KIMI_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(manualConnector.detect({ [MANUAL_FILE_MARKER]: "available" })).toBe(true);
     expect(connectors.every((connector) => !connector.detect({}))).toBe(true);
   });
@@ -251,6 +273,8 @@ describe("connector contracts", () => {
     expect(parseClaudePayload(claudeFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseCodexPayload(codexFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseAntigravityPayload(antigravityFixture(FIXTURE_NOW), later)).toBeNull();
+    expect(parseGrokPayload(grokFixture(FIXTURE_NOW), later)).toBeNull();
+    expect(parseKimiPayload(kimiFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseManualPayload(manualFixture(FIXTURE_NOW), later)).toBeNull();
   });
 
@@ -283,6 +307,8 @@ describe("connector contracts", () => {
     expect(parseCodexPayload(codexFixture(now), now)).toHaveLength(1);
     expect(parseAntigravityPayload(antigravityFixture(now), now)).toHaveLength(1);
     expect(parseOpencodePayload(opencodeFixture(now), now)).toHaveLength(1);
+    expect(parseGrokPayload(grokFixture(now), now)).toHaveLength(2);
+    expect(parseKimiPayload(kimiFixture(now), now)).toHaveLength(2);
     expect(parseManualPayload(manualFixture(now), now)).toHaveLength(1);
     expect(parseOpenrouterPayload(openrouterFixture(), now)).toHaveLength(1);
   });

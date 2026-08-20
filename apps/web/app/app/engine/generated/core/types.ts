@@ -11,6 +11,8 @@ export const PROVIDER_CODES = [
   "CODEX",
   "ANTIGRAVITY",
   "OPENCODE",
+  "GROK",
+  "KIMI",
   "MANUAL"
 ] as const;
 

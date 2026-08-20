@@ -149,7 +149,7 @@ fn collection_plan(
         } else {
             if matches!(
                 record.provider_id,
-                ProviderId::Codex | ProviderId::Antigravity
+                ProviderId::Codex | ProviderId::Antigravity | ProviderId::Grok | ProviderId::Kimi
             ) {
                 unresolved_automatic.insert(record.provider_id);
             }
@@ -272,6 +272,12 @@ async fn run_pass(app: &AppHandle, explicit: bool) {
                         .contains(&ProviderId::Antigravity)
                     {
                         crate::antigravity_oauth::run_pass(app, &coverage.covered).await;
+                    }
+                    if !coverage.unresolved_automatic.contains(&ProviderId::Grok) {
+                        crate::grok_oauth::run_pass(app, &coverage.covered).await;
+                    }
+                    if !coverage.unresolved_automatic.contains(&ProviderId::Kimi) {
+                        crate::kimi_oauth::run_pass(app, &coverage.covered).await;
                     }
                 }
                 Err(_) => last_failure = Some(CollectorFailure::Internal),

@@ -44,6 +44,12 @@ export const CLAUDE_STATUSLINE_DOCS_URL = "https://code.claude.com/docs/en/statu
 export const OPENROUTER_CREDITS_DOCS_URL =
   "https://openrouter.ai/docs/api-reference/get-credits";
 
+export const GROK_BILLING_SOURCE_URL =
+  "https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs";
+
+export const KIMI_USAGE_SOURCE_URL =
+  "https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts";
+
 /** The day a human last read both pages above against this file. */
 export const FIXTURE_REVIEWED_AT = "2026-08-10";
 
@@ -222,6 +228,41 @@ export function antigravityFixture(now: string = FIXTURE_NOW): Record<string, un
         ]
       }
     ]
+  };
+}
+
+export function grokFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  return {
+    config: {
+      creditUsagePercent: 42.5,
+      currentPeriod: {
+        type: "USAGE_PERIOD_TYPE_WEEKLY",
+        start: offset(now, -ONE_DAY),
+        end: offset(now, SEVEN_DAYS)
+      },
+      onDemandCap: { val: 5000 },
+      onDemandUsed: { val: 300 }
+    }
+  };
+}
+
+export function kimiFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  return {
+    usage: {
+      used: "214",
+      limit: "2048",
+      remaining: "1834",
+      resetTime: offset(now, SEVEN_DAYS)
+    },
+    limits: [{
+      window: { duration: 5, timeUnit: "TIME_UNIT_HOUR" },
+      detail: {
+        used: "139",
+        limit: "200",
+        remaining: "61",
+        resetTime: offset(now, FIVE_HOURS)
+      }
+    }]
   };
 }
 
@@ -427,6 +468,26 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
       "all, so this is design evidence only and stays a scrape.",
     expectedMeters: 1,
     build: (now) => opencodeFixture(now)
+  },
+  {
+    id: "grok.official_source.billing",
+    connector: "grok",
+    docsUrl: GROK_BILLING_SOURCE_URL,
+    reviewedAt: FIXTURE_REVIEWED_AT,
+    sourceStatus: "official",
+    note: "The official Grok CLI source publishes the billing response fields and period vocabulary.",
+    expectedMeters: 2,
+    build: (now) => grokFixture(now)
+  },
+  {
+    id: "kimi.official_source.usages",
+    connector: "kimi",
+    docsUrl: KIMI_USAGE_SOURCE_URL,
+    reviewedAt: FIXTURE_REVIEWED_AT,
+    sourceStatus: "official",
+    note: "The official Kimi CLI source publishes the usage summary and provider defined windows.",
+    expectedMeters: 2,
+    build: (now) => kimiFixture(now)
   },
   {
     id: "manual.documented.plan",
@@ -662,6 +723,28 @@ export const opencodeSanitizedLive: SanitizedLiveFixture = {
   build: () => null
 };
 
+export const grokSanitizedLive: SanitizedLiveFixture = {
+  id: "grok.live.pending",
+  connector: "grok",
+  status: "pending_capture",
+  capturedAt: null,
+  providerVersion: null,
+  skipReason: "PENDING CAPTURE: the fixture comes from official source code, not a live Grok account.",
+  expectedMeters: 0,
+  build: () => null
+};
+
+export const kimiSanitizedLive: SanitizedLiveFixture = {
+  id: "kimi.live.pending",
+  connector: "kimi",
+  status: "pending_capture",
+  capturedAt: null,
+  providerVersion: null,
+  skipReason: "PENDING CAPTURE: the fixture comes from official source code, not a live Kimi account.",
+  expectedMeters: 0,
+  build: () => null
+};
+
 /* ------------------------------------------------------------------ *
  * Rebuilding a payload from a reduced capture
  *
@@ -768,7 +851,9 @@ export const sanitizedLiveFixtures: readonly SanitizedLiveFixture[] = [
   claudeSanitizedLive,
   codexSanitizedLive,
   antigravitySanitizedLive,
-  opencodeSanitizedLive
+  opencodeSanitizedLive,
+  grokSanitizedLive,
+  kimiSanitizedLive
 ];
 
 /* ------------------------------------------------------------------ *
@@ -995,6 +1080,8 @@ const genericIds: readonly ConnectorId[] = [
   "codex",
   "antigravity",
   "opencode",
+  "grok",
+  "kimi",
   "manual"
 ];
 

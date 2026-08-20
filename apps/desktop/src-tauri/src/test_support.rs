@@ -109,7 +109,7 @@ pub(crate) struct RecordingTransport {
     secrets: Mutex<Vec<String>>,
     methods: Mutex<Vec<HttpMethod>>,
     auths: Mutex<Vec<AuthApplication>>,
-    codex_account_ids: Mutex<Vec<Option<String>>>,
+    provider_account_ids: Mutex<Vec<Option<String>>>,
     bodies: Mutex<Vec<Option<&'static str>>>,
 }
 
@@ -127,7 +127,7 @@ impl RecordingTransport {
             secrets: Mutex::new(Vec::new()),
             methods: Mutex::new(Vec::new()),
             auths: Mutex::new(Vec::new()),
-            codex_account_ids: Mutex::new(Vec::new()),
+            provider_account_ids: Mutex::new(Vec::new()),
             bodies: Mutex::new(Vec::new()),
         }
     }
@@ -165,7 +165,14 @@ impl RecordingTransport {
     }
 
     pub(crate) fn recorded_codex_account_ids(&self) -> Vec<Option<String>> {
-        self.codex_account_ids
+        self.provider_account_ids
+            .lock()
+            .expect("the account header record is intact")
+            .clone()
+    }
+
+    pub(crate) fn recorded_provider_account_ids(&self) -> Vec<Option<String>> {
+        self.provider_account_ids
             .lock()
             .expect("the account header record is intact")
             .clone()
@@ -223,10 +230,10 @@ impl Transport for RecordingTransport {
             .lock()
             .expect("the auth record is intact")
             .push(request.auth);
-        self.codex_account_ids
+        self.provider_account_ids
             .lock()
             .expect("the account header record is intact")
-            .push(request.codex_account_id.map(str::to_string));
+            .push(request.provider_account_id.map(str::to_string));
         self.bodies
             .lock()
             .expect("the body record is intact")

@@ -9,7 +9,7 @@ import {
 } from "../src/index.js";
 
 describe("provider catalogue", () => {
-  it("derives the five ship entries from generated provider data", () => {
+  it("derives the seven ship entries from generated provider data", () => {
     const catalogue = queryProviderCatalogue(providerSpecs);
     expect(catalogue.map((entry) => [entry.providerId, entry.displayName, entry.authMode]))
       .toEqual([
@@ -17,7 +17,9 @@ describe("provider catalogue", () => {
         ["openrouter", "OpenRouter", "api_key"],
         ["codex", "Codex", "existing_local_cli"],
         ["antigravity", "Antigravity", "existing_local_cli"],
-        ["opencode", "OpenCode", "manual"]
+        ["opencode", "OpenCode", "manual"],
+        ["grok", "Grok", "existing_local_cli"],
+        ["kimi", "Kimi", "existing_local_cli"]
       ]);
   });
 
@@ -43,7 +45,9 @@ describe("provider catalogue", () => {
       "openrouter",
       "codex",
       "antigravity",
-      "opencode"
+      "opencode",
+      "grok",
+      "kimi"
     ];
     for (const providerId of providerIds) {
       for (const state of CONNECTION_STATES) {
@@ -62,17 +66,17 @@ describe("provider catalogue", () => {
 });
 
 describe("catalogue rows", () => {
-  it("derives all seventeen catalogue rows in document order", () => {
+  it("derives all nineteen catalogue rows in document order", () => {
     const rows = queryCatalogueRows(providerSpecs);
-    expect(rows).toHaveLength(17);
+    expect(rows).toHaveLength(19);
 
-    const connectableRows = rows.slice(0, 5);
+    const connectableRows = rows.slice(0, 7);
     expect(connectableRows.every((row) => row.availability === "connectable")).toBe(true);
     expect(
       connectableRows.map((row) => (row.availability === "connectable" ? row.providerId : undefined))
-    ).toEqual(["claude", "openrouter", "codex", "antigravity", "opencode"]);
+    ).toEqual(["claude", "openrouter", "codex", "antigravity", "opencode", "grok", "kimi"]);
 
-    const plannedRows = rows.slice(5);
+    const plannedRows = rows.slice(7);
     expect(plannedRows).toHaveLength(12);
     for (const row of plannedRows) {
       expect(row.availability).toBe("planned");

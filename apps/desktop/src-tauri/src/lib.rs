@@ -12,6 +12,8 @@ mod commands;
 mod connections;
 mod credentials;
 mod fsx;
+mod grok_oauth;
+mod kimi_oauth;
 mod native_opencode;
 mod native_readers;
 mod native_snapshot;
@@ -93,6 +95,8 @@ pub fn run() {
         .manage(claude_oauth::ClaudeOauthRuntime::default())
         .manage(codex_oauth::CodexOauthRuntime::default())
         .manage(antigravity_oauth::AntigravityOauthRuntime::default())
+        .manage(grok_oauth::GrokOauthRuntime::default())
+        .manage(kimi_oauth::KimiOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
         .manage(updates::PendingUpdate::default())
         .plugin(tauri_plugin_updater::Builder::new().build())

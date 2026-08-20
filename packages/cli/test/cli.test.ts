@@ -8,6 +8,8 @@ import {
   antigravityFixture,
   claudeFixture,
   codexFixture,
+  grokFixture,
+  kimiFixture,
   manualFixture,
   opencodeFixture,
   openrouterFixture
@@ -54,6 +56,8 @@ const payloads = {
   claude: claudeFixture(FIXTURE_NOW),
   openrouter: openrouterFixture(),
   codex: codexFixture(FIXTURE_NOW),
+  grok: grokFixture(FIXTURE_NOW),
+  kimi: kimiFixture(FIXTURE_NOW),
   antigravity: antigravityFixture(FIXTURE_NOW),
   opencode: opencodeFixture(FIXTURE_NOW),
   manual: manualFixture(FIXTURE_NOW)
@@ -95,7 +99,7 @@ describe("CLI", () => {
     const config = JSON.parse(configText) as {
       connectors: { enabled: boolean }[];
     };
-    expect(config.connectors).toHaveLength(6);
+    expect(config.connectors).toHaveLength(8);
     expect(config.connectors.every((connector) => connector.enabled)).toBe(true);
     expect(configText.includes("sk-DEMO-000")).toBe(false);
   });
@@ -146,21 +150,29 @@ describe("CLI", () => {
         payloads
       });
       expect(result.stdout).toBe([
-        "PROVIDER    METER     BAR        USAGE        AMOUNT        " +
+        "PROVIDER    METER             BAR        USAGE        AMOUNT        " +
           "STATE RESET                    IN    SOURCE       ",
-        "OPENCODE    PRIMARY   #########. 92.00PERCENT NONE          " +
+        "OPENCODE    PRIMARY           #########. 92.00PERCENT NONE          " +
           "fresh 2026-01-01T20:00:00.000Z 20h0m [import only]",
-        "CODEX       FIVE_HOUR ########.. 84.00PERCENT NONE          " +
+        "CODEX       FIVE_HOUR         ########.. 84.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "CLAUDE      SEVEN_DAY ######.... 64.00PERCENT NONE          " +
+        "KIMI        FIVE_HOUR         ######.... 69.50PERCENT NONE          " +
+          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "KIMI        WEEKLY            #......... 10.44PERCENT NONE          " +
           "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "CLAUDE      FIVE_HOUR ####...... 42.00PERCENT NONE          " +
+        "CLAUDE      SEVEN_DAY         ######.... 64.00PERCENT NONE          " +
+          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "CLAUDE      FIVE_HOUR         ####...... 42.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "OPENROUTER  CREDITS   ######.... 62.35PERCENT $12.47/$20.00 " +
+        "OPENROUTER  CREDITS           ######.... 62.35PERCENT $12.47/$20.00 " +
           "fresh NONE                     NONE  [import only]",
-        "MANUAL      MONTHLY   ###....... 35.00PERCENT NONE          " +
+        "GROK        WEEKLY            ####...... 42.50PERCENT NONE          " +
+          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
+        "GROK        ON_DEMAND_MONTHLY .......... 6.00PERCENT  NONE          " +
+          "fresh NONE                     NONE  [import only]",
+        "MANUAL      MONTHLY           ###....... 35.00PERCENT NONE          " +
           "fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
-        "ANTIGRAVITY PRIMARY   ##........ 28.00PERCENT NONE          " +
+        "ANTIGRAVITY PRIMARY           ##........ 28.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]"
       ].join("\n"));
     });
@@ -184,6 +196,10 @@ describe("CLI", () => {
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=OPENCODE state=fresh usage_percent=92.00 " +
           "reset_at=2026-01-01T20:00:00.000Z",
+        "provider=GROK state=fresh usage_percent=42.50 " +
+          "reset_at=2026-01-08T00:00:00.000Z",
+        "provider=KIMI state=fresh usage_percent=69.50 " +
+          "reset_at=2026-01-01T05:00:00.000Z",
         "provider=MANUAL state=fresh usage_percent=35.00 " +
           "reset_at=2026-02-01T00:00:00.000Z",
         "unknown=NONE",
@@ -224,7 +240,7 @@ describe("CLI", () => {
         provider: string;
         provenance?: { sourceKind: string; observedVia: string };
       }[];
-      expect(rows).toHaveLength(7);
+      expect(rows).toHaveLength(11);
       for (const row of rows) {
         expect(row.provenance).toEqual({
           sourceKind: "explicit_ingest",
@@ -259,7 +275,8 @@ describe("CLI", () => {
       expect(statusline.stdout).toBe([
         "OpenLimiter NEAR_CAP PREFER ANTIGRAVITY  CLAUDE ###.. 64.0%  " +
           "CODEX ####. 84.0%  ANTIGRAVITY #.... 28.0%  OPENCODE ####. 92.0%",
-        "MANUAL #.... 35.0%  OPENROUTER ###.. 62.3%"
+        "GROK ##... 42.5%  KIMI ###.. 69.5%  MANUAL #.... 35.0%  " +
+          "OPENROUTER ###.. 62.3%"
       ].join("\n"));
     });
   });
@@ -911,7 +928,8 @@ describe("CLI", () => {
     });
     expect(statusline.stdout).toBe(
       "OpenLimiter NEAR_CAP CLAUDE 64.0% OPENROUTER 62.3% CODEX 84.0% " +
-      "ANTIGRAVITY 28.0% OPENCODE 92.0% MANUAL 35.0% PREFER ANTIGRAVITY"
+      "ANTIGRAVITY 28.0% OPENCODE 92.0% GROK 42.5% KIMI 69.5% MANUAL 35.0% " +
+      "PREFER ANTIGRAVITY"
     );
     /* One line, no bar, no dollar figure, no escape code, no failure line. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);
@@ -935,7 +953,7 @@ describe("CLI", () => {
     const rows = stacked.stdout.split("\n");
     expect(rows).toHaveLength(2);
     for (const row of rows) expect(row.length).toBeLessThanOrEqual(140);
-    await runCli(["config", "set", "statusline.width", "200"], {
+    await runCli(["config", "set", "statusline.width", "260"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
@@ -1089,7 +1107,7 @@ describe("CLI", () => {
       bars: false,
       color: "always"
     });
-    expect(stored.connectors).toHaveLength(6);
+    expect(stored.connectors).toHaveLength(8);
   });
 
   it("keeps a configured statusline when init runs a second time", async () => {

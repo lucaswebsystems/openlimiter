@@ -416,21 +416,27 @@ const READER_IDS = new Set([
   "openrouter_credits",
   "codex_usage",
   "antigravity_quota",
-  "opencode_usage"
+  "opencode_usage",
+  "grok_usage",
+  "kimi_usage"
 ]);
 const ENDPOINT_IDS = new Set([
   "openrouter_key",
   "openrouter_credits",
   "codex_usage",
   "antigravity_quota",
-  "opencode_usage"
+  "opencode_usage",
+  "grok_usage",
+  "kimi_usage"
 ]);
 const CREDENTIAL_KINDS = new Set([
   "openrouter_inference_key",
   "openrouter_management_key",
   "codex_session",
   "antigravity_session",
-  "opencode_browser_session"
+  "opencode_browser_session",
+  "grok_session",
+  "kimi_session"
 ]);
 const COLLECTION_SUPPORT = new Set(["implemented"]);
 
@@ -460,6 +466,8 @@ const CONNECTOR_IDS = new Set([
   "codex",
   "antigravity",
   "opencode",
+  "grok",
+  "kimi",
   "manual"
 ]);
 const HONESTY_KEYS = new Set([

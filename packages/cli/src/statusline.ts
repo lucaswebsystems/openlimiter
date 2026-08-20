@@ -46,6 +46,8 @@ const PROVIDER_CLASS: Record<ProviderCode, "subscription" | "api"> = {
   CODEX: "subscription",
   ANTIGRAVITY: "subscription",
   OPENCODE: "subscription",
+  GROK: "subscription",
+  KIMI: "subscription",
   MANUAL: "subscription",
   OPENROUTER: "api"
 };

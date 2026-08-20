@@ -107,6 +107,8 @@ fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
         "CODEX",
         "ANTIGRAVITY",
         "OPENCODE",
+        "GROK",
+        "KIMI",
         "MANUAL",
     ]
     .contains(&row.provider.as_str());
@@ -236,6 +238,8 @@ fn read_document(text: Option<&str>) -> Result<(Vec<Snapshot>, Vec<Suppression>)
                         "CODEX",
                         "ANTIGRAVITY",
                         "OPENCODE",
+                        "GROK",
+                        "KIMI",
                         "MANUAL",
                     ]
                     .contains(&suppression.provider.as_str())

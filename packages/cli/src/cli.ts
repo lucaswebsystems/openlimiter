@@ -20,6 +20,8 @@ import {
   antigravityFixture,
   claudeFixture,
   codexFixture,
+  grokFixture,
+  kimiFixture,
   connectors,
   manualFixture,
   opencodeFixture,
@@ -27,6 +29,8 @@ import {
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
+  parseGrokPayload,
+  parseKimiPayload,
   parseManualPayload,
   parseOpencodePayload,
   parseOpenrouterPayload
@@ -244,6 +248,8 @@ function demoSnapshots(now: string): Snapshot[] {
     ...(parseClaudePayload(claudeFixture(now), now) ?? []),
     ...(parseOpenrouterPayload(openrouterFixture(), now) ?? []),
     ...(parseCodexPayload(codexFixture(now), now) ?? []),
+    ...(parseGrokPayload(grokFixture(now), now) ?? []),
+    ...(parseKimiPayload(kimiFixture(now), now) ?? []),
     ...(parseAntigravityPayload(antigravityFixture(now), now) ?? []),
     ...(parseOpencodePayload(opencodeFixture(now), now) ?? []),
     ...(parseManualPayload(manualFixture(now), now) ?? [])

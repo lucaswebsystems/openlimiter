@@ -43,6 +43,8 @@ fn detected_provider(provider_id: ProviderId) -> Option<DetectedProviderId> {
         ProviderId::Codex => Some(DetectedProviderId::Codex),
         ProviderId::Antigravity => Some(DetectedProviderId::Antigravity),
         ProviderId::Opencode => Some(DetectedProviderId::Opencode),
+        ProviderId::Grok => Some(DetectedProviderId::Grok),
+        ProviderId::Kimi => Some(DetectedProviderId::Kimi),
         _ => None,
     }
 }

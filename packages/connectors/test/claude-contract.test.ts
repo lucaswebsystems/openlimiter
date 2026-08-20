@@ -23,6 +23,8 @@ import {
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
+  parseGrokPayload,
+  parseKimiPayload,
   parseManualPayload,
   parseOpencodePayload,
   parseOpenrouterPayload,
@@ -39,6 +41,8 @@ const parsers: Record<ConnectorId, Parser> = {
   codex: parseCodexPayload,
   antigravity: parseAntigravityPayload,
   opencode: parseOpencodePayload,
+  grok: parseGrokPayload,
+  kimi: parseKimiPayload,
   manual: parseManualPayload
 };
 
@@ -451,6 +455,8 @@ describe("fixture classes", () => {
       "antigravity",
       "claude",
       "codex",
+      "grok",
+      "kimi",
       "manual",
       "opencode",
       "openrouter"

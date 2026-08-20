@@ -869,8 +869,8 @@ mod tests {
                 }
             }
         }
-        assert_eq!(stored, 5);
-        assert_eq!(store.list().expect("list").len(), 5);
+        assert_eq!(stored, 7);
+        assert_eq!(store.list().expect("list").len(), 7);
     }
 
     #[test]

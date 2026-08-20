@@ -44,6 +44,12 @@ pub const CLAUDE_OAUTH_USAGE_URL: &str = "https://api.anthropic.com/api/oauth/us
 /// quota API, so this is an internal endpoint and every surface says so.
 pub const CODEX_USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
 
+/// The Grok Build billing report used by the official Grok CLI.
+pub const GROK_USAGE_URL: &str = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
+
+/// The Kimi Code usage report used by the official Kimi CLI.
+pub const KIMI_USAGE_URL: &str = "https://api.kimi.com/coding/v1/usages";
+
 /// The Antigravity quota summary, on Google's metadata plane.
 ///
 /// Evidence, recorded 2026-08-07: `POST` with an empty JSON object as the
@@ -100,19 +106,23 @@ pub enum ProviderEndpoint {
     AntigravityQuota,
     OpencodeUsage,
     ClaudeOauthUsage,
+    GrokUsage,
+    KimiUsage,
 }
 
 impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 6] = [
+    pub const ALL: [ProviderEndpoint; 8] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::CodexUsage,
         ProviderEndpoint::AntigravityQuota,
         ProviderEndpoint::OpencodeUsage,
         ProviderEndpoint::ClaudeOauthUsage,
+        ProviderEndpoint::GrokUsage,
+        ProviderEndpoint::KimiUsage,
     ];
 
     /// The address the first request of this endpoint goes to.
@@ -127,6 +137,8 @@ impl ProviderEndpoint {
             ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_QUOTA_URL,
             ProviderEndpoint::OpencodeUsage => OPENCODE_AUTH_URL,
             ProviderEndpoint::ClaudeOauthUsage => CLAUDE_OAUTH_USAGE_URL,
+            ProviderEndpoint::GrokUsage => GROK_USAGE_URL,
+            ProviderEndpoint::KimiUsage => KIMI_USAGE_URL,
         }
     }
 
@@ -144,7 +156,9 @@ impl ProviderEndpoint {
             | ProviderEndpoint::OpenrouterCredits
             | ProviderEndpoint::CodexUsage
             | ProviderEndpoint::OpencodeUsage
-            | ProviderEndpoint::ClaudeOauthUsage => HttpMethod::Get,
+            | ProviderEndpoint::ClaudeOauthUsage
+            | ProviderEndpoint::GrokUsage
+            | ProviderEndpoint::KimiUsage => HttpMethod::Get,
             ProviderEndpoint::AntigravityQuota => HttpMethod::Post,
         }
     }
@@ -158,7 +172,9 @@ impl ProviderEndpoint {
             | ProviderEndpoint::OpenrouterCredits
             | ProviderEndpoint::CodexUsage
             | ProviderEndpoint::OpencodeUsage
-            | ProviderEndpoint::ClaudeOauthUsage => None,
+            | ProviderEndpoint::ClaudeOauthUsage
+            | ProviderEndpoint::GrokUsage
+            | ProviderEndpoint::KimiUsage => None,
         }
     }
 }
@@ -179,6 +195,15 @@ pub const CODEX_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
 /// The account identifier is imported beside the access token from the Codex
 /// session envelope. It is never accepted as a caller supplied request field.
 pub const CODEX_ACCOUNT_HEADER: &str = "chatgpt-account-id";
+
+/// The account identity the Grok billing service requires beside the token.
+pub const GROK_ACCOUNT_HEADER: &str = "x-userid";
+
+/// The fixed token authentication mode published by the official Grok CLI.
+pub const GROK_TOKEN_AUTH_HEADER: &str = "x-xai-token-auth";
+
+/// The fixed value paired with `GROK_TOKEN_AUTH_HEADER`.
+pub const GROK_TOKEN_AUTH_VALUE: &str = "xai-grok-cli";
 
 /// The beta contract Claude Code sends when it asks for OAuth account usage.
 pub const CLAUDE_OAUTH_BETA_HEADER: &str = "anthropic-beta";
@@ -335,8 +360,8 @@ pub struct EndpointRequest<'a> {
     pub url: &'a str,
     pub method: HttpMethod,
     pub auth: AuthApplication,
-    /// Present only for the Codex account header. Never serialized or logged.
-    pub codex_account_id: Option<&'a str>,
+    /// Present only when an endpoint requires an account header.
+    pub provider_account_id: Option<&'a str>,
     pub body: Option<&'static str>,
 }
 
@@ -410,13 +435,16 @@ pub async fn fetch_endpoint<T: Transport>(
     endpoint: ProviderEndpoint,
     auth: AuthApplication,
     secret: &str,
-    codex_account_id: Option<&str>,
+    provider_account_id: Option<&str>,
 ) -> Result<EndpointOutcome, NetError> {
     if endpoint.needs_workspace() {
         return fetch_through_workspace(transport, endpoint, auth, secret).await;
     }
-    if auth == AuthApplication::CodexSessionBearer {
-        let account_id = codex_account_id
+    if matches!(
+        auth,
+        AuthApplication::CodexSessionBearer | AuthApplication::GrokSessionBearer
+    ) {
+        let account_id = provider_account_id
             .filter(|value| valid_codex_account_id(value))
             .ok_or(NetError::Protocol)?;
         if !valid_codex_token(secret) {
@@ -426,7 +454,7 @@ pub async fn fetch_endpoint<T: Transport>(
             url: endpoint.url(),
             method: endpoint.method(),
             auth,
-            codex_account_id: Some(account_id),
+            provider_account_id: Some(account_id),
             body: endpoint.body(),
         };
         let reply = transport
@@ -435,14 +463,14 @@ pub async fn fetch_endpoint<T: Transport>(
             .map_err(NetError::from)?;
         return outcome_of(reply);
     }
-    if codex_account_id.is_some() {
+    if provider_account_id.is_some() {
         return Err(NetError::Protocol);
     }
     let request = EndpointRequest {
         url: endpoint.url(),
         method: endpoint.method(),
         auth,
-        codex_account_id: None,
+        provider_account_id: None,
         body: endpoint.body(),
     };
     let reply = transport
@@ -476,7 +504,7 @@ async fn fetch_through_workspace<T: Transport>(
         url: endpoint.url(),
         method: endpoint.method(),
         auth,
-        codex_account_id: None,
+        provider_account_id: None,
         body: None,
     };
     let found = transport
@@ -495,7 +523,7 @@ async fn fetch_through_workspace<T: Transport>(
         url: &url,
         method: endpoint.method(),
         auth,
-        codex_account_id: None,
+        provider_account_id: None,
         body: None,
     };
     let reply = transport
@@ -633,7 +661,9 @@ fn authenticated_builder(
         AuthApplication::BearerAuthorization
         | AuthApplication::ClaudeOauthBearer
         | AuthApplication::CodexSessionBearer
-        | AuthApplication::AntigravitySessionBearer => {
+        | AuthApplication::AntigravitySessionBearer
+        | AuthApplication::GrokSessionBearer
+        | AuthApplication::KimiSessionBearer => {
             credential.push_str("Bearer ");
             credential.push_str(secret);
         }
@@ -653,7 +683,9 @@ fn authenticated_builder(
             .header(reqwest::header::ACCEPT, "application/json")
             .header(CLAUDE_OAUTH_BETA_HEADER, CLAUDE_OAUTH_BETA_VALUE),
         AuthApplication::CodexSessionBearer => {
-            let account_id = request.codex_account_id.ok_or(TransportFailure::Protocol)?;
+            let account_id = request
+                .provider_account_id
+                .ok_or(TransportFailure::Protocol)?;
             let mut account_header = reqwest::header::HeaderValue::from_str(account_id)
                 .map_err(|_| TransportFailure::Protocol)?;
             account_header.set_sensitive(true);
@@ -663,6 +695,24 @@ fn authenticated_builder(
                 .header(reqwest::header::ACCEPT, "application/json")
                 .header(CODEX_ACCOUNT_HEADER, account_header)
         }
+        AuthApplication::GrokSessionBearer => {
+            let account_id = request
+                .provider_account_id
+                .ok_or(TransportFailure::Protocol)?;
+            let mut account_header = reqwest::header::HeaderValue::from_str(account_id)
+                .map_err(|_| TransportFailure::Protocol)?;
+            account_header.set_sensitive(true);
+            builder
+                .header(reqwest::header::AUTHORIZATION, header_value)
+                .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
+                .header(reqwest::header::ACCEPT, "application/json")
+                .header(GROK_ACCOUNT_HEADER, account_header)
+                .header(GROK_TOKEN_AUTH_HEADER, GROK_TOKEN_AUTH_VALUE)
+        }
+        AuthApplication::KimiSessionBearer => builder
+            .header(reqwest::header::AUTHORIZATION, header_value)
+            .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
+            .header(reqwest::header::ACCEPT, "application/json"),
         AuthApplication::AntigravitySessionBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
@@ -754,7 +804,11 @@ mod tests {
     }
 
     fn account_for(endpoint: ProviderEndpoint) -> Option<&'static str> {
-        (endpoint == ProviderEndpoint::CodexUsage).then_some("fake-account-id")
+        matches!(
+            endpoint,
+            ProviderEndpoint::CodexUsage | ProviderEndpoint::GrokUsage
+        )
+        .then_some("fake-account-id")
     }
 
     /* ------------------------------------------------------- the allowlist */
@@ -786,6 +840,8 @@ mod tests {
                 OPENCODE_AUTH_URL.to_string(),
                 "https://opencode.ai/workspace/wrk_testworkspace/go".to_string(),
                 CLAUDE_OAUTH_USAGE_URL.to_string(),
+                GROK_USAGE_URL.to_string(),
+                KIMI_USAGE_URL.to_string(),
             ]
         );
     }
@@ -904,7 +960,7 @@ mod tests {
             url: CODEX_USAGE_URL,
             method: HttpMethod::Get,
             auth: AuthApplication::CodexSessionBearer,
-            codex_account_id: Some("account-id-canary"),
+            provider_account_id: Some("account-id-canary"),
             body: None,
         };
         let built = authenticated_builder(&client, &request, "access-token-canary")
@@ -925,6 +981,28 @@ mod tests {
     }
 
     #[test]
+    fn the_grok_request_carries_only_the_fixed_contract_and_resolved_identity() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        let request = EndpointRequest {
+            url: GROK_USAGE_URL,
+            method: HttpMethod::Get,
+            auth: AuthApplication::GrokSessionBearer,
+            provider_account_id: Some("grok-user-canary"),
+            body: None,
+        };
+        let built = authenticated_builder(&client, &request, "grok-token-canary")
+            .expect("headers")
+            .build()
+            .expect("request");
+        let headers = built.headers();
+        assert_eq!(headers[GROK_ACCOUNT_HEADER], "grok-user-canary");
+        assert_eq!(headers[GROK_TOKEN_AUTH_HEADER], GROK_TOKEN_AUTH_VALUE);
+        assert_eq!(headers[reqwest::header::USER_AGENT], OPENLIMITER_USER_AGENT);
+        assert!(headers[GROK_ACCOUNT_HEADER].is_sensitive());
+    }
+
+    #[test]
     fn the_claude_request_identifies_itself_and_states_the_oauth_contract() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::new();
@@ -932,7 +1010,7 @@ mod tests {
             url: CLAUDE_OAUTH_USAGE_URL,
             method: HttpMethod::Get,
             auth: AuthApplication::ClaudeOauthBearer,
-            codex_account_id: None,
+            provider_account_id: None,
             body: None,
         };
         let built = authenticated_builder(&client, &request, "oauth-token-canary")
@@ -971,7 +1049,7 @@ mod tests {
                 url: OPENROUTER_KEY_URL,
                 method: HttpMethod::Get,
                 auth,
-                codex_account_id: account,
+                provider_account_id: account,
                 body: None,
             };
             let built = authenticated_builder(&client, &request, "credential-canary")
@@ -1180,7 +1258,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            8,
+            10,
             "an address appeared outside the constants"
         );
     }

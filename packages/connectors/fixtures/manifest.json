@@ -63,6 +63,32 @@
       "expect": [
         { "meter": "PRIMARY", "value": 92 }
       ]
+    },
+    {
+      "provider": "GROK",
+      "connector": "grok",
+      "file": "grok.billing.json",
+      "encoding": "json",
+      "parser": "parseGrokPayload",
+      "evidence": "official_source",
+      "expectedMeters": 2,
+      "expect": [
+        { "meter": "WEEKLY", "value": 42.5 },
+        { "meter": "ON_DEMAND_MONTHLY", "value": 6 }
+      ]
+    },
+    {
+      "provider": "KIMI",
+      "connector": "kimi",
+      "file": "kimi.usages.json",
+      "encoding": "json",
+      "parser": "parseKimiPayload",
+      "evidence": "official_source",
+      "expectedMeters": 2,
+      "expect": [
+        { "meter": "WEEKLY", "value": 10.44921875 },
+        { "meter": "FIVE_HOUR", "value": 69.5 }
+      ]
     }
   ]
 }

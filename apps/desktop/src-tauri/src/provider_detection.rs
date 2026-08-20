@@ -25,15 +25,19 @@ pub enum DetectedProviderId {
     Antigravity,
     Opencode,
     Openrouter,
+    Grok,
+    Kimi,
 }
 
 impl DetectedProviderId {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 7] = [
         Self::Claude,
         Self::Codex,
         Self::Antigravity,
         Self::Opencode,
         Self::Openrouter,
+        Self::Grok,
+        Self::Kimi,
     ];
 
     const fn slug(self) -> &'static str {
@@ -43,6 +47,8 @@ impl DetectedProviderId {
             Self::Antigravity => "antigravity",
             Self::Opencode => "opencode",
             Self::Openrouter => "openrouter",
+            Self::Grok => "grok",
+            Self::Kimi => "kimi",
         }
     }
 
@@ -53,11 +59,16 @@ impl DetectedProviderId {
             Self::Antigravity => "Antigravity",
             Self::Opencode => "OpenCode",
             Self::Openrouter => "OpenRouter",
+            Self::Grok => "Grok",
+            Self::Kimi => "Kimi",
         }
     }
 
     const fn supports_automatic_collection(self) -> bool {
-        matches!(self, Self::Claude | Self::Codex | Self::Antigravity)
+        matches!(
+            self,
+            Self::Claude | Self::Codex | Self::Antigravity | Self::Grok | Self::Kimi
+        )
     }
 }
 
@@ -166,6 +177,9 @@ struct DiscoveryContext {
     xdg_config: Option<PathBuf>,
     xdg_data: Option<PathBuf>,
     codex_home: Option<PathBuf>,
+    grok_home: Option<PathBuf>,
+    kimi_code_home: Option<PathBuf>,
+    kimi_share_dir: Option<PathBuf>,
     path_entries: Vec<PathBuf>,
 }
 
@@ -203,6 +217,9 @@ impl DiscoveryContext {
             xdg_config,
             xdg_data,
             codex_home: non_empty_path("CODEX_HOME"),
+            grok_home: non_empty_path("GROK_HOME"),
+            kimi_code_home: non_empty_path("KIMI_CODE_HOME"),
+            kimi_share_dir: non_empty_path("KIMI_SHARE_DIR"),
             path_entries,
         }
     }
@@ -337,6 +354,41 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 Credential,
             );
         }
+        DetectedProviderId::Grok => {
+            push_candidate(
+                &mut paths,
+                context.grok_home.as_deref(),
+                &["auth.json"],
+                Credential,
+            );
+            push_candidate(&mut paths, home, &[".grok", "auth.json"], Credential);
+        }
+        DetectedProviderId::Kimi => {
+            push_candidate(
+                &mut paths,
+                context.kimi_code_home.as_deref(),
+                &["credentials", "kimi-code.json"],
+                Credential,
+            );
+            push_candidate(
+                &mut paths,
+                home,
+                &[".kimi-code", "credentials", "kimi-code.json"],
+                Credential,
+            );
+            push_candidate(
+                &mut paths,
+                context.kimi_share_dir.as_deref(),
+                &["credentials", "kimi-code.json"],
+                Credential,
+            );
+            push_candidate(
+                &mut paths,
+                home,
+                &[".kimi", "credentials", "kimi-code.json"],
+                Credential,
+            );
+        }
     }
 
     match context.platform {
@@ -395,6 +447,7 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         );
                     }
                 }
+                DetectedProviderId::Grok | DetectedProviderId::Kimi => {}
             }
         }
         DiscoveryPlatform::Macos => {
@@ -406,19 +459,24 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                     &["Antigravity", "User", "globalStorage"],
                     Marker,
                 );
-            } else {
+            } else if !matches!(
+                provider,
+                DetectedProviderId::Grok | DetectedProviderId::Kimi
+            ) {
                 let directory = match provider {
                     DetectedProviderId::Claude => "Claude Code",
                     DetectedProviderId::Codex => "Codex",
                     DetectedProviderId::Antigravity => unreachable!(),
                     DetectedProviderId::Opencode => "opencode",
                     DetectedProviderId::Openrouter => "OpenRouter",
+                    DetectedProviderId::Grok | DetectedProviderId::Kimi => unreachable!(),
                 };
                 let file = match provider {
                     DetectedProviderId::Claude => ".credentials.json",
                     DetectedProviderId::Codex | DetectedProviderId::Opencode => "auth.json",
                     DetectedProviderId::Antigravity => unreachable!(),
                     DetectedProviderId::Openrouter => "config.json",
+                    DetectedProviderId::Grok | DetectedProviderId::Kimi => unreachable!(),
                 };
                 push_candidate(&mut paths, support, &[directory, file], Credential);
                 if provider == DetectedProviderId::Claude {
@@ -432,13 +490,19 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
             }
         }
         DiscoveryPlatform::Linux => {
-            if provider != DetectedProviderId::Antigravity {
+            if !matches!(
+                provider,
+                DetectedProviderId::Antigravity
+                    | DetectedProviderId::Grok
+                    | DetectedProviderId::Kimi
+            ) {
                 let directory = provider.slug();
                 let file = match provider {
                     DetectedProviderId::Claude => "credentials.json",
                     DetectedProviderId::Codex | DetectedProviderId::Opencode => "auth.json",
                     DetectedProviderId::Antigravity => unreachable!(),
                     DetectedProviderId::Openrouter => "config.json",
+                    DetectedProviderId::Grok | DetectedProviderId::Kimi => unreachable!(),
                 };
                 push_candidate(
                     &mut paths,
@@ -467,7 +531,9 @@ fn profile_prefix(provider: DetectedProviderId) -> Option<(&'static str, &'stati
         DetectedProviderId::Codex => Some((".codex", "auth.json")),
         DetectedProviderId::Antigravity
         | DetectedProviderId::Opencode
-        | DetectedProviderId::Openrouter => None,
+        | DetectedProviderId::Openrouter
+        | DetectedProviderId::Grok
+        | DetectedProviderId::Kimi => None,
     }
 }
 
@@ -522,6 +588,8 @@ fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -
         DetectedProviderId::Antigravity => "antigravity",
         DetectedProviderId::Opencode => "opencode",
         DetectedProviderId::Openrouter => "openrouter",
+        DetectedProviderId::Grok => "grok",
+        DetectedProviderId::Kimi => "kimi",
     };
     if platform == DiscoveryPlatform::Windows {
         [".exe", ".cmd", ".bat"]
@@ -574,7 +642,16 @@ fn epoch_milliseconds(value: &Value) -> Option<u64> {
     if let Some(text) = value.as_str() {
         return epoch_ms_from_rfc3339(text);
     }
-    let number = value.as_u64()?;
+    let number = match value.as_u64() {
+        Some(number) => number,
+        None => {
+            let number = value.as_f64()?;
+            if !number.is_finite() || number < 0.0 || number.fract() != 0.0 {
+                return None;
+            }
+            number as u64
+        }
+    };
     let milliseconds = if number < 10_000_000_000 {
         number.checked_mul(1_000)?
     } else {
@@ -675,8 +752,18 @@ struct ParsedCredential {
     identity_quality: IdentityQuality,
 }
 
-fn account_objects(root: &Map<String, Value>) -> Vec<&Map<String, Value>> {
+fn account_objects(
+    provider: DetectedProviderId,
+    root: &Map<String, Value>,
+) -> Vec<&Map<String, Value>> {
     let mut objects = Vec::new();
+    if provider == DetectedProviderId::Grok {
+        objects.extend(
+            root.values()
+                .take(MAX_ACCOUNTS_PER_FILE)
+                .filter_map(Value::as_object),
+        );
+    }
     if let Some(entries) = root.get("accounts").and_then(Value::as_array) {
         objects.extend(
             entries
@@ -709,6 +796,8 @@ fn token_object<'a>(
         DetectedProviderId::Antigravity => &["oauth", "token", "tokens", "credentials"],
         DetectedProviderId::Opencode => &["session", "auth", "credentials"],
         DetectedProviderId::Openrouter => &["openrouter", "credentials"],
+        DetectedProviderId::Grok => &["auth", "credentials"],
+        DetectedProviderId::Kimi => &["oauth", "credentials"],
     };
     nested_object(account, names).unwrap_or(account)
 }
@@ -723,6 +812,8 @@ fn access_token<'a>(
         DetectedProviderId::Antigravity => &["access_token", "accessToken", "token"],
         DetectedProviderId::Opencode => &["cookie", "session", "access_token", "accessToken"],
         DetectedProviderId::Openrouter => &["api_key", "apiKey", "key", "OPENROUTER_API_KEY"],
+        DetectedProviderId::Grok => &["key", "access_token", "accessToken"],
+        DetectedProviderId::Kimi => &["access_token", "accessToken"],
     };
     names
         .iter()
@@ -783,7 +874,7 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
         .then(|| claude_identity_hint(path))
         .flatten();
     let mut parsed = Vec::new();
-    for account in account_objects(root) {
+    for account in account_objects(provider, root) {
         let object = token_object(provider, account);
         let Some(token) = access_token(provider, object) else {
             continue;
@@ -833,13 +924,20 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
                 IdentityQuality::CredentialBound,
             )
         };
-        let provider_account_id = explicit_id
-            .or_else(|| {
+        let provider_account_id = match provider {
+            DetectedProviderId::Codex => explicit_id.or_else(|| {
                 claims
                     .as_ref()
                     .and_then(|value| string_field(value, &["chatgpt_account_id", "account_id"]))
-            })
-            .map(str::to_string);
+            }),
+            DetectedProviderId::Grok => explicit_id.or_else(|| {
+                claims
+                    .as_ref()
+                    .and_then(|value| string_field(value, &["user_id", "userId", "sub"]))
+            }),
+            _ => explicit_id,
+        }
+        .map(str::to_string);
         let email = string_field(object, &["email", "emailAddress"])
             .or_else(|| string_field(account, &["email", "emailAddress"]))
             .or_else(|| {
@@ -1237,6 +1335,9 @@ mod tests {
             xdg_config: Some(home.join("config")),
             xdg_data: Some(home.join("data")),
             codex_home: Some(home.join("codex-home")),
+            grok_home: Some(home.join("grok-home")),
+            kimi_code_home: Some(home.join("kimi-code-home")),
+            kimi_share_dir: Some(home.join("kimi-share")),
             path_entries: vec![home.join("bin")],
         }
     }
@@ -1315,6 +1416,8 @@ mod tests {
             DetectedProviderId::Claude,
             DetectedProviderId::Codex,
             DetectedProviderId::Antigravity,
+            DetectedProviderId::Grok,
+            DetectedProviderId::Kimi,
         ] {
             assert!(provider.supports_automatic_collection());
         }
@@ -1441,6 +1544,88 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn grok_scope_entries_resolve_and_dedupe_by_user_identity() {
+        let dir = TempDir::new();
+        let first = jwt(r#"{"sub":"grok-user-one","exp":1900000000}"#);
+        let second = jwt(r#"{"sub":"grok-user-one","exp":1900000000}"#);
+        write(
+            &dir.path().join(".grok").join("auth.json"),
+            &format!(
+                r#"{{"user:read":{{"key":"{first}","user_id":"grok-user-one","expires_at":1900000000}}}}"#
+            ),
+        );
+        write(
+            &dir.path().join("grok-home").join("auth.json"),
+            &format!(
+                r#"{{"user:read":{{"key":"{second}","user_id":"grok-user-one","expires_at":1900000000}}}}"#
+            ),
+        );
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Windows, dir.path()),
+            1_800_000_000_000,
+        );
+        let grok = provider(&inventory.report, DetectedProviderId::Grok);
+        assert_eq!(grok.state, ProviderPresence::Present);
+        assert_eq!(grok.accounts.len(), 1);
+        assert_eq!(
+            grok.accounts[0].identity_quality,
+            IdentityQuality::ProviderAccount
+        );
+        assert!(grok.accounts[0].automatic_collection);
+    }
+
+    #[test]
+    fn current_and_legacy_kimi_paths_dedupe_by_jwt_user_identity() {
+        let dir = TempDir::new();
+        let token = jwt(r#"{"user_id":"kimi-user-one","exp":1900000000}"#);
+        let body = format!(
+            r#"{{"access_token":"{token}","refresh_token":"stable-refresh","expires_at":1900000000.0}}"#
+        );
+        write(
+            &dir.path()
+                .join(".kimi-code")
+                .join("credentials")
+                .join("kimi-code.json"),
+            &body,
+        );
+        write(
+            &dir.path()
+                .join(".kimi")
+                .join("credentials")
+                .join("kimi-code.json"),
+            &body,
+        );
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+        let kimi = provider(&inventory.report, DetectedProviderId::Kimi);
+        assert_eq!(kimi.state, ProviderPresence::Present);
+        assert_eq!(kimi.accounts.len(), 1);
+        assert_eq!(
+            kimi.accounts[0].identity_quality,
+            IdentityQuality::JwtSubject
+        );
+        assert!(kimi.accounts[0].automatic_collection);
+    }
+
+    #[test]
+    fn new_provider_executables_without_credentials_are_logged_out() {
+        let dir = TempDir::new();
+        write(&dir.path().join("bin").join("grok"), "binary marker");
+        write(&dir.path().join("bin").join("kimi"), "binary marker");
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+        for id in [DetectedProviderId::Grok, DetectedProviderId::Kimi] {
+            let found = provider(&inventory.report, id);
+            assert_eq!(found.state, ProviderPresence::InstalledLoggedOut);
+            assert_eq!(found.recovery, Some(RecoveryAction::SignInToCli));
+        }
     }
 
     #[test]

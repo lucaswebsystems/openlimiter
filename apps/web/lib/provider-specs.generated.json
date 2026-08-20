@@ -437,6 +437,81 @@
       ]
     },
     {
+      "id": "moonshot/kimi-code",
+      "providerId": "moonshot",
+      "productId": "kimi-code",
+      "displayName": "Kimi",
+      "docsUrl": "https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts",
+      "reviewedAt": "2026-08-19",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "kimi_usage",
+            "endpointId": "kimi_usage",
+            "credentialKind": "kimi_session",
+            "evidenceFixture": "kimi.official_source.usages",
+            "evidenceStatus": "documented",
+            "lastVerifiedAt": "2026-08-19"
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "kimi",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "weekly",
+          "label": "Weekly usage",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 604800
+          },
+          "optional": false,
+          "meterCode": "WEEKLY"
+        },
+        {
+          "id": "provider_window",
+          "label": "Provider window",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "provider_defined"
+          },
+          "optional": true,
+          "meterCode": "FIVE_HOUR"
+        }
+      ]
+    },
+    {
       "id": "ollama/local",
       "providerId": "ollama",
       "productId": "local",
@@ -894,6 +969,80 @@
           },
           "optional": false,
           "meterCode": "PREPAID_BALANCE"
+        }
+      ]
+    },
+    {
+      "id": "xai/grok-cli",
+      "providerId": "xai",
+      "productId": "grok-cli",
+      "displayName": "Grok",
+      "docsUrl": "https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs",
+      "reviewedAt": "2026-08-19",
+      "sourceStatus": "provisional",
+      "support": {
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "unverified"
+      },
+      "collection": {
+        "readers": [
+          {
+            "readerId": "grok_usage",
+            "endpointId": "grok_usage",
+            "credentialKind": "grok_session",
+            "evidenceFixture": "grok.official_source.billing",
+            "evidenceStatus": "documented",
+            "lastVerifiedAt": "2026-08-19"
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "grok",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
+      "lastVerifiedAt": null,
+      "readers": [
+        "experimental"
+      ],
+      "authModes": [
+        "existing_local_cli"
+      ],
+      "platforms": [
+        "linux",
+        "macos",
+        "windows"
+      ],
+      "meters": [
+        {
+          "id": "current_period",
+          "label": "Current billing period",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "provider_defined"
+          },
+          "optional": false,
+          "meterCode": "WEEKLY"
+        },
+        {
+          "id": "on_demand_monthly",
+          "label": "On demand monthly cap",
+          "kind": "api_budget",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "calendar_month"
+          },
+          "optional": true,
+          "meterCode": "ON_DEMAND_MONTHLY"
         }
       ]
     }

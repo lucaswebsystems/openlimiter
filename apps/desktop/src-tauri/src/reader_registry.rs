@@ -39,6 +39,8 @@ pub enum ProviderId {
     Codex,
     Antigravity,
     Opencode,
+    Grok,
+    Kimi,
 }
 
 impl ProviderId {
@@ -48,11 +50,13 @@ impl ProviderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderId; 4] = [
+    pub const ALL: [ProviderId; 6] = [
         ProviderId::Openrouter,
         ProviderId::Codex,
         ProviderId::Antigravity,
         ProviderId::Opencode,
+        ProviderId::Grok,
+        ProviderId::Kimi,
     ];
 
     /// The uppercase provider code the TypeScript engine speaks, so a record
@@ -64,6 +68,8 @@ impl ProviderId {
             ProviderId::Codex => "CODEX",
             ProviderId::Antigravity => "ANTIGRAVITY",
             ProviderId::Opencode => "OPENCODE",
+            ProviderId::Grok => "GROK",
+            ProviderId::Kimi => "KIMI",
         }
     }
 }
@@ -79,6 +85,8 @@ pub enum ReaderId {
     CodexUsage,
     AntigravityQuota,
     OpencodeUsage,
+    GrokUsage,
+    KimiUsage,
 }
 
 /// A source's scheduling shape, without pretending every source has a timer.
@@ -128,12 +136,14 @@ impl ReaderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ReaderId; 5] = [
+    pub const ALL: [ReaderId; 7] = [
         ReaderId::OpenrouterKey,
         ReaderId::OpenrouterCredits,
         ReaderId::CodexUsage,
         ReaderId::AntigravityQuota,
         ReaderId::OpencodeUsage,
+        ReaderId::GrokUsage,
+        ReaderId::KimiUsage,
     ];
 
     /// Which provider this reader belongs to, so a record's reader and its
@@ -145,6 +155,8 @@ impl ReaderId {
             ReaderId::CodexUsage => ProviderId::Codex,
             ReaderId::AntigravityQuota => ProviderId::Antigravity,
             ReaderId::OpencodeUsage => ProviderId::Opencode,
+            ReaderId::GrokUsage => ProviderId::Grok,
+            ReaderId::KimiUsage => ProviderId::Kimi,
         }
     }
 
@@ -156,7 +168,11 @@ impl ReaderId {
     /// connection record at all: they arrive through the statusline event.
     pub const fn base_seconds(self) -> u64 {
         match self {
-            ReaderId::OpenrouterKey | ReaderId::OpenrouterCredits | ReaderId::CodexUsage => 300,
+            ReaderId::OpenrouterKey
+            | ReaderId::OpenrouterCredits
+            | ReaderId::CodexUsage
+            | ReaderId::GrokUsage
+            | ReaderId::KimiUsage => 300,
             ReaderId::AntigravityQuota => 600,
             ReaderId::OpencodeUsage => 0,
         }
@@ -189,6 +205,8 @@ pub enum CredentialKind {
     CodexSession,
     AntigravitySession,
     OpencodeBrowserSession,
+    GrokSession,
+    KimiSession,
 }
 
 impl CredentialKind {
@@ -197,12 +215,14 @@ impl CredentialKind {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [CredentialKind; 5] = [
+    pub const ALL: [CredentialKind; 7] = [
         CredentialKind::OpenrouterInferenceKey,
         CredentialKind::OpenrouterManagementKey,
         CredentialKind::CodexSession,
         CredentialKind::AntigravitySession,
         CredentialKind::OpencodeBrowserSession,
+        CredentialKind::GrokSession,
+        CredentialKind::KimiSession,
     ];
 
     /// The largest secret of this kind that will be accepted, in bytes.
@@ -225,7 +245,9 @@ impl CredentialKind {
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
             | CredentialKind::CodexSession
-            | CredentialKind::AntigravitySession => MAX_KEY_SECRET_BYTES,
+            | CredentialKind::AntigravitySession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession => MAX_KEY_SECRET_BYTES,
         }
     }
 
@@ -239,6 +261,8 @@ impl CredentialKind {
             CredentialKind::CodexSession => ProviderId::Codex,
             CredentialKind::AntigravitySession => ProviderId::Antigravity,
             CredentialKind::OpencodeBrowserSession => ProviderId::Opencode,
+            CredentialKind::GrokSession => ProviderId::Grok,
+            CredentialKind::KimiSession => ProviderId::Kimi,
         }
     }
 }
@@ -264,6 +288,10 @@ pub enum AuthApplication {
     /// metadata plane answers 403 to a valid token when the header is absent,
     /// which was measured on 2026-08-07 and cost an hour of blaming the login.
     AntigravitySessionBearer,
+    /// A bearer token plus the Grok user identity and fixed client marker.
+    GrokSessionBearer,
+    /// A bearer token read from the official Kimi CLI credential file.
+    KimiSessionBearer,
     /// `Cookie: <secret>` with the OpenLimiter identity. The authenticated page
     /// path, and the reason OpenCode is permanently labelled an authenticated
     /// scrape.
@@ -323,7 +351,9 @@ pub const fn reader_route(
             }),
             CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
-            | CredentialKind::OpencodeBrowserSession => mismatch,
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession => mismatch,
         },
         ProviderId::Codex => match credential {
             CredentialKind::CodexSession => Ok(ReaderRoute {
@@ -334,7 +364,9 @@ pub const fn reader_route(
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
             | CredentialKind::AntigravitySession
-            | CredentialKind::OpencodeBrowserSession => mismatch,
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession => mismatch,
         },
         ProviderId::Antigravity => match credential {
             CredentialKind::AntigravitySession => Ok(ReaderRoute {
@@ -345,7 +377,9 @@ pub const fn reader_route(
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
             | CredentialKind::CodexSession
-            | CredentialKind::OpencodeBrowserSession => mismatch,
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession => mismatch,
         },
         ProviderId::Opencode => match credential {
             CredentialKind::OpencodeBrowserSession => Ok(ReaderRoute {
@@ -356,7 +390,35 @@ pub const fn reader_route(
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
             | CredentialKind::CodexSession
-            | CredentialKind::AntigravitySession => mismatch,
+            | CredentialKind::AntigravitySession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession => mismatch,
+        },
+        ProviderId::Grok => match credential {
+            CredentialKind::GrokSession => Ok(ReaderRoute {
+                reader_id: ReaderId::GrokUsage,
+                endpoint: ProviderEndpoint::GrokUsage,
+                auth: AuthApplication::GrokSessionBearer,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::KimiSession => mismatch,
+        },
+        ProviderId::Kimi => match credential {
+            CredentialKind::KimiSession => Ok(ReaderRoute {
+                reader_id: ReaderId::KimiUsage,
+                endpoint: ProviderEndpoint::KimiUsage,
+                auth: AuthApplication::KimiSessionBearer,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::GrokSession => mismatch,
         },
     }
 }
@@ -396,8 +458,8 @@ mod tests {
                 }
             }
         }
-        assert_eq!(routed, 5);
-        assert_eq!(refused, 15);
+        assert_eq!(routed, 7);
+        assert_eq!(refused, 35);
         assert_eq!(
             routed + refused,
             ProviderId::ALL.len() * CredentialKind::ALL.len()
