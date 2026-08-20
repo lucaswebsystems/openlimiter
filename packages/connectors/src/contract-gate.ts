@@ -55,11 +55,13 @@ type Parser = (payload: unknown, now: string) => RawMeter[] | null;
 /**
  * The one parser each provider's response is allowed to reach.
  *
- * Closed and exhaustive over the provider codes. A provider with no parser here
- * is not defaulted to a neighbour's; it is unknown, for the same reason the
- * parsers themselves carry no fallback.
+ * Closed to known provider codes. A provider with no generic payload parser
+ * here is not defaulted to a neighbour's; it is unknown, for the same reason
+ * the parsers themselves carry no fallback. Native collectors may write
+ * already normalized snapshots without exposing their private payload to this
+ * generic boundary.
  */
-const PARSER_BY_PROVIDER: Readonly<Record<ProviderCode, Parser>> = {
+const PARSER_BY_PROVIDER: Readonly<Partial<Record<ProviderCode, Parser>>> = {
   CLAUDE: parseClaudePayload,
   OPENROUTER: parseOpenrouterPayload,
   CODEX: parseCodexPayload,

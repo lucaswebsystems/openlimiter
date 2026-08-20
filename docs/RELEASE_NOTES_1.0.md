@@ -4,7 +4,7 @@ OpenLimiter 1.0 turns the quota from several AI subscriptions into one live mete
 
 ## What you get
 
-1. Automatic discovery for Claude Code, Codex, Antigravity, Grok, and Kimi.
+1. Automatic discovery for Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi.
 
 2. A separate row for every detected account.
 

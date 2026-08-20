@@ -22,7 +22,7 @@ OpenLimiter puts those limits in one live local meter. Install it on Windows or 
 
 ### Automatic
 
-Claude Code, Codex, Antigravity, Grok, and Kimi. OpenLimiter reads the OAuth credentials their own command line tools already stored. It does not create or refresh those credentials.
+Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi. OpenLimiter reads the OAuth credentials their own command line tools already stored. It does not create or refresh those credentials.
 
 ### Key based
 

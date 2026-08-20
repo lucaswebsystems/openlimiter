@@ -33,6 +33,8 @@ const MARKS: Record<string, (props: { className?: string }) => React.ReactNode> 
   CODEX: CodexMark,
   /* Antigravity is Google's, and takes the Google mark the catalogue gives it. */
   ANTIGRAVITY: GoogleMark,
+  /* Gemini CLI is Google's local client and uses the same product family mark. */
+  GEMINI_CLI: GoogleMark,
   OPENCODE: OpenCodeMark,
   /* Not a company at all: manual entry is a person writing a number down. */
   MANUAL: ManualMark,

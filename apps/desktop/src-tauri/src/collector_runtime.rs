@@ -286,6 +286,7 @@ async fn run_pass(app: &AppHandle, explicit: bool) {
         Err(_) => last_failure = Some(CollectorFailure::Internal),
     }
     crate::claude_oauth::run_pass(app).await;
+    crate::gemini_cli_oauth::run_pass(app).await;
     let runtime = app.state::<CollectorRuntime>();
     runtime.record_pass(last_failure, attempted);
     let _ = app.emit(COLLECTOR_UPDATED_EVENT, runtime.status());

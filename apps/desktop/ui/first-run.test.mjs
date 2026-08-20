@@ -97,15 +97,34 @@ test("stale detected accounts name the CLI recovery without exposing identity", 
 test("an unavailable backend never becomes a false absent claim", () => {
   const result = normalizeDetections(null);
   assert.equal(result.available, false);
-  assert.equal(result.providers.length, 8);
+  assert.equal(result.providers.length, 9);
   assert.equal(result.providers.every((entry) => entry.state === "unavailable"), true);
+});
+
+test("normalizes the detected Gemini CLI provider without losing its separator", () => {
+  const result = normalizeDetections({
+    providers: [
+      {
+        provider_id: "gemini_cli",
+        state: "present",
+        accounts: [{ account_id: "private account", auth_state: "ready" }],
+      },
+    ],
+  });
+  assert.deepEqual(result.providers.find((entry) => entry.code === "GEMINI_CLI"), {
+    code: "GEMINI_CLI",
+    state: "present",
+    accountCount: 1,
+    recovery: null,
+  });
+  assert.equal(JSON.stringify(result).includes("private account"), false);
 });
 
 test("unknown providers never enter the first run rows", () => {
   const result = normalizeDetections({
     providers: [{ provider_id: "other", state: "present", accounts: [] }],
   });
-  assert.equal(result.providers.length, 8);
+  assert.equal(result.providers.length, 9);
   assert.equal(result.providers.some((entry) => entry.code === "OTHER"), false);
 });
 

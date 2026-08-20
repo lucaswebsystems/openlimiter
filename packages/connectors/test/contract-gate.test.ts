@@ -145,6 +145,16 @@ describe("contract gate: absence is unknown, never a silent drop", () => {
     }
   });
 
+  it("keeps a native only provider out of the generic payload boundary", () => {
+    expect(
+      checkProviderContract("GEMINI_CLI", { buckets: [] }, NOW)
+    ).toEqual({
+      status: "unknown",
+      provider: "GEMINI_CLI",
+      reason: "unknown_provider"
+    });
+  });
+
   it("names the hostile and injection shapes unknown, carrying no injected text", () => {
     const outcome = checkProviderContract(
       "CODEX",

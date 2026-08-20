@@ -12,6 +12,7 @@ mod commands;
 mod connections;
 mod credentials;
 mod fsx;
+mod gemini_cli_oauth;
 mod grok_oauth;
 mod kimi_oauth;
 mod native_opencode;
@@ -97,6 +98,7 @@ pub fn run() {
         .manage(antigravity_oauth::AntigravityOauthRuntime::default())
         .manage(grok_oauth::GrokOauthRuntime::default())
         .manage(kimi_oauth::KimiOauthRuntime::default())
+        .manage(gemini_cli_oauth::GeminiCliOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
         .manage(updates::PendingUpdate::default())
         .plugin(tauri_plugin_updater::Builder::new().build())

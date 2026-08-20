@@ -84,12 +84,14 @@ describe("provider account rows", () => {
   it("uses explicit fallback states when no reading exists", () => {
     const rows = buildProviderAccountRows([], NOW);
     const codex = rows.find((row) => row.provider === "CODEX");
+    const gemini = rows.find((row) => row.provider === "GEMINI_CLI");
     const grok = rows.find((row) => row.provider === "GROK");
     const kimi = rows.find((row) => row.provider === "KIMI");
     const manual = rows.find((row) => row.provider === "MANUAL");
 
-    expect(rows).toHaveLength(8);
+    expect(rows).toHaveLength(9);
     expect(codex?.fallback).toMatchObject({ kind: "not_found", title: "Not found" });
+    expect(gemini?.fallback).toMatchObject({ kind: "not_found", title: "Not found" });
     expect(grok?.fallback).toMatchObject({ kind: "not_found", title: "Not found" });
     expect(kimi?.fallback).toMatchObject({ kind: "not_found", title: "Not found" });
     expect(manual?.fallback).toMatchObject({

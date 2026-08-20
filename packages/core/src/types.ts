@@ -3,6 +3,7 @@ export const PROVIDER_CODES = [
   "OPENROUTER",
   "CODEX",
   "ANTIGRAVITY",
+  "GEMINI_CLI",
   "OPENCODE",
   "GROK",
   "KIMI",

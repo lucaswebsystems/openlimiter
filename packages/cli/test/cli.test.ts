@@ -202,7 +202,7 @@ describe("CLI", () => {
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=MANUAL state=fresh usage_percent=35.00 " +
           "reset_at=2026-02-01T00:00:00.000Z",
-        "unknown=NONE",
+        "unknown=GEMINI_CLI",
         "</openlimiter_untrusted_data>"
       ].join("\n");
       const hook = await runCli(["hook"], {
@@ -273,10 +273,10 @@ describe("CLI", () => {
         now: () => FIXTURE_NOW
       });
       expect(statusline.stdout).toBe([
-        "OpenLimiter NEAR_CAP PREFER ANTIGRAVITY  CLAUDE ###.. 64.0%  " +
-          "CODEX ####. 84.0%  ANTIGRAVITY #.... 28.0%  OPENCODE ####. 92.0%",
-        "GROK ##... 42.5%  KIMI ###.. 69.5%  MANUAL #.... 35.0%  " +
-          "OPENROUTER ###.. 62.3%"
+        "OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN GEMINI_CLI  " +
+          "CLAUDE ###.. 64.0%  CODEX ####. 84.0%  ANTIGRAVITY #.... 28.0%",
+        "OPENCODE ####. 92.0%  GROK ##... 42.5%  KIMI ###.. 69.5%  " +
+          "MANUAL #.... 35.0%  OPENROUTER ###.. 62.3%"
       ].join("\n"));
     });
   });
@@ -907,8 +907,9 @@ describe("CLI", () => {
    * 84.0 here because packages/connectors fixtures put one meter in the orange
    * band so the four band colour scale has something to draw. The order of the
    * fields, the spacing, the one decimal place, the percent sign and the
-   * trailing recommendation are the promise, and a diff that touches any of
-   * those is the failure this test exists to catch.
+   * recommendation are the promise. A newly recognized provider may append an
+   * explicit unknown suffix until it has a reading, which is part of the same
+   * honest format rather than a fabricated value.
    */
   it("returns the 0.1.0 line byte for byte when bars are turned off", async () => {
     const directory = await temporaryDirectory();
@@ -929,7 +930,7 @@ describe("CLI", () => {
     expect(statusline.stdout).toBe(
       "OpenLimiter NEAR_CAP CLAUDE 64.0% OPENROUTER 62.3% CODEX 84.0% " +
       "ANTIGRAVITY 28.0% OPENCODE 92.0% GROK 42.5% KIMI 69.5% MANUAL 35.0% " +
-      "PREFER ANTIGRAVITY"
+      "PREFER ANTIGRAVITY UNKNOWN GEMINI_CLI"
     );
     /* One line, no bar, no dollar figure, no escape code, no failure line. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);

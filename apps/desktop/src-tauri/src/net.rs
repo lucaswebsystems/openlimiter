@@ -64,6 +64,23 @@ pub const ANTIGRAVITY_BOOTSTRAP_URL: &str =
 pub const ANTIGRAVITY_QUOTA_URL: &str =
     "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
 
+/// Gemini CLI's Code Assist account bootstrap.
+///
+/// Google maintains this constant and request contract in
+/// `packages/core/src/code_assist/server.ts` and `setup.ts` in Gemini CLI.
+/// The response supplies the companion project that scopes quota reads.
+pub const GEMINI_CLI_LOAD_URL: &str =
+    "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+
+/// Gemini CLI's model quota report.
+///
+/// The request and response types are maintained in Gemini CLI's
+/// `packages/core/src/code_assist/types.ts`. This is still a private endpoint,
+/// so the reader carries the same high risk and row local failure policy as
+/// the other consumer subscription readers.
+pub const GEMINI_CLI_QUOTA_URL: &str =
+    "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota";
+
 /// The first of the two constant addresses the OpenCode reader uses: the
 /// authenticated entry point, whose redirect names the workspace.
 ///
@@ -110,6 +127,8 @@ pub enum ProviderEndpoint {
     OpenrouterCredits,
     CodexUsage,
     AntigravityQuota,
+    GeminiCliLoad,
+    GeminiCliQuota,
     OpencodeUsage,
     ClaudeOauthUsage,
     GrokUsage,
@@ -120,11 +139,13 @@ impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 8] = [
+    pub const ALL: [ProviderEndpoint; 10] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::CodexUsage,
         ProviderEndpoint::AntigravityQuota,
+        ProviderEndpoint::GeminiCliLoad,
+        ProviderEndpoint::GeminiCliQuota,
         ProviderEndpoint::OpencodeUsage,
         ProviderEndpoint::ClaudeOauthUsage,
         ProviderEndpoint::GrokUsage,
@@ -138,6 +159,8 @@ impl ProviderEndpoint {
             ProviderEndpoint::OpenrouterCredits => OPENROUTER_CREDITS_URL,
             ProviderEndpoint::CodexUsage => CODEX_USAGE_URL,
             ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_BOOTSTRAP_URL,
+            ProviderEndpoint::GeminiCliLoad => GEMINI_CLI_LOAD_URL,
+            ProviderEndpoint::GeminiCliQuota => GEMINI_CLI_QUOTA_URL,
             ProviderEndpoint::OpencodeUsage => OPENCODE_AUTH_URL,
             ProviderEndpoint::ClaudeOauthUsage => CLAUDE_OAUTH_USAGE_URL,
             ProviderEndpoint::GrokUsage => GROK_USAGE_URL,
@@ -162,7 +185,9 @@ impl ProviderEndpoint {
             | ProviderEndpoint::ClaudeOauthUsage
             | ProviderEndpoint::GrokUsage
             | ProviderEndpoint::KimiUsage => HttpMethod::Get,
-            ProviderEndpoint::AntigravityQuota => HttpMethod::Post,
+            ProviderEndpoint::AntigravityQuota
+            | ProviderEndpoint::GeminiCliLoad
+            | ProviderEndpoint::GeminiCliQuota => HttpMethod::Post,
         }
     }
 
@@ -172,6 +197,10 @@ impl ProviderEndpoint {
     pub const fn body(self) -> Option<&'static str> {
         match self {
             ProviderEndpoint::AntigravityQuota => Some(ANTIGRAVITY_BOOTSTRAP_BODY),
+            ProviderEndpoint::GeminiCliLoad => Some(GEMINI_CLI_LOAD_BODY),
+            /* The quota body contains one validated server supplied project
+            identifier and is constructed only by `fetch_gemini_cli_quota`. */
+            ProviderEndpoint::GeminiCliQuota => None,
             ProviderEndpoint::OpenrouterKey
             | ProviderEndpoint::OpenrouterCredits
             | ProviderEndpoint::CodexUsage
@@ -185,6 +214,11 @@ impl ProviderEndpoint {
 
 /// The exact bootstrap metadata emitted by the current agy client.
 pub const ANTIGRAVITY_BOOTSTRAP_BODY: &str = r#"{"metadata":{"ideType":"ANTIGRAVITY","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}}"#;
+
+/// The same metadata Gemini CLI sends when it resolves an already onboarded
+/// Google account. Undefined project fields are omitted, exactly as JSON
+/// serialization in the maintained client omits them.
+pub const GEMINI_CLI_LOAD_BODY: &str = r#"{"metadata":{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}}"#;
 
 /// The default identity carried by provider requests that accept third party
 /// clients. Antigravity is the exception documented below.
@@ -277,6 +311,37 @@ pub const OPENCODE_SESSION_DEAD_STATUS: u16 = 401;
 pub enum HttpMethod {
     Get,
     Post,
+}
+
+const MAX_GEMINI_PROJECT_ID_CHARS: usize = 63;
+
+/// A Google companion project returned by `loadCodeAssist` and accepted only
+/// as one JSON value in the second constant request.
+///
+/// Project identifiers cannot carry a host, path, query, header delimiter, or
+/// JSON syntax. Keeping the validation here preserves the network layer's
+/// closure even though the quota body contains a provider supplied value.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GeminiProjectId(String);
+
+impl GeminiProjectId {
+    pub fn parse(value: &str) -> Option<Self> {
+        let bytes = value.as_bytes();
+        let first = *bytes.first()?;
+        let last = *bytes.last()?;
+        let valid = value.len() >= 6
+            && value.len() <= MAX_GEMINI_PROJECT_ID_CHARS
+            && first.is_ascii_lowercase()
+            && (last.is_ascii_lowercase() || last.is_ascii_digit())
+            && bytes
+                .iter()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-');
+        valid.then(|| Self(value.to_string()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 /// Longest a workspace handle may be, in characters.
@@ -500,6 +565,15 @@ pub async fn fetch_endpoint<T: Transport>(
     secret: &str,
     provider_account_id: Option<&str>,
 ) -> Result<EndpointOutcome, NetError> {
+    if matches!(
+        endpoint,
+        ProviderEndpoint::GeminiCliLoad | ProviderEndpoint::GeminiCliQuota
+    ) {
+        /* These two requests are available only through the dedicated
+        constructors below. In particular, the quota route must never be sent
+        without one validated project body. */
+        return Err(NetError::Protocol);
+    }
     if endpoint.needs_workspace() {
         return fetch_through_workspace(transport, endpoint, auth, secret).await;
     }
@@ -593,6 +667,62 @@ async fn fetch_antigravity_quota<T: Transport>(
         .await
         .map_err(NetError::from)?;
     outcome_of(reply)
+}
+
+async fn fetch_gemini_cli<T: Transport>(
+    transport: &T,
+    endpoint: ProviderEndpoint,
+    secret: &str,
+    body: &str,
+) -> Result<EndpointOutcome, NetError> {
+    if !matches!(
+        endpoint,
+        ProviderEndpoint::GeminiCliLoad | ProviderEndpoint::GeminiCliQuota
+    ) {
+        return Err(NetError::Protocol);
+    }
+    let request = EndpointRequest {
+        url: endpoint.url(),
+        method: endpoint.method(),
+        auth: AuthApplication::GeminiCliBearer,
+        provider_account_id: None,
+        body: Some(body),
+    };
+    let reply = transport
+        .send(&request, secret)
+        .await
+        .map_err(NetError::from)?;
+    outcome_of(reply)
+}
+
+/// Resolve the companion project for an already authenticated Gemini CLI
+/// account. This sends the one constant bootstrap body and performs no retry.
+pub async fn fetch_gemini_cli_load<T: Transport>(
+    transport: &T,
+    secret: &str,
+) -> Result<EndpointOutcome, NetError> {
+    fetch_gemini_cli(
+        transport,
+        ProviderEndpoint::GeminiCliLoad,
+        secret,
+        GEMINI_CLI_LOAD_BODY,
+    )
+    .await
+}
+
+/// Read all Gemini CLI quota buckets for one validated companion project.
+/// The caller cannot choose a URL, method, header, or arbitrary request field.
+pub async fn fetch_gemini_cli_quota<T: Transport>(
+    transport: &T,
+    secret: &str,
+    project: &GeminiProjectId,
+) -> Result<EndpointOutcome, NetError> {
+    let body = serde_json::to_string(&serde_json::json!({
+        "project": project.as_str(),
+        "userAgent": OPENLIMITER_USER_AGENT,
+    }))
+    .map_err(|_| NetError::Protocol)?;
+    fetch_gemini_cli(transport, ProviderEndpoint::GeminiCliQuota, secret, &body).await
 }
 
 /// The two hop read, for the one provider that publishes no interface at all.
@@ -778,7 +908,8 @@ fn authenticated_builder(
         | AuthApplication::CodexSessionBearer
         | AuthApplication::AntigravitySessionBearer
         | AuthApplication::GrokSessionBearer
-        | AuthApplication::KimiSessionBearer => {
+        | AuthApplication::KimiSessionBearer
+        | AuthApplication::GeminiCliBearer => {
             credential.push_str("Bearer ");
             credential.push_str(secret);
         }
@@ -832,6 +963,11 @@ fn authenticated_builder(
             .header(reqwest::header::AUTHORIZATION, header_value)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .header(reqwest::header::USER_AGENT, ANTIGRAVITY_USER_AGENT)
+            .header(reqwest::header::ACCEPT, "application/json"),
+        AuthApplication::GeminiCliBearer => builder
+            .header(reqwest::header::AUTHORIZATION, header_value)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
             .header(reqwest::header::ACCEPT, "application/json"),
         AuthApplication::BrowserSessionCookie => builder
             .header(reqwest::header::COOKIE, header_value)
@@ -892,12 +1028,29 @@ mod tests {
     use crate::reader_registry::{reader_route, CredentialKind, ProviderId};
     use crate::test_support::RecordingTransport;
 
+    const ROUTED_ENDPOINTS: [ProviderEndpoint; 8] = [
+        ProviderEndpoint::OpenrouterKey,
+        ProviderEndpoint::OpenrouterCredits,
+        ProviderEndpoint::CodexUsage,
+        ProviderEndpoint::AntigravityQuota,
+        ProviderEndpoint::OpencodeUsage,
+        ProviderEndpoint::ClaudeOauthUsage,
+        ProviderEndpoint::GrokUsage,
+        ProviderEndpoint::KimiUsage,
+    ];
+
     /// The authentication scheme each endpoint is really reached with, taken
     /// from the routing function rather than restated, so a test can never
     /// disagree with the product about which scheme an endpoint uses.
     fn auth_for(endpoint: ProviderEndpoint) -> AuthApplication {
         if endpoint == ProviderEndpoint::ClaudeOauthUsage {
             return AuthApplication::ClaudeOauthBearer;
+        }
+        if matches!(
+            endpoint,
+            ProviderEndpoint::GeminiCliLoad | ProviderEndpoint::GeminiCliQuota
+        ) {
+            return AuthApplication::GeminiCliBearer;
         }
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
@@ -951,7 +1104,7 @@ mod tests {
     #[tokio::test]
     async fn the_transport_double_sees_only_addresses_this_file_built() {
         let mut recorded_urls = Vec::new();
-        for endpoint in ProviderEndpoint::ALL {
+        for endpoint in ROUTED_ENDPOINTS {
             let transport = transport_for(endpoint, 200, b"{}".to_vec(), None);
             let secret = secret_for(endpoint);
             fetch_endpoint(
@@ -965,6 +1118,18 @@ mod tests {
             .expect("fetch");
             recorded_urls.extend(transport.recorded_urls());
         }
+        let gemini_transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        fetch_gemini_cli_load(&gemini_transport, "gemini-secret")
+            .await
+            .expect("Gemini bootstrap");
+        fetch_gemini_cli_quota(
+            &gemini_transport,
+            "gemini-secret",
+            &GeminiProjectId::parse("openlimiter-test-project").expect("project"),
+        )
+        .await
+        .expect("Gemini quota");
+        recorded_urls.extend(gemini_transport.recorded_urls());
         assert_eq!(
             recorded_urls,
             vec![
@@ -980,6 +1145,8 @@ mod tests {
                 CLAUDE_OAUTH_USAGE_URL.to_string(),
                 GROK_USAGE_URL.to_string(),
                 KIMI_USAGE_URL.to_string(),
+                GEMINI_CLI_LOAD_URL.to_string(),
+                GEMINI_CLI_QUOTA_URL.to_string(),
             ]
         );
     }
@@ -999,16 +1166,25 @@ mod tests {
     }
 
     #[test]
-    fn only_the_antigravity_reader_posts_and_its_first_body_is_fixed() {
+    fn only_read_endpoints_post_and_only_constant_bodies_are_exposed() {
         for endpoint in ProviderEndpoint::ALL {
-            let expected_post = endpoint == ProviderEndpoint::AntigravityQuota;
+            let expected_post = matches!(
+                endpoint,
+                ProviderEndpoint::AntigravityQuota
+                    | ProviderEndpoint::GeminiCliLoad
+                    | ProviderEndpoint::GeminiCliQuota
+            );
             assert_eq!(endpoint.method() == HttpMethod::Post, expected_post);
-            assert_eq!(endpoint.body().is_some(), expected_post);
         }
         assert_eq!(
             ProviderEndpoint::AntigravityQuota.body(),
             Some(ANTIGRAVITY_BOOTSTRAP_BODY)
         );
+        assert_eq!(
+            ProviderEndpoint::GeminiCliLoad.body(),
+            Some(GEMINI_CLI_LOAD_BODY)
+        );
+        assert_eq!(ProviderEndpoint::GeminiCliQuota.body(), None);
     }
 
     #[test]
@@ -1023,7 +1199,7 @@ mod tests {
 
     #[tokio::test]
     async fn every_endpoint_is_reached_with_its_own_scheme_method_and_body() {
-        for endpoint in ProviderEndpoint::ALL {
+        for endpoint in ROUTED_ENDPOINTS {
             let transport = transport_for(endpoint, 200, b"{}".to_vec(), None);
             let auth = auth_for(endpoint);
             let secret = secret_for(endpoint);
@@ -1054,8 +1230,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn every_endpoint_is_handed_only_its_outbound_credential() {
-        for endpoint in ProviderEndpoint::ALL {
+    async fn every_routed_endpoint_is_handed_only_its_outbound_credential() {
+        for endpoint in ROUTED_ENDPOINTS {
             let transport = transport_for(endpoint, 200, b"{}".to_vec(), None);
             let stored = "the-stored-secret";
             fetch_endpoint(
@@ -1071,6 +1247,87 @@ mod tests {
                 assert_eq!(observed, "the-stored-secret");
             }
         }
+    }
+
+    #[tokio::test]
+    async fn gemini_requests_are_closed_labeled_and_project_scoped() {
+        let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        let project = GeminiProjectId::parse("openlimiter-test-project").expect("project");
+        fetch_gemini_cli_load(&transport, "gemini-token-canary")
+            .await
+            .expect("load");
+        fetch_gemini_cli_quota(&transport, "gemini-token-canary", &project)
+            .await
+            .expect("quota");
+        assert_eq!(
+            transport.recorded_urls(),
+            vec![
+                GEMINI_CLI_LOAD_URL.to_string(),
+                GEMINI_CLI_QUOTA_URL.to_string()
+            ]
+        );
+        assert_eq!(
+            transport.recorded_methods(),
+            vec![HttpMethod::Post, HttpMethod::Post]
+        );
+        assert_eq!(
+            transport.recorded_auths(),
+            vec![
+                AuthApplication::GeminiCliBearer,
+                AuthApplication::GeminiCliBearer
+            ]
+        );
+        let bodies = transport.recorded_bodies();
+        assert_eq!(bodies[0].as_deref(), Some(GEMINI_CLI_LOAD_BODY));
+        let quota: serde_json::Value =
+            serde_json::from_str(bodies[1].as_deref().expect("quota body")).expect("json");
+        assert_eq!(quota["project"], "openlimiter-test-project");
+        assert_eq!(quota["userAgent"], OPENLIMITER_USER_AGENT);
+        assert_eq!(
+            transport.recorded_secrets(),
+            vec!["gemini-token-canary", "gemini-token-canary"]
+        );
+    }
+
+    #[test]
+    fn gemini_project_ids_cannot_widen_the_request() {
+        for hostile in [
+            "",
+            "short",
+            "123456",
+            "Uppercase-project",
+            "project/other",
+            "project?query",
+            "project#fragment",
+            "project.example.com",
+            "project-",
+            "project\nheader",
+        ] {
+            assert!(GeminiProjectId::parse(hostile).is_none());
+        }
+        assert!(GeminiProjectId::parse("managed-project-123").is_some());
+    }
+
+    #[tokio::test]
+    async fn generic_fetch_cannot_bypass_the_gemini_body_constructor() {
+        let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        for endpoint in [
+            ProviderEndpoint::GeminiCliLoad,
+            ProviderEndpoint::GeminiCliQuota,
+        ] {
+            assert_eq!(
+                fetch_endpoint(
+                    &transport,
+                    endpoint,
+                    AuthApplication::GeminiCliBearer,
+                    "gemini-token",
+                    None,
+                )
+                .await,
+                Err(NetError::Protocol)
+            );
+        }
+        assert!(transport.recorded_urls().is_empty());
     }
 
     #[tokio::test]
@@ -1182,6 +1439,12 @@ mod tests {
                 AuthApplication::CodexSessionBearer,
                 Some("account-id-canary"),
             ),
+            (
+                AuthApplication::GrokSessionBearer,
+                Some("account-id-canary"),
+            ),
+            (AuthApplication::KimiSessionBearer, None),
+            (AuthApplication::GeminiCliBearer, None),
             (AuthApplication::BrowserSessionCookie, None),
         ] {
             let request = EndpointRequest {
@@ -1341,7 +1604,7 @@ mod tests {
 
     #[tokio::test]
     async fn failure_body_is_dropped_for_every_endpoint() {
-        for endpoint in ProviderEndpoint::ALL {
+        for endpoint in ROUTED_ENDPOINTS {
             let transport = transport_for(
                 endpoint,
                 429,
@@ -1365,7 +1628,7 @@ mod tests {
 
     #[tokio::test]
     async fn oversized_body_is_a_typed_rejection_for_every_endpoint() {
-        for endpoint in ProviderEndpoint::ALL {
+        for endpoint in ROUTED_ENDPOINTS {
             let transport = transport_for(endpoint, 200, vec![b'x'; MAX_RESPONSE_BYTES + 1], None);
             let secret = secret_for(endpoint);
             let outcome = fetch_endpoint(
@@ -1382,7 +1645,7 @@ mod tests {
 
     #[tokio::test]
     async fn non_utf8_body_is_a_typed_rejection_for_every_endpoint() {
-        for endpoint in ProviderEndpoint::ALL {
+        for endpoint in ROUTED_ENDPOINTS {
             let transport = transport_for(endpoint, 200, vec![0xff, 0xfe, 0x00], None);
             let secret = secret_for(endpoint);
             let outcome = fetch_endpoint(
@@ -1426,7 +1689,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            11,
+            13,
             "an address appeared outside the constants"
         );
     }

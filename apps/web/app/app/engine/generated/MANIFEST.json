@@ -1,7 +1,7 @@
 {
   "generatedBy": "app/app/engine/sync.mjs",
   "sources": {
-    "core/types.ts": "137ea883177e97dc",
+    "core/types.ts": "e6be7693adadc1b3",
     "core/connection-state.ts": "ed0fd7e246b8b061",
     "core/failures.ts": "92c8818a6dcb3557",
     "core/format.ts": "060178a0ef47ac5d",
@@ -15,7 +15,7 @@
     "connectors/antigravity.ts": "93088a4877222c7b",
     "connectors/claude.ts": "b538bf9ba6296432",
     "connectors/codex.ts": "2131f262c625ac14",
-    "connectors/contract-gate.ts": "75704d87b03a7257",
+    "connectors/contract-gate.ts": "8560db435c0af848",
     "connectors/fixtures.ts": "a2d2a0978c0f4ba7",
     "connectors/grok.ts": "81b0afa2879e70e0",
     "connectors/kimi.ts": "1c0cfa0c285bbad1",
@@ -25,7 +25,7 @@
     "connectors/index.ts": "a3cb74df73b1dcfc",
     "adapters/claude-code.ts": "ded7f4a19f13e33b",
     "ui/provider-connect.ts": "4b7d99e6924e61ff",
-    "ui/provider-row.ts": "a7e890f7295f3a4c",
+    "ui/provider-row.ts": "90e5bedfa567175c",
     "ui/tokens.css": "07de23e2d0a68b48"
   }
 }

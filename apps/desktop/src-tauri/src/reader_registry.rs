@@ -292,6 +292,10 @@ pub enum AuthApplication {
     GrokSessionBearer,
     /// A bearer token read from the official Kimi CLI credential file.
     KimiSessionBearer,
+    /// Gemini CLI's Google OAuth bearer token with JSON request headers and
+    /// the OpenLimiter identity. This scheme is used only by the two constant
+    /// Code Assist quota addresses in `net.rs`.
+    GeminiCliBearer,
     /// `Cookie: <secret>` with the OpenLimiter identity. The authenticated page
     /// path, and the reason OpenCode is permanently labelled an authenticated
     /// scrape.

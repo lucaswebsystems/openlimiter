@@ -90,7 +90,15 @@ describe("serve", () => {
         { provider: "CLAUDE", state: "fresh", usagePercent: 64, resetAt: expect.any(String) },
         { provider: "CODEX", state: "fresh", usagePercent: 84, resetAt: expect.any(String) }
       ],
-      unknown: ["OPENROUTER", "ANTIGRAVITY", "OPENCODE", "GROK", "KIMI", "MANUAL"]
+      unknown: [
+        "OPENROUTER",
+        "ANTIGRAVITY",
+        "GEMINI_CLI",
+        "OPENCODE",
+        "GROK",
+        "KIMI",
+        "MANUAL"
+      ]
     });
     /* Nothing from the snapshot beyond those four fields ever leaves. */
     const text = JSON.stringify(document);
@@ -298,6 +306,7 @@ describe("serve", () => {
         "OPENROUTER",
         "CODEX",
         "ANTIGRAVITY",
+        "GEMINI_CLI",
         "OPENCODE",
         "GROK",
         "KIMI",
