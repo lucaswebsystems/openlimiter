@@ -1,10 +1,10 @@
 # OpenLimiter launch report
 
-Updated: 2026-08-20 06:10 BRT
+Updated: 2026-08-20 06:30 BRT
 
 ## Verdict
 
-APPROVED TO SHIP, RELEASE IN PROGRESS. One uninterrupted battery and both full history secret scans are green on exact commit `45b0a1781300cfe222e61f3ca5bedb248a7e91b9`. The independent Antigravity traffic verdict is YES. Nothing had been pushed, released, deployed, or published at the time of this update.
+RELEASE BLOCKED. The independent Antigravity traffic verdict is YES, `main` and tag `v1.0.0` are pushed, and all branch CI is green. Desktop release run `32353247148` built and attached the unsigned installers to a draft, but both native install and launch smoke gates failed. The draft is not published and Vercel has not been deployed.
 
 ## Preservation and ownership
 
@@ -139,6 +139,16 @@ At 06:08 BRT the affected release web gates passed on exact Node 24.15.0. All 79
 
 At 06:10 BRT `origin/main` was fetched without prompts. It has not diverged and remains 80 commits behind the release branch. Gitleaks 8.30.1 then scanned all 247 public commits and 9.86 MB of committed history with no leaks. The clean index contains no tracked PEM file.
 
+At 06:11 BRT a final complete Gitleaks scan covered all 248 commits, including this report, and found no leaks. Commit `9430b0f14a0cabb1dabd831eea6546191159e165` was then pushed to `origin/main` without force.
+
+At 06:18 BRT GitHub CI run `32352616553` passed on the exact pushed commit. macOS completed in 3 minutes 51 seconds, Linux in 5 minutes 32 seconds, and Windows in 5 minutes 52 seconds. Every workspace build, type check, test, offline fixture and contract gate, standalone web build, desktop assembly, and Cargo test step passed on all three runners.
+
+At 06:18 BRT annotated tag `v1.0.0` was created at exact CI validated commit `9430b0f14a0cabb1dabd831eea6546191159e165` and pushed without force. This triggered the Windows and Linux desktop release workflow. The GitHub release remains a draft until both installer smoke gates pass.
+
+At 06:27 BRT desktop release run `32353247148` failed. Linux built and attached its packages, then its native install and launch step exited 100. Windows built and attached its packages, then its native install and launch step exited 1. No smoke was weakened or skipped. The release remains a draft, no release has been published, and no production deployment has started. The immediate next action is read only inspection of the two failed step logs.
+
+At 06:30 BRT the failed logs proved both failures were in the new harness before either installed application was launched. Linux passed `apps/desktop/...deb` to apt without an absolute path or `./`, so apt searched its repositories for a package named after the directory and exited 100. Windows ran the NSIS installer successfully with exit code zero, but the harness searched only the requested override directory and did not resolve the installer's registered default location. The Linux path is now canonicalized before apt. Windows now searches bounded known install roots and the three uninstall registry views for at most ten seconds. The real package installation and 15 second Linux or 10 second Windows process survival requirements remain unchanged.
+
 ## Next step
 
-Push `main` without force and require the pushed branch checks to pass before creating and pushing tag `v1.0.0`.
+Commit the harness corrections, push `main`, require CI to pass, then rerun the desktop release workflow from the corrected workflow while attaching to existing draft tag `v1.0.0`.
