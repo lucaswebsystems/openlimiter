@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@9.15.0",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "pnpm -r --workspace-concurrency=1 --if-present build",
     "typecheck": "pnpm -r --workspace-concurrency=1 --if-present typecheck",
@@ -17,7 +19,7 @@
     "test": "pnpm test:specs && pnpm test:i18n && pnpm test:compile && pnpm vitest:safe run --configLoader runner --config vitest.config.mjs",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "pnpm build && pnpm -r publish"
+    "release:inspect": "pnpm build && pnpm --filter openlimiter release:inspect"
   },
   "devDependencies": {
     "@changesets/cli": "2.31.0",

@@ -12,7 +12,12 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md", "LICENSE", "NOTICE"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -31,11 +36,20 @@
   },
   "license": "Apache-2.0",
   "author": "Lucas Costa (https://lucaswebsystems.com)",
-  "keywords": ["ai", "quota", "usage", "meter", "claude", "codex", "openrouter"],
+  "keywords": [
+    "ai",
+    "quota",
+    "usage",
+    "meter",
+    "claude",
+    "codex",
+    "openrouter"
+  ],
   "engines": {
     "node": ">=24"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   }
 }
