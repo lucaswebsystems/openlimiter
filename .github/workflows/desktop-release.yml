@@ -14,12 +14,18 @@ on:
         description: "Existing release tag to attach the installers to"
         required: true
         type: string
+      verify_existing:
+        description: "Verify installers already attached to the draft without replacing them"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: ${{ !inputs.verify_existing }}
     name: ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
@@ -104,79 +110,7 @@ jobs:
           if (-not $installer) {
             throw "The Windows NSIS installer was not produced"
           }
-
-          $installDir = Join-Path $env:RUNNER_TEMP "OpenLimiterInstalled"
-          $install = Start-Process -FilePath $installer.FullName -ArgumentList @("/S", "/D=$installDir") -WindowStyle Hidden -PassThru
-          if (-not $install.WaitForExit(120000)) {
-            & "$env:SystemRoot/System32/taskkill.exe" /PID $install.Id /T /F | Out-Null
-            throw "The Windows installer exceeded its two minute limit"
-          }
-          if ($install.ExitCode -ne 0) {
-            throw "The Windows installer exited with code $($install.ExitCode)"
-          }
-
-          function Find-OpenLimiterApplication {
-            $searchRoots = @(
-              $installDir,
-              (Join-Path $env:LOCALAPPDATA "OpenLimiter"),
-              (Join-Path $env:LOCALAPPDATA "Programs/OpenLimiter"),
-              (Join-Path $env:ProgramFiles "OpenLimiter")
-            )
-            if (${env:ProgramFiles(x86)}) {
-              $searchRoots += Join-Path ${env:ProgramFiles(x86)} "OpenLimiter"
-            }
-
-            foreach ($root in $searchRoots) {
-              if (Test-Path -LiteralPath $root) {
-                $found = Get-ChildItem -LiteralPath $root -Recurse -Filter "OpenLimiter.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($found) {
-                  return $found
-                }
-              }
-            }
-
-            $uninstallRoots = @(
-              'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
-              'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
-              'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
-            )
-            foreach ($entry in Get-ItemProperty -Path $uninstallRoots -ErrorAction SilentlyContinue) {
-              if ($entry.DisplayName -notlike "OpenLimiter*") {
-                continue
-              }
-              if ($entry.DisplayIcon) {
-                $iconPath = ($entry.DisplayIcon -replace ',[0-9]+$', '').Trim('"')
-                if (Test-Path -LiteralPath $iconPath) {
-                  return (Get-Item -LiteralPath $iconPath)
-                }
-              }
-              if ($entry.InstallLocation) {
-                $installedPath = Join-Path $entry.InstallLocation "OpenLimiter.exe"
-                if (Test-Path -LiteralPath $installedPath) {
-                  return (Get-Item -LiteralPath $installedPath)
-                }
-              }
-            }
-          }
-
-          $application = $null
-          for ($attempt = 0; $attempt -lt 10 -and -not $application; $attempt++) {
-            $application = Find-OpenLimiterApplication
-            if (-not $application) {
-              Start-Sleep -Seconds 1
-            }
-          }
-          if (-not $application) {
-            throw "The installed Windows application was not found"
-          }
-
-          $launched = Start-Process -FilePath $application.FullName -WindowStyle Hidden -PassThru
-          Start-Sleep -Seconds 10
-          if ($launched.HasExited) {
-            throw "The installed Windows application exited during its launch smoke test"
-          }
-          Stop-Process -Id $launched.Id -Force
-          Write-Output "Verified Windows install and launch: $($application.FullName)"
+          & ./.github/scripts/verify-windows-installer.ps1 -InstallerPath $installer.FullName
 
       - name: Verify the Linux package installs and launches
         if: matrix.os == 'ubuntu-22.04'
@@ -188,22 +122,62 @@ jobs:
             echo "The Linux deb package was not produced" >&2
             exit 1
           fi
+          bash .github/scripts/verify-linux-package.sh "$package_file"
 
-          package_file="$(realpath "$package_file")"
-          sudo timeout 180s apt-get install -y "$package_file"
-          package_name="$(dpkg-deb -f "$package_file" Package)"
-          application="$(dpkg -L "$package_name" | awk '/\/bin\// { print; exit }')"
-          if [ -z "$application" ] || [ ! -x "$application" ]; then
-            echo "The installed Linux application was not found" >&2
+  verify_existing:
+    if: ${{ inputs.verify_existing }}
+    name: Verify existing ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            label: Linux
+            pattern: "*.deb"
+          - os: windows-latest
+            label: Windows
+            pattern: "*_x64-setup.exe"
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Linux launch dependency
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo timeout 180s apt-get update
+          sudo timeout 180s apt-get install -y xvfb
+
+      - name: Download the existing draft installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_HTTP_TIMEOUT: 30
+        run: |
+          set -euo pipefail
+          artifact_dir="$RUNNER_TEMP/openlimiter-release"
+          mkdir -p "$artifact_dir"
+          timeout 120s gh release download "${{ inputs.tag }}" --repo "${{ github.repository }}" --pattern "${{ matrix.pattern }}" --dir "$artifact_dir"
+
+      - name: Verify the existing Windows installer installs and launches
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -LiteralPath "$env:RUNNER_TEMP/openlimiter-release" -Filter "*.exe" | Select-Object -First 1
+          if (-not $installer) {
+            throw "The downloaded Windows installer was not found"
+          }
+          & ./.github/scripts/verify-windows-installer.ps1 -InstallerPath $installer.FullName
+
+      - name: Verify the existing Linux package installs and launches
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_file="$(find "$RUNNER_TEMP/openlimiter-release" -maxdepth 1 -name '*.deb' -print -quit)"
+          if [ -z "$package_file" ]; then
+            echo "The downloaded Linux package was not found" >&2
             exit 1
           fi
-
-          set +e
-          timeout 15s xvfb-run -a "$application"
-          launch_status=$?
-          set -e
-          if [ "$launch_status" -ne 124 ]; then
-            echo "The installed Linux application exited during its launch smoke test with code $launch_status" >&2
-            exit 1
-          fi
-          echo "Verified Linux install and launch: $application"
+          bash .github/scripts/verify-linux-package.sh "$package_file"
