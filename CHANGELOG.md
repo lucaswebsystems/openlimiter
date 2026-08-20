@@ -4,16 +4,15 @@ All notable project changes appear in this file.
 
 ## [Unreleased]
 
-This section is the version 1.0 launch candidate. It becomes a published release
-only after the owner approves the release and creates its tag.
+## [1.0.0] (2026-08-20)
 
 ### Added
 
-The desktop application now discovers Claude Code, Codex, Antigravity, OpenCode
-and OpenRouter from the tools and logins already present on Windows, macOS and
-Linux. Every provider is shown as present, installed but logged out, or absent.
-Separate local profiles stay separate accounts, so two Codex accounts no longer
-collapse into one.
+The desktop application now discovers Claude Code, Codex, Antigravity, Grok,
+Kimi, Gemini CLI, OpenCode and OpenRouter from the tools and logins already
+present on Windows, macOS and Linux. Every provider is shown as present,
+installed but logged out, or absent. Separate local profiles stay separate
+accounts, so two accounts no longer collapse into one.
 
 Claude Code usage can now be read from the existing local OAuth login. It reports
 the five hour session and seven day windows, caches provider responses, respects
@@ -45,10 +44,10 @@ remains explicitly unverified until a capture proves its current page layout.
 
 ### Distribution
 
-The desktop release configuration prepares AppImage, deb and rpm packages for
-Linux and a signed Tauri update manifest for all desktop platforms. The npm CLI
-package has a reproducible inspection command and a publish workflow prepared
-for the owner. No installer, update, package or site is published by this work.
+The desktop release produces unsigned AppImage, deb and rpm packages for Linux,
+plus unsigned NSIS and MSI installers for Windows. macOS and automatic updates
+remain unavailable until signing is in place. The npm CLI package is not part
+of this release.
 
 ## [0.4.0] (2026-08-11)
 
