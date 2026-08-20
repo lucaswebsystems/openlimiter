@@ -1,7 +1,10 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -10,6 +13,7 @@ use crate::fsx;
 use crate::provider_detection::DetectedProviderId;
 
 pub const REQUEST_POLICY_FILE_NAME: &str = "request-policy.json";
+const REQUEST_POLICY_LOCK_FILE_NAME: &str = "request-policy.lock";
 const REQUEST_POLICY_VERSION: u8 = 1;
 const MAX_ACCOUNTS_PER_PROVIDER: usize = 128;
 const PROVIDER_SPACING_SECONDS: u64 = 15;
@@ -17,6 +21,8 @@ const PROVISIONAL_REQUEST_SECONDS: u64 = 86_400;
 pub const BLOCKED_PROVIDER_SECONDS: u64 = 86_400;
 pub const RATE_LIMIT_SECONDS: u64 = 3_600;
 const MAX_SERVER_DELAY_SECONDS: u64 = 7 * 86_400;
+const LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_millis(500);
+const LOCK_RETRY_DELAY: Duration = Duration::from_millis(10);
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -49,7 +55,8 @@ impl Default for RequestPolicyDocument {
 struct PolicyInner {
     document: RequestPolicyDocument,
     healthy: bool,
-    active_providers: HashSet<DetectedProviderId>,
+    active_provider: Option<DetectedProviderId>,
+    active_lock: Option<File>,
 }
 
 pub struct RequestPolicy {
@@ -81,14 +88,14 @@ impl RequestPolicy {
     }
 
     pub fn at(directory: Option<PathBuf>) -> Self {
-        let loaded = load_document(directory.as_ref());
-        let healthy = loaded.is_ok();
+        let healthy = directory.is_some();
         Self {
             directory,
             inner: Mutex::new(PolicyInner {
-                document: loaded.unwrap_or_default(),
+                document: RequestPolicyDocument::default(),
                 healthy,
-                active_providers: HashSet::new(),
+                active_provider: None,
+                active_lock: None,
             }),
         }
     }
@@ -102,19 +109,44 @@ impl RequestPolicy {
         if !valid_account_id(account_id) || now_ms > MAX_TIMESTAMP_EPOCH_MS {
             return Err(GateRejection::Unavailable);
         }
-        let mut inner = self.inner.lock().map_err(|_| GateRejection::Unavailable)?;
-        if !inner.healthy {
-            return Err(GateRejection::Unavailable);
+        {
+            let mut inner = self.inner.lock().map_err(|_| GateRejection::Unavailable)?;
+            if !inner.healthy {
+                return Err(GateRejection::Unavailable);
+            }
+            if inner.active_provider.is_some() {
+                return Err(GateRejection::Busy);
+            }
+            /* Reserve this authority before waiting for the OS lock so two
+            threads in one process cannot race two file handles. */
+            inner.active_provider = Some(provider);
         }
-        if inner.active_providers.contains(&provider) {
-            return Err(GateRejection::Busy);
-        }
-        prune_expired(&mut inner.document, now_ms);
-        if let Some(state) = inner.document.providers.get(&provider) {
+
+        let lock_file = match acquire_document_lock(self.directory.as_ref()) {
+            Ok(file) => file,
+            Err(rejection) => {
+                self.cancel_begin(provider, matches!(rejection, GateRejection::Unavailable));
+                return Err(rejection);
+            }
+        };
+        let mut document = match load_document(self.directory.as_ref()) {
+            Ok(document) => document,
+            Err(()) => {
+                let _ = FileExt::unlock(&lock_file);
+                self.cancel_begin(provider, true);
+                return Err(GateRejection::Unavailable);
+            }
+        };
+        prune_expired(&mut document, now_ms);
+        if let Some(state) = document.providers.get(&provider) {
             if let Some(retry_at) = state.blocked_until.filter(|until| now_ms < *until) {
+                let _ = FileExt::unlock(&lock_file);
+                self.cancel_begin(provider, false);
                 return Err(GateRejection::Deferred { retry_at });
             }
             if let Some(retry_at) = state.next_request_at.filter(|until| now_ms < *until) {
+                let _ = FileExt::unlock(&lock_file);
+                self.cancel_begin(provider, false);
                 return Err(GateRejection::Deferred { retry_at });
             }
             if let Some(retry_at) = state
@@ -123,17 +155,20 @@ impl RequestPolicy {
                 .copied()
                 .filter(|until| now_ms < *until)
             {
+                let _ = FileExt::unlock(&lock_file);
+                self.cancel_begin(provider, false);
                 return Err(GateRejection::Deferred { retry_at });
             }
             if !state.accounts.contains_key(account_id)
                 && state.accounts.len() >= MAX_ACCOUNTS_PER_PROVIDER
             {
+                let _ = FileExt::unlock(&lock_file);
+                self.cancel_begin(provider, false);
                 return Err(GateRejection::Unavailable);
             }
         }
 
-        let previous = inner.document.clone();
-        let state = inner.document.providers.entry(provider).or_default();
+        let state = document.providers.entry(provider).or_default();
         state.next_request_at =
             Some(now_ms.saturating_add(
                 provider_spacing_seconds(provider, account_id).saturating_mul(1_000),
@@ -145,12 +180,25 @@ impl RequestPolicy {
             account_id.to_string(),
             now_ms.saturating_add(PROVISIONAL_REQUEST_SECONDS.saturating_mul(1_000)),
         );
-        if persist_document(self.directory.as_ref(), &inner.document).is_err() {
-            inner.document = previous;
-            inner.healthy = false;
+        if persist_document(self.directory.as_ref(), &document).is_err() {
+            let _ = FileExt::unlock(&lock_file);
+            self.cancel_begin(provider, true);
             return Err(GateRejection::Unavailable);
         }
-        inner.active_providers.insert(provider);
+        let mut inner = match self.inner.lock() {
+            Ok(inner) => inner,
+            Err(_) => {
+                let _ = FileExt::unlock(&lock_file);
+                return Err(GateRejection::Unavailable);
+            }
+        };
+        if !inner.healthy || inner.active_provider != Some(provider) {
+            let _ = FileExt::unlock(&lock_file);
+            inner.active_provider = None;
+            return Err(GateRejection::Unavailable);
+        }
+        inner.document = document;
+        inner.active_lock = Some(lock_file);
         drop(inner);
         Ok(RequestLease {
             policy: self,
@@ -210,23 +258,81 @@ impl RequestPolicy {
         let Ok(mut inner) = self.inner.lock() else {
             return;
         };
-        if !inner.healthy {
+        if !inner.healthy || inner.active_lock.is_none() {
             return;
         }
-        let previous = inner.document.clone();
-        mutate(&mut inner.document);
-        if persist_document(self.directory.as_ref(), &inner.document).is_err() {
+        /* The OS lock stored in active_lock remains held while this fresh read,
+        mutation, and atomic replace run. Never mutate a constructor snapshot:
+        another process may have committed a provider row since then. */
+        let Ok(mut document) = load_document(self.directory.as_ref()) else {
+            inner.healthy = false;
+            return;
+        };
+        mutate(&mut document);
+        if persist_document(self.directory.as_ref(), &document).is_err() {
             /* The file still holds the conservative reservation written by
             begin. Keep this process closed too instead of silently falling
             back to an in memory cadence. */
-            inner.document = previous;
             inner.healthy = false;
+        } else {
+            inner.document = document;
         }
     }
 
     fn release(&self, provider: DetectedProviderId) {
+        let lock_file = self.inner.lock().ok().and_then(|mut inner| {
+            if inner.active_provider != Some(provider) {
+                return None;
+            }
+            inner.active_provider = None;
+            inner.active_lock.take()
+        });
+        if let Some(lock_file) = lock_file {
+            let _ = FileExt::unlock(&lock_file);
+        }
+    }
+
+    fn cancel_begin(&self, provider: DetectedProviderId, unhealthy: bool) {
         if let Ok(mut inner) = self.inner.lock() {
-            inner.active_providers.remove(&provider);
+            if inner.active_provider == Some(provider) {
+                inner.active_provider = None;
+            }
+            if unhealthy {
+                inner.healthy = false;
+            }
+        }
+    }
+}
+
+fn acquire_document_lock(directory: Option<&PathBuf>) -> Result<File, GateRejection> {
+    let directory = directory.ok_or(GateRejection::Unavailable)?;
+    fsx::ensure_private_dir(directory).map_err(|_| GateRejection::Unavailable)?;
+    let lock_path = directory.join(REQUEST_POLICY_LOCK_FILE_NAME);
+    fsx::reject_symlink(&lock_path).map_err(|_| GateRejection::Unavailable)?;
+    let mut options = OpenOptions::new();
+    options.read(true).write(true).create(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let lock_file = options
+        .open(&lock_path)
+        .map_err(|_| GateRejection::Unavailable)?;
+    let metadata = lock_file
+        .metadata()
+        .map_err(|_| GateRejection::Unavailable)?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(GateRejection::Unavailable);
+    }
+    let started = Instant::now();
+    loop {
+        match lock_file.try_lock_exclusive() {
+            Ok(()) => return Ok(lock_file),
+            Err(_) if started.elapsed() < LOCK_ACQUIRE_TIMEOUT => {
+                std::thread::sleep(LOCK_RETRY_DELAY);
+            }
+            Err(_) => return Err(GateRejection::Busy),
         }
     }
 }
@@ -426,16 +532,66 @@ mod tests {
         current.complete_after(DetectedProviderId::Codex, "codex-account-two", later, 300);
         drop(second);
 
-        let restarted = policy(&dir);
-        let inner = restarted.inner.lock().expect("policy state");
-        let accounts = &inner
-            .document
+        let document = load_document(Some(&dir.path().to_path_buf())).expect("policy state");
+        let accounts = &document
             .providers
             .get(&DetectedProviderId::Codex)
             .expect("codex state")
             .accounts;
         assert!(accounts.contains_key("codex-account-one"));
         assert!(accounts.contains_key("codex-account-two"));
+    }
+
+    #[test]
+    fn independent_authorities_cannot_overlap_one_request() {
+        let dir = TempDir::new();
+        let first = policy(&dir);
+        let lease = first
+            .begin(DetectedProviderId::Codex, "codex-account-one", NOW)
+            .expect("first authority reserves the shared policy");
+        let second = policy(&dir);
+        let started = Instant::now();
+        assert!(matches!(
+            second.begin(DetectedProviderId::Codex, "codex-account-two", NOW),
+            Err(GateRejection::Busy)
+        ));
+        assert!(
+            started.elapsed() < Duration::from_secs(2),
+            "lock contention must fail closed without hanging a scan"
+        );
+        first.complete_after(DetectedProviderId::Codex, "codex-account-one", NOW, 300);
+        drop(lease);
+
+        assert!(matches!(
+            second.begin(DetectedProviderId::Codex, "codex-account-two", NOW),
+            Err(GateRejection::Deferred { .. })
+        ));
+    }
+
+    #[test]
+    fn independent_authorities_preserve_each_others_provider_rows() {
+        let dir = TempDir::new();
+        let first = policy(&dir);
+        let first_lease = first
+            .begin(DetectedProviderId::Codex, "codex-account", NOW)
+            .expect("first provider request");
+        first.complete_after(DetectedProviderId::Codex, "codex-account", NOW, 300);
+        drop(first_lease);
+
+        let second = policy(&dir);
+        let second_lease = second
+            .begin(DetectedProviderId::Grok, "grok-account", NOW + 60_000)
+            .expect("second provider request");
+        second.block_provider(
+            DetectedProviderId::Grok,
+            NOW + 60_000,
+            BLOCKED_PROVIDER_SECONDS,
+        );
+        drop(second_lease);
+
+        let document = load_document(Some(&dir.path().to_path_buf())).expect("shared policy");
+        assert!(document.providers.contains_key(&DetectedProviderId::Codex));
+        assert!(document.providers.contains_key(&DetectedProviderId::Grok));
     }
 
     #[test]
