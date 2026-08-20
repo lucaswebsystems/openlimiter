@@ -1,45 +1,31 @@
 # OpenLimiter 1.0 release notes
 
-OpenLimiter 1.0 turns the quota from several AI subscriptions into one live meter. Install it on Windows or Linux and the supported command line subscriptions already on the computer appear without another sign in.
+OpenLimiter 1.0 turns quota across several AI subscriptions into one local meter. It keeps accounts separate, shows every returned window, refreshes while it runs, and stays beside the clock.
 
 ## What you get
 
-1. Automatic discovery for Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi.
+1. Automatic local readers for Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi.
 
-2. A separate row for every detected account.
+2. One row for every detected account and every quota window returned for it.
 
-3. Every quota window returned for that account, including its current percentage and reset time when available.
+3. Tray, desktop, and command line views with percentages, reset times, and freshness when available.
 
-4. A tray beside the clock for a quick reading, plus a full desktop view and a command line view.
+4. Agent Auto Routing that can render bounded quota context and a `PREFER` recommendation into coding agent context. It advises only.
 
-5. Provider data that refreshes while OpenLimiter runs. Freshness and the age of any last valid reading remain visible, so the result is not a report frozen at launch.
+5. OpenRouter through an API key, an experimental OpenCode browser session, and a manual meter for everything else.
 
-6. Agent Auto Routing, which can render bounded quota context and a `PREFER` recommendation into coding agent context.
+## Verification
 
-## Other connections
-
-OpenRouter connects with an API key that you add.
-
-OpenCode connects through an explicit experimental browser session.
-
-The Manual meter covers any subscription without a reader.
+No automatic reader is marked live verified in this release. Codex and Antigravity use contracts observed against real accounts. Claude and Gemini CLI are implemented with fixture coverage but no current live account verification. Grok and Kimi are fixture tested against contracts in official CLI source. The product labels every reader `UNVERIFIED`.
 
 ## Privacy
 
-The local product has no telemetry. Credentials stay on the computer and go only to the provider they belong to. OpenLimiter never sends prompts, spends quota, acts on your behalf, or writes to command line authentication files.
+The local product has no telemetry. Credentials stay on the computer and go only to their provider. OpenLimiter never sends prompts, spends quota, acts on your behalf, or writes to command line authentication files.
 
-## Free core and Pro
+## Availability and limits
 
-The complete local product is free and open source under Apache 2.0.
+The builds are unsigned: Windows shows a SmartScreen warning, and macOS is not available because Gatekeeper hard blocks an unsigned app. Windows and Linux ship now.
 
-The optional paid hosted tier adds email alerts, ninety day history with forecasts, and live hosted budget context for agent routing. It does not unlock any local feature.
+Several readers use private, undocumented provider interfaces that can change or be blocked at any time. A broken contract becomes a visible unknown reading.
 
-## Availability
-
-Version 1.0 ships unsigned builds for Windows and Linux. Windows can show a reputation warning during installation. macOS is coming soon and has no launch download.
-
-## Known limits
-
-Several automatic readers use provider interfaces that are unsupported for third party applications. Those interfaces can change without notice. A broken contract produces a visible unknown state instead of an estimate.
-
-Every connector remains marked `UNVERIFIED` until its evidence is explicitly verified.
+The complete local product is free and open source under Apache 2.0. Pro is coming soon and is not available in 1.0.

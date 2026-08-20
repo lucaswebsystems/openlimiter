@@ -1,70 +1,54 @@
 # OpenLimiter
 
-When you hold several AI subscriptions, the scarce resource stops being money and becomes quota. Each provider exposes different limits and reset windows, so choosing where to start a long task becomes guesswork.
+When you hold several AI subscriptions, the scarce resource stops being money and becomes quota. Each provider has different limits and reset windows, so choosing where to start a long task becomes guesswork.
 
-OpenLimiter puts those limits in one live local meter. Install it on Windows or Linux and it finds supported subscriptions already connected through local AI command line tools. Each account gets its own row, every available window stays visible, and a tray icon beside the clock keeps the current state close.
+OpenLimiter puts those limits in one local meter. It keeps every returned window under its account, refreshes readings while it runs, and stays beside the clock on Windows and Linux.
 
 [Download for Windows or Linux](https://openlimiter.com/download)
 
-## What you get
+## What ships
 
-1. Automatic discovery of supported AI command line sessions already present on the computer.
+1. Automatic local readers for Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi.
 
-2. A separate row for every account, with every quota window the provider returns.
+2. One row per account, with every quota window the provider returns.
 
-3. A tray beside the clock, plus a full desktop view and a command line view.
+3. A tray view, desktop view, command line view, and visible freshness.
 
-4. Current provider data that refreshes while the application runs, with reset times, freshness, and the age of any last valid reading.
+4. Agent Auto Routing, which can place bounded quota context and a `PREFER` recommendation in coding agent context. It is advice and never executes or redirects a request.
 
-5. Bounded quota context that can help a coding agent prefer an account with room.
+## Verification status
 
-## Connections
+None of the automatic readers is marked live verified in 1.0.
 
-### Automatic
+Codex and Antigravity use response contracts observed against real accounts. Claude and Gemini CLI are implemented and tested with fixtures, but have not completed current live account verification. Grok and Kimi are fixture tested against contracts in their official CLI source. Every reader remains labelled `UNVERIFIED` in the product.
 
-Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi. OpenLimiter reads the OAuth credentials their own command line tools already stored. It does not create or refresh those credentials.
-
-### Key based
-
-OpenRouter. You add an API key explicitly.
-
-### Manual
-
-OpenCode uses an experimental browser session that you supply. The Manual meter accepts a percentage and reset time for any other subscription.
+OpenRouter is key based and fixture tested against its documented response. OpenCode uses an explicit experimental browser session. A manual meter covers anything else.
 
 ## What it reads
 
-The automatic readers open known local authentication locations, identify the account, and use the existing access token only with that provider usage interface. Parsing, account merging, and routing advice happen on your computer.
+Automatic readers open known local authentication locations and use the OAuth token that the provider command line tool already stored. The token goes only to that provider usage interface. Parsing, account merging, and routing advice happen locally.
 
-Several provider usage interfaces are unsupported for use by third party applications. They can change or disappear without notice. When a response no longer matches its contract, OpenLimiter shows an unknown state instead of inventing a plausible number.
+Several readers depend on private, undocumented provider interfaces. A provider can change or block them at any time, and this category has been blocked before. OpenLimiter shows unknown when a response breaks its expected contract, but it cannot make the interface stable.
 
 ## What it never does
 
-1. The local product has no telemetry and needs no OpenLimiter account.
+1. No telemetry and no OpenLimiter account for the local product.
 
-2. It never sends prompts, source code, or provider credentials to OpenLimiter.
+2. No prompts, source code, or provider credentials sent to OpenLimiter.
 
-3. It never sends a prompt, spends quota, changes a plan, or acts on your behalf.
+3. No prompt execution, quota spending, plan changes, or action on your behalf.
 
-4. It never writes to, refreshes, replaces, or deletes a command line authentication file.
+4. No writing to command line authentication files.
 
-5. It never guesses a missing percentage or reset time.
+5. No invented percentage or reset time when data is missing.
 
-Optional Pro is an intentional hosted service, not telemetry. After you sign in, it can receive selected bounded quota snapshots for alerts, history, forecasts, and agent context. Provider credentials and provider response bodies never enter that service.
+## Free core and Pro
 
-## Agent Auto Routing
-
-OpenLimiter can render a bounded `PREFER` recommendation into coding agent context. This is advice. It does not intercept, execute, authenticate, or redirect a request, and the agent can ignore it.
-
-## Free core and hosted tier
-
-The complete local product is free and open source under Apache 2.0. It includes the desktop application, command line tool, local connectors, local meter, and local agent context.
-
-OpenLimiter Pro is optional. It costs 5 dollars per month or 50 dollars per year after the first 30 days. It adds email alerts, ninety day history with forecasts, and live hosted budget context for agent routing. No local feature moves behind payment.
+The complete local product is free and open source under Apache 2.0. OpenLimiter Pro is coming soon and is not available in 1.0. No local feature depends on it.
 
 ## Availability
 
-OpenLimiter 1.0 ships for Windows and Linux. The builds are unsigned, so Windows can show a reputation warning during installation. macOS is coming soon and is not a launch download.
+The builds are unsigned: Windows shows a SmartScreen warning, and macOS is not available because Gatekeeper hard blocks an unsigned app. Windows and Linux ship now.
 
 ## Project
 

@@ -8,24 +8,26 @@ Show HN: OpenLimiter, a local quota meter for several AI subscriptions
 
 ### Post
 
-I use several AI coding subscriptions. Once they are paid for, the useful constraint is quota rather than price: which account still has room, which window is close to its limit, and when does it reset?
+I use several AI coding subscriptions. Once they are paid for, the useful constraint is quota: which account still has room, which window is close to its limit, and when does it reset?
 
-OpenLimiter is a small local desktop application and command line tool for that. On first run it looks for existing Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi sessions, then shows every returned quota window in a separate row for each account. OpenRouter uses an API key. OpenCode uses an explicit experimental browser session. A manual meter covers everything else.
+OpenLimiter is a free local desktop application and command line tool for that. It looks for existing Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi sessions, keeps each account separate, and refreshes every returned quota window while it runs. OpenRouter uses an API key. OpenCode uses an explicit experimental browser session. A manual meter covers everything else.
 
-It lives beside the clock on Windows and Linux and refreshes provider data while it runs. It can also render bounded quota context and a `PREFER` recommendation into the coding agent context. That recommendation is advice. OpenLimiter never executes or redirects a request.
+The verification status matters. None of the automatic readers is marked live verified in 1.0. Codex and Antigravity use contracts observed against real accounts. Claude and Gemini CLI are implemented with fixture coverage but no current live account verification. Grok and Kimi are fixture tested against contracts in official CLI source. The application labels every reader `UNVERIFIED`.
 
-This is a crowded category. OpenUsage, ClaudeBar, UsageMaster, CodexBar, and ccusage already solve useful parts of it. OpenUsage and CodexBar cover more providers. ccusage is much stronger for retrospective token and cost reports. UsageMaster already recommends a tool to the human. The narrow difference here is a live per account quota view plus a recommendation that the agent itself can read.
+It can also render bounded quota context and a `PREFER` recommendation into coding agent context. That recommendation is advice. It never executes or redirects a request.
 
-The uncomfortable part is that several automatic readers call provider interfaces that are unsupported for third party applications. They can change without warning. OpenLimiter validates each response and shows unknown when the contract breaks, but that does not make the interfaces stable.
+OpenUsage, ClaudeBar, UsageMaster, CodexBar, ccusage, and Overclock Redline already cover useful parts of this category. The narrow differences here are more automatic collectors than Redline, live updating rows instead of its static detail snapshot, and routing advice that the agent itself can read. OpenUsage and CodexBar cover more providers. ccusage is stronger for retrospective token and cost reports.
 
-The local core is free and open source under Apache 2.0. The optional paid hosted tier adds alerts, ninety day history, forecasts, and live hosted budget context. It does not unlock local features and never receives provider credentials.
+Several readers call private, undocumented provider interfaces. A provider can change or block them at any time, and this category has been blocked before. OpenLimiter fails to unknown on contract drift, but that does not make the interfaces stable.
 
-There is no Mac download at launch because the current build is unsigned. Windows and Linux are available.
+The local core is free and open source under Apache 2.0. Pro is coming soon and is not available today.
+
+The builds are unsigned: Windows shows a SmartScreen warning, and macOS is not available because Gatekeeper hard blocks an unsigned app. Windows and Linux are available.
 
 Source: https://github.com/lucaswebsystems/openlimiter
 
 ## X
 
-OpenLimiter 1.0 shows every quota window for every supported AI command line account beside the clock. It finds existing Claude, Codex, Antigravity, Gemini, Grok, and Kimi sessions, then gives bounded quota advice to the agent too. Free local core, optional hosted tier. Windows and Linux. Unsupported interfaces may break.
+OpenLimiter 1.0 is a free local quota meter for several AI subscriptions. Six automatic readers ship, all labelled `UNVERIFIED`; only Codex and Antigravity use contracts observed against real accounts, while the rest are fixture tested. Private interfaces can break or be blocked. Unsigned Windows and Linux builds ship, SmartScreen warns on Windows, macOS is not available, and Pro is coming soon.
 
 https://github.com/lucaswebsystems/openlimiter

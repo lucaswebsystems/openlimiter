@@ -1,64 +1,40 @@
 # Honest comparison
 
-Checked against official project pages on 20 August 2026. This category changes quickly, so verify the facts again before publication.
+Checked against official project pages on 20 August 2026. This category changes quickly, so verify again before publication.
 
 ## Short conclusion
 
-OpenLimiter does not have the widest provider list. OpenUsage, ClaudeBar, and CodexBar all cover more providers today.
+OpenLimiter does not have the widest provider list. OpenUsage, ClaudeBar, and CodexBar cover more providers.
 
-Its concrete provider lead is against Overclock Redline: OpenLimiter has six automatic local CLI collectors, Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi. Redline has four, Claude, Codex, Grok, and Kimi.
+The concrete provider lead is against Overclock Redline. OpenLimiter implements six automatic local readers: Claude Code, Codex, Antigravity, Gemini CLI, Grok, and Kimi. Redline lists four: Claude, Codex, Grok, and Kimi. All OpenLimiter readers remain labelled `UNVERIFIED`. Codex and Antigravity use contracts observed against real accounts. The other four are implemented with fixture evidence rather than current live account verification.
 
-OpenLimiter also keeps its visible rows current in place. The Redline detail surface reviewed for this comparison is a static snapshot with a sixty second page refresh, although Redline polls provider data every five minutes. OpenUsage, ClaudeBar, and CodexBar also provide live views, so live data is not unique to OpenLimiter.
+OpenLimiter keeps rows current in place. The Redline detail surface reviewed here is a static snapshot, although Redline polls providers every five minutes. OpenUsage, ClaudeBar, and CodexBar also have live views, so live data is not unique to OpenLimiter.
 
-OpenLimiter makes each account a first class row and preserves every window under that row. This is useful, but not unique. CodexBar and Redline also support multiple accounts, and OpenUsage supports configured account entries.
+OpenLimiter keeps each account as its own row and preserves every window under it. This is useful, not unique. CodexBar and Redline support multiple accounts, and OpenUsage supports configured account entries.
 
-Among the products reviewed, OpenLimiter is the only one whose documented routing feature renders a bounded provider recommendation into coding agent context. UsageMaster recommends a tool to the human. OpenUsage and ccusage can render human statuslines. Agent Auto Routing remains advice and never executes a request.
+Among the products reviewed, OpenLimiter is the only one that documents rendering bounded routing advice into coding agent context. UsageMaster recommends a tool to the human. OpenUsage and ccusage render human statuslines. Agent Auto Routing remains advice and never executes a request.
 
 ## Price context
 
-OpenUsage, ClaudeBar, CodexBar, and ccusage can be used for free.
+OpenUsage, ClaudeBar, CodexBar, and ccusage can be used free. UsageMaster has a free one provider mode and a paid broader tier. Redline is part of a paid Overclock plan. The OpenLimiter local core is free and open source. Pro is coming soon and is not available in 1.0.
 
-UsageMaster is free for one provider, then offers a 9.99 dollar lifetime Pro purchase for all providers and its quota autopilot. It is not fully free now.
+## Where others win
 
-Redline is available only with a paid Overclock Ultra plan.
+1. OpenUsage and CodexBar win provider breadth.
 
-The OpenLimiter local core is free and open source. Its optional paid tier contains hosted alerts, history, forecasts, and live hosted agent context. It does not unlock local connectors.
+2. ClaudeBar and CodexBar win macOS availability and maturity.
 
-## Product notes
+3. ccusage wins retrospective token and cost reporting.
 
-### OpenUsage
-
-The strongest terminal product in this group. It documents 35 integrations, automatic discovery, a live dashboard, a background daemon, history, reports, statuslines, and hooks. It wins provider breadth and terminal analysis over OpenLimiter.
-
-### ClaudeBar
-
-A mature macOS menu bar application with a broad provider list, current quota windows, notifications, and automatic refresh. It wins Mac availability and provider breadth over OpenLimiter.
-
-### UsageMaster
-
-A focused macOS menu bar application for Claude Code, Codex, Gemini CLI, OpenCode Go, and Cursor. Its quota autopilot already recommends which tool a person should use. OpenLimiter does not claim to invent that idea. The difference is that OpenLimiter can place its bounded recommendation in agent context.
-
-### CodexBar
-
-The broadest native menu bar product reviewed, with many provider sources, live refresh, history, command line output, and multiple account support. It wins provider breadth, Mac polish, and maturity over OpenLimiter.
-
-### ccusage
-
-The strongest local history and cost reporting tool reviewed. It reads logs from 16 coding agent sources and produces daily, weekly, monthly, session, and model reports. It is adjacent rather than identical: OpenLimiter focuses on current provider enforced subscription windows rather than reconstructing token cost from local logs.
-
-### Overclock Redline
-
-A paid cross platform tray monitor with automatic Claude, Codex, Grok, and Kimi collectors, multiple account support, five minute provider polling, last valid state, and history. OpenLimiter wins two additional automatic collectors through Antigravity and Gemini CLI, and has an in place live detail view. Redline wins Mac availability and already ships inside a larger commercial product.
+4. Redline wins macOS availability and commercial product maturity.
 
 ## Claims safe to make
 
-1. OpenLimiter has more automatic local CLI collectors than Redline, six compared with four.
+1. OpenLimiter implements more automatic local readers than Redline, six compared with four.
 
-2. OpenLimiter shows live updating rows instead of a detail page that is replaced as a static snapshot.
+2. OpenLimiter shows live updating rows instead of the static Redline detail snapshot reviewed here.
 
-3. OpenLimiter presents every account as its own row and preserves every window for that account.
-
-4. Agent Auto Routing renders bounded provider advice to the agent itself. No competing product reviewed documents that behavior.
+3. OpenLimiter renders bounded provider advice to the agent itself. No competing product reviewed documents that behavior.
 
 ## Claims not safe to make
 
@@ -66,13 +42,11 @@ A paid cross platform tray monitor with automatic Claude, Codex, Grok, and Kimi 
 
 2. OpenLimiter invented quota based tool recommendations.
 
-3. OpenLimiter is the only live quota monitor.
+3. OpenLimiter is the only live monitor or the only product with multiple account support.
 
-4. OpenLimiter is the only product with multiple account support.
+4. Every OpenLimiter reader has been verified against a current live account.
 
-5. OpenLimiter uses stable official interfaces for every automatic provider.
-
-6. OpenLimiter is the only free option.
+5. Its private provider interfaces are stable or supported.
 
 ## Sources
 
