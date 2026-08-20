@@ -103,14 +103,9 @@ pub struct ClaudeOauthRuntime {
 }
 
 impl ClaudeOauthRuntime {
-    fn key(account_id: &str, revision: &str) -> String {
-        format!("{account_id}:{revision}")
-    }
-
-    fn begin(&self, account_id: &str, revision: &str, now_ms: u64) -> Result<(), u64> {
-        let key = Self::key(account_id, revision);
+    fn begin(&self, account_id: &str, now_ms: u64) -> Result<(), u64> {
         let mut entries = self.next_allowed.lock().map_err(|_| now_ms)?;
-        if let Some(next) = entries.get(&key).copied() {
+        if let Some(next) = entries.get(account_id).copied() {
             if now_ms < next {
                 return Err(next);
             }
@@ -125,16 +120,16 @@ impl ClaudeOauthRuntime {
             }
         }
         entries.insert(
-            key,
+            account_id.to_string(),
             now_ms.saturating_add(REFRESH_SECONDS.saturating_mul(1_000)),
         );
         Ok(())
     }
 
-    fn postpone(&self, account_id: &str, revision: &str, now_ms: u64, seconds: u64) -> u64 {
+    fn postpone(&self, account_id: &str, now_ms: u64, seconds: u64) -> u64 {
         let next = now_ms.saturating_add(seconds.saturating_mul(1_000));
         if let Ok(mut entries) = self.next_allowed.lock() {
-            entries.insert(Self::key(account_id, revision), next);
+            entries.insert(account_id.to_string(), next);
         }
         next
     }
@@ -245,7 +240,7 @@ async fn collect_with_secret<T: Transport>(
     secret: &DetectedSecret,
     now_ms: u64,
 ) -> ClaudeOauthOutcome {
-    if let Err(retry_ms) = runtime.begin(account_id, &secret.credential_revision, now_ms) {
+    if let Err(retry_ms) = runtime.begin(account_id, now_ms) {
         return ClaudeOauthOutcome::Cached {
             account_id: account_id.to_string(),
             retry_at: iso_from_epoch_ms(retry_ms)
@@ -297,22 +292,12 @@ async fn collect_with_secret<T: Transport>(
             }
         }
         401 => {
-            runtime.postpone(
-                account_id,
-                &secret.credential_revision,
-                now_ms,
-                BLOCKED_BACKOFF_SECONDS,
-            );
+            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
             fallback_report(writer, account_id, false, now_ms).await;
             ClaudeOauthOutcome::reopen(account_id)
         }
         403 | 404 | 410 => {
-            let retry_ms = runtime.postpone(
-                account_id,
-                &secret.credential_revision,
-                now_ms,
-                BLOCKED_BACKOFF_SECONDS,
-            );
+            let retry_ms = runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
             fallback_report(writer, account_id, false, now_ms).await;
             ClaudeOauthOutcome::fallback(
                 account_id,
@@ -326,8 +311,7 @@ async fn collect_with_secret<T: Transport>(
                 .unwrap_or(0)
                 .max(RATE_LIMIT_BACKOFF_SECONDS)
                 .min(BLOCKED_BACKOFF_SECONDS);
-            let retry_ms =
-                runtime.postpone(account_id, &secret.credential_revision, now_ms, seconds);
+            let retry_ms = runtime.postpone(account_id, now_ms, seconds);
             fallback_report(writer, account_id, false, now_ms).await;
             ClaudeOauthOutcome::fallback(
                 account_id,
@@ -504,7 +488,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_new_cli_token_revision_bypasses_an_old_throttle() {
+    async fn a_new_cli_token_revision_keeps_the_account_throttle() {
         let dir = TempDir::new();
         let runtime = ClaudeOauthRuntime::default();
         let transport = RecordingTransport::replying(200, valid_body(), None);
@@ -517,7 +501,7 @@ mod tests {
             NOW,
         )
         .await;
-        let _ = collect_with_secret(
+        let second = collect_with_secret(
             &runtime,
             &transport,
             writer(&dir),
@@ -526,7 +510,8 @@ mod tests {
             NOW + 1_000,
         )
         .await;
-        assert_eq!(transport.recorded_urls().len(), 2);
+        assert!(matches!(second, ClaudeOauthOutcome::Cached { .. }));
+        assert_eq!(transport.recorded_urls().len(), 1);
     }
 
     #[tokio::test]
@@ -585,13 +570,14 @@ mod tests {
 
         let transport = RecordingTransport::replying(403, Vec::new(), None);
         let credential = secret("provider-blocked");
+        let blocked_at = NOW + REFRESH_SECONDS * 1_000;
         let first = collect_with_secret(
             &runtime,
             &transport,
             writer(&dir),
             ACCOUNT,
             &credential,
-            NOW,
+            blocked_at,
         )
         .await;
         let ClaudeOauthOutcome::Fallback {
@@ -606,7 +592,10 @@ mod tests {
         };
         assert_eq!(reason, ClaudeOauthFailure::ProviderBlocked);
         assert_eq!(fallback, ClaudeFallback::Statusline);
-        assert_eq!(retry_at, iso_from_epoch_ms(NOW + 86_400_000).unwrap());
+        assert_eq!(
+            retry_at,
+            iso_from_epoch_ms(blocked_at + 86_400_000).unwrap()
+        );
         assert!(message.contains("Statusline and manual entry remain available."));
 
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
@@ -620,7 +609,7 @@ mod tests {
             writer(&dir),
             ACCOUNT,
             &credential,
-            NOW + 3_600_000,
+            blocked_at + 3_600_000,
         )
         .await;
         assert!(matches!(second, ClaudeOauthOutcome::Cached { .. }));
