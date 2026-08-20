@@ -10,6 +10,11 @@ out/
 coverage/
 .test-dist/
 *.key
+*.pem
+*.p8
+*.pk8
+*.seed
+*.private
 *.session
 **/auth.json
 **/credentials.json
