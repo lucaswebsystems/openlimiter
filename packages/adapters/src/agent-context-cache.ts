@@ -27,10 +27,12 @@ export async function agentContextFromCache(
   now: string,
   expectedProviders?: readonly ProviderCode[]
 ): Promise<string> {
-  const cached = await readSnapshotCache(directory);
+  const [cached, hosted] = await Promise.all([
+    readSnapshotCache(directory),
+    hostedContextFromCache(directory)
+  ]);
   const local = cached.ok
     ? buildAgentContext(buildAdvice(cached.snapshots, now, expectedProviders))
     : "";
-  const hosted = await hostedContextFromCache(directory);
   return [local, hosted].filter((context) => context !== "").join("\n");
 }
