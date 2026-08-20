@@ -34,6 +34,8 @@ Pro costs $5 per month or $50 per year. The first 30 days are free and require n
 
 When the trial or subscription ends, only hosted access ends. Local mode remains unchanged.
 
+Checkout redirects never grant access. A signed Stripe event must prove settled payment or an `active` or `trialing` subscription before the server activates Pro. A `past_due` subscription keeps hosted access for three days from its first signed transition, and repeated events cannot extend that deadline. `unpaid`, `canceled`, and `incomplete_expired` subscriptions are denied at the next refresh. A Stripe subscription trial that ends without payment also stops refreshing.
+
 ## Entitlement behavior
 
 The desktop verifies an Ed25519 signed device entitlement offline against public keys embedded at build time. The token lasts five days, requests a silent refresh after three days, and permits ten additional days of offline grace after expiry.
