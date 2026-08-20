@@ -13,6 +13,7 @@ use crate::provider_detection::{
     DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
 };
 use crate::reader_registry::{AuthApplication, ProviderId, ReaderId};
+use crate::request_policy::{GateRejection, RequestPolicy};
 
 pub const REFRESH_SECONDS: u64 = 300;
 const RATE_LIMIT_BACKOFF_SECONDS: u64 = 3_600;
@@ -264,6 +265,83 @@ pub async fn collect_account<T: Transport>(
     outcome
 }
 
+async fn collect_account_guarded<T: Transport>(
+    detection: &DetectionStore,
+    runtime: &GrokOauthRuntime,
+    policy: &RequestPolicy,
+    transport: &T,
+    writer: Arc<CacheWriter>,
+    account_id: String,
+    now_ms: u64,
+) -> (GrokOutcome, bool) {
+    let _lease = match policy.begin(DetectedProviderId::Grok, &account_id, now_ms) {
+        Ok(lease) => lease,
+        Err(GateRejection::Deferred { retry_at }) => {
+            return (
+                GrokOutcome::Cached {
+                    account_id,
+                    retry_at: iso_from_epoch_ms(retry_at)
+                        .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+                },
+                false,
+            )
+        }
+        Err(GateRejection::Busy | GateRejection::Unavailable) => {
+            return (
+                GrokOutcome::Failed {
+                    account_id,
+                    reason: GrokFailure::Protocol,
+                },
+                false,
+            )
+        }
+    };
+    let outcome = collect_account(
+        detection,
+        runtime,
+        transport,
+        writer,
+        account_id.clone(),
+        now_ms,
+    )
+    .await;
+    let abort_provider = match &outcome {
+        GrokOutcome::Fallback {
+            reason: GrokFailure::ProviderBlocked,
+            ..
+        } => {
+            policy.block_provider(DetectedProviderId::Grok, now_ms, BLOCKED_BACKOFF_SECONDS);
+            true
+        }
+        GrokOutcome::Fallback {
+            reason: GrokFailure::RateLimited,
+            ..
+        } => {
+            policy.rate_limit_provider(DetectedProviderId::Grok, now_ms, None);
+            true
+        }
+        GrokOutcome::ReopenCli { .. } => {
+            policy.complete_after(
+                DetectedProviderId::Grok,
+                &account_id,
+                now_ms,
+                BLOCKED_BACKOFF_SECONDS,
+            );
+            false
+        }
+        _ => {
+            policy.complete_after(
+                DetectedProviderId::Grok,
+                &account_id,
+                now_ms,
+                REFRESH_SECONDS,
+            );
+            false
+        }
+    };
+    (outcome, abort_provider)
+}
+
 fn uncovered_account_ids(
     detected_account_ids: Vec<String>,
     covered: &HashSet<PollIdentity>,
@@ -288,17 +366,22 @@ pub async fn run_pass(app: &AppHandle, covered: &HashSet<PollIdentity>) {
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<GrokOauthRuntime>();
+        let policy = app.state::<RequestPolicy>();
         let transport = app.state::<ReqwestTransport>();
         let writer = app.state::<Arc<CacheWriter>>();
-        let _ = collect_account(
+        let (_, abort_provider) = collect_account_guarded(
             &detection,
             &runtime,
+            &policy,
             &*transport,
             Arc::clone(&writer),
             account_id,
             crate::connections::now_epoch_ms(),
         )
         .await;
+        if abort_provider {
+            break;
+        }
     }
 }
 

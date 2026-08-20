@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
@@ -17,7 +17,7 @@ const MAX_ACCOUNTS_PER_FILE: usize = 16;
 const MAX_TOKEN_BYTES: usize = 4_096;
 const MAX_IDENTITY_BYTES: usize = 512;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DetectedProviderId {
     Claude,
@@ -42,7 +42,7 @@ impl DetectedProviderId {
         Self::Kimi,
     ];
 
-    const fn slug(self) -> &'static str {
+    pub(crate) const fn slug(self) -> &'static str {
         match self {
             Self::Claude => "claude",
             Self::Codex => "codex",
@@ -110,7 +110,7 @@ pub enum DetectedCollectionState {
 pub enum IdentityQuality {
     ProviderAccount,
     JwtSubject,
-    CredentialBound,
+    ProviderSingleton,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -961,14 +961,16 @@ fn token_digest(token: &str) -> String {
 pub(crate) fn resolved_credential_account_id(
     provider: DetectedProviderId,
     credential: &str,
-) -> String {
-    let claims = jwt_claims(credential);
-    let material = claims
-        .as_ref()
-        .and_then(claim_identity)
-        .map(|(value, _)| value.to_string())
-        .unwrap_or_else(|| token_digest(credential));
-    opaque_account_id(provider, &material)
+) -> Option<String> {
+    let claims = jwt_claims(credential)?;
+    let (material, _) = claim_identity(&claims)?;
+    Some(opaque_account_id(provider, material))
+}
+
+const PROVIDER_SINGLETON_MATERIAL: &str = "one-active-account-without-stable-identity";
+
+pub(crate) fn provider_singleton_account_id(provider: DetectedProviderId) -> String {
+    opaque_account_id(provider, PROVIDER_SINGLETON_MATERIAL)
 }
 
 fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<ParsedCredential> {
@@ -1024,8 +1026,6 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
             .and_then(claim_identity)
             .or_else(|| id_token_claims.as_ref().and_then(claim_identity));
         let hinted = claude_hint.as_ref().map(|hint| hint.value.as_str());
-        let refresh_token = string_field(object, &["refresh_token", "refreshToken"])
-            .filter(|value| valid_secret(value));
         if provider == DetectedProviderId::GeminiCli
             && explicit_id.or(hinted).is_none()
             && claim.is_none()
@@ -1041,8 +1041,8 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
             (value.to_string(), quality)
         } else {
             (
-                token_digest(refresh_token.unwrap_or(token)),
-                IdentityQuality::CredentialBound,
+                PROVIDER_SINGLETON_MATERIAL.to_string(),
+                IdentityQuality::ProviderSingleton,
             )
         };
         let provider_account_id = match provider {
@@ -1143,10 +1143,10 @@ fn parse_credential_source(
             vec![ParsedCredential {
                 token: credential.access_token,
                 provider_account_id: None,
-                identity_material: credential.identity_material,
+                identity_material: PROVIDER_SINGLETON_MATERIAL.to_string(),
                 email: None,
                 expires_at_ms: credential.expires_at_ms,
-                identity_quality: IdentityQuality::CredentialBound,
+                identity_quality: IdentityQuality::ProviderSingleton,
             }]
         }
         CredentialSource::AntigravityKeyring => Vec::new(),
@@ -1825,7 +1825,7 @@ mod tests {
     }
 
     #[test]
-    fn a_refresh_token_resolves_rotated_antigravity_files_to_one_identity() {
+    fn credential_only_antigravity_paths_use_one_provider_singleton() {
         let dir = TempDir::new();
         let first_path = dir.path().join("first-antigravity.json");
         let second_path = dir.path().join("second-antigravity.json");
@@ -1843,6 +1843,14 @@ mod tests {
         assert_eq!(first.len(), 1);
         assert_eq!(second.len(), 1);
         assert_eq!(first[0].identity_material, second[0].identity_material);
+        assert_eq!(
+            first[0].identity_quality,
+            IdentityQuality::ProviderSingleton
+        );
+        assert_eq!(
+            second[0].identity_quality,
+            IdentityQuality::ProviderSingleton
+        );
         assert_ne!(first[0].token.as_str(), second[0].token.as_str());
     }
 

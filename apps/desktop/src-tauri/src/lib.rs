@@ -24,6 +24,7 @@ mod poll_identity;
 mod pro;
 mod provider_detection;
 mod reader_registry;
+mod request_policy;
 mod state;
 #[cfg(test)]
 mod test_support;
@@ -100,6 +101,7 @@ pub fn run() {
         .manage(kimi_oauth::KimiOauthRuntime::default())
         .manage(gemini_cli_oauth::GeminiCliOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
+        .manage(request_policy::RequestPolicy::at_state_directory())
         .manage(updates::PendingUpdate::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![

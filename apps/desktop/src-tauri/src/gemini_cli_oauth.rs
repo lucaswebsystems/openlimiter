@@ -17,6 +17,7 @@ use crate::net::{
 use crate::provider_detection::{
     DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
 };
+use crate::request_policy::{GateRejection, RequestPolicy};
 
 pub const REFRESH_SECONDS: u64 = 900;
 const SNAPSHOT_TTL_SECONDS: u64 = 1_200;
@@ -465,6 +466,87 @@ pub async fn collect_account<T: Transport>(
     outcome
 }
 
+async fn collect_account_guarded<T: Transport>(
+    detection: &DetectionStore,
+    runtime: &GeminiCliOauthRuntime,
+    policy: &RequestPolicy,
+    transport: &T,
+    writer: Arc<CacheWriter>,
+    account_id: String,
+    now_ms: u64,
+) -> (GeminiCliOutcome, bool) {
+    let _lease = match policy.begin(DetectedProviderId::GeminiCli, &account_id, now_ms) {
+        Ok(lease) => lease,
+        Err(GateRejection::Deferred { retry_at }) => {
+            return (
+                GeminiCliOutcome::Cached {
+                    account_id,
+                    retry_at: iso_from_epoch_ms(retry_at)
+                        .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+                },
+                false,
+            )
+        }
+        Err(GateRejection::Busy | GateRejection::Unavailable) => {
+            return (
+                GeminiCliOutcome::Failed {
+                    account_id,
+                    reason: GeminiCliFailure::Protocol,
+                },
+                false,
+            )
+        }
+    };
+    let outcome = collect_account(
+        detection,
+        runtime,
+        transport,
+        writer,
+        account_id.clone(),
+        now_ms,
+    )
+    .await;
+    let abort_provider = match &outcome {
+        GeminiCliOutcome::Fallback {
+            reason: GeminiCliFailure::ProviderBlocked,
+            ..
+        } => {
+            policy.block_provider(
+                DetectedProviderId::GeminiCli,
+                now_ms,
+                BLOCKED_BACKOFF_SECONDS,
+            );
+            true
+        }
+        GeminiCliOutcome::Fallback {
+            reason: GeminiCliFailure::RateLimited,
+            ..
+        } => {
+            policy.rate_limit_provider(DetectedProviderId::GeminiCli, now_ms, None);
+            true
+        }
+        GeminiCliOutcome::ReopenCli { .. } => {
+            policy.complete_after(
+                DetectedProviderId::GeminiCli,
+                &account_id,
+                now_ms,
+                BLOCKED_BACKOFF_SECONDS,
+            );
+            false
+        }
+        _ => {
+            policy.complete_after(
+                DetectedProviderId::GeminiCli,
+                &account_id,
+                now_ms,
+                REFRESH_SECONDS,
+            );
+            false
+        }
+    };
+    (outcome, abort_provider)
+}
+
 pub async fn run_pass(app: &AppHandle) {
     let account_ids = app
         .state::<DetectionStore>()
@@ -472,17 +554,22 @@ pub async fn run_pass(app: &AppHandle) {
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<GeminiCliOauthRuntime>();
+        let policy = app.state::<RequestPolicy>();
         let transport = app.state::<ReqwestTransport>();
         let writer = app.state::<Arc<CacheWriter>>();
-        let _ = collect_account(
+        let (_, abort_provider) = collect_account_guarded(
             &detection,
             &runtime,
+            &policy,
             &*transport,
             Arc::clone(&writer),
             account_id,
             crate::connections::now_epoch_ms(),
         )
         .await;
+        if abort_provider {
+            break;
+        }
     }
 }
 

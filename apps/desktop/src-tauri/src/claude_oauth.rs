@@ -15,6 +15,7 @@ use crate::provider_detection::{
     DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
 };
 use crate::reader_registry::AuthApplication;
+use crate::request_policy::{GateRejection, RequestPolicy};
 
 pub const REFRESH_SECONDS: u64 = 900;
 pub const RATE_LIMIT_BACKOFF_SECONDS: u64 = 3_600;
@@ -366,6 +367,83 @@ pub async fn collect_account<T: Transport>(
     outcome
 }
 
+pub async fn collect_account_guarded<T: Transport>(
+    detection: &DetectionStore,
+    runtime: &ClaudeOauthRuntime,
+    policy: &RequestPolicy,
+    transport: &T,
+    writer: Arc<CacheWriter>,
+    account_id: String,
+    now_ms: u64,
+) -> (ClaudeOauthOutcome, bool) {
+    let _lease = match policy.begin(DetectedProviderId::Claude, &account_id, now_ms) {
+        Ok(lease) => lease,
+        Err(GateRejection::Deferred { retry_at }) => {
+            return (
+                ClaudeOauthOutcome::Cached {
+                    account_id,
+                    retry_at: iso_from_epoch_ms(retry_at)
+                        .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+                },
+                false,
+            )
+        }
+        Err(GateRejection::Busy | GateRejection::Unavailable) => {
+            return (
+                ClaudeOauthOutcome::Failed {
+                    account_id,
+                    reason: ClaudeOauthFailure::Protocol,
+                },
+                false,
+            )
+        }
+    };
+    let outcome = collect_account(
+        detection,
+        runtime,
+        transport,
+        writer,
+        account_id.clone(),
+        now_ms,
+    )
+    .await;
+    let abort_provider = match &outcome {
+        ClaudeOauthOutcome::Fallback {
+            reason: ClaudeOauthFailure::ProviderBlocked,
+            ..
+        } => {
+            policy.block_provider(DetectedProviderId::Claude, now_ms, BLOCKED_BACKOFF_SECONDS);
+            true
+        }
+        ClaudeOauthOutcome::Fallback {
+            reason: ClaudeOauthFailure::RateLimited,
+            ..
+        } => {
+            policy.rate_limit_provider(DetectedProviderId::Claude, now_ms, None);
+            true
+        }
+        ClaudeOauthOutcome::ReopenCli { .. } => {
+            policy.complete_after(
+                DetectedProviderId::Claude,
+                &account_id,
+                now_ms,
+                BLOCKED_BACKOFF_SECONDS,
+            );
+            false
+        }
+        _ => {
+            policy.complete_after(
+                DetectedProviderId::Claude,
+                &account_id,
+                now_ms,
+                REFRESH_SECONDS,
+            );
+            false
+        }
+    };
+    (outcome, abort_provider)
+}
+
 pub async fn run_pass(app: &AppHandle) {
     let account_ids = app
         .state::<DetectionStore>()
@@ -373,17 +451,22 @@ pub async fn run_pass(app: &AppHandle) {
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<ClaudeOauthRuntime>();
+        let policy = app.state::<RequestPolicy>();
         let transport = app.state::<ReqwestTransport>();
         let writer = app.state::<Arc<CacheWriter>>();
-        let _ = collect_account(
+        let (_, abort_provider) = collect_account_guarded(
             &detection,
             &runtime,
+            &policy,
             &*transport,
             Arc::clone(&writer),
             account_id,
             crate::connections::now_epoch_ms(),
         )
         .await;
+        if abort_provider {
+            break;
+        }
     }
 }
 

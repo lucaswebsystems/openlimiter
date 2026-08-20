@@ -896,10 +896,12 @@ pub async fn test_provider(
     transport: State<'_, ReqwestTransport>,
     writer: State<'_, Arc<CacheWriter>>,
     runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
+    policy: State<'_, crate::request_policy::RequestPolicy>,
     input: ProbeInput,
 ) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
     let outcome = crate::collector_runtime::run_guarded(
         &runtime,
+        &policy,
         &connections,
         &*secrets,
         &*transport,
@@ -919,10 +921,12 @@ pub async fn refresh_provider(
     transport: State<'_, ReqwestTransport>,
     writer: State<'_, Arc<CacheWriter>>,
     runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
+    policy: State<'_, crate::request_policy::RequestPolicy>,
     input: ProbeInput,
 ) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
     let outcome = crate::collector_runtime::run_guarded(
         &runtime,
+        &policy,
         &connections,
         &*secrets,
         &*transport,
@@ -996,18 +1000,21 @@ pub async fn refresh_detected_claude(
     input: RefreshDetectedClaudeInput,
     detection: State<'_, DetectionStore>,
     runtime: State<'_, ClaudeOauthRuntime>,
+    policy: State<'_, crate::request_policy::RequestPolicy>,
     transport: State<'_, ReqwestTransport>,
     writer: State<'_, Arc<CacheWriter>>,
 ) -> Result<ClaudeOauthOutcome, CommandFailure> {
-    Ok(claude_oauth::collect_account(
+    Ok(claude_oauth::collect_account_guarded(
         &detection,
         &runtime,
+        &policy,
         &*transport,
         Arc::clone(&writer),
         input.account_id,
         now_epoch_ms(),
     )
-    .await)
+    .await
+    .0)
 }
 
 #[tauri::command]

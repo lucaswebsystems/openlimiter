@@ -62,6 +62,13 @@ impl CollectionOutcome {
             CollectionOutcome::Tested { .. } | CollectionOutcome::CacheCommitted { .. } => None,
         }
     }
+
+    pub(crate) fn status(&self) -> Option<u16> {
+        match self {
+            CollectionOutcome::Failed { status, .. } => *status,
+            CollectionOutcome::Tested { .. } | CollectionOutcome::CacheCommitted { .. } => None,
+        }
+    }
 }
 
 fn probe_failure(failure: ProbeFailure) -> CollectorFailure {

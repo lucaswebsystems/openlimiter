@@ -7,13 +7,14 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cache_write::CacheWriter;
 use crate::collector::{collect_core, CollectionMode, CollectionOutcome, CollectorFailure};
-use crate::collector_schedule::{eligible, schedule_after, scheduled};
+use crate::collector_schedule::{schedule_after, scheduled};
 use crate::commands::CommandFailure;
 use crate::connections::{now_epoch_ms, ConnectionRecord, ConnectionsStore};
 use crate::credentials::{KeyringStore, SecretStore};
 use crate::net::{ReqwestTransport, Transport};
+use crate::poll_identity::detected_provider;
 use crate::poll_identity::{resolve_connection, PollIdentity};
-use crate::reader_registry::ProviderId;
+use crate::request_policy::{provider_interval_seconds, RequestPolicy, BLOCKED_PROVIDER_SECONDS};
 
 pub const COLLECTOR_UPDATED_EVENT: &str = "collector-updated";
 const COLLECTOR_INTERVAL_SECONDS: u64 = 60;
@@ -80,6 +81,7 @@ impl CollectorRuntime {
 
 pub async fn run_guarded<T: Transport>(
     runtime: &CollectorRuntime,
+    policy: &RequestPolicy,
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
     transport: &T,
@@ -88,8 +90,19 @@ pub async fn run_guarded<T: Transport>(
     mode: CollectionMode,
 ) -> Result<CollectionOutcome, CommandFailure> {
     let record = connections.get(&connection_id)?;
-    let identity =
-        resolve_connection(&record, secrets).unwrap_or_else(|| PollIdentity::unique(&record));
+    let identity = resolve_connection(&record, secrets);
+    let provider = detected_provider(record.provider_id);
+    let now_ms = now_epoch_ms();
+    let _lease = match policy.begin(provider, identity.account_id(), now_ms) {
+        Ok(lease) => lease,
+        Err(_) => {
+            return Ok(CollectionOutcome::Failed {
+                connection_id,
+                reason: CollectorFailure::Busy,
+                status: None,
+            })
+        }
+    };
     if !runtime.begin(&identity) {
         return Ok(CollectionOutcome::Failed {
             connection_id,
@@ -109,6 +122,22 @@ pub async fn run_guarded<T: Transport>(
     if outcome.is_err() {
         let _ = schedule_after(connections, &connection_id, false, true, None);
     }
+    match outcome.as_ref().ok().and_then(CollectionOutcome::status) {
+        Some(403 | 404 | 410) => policy.block_provider(provider, now_ms, BLOCKED_PROVIDER_SECONDS),
+        Some(429) => policy.rate_limit_provider(provider, now_ms, None),
+        Some(401) => policy.complete_after(
+            provider,
+            identity.account_id(),
+            now_ms,
+            BLOCKED_PROVIDER_SECONDS,
+        ),
+        _ => policy.complete_after(
+            provider,
+            identity.account_id(),
+            now_ms,
+            provider_interval_seconds(provider),
+        ),
+    }
     synchronize_schedule(connections, secrets, &identity, &connection_id);
     runtime.finish(&identity);
     outcome
@@ -117,7 +146,6 @@ pub async fn run_guarded<T: Transport>(
 struct CollectionPlan {
     records: Vec<ConnectionRecord>,
     covered: HashSet<PollIdentity>,
-    unresolved_automatic: HashSet<ProviderId>,
 }
 
 fn canonical_record(records: &[ConnectionRecord]) -> Option<ConnectionRecord> {
@@ -134,60 +162,37 @@ fn canonical_record(records: &[ConnectionRecord]) -> Option<ConnectionRecord> {
 fn collection_plan(
     records: Vec<ConnectionRecord>,
     secrets: &impl SecretStore,
-    explicit: bool,
     now_ms: u64,
 ) -> CollectionPlan {
     let mut groups = HashMap::<PollIdentity, Vec<ConnectionRecord>>::new();
-    let mut unresolved = Vec::new();
     let mut covered = HashSet::new();
-    let mut unresolved_automatic = HashSet::new();
 
     for record in records {
-        if let Some(identity) = resolve_connection(&record, secrets) {
-            covered.insert(identity.clone());
-            groups.entry(identity).or_default().push(record);
-        } else {
-            if matches!(
-                record.provider_id,
-                ProviderId::Codex | ProviderId::Antigravity | ProviderId::Grok | ProviderId::Kimi
-            ) {
-                unresolved_automatic.insert(record.provider_id);
-            }
-            unresolved.push(record);
-        }
+        let identity = resolve_connection(&record, secrets);
+        covered.insert(identity.clone());
+        groups.entry(identity).or_default().push(record);
     }
 
     let mut planned = Vec::new();
     for records in groups.into_values() {
-        let eligible_records = if explicit {
-            records.clone()
+        let scheduled_records: Vec<_> = records
+            .iter()
+            .filter(|record| scheduled(record))
+            .cloned()
+            .collect();
+        let account_next = scheduled_records
+            .iter()
+            .filter_map(|record| record.next_refresh_at)
+            .max();
+        let eligible_records = if account_next.is_some_and(|next| now_ms < next) {
+            Vec::new()
         } else {
-            let scheduled_records: Vec<_> = records
-                .iter()
-                .filter(|record| scheduled(record))
-                .cloned()
-                .collect();
-            let account_next = scheduled_records
-                .iter()
-                .filter_map(|record| record.next_refresh_at)
-                .max();
-            if account_next.is_some_and(|next| now_ms < next) {
-                Vec::new()
-            } else {
-                scheduled_records
-            }
+            scheduled_records
         };
         if let Some(record) = canonical_record(&eligible_records) {
             planned.push(record);
         }
     }
-    planned.extend(unresolved.into_iter().filter(|record| {
-        if explicit {
-            true
-        } else {
-            eligible(record, now_ms)
-        }
-    }));
     planned.sort_by(|left, right| {
         left.created_at
             .cmp(&right.created_at)
@@ -196,7 +201,6 @@ fn collection_plan(
     CollectionPlan {
         records: planned,
         covered,
-        unresolved_automatic,
     }
 }
 
@@ -213,9 +217,7 @@ fn synchronize_schedule(
         return;
     };
     for record in records {
-        if record.id == selected_id
-            || resolve_connection(&record, secrets).as_ref() != Some(identity)
-        {
+        if record.id == selected_id || &resolve_connection(&record, secrets) != identity {
             continue;
         }
         let _ = connections.update(&record.id, |sibling| {
@@ -224,23 +226,30 @@ fn synchronize_schedule(
     }
 }
 
-async fn run_pass(app: &AppHandle, explicit: bool) {
+async fn run_pass(app: &AppHandle) {
     let connections = app.state::<ConnectionsStore>();
     let secrets = app.state::<KeyringStore>();
     let records = connections
         .list()
-        .map(|records| collection_plan(records, &*secrets, explicit, now_epoch_ms()));
+        .map(|records| collection_plan(records, &*secrets, now_epoch_ms()));
     let mut last_failure = None;
     let mut attempted = false;
+    let mut stopped_providers = HashSet::new();
     match records {
         Ok(plan) => {
             for record in plan.records {
+                let provider = detected_provider(record.provider_id);
+                if stopped_providers.contains(&provider) {
+                    continue;
+                }
                 attempted = true;
                 let runtime = app.state::<CollectorRuntime>();
+                let policy = app.state::<RequestPolicy>();
                 let transport = app.state::<ReqwestTransport>();
                 let writer = app.state::<Arc<CacheWriter>>();
                 match run_guarded(
                     &runtime,
+                    &policy,
                     &connections,
                     &*secrets,
                     &*transport,
@@ -251,6 +260,9 @@ async fn run_pass(app: &AppHandle, explicit: bool) {
                 .await
                 {
                     Ok(outcome) => {
+                        if matches!(outcome.status(), Some(403 | 404 | 410 | 429)) {
+                            stopped_providers.insert(provider);
+                        }
                         if outcome.failure().is_some() {
                             last_failure = outcome.failure();
                         }
@@ -261,24 +273,13 @@ async fn run_pass(app: &AppHandle, explicit: bool) {
 
             let coverage = connections
                 .list()
-                .map(|records| collection_plan(records, &*secrets, false, now_epoch_ms()));
+                .map(|records| collection_plan(records, &*secrets, now_epoch_ms()));
             match coverage {
                 Ok(coverage) => {
-                    if !coverage.unresolved_automatic.contains(&ProviderId::Codex) {
-                        crate::codex_oauth::run_pass(app, &coverage.covered).await;
-                    }
-                    if !coverage
-                        .unresolved_automatic
-                        .contains(&ProviderId::Antigravity)
-                    {
-                        crate::antigravity_oauth::run_pass(app, &coverage.covered).await;
-                    }
-                    if !coverage.unresolved_automatic.contains(&ProviderId::Grok) {
-                        crate::grok_oauth::run_pass(app, &coverage.covered).await;
-                    }
-                    if !coverage.unresolved_automatic.contains(&ProviderId::Kimi) {
-                        crate::kimi_oauth::run_pass(app, &coverage.covered).await;
-                    }
+                    crate::codex_oauth::run_pass(app, &coverage.covered).await;
+                    crate::antigravity_oauth::run_pass(app, &coverage.covered).await;
+                    crate::grok_oauth::run_pass(app, &coverage.covered).await;
+                    crate::kimi_oauth::run_pass(app, &coverage.covered).await;
                 }
                 Err(_) => last_failure = Some(CollectorFailure::Internal),
             }
@@ -298,14 +299,14 @@ pub fn spawn_collector(app: AppHandle) {
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
-            run_pass(&app, false).await;
+            run_pass(&app).await;
         }
     });
 }
 
 pub fn refresh_all(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        run_pass(&app, true).await;
+        run_pass(&app).await;
     });
 }
 
@@ -313,7 +314,7 @@ pub fn refresh_all(app: AppHandle) {
 mod tests {
     use super::*;
     use crate::credentials::{SecretStore, MASK_DOTS};
-    use crate::reader_registry::{CredentialKind, ReaderId};
+    use crate::reader_registry::{CredentialKind, ProviderId, ReaderId};
     use crate::test_support::InMemorySecrets;
 
     const NOW: u64 = 1_787_136_000_000;
@@ -376,7 +377,6 @@ mod tests {
                 antigravity("second-path", 2, None),
             ],
             &secrets,
-            false,
             NOW,
         );
 
@@ -398,14 +398,14 @@ mod tests {
             antigravity("future-path", 2, Some(NOW + 600_000)),
         ];
 
-        let early = collection_plan(records.clone(), &secrets, false, NOW);
+        let early = collection_plan(records.clone(), &secrets, NOW);
         assert!(early.records.is_empty());
-        let due = collection_plan(records, &secrets, false, NOW + 600_000);
+        let due = collection_plan(records, &secrets, NOW + 600_000);
         assert_eq!(due.records.len(), 1);
     }
 
     #[test]
-    fn distinct_antigravity_accounts_keep_distinct_polls() {
+    fn credential_only_antigravity_paths_fail_closed_to_one_poll_target() {
         let secrets = InMemorySecrets::new();
         secrets
             .store_secret("first-account", "first-antigravity-token")
@@ -419,12 +419,12 @@ mod tests {
                 antigravity("second-account", 2, None),
             ],
             &secrets,
-            false,
             NOW,
         );
 
-        assert_eq!(plan.records.len(), 2);
-        assert_eq!(plan.covered.len(), 2);
+        assert_eq!(plan.records.len(), 1);
+        assert_eq!(plan.records[0].id, "first-account");
+        assert_eq!(plan.covered.len(), 1);
     }
 
     #[test]
@@ -451,7 +451,7 @@ mod tests {
                 )
             })
             .collect();
-        let plan = collection_plan(records, &secrets, false, NOW);
+        let plan = collection_plan(records, &secrets, NOW);
 
         assert_eq!(plan.records.len(), 1);
         assert_eq!(plan.covered.len(), 1);
@@ -487,7 +487,6 @@ mod tests {
                 ),
             ],
             &secrets,
-            false,
             NOW,
         );
 
