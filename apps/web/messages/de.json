@@ -30,8 +30,8 @@
     "closeMenu": "Menü schließen"
   },
   "announce": {
-    "message": "OpenLimiter Pro: $5 pro Monat oder $50 pro Jahr. Die ersten 30 Tage sind kostenlos",
-    "short": "OpenLimiter Pro: die ersten 30 Tage kostenlos",
+    "message": "OpenLimiter Pro kommt demnächst. Das vollständige lokale Produkt bleibt kostenlos und braucht kein Konto.",
+    "short": "OpenLimiter Pro kommt demnächst",
     "dismiss": "Diese Ankündigung schließen"
   },
   "footer": {

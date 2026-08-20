@@ -30,8 +30,8 @@
     "closeMenu": "メニューを閉じる"
   },
   "announce": {
-    "message": "OpenLimiter Proは月額$5または年額$50です。最初の30日間は無料です",
-    "short": "OpenLimiter Proは最初の30日間無料です",
+    "message": "OpenLimiter Proは近日公開予定です。ローカル製品の全機能は無料のままで、アカウントも必要ありません。",
+    "short": "OpenLimiter Proは近日公開予定です",
     "dismiss": "このお知らせを閉じる"
   },
   "footer": {

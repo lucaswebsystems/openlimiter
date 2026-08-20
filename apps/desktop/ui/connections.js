@@ -1040,8 +1040,24 @@ function renderCatalogue() {
     if (rowData.availability !== group) {
       group = rowData.availability;
       const groupHead = element("div", "catalogue-group");
+      groupHead.dataset.availability = group;
+      const groupCopy = element("div", "catalogue-group-copy");
+      groupCopy.append(
+        element(
+          "span",
+          "catalogue-group-name",
+          group === "ready" ? "Available now" : "Roadmap",
+        ),
+        element(
+          "span",
+          "catalogue-group-note",
+          group === "ready"
+            ? "Supported here. Your account is verified only after a live read."
+            : "Not built yet. No setup required.",
+        ),
+      );
       groupHead.append(
-        element("span", "catalogue-group-name", group === "ready" ? "Ready" : "Planned"),
+        groupCopy,
         element(
           "span",
           "catalogue-group-count",

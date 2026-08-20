@@ -34,7 +34,9 @@ describe("provider connection directory", () => {
   });
 
   it("classifies automatic, key, and manual access without treating planned as broken", () => {
-    const byId = new Map(buildProviderDirectory(providerSpecs).map((row) => [row.specId, row]));
+    const rows = buildProviderDirectory(providerSpecs);
+    const byId = new Map(rows.map((row) => [row.specId, row]));
+    const planned = rows.filter((row) => row.availability === "planned");
 
     expect(byId.get("anthropic/claude-code")?.access).toBe("automatic");
     expect(byId.get("openrouter/api")?.access).toBe("key");
@@ -57,6 +59,11 @@ describe("provider connection directory", () => {
       connectorId: "kimi",
       availability: "ready",
     });
+    expect(planned).toHaveLength(9);
+    expect(planned.every((row) => row.description === "Roadmap item")).toBe(true);
+    expect(planned.every((row) => row.accessLabel === "Roadmap")).toBe(true);
+    expect(planned.every((row) => row.stateLabel === "Not built yet")).toBe(true);
+    expect(planned.every((row) => row.action === "none" && row.actionLabel === null)).toBe(true);
   });
 
   it("turns runtime state into one concise state and one action", () => {

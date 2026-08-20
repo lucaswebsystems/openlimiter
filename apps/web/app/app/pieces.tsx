@@ -361,21 +361,32 @@ function providerMarkCode(row: ProviderDirectoryRow): string {
 }
 
 function DirectoryGroup({
+  availability,
   label,
+  note,
   rows,
   onConnect,
   onManual,
 }: {
+  availability: ProviderDirectoryRow["availability"];
   label: string;
+  note: string;
   rows: readonly ProviderDirectoryRow[];
   onConnect: (row: ProviderDirectoryRow) => void;
   onManual: (row: ProviderDirectoryRow) => void;
 }) {
   return (
-    <section className="ol-directory-group" aria-labelledby={`directory-${label.toLowerCase()}`}>
+    <section
+      className="ol-directory-group"
+      data-availability={availability}
+      aria-labelledby={`directory-${availability}`}
+    >
       <header className="ol-directory-group-head">
-        <h3 id={`directory-${label.toLowerCase()}`}>{label}</h3>
-        <span>{rows.length}</span>
+        <div className="ol-directory-group-copy">
+          <h3 id={`directory-${availability}`}>{label}</h3>
+          <p>{note}</p>
+        </div>
+        <span className="ol-directory-group-count">{rows.length}</span>
       </header>
       <ul className="ol-directory-list">
         {rows.map((row) => (
@@ -435,8 +446,22 @@ export function ProviderDirectory({
 
   return (
     <div id="provider-directory" className="ol-provider-directory">
-      <DirectoryGroup label="Ready" rows={ready} onConnect={onConnect} onManual={onManual} />
-      <DirectoryGroup label="Planned" rows={planned} onConnect={onConnect} onManual={onManual} />
+      <DirectoryGroup
+        availability="ready"
+        label="Available now"
+        note="Supported here. Your account is verified only after a live read."
+        rows={ready}
+        onConnect={onConnect}
+        onManual={onManual}
+      />
+      <DirectoryGroup
+        availability="planned"
+        label="Roadmap"
+        note="Not built yet. No setup required."
+        rows={planned}
+        onConnect={onConnect}
+        onManual={onManual}
+      />
       {onEnterDemo && (
         <div className="ol-directory-demo">
           <span>Preview every meter</span>

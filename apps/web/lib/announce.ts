@@ -34,8 +34,8 @@ export const ANNOUNCE_OFF = "off";
 /** The legacy storage key, cleared on sight. See the arm script below. */
 const ANNOUNCE_LEGACY_KEY = "openlimiter-announce";
 
-/** Where the bar goes: the section that explains both numbers. */
-export const ANNOUNCE_HREF = "/pricing";
+/** Where the launch bar goes: the honest Pro availability state. */
+export const ANNOUNCE_HREF = "/pro";
 
 /**
  * The bar returns on every load, the founder's order (2026-08-11): closing it

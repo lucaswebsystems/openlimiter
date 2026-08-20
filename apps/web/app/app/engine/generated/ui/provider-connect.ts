@@ -18,7 +18,7 @@ export interface ProviderDirectoryRow {
   connectorId: string | null;
   displayName: string;
   access: ProviderAccessClass;
-  accessLabel: "Automatic" | "Key" | "Manual";
+  accessLabel: "Automatic" | "Key" | "Manual" | "Roadmap";
   availability: ProviderDirectoryAvailability;
   description: string;
   state: string;
@@ -295,14 +295,14 @@ export function buildProviderDirectory(
         connectorId,
         displayName,
         access,
-        accessLabel: ACCESS_LABELS[access],
+        accessLabel: "Roadmap",
         availability,
-        description: ACCESS_DESCRIPTIONS[access],
+        description: "Roadmap item",
         state: "PLANNED",
-        stateLabel: "Planned",
+        stateLabel: "Not built yet",
         stateTone: "quiet",
-        action: "manual",
-        actionLabel: "Add manually",
+        action: "none",
+        actionLabel: null,
       });
       continue;
     }
