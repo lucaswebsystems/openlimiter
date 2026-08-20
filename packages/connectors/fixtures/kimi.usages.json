@@ -1,0 +1,22 @@
+{
+  "usage": {
+    "used": "214",
+    "limit": "2048",
+    "remaining": "1834",
+    "resetTime": "2026-08-12T12:00:00Z"
+  },
+  "limits": [
+    {
+      "window": {
+        "duration": 5,
+        "timeUnit": "TIME_UNIT_HOUR"
+      },
+      "detail": {
+        "used": "139",
+        "limit": "200",
+        "remaining": "61",
+        "resetTime": "2026-08-07T16:00:00Z"
+      }
+    }
+  ]
+}

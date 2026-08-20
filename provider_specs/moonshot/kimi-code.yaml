@@ -1,0 +1,80 @@
+provider_id: moonshot
+product_id: kimi-code
+display_name: Kimi
+
+source:
+  docs_url: https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts
+  reviewed_at: "2026-08-19"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: kimi_usage
+      endpoint_id: kimi_usage
+      credential_kind: kimi_session
+      evidence_fixture: kimi.official_source.usages
+      evidence_status: documented
+      last_verified_at: "2026-08-19"
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - kimi.official_source.usages
+    - kimi.live.pending
+
+honesty:
+  connector_id: kimi
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+meters:
+  - id: weekly
+    label: Weekly usage
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 604800
+    source_format: json_path
+    source_path: usage.used
+    reset_path: usage.resetTime
+    reset_encoding: rfc3339
+    optional: false
+    meter_code: WEEKLY
+  - id: provider_window
+    label: Provider window
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: provider_defined
+    source_format: json_path
+    source_path: limits.detail.used
+    reset_path: limits.detail.resetTime
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: FIVE_HOUR
