@@ -33,6 +33,10 @@ impl PollIdentity {
     }
 }
 
+/* The wildcard is intentionally unreachable for the current closed enum. It
+stays here so a provider added by another lane receives credential bound
+deduplication until its richer detected identity is wired. */
+#[allow(unreachable_patterns)]
 fn detected_provider(provider_id: ProviderId) -> Option<DetectedProviderId> {
     match provider_id {
         ProviderId::Openrouter => Some(DetectedProviderId::Openrouter),
