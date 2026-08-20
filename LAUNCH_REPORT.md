@@ -1,6 +1,6 @@
 # OpenLimiter launch report
 
-Updated: 2026-08-20 06:54 BRT
+Updated: 2026-08-20 07:01 BRT
 
 ## Verdict
 
@@ -163,6 +163,8 @@ At 06:52 BRT `vercel deploy --prod` completed successfully inside its 30 minute 
 
 At 06:54 BRT bounded live fetches returned HTTP 200 for the immutable deployment download page, the canonical root, download, pricing, Pro, and changelog pages. Both download surfaces contain 15 references to `v1.0.0`. The canonical download page contains zero references to `v0.4.0`. Pricing and Pro contain 39 coming soon messages, zero links or form actions to checkout, Stripe, Supabase, or an unavailable API, and zero rendered checkout controls. The changelog contains eight references to version 1.0.0. The production launch is therefore verified live.
 
+At 07:01 BRT final main CI run `32356383386` passed for pushed report milestone `ce59dfc`. macOS completed in 1 minute 52 seconds, Linux in 2 minutes 59 seconds, and Windows in 5 minutes 4 seconds. Every build, typecheck, workspace test, offline fixture and contract test, standalone web build, desktop assembly, and Cargo test step passed on all three runners.
+
 ## Next step
 
-No launch operation remains. Complete the final secret scan, commit this report, push the report only commit, and close the Overclock handoff.
+No launch or repository operation remains. Close the Overclock handoff.
