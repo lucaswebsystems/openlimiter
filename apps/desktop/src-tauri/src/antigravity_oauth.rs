@@ -321,7 +321,9 @@ mod tests {
     use std::fs;
 
     use crate::cache_write::CACHE_FILE_NAME;
-    use crate::net::{HttpMethod, ANTIGRAVITY_EMPTY_BODY, ANTIGRAVITY_QUOTA_URL};
+    use crate::net::{
+        HttpMethod, ANTIGRAVITY_BOOTSTRAP_BODY, ANTIGRAVITY_BOOTSTRAP_URL, ANTIGRAVITY_QUOTA_URL,
+    };
     use crate::test_support::{RecordingTransport, TempDir};
     use zeroize::Zeroizing;
 
@@ -375,11 +377,22 @@ mod tests {
         Arc::new(CacheWriter::at(Some(dir.path().to_path_buf())))
     }
 
+    fn quota_transport(body: Vec<u8>) -> RecordingTransport {
+        RecordingTransport::scripted(vec![
+            (
+                200,
+                br#"{"cloudaicompanionProject":"fixture-project-123"}"#.to_vec(),
+                None,
+            ),
+            (200, body, None),
+        ])
+    }
+
     #[tokio::test]
     async fn automatic_read_uses_the_observed_endpoint_method_and_body() {
         let dir = TempDir::new();
         let runtime = AntigravityOauthRuntime::default();
-        let transport = RecordingTransport::replying(200, valid_body(), None);
+        let transport = quota_transport(valid_body());
         let outcome = collect_with_secret(
             &runtime,
             &transport,
@@ -390,15 +403,27 @@ mod tests {
         )
         .await;
         assert!(matches!(outcome, AntigravityOutcome::CacheCommitted { .. }));
-        assert_eq!(transport.recorded_urls(), vec![ANTIGRAVITY_QUOTA_URL]);
-        assert_eq!(transport.recorded_methods(), vec![HttpMethod::Post]);
+        assert_eq!(
+            transport.recorded_urls(),
+            vec![ANTIGRAVITY_BOOTSTRAP_URL, ANTIGRAVITY_QUOTA_URL]
+        );
+        assert_eq!(
+            transport.recorded_methods(),
+            vec![HttpMethod::Post, HttpMethod::Post]
+        );
         assert_eq!(
             transport.recorded_auths(),
-            vec![AuthApplication::AntigravitySessionBearer]
+            vec![
+                AuthApplication::AntigravitySessionBearer,
+                AuthApplication::AntigravitySessionBearer
+            ]
         );
         assert_eq!(
             transport.recorded_bodies(),
-            vec![Some(ANTIGRAVITY_EMPTY_BODY)]
+            vec![
+                Some(ANTIGRAVITY_BOOTSTRAP_BODY.to_string()),
+                Some(r#"{"project":"fixture-project-123"}"#.to_string())
+            ]
         );
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
         assert!(cache.contains("ANTIGRAVITY"));
@@ -409,7 +434,7 @@ mod tests {
     async fn a_token_rotation_does_not_reset_the_account_cadence() {
         let dir = TempDir::new();
         let runtime = AntigravityOauthRuntime::default();
-        let transport = RecordingTransport::replying(200, valid_body(), None);
+        let transport = quota_transport(valid_body());
         let _ = collect_with_secret(
             &runtime,
             &transport,
@@ -435,14 +460,14 @@ mod tests {
         .await;
 
         assert!(matches!(second, AntigravityOutcome::Cached { .. }));
-        assert_eq!(transport.recorded_urls().len(), 1);
+        assert_eq!(transport.recorded_urls().len(), 2);
     }
 
     #[tokio::test]
     async fn response_drift_writes_a_suppression_and_never_zero() {
         let dir = TempDir::new();
         let runtime = AntigravityOauthRuntime::default();
-        let transport = RecordingTransport::replying(200, br#"{"groups":[]}"#.to_vec(), None);
+        let transport = quota_transport(br#"{"groups":[]}"#.to_vec());
         let outcome = collect_with_secret(
             &runtime,
             &transport,

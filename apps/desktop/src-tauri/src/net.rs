@@ -50,11 +50,17 @@ pub const GROK_USAGE_URL: &str = "https://cli-chat-proxy.grok.com/v1/billing?for
 /// The Kimi Code usage report used by the official Kimi CLI.
 pub const KIMI_USAGE_URL: &str = "https://api.kimi.com/coding/v1/usages";
 
+/// The Antigravity account bootstrap, used to resolve the server managed
+/// Cloud Code project before a quota read.
+pub const ANTIGRAVITY_BOOTSTRAP_URL: &str =
+    "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
+
 /// The Antigravity quota summary, on Google's metadata plane.
 ///
-/// Evidence, recorded 2026-08-07: `POST` with an empty JSON object as the
-/// body, bearer authorization, and a NON EMPTY user agent. The user agent is
-/// not decoration: the same valid token answers 403 without one.
+/// Evidence, recorded 2026-08-19 against agy 1.1.15: the same unexpired
+/// keyring token produced a 403 when this endpoint received `{}` and produced
+/// a 200 response with two groups and four buckets after `loadCodeAssist`
+/// resolved the companion project and that project was sent in the body.
 pub const ANTIGRAVITY_QUOTA_URL: &str =
     "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
 
@@ -77,11 +83,11 @@ pub const OPENCODE_WORKSPACE_URL_SUFFIX: &str = "/go";
 ///
 /// DECISION, ratified 2026-08-10, and settled: do not reopen it.
 ///
-/// One variant is not one request. `OpencodeUsage` owns TWO constant addresses,
-/// because reading that provider takes two hops: the entry point names the
-/// workspace, and the workspace page carries the meters. OpenCode's meters are
-/// per account and live behind a per workspace path, so no single constant
-/// address reaches them.
+/// One variant is not necessarily one request. `OpencodeUsage` owns two
+/// constant addresses because its entry point names the workspace carrying
+/// the meters. `AntigravityQuota` also owns two constant addresses because
+/// its bootstrap resolves the server managed project required by the quota
+/// request body.
 ///
 /// The rejected alternative was a sixth enum variant for the entry point. It
 /// was rejected because the endpoint vocabulary is the frozen contract shared
@@ -126,15 +132,12 @@ impl ProviderEndpoint {
     ];
 
     /// The address the first request of this endpoint goes to.
-    ///
-    /// For four of the five that is the whole endpoint. For `OpencodeUsage` it
-    /// is the entry point, and `workspace_url` below builds the second hop.
     pub const fn url(self) -> &'static str {
         match self {
             ProviderEndpoint::OpenrouterKey => OPENROUTER_KEY_URL,
             ProviderEndpoint::OpenrouterCredits => OPENROUTER_CREDITS_URL,
             ProviderEndpoint::CodexUsage => CODEX_USAGE_URL,
-            ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_QUOTA_URL,
+            ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_BOOTSTRAP_URL,
             ProviderEndpoint::OpencodeUsage => OPENCODE_AUTH_URL,
             ProviderEndpoint::ClaudeOauthUsage => CLAUDE_OAUTH_USAGE_URL,
             ProviderEndpoint::GrokUsage => GROK_USAGE_URL,
@@ -163,11 +166,12 @@ impl ProviderEndpoint {
         }
     }
 
-    /// The request body, when the endpoint demands one. A constant, so no
-    /// caller supplied bytes ever leave this process.
+    /// The first request body, when the endpoint demands one. The second
+    /// Antigravity body is constructed only from a validated project returned
+    /// by the first request.
     pub const fn body(self) -> Option<&'static str> {
         match self {
-            ProviderEndpoint::AntigravityQuota => Some(ANTIGRAVITY_EMPTY_BODY),
+            ProviderEndpoint::AntigravityQuota => Some(ANTIGRAVITY_BOOTSTRAP_BODY),
             ProviderEndpoint::OpenrouterKey
             | ProviderEndpoint::OpenrouterCredits
             | ProviderEndpoint::CodexUsage
@@ -179,12 +183,11 @@ impl ProviderEndpoint {
     }
 }
 
-/// The empty JSON object the quota summary expects as its whole request body.
-pub const ANTIGRAVITY_EMPTY_BODY: &str = "{}";
+/// The exact bootstrap metadata emitted by the current agy client.
+pub const ANTIGRAVITY_BOOTSTRAP_BODY: &str = r#"{"metadata":{"ideType":"ANTIGRAVITY","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}}"#;
 
-/// The identity every provider request carries. It names the software making
-/// the request instead of impersonating the client that originally obtained a
-/// session.
+/// The default identity carried by provider requests that accept third party
+/// clients. Antigravity is the exception documented below.
 pub const OPENLIMITER_USER_AGENT: &str = "OpenLimiter/0.4.0 (+https://openlimiter.com)";
 
 /// The user agent the Codex usage endpoint is addressed with.
@@ -214,13 +217,33 @@ pub const CLAUDE_OAUTH_BETA_VALUE: &str = "oauth-2025-04-20";
 /// An honest product identity for the private usage request.
 pub const CLAUDE_OAUTH_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
 
-/// The user agent the Antigravity quota summary is addressed with.
+/// The client identity required by Antigravity's private metadata plane.
 ///
-/// NOT optional, and not cosmetic. Measured on 2026-08-07: the same valid token
-/// is answered 403 "the caller does not have permission" when the request
-/// carries no user agent, and 200 when it carries any. A reader that starts
-/// reporting 403 should be checked here before the login is blamed.
-pub const ANTIGRAVITY_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
+/// This is deliberately pinned to the agy release whose live request contract
+/// was verified. The endpoint returned an incomplete bootstrap to the same
+/// valid session when addressed as OpenLimiter, then returned the companion
+/// project and quota when addressed with agy's client identity.
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 windows/amd64";
+#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
+pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 windows/arm64";
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 linux/amd64";
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 linux/arm64";
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 darwin/amd64";
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 darwin/arm64";
+#[cfg(not(any(
+    all(target_os = "windows", target_arch = "x86_64"),
+    all(target_os = "windows", target_arch = "aarch64"),
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "aarch64")
+)))]
+pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 unknown/unknown";
 
 /// The user agent the OpenCode workspace page is addressed with.
 pub const OPENCODE_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
@@ -317,6 +340,46 @@ impl WorkspaceHandle {
     }
 }
 
+/// A server resolved Cloud Code project, validated before it can enter the
+/// second Antigravity request body.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct AntigravityProject(String);
+
+impl AntigravityProject {
+    fn parse(text: &str) -> Option<Self> {
+        if !(6..=63).contains(&text.len()) {
+            return None;
+        }
+        let mut bytes = text.bytes();
+        let first = bytes.next()?;
+        if !first.is_ascii_lowercase() {
+            return None;
+        }
+        if !bytes.all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-') {
+            return None;
+        }
+        if text.ends_with('-') {
+            return None;
+        }
+        Some(Self(text.to_string()))
+    }
+
+    fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Deserialize)]
+struct AntigravityBootstrapResponse {
+    #[serde(rename = "cloudaicompanionProject")]
+    project: String,
+}
+
+#[derive(Serialize)]
+struct AntigravityQuotaRequest<'a> {
+    project: &'a str,
+}
+
 /// What a transport hands back. The body is present only for a status in the
 /// 200 range; the transport drops every other body without reading it.
 pub struct TransportReply {
@@ -362,7 +425,7 @@ pub struct EndpointRequest<'a> {
     pub auth: AuthApplication,
     /// Present only when an endpoint requires an account header.
     pub provider_account_id: Option<&'a str>,
-    pub body: Option<&'static str>,
+    pub body: Option<&'a str>,
 }
 
 /// The one verb the subsystem needs from HTTP, behind a trait so tests inject
@@ -440,6 +503,12 @@ pub async fn fetch_endpoint<T: Transport>(
     if endpoint.needs_workspace() {
         return fetch_through_workspace(transport, endpoint, auth, secret).await;
     }
+    if endpoint == ProviderEndpoint::AntigravityQuota {
+        if auth != AuthApplication::AntigravitySessionBearer || provider_account_id.is_some() {
+            return Err(NetError::Protocol);
+        }
+        return fetch_antigravity_quota(transport, secret).await;
+    }
     if matches!(
         auth,
         AuthApplication::CodexSessionBearer | AuthApplication::GrokSessionBearer
@@ -475,6 +544,52 @@ pub async fn fetch_endpoint<T: Transport>(
     };
     let reply = transport
         .send(&request, secret)
+        .await
+        .map_err(NetError::from)?;
+    outcome_of(reply)
+}
+
+/// Resolve the server managed project and then ask for quota. Both addresses,
+/// methods, bodies and the authentication scheme stay closed inside this
+/// module; the caller can supply only the credential already assigned to the
+/// Antigravity reader.
+async fn fetch_antigravity_quota<T: Transport>(
+    transport: &T,
+    secret: &str,
+) -> Result<EndpointOutcome, NetError> {
+    let bootstrap = EndpointRequest {
+        url: ANTIGRAVITY_BOOTSTRAP_URL,
+        method: HttpMethod::Post,
+        auth: AuthApplication::AntigravitySessionBearer,
+        provider_account_id: None,
+        body: Some(ANTIGRAVITY_BOOTSTRAP_BODY),
+    };
+    let bootstrap = outcome_of(
+        transport
+            .send(&bootstrap, secret)
+            .await
+            .map_err(NetError::from)?,
+    )?;
+    if !(200..=299).contains(&bootstrap.status) {
+        return Ok(bootstrap);
+    }
+    let parsed: AntigravityBootstrapResponse =
+        serde_json::from_str(bootstrap.body.as_deref().ok_or(NetError::Protocol)?)
+            .map_err(|_| NetError::Protocol)?;
+    let project = AntigravityProject::parse(&parsed.project).ok_or(NetError::Protocol)?;
+    let body = serde_json::to_string(&AntigravityQuotaRequest {
+        project: project.as_str(),
+    })
+    .map_err(|_| NetError::Protocol)?;
+    let quota = EndpointRequest {
+        url: ANTIGRAVITY_QUOTA_URL,
+        method: HttpMethod::Post,
+        auth: AuthApplication::AntigravitySessionBearer,
+        provider_account_id: None,
+        body: Some(&body),
+    };
+    let reply = transport
+        .send(&quota, secret)
         .await
         .map_err(NetError::from)?;
     outcome_of(reply)
@@ -724,7 +839,7 @@ fn authenticated_builder(
             .header(reqwest::header::ACCEPT, "text/html"),
     };
     if let Some(body) = request.body {
-        builder = builder.body(body);
+        builder = builder.body(body.to_string());
     }
     Ok(builder)
 }
@@ -811,12 +926,33 @@ mod tests {
         .then_some("fake-account-id")
     }
 
+    fn transport_for(
+        endpoint: ProviderEndpoint,
+        status: u16,
+        body: Vec<u8>,
+        retry_after_seconds: Option<u64>,
+    ) -> RecordingTransport {
+        if endpoint == ProviderEndpoint::AntigravityQuota && (200..=299).contains(&status) {
+            RecordingTransport::scripted(vec![
+                (
+                    200,
+                    br#"{"cloudaicompanionProject":"fixture-project-123"}"#.to_vec(),
+                    None,
+                ),
+                (status, body, retry_after_seconds),
+            ])
+        } else {
+            RecordingTransport::replying(status, body, retry_after_seconds)
+        }
+    }
+
     /* ------------------------------------------------------- the allowlist */
 
     #[tokio::test]
     async fn the_transport_double_sees_only_addresses_this_file_built() {
-        let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+        let mut recorded_urls = Vec::new();
         for endpoint in ProviderEndpoint::ALL {
+            let transport = transport_for(endpoint, 200, b"{}".to_vec(), None);
             let secret = secret_for(endpoint);
             fetch_endpoint(
                 &transport,
@@ -827,13 +963,15 @@ mod tests {
             )
             .await
             .expect("fetch");
+            recorded_urls.extend(transport.recorded_urls());
         }
         assert_eq!(
-            transport.recorded_urls(),
+            recorded_urls,
             vec![
                 OPENROUTER_KEY_URL.to_string(),
                 OPENROUTER_CREDITS_URL.to_string(),
                 CODEX_USAGE_URL.to_string(),
+                ANTIGRAVITY_BOOTSTRAP_URL.to_string(),
                 ANTIGRAVITY_QUOTA_URL.to_string(),
                 /* Two hops, both built here from constants and one validated
                 handle. */
@@ -861,7 +999,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_quota_summary_posts_and_only_it_carries_a_body() {
+    fn only_the_antigravity_reader_posts_and_its_first_body_is_fixed() {
         for endpoint in ProviderEndpoint::ALL {
             let expected_post = endpoint == ProviderEndpoint::AntigravityQuota;
             assert_eq!(endpoint.method() == HttpMethod::Post, expected_post);
@@ -869,7 +1007,7 @@ mod tests {
         }
         assert_eq!(
             ProviderEndpoint::AntigravityQuota.body(),
-            Some(ANTIGRAVITY_EMPTY_BODY)
+            Some(ANTIGRAVITY_BOOTSTRAP_BODY)
         );
     }
 
@@ -886,7 +1024,7 @@ mod tests {
     #[tokio::test]
     async fn every_endpoint_is_reached_with_its_own_scheme_method_and_body() {
         for endpoint in ProviderEndpoint::ALL {
-            let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+            let transport = transport_for(endpoint, 200, b"{}".to_vec(), None);
             let auth = auth_for(endpoint);
             let secret = secret_for(endpoint);
             fetch_endpoint(&transport, endpoint, auth, &secret, account_for(endpoint))
@@ -901,14 +1039,16 @@ mod tests {
             for observed in transport.recorded_methods() {
                 assert_eq!(observed, endpoint.method());
             }
-            /* Only the quota summary carries a body, and only the constant one.
-            The OpenCode hops carry none at all. */
-            for observed in transport.recorded_bodies() {
-                if endpoint == ProviderEndpoint::AntigravityQuota {
-                    assert_eq!(observed, Some(ANTIGRAVITY_EMPTY_BODY));
-                } else {
-                    assert_eq!(observed, None);
-                }
+            let bodies = transport.recorded_bodies();
+            if endpoint == ProviderEndpoint::AntigravityQuota {
+                assert_eq!(bodies.len(), 2);
+                assert_eq!(bodies[0].as_deref(), Some(ANTIGRAVITY_BOOTSTRAP_BODY));
+                assert_eq!(
+                    bodies[1].as_deref(),
+                    Some(r#"{"project":"fixture-project-123"}"#)
+                );
+            } else {
+                assert!(bodies.iter().all(Option::is_none));
             }
         }
     }
@@ -916,7 +1056,7 @@ mod tests {
     #[tokio::test]
     async fn every_endpoint_is_handed_only_its_outbound_credential() {
         for endpoint in ProviderEndpoint::ALL {
-            let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+            let transport = transport_for(endpoint, 200, b"{}".to_vec(), None);
             let stored = "the-stored-secret";
             fetch_endpoint(
                 &transport,
@@ -1032,7 +1172,7 @@ mod tests {
     }
 
     #[test]
-    fn every_provider_request_identifies_openlimiter() {
+    fn every_third_party_request_identifies_openlimiter() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::new();
         for (auth, account) in [
@@ -1042,7 +1182,6 @@ mod tests {
                 AuthApplication::CodexSessionBearer,
                 Some("account-id-canary"),
             ),
-            (AuthApplication::AntigravitySessionBearer, None),
             (AuthApplication::BrowserSessionCookie, None),
         ] {
             let request = EndpointRequest {
@@ -1062,6 +1201,35 @@ mod tests {
                 "{auth:?} did not identify OpenLimiter"
             );
         }
+    }
+
+    #[test]
+    fn antigravity_requests_use_the_verified_client_identity() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        let request = EndpointRequest {
+            url: ANTIGRAVITY_BOOTSTRAP_URL,
+            method: HttpMethod::Post,
+            auth: AuthApplication::AntigravitySessionBearer,
+            codex_account_id: None,
+            body: Some(ANTIGRAVITY_BOOTSTRAP_BODY),
+        };
+        let built = authenticated_builder(&client, &request, "credential-canary")
+            .expect("headers")
+            .build()
+            .expect("request");
+        assert_eq!(
+            built.headers()[reqwest::header::USER_AGENT],
+            ANTIGRAVITY_USER_AGENT
+        );
+        assert_eq!(
+            built.headers()[reqwest::header::AUTHORIZATION],
+            "Bearer credential-canary"
+        );
+        assert_eq!(
+            built.body().and_then(reqwest::Body::as_bytes),
+            Some(ANTIGRAVITY_BOOTSTRAP_BODY.as_bytes())
+        );
     }
 
     /* -------------------------------------------------- the workspace hop */
@@ -1174,7 +1342,8 @@ mod tests {
     #[tokio::test]
     async fn failure_body_is_dropped_for_every_endpoint() {
         for endpoint in ProviderEndpoint::ALL {
-            let transport = RecordingTransport::replying(
+            let transport = transport_for(
+                endpoint,
                 429,
                 b"try later, THE-BODY-MARKER".to_vec(),
                 Some(120),
@@ -1197,8 +1366,7 @@ mod tests {
     #[tokio::test]
     async fn oversized_body_is_a_typed_rejection_for_every_endpoint() {
         for endpoint in ProviderEndpoint::ALL {
-            let transport =
-                RecordingTransport::replying(200, vec![b'x'; MAX_RESPONSE_BYTES + 1], None);
+            let transport = transport_for(endpoint, 200, vec![b'x'; MAX_RESPONSE_BYTES + 1], None);
             let secret = secret_for(endpoint);
             let outcome = fetch_endpoint(
                 &transport,
@@ -1215,7 +1383,7 @@ mod tests {
     #[tokio::test]
     async fn non_utf8_body_is_a_typed_rejection_for_every_endpoint() {
         for endpoint in ProviderEndpoint::ALL {
-            let transport = RecordingTransport::replying(200, vec![0xff, 0xfe, 0x00], None);
+            let transport = transport_for(endpoint, 200, vec![0xff, 0xfe, 0x00], None);
             let secret = secret_for(endpoint);
             let outcome = fetch_endpoint(
                 &transport,
@@ -1258,7 +1426,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            10,
+            11,
             "an address appeared outside the constants"
         );
     }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -99,9 +99,7 @@ impl SecretStore for InMemorySecrets {
 /// A transport that answers from a script and records every URL and secret it
 /// was handed, so a test can prove only constant urls are ever fetched.
 pub(crate) struct RecordingTransport {
-    status: u16,
-    body: Vec<u8>,
-    retry_after_seconds: Option<u64>,
+    replies: Mutex<VecDeque<RecordedReply>>,
     /// A workspace handle the double pretends a redirect named, so the two hop
     /// OpenCode read can be exercised without a socket.
     workspace: Option<WorkspaceHandle>,
@@ -110,15 +108,36 @@ pub(crate) struct RecordingTransport {
     methods: Mutex<Vec<HttpMethod>>,
     auths: Mutex<Vec<AuthApplication>>,
     provider_account_ids: Mutex<Vec<Option<String>>>,
-    bodies: Mutex<Vec<Option<&'static str>>>,
+    bodies: Mutex<Vec<Option<String>>>,
+}
+
+#[derive(Clone)]
+struct RecordedReply {
+    status: u16,
+    body: Vec<u8>,
+    retry_after_seconds: Option<u64>,
 }
 
 impl RecordingTransport {
     pub(crate) fn replying(status: u16, body: Vec<u8>, retry_after_seconds: Option<u64>) -> Self {
+        Self::scripted(vec![(status, body, retry_after_seconds)])
+    }
+
+    /// Ordered replies for multi hop readers. The last reply repeats if a
+    /// caller makes more requests than the script contains.
+    pub(crate) fn scripted(replies: Vec<(u16, Vec<u8>, Option<u64>)>) -> Self {
+        assert!(!replies.is_empty(), "a transport script needs one reply");
         Self {
-            status,
-            body,
-            retry_after_seconds,
+            replies: Mutex::new(
+                replies
+                    .into_iter()
+                    .map(|(status, body, retry_after_seconds)| RecordedReply {
+                        status,
+                        body,
+                        retry_after_seconds,
+                    })
+                    .collect(),
+            ),
             /* Every OpenCode read is two hops, so the default double names a
             workspace: a double that never did would make the second hop
             unreachable in every test that is not about a dead session. */
@@ -178,7 +197,7 @@ impl RecordingTransport {
             .clone()
     }
 
-    pub(crate) fn recorded_bodies(&self) -> Vec<Option<&'static str>> {
+    pub(crate) fn recorded_bodies(&self) -> Vec<Option<String>> {
         self.bodies
             .lock()
             .expect("the body record is intact")
@@ -237,11 +256,22 @@ impl Transport for RecordingTransport {
         self.bodies
             .lock()
             .expect("the body record is intact")
-            .push(request.body);
+            .push(request.body.map(str::to_string));
+        let reply = {
+            let mut replies = self.replies.lock().expect("the reply script is intact");
+            if replies.len() > 1 {
+                replies.pop_front().expect("the reply script is nonempty")
+            } else {
+                replies
+                    .front()
+                    .expect("the reply script is nonempty")
+                    .clone()
+            }
+        };
         Ok(TransportReply {
-            status: self.status,
-            body: self.body.clone(),
-            retry_after_seconds: self.retry_after_seconds,
+            status: reply.status,
+            body: reply.body,
+            retry_after_seconds: reply.retry_after_seconds,
             location_workspace: self.workspace.clone(),
         })
     }
