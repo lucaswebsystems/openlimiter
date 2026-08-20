@@ -158,6 +158,7 @@ impl DiscoveryPlatform {
 #[derive(Clone)]
 struct DiscoveryContext {
     platform: DiscoveryPlatform,
+    read_native_credentials: bool,
     home: Option<PathBuf>,
     roaming: Option<PathBuf>,
     local: Option<PathBuf>,
@@ -194,6 +195,7 @@ impl DiscoveryContext {
             .unwrap_or_default();
         Self {
             platform,
+            read_native_credentials: true,
             home,
             roaming,
             local,
@@ -948,7 +950,7 @@ fn scan_inventory(context: &DiscoveryContext, now_ms: u64) -> Inventory {
                 sources.push(CredentialSource::File(candidate.path));
             }
         }
-        if provider == DetectedProviderId::Antigravity {
+        if provider == DetectedProviderId::Antigravity && context.read_native_credentials {
             sources.push(CredentialSource::AntigravityKeyring);
         }
         for source in sources {
@@ -1210,6 +1212,7 @@ mod tests {
     fn context(platform: DiscoveryPlatform, home: &Path) -> DiscoveryContext {
         DiscoveryContext {
             platform,
+            read_native_credentials: false,
             home: Some(home.to_path_buf()),
             roaming: Some(home.join("roaming")),
             local: Some(home.join("local")),
