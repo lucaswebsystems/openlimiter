@@ -1392,7 +1392,10 @@ body:has(.ol-product-shell) .page-overlap {
 .ol-provider-mark[data-provider="OPENROUTER"] { color: var(--ol-provider-openrouter); }
 .ol-provider-mark[data-provider="CODEX"] { color: var(--ol-provider-codex); }
 .ol-provider-mark[data-provider="ANTIGRAVITY"] { color: var(--ol-provider-antigravity); }
+.ol-provider-mark[data-provider="GEMINI_CLI"] { color: var(--ol-provider-gemini); }
 .ol-provider-mark[data-provider="OPENCODE"] { color: var(--ol-provider-opencode); }
+.ol-provider-mark[data-provider="GROK"] { color: var(--ol-provider-grok); }
+.ol-provider-mark[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
 .ol-provider-mark[data-provider="MANUAL"] { color: var(--ol-provider-manual); }
 .ol-provider-mark[data-provider="DEMO"] { color: var(--ol-accent); }
 

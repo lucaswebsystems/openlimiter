@@ -156,4 +156,36 @@ describe("provider account rows", () => {
     expect(headroomTone(91)).toBe("critical");
     expect(headroomTone(20)).toBe("ok");
   });
+
+  it("labels every Grok, Kimi, and Gemini window after their connectors land", () => {
+    const rows = buildProviderAccountRows(
+      [
+        snapshot("GROK", "WEEKLY", 22, "grok-account"),
+        snapshot("GROK", "ON_DEMAND_MONTHLY", 37, "grok-account"),
+        snapshot("KIMI", "WEEKLY", 18, "kimi-account"),
+        snapshot("KIMI", "FIVE_HOUR", 41, "kimi-account"),
+        snapshot("KIMI", "FIVE_HOUR_2", 55, "kimi-account"),
+        snapshot("GEMINI_CLI", "GEMINI_3_1_PRO_PREVIEW", 25, "gemini-account"),
+        snapshot("GEMINI_CLI", "GEMINI_3_FLASH_PREVIEW", 0, "gemini-account"),
+      ],
+      NOW,
+      [],
+      { providers: ["GROK", "KIMI", "GEMINI_CLI"] },
+    );
+    const byProvider = new Map(rows.map((row) => [row.provider, row]));
+
+    expect(byProvider.get("GROK")?.windows.map((window) => window.label)).toEqual([
+      "Weekly",
+      "On demand monthly",
+    ]);
+    expect(byProvider.get("KIMI")?.windows.map((window) => window.label)).toEqual([
+      "5 hour session",
+      "Weekly",
+      "5 hour session 2",
+    ]);
+    expect(byProvider.get("GEMINI_CLI")?.windows.map((window) => window.label)).toEqual([
+      "Gemini 3.1 Pro Preview",
+      "Gemini 3 Flash Preview",
+    ]);
+  });
 });

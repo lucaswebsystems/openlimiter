@@ -50,6 +50,7 @@ const READY_SPEC_ORDER = [
   "moonshot/api",
   "openrouter/api",
   "google/antigravity",
+  "google/gemini-cli",
   "opencode/opencode",
   "openlimiter/manual",
 ] as const;
@@ -58,7 +59,6 @@ const READY_SPEC_ORDER = [
 const PLANNED_SPEC_ORDER = [
   "perplexity/api",
   "xai/api",
-  "google/gemini-cli",
   "github/copilot",
   "cursor/editor",
   "windsurf/editor",
@@ -77,6 +77,7 @@ const READY_CONNECTORS = new Set([
   "codex",
   "openrouter",
   "antigravity",
+  "gemini-cli",
   "opencode",
   "grok",
   "kimi",
@@ -94,6 +95,11 @@ const AUTOMATIC_OVERRIDES = new Set(["xai/api", "moonshot/api"]);
 const CONNECTOR_SPEC_FOR_ROW: Readonly<Record<string, string>> = {
   "xai/api": "xai/grok-cli",
   "moonshot/api": "moonshot/kimi-code",
+};
+
+/** Runtime connectors that arrived after their research specs were generated. */
+const CONNECTOR_ID_FOR_ROW: Readonly<Record<string, string>> = {
+  "google/gemini-cli": "gemini-cli",
 };
 
 const COMPACT_NAMES: Readonly<Record<string, string>> = {
@@ -274,7 +280,9 @@ export function buildProviderDirectory(
     if (spec === undefined || typeof spec.displayName !== "string") continue;
     const connectorSpec = specs.get(CONNECTOR_SPEC_FOR_ROW[specId] ?? specId) ?? spec;
     const rawConnector = connectorSpec.honesty?.connectorId;
-    const connectorId = typeof rawConnector === "string" ? rawConnector : null;
+    const connectorId =
+      CONNECTOR_ID_FOR_ROW[specId] ??
+      (typeof rawConnector === "string" ? rawConnector : null);
     const availability =
       connectorId !== null && READY_CONNECTORS.has(connectorId) ? "ready" : "planned";
     const access = accessClass(specId, connectorSpec);

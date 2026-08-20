@@ -1658,13 +1658,13 @@ button.first-run-continue:hover,
 /* The launch notice replaces the generic intro instead of pushing the primary
    action below the native 520 by 720 window. The rows return to the compact
    density used by the original first run surface only while that notice is
-   present, which keeps all eight providers and the dashboard action visible. */
+   present, which keeps all nine providers and the dashboard action visible. */
 .first-run[data-launch-notice="visible"] .first-run-intro {
   display: none;
 }
 
 .first-run[data-launch-notice="visible"] .first-run-row {
-  min-height: 3.25rem;
+  min-height: var(--ol-first-run-row-min-height);
   padding-block: var(--ol-space-1);
 }
 
@@ -1717,9 +1717,10 @@ button.first-run-continue:hover,
 
 .first-run-row[data-provider="CLAUDE"] .first-run-mark { color: var(--ol-provider-claude); }
 .first-run-row[data-provider="CODEX"] .first-run-mark { color: var(--ol-provider-codex); }
-.first-run-row[data-provider="GROK"] .first-run-mark { color: var(--ol-heading); }
-.first-run-row[data-provider="KIMI"] .first-run-mark { color: var(--ol-accent); }
+.first-run-row[data-provider="GROK"] .first-run-mark { color: var(--ol-provider-grok); }
+.first-run-row[data-provider="KIMI"] .first-run-mark { color: var(--ol-provider-kimi); }
 .first-run-row[data-provider="ANTIGRAVITY"] .first-run-mark { color: var(--ol-provider-antigravity); }
+.first-run-row[data-provider="GEMINI_CLI"] .first-run-mark { color: var(--ol-provider-gemini); }
 .first-run-row[data-provider="OPENCODE"] .first-run-mark { color: var(--ol-provider-opencode); }
 .first-run-row[data-provider="OPENROUTER"] .first-run-mark { color: var(--ol-provider-openrouter); }
 .first-run-row[data-provider="MANUAL"] .first-run-mark { color: var(--ol-provider-manual); }
@@ -2050,7 +2051,10 @@ main {
 .conn-provider-mark[data-provider="OPENROUTER"] { color: var(--ol-provider-openrouter); }
 .conn-provider-mark[data-provider="CODEX"] { color: var(--ol-provider-codex); }
 .conn-provider-mark[data-provider="ANTIGRAVITY"] { color: var(--ol-provider-antigravity); }
+.conn-provider-mark[data-provider="GEMINI_CLI"] { color: var(--ol-provider-gemini); }
 .conn-provider-mark[data-provider="OPENCODE"] { color: var(--ol-provider-opencode); }
+.conn-provider-mark[data-provider="GROK"] { color: var(--ol-provider-grok); }
+.conn-provider-mark[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
 
 .conn-head h2 {
   overflow: hidden;
@@ -2228,6 +2232,16 @@ pre {
   width: 1rem;
   height: 1rem;
 }
+
+.catalogue-mark[data-provider="CLAUDE"] { color: var(--ol-provider-claude); }
+.catalogue-mark[data-provider="OPENROUTER"] { color: var(--ol-provider-openrouter); }
+.catalogue-mark[data-provider="CODEX"] { color: var(--ol-provider-codex); }
+.catalogue-mark[data-provider="ANTIGRAVITY"] { color: var(--ol-provider-antigravity); }
+.catalogue-mark[data-provider="GEMINI_CLI"] { color: var(--ol-provider-gemini); }
+.catalogue-mark[data-provider="OPENCODE"] { color: var(--ol-provider-opencode); }
+.catalogue-mark[data-provider="GROK"] { color: var(--ol-provider-grok); }
+.catalogue-mark[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
+.catalogue-mark[data-provider="MANUAL"] { color: var(--ol-provider-manual); }
 
 .catalogue-name {
   display: flex;

@@ -350,11 +350,14 @@ const BROWSER_PROVIDER_STATES = {
   codex: "IMPORT_ONLY",
   openrouter: "IMPORT_ONLY",
   antigravity: "IMPORT_ONLY",
+  "gemini-cli": "IMPORT_ONLY",
   opencode: "IMPORT_ONLY",
+  grok: "IMPORT_ONLY",
+  kimi: "IMPORT_ONLY",
 } as const;
 
 function providerMarkCode(row: ProviderDirectoryRow): string {
-  return row.connectorId?.toUpperCase() ?? row.specId.toUpperCase();
+  return (row.connectorId ?? row.specId).toUpperCase().replaceAll("-", "_");
 }
 
 function DirectoryGroup({

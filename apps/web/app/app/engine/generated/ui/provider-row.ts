@@ -78,13 +78,13 @@ const PROVIDER_MARKS: Record<ProviderCode, string> = {
   ANTIGRAVITY:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053Z"/></svg>',
   GEMINI_CLI:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053Z"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/></svg>',
   OPENCODE:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 24H2V0h20Zm-5-19.2H7v14.4h10Z"/></svg>',
   GROK:
-    '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M4 4l16 16M20 4 4 20M8 12h8"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>',
   KIMI:
-    '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M18.5 17.5A8 8 0 1 1 14 4.8a6.5 6.5 0 0 0 4.5 12.7Z"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.765.351C22.998.351 24 1.353 24 2.586S22.998 4.82 21.765 4.82h-1.974c-.15 0-.26-.12-.26-.26V2.586A2.237 2.237 0 0 1 21.765.35M9.41 13.388l8.447-8.377c.16-.16.07-.471-.14-.471h-4.55s-.1.02-.14.06l-9.099 9.029c-.14.14-.35.02-.35-.21V4.81c0-.15-.1-.27-.221-.27H.22c-.12 0-.22.12-.22.27v18.57c0 .15.1.27.22.27h3.137c.12 0 .22-.12.22-.27v-3.79c0-.08.03-.16.08-.21l2.826-2.796c.07-.07.16-.08.241-.03l7.546 5.551a8.9 8.9 0 0 0 4.018 1.493c.12.01.23-.11.23-.27V19.76c0-.14-.08-.25-.19-.26a5.8 5.8 0 0 1-2.355-.942l-6.533-4.73c-.14-.09-.15-.32-.03-.441"/></svg>',
   MANUAL:
     '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M16.6 3.6a2 2 0 0 1 2.8 2.8L8.5 17.3l-3.7.9.9-3.7Z"/><path d="m14.6 5.6 3.8 3.8M4 21h16"/></svg>',
 };
@@ -149,14 +149,25 @@ const PRECISION_LABELS: Record<SnapshotPrecision, string> = {
   manual: "manual",
 };
 
-function windowName(code: string): string {
+function windowName(code: string, provider: ProviderCode): string {
   const known = WINDOW_NAMES[code];
   if (known !== undefined) return known;
+  const numbered = code.match(/^(.+)_([2-9][0-9]*)$/u);
+  if (numbered !== null) {
+    const base = WINDOW_NAMES[numbered[1] ?? ""];
+    if (base !== undefined) return base + " " + (numbered[2] ?? "");
+  }
   const words = code
     .toLowerCase()
     .split(/[\s_-]+/u)
     .filter((word) => word !== "");
   if (words.length === 0) return "Usage window";
+  if (provider === "GEMINI_CLI" && words[0] === "gemini") {
+    return words
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
+      .replace(/([0-9]) ([0-9])/gu, "$1.$2");
+  }
   return words
     .map((word, index) =>
       index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word,
@@ -216,7 +227,7 @@ function sourceLine(snapshot: Snapshot): string {
 
 function toWindowView(snapshot: Snapshot, now: string): ProviderWindowView {
   const state = freshness(snapshot.observedAt, snapshot.expiresAt, now);
-  const label = windowName(snapshot.meter);
+  const label = windowName(snapshot.meter, snapshot.provider);
   const usedPercent = state === "unknown" ? null : clampPercent(snapshot.value);
   const tone = usedPercent === null ? "none" : headroomTone(usedPercent);
   const resetLabel = state === "unknown" ? null : resetCountdown(snapshot.resetAt, now);
@@ -491,7 +502,10 @@ const PROVIDER_ROW_STYLE = `
 :host([data-provider="OPENROUTER"]) .mark { color: var(--ol-provider-openrouter); }
 :host([data-provider="CODEX"]) .mark { color: var(--ol-provider-codex); }
 :host([data-provider="ANTIGRAVITY"]) .mark { color: var(--ol-provider-antigravity); }
+:host([data-provider="GEMINI_CLI"]) .mark { color: var(--ol-provider-gemini); }
 :host([data-provider="OPENCODE"]) .mark { color: var(--ol-provider-opencode); }
+:host([data-provider="GROK"]) .mark { color: var(--ol-provider-grok); }
+:host([data-provider="KIMI"]) .mark { color: var(--ol-provider-kimi); }
 :host([data-provider="MANUAL"]) .mark { color: var(--ol-provider-manual); }
 :host([data-provider="CLAUDE"]) .mark svg,
 :host([data-provider="MANUAL"]) .mark svg {
@@ -504,7 +518,10 @@ const PROVIDER_ROW_STYLE = `
 :host([data-provider="OPENROUTER"]) .mark svg,
 :host([data-provider="CODEX"]) .mark svg,
 :host([data-provider="ANTIGRAVITY"]) .mark svg,
-:host([data-provider="OPENCODE"]) .mark svg { fill: currentColor; }
+:host([data-provider="GEMINI_CLI"]) .mark svg,
+:host([data-provider="OPENCODE"]) .mark svg,
+:host([data-provider="GROK"]) .mark svg,
+:host([data-provider="KIMI"]) .mark svg { fill: currentColor; }
 .provider {
   display: flex;
   min-width: 0;

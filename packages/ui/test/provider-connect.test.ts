@@ -15,13 +15,13 @@ describe("provider connection directory", () => {
         "Kimi",
         "OpenRouter",
         "Antigravity",
+        "Gemini CLI",
         "OpenCode",
         "Manual",
       ]);
     expect(rows.filter((row) => row.availability === "planned").map((row) => row.displayName))
       .toEqual([
         "Perplexity",
-        "Gemini CLI",
         "GitHub Copilot",
         "Cursor",
         "Devin Desktop",
@@ -41,6 +41,11 @@ describe("provider connection directory", () => {
     expect(byId.get("openlimiter/manual")?.access).toBe("manual");
     expect(byId.get("xai/api")?.access).toBe("automatic");
     expect(byId.get("moonshot/api")?.access).toBe("automatic");
+    expect(byId.get("google/gemini-cli")).toMatchObject({
+      access: "automatic",
+      connectorId: "gemini-cli",
+      availability: "ready",
+    });
     expect(byId.get("xai/api")).toMatchObject({
       connectorId: "grok",
       availability: "ready",
@@ -78,6 +83,52 @@ describe("provider connection directory", () => {
       stateLabel: "Key needed",
       action: "connect",
       actionLabel: "Connect",
+    });
+  });
+
+  it("keeps every required connection state distinct across all eighteen rows", () => {
+    const rows = buildProviderDirectory(providerSpecs, {
+      states: {
+        claude: "CONNECTED",
+        codex: "NEEDS_AUTH",
+        "gemini-cli": "DEGRADED",
+        antigravity: "STALE",
+      },
+    });
+    const byConnector = new Map(rows.map((row) => [row.connectorId, row]));
+
+    expect(rows).toHaveLength(18);
+    expect(byConnector.get("claude")).toMatchObject({
+      access: "automatic",
+      stateLabel: "Connected",
+      stateTone: "live",
+    });
+    expect(byConnector.get("codex")).toMatchObject({
+      access: "automatic",
+      stateLabel: "Sign in",
+      stateTone: "attention",
+    });
+    expect(byConnector.get("openrouter")).toMatchObject({
+      access: "key",
+      stateLabel: "Key needed",
+      stateTone: "quiet",
+    });
+    expect(byConnector.get("manual")).toMatchObject({
+      access: "manual",
+      stateLabel: "Manual entry",
+      stateTone: "quiet",
+    });
+    expect(byConnector.get("gemini-cli")).toMatchObject({
+      stateLabel: "Retrying",
+      stateTone: "attention",
+    });
+    expect(byConnector.get("antigravity")).toMatchObject({
+      stateLabel: "Stale",
+      stateTone: "attention",
+    });
+    expect(byConnector.get("grok")).toMatchObject({
+      stateLabel: "Not found",
+      stateTone: "quiet",
     });
   });
 });

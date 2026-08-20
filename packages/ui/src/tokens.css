@@ -52,7 +52,10 @@
   --ol-provider-openrouter: #66d9c1;
   --ol-provider-codex: #9ce6c4;
   --ol-provider-antigravity: #8ab4f8;
+  --ol-provider-gemini: var(--ol-provider-antigravity);
   --ol-provider-opencode: #d4d4d8;
+  --ol-provider-grok: var(--ol-heading);
+  --ol-provider-kimi: var(--ol-accent);
   --ol-provider-manual: #c4b5fd;
 
   /* Type */
@@ -96,6 +99,7 @@
   /* Shared component geometry */
   --ol-control-height: 2.25rem;
   --ol-row-min-height: 5rem;
+  --ol-first-run-row-min-height: 3rem;
   --ol-window-mobile-width: 17rem;
   --ol-meter-height: 0.25rem;
   --ol-meter-radius: var(--ol-radius-pill);
@@ -169,7 +173,10 @@
   --ol-provider-openrouter: #087a65;
   --ol-provider-codex: #08775b;
   --ol-provider-antigravity: #2856a8;
+  --ol-provider-gemini: var(--ol-provider-antigravity);
   --ol-provider-opencode: #3f3f46;
+  --ol-provider-grok: var(--ol-heading);
+  --ol-provider-kimi: var(--ol-accent);
   --ol-provider-manual: #6d48b6;
   --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.8);
   --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 18px 60px rgb(17 17 20 / 0.08);

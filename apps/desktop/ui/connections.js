@@ -200,6 +200,7 @@ const DETECTION_CONNECTORS = {
   GROK: "grok",
   KIMI: "kimi",
   ANTIGRAVITY: "antigravity",
+  GEMINI_CLI: "gemini-cli",
   OPENCODE: "opencode",
 };
 
@@ -942,7 +943,10 @@ function directoryInitials(name) {
 
 function directoryMark(rowData) {
   const mark = element("span", "catalogue-mark");
-  const code = rowData.connectorId === null ? "" : rowData.connectorId.toUpperCase();
+  const code =
+    rowData.connectorId === null
+      ? ""
+      : rowData.connectorId.toUpperCase().replaceAll("-", "_");
   mark.dataset.provider = code || rowData.specId;
   mark.setAttribute("aria-hidden", "true");
   const artwork = code === "" ? "" : options.markFor(code);
