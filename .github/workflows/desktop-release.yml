@@ -115,7 +115,57 @@ jobs:
             throw "The Windows installer exited with code $($install.ExitCode)"
           }
 
-          $application = Get-ChildItem -LiteralPath $installDir -Recurse -Filter "OpenLimiter.exe" | Select-Object -First 1
+          function Find-OpenLimiterApplication {
+            $searchRoots = @(
+              $installDir,
+              (Join-Path $env:LOCALAPPDATA "OpenLimiter"),
+              (Join-Path $env:LOCALAPPDATA "Programs/OpenLimiter"),
+              (Join-Path $env:ProgramFiles "OpenLimiter")
+            )
+            if (${env:ProgramFiles(x86)}) {
+              $searchRoots += Join-Path ${env:ProgramFiles(x86)} "OpenLimiter"
+            }
+
+            foreach ($root in $searchRoots) {
+              if (Test-Path -LiteralPath $root) {
+                $found = Get-ChildItem -LiteralPath $root -Recurse -Filter "OpenLimiter.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($found) {
+                  return $found
+                }
+              }
+            }
+
+            $uninstallRoots = @(
+              'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+              'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+              'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+            )
+            foreach ($entry in Get-ItemProperty -Path $uninstallRoots -ErrorAction SilentlyContinue) {
+              if ($entry.DisplayName -notlike "OpenLimiter*") {
+                continue
+              }
+              if ($entry.DisplayIcon) {
+                $iconPath = ($entry.DisplayIcon -replace ',[0-9]+$', '').Trim('"')
+                if (Test-Path -LiteralPath $iconPath) {
+                  return (Get-Item -LiteralPath $iconPath)
+                }
+              }
+              if ($entry.InstallLocation) {
+                $installedPath = Join-Path $entry.InstallLocation "OpenLimiter.exe"
+                if (Test-Path -LiteralPath $installedPath) {
+                  return (Get-Item -LiteralPath $installedPath)
+                }
+              }
+            }
+          }
+
+          $application = $null
+          for ($attempt = 0; $attempt -lt 10 -and -not $application; $attempt++) {
+            $application = Find-OpenLimiterApplication
+            if (-not $application) {
+              Start-Sleep -Seconds 1
+            }
+          }
           if (-not $application) {
             throw "The installed Windows application was not found"
           }
@@ -139,6 +189,7 @@ jobs:
             exit 1
           fi
 
+          package_file="$(realpath "$package_file")"
           sudo timeout 180s apt-get install -y "$package_file"
           package_name="$(dpkg-deb -f "$package_file" Package)"
           application="$(dpkg -L "$package_name" | awk '/\/bin\// { print; exit }')"
