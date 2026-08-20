@@ -868,7 +868,7 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
     parsed
 }
 
-fn opaque_account_id(provider: DetectedProviderId, material: &str) -> String {
+pub(crate) fn opaque_account_id(provider: DetectedProviderId, material: &str) -> String {
     let mut digest = Sha256::new();
     digest.update(provider.slug().as_bytes());
     digest.update([0]);

@@ -1,17 +1,18 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::cache_write::CacheWriter;
+use crate::connections::ConnectionsStore;
 use crate::native_readers::parse_body;
 use crate::native_snapshot::{iso_from_epoch_ms, write_report, CacheReport};
 use crate::net::{fetch_endpoint, NetError, ProviderEndpoint, ReqwestTransport, Transport};
 use crate::provider_detection::{
-    DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
+    opaque_account_id, DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
 };
-use crate::reader_registry::{AuthApplication, ReaderId};
+use crate::reader_registry::{AuthApplication, ProviderId, ReaderId};
 
 pub const REFRESH_SECONDS: u64 = 300;
 const RATE_LIMIT_BACKOFF_SECONDS: u64 = 3_600;
@@ -282,10 +283,32 @@ pub async fn collect_account<T: Transport>(
     outcome
 }
 
+fn uncovered_account_ids(
+    detected_account_ids: Vec<String>,
+    connected_provider_account_ids: impl IntoIterator<Item = String>,
+) -> Vec<String> {
+    let covered: BTreeSet<String> = connected_provider_account_ids
+        .into_iter()
+        .map(|account_id| opaque_account_id(DetectedProviderId::Codex, &account_id))
+        .collect();
+    detected_account_ids
+        .into_iter()
+        .filter(|account_id| !covered.contains(account_id))
+        .collect()
+}
+
 pub async fn run_pass(app: &AppHandle) {
-    let account_ids = app
+    let detected_account_ids = app
         .state::<DetectionStore>()
         .account_ids(DetectedProviderId::Codex);
+    let connected_provider_account_ids = app
+        .state::<ConnectionsStore>()
+        .list()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|record| record.provider_id == ProviderId::Codex)
+        .filter_map(|record| record.codex_account_id);
+    let account_ids = uncovered_account_ids(detected_account_ids, connected_provider_account_ids);
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<CodexOauthRuntime>();
@@ -315,6 +338,32 @@ mod tests {
 
     const NOW: u64 = 1_787_136_000_000;
     const TOKEN: &str = "codex-access-token-for-tests-only";
+
+    #[test]
+    fn a_connected_account_has_only_one_collection_path_per_cadence() {
+        let provider_account_id = "provider-account-one";
+        let detected_account_id = opaque_account_id(DetectedProviderId::Codex, provider_account_id);
+        let automatic = uncovered_account_ids(
+            vec![detected_account_id],
+            vec![provider_account_id.to_string()],
+        );
+
+        let generic_request_count = 1usize;
+        assert!(automatic.is_empty());
+        assert_eq!(generic_request_count + automatic.len(), 1);
+    }
+
+    #[test]
+    fn a_distinct_detected_account_keeps_automatic_collection() {
+        let detected_account_id =
+            opaque_account_id(DetectedProviderId::Codex, "provider-account-two");
+        let automatic = uncovered_account_ids(
+            vec![detected_account_id.clone()],
+            vec!["provider-account-one".to_string()],
+        );
+
+        assert_eq!(automatic, vec![detected_account_id]);
+    }
 
     fn valid_body() -> Vec<u8> {
         serde_json::json!({
