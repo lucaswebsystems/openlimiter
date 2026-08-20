@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -8,10 +8,11 @@ use crate::cache_write::CacheWriter;
 use crate::native_readers::parse_body;
 use crate::native_snapshot::{iso_from_epoch_ms, write_report, CacheReport};
 use crate::net::{fetch_endpoint, NetError, ProviderEndpoint, ReqwestTransport, Transport};
+use crate::poll_identity::PollIdentity;
 use crate::provider_detection::{
     DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
 };
-use crate::reader_registry::{AuthApplication, ReaderId};
+use crate::reader_registry::{AuthApplication, ProviderId, ReaderId};
 
 pub const REFRESH_SECONDS: u64 = 600;
 const RATE_LIMIT_BACKOFF_SECONDS: u64 = 3_600;
@@ -79,14 +80,9 @@ pub struct AntigravityOauthRuntime {
 }
 
 impl AntigravityOauthRuntime {
-    fn key(account_id: &str, revision: &str) -> String {
-        format!("{account_id}:{revision}")
-    }
-
-    fn begin(&self, account_id: &str, revision: &str, now_ms: u64) -> Result<(), u64> {
-        let key = Self::key(account_id, revision);
+    fn begin(&self, account_id: &str, now_ms: u64) -> Result<(), u64> {
         let mut entries = self.next_allowed.lock().map_err(|_| now_ms)?;
-        if let Some(next) = entries.get(&key).copied() {
+        if let Some(next) = entries.get(account_id).copied() {
             if now_ms < next {
                 return Err(next);
             }
@@ -100,16 +96,16 @@ impl AntigravityOauthRuntime {
             }
         }
         entries.insert(
-            key,
+            account_id.to_string(),
             now_ms.saturating_add(REFRESH_SECONDS.saturating_mul(1_000)),
         );
         Ok(())
     }
 
-    fn postpone(&self, account_id: &str, revision: &str, now_ms: u64, seconds: u64) {
+    fn postpone(&self, account_id: &str, now_ms: u64, seconds: u64) {
         if let Ok(mut entries) = self.next_allowed.lock() {
             entries.insert(
-                Self::key(account_id, revision),
+                account_id.to_string(),
                 now_ms.saturating_add(seconds.saturating_mul(1_000)),
             );
         }
@@ -154,7 +150,7 @@ async fn collect_with_secret<T: Transport>(
     secret: &DetectedSecret,
     now_ms: u64,
 ) -> AntigravityOutcome {
-    if let Err(retry_ms) = runtime.begin(account_id, &secret.credential_revision, now_ms) {
+    if let Err(retry_ms) = runtime.begin(account_id, now_ms) {
         return AntigravityOutcome::Cached {
             account_id: account_id.to_string(),
             retry_at: iso_from_epoch_ms(retry_ms)
@@ -206,22 +202,12 @@ async fn collect_with_secret<T: Transport>(
             }
         }
         401 => {
-            runtime.postpone(
-                account_id,
-                &secret.credential_revision,
-                now_ms,
-                BLOCKED_BACKOFF_SECONDS,
-            );
+            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
             fallback_report(writer, account_id, false, now_ms).await;
             AntigravityOutcome::reopen(account_id)
         }
         403 | 404 | 410 => {
-            runtime.postpone(
-                account_id,
-                &secret.credential_revision,
-                now_ms,
-                BLOCKED_BACKOFF_SECONDS,
-            );
+            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
             fallback_report(writer, account_id, false, now_ms).await;
             AntigravityOutcome::fallback(account_id, AntigravityFailure::ProviderBlocked)
         }
@@ -231,7 +217,7 @@ async fn collect_with_secret<T: Transport>(
                 .unwrap_or(0)
                 .max(RATE_LIMIT_BACKOFF_SECONDS)
                 .min(BLOCKED_BACKOFF_SECONDS);
-            runtime.postpone(account_id, &secret.credential_revision, now_ms, seconds);
+            runtime.postpone(account_id, now_ms, seconds);
             fallback_report(writer, account_id, false, now_ms).await;
             AntigravityOutcome::fallback(account_id, AntigravityFailure::RateLimited)
         }
@@ -282,10 +268,36 @@ pub async fn collect_account<T: Transport>(
     outcome
 }
 
-pub async fn run_pass(app: &AppHandle) {
-    let account_ids = app
+fn uncovered_account_ids(
+    detected_account_ids: Vec<String>,
+    covered: &HashSet<PollIdentity>,
+) -> Vec<String> {
+    /* The vendor vault exposes one current Antigravity login, with no stable
+    provider account id beside the rotating access token. If any saved
+    Antigravity connection exists, fail closed to that one path instead of
+    risking a second request from the automatic path after token rotation. */
+    if covered
+        .iter()
+        .any(|identity| identity.provider_id() == ProviderId::Antigravity)
+    {
+        return Vec::new();
+    }
+    detected_account_ids
+        .into_iter()
+        .filter(|account_id| {
+            !covered.contains(&PollIdentity::detected(
+                ProviderId::Antigravity,
+                account_id.clone(),
+            ))
+        })
+        .collect()
+}
+
+pub async fn run_pass(app: &AppHandle, covered: &HashSet<PollIdentity>) {
+    let detected_account_ids = app
         .state::<DetectionStore>()
         .account_ids(DetectedProviderId::Antigravity);
+    let account_ids = uncovered_account_ids(detected_account_ids, covered);
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<AntigravityOauthRuntime>();
@@ -316,6 +328,28 @@ mod tests {
     const NOW: u64 = 1_787_136_000_000;
     const TOKEN: &str = "antigravity-access-token-for-tests-only";
     const ACCOUNT: &str = "antigravity-test-account";
+
+    #[test]
+    fn a_connected_account_has_only_one_collection_path_per_cadence() {
+        let covered = HashSet::from([PollIdentity::detected(
+            ProviderId::Antigravity,
+            ACCOUNT.to_string(),
+        )]);
+        let automatic = uncovered_account_ids(vec![ACCOUNT.to_string()], &covered);
+
+        assert!(automatic.is_empty());
+    }
+
+    #[test]
+    fn a_rotated_vault_token_still_cannot_create_a_second_path() {
+        let covered = HashSet::from([PollIdentity::detected(
+            ProviderId::Antigravity,
+            "credential-bound-old-token".to_string(),
+        )]);
+        let automatic = uncovered_account_ids(vec![ACCOUNT.to_string()], &covered);
+
+        assert!(automatic.is_empty());
+    }
 
     fn valid_body() -> Vec<u8> {
         br#"{
@@ -369,6 +403,39 @@ mod tests {
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
         assert!(cache.contains("ANTIGRAVITY"));
         assert!(!cache.contains(TOKEN));
+    }
+
+    #[tokio::test]
+    async fn a_token_rotation_does_not_reset_the_account_cadence() {
+        let dir = TempDir::new();
+        let runtime = AntigravityOauthRuntime::default();
+        let transport = RecordingTransport::replying(200, valid_body(), None);
+        let _ = collect_with_secret(
+            &runtime,
+            &transport,
+            writer(&dir),
+            ACCOUNT,
+            &secret("revision-one"),
+            NOW,
+        )
+        .await;
+        let rotated = DetectedSecret {
+            access_token: Zeroizing::new("rotated-antigravity-token-for-tests-only".to_string()),
+            provider_account_id: None,
+            credential_revision: "revision-two".to_string(),
+        };
+        let second = collect_with_secret(
+            &runtime,
+            &transport,
+            writer(&dir),
+            ACCOUNT,
+            &rotated,
+            NOW + 1_000,
+        )
+        .await;
+
+        assert!(matches!(second, AntigravityOutcome::Cached { .. }));
+        assert_eq!(transport.recorded_urls().len(), 1);
     }
 
     #[tokio::test]

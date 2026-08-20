@@ -706,7 +706,7 @@ fn token_object<'a>(
     let names: &[&str] = match provider {
         DetectedProviderId::Claude => &["claudeAiOauth", "oauth", "credentials"],
         DetectedProviderId::Codex => &["tokens", "oauth", "credentials"],
-        DetectedProviderId::Antigravity => &["oauth", "tokens", "credentials"],
+        DetectedProviderId::Antigravity => &["oauth", "token", "tokens", "credentials"],
         DetectedProviderId::Opencode => &["session", "auth", "credentials"],
         DetectedProviderId::Openrouter => &["openrouter", "credentials"],
     };
@@ -753,6 +753,19 @@ fn token_digest(token: &str) -> String {
     let mut digest = Sha256::new();
     digest.update(token.as_bytes());
     format!("{:x}", digest.finalize())
+}
+
+pub(crate) fn resolved_credential_account_id(
+    provider: DetectedProviderId,
+    credential: &str,
+) -> String {
+    let claims = jwt_claims(credential);
+    let material = claims
+        .as_ref()
+        .and_then(claim_identity)
+        .map(|(value, _)| value.to_string())
+        .unwrap_or_else(|| token_digest(credential));
+    opaque_account_id(provider, &material)
 }
 
 fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<ParsedCredential> {
@@ -808,12 +821,17 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
             .and_then(claim_identity)
             .or_else(|| id_token_claims.as_ref().and_then(claim_identity));
         let hinted = claude_hint.as_ref().map(|hint| hint.value.as_str());
+        let refresh_token = string_field(object, &["refresh_token", "refreshToken"])
+            .filter(|value| valid_secret(value));
         let (identity_material, identity_quality) = if let Some(value) = explicit_id.or(hinted) {
             (value.to_string(), IdentityQuality::ProviderAccount)
         } else if let Some((value, quality)) = claim {
             (value.to_string(), quality)
         } else {
-            (token_digest(token), IdentityQuality::CredentialBound)
+            (
+                token_digest(refresh_token.unwrap_or(token)),
+                IdentityQuality::CredentialBound,
+            )
         };
         let provider_account_id = explicit_id
             .or_else(|| {
@@ -903,11 +921,10 @@ fn parse_credential_source(
             let Ok(credential) = crate::antigravity_credential::read() else {
                 return Vec::new();
             };
-            let identity_material = token_digest(&credential.access_token);
             vec![ParsedCredential {
                 token: credential.access_token,
                 provider_account_id: None,
-                identity_material,
+                identity_material: credential.identity_material,
                 email: None,
                 expires_at_ms: credential.expires_at_ms,
                 identity_quality: IdentityQuality::CredentialBound,
@@ -1392,6 +1409,60 @@ mod tests {
             .accounts
             .iter()
             .all(|entry| entry.identity_quality == IdentityQuality::JwtSubject));
+    }
+
+    #[test]
+    fn the_same_codex_account_in_two_profile_paths_is_one_account() {
+        let dir = TempDir::new();
+        write(
+            &dir.path().join(".codex").join("auth.json"),
+            r#"{"tokens":{"access_token":"first-codex-token","account_id":"same-provider-account"}}"#,
+        );
+        write(
+            &dir.path().join(".codex-work").join("auth.json"),
+            r#"{"tokens":{"access_token":"rotated-codex-token","account_id":"same-provider-account"}}"#,
+        );
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+        let codex = provider(&inventory.report, DetectedProviderId::Codex);
+
+        assert_eq!(codex.accounts.len(), 1);
+        assert_eq!(
+            codex.accounts[0].identity_quality,
+            IdentityQuality::ProviderAccount
+        );
+        assert_eq!(
+            inventory
+                .credentials
+                .keys()
+                .filter(|(provider, _)| *provider == DetectedProviderId::Codex)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn a_refresh_token_resolves_rotated_antigravity_files_to_one_identity() {
+        let dir = TempDir::new();
+        let first_path = dir.path().join("first-antigravity.json");
+        let second_path = dir.path().join("second-antigravity.json");
+        write(
+            &first_path,
+            r#"{"token":{"access_token":"first-access-token","refresh_token":"stable-refresh-token"}}"#,
+        );
+        write(
+            &second_path,
+            r#"{"token":{"access_token":"second-access-token","refresh_token":"stable-refresh-token"}}"#,
+        );
+        let first = parse_credential_file(DetectedProviderId::Antigravity, &first_path);
+        let second = parse_credential_file(DetectedProviderId::Antigravity, &second_path);
+
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
+        assert_eq!(first[0].identity_material, second[0].identity_material);
+        assert_ne!(first[0].token.as_str(), second[0].token.as_str());
     }
 
     #[test]

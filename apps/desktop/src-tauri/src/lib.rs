@@ -17,6 +17,7 @@ mod native_readers;
 mod native_snapshot;
 mod native_time;
 mod net;
+mod poll_identity;
 mod pro;
 mod provider_detection;
 mod reader_registry;

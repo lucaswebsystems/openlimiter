@@ -1,14 +1,14 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::cache_write::CacheWriter;
-use crate::connections::ConnectionsStore;
 use crate::native_readers::parse_body;
 use crate::native_snapshot::{iso_from_epoch_ms, write_report, CacheReport};
 use crate::net::{fetch_endpoint, NetError, ProviderEndpoint, ReqwestTransport, Transport};
+use crate::poll_identity::PollIdentity;
 use crate::provider_detection::{
     opaque_account_id, DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
 };
@@ -80,14 +80,9 @@ pub struct CodexOauthRuntime {
 }
 
 impl CodexOauthRuntime {
-    fn key(account_id: &str, revision: &str) -> String {
-        format!("{account_id}:{revision}")
-    }
-
-    fn begin(&self, account_id: &str, revision: &str, now_ms: u64) -> Result<(), u64> {
-        let key = Self::key(account_id, revision);
+    fn begin(&self, account_id: &str, now_ms: u64) -> Result<(), u64> {
         let mut entries = self.next_allowed.lock().map_err(|_| now_ms)?;
-        if let Some(next) = entries.get(&key).copied() {
+        if let Some(next) = entries.get(account_id).copied() {
             if now_ms < next {
                 return Err(next);
             }
@@ -101,16 +96,16 @@ impl CodexOauthRuntime {
             }
         }
         entries.insert(
-            key,
+            account_id.to_string(),
             now_ms.saturating_add(REFRESH_SECONDS.saturating_mul(1_000)),
         );
         Ok(())
     }
 
-    fn postpone(&self, account_id: &str, revision: &str, now_ms: u64, seconds: u64) {
+    fn postpone(&self, account_id: &str, now_ms: u64, seconds: u64) {
         if let Ok(mut entries) = self.next_allowed.lock() {
             entries.insert(
-                Self::key(account_id, revision),
+                account_id.to_string(),
                 now_ms.saturating_add(seconds.saturating_mul(1_000)),
             );
         }
@@ -155,7 +150,7 @@ async fn collect_with_secret<T: Transport>(
     secret: &DetectedSecret,
     now_ms: u64,
 ) -> CodexOutcome {
-    if let Err(retry_ms) = runtime.begin(account_id, &secret.credential_revision, now_ms) {
+    if let Err(retry_ms) = runtime.begin(account_id, now_ms) {
         return CodexOutcome::Cached {
             account_id: account_id.to_string(),
             retry_at: iso_from_epoch_ms(retry_ms)
@@ -207,22 +202,12 @@ async fn collect_with_secret<T: Transport>(
             }
         }
         401 => {
-            runtime.postpone(
-                account_id,
-                &secret.credential_revision,
-                now_ms,
-                BLOCKED_BACKOFF_SECONDS,
-            );
+            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
             fallback_report(writer, account_id, false, now_ms).await;
             CodexOutcome::reopen(account_id)
         }
         403 | 404 | 410 => {
-            runtime.postpone(
-                account_id,
-                &secret.credential_revision,
-                now_ms,
-                BLOCKED_BACKOFF_SECONDS,
-            );
+            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
             fallback_report(writer, account_id, false, now_ms).await;
             CodexOutcome::fallback(account_id, CodexFailure::ProviderBlocked)
         }
@@ -232,7 +217,7 @@ async fn collect_with_secret<T: Transport>(
                 .unwrap_or(0)
                 .max(RATE_LIMIT_BACKOFF_SECONDS)
                 .min(BLOCKED_BACKOFF_SECONDS);
-            runtime.postpone(account_id, &secret.credential_revision, now_ms, seconds);
+            runtime.postpone(account_id, now_ms, seconds);
             fallback_report(writer, account_id, false, now_ms).await;
             CodexOutcome::fallback(account_id, CodexFailure::RateLimited)
         }
@@ -285,30 +270,24 @@ pub async fn collect_account<T: Transport>(
 
 fn uncovered_account_ids(
     detected_account_ids: Vec<String>,
-    connected_provider_account_ids: impl IntoIterator<Item = String>,
+    covered: &HashSet<PollIdentity>,
 ) -> Vec<String> {
-    let covered: BTreeSet<String> = connected_provider_account_ids
-        .into_iter()
-        .map(|account_id| opaque_account_id(DetectedProviderId::Codex, &account_id))
-        .collect();
     detected_account_ids
         .into_iter()
-        .filter(|account_id| !covered.contains(account_id))
+        .filter(|account_id| {
+            !covered.contains(&PollIdentity::detected(
+                ProviderId::Codex,
+                account_id.clone(),
+            ))
+        })
         .collect()
 }
 
-pub async fn run_pass(app: &AppHandle) {
+pub async fn run_pass(app: &AppHandle, covered: &HashSet<PollIdentity>) {
     let detected_account_ids = app
         .state::<DetectionStore>()
         .account_ids(DetectedProviderId::Codex);
-    let connected_provider_account_ids = app
-        .state::<ConnectionsStore>()
-        .list()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|record| record.provider_id == ProviderId::Codex)
-        .filter_map(|record| record.codex_account_id);
-    let account_ids = uncovered_account_ids(detected_account_ids, connected_provider_account_ids);
+    let account_ids = uncovered_account_ids(detected_account_ids, covered);
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<CodexOauthRuntime>();
@@ -343,10 +322,11 @@ mod tests {
     fn a_connected_account_has_only_one_collection_path_per_cadence() {
         let provider_account_id = "provider-account-one";
         let detected_account_id = opaque_account_id(DetectedProviderId::Codex, provider_account_id);
-        let automatic = uncovered_account_ids(
-            vec![detected_account_id],
-            vec![provider_account_id.to_string()],
-        );
+        let covered = HashSet::from([PollIdentity::detected(
+            ProviderId::Codex,
+            detected_account_id.clone(),
+        )]);
+        let automatic = uncovered_account_ids(vec![detected_account_id], &covered);
 
         let generic_request_count = 1usize;
         assert!(automatic.is_empty());
@@ -357,10 +337,11 @@ mod tests {
     fn a_distinct_detected_account_keeps_automatic_collection() {
         let detected_account_id =
             opaque_account_id(DetectedProviderId::Codex, "provider-account-two");
-        let automatic = uncovered_account_ids(
-            vec![detected_account_id.clone()],
-            vec!["provider-account-one".to_string()],
-        );
+        let covered = HashSet::from([PollIdentity::detected(
+            ProviderId::Codex,
+            opaque_account_id(DetectedProviderId::Codex, "provider-account-one"),
+        )]);
+        let automatic = uncovered_account_ids(vec![detected_account_id.clone()], &covered);
 
         assert_eq!(automatic, vec![detected_account_id]);
     }
@@ -479,17 +460,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_second_read_inside_the_cadence_never_reaches_the_provider() {
+    async fn a_token_rotation_does_not_reset_the_account_cadence() {
         let dir = TempDir::new();
         let runtime = CodexOauthRuntime::default();
         let transport = RecordingTransport::replying(200, valid_body(), None);
-        let credential = secret(TOKEN, "provider-account-one", "revision-one");
         let _ = collect_with_secret(
             &runtime,
             &transport,
             writer(&dir),
             "opaque-account-one",
-            &credential,
+            &secret(TOKEN, "provider-account-one", "revision-one"),
             NOW,
         )
         .await;
@@ -498,7 +478,11 @@ mod tests {
             &transport,
             writer(&dir),
             "opaque-account-one",
-            &credential,
+            &secret(
+                "rotated-codex-token-for-tests-only",
+                "provider-account-one",
+                "revision-two",
+            ),
             NOW + 1_000,
         )
         .await;

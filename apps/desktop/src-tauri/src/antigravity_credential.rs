@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::native_snapshot::epoch_ms_from_rfc3339;
@@ -18,6 +19,7 @@ pub enum AntigravityCredentialError {
 
 pub struct AntigravityCredential {
     pub access_token: Zeroizing<String>,
+    pub identity_material: String,
     pub expires_at_ms: Option<u64>,
 }
 
@@ -34,6 +36,8 @@ struct Token<'a> {
     #[serde(default, borrow)]
     token_type: Option<&'a str>,
     #[serde(default, borrow)]
+    refresh_token: Option<&'a str>,
+    #[serde(default, borrow)]
     expiry: Option<&'a str>,
 }
 
@@ -41,6 +45,12 @@ fn valid_access_token(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_ACCESS_TOKEN_BYTES
         && !value.chars().any(char::is_control)
+}
+
+fn token_digest(value: &str) -> String {
+    let mut digest = Sha256::new();
+    digest.update(value.as_bytes());
+    format!("{:x}", digest.finalize())
 }
 
 fn parse(raw: &[u8]) -> Result<AntigravityCredential, AntigravityCredentialError> {
@@ -63,8 +73,14 @@ fn parse(raw: &[u8]) -> Result<AntigravityCredential, AntigravityCredentialError
         }
         None => None,
     };
+    let identity_token = envelope
+        .token
+        .refresh_token
+        .filter(|value| valid_access_token(value))
+        .unwrap_or(envelope.token.access_token);
     Ok(AntigravityCredential {
         access_token: Zeroizing::new(envelope.token.access_token.to_string()),
+        identity_material: token_digest(identity_token),
         expires_at_ms,
     })
 }
@@ -124,6 +140,13 @@ mod tests {
             parsed.access_token.as_str(),
             "antigravity-access-token-for-tests-only"
         );
+        assert_eq!(
+            parsed.identity_material,
+            token_digest("refresh-token-must-not-be-retained")
+        );
+        assert!(!parsed
+            .identity_material
+            .contains("refresh-token-must-not-be-retained"));
         assert!(parsed.expires_at_ms.is_some());
         assert!(!format!("{:?}", AntigravityCredentialError::Invalid)
             .contains("refresh-token-must-not-be-retained"));

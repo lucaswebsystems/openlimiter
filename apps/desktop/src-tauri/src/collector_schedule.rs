@@ -197,7 +197,7 @@ mod tests {
     }
 }
 
-fn eligible(record: &ConnectionRecord, now_ms: u64) -> bool {
+pub(crate) fn scheduled(record: &ConnectionRecord) -> bool {
     matches!(
         record.status.as_str(),
         "READY_TO_ENABLE" | "CONNECTING" | "CONNECTED" | "DEGRADED" | "STALE" | "ERROR"
@@ -205,7 +205,10 @@ fn eligible(record: &ConnectionRecord, now_ms: u64) -> bool {
         .schedule_policy()
         .interval_seconds()
         .is_some()
-        && record.next_refresh_at.is_none_or(|next| now_ms >= next)
+}
+
+pub(crate) fn eligible(record: &ConnectionRecord, now_ms: u64) -> bool {
+    scheduled(record) && record.next_refresh_at.is_none_or(|next| now_ms >= next)
 }
 
 pub(crate) fn due_records(
