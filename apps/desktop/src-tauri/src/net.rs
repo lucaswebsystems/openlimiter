@@ -1211,7 +1211,7 @@ mod tests {
             url: ANTIGRAVITY_BOOTSTRAP_URL,
             method: HttpMethod::Post,
             auth: AuthApplication::AntigravitySessionBearer,
-            codex_account_id: None,
+            provider_account_id: None,
             body: Some(ANTIGRAVITY_BOOTSTRAP_BODY),
         };
         let built = authenticated_builder(&client, &request, "credential-canary")

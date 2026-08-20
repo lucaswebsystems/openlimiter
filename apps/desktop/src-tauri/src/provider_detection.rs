@@ -154,7 +154,9 @@ fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
     match provider {
         DetectedProviderId::Claude
         | DetectedProviderId::Codex
-        | DetectedProviderId::Antigravity => ConnectionMode::Automatic,
+        | DetectedProviderId::Antigravity
+        | DetectedProviderId::Grok
+        | DetectedProviderId::Kimi => ConnectionMode::Automatic,
         DetectedProviderId::Openrouter => ConnectionMode::ApiKey,
         DetectedProviderId::Opencode => ConnectionMode::ManualEntry,
     }
@@ -172,7 +174,9 @@ fn provider_recovery(
         DetectedProviderId::Opencode => Some(RecoveryAction::ManualEntry),
         DetectedProviderId::Claude
         | DetectedProviderId::Codex
-        | DetectedProviderId::Antigravity => match state {
+        | DetectedProviderId::Antigravity
+        | DetectedProviderId::Grok
+        | DetectedProviderId::Kimi => match state {
             ProviderPresence::InstalledLoggedOut => Some(RecoveryAction::SignInToCli),
             ProviderPresence::Absent => Some(RecoveryAction::ManualEntry),
             ProviderPresence::Present => None,
