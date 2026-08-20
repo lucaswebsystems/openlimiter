@@ -36,22 +36,15 @@ export interface ProviderDirectoryOptions {
   states?: Readonly<Record<string, string | null | undefined>>;
 }
 
-const READY_SPEC_ORDER = [
-  "anthropic/claude-code",
+/** One recognition order for every provider surface. Change only this list. */
+export const PROVIDER_RECOGNITION_ORDER = [
   "openai/codex",
-  "xai/api",
-  "moonshot/api",
-  "openrouter/api",
-  "google/antigravity",
+  "anthropic/claude-code",
   "google/gemini-cli",
-  "opencode/opencode",
-  "openlimiter/manual",
-] as const;
-
-/** The expansion order shown in the owner's reference image. */
-const PLANNED_SPEC_ORDER = [
+  "google/antigravity",
   "perplexity/api",
   "xai/api",
+  "moonshot/api",
   "github/copilot",
   "cursor/editor",
   "windsurf/editor",
@@ -60,10 +53,10 @@ const PLANNED_SPEC_ORDER = [
   "together/api",
   "mistral/api",
   "deepseek/api",
-  "moonshot/api",
+  "opencode/opencode",
+  "openrouter/api",
+  "openlimiter/manual",
 ] as const;
-
-const SPEC_ORDER = [...new Set([...READY_SPEC_ORDER, ...PLANNED_SPEC_ORDER])];
 
 const READY_CONNECTORS = new Set([
   "claude",
@@ -268,7 +261,7 @@ export function buildProviderDirectory(
   const specs = readSpecs(registry);
   const rows: ProviderDirectoryRow[] = [];
 
-  for (const specId of SPEC_ORDER) {
+  for (const specId of PROVIDER_RECOGNITION_ORDER) {
     const spec = specs.get(specId);
     if (spec === undefined || typeof spec.displayName !== "string") continue;
     const connectorSpec = specs.get(CONNECTOR_SPEC_FOR_ROW[specId] ?? specId) ?? spec;
@@ -318,28 +311,25 @@ export function buildProviderDirectory(
     });
   }
 
-  const byReadyOrder = new Map<string, number>(
-    READY_SPEC_ORDER.map((specId, index) => [specId, index]),
+  const byDisplayOrder = new Map<string, number>(
+    PROVIDER_RECOGNITION_ORDER.map((specId, index) => [specId, index]),
   );
-  const byPlannedOrder = new Map<string, number>(
-    PLANNED_SPEC_ORDER.map((specId, index) => [specId, index]),
-  );
-  const fallbackOrder = SPEC_ORDER.length;
+  const fallbackOrder = PROVIDER_RECOGNITION_ORDER.length;
 
   return [
     ...rows
       .filter((row) => row.availability === "ready")
       .sort(
         (left, right) =>
-          (byReadyOrder.get(left.specId) ?? fallbackOrder) -
-          (byReadyOrder.get(right.specId) ?? fallbackOrder),
+          (byDisplayOrder.get(left.specId) ?? fallbackOrder) -
+          (byDisplayOrder.get(right.specId) ?? fallbackOrder),
       ),
     ...rows
       .filter((row) => row.availability === "planned")
       .sort(
         (left, right) =>
-          (byPlannedOrder.get(left.specId) ?? fallbackOrder) -
-          (byPlannedOrder.get(right.specId) ?? fallbackOrder),
+          (byDisplayOrder.get(left.specId) ?? fallbackOrder) -
+          (byDisplayOrder.get(right.specId) ?? fallbackOrder),
       ),
   ];
 }

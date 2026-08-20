@@ -100,7 +100,7 @@ html[data-first-run="complete"] .first-run {
 .first-run-providers {
   overflow: hidden;
   border: 1px solid var(--hairline);
-  border-radius: 10px;
+  border-radius: var(--ol-radius-sm);
   background: var(--raised);
 }
 
@@ -211,7 +211,7 @@ button.first-run-continue:hover {
    surface tone, and one pixel of light along the top edge. */
 .surface {
   border: 1px solid var(--hairline);
-  border-radius: 12px;
+  border-radius: var(--ol-radius-sm);
   background: var(--surface);
   box-shadow: inset 0 1px 0 0 var(--sheen);
 }
@@ -223,7 +223,7 @@ button.first-run-continue:hover {
   gap: 8px;
   padding: 4px 10px;
   border: 1px solid var(--hairline);
-  border-radius: 999px;
+  border-radius: var(--ol-radius-pill);
   background: var(--raised);
   font-size: 12px;
   line-height: 1.25;
@@ -262,7 +262,7 @@ button {
   gap: 8px;
   padding: 8px 16px;
   border: 1px solid var(--hairline-strong);
-  border-radius: 8px;
+  border-radius: var(--ol-radius-sm);
   background: transparent;
   color: var(--heading);
   font: 500 14px/1.4 inherit;
@@ -313,7 +313,7 @@ button.icon:hover {
 .strip {
   margin: 16px;
   border: 1px solid var(--hairline);
-  border-radius: 12px;
+  border-radius: var(--ol-radius-sm);
   background: var(--surface);
   box-shadow: inset 0 1px 0 0 var(--sheen);
 }
@@ -387,7 +387,7 @@ h1 {
 .pressure-dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: var(--ol-radius-pill);
   background: var(--muted);
   flex: none;
 }
@@ -455,7 +455,7 @@ h1 {
   margin: 0 16px;
   padding: 4px;
   border: 1px solid var(--hairline);
-  border-radius: 12px;
+  border-radius: var(--ol-radius-sm);
   background: var(--surface);
 }
 
@@ -467,7 +467,7 @@ h1 {
   border-color: transparent;
   background: transparent;
   color: var(--muted);
-  border-radius: 8px;
+  border-radius: var(--ol-radius-sm);
   padding: 6px 14px;
 }
 
@@ -511,7 +511,7 @@ main {
 
 .card {
   border: 1px solid var(--hairline);
-  border-radius: 12px;
+  border-radius: var(--ol-radius-sm);
   background: var(--surface);
   padding: 20px;
   box-shadow: inset 0 1px 0 0 var(--sheen);
@@ -557,7 +557,7 @@ main {
   width: 36px;
   height: 36px;
   border: 1px solid var(--hairline);
-  border-radius: 8px;
+  border-radius: var(--ol-radius-sm);
   background: var(--raised);
   color: var(--soft);
   flex: none;
@@ -650,7 +650,7 @@ main {
 .fresh-dot {
   width: 7px;
   height: 7px;
-  border-radius: 50%;
+  border-radius: var(--ol-radius-pill);
   background: var(--soft);
 }
 
@@ -756,7 +756,7 @@ main {
   width: 6px;
   height: 6px;
   flex: none;
-  border-radius: 50%;
+  border-radius: var(--ol-radius-pill);
   background: var(--muted);
 }
 
@@ -903,7 +903,7 @@ main {
 
 .empty {
   border: 1px solid var(--hairline);
-  border-radius: 12px;
+  border-radius: var(--ol-radius-sm);
   background: var(--surface);
   padding: 56px 24px;
   text-align: center;
@@ -918,7 +918,7 @@ main {
   height: 48px;
   margin-bottom: 20px;
   border: 1px solid var(--hairline);
-  border-radius: 12px;
+  border-radius: var(--ol-radius-sm);
   background: var(--raised);
   color: var(--soft);
 }
@@ -983,7 +983,7 @@ pre {
   margin: 0;
   padding: 16px;
   border: 1px solid var(--hairline);
-  border-radius: 8px;
+  border-radius: var(--ol-radius-sm);
   background: var(--code);
   font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--body);
@@ -1031,9 +1031,8 @@ footer p {
   Everything here reuses the metrics the rest of the window already set: the
   card is the .surface shape at twenty pixels of padding, chips are the pill,
   buttons are the one button. The only new drawing is the state dot, and its
-  colours are the same band tokens the meters use, applied to connection
-  health rather than to quota pressure: green for collecting, amber for a
-  connection that is waiting something out, red for one that needs a person.
+  colours are the same blue band tokens the meters use, applied to connection
+  health rather than to quota pressure. Red remains reserved for critical use.
   Where a reading came from stays a neutral chip, exactly as before.
 */
 .scheduler-line {
@@ -1048,7 +1047,7 @@ footer p {
    Dashed, like a card with nothing readable, because that is what it is. */
 .backendless {
   border: 1px dashed var(--hairline-strong);
-  border-radius: 12px;
+  border-radius: var(--ol-radius-sm);
   background: var(--surface);
   padding: 24px;
   margin-bottom: 16px;
@@ -1116,7 +1115,7 @@ footer p {
 .conn-account-row {
   padding: 12px;
   border: 1px solid var(--hairline);
-  border-radius: 8px;
+  border-radius: var(--ol-radius-sm);
   background: var(--raised);
 }
 
@@ -1160,7 +1159,7 @@ footer p {
   margin-top: 10px;
   padding: 12px;
   border: 1px solid var(--hairline);
-  border-radius: 8px;
+  border-radius: var(--ol-radius-sm);
   background: var(--raised);
   display: flex;
   flex-direction: column;
@@ -1267,7 +1266,7 @@ footer p {
   width: 6px;
   height: 6px;
   flex: none;
-  border-radius: 50%;
+  border-radius: var(--ol-radius-pill);
   background: var(--muted);
 }
 
@@ -1307,7 +1306,7 @@ button.confirming {
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--hairline);
-  border-radius: 8px;
+  border-radius: var(--ol-radius-sm);
   background: var(--raised);
   cursor: pointer;
 }
@@ -1353,7 +1352,7 @@ button.confirming {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid var(--hairline-strong);
-  border-radius: 8px;
+  border-radius: var(--ol-radius-sm);
   background: var(--code);
   color: var(--body);
   font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -1494,7 +1493,6 @@ body {
 }
 
 .mono,
-.stamp,
 pre,
 .field {
   font-family: var(--ol-font-mono);
@@ -1502,7 +1500,7 @@ pre,
 
 .surface {
   border-color: var(--ol-hairline);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-surface);
   box-shadow: var(--ol-elev-1);
 }
@@ -1624,7 +1622,7 @@ button.first-run-continue:hover,
   margin: var(--ol-space-2) 0 var(--ol-space-3);
   padding: var(--ol-space-2) var(--ol-space-3);
   border: 1px solid var(--ol-accent-subtle);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-accent-subtle);
   color: var(--ol-accent);
 }
@@ -1671,7 +1669,7 @@ button.first-run-continue:hover,
 .first-run-providers {
   overflow: hidden;
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-surface);
   box-shadow: var(--ol-elev-1);
 }
@@ -1705,7 +1703,7 @@ button.first-run-continue:hover,
   border: 1px solid var(--ol-hairline);
   border-radius: var(--ol-radius-sm);
   background: var(--ol-raised);
-  color: var(--ol-soft);
+  color: var(--ol-accent);
   box-shadow: var(--ol-elev-1);
 }
 
@@ -1858,7 +1856,8 @@ button.first-run-continue {
   padding: var(--ol-space-1) var(--ol-space-2);
   background: var(--ol-live-soft);
   color: var(--ol-live);
-  font-family: var(--ol-font-mono);
+  font-family: var(--ol-font-sans);
+  font-weight: 650;
 }
 
 .live-dot {
@@ -1876,6 +1875,7 @@ button.first-run-continue {
 
 .stamp {
   font-size: var(--ol-text-micro);
+  font-variant-numeric: tabular-nums;
 }
 
 .tabs {
@@ -1933,11 +1933,13 @@ main {
 }
 
 .provider-rows {
-  overflow: hidden;
-  border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-md);
-  background: var(--ol-surface);
-  box-shadow: var(--ol-elev-1);
+  display: grid;
+  gap: var(--ol-space-4);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .empty {
@@ -1948,7 +1950,7 @@ main {
   gap: var(--ol-space-4);
   padding: var(--ol-space-3) var(--ol-space-4);
   border-color: var(--ol-hairline);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-surface);
   text-align: left;
 }
@@ -1987,7 +1989,7 @@ main {
   gap: var(--ol-space-4);
   padding: var(--ol-space-3) var(--ol-space-4);
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-md) var(--ol-radius-md) 0 0;
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-surface);
 }
 
@@ -2004,27 +2006,32 @@ main {
   font-size: var(--ol-text-micro);
 }
 
+#panel-connections:not([hidden]) {
+  display: grid;
+  gap: var(--ol-space-4);
+}
+
 #panel-connections > .absent {
   margin: 0;
   padding: var(--ol-space-2) var(--ol-space-4);
-  border-right: 1px solid var(--ol-hairline);
-  border-left: 1px solid var(--ol-hairline);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-surface);
 }
 
 .backendless {
-  margin: -1px 0 0;
+  margin: 0;
   padding: var(--ol-space-4);
   border: 1px solid var(--ol-hairline);
-  border-radius: 0;
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-surface);
 }
 
 .conn-block {
-  margin: -1px 0 0;
+  margin: 0;
   padding: var(--ol-space-3) var(--ol-space-4);
   border-color: var(--ol-hairline);
-  border-radius: 0;
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-surface);
   box-shadow: none;
   transition: background-color var(--ol-motion-fast) var(--ol-ease-out);
@@ -2137,7 +2144,7 @@ pre {
 .provider-directory {
   overflow: hidden;
   padding: 0;
-  border-radius: 0 0 var(--ol-radius-md) var(--ol-radius-md);
+  border-radius: var(--ol-radius-lg);
 }
 
 .provider-directory:hover {
@@ -2152,7 +2159,8 @@ pre {
 .provider-count {
   margin-left: auto;
   color: var(--ol-muted);
-  font-family: var(--ol-font-mono);
+  font-family: var(--ol-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: var(--ol-text-micro);
 }
 
@@ -2191,7 +2199,7 @@ pre {
 .catalogue-group-name,
 .catalogue-group-count {
   color: var(--ol-muted);
-  font-family: var(--ol-font-mono);
+  font-family: var(--ol-font-sans);
   font-size: var(--ol-text-micro);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -2261,7 +2269,7 @@ pre {
   border-radius: var(--ol-radius-sm);
   background: var(--ol-raised);
   color: var(--ol-soft);
-  font-family: var(--ol-font-mono);
+  font-family: var(--ol-font-sans);
   font-size: 0.55rem;
   font-weight: 700;
   letter-spacing: 0.04em;

@@ -3,27 +3,24 @@
 
   Everything the marketing pages need already lives in app/globals.css, and not
   one value here replaces one of those. This file is the product surface's own
-  layer on top of that system: the pressure scale, the segmented meter drawn in
-  it, and the handful of behaviours a page that installs to a home screen needs
-  and a marketing page does not.
+  layer on top of that system: component layout and the handful of behaviours a
+  page that installs to a home screen needs and a marketing page does not.
 
-  DARK FIRST, exactly like the site. The four theme blocks below mirror
-  globals.css block for block and in the same order, so an explicit choice still
-  beats the system preference and the two files can never disagree about which
-  theme is active.
+  The canonical palette and geometry load from packages/ui/src/tokens.css after
+  this file. This layer names no competing visual values.
 
   THE PRESSURE SCALE
   ------------------
   Four bands, and one number in the middle of them that is not a design choice:
 
-    ok        0 to 59 percent       green
-    watch     60 to 79 percent      yellow
-    high      80 to 89 percent      orange
+    ok        0 to 59 percent       light blue
+    watch     60 to 79 percent      blue
+    high      80 to 89 percent      deep blue
     critical  90 percent and above  red
 
   EIGHTY IS THE ENGINE'S OWN NUMBER. packages/core/src/policy.ts calls a
-  provider NEAR_CAP at 80 and stops recommending it there, so a meter turning
-  orange is the same event as the agent being told to route away. The human and
+  provider NEAR_CAP at 80 and stops recommending it there, so a meter deepening
+  is the same event as the agent being told to route away. The human and
   the agent now see the same threshold at the same moment, which is the whole
   point of the alignment. Red at 90 is the human's own band on top of that: the
   point at which it is worth doing something rather than merely knowing.
@@ -31,11 +28,9 @@
   Nothing here feeds back into the engine. No number, no reason code and no
   recommendation is derived from these bands: they choose a colour and stop.
 
-  The brand blue is deliberately absent. Blue is this product's identity, and it
-  is spent on the lockup, links, focus rings and the recommendation chip. A
-  meter is a measurement, so it reads on a plain four step scale that anyone
-  recognises without being taught it, and the accent stays meaningful because
-  it never means "fine".
+  Blue is the product identity and the pressure scale. Saturation and weight
+  distinguish healthy, watch and high states. Red remains reserved for a truly
+  critical reading.
 
   Contrast, measured with the ratio formula against the three backgrounds these
   colours ever land on (canvas, surface, raised):
@@ -49,94 +44,6 @@
   themes, which it has to: the number beside a bar is painted in the bar's own
   colour.
 */
-
-:root {
-  /* Pressure. Four bands, no blue: see the scale in this file's header. */
-  --ol-meter-ok: #4ade80;
-  --ol-meter-watch: #fbbf24;
-  --ol-meter-high: #fb923c;
-  --ol-meter-critical: #ff8a80;
-
-  /* A failure is shown in the same red a critical meter is, because both mean
-     stop reading this number as if it were fine. */
-  --ol-meter-error: var(--ol-meter-critical);
-
-  /* The unfilled part of a bar is the site's own bar track, the same token the
-     phone panels on the home page fill against, so the two read as one
-     component. Ghost is the outline a hollow bar is drawn with. */
-  --ol-meter-empty: var(--ol-track);
-  --ol-meter-ghost: #3c3c44;
-
-  /* One pixel of light along the top edge of a card. */
-  --ol-card-sheen: rgb(255 255 255 / 0.045);
-
-  /* The shimmer that crosses a skeleton, and the block it crosses. */
-  --ol-skeleton: #1f1f23;
-  --ol-skeleton-sheen: rgb(255 255 255 / 0.06);
-
-  /* How much of the pressure colour a stale bar keeps. Fading means mixing
-     toward the surface, which on a dark surface means darker and on a light
-     one means lighter, so the two themes need different amounts to leave the
-     faded bar above 3 to 1 against the card behind it. Measured on the built
-     page: 3.82 in dark, 3.98 in light, both for the worst of the three. */
-  --ol-meter-stale-mix: 55%;
-
-  /*
-    Bar geometry, so every surface renders the same track.
-
-    One continuous pill, at the proportions of the bars in the site's own phone
-    panels. It replaced a row of ten segments: segments could only move in five
-    percent steps, so 91 and 97 drew identically, and the bar quietly rounded
-    away the room a person was trying to read. There is no gap value any more
-    because there is nothing to put a gap between.
-  */
-  --ol-meter-height: 0.5rem;
-  --ol-meter-radius: 999px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ol-meter-ok: #4ade80;
-    --ol-meter-watch: #fbbf24;
-    --ol-meter-high: #fb923c;
-    --ol-meter-critical: #ff8a80;
-    --ol-meter-error: var(--ol-meter-critical);
-    --ol-meter-empty: var(--ol-track);
-    --ol-meter-ghost: #3c3c44;
-    --ol-card-sheen: rgb(255 255 255 / 0.045);
-    --ol-skeleton: #1f1f23;
-    --ol-skeleton-sheen: rgb(255 255 255 / 0.06);
-    --ol-meter-stale-mix: 55%;
-  }
-}
-
-:root[data-theme="dark"] {
-  --ol-meter-ok: #4ade80;
-  --ol-meter-watch: #fbbf24;
-  --ol-meter-high: #fb923c;
-  --ol-meter-critical: #ff8a80;
-  --ol-meter-error: var(--ol-meter-critical);
-  --ol-meter-empty: var(--ol-track);
-  --ol-meter-ghost: #3c3c44;
-  --ol-card-sheen: rgb(255 255 255 / 0.045);
-  --ol-skeleton: #1f1f23;
-  --ol-skeleton-sheen: rgb(255 255 255 / 0.06);
-  --ol-meter-stale-mix: 55%;
-}
-
-:root[data-theme="light"] {
-  --ol-meter-ok: #166534;
-  --ol-meter-watch: #845309;
-  --ol-meter-high: #a04512;
-  --ol-meter-critical: #b42318;
-  --ol-meter-error: var(--ol-meter-critical);
-  --ol-meter-empty: var(--ol-track);
-  --ol-meter-ghost: #c6c6cb;
-  --ol-card-sheen: rgb(13 13 15 / 0.04);
-  --ol-skeleton: #e4e4e8;
-  --ol-skeleton-sheen: rgb(13 13 15 / 0.05);
-  --ol-meter-stale-mix: 82%;
-}
 
 /*
   The heading face.
@@ -251,8 +158,7 @@
   real, and prints the exact figure beside it.
 
   Geometry is set inline, from the reading. Colour is set here, from the band.
-  They never touch: a red bar and an orange bar are still measured against the
-  same ruler, which is the property that makes two cards comparable at a glance.
+  The same ruler keeps every blue pressure step comparable at a glance.
 */
 .ol-meter {
   position: relative;
@@ -376,7 +282,7 @@
 .ol-pressure-dot {
   width: 0.5rem;
   height: 0.5rem;
-  border-radius: 50%;
+  border-radius: var(--ol-radius-pill);
   background-color: var(--ol-muted);
 }
 
@@ -405,7 +311,7 @@
 .ol-fresh-dot {
   width: 0.4375rem;
   height: 0.4375rem;
-  border-radius: 50%;
+  border-radius: var(--ol-radius-pill);
   background-color: var(--ol-soft);
 }
 
@@ -425,7 +331,7 @@
   width: 0.375rem;
   height: 0.375rem;
   flex: none;
-  border-radius: 50%;
+  border-radius: var(--ol-radius-pill);
   background-color: var(--ol-muted);
 }
 
@@ -466,7 +372,7 @@
   gap: 0.75rem;
   padding: 0.75rem 1.25rem;
   border: 1px solid var(--ol-accent-subtle);
-  border-radius: 0.75rem;
+  border-radius: var(--ol-radius-sm);
   background-color: var(--ol-accent-subtle);
 }
 
@@ -516,10 +422,10 @@
   gap: 0.4375rem;
   padding: 0.3125rem 1.25rem;
   border-bottom: 1px solid var(--ol-hairline);
-  border-radius: 0.75rem 0.75rem 0 0;
+  border-radius: var(--ol-radius-sm) var(--ol-radius-sm) 0 0;
   background-color: var(--ol-accent-subtle);
   box-shadow: inset 0 1px 0 0 var(--ol-card-sheen);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--ol-font-sans);
   font-size: var(--text-2xs);
   line-height: 1.4;
   letter-spacing: 0.08em;
@@ -533,7 +439,7 @@
   align-items: center;
   gap: 0.375rem;
   padding: 0.125rem 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--ol-radius-pill);
   background-color: var(--ol-accent-subtle);
   color: var(--ol-accent);
   letter-spacing: 0.06em;
@@ -543,7 +449,7 @@
   width: 0.375rem;
   height: 0.375rem;
   flex: none;
-  border-radius: 50%;
+  border-radius: var(--ol-radius-pill);
   background-color: var(--ol-accent-solid);
 }
 
@@ -562,15 +468,15 @@
   z-index: 40;
   width: min(20rem, calc(100vw - 2rem));
   border: 1px solid var(--ol-hairline-strong);
-  border-radius: 0.75rem;
+  border-radius: var(--ol-radius-sm);
   background-color: var(--ol-surface);
-  box-shadow: 0 18px 40px -18px rgb(0 0 0 / 0.55);
+  box-shadow: var(--ol-elev-2);
   animation: ol-panel-in 160ms cubic-bezier(0, 0, 0.58, 1) both;
 }
 
 .ol-menu-label {
   padding: 0.625rem 0.75rem 0.375rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--ol-font-sans);
   font-size: var(--text-2xs);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -646,7 +552,7 @@
   which costs no layout and no paint outside the block itself.
 */
 .ol-skeleton {
-  border-radius: 0.5rem;
+  border-radius: var(--ol-radius-xs);
   background-color: var(--ol-skeleton);
   background-image: linear-gradient(
     90deg,
@@ -750,7 +656,7 @@
   display: grid;
   align-items: end;
   justify-items: center;
-  background-color: rgb(0 0 0 / 0.55);
+  background-color: var(--ol-backdrop);
   animation: ol-fade-in 200ms ease both;
 }
 
@@ -1078,8 +984,8 @@ body:has(.ol-product-shell) .page-overlap {
 .ol-product-shell .ol-demo-strip {
   gap: var(--ol-space-2);
   padding: var(--ol-space-1) var(--ol-space-3);
-  border-radius: var(--ol-radius-md) var(--ol-radius-md) 0 0;
-  font-family: var(--ol-font-mono);
+  border-radius: var(--ol-radius-lg) var(--ol-radius-lg) 0 0;
+  font-family: var(--ol-font-sans);
   font-size: var(--ol-text-micro);
 }
 
@@ -1128,9 +1034,18 @@ body:has(.ol-product-shell) .page-overlap {
   padding: var(--ol-space-1) var(--ol-space-2);
   background: var(--ol-live-soft);
   color: var(--ol-live);
-  font-family: var(--ol-font-mono);
+  border: 1px solid color-mix(in srgb, var(--ol-accent) 24%, var(--ol-hairline));
+  border-radius: var(--ol-radius-pill);
+  font-family: var(--ol-font-sans);
   font-size: var(--ol-text-micro);
   font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.ol-next-provider {
+  color: var(--ol-soft);
+  font-size: var(--ol-text-caption);
+  font-weight: 600;
 }
 
 .ol-live-dot {
@@ -1194,15 +1109,17 @@ body:has(.ol-product-shell) .page-overlap {
 
 .ol-home-stack {
   display: grid;
-  gap: var(--ol-space-3);
+  gap: var(--ol-space-4);
 }
 
 .ol-telemetry-table {
-  overflow: hidden;
-  border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-md);
-  background: var(--ol-surface);
-  box-shadow: var(--ol-elev-1);
+  display: grid;
+  overflow: visible;
+  gap: var(--ol-space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .ol-empty-row {
@@ -1211,9 +1128,9 @@ body:has(.ol-product-shell) .page-overlap {
   align-items: center;
   justify-content: space-between;
   gap: var(--ol-space-4);
-  padding: var(--ol-space-3) var(--ol-space-4);
+  padding: var(--ol-space-5);
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-surface);
 }
 
@@ -1244,17 +1161,21 @@ body:has(.ol-product-shell) .page-overlap {
   flex: none;
   place-items: center;
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-sm);
-  background: var(--ol-raised);
-  color: var(--ol-soft);
+  border-color: color-mix(in srgb, var(--ol-accent) 30%, var(--ol-hairline));
+  border-radius: var(--ol-radius-md);
+  background: var(--ol-accent-subtle);
+  color: var(--ol-accent);
   box-shadow: var(--ol-elev-1);
 }
 
 .ol-row-skeleton {
   display: grid;
   min-height: var(--ol-row-min-height);
-  grid-template-columns: minmax(13.5rem, 15.5rem) minmax(0, 1fr);
-  border-bottom: 1px solid var(--ol-hairline);
+  overflow: hidden;
+  grid-template-columns: minmax(11.5rem, 13.5rem) minmax(0, 1fr);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-lg);
+  background: var(--ol-surface);
 }
 
 .ol-row-skeleton-identity,
@@ -1277,7 +1198,7 @@ body:has(.ol-product-shell) .page-overlap {
 .ol-product-panel {
   overflow: visible;
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-surface);
   box-shadow: var(--ol-elev-1);
 }
@@ -1475,16 +1396,26 @@ body:has(.ol-product-shell) .page-overlap {
 }
 
 .ol-provider-directory {
+  display: grid;
   max-height: min(68vh, 52rem);
   overflow: auto;
-  border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-md);
-  background: var(--ol-surface);
+  gap: var(--ol-space-4);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   scrollbar-color: var(--ol-hairline-strong) transparent;
 }
 
 .ol-directory-group + .ol-directory-group {
-  border-top: 1px solid var(--ol-hairline-strong);
+  border-top: 0;
+}
+
+.ol-directory-group {
+  overflow: hidden;
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-lg);
+  background: var(--ol-surface);
+  box-shadow: var(--ol-elev-1);
 }
 
 .ol-directory-group-head {
@@ -1492,10 +1423,10 @@ body:has(.ol-product-shell) .page-overlap {
   z-index: 2;
   top: 0;
   display: flex;
-  min-height: 2rem;
+  min-height: 2.75rem;
   align-items: center;
   justify-content: space-between;
-  padding: var(--ol-space-1) var(--ol-space-3);
+  padding: var(--ol-space-2) var(--ol-space-4);
   border-bottom: 1px solid var(--ol-hairline);
   background: color-mix(in srgb, var(--ol-surface) 94%, transparent);
   backdrop-filter: blur(12px);
@@ -1503,6 +1434,10 @@ body:has(.ol-product-shell) .page-overlap {
 
 .ol-directory-group[data-availability="planned"] .ol-directory-group-head {
   background: var(--ol-raised);
+}
+
+.ol-directory-group[data-availability="planned"] {
+  box-shadow: none;
 }
 
 .ol-directory-group-copy {
@@ -1517,11 +1452,10 @@ body:has(.ol-product-shell) .page-overlap {
 .ol-directory-group-count {
   margin: 0;
   color: var(--ol-muted);
-  font-family: var(--ol-font-mono);
+  font-family: var(--ol-font-sans);
   font-size: var(--ol-text-micro);
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .ol-directory-group-head p {
@@ -1538,11 +1472,11 @@ body:has(.ol-product-shell) .page-overlap {
 
 .ol-directory-row {
   display: grid;
-  min-height: 3.75rem;
+  min-height: 4.25rem;
   grid-template-columns: minmax(13rem, 1fr) 6.5rem 8.5rem auto;
   align-items: center;
   gap: var(--ol-space-3);
-  padding: var(--ol-space-2) var(--ol-space-3);
+  padding: var(--ol-space-3) var(--ol-space-4);
   border-bottom: 1px solid var(--ol-hairline);
   transition: background-color var(--ol-motion-fast) var(--ol-ease-out);
 }
@@ -1613,7 +1547,7 @@ body:has(.ol-product-shell) .page-overlap {
 .ol-provider-initials {
   display: grid;
   place-items: center;
-  font-family: var(--ol-font-mono);
+  font-family: var(--ol-font-sans);
   font-size: 0.55rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1691,7 +1625,7 @@ body:has(.ol-product-shell) .page-overlap {
   margin-top: var(--ol-space-3);
   padding: var(--ol-space-3);
   border: 1px solid var(--ol-accent-subtle);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-lg);
   background: var(--ol-accent-subtle);
 }
 

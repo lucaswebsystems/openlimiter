@@ -10,53 +10,58 @@
   color-scheme: dark;
 
   /* Color */
-  --ol-canvas: #09090b;
-  --ol-surface: #101013;
-  --ol-raised: #17171c;
-  --ol-elevated: #1d1d23;
-  --ol-code: #070709;
-  --ol-frame: #0d0d10;
-  --ol-track: #25252d;
-  --ol-hairline: #26262d;
-  --ol-hairline-strong: #3a3a44;
+  --ol-canvas: #080b10;
+  --ol-surface: #0e131b;
+  --ol-raised: #141b26;
+  --ol-elevated: #1a2432;
+  --ol-code: #070a0f;
+  --ol-frame: #0b1017;
+  --ol-track: #202b3b;
+  --ol-hairline: #202b3a;
+  --ol-hairline-strong: #34445b;
   --ol-heading: #fafafa;
   --ol-body: #e4e4e7;
-  --ol-soft: #b8b8c2;
-  --ol-muted: #91919d;
-  --ol-faint: #676773;
+  --ol-soft: #c3ccd8;
+  --ol-muted: #929ead;
+  --ol-faint: #667386;
 
-  /* Coral is an action. Quota pressure keeps its own semantic scale. */
-  --ol-brand: #ff7565;
-  --ol-accent: #ff8b7e;
-  --ol-accent-hover: #ffa398;
-  --ol-accent-subtle: rgb(255 117 101 / 0.12);
-  --ol-accent-solid: #ff7565;
-  --ol-accent-solid-hover: #ff8b7e;
-  --ol-on-accent: #1c0704;
+  /* One blue accent. Pressure changes saturation and weight, never hue. */
+  --ol-brand: #2f81f7;
+  --ol-accent: #79b8ff;
+  --ol-accent-hover: #a5d2ff;
+  --ol-accent-subtle: rgb(47 129 247 / 0.14);
+  --ol-accent-solid: #2f81f7;
+  --ol-accent-solid-hover: #58a6ff;
+  --ol-on-accent: #ffffff;
   --ol-solid: #fafafa;
   --ol-solid-hover: #e4e4e7;
   --ol-on-solid: #09090b;
 
-  --ol-meter-ok: #34d399;
-  --ol-meter-watch: #facc15;
-  --ol-meter-high: #fb923c;
-  --ol-meter-critical: #ff4967;
+  --ol-meter-ok: #79b8ff;
+  --ol-meter-watch: #58a6ff;
+  --ol-meter-high: #2f81f7;
+  --ol-meter-critical: #ff6b78;
   --ol-meter-error: var(--ol-meter-critical);
   --ol-meter-empty: var(--ol-track);
-  --ol-meter-ghost: #41414c;
-  --ol-live: #34d399;
-  --ol-live-soft: rgb(52 211 153 / 0.13);
+  --ol-meter-ghost: #43536a;
+  --ol-live: var(--ol-accent);
+  --ol-live-soft: var(--ol-accent-subtle);
+  --ol-card-sheen: rgb(255 255 255 / 0.04);
+  --ol-skeleton: #192231;
+  --ol-skeleton-sheen: rgb(121 184 255 / 0.08);
+  --ol-backdrop: rgb(0 0 0 / 0.55);
+  --ol-meter-stale-mix: 58%;
 
-  /* Provider identity accents, used only by provider marks. */
-  --ol-provider-claude: #f59e72;
-  --ol-provider-openrouter: #66d9c1;
-  --ol-provider-codex: #9ce6c4;
-  --ol-provider-antigravity: #8ab4f8;
-  --ol-provider-gemini: var(--ol-provider-antigravity);
-  --ol-provider-opencode: #d4d4d8;
-  --ol-provider-grok: var(--ol-heading);
+  /* Shape identifies providers. Colour stays inside the one accent system. */
+  --ol-provider-claude: var(--ol-accent);
+  --ol-provider-openrouter: var(--ol-accent);
+  --ol-provider-codex: var(--ol-accent);
+  --ol-provider-antigravity: var(--ol-accent);
+  --ol-provider-gemini: var(--ol-accent);
+  --ol-provider-opencode: var(--ol-accent);
+  --ol-provider-grok: var(--ol-accent);
   --ol-provider-kimi: var(--ol-accent);
-  --ol-provider-manual: #c4b5fd;
+  --ol-provider-manual: var(--ol-accent);
 
   /* Type */
   --ol-font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -66,7 +71,7 @@
   --ol-text-body: 0.8125rem;
   --ol-text-label: 0.875rem;
   --ol-text-title: 1rem;
-  --ol-text-display: 1.375rem;
+  --ol-text-display: 2.25rem;
   --ol-leading-tight: 1.15;
   --ol-leading-body: 1.45;
 
@@ -79,15 +84,17 @@
   --ol-space-6: 2rem;
   --ol-space-7: 3rem;
 
-  /* Radius, one restrained scale */
-  --ol-radius-xs: 0.1875rem;
-  --ol-radius-sm: 0.3125rem;
-  --ol-radius-md: 0.5rem;
+  /* Radius, one soft scale */
+  --ol-radius-xs: 0.5rem;
+  --ol-radius-sm: 0.75rem;
+  --ol-radius-md: 1rem;
+  --ol-radius-lg: 1.25rem;
+  --ol-radius-xl: 1.5rem;
   --ol-radius-pill: 999px;
 
-  /* Flat elevation */
-  --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.025);
-  --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 18px 60px rgb(0 0 0 / 0.22);
+  /* Calm elevation */
+  --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.035);
+  --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.045), 0 20px 64px rgb(0 0 0 / 0.24);
 
   /* Mechanical motion */
   --ol-motion-fast: 120ms;
@@ -98,10 +105,11 @@
 
   /* Shared component geometry */
   --ol-control-height: 2.25rem;
-  --ol-row-min-height: 5rem;
-  --ol-first-run-row-min-height: 3rem;
+  --ol-row-min-height: 9rem;
+  --ol-first-run-row-min-height: 3.75rem;
   --ol-window-mobile-width: 17rem;
-  --ol-meter-height: 0.25rem;
+  --ol-meter-height: 0.625rem;
+  --ol-mini-meter-height: 0.3125rem;
   --ol-meter-radius: var(--ol-radius-pill);
   --ol-focus-ring: 0 0 0 2px var(--ol-canvas), 0 0 0 4px var(--ol-accent);
 
@@ -131,56 +139,61 @@
   --meter-error: var(--ol-meter-error);
   --meter-empty: var(--ol-meter-empty);
   --meter-ghost: var(--ol-meter-ghost);
-  --meter-height: 4px;
+  --meter-height: var(--ol-meter-height);
   --meter-radius: var(--ol-meter-radius);
   --sheen: rgb(255 255 255 / 0.025);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --ol-canvas: #f7f7f8;
+  --ol-canvas: #f4f7fb;
   --ol-surface: #ffffff;
-  --ol-raised: #f0f0f2;
-  --ol-elevated: #e8e8eb;
-  --ol-code: #f0f0f2;
-  --ol-frame: #ececef;
-  --ol-track: #d8d8de;
-  --ol-hairline: #dedee3;
-  --ol-hairline-strong: #c2c2ca;
-  --ol-heading: #111114;
-  --ol-body: #27272d;
-  --ol-soft: #494952;
-  --ol-muted: #62626d;
-  --ol-faint: #8b8b95;
-  --ol-brand: #c93f35;
-  --ol-accent: #b9362e;
-  --ol-accent-hover: #932820;
-  --ol-accent-subtle: #ffebe8;
-  --ol-accent-solid: #ef6558;
-  --ol-accent-solid-hover: #df5549;
-  --ol-on-accent: #190403;
-  --ol-solid: #111114;
-  --ol-solid-hover: #2a2a31;
+  --ol-raised: #edf2f8;
+  --ol-elevated: #e4ebf4;
+  --ol-code: #edf2f8;
+  --ol-frame: #e8eef6;
+  --ol-track: #d7e1ee;
+  --ol-hairline: #dbe4ef;
+  --ol-hairline-strong: #b9c7d9;
+  --ol-heading: #0d1623;
+  --ol-body: #263446;
+  --ol-soft: #46566b;
+  --ol-muted: #617087;
+  --ol-faint: #8491a3;
+  --ol-brand: #0969da;
+  --ol-accent: #0969da;
+  --ol-accent-hover: #0550ae;
+  --ol-accent-subtle: #e5f1ff;
+  --ol-accent-solid: #0969da;
+  --ol-accent-solid-hover: #0550ae;
+  --ol-on-accent: #ffffff;
+  --ol-solid: #0d1623;
+  --ol-solid-hover: #263446;
   --ol-on-solid: #fafafa;
-  --ol-meter-ok: #047857;
-  --ol-meter-watch: #8a6100;
-  --ol-meter-high: #b45309;
-  --ol-meter-critical: #c51f45;
-  --ol-meter-ghost: #b8b8c0;
-  --ol-live: #047857;
-  --ol-live-soft: rgb(4 120 87 / 0.1);
-  --ol-provider-claude: #bd532c;
-  --ol-provider-openrouter: #087a65;
-  --ol-provider-codex: #08775b;
-  --ol-provider-antigravity: #2856a8;
-  --ol-provider-gemini: var(--ol-provider-antigravity);
-  --ol-provider-opencode: #3f3f46;
-  --ol-provider-grok: var(--ol-heading);
+  --ol-meter-ok: #1f6feb;
+  --ol-meter-watch: #0969da;
+  --ol-meter-high: #0550ae;
+  --ol-meter-critical: #cf222e;
+  --ol-meter-ghost: #aebed1;
+  --ol-live: var(--ol-accent);
+  --ol-live-soft: var(--ol-accent-subtle);
+  --ol-card-sheen: rgb(255 255 255 / 0.9);
+  --ol-skeleton: #e2eaf4;
+  --ol-skeleton-sheen: rgb(9 105 218 / 0.07);
+  --ol-backdrop: rgb(13 22 35 / 0.42);
+  --ol-meter-stale-mix: 82%;
+  --ol-provider-claude: var(--ol-accent);
+  --ol-provider-openrouter: var(--ol-accent);
+  --ol-provider-codex: var(--ol-accent);
+  --ol-provider-antigravity: var(--ol-accent);
+  --ol-provider-gemini: var(--ol-accent);
+  --ol-provider-opencode: var(--ol-accent);
+  --ol-provider-grok: var(--ol-accent);
   --ol-provider-kimi: var(--ol-accent);
-  --ol-provider-manual: #6d48b6;
+  --ol-provider-manual: var(--ol-accent);
   --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.8);
   --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 18px 60px rgb(17 17 20 / 0.08);
-  --sheen: rgb(17 17 20 / 0.025);
+  --sheen: rgb(13 22 35 / 0.025);
 }
 
 @media (prefers-reduced-motion: reduce) {

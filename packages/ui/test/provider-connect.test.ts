@@ -1,22 +1,37 @@
 import { describe, expect, it } from "vitest";
 import providerSpecs from "../../../provider_specs/provider-specs.json" with { type: "json" };
-import { buildProviderDirectory } from "../src/provider-connect.js";
+import {
+  PROVIDER_RECOGNITION_ORDER,
+  buildProviderDirectory,
+} from "../src/provider-connect.js";
 
 describe("provider connection directory", () => {
+  it("keeps one explicit recognition order for all provider surfaces", () => {
+    expect(PROVIDER_RECOGNITION_ORDER.slice(0, 6)).toEqual([
+      "openai/codex",
+      "anthropic/claude-code",
+      "google/gemini-cli",
+      "google/antigravity",
+      "perplexity/api",
+      "xai/api",
+    ]);
+    expect(PROVIDER_RECOGNITION_ORDER.indexOf("openrouter/api")).toBeGreaterThan(12);
+  });
+
   it("promotes arriving CLI connectors without duplicating the expansion rows", () => {
     const rows = buildProviderDirectory(providerSpecs);
 
     expect(rows).toHaveLength(18);
     expect(rows.filter((row) => row.availability === "ready").map((row) => row.displayName))
       .toEqual([
-        "Claude Code",
         "Codex",
+        "Claude Code",
+        "Gemini CLI",
+        "Antigravity",
         "Grok (xAI)",
         "Kimi",
-        "OpenRouter",
-        "Antigravity",
-        "Gemini CLI",
         "OpenCode",
+        "OpenRouter",
         "Manual",
       ]);
     expect(rows.filter((row) => row.availability === "planned").map((row) => row.displayName))

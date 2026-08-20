@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProviderCode, Snapshot } from "@openlimiter/core";
 import {
   buildProviderAccountRows,
+  closestToLimit,
   headroomTone,
   providerRowMarkup,
   resetCountdown,
@@ -90,10 +91,21 @@ describe("provider account rows", () => {
     const manual = rows.find((row) => row.provider === "MANUAL");
 
     expect(rows).toHaveLength(9);
-    expect(codex?.fallback).toMatchObject({ kind: "not_found", title: "Not found" });
-    expect(gemini?.fallback).toMatchObject({ kind: "not_found", title: "Not found" });
-    expect(grok?.fallback).toMatchObject({ kind: "not_found", title: "Not found" });
-    expect(kimi?.fallback).toMatchObject({ kind: "not_found", title: "Not found" });
+    expect(rows.map((row) => row.provider)).toEqual([
+      "CODEX",
+      "CLAUDE",
+      "GEMINI_CLI",
+      "ANTIGRAVITY",
+      "GROK",
+      "KIMI",
+      "OPENCODE",
+      "OPENROUTER",
+      "MANUAL",
+    ]);
+    expect(codex?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
+    expect(gemini?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
+    expect(grok?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
+    expect(kimi?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
     expect(manual?.fallback).toMatchObject({
       kind: "manual_entry",
       title: "Manual entry",
@@ -122,6 +134,28 @@ describe("provider account rows", () => {
     expect(markup).toContain("Live");
     expect(markup).toContain("role=\"progressbar\"");
     expect(markup.match(/Resets in/g)).toHaveLength(1);
+    expect(markup).toContain("hero-readout\">63.0%");
+  });
+
+  it("promotes the closest window to the headline without dropping monthly", () => {
+    const row = buildProviderAccountRows(
+      [
+        snapshot("CLAUDE", "FIVE_HOUR", 38, "primary"),
+        snapshot("CLAUDE", "SEVEN_DAY", 62, "primary"),
+        snapshot("CLAUDE", "MONTHLY", 41, "primary"),
+      ],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] },
+    )[0];
+
+    expect(row).toBeDefined();
+    expect(closestToLimit(row!.windows)).toMatchObject({ label: "Weekly", usedPercent: 62 });
+    const markup = providerRowMarkup(row!);
+    expect(markup).toContain("hero-label\">Weekly");
+    expect(markup).toContain("hero-readout\">62.0%");
+    expect(markup).toContain("Monthly");
+    expect(markup.match(/class=\"mini-window\"/g)).toHaveLength(3);
   });
 
   it("formats a bounded reset countdown and omits an absent reset", () => {

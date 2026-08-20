@@ -6,7 +6,6 @@
  * the script again.
  */
 import {
-  PROVIDER_CODES,
   dedupeFailures,
   failureSentence,
   floorFixed,
@@ -18,6 +17,7 @@ import {
   type SnapshotSource,
   type SnapshotState,
 } from "../core";
+import { PROVIDER_RECOGNITION_ORDER } from "./provider-connect";
 
 export type HeadroomTone = "ok" | "watch" | "high" | "critical" | "none";
 
@@ -67,6 +67,25 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   KIMI: "Kimi",
   MANUAL: "Manual",
 };
+
+const PROVIDER_CODE_BY_SPEC_ID: Readonly<Record<string, ProviderCode | undefined>> = {
+  "openai/codex": "CODEX",
+  "anthropic/claude-code": "CLAUDE",
+  "google/gemini-cli": "GEMINI_CLI",
+  "google/antigravity": "ANTIGRAVITY",
+  "xai/api": "GROK",
+  "moonshot/api": "KIMI",
+  "opencode/opencode": "OPENCODE",
+  "openrouter/api": "OPENROUTER",
+  "openlimiter/manual": "MANUAL",
+};
+
+const DEFAULT_PROVIDER_CODES: readonly ProviderCode[] = PROVIDER_RECOGNITION_ORDER.flatMap(
+  (specId) => {
+    const provider = PROVIDER_CODE_BY_SPEC_ID[specId];
+    return provider === undefined ? [] : [provider];
+  },
+);
 
 const PROVIDER_MARKS: Record<ProviderCode, string> = {
   CLAUDE:
@@ -294,8 +313,8 @@ function fallbackFor(
   }
   return {
     kind: "not_found",
-    title: "Not found",
-    detail: "Connect in Accounts",
+    title: "Not connected",
+    detail: "Open Accounts",
   };
 }
 
@@ -305,7 +324,7 @@ export function buildProviderAccountRows(
   failures: readonly ProviderFailure[] = [],
   options: ProviderRowOptions = {},
 ): readonly ProviderAccountRowView[] {
-  const providers = options.providers ?? PROVIDER_CODES;
+  const providers = options.providers ?? DEFAULT_PROVIDER_CODES;
   const failureByProvider = new Map(
     dedupeFailures(failures).map((failure) => [
       failure.provider,
@@ -375,33 +394,73 @@ function escapeText(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
-function windowMarkup(window: ProviderWindowView): string {
+function percentLabel(window: ProviderWindowView): string {
+  return window.usedPercent === null ? "No data" : floorFixed(window.usedPercent, 1) + "%";
+}
+
+export function closestToLimit(
+  windows: readonly ProviderWindowView[],
+): ProviderWindowView | null {
+  let closest: ProviderWindowView | null = null;
+  for (const window of windows) {
+    if (closest === null) {
+      closest = window;
+      continue;
+    }
+    if (window.usedPercent === null) continue;
+    if (closest.usedPercent === null || window.usedPercent > closest.usedPercent) {
+      closest = window;
+    }
+  }
+  return closest;
+}
+
+function meterMarkup(window: ProviderWindowView, className: string): string {
   const valueAttributes =
     window.usedPercent === null
-      ? 'aria-valuetext="Unknown"'
+      ? 'aria-valuetext="No data"'
       : 'aria-valuenow="' + String(window.usedPercent) + '" aria-valuetext="' +
-        escapeText(window.readout + ", " + window.detail) + '"';
+        escapeText(percentLabel(window) + " used") + '"';
   const fill =
     window.usedPercent === null
       ? ""
-      : '<span class="bar-fill" style="width:' + String(window.usedPercent) + '%"></span>';
-  const reset =
-    window.resetLabel === null
-      ? ""
-      : '<span class="reset"><span class="reset-clock" aria-hidden="true"></span>' +
-        escapeText(window.resetLabel) + "</span>";
+      : '<span class="meter-fill" style="width:' + String(window.usedPercent) + '%"></span>';
 
   return (
-    '<section class="window" data-tone="' + window.tone + '" data-state="' +
+    '<span class="' + className + '" role="progressbar" aria-label="' +
+    escapeText(window.label) + '" aria-valuemin="0" aria-valuemax="100" ' +
+    valueAttributes + ">" + fill + "</span>"
+  );
+}
+
+function miniWindowMarkup(window: ProviderWindowView): string {
+  return (
+    '<section class="mini-window" data-tone="' + window.tone + '" data-state="' +
     window.state + '" aria-label="' + escapeText(window.accessibleLabel) + '">' +
-    '<div class="window-head"><span class="window-label">' + escapeText(window.label) +
-    '</span><span class="state"><span class="state-dot" aria-hidden="true"></span>' +
-    escapeText(window.stateLabel) + "</span></div>" +
-    '<div class="metric-line"><strong class="readout">' + escapeText(window.readout) +
-    '</strong>' + reset + "</div>" +
-    '<div class="bar" role="progressbar" aria-label="' + escapeText(window.label) +
-    '" aria-valuemin="0" aria-valuemax="100" ' + valueAttributes + ">" + fill + "</div>" +
-    '<div class="window-foot">' + escapeText(window.detail) + "</div></section>"
+    '<div class="mini-head"><span title="' + escapeText(window.label) + '">' +
+    escapeText(window.label) + '</span><strong>' + escapeText(percentLabel(window)) +
+    "</strong></div>" + meterMarkup(window, "mini-meter") + "</section>"
+  );
+}
+
+function usageMarkup(windows: readonly ProviderWindowView[]): string {
+  const lead = closestToLimit(windows);
+  if (lead === null) return "";
+  const reset =
+    lead.resetLabel === null
+      ? ""
+      : '<span class="reset"><span class="reset-clock" aria-hidden="true"></span>' +
+        escapeText(lead.resetLabel) + "</span>";
+
+  return (
+    '<div class="usage" data-tone="' + lead.tone + '" data-state="' + lead.state + '">' +
+    '<div class="hero-head"><span class="hero-label">' + escapeText(lead.label) +
+    '</span><span class="state" aria-label="' + escapeText(lead.stateLabel) + '" title="' +
+    escapeText(lead.stateLabel) + '"><span class="state-dot" aria-hidden="true"></span></span>' +
+    '<strong class="hero-readout">' + escapeText(percentLabel(lead)) + "</strong></div>" +
+    '<div class="hero-meter-line">' + meterMarkup(lead, "hero-meter") + reset + "</div>" +
+    '<div class="mini-windows" role="group" aria-label="All usage windows">' +
+    windows.map(miniWindowMarkup).join("") + "</div></div>"
   );
 }
 
@@ -416,10 +475,14 @@ export function providerRowMarkup(row: ProviderAccountRowView): string {
       ? ""
       : '<p class="failure" role="status"><span aria-hidden="true">!</span>' +
         escapeText(row.failure) + "</p>";
+  const account =
+    row.accountId === null
+      ? ""
+      : '<span class="account-value" title="' + escapeText(row.accountLabel) + '">' +
+        escapeText(row.accountLabel) + "</span>";
   const content =
     row.fallback === null
-      ? '<div class="windows" role="group" aria-label="Usage windows" tabindex="0">' +
-        row.windows.map(windowMarkup).join("") + "</div>"
+      ? usageMarkup(row.windows)
       : '<div class="fallback" data-kind="' + row.fallback.kind + '"><strong>' +
         escapeText(row.fallback.title) + "</strong><span>" +
         escapeText(row.fallback.detail) + "</span></div>";
@@ -428,9 +491,8 @@ export function providerRowMarkup(row: ProviderAccountRowView): string {
     '<article class="row" aria-label="' + escapeText(row.providerLabel + ", " + row.accountLabel) + '">' +
     '<header class="identity"><div class="identity-main"><span class="mark" aria-hidden="true">' +
     PROVIDER_MARKS[row.provider] + '</span><div class="provider"><div class="provider-line"><strong>' +
-    escapeText(row.providerLabel) + '</strong><span class="account-value">' +
-    escapeText(row.accountLabel) + '</span></div><span class="provider-code">' + row.provider +
-    '</span></div></div><div class="identity-foot">' + demo + source +
+    escapeText(row.providerLabel) + "</strong>" + account +
+    '</div></div></div><div class="identity-foot">' + demo + source +
     "</div>" + failure + "</header>" + content + "</article>"
   );
 }
@@ -463,20 +525,23 @@ const PROVIDER_ROW_STYLE = `
 * { box-sizing: border-box; }
 .row {
   display: grid;
-  grid-template-columns: minmax(13.5rem, 15.5rem) minmax(0, 1fr);
+  grid-template-columns: minmax(11.5rem, 13.5rem) minmax(0, 1fr);
   min-width: 0;
   min-height: var(--ol-row-min-height);
-  border-bottom: 1px solid var(--row-hairline);
+  overflow: hidden;
+  border: 1px solid var(--row-hairline);
+  border-radius: var(--ol-radius-lg);
   background: var(--row-surface);
-  transition: background-color var(--ol-motion-fast) var(--ol-ease-out);
+  box-shadow: var(--ol-elev-1);
+  transition: border-color var(--ol-motion-fast) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out), transform var(--ol-motion-base) var(--ol-ease-out);
 }
 .identity {
   display: flex;
   min-width: 0;
   flex-direction: column;
   justify-content: center;
-  gap: var(--ol-space-2);
-  padding: var(--ol-space-3) var(--ol-space-4);
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-5);
   border-right: 1px solid var(--row-hairline);
 }
 .identity-main {
@@ -487,17 +552,18 @@ const PROVIDER_ROW_STYLE = `
 }
 .mark {
   display: grid;
-  width: 2rem;
-  height: 2rem;
+  width: 2.75rem;
+  height: 2.75rem;
   flex: none;
   place-items: center;
   border: 1px solid var(--row-hairline);
-  border-radius: var(--ol-radius-sm);
-  background: var(--row-raised);
-  color: var(--row-soft);
+  border-color: color-mix(in srgb, var(--row-accent) 30%, var(--row-hairline));
+  border-radius: var(--ol-radius-md);
+  background: var(--row-accent-subtle);
+  color: var(--row-accent);
   box-shadow: var(--ol-elev-1);
 }
-.mark svg { width: 1rem; height: 1rem; }
+.mark svg { width: 1.25rem; height: 1.25rem; }
 :host([data-provider="CLAUDE"]) .mark { color: var(--ol-provider-claude); }
 :host([data-provider="OPENROUTER"]) .mark { color: var(--ol-provider-openrouter); }
 :host([data-provider="CODEX"]) .mark { color: var(--ol-provider-codex); }
@@ -537,25 +603,18 @@ const PROVIDER_ROW_STYLE = `
 .provider strong {
   overflow: hidden;
   color: var(--row-heading);
-  font-size: var(--ol-text-label);
-  font-weight: 650;
+  font-size: var(--ol-text-title);
+  font-weight: 720;
   line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.provider-code {
-  color: var(--row-faint);
-  font-family: var(--ol-font-mono);
-  font-size: var(--ol-text-micro);
-  letter-spacing: 0.07em;
-  line-height: 1;
 }
 .account-value {
   overflow: hidden;
   max-width: 7rem;
   padding: 0.125rem var(--ol-space-1);
   border: 1px solid var(--row-hairline);
-  border-radius: var(--ol-radius-xs);
+  border-radius: var(--ol-radius-pill);
   background: var(--row-raised);
   color: var(--row-soft);
   font-family: var(--ol-font-mono);
@@ -570,12 +629,12 @@ const PROVIDER_ROW_STYLE = `
   flex-wrap: wrap;
   align-items: center;
   gap: var(--ol-space-2);
-  padding-left: 2.75rem;
+  padding-left: 3.5rem;
 }
 .source, .demo { font-size: var(--ol-text-micro); line-height: 1.2; }
 .source { color: var(--row-muted); }
 .demo {
-  padding: 0.125rem var(--ol-space-1);
+  padding: 0.1875rem var(--ol-space-2);
   border-radius: var(--ol-radius-pill);
   background: var(--row-accent-subtle);
   color: var(--row-accent);
@@ -585,103 +644,128 @@ const PROVIDER_ROW_STYLE = `
   margin: 0;
   align-items: flex-start;
   gap: var(--ol-space-1);
-  padding-left: 2.75rem;
+  padding-left: 3.5rem;
   color: var(--row-critical);
   font-size: var(--ol-text-micro);
   line-height: var(--ol-leading-body);
 }
-.windows {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: repeat(auto-fit, minmax(10.25rem, 1fr));
-}
-.windows:focus-visible { outline: 2px solid var(--row-accent); outline-offset: -2px; }
-.window {
+.usage {
   display: flex;
   min-width: 0;
   flex-direction: column;
   justify-content: center;
-  gap: var(--ol-space-2);
-  padding: var(--ol-space-3) var(--ol-space-4);
-  border-left: 1px solid var(--row-hairline);
+  padding: var(--ol-space-4) var(--ol-space-5);
 }
-.window-head {
-  display: flex;
+.hero-head {
+  display: grid;
   min-width: 0;
-  align-items: center;
-  justify-content: space-between;
+  grid-template-columns: auto 1fr auto;
+  align-items: end;
   gap: var(--ol-space-2);
 }
-.window-label {
+.hero-label {
   overflow: hidden;
   color: var(--row-soft);
-  font-size: var(--ol-text-micro);
+  font-size: var(--ol-text-caption);
   font-weight: 650;
-  letter-spacing: 0.055em;
-  line-height: 1.1;
+  line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 .state {
   display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: var(--ol-space-1);
+  width: 0.5rem;
+  height: 0.5rem;
+  align-self: center;
   color: var(--row-muted);
-  font-size: var(--ol-text-micro);
-  line-height: 1;
 }
 .state-dot {
-  width: 0.375rem;
-  height: 0.375rem;
+  width: 100%;
+  height: 100%;
   border-radius: var(--ol-radius-pill);
   background: currentColor;
 }
-.window[data-state="fresh"] .state { color: var(--row-live); }
-.window[data-state="fresh"] .state-dot {
+.usage[data-state="fresh"] .state { color: var(--row-live); }
+.usage[data-state="fresh"] .state-dot {
   animation: olLivePulse 2.4s var(--ol-ease-out) infinite;
 }
-.window[data-state="stale"] .state-dot { background: transparent; box-shadow: inset 0 0 0 1px currentColor; }
-.window[data-state="unknown"] .state-dot { opacity: 0.45; }
-.metric-line {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--ol-space-2);
+.usage[data-state="stale"] .state-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
 }
-.readout {
+.usage[data-state="unknown"] .state-dot { opacity: 0.45; }
+.hero-readout {
   color: var(--row-muted);
-  font-family: var(--ol-font-mono);
-  font-size: var(--ol-text-title);
+  font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--ol-text-display);
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  line-height: 1;
+  font-weight: 780;
+  letter-spacing: -0.055em;
+  line-height: 0.9;
 }
-.window[data-tone="ok"] .readout { color: var(--row-ok); }
-.window[data-tone="watch"] .readout { color: var(--row-watch); }
-.window[data-tone="high"] .readout { color: var(--row-high); }
-.window[data-tone="critical"] .readout { color: var(--row-critical); }
+.usage[data-tone="ok"] .hero-readout { color: var(--row-ok); }
+.usage[data-tone="watch"] .hero-readout { color: var(--row-watch); }
+.usage[data-tone="high"] .hero-readout { color: var(--row-high); }
+.usage[data-tone="critical"] .hero-readout { color: var(--row-critical); }
+.hero-meter-line {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ol-space-3);
+  margin-top: var(--ol-space-3);
+}
+.hero-meter,
+.mini-meter {
+  position: relative;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--ol-meter-radius);
+  background: var(--row-track);
+}
+.hero-meter { height: var(--ol-meter-height); }
+.mini-meter { height: var(--ol-mini-meter-height); }
+.usage[data-state="unknown"] .hero-meter,
+.mini-window[data-state="unknown"] .mini-meter {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--row-ghost);
+}
+.meter-fill {
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+  border-radius: inherit;
+  background: var(--row-ghost);
+  animation: olMeterArrive var(--ol-motion-slow) var(--ol-ease-out) both;
+  transition: width var(--ol-motion-base) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out), opacity var(--ol-motion-fast) var(--ol-ease-out);
+}
+.usage[data-tone="ok"] > .hero-meter-line .meter-fill,
+.mini-window[data-tone="ok"] .meter-fill { background: var(--row-ok); }
+.usage[data-tone="watch"] > .hero-meter-line .meter-fill,
+.mini-window[data-tone="watch"] .meter-fill { background: var(--row-watch); }
+.usage[data-tone="high"] > .hero-meter-line .meter-fill,
+.mini-window[data-tone="high"] .meter-fill { background: var(--row-high); }
+.usage[data-tone="critical"] > .hero-meter-line .meter-fill,
+.mini-window[data-tone="critical"] .meter-fill { background: var(--row-critical); }
+.usage[data-state="stale"] > .hero-meter-line .meter-fill,
+.mini-window[data-state="stale"] .meter-fill { opacity: 0.58; }
 .reset {
   display: inline-flex;
-  overflow: hidden;
   min-width: 0;
   align-items: center;
   gap: var(--ol-space-1);
   color: var(--row-muted);
-  font-family: var(--ol-font-mono);
+  font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
   font-size: var(--ol-text-micro);
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .reset-clock {
   position: relative;
-  width: 0.625rem;
-  height: 0.625rem;
+  width: 0.6875rem;
+  height: 0.6875rem;
   flex: none;
   border: 1px solid currentColor;
   border-radius: var(--ol-radius-pill);
@@ -689,63 +773,74 @@ const PROVIDER_ROW_STYLE = `
 }
 .reset-clock::before {
   position: absolute;
-  top: 0.12rem;
-  left: 0.25rem;
+  top: 0.13rem;
+  left: 0.28rem;
   width: 1px;
-  height: 0.19rem;
+  height: 0.2rem;
   background: currentColor;
   content: "";
 }
 .reset-clock::after {
   position: absolute;
-  top: 0.29rem;
-  left: 0.25rem;
-  width: 0.18rem;
+  top: 0.32rem;
+  left: 0.28rem;
+  width: 0.19rem;
   height: 1px;
   background: currentColor;
   content: "";
 }
-.bar {
-  position: relative;
-  height: var(--ol-meter-height);
-  overflow: hidden;
-  border-radius: var(--ol-meter-radius);
-  background: var(--row-track);
-}
-.window[data-state="unknown"] .bar { background: transparent; box-shadow: inset 0 0 0 1px var(--row-ghost); }
-.bar-fill {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--row-ghost);
-  transition: width var(--ol-motion-base) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out);
-}
-.window[data-tone="ok"] .bar-fill { background: var(--row-ok); }
-.window[data-tone="watch"] .bar-fill { background: var(--row-watch); }
-.window[data-tone="high"] .bar-fill { background: var(--row-high); }
-.window[data-tone="critical"] .bar-fill { background: var(--row-critical); }
-.window[data-state="stale"] .bar-fill { opacity: 0.58; }
-.window-foot {
-  overflow: hidden;
+.mini-windows {
+  display: grid;
   min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
+  gap: var(--ol-space-2);
+  margin-top: var(--ol-space-4);
+}
+.mini-window {
+  min-width: 0;
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid var(--row-hairline);
+  border-radius: var(--ol-radius-sm);
+  background: var(--row-raised);
+  transition: border-color var(--ol-motion-fast) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out);
+}
+.mini-head {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ol-space-2);
+  margin-bottom: var(--ol-space-2);
+}
+.mini-head span {
+  overflow: hidden;
   color: var(--row-muted);
   font-size: var(--ol-text-micro);
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.mini-head strong {
+  flex: none;
+  color: var(--row-soft);
+  font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--ol-text-caption);
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+  line-height: 1;
+}
 .fallback {
   display: flex;
   min-width: 0;
   align-items: center;
   gap: var(--ol-space-3);
-  padding: var(--ol-space-3) var(--ol-space-4);
+  padding: var(--ol-space-5);
 }
 .fallback strong {
   flex: none;
-  color: var(--row-critical);
-  font-size: var(--ol-text-body);
-  font-weight: 650;
+  color: var(--row-heading);
+  font-size: var(--ol-text-label);
+  font-weight: 720;
 }
 .fallback span {
   overflow: hidden;
@@ -760,32 +855,43 @@ const PROVIDER_ROW_STYLE = `
   0%, 100% { box-shadow: 0 0 0 0 var(--ol-live-soft); }
   50% { box-shadow: 0 0 0 0.25rem transparent; }
 }
+@keyframes olMeterArrive {
+  from { transform: scaleX(0.84); }
+  to { transform: scaleX(1); }
+}
 @media (hover: hover) {
-  .row:hover { background: var(--row-raised); }
+  .row:hover {
+    border-color: var(--row-hairline-strong);
+    background: var(--row-raised);
+    transform: translateY(-1px);
+  }
+  .row:hover .mini-window { background: var(--row-surface); }
 }
 @media (max-width: 639px) {
   .row { display: block; }
   .identity {
-    min-height: 4rem;
+    min-height: 4.75rem;
+    padding: var(--ol-space-4);
     border-right: 0;
     border-bottom: 1px solid var(--row-hairline);
   }
-  .windows {
-    grid-template-columns: none;
-    grid-auto-columns: min(72vw, var(--ol-window-mobile-width));
-    grid-auto-flow: column;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scroll-snap-type: inline proximity;
-    scrollbar-width: thin;
+  .mark {
+    width: 2.5rem;
+    height: 2.5rem;
   }
-  .window { border-left: 1px solid var(--row-hairline); scroll-snap-align: start; }
-  .window:first-child { border-left: 0; }
-  .fallback { min-height: 4rem; }
+  .identity-foot,
+  .failure { padding-left: 3.25rem; }
+  .usage { padding: var(--ol-space-4); }
+  .hero-readout { font-size: 2rem; }
+  .mini-windows { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mini-window { padding: var(--ol-space-2); }
+  .mini-head { display: grid; gap: var(--ol-space-1); }
+  .mini-head strong { font-size: var(--ol-text-body); }
+  .fallback { min-height: 5rem; padding: var(--ol-space-4); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .windows { scroll-behavior: auto; }
-  .window[data-state="fresh"] .state-dot { animation: none; }
+  .meter-fill,
+  .usage[data-state="fresh"] .state-dot { animation: none; }
 }
 `;
 
