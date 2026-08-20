@@ -31,13 +31,6 @@ function browserPlatform() {
 
 const PROVIDERS = Object.freeze([
   {
-    code: "CLAUDE",
-    name: "Claude Code",
-    subtitle: "Local CLI",
-    action: "Connect",
-    fallback: "Not found",
-  },
-  {
     code: "CODEX",
     name: "Codex",
     subtitle: "Local CLI",
@@ -45,23 +38,9 @@ const PROVIDERS = Object.freeze([
     fallback: "Not found",
   },
   {
-    code: "GROK",
-    name: "Grok (xAI)",
-    subtitle: "Local detection",
-    action: null,
-    fallback: "Planned",
-  },
-  {
-    code: "KIMI",
-    name: "Kimi",
-    subtitle: "Local detection",
-    action: null,
-    fallback: "Planned",
-  },
-  {
-    code: "ANTIGRAVITY",
-    name: "Antigravity",
-    subtitle: "Local session",
+    code: "CLAUDE",
+    name: "Claude Code",
+    subtitle: "Local CLI",
     action: "Connect",
     fallback: "Not found",
   },
@@ -71,6 +50,27 @@ const PROVIDERS = Object.freeze([
     subtitle: "Local CLI",
     action: null,
     fallback: "Install Gemini CLI",
+  },
+  {
+    code: "ANTIGRAVITY",
+    name: "Antigravity",
+    subtitle: "Local session",
+    action: "Connect",
+    fallback: "Not found",
+  },
+  {
+    code: "GROK",
+    name: "Grok (xAI)",
+    subtitle: "Local detection",
+    action: null,
+    fallback: "Not found",
+  },
+  {
+    code: "KIMI",
+    name: "Kimi",
+    subtitle: "Local detection",
+    action: null,
+    fallback: "Not found",
   },
   {
     code: "OPENCODE",

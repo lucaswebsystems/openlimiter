@@ -52,7 +52,7 @@
           <span class="first-run-logo" aria-hidden="true"></span>
           <span class="first-run-brand">OpenLimiter</span>
         </div>
-        <h1 id="first-run-title">Your limits, live.</h1>
+        <h1 id="first-run-title">Connect your accounts</h1>
         <p id="first-run-intro" class="first-run-intro">
           Local tools appear automatically.
         </p>
@@ -74,7 +74,7 @@
           Open dashboard
         </button>
         <p id="first-run-helper" class="first-run-helper">
-          No telemetry. Network access starts only when you connect a provider or Pro.
+          Local first. Network only when connected.
         </p>
       </div>
     </section>
@@ -133,19 +133,14 @@
 
       <div class="strip-state" aria-label="Overall state">
         <span class="live-chip">
-          <span class="live-dot" aria-hidden="true"></span>
-          Live
-        </span>
-        <span class="chip">
           <span class="pressure-dot" id="state-dot" aria-hidden="true"></span>
-          <span class="mono tracked" id="reason-code">UNKNOWN</span>
+          <span id="reason-code">Ready</span>
         </span>
         <div class="strip-side">
           <span class="chip muted" id="rec-chip" hidden>
-            <span class="mono tracked" id="rec-code"></span>
-            <span class="mono tracked dim" id="rec-detail"></span>
+            <span id="rec-code"></span>
           </span>
-          <span class="mono stamp" id="stamp">Waiting</span>
+          <span class="stamp" id="stamp">Waiting</span>
         </div>
       </div>
     </header>
@@ -196,8 +191,7 @@
             </svg>
           </span>
           <div class="empty-copy">
-            <h3>No live accounts</h3>
-            <p>Connect a provider to begin.</p>
+            <h3>Connect your first account</h3>
           </div>
           <button type="button" id="empty-connect">Add account</button>
         </div>
@@ -213,7 +207,6 @@
         <div class="accounts-toolbar">
           <div>
             <h1>Accounts</h1>
-            <p>Automatic, key and manual access.</p>
           </div>
           <button type="button" id="add-account">Add account</button>
         </div>

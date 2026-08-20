@@ -33,9 +33,8 @@ export type Pressure = "ok" | "watch" | "high" | "critical" | "none";
  *   critical  90 and above
  *
  * EIGHTY IS THE ENGINE'S OWN NUMBER. packages/core/src/policy.ts calls a
- * provider NEAR_CAP at 80 and stops recommending it there, so a meter turning
- * orange is the same event as the agent being told to route away: the human
- * and the agent see the same threshold at the same moment. Red at 90 is the
+ * provider NEAR_CAP at 80 and stops recommending it there, so a stronger blue
+ * is the same event as the agent being told to route away. Red at 90 is the
  * human's own band on top of that, the point at which it is worth acting
  * rather than merely knowing.
  *
@@ -200,9 +199,8 @@ export function byMeterOrder(left: string, right: string): number {
 /**
  * The band an overall reason code is painted in.
  *
- * NEAR_CAP is orange rather than red now that the two scales agree on eighty:
- * the engine raises NEAR_CAP at exactly the percentage a meter turns orange, so
- * the chip and the bars say the same thing. AT_CAP keeps red, which is the one
+ * NEAR_CAP uses the strongest blue because both scales agree on eighty. The
+ * chip and the bars say the same thing. AT_CAP keeps red, which is the one
  * state that means stop.
  */
 export const reasonPressure: Record<AdviceReason, Pressure> = {

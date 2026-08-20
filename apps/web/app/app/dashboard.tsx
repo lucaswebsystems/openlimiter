@@ -536,7 +536,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         >
           <Panel
             title="Accounts"
-            description="Automatic, key and manual access."
             action={
               <Button tone="primary" onClick={focusDirectory}>
                 Add account

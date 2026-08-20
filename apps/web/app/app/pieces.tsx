@@ -11,6 +11,7 @@ import {
   type ProviderDirectoryRow,
 } from "./engine";
 import {
+  providerName,
   reasonPressure,
 } from "./language";
 import registry from "../../lib/provider-specs.generated.json";
@@ -41,12 +42,6 @@ import { ProviderMark } from "./marks";
 /* ------------------------------------------------------------------ shapes */
 
 const CARD_SURFACE = "ol-product-panel";
-
-/** The site's chip: a pill, a hairline, twelve pixel text. */
-const CHIP = "ol-chip inline-flex items-center gap-2 border px-2.5 py-1 text-xs";
-
-const CHIP_STRONG = `${CHIP} border-hairline bg-raised text-heading`;
-const CHIP_ACCENT = `${CHIP} border-accent-subtle bg-accent-subtle text-accent`;
 
 export function ProviderAccountRow({ row }: { row: ProviderAccountRowView }) {
   const host = useRef<HTMLElement | null>(null);
@@ -110,6 +105,12 @@ export function HeaderStrip({
   const reason = advice === null || !advice.inject ? "UNKNOWN" : advice.reason;
   const pressure = reasonPressure[reason];
   const recommendation = advice?.recommendation ?? null;
+  const reasonLabel = {
+    HEALTHY: "Clear",
+    NEAR_CAP: "Watch",
+    AT_CAP: "Limit",
+    UNKNOWN: "Ready",
+  }[reason];
 
   return (
     <section
@@ -122,21 +123,15 @@ export function HeaderStrip({
         <div className="ol-commandbar-brand">{lockup}</div>
         <div className="ol-commandbar-state">
           <span className="ol-live-chip">
-            <span aria-hidden="true" className="ol-live-dot" />
-            {busy ? "Reading" : "Live"}
-          </span>
-          <span className={CHIP_STRONG}>
             <span aria-hidden="true" data-pressure={pressure} className="ol-pressure-dot" />
-            <span className="font-mono tracking-widest">{reason}</span>
+            {busy ? "Syncing" : reasonLabel}
           </span>
           {recommendation !== null && recommendation.code === "PREFER" && (
-            <span className={CHIP_ACCENT} title="Preferred provider">
-              <span className="font-mono tracking-widest">
-                Next {recommendation.provider}
-              </span>
+            <span className="ol-next-provider" title="Preferred provider">
+              Next {providerName(recommendation.provider)}
             </span>
           )}
-          <span className="ol-updated font-mono">
+          <span className="ol-updated">
             {asOf === null ? "Waiting" : asOf}
           </span>
           {demo && <DemoDataChip />}
@@ -312,8 +307,7 @@ export function FirstRunState({ onConnect }: { onConnect: () => void }) {
           <PlugGlyph />
         </span>
         <div>
-          <h3 className="ol-brand-font">No live accounts</h3>
-          <p>Connect a provider to begin.</p>
+          <h3 className="ol-brand-font">Connect your first account</h3>
         </div>
       </div>
       <Button tone="primary" onClick={onConnect}>

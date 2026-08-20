@@ -167,6 +167,13 @@ const REASON_PRESSURE = {
   UNKNOWN: "none",
 };
 
+const REASON_LABEL = {
+  HEALTHY: "Clear",
+  NEAR_CAP: "Watch",
+  AT_CAP: "Limit",
+  UNKNOWN: "Ready",
+};
+
 const elements = {
   rows: document.getElementById("provider-rows"),
   empty: document.getElementById("empty"),
@@ -176,7 +183,6 @@ const elements = {
   reasonCode: document.getElementById("reason-code"),
   recChip: document.getElementById("rec-chip"),
   recCode: document.getElementById("rec-code"),
-  recDetail: document.getElementById("rec-detail"),
   stateDot: document.getElementById("state-dot"),
   refresh: document.getElementById("refresh"),
   theme: document.getElementById("theme"),
@@ -395,15 +401,14 @@ async function refresh() {
     elements.statusline.textContent = renderClaudeStatusline(advice);
 
     const reason = advice.inject ? advice.reason : "UNKNOWN";
-    elements.reasonCode.textContent = reason;
+    elements.reasonCode.textContent = REASON_LABEL[reason];
     elements.stateDot.dataset.pressure = REASON_PRESSURE[reason];
 
     const recommendation = advice.recommendation;
     if (recommendation.code === "PREFER") {
       elements.recChip.className = "chip accent";
       elements.recChip.hidden = false;
-      elements.recCode.textContent = "NEXT " + recommendation.provider;
-      elements.recDetail.textContent = recommendation.reason;
+      elements.recCode.textContent = "Next " + (PROVIDER_NAMES[recommendation.provider] ?? recommendation.provider);
     } else {
       elements.recChip.hidden = true;
     }
