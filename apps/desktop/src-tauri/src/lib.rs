@@ -1,3 +1,5 @@
+mod antigravity_credential;
+mod antigravity_oauth;
 mod cache_write;
 mod claude_connect;
 mod claude_detect;
@@ -89,6 +91,7 @@ pub fn run() {
         .manage(provider_detection::DetectionStore::scan())
         .manage(claude_oauth::ClaudeOauthRuntime::default())
         .manage(codex_oauth::CodexOauthRuntime::default())
+        .manage(antigravity_oauth::AntigravityOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
         .manage(updates::PendingUpdate::default())
         .plugin(tauri_plugin_updater::Builder::new().build())

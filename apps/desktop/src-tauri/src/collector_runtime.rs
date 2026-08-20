@@ -149,6 +149,7 @@ async fn run_pass(app: &AppHandle, explicit: bool) {
     }
     crate::claude_oauth::run_pass(app).await;
     crate::codex_oauth::run_pass(app).await;
+    crate::antigravity_oauth::run_pass(app).await;
     let runtime = app.state::<CollectorRuntime>();
     runtime.record_pass(last_failure, attempted);
     let _ = app.emit(COLLECTOR_UPDATED_EVENT, runtime.status());

@@ -57,7 +57,7 @@ impl DetectedProviderId {
     }
 
     const fn supports_automatic_collection(self) -> bool {
-        matches!(self, Self::Claude | Self::Codex)
+        matches!(self, Self::Claude | Self::Codex | Self::Antigravity)
     }
 }
 
@@ -291,26 +291,8 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
             push_candidate(
                 &mut paths,
                 home,
-                &[".antigravity", "credentials.json"],
-                Credential,
-            );
-            push_candidate(
-                &mut paths,
-                home,
-                &[".antigravity", "oauth.json"],
-                Credential,
-            );
-            push_candidate(
-                &mut paths,
-                context.xdg_config.as_deref(),
-                &["antigravity", "credentials.json"],
-                Credential,
-            );
-            push_candidate(
-                &mut paths,
-                context.xdg_data.as_deref(),
-                &["antigravity", "credentials.json"],
-                Credential,
+                &[".gemini", "antigravity-cli", "settings.json"],
+                Marker,
             );
         }
         DetectedProviderId::Opencode => {
@@ -388,20 +370,12 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                     }
                 }
                 DetectedProviderId::Antigravity => {
-                    for base in [roaming, local] {
-                        push_candidate(
-                            &mut paths,
-                            base,
-                            &["Antigravity", "credentials.json"],
-                            Credential,
-                        );
-                        push_candidate(
-                            &mut paths,
-                            base,
-                            &["Antigravity", "User", "globalStorage"],
-                            Marker,
-                        );
-                    }
+                    push_candidate(
+                        &mut paths,
+                        roaming,
+                        &["Antigravity", "User", "globalStorage"],
+                        Marker,
+                    );
                 }
                 DetectedProviderId::Opencode => {
                     for base in [roaming, local] {
@@ -423,48 +397,60 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
         }
         DiscoveryPlatform::Macos => {
             let support = context.application_support.as_deref();
-            let directory = match provider {
-                DetectedProviderId::Claude => "Claude Code",
-                DetectedProviderId::Codex => "Codex",
-                DetectedProviderId::Antigravity => "Antigravity",
-                DetectedProviderId::Opencode => "opencode",
-                DetectedProviderId::Openrouter => "OpenRouter",
-            };
-            let file = match provider {
-                DetectedProviderId::Claude => ".credentials.json",
-                DetectedProviderId::Codex | DetectedProviderId::Opencode => "auth.json",
-                DetectedProviderId::Antigravity => "credentials.json",
-                DetectedProviderId::Openrouter => "config.json",
-            };
-            push_candidate(&mut paths, support, &[directory, file], Credential);
-            if provider == DetectedProviderId::Claude {
+            if provider == DetectedProviderId::Antigravity {
                 push_candidate(
                     &mut paths,
                     support,
-                    &["Claude", ".credentials.json"],
-                    Credential,
+                    &["Antigravity", "User", "globalStorage"],
+                    Marker,
                 );
+            } else {
+                let directory = match provider {
+                    DetectedProviderId::Claude => "Claude Code",
+                    DetectedProviderId::Codex => "Codex",
+                    DetectedProviderId::Antigravity => unreachable!(),
+                    DetectedProviderId::Opencode => "opencode",
+                    DetectedProviderId::Openrouter => "OpenRouter",
+                };
+                let file = match provider {
+                    DetectedProviderId::Claude => ".credentials.json",
+                    DetectedProviderId::Codex | DetectedProviderId::Opencode => "auth.json",
+                    DetectedProviderId::Antigravity => unreachable!(),
+                    DetectedProviderId::Openrouter => "config.json",
+                };
+                push_candidate(&mut paths, support, &[directory, file], Credential);
+                if provider == DetectedProviderId::Claude {
+                    push_candidate(
+                        &mut paths,
+                        support,
+                        &["Claude", ".credentials.json"],
+                        Credential,
+                    );
+                }
             }
         }
         DiscoveryPlatform::Linux => {
-            let directory = provider.slug();
-            let file = match provider {
-                DetectedProviderId::Claude | DetectedProviderId::Antigravity => "credentials.json",
-                DetectedProviderId::Codex | DetectedProviderId::Opencode => "auth.json",
-                DetectedProviderId::Openrouter => "config.json",
-            };
-            push_candidate(
-                &mut paths,
-                context.xdg_config.as_deref(),
-                &[directory, file],
-                Credential,
-            );
-            push_candidate(
-                &mut paths,
-                context.xdg_data.as_deref(),
-                &[directory, file],
-                Credential,
-            );
+            if provider != DetectedProviderId::Antigravity {
+                let directory = provider.slug();
+                let file = match provider {
+                    DetectedProviderId::Claude => "credentials.json",
+                    DetectedProviderId::Codex | DetectedProviderId::Opencode => "auth.json",
+                    DetectedProviderId::Antigravity => unreachable!(),
+                    DetectedProviderId::Openrouter => "config.json",
+                };
+                push_candidate(
+                    &mut paths,
+                    context.xdg_config.as_deref(),
+                    &[directory, file],
+                    Credential,
+                );
+                push_candidate(
+                    &mut paths,
+                    context.xdg_data.as_deref(),
+                    &[directory, file],
+                    Credential,
+                );
+            }
         }
     }
 
@@ -900,10 +886,40 @@ fn account_label(provider: DetectedProviderId, email: Option<&str>, account_id: 
 }
 
 #[derive(Clone)]
+enum CredentialSource {
+    File(PathBuf),
+    AntigravityKeyring,
+}
+
+fn parse_credential_source(
+    provider: DetectedProviderId,
+    source: &CredentialSource,
+) -> Vec<ParsedCredential> {
+    match source {
+        CredentialSource::File(path) => parse_credential_file(provider, path),
+        CredentialSource::AntigravityKeyring if provider == DetectedProviderId::Antigravity => {
+            let Ok(credential) = crate::antigravity_credential::read() else {
+                return Vec::new();
+            };
+            let identity_material = token_digest(&credential.access_token);
+            vec![ParsedCredential {
+                token: credential.access_token,
+                provider_account_id: None,
+                identity_material,
+                email: None,
+                expires_at_ms: credential.expires_at_ms,
+                identity_quality: IdentityQuality::CredentialBound,
+            }]
+        }
+        CredentialSource::AntigravityKeyring => Vec::new(),
+    }
+}
+
+#[derive(Clone)]
 struct CredentialReference {
     provider: DetectedProviderId,
     account_id: String,
-    path: PathBuf,
+    source: CredentialSource,
 }
 
 struct Inventory {
@@ -923,14 +939,20 @@ fn scan_inventory(context: &DiscoveryContext, now_ms: u64) -> Inventory {
         candidates.retain(|entry| seen.insert(entry.path.clone()));
         let mut installed = executable_present(provider, context);
         let mut accounts = BTreeMap::<String, DetectedAccount>::new();
+        let mut sources = Vec::new();
         for candidate in candidates {
             if safe_path_present(&candidate.path) {
                 installed = true;
             }
-            if candidate.kind != CandidateKind::Credential {
-                continue;
+            if candidate.kind == CandidateKind::Credential {
+                sources.push(CredentialSource::File(candidate.path));
             }
-            for parsed in parse_credential_file(provider, &candidate.path) {
+        }
+        if provider == DetectedProviderId::Antigravity {
+            sources.push(CredentialSource::AntigravityKeyring);
+        }
+        for source in sources {
+            for parsed in parse_credential_source(provider, &source) {
                 let account_id = opaque_account_id(provider, &parsed.identity_material);
                 let stale = parsed.expires_at_ms.is_some_and(|expiry| expiry <= now_ms);
                 let auth_state = if stale {
@@ -961,7 +983,7 @@ fn scan_inventory(context: &DiscoveryContext, now_ms: u64) -> Inventory {
                         CredentialReference {
                             provider,
                             account_id,
-                            path: candidate.path.clone(),
+                            source: source.clone(),
                         },
                     );
                 }
@@ -1082,7 +1104,7 @@ impl DetectionStore {
         if reference.provider != provider || reference.account_id != account_id {
             return Err(DetectedCredentialError::NotFound);
         }
-        for parsed in parse_credential_file(provider, &reference.path) {
+        for parsed in parse_credential_source(provider, &reference.source) {
             if opaque_account_id(provider, &parsed.identity_material) != account_id {
                 continue;
             }
@@ -1242,7 +1264,7 @@ mod tests {
     }
 
     #[test]
-    fn every_platform_enumerates_a_token_location_for_every_provider() {
+    fn file_candidates_are_unique_and_antigravity_uses_the_native_vault() {
         let dir = TempDir::new();
         for platform in [
             DiscoveryPlatform::Windows,
@@ -1252,12 +1274,15 @@ mod tests {
             let context = context(platform, dir.path());
             for provider in DetectedProviderId::ALL {
                 let candidates = candidate_paths(provider, &context);
-                assert!(
-                    candidates
+                if provider == DetectedProviderId::Antigravity {
+                    assert!(candidates
                         .iter()
-                        .any(|entry| entry.kind == CandidateKind::Credential),
-                    "every provider has a credential candidate"
-                );
+                        .all(|entry| entry.kind != CandidateKind::Credential));
+                } else {
+                    assert!(candidates
+                        .iter()
+                        .any(|entry| entry.kind == CandidateKind::Credential));
+                }
                 let unique: BTreeSet<_> = candidates.iter().map(|entry| &entry.path).collect();
                 assert_eq!(unique.len(), candidates.len());
             }
@@ -1266,14 +1291,14 @@ mod tests {
 
     #[test]
     fn only_wired_zero_setup_readers_claim_automatic_collection() {
-        for provider in [DetectedProviderId::Claude, DetectedProviderId::Codex] {
+        for provider in [
+            DetectedProviderId::Claude,
+            DetectedProviderId::Codex,
+            DetectedProviderId::Antigravity,
+        ] {
             assert!(provider.supports_automatic_collection());
         }
-        for provider in [
-            DetectedProviderId::Antigravity,
-            DetectedProviderId::Opencode,
-            DetectedProviderId::Openrouter,
-        ] {
+        for provider in [DetectedProviderId::Opencode, DetectedProviderId::Openrouter] {
             assert!(!provider.supports_automatic_collection());
         }
     }

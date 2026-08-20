@@ -56,6 +56,12 @@ regex = "1.13.1"
 base64 = "0.22.1"
 ed25519-dalek = "2.2.0"
 
+[target.'cfg(windows)'.dependencies]
+# Antigravity uses the vendor target `gemini:antigravity`, which differs from
+# the synthesized target used by keyring's compatibility facade on Windows.
+keyring-core = "1.0.0"
+windows-native-keyring-store = "1.1.0"
+
 [profile.release]
 codegen-units = 1
 lto = true
