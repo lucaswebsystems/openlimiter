@@ -1,10 +1,10 @@
 # OpenLimiter launch report
 
-Updated: 2026-08-20 06:39 BRT
+Updated: 2026-08-20 06:54 BRT
 
 ## Verdict
 
-RELEASE BLOCKED. The independent Antigravity traffic verdict is YES, `main` and tag `v1.0.0` are pushed, and all branch CI is green. Desktop release run `32353247148` built and attached the unsigned installers to a draft, but both native install and launch smoke gates failed. The draft is not published and Vercel has not been deployed.
+SHIPPED. The independent Antigravity traffic verdict is YES. GitHub release `v1.0.0` is public with five verified Windows and Linux assets. The exact published Windows and Linux installers passed bounded native install and launch gates. Production deployment `dpl_79hKXyEMfqkg9yYPJFjTn5nkhsi2` is ready and aliased to `https://openlimiter.com`. Live fetches prove the new version 1.0.0 download surface, changelog, and clean Pro coming soon state are serving successfully.
 
 ## Preservation and ownership
 
@@ -153,6 +153,16 @@ At 06:31 BRT Gitleaks scanned all 250 commits with no leaks, then corrected head
 
 The existing draft contains exactly five uploaded assets with GitHub recorded SHA256 digests: Windows NSIS and MSI installers, plus Linux AppImage, deb, and rpm packages. They target tag commit `9430b0f`. No asset will be replaced or deleted. At 06:39 BRT the workflow gained a verification only dispatch. It downloads the exact existing NSIS and deb assets from the draft, then calls the same committed bounded install and launch scripts used after future builds. This isolates artifact verification from upload and preserves the original tagged binaries.
 
+At 06:48 BRT verification only run `32355539667` passed against the exact existing draft assets. The Windows job downloaded the draft NSIS installer, installed it silently, found the installed executable, launched it, and observed it alive for ten seconds. The Linux job downloaded the draft deb package, installed it, found the installed executable, launched it under a virtual display, and observed it alive for fifteen seconds. Both jobs completed successfully. No asset was rebuilt, replaced, or deleted.
+
+At 06:49 BRT GitHub release `v1.0.0` was published at `https://github.com/lucaswebsystems/openlimiter/releases/tag/v1.0.0` with the reviewed release notes. It contains only the five verified Windows and Linux assets. macOS remains deliberately excluded.
+
+At 06:50 BRT the published release was confirmed as public and not a prerelease. All five stable `v1.0.0` asset URLs followed their GitHub redirect and returned HTTP 200. GitHub continues to report the same five SHA256 digests recorded before publication.
+
+At 06:52 BRT `vercel deploy --prod` completed successfully inside its 30 minute process tree limit. Vercel built all 96 static pages with Node 24.19.0 and pnpm 9.15.0, marked deployment `dpl_79hKXyEMfqkg9yYPJFjTn5nkhsi2` ready, and aliased `https://web-6dfb1oxvo-lucas-teixeiras-projects-6a465d1f.vercel.app` to `https://openlimiter.com`.
+
+At 06:54 BRT bounded live fetches returned HTTP 200 for the immutable deployment download page, the canonical root, download, pricing, Pro, and changelog pages. Both download surfaces contain 15 references to `v1.0.0`. The canonical download page contains zero references to `v0.4.0`. Pricing and Pro contain 39 coming soon messages, zero links or form actions to checkout, Stripe, Supabase, or an unavailable API, and zero rendered checkout controls. The changelog contains eight references to version 1.0.0. The production launch is therefore verified live.
+
 ## Next step
 
-Commit and push the verification only workflow, require CI to pass, then dispatch it for the exact existing `v1.0.0` draft assets without rebuilding or replacing them.
+No launch operation remains. Complete the final secret scan, commit this report, push the report only commit, and close the Overclock handoff.
