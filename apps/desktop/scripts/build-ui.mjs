@@ -146,6 +146,8 @@ function browserSafeAdapter(source) {
 
 assertBuilt();
 rmSync(DIST, { recursive: true, force: true });
+mkdirSync(DIST, { recursive: true });
+writeFileSync(path.join(DIST, ".gitkeep"), "\n", "utf8");
 
 for (const [name, spec] of Object.entries(COPY)) {
   const target = path.join(ENGINE, name);
