@@ -24,6 +24,11 @@ export default defineConfig({
     include: [".test-dist/packages/*/test/**/*.test.js"],
     environment: "node",
     pool: "threads",
+    /* Several tests enforce real wall clock budgets for cache and hook paths.
+       Running unrelated files at the same time turns runner contention into
+       the value under test. One worker keeps every budget and assertion intact
+       while measuring each product path without sibling suite interference. */
+    fileParallelism: false,
     coverage: {
       include: [".test-dist/packages/core/src/**/*.js", ".test-dist/packages/connectors/src/**/*.js"],
       reporter: ["text", "json-summary"]
