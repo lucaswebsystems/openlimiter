@@ -7,7 +7,7 @@ use tauri::{AppHandle, Runtime};
 
 pub const ID: &str = "openlimiter-tray";
 
-const PROVIDER_LIMIT: usize = 6;
+const PROVIDER_LIMIT: usize = 7;
 const BAR_CELLS: usize = 8;
 
 const ICON_UNKNOWN: &[u8] = include_bytes!("../icons/tray-unknown-32.png");
@@ -58,6 +58,7 @@ fn provider(code: &str) -> Option<(&'static str, &'static str)> {
         "OPENROUTER" => Some(("OPENROUTER", "OpenRouter")),
         "CODEX" => Some(("CODEX", "Codex")),
         "ANTIGRAVITY" => Some(("ANTIGRAVITY", "Antigravity")),
+        "GEMINI_CLI" => Some(("GEMINI_CLI", "Gemini CLI")),
         "OPENCODE" => Some(("OPENCODE", "OpenCode")),
         "MANUAL" => Some(("MANUAL", "Manual")),
         _ => None,
@@ -121,8 +122,9 @@ pub fn view(statuses: Vec<ProviderStatus>) -> Result<View, &'static str> {
         "OPENROUTER" => 1,
         "CODEX" => 2,
         "ANTIGRAVITY" => 3,
-        "OPENCODE" => 4,
-        "MANUAL" => 5,
+        "GEMINI_CLI" => 4,
+        "OPENCODE" => 5,
+        "MANUAL" => 6,
         _ => usize::MAX,
     });
 

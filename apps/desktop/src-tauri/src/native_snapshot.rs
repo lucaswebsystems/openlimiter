@@ -106,6 +106,7 @@ fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
         "OPENROUTER",
         "CODEX",
         "ANTIGRAVITY",
+        "GEMINI_CLI",
         "OPENCODE",
         "MANUAL",
     ]
@@ -235,6 +236,7 @@ fn read_document(text: Option<&str>) -> Result<(Vec<Snapshot>, Vec<Suppression>)
                         "OPENROUTER",
                         "CODEX",
                         "ANTIGRAVITY",
+                        "GEMINI_CLI",
                         "OPENCODE",
                         "MANUAL",
                     ]

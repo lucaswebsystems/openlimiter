@@ -20,6 +20,12 @@ const PROVIDERS = Object.freeze([
     fallback: "Manual setup",
   },
   {
+    code: "GEMINI_CLI",
+    name: "Gemini CLI",
+    install: false,
+    fallback: "Install Gemini CLI",
+  },
+  {
     code: "OPENCODE",
     name: "OpenCode",
     install: true,
@@ -39,12 +45,14 @@ const PROVIDERS = Object.freeze([
   },
 ]);
 
-const KNOWN_CODES = new Set(PROVIDERS.map((provider) => provider.code));
+const KNOWN_CODES_BY_COMPACT = new Map(
+  PROVIDERS.map((provider) => [provider.code.replaceAll("_", ""), provider.code]),
+);
 
 function providerCode(value) {
   if (typeof value !== "string") return null;
   const code = value.toUpperCase().replaceAll("_", "").replaceAll("-", "");
-  return KNOWN_CODES.has(code) ? code : null;
+  return KNOWN_CODES_BY_COMPACT.get(code) ?? null;
 }
 
 function detectionState(value) {

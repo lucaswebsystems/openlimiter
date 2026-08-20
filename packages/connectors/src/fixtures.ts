@@ -28,7 +28,17 @@
 
 import type { ProviderCode } from "@openlimiter/core";
 
-export type ConnectorId = Lowercase<ProviderCode>;
+/** Providers with a generic payload parser in this package. */
+export const CONNECTOR_IDS = [
+  "claude",
+  "openrouter",
+  "codex",
+  "antigravity",
+  "opencode",
+  "manual"
+] as const satisfies readonly Lowercase<ProviderCode>[];
+
+export type ConnectorId = (typeof CONNECTOR_IDS)[number];
 
 export const FIXTURE_NOW = "2026-01-01T00:00:00.000Z";
 

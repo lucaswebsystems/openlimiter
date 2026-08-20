@@ -60,6 +60,12 @@ const everyProvider: readonly Snapshot[] = [
     window: { kind: "fixed" }
   }),
   reading({
+    provider: "GEMINI_CLI",
+    meter: "GEMINI_3_PRO",
+    value: 45,
+    window: { kind: "fixed" }
+  }),
+  reading({
     provider: "OPENCODE",
     meter: "PRIMARY",
     value: 92,
@@ -117,6 +123,7 @@ describe("provider ordering", () => {
       "CLAUDE",
       "CODEX",
       "ANTIGRAVITY",
+      "GEMINI_CLI",
       "OPENCODE",
       "MANUAL",
       "OPENROUTER"
@@ -129,6 +136,7 @@ describe("provider ordering", () => {
       "CLAUDE",
       "CODEX",
       "ANTIGRAVITY",
+      "GEMINI_CLI",
       "OPENCODE",
       "MANUAL",
       "OPENROUTER"
@@ -142,6 +150,7 @@ describe("provider ordering", () => {
       "CLAUDE",
       "CODEX",
       "ANTIGRAVITY",
+      "GEMINI_CLI",
       "OPENCODE"
     ]);
   });
@@ -151,6 +160,7 @@ describe("provider ordering", () => {
       "CODEX",
       "CLAUDE",
       "ANTIGRAVITY",
+      "GEMINI_CLI",
       "OPENCODE",
       "MANUAL",
       "OPENROUTER"
@@ -200,13 +210,13 @@ describe("meter ordering", () => {
 describe("worst against all", () => {
   it("shows only the meter closest to its cap by default", () => {
     const cells = cellsOf(everyProvider);
-    expect(cells).toHaveLength(6);
+    expect(cells).toHaveLength(7);
     expect(cells[0]).toBe("CLAUDE ###.. 64.0%");
   });
 
   it("shows every meter as its own cell when asked", () => {
     const cells = cellsOf(everyProvider, DEFAULT_PROVIDER_ORDER, "all");
-    expect(cells).toHaveLength(7);
+    expect(cells).toHaveLength(8);
     expect(cells[0]).toBe("CLAUDE:FIVE_HOUR ##... 42.0%");
     expect(cells[1]).toBe("CLAUDE:SEVEN_DAY ###.. 64.0%");
   });
@@ -249,7 +259,9 @@ describe("the head", () => {
 
   it("names the providers it has nothing for", () => {
     const head = statuslineHead(buildAdvice([reading()], NOW));
-    expect(head).toContain("UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL");
+    expect(head).toContain(
+      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,MANUAL"
+    );
   });
 
   it("says so plainly when there is nothing bounded at all", () => {
@@ -259,7 +271,7 @@ describe("the head", () => {
 
 describe("stacking", () => {
   it("fits one row when the budget allows it", () => {
-    const rendered = layout(everyProvider, { width: 200 });
+    const rendered = layout(everyProvider, { width: 240 });
     expect(rendered.split("\n")).toHaveLength(1);
     expect(rendered.length).toBeLessThanOrEqual(200);
   });
@@ -297,14 +309,14 @@ describe("stacking", () => {
   it("stops at one row when told to, and says what it dropped", () => {
     const rendered = layout(everyProvider, { rows: 1 });
     expect(rendered.split("\n")).toHaveLength(1);
-    expect(rendered).toContain("+2 more");
+    expect(rendered).toContain("+3 more");
   });
 
   it("keeps the worst providers when it has to drop some", () => {
     const rendered = layout(everyProvider, { rows: 1, width: 100 });
     const shown = rowsOf(rendered)[0]!.slice(1);
     expect(rendered).toContain("OPENCODE ####. 92.0%");
-    expect(rendered).toContain("+4 more");
+    expect(rendered).toContain("+5 more");
     /* Twenty eight percent is the furthest from a cap, so it goes first. */
     expect(shown.some((cell) => cell.startsWith("ANTIGRAVITY "))).toBe(false);
     expect(rendered.length).toBeLessThanOrEqual(100);
@@ -331,7 +343,7 @@ describe("stacking", () => {
           expect(rendered).toBe(head);
           continue;
         }
-        expect(shown.length + Number(more?.[1] ?? 0)).toBe(6);
+        expect(shown.length + Number(more?.[1] ?? 0)).toBe(7);
       }
     }
   });

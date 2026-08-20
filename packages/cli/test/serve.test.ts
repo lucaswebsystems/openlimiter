@@ -90,7 +90,7 @@ describe("serve", () => {
         { provider: "CLAUDE", state: "fresh", usagePercent: 64, resetAt: expect.any(String) },
         { provider: "CODEX", state: "fresh", usagePercent: 84, resetAt: expect.any(String) }
       ],
-      unknown: ["OPENROUTER", "ANTIGRAVITY", "OPENCODE", "MANUAL"]
+      unknown: ["OPENROUTER", "ANTIGRAVITY", "GEMINI_CLI", "OPENCODE", "MANUAL"]
     });
     /* Nothing from the snapshot beyond those four fields ever leaves. */
     const text = JSON.stringify(document);
@@ -293,7 +293,15 @@ describe("serve", () => {
       generatedAt: FIXTURE_NOW,
       reason: "UNKNOWN",
       providers: [],
-      unknown: ["CLAUDE", "OPENROUTER", "CODEX", "ANTIGRAVITY", "OPENCODE", "MANUAL"]
+      unknown: [
+        "CLAUDE",
+        "OPENROUTER",
+        "CODEX",
+        "ANTIGRAVITY",
+        "GEMINI_CLI",
+        "OPENCODE",
+        "MANUAL"
+      ]
     });
   });
 

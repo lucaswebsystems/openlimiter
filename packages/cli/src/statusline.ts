@@ -45,6 +45,7 @@ const PROVIDER_CLASS: Record<ProviderCode, "subscription" | "api"> = {
   CLAUDE: "subscription",
   CODEX: "subscription",
   ANTIGRAVITY: "subscription",
+  GEMINI_CLI: "subscription",
   OPENCODE: "subscription",
   MANUAL: "subscription",
   OPENROUTER: "api"

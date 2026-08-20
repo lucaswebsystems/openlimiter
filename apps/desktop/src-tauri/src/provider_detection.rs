@@ -23,15 +23,17 @@ pub enum DetectedProviderId {
     Claude,
     Codex,
     Antigravity,
+    GeminiCli,
     Opencode,
     Openrouter,
 }
 
 impl DetectedProviderId {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Claude,
         Self::Codex,
         Self::Antigravity,
+        Self::GeminiCli,
         Self::Opencode,
         Self::Openrouter,
     ];
@@ -41,6 +43,7 @@ impl DetectedProviderId {
             Self::Claude => "claude",
             Self::Codex => "codex",
             Self::Antigravity => "antigravity",
+            Self::GeminiCli => "gemini-cli",
             Self::Opencode => "opencode",
             Self::Openrouter => "openrouter",
         }
@@ -51,13 +54,17 @@ impl DetectedProviderId {
             Self::Claude => "Claude",
             Self::Codex => "Codex",
             Self::Antigravity => "Antigravity",
+            Self::GeminiCli => "Gemini CLI",
             Self::Opencode => "OpenCode",
             Self::Openrouter => "OpenRouter",
         }
     }
 
     const fn supports_automatic_collection(self) -> bool {
-        matches!(self, Self::Claude | Self::Codex | Self::Antigravity)
+        matches!(
+            self,
+            Self::Claude | Self::Codex | Self::Antigravity | Self::GeminiCli
+        )
     }
 }
 
@@ -297,6 +304,15 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 Marker,
             );
         }
+        DetectedProviderId::GeminiCli => {
+            push_candidate(
+                &mut paths,
+                home,
+                &[".gemini", "oauth_creds.json"],
+                Credential,
+            );
+            push_candidate(&mut paths, home, &[".gemini", "settings.json"], Marker);
+        }
         DetectedProviderId::Opencode => {
             push_candidate(
                 &mut paths,
@@ -379,6 +395,7 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         Marker,
                     );
                 }
+                DetectedProviderId::GeminiCli => {}
                 DetectedProviderId::Opencode => {
                     for base in [roaming, local] {
                         push_candidate(&mut paths, base, &["opencode", "auth.json"], Credential);
@@ -399,45 +416,59 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
         }
         DiscoveryPlatform::Macos => {
             let support = context.application_support.as_deref();
-            if provider == DetectedProviderId::Antigravity {
-                push_candidate(
+            match provider {
+                DetectedProviderId::Antigravity => push_candidate(
                     &mut paths,
                     support,
                     &["Antigravity", "User", "globalStorage"],
                     Marker,
-                );
-            } else {
-                let directory = match provider {
-                    DetectedProviderId::Claude => "Claude Code",
-                    DetectedProviderId::Codex => "Codex",
-                    DetectedProviderId::Antigravity => unreachable!(),
-                    DetectedProviderId::Opencode => "opencode",
-                    DetectedProviderId::Openrouter => "OpenRouter",
-                };
-                let file = match provider {
-                    DetectedProviderId::Claude => ".credentials.json",
-                    DetectedProviderId::Codex | DetectedProviderId::Opencode => "auth.json",
-                    DetectedProviderId::Antigravity => unreachable!(),
-                    DetectedProviderId::Openrouter => "config.json",
-                };
-                push_candidate(&mut paths, support, &[directory, file], Credential);
-                if provider == DetectedProviderId::Claude {
-                    push_candidate(
-                        &mut paths,
-                        support,
-                        &["Claude", ".credentials.json"],
-                        Credential,
-                    );
+                ),
+                DetectedProviderId::GeminiCli => {}
+                DetectedProviderId::Claude
+                | DetectedProviderId::Codex
+                | DetectedProviderId::Opencode
+                | DetectedProviderId::Openrouter => {
+                    let directory = match provider {
+                        DetectedProviderId::Claude => "Claude Code",
+                        DetectedProviderId::Codex => "Codex",
+                        DetectedProviderId::Opencode => "opencode",
+                        DetectedProviderId::Openrouter => "OpenRouter",
+                        DetectedProviderId::Antigravity | DetectedProviderId::GeminiCli => {
+                            unreachable!()
+                        }
+                    };
+                    let file = match provider {
+                        DetectedProviderId::Claude => ".credentials.json",
+                        DetectedProviderId::Codex | DetectedProviderId::Opencode => "auth.json",
+                        DetectedProviderId::Openrouter => "config.json",
+                        DetectedProviderId::Antigravity | DetectedProviderId::GeminiCli => {
+                            unreachable!()
+                        }
+                    };
+                    push_candidate(&mut paths, support, &[directory, file], Credential);
+                    if provider == DetectedProviderId::Claude {
+                        push_candidate(
+                            &mut paths,
+                            support,
+                            &["Claude", ".credentials.json"],
+                            Credential,
+                        );
+                    }
                 }
             }
         }
         DiscoveryPlatform::Linux => {
-            if provider != DetectedProviderId::Antigravity {
+            if !matches!(
+                provider,
+                DetectedProviderId::Antigravity | DetectedProviderId::GeminiCli
+            ) {
                 let directory = provider.slug();
                 let file = match provider {
                     DetectedProviderId::Claude => "credentials.json",
                     DetectedProviderId::Codex | DetectedProviderId::Opencode => "auth.json",
-                    DetectedProviderId::Antigravity => unreachable!(),
+                    DetectedProviderId::Antigravity | DetectedProviderId::GeminiCli => {
+                        unreachable!()
+                    }
                     DetectedProviderId::Openrouter => "config.json",
                 };
                 push_candidate(
@@ -466,6 +497,7 @@ fn profile_prefix(provider: DetectedProviderId) -> Option<(&'static str, &'stati
         DetectedProviderId::Claude => Some((".claude", ".credentials.json")),
         DetectedProviderId::Codex => Some((".codex", "auth.json")),
         DetectedProviderId::Antigravity
+        | DetectedProviderId::GeminiCli
         | DetectedProviderId::Opencode
         | DetectedProviderId::Openrouter => None,
     }
@@ -520,6 +552,7 @@ fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -
         DetectedProviderId::Claude => "claude",
         DetectedProviderId::Codex => "codex",
         DetectedProviderId::Antigravity => "antigravity",
+        DetectedProviderId::GeminiCli => "gemini",
         DetectedProviderId::Opencode => "opencode",
         DetectedProviderId::Openrouter => "openrouter",
     };
@@ -584,9 +617,15 @@ fn epoch_milliseconds(value: &Value) -> Option<u64> {
 }
 
 fn expiry_field(object: &Map<String, Value>) -> Option<u64> {
-    ["expiresAt", "expires_at", "expires", "expiration"]
-        .iter()
-        .find_map(|name| object.get(*name).and_then(epoch_milliseconds))
+    [
+        "expiresAt",
+        "expires_at",
+        "expiry_date",
+        "expires",
+        "expiration",
+    ]
+    .iter()
+    .find_map(|name| object.get(*name).and_then(epoch_milliseconds))
 }
 
 fn base64url_value(byte: u8) -> Option<u8> {
@@ -707,6 +746,7 @@ fn token_object<'a>(
         DetectedProviderId::Claude => &["claudeAiOauth", "oauth", "credentials"],
         DetectedProviderId::Codex => &["tokens", "oauth", "credentials"],
         DetectedProviderId::Antigravity => &["oauth", "tokens", "credentials"],
+        DetectedProviderId::GeminiCli => &["oauth", "tokens", "credentials"],
         DetectedProviderId::Opencode => &["session", "auth", "credentials"],
         DetectedProviderId::Openrouter => &["openrouter", "credentials"],
     };
@@ -721,6 +761,7 @@ fn access_token<'a>(
         DetectedProviderId::Claude => &["accessToken", "access_token", "token"],
         DetectedProviderId::Codex => &["access_token", "accessToken"],
         DetectedProviderId::Antigravity => &["access_token", "accessToken", "token"],
+        DetectedProviderId::GeminiCli => &["access_token", "accessToken"],
         DetectedProviderId::Opencode => &["cookie", "session", "access_token", "accessToken"],
         DetectedProviderId::Openrouter => &["api_key", "apiKey", "key", "OPENROUTER_API_KEY"],
     };
@@ -808,6 +849,15 @@ fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<Parse
             .and_then(claim_identity)
             .or_else(|| id_token_claims.as_ref().and_then(claim_identity));
         let hinted = claude_hint.as_ref().map(|hint| hint.value.as_str());
+        if provider == DetectedProviderId::GeminiCli
+            && explicit_id.or(hinted).is_none()
+            && claim.is_none()
+        {
+            /* A refreshed access token is not an account identity. Refusing a
+            Gemini login whose ID token has no stable subject prevents one
+            account from becoming a new poll target after every refresh. */
+            continue;
+        }
         let (identity_material, identity_quality) = if let Some(value) = explicit_id.or(hinted) {
             (value.to_string(), IdentityQuality::ProviderAccount)
         } else if let Some((value, quality)) = claim {
@@ -1202,6 +1252,27 @@ impl DetectionStore {
         account.recovery = recovery;
         account.message = message.map(str::to_string);
     }
+
+    #[cfg(test)]
+    pub(crate) fn for_test_home(home: &Path, now_ms: u64) -> Self {
+        let context = DiscoveryContext {
+            platform: DiscoveryPlatform::Linux,
+            read_native_credentials: false,
+            home: Some(home.to_path_buf()),
+            roaming: None,
+            local: None,
+            application_support: None,
+            xdg_config: Some(home.join(".config")),
+            xdg_data: Some(home.join(".local").join("share")),
+            codex_home: None,
+            path_entries: vec![home.join("bin")],
+        };
+        let inventory = scan_inventory(&context, now_ms);
+        Self {
+            context,
+            inventory: RwLock::new(inventory),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1298,6 +1369,7 @@ mod tests {
             DetectedProviderId::Claude,
             DetectedProviderId::Codex,
             DetectedProviderId::Antigravity,
+            DetectedProviderId::GeminiCli,
         ] {
             assert!(provider.supports_automatic_collection());
         }
@@ -1332,6 +1404,29 @@ mod tests {
         let claude = provider(&inventory.report, DetectedProviderId::Claude);
         assert_eq!(claude.state, ProviderPresence::InstalledLoggedOut);
         assert_eq!(claude.recovery, Some(RecoveryAction::SignInToCli));
+    }
+
+    #[test]
+    fn gemini_has_distinct_absent_and_installed_logged_out_states() {
+        let dir = TempDir::new();
+        let empty = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+        assert_eq!(
+            provider(&empty.report, DetectedProviderId::GeminiCli).state,
+            ProviderPresence::Absent
+        );
+
+        write(&dir.path().join("bin").join("gemini"), "binary marker");
+        let installed = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+        let gemini = provider(&installed.report, DetectedProviderId::GeminiCli);
+        assert_eq!(gemini.state, ProviderPresence::InstalledLoggedOut);
+        assert_eq!(gemini.recovery, Some(RecoveryAction::SignInToCli));
+        assert!(gemini.accounts.is_empty());
     }
 
     #[test]
@@ -1450,5 +1545,71 @@ mod tests {
         let codex = provider(&inventory.report, DetectedProviderId::Codex);
         assert_eq!(codex.state, ProviderPresence::InstalledLoggedOut);
         assert!(codex.accounts.is_empty());
+    }
+
+    #[test]
+    fn gemini_uses_the_id_token_subject_and_millisecond_expiry() {
+        let dir = TempDir::new();
+        let id_token = jwt(r#"{"sub":"google-user-one","email":"person@example.com"}"#);
+        write(
+            &dir.path().join(".gemini").join("oauth_creds.json"),
+            &format!(
+                r#"{{"access_token":"gemini-access-token-for-tests","id_token":"{id_token}","expiry_date":1900000000000}}"#
+            ),
+        );
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Windows, dir.path()),
+            1_800_000_000_000,
+        );
+        let gemini = provider(&inventory.report, DetectedProviderId::GeminiCli);
+        assert_eq!(gemini.state, ProviderPresence::Present);
+        assert_eq!(gemini.accounts.len(), 1);
+        assert_eq!(gemini.accounts[0].auth_state, DetectedAuthState::Ready);
+        assert_eq!(
+            gemini.accounts[0].identity_quality,
+            IdentityQuality::JwtSubject
+        );
+        assert_eq!(gemini.accounts[0].label, "p***@example.com");
+        assert!(gemini.accounts[0].automatic_collection);
+    }
+
+    #[test]
+    fn gemini_identity_deduplicates_across_credential_paths() {
+        let dir = TempDir::new();
+        let id_token = jwt(r#"{"sub":"same-google-user"}"#);
+        let first = dir.path().join("first.json");
+        let second = dir.path().join("nested").join("second.json");
+        write(
+            &first,
+            &format!(r#"{{"access_token":"first-gemini-token","id_token":"{id_token}"}}"#),
+        );
+        write(
+            &second,
+            &format!(r#"{{"access_token":"second-gemini-token","id_token":"{id_token}"}}"#),
+        );
+        let first = parse_credential_file(DetectedProviderId::GeminiCli, &first);
+        let second = parse_credential_file(DetectedProviderId::GeminiCli, &second);
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
+        assert_eq!(
+            opaque_account_id(DetectedProviderId::GeminiCli, &first[0].identity_material),
+            opaque_account_id(DetectedProviderId::GeminiCli, &second[0].identity_material)
+        );
+    }
+
+    #[test]
+    fn gemini_refuses_an_access_token_as_an_account_identity() {
+        let dir = TempDir::new();
+        write(
+            &dir.path().join(".gemini").join("oauth_creds.json"),
+            r#"{"access_token":"rotating-token-with-no-id-token"}"#,
+        );
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+        let gemini = provider(&inventory.report, DetectedProviderId::GeminiCli);
+        assert_eq!(gemini.state, ProviderPresence::InstalledLoggedOut);
+        assert!(gemini.accounts.is_empty());
     }
 }

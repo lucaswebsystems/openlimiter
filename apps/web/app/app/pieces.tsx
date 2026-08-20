@@ -66,6 +66,7 @@ const EXPECTED_METERS: Record<string, readonly string[]> = {
   OPENROUTER: ["CREDITS"],
   CODEX: ["PRIMARY"],
   ANTIGRAVITY: ["PRIMARY"],
+  GEMINI_CLI: ["MODEL_QUOTA"],
   OPENCODE: ["PRIMARY"],
   MANUAL: ["MONTHLY"],
 };

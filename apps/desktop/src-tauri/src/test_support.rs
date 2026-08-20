@@ -110,7 +110,7 @@ pub(crate) struct RecordingTransport {
     methods: Mutex<Vec<HttpMethod>>,
     auths: Mutex<Vec<AuthApplication>>,
     codex_account_ids: Mutex<Vec<Option<String>>>,
-    bodies: Mutex<Vec<Option<&'static str>>>,
+    bodies: Mutex<Vec<Option<String>>>,
 }
 
 impl RecordingTransport {
@@ -171,7 +171,7 @@ impl RecordingTransport {
             .clone()
     }
 
-    pub(crate) fn recorded_bodies(&self) -> Vec<Option<&'static str>> {
+    pub(crate) fn recorded_bodies(&self) -> Vec<Option<String>> {
         self.bodies
             .lock()
             .expect("the body record is intact")
@@ -230,7 +230,7 @@ impl Transport for RecordingTransport {
         self.bodies
             .lock()
             .expect("the body record is intact")
-            .push(request.body);
+            .push(request.body.map(str::to_string));
         Ok(TransportReply {
             status: self.status,
             body: self.body.clone(),

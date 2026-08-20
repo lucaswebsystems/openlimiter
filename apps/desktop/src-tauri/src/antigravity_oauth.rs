@@ -364,7 +364,7 @@ mod tests {
         );
         assert_eq!(
             transport.recorded_bodies(),
-            vec![Some(ANTIGRAVITY_EMPTY_BODY)]
+            vec![Some(ANTIGRAVITY_EMPTY_BODY.to_string())]
         );
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
         assert!(cache.contains("ANTIGRAVITY"));

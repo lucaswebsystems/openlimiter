@@ -264,6 +264,10 @@ pub enum AuthApplication {
     /// metadata plane answers 403 to a valid token when the header is absent,
     /// which was measured on 2026-08-07 and cost an hour of blaming the login.
     AntigravitySessionBearer,
+    /// Gemini CLI's Google OAuth bearer token with JSON request headers and
+    /// the OpenLimiter identity. This scheme is used only by the two constant
+    /// Code Assist quota addresses in `net.rs`.
+    GeminiCliBearer,
     /// `Cookie: <secret>` with the OpenLimiter identity. The authenticated page
     /// path, and the reason OpenCode is permanently labelled an authenticated
     /// scrape.

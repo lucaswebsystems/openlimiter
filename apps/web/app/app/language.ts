@@ -217,6 +217,7 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   OPENROUTER: "OpenRouter",
   CODEX: "Codex",
   ANTIGRAVITY: "Antigravity",
+  GEMINI_CLI: "Gemini CLI",
   OPENCODE: "OpenCode",
   MANUAL: "Manual",
 };
@@ -231,6 +232,7 @@ const PROVIDER_ORIGIN: Record<ProviderCode, string> = {
   OPENROUTER: "Documented credits API",
   CODEX: "Provider managed payload",
   ANTIGRAVITY: "Provider managed payload",
+  GEMINI_CLI: "Provider managed payload",
   OPENCODE: "Authenticated page",
   MANUAL: "Written down by you",
 };
@@ -244,22 +246,18 @@ export function providerOrigin(code: string): string {
 /**
  * How a reading actually reached this device.
  *
- * Four states, and only one of them is the word connected, which nothing can
- * reach today. A parser existing is not a connection: five of the six providers
- * here have a parser and no reader, which means somebody has to hand the
- * document over, and the interface has to say so rather than let a filled bar
- * imply a live account.
+ * Four states, and only one of them is the word connected. A parser existing
+ * is not a connection: a provider reaches connected only when stamped
+ * provenance says OpenLimiter itself performed the remote read.
  *
  *   LOCAL_CLI     a tool already running on this machine wrote the payload
  *   IMPORT_ONLY   the shape parses, and nothing here fetches it for you
  *   MANUAL        a number you wrote down yourself
  *   CONNECTED     OpenLimiter itself held a credential and made the request
  *
- * CONNECTED is reserved rather than aspirational. It is here because the
- * provenance vocabulary already names `remote_api`, and a state that exists in
- * the data with no word for it would be silently painted as one of the other
- * three. No reader in this product can produce it yet, so in practice it only
- * appears if a stamped reading claims it.
+ * CONNECTED is evidence based rather than aspirational. It is here because the
+ * provenance vocabulary names `remote_api`, and a state that exists in the
+ * data with no word for it would be silently painted as one of the other three.
  *
  * The code is what a bug report should quote and the label is what a person
  * reads, so the chip shows the label and carries the code in its title.
@@ -280,8 +278,7 @@ export const sourceStateSentence: Record<SourceState, string> = {
   IMPORT_ONLY:
     "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document.",
   MANUAL: "Figures you keep yourself. Nothing is read from an account.",
-  CONNECTED:
-    "OpenLimiter held a credential and asked the provider itself. No reader in this build does that yet.",
+  CONNECTED: "OpenLimiter held a credential and asked the provider itself.",
 };
 
 /** What a provider's state is before any reading has arrived. */
@@ -290,6 +287,7 @@ const PROVIDER_DEFAULT_SOURCE: Record<ProviderCode, SourceState> = {
   OPENROUTER: "IMPORT_ONLY",
   CODEX: "IMPORT_ONLY",
   ANTIGRAVITY: "IMPORT_ONLY",
+  GEMINI_CLI: "IMPORT_ONLY",
   OPENCODE: "IMPORT_ONLY",
   MANUAL: "MANUAL",
 };
