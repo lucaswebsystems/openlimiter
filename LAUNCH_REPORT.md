@@ -1,6 +1,6 @@
 # OpenLimiter launch report
 
-Updated: 2026-08-20 06:30 BRT
+Updated: 2026-08-20 06:39 BRT
 
 ## Verdict
 
@@ -149,6 +149,10 @@ At 06:27 BRT desktop release run `32353247148` failed. Linux built and attached 
 
 At 06:30 BRT the failed logs proved both failures were in the new harness before either installed application was launched. Linux passed `apps/desktop/...deb` to apt without an absolute path or `./`, so apt searched its repositories for a package named after the directory and exited 100. Windows ran the NSIS installer successfully with exit code zero, but the harness searched only the requested override directory and did not resolve the installer's registered default location. The Linux path is now canonicalized before apt. Windows now searches bounded known install roots and the three uninstall registry views for at most ten seconds. The real package installation and 15 second Linux or 10 second Windows process survival requirements remain unchanged.
 
+At 06:31 BRT Gitleaks scanned all 250 commits with no leaks, then corrected head `7cfa1018f06d6495a85bcf22340ad8b347beb88a` was pushed to `main` without force. GitHub CI run `32354328638` passed on Windows in 4 minutes 32 seconds, Linux in 2 minutes 46 seconds, and macOS in 2 minutes 37 seconds.
+
+The existing draft contains exactly five uploaded assets with GitHub recorded SHA256 digests: Windows NSIS and MSI installers, plus Linux AppImage, deb, and rpm packages. They target tag commit `9430b0f`. No asset will be replaced or deleted. At 06:39 BRT the workflow gained a verification only dispatch. It downloads the exact existing NSIS and deb assets from the draft, then calls the same committed bounded install and launch scripts used after future builds. This isolates artifact verification from upload and preserves the original tagged binaries.
+
 ## Next step
 
-Commit the harness corrections, push `main`, require CI to pass, then rerun the desktop release workflow from the corrected workflow while attaching to existing draft tag `v1.0.0`.
+Commit and push the verification only workflow, require CI to pass, then dispatch it for the exact existing `v1.0.0` draft assets without rebuilding or replacing them.
