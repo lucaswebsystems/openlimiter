@@ -42,7 +42,9 @@ The desktop verifies an Ed25519 signed device entitlement offline against public
 
 Each token is bound to one device identifier and carries a monotonic sequence plus a one time identifier. The client keeps its trust anchor and session in the operating system credential store. Older sequences are rejected. A pending request identifier makes retry idempotent, and a cache write can be recovered if the process stops before the trust write completes.
 
-The token carries trusted server time. A local clock rollback beyond the accepted tolerance fails closed and requires a server refresh. Multiple embedded public keys may coexist, so a new signing key can overlap the old key during rotation. If the service is unavailable, a verified token continues through its bounded grace period. Revocation stops refresh, so hosted access ends when that grace period ends.
+The credential store preserves the highest server timestamp ever observed. A local clock earlier than that timestamp beyond the accepted five minute tolerance fails closed and requires a server refresh. The client also persists consecutive failed entitlement refreshes. After 360 failures, offline entitlement expires even if the local clock is frozen. A successful refresh resets the counter.
+
+Multiple embedded public keys may coexist, so a new signing key can overlap the old key during rotation. If the service is unavailable, a verified token continues through its bounded grace period and the additional failed refresh ceiling. Revocation stops refresh, so hosted access ends when that bounded allowance ends.
 
 ## What Pro sends
 

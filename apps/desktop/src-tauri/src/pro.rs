@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as _;
-use ed25519_dalek::{Signature, Verifier as _, VerifyingKey};
+use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use tauri::State;
@@ -31,6 +31,7 @@ const MAX_TOKEN_LIFETIME_SECONDS: i64 = 7 * 24 * 60 * 60;
 const MIN_GRACE_SECONDS: i64 = 7 * 24 * 60 * 60;
 const MAX_GRACE_SECONDS: i64 = 14 * 24 * 60 * 60;
 const NETWORK_TIMEOUT_SECONDS: u64 = 15;
+const MAX_CONSECUTIVE_REFRESH_FAILURES: u16 = 360;
 
 fn configured_service_url() -> &'static str {
     option_env!("OPENLIMITER_PRO_URL").unwrap_or("")
@@ -170,8 +171,11 @@ struct TrustState {
     version: u8,
     device_id: String,
     highest_sequence: u64,
-    trusted_server_time: i64,
+    #[serde(default, alias = "trusted_server_time")]
+    highest_server_time: i64,
     anchor_local_time: i64,
+    #[serde(default)]
+    consecutive_refresh_failures: u16,
     pending_request_id: Option<String>,
     pending_previous_jti: Option<String>,
 }
@@ -182,8 +186,9 @@ impl TrustState {
             version: TRUST_VERSION,
             device_id: format!("device_{}", uuid::Uuid::new_v4().simple()),
             highest_sequence: 0,
-            trusted_server_time: 0,
+            highest_server_time: 0,
             anchor_local_time: 0,
+            consecutive_refresh_failures: 0,
             pending_request_id: None,
             pending_previous_jti: None,
         }
@@ -424,14 +429,16 @@ fn validate_claim_shape(claims: &EntitlementClaims) -> Result<(), ProFailure> {
 }
 
 fn effective_time(trust: &TrustState, local_now: i64) -> Result<i64, ProFailure> {
-    if trust.anchor_local_time == 0 || trust.trusted_server_time == 0 {
+    if trust.anchor_local_time == 0 || trust.highest_server_time == 0 {
         return Ok(local_now);
     }
-    if local_now + CLOCK_TOLERANCE_SECONDS < trust.anchor_local_time {
+    if local_now.saturating_add(CLOCK_TOLERANCE_SECONDS) < trust.anchor_local_time
+        || local_now.saturating_add(CLOCK_TOLERANCE_SECONDS) < trust.highest_server_time
+    {
         return Err(ProFailure::ClockInvalid);
     }
-    let elapsed = local_now.saturating_sub(trust.anchor_local_time);
-    Ok(trust.trusted_server_time.saturating_add(elapsed))
+    let elapsed = local_now.saturating_sub(trust.anchor_local_time).max(0);
+    Ok(trust.highest_server_time.saturating_add(elapsed))
 }
 
 fn status_for(
@@ -443,7 +450,9 @@ fn status_for(
         return Err(ProFailure::InvalidEntitlement);
     }
     let effective = effective_time(trust, local_now)?;
-    let state = if effective < token.claims.nbf {
+    let state = if trust.consecutive_refresh_failures >= MAX_CONSECUTIVE_REFRESH_FAILURES {
+        ProEntitlementState::Expired
+    } else if effective < token.claims.nbf {
         ProEntitlementState::Invalid
     } else if effective <= token.claims.refresh_after {
         ProEntitlementState::Active
@@ -481,8 +490,9 @@ fn reconcile_cached_token(
     }
     let local_now = now_seconds()?;
     trust.highest_sequence = token.claims.seq;
-    trust.trusted_server_time = token.claims.server_time;
+    trust.highest_server_time = trust.highest_server_time.max(token.claims.server_time);
     trust.anchor_local_time = local_now;
+    trust.consecutive_refresh_failures = 0;
     trust.pending_request_id = None;
     trust.pending_previous_jti = None;
     save_trust(store, trust)
@@ -716,12 +726,38 @@ async fn refresh(store: &dyn SecretStore) -> Result<ProStatus, ProFailure> {
     }
     write_cache(token_text)?;
     trust.highest_sequence = token.claims.seq;
-    trust.trusted_server_time = token.claims.server_time;
+    trust.highest_server_time = trust.highest_server_time.max(token.claims.server_time);
     trust.anchor_local_time = now_seconds()?;
+    trust.consecutive_refresh_failures = 0;
     trust.pending_request_id = None;
     trust.pending_previous_jti = None;
     save_trust(store, &trust)?;
     status_for(&token, &trust, trust.anchor_local_time)
+}
+
+fn countable_refresh_failure(error: ProFailure) -> bool {
+    matches!(
+        error,
+        ProFailure::Network | ProFailure::Service | ProFailure::EntitlementRequired
+    )
+}
+
+fn record_refresh_failure(store: &dyn SecretStore) -> Result<(), ProFailure> {
+    let mut trust = load_trust(store)?;
+    trust.consecutive_refresh_failures = trust.consecutive_refresh_failures.saturating_add(1);
+    save_trust(store, &trust)
+}
+
+async fn refresh_with_failure_tracking(store: &dyn SecretStore) -> Result<ProStatus, ProFailure> {
+    match refresh(store).await {
+        Ok(status) => Ok(status),
+        Err(error) => {
+            if countable_refresh_failure(error) {
+                record_refresh_failure(store)?;
+            }
+            Err(error)
+        }
+    }
 }
 
 async fn refresh_if_due(store: &dyn SecretStore) -> Result<ProStatus, ProFailure> {
@@ -732,7 +768,7 @@ async fn refresh_if_due(store: &dyn SecretStore) -> Result<ProStatus, ProFailure
     ) {
         return Ok(status);
     }
-    refresh(store).await
+    refresh_with_failure_tracking(store).await
 }
 
 async fn service_call(
@@ -869,7 +905,7 @@ pub async fn pro_set_session(
     store
         .store_secret(SESSION_CREDENTIAL_ID, &access_token)
         .map_err(ProFailure::from)?;
-    let status = refresh(store.inner()).await?;
+    let status = refresh_with_failure_tracking(store.inner()).await?;
     let _ = sync_usage_snapshot(store.inner()).await;
     let _ = sync_agent_context(store.inner()).await;
     Ok(status)
@@ -877,7 +913,7 @@ pub async fn pro_set_session(
 
 #[tauri::command]
 pub async fn pro_refresh(store: State<'_, KeyringStore>) -> Result<ProStatus, ProFailure> {
-    refresh(store.inner()).await
+    refresh_with_failure_tracking(store.inner()).await
 }
 
 #[tauri::command]
@@ -951,7 +987,7 @@ pub fn spawn_silent_refresh() {
         let mut interval = tokio::time::interval(Duration::from_secs(60 * 60));
         loop {
             interval.tick().await;
-            let _ = refresh_if_due(&store).await;
+            let _ = refresh_with_failure_tracking(&store).await;
             let _ = sync_usage_snapshot(&store).await;
             let _ = sync_agent_context(&store).await;
         }
@@ -962,6 +998,7 @@ pub fn spawn_silent_refresh() {
 mod tests {
     use super::*;
     use crate::test_support::InMemorySecrets;
+    use ed25519_dalek::Verifier as _;
 
     fn claims(now: i64) -> EntitlementClaims {
         EntitlementClaims {
@@ -988,8 +1025,9 @@ mod tests {
             version: TRUST_VERSION,
             device_id: "device_00000000000040008000000000000001".to_string(),
             highest_sequence: 4,
-            trusted_server_time: now,
+            highest_server_time: now,
             anchor_local_time: now,
+            consecutive_refresh_failures: 0,
             pending_request_id: None,
             pending_previous_jti: None,
         }
@@ -1056,10 +1094,79 @@ mod tests {
     #[test]
     fn clock_rollback_is_refused_instead_of_extending_grace() {
         let now = 1_800_000_000;
+        let mut trust = trust(now);
+        trust.highest_server_time = now - 1_000;
         assert_eq!(
-            effective_time(&trust(now), now - CLOCK_TOLERANCE_SECONDS - 1),
+            effective_time(&trust, now - CLOCK_TOLERANCE_SECONDS - 1),
             Err(ProFailure::ClockInvalid)
         );
+    }
+
+    #[test]
+    fn local_time_before_the_highest_server_time_is_refused() {
+        let now = 1_800_000_000;
+        let mut trust = trust(now);
+        trust.anchor_local_time = now - 1_000;
+        assert_eq!(
+            effective_time(&trust, now - CLOCK_TOLERANCE_SECONDS - 1),
+            Err(ProFailure::ClockInvalid)
+        );
+    }
+
+    #[test]
+    fn local_skew_never_moves_effective_time_before_the_server_maximum() {
+        let now = 1_800_000_000;
+        assert_eq!(effective_time(&trust(now), now - 1), Ok(now));
+    }
+
+    #[test]
+    fn failed_refresh_ceiling_expires_a_frozen_clock_token() {
+        let now = 1_800_000_000;
+        let token = verified(now);
+        let mut trust = trust(now);
+        trust.consecutive_refresh_failures = MAX_CONSECUTIVE_REFRESH_FAILURES;
+        assert_eq!(
+            status_for(&token, &trust, now).unwrap().state,
+            ProEntitlementState::Expired
+        );
+    }
+
+    #[test]
+    fn refresh_failure_count_is_persisted() {
+        let now = 1_800_000_000;
+        let store = InMemorySecrets::new();
+        save_trust(&store, &trust(now)).expect("initial trust");
+        record_refresh_failure(&store).expect("failure stored");
+        assert_eq!(
+            load_trust(&store)
+                .expect("stored trust")
+                .consecutive_refresh_failures,
+            1
+        );
+    }
+
+    #[test]
+    fn legacy_trust_state_keeps_its_server_time_anchor() {
+        let raw = r#"{
+            "version":1,
+            "device_id":"device_00000000000040008000000000000001",
+            "highest_sequence":4,
+            "trusted_server_time":1800000000,
+            "anchor_local_time":1800000000,
+            "pending_request_id":null,
+            "pending_previous_jti":null
+        }"#;
+        let trust: TrustState = serde_json::from_str(raw).expect("legacy trust");
+        assert_eq!(trust.highest_server_time, 1_800_000_000);
+        assert_eq!(trust.consecutive_refresh_failures, 0);
+    }
+
+    #[test]
+    fn entitlement_denial_counts_as_a_failed_refresh() {
+        assert!(countable_refresh_failure(ProFailure::Network));
+        assert!(countable_refresh_failure(ProFailure::Service));
+        assert!(countable_refresh_failure(ProFailure::EntitlementRequired));
+        assert!(!countable_refresh_failure(ProFailure::NoSession));
     }
 
     #[test]
