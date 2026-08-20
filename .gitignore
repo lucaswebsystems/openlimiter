@@ -1,6 +1,8 @@
 node_modules/
 .pnpm-store/
 dist/
+!apps/desktop/ui/dist/
+!apps/desktop/ui/dist/.gitkeep
 .next/
 out/
 .env
