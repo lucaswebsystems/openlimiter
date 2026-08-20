@@ -101,6 +101,24 @@ test("an unavailable backend never becomes a false absent claim", () => {
   assert.equal(result.providers.every((entry) => entry.state === "unavailable"), true);
 });
 
+test("a successful empty scan is a coherent fresh machine state", () => {
+  const result = normalizeDetections({
+    providers: [
+      "claude",
+      "codex",
+      "grok",
+      "kimi",
+      "antigravity",
+      "gemini_cli",
+      "opencode",
+      "openrouter",
+    ].map((provider_id) => ({ provider_id, state: "absent", accounts: [] })),
+  });
+  assert.equal(result.available, true);
+  assert.equal(result.providers.length, 9);
+  assert.equal(result.providers.every((entry) => entry.state === "absent"), true);
+});
+
 test("normalizes the detected Gemini CLI provider without losing its separator", () => {
   const result = normalizeDetections({
     providers: [

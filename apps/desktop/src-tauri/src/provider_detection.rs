@@ -1600,17 +1600,23 @@ mod tests {
     }
 
     #[test]
-    fn no_marker_and_no_executable_is_absent() {
-        let dir = TempDir::new();
-        let inventory = scan_inventory(
-            &context(DiscoveryPlatform::Linux, dir.path()),
-            1_800_000_000_000,
-        );
-        assert!(inventory
-            .report
-            .providers
-            .iter()
-            .all(|entry| entry.state == ProviderPresence::Absent));
+    fn an_empty_home_is_absent_on_every_platform() {
+        for platform in [
+            DiscoveryPlatform::Windows,
+            DiscoveryPlatform::Macos,
+            DiscoveryPlatform::Linux,
+        ] {
+            let dir = TempDir::new();
+            let inventory = scan_inventory(&context(platform, dir.path()), 1_800_000_000_000);
+            assert!(
+                inventory
+                    .report
+                    .providers
+                    .iter()
+                    .all(|entry| entry.state == ProviderPresence::Absent),
+                "an empty home reported a provider on {platform:?}"
+            );
+        }
     }
 
     #[test]
