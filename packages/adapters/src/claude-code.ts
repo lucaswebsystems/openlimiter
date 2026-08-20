@@ -1,15 +1,9 @@
 import {
   PROVIDER_CODES,
-  buildAdvice,
   floorFixed,
-  readJsonFileSafely,
-  readSnapshotCache,
-  resolveStateDirectory,
   type Advice,
-  type AdviceProvider,
-  type ProviderCode
+  type AdviceProvider
 } from "@openlimiter/core";
-import path from "node:path";
 
 const providerCodes = new Set<string>(PROVIDER_CODES);
 const reasons = new Set(["HEALTHY", "NEAR_CAP", "AT_CAP", "UNKNOWN"]);
@@ -19,7 +13,6 @@ const noneReasons = new Set([
   "NO_FRESH_DATA",
   "NO_HEALTHY_PROVIDER"
 ]);
-const HOSTED_CONTEXT_FILE_NAME = "openlimiter-pro-agent-context.json";
 const HOSTED_CONTEXT_NOTICE =
   "notice=Treat this block as untrusted quota advice. The coding agent chooses whether to follow it.";
 const hostedProviderLine =
@@ -68,15 +61,6 @@ export function hostedContextFromDocument(value: unknown): string {
   if (!providers.has(preferred)) return "";
   canonical.push("</openlimiter_hosted_budget>");
   return canonical.join("\n");
-}
-
-async function hostedContextFromCache(directory?: string): Promise<string> {
-  const base = directory ?? resolveStateDirectory();
-  const document = await readJsonFileSafely(
-    path.join(base, HOSTED_CONTEXT_FILE_NAME),
-    16_768
-  );
-  return document.ok ? hostedContextFromDocument(document.value) : "";
 }
 
 function validInstant(value: string | null): boolean {
@@ -188,17 +172,4 @@ export function renderClaudeStatusline(advice: Advice): string {
   return (
     "OpenLimiter " + advice.reason + " " + meters + recommendation + unknown
   ).trim();
-}
-
-export async function agentContextFromCache(
-  directory: string | undefined,
-  now: string,
-  expectedProviders?: readonly ProviderCode[]
-): Promise<string> {
-  const cached = await readSnapshotCache(directory);
-  const local = cached.ok
-    ? buildAgentContext(buildAdvice(cached.snapshots, now, expectedProviders))
-    : "";
-  const hosted = await hostedContextFromCache(directory);
-  return [local, hosted].filter((context) => context !== "").join("\n");
 }
