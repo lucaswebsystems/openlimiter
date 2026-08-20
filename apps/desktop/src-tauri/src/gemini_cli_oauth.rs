@@ -59,6 +59,8 @@ pub enum GeminiCliOutcome {
     Fallback {
         account_id: String,
         reason: GeminiCliFailure,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after_seconds: Option<u64>,
     },
     Failed {
         account_id: String,
@@ -78,6 +80,15 @@ impl GeminiCliOutcome {
         Self::Fallback {
             account_id: account_id.to_string(),
             reason,
+            retry_after_seconds: None,
+        }
+    }
+
+    fn rate_limited(account_id: &str, retry_after_seconds: Option<u64>) -> Self {
+        Self::Fallback {
+            account_id: account_id.to_string(),
+            reason: GeminiCliFailure::RateLimited,
+            retry_after_seconds,
         }
     }
 }
@@ -319,14 +330,14 @@ async fn status_outcome(
             fallback_report(writer, account_id, false, now_ms).await;
             GeminiCliOutcome::fallback(account_id, GeminiCliFailure::ProviderBlocked)
         }
-        429 => {
+        429 | 503 if status == 429 || retry_after_seconds.is_some() => {
             let seconds = retry_after_seconds
                 .unwrap_or(0)
                 .max(RATE_LIMIT_BACKOFF_SECONDS)
                 .min(BLOCKED_BACKOFF_SECONDS);
             runtime.postpone(account_id, now_ms, seconds);
             fallback_report(writer, account_id, false, now_ms).await;
-            GeminiCliOutcome::fallback(account_id, GeminiCliFailure::RateLimited)
+            GeminiCliOutcome::rate_limited(account_id, retry_after_seconds)
         }
         _ => GeminiCliOutcome::Failed {
             account_id: account_id.to_string(),
@@ -520,9 +531,15 @@ async fn collect_account_guarded<T: Transport>(
         }
         GeminiCliOutcome::Fallback {
             reason: GeminiCliFailure::RateLimited,
+            retry_after_seconds,
             ..
         } => {
-            policy.rate_limit_provider(DetectedProviderId::GeminiCli, now_ms, None);
+            policy.rate_limit_account(
+                DetectedProviderId::GeminiCli,
+                &account_id,
+                now_ms,
+                *retry_after_seconds,
+            );
             true
         }
         GeminiCliOutcome::ReopenCli { .. } => {
@@ -892,5 +909,33 @@ mod tests {
         assert!(cache.contains("CODEX"));
         assert!(cache.contains("codex-other-account"));
         assert!(!cache.contains("gemini-blocked-account"));
+    }
+
+    #[tokio::test]
+    async fn both_gemini_hops_carry_service_retry_after() {
+        for replies in [
+            vec![(503, Vec::new(), Some(7_200))],
+            vec![(200, load_body(), None), (503, Vec::new(), Some(7_200))],
+        ] {
+            let dir = TempDir::new();
+            let transport = ScriptedTransport::new(replies);
+            let outcome = collect_with_secret(
+                &GeminiCliOauthRuntime::default(),
+                &transport,
+                writer(&dir),
+                "gemini-service-account",
+                &secret("service-backoff"),
+                NOW,
+            )
+            .await;
+            assert!(matches!(
+                outcome,
+                GeminiCliOutcome::Fallback {
+                    reason: GeminiCliFailure::RateLimited,
+                    retry_after_seconds: Some(7_200),
+                    ..
+                }
+            ));
+        }
     }
 }

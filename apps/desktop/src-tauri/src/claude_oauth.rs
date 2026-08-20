@@ -64,6 +64,8 @@ pub enum ClaudeOauthOutcome {
         reason: ClaudeOauthFailure,
         fallback: ClaudeFallback,
         retry_at: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after_seconds: Option<u64>,
         message: String,
     },
     Failed {
@@ -79,6 +81,23 @@ impl ClaudeOauthOutcome {
             reason,
             fallback: ClaudeFallback::Statusline,
             retry_at,
+            retry_after_seconds: None,
+            message: "Claude usage is unavailable. Statusline and manual entry remain available."
+                .to_string(),
+        }
+    }
+
+    fn rate_limited(
+        account_id: &str,
+        retry_at: Option<String>,
+        retry_after_seconds: Option<u64>,
+    ) -> Self {
+        Self::Fallback {
+            account_id: account_id.to_string(),
+            reason: ClaudeOauthFailure::RateLimited,
+            fallback: ClaudeFallback::Statusline,
+            retry_at,
+            retry_after_seconds,
             message: "Claude usage is unavailable. Statusline and manual entry remain available."
                 .to_string(),
         }
@@ -306,7 +325,8 @@ async fn collect_with_secret<T: Transport>(
                 iso_from_epoch_ms(retry_ms),
             )
         }
-        429 => {
+        429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
+            let retry_after_seconds = response.retry_after_seconds;
             let seconds = response
                 .retry_after_seconds
                 .unwrap_or(0)
@@ -314,10 +334,10 @@ async fn collect_with_secret<T: Transport>(
                 .min(BLOCKED_BACKOFF_SECONDS);
             let retry_ms = runtime.postpone(account_id, now_ms, seconds);
             fallback_report(writer, account_id, false, now_ms).await;
-            ClaudeOauthOutcome::fallback(
+            ClaudeOauthOutcome::rate_limited(
                 account_id,
-                ClaudeOauthFailure::RateLimited,
                 iso_from_epoch_ms(retry_ms),
+                retry_after_seconds,
             )
         }
         _ => ClaudeOauthOutcome::Failed {
@@ -417,9 +437,15 @@ pub async fn collect_account_guarded<T: Transport>(
         }
         ClaudeOauthOutcome::Fallback {
             reason: ClaudeOauthFailure::RateLimited,
+            retry_after_seconds,
             ..
         } => {
-            policy.rate_limit_provider(DetectedProviderId::Claude, now_ms, None);
+            policy.rate_limit_account(
+                DetectedProviderId::Claude,
+                &account_id,
+                now_ms,
+                *retry_after_seconds,
+            );
             true
         }
         ClaudeOauthOutcome::ReopenCli { .. } => {
@@ -744,5 +770,27 @@ mod tests {
         assert!(wire.contains("reopen_cli"));
         assert!(wire.contains("Reopen Claude Code to refresh this login."));
         assert!(!wire.contains(TOKEN));
+    }
+
+    #[tokio::test]
+    async fn service_retry_after_reaches_the_shared_policy_boundary() {
+        let dir = TempDir::new();
+        let outcome = collect_with_secret(
+            &ClaudeOauthRuntime::default(),
+            &RecordingTransport::replying(503, Vec::new(), Some(7_200)),
+            writer(&dir),
+            ACCOUNT,
+            &secret("service-backoff"),
+            NOW,
+        )
+        .await;
+        assert!(matches!(
+            outcome,
+            ClaudeOauthOutcome::Fallback {
+                reason: ClaudeOauthFailure::RateLimited,
+                retry_after_seconds: Some(7_200),
+                ..
+            }
+        ));
     }
 }

@@ -100,6 +100,7 @@ pub async fn run_guarded<T: Transport>(
                 connection_id,
                 reason: CollectorFailure::Busy,
                 status: None,
+                retry_after_seconds: None,
             })
         }
     };
@@ -108,6 +109,7 @@ pub async fn run_guarded<T: Transport>(
             connection_id,
             reason: CollectorFailure::Busy,
             status: None,
+            retry_after_seconds: None,
         });
     }
     let outcome = collect_core(
@@ -122,9 +124,17 @@ pub async fn run_guarded<T: Transport>(
     if outcome.is_err() {
         let _ = schedule_after(connections, &connection_id, false, true, None);
     }
-    match outcome.as_ref().ok().and_then(CollectionOutcome::status) {
+    let status = outcome.as_ref().ok().and_then(CollectionOutcome::status);
+    let retry_after_seconds = outcome
+        .as_ref()
+        .ok()
+        .and_then(CollectionOutcome::retry_after_seconds);
+    match status {
         Some(403 | 404 | 410) => policy.block_provider(provider, now_ms, BLOCKED_PROVIDER_SECONDS),
-        Some(429) => policy.rate_limit_provider(provider, now_ms, None),
+        Some(429) | Some(503) if retry_after_seconds.is_some() => {
+            policy.rate_limit_account(provider, identity.account_id(), now_ms, retry_after_seconds)
+        }
+        Some(429) => policy.rate_limit_account(provider, identity.account_id(), now_ms, None),
         Some(401) => policy.complete_after(
             provider,
             identity.account_id(),

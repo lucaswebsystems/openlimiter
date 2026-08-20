@@ -52,6 +52,8 @@ pub enum AntigravityOutcome {
     Fallback {
         account_id: String,
         reason: AntigravityFailure,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after_seconds: Option<u64>,
     },
     Failed {
         account_id: String,
@@ -71,6 +73,15 @@ impl AntigravityOutcome {
         Self::Fallback {
             account_id: account_id.to_string(),
             reason,
+            retry_after_seconds: None,
+        }
+    }
+
+    fn rate_limited(account_id: &str, retry_after_seconds: Option<u64>) -> Self {
+        Self::Fallback {
+            account_id: account_id.to_string(),
+            reason: AntigravityFailure::RateLimited,
+            retry_after_seconds,
         }
     }
 }
@@ -212,7 +223,8 @@ async fn collect_with_secret<T: Transport>(
             fallback_report(writer, account_id, false, now_ms).await;
             AntigravityOutcome::fallback(account_id, AntigravityFailure::ProviderBlocked)
         }
-        429 => {
+        429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
+            let retry_after_seconds = response.retry_after_seconds;
             let seconds = response
                 .retry_after_seconds
                 .unwrap_or(0)
@@ -220,7 +232,7 @@ async fn collect_with_secret<T: Transport>(
                 .min(BLOCKED_BACKOFF_SECONDS);
             runtime.postpone(account_id, now_ms, seconds);
             fallback_report(writer, account_id, false, now_ms).await;
-            AntigravityOutcome::fallback(account_id, AntigravityFailure::RateLimited)
+            AntigravityOutcome::rate_limited(account_id, retry_after_seconds)
         }
         _ => AntigravityOutcome::Failed {
             account_id: account_id.to_string(),
@@ -323,9 +335,15 @@ async fn collect_account_guarded<T: Transport>(
         }
         AntigravityOutcome::Fallback {
             reason: AntigravityFailure::RateLimited,
+            retry_after_seconds,
             ..
         } => {
-            policy.rate_limit_provider(DetectedProviderId::Antigravity, now_ms, None);
+            policy.rate_limit_account(
+                DetectedProviderId::Antigravity,
+                &account_id,
+                now_ms,
+                *retry_after_seconds,
+            );
             true
         }
         AntigravityOutcome::ReopenCli { .. } => {
@@ -595,5 +613,27 @@ mod tests {
         assert!(wire.contains("reopen_cli"));
         assert!(wire.contains("Reopen Antigravity to refresh this login."));
         assert!(!wire.contains(TOKEN));
+    }
+
+    #[tokio::test]
+    async fn service_retry_after_reaches_the_shared_policy_boundary() {
+        let dir = TempDir::new();
+        let outcome = collect_with_secret(
+            &AntigravityOauthRuntime::default(),
+            &RecordingTransport::replying(503, Vec::new(), Some(7_200)),
+            writer(&dir),
+            ACCOUNT,
+            &secret("service-backoff"),
+            NOW,
+        )
+        .await;
+        assert!(matches!(
+            outcome,
+            AntigravityOutcome::Fallback {
+                reason: AntigravityFailure::RateLimited,
+                retry_after_seconds: Some(7_200),
+                ..
+            }
+        ));
     }
 }

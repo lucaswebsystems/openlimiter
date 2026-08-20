@@ -52,6 +52,8 @@ pub enum GrokOutcome {
     Fallback {
         account_id: String,
         reason: GrokFailure,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after_seconds: Option<u64>,
     },
     Failed {
         account_id: String,
@@ -71,6 +73,15 @@ impl GrokOutcome {
         Self::Fallback {
             account_id: account_id.to_string(),
             reason,
+            retry_after_seconds: None,
+        }
+    }
+
+    fn rate_limited(account_id: &str, retry_after_seconds: Option<u64>) -> Self {
+        Self::Fallback {
+            account_id: account_id.to_string(),
+            reason: GrokFailure::RateLimited,
+            retry_after_seconds,
         }
     }
 }
@@ -212,7 +223,8 @@ async fn collect_with_secret<T: Transport>(
             fallback_report(writer, account_id, false, now_ms).await;
             GrokOutcome::fallback(account_id, GrokFailure::ProviderBlocked)
         }
-        429 => {
+        429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
+            let retry_after_seconds = response.retry_after_seconds;
             let seconds = response
                 .retry_after_seconds
                 .unwrap_or(0)
@@ -220,7 +232,7 @@ async fn collect_with_secret<T: Transport>(
                 .min(BLOCKED_BACKOFF_SECONDS);
             runtime.postpone(account_id, now_ms, seconds);
             fallback_report(writer, account_id, false, now_ms).await;
-            GrokOutcome::fallback(account_id, GrokFailure::RateLimited)
+            GrokOutcome::rate_limited(account_id, retry_after_seconds)
         }
         _ => GrokOutcome::Failed {
             account_id: account_id.to_string(),
@@ -315,9 +327,15 @@ async fn collect_account_guarded<T: Transport>(
         }
         GrokOutcome::Fallback {
             reason: GrokFailure::RateLimited,
+            retry_after_seconds,
             ..
         } => {
-            policy.rate_limit_provider(DetectedProviderId::Grok, now_ms, None);
+            policy.rate_limit_account(
+                DetectedProviderId::Grok,
+                &account_id,
+                now_ms,
+                *retry_after_seconds,
+            );
             true
         }
         GrokOutcome::ReopenCli { .. } => {
@@ -509,5 +527,27 @@ mod tests {
         let account_id = "grok-account-one".to_string();
         let covered = HashSet::from([PollIdentity::detected(ProviderId::Grok, account_id.clone())]);
         assert!(uncovered_account_ids(vec![account_id], &covered).is_empty());
+    }
+
+    #[tokio::test]
+    async fn service_retry_after_reaches_the_shared_policy_boundary() {
+        let dir = TempDir::new();
+        let outcome = collect_with_secret(
+            &GrokOauthRuntime::default(),
+            &RecordingTransport::replying(503, Vec::new(), Some(7_200)),
+            writer(&dir),
+            "grok-account-one",
+            &secret(TOKEN, "provider-user-one", "service-backoff"),
+            now(),
+        )
+        .await;
+        assert!(matches!(
+            outcome,
+            GrokOutcome::Fallback {
+                reason: GrokFailure::RateLimited,
+                retry_after_seconds: Some(7_200),
+                ..
+            }
+        ));
     }
 }

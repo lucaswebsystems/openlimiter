@@ -52,6 +52,8 @@ pub enum CodexOutcome {
     Fallback {
         account_id: String,
         reason: CodexFailure,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after_seconds: Option<u64>,
     },
     Failed {
         account_id: String,
@@ -71,6 +73,15 @@ impl CodexOutcome {
         Self::Fallback {
             account_id: account_id.to_string(),
             reason,
+            retry_after_seconds: None,
+        }
+    }
+
+    fn rate_limited(account_id: &str, retry_after_seconds: Option<u64>) -> Self {
+        Self::Fallback {
+            account_id: account_id.to_string(),
+            reason: CodexFailure::RateLimited,
+            retry_after_seconds,
         }
     }
 }
@@ -212,7 +223,8 @@ async fn collect_with_secret<T: Transport>(
             fallback_report(writer, account_id, false, now_ms).await;
             CodexOutcome::fallback(account_id, CodexFailure::ProviderBlocked)
         }
-        429 => {
+        429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
+            let retry_after_seconds = response.retry_after_seconds;
             let seconds = response
                 .retry_after_seconds
                 .unwrap_or(0)
@@ -220,7 +232,7 @@ async fn collect_with_secret<T: Transport>(
                 .min(BLOCKED_BACKOFF_SECONDS);
             runtime.postpone(account_id, now_ms, seconds);
             fallback_report(writer, account_id, false, now_ms).await;
-            CodexOutcome::fallback(account_id, CodexFailure::RateLimited)
+            CodexOutcome::rate_limited(account_id, retry_after_seconds)
         }
         _ => CodexOutcome::Failed {
             account_id: account_id.to_string(),
@@ -319,9 +331,15 @@ async fn collect_account_guarded<T: Transport>(
         }
         CodexOutcome::Fallback {
             reason: CodexFailure::RateLimited,
+            retry_after_seconds,
             ..
         } => {
-            policy.rate_limit_provider(DetectedProviderId::Codex, now_ms, None);
+            policy.rate_limit_account(
+                DetectedProviderId::Codex,
+                &account_id,
+                now_ms,
+                *retry_after_seconds,
+            );
             true
         }
         CodexOutcome::ReopenCli { .. } => {
@@ -619,5 +637,27 @@ mod tests {
         assert!(wire.contains("reopen_cli"));
         assert!(wire.contains("Reopen Codex to refresh this login."));
         assert!(!wire.contains(TOKEN));
+    }
+
+    #[tokio::test]
+    async fn service_retry_after_reaches_the_shared_policy_boundary() {
+        let dir = TempDir::new();
+        let outcome = collect_with_secret(
+            &CodexOauthRuntime::default(),
+            &RecordingTransport::replying(503, Vec::new(), Some(7_200)),
+            writer(&dir),
+            "opaque-account-one",
+            &secret(TOKEN, "provider-account-one", "service-backoff"),
+            NOW,
+        )
+        .await;
+        assert!(matches!(
+            outcome,
+            CodexOutcome::Fallback {
+                reason: CodexFailure::RateLimited,
+                retry_after_seconds: Some(7_200),
+                ..
+            }
+        ));
     }
 }

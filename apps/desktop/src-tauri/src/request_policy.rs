@@ -242,16 +242,33 @@ impl RequestPolicy {
         });
     }
 
-    pub fn rate_limit_provider(
+    pub fn rate_limit_account(
         &self,
         provider: DetectedProviderId,
+        account_id: &str,
         now_ms: u64,
         retry_after_seconds: Option<u64>,
     ) {
+        if !valid_account_id(account_id) || now_ms > MAX_TIMESTAMP_EPOCH_MS {
+            return;
+        }
         let seconds = retry_after_seconds
             .unwrap_or(RATE_LIMIT_SECONDS)
-            .max(RATE_LIMIT_SECONDS);
-        self.block_provider(provider, now_ms, seconds);
+            .max(RATE_LIMIT_SECONDS)
+            .min(MAX_SERVER_DELAY_SECONDS);
+        let retry_at = now_ms.saturating_add(seconds.saturating_mul(1_000));
+        self.mutate_durable(|document| {
+            let state = document.providers.entry(provider).or_default();
+            /* The account row replaces begin's crash reservation. The provider
+            row carries the same deadline so a second account or process does
+            not hammer an endpoint that just asked this process to stop. */
+            state.accounts.insert(account_id.to_string(), retry_at);
+            state.next_request_at = Some(
+                state
+                    .next_request_at
+                    .map_or(retry_at, |current| current.max(retry_at)),
+            );
+        });
     }
 
     fn mutate_durable(&self, mutate: impl FnOnce(&mut RequestPolicyDocument)) {
@@ -651,14 +668,15 @@ mod tests {
     }
 
     #[test]
-    fn server_retry_after_can_only_extend_the_provider_breaker() {
+    fn server_retry_after_is_shared_for_the_account_and_provider() {
         let dir = TempDir::new();
         let policy = policy(&dir);
         let lease = policy
             .begin(DetectedProviderId::GeminiCli, "google-account", NOW)
             .expect("first request");
-        policy.rate_limit_provider(
+        policy.rate_limit_account(
             DetectedProviderId::GeminiCli,
+            "google-account",
             NOW,
             Some(BLOCKED_PROVIDER_SECONDS + 60),
         );
@@ -674,5 +692,36 @@ mod tests {
                 retry_at: NOW + (BLOCKED_PROVIDER_SECONDS + 60) * 1_000
             }
         );
+    }
+
+    #[test]
+    fn missing_and_absurd_retry_after_use_safe_bounded_deadlines() {
+        for (retry_after, expected_seconds) in [
+            (None, RATE_LIMIT_SECONDS),
+            (Some(u64::MAX), MAX_SERVER_DELAY_SECONDS),
+        ] {
+            let dir = TempDir::new();
+            let policy = policy(&dir);
+            let lease = policy
+                .begin(DetectedProviderId::Claude, "claude-account", NOW)
+                .expect("request");
+            policy.rate_limit_account(
+                DetectedProviderId::Claude,
+                "claude-account",
+                NOW,
+                retry_after,
+            );
+            drop(lease);
+            let document = load_document(Some(&dir.path().to_path_buf())).expect("policy");
+            let state = document
+                .providers
+                .get(&DetectedProviderId::Claude)
+                .expect("Claude state");
+            assert_eq!(
+                state.accounts.get("claude-account"),
+                Some(&(NOW + expected_seconds * 1_000))
+            );
+            assert_eq!(state.next_request_at, Some(NOW + expected_seconds * 1_000));
+        }
     }
 }

@@ -44,15 +44,23 @@ pub enum CollectionOutcome {
         reason: CollectorFailure,
         #[serde(skip_serializing_if = "Option::is_none")]
         status: Option<u16>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        retry_after_seconds: Option<u64>,
     },
 }
 
 impl CollectionOutcome {
-    fn failed(connection_id: &str, reason: CollectorFailure, status: Option<u16>) -> Self {
+    fn failed(
+        connection_id: &str,
+        reason: CollectorFailure,
+        status: Option<u16>,
+        retry_after_seconds: Option<u64>,
+    ) -> Self {
         CollectionOutcome::Failed {
             connection_id: connection_id.to_string(),
             reason,
             status,
+            retry_after_seconds,
         }
     }
 
@@ -66,6 +74,16 @@ impl CollectionOutcome {
     pub(crate) fn status(&self) -> Option<u16> {
         match self {
             CollectionOutcome::Failed { status, .. } => *status,
+            CollectionOutcome::Tested { .. } | CollectionOutcome::CacheCommitted { .. } => None,
+        }
+    }
+
+    pub(crate) fn retry_after_seconds(&self) -> Option<u64> {
+        match self {
+            CollectionOutcome::Failed {
+                retry_after_seconds,
+                ..
+            } => *retry_after_seconds,
             CollectionOutcome::Tested { .. } | CollectionOutcome::CacheCommitted { .. } => None,
         }
     }
@@ -129,6 +147,7 @@ pub async fn collect_core<T: Transport>(
                 &connection_id,
                 probe_failure(failure),
                 None,
+                None,
             ));
         }
         ProbeOutcome::Response {
@@ -152,6 +171,7 @@ pub async fn collect_core<T: Transport>(
             &connection_id,
             CollectorFailure::ProviderResponse,
             Some(status),
+            retry_after,
         ));
     }
     let Some(body) = body.filter(|body| !body.is_empty()) else {
@@ -160,6 +180,7 @@ pub async fn collect_core<T: Transport>(
             &connection_id,
             CollectorFailure::EmptyBody,
             Some(status),
+            retry_after,
         ));
     };
     let observed_ms = now_epoch_ms();
@@ -193,6 +214,7 @@ pub async fn collect_core<T: Transport>(
                 CollectorFailure::Cache
             },
             Some(status),
+            retry_after,
         ));
     };
     if matches!(mode, CollectionMode::Test) {
@@ -236,7 +258,12 @@ pub async fn collect_core<T: Transport>(
     Ok(if committed {
         CollectionOutcome::CacheCommitted { connection_id }
     } else {
-        CollectionOutcome::failed(&connection_id, CollectorFailure::Cache, Some(status))
+        CollectionOutcome::failed(
+            &connection_id,
+            CollectorFailure::Cache,
+            Some(status),
+            retry_after,
+        )
     })
 }
 
@@ -312,6 +339,7 @@ mod tests {
                 connection_id: "test-id".to_string(),
                 reason: CollectorFailure::Drift,
                 status: Some(200),
+                retry_after_seconds: None,
             },
         ];
         for outcome in outcomes {
@@ -356,5 +384,37 @@ mod tests {
         assert!(cache.contains("OPENCODE"));
         assert!(cache.contains("PRIMARY"));
         assert!(cache.contains("92.0"));
+    }
+
+    #[tokio::test]
+    async fn saved_connections_carry_429_and_503_retry_after() {
+        for status in [429, 503] {
+            let dir = TempDir::new();
+            let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+            let secrets = InMemorySecrets::new();
+            let record = connect_core(
+                &connections,
+                &secrets,
+                ConnectProviderInput {
+                    provider_id: ProviderId::Openrouter,
+                    credential_kind: CredentialKind::OpenrouterManagementKey,
+                    account_alias: "retry fixture".to_string(),
+                    secret: FIXTURE_SECRET.to_string(),
+                },
+            )
+            .expect("fixture connection");
+            let outcome = collect_core(
+                &connections,
+                &secrets,
+                &RecordingTransport::replying(status, Vec::new(), Some(7_200)),
+                Arc::new(CacheWriter::at(Some(dir.path().to_path_buf()))),
+                record.id,
+                CollectionMode::Refresh,
+            )
+            .await
+            .expect("fixture collection");
+            assert_eq!(outcome.status(), Some(status));
+            assert_eq!(outcome.retry_after_seconds(), Some(7_200));
+        }
     }
 }

@@ -1,6 +1,6 @@
 use std::fmt;
 use std::future::Future;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
@@ -757,6 +757,12 @@ async fn fetch_through_workspace<T: Transport>(
         .await
         .map_err(NetError::from)?;
     let Some(workspace) = found.location_workspace.clone() else {
+        /* Login HTML and redirects without a workspace mean the session is
+        dead. A real HTTP failure must keep its own status and Retry-After so
+        the shared request policy can back off instead of inventing a 401. */
+        if !(200..=399).contains(&found.status) {
+            return outcome_of(found);
+        }
         return Ok(EndpointOutcome {
             status: OPENCODE_SESSION_DEAD_STATUS,
             body: None,
@@ -868,16 +874,25 @@ fn is_tls(error: &reqwest::Error) -> bool {
     false
 }
 
-/// Parse a Retry-After header value that is a plain count of seconds. The
-/// HTTP date form is rare on rate limit responses and is ignored rather than
-/// interpreted; the header text itself goes no further than this function.
+/// Parse either Retry-After wire form without letting header text escape.
 fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    parse_retry_after_at(headers, SystemTime::now())
+}
+
+fn parse_retry_after_at(headers: &reqwest::header::HeaderMap, now: SystemTime) -> Option<u64> {
     let value = headers.get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
     let trimmed = value.trim();
-    if trimmed.is_empty() || !trimmed.bytes().all(|byte| byte.is_ascii_digit()) {
+    if trimmed.is_empty() {
         return None;
     }
-    trimmed.parse::<u64>().ok()
+    if trimmed.bytes().all(|byte| byte.is_ascii_digit()) {
+        return trimmed.parse::<u64>().ok();
+    }
+    let deadline = httpdate::parse_http_date(trimmed).ok()?;
+    match deadline.duration_since(now) {
+        Ok(delay) => Some(delay.as_secs() + u64::from(delay.subsec_nanos() > 0)),
+        Err(_) => Some(0),
+    }
 }
 
 /// The workspace a response's `Location` header names, if it names one.
@@ -1584,6 +1599,30 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn opencode_discovery_keeps_rate_limit_and_service_backoff() {
+        for status in [429, 503] {
+            let transport =
+                RecordingTransport::replying(status, Vec::new(), Some(120)).without_workspace();
+            let outcome = fetch_endpoint(
+                &transport,
+                ProviderEndpoint::OpencodeUsage,
+                auth_for(ProviderEndpoint::OpencodeUsage),
+                "fake",
+                None,
+            )
+            .await
+            .expect("fetch");
+            assert_eq!(outcome.status, status);
+            assert_eq!(outcome.body, None);
+            assert_eq!(outcome.retry_after_seconds, Some(120));
+            assert_eq!(
+                transport.recorded_urls(),
+                vec![OPENCODE_AUTH_URL.to_string()]
+            );
+        }
+    }
+
     /* -------------------------------------------------------- the outcome */
 
     #[tokio::test]
@@ -1733,19 +1772,22 @@ mod tests {
     }
 
     #[test]
-    fn retry_after_parses_only_plain_seconds() {
+    fn retry_after_parses_seconds_http_date_missing_and_malformed() {
         let mut headers = reqwest::header::HeaderMap::new();
+        let now = std::time::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
         headers.insert(reqwest::header::RETRY_AFTER, "120".parse().unwrap());
-        assert_eq!(parse_retry_after(&headers), Some(120));
-        headers.insert(
-            reqwest::header::RETRY_AFTER,
-            "Wed, 21 Oct 2026 07:28:00 GMT".parse().unwrap(),
-        );
-        assert_eq!(parse_retry_after(&headers), None);
+        assert_eq!(parse_retry_after_at(&headers, now), Some(120));
+        let deadline = httpdate::fmt_http_date(now + Duration::from_secs(180));
+        headers.insert(reqwest::header::RETRY_AFTER, deadline.parse().unwrap());
+        assert_eq!(parse_retry_after_at(&headers, now), Some(180));
         headers.insert(reqwest::header::RETRY_AFTER, " 15 ".parse().unwrap());
-        assert_eq!(parse_retry_after(&headers), Some(15));
-        headers.insert(reqwest::header::RETRY_AFTER, "".parse().unwrap());
-        assert_eq!(parse_retry_after(&headers), None);
+        assert_eq!(parse_retry_after_at(&headers, now), Some(15));
+        headers.insert(reqwest::header::RETRY_AFTER, "later".parse().unwrap());
+        assert_eq!(parse_retry_after_at(&headers, now), None);
+        assert_eq!(
+            parse_retry_after_at(&reqwest::header::HeaderMap::new(), now),
+            None
+        );
     }
 
     #[test]
