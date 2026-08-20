@@ -32,13 +32,21 @@ const MIN_GRACE_SECONDS: i64 = 7 * 24 * 60 * 60;
 const MAX_GRACE_SECONDS: i64 = 14 * 24 * 60 * 60;
 const NETWORK_TIMEOUT_SECONDS: u64 = 15;
 const MAX_CONSECUTIVE_REFRESH_FAILURES: u16 = 360;
+/* The production verifier key is public by design. Keeping the first key in
+the binary makes offline entitlement checks work in an ordinary release
+build, while OPENLIMITER_PRO_PUBLIC_KEYS remains an explicit build time
+rotation mechanism. */
+const EMBEDDED_PRO_PUBLIC_KEYS: &str = "primary:vd23tzc92JlUML1MG9zc84dEbsQDCx7eHODpFMCoCeQ";
 
 fn configured_service_url() -> &'static str {
     option_env!("OPENLIMITER_PRO_URL").unwrap_or("")
 }
 
 fn configured_public_keys() -> &'static str {
-    option_env!("OPENLIMITER_PRO_PUBLIC_KEYS").unwrap_or("")
+    match option_env!("OPENLIMITER_PRO_PUBLIC_KEYS") {
+        Some(configured) if !configured.is_empty() => configured,
+        _ => EMBEDDED_PRO_PUBLIC_KEYS,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -316,8 +324,7 @@ fn save_trust(store: &dyn SecretStore, trust: &TrustState) -> Result<(), ProFail
         .map_err(ProFailure::from)
 }
 
-fn key_set() -> Result<HashMap<String, VerifyingKey>, ProFailure> {
-    let configured = configured_public_keys();
+fn parse_key_set(configured: &str) -> Result<HashMap<String, VerifyingKey>, ProFailure> {
     if configured.is_empty() {
         return Err(ProFailure::Unconfigured);
     }
@@ -347,6 +354,10 @@ fn key_set() -> Result<HashMap<String, VerifyingKey>, ProFailure> {
         return Err(ProFailure::Unconfigured);
     }
     Ok(keys)
+}
+
+fn key_set() -> Result<HashMap<String, VerifyingKey>, ProFailure> {
+    parse_key_set(configured_public_keys())
 }
 
 fn decode_segment(segment: &str, maximum: usize) -> Result<Vec<u8>, ProFailure> {
@@ -1241,7 +1252,17 @@ mod tests {
     }
 
     #[test]
-    fn ed25519_verifier_accepts_the_published_empty_message_vector() {
+    fn production_entitlement_key_is_embedded_in_the_verifier_path() {
+        let keys = parse_key_set(EMBEDDED_PRO_PUBLIC_KEYS).expect("embedded production key");
+        let key = keys.get("primary").expect("primary production key");
+        assert_eq!(
+            URL_SAFE_NO_PAD.encode(key.to_bytes()),
+            "vd23tzc92JlUML1MG9zc84dEbsQDCx7eHODpFMCoCeQ"
+        );
+    }
+
+    #[test]
+    fn ed25519_verifier_accepts_a_matching_fixture_and_rejects_tampering() {
         let public: [u8; 32] =
             decode_hex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a")
                 .try_into()
@@ -1253,6 +1274,7 @@ mod tests {
             Signature::from_slice(&decode_hex(&signature_text)).expect("signature length");
         let key = VerifyingKey::from_bytes(&public).expect("public key");
         assert!(key.verify(b"", &signature).is_ok());
+        assert!(key.verify(b"tampered", &signature).is_err());
     }
 
     #[test]
