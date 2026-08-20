@@ -34,7 +34,7 @@ Pro costs $5 per month or $50 per year. The first 30 days are free and require n
 
 When the trial or subscription ends, only hosted access ends. Local mode remains unchanged.
 
-Checkout redirects never grant access. A signed Stripe event must prove settled payment or an `active` or `trialing` subscription before the server activates Pro. A `past_due` subscription keeps hosted access for three days from its first signed transition, and repeated events cannot extend that deadline. `unpaid`, `canceled`, and `incomplete_expired` subscriptions are denied at the next refresh. A Stripe subscription trial that ends without payment also stops refreshing.
+Checkout redirects never grant access. A signed Stripe event must prove settled payment or an `active` or `trialing` subscription before the server activates paid Pro. A `past_due` subscription keeps hosted access for three days from its first signed transition, and repeated events cannot extend that deadline. `unpaid`, `canceled`, and `incomplete_expired` subscriptions lose paid access at the next refresh. A still active, nonrepeatable account trial remains available after cancellation. An expired trial cannot refresh.
 
 ## Entitlement behavior
 
