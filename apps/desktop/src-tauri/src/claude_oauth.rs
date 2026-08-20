@@ -568,6 +568,66 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_provider_block_falls_back_visibly_and_pauses_for_one_day() {
+        let dir = TempDir::new();
+        let runtime = ClaudeOauthRuntime::default();
+        let seed_transport = RecordingTransport::replying(200, valid_body(), None);
+        let seeded = collect_with_secret(
+            &runtime,
+            &seed_transport,
+            writer(&dir),
+            ACCOUNT,
+            &secret("seed"),
+            NOW,
+        )
+        .await;
+        assert!(matches!(seeded, ClaudeOauthOutcome::CacheCommitted { .. }));
+
+        let transport = RecordingTransport::replying(403, Vec::new(), None);
+        let credential = secret("provider-blocked");
+        let first = collect_with_secret(
+            &runtime,
+            &transport,
+            writer(&dir),
+            ACCOUNT,
+            &credential,
+            NOW,
+        )
+        .await;
+        let ClaudeOauthOutcome::Fallback {
+            reason,
+            fallback,
+            retry_at: Some(retry_at),
+            message,
+            ..
+        } = first
+        else {
+            panic!("provider block fallback");
+        };
+        assert_eq!(reason, ClaudeOauthFailure::ProviderBlocked);
+        assert_eq!(fallback, ClaudeFallback::Statusline);
+        assert_eq!(retry_at, iso_from_epoch_ms(NOW + 86_400_000).unwrap());
+        assert!(message.contains("Statusline and manual entry remain available."));
+
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        assert!(!cache.contains("FIVE_HOUR"));
+        assert!(!cache.contains("SEVEN_DAY"));
+        assert!(!cache.contains(ACCOUNT));
+
+        let second = collect_with_secret(
+            &runtime,
+            &transport,
+            writer(&dir),
+            ACCOUNT,
+            &credential,
+            NOW + 3_600_000,
+        )
+        .await;
+        assert!(matches!(second, ClaudeOauthOutcome::Cached { .. }));
+        assert_eq!(transport.recorded_urls().len(), 1);
+    }
+
+    #[tokio::test]
     async fn an_unexpected_success_shape_writes_a_visible_unknown_suppression() {
         let dir = TempDir::new();
         let runtime = ClaudeOauthRuntime::default();
