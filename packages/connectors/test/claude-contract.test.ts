@@ -33,7 +33,7 @@ import {
 
 type Parser = (payload: unknown, now: string) => RawMeter[] | null;
 
-const parsers: Record<ConnectorId, Parser> = {
+const parsers: Partial<Record<ConnectorId, Parser>> = {
   claude: parseClaudePayload,
   openrouter: parseOpenrouterPayload,
   codex: parseCodexPayload,
@@ -41,6 +41,14 @@ const parsers: Record<ConnectorId, Parser> = {
   opencode: parseOpencodePayload,
   manual: parseManualPayload
 };
+
+function fixtureParser(connector: ConnectorId): Parser {
+  const parser = parsers[connector];
+  if (parser === undefined) {
+    throw new Error("the fixture names a provider with no generic parser");
+  }
+  return parser;
+}
 
 /** Whole seconds at FIXTURE_NOW, so expected epochs are written out in full. */
 const NOW_EPOCH = 1_767_225_600;
@@ -393,7 +401,7 @@ describe("sanitized live fixtures", () => {
   for (const fixture of sanitizedLiveFixtures) {
     if (fixture.status === "captured") {
       it(fixture.id + " [captured]", () => {
-        const parsed = parsers[fixture.connector](
+        const parsed = fixtureParser(fixture.connector)(
           fixture.build(FIXTURE_NOW),
           FIXTURE_NOW
         );
@@ -431,7 +439,10 @@ describe("sanitized live fixtures", () => {
 describe("fixture classes", () => {
   for (const fixture of documentedFixtures) {
     it("documented " + fixture.id + " parses to its stated meter count", () => {
-      const parsed = parsers[fixture.connector](fixture.build(FIXTURE_NOW), FIXTURE_NOW);
+      const parsed = fixtureParser(fixture.connector)(
+        fixture.build(FIXTURE_NOW),
+        FIXTURE_NOW
+      );
       expect(meterCount(parsed)).toBe(fixture.expectedMeters);
       expect(normalizeMeters(parsed ?? [])).toHaveLength(fixture.expectedMeters);
     });
@@ -439,7 +450,10 @@ describe("fixture classes", () => {
 
   for (const fixture of malformedFixtures) {
     it("malformed " + fixture.id + " yields its stated meter count", () => {
-      const parsed = parsers[fixture.connector](fixture.build(FIXTURE_NOW), FIXTURE_NOW);
+      const parsed = fixtureParser(fixture.connector)(
+        fixture.build(FIXTURE_NOW),
+        FIXTURE_NOW
+      );
       expect(meterCount(parsed)).toBe(fixture.expectedMeters);
       expect(normalizeMeters(parsed ?? [])).toHaveLength(fixture.expectedMeters);
     });
