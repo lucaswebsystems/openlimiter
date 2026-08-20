@@ -1,8 +1,8 @@
 {
   "name": "@openlimiter/desktop",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "private": true,
-  "description": "OpenLimiter in a window and beside the clock, on Windows, macOS and Linux.",
+  "description": "OpenLimiter in a window and beside the clock, on Windows and Linux.",
   "license": "Apache-2.0",
   "author": "Lucas Costa (https://lucaswebsystems.com)",
   "homepage": "https://openlimiter.com",
@@ -13,7 +13,7 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=20.9.0"
+    "node": "24.15.0"
   },
   "scripts": {
     "icons": "node scripts/icons.mjs",

@@ -26,16 +26,15 @@ corepack pnpm version
 
 The workflow uses a hosted runner and short lived OIDC credentials. It does not need a permanent npm token. It checks the complete suite, inspects the archive, rejects an existing version and publishes the dependency packages before the CLI.
 
-## Desktop updater
+## Desktop artifacts
 
-1. Generate a dedicated Tauri update signing key pair and keep the private key outside the repository.
-2. Store the public key as `TAURI_UPDATER_PUBLIC_KEY`.
-3. Store the private key as `TAURI_SIGNING_PRIVATE_KEY` and its optional password as `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-4. Run the desktop release workflow for the intended tag.
-5. Inspect the draft release, including `latest.json`, every update signature, both macOS architectures, both Windows installers, AppImage, deb and rpm.
-6. Publish the draft only after Lucas approves it.
+1. Run the desktop release workflow for the intended tag.
+2. Inspect the draft release, including both unsigned Windows installers, AppImage, deb and rpm.
+3. Confirm that no macOS artifact is attached. macOS remains coming soon until signing and notarisation are available.
+4. Confirm that Windows reports the installers as unsigned and that the documented SmartScreen path says `More info`, then `Run anyway`.
+5. Publish the draft only after Lucas approves it.
 
-The update signature is mandatory and separate from operating system code signing. Until Windows and macOS certificates are configured, SmartScreen warns and Gatekeeper blocks the first launch exactly as the downloads page explains.
+Version 1.0 does not enable automatic updates. Updater metadata and signatures begin with a later release that has a dedicated update signing key. Operating system signing is separate: Windows 1.0 is intentionally unsigned, while no unsigned macOS build is distributed.
 
 ## Public site
 

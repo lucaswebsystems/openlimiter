@@ -1,6 +1,6 @@
 {
   "name": "@openlimiter/core",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "description": "Shared types, quota models, cache handling, and forecasts for OpenLimiter.",
   "type": "module",
   "main": "./dist/index.js",

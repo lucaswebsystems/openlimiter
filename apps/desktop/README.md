@@ -4,17 +4,20 @@ A window and a tray icon around the engine that already exists. It reads the
 same snapshot cache the command line tool writes, applies the same rules, and
 puts the provider under the most pressure next to your clock.
 
-Local first, like everything else here. It reads two files and it writes none.
-It never touches a credential store, never rewrites a provider's own files, and
-opens no network connection at all.
+Local first, like everything else here. It reads provider sessions already on
+this machine, stores OpenLimiter connection state locally, and contacts only a
+provider that the user connected. It never rewrites a provider's own files and
+sends no telemetry to OpenLimiter.
+
+The packaged 1.0 release targets Windows and Linux. macOS remains coming soon,
+with no unsigned public binary because Gatekeeper blocks it.
 
 ## What it does
 
 - A window showing every provider, its usage, its freshness state, and its
   reset instant, plus the exact block a coding agent would be handed.
-- A tray icon beside the clock on Windows, in the menu bar on macOS, and in the
-  tray on Linux. Its tooltip carries the provider under the most pressure, and
-  on macOS its title carries that percentage as text.
+- A tray icon beside the clock on Windows and in the tray on Linux. Its tooltip
+  carries the provider under the most pressure.
 - A tray menu with **Open**, **Refresh** and **Quit**.
 - Closing the window hides it rather than quitting, so the tray keeps reading.
   Quit is on the tray menu, and it means quit.
@@ -73,17 +76,13 @@ geometry the website and the favicon use, with no image library involved. It
 writes the four PNGs Tauri bundles, three small tray sizes, and a multi size
 `icon.ico` for Windows.
 
-It does not write `icon.icns`, which macOS bundling wants and which needs macOS
-tooling. On a Mac, one command covers it:
-
-```bash
-pnpm tauri icon src-tauri/icons/icon.png
-```
+It does not write `icon.icns`. The launch workflow deliberately produces no
+macOS artifact while signing and notarisation remain unavailable.
 
 ## What it deliberately does not do
 
 - No telemetry, no analytics, no crash reporting, no update ping.
-- No writing to the state directory. The command line tool owns that file.
-- No network. There is no HTTP client in the dependency list.
-- No plugin beyond the Tauri core: no file system plugin, no shell, no
-  clipboard. The capability file in `src-tauri/capabilities` says so exactly.
+- No provider file rewrites and no export of provider credentials.
+- No OpenLimiter telemetry or central usage service.
+- No file system, shell, or clipboard capability exposed to the webview. The
+  capability file in `src-tauri/capabilities` says so exactly.
