@@ -236,6 +236,61 @@ pub async fn collect_core<T: Transport>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+
+    use crate::cache_write::CACHE_FILE_NAME;
+    use crate::commands::{connect_core, ConnectProviderInput};
+    use crate::connections::ConnectionsStore;
+    use crate::reader_registry::{CredentialKind, ProviderId};
+    use crate::test_support::{InMemorySecrets, RecordingTransport, TempDir};
+
+    const FIXTURE_SECRET: &str = "fixture-credential-never-cache";
+
+    async fn collect_fixture(
+        provider_id: ProviderId,
+        credential_kind: CredentialKind,
+        response: &[u8],
+    ) -> (Vec<String>, Vec<String>, String) {
+        let dir = TempDir::new();
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = InMemorySecrets::new();
+        let record = connect_core(
+            &connections,
+            &secrets,
+            ConnectProviderInput {
+                provider_id,
+                credential_kind,
+                account_alias: "fixture account".to_string(),
+                secret: FIXTURE_SECRET.to_string(),
+            },
+        )
+        .expect("fixture connection");
+        let transport = RecordingTransport::replying(200, response.to_vec(), None);
+        let writer = Arc::new(CacheWriter::at(Some(dir.path().to_path_buf())));
+        let outcome = collect_core(
+            &connections,
+            &secrets,
+            &transport,
+            writer,
+            record.id.clone(),
+            CollectionMode::Refresh,
+        )
+        .await
+        .expect("fixture collection");
+        assert_eq!(
+            outcome,
+            CollectionOutcome::CacheCommitted {
+                connection_id: record.id
+            }
+        );
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("fixture cache");
+        assert!(!cache.contains(FIXTURE_SECRET));
+        (
+            transport.recorded_urls(),
+            transport.recorded_secrets(),
+            cache,
+        )
+    }
 
     #[test]
     fn collection_outcomes_never_serialize_provider_bodies() {
@@ -258,5 +313,41 @@ mod tests {
             assert!(!wire.contains("payload"));
             assert!(!wire.contains("SECRET-MARKER"));
         }
+    }
+
+    #[tokio::test]
+    async fn openrouter_fixture_covers_key_request_parse_and_cache() {
+        let (urls, secrets, cache) = collect_fixture(
+            ProviderId::Openrouter,
+            CredentialKind::OpenrouterManagementKey,
+            include_bytes!("../../../../packages/connectors/fixtures/openrouter.credits.json"),
+        )
+        .await;
+        assert_eq!(urls, vec![crate::net::OPENROUTER_CREDITS_URL]);
+        assert_eq!(secrets, vec![FIXTURE_SECRET]);
+        assert!(cache.contains("OPENROUTER"));
+        assert!(cache.contains("CREDITS"));
+        assert!(cache.contains("12.47"));
+    }
+
+    #[tokio::test]
+    async fn opencode_fixture_covers_cookie_two_hops_parse_and_cache() {
+        let (urls, secrets, cache) = collect_fixture(
+            ProviderId::Opencode,
+            CredentialKind::OpencodeBrowserSession,
+            include_bytes!("../../../../packages/connectors/fixtures/opencode.workspace.html"),
+        )
+        .await;
+        assert_eq!(
+            urls,
+            vec![
+                crate::net::OPENCODE_AUTH_URL.to_string(),
+                "https://opencode.ai/workspace/wrk_testworkspace/go".to_string()
+            ]
+        );
+        assert_eq!(secrets, vec![FIXTURE_SECRET, FIXTURE_SECRET]);
+        assert!(cache.contains("OPENCODE"));
+        assert!(cache.contains("PRIMARY"));
+        assert!(cache.contains("92.0"));
     }
 }
