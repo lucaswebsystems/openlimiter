@@ -447,6 +447,7 @@
     },
     "pro": {
       "status": "verfügbar",
+      "comingSoonStatus": "demnächst",
       "perMonth": "pro Monat",
       "or": "oder",
       "perYear": "pro Jahr",
@@ -459,7 +460,8 @@
         "history": "Neunzig Tage Nutzungsverlauf mit Verbrauchsprognosen",
         "routing": "Aktueller Budgetkontext berät deinen Coding Agent bei der Planauswahl"
       },
-      "cta": "30 Tage kostenlos starten"
+      "cta": "30 Tage kostenlos starten",
+      "comingSoonCta": "Pro kommt demnächst"
     },
     "roadmapCta": "Was tatsächlich geplant ist",
     "sourceCta": "Quellcode lesen"
@@ -1422,7 +1424,8 @@
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Melde dich für einmalig 30 kostenlose Tage an. Danach wählst du $5 pro Monat oder $50 pro Jahr. Lokale Funktionen benötigen dieses Konto nie.",
-    "configMissing": "Pro Checkout ist in diesem Build noch nicht konfiguriert.",
+    "comingSoonLead": "OpenLimiter Pro kommt demnächst. Das vollständige lokale Produkt bleibt kostenlos und braucht kein Konto.",
+    "configMissing": "Pro kommt demnächst. Checkout bleibt deaktiviert, bis die produktiven Zahlungs- und Berechtigungsschlüssel bereit sind.",
     "emailLabel": "E Mail",
     "emailPlaceholder": "du@example.com",
     "sendLink": "Anmeldelink senden",

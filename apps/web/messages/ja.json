@@ -447,6 +447,7 @@
     },
     "pro": {
       "status": "利用可能",
+      "comingSoonStatus": "近日公開",
       "perMonth": "月額",
       "or": "または",
       "perYear": "年額",
@@ -459,7 +460,8 @@
         "history": "90日間の使用履歴と消費予測",
         "routing": "空きのあるプランをエージェントへ助言する予算コンテキスト"
       },
-      "cta": "30日間の無料期間を開始"
+      "cta": "30日間の無料期間を開始",
+      "comingSoonCta": "Proは近日公開"
     },
     "roadmapCta": "実際に計画されていること",
     "sourceCta": "ソースを読む"
@@ -1422,7 +1424,8 @@
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "ログインすると一度だけ30日間の無料期間が始まります。その後は月額$5または年額$50です。ローカル機能にこのアカウントは不要です。",
-    "configMissing": "このビルドではPro checkoutがまだ設定されていません。",
+    "comingSoonLead": "OpenLimiter Proは近日公開予定です。ローカル製品の全機能は無料のままで、アカウントも必要ありません。",
+    "configMissing": "Proは近日公開予定です。本番用の決済キーと権限署名キーが準備できるまで、checkoutは無効です。",
     "emailLabel": "メール",
     "emailPlaceholder": "you@example.com",
     "sendLink": "ログインリンクを送る",

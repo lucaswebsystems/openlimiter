@@ -3,10 +3,10 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { proConfigurationReady, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/pro";
+import { proRailsEnabled, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/pro";
 
 function client(): SupabaseClient | null {
-  if (!proConfigurationReady) return null;
+  if (!proRailsEnabled) return null;
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });

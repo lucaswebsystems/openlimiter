@@ -447,6 +447,7 @@
     },
     "pro": {
       "status": "disponível",
+      "comingSoonStatus": "em breve",
       "perMonth": "por mês",
       "or": "ou",
       "perYear": "por ano",
@@ -459,7 +460,8 @@
         "history": "Noventa dias de histórico com previsões de consumo",
         "routing": "Contexto de orçamento que orienta o agente para o plano com espaço"
       },
-      "cta": "Começar 30 dias gratuitos"
+      "cta": "Começar 30 dias gratuitos",
+      "comingSoonCta": "Pro em breve"
     },
     "roadmapCta": "O que está realmente planejado",
     "sourceCta": "Ler o código fonte"
@@ -1422,7 +1424,8 @@
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Entre para iniciar um único período de 30 dias, depois escolha $5 por mês ou $50 por ano. Recursos locais nunca exigem esta conta.",
-    "configMissing": "O checkout do Pro ainda não está configurado nesta build.",
+    "comingSoonLead": "O OpenLimiter Pro chega em breve. O produto local completo continua grátis e não exige conta.",
+    "configMissing": "O Pro chega em breve. O checkout fica desativado até as chaves de pagamento e permissão de produção estarem prontas.",
     "emailLabel": "Email",
     "emailPlaceholder": "voce@example.com",
     "sendLink": "Enviar link de acesso",

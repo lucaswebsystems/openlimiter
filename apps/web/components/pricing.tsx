@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { ButtonLink, Chip, SectionHeading } from "./ui";
 import { reveal, revealGroup } from "@/lib/motion";
+import { proRailsEnabled } from "@/lib/pro";
 import { LICENSE_URL, PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE, REPO_URL } from "@/lib/site";
 
 function CheckGlyph() {
@@ -179,8 +180,8 @@ export async function Pricing() {
 
         <PlanCard
           title="OpenLimiter Pro"
-          status={t("pro.status")}
-          statusTone="accent"
+          status={t(proRailsEnabled ? "pro.status" : "pro.comingSoonStatus")}
+          statusTone={proRailsEnabled ? "accent" : "neutral"}
           price={
             <>
               <p className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
@@ -202,9 +203,13 @@ export async function Pricing() {
           footnote={
             <div className="space-y-4">
               <p>{t("pro.footnote")}</p>
-              <ButtonLink href="/pro" tone="primary">
-                {t("pro.cta")}
-              </ButtonLink>
+              {proRailsEnabled ? (
+                <ButtonLink href="/pro" tone="primary">
+                  {t("pro.cta")}
+                </ButtonLink>
+              ) : (
+                <Chip tone="neutral">{t("pro.comingSoonCta")}</Chip>
+              )}
             </div>
           }
         >
