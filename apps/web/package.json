@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "node scripts/next.mjs dev",
     "check:i18n": "node scripts/check-i18n.mjs",
-    "build": "node scripts/check-i18n.mjs && node scripts/pull-changelog.mjs && node scripts/next.mjs build",
+    "check:pricing": "node scripts/check-pro-pricing.mjs",
+    "build": "node scripts/check-i18n.mjs && node scripts/check-pro-pricing.mjs && node scripts/pull-changelog.mjs && node scripts/next.mjs build",
     "start": "node scripts/next.mjs start",
     "lint": "eslint app components i18n lib middleware.ts --max-warnings=0"
   },

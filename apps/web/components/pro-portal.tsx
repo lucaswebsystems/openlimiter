@@ -4,6 +4,14 @@ import { createClient, type Session, type SupabaseClient } from "@supabase/supab
 import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { proRailsEnabled, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/pro";
+import PRO_PRICING from "@/lib/pro-pricing.json";
+
+type ProBillingInterval = "month" | "year";
+
+function billingInterval(value: string): ProBillingInterval {
+  if (value === "month" || value === "year") return value;
+  throw new Error("invalid Pro pricing contract");
+}
 
 function client(): SupabaseClient | null {
   if (!proRailsEnabled) return null;
@@ -56,7 +64,7 @@ export function ProPortal() {
     setMessage(error === null ? t("linkSent") : t("error"));
   }
 
-  async function checkout(interval: "month" | "year") {
+  async function checkout(interval: ProBillingInterval) {
     if (supabase === null) return;
     setBusy(true);
     setMessage("");
@@ -128,7 +136,7 @@ export function ProPortal() {
         <button
           type="button"
           disabled={busy}
-          onClick={() => void checkout("month")}
+          onClick={() => void checkout(billingInterval(PRO_PRICING.monthly.interval))}
           className="focus-ring rounded-lg bg-solid px-4 py-3 text-sm font-medium text-on-solid disabled:opacity-60"
         >
           {t("checkoutMonthly")}
@@ -136,7 +144,7 @@ export function ProPortal() {
         <button
           type="button"
           disabled={busy}
-          onClick={() => void checkout("year")}
+          onClick={() => void checkout(billingInterval(PRO_PRICING.yearly.interval))}
           className="focus-ring rounded-lg border border-hairline-strong px-4 py-3 text-sm font-medium text-heading disabled:opacity-60"
         >
           {t("checkoutYearly")}

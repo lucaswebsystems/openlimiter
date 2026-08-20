@@ -1,0 +1,13 @@
+{
+  "entitlementProduct": "openlimiter_pro",
+  "monthly": {
+    "interval": "month",
+    "priceId": "price_1U6O7uJoit5X1fsg9no5Oza0",
+    "amountUsd": 5
+  },
+  "yearly": {
+    "interval": "year",
+    "priceId": "price_1U6O8sJoit5X1fsgf1IfJ6Sk",
+    "amountUsd": 50
+  }
+}
