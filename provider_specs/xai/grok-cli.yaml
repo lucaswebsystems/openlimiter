@@ -1,0 +1,79 @@
+provider_id: xai
+product_id: grok-cli
+display_name: Grok
+
+source:
+  docs_url: https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs
+  reviewed_at: "2026-08-19"
+  source_status: provisional
+
+availability:
+  requires_plan: any
+  appears_after: local_cli_login
+  absence_is_error: false
+
+support:
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: grok_usage
+      endpoint_id: grok_usage
+      credential_kind: grok_session
+      evidence_fixture: grok.official_source.billing
+      evidence_status: documented
+      last_verified_at: "2026-08-19"
+
+connections:
+  - reader: experimental
+    auth_mode: existing_local_cli
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: unverified
+  last_verified_at: null
+  fixture_ids:
+    - grok.official_source.billing
+    - grok.live.pending
+
+honesty:
+  connector_id: grok
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
+
+meters:
+  - id: current_period
+    label: Current billing period
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: provider_defined
+    source_format: json_path
+    source_path: config.creditUsagePercent
+    reset_path: config.currentPeriod.end
+    reset_encoding: rfc3339
+    optional: false
+    meter_code: WEEKLY
+  - id: on_demand_monthly
+    label: On demand monthly cap
+    kind: api_budget
+    unit: percent_used
+    scope: account
+    window:
+      kind: calendar_month
+    source_format: json_path
+    source_path: config.onDemandUsed.val
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: ON_DEMAND_MONTHLY
