@@ -40,12 +40,13 @@ describe("failure vocabulary", () => {
     const failures: ProviderFailure[] = [
       { provider: "OPENROUTER", category: "PAYLOAD_UNREADABLE" },
       { provider: "OPENROUTER", category: "VALIDATION_REJECTED" },
+      { provider: "OPENROUTER", category: "PROVIDER_DRIFT" },
       { provider: "CLAUDE", category: "NOT_CONFIGURED" }
     ];
     const deduped = dedupeFailures(failures);
     expect(deduped).toHaveLength(2);
     expect(deduped.find((entry) => entry.provider === "OPENROUTER")?.category).toBe(
-      "VALIDATION_REJECTED"
+      "PROVIDER_DRIFT"
     );
     expect(deduped.find((entry) => entry.provider === "CLAUDE")?.category).toBe(
       "NOT_CONFIGURED"

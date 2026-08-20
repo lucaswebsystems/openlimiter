@@ -30,6 +30,8 @@ import {
   freshness,
   mergeSnapshots,
   normalizeMetersReport,
+  readSuppressions,
+  visibleSnapshots,
 } from "./engine/core/index.js";
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
@@ -789,9 +791,24 @@ async function collect(now) {
   let fromCache = [];
   if (cached !== null && Array.isArray(cached.snapshots)) {
     const report = normalizeMetersReport(cached.snapshots);
-    fromCache = report.snapshots;
     for (const provider of report.rejected) {
       failures.push({ provider, category: "VALIDATION_REJECTED" });
+    }
+    const suppressionRead = readSuppressions(cached.suppressions);
+    if (suppressionRead.ok) {
+      fromCache = visibleSnapshots({
+        snapshots: report.snapshots,
+        suppressions: suppressionRead.suppressions,
+      });
+      for (const suppression of suppressionRead.suppressions) {
+        failures.push({ provider: suppression.provider, category: "PROVIDER_DRIFT" });
+      }
+    } else {
+      /* An unreadable suppression list cannot prove any cached row is still
+         trustworthy. Keep every named provider visible as unknown. */
+      for (const provider of new Set(report.snapshots.map((row) => row.provider))) {
+        failures.push({ provider, category: "PROVIDER_DRIFT" });
+      }
     }
   }
 
