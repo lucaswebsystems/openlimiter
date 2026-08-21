@@ -2,6 +2,20 @@
 
 import { useEffect } from "react";
 
+function buildKey(): string {
+  const assets = Array.from(document.scripts)
+    .map((script) => script.src)
+    .filter((source) => source.includes("/_next/static/"))
+    .sort()
+    .join("|");
+  let hash = 2_166_136_261;
+  for (let index = 0; index < assets.length; index += 1) {
+    hash ^= assets.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 /**
  * Register the application shell's service worker, and only here.
  *
@@ -18,9 +32,23 @@ export function RegisterServiceWorker() {
        works without one, it simply will not open offline. */
     if (!window.isSecureContext) return;
     const register = (): void => {
-      navigator.serviceWorker.register("/sw.js", { scope: "/app" }).catch(() => {
-        /* A refused registration costs the offline copy and nothing else. */
-      });
+      const hadController = navigator.serviceWorker.controller !== null;
+      let reloading = false;
+      const update = (): void => {
+        if (!hadController || reloading) return;
+        reloading = true;
+        window.location.reload();
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", update, { once: true });
+      navigator.serviceWorker
+        .register(`/sw.js?build=${buildKey()}`, {
+          scope: "/app",
+          updateViaCache: "none",
+        })
+        .then((registration) => registration.update())
+        .catch(() => {
+          navigator.serviceWorker.removeEventListener("controllerchange", update);
+        });
     };
     if (document.readyState === "complete") {
       register();

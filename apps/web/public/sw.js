@@ -29,8 +29,9 @@
  * responses this origin already sent.
  */
 
-/* Bump this string on any change to the shell or to this file. */
-const VERSION = "openlimiter-app-v3";
+/* The registering page hashes its Next assets into this query value. */
+const BUILD = new URL(self.location.href).searchParams.get("build") || "bootstrap-v4";
+const VERSION = "openlimiter-app-" + BUILD.replace(/[^a-z0-9]/giu, "").slice(0, 24);
 
 /* The one path this worker is allowed to touch, and its assets. */
 const SHELL = "/app";
