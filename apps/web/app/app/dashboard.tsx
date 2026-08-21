@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  PROVIDER_CODES,
   combine,
   buildProviderAccountRows,
   dashboardView,
@@ -29,6 +30,12 @@ import {
 } from "./pieces";
 import { CLAUDE_STATUSLINE_WIRING } from "./language";
 import { ThemeToggle } from "@/components/theme-toggle";
+import {
+  createSyncClient,
+  readSyncedUsage,
+  type SyncedProviderUsage,
+  type SyncedUsageResult,
+} from "@/lib/synced-usage";
 
 /**
  * The dashboard.
@@ -108,6 +115,37 @@ const BUSY_FLOOR_MILLISECONDS = 240;
 
 /** Set on the document once this component has mounted. Clears the splash. */
 const READY_ATTR = "data-ol-ready";
+
+const SYNC_FRESH_MILLISECONDS = 5 * 60_000;
+
+function snapshotsFromSync(providers: readonly SyncedProviderUsage[]): Snapshot[] {
+  const supported = new Set<string>(PROVIDER_CODES);
+  return providers.flatMap((provider) => {
+    if (!supported.has(provider.provider)) return [];
+    return provider.windows.map((window): Snapshot => ({
+      provider: provider.provider as Snapshot["provider"],
+      meter: window.windowName,
+      value: window.percentage,
+      unit: "PERCENT",
+      window: { kind: "rolling" },
+      resetAt: window.resetAt,
+      source: "documented_api",
+      precision: "exact",
+      observedAt: window.observedAt,
+      expiresAt: new Date(
+        Date.parse(window.observedAt) + SYNC_FRESH_MILLISECONDS,
+      ).toISOString(),
+      accountId: provider.accountLabel,
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "documented-api",
+        automationRisk: "low",
+        verification: "UNVERIFIED",
+      },
+      provenance: { sourceKind: "remote_api", observedVia: "remote_http" },
+    }));
+  });
+}
 
 type Mode = "live" | "demo";
 
@@ -226,10 +264,12 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [tab, setTab] = useState<string>("connections");
+  const [syncedUsage, setSyncedUsage] = useState<SyncedUsageResult | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<ProviderDirectoryRow | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const textArea = useRef<HTMLTextAreaElement | null>(null);
   const busyTimer = useRef<number | null>(null);
+  const syncClient = useMemo(() => createSyncClient(), []);
 
   const demo = mode === "demo";
 
@@ -260,6 +300,26 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       if (busyTimer.current !== null) window.clearTimeout(busyTimer.current);
     };
   }, []);
+
+  const refreshSyncedUsage = useCallback(() => {
+    void readSyncedUsage(syncClient).then((result) => {
+      setSyncedUsage(result);
+      if (result.ok && result.providers.length > 0) setTab("home");
+    });
+  }, [syncClient]);
+
+  useEffect(() => {
+    refreshSyncedUsage();
+    if (syncClient === null) return;
+    const { data } = syncClient.auth.onAuthStateChange(() => {
+      window.setTimeout(refreshSyncedUsage, 0);
+    });
+    window.addEventListener("focus", refreshSyncedUsage);
+    return () => {
+      data.subscription.unsubscribe();
+      window.removeEventListener("focus", refreshSyncedUsage);
+    };
+  }, [refreshSyncedUsage, syncClient]);
 
   /** Show the working state, then clear it no sooner than the floor above. */
   const work = useCallback((run: () => void) => {
@@ -343,10 +403,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         setDemoSnapshots(loadStore(DEMO_KEY));
       } else {
         setLive(loadStore(LIVE_KEY));
+        refreshSyncedUsage();
       }
       setNow(new Date().toISOString());
     });
-  }, [mode, work]);
+  }, [mode, refreshSyncedUsage, work]);
 
   /**
    * Turn demo mode on.
@@ -442,9 +503,15 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     window.setTimeout(() => textArea.current?.focus(), 0);
   }, []);
 
-  /* One store is on screen at a time, and this is where that is decided. */
-  const shown = demo ? demoSnapshots : live;
-  const shownFailures = demo ? NO_FAILURES : failures;
+  const syncedSnapshots = useMemo(
+    () => (syncedUsage?.ok === true ? snapshotsFromSync(syncedUsage.providers) : []),
+    [syncedUsage],
+  );
+  const showingSync = !demo && syncedSnapshots.length > 0;
+
+  /* One trusted source is on screen at a time, and this is where that is decided. */
+  const shown = demo ? demoSnapshots : showingSync ? syncedSnapshots : live;
+  const shownFailures = demo || showingSync ? NO_FAILURES : failures;
 
   /* The rendered shape of every reading. */
   const dash = useMemo(
