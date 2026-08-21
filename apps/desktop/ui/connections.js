@@ -1025,7 +1025,8 @@ function renderCatalogue() {
     }
   }
 
-  const rows = buildProviderDirectory(PROVIDER_SPECS, { states });
+  const rows = buildProviderDirectory(PROVIDER_SPECS, { states })
+    .filter((row) => row.availability === "ready");
   const count = document.querySelector(".provider-count");
   if (count) count.textContent = String(rows.length);
   let group = null;

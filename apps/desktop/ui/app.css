@@ -1968,6 +1968,32 @@ main {
   min-width: 0;
 }
 
+.empty-actions {
+  display: flex;
+  flex: none;
+  gap: var(--ol-space-2);
+}
+
+.empty-action {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--ol-space-3);
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-md);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.empty-action.primary {
+  border-color: var(--ol-accent);
+  background: var(--ol-accent);
+  color: var(--ol-on-accent);
+}
+
 .empty h3 {
   color: var(--ol-heading);
   font-family: var(--ol-font-sans);

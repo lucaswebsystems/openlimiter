@@ -2,10 +2,8 @@
 
 import { createElement, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  PROVIDER_TABLE_HEADER_TAG,
   PROVIDER_ROW_TAG,
   buildProviderDirectory,
-  defineProviderTableHeaderElement,
   defineProviderRowElement,
   setProviderRowData,
   type Advice,
@@ -62,22 +60,12 @@ export function ProviderAccountRow({ row }: { row: ProviderAccountRowView }) {
   });
 }
 
-function ProviderTableHeader() {
-  useEffect(() => {
-    defineProviderTableHeaderElement();
-  }, []);
-
-  return createElement(PROVIDER_TABLE_HEADER_TAG, {
-    suppressHydrationWarning: true,
-  });
-}
-
 export function ProviderRows({ rows }: { rows: readonly ProviderAccountRowView[] }) {
+  const visibleRows = rows.filter((row) => row.windows.length > 0);
   return (
     <div aria-label="Provider usage by account" className="ol-telemetry-table">
-      <ProviderTableHeader />
       <div role="list" className="ol-provider-row-list">
-        {rows.map((row) => (
+        {visibleRows.map((row) => (
           <div role="listitem" key={row.key} className="ol-rise">
             <ProviderAccountRow row={row} />
           </div>
@@ -451,7 +439,6 @@ export function ProviderDirectory({
 }) {
   const rows = buildProviderDirectory(registry, { states: BROWSER_PROVIDER_STATES });
   const ready = rows.filter((row) => row.availability === "ready");
-  const planned = rows.filter((row) => row.availability === "planned");
 
   return (
     <div id="provider-directory" className="ol-provider-directory">
@@ -460,14 +447,6 @@ export function ProviderDirectory({
         label="Available now"
         note="Supported here. Your account is verified only after a live read."
         rows={ready}
-        onConnect={onConnect}
-        onManual={onManual}
-      />
-      <DirectoryGroup
-        availability="planned"
-        label="Roadmap"
-        note="Not built yet. No setup required."
-        rows={planned}
         onConnect={onConnect}
         onManual={onManual}
       />

@@ -33,6 +33,7 @@ export interface ProviderAccountRowView {
   providerLabel: string;
   accountId: string | null;
   accountLabel: string;
+  showAccountLabel: boolean;
   sourceLabel: string | null;
   windows: readonly ProviderWindowView[];
   fallback: {
@@ -348,6 +349,7 @@ export function buildProviderAccountRows(
         providerLabel: PROVIDER_NAMES[provider],
         accountId: null,
         accountLabel: provider === "MANUAL" ? "Local" : "No account",
+        showAccountLabel: false,
         sourceLabel: null,
         windows: [],
         fallback,
@@ -370,6 +372,7 @@ export function buildProviderAccountRows(
         providerLabel: PROVIDER_NAMES[provider],
         accountId,
         accountLabel: accountId ?? "Local account",
+        showAccountLabel: groups.size > 1,
         sourceLabel: lead === undefined ? null : sourceLine(lead),
         windows: accountSnapshots.map((snapshot) => toWindowView(snapshot, now)),
         fallback: null,
@@ -456,103 +459,40 @@ function meterMarkup(window: ProviderWindowView, className: string): string {
   );
 }
 
-function emptyMeterMarkup(): string {
-  return (
-    '<span class="hero-meter" role="progressbar" aria-label="Usage" aria-valuemin="0" ' +
-    'aria-valuemax="100" aria-valuetext="No data"></span>'
-  );
-}
-
-function metricMarkup(
-  windows: readonly ProviderWindowView[],
-  metric: ProviderMetricColumn,
-  label: string,
-): string {
-  const window = windowForMetric(windows, metric);
-  if (window === null) {
-    return (
-      '<span class="metric metric-' + metric + ' metric-empty" aria-label="' +
-      label + ', not available">&#183;</span>'
-    );
-  }
-  return (
-    '<span class="metric metric-' + metric + '" aria-label="' +
-    escapeText(label + ", " + percentLabel(window)) + '" title="' +
-    escapeText(window.label) + '">' + escapeText(percentLabel(window)) + "</span>"
-  );
-}
-
 function compactResetLabel(resetLabel: string | null): string {
-  if (resetLabel === null || resetLabel === "Reset time passed") return "ready";
+  if (resetLabel === null || resetLabel === "Reset time passed") return "";
   if (resetLabel === "Resets in under a minute") return "under 1m";
   return resetLabel.replace(/^Resets in /u, "");
 }
 
-function usageCellsMarkup(windows: readonly ProviderWindowView[]): string {
-  const lead = closestToLimit(windows);
-  const meter = lead === null ? emptyMeterMarkup() : meterMarkup(lead, "hero-meter");
-  const tone = lead?.tone ?? "none";
-  const state = lead?.state ?? "unknown";
-  const readout = lead === null ? "No data" : percentLabel(lead);
-  const stateLabel = lead?.stateLabel ?? "Unknown";
-  const usageLabel = lead?.accessibleLabel ?? "No usage reading";
-  const reset = compactResetLabel(lead?.resetLabel ?? null);
-
+function windowLineMarkup(window: ProviderWindowView): string {
+  const reset = compactResetLabel(window.resetLabel);
   return (
-    '<div class="usage" data-tone="' + tone + '" data-state="' + state +
-    '" aria-label="' + escapeText(usageLabel) + '"><div class="usage-line">' +
-    meter + '<span class="state" aria-label="' + escapeText(stateLabel) + '" title="' +
-    escapeText(stateLabel) + '"><span class="state-dot" aria-hidden="true"></span></span>' +
-    '<strong class="hero-readout">' + escapeText(readout) + "</strong></div></div>" +
-    metricMarkup(windows, "session", "Session") +
-    metricMarkup(windows, "week", "Week") +
-    metricMarkup(windows, "month", "Month") +
-    '<span class="reset" aria-label="Reset, ' + escapeText(reset) + '">' +
-    '<span class="reset-clock" aria-hidden="true"></span>' + escapeText(reset) + "</span>"
+    '<div class="window-line" data-tone="' + window.tone + '" data-state="' +
+    window.state + '" aria-label="' + escapeText(window.accessibleLabel) + '">' +
+    '<span class="window-name" title="' + escapeText(window.label) + '">' +
+    escapeText(window.label) + "</span>" + meterMarkup(window, "window-meter") +
+    '<strong class="window-percent">' + escapeText(percentLabel(window)) + "</strong>" +
+    '<span class="window-reset">' + escapeText(reset) + "</span></div>"
   );
 }
 
 export function providerTableHeaderMarkup(): string {
-  return (
-    '<div class="table-head" role="row"><span class="head-provider" aria-hidden="true"></span>' +
-    '<span class="head-usage" role="columnheader">Usage</span>' +
-    '<span class="head-session" role="columnheader">Session</span>' +
-    '<span class="head-week" role="columnheader">Week</span>' +
-    '<span class="head-month" role="columnheader">Month</span>' +
-    '<span class="head-resets" role="columnheader">Resets</span></div>'
-  );
+  return "";
 }
 
 export function providerRowMarkup(row: ProviderAccountRowView): string {
-  const demo = row.demo ? '<span class="demo">Demo data</span>' : "";
-  const source =
-    row.sourceLabel === null
-      ? ""
-      : '<span class="source">' + escapeText(row.sourceLabel) + "</span>";
-  const failure =
-    row.failure === null
-      ? ""
-      : '<p class="failure" role="status"><span aria-hidden="true">!</span>' +
-        escapeText(row.failure) + "</p>";
-  const account =
-    row.accountId === null
-      ? ""
-      : '<span class="account-value" title="' + escapeText(row.accountLabel) + '">' +
-        escapeText(row.accountLabel) + "</span>";
-  const fallback =
-    row.fallback === null
-      ? ""
-      : '<span class="fallback-state" data-kind="' + row.fallback.kind + '">' +
-        escapeText(row.fallback.title) + '</span><span class="fallback-detail">' +
-        escapeText(row.fallback.detail) + "</span>";
+  const account = row.showAccountLabel
+    ? '<span class="account-value" title="' + escapeText(row.accountLabel) + '">' +
+      escapeText(row.accountLabel) + "</span>"
+    : "";
 
   return (
     '<article class="row" aria-label="' + escapeText(row.providerLabel + ", " + row.accountLabel) + '">' +
-    '<header class="identity"><div class="identity-main"><span class="mark" aria-hidden="true">' +
-    PROVIDER_MARKS[row.provider] + '</span><div class="provider"><div class="provider-line"><strong>' +
-    escapeText(row.providerLabel) +
-    '</strong></div></div></div><div class="identity-foot">' + account + demo + source +
-    fallback + "</div>" + failure + "</header>" + usageCellsMarkup(row.windows) + "</article>"
+    '<header class="identity"><span class="mark" aria-hidden="true">' +
+    PROVIDER_MARKS[row.provider] + '</span><strong class="provider-name">' +
+    escapeText(row.providerLabel) + "</strong>" + account + "</header>" +
+    '<div class="windows">' + row.windows.map(windowLineMarkup).join("") + "</div></article>"
   );
 }
 
@@ -906,6 +846,124 @@ const PROVIDER_ROW_STYLE = `
     min-height: 3.75rem;
     border-top: 0;
   }
+}
+
+/* One provider heading, then one compact four item line for every window. */
+.row {
+  display: block;
+  min-height: 0;
+  padding: var(--ol-space-4);
+  overflow: hidden;
+}
+.identity {
+  display: flex;
+  min-height: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--ol-space-2);
+  padding: 0;
+  border: 0;
+}
+.mark {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 0;
+  border-radius: var(--ol-radius-sm);
+  background: var(--row-accent-subtle);
+  box-shadow: none;
+}
+:host([data-provider]) .mark { color: var(--row-accent); }
+.mark svg { width: 0.9375rem; height: 0.9375rem; }
+.provider-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--row-heading);
+  font-size: var(--ol-text-label);
+  font-weight: 720;
+  line-height: var(--ol-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-value {
+  max-width: min(14rem, 45%);
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--row-muted);
+}
+.windows {
+  display: grid;
+  gap: var(--ol-space-3);
+  margin-top: var(--ol-space-4);
+}
+.window-line {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(7rem, 0.85fr) minmax(8rem, 1.8fr) 4.5rem 5rem;
+  align-items: center;
+  gap: var(--ol-space-3);
+}
+.window-name,
+.window-reset,
+.window-percent {
+  min-width: 0;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--ol-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.window-name {
+  color: var(--row-soft);
+  font-size: var(--ol-text-body);
+}
+.window-meter {
+  position: relative;
+  display: block;
+  min-width: 0;
+  height: var(--ol-meter-height);
+  overflow: hidden;
+  border-radius: var(--ol-meter-radius);
+  background: var(--row-track);
+}
+.window-line[data-state="unknown"] .window-meter {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--row-ghost);
+}
+.window-line .meter-fill { background: var(--row-accent); }
+.window-line[data-state="stale"] .meter-fill { opacity: 0.58; }
+.window-percent {
+  color: var(--row-accent);
+  font-size: var(--ol-text-body);
+  font-weight: 760;
+  text-align: right;
+}
+.window-reset {
+  min-height: 1em;
+  color: var(--row-muted);
+  font-size: var(--ol-text-micro);
+  text-align: right;
+}
+@media (max-width: 639px) {
+  .row { padding: var(--ol-space-3); }
+  .identity {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+  }
+  .windows {
+    gap: var(--ol-space-2);
+    margin-top: var(--ol-space-3);
+  }
+  .window-line {
+    grid-template-columns: minmax(4.8rem, 0.9fr) minmax(4.5rem, 1.25fr) 3.35rem 3.5rem;
+    gap: var(--ol-space-2);
+  }
+  .window-name,
+  .window-percent { font-size: var(--ol-text-micro); }
+  .window-reset { font-size: 0.625rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .meter-fill,

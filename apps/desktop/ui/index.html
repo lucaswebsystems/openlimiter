@@ -183,17 +183,13 @@
 
         <!-- Home view empty state. -->
         <div id="empty" class="empty" hidden>
-          <span class="empty-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" focusable="false">
-              <path d="M9 3v6M15 3v6" />
-              <path d="M6 9h12v3a6 6 0 0 1-12 0Z" />
-              <path d="M12 18v3" />
-            </svg>
-          </span>
           <div class="empty-copy">
-            <h3>Connect your first account</h3>
+            <h3>No supported AI CLIs found.</h3>
           </div>
-          <button type="button" id="empty-connect">Add account</button>
+          <div class="empty-actions">
+            <a class="empty-action primary" href="https://openlimiter.com/en/docs/providers" target="_blank" rel="noopener noreferrer">Download CLIs</a>
+            <a class="empty-action" href="https://openlimiter.com/en/pro" target="_blank" rel="noopener noreferrer">Sign in</a>
+          </div>
         </div>
       </section>
 
@@ -214,7 +210,7 @@
         <section id="provider-catalogue" class="surface conn-block provider-directory" aria-labelledby="provider-catalogue-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="provider-catalogue-title">Providers</h2>
-            <span class="provider-count">18</span>
+            <span class="provider-count">8</span>
           </div>
           <div id="catalogue-rows" class="list"></div>
         </section>

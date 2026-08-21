@@ -8,10 +8,10 @@
     "core/forecast.ts": "5155cb1a6fde4a0e",
     "core/freshness.ts": "ac39aeaff84f6eda",
     "core/merge.ts": "f76276beab46e36c",
-    "core/normalizer.ts": "8fe55369af5b0f01",
+    "core/normalizer.ts": "724780fcb85022ae",
     "core/policy.ts": "19e9302f94e60c47",
     "core/schedule.ts": "8c4afef8c2109573",
-    "connectors/shared.ts": "6da439a7a2c02577",
+    "connectors/shared.ts": "368bb0b49694771f",
     "connectors/antigravity.ts": "93088a4877222c7b",
     "connectors/claude.ts": "b538bf9ba6296432",
     "connectors/codex.ts": "2131f262c625ac14",
@@ -25,7 +25,7 @@
     "connectors/index.ts": "a3cb74df73b1dcfc",
     "adapters/claude-code.ts": "ded7f4a19f13e33b",
     "ui/provider-connect.ts": "420879d2e32f81a2",
-    "ui/provider-row.ts": "d9588bb7622a0276",
+    "ui/provider-row.ts": "a039f1c510093595",
     "ui/tokens.css": "f9793d487bfa6ba7"
   }
 }

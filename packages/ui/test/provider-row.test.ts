@@ -5,7 +5,6 @@ import {
   closestToLimit,
   headroomTone,
   providerRowMarkup,
-  providerTableHeaderMarkup,
   resetCountdown,
   windowForMetric,
 } from "../src/provider-row.js";
@@ -114,7 +113,7 @@ describe("provider account rows", () => {
     });
   });
 
-  it("renders an aligned row with exactly one usage bar", () => {
+  it("renders one compact usage line and one bar for every window", () => {
     const row = buildProviderAccountRows(
       [
         snapshot("CLAUDE", "FIVE_HOUR", 63, "primary", "2026-08-19T13:30:00.000Z"),
@@ -131,20 +130,18 @@ describe("provider account rows", () => {
     expect(markup).toContain("5 hour session");
     expect(markup).toContain("Weekly");
     expect(markup).toContain("63.0%");
-    expect(markup).toContain("37.0% free");
     expect(markup).toContain("<svg");
-    expect(markup).toContain("Live");
-    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(1);
+    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(2);
     expect(markup).not.toContain("mini-window");
     expect(markup).not.toContain("mini-meter");
-    expect(markup).toContain("metric-session");
-    expect(markup).toContain("metric-week");
-    expect(markup).toContain("metric-month metric-empty");
-    expect(markup).toContain(">1h 30m</span>");
-    expect(markup).toContain("hero-readout\">63.0%");
+    expect(markup).not.toContain("metric-session");
+    expect(markup).not.toContain("No data");
+    expect(markup).toContain('<span class="window-reset">1h 30m</span>');
+    expect(markup).toContain('<strong class="window-percent">63.0%</strong>');
+    expect(markup).not.toContain('<span class="account-value"');
   });
 
-  it("promotes the closest window once and keeps session, week, and month aligned", () => {
+  it("keeps session, week, and month as separate four item lines", () => {
     const row = buildProviderAccountRows(
       [
         snapshot("CLAUDE", "FIVE_HOUR", 38, "primary"),
@@ -162,14 +159,16 @@ describe("provider account rows", () => {
     expect(windowForMetric(row!.windows, "week")).toMatchObject({ usedPercent: 62 });
     expect(windowForMetric(row!.windows, "month")).toMatchObject({ usedPercent: 41 });
     const markup = providerRowMarkup(row!);
-    expect(markup).toContain("hero-readout\">62.0%");
-    expect(markup).toContain("metric-session\" aria-label=\"Session, 38.0%\"");
-    expect(markup).toContain("metric-week\" aria-label=\"Week, 62.0%\"");
-    expect(markup).toContain("metric-month\" aria-label=\"Month, 41.0%\"");
-    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(1);
+    expect(markup).toContain('>5 hour session</span>');
+    expect(markup).toContain('>Weekly</span>');
+    expect(markup).toContain('>Monthly</span>');
+    expect(markup).toContain('>38.0%</strong>');
+    expect(markup).toContain('>62.0%</strong>');
+    expect(markup).toContain('>41.0%</strong>');
+    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(3);
   });
 
-  it("keeps Claude model family windows in the weekly column", () => {
+  it("keeps every Claude model family window as its own line", () => {
     const row = buildProviderAccountRows(
       [
         snapshot("CLAUDE", "SEVEN_DAY", 35, "primary"),
@@ -192,23 +191,14 @@ describe("provider account rows", () => {
     });
   });
 
-  it("renders the shared column headings once", () => {
-    const markup = providerTableHeaderMarkup();
-
-    for (const heading of ["Usage", "Session", "Week", "Month", "Resets"]) {
-      expect(markup.match(new RegExp(">" + heading + "<", "g"))).toHaveLength(1);
-    }
-  });
-
-  it("keeps a quiet placeholder and one empty bar for unavailable readings", () => {
+  it("does not render a broken looking meter for an unavailable reading", () => {
     const row = buildProviderAccountRows([], NOW, [], { providers: ["GROK"] })[0];
 
     expect(row).toBeDefined();
     const markup = providerRowMarkup(row!);
-    expect(markup).toContain("Not connected");
-    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(1);
-    expect(markup.match(/metric-empty/g)).toHaveLength(3);
-    expect(markup).toContain(">ready</span>");
+    expect(markup).not.toContain("Not connected");
+    expect(markup.match(/role=\"progressbar\"/g)).toBeNull();
+    expect(markup).not.toContain("No data");
   });
 
   it("formats a bounded reset countdown and omits an absent reset", () => {
