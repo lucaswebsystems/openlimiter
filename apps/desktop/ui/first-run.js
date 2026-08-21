@@ -328,6 +328,33 @@ function renderProviders(screen, result, options) {
   const list = screen.querySelector("#first-run-providers");
   const note = screen.querySelector("#first-run-status");
   if (list === null || note === null) return;
+  const hasDetectedCli = result.providers.some(
+    (provider) => provider.code !== "MANUAL" && provider.state !== "absent",
+  );
+  if (result.available && !hasDetectedCli) {
+    screen.dataset.empty = "true";
+    const title = screen.querySelector("#first-run-title");
+    if (title !== null) title.textContent = "No supported AI CLIs found.";
+    list.textContent = "";
+    const actions = document.createElement("div");
+    actions.className = "first-run-empty-actions";
+    const downloads = document.createElement("a");
+    downloads.href = "https://openlimiter.com/en/docs/providers";
+    downloads.target = "_blank";
+    downloads.rel = "noopener noreferrer";
+    downloads.className = "first-run-empty-action primary";
+    downloads.textContent = "Download CLIs";
+    const signIn = document.createElement("a");
+    signIn.href = "https://openlimiter.com/en/pro";
+    signIn.target = "_blank";
+    signIn.rel = "noopener noreferrer";
+    signIn.className = "first-run-empty-action";
+    signIn.textContent = "Sign in";
+    actions.append(downloads, signIn);
+    list.append(actions);
+    downloads.focus();
+    return;
+  }
   const byCode = new Map(result.providers.map((provider) => [provider.code, provider]));
   list.textContent = "";
   for (const provider of PROVIDERS) {

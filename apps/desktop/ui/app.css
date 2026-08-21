@@ -163,6 +163,55 @@ html[data-first-run="complete"] .first-run {
   font-size: 12px;
 }
 
+.first-run[data-empty="true"] .first-run-panel {
+  width: min(28rem, 100%);
+  text-align: center;
+}
+
+.first-run[data-empty="true"] .first-run-lockup,
+.first-run[data-empty="true"] .first-run-intro,
+.first-run[data-empty="true"] .first-run-launch-note,
+.first-run[data-empty="true"] .first-run-status,
+.first-run[data-empty="true"] .first-run-continue,
+.first-run[data-empty="true"] .first-run-helper {
+  display: none;
+}
+
+.first-run[data-empty="true"] h1 {
+  margin: 0;
+  font-size: var(--ol-text-title);
+}
+
+.first-run[data-empty="true"] .first-run-providers {
+  margin-top: var(--ol-space-5);
+}
+
+.first-run-empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--ol-space-2);
+}
+
+.first-run-empty-action {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--ol-space-4);
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-md);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.first-run-empty-action.primary {
+  border-color: var(--ol-accent);
+  background: var(--ol-accent);
+  color: var(--ol-on-accent);
+}
+
 .first-run-detail::before {
   content: "·";
   margin-right: 6px;
