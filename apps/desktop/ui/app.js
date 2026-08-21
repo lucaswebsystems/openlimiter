@@ -39,6 +39,7 @@ import {
 } from "./engine/adapters/claude-code.js";
 import {
   buildProviderAccountRows,
+  createProviderTableHeaderElement,
   createProviderRowElement,
 } from "./engine/ui/provider-row.js";
 /* Every word the Rust process hears from this file goes through the backend
@@ -387,6 +388,7 @@ async function refresh() {
 
     elements.rows.textContent = "";
     const providerRows = buildProviderAccountRows(snapshots, now, failures);
+    elements.rows.append(createProviderTableHeaderElement());
     for (const row of providerRows) {
       elements.rows.append(createProviderRowElement(row));
     }

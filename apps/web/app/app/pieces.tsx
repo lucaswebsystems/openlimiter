@@ -2,8 +2,10 @@
 
 import { createElement, useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  PROVIDER_TABLE_HEADER_TAG,
   PROVIDER_ROW_TAG,
   buildProviderDirectory,
+  defineProviderTableHeaderElement,
   defineProviderRowElement,
   setProviderRowData,
   type Advice,
@@ -60,14 +62,27 @@ export function ProviderAccountRow({ row }: { row: ProviderAccountRowView }) {
   });
 }
 
+function ProviderTableHeader() {
+  useEffect(() => {
+    defineProviderTableHeaderElement();
+  }, []);
+
+  return createElement(PROVIDER_TABLE_HEADER_TAG, {
+    suppressHydrationWarning: true,
+  });
+}
+
 export function ProviderRows({ rows }: { rows: readonly ProviderAccountRowView[] }) {
   return (
-    <div role="list" aria-label="Provider usage by account" className="ol-telemetry-table">
-      {rows.map((row) => (
-        <div role="listitem" key={row.key} className="ol-rise">
-          <ProviderAccountRow row={row} />
-        </div>
-      ))}
+    <div aria-label="Provider usage by account" className="ol-telemetry-table">
+      <ProviderTableHeader />
+      <div role="list" className="ol-provider-row-list">
+        {rows.map((row) => (
+          <div role="listitem" key={row.key} className="ol-rise">
+            <ProviderAccountRow row={row} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

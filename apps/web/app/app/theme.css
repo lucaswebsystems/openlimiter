@@ -1122,6 +1122,11 @@ body:has(.ol-product-shell) .page-overlap {
   box-shadow: none;
 }
 
+.ol-provider-row-list {
+  display: grid;
+  gap: var(--ol-space-3);
+}
+
 .ol-empty-row {
   display: flex;
   min-height: var(--ol-row-min-height);

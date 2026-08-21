@@ -398,6 +398,18 @@ function percentLabel(window: ProviderWindowView): string {
   return window.usedPercent === null ? "No data" : floorFixed(window.usedPercent, 1) + "%";
 }
 
+export type ProviderMetricColumn = "session" | "week" | "month";
+
+const METRIC_METERS: Readonly<Record<ProviderMetricColumn, ReadonlySet<string>>> = {
+  session: new Set(["FIVE_MINUTE", "HOURLY", "FIVE_HOUR", "SESSION"]),
+  week: new Set(["SEVEN_DAY", "WEEKLY"]),
+  month: new Set(["THIRTY_DAY", "MONTHLY", "ON_DEMAND_MONTHLY"]),
+};
+
+function baseMeterKey(key: string): string {
+  return key.replace(/_([2-9][0-9]*)$/u, "");
+}
+
 export function closestToLimit(
   windows: readonly ProviderWindowView[],
 ): ProviderWindowView | null {
@@ -413,6 +425,15 @@ export function closestToLimit(
     }
   }
   return closest;
+}
+
+export function windowForMetric(
+  windows: readonly ProviderWindowView[],
+  metric: ProviderMetricColumn,
+): ProviderWindowView | null {
+  return closestToLimit(
+    windows.filter((window) => METRIC_METERS[metric].has(baseMeterKey(window.key))),
+  );
 }
 
 function meterMarkup(window: ProviderWindowView, className: string): string {
@@ -433,34 +454,70 @@ function meterMarkup(window: ProviderWindowView, className: string): string {
   );
 }
 
-function miniWindowMarkup(window: ProviderWindowView): string {
+function emptyMeterMarkup(): string {
   return (
-    '<section class="mini-window" data-tone="' + window.tone + '" data-state="' +
-    window.state + '" aria-label="' + escapeText(window.accessibleLabel) + '">' +
-    '<div class="mini-head"><span title="' + escapeText(window.label) + '">' +
-    escapeText(window.label) + '</span><strong>' + escapeText(percentLabel(window)) +
-    "</strong></div>" + meterMarkup(window, "mini-meter") + "</section>"
+    '<span class="hero-meter" role="progressbar" aria-label="Usage" aria-valuemin="0" ' +
+    'aria-valuemax="100" aria-valuetext="No data"></span>'
   );
 }
 
-function usageMarkup(windows: readonly ProviderWindowView[]): string {
+function metricMarkup(
+  windows: readonly ProviderWindowView[],
+  metric: ProviderMetricColumn,
+  label: string,
+): string {
+  const window = windowForMetric(windows, metric);
+  if (window === null) {
+    return (
+      '<span class="metric metric-' + metric + ' metric-empty" aria-label="' +
+      label + ', not available">&#183;</span>'
+    );
+  }
+  return (
+    '<span class="metric metric-' + metric + '" aria-label="' +
+    escapeText(label + ", " + percentLabel(window)) + '" title="' +
+    escapeText(window.label) + '">' + escapeText(percentLabel(window)) + "</span>"
+  );
+}
+
+function compactResetLabel(resetLabel: string | null): string {
+  if (resetLabel === null || resetLabel === "Reset time passed") return "ready";
+  if (resetLabel === "Resets in under a minute") return "under 1m";
+  return resetLabel.replace(/^Resets in /u, "");
+}
+
+function usageCellsMarkup(windows: readonly ProviderWindowView[]): string {
   const lead = closestToLimit(windows);
-  if (lead === null) return "";
-  const reset =
-    lead.resetLabel === null
-      ? ""
-      : '<span class="reset"><span class="reset-clock" aria-hidden="true"></span>' +
-        escapeText(lead.resetLabel) + "</span>";
+  const meter = lead === null ? emptyMeterMarkup() : meterMarkup(lead, "hero-meter");
+  const tone = lead?.tone ?? "none";
+  const state = lead?.state ?? "unknown";
+  const readout = lead === null ? "No data" : percentLabel(lead);
+  const stateLabel = lead?.stateLabel ?? "Unknown";
+  const usageLabel = lead?.accessibleLabel ?? "No usage reading";
+  const reset = compactResetLabel(lead?.resetLabel ?? null);
 
   return (
-    '<div class="usage" data-tone="' + lead.tone + '" data-state="' + lead.state + '">' +
-    '<div class="hero-head"><span class="hero-label">' + escapeText(lead.label) +
-    '</span><span class="state" aria-label="' + escapeText(lead.stateLabel) + '" title="' +
-    escapeText(lead.stateLabel) + '"><span class="state-dot" aria-hidden="true"></span></span>' +
-    '<strong class="hero-readout">' + escapeText(percentLabel(lead)) + "</strong></div>" +
-    '<div class="hero-meter-line">' + meterMarkup(lead, "hero-meter") + reset + "</div>" +
-    '<div class="mini-windows" role="group" aria-label="All usage windows">' +
-    windows.map(miniWindowMarkup).join("") + "</div></div>"
+    '<div class="usage" data-tone="' + tone + '" data-state="' + state +
+    '" aria-label="' + escapeText(usageLabel) + '"><div class="usage-line">' +
+    meter + '<span class="state" aria-label="' + escapeText(stateLabel) + '" title="' +
+    escapeText(stateLabel) + '"><span class="state-dot" aria-hidden="true"></span></span>' +
+    '<strong class="hero-readout">' + escapeText(readout) + "</strong></div></div>" +
+    metricMarkup(windows, "session", "Session") +
+    metricMarkup(windows, "week", "Week") +
+    metricMarkup(windows, "month", "Month") +
+    '<span class="reset" aria-label="Reset, ' + escapeText(reset) + '">' +
+    '<span class="reset-clock" aria-hidden="true"></span>' + escapeText(reset) + "</span>"
+  );
+}
+
+export function providerTableHeaderMarkup(): string {
+  return (
+    '<div class="table-head" role="row"><span class="head-provider" aria-hidden="true"></span>' +
+    '<span class="head-usage" role="columnheader">Usage</span>' +
+    '<span class="head-session" role="columnheader">Session</span>' +
+    '<span class="head-week" role="columnheader">Week</span>' +
+    '<span class="head-month" role="columnheader">Month</span>' +
+    '<span class="head-resets" role="columnheader">Resets</span></div>'
   );
 }
 
@@ -480,22 +537,25 @@ export function providerRowMarkup(row: ProviderAccountRowView): string {
       ? ""
       : '<span class="account-value" title="' + escapeText(row.accountLabel) + '">' +
         escapeText(row.accountLabel) + "</span>";
-  const content =
+  const fallback =
     row.fallback === null
-      ? usageMarkup(row.windows)
-      : '<div class="fallback" data-kind="' + row.fallback.kind + '"><strong>' +
-        escapeText(row.fallback.title) + "</strong><span>" +
-        escapeText(row.fallback.detail) + "</span></div>";
+      ? ""
+      : '<span class="fallback-state" data-kind="' + row.fallback.kind + '">' +
+        escapeText(row.fallback.title) + '</span><span class="fallback-detail">' +
+        escapeText(row.fallback.detail) + "</span>";
 
   return (
     '<article class="row" aria-label="' + escapeText(row.providerLabel + ", " + row.accountLabel) + '">' +
     '<header class="identity"><div class="identity-main"><span class="mark" aria-hidden="true">' +
     PROVIDER_MARKS[row.provider] + '</span><div class="provider"><div class="provider-line"><strong>' +
-    escapeText(row.providerLabel) + "</strong>" + account +
-    '</div></div></div><div class="identity-foot">' + demo + source +
-    "</div>" + failure + "</header>" + content + "</article>"
+    escapeText(row.providerLabel) +
+    '</strong></div></div></div><div class="identity-foot">' + account + demo + source +
+    fallback + "</div>" + failure + "</header>" + usageCellsMarkup(row.windows) + "</article>"
   );
 }
+
+const PROVIDER_TABLE_COLUMNS =
+  "minmax(10.5rem, 12.5rem) minmax(12rem, 1fr) repeat(3, minmax(3.75rem, 4.5rem)) minmax(5rem, 5.75rem)";
 
 const PROVIDER_ROW_STYLE = `
 :host {
@@ -525,12 +585,12 @@ const PROVIDER_ROW_STYLE = `
 * { box-sizing: border-box; }
 .row {
   display: grid;
-  grid-template-columns: minmax(11.5rem, 13.5rem) minmax(0, 1fr);
+  grid-template-columns: ${PROVIDER_TABLE_COLUMNS};
   min-width: 0;
-  min-height: var(--ol-row-min-height);
+  min-height: 5.25rem;
   overflow: hidden;
   border: 1px solid var(--row-hairline);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-md);
   background: var(--row-surface);
   box-shadow: var(--ol-elev-1);
   transition: border-color var(--ol-motion-fast) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out), transform var(--ol-motion-base) var(--ol-ease-out);
@@ -540,8 +600,8 @@ const PROVIDER_ROW_STYLE = `
   min-width: 0;
   flex-direction: column;
   justify-content: center;
-  gap: var(--ol-space-3);
-  padding: var(--ol-space-5);
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-3) var(--ol-space-4);
   border-right: 1px solid var(--row-hairline);
 }
 .identity-main {
@@ -552,18 +612,18 @@ const PROVIDER_ROW_STYLE = `
 }
 .mark {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.25rem;
+  height: 2.25rem;
   flex: none;
   place-items: center;
   border: 1px solid var(--row-hairline);
   border-color: color-mix(in srgb, var(--row-accent) 30%, var(--row-hairline));
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-sm);
   background: var(--row-accent-subtle);
   color: var(--row-accent);
   box-shadow: var(--ol-elev-1);
 }
-.mark svg { width: 1.25rem; height: 1.25rem; }
+.mark svg { width: 1.125rem; height: 1.125rem; }
 :host([data-provider="CLAUDE"]) .mark { color: var(--ol-provider-claude); }
 :host([data-provider="OPENROUTER"]) .mark { color: var(--ol-provider-openrouter); }
 :host([data-provider="CODEX"]) .mark { color: var(--ol-provider-codex); }
@@ -603,7 +663,7 @@ const PROVIDER_ROW_STYLE = `
 .provider strong {
   overflow: hidden;
   color: var(--row-heading);
-  font-size: var(--ol-text-title);
+  font-size: var(--ol-text-label);
   font-weight: 720;
   line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
@@ -612,7 +672,7 @@ const PROVIDER_ROW_STYLE = `
 .account-value {
   overflow: hidden;
   max-width: 7rem;
-  padding: 0.125rem var(--ol-space-1);
+  padding: var(--ol-space-1) var(--ol-space-2);
   border: 1px solid var(--row-hairline);
   border-radius: var(--ol-radius-pill);
   background: var(--row-raised);
@@ -625,52 +685,54 @@ const PROVIDER_ROW_STYLE = `
 }
 .identity-foot {
   display: flex;
-  min-height: 0.75rem;
+  min-height: var(--ol-text-micro);
   flex-wrap: wrap;
   align-items: center;
   gap: var(--ol-space-2);
-  padding-left: 3.5rem;
+  padding-left: 3rem;
 }
 .source, .demo { font-size: var(--ol-text-micro); line-height: 1.2; }
 .source { color: var(--row-muted); }
 .demo {
-  padding: 0.1875rem var(--ol-space-2);
+  padding: var(--ol-space-1) var(--ol-space-2);
   border-radius: var(--ol-radius-pill);
   background: var(--row-accent-subtle);
   color: var(--row-accent);
 }
+.fallback-state,
+.fallback-detail {
+  overflow: hidden;
+  font-size: var(--ol-text-micro);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fallback-state { color: var(--row-soft); font-weight: 680; }
+.fallback-state[data-kind="manual_entry"] { color: var(--row-accent); }
+.fallback-detail { color: var(--row-muted); }
 .failure {
   display: flex;
   margin: 0;
   align-items: flex-start;
   gap: var(--ol-space-1);
-  padding-left: 3.5rem;
+  padding-left: 3rem;
   color: var(--row-critical);
   font-size: var(--ol-text-micro);
   line-height: var(--ol-leading-body);
 }
 .usage {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  justify-content: center;
-  padding: var(--ol-space-4) var(--ol-space-5);
-}
-.hero-head {
   display: grid;
   min-width: 0;
-  grid-template-columns: auto 1fr auto;
-  align-items: end;
-  gap: var(--ol-space-2);
+  align-items: center;
+  padding: var(--ol-space-3) var(--ol-space-4);
+  border-right: 1px solid var(--row-hairline);
 }
-.hero-label {
-  overflow: hidden;
-  color: var(--row-soft);
-  font-size: var(--ol-text-caption);
-  font-weight: 650;
-  line-height: var(--ol-leading-tight);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.usage-line {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(4rem, 1fr) auto auto;
+  align-items: center;
+  gap: var(--ol-space-2);
 }
 .state {
   display: inline-flex;
@@ -697,37 +759,27 @@ const PROVIDER_ROW_STYLE = `
 .hero-readout {
   color: var(--row-muted);
   font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
-  font-size: var(--ol-text-display);
+  font-size: 1.375rem;
   font-variant-numeric: tabular-nums;
   font-weight: 780;
-  letter-spacing: -0.055em;
-  line-height: 0.9;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  white-space: nowrap;
 }
 .usage[data-tone="ok"] .hero-readout { color: var(--row-ok); }
 .usage[data-tone="watch"] .hero-readout { color: var(--row-watch); }
 .usage[data-tone="high"] .hero-readout { color: var(--row-high); }
 .usage[data-tone="critical"] .hero-readout { color: var(--row-critical); }
-.hero-meter-line {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--ol-space-3);
-  margin-top: var(--ol-space-3);
-}
-.hero-meter,
-.mini-meter {
+.hero-meter {
   position: relative;
   display: block;
   min-width: 0;
+  height: var(--ol-meter-height);
   overflow: hidden;
   border-radius: var(--ol-meter-radius);
   background: var(--row-track);
 }
-.hero-meter { height: var(--ol-meter-height); }
-.mini-meter { height: var(--ol-mini-meter-height); }
-.usage[data-state="unknown"] .hero-meter,
-.mini-window[data-state="unknown"] .mini-meter {
+.usage[data-state="unknown"] .hero-meter {
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--row-ghost);
 }
@@ -740,27 +792,33 @@ const PROVIDER_ROW_STYLE = `
   animation: olMeterArrive var(--ol-motion-slow) var(--ol-ease-out) both;
   transition: width var(--ol-motion-base) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out), opacity var(--ol-motion-fast) var(--ol-ease-out);
 }
-.usage[data-tone="ok"] > .hero-meter-line .meter-fill,
-.mini-window[data-tone="ok"] .meter-fill { background: var(--row-ok); }
-.usage[data-tone="watch"] > .hero-meter-line .meter-fill,
-.mini-window[data-tone="watch"] .meter-fill { background: var(--row-watch); }
-.usage[data-tone="high"] > .hero-meter-line .meter-fill,
-.mini-window[data-tone="high"] .meter-fill { background: var(--row-high); }
-.usage[data-tone="critical"] > .hero-meter-line .meter-fill,
-.mini-window[data-tone="critical"] .meter-fill { background: var(--row-critical); }
-.usage[data-state="stale"] > .hero-meter-line .meter-fill,
-.mini-window[data-state="stale"] .meter-fill { opacity: 0.58; }
+.usage[data-tone="ok"] .meter-fill { background: var(--row-ok); }
+.usage[data-tone="watch"] .meter-fill { background: var(--row-watch); }
+.usage[data-tone="high"] .meter-fill { background: var(--row-high); }
+.usage[data-tone="critical"] .meter-fill { background: var(--row-critical); }
+.usage[data-state="stale"] .meter-fill { opacity: 0.58; }
+.metric,
 .reset {
-  display: inline-flex;
+  display: flex;
   min-width: 0;
   align-items: center;
-  gap: var(--ol-space-1);
+  justify-content: center;
+  padding: var(--ol-space-3) var(--ol-space-2);
+  border-right: 1px solid var(--row-hairline);
   color: var(--row-muted);
   font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
-  font-size: var(--ol-text-micro);
+  font-size: var(--ol-text-body);
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  font-weight: 680;
+  line-height: var(--ol-leading-tight);
   white-space: nowrap;
+}
+.metric-empty { color: var(--row-faint); font-weight: 500; }
+.reset {
+  gap: var(--ol-space-1);
+  border-right: 0;
+  font-size: var(--ol-text-micro);
+  font-weight: 580;
 }
 .reset-clock {
   position: relative;
@@ -789,68 +847,6 @@ const PROVIDER_ROW_STYLE = `
   background: currentColor;
   content: "";
 }
-.mini-windows {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
-  gap: var(--ol-space-2);
-  margin-top: var(--ol-space-4);
-}
-.mini-window {
-  min-width: 0;
-  padding: var(--ol-space-2) var(--ol-space-3);
-  border: 1px solid var(--row-hairline);
-  border-radius: var(--ol-radius-sm);
-  background: var(--row-raised);
-  transition: border-color var(--ol-motion-fast) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out);
-}
-.mini-head {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--ol-space-2);
-  margin-bottom: var(--ol-space-2);
-}
-.mini-head span {
-  overflow: hidden;
-  color: var(--row-muted);
-  font-size: var(--ol-text-micro);
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.mini-head strong {
-  flex: none;
-  color: var(--row-soft);
-  font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
-  font-size: var(--ol-text-caption);
-  font-variant-numeric: tabular-nums;
-  font-weight: 720;
-  line-height: 1;
-}
-.fallback {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--ol-space-3);
-  padding: var(--ol-space-5);
-}
-.fallback strong {
-  flex: none;
-  color: var(--row-heading);
-  font-size: var(--ol-text-label);
-  font-weight: 720;
-}
-.fallback span {
-  overflow: hidden;
-  color: var(--row-muted);
-  font-size: var(--ol-text-caption);
-  line-height: var(--ol-leading-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fallback[data-kind="manual_entry"] strong { color: var(--row-accent); }
 @keyframes olLivePulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--ol-live-soft); }
   50% { box-shadow: 0 0 0 0.25rem transparent; }
@@ -863,37 +859,130 @@ const PROVIDER_ROW_STYLE = `
   .row:hover {
     border-color: var(--row-hairline-strong);
     background: var(--row-raised);
-    transform: translateY(-1px);
   }
-  .row:hover .mini-window { background: var(--row-surface); }
 }
 @media (max-width: 639px) {
-  .row { display: block; }
+  .row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "identity identity identity"
+      "usage usage reset"
+      "session week month";
+    min-height: 0;
+  }
   .identity {
-    min-height: 4.75rem;
-    padding: var(--ol-space-4);
+    grid-area: identity;
+    min-height: 4rem;
+    padding: var(--ol-space-3);
     border-right: 0;
     border-bottom: 1px solid var(--row-hairline);
   }
   .mark {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2.25rem;
+    height: 2.25rem;
   }
   .identity-foot,
-  .failure { padding-left: 3.25rem; }
-  .usage { padding: var(--ol-space-4); }
-  .hero-readout { font-size: 2rem; }
-  .mini-windows { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .mini-window { padding: var(--ol-space-2); }
-  .mini-head { display: grid; gap: var(--ol-space-1); }
-  .mini-head strong { font-size: var(--ol-text-body); }
-  .fallback { min-height: 5rem; padding: var(--ol-space-4); }
+  .failure { padding-left: 3rem; }
+  .usage {
+    grid-area: usage;
+    min-height: 3.75rem;
+    padding: var(--ol-space-3);
+  }
+  .usage-line { grid-template-columns: minmax(3.75rem, 1fr) auto auto; }
+  .hero-readout { font-size: 1.25rem; }
+  .metric,
+  .reset {
+    min-height: 2.75rem;
+    padding: var(--ol-space-2);
+    border-top: 1px solid var(--row-hairline);
+  }
+  .metric-session { grid-area: session; }
+  .metric-week { grid-area: week; }
+  .metric-month { grid-area: month; border-right: 0; }
+  .reset {
+    grid-area: reset;
+    min-height: 3.75rem;
+    border-top: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .meter-fill,
   .usage[data-state="fresh"] .state-dot { animation: none; }
 }
 `;
+
+const PROVIDER_TABLE_HEADER_STYLE = `
+:host {
+  display: block;
+  min-width: 0;
+  color: var(--ol-muted, var(--muted));
+  font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+* { box-sizing: border-box; }
+.table-head {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: ${PROVIDER_TABLE_COLUMNS};
+  align-items: center;
+  color: var(--ol-muted, var(--muted));
+  font-size: var(--ol-text-micro);
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.table-head > span { min-width: 0; }
+.head-usage { padding: 0 var(--ol-space-4); }
+.head-session,
+.head-week,
+.head-month,
+.head-resets { text-align: center; }
+@media (max-width: 639px) {
+  .table-head {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "usage usage resets"
+      "session week month";
+    row-gap: var(--ol-space-3);
+    padding-top: var(--ol-space-1);
+  }
+  .head-provider { display: none; }
+  .head-usage { grid-area: usage; padding-left: var(--ol-space-3); }
+  .head-session { grid-area: session; }
+  .head-week { grid-area: week; }
+  .head-month { grid-area: month; }
+  .head-resets { grid-area: resets; text-align: center; }
+}
+`;
+
+export const PROVIDER_TABLE_HEADER_TAG = "openlimiter-provider-table-header";
+
+export function defineProviderTableHeaderElement(): void {
+  if (typeof globalThis.customElements === "undefined") return;
+  if (globalThis.customElements.get(PROVIDER_TABLE_HEADER_TAG) !== undefined) return;
+  const BaseElement = globalThis.HTMLElement;
+  if (typeof BaseElement === "undefined") return;
+
+  class OpenLimiterProviderTableHeader extends BaseElement {
+    constructor() {
+      super();
+      const root = this.attachShadow({ mode: "open" });
+      root.innerHTML =
+        "<style>" + PROVIDER_TABLE_HEADER_STYLE + "</style>" + providerTableHeaderMarkup();
+    }
+  }
+
+  globalThis.customElements.define(PROVIDER_TABLE_HEADER_TAG, OpenLimiterProviderTableHeader);
+}
+
+export function createProviderTableHeaderElement(ownerDocument?: Document): HTMLElement {
+  defineProviderTableHeaderElement();
+  const documentRef = ownerDocument ?? globalThis.document;
+  if (documentRef === undefined) {
+    throw new Error("A document is required to create a provider table header.");
+  }
+  return documentRef.createElement(PROVIDER_TABLE_HEADER_TAG);
+}
 
 export const PROVIDER_ROW_TAG = "openlimiter-provider-row";
 

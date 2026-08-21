@@ -45,8 +45,10 @@ import {
   type ProviderDirectoryRow,
 } from "./generated/ui/provider-connect";
 import {
+  PROVIDER_TABLE_HEADER_TAG,
   PROVIDER_ROW_TAG,
   buildProviderAccountRows,
+  defineProviderTableHeaderElement,
   defineProviderRowElement,
   setProviderRowData,
   type ProviderAccountRowView,
@@ -89,8 +91,10 @@ export {
   queryCatalogueRows,
   failureSentence,
   floorFixed,
+  PROVIDER_TABLE_HEADER_TAG,
   PROVIDER_ROW_TAG,
   buildProviderAccountRows,
+  defineProviderTableHeaderElement,
   defineProviderRowElement,
   renderClaudeStatusline,
   setProviderRowData,

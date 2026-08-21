@@ -5,7 +5,9 @@ import {
   closestToLimit,
   headroomTone,
   providerRowMarkup,
+  providerTableHeaderMarkup,
   resetCountdown,
+  windowForMetric,
 } from "../src/provider-row.js";
 
 const NOW = "2026-08-19T12:00:00.000Z";
@@ -112,7 +114,7 @@ describe("provider account rows", () => {
     });
   });
 
-  it("renders labeled compact meters and a reset only when one exists", () => {
+  it("renders an aligned row with exactly one usage bar", () => {
     const row = buildProviderAccountRows(
       [
         snapshot("CLAUDE", "FIVE_HOUR", 63, "primary", "2026-08-19T13:30:00.000Z"),
@@ -132,12 +134,17 @@ describe("provider account rows", () => {
     expect(markup).toContain("37.0% free");
     expect(markup).toContain("<svg");
     expect(markup).toContain("Live");
-    expect(markup).toContain("role=\"progressbar\"");
-    expect(markup.match(/Resets in/g)).toHaveLength(1);
+    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(1);
+    expect(markup).not.toContain("mini-window");
+    expect(markup).not.toContain("mini-meter");
+    expect(markup).toContain("metric-session");
+    expect(markup).toContain("metric-week");
+    expect(markup).toContain("metric-month metric-empty");
+    expect(markup).toContain(">1h 30m</span>");
     expect(markup).toContain("hero-readout\">63.0%");
   });
 
-  it("promotes the closest window to the headline without dropping monthly", () => {
+  it("promotes the closest window once and keeps session, week, and month aligned", () => {
     const row = buildProviderAccountRows(
       [
         snapshot("CLAUDE", "FIVE_HOUR", 38, "primary"),
@@ -151,11 +158,34 @@ describe("provider account rows", () => {
 
     expect(row).toBeDefined();
     expect(closestToLimit(row!.windows)).toMatchObject({ label: "Weekly", usedPercent: 62 });
+    expect(windowForMetric(row!.windows, "session")).toMatchObject({ usedPercent: 38 });
+    expect(windowForMetric(row!.windows, "week")).toMatchObject({ usedPercent: 62 });
+    expect(windowForMetric(row!.windows, "month")).toMatchObject({ usedPercent: 41 });
     const markup = providerRowMarkup(row!);
-    expect(markup).toContain("hero-label\">Weekly");
     expect(markup).toContain("hero-readout\">62.0%");
-    expect(markup).toContain("Monthly");
-    expect(markup.match(/class=\"mini-window\"/g)).toHaveLength(3);
+    expect(markup).toContain("metric-session\" aria-label=\"Session, 38.0%\"");
+    expect(markup).toContain("metric-week\" aria-label=\"Week, 62.0%\"");
+    expect(markup).toContain("metric-month\" aria-label=\"Month, 41.0%\"");
+    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(1);
+  });
+
+  it("renders the shared column headings once", () => {
+    const markup = providerTableHeaderMarkup();
+
+    for (const heading of ["Usage", "Session", "Week", "Month", "Resets"]) {
+      expect(markup.match(new RegExp(">" + heading + "<", "g"))).toHaveLength(1);
+    }
+  });
+
+  it("keeps a quiet placeholder and one empty bar for unavailable readings", () => {
+    const row = buildProviderAccountRows([], NOW, [], { providers: ["GROK"] })[0];
+
+    expect(row).toBeDefined();
+    const markup = providerRowMarkup(row!);
+    expect(markup).toContain("Not connected");
+    expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(1);
+    expect(markup.match(/metric-empty/g)).toHaveLength(3);
+    expect(markup).toContain(">ready</span>");
   });
 
   it("formats a bounded reset countdown and omits an absent reset", () => {
