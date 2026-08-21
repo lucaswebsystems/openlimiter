@@ -7,7 +7,7 @@ use tauri::{AppHandle, Runtime};
 
 pub const ID: &str = "openlimiter-tray";
 
-const PROVIDER_LIMIT: usize = 7;
+const PROVIDER_LIMIT: usize = 9;
 const BAR_CELLS: usize = 8;
 
 const ICON_UNKNOWN: &[u8] = include_bytes!("../icons/tray-unknown-32.png");
@@ -60,6 +60,8 @@ fn provider(code: &str) -> Option<(&'static str, &'static str)> {
         "ANTIGRAVITY" => Some(("ANTIGRAVITY", "Antigravity")),
         "GEMINI_CLI" => Some(("GEMINI_CLI", "Gemini CLI")),
         "OPENCODE" => Some(("OPENCODE", "OpenCode")),
+        "GROK" => Some(("GROK", "Grok")),
+        "KIMI" => Some(("KIMI", "Kimi")),
         "MANUAL" => Some(("MANUAL", "Manual")),
         _ => None,
     }
@@ -124,7 +126,9 @@ pub fn view(statuses: Vec<ProviderStatus>) -> Result<View, &'static str> {
         "ANTIGRAVITY" => 3,
         "GEMINI_CLI" => 4,
         "OPENCODE" => 5,
-        "MANUAL" => 6,
+        "GROK" => 6,
+        "KIMI" => 7,
+        "MANUAL" => 8,
         _ => usize::MAX,
     });
 
@@ -240,6 +244,25 @@ mod tests {
         assert_eq!(rendered.providers[1].code, "MANUAL");
         assert_eq!(bar(rendered.providers[0].usage_percent), "█░░░░░░░  12%");
         assert_eq!(bar(rendered.providers[1].usage_percent), "░░░░░░░░ unknown");
+    }
+
+    #[test]
+    fn every_product_provider_reaches_the_tray() {
+        let rendered = view(vec![
+            status("CLAUDE", None),
+            status("OPENROUTER", None),
+            status("CODEX", None),
+            status("ANTIGRAVITY", None),
+            status("GEMINI_CLI", None),
+            status("OPENCODE", None),
+            status("GROK", None),
+            status("KIMI", None),
+            status("MANUAL", None),
+        ])
+        .expect("every provider is valid");
+        assert_eq!(rendered.providers.len(), PROVIDER_LIMIT);
+        assert_eq!(rendered.providers[6].name, "Grok");
+        assert_eq!(rendered.providers[7].name, "Kimi");
     }
 
     #[test]
