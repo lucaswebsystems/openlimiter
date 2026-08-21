@@ -22,7 +22,7 @@
     }
   },
   "nav": {
-    "getPro": "Get Pro",
+    "getPro": "Pro coming soon",
     "sponsor": "Sponsor",
     "githubAria": "OpenLimiter on GitHub",
     "githubStarsAria": "OpenLimiter on GitHub, {count, plural, one {# star} other {# stars}}",
@@ -421,7 +421,7 @@
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro is the optional hosted tier at $5 a month or $50 a year, with the first 30 days free. It contains exactly three services: threshold and reset email alerts, ninety day history with forecasts, and live budget context for coding agent routing. Every local feature remains free."
+        "answer": "OpenLimiter Pro is coming soon at $5 a month or $48 a year. It has exactly three services: threshold alerts, history and forecasting, and agent auto routing. Every local feature remains free."
       }
     }
   },
@@ -436,7 +436,8 @@
       "lead": "The whole local product, for everybody, with no account anywhere in it.",
       "footnote": "Open source under <licence>Apache 2.0</licence>, so this cannot be taken away later. The licence is the promise.",
       "lines": {
-        "connectors": "Every connector, and every one added later",
+        "connectors": "Every supported provider",
+        "sync": "Sync across your devices",
         "agentContext": "The bounded agent context block and its routing advice",
         "notifications": "Desktop notifications and sounds when a window nears its cap",
         "themes": "Themes, in the desktop application and in the browser",
@@ -456,9 +457,9 @@
       "lead": "Exactly three hosted services, protected by a signed Pro entitlement.",
       "footnote": "Nothing local ever moves behind this plan. Pro sells hosted service, never local switches.",
       "lines": {
-        "alerts": "Email when a provider crosses your threshold or resets",
-        "history": "Ninety day usage history with burn rate forecasts",
-        "routing": "Live budget context that advises your coding agent which plan has room"
+        "alerts": "Threshold alerts",
+        "history": "History and forecasting",
+        "routing": "Agent auto routing"
       },
       "cta": "Start 30 days free",
       "comingSoonCta": "Pro coming soon"
@@ -1404,7 +1405,7 @@
           },
           "sync": {
             "title": "Built: OpenLimiter Pro",
-            "intro": "OpenLimiter Pro is built as one optional hosted tier at $5 a month or $50 a year, with the first 30 days free. Nothing local moves behind it. See <pricing>pricing</pricing> for the current offer.",
+            "intro": "OpenLimiter Pro is coming soon at $5 a month or $48 a year. Nothing local moves behind it. See <pricing>pricing</pricing> for the current plan.",
             "bullets": {
               "status": "Status: service rails are built. Checkout requires the production Supabase and Stripe configuration.",
               "alerts": "Threshold and reset email alerts.",
@@ -1423,7 +1424,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Sign in to start one 30 day period, then choose $5 a month or $50 a year. Local features never require this account.",
+    "lead": "Sign in for sync. Pro is coming soon at $5 a month or $48 a year.",
     "comingSoonLead": "OpenLimiter Pro is coming soon. The complete local product remains free and needs no account.",
     "configMissing": "Pro is coming soon. Checkout is disabled until the production payment and entitlement keys are ready.",
     "emailLabel": "Email",
@@ -1433,7 +1434,7 @@
     "signedIn": "You are signed in.",
     "trialActive": "Your Pro access is ready. Local features remain free even when it ends.",
     "checkoutMonthly": "Choose $5 monthly",
-    "checkoutYearly": "Choose $50 yearly",
+    "checkoutYearly": "Choose $48 yearly",
     "working": "Working",
     "signOut": "Sign out",
     "privacy": "Provider credentials never enter this page.",

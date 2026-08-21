@@ -1,9 +1,8 @@
 import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
-import { ButtonLink, Chip, SectionHeading } from "./ui";
+import { Chip, SectionHeading } from "./ui";
 import { reveal, revealGroup } from "@/lib/motion";
-import { proRailsEnabled } from "@/lib/pro";
-import { LICENSE_URL, PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE, REPO_URL } from "@/lib/site";
+import { LICENSE_URL, PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
 
 function CheckGlyph() {
   return (
@@ -22,24 +21,6 @@ function CheckGlyph() {
   );
 }
 
-function PlannedGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="mt-0.5 h-4 w-4 flex-none text-muted"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7.75V12l2.75 1.75" />
-    </svg>
-  );
-}
-
 /**
  * The two lists, as identifiers.
  *
@@ -51,13 +32,9 @@ function PlannedGlyph() {
  * product rather than a word, so it stays in the code and only the chip's label
  * is read from the catalog.
  */
-const FREE_LINES: readonly { id: string; planned?: boolean }[] = [
+const FREE_LINES: readonly { id: string }[] = [
   { id: "connectors" },
-  { id: "agentContext" },
-  { id: "notifications", planned: true },
-  { id: "themes" },
-  { id: "cli" },
-  { id: "ingestion" },
+  { id: "sync" },
   { id: "noLimits" },
 ];
 
@@ -69,28 +46,17 @@ const PRO_LINES: readonly { id: string }[] = [
 
 function PlanList({
   lines,
-  glyph,
   label,
-  plannedLabel,
 }: {
-  lines: readonly { id: string; planned?: boolean }[];
-  glyph: "check" | "planned";
+  lines: readonly { id: string }[];
   label: (id: string) => string;
-  plannedLabel: string;
 }) {
   return (
     <ul className="mt-6 space-y-3">
       {lines.map((line) => (
         <li key={line.id} className="flex gap-3 text-sm leading-relaxed text-body">
-          {glyph === "check" && line.planned !== true ? <CheckGlyph /> : <PlannedGlyph />}
-          <span className="min-w-0">
-            {label(line.id)}
-            {line.planned === true && (
-              <Chip tone="neutral" className="ml-2 align-middle">
-                {plannedLabel}
-              </Chip>
-            )}
-          </span>
+          <CheckGlyph />
+          <span className="min-w-0">{label(line.id)}</span>
         </li>
       ))}
     </ul>
@@ -172,16 +138,14 @@ export async function Pricing() {
         >
           <PlanList
             lines={FREE_LINES}
-            glyph="check"
             label={(id) => t(`free.lines.${id}`)}
-            plannedLabel={t("plannedChip")}
           />
         </PlanCard>
 
         <PlanCard
           title="OpenLimiter Pro"
-          status={t(proRailsEnabled ? "pro.status" : "pro.comingSoonStatus")}
-          statusTone={proRailsEnabled ? "accent" : "neutral"}
+          status={t("pro.comingSoonStatus")}
+          statusTone="neutral"
           price={
             <>
               <p className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
@@ -189,44 +153,22 @@ export async function Pricing() {
                   {PRO_MONTHLY_PRICE}
                 </span>
                 <span className="text-sm text-muted">{t("pro.perMonth")}</span>
-                <Chip tone="accent" className="uppercase tracking-wider">
-                  {t("pro.trialChip")}
-                </Chip>
               </p>
               <p className="mt-2 text-sm text-muted">
                 {t("pro.or")} <strong>{PRO_YEARLY_PRICE}</strong> {t("pro.perYear")}
               </p>
-              <p className="mt-2 text-xs leading-relaxed text-muted">{t("pro.priceNote")}</p>
             </>
           }
           lead={t("pro.lead")}
           footnote={
-            <div className="space-y-4">
-              <p>{t("pro.footnote")}</p>
-              {proRailsEnabled ? (
-                <ButtonLink href="/pro" tone="primary">
-                  {t("pro.cta")}
-                </ButtonLink>
-              ) : (
-                <Chip tone="neutral">{t("pro.comingSoonCta")}</Chip>
-              )}
-            </div>
+            <Chip tone="neutral">{t("pro.comingSoonCta")}</Chip>
           }
         >
           <PlanList
             lines={PRO_LINES}
-            glyph="check"
             label={(id) => t(`pro.lines.${id}`)}
-            plannedLabel={t("plannedChip")}
           />
         </PlanCard>
-      </div>
-
-      <div className="mt-6 flex flex-wrap gap-3" {...reveal}>
-        <ButtonLink href="/docs/roadmap">{t("roadmapCta")}</ButtonLink>
-        <ButtonLink href={REPO_URL} external>
-          {t("sourceCta")}
-        </ButtonLink>
       </div>
     </section>
   );

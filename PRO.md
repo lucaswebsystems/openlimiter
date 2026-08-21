@@ -30,7 +30,7 @@ Phone features, quota synchronization between devices, device management, weekly
 
 ## Price and trial
 
-Pro costs $5 per month or $50 per year. The first 30 days are free and require no card. The clock starts at first sign in, not at download, and it cannot be restarted by creating another checkout session for the same account.
+Pro is planned at $5 per month or $48 per year. Checkout is not available before the hosted service launches.
 
 When the trial or subscription ends, only hosted access ends. Local mode remains unchanged.
 

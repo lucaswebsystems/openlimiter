@@ -49,7 +49,7 @@ export function DeviceFrame() {
        against the footage. */
     <section className={`${SHELL} relative pb-8 pt-16 md:pb-16 md:pt-24`}>
       <SectionHeading title={t("title")} lead={t("lead")} />
-      <div {...reveal}>
+      <div {...reveal} data-scroll-pin="">
         <div className="elev-2 overflow-hidden rounded-xl border border-hairline bg-frame p-2 sm:rounded-2xl sm:p-3">
           {/* The pair. Same file name, same dimensions, one of them hidden by
               the theme, so the largest visual on the page belongs to whichever

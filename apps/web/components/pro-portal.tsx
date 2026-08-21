@@ -3,18 +3,10 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { proRailsEnabled, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/pro";
-import PRO_PRICING from "@/lib/pro-pricing.json";
-
-type ProBillingInterval = "month" | "year";
-
-function billingInterval(value: string): ProBillingInterval {
-  if (value === "month" || value === "year") return value;
-  throw new Error("invalid Pro pricing contract");
-}
+import { proConfigurationReady, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/pro";
 
 function client(): SupabaseClient | null {
-  if (!proRailsEnabled) return null;
+  if (!proConfigurationReady) return null;
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
@@ -41,15 +33,6 @@ export function ProPortal() {
     };
   }, [supabase]);
 
-  useEffect(() => {
-    if (supabase === null || session === null) return;
-    void supabase.functions
-      .invoke("pro-service", { body: { action: "account_status" } })
-      .then(({ error }) => {
-        if (error === null) setMessage(t("trialActive"));
-      });
-  }, [session, supabase, t]);
-
   async function sendLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (supabase === null || email.trim() === "") return;
@@ -62,21 +45,6 @@ export function ProPortal() {
     });
     setBusy(false);
     setMessage(error === null ? t("linkSent") : t("error"));
-  }
-
-  async function checkout(interval: ProBillingInterval) {
-    if (supabase === null) return;
-    setBusy(true);
-    setMessage("");
-    const { data, error } = await supabase.functions.invoke("create-checkout", {
-      body: { interval },
-    });
-    if (error !== null || typeof data?.url !== "string") {
-      setBusy(false);
-      setMessage(t("error"));
-      return;
-    }
-    window.location.assign(data.url);
   }
 
   async function signOut() {
@@ -130,25 +98,7 @@ export function ProPortal() {
     <div className="mx-auto max-w-2xl space-y-6 rounded-2xl border border-hairline bg-surface p-6 md:p-8">
       <div className="space-y-2">
         <p className="text-sm font-medium text-heading">{t("signedIn")}</p>
-        <p className="text-sm text-muted">{message || t("trialActive")}</p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void checkout(billingInterval(PRO_PRICING.monthly.interval))}
-          className="focus-ring rounded-lg bg-solid px-4 py-3 text-sm font-medium text-on-solid disabled:opacity-60"
-        >
-          {t("checkoutMonthly")}
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void checkout(billingInterval(PRO_PRICING.yearly.interval))}
-          className="focus-ring rounded-lg border border-hairline-strong px-4 py-3 text-sm font-medium text-heading disabled:opacity-60"
-        >
-          {t("checkoutYearly")}
-        </button>
+        <p className="text-sm text-muted">{message || t("comingSoonLead")}</p>
       </div>
       <button
         type="button"

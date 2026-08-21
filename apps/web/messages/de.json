@@ -22,7 +22,7 @@
     }
   },
   "nav": {
-    "getPro": "Pro holen",
+    "getPro": "Pro kommt bald",
     "sponsor": "Sponsor werden",
     "githubAria": "OpenLimiter auf GitHub",
     "githubStarsAria": "OpenLimiter auf GitHub, {count, plural, one {# Stern} other {# Sterne}}",
@@ -421,7 +421,7 @@
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro ist die optionale gehostete Stufe für $5 pro Monat oder $50 pro Jahr, mit den ersten 30 Tagen kostenlos. Sie enthält genau drei Dienste: E Mail Warnungen bei Schwellenwert und Rücksetzung, neunzig Tage Verlauf mit Prognosen und aktuellen Budgetkontext für Coding Agent Routing. Alle lokalen Funktionen bleiben kostenlos."
+        "answer": "OpenLimiter Pro kommt demnächst für $5 pro Monat oder $48 pro Jahr. Es hat genau drei Dienste: Schwellenwertalarme, Verlauf und Prognosen und automatische Agentenweiterleitung. Alle lokalen Funktionen bleiben kostenlos."
       }
     }
   },
@@ -436,7 +436,8 @@
       "lead": "Das ganze lokale Produkt, für alle, ohne Konto irgendwo darin.",
       "footnote": "Open Source unter <licence>Apache 2.0</licence>, das kann dir also später nicht genommen werden. Die Lizenz ist das Versprechen.",
       "lines": {
-        "connectors": "Jeder Connector, und jeder, der später dazukommt",
+        "connectors": "Alle unterstützten Anbieter",
+        "sync": "Synchronisierung zwischen deinen Geräten",
         "agentContext": "Der begrenzte agent context block und seine Routingempfehlung",
         "notifications": "Desktop Benachrichtigungen und Töne, wenn ein Fenster sich seiner Grenze nähert",
         "themes": "Themes, in der Desktop Anwendung und im Browser",
@@ -456,9 +457,9 @@
       "lead": "Genau drei gehostete Dienste, geschützt durch eine signierte Pro Berechtigung.",
       "footnote": "Nichts Lokales wandert hinter diesen Plan. Pro verkauft gehosteten Dienst, niemals lokale Schalter.",
       "lines": {
-        "alerts": "E Mail bei Überschreiten deines Schwellenwerts oder bei Rücksetzung",
-        "history": "Neunzig Tage Nutzungsverlauf mit Verbrauchsprognosen",
-        "routing": "Aktueller Budgetkontext berät deinen Coding Agent bei der Planauswahl"
+        "alerts": "Schwellenwertalarme",
+        "history": "Verlauf und Prognosen",
+        "routing": "Automatische Agentenweiterleitung"
       },
       "cta": "30 Tage kostenlos starten",
       "comingSoonCta": "Pro kommt demnächst"
@@ -1404,7 +1405,7 @@
           },
           "sync": {
             "title": "Gebaut: OpenLimiter Pro",
-            "intro": "OpenLimiter Pro ist als optionale gehostete Stufe für $5 pro Monat oder $50 pro Jahr gebaut, mit den ersten 30 Tagen kostenlos. Nichts Lokales wandert dahinter. Das aktuelle Angebot steht unter <pricing>Preise</pricing>.",
+            "intro": "OpenLimiter Pro kommt demnächst für $5 pro Monat oder $48 pro Jahr. Nichts Lokales wandert dahinter. Der aktuelle Plan steht unter <pricing>Preise</pricing>.",
             "bullets": {
               "status": "Status: Die Dienstrails sind gebaut. Checkout benötigt die produktive Supabase und Stripe Konfiguration.",
               "alerts": "E Mail Warnungen bei Schwellenwert und Rücksetzung.",
@@ -1423,7 +1424,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Melde dich für einmalig 30 kostenlose Tage an. Danach wählst du $5 pro Monat oder $50 pro Jahr. Lokale Funktionen benötigen dieses Konto nie.",
+    "lead": "Melde dich für die Synchronisierung an. Pro kommt demnächst für $5 pro Monat oder $48 pro Jahr.",
     "comingSoonLead": "OpenLimiter Pro kommt demnächst. Das vollständige lokale Produkt bleibt kostenlos und braucht kein Konto.",
     "configMissing": "Pro kommt demnächst. Checkout bleibt deaktiviert, bis die produktiven Zahlungs- und Berechtigungsschlüssel bereit sind.",
     "emailLabel": "E Mail",
@@ -1433,7 +1434,7 @@
     "signedIn": "Du bist angemeldet.",
     "trialActive": "Dein Pro Zugang ist bereit. Lokale Funktionen bleiben auch nach seinem Ende kostenlos.",
     "checkoutMonthly": "$5 monatlich wählen",
-    "checkoutYearly": "$50 jährlich wählen",
+    "checkoutYearly": "$48 jährlich wählen",
     "working": "Wird ausgeführt",
     "signOut": "Abmelden",
     "privacy": "Anbieter Zugangsdaten gelangen nie auf diese Seite.",

@@ -36,31 +36,68 @@ export function Reveal() {
     const armed = root.getAttribute(MOTION_ATTR);
     if (armed !== MOTION_ARMED && armed !== MOTION_LIVE) return;
 
-    const targets = Array.from(document.querySelectorAll(`[${REVEAL_ATTR}]`));
+    const targets = Array.from(document.querySelectorAll<HTMLElement>(`[${REVEAL_ATTR}]`));
     if (targets.length === 0) {
       root.removeAttribute(MOTION_ATTR);
       return;
     }
+    let disposed = false;
+    let release: (() => void) | undefined;
 
-    root.setAttribute(MOTION_ATTR, MOTION_LIVE);
+    void Promise.all([import("gsap"), import("gsap/ScrollTrigger")])
+      .then(([gsapModule, triggerModule]) => {
+        if (disposed) return;
+        const gsap = gsapModule.gsap;
+        const ScrollTrigger = triggerModule.ScrollTrigger;
+        gsap.registerPlugin(ScrollTrigger);
+        root.setAttribute(MOTION_ATTR, MOTION_LIVE);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          entry.target.setAttribute(REVEALED_ATTR, "");
-          observer.unobserve(entry.target);
-        }
-      },
-      /* Sixty pixels inside the bottom edge, the same trigger point paseo.sh
-         uses, so an element starts its entrance just after it has cleared the
-         fold rather than the instant its first pixel appears. Only the bottom
-         edge is inset: insetting the top as well would hold back anything that
-         loads already sitting above the fold. */
-      { rootMargin: "0px 0px -60px 0px", threshold: 0 },
-    );
+        const animations = targets.map((target) => {
+          const travel = target.getAttribute(REVEAL_ATTR) === "sm" ? 12 : 20;
+          const group = target.parentElement?.hasAttribute("data-reveal-group") === true
+            ? target.parentElement
+            : null;
+          const order = group === null ? 0 : Array.from(group.children).indexOf(target);
+          return gsap.fromTo(
+            target,
+            { autoAlpha: 0, y: travel },
+            {
+              autoAlpha: 1,
+              y: 0,
+              duration: 0.62,
+              delay: Math.min(Math.max(order, 0) * 0.07, 0.35),
+              ease: "power2.out",
+              clearProps: "opacity,transform,visibility",
+              onStart: () => target.setAttribute(REVEALED_ATTR, ""),
+              scrollTrigger: {
+                trigger: target,
+                start: "top 88%",
+                once: true,
+              },
+            },
+          );
+        });
 
-    for (const target of targets) observer.observe(target);
+        const pins = window.matchMedia("(min-width: 1024px)").matches
+          ? Array.from(document.querySelectorAll<HTMLElement>("[data-scroll-pin]")).map(
+              (target) =>
+                ScrollTrigger.create({
+                  trigger: target,
+                  start: "center center",
+                  end: "+=120",
+                  pin: true,
+                  pinSpacing: true,
+                  anticipatePin: 1,
+                }),
+            )
+          : [];
+
+        release = () => {
+          animations.forEach((animation) => animation.kill());
+          pins.forEach((pin) => pin.kill());
+        };
+      })
+      .catch(() => root.removeAttribute(MOTION_ATTR));
 
     /* Second failsafe. A page always has something in view, so if nothing at
        all has been reported by now the observer is not working and the page is
@@ -72,8 +109,9 @@ export function Reveal() {
     }, MOTION_FAILSAFE_MS);
 
     return () => {
+      disposed = true;
       window.clearTimeout(guard);
-      observer.disconnect();
+      release?.();
     };
   }, []);
 

@@ -57,7 +57,7 @@ export const SPONSORS_URL = "https://github.com/sponsors/lucaswebsystems";
 export const COFFEE_URL = "https://buymeacoffee.com/lucaswebsystems";
 
 export const PRO_MONTHLY_PRICE = "$5";
-export const PRO_YEARLY_PRICE = "$50";
+export const PRO_YEARLY_PRICE = "$48";
 
 export const AUTHOR_NAME = "Lucas Costa";
 export const AUTHOR_EMAIL = "lucas@lucaswebsystems.com";

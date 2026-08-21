@@ -22,7 +22,7 @@
     }
   },
   "nav": {
-    "getPro": "Obtener Pro",
+    "getPro": "Pro próximamente",
     "sponsor": "Patrocinar",
     "githubAria": "OpenLimiter en GitHub",
     "githubStarsAria": "OpenLimiter en GitHub, {count, plural, one {# estrella} other {# estrellas}}",
@@ -421,7 +421,7 @@
       },
       "pro": {
         "question": "¿Qué es OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro es el nivel alojado opcional por $5 al mes o $50 al año, con los primeros 30 días gratis. Incluye exactamente tres servicios: alertas por email al cruzar un límite o reiniciar, noventa días de historial con previsiones y contexto de presupuesto para la ruta del agente de código. Todas las funciones locales siguen gratis."
+        "answer": "OpenLimiter Pro estará disponible próximamente por $5 al mes o $48 al año. Tiene exactamente tres servicios: alertas de umbral, historial y previsiones, y enrutamiento automático de agentes. Todas las funciones locales siguen gratis."
       }
     }
   },
@@ -436,7 +436,8 @@
       "lead": "Todo el producto local, para cualquiera, sin ninguna cuenta en él.",
       "footnote": "Código abierto bajo <licence>Apache 2.0</licence>, así que esto no se puede quitar después. La licencia es la promesa.",
       "lines": {
-        "connectors": "Cada connector, y cada uno que se agregue después",
+        "connectors": "Todos los proveedores compatibles",
+        "sync": "Sincronización entre tus dispositivos",
         "agentContext": "El bloque acotado de agent context y sus consejos de enrutamiento",
         "notifications": "Notificaciones de escritorio y sonidos cuando una ventana se acerca a su límite",
         "themes": "Temas, en la aplicación de escritorio y en el navegador",
@@ -456,9 +457,9 @@
       "lead": "Exactamente tres servicios alojados, protegidos por un derecho Pro firmado.",
       "footnote": "Nada local pasa detrás de este plan. Pro vende servicio alojado, nunca interruptores locales.",
       "lines": {
-        "alerts": "Email cuando un proveedor cruza tu límite o se reinicia",
-        "history": "Noventa días de historial con previsiones de consumo",
-        "routing": "Contexto de presupuesto que aconseja al agente qué plan tiene espacio"
+        "alerts": "Alertas de umbral",
+        "history": "Historial y previsiones",
+        "routing": "Enrutamiento automático de agentes"
       },
       "cta": "Empezar 30 días gratis",
       "comingSoonCta": "Pro próximamente"
@@ -1404,7 +1405,7 @@
           },
           "sync": {
             "title": "Construido: OpenLimiter Pro",
-            "intro": "OpenLimiter Pro está construido como un nivel alojado opcional por $5 al mes o $50 al año, con los primeros 30 días gratis. Nada local pasa detrás. Consulta <pricing>precios</pricing> para ver la oferta actual.",
+            "intro": "OpenLimiter Pro estará disponible próximamente por $5 al mes o $48 al año. Nada local pasa detrás. Consulta <pricing>precios</pricing> para ver el plan actual.",
             "bullets": {
               "status": "Estado: la infraestructura del servicio está construida. El checkout requiere la configuración de producción de Supabase y Stripe.",
               "alerts": "Alertas por email al cruzar un límite o reiniciar.",
@@ -1423,7 +1424,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Inicia sesión para un único periodo de 30 días, después elige $5 al mes o $50 al año. Las funciones locales nunca requieren esta cuenta.",
+    "lead": "Inicia sesión para sincronizar. Pro estará disponible próximamente por $5 al mes o $48 al año.",
     "comingSoonLead": "OpenLimiter Pro estará disponible próximamente. El producto local completo sigue siendo gratis y no requiere una cuenta.",
     "configMissing": "Pro estará disponible próximamente. El checkout permanece desactivado hasta que las claves de pago y autorización de producción estén listas.",
     "emailLabel": "Email",
@@ -1433,7 +1434,7 @@
     "signedIn": "Has iniciado sesión.",
     "trialActive": "Tu acceso Pro está listo. Las funciones locales siguen gratis cuando termine.",
     "checkoutMonthly": "Elegir $5 mensual",
-    "checkoutYearly": "Elegir $50 anual",
+    "checkoutYearly": "Elegir $48 anual",
     "working": "Procesando",
     "signOut": "Cerrar sesión",
     "privacy": "Las credenciales del proveedor nunca entran en esta página.",

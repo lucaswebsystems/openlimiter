@@ -4,7 +4,6 @@ import { PageShell } from "@/components/page-shell";
 import { ProPortal } from "@/components/pro-portal";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
 import { pageMetadata } from "@/lib/metadata";
-import { proRailsEnabled } from "@/lib/pro";
 
 export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
   const locale = await pageLocale(params);
@@ -12,7 +11,7 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
   return {
     ...pageMetadata({
       title: t("title"),
-      description: t(proRailsEnabled ? "lead" : "comingSoonLead"),
+      description: t("comingSoonLead"),
       route: "/pro",
       locale,
     }),
@@ -29,7 +28,7 @@ export default async function ProPage({ params }: LocaleParams) {
   await pageLocale(params);
   const t = await getTranslations("proPortal");
   return (
-    <PageShell title={t("title")} lead={t(proRailsEnabled ? "lead" : "comingSoonLead")}>
+    <PageShell title={t("title")} lead={t("comingSoonLead")}>
       <ProPortal />
     </PageShell>
   );
