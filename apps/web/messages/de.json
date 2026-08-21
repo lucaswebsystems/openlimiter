@@ -427,13 +427,13 @@
   },
   "pricing": {
     "title": "Preise",
-    "lead": "Alles, was auf deinem Rechner läuft, ist kostenlos, und das ist kein Launch Angebot. Das Einzige, was je Geld kosten könnte, ist ein Dienst auf Servern, weil Server Geld kosten, um zu laufen.",
+    "lead": "Lokal bleibt kostenlos. Synchronisierung ist enthalten.",
     "plannedChip": "geplant",
     "free": {
       "status": "verfügbar",
       "price": "Kostenlos",
       "priceNote": "für immer, und laut Lizenz",
-      "lead": "Das ganze lokale Produkt, für alle, ohne Konto irgendwo darin.",
+      "lead": "Lokale Nutzung braucht kein Konto. Synchronisierung ist optional.",
       "footnote": "Open Source unter <licence>Apache 2.0</licence>, das kann dir also später nicht genommen werden. Die Lizenz ist das Versprechen.",
       "lines": {
         "connectors": "Alle unterstützten Anbieter",
@@ -454,7 +454,7 @@
       "perYear": "pro Jahr",
       "trialChip": "30 Tage kostenlos",
       "priceNote": "Die ersten 30 Tage sind ohne Karte kostenlos. Wenn der Zugang endet, stoppen nur die gehosteten Dienste. Lokal ändert sich nichts.",
-      "lead": "Genau drei gehostete Dienste, geschützt durch eine signierte Pro Berechtigung.",
+      "lead": "Drei gehostete Werkzeuge für Planung und Weiterleitung.",
       "footnote": "Nichts Lokales wandert hinter diesen Plan. Pro verkauft gehosteten Dienst, niemals lokale Schalter.",
       "lines": {
         "alerts": "Schwellenwertalarme",

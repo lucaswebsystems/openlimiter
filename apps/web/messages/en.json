@@ -427,13 +427,13 @@
   },
   "pricing": {
     "title": "Pricing",
-    "lead": "Everything that runs on your machine is free, and that is not a launch offer. The only thing that could ever cost money is a service running on servers, because servers cost money to run.",
+    "lead": "Local stays free. Sync is included.",
     "plannedChip": "planned",
     "free": {
       "status": "available",
       "price": "Free",
       "priceNote": "forever, and in the licence",
-      "lead": "The whole local product, for everybody, with no account anywhere in it.",
+      "lead": "Local use needs no account. Sync is optional.",
       "footnote": "Open source under <licence>Apache 2.0</licence>, so this cannot be taken away later. The licence is the promise.",
       "lines": {
         "connectors": "Every supported provider",
@@ -454,7 +454,7 @@
       "perYear": "a year",
       "trialChip": "30 days free",
       "priceNote": "The first 30 days are free with no card required. When access ends, only the hosted services stop. Nothing local changes.",
-      "lead": "Exactly three hosted services, protected by a signed Pro entitlement.",
+      "lead": "Three hosted tools for planning and routing.",
       "footnote": "Nothing local ever moves behind this plan. Pro sells hosted service, never local switches.",
       "lines": {
         "alerts": "Threshold alerts",

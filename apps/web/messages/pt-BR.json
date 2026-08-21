@@ -427,13 +427,13 @@
   },
   "pricing": {
     "title": "Preços",
-    "lead": "Tudo que roda na sua máquina é grátis, e isso não é uma promoção de lançamento. A única coisa que algum dia poderia custar dinheiro é um serviço rodando em servidores, porque servidores custam dinheiro para rodar.",
+    "lead": "O modo local continua grátis. A sincronização está incluída.",
     "plannedChip": "planejado",
     "free": {
       "status": "disponível",
       "price": "Grátis",
       "priceNote": "para sempre, e na licença",
-      "lead": "O produto local inteiro, para todo mundo, sem nenhuma conta em lugar nenhum.",
+      "lead": "O uso local não exige conta. A sincronização é opcional.",
       "footnote": "Código aberto sob a <licence>Apache 2.0</licence>, então isso não pode ser tirado depois. A licença é a promessa.",
       "lines": {
         "connectors": "Todos os provedores compatíveis",
@@ -454,7 +454,7 @@
       "perYear": "por ano",
       "trialChip": "30 dias gratuitos",
       "priceNote": "Os primeiros 30 dias são gratuitos e não exigem cartão. Quando o acesso termina, somente os serviços hospedados param. Nada local muda.",
-      "lead": "Exatamente três serviços hospedados, protegidos por uma permissão Pro assinada.",
+      "lead": "Três ferramentas hospedadas para planejamento e roteamento.",
       "footnote": "Nada local fica atrás deste plano. O Pro vende serviço hospedado, nunca interruptores locais.",
       "lines": {
         "alerts": "Alertas de limite",
