@@ -4,6 +4,24 @@ All notable project changes appear in this file.
 
 ## [Unreleased]
 
+## [1.0.1] (2026-08-21)
+
+### Changed
+
+Codex and Antigravity detection is proven against live authenticated accounts on
+Windows. OpenCode now preserves its rolling, weekly, and monthly values instead
+of collapsing them into one row. Claude emits optional Opus and Sonnet weekly
+family windows when its usage response supplies them.
+
+Gemini CLI now has a frozen official source fixture and the same fail closed
+payload contract as the native collector. Grok and Kimi now reach the tray along
+with every other supported provider.
+
+### Distribution
+
+This patch ships unsigned Windows and Linux desktop packages. macOS remains
+absent until signing exists. The npm command line package remains unpublished.
+
 ## [1.0.0] (2026-08-20)
 
 ### Added

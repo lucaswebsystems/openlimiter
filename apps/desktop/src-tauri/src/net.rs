@@ -222,7 +222,7 @@ pub const GEMINI_CLI_LOAD_BODY: &str = r#"{"metadata":{"ideType":"IDE_UNSPECIFIE
 
 /// The default identity carried by provider requests that accept third party
 /// clients. Antigravity is the exception documented below.
-pub const OPENLIMITER_USER_AGENT: &str = "OpenLimiter/1.0.0 (+https://openlimiter.com)";
+pub const OPENLIMITER_USER_AGENT: &str = "OpenLimiter/1.0.1 (+https://openlimiter.com)";
 
 /// The user agent the Codex usage endpoint is addressed with.
 pub const CODEX_USER_AGENT: &str = OPENLIMITER_USER_AGENT;

@@ -1,6 +1,6 @@
 {
   "name": "@openlimiter/adapters",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Agent adapters that render OpenLimiter quota guidance in supported tools.",
   "type": "module",
   "main": "./dist/index.js",
