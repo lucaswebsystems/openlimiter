@@ -2,3 +2,6 @@
 
 # Build time copy of the root changelog, pulled in by scripts/pull-changelog.mjs
 CHANGELOG.md
+
+.vercel
+.env*
