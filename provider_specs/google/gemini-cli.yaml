@@ -1,53 +1,47 @@
-# Gemini CLI. The one local_file case in this research pass, and a narrow
-# one. Gemini CLI supports an opt in OpenTelemetry target, set through
-# .gemini/settings.json ("telemetry": { "enabled": true, "target": "local",
-# "outfile": ".gemini/telemetry.log" }), that writes token usage counters
-# including a metric literally named gemini_cli.token.usage plus a session
-# count metric. Disabled by default, and the docs do not state the on disk
-# record format, JSON lines against an OTLP export are both plausible. The
-# metric name itself is dot namespaced the way Ollama's model_info keys are,
-# which this file's plain dotted path cannot express as a single field, so
-# source_path below names only the logical field.
+# Gemini CLI reads a private Google Code Assist quota surface with the OAuth
+# credential already stored by the official command line tool. The native
+# collector first resolves the managed project and then requests quota buckets.
+# Both addresses, methods, bodies, and headers are closed Rust constants in
+# apps/desktop/src-tauri/src/net.rs. This registry names no destination.
 #
-# The metric this file can name is a raw counter, not a percentage of quota.
-# The actual quota concept Google documents is a clean, separate, per plan
-# daily request cap: 1000 requests per day on the free Google account OAuth
-# path, 1500 on Google AI Pro, 2000 on Google AI Ultra, 250 on a free Gemini
-# API key restricted to the Flash model, and "varies" on a paid API key
-# tier. A real parser would need to relate the two, matching the signed in
-# account's plan to the right cap, which this registry entry cannot state.
-# Also flagging an unresolved conflict between two official pages in the
-# same repository: README.md states 1000 requests per day mixed flash and
-# pro for the free API key path, while docs/resources/quota-and-pricing.md
-# states 250 requests per day, Flash only, for what reads as the same path.
-# See provider_specs/RESEARCH.md.
-#
-# No API endpoint exists for reading quota state: ai.google.dev documents
-# only the rate limit tiers themselves and points at the Google AI Studio
-# dashboard, aistudio.google.com/rate-limit, for the live figures.
+# The official Gemini CLI source defines the private response shape, but Google
+# does not publish it as a supported third party API. The reader therefore stays
+# experimental and UNVERIFIED even though its frozen source derived fixture is
+# tested by both TypeScript and Rust.
 
 provider_id: google
 product_id: gemini-cli
 display_name: Gemini CLI
 
 source:
-  docs_url: https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/telemetry.md
-  reviewed_at: "2026-08-10"
-  source_status: official
+  docs_url: https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/server.ts
+  reviewed_at: "2026-08-20"
+  source_status: provisional
 
 availability:
   requires_plan: any
-  appears_after: telemetry_enabled
+  appears_after: local_cli_login
   absence_is_error: false
 
 support:
-  parser: absent
-  reader: absent
-  auth: not_required
+  parser: implemented
+  reader: implemented
+  auth: implemented
+
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: gemini_cli_quota
+      endpoint_id: gemini_cli_quota
+      credential_kind: gemini_cli_session
+      evidence_fixture: gemini-cli.official-source.quota
+      evidence_status: documented
+      last_verified_at: "2026-08-20"
 
 connections:
-  - reader: local_file
-    auth_mode: none
+  - reader: experimental
+    auth_mode: existing_local_cli
     platforms:
       - windows
       - macos
@@ -57,18 +51,39 @@ verification:
   verification_status: unverified
   last_verified_at: null
   fixture_ids:
-    - google.documented.telemetry
+    - gemini-cli.official-source.quota
+
+honesty:
+  connector_id: gemini_cli
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: UNVERIFIED
 
 meters:
-  - id: token_usage
-    label: Token usage (local telemetry)
-    kind: token_usage
-    unit: tokens
-    scope: account
+  - id: gemini_3_1_pro_preview
+    label: Gemini 3.1 Pro Preview
+    kind: model_quota
+    unit: percent_used
+    scope: model
     window:
       kind: provider_defined
-    source_path: token_usage
-    reset_path: null
-    reset_encoding: none
+    source_format: json_path
+    source_path: buckets.remainingFraction
+    reset_path: buckets.resetTime
+    reset_encoding: rfc3339
     optional: true
-    meter_code: TOKEN_USAGE
+    meter_code: GEMINI_3_1_PRO_PREVIEW
+  - id: gemini_3_flash_preview
+    label: Gemini 3 Flash Preview
+    kind: model_quota
+    unit: percent_used
+    scope: model
+    window:
+      kind: provider_defined
+    source_format: json_path
+    source_path: buckets.remainingFraction
+    reset_path: buckets.resetTime
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: GEMINI_3_FLASH_PREVIEW

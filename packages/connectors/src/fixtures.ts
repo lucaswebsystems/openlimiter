@@ -50,6 +50,9 @@ export const GROK_BILLING_SOURCE_URL =
 export const KIMI_USAGE_SOURCE_URL =
   "https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts";
 
+export const GEMINI_CLI_QUOTA_SOURCE_URL =
+  "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/server.ts";
+
 /** The day a human last read both pages above against this file. */
 export const FIXTURE_REVIEWED_AT = "2026-08-10";
 
@@ -226,6 +229,25 @@ export function antigravityFixture(now: string = FIXTURE_NOW): Record<string, un
             resetTime: rfc3339Offset(now, FIVE_HOURS)
           }
         ]
+      }
+    ]
+  };
+}
+
+export function geminiCliFixture(now: string = FIXTURE_NOW): Record<string, unknown> {
+  return {
+    buckets: [
+      {
+        remainingFraction: 0.75,
+        resetTime: offset(now, SEVEN_DAYS),
+        tokenType: "REQUESTS",
+        modelId: "gemini-3.1-pro-preview"
+      },
+      {
+        remainingFraction: 1,
+        resetTime: offset(now, SEVEN_DAYS),
+        tokenType: "REQUESTS",
+        modelId: "gemini-3-flash-preview"
       }
     ]
   };
@@ -456,6 +478,16 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
       "evidence only.",
     expectedMeters: 1,
     build: (now) => antigravityFixture(now)
+  },
+  {
+    id: "gemini-cli.official-source.quota",
+    connector: "gemini_cli",
+    docsUrl: GEMINI_CLI_QUOTA_SOURCE_URL,
+    reviewedAt: "2026-08-20",
+    sourceStatus: "official",
+    note: "The official Gemini CLI source defines the private quota response buckets.",
+    expectedMeters: 2,
+    build: (now) => geminiCliFixture(now)
   },
   {
     id: "opencode.provisional.usage",

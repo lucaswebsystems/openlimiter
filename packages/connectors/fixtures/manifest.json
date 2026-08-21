@@ -53,6 +53,19 @@
       ]
     },
     {
+      "provider": "GEMINI_CLI",
+      "connector": "gemini_cli",
+      "file": "gemini-cli.quota.json",
+      "encoding": "json",
+      "parser": "parseGeminiCliPayload",
+      "evidence": "official_source",
+      "expectedMeters": 2,
+      "expect": [
+        { "meter": "GEMINI_3_1_PRO_PREVIEW", "value": 25 },
+        { "meter": "GEMINI_3_FLASH_PREVIEW", "value": 0 }
+      ]
+    },
+    {
       "provider": "OPENCODE",
       "connector": "opencode",
       "file": "opencode.workspace.html",

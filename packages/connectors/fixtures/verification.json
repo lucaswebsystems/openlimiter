@@ -21,6 +21,11 @@
       "evidence": "observed",
       "reason": "The quota summary was observed against a real Google AI Pro account and is recorded in the reference implementation that reads it live. The frozen fixture parses to the binding gemini window at 72 percent while leaving the third party pool alone, so the parser is fixture verified. The honesty label stays UNVERIFIED because the endpoint is internal and Google publishes nothing about it."
     },
+    "gemini_cli": {
+      "fixtureVerified": true,
+      "evidence": "official_source",
+      "reason": "The official Gemini CLI source defines the private quota bucket response. The frozen source derived fixture parses both model buckets and matches the shipped Rust collector, while the interface remains internal and UNVERIFIED."
+    },
     "opencode": {
       "fixtureVerified": false,
       "evidence": "scrape",

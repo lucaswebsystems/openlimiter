@@ -15,6 +15,8 @@ import {
   hostileFixture,
   grokConnector,
   grokFixture,
+  geminiCliConnector,
+  geminiCliFixture,
   kimiConnector,
   kimiFixture,
   manualConnector,
@@ -27,6 +29,7 @@ import {
   parseClaudePayload,
   parseCodexPayload,
   parseGrokPayload,
+  parseGeminiCliPayload,
   parseKimiPayload,
   parseManualPayload,
   parseOpencodePayload,
@@ -102,6 +105,20 @@ const cases: readonly {
     }
   },
   {
+    name: "gemini_cli",
+    parser: parseGeminiCliPayload,
+    fixture: geminiCliFixture(FIXTURE_NOW),
+    provider: "GEMINI_CLI",
+    huge: {
+      buckets: [{
+        remainingFraction: 9e300,
+        resetTime: "2026-01-08T00:00:00.000Z",
+        tokenType: "REQUESTS",
+        modelId: "gemini-3.1-pro-preview"
+      }]
+    }
+  },
+  {
     name: "grok",
     parser: parseGrokPayload,
     fixture: grokFixture(FIXTURE_NOW),
@@ -174,8 +191,8 @@ describe.each(cases)("$name parser", ({ parser, fixture, provider, huge }) => {
 });
 
 describe("connector contracts", () => {
-  it("ships eight unverified connectors", () => {
-    expect(connectors).toHaveLength(8);
+  it("ships nine unverified connectors including the manual meter", () => {
+    expect(connectors).toHaveLength(9);
     expect(connectors.every((connector) => connector.labels.verification === "UNVERIFIED"))
       .toBe(true);
   });
@@ -187,6 +204,7 @@ describe("connector contracts", () => {
     })).toBe(true);
     expect(codexConnector.detect({ CODEX_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(antigravityConnector.detect({ ANTIGRAVITY_USAGE_PAYLOAD: "1" })).toBe(true);
+    expect(geminiCliConnector.detect({ GEMINI_CLI_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(opencodeConnector.detect({ OPENCODE_SESSION_PRESENT: "1" })).toBe(true);
     expect(grokConnector.detect({ GROK_USAGE_PAYLOAD: "1" })).toBe(true);
     expect(kimiConnector.detect({ KIMI_USAGE_PAYLOAD: "1" })).toBe(true);
@@ -273,6 +291,7 @@ describe("connector contracts", () => {
     expect(parseClaudePayload(claudeFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseCodexPayload(codexFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseAntigravityPayload(antigravityFixture(FIXTURE_NOW), later)).toBeNull();
+    expect(parseGeminiCliPayload(geminiCliFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseGrokPayload(grokFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseKimiPayload(kimiFixture(FIXTURE_NOW), later)).toBeNull();
     expect(parseManualPayload(manualFixture(FIXTURE_NOW), later)).toBeNull();

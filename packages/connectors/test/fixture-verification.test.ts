@@ -6,6 +6,7 @@ import {
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
+  parseGeminiCliPayload,
   parseGrokPayload,
   parseKimiPayload,
   parseOpencodePayload,
@@ -36,6 +37,7 @@ const parsers: Readonly<Record<string, Parser>> = {
   parseClaudePayload,
   parseOpenrouterPayload,
   parseCodexPayload,
+  parseGeminiCliPayload,
   parseGrokPayload,
   parseKimiPayload,
   parseAntigravityPayload,
@@ -79,6 +81,7 @@ const LIVE_PROVIDERS = new Set([
   "openrouter",
   "codex",
   "antigravity",
+  "gemini_cli",
   "opencode",
   "grok",
   "kimi"

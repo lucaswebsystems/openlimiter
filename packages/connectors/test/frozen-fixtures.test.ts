@@ -6,6 +6,7 @@ import {
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
+  parseGeminiCliPayload,
   parseGrokPayload,
   parseKimiPayload,
   parseOpencodePayload,
@@ -34,6 +35,7 @@ const parsers: Readonly<Record<string, Parser>> = {
   parseClaudePayload,
   parseOpenrouterPayload,
   parseCodexPayload,
+  parseGeminiCliPayload,
   parseGrokPayload,
   parseKimiPayload,
   parseAntigravityPayload,
@@ -82,10 +84,19 @@ describe("frozen provider fixtures", () => {
     expect(Number.isFinite(Date.parse(clock))).toBe(true);
   });
 
-  it("carries one frozen fixture file for all seven live providers", () => {
+  it("carries one frozen fixture file for all eight live providers", () => {
     const connectors = manifest.providers.map((entry) => entry.connector).sort();
     expect(connectors).toEqual(
-      ["antigravity", "claude", "codex", "grok", "kimi", "opencode", "openrouter"]
+      [
+        "antigravity",
+        "claude",
+        "codex",
+        "gemini_cli",
+        "grok",
+        "kimi",
+        "opencode",
+        "openrouter"
+      ]
     );
   });
 

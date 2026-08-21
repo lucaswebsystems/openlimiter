@@ -99,7 +99,7 @@ describe("CLI", () => {
     const config = JSON.parse(configText) as {
       connectors: { enabled: boolean }[];
     };
-    expect(config.connectors).toHaveLength(8);
+    expect(config.connectors).toHaveLength(9);
     expect(config.connectors.every((connector) => connector.enabled)).toBe(true);
     expect(configText.includes("sk-DEMO-000")).toBe(false);
   });
@@ -1114,7 +1114,7 @@ describe("CLI", () => {
       bars: false,
       color: "always"
     });
-    expect(stored.connectors).toHaveLength(8);
+    expect(stored.connectors).toHaveLength(9);
   });
 
   it("keeps a configured statusline when init runs a second time", async () => {

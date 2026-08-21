@@ -400,11 +400,10 @@ const AUTH_SUPPORT = new Set(["implemented", "not_required", "absent"]);
 /*
  * The collection vocabularies, frozen.
  *
- * These three sets are the registry's half of one identifier that also exists
- * as a Rust enum in apps/desktop/src-tauri/src/reader_registry.rs and as a
- * frozen list in apps/desktop/ui/backend.js. Spelling one of them differently
- * in any of the three places is how a reader ends up selecting the wrong
- * parser, so all three are closed and all three are checked.
+ * Saved connection identifiers also exist as Rust enums in reader_registry.rs.
+ * Native automatic collectors, including Gemini CLI, use their own closed Rust
+ * modules instead of the saved connection command surface. Every identifier is
+ * still closed here so a spec cannot invent a reader, endpoint, or credential.
  *
  * What is deliberately NOT here: a URL, a method, a header, a permitted status.
  * Those are Rust constants. A registry that could state an address would be a
@@ -416,6 +415,7 @@ const READER_IDS = new Set([
   "openrouter_credits",
   "codex_usage",
   "antigravity_quota",
+  "gemini_cli_quota",
   "opencode_usage",
   "grok_usage",
   "kimi_usage"
@@ -425,6 +425,7 @@ const ENDPOINT_IDS = new Set([
   "openrouter_credits",
   "codex_usage",
   "antigravity_quota",
+  "gemini_cli_quota",
   "opencode_usage",
   "grok_usage",
   "kimi_usage"
@@ -434,6 +435,7 @@ const CREDENTIAL_KINDS = new Set([
   "openrouter_management_key",
   "codex_session",
   "antigravity_session",
+  "gemini_cli_session",
   "opencode_browser_session",
   "grok_session",
   "kimi_session"
@@ -465,6 +467,7 @@ const CONNECTOR_IDS = new Set([
   "openrouter",
   "codex",
   "antigravity",
+  "gemini_cli",
   "opencode",
   "grok",
   "kimi",

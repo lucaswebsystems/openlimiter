@@ -61,6 +61,7 @@ const COPY = {
       "codex.js",
       "contract-gate.js",
       "fixtures.js",
+      "gemini-cli.js",
       "grok.js",
       "kimi.js",
       "manual.js",

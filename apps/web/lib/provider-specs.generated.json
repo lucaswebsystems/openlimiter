@@ -265,23 +265,40 @@
       "providerId": "google",
       "productId": "gemini-cli",
       "displayName": "Gemini CLI",
-      "docsUrl": "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/telemetry.md",
-      "reviewedAt": "2026-08-10",
-      "sourceStatus": "official",
+      "docsUrl": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/server.ts",
+      "reviewedAt": "2026-08-20",
+      "sourceStatus": "provisional",
       "support": {
-        "parser": "absent",
-        "reader": "absent",
-        "auth": "not_required",
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
         "verification": "unverified"
       },
-      "collection": null,
-      "honesty": null,
+      "collection": {
+        "readers": [
+          {
+            "readerId": "gemini_cli_quota",
+            "endpointId": "gemini_cli_quota",
+            "credentialKind": "gemini_cli_session",
+            "evidenceFixture": "gemini-cli.official-source.quota",
+            "evidenceStatus": "documented",
+            "lastVerifiedAt": "2026-08-20"
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "gemini_cli",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "UNVERIFIED"
+      },
       "lastVerifiedAt": null,
       "readers": [
-        "local_file"
+        "experimental"
       ],
       "authModes": [
-        "none"
+        "existing_local_cli"
       ],
       "platforms": [
         "linux",
@@ -290,17 +307,30 @@
       ],
       "meters": [
         {
-          "id": "token_usage",
-          "label": "Token usage (local telemetry)",
-          "kind": "token_usage",
-          "unit": "tokens",
-          "scope": "account",
+          "id": "gemini_3_1_pro_preview",
+          "label": "Gemini 3.1 Pro Preview",
+          "kind": "model_quota",
+          "unit": "percent_used",
+          "scope": "model",
           "sourceFormat": "json_path",
           "window": {
             "kind": "provider_defined"
           },
           "optional": true,
-          "meterCode": "TOKEN_USAGE"
+          "meterCode": "GEMINI_3_1_PRO_PREVIEW"
+        },
+        {
+          "id": "gemini_3_flash_preview",
+          "label": "Gemini 3 Flash Preview",
+          "kind": "model_quota",
+          "unit": "percent_used",
+          "scope": "model",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "provider_defined"
+          },
+          "optional": true,
+          "meterCode": "GEMINI_3_FLASH_PREVIEW"
         }
       ]
     },

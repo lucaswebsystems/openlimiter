@@ -8,6 +8,7 @@ import {
   antigravityFixture,
   claudeFixture,
   codexFixture,
+  geminiCliFixture,
   manualFixture,
   opencodeFixture,
   openrouterFixture,
@@ -62,6 +63,12 @@ const cases: readonly Case[] = [
     goodMeters: 1,
     /* The flat used_percent shape from an early prototype, never seen live. */
     wrongShape: { quota: { used_percent: 40 } }
+  },
+  {
+    provider: "GEMINI_CLI",
+    good: geminiCliFixture(NOW),
+    goodMeters: 2,
+    wrongShape: { quotas: [] }
   },
   {
     provider: "OPENCODE",
@@ -145,13 +152,13 @@ describe("contract gate: absence is unknown, never a silent drop", () => {
     }
   });
 
-  it("keeps a native only provider out of the generic payload boundary", () => {
+  it("routes Gemini through the same explicit contract boundary", () => {
     expect(
       checkProviderContract("GEMINI_CLI", { buckets: [] }, NOW)
     ).toEqual({
       status: "unknown",
       provider: "GEMINI_CLI",
-      reason: "unknown_provider"
+      reason: "shape_mismatch"
     });
   });
 
