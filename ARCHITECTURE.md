@@ -58,6 +58,14 @@ The read, the merge, and the write of a cache update all happen inside that one 
 
 Every file replacement flushes the payload to stable storage before the rename and retries the transient replacement failures that Windows reports while another process briefly holds the destination open. The configuration file is written the same way. It does not take the cache lock, because it is a different file with a single writer.
 
+## Optional snapshot sync
+
+The local cache remains the source of truth and requires no account. Sync is off by default. After an explicit OpenLimiter sign in and enable action, the desktop rebuilds a closed request containing only provider code, opaque account label, window name, bounded percentage, reset time, observation time, and an opaque device identifier. The release client sends it only over HTTPS. A debug build permits plain HTTP only on loopback for local Supabase.
+
+The hosted current snapshot table uses row level security and lets an authenticated user read only their own rows. Direct client writes are revoked. The authenticated Edge Function resolves the user from the bearer token and calls a service role procedure with that identifier. Free sync replaces current rows and records no history. An active entitlement permits the same server accepted batch to create ninety day history for the three Pro feature families. A client supplied flag can never enable history.
+
+Signing out disables sync and removes only OpenLimiter account material. The local cache, collectors, connectors, tray, and local advice are not read, rewritten, gated, or deleted by that path.
+
 ## Failure posture
 
 The hook and statusline paths are invoked by another tool, so they exit zero whatever happens and report unknown instead of breaking their host. Every other command returns a distinct exit code: zero for success, one for a genuine failure, two for a usage error, and three when no bounded quota data exists. Messages on standard error are drawn from a fixed set of strings and never carry provider text, paths from a payload, or secrets.

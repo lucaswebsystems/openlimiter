@@ -14,7 +14,9 @@ Publishing the client is deliberate. You can inspect every network value the app
 
 Every feature that runs on your machine is free and stays free. This promise covers every connector, every meter, every local notification, every dashboard, every command line feature, every statusline option, local advice, manual entry, and local ingestion.
 
-An entitlement check protects only a hosted service call. If Pro access ends, the hosted services stop. The local application does not lose a feature, change a meter, or require a reinstall.
+An entitlement check protects only the three Pro service families below. If Pro access ends, those services stop. Free sync and the local application continue. The local application does not lose a feature, change a meter, or require a reinstall.
+
+Optional snapshot sync is free, off by default, and never entitlement gated. Nothing leaves the machine unless the user signs in and enables it. Signing out never changes or deletes the local cache.
 
 ## What Pro contains
 
@@ -26,7 +28,7 @@ Pro contains exactly three hosted services.
 
 The routing context is advice. The coding agent chooses whether to follow it. OpenLimiter never intercepts, executes, redirects, or authenticates an agent request.
 
-Phone features, quota synchronization between devices, device management, weekly digests, team dashboards, and priority requests are not part of Pro.
+Current quota synchronization between devices and the phone PWA is free. Device management, weekly digests, team dashboards, and priority requests are not part of Pro.
 
 ## Price and trial
 
@@ -46,11 +48,11 @@ The credential store preserves the highest server timestamp ever observed. A loc
 
 Multiple embedded public keys may coexist, so a new signing key can overlap the old key during rotation. If the service is unavailable, a verified token continues through its bounded grace period and the additional failed refresh ceiling. Revocation stops refresh, so hosted access ends when that bounded allowance ends.
 
-## What Pro sends
+## What optional sync sends
 
-After explicit sign in, the desktop may send selected provider code, meter code, bounded usage percentage, and reset time to the hosted service. That data supports alerts, history, forecasts, and routing context.
+After explicit sign in and a separate enable action, the desktop may send selected provider code, opaque account label, window name, bounded usage percentage, reset time, observation time, and opaque device identifier. Free accounts retain only current snapshots. Entitled accounts also retain ninety day samples for alerts, history, forecasts, and routing context.
 
-Provider credentials, provider response bodies, prompts, source code, local configuration, and diagnostics never enter Pro. The returned routing context is treated as untrusted data and rebuilt from a closed shape before the coding agent hook reads it.
+Provider credentials, provider response bodies, prompts, source code, local configuration, and diagnostics never enter sync or Pro. The database has no column for them. Extra JSON fields are discarded before storage. A total sync database breach exposes quota display metadata and cannot reach a provider account. The returned routing context is treated as untrusted data and rebuilt from a closed shape before the coding agent hook reads it.
 
 Local mode sends no data to OpenLimiter and needs no account.
 

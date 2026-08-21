@@ -32,7 +32,7 @@ Several readers depend on private, undocumented provider interfaces. A provider 
 
 ## What it never does
 
-1. No telemetry and no OpenLimiter account for the local product.
+1. The local product has zero telemetry and needs no OpenLimiter account. Sync is off by default. Nothing leaves the machine unless you sign in to OpenLimiter and turn sync on.
 
 2. No prompts, source code, or provider credentials sent to OpenLimiter.
 
@@ -42,9 +42,17 @@ Several readers depend on private, undocumented provider interfaces. A provider 
 
 5. No invented percentage or reset time when data is missing.
 
+Optional sync is an intentional user action, not telemetry. It is free. After you sign in and enable it, OpenLimiter sends only selected bounded quota snapshots so the same numbers can appear on the web dashboard and phone PWA. Provider credentials and provider response bodies never enter that service. Signing out stops remote access and never changes the local cache, local meter, tray, connectors, or local advice.
+
+## Agent Auto Routing
+
+OpenLimiter can render a bounded `PREFER` recommendation into coding agent context. This is advice. It does not intercept, execute, authenticate, or redirect a request, and the agent can ignore it.
+
 ## Free core and Pro
 
-The complete local product is free and open source under Apache 2.0. OpenLimiter Pro is coming soon and is not available in 1.0. No local feature depends on it.
+The complete local product is free and open source under Apache 2.0. It includes the desktop application, command line tool, local connectors, local meter, local agent context, and optional current snapshot sync.
+
+OpenLimiter Pro is coming soon at 5 dollars per month or 48 dollars per year. It adds exactly three hosted features: threshold alerts, history and forecasting, and agent auto routing. Sync itself is free. No local feature moves behind payment.
 
 ## Availability
 
