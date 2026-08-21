@@ -152,8 +152,12 @@ describe("CLI", () => {
       expect(result.stdout).toBe([
         "PROVIDER    METER             BAR        USAGE        AMOUNT        " +
           "STATE RESET                    IN    SOURCE       ",
-        "OPENCODE    PRIMARY           #########. 92.00PERCENT NONE          " +
+        "OPENCODE    FIVE_HOUR         #########. 92.00PERCENT NONE          " +
           "fresh 2026-01-01T20:00:00.000Z 20h0m [import only]",
+        "OPENCODE    SEVEN_DAY         ####...... 40.00PERCENT NONE          " +
+          "fresh 2026-01-06T20:00:00.000Z 5d20h [import only]",
+        "OPENCODE    MONTHLY           #......... 15.00PERCENT NONE          " +
+          "fresh 2026-01-22T00:00:00.000Z 21d0h [import only]",
         "CODEX       FIVE_HOUR         ########.. 84.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
         "KIMI        FIVE_HOUR         ######.... 69.50PERCENT NONE          " +
@@ -240,7 +244,7 @@ describe("CLI", () => {
         provider: string;
         provenance?: { sourceKind: string; observedVia: string };
       }[];
-      expect(rows).toHaveLength(11);
+      expect(rows).toHaveLength(13);
       for (const row of rows) {
         expect(row.provenance).toEqual({
           sourceKind: "explicit_ingest",
@@ -381,12 +385,14 @@ describe("CLI", () => {
       );
       expect(result.exitCode).toBe(0);
       const rows = await exported(directory);
-      expect(rows).toHaveLength(1);
-      expect(rows[0]?.provider).toBe("OPENCODE");
-      expect(rows[0]?.provenance).toEqual({
-        sourceKind: "explicit_ingest",
-        observedVia: "ingest_command"
-      });
+      expect(rows).toHaveLength(3);
+      for (const row of rows) {
+        expect(row.provider).toBe("OPENCODE");
+        expect(row.provenance).toEqual({
+          sourceKind: "explicit_ingest",
+          observedVia: "ingest_command"
+        });
+      }
     });
 
     it("still refuses a JSON connector's payload when it is not JSON", async () => {

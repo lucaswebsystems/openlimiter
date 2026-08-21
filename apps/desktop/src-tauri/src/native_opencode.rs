@@ -156,26 +156,26 @@ fn duration_seconds(text: &str) -> Option<u64> {
     (seen && total > 0 && total <= MAX_WINDOW_SECONDS).then_some(total)
 }
 
-fn parse_windows(html: &str, now_ms: u64) -> Option<Vec<(u64, u64, Option<String>)>> {
-    const WINDOWS: [(&str, u64); 3] = [
-        ("Rolling Usage", 18_000),
-        ("Weekly Usage", 604_800),
-        ("Monthly Usage", 2_592_000),
+fn parse_windows(html: &str, now_ms: u64) -> Option<Vec<(u64, &'static str, u64, Option<String>)>> {
+    const WINDOWS: [(&str, &str, u64); 3] = [
+        ("Rolling Usage", "FIVE_HOUR", 18_000),
+        ("Weekly Usage", "SEVEN_DAY", 604_800),
+        ("Monthly Usage", "MONTHLY", 2_592_000),
     ];
     let mut found = Vec::new();
-    for (label, seconds) in WINDOWS {
+    for (label, meter, seconds) in WINDOWS {
         let matches: Vec<usize> = html.match_indices(label).map(|(at, _)| at).collect();
         if matches.len() != 1 {
             return None;
         }
-        found.push((matches[0], label, seconds));
+        found.push((matches[0], label, meter, seconds));
     }
     found.sort_by_key(|entry| entry.0);
     let mut windows = Vec::new();
-    for (at, label, window_seconds) in &found {
+    for (at, label, meter, window_seconds) in &found {
         let other_labels: Vec<&str> = found
             .iter()
-            .filter_map(|(_, candidate, _)| (*candidate != *label).then_some(*candidate))
+            .filter_map(|(_, candidate, _, _)| (*candidate != *label).then_some(*candidate))
             .collect();
         let segment = window_region(html, *at, &other_labels)?;
         let captures = PERCENT.captures(&segment)?;
@@ -192,7 +192,7 @@ fn parse_windows(html: &str, now_ms: u64) -> Option<Vec<(u64, u64, Option<String
                     .checked_add(seconds.checked_mul(1_000)?)
                     .and_then(iso_from_epoch_ms)
             });
-        windows.push((percent, *window_seconds, reset_at));
+        windows.push((percent, *meter, *window_seconds, reset_at));
     }
     Some(windows)
 }
@@ -201,38 +201,41 @@ pub fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<S
     if body.is_empty() || body.chars().count() > MAX_PAGE_CHARS {
         return None;
     }
-    let binding = parse_windows(body, now_ms)?
-        .into_iter()
-        .max_by_key(|window| window.0)?;
+    let windows = parse_windows(body, now_ms)?;
     let observed_at = iso_from_epoch_ms(now_ms)?;
     let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
-    Some(vec![Snapshot {
-        provider: "OPENCODE".to_string(),
-        meter: "PRIMARY".to_string(),
-        value: binding.0 as f64,
-        unit: "PERCENT".to_string(),
-        window: SnapshotWindow {
-            kind: "rolling".to_string(),
-            duration_seconds: Some(binding.1),
-        },
-        reset_at: binding.2,
-        source: "authenticated_page".to_string(),
-        precision: "estimated".to_string(),
-        observed_at,
-        expires_at,
-        labels: ConnectorLabels {
-            credential_origin: "browser-session".to_string(),
-            data_interface_status: "authenticated-scrape".to_string(),
-            automation_risk: "high".to_string(),
-            verification: "UNVERIFIED".to_string(),
-        },
-        used_amount: None,
-        limit_amount: None,
-        currency: None,
-        account_id: Some(account_id.to_string()),
-        provenance: Some(serde_json::json!({
-            "observedVia": "remote_http",
-            "sourceKind": "remote_api"
-        })),
-    }])
+    Some(
+        windows
+            .into_iter()
+            .map(|(percent, meter, window_seconds, reset_at)| Snapshot {
+                provider: "OPENCODE".to_string(),
+                meter: meter.to_string(),
+                value: percent as f64,
+                unit: "PERCENT".to_string(),
+                window: SnapshotWindow {
+                    kind: "rolling".to_string(),
+                    duration_seconds: Some(window_seconds),
+                },
+                reset_at,
+                source: "authenticated_page".to_string(),
+                precision: "estimated".to_string(),
+                observed_at: observed_at.clone(),
+                expires_at: expires_at.clone(),
+                labels: ConnectorLabels {
+                    credential_origin: "browser-session".to_string(),
+                    data_interface_status: "authenticated-scrape".to_string(),
+                    automation_risk: "high".to_string(),
+                    verification: "UNVERIFIED".to_string(),
+                },
+                used_amount: None,
+                limit_amount: None,
+                currency: None,
+                account_id: Some(account_id.to_string()),
+                provenance: Some(serde_json::json!({
+                    "observedVia": "remote_http",
+                    "sourceKind": "remote_api"
+                })),
+            })
+            .collect(),
+    )
 }

@@ -42,26 +42,38 @@ function page(rolling: number, weekly: number, monthly: number): string {
   );
 }
 
+function byMeter(meters: ReturnType<typeof parseOpencodePayload>, meter: string) {
+  return meters?.find((entry) => entry.meter === meter);
+}
 
 describe("opencode: the shape a real account produced", () => {
-  it("parses the observed shape into exactly one meter", () => {
+  it("parses the observed shape into all three provider windows", () => {
     const meters = parseOpencodePayload(opencodeFixture(NOW), NOW);
     expect(meters).not.toBeNull();
-    expect(meters).toHaveLength(1);
-    expect(meters?.[0]?.provider).toBe("OPENCODE");
-    expect(meters?.[0]?.unit).toBe("PERCENT");
-    expect(meters?.[0]?.meter).toBe("PRIMARY");
+    expect(meters).toHaveLength(3);
+    expect(meters?.every((meter) => meter.provider === "OPENCODE")).toBe(true);
+    expect(meters?.every((meter) => meter.unit === "PERCENT")).toBe(true);
+    expect(meters?.map((meter) => meter.meter).sort()).toEqual([
+      "FIVE_HOUR",
+      "MONTHLY",
+      "SEVEN_DAY"
+    ]);
   });
 
-  it("reads the reading the provider actually stated", () => {
+  it("reads every reading the provider actually stated", () => {
     const meters = parseOpencodePayload(opencodeFixture(NOW), NOW);
-    expect(meters?.[0]?.value).toBe(92);
+    expect(byMeter(meters, "FIVE_HOUR")?.value).toBe(92);
+    expect(byMeter(meters, "SEVEN_DAY")?.value).toBe(40);
+    expect(byMeter(meters, "MONTHLY")?.value).toBe(15);
   });
 
-  it("names the binding window, not the first one on the page", () => {
+  it("keeps the weekly reading when it is the binding window", () => {
     const meters = parseOpencodePayload(page(10, 88, 20), NOW);
-    expect(meters?.[0]?.value).toBe(88);
-    expect(meters?.[0]?.window).toEqual({ kind: "rolling", durationSeconds: 604_800 });
+    expect(byMeter(meters, "SEVEN_DAY")?.value).toBe(88);
+    expect(byMeter(meters, "SEVEN_DAY")?.window).toEqual({
+      kind: "rolling",
+      durationSeconds: 604_800
+    });
   });
 
   it("matches windows by label, never by position", () => {
@@ -77,14 +89,14 @@ describe("opencode: the shape a real account produced", () => {
       .replace("Monthly Usage", "Rolling Usage")
       .replace("TEMP", "Monthly Usage");
     const meters = parseOpencodePayload(reordered, NOW);
-    expect(meters?.[0]?.value).toBe(88);
+    expect(byMeter(meters, "SEVEN_DAY")?.value).toBe(88);
   });
 
   it("reads a countdown through the framework's hydration markers", () => {
     /* The page renders "Resets in<!--/--> <!--$-->20 hours<!--/-->". Matching
        raw markup would silently lose every reset time. */
     const meters = parseOpencodePayload(page(92, 40, 15), NOW);
-    expect(meters?.[0]?.resetAt).toBe(
+    expect(byMeter(meters, "FIVE_HOUR")?.resetAt).toBe(
       new Date(Date.parse(NOW) + 20 * 3_600_000).toISOString()
     );
   });
@@ -101,17 +113,16 @@ describe("opencode: the shape a real account produced", () => {
       ),
       NOW
     );
-    expect(meters?.[0]?.value).toBe(92);
-    expect(meters?.[0]?.resetAt).toBeNull();
+    expect(byMeter(meters, "FIVE_HOUR")?.value).toBe(92);
+    expect(byMeter(meters, "FIVE_HOUR")?.resetAt).toBeNull();
   });
-
 
   it("stamps OpenLimiter's own labels after parsing, not the provider's", () => {
     /* A provider tells us what its meter reads. It never tells us how much to
        trust the way we read it, so these four are written by us, every time,
        whatever the payload said. */
     const meters = parseOpencodePayload(opencodeFixture(NOW), NOW);
-    expect(meters?.[0]?.labels).toEqual(opencodeLabels);
+    expect(meters?.every((meter) => meter.labels === opencodeLabels)).toBe(true);
     expect(opencodeLabels.credentialOrigin).toBe("browser-session");
     expect(opencodeLabels.dataInterfaceStatus).toBe("authenticated-scrape");
     expect(opencodeLabels.automationRisk).toBe("high");
@@ -180,7 +191,7 @@ describe("opencode: the last window is bounded", () => {
        percentage in a sibling element of the label is still in range. That is
        the ordinary page, and it must keep parsing. */
     const meters = parseOpencodePayload(page(10, 20, 30), NOW);
-    expect(meters?.[0]?.value).toBe(30);
+    expect(byMeter(meters, "MONTHLY")?.value).toBe(30);
   });
 
   it("refuses a page that renders a window label twice", () => {
@@ -218,7 +229,7 @@ describe("opencode: the last window is bounded", () => {
       "</main><footer><p>Annual discount applied: 97%</p></footer>"
     );
     const meters = parseOpencodePayload(hostile, NOW);
-    expect(meters?.[0]?.value).toBe(30);
+    expect(byMeter(meters, "MONTHLY")?.value).toBe(30);
   });
 
   it("refuses when the final window's own percentage is pushed past the bound", () => {

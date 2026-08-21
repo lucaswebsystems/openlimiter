@@ -466,7 +466,7 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
     note: "The logged in workspace page as observed on 2026-08-03: three labelled " +
       "windows rendered into HTML. OpenCode publishes no usage interface at " +
       "all, so this is design evidence only and stays a scrape.",
-    expectedMeters: 1,
+    expectedMeters: 3,
     build: (now) => opencodeFixture(now)
   },
   {

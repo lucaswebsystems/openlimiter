@@ -672,17 +672,46 @@ export const PROVIDER_SPECS = {
       ],
       "meters": [
         {
-          "id": "primary",
-          "label": "Primary usage",
+          "id": "rolling",
+          "label": "Rolling usage",
           "kind": "subscription_quota",
           "unit": "percent_used",
           "scope": "account",
           "sourceFormat": "html_label",
           "window": {
-            "kind": "provider_defined"
+            "kind": "rolling",
+            "durationSeconds": 18000
           },
           "optional": false,
-          "meterCode": "PRIMARY"
+          "meterCode": "FIVE_HOUR"
+        },
+        {
+          "id": "weekly",
+          "label": "Weekly usage",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "html_label",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 604800
+          },
+          "optional": false,
+          "meterCode": "SEVEN_DAY"
+        },
+        {
+          "id": "monthly",
+          "label": "Monthly usage",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "html_label",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 2592000
+          },
+          "optional": false,
+          "meterCode": "MONTHLY"
         }
       ]
     },

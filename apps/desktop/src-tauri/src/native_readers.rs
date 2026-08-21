@@ -585,10 +585,19 @@ mod tests {
         );
         let rows =
             parse_body(ReaderId::OpencodeUsage, body, now(), ACCOUNT).expect("readable page");
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].provider, "OPENCODE");
-        assert_eq!(rows[0].value, 30.0);
-        assert_eq!(rows[0].account_id.as_deref(), Some(ACCOUNT));
+        assert_eq!(rows.len(), 3);
+        assert!(rows.iter().all(|row| {
+            row.provider == "OPENCODE" && row.account_id.as_deref() == Some(ACCOUNT)
+        }));
+        assert!(rows
+            .iter()
+            .any(|row| row.meter == "FIVE_HOUR" && row.value == 10.0));
+        assert!(rows
+            .iter()
+            .any(|row| row.meter == "SEVEN_DAY" && row.value == 20.0));
+        assert!(rows
+            .iter()
+            .any(|row| row.meter == "MONTHLY" && row.value == 30.0));
     }
 
     #[test]

@@ -382,8 +382,12 @@ mod tests {
         );
         assert_eq!(secrets, vec![FIXTURE_SECRET, FIXTURE_SECRET]);
         assert!(cache.contains("OPENCODE"));
-        assert!(cache.contains("PRIMARY"));
+        assert!(cache.contains("FIVE_HOUR"));
+        assert!(cache.contains("SEVEN_DAY"));
+        assert!(cache.contains("MONTHLY"));
+        assert!(cache.contains("40.0"));
         assert!(cache.contains("92.0"));
+        assert!(cache.contains("15.0"));
     }
 
     #[tokio::test]

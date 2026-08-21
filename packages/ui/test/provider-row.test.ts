@@ -169,6 +169,29 @@ describe("provider account rows", () => {
     expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(1);
   });
 
+  it("keeps Claude model family windows in the weekly column", () => {
+    const row = buildProviderAccountRows(
+      [
+        snapshot("CLAUDE", "SEVEN_DAY", 35, "primary"),
+        snapshot("CLAUDE", "SEVEN_DAY_OPUS", 51, "primary"),
+        snapshot("CLAUDE", "SEVEN_DAY_SONNET", 27, "primary"),
+      ],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] },
+    )[0];
+
+    expect(row?.windows.map((window) => window.label)).toEqual([
+      "Weekly",
+      "Weekly Opus",
+      "Weekly Sonnet",
+    ]);
+    expect(windowForMetric(row?.windows ?? [], "week")).toMatchObject({
+      label: "Weekly Opus",
+      usedPercent: 51,
+    });
+  });
+
   it("renders the shared column headings once", () => {
     const markup = providerTableHeaderMarkup();
 

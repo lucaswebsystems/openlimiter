@@ -111,6 +111,8 @@ const WINDOW_NAMES: Readonly<Record<string, string>> = {
   DAILY: "Daily",
   ONE_DAY: "Daily",
   SEVEN_DAY: "Weekly",
+  SEVEN_DAY_OPUS: "Weekly Opus",
+  SEVEN_DAY_SONNET: "Weekly Sonnet",
   WEEKLY: "Weekly",
   THIRTY_DAY: "Monthly",
   MONTHLY: "Monthly",
@@ -131,6 +133,8 @@ const WINDOW_RANK: Readonly<Record<string, number>> = {
   DAILY: 30,
   ONE_DAY: 30,
   SEVEN_DAY: 40,
+  SEVEN_DAY_OPUS: 41,
+  SEVEN_DAY_SONNET: 42,
   WEEKLY: 40,
   THIRTY_DAY: 50,
   MONTHLY: 50,
@@ -395,7 +399,12 @@ export type ProviderMetricColumn = "session" | "week" | "month";
 
 const METRIC_METERS: Readonly<Record<ProviderMetricColumn, ReadonlySet<string>>> = {
   session: new Set(["FIVE_MINUTE", "HOURLY", "FIVE_HOUR", "SESSION"]),
-  week: new Set(["SEVEN_DAY", "WEEKLY"]),
+  week: new Set([
+    "SEVEN_DAY",
+    "SEVEN_DAY_OPUS",
+    "SEVEN_DAY_SONNET",
+    "WEEKLY"
+  ]),
   month: new Set(["THIRTY_DAY", "MONTHLY", "ON_DEMAND_MONTHLY"]),
 };
 

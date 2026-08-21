@@ -68,9 +68,10 @@ verification:
 # than inventing a dotted path to a document that has none. The reset is a
 # countdown in words, "Resets in 5 days 20 hours", not a timestamp.
 #
-# The meter reports whichever of the three windows is binding. All three labels
-# must be present for any of them to be believed: a page that has changed enough
-# to lose one has changed enough not to be trusted for the other two.
+# The reader reports all three provider windows. Shared policy chooses the
+# highest percentage when it needs one binding number. All three labels must be
+# present for any of them to be believed: a page that has changed enough to lose
+# one has changed enough not to be trusted for the other two.
 # The four honesty labels, in the exact words every surface must print.
 #
 # These are OpenLimiter's own vocabulary, not the provider's, and they are the
@@ -87,16 +88,45 @@ honesty:
   verification: UNVERIFIED
 
 meters:
-  - id: primary
-    label: Primary usage
+  - id: rolling
+    label: Rolling usage
     kind: subscription_quota
     unit: percent_used
     scope: account
     window:
-      kind: provider_defined
+      kind: rolling
+      duration_seconds: 18000
     source_format: html_label
     source_label: Rolling Usage
     reset_path: null
     reset_encoding: duration_words
     optional: false
-    meter_code: PRIMARY
+    meter_code: FIVE_HOUR
+  - id: weekly
+    label: Weekly usage
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 604800
+    source_format: html_label
+    source_label: Weekly Usage
+    reset_path: null
+    reset_encoding: duration_words
+    optional: false
+    meter_code: SEVEN_DAY
+  - id: monthly
+    label: Monthly usage
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: rolling
+      duration_seconds: 2592000
+    source_format: html_label
+    source_label: Monthly Usage
+    reset_path: null
+    reset_encoding: duration_words
+    optional: false
+    meter_code: MONTHLY

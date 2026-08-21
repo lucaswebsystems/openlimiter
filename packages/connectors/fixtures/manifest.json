@@ -59,9 +59,11 @@
       "encoding": "text",
       "parser": "parseOpencodePayload",
       "evidence": "scrape",
-      "expectedMeters": 1,
+      "expectedMeters": 3,
       "expect": [
-        { "meter": "PRIMARY", "value": 92 }
+        { "meter": "FIVE_HOUR", "value": 40 },
+        { "meter": "SEVEN_DAY", "value": 92 },
+        { "meter": "MONTHLY", "value": 15 }
       ]
     },
     {

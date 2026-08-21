@@ -289,7 +289,7 @@ describe("connector contracts", () => {
        halves so the gap is documented rather than discovered. */
     const later = "2027-01-01T00:00:00.000Z";
     const meters = parseOpencodePayload(opencodeFixture(FIXTURE_NOW), later);
-    expect(meters).toHaveLength(1);
+    expect(meters).toHaveLength(3);
     const reading = meters?.[0];
     expect(Date.parse(String(reading?.resetAt))).toBeGreaterThan(Date.parse(later));
     /* Read at the clock it was observed at, it is fresh; a minute later it is
@@ -306,7 +306,7 @@ describe("connector contracts", () => {
     expect(parseClaudePayload(claudeFixture(now), now)).toHaveLength(2);
     expect(parseCodexPayload(codexFixture(now), now)).toHaveLength(1);
     expect(parseAntigravityPayload(antigravityFixture(now), now)).toHaveLength(1);
-    expect(parseOpencodePayload(opencodeFixture(now), now)).toHaveLength(1);
+    expect(parseOpencodePayload(opencodeFixture(now), now)).toHaveLength(3);
     expect(parseGrokPayload(grokFixture(now), now)).toHaveLength(2);
     expect(parseKimiPayload(kimiFixture(now), now)).toHaveLength(2);
     expect(parseManualPayload(manualFixture(now), now)).toHaveLength(1);

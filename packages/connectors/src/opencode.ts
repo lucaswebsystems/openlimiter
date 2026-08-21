@@ -129,11 +129,12 @@ export const OPENCODE_MAX_PAGE_CHARS = 1_048_576;
  */
 export const OPENCODE_WINDOWS: readonly {
   readonly label: string;
+  readonly meter: "FIVE_HOUR" | "SEVEN_DAY" | "MONTHLY";
   readonly seconds: number;
 }[] = [
-  { label: "Rolling Usage", seconds: 18_000 },
-  { label: "Weekly Usage", seconds: 604_800 },
-  { label: "Monthly Usage", seconds: 2_592_000 }
+  { label: "Rolling Usage", meter: "FIVE_HOUR", seconds: 18_000 },
+  { label: "Weekly Usage", meter: "SEVEN_DAY", seconds: 604_800 },
+  { label: "Monthly Usage", meter: "MONTHLY", seconds: 2_592_000 }
 ];
 
 /**
@@ -258,6 +259,7 @@ function windowRegion(
 }
 
 interface ParsedWindow {
+  meter: "FIVE_HOUR" | "SEVEN_DAY" | "MONTHLY";
   percent: number;
   seconds: number;
   resetAt: string | null;
@@ -271,14 +273,24 @@ interface ParsedWindow {
  * it.
  */
 function parseWindows(html: string, now: string): ParsedWindow[] | null {
-  const found: { at: number; seconds: number; label: string }[] = [];
+  const found: {
+    at: number;
+    label: string;
+    meter: "FIVE_HOUR" | "SEVEN_DAY" | "MONTHLY";
+    seconds: number;
+  }[] = [];
   for (const window of OPENCODE_WINDOWS) {
     const at = html.indexOf(window.label);
     if (at < 0) return null;
     /* One occurrence only. A page rendering a label twice gives this reader two
        candidate containers and no way to know which is the meter. */
     if (html.indexOf(window.label, at + window.label.length) >= 0) return null;
-    found.push({ at, seconds: window.seconds, label: window.label });
+    found.push({
+      at,
+      label: window.label,
+      meter: window.meter,
+      seconds: window.seconds
+    });
   }
   found.sort((left, right) => left.at - right.at);
   const windows: ParsedWindow[] = [];
@@ -309,6 +321,7 @@ function parseWindows(html: string, now: string): ParsedWindow[] | null {
     const seconds =
       resetMatch === null ? null : durationSecondsFromWords(resetMatch[1] ?? "");
     windows.push({
+      meter: start.meter,
       percent,
       seconds: start.seconds,
       resetAt: seconds === null ? null : instantAfter(now, seconds)
@@ -318,10 +331,12 @@ function parseWindows(html: string, now: string): ParsedWindow[] | null {
 }
 
 /**
- * The binding window, as one meter.
+ * Every provider window, including the monthly quota.
  *
- * The highest of the three, because that is the one that will stop the work,
- * and because it is what the reference reader's own bar names.
+ * The shared policy still derives the binding window by choosing the highest
+ * percentage. Keeping the three source windows lets every surface state which
+ * cadence a number belongs to instead of hiding the monthly value inside one
+ * synthetic primary meter.
  */
 export function parseOpencodePayload(payload: unknown, now: string): RawMeter[] | null {
   if (typeof payload !== "string") return null;
@@ -330,22 +345,20 @@ export function parseOpencodePayload(payload: unknown, now: string): RawMeter[] 
   if (windows === null || windows.length === 0) return null;
   const expiresAt = shortExpiry(now);
   if (expiresAt === null) return null;
-  let binding = windows[0]!;
-  for (const candidate of windows.slice(1)) {
-    if (candidate.percent > binding.percent) binding = candidate;
-  }
-  return [rawMeter({
-    provider: "OPENCODE",
-    meter: "PRIMARY",
-    value: binding.percent,
-    window: { kind: "rolling", durationSeconds: binding.seconds },
-    resetAt: binding.resetAt,
-    source: "authenticated_page",
-    precision: "estimated",
-    observedAt: now,
-    expiresAt,
-    labels: opencodeLabels
-  })];
+  return windows.map((window) =>
+    rawMeter({
+      provider: "OPENCODE",
+      meter: window.meter,
+      value: window.percent,
+      window: { kind: "rolling", durationSeconds: window.seconds },
+      resetAt: window.resetAt,
+      source: "authenticated_page",
+      precision: "estimated",
+      observedAt: now,
+      expiresAt,
+      labels: opencodeLabels
+    })
+  );
 }
 
 export const opencodeConnector: ConnectorContract = {

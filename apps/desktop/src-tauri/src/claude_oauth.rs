@@ -219,7 +219,19 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
     }
     let session = parse_window(&root, "five_hour", "FIVE_HOUR", 18_000, now_ms, account_id)?;
     let weekly = parse_window(&root, "seven_day", "SEVEN_DAY", 604_800, now_ms, account_id)?;
-    Some(vec![session, weekly])
+    let mut snapshots = vec![session, weekly];
+    for (key, meter) in [
+        ("seven_day_opus", "SEVEN_DAY_OPUS"),
+        ("seven_day_sonnet", "SEVEN_DAY_SONNET"),
+    ] {
+        if root.get(key).is_none_or(Value::is_null) {
+            continue;
+        }
+        snapshots.push(parse_window(
+            &root, key, meter, 604_800, now_ms, account_id,
+        )?);
+    }
+    Some(snapshots)
 }
 
 fn net_failure(error: NetError) -> ClaudeOauthFailure {
@@ -549,6 +561,29 @@ mod tests {
         assert!(rows
             .iter()
             .all(|row| row.account_id.as_deref() == Some(ACCOUNT)));
+    }
+
+    #[test]
+    fn optional_model_family_windows_are_emitted_when_the_endpoint_states_them() {
+        let rows = parse_usage(
+            r#"{
+                "five_hour":{"utilization":23.5,"resets_at":"2026-08-19T15:00:00Z"},
+                "seven_day":{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"},
+                "seven_day_opus":{"utilization":37.0,"resets_at":"2026-08-24T12:00:00Z"},
+                "seven_day_sonnet":{"utilization":19.0,"resets_at":"2026-08-24T12:00:00Z"}
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+
+        assert_eq!(rows.len(), 4);
+        assert!(rows
+            .iter()
+            .any(|row| row.meter == "SEVEN_DAY_OPUS" && row.value == 37.0));
+        assert!(rows
+            .iter()
+            .any(|row| row.meter == "SEVEN_DAY_SONNET" && row.value == 19.0));
     }
 
     #[test]
