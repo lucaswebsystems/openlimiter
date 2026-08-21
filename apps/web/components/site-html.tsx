@@ -95,22 +95,14 @@ export async function SiteHtml({
        class on each one, and what lets the dashboard's own stylesheet reach
        the same loaded file. See lib/fonts.ts: it is loaded once. */
     <html lang={locale} className={wordmarkFont.variable} suppressHydrationWarning>
-      {/* This is a shared root layout head. The App Router expects a literal
-          `<head>` here. `next/head` is the Pages Router API and would be wrong.
-          The element lives in this component because three root layouts share
-          one document. */}
-      <head>
-        {/* Applies a stored theme choice before first paint. See lib/theme.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: themeArmScript }} />
-        {/* Decides whether the mark draws itself in on this load. See lib/brand.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: markArmScript }} />
-        {/* Arms the scroll reveal, but only where it is safe. See lib/motion.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: motionArmScript }} />
-        {/* Closes the announcement bar before it paints, for a reader who has
-            already closed it once. See lib/announce.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: announceArmScript }} />
-      </head>
       <body className="min-h-screen bg-canvas font-sans text-body antialiased selection:bg-accent-subtle selection:text-heading">
+        {/* These synchronous scripts are the first body children, before any
+            visible content, so stored presentation state is applied before
+            paint without maintaining a hand written document head. */}
+        <script dangerouslySetInnerHTML={{ __html: themeArmScript }} />
+        <script dangerouslySetInnerHTML={{ __html: markArmScript }} />
+        <script dangerouslySetInnerHTML={{ __html: motionArmScript }} />
+        <script dangerouslySetInnerHTML={{ __html: announceArmScript }} />
         <NextIntlClientProvider locale={locale} messages={clientMessages}>
           <a
             href="#main"
