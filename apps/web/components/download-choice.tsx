@@ -17,20 +17,33 @@ function detectedPlatform(): Platform {
   return "windows";
 }
 
-export function DownloadChoice({ windowsHref, linuxHref, comingSoon }: {
+export function DownloadChoice({
+  windowsHref,
+  linuxHref,
+  otherHref,
+  windowsLabel,
+  linuxLabel,
+  macosLabel,
+  otherLabel,
+  smartScreen,
+}: {
   windowsHref: string;
   linuxHref: string;
-  comingSoon: string;
+  otherHref: string;
+  windowsLabel: string;
+  linuxLabel: string;
+  macosLabel: string;
+  otherLabel: string;
+  smartScreen: string;
 }) {
   const [platform, setPlatform] = useState<Platform>("windows");
-  const [open, setOpen] = useState(false);
 
   useEffect(() => setPlatform(detectedPlatform()), []);
 
   const choices: readonly Choice[] = [
-    { platform: "windows", label: "Download for Windows", href: windowsHref },
-    { platform: "linux", label: "Download for Linux", href: linuxHref },
-    { platform: "macos", label: `macOS ${comingSoon}` },
+    { platform: "windows", label: windowsLabel, href: windowsHref },
+    { platform: "linux", label: linuxLabel, href: linuxHref },
+    { platform: "macos", label: macosLabel },
   ];
   const primary = choices.find((choice) => choice.platform === platform) ?? choices[0]!;
 
@@ -47,28 +60,12 @@ export function DownloadChoice({ windowsHref, linuxHref, comingSoon }: {
       )}
 
       {platform === "windows" && (
-        <p className="mt-3 text-xs text-muted">SmartScreen: More info, then Run anyway.</p>
+        <p className="mt-3 text-xs text-muted">{smartScreen}</p>
       )}
 
-      <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} className="focus-ring mt-5 rounded text-sm text-accent hover:text-accent-hover">
-        Other platforms
-      </button>
-
-      {open && (
-        <div className="mt-4 flex flex-wrap justify-center gap-3" aria-label="Other platforms">
-          {choices.filter((choice) => choice.platform !== platform).map((choice) =>
-            choice.href ? (
-              <a key={choice.platform} href={choice.href} className="focus-ring rounded-lg border border-hairline px-4 py-2 text-sm text-heading hover:border-hairline-strong hover:bg-raised">
-                {choice.label}
-              </a>
-            ) : (
-              <span key={choice.platform} className="rounded-lg border border-hairline px-4 py-2 text-sm text-muted">
-                {choice.label}
-              </span>
-            ),
-          )}
-        </div>
-      )}
+      <a href={otherHref} className="focus-ring mt-5 rounded text-sm text-muted underline underline-offset-4 hover:text-heading">
+        {otherLabel}
+      </a>
     </div>
   );
 }

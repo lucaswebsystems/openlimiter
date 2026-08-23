@@ -5,6 +5,7 @@ import { PageShell } from "@/components/page-shell";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
 import { downloadTargets } from "@/lib/downloads";
 import { pageMetadata } from "@/lib/metadata";
+import { CURRENT_VERSION, REPO_URL } from "@/lib/site";
 
 export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
   const locale = await pageLocale(params);
@@ -34,7 +35,12 @@ export default async function DownloadPage({ params }: LocaleParams) {
         <DownloadChoice
           windowsHref={primaryAsset("windows")}
           linuxHref={primaryAsset("linux")}
-          comingSoon={t("states.inDevelopment")}
+          otherHref={`${REPO_URL}/releases/tag/v${CURRENT_VERSION}`}
+          windowsLabel={t("choice.windows")}
+          linuxLabel={t("choice.linux")}
+          macosLabel={t("choice.macos")}
+          otherLabel={t("choice.other")}
+          smartScreen={t("choice.smartScreen")}
         />
       </div>
     </PageShell>

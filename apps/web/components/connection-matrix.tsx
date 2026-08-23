@@ -3,10 +3,12 @@ import registry from "../lib/provider-specs.generated.json";
 import {
   ClaudeMark,
   CodexMark,
+  GeminiMark,
   GoogleMark,
-  ManualMark,
+  KimiMark,
   OpenCodeMark,
   OpenRouterMark,
+  XaiMark,
   type ToolMarkProps,
 } from "./tool-marks";
 import { Chip } from "./ui";
@@ -253,10 +255,22 @@ const PRESENTATION: readonly Presentation[] = [
     factKey: "opencode",
   },
   {
-    specId: "openlimiter/manual",
-    name: "Manual entry",
-    Mark: ManualMark,
-    factKey: "manual",
+    specId: "google/gemini-cli",
+    name: "Gemini CLI",
+    Mark: GeminiMark,
+    factKey: "gemini",
+  },
+  {
+    specId: "xai/grok-cli",
+    name: "Grok",
+    Mark: XaiMark,
+    factKey: "grok",
+  },
+  {
+    specId: "moonshot/kimi-code",
+    name: "Kimi",
+    Mark: KimiMark,
+    factKey: "kimi",
   },
 ];
 

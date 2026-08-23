@@ -22,7 +22,7 @@
     }
   },
   "nav": {
-    "getPro": "Pro em breve",
+    "getPro": "Conta",
     "sponsor": "Patrocinar",
     "githubAria": "OpenLimiter no GitHub",
     "githubStarsAria": "OpenLimiter no GitHub, {count, plural, one {# estrela} other {# estrelas}}",
@@ -174,6 +174,18 @@
         "tag": "lê uma sessão que você já abriu",
         "detail": "Descreve a visão de uso por trás de uma sessão existente. Carrega o maior risco de automação dos seis e para no instante em que essa sessão expira."
       },
+      "gemini": {
+        "tag": "lê a quota de modelos pela CLI instalada",
+        "detail": "Lê a resposta de quota pela sessão do Gemini CLI que já existe neste dispositivo."
+      },
+      "grok": {
+        "tag": "lê janelas de assinatura da sessão local",
+        "detail": "Lê as janelas de cobrança expostas à sessão instalada do Grok e falha com segurança quando o formato muda."
+      },
+      "kimi": {
+        "tag": "lê janelas de assinatura da sessão local",
+        "detail": "Lê as janelas de uso expostas à sessão instalada do Kimi e falha com segurança quando o formato muda."
+      },
       "manualEntry": {
         "name": "Manual entry",
         "tag": "lê números que você mesmo escreve",
@@ -317,6 +329,15 @@
       "opencode": {
         "fact": "Uma visão de uso por trás de uma sessão em que você já entrou."
       },
+      "gemini": {
+        "fact": "Quota de modelos retornada pela sessão instalada do Gemini CLI."
+      },
+      "grok": {
+        "fact": "Janelas de assinatura retornadas pela sessão instalada do Grok."
+      },
+      "kimi": {
+        "fact": "Janelas de assinatura retornadas pela sessão instalada do Kimi."
+      },
       "manual": {
         "fact": "Números que você mesmo mantém, para qualquer coisa sem interface."
       }
@@ -457,7 +478,10 @@
       "lead": "Três ferramentas hospedadas para planejamento e roteamento.",
       "footnote": "Nada local fica atrás deste plano. O Pro vende serviço hospedado, nunca interruptores locais.",
       "lines": {
-        "alerts": "Alertas de limite",
+        "alerts": "Notificações de limite por email e push",
+        "themes": "Temas",
+        "multiSubscription": "Mais de uma assinatura por provedor",
+        "heavyApi": "Recursos para uso intenso de API",
         "history": "Histórico e previsões",
         "routing": "Roteamento automático de agentes"
       },
@@ -494,6 +518,13 @@
     "metaDescription": "Baixe o OpenLimiter para Windows ou Linux, instale a ferramenta de linha de comando pelo npm ou abra o web app. O macOS chega em breve.",
     "title": "Download",
     "lead": "As builds de desktop para Windows e Linux estão disponíveis agora. A build do Windows não é assinada: no SmartScreen, escolha Mais informações e depois Executar assim mesmo. O macOS chega em breve. O npm e o web app também estão disponíveis.",
+    "choice": {
+      "windows": "Baixar para Windows",
+      "linux": "Baixar para Linux",
+      "macos": "macOS em breve",
+      "other": "Outras plataformas",
+      "smartScreen": "Esta versão para Windows não é assinada, então o SmartScreen pode avisar: escolha Mais informações e depois Executar assim mesmo."
+    },
     "states": {
       "available": "disponível",
       "inDevelopment": "em breve",
@@ -1425,11 +1456,11 @@
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Entre para sincronizar. O Pro chega em breve por $5 ao mês ou $48 ao ano.",
-    "comingSoonLead": "O OpenLimiter Pro chega em breve. O produto local completo continua grátis e não exige conta.",
+    "comingSoonLead": "Entre ou crie uma conta para sincronizar. O OpenLimiter Pro chega em breve, e o produto local completo continua grátis.",
     "configMissing": "O Pro chega em breve.",
     "emailLabel": "Email",
     "emailPlaceholder": "voce@example.com",
-    "sendLink": "Enviar link de acesso",
+    "sendLink": "Entrar ou criar conta",
     "linkSent": "Confira seu email para encontrar o link.",
     "signedIn": "Você entrou.",
     "working": "Processando",

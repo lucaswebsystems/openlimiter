@@ -22,7 +22,7 @@
     }
   },
   "nav": {
-    "getPro": "Proは近日公開",
+    "getPro": "アカウント",
     "sponsor": "スポンサー",
     "githubAria": "GitHub上のOpenLimiter",
     "githubStarsAria": "GitHub上のOpenLimiter、{count, plural, other {スター#件}}",
@@ -174,6 +174,18 @@
         "tag": "すでに開いているセッションを読み取ります",
         "detail": "既存のセッションの裏にある使用量ビューを読み取ります。6つのconnectorの中で自動化リスクが最も高く、そのセッションが期限切れになった瞬間に停止します。"
       },
+      "gemini": {
+        "tag": "インストール済みCLIからモデルquotaを読み取ります",
+        "detail": "この端末にあるGemini CLIのセッションを通じてquota応答を読み取ります。"
+      },
+      "grok": {
+        "tag": "ローカルセッションからサブスクリプション枠を読み取ります",
+        "detail": "インストール済みのGrokセッションに公開された請求枠を読み取り、形式が変わった場合は安全側に倒れます。"
+      },
+      "kimi": {
+        "tag": "ローカルセッションからサブスクリプション枠を読み取ります",
+        "detail": "インストール済みのKimiセッションに公開された使用枠を読み取り、形式が変わった場合は安全側に倒れます。"
+      },
       "manualEntry": {
         "name": "Manual entry",
         "tag": "自分で書いた数値を読み取ります",
@@ -317,6 +329,15 @@
       "opencode": {
         "fact": "すでに保持しているセッションの裏にある使用量ビューです。"
       },
+      "gemini": {
+        "fact": "インストール済みGemini CLIセッションから返されるモデルquotaです。"
+      },
+      "grok": {
+        "fact": "インストール済みGrokセッションから返されるサブスクリプション枠です。"
+      },
+      "kimi": {
+        "fact": "インストール済みKimiセッションから返されるサブスクリプション枠です。"
+      },
       "manual": {
         "fact": "インターフェースを持たないもののために、自分で保持する数値です。"
       }
@@ -457,7 +478,10 @@
       "lead": "計画とルーティングのための三つのホスト型ツールです。",
       "footnote": "ローカル機能がこのプランの内側へ移ることはありません。Proが提供するのはホスト型サービスだけです。",
       "lines": {
-        "alerts": "しきい値アラート",
+        "alerts": "メールとプッシュによるしきい値通知",
+        "themes": "テーマ",
+        "multiSubscription": "プロバイダーごとに複数のサブスクリプション",
+        "heavyApi": "大量のAPI利用向け機能",
         "history": "履歴と予測",
         "routing": "エージェントの自動ルーティング"
       },
@@ -494,6 +518,13 @@
     "metaDescription": "Windows版またはLinux版のOpenLimiterを入手するか、npmからコマンドラインツールをインストールするか、Webアプリを開けます。macOS版は近日公開です。",
     "title": "ダウンロード",
     "lead": "Windows版とLinux版のデスクトップビルドを現在利用できます。Windows版は未署名です。SmartScreenでは「詳細情報」、続けて「実行」を選んでください。macOS版は近日公開です。npmとWebアプリも利用できます。",
+    "choice": {
+      "windows": "Windows版をダウンロード",
+      "linux": "Linux版をダウンロード",
+      "macos": "macOS版は近日公開",
+      "other": "その他のプラットフォーム",
+      "smartScreen": "このWindows版は未署名のためSmartScreenが警告する場合があります。詳細情報を選び、実行を選択してください。"
+    },
     "states": {
       "available": "利用可能",
       "inDevelopment": "近日公開",
@@ -1425,11 +1456,11 @@
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "同期のためにログインできます。Proは月額$5または年額$48で近日公開予定です。",
-    "comingSoonLead": "OpenLimiter Proは近日公開予定です。ローカル製品の全機能は無料のままで、アカウントも必要ありません。",
+    "comingSoonLead": "同期するにはログインするかアカウントを作成してください。OpenLimiter Proは近日公開予定で、ローカル製品の全機能は無料のままです。",
     "configMissing": "Proは近日公開予定です。",
     "emailLabel": "メール",
     "emailPlaceholder": "you@example.com",
-    "sendLink": "ログインリンクを送る",
+    "sendLink": "ログインまたはアカウント作成",
     "linkSent": "メールのログインリンクを確認してください。",
     "signedIn": "ログインしました。",
     "working": "処理中",

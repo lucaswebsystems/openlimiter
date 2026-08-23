@@ -22,7 +22,7 @@
     }
   },
   "nav": {
-    "getPro": "Pro próximamente",
+    "getPro": "Cuenta",
     "sponsor": "Patrocinar",
     "githubAria": "OpenLimiter en GitHub",
     "githubStarsAria": "OpenLimiter en GitHub, {count, plural, one {# estrella} other {# estrellas}}",
@@ -174,6 +174,18 @@
         "tag": "lee una sesión que ya abriste",
         "detail": "Describe la vista de uso detrás de una sesión existente. Es el que carga el mayor riesgo de automatización de los seis, y se detiene en el momento en que esa sesión expira."
       },
+      "gemini": {
+        "tag": "lee la cuota de modelos mediante la CLI instalada",
+        "detail": "Lee la respuesta de cuota mediante la sesión de Gemini CLI que ya existe en este dispositivo."
+      },
+      "grok": {
+        "tag": "lee ventanas de suscripción de la sesión local",
+        "detail": "Lee las ventanas de facturación expuestas a la sesión instalada de Grok y falla de forma segura cuando cambia el formato."
+      },
+      "kimi": {
+        "tag": "lee ventanas de suscripción de la sesión local",
+        "detail": "Lee las ventanas de uso expuestas a la sesión instalada de Kimi y falla de forma segura cuando cambia el formato."
+      },
       "manualEntry": {
         "name": "Manual entry",
         "tag": "lee números que escribes tú mismo",
@@ -317,6 +329,15 @@
       "opencode": {
         "fact": "Una vista de uso detrás de una sesión en la que ya iniciaste sesión."
       },
+      "gemini": {
+        "fact": "Cuota de modelos devuelta mediante la sesión instalada de Gemini CLI."
+      },
+      "grok": {
+        "fact": "Ventanas de suscripción devueltas mediante la sesión instalada de Grok."
+      },
+      "kimi": {
+        "fact": "Ventanas de suscripción devueltas mediante la sesión instalada de Kimi."
+      },
       "manual": {
         "fact": "Números que mantienes tú mismo, para cualquier cosa sin interfaz."
       }
@@ -457,7 +478,10 @@
       "lead": "Tres herramientas alojadas para planificación y enrutamiento.",
       "footnote": "Nada local pasa detrás de este plan. Pro vende servicio alojado, nunca interruptores locales.",
       "lines": {
-        "alerts": "Alertas de umbral",
+        "alerts": "Notificaciones de umbral por correo y push",
+        "themes": "Temas",
+        "multiSubscription": "Más de una suscripción por proveedor",
+        "heavyApi": "Funciones para uso intensivo de API",
         "history": "Historial y previsiones",
         "routing": "Enrutamiento automático de agentes"
       },
@@ -494,6 +518,13 @@
     "metaDescription": "Consigue OpenLimiter para Windows o Linux, instala la herramienta de línea de comandos desde npm o abre la aplicación web. macOS llegará próximamente.",
     "title": "Descargar",
     "lead": "Las compilaciones de escritorio para Windows y Linux están disponibles. La compilación de Windows no está firmada: en SmartScreen, elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente. npm y la aplicación web también están disponibles.",
+    "choice": {
+      "windows": "Descargar para Windows",
+      "linux": "Descargar para Linux",
+      "macos": "macOS próximamente",
+      "other": "Otras plataformas",
+      "smartScreen": "Esta versión para Windows no está firmada, por lo que SmartScreen puede advertirte: elige Más información y luego Ejecutar de todas formas."
+    },
     "states": {
       "available": "disponible",
       "inDevelopment": "próximamente",
@@ -1425,11 +1456,11 @@
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Inicia sesión para sincronizar. Pro estará disponible próximamente por $5 al mes o $48 al año.",
-    "comingSoonLead": "OpenLimiter Pro estará disponible próximamente. El producto local completo sigue siendo gratis y no requiere una cuenta.",
+    "comingSoonLead": "Inicia sesión o crea una cuenta para sincronizar. OpenLimiter Pro llegará próximamente y el producto local completo seguirá siendo gratis.",
     "configMissing": "Pro estará disponible próximamente.",
     "emailLabel": "Email",
     "emailPlaceholder": "tu@example.com",
-    "sendLink": "Enviar enlace de acceso",
+    "sendLink": "Iniciar sesión o crear cuenta",
     "linkSent": "Revisa tu email para encontrar el enlace.",
     "signedIn": "Has iniciado sesión.",
     "working": "Procesando",

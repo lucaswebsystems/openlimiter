@@ -40,6 +40,9 @@ const FREE_LINES: readonly { id: string }[] = [
 
 const PRO_LINES: readonly { id: string }[] = [
   { id: "alerts" },
+  { id: "themes" },
+  { id: "multiSubscription" },
+  { id: "heavyApi" },
   { id: "history" },
   { id: "routing" },
 ];

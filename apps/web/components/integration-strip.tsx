@@ -4,16 +4,10 @@ import {
   AntigravityMark,
   ClaudeMark,
   CodexMark,
-  CopilotMark,
-  CursorMark,
-  DeepSeekMark,
   GeminiMark,
-  ManualMark,
-  MistralMark,
-  OllamaMark,
+  KimiMark,
   OpenCodeMark,
   OpenRouterMark,
-  PerplexityMark,
   XaiMark,
   type ToolMarkProps,
 } from "./tool-marks";
@@ -67,7 +61,6 @@ interface StripCard {
  * literal too rather than a translated sentence.
  */
 function getConnectors(t: ReturnType<typeof useTranslations<"integrations">>): StripCard[] {
-  const plannedLine = t("plannedLine");
   return [
     {
       name: "Claude",
@@ -105,67 +98,25 @@ function getConnectors(t: ReturnType<typeof useTranslations<"integrations">>): S
       detail: t("connectors.openCode.detail"),
     },
     {
-      name: "Perplexity",
-      Mark: PerplexityMark,
-      state: "planned",
-      tag: "openlimiter ingest",
-      detail: plannedLine,
-    },
-    {
       name: "Grok",
       Mark: XaiMark,
-      state: "planned",
-      tag: "openlimiter ingest",
-      detail: plannedLine,
+      state: "today",
+      tag: t("connectors.grok.tag"),
+      detail: t("connectors.grok.detail"),
     },
     {
       name: "Gemini CLI",
       Mark: GeminiMark,
-      state: "planned",
-      tag: "openlimiter ingest",
-      detail: plannedLine,
-    },
-    {
-      name: "GitHub Copilot",
-      Mark: CopilotMark,
-      state: "planned",
-      tag: "openlimiter ingest",
-      detail: plannedLine,
-    },
-    {
-      name: "Cursor",
-      Mark: CursorMark,
-      state: "planned",
-      tag: "openlimiter ingest",
-      detail: plannedLine,
-    },
-    {
-      name: "Ollama",
-      Mark: OllamaMark,
-      state: "planned",
-      tag: "openlimiter ingest",
-      detail: plannedLine,
-    },
-    {
-      name: "DeepSeek",
-      Mark: DeepSeekMark,
-      state: "planned",
-      tag: "openlimiter ingest",
-      detail: plannedLine,
-    },
-    {
-      name: "Mistral",
-      Mark: MistralMark,
-      state: "planned",
-      tag: "openlimiter ingest",
-      detail: plannedLine,
-    },
-    {
-      name: t("connectors.manualEntry.name"),
-      Mark: ManualMark,
       state: "today",
-      tag: t("connectors.manualEntry.tag"),
-      detail: t("connectors.manualEntry.detail"),
+      tag: t("connectors.gemini.tag"),
+      detail: t("connectors.gemini.detail"),
+    },
+    {
+      name: "Kimi",
+      Mark: KimiMark,
+      state: "today",
+      tag: t("connectors.kimi.tag"),
+      detail: t("connectors.kimi.detail"),
     },
   ];
 }

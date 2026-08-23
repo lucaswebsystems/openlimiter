@@ -22,7 +22,7 @@
     }
   },
   "nav": {
-    "getPro": "Pro kommt bald",
+    "getPro": "Konto",
     "sponsor": "Sponsor werden",
     "githubAria": "OpenLimiter auf GitHub",
     "githubStarsAria": "OpenLimiter auf GitHub, {count, plural, one {# Stern} other {# Sterne}}",
@@ -174,6 +174,18 @@
         "tag": "liest eine Session, die du schon geöffnet hast",
         "detail": "Beschreibt die Usage Ansicht hinter einer bestehenden Session. Es trägt das höchste Automatisierungsrisiko der sechs und stoppt in dem Moment, in dem diese Session abläuft."
       },
+      "gemini": {
+        "tag": "liest Modellquota über die installierte CLI",
+        "detail": "Liest die Quota Antwort über die bereits auf diesem Gerät vorhandene Gemini CLI Session."
+      },
+      "grok": {
+        "tag": "liest Abofenster aus der lokalen Session",
+        "detail": "Liest die Abrechnungsfenster der installierten Grok Session und schlägt bei einer Formatänderung sicher fehl."
+      },
+      "kimi": {
+        "tag": "liest Abofenster aus der lokalen Session",
+        "detail": "Liest die Nutzungsfenster der installierten Kimi Session und schlägt bei einer Formatänderung sicher fehl."
+      },
       "manualEntry": {
         "name": "Manual entry",
         "tag": "liest Zahlen, die du selbst einträgst",
@@ -317,6 +329,15 @@
       "opencode": {
         "fact": "Eine Usage Ansicht hinter einer Session, die du schon hast."
       },
+      "gemini": {
+        "fact": "Modellquota aus der installierten Gemini CLI Session."
+      },
+      "grok": {
+        "fact": "Abofenster aus der installierten Grok Session."
+      },
+      "kimi": {
+        "fact": "Abofenster aus der installierten Kimi Session."
+      },
       "manual": {
         "fact": "Zahlen, die du selbst pflegst, für alles ohne Schnittstelle."
       }
@@ -457,7 +478,10 @@
       "lead": "Drei gehostete Werkzeuge für Planung und Weiterleitung.",
       "footnote": "Nichts Lokales wandert hinter diesen Plan. Pro verkauft gehosteten Dienst, niemals lokale Schalter.",
       "lines": {
-        "alerts": "Schwellenwertalarme",
+        "alerts": "Schwellenwertmeldungen per E Mail und Push",
+        "themes": "Themes",
+        "multiSubscription": "Mehr als ein Abo je Provider",
+        "heavyApi": "Funktionen für intensive API Nutzung",
         "history": "Verlauf und Prognosen",
         "routing": "Automatische Agentenweiterleitung"
       },
@@ -494,6 +518,13 @@
     "metaDescription": "OpenLimiter für Windows oder Linux holen, das Kommandozeilen Tool von npm installieren oder die Web App öffnen. macOS kommt bald.",
     "title": "Download",
     "lead": "Desktop Builds für Windows und Linux sind jetzt verfügbar. Der Windows Build ist nicht signiert: Wähl in SmartScreen Weitere Informationen und dann Trotzdem ausführen. macOS kommt bald. npm und die Web App sind ebenfalls verfügbar.",
+    "choice": {
+      "windows": "Für Windows herunterladen",
+      "linux": "Für Linux herunterladen",
+      "macos": "macOS kommt bald",
+      "other": "Andere Plattformen",
+      "smartScreen": "Dieser Windows Build ist nicht signiert, daher kann SmartScreen warnen: wähle Weitere Informationen und dann Trotzdem ausführen."
+    },
     "states": {
       "available": "verfügbar",
       "inDevelopment": "kommt bald",
@@ -1425,11 +1456,11 @@
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Melde dich für die Synchronisierung an. Pro kommt demnächst für $5 pro Monat oder $48 pro Jahr.",
-    "comingSoonLead": "OpenLimiter Pro kommt demnächst. Das vollständige lokale Produkt bleibt kostenlos und braucht kein Konto.",
+    "comingSoonLead": "Melde dich an oder erstelle ein Konto zum Synchronisieren. OpenLimiter Pro kommt bald, und das vollständige lokale Produkt bleibt kostenlos.",
     "configMissing": "Pro kommt demnächst.",
     "emailLabel": "E Mail",
     "emailPlaceholder": "du@example.com",
-    "sendLink": "Anmeldelink senden",
+    "sendLink": "Anmelden oder Konto erstellen",
     "linkSent": "Prüfe deine E Mail für den Anmeldelink.",
     "signedIn": "Du bist angemeldet.",
     "working": "Wird ausgeführt",

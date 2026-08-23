@@ -22,7 +22,7 @@
     }
   },
   "nav": {
-    "getPro": "Pro coming soon",
+    "getPro": "Account",
     "sponsor": "Sponsor",
     "githubAria": "OpenLimiter on GitHub",
     "githubStarsAria": "OpenLimiter on GitHub, {count, plural, one {# star} other {# stars}}",
@@ -174,6 +174,18 @@
         "tag": "reads a session you already opened",
         "detail": "Describes the usage view behind an existing session. It carries the highest automation risk of the six and stops the moment that session expires."
       },
+      "gemini": {
+        "tag": "reads model quota through the installed CLI",
+        "detail": "Reads the quota response through the Gemini CLI session already on this device."
+      },
+      "grok": {
+        "tag": "reads subscription windows from the local session",
+        "detail": "Reads the billing windows exposed to the installed Grok session and fails closed when the shape changes."
+      },
+      "kimi": {
+        "tag": "reads subscription windows from the local session",
+        "detail": "Reads the usage windows exposed to the installed Kimi session and fails closed when the shape changes."
+      },
       "manualEntry": {
         "name": "Manual entry",
         "tag": "reads numbers you write yourself",
@@ -317,6 +329,15 @@
       "opencode": {
         "fact": "A usage view behind a session you already hold."
       },
+      "gemini": {
+        "fact": "Model quota returned through the installed Gemini CLI session."
+      },
+      "grok": {
+        "fact": "Subscription windows returned through the installed Grok session."
+      },
+      "kimi": {
+        "fact": "Subscription windows returned through the installed Kimi session."
+      },
       "manual": {
         "fact": "Numbers you keep yourself, for anything with no interface."
       }
@@ -457,7 +478,10 @@
       "lead": "Three hosted tools for planning and routing.",
       "footnote": "Nothing local ever moves behind this plan. Pro sells hosted service, never local switches.",
       "lines": {
-        "alerts": "Threshold alerts",
+        "alerts": "Email and push threshold notifications",
+        "themes": "Themes",
+        "multiSubscription": "More than one subscription per provider",
+        "heavyApi": "Features for heavy API usage",
         "history": "History and forecasting",
         "routing": "Agent auto routing"
       },
@@ -494,6 +518,13 @@
     "metaDescription": "Get OpenLimiter for Windows or Linux, install the command line tool from npm, or open the web app. macOS is coming soon.",
     "title": "Download",
     "lead": "Windows and Linux desktop builds are available now. The Windows build is unsigned: in SmartScreen, choose More info, then Run anyway. macOS is coming soon. npm and the web app are also available.",
+    "choice": {
+      "windows": "Download for Windows",
+      "linux": "Download for Linux",
+      "macos": "macOS coming soon",
+      "other": "Other platforms",
+      "smartScreen": "This Windows build is unsigned, so SmartScreen may warn you: choose More info, then Run anyway."
+    },
     "states": {
       "available": "available",
       "inDevelopment": "coming soon",
@@ -1425,11 +1456,11 @@
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Sign in for sync. Pro is coming soon at $5 a month or $48 a year.",
-    "comingSoonLead": "OpenLimiter Pro is coming soon. The complete local product remains free and needs no account.",
+    "comingSoonLead": "Sign in or create an account to sync. OpenLimiter Pro is coming soon, and the complete local product remains free.",
     "configMissing": "Pro is coming soon.",
     "emailLabel": "Email",
     "emailPlaceholder": "you@example.com",
-    "sendLink": "Send sign in link",
+    "sendLink": "Sign in or create account",
     "linkSent": "Check your email for the sign in link.",
     "signedIn": "You are signed in.",
     "working": "Working",

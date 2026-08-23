@@ -314,7 +314,7 @@ export function toolTitle(
   return tool.name;
 }
 
-/** The six that ship. Order matches the connector table in the docs. */
+/** The eight collectors that ship. Order matches every product surface. */
 export const todayTools: readonly Tool[] = [
   {
     name: "Claude Code",
@@ -335,6 +335,24 @@ export const todayTools: readonly Tool[] = [
     detail: "Reads the quota shape the Antigravity tooling writes. Internal too.",
   },
   {
+    name: "Gemini CLI",
+    Mark: GeminiMark,
+    state: "today",
+    detail: "Reads the model quota response through the installed Gemini CLI session.",
+  },
+  {
+    name: "Grok",
+    Mark: XaiMark,
+    state: "today",
+    detail: "Reads subscription windows through the installed Grok session.",
+  },
+  {
+    name: "Kimi",
+    Mark: KimiMark,
+    state: "today",
+    detail: "Reads subscription windows through the installed Kimi session.",
+  },
+  {
     name: "OpenCode",
     Mark: OpenCodeMark,
     state: "today",
@@ -346,54 +364,10 @@ export const todayTools: readonly Tool[] = [
     state: "today",
     detail: "Reads the credits shape OpenRouter documents, with a key you hold.",
   },
-  {
-    name: "Manual entry",
-    Mark: ManualMark,
-    state: "today",
-    detail: "Budgets you write yourself. It never breaks and never guesses.",
-  },
 ];
 
-/**
- * Well known tools with no connector. Nothing here is scheduled, promised or
- * dated: the chip says planned and the manual entry note says what you can do
- * about it today.
- */
-export const plannedTools: readonly Tool[] = [
-  { name: "Perplexity", Mark: PerplexityMark, state: "planned", detail: "Planned connector." },
-  { name: "Grok (xAI)", Mark: XaiMark, state: "planned", detail: "Planned connector." },
-  { name: "Gemini CLI", Mark: GeminiMark, state: "planned", detail: "Planned connector." },
-  { name: "GitHub Copilot", Mark: CopilotMark, state: "planned", detail: "Planned connector." },
-  { name: "Cursor", Mark: CursorMark, state: "planned", detail: "Planned connector." },
-  {
-    name: "Devin Desktop",
-    Mark: DevinDesktopMark,
-    state: "planned",
-    /* Cognition renamed Windsurf on 2026-06-02. The former name stays in the
-       hover text and nowhere else: somebody looking for Windsurf has to find
-       it, and nobody should read this page and think the old product ships. */
-    formerly: "Windsurf",
-    detail: "Planned connector.",
-  },
-  { name: "Ollama", Mark: OllamaMark, state: "planned", detail: "Planned connector." },
-  { name: "LM Studio", Mark: LmStudioMark, state: "planned", detail: "Planned connector." },
-  { name: "Together", Mark: TogetherMark, state: "planned", detail: "Planned connector." },
-  { name: "Mistral", Mark: MistralMark, state: "planned", detail: "Planned connector." },
-  { name: "DeepSeek", Mark: DeepSeekMark, state: "planned", detail: "Planned connector." },
-  { name: "Kimi", Mark: KimiMark, state: "planned", detail: "Planned connector." },
-];
-
-/**
- * The row under the hero buttons: eight recognisable marks, by founder call.
- * The five real connectors lead, then three of the best known planned names.
- * Each carries its honest state in the title attribute, so hovering a planned
- * mark says so, and the row links onward to where the full truth lives.
- * Manual entry follows as a link, because it is a path rather than a provider.
- */
-export const heroMarks: readonly Tool[] = [
-  ...todayTools.filter((tool) => tool.name !== "Manual entry"),
-  ...plannedTools.filter((tool) => ["Perplexity", "Grok", "Gemini CLI"].includes(tool.name)),
-];
+/** The hero repeats the same eight collectors and no roadmap names. */
+export const heroMarks: readonly Tool[] = todayTools;
 
 /*
  * The one sentence that makes a planned chip fair rather than a tease used to be
