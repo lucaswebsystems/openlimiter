@@ -44,7 +44,7 @@
   --ol-meter-ok: #79b8ff;
   --ol-meter-watch: #58a6ff;
   --ol-meter-high: #2f81f7;
-  --ol-meter-critical: #ff6b78;
+  --ol-meter-critical: #1769d2;
   --ol-meter-error: var(--ol-meter-critical);
   --ol-meter-empty: var(--ol-track);
   --ol-meter-ghost: #43536a;
@@ -177,7 +177,7 @@
   --ol-meter-ok: #1f6feb;
   --ol-meter-watch: #0969da;
   --ol-meter-high: #0550ae;
-  --ol-meter-critical: #cf222e;
+  --ol-meter-critical: #033d8b;
   --ol-meter-ghost: #aebed1;
   --ol-live: var(--ol-accent);
   --ol-live-soft: var(--ol-accent-subtle);

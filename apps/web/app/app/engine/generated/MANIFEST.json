@@ -15,17 +15,18 @@
     "connectors/antigravity.ts": "93088a4877222c7b",
     "connectors/claude.ts": "b538bf9ba6296432",
     "connectors/codex.ts": "2131f262c625ac14",
-    "connectors/contract-gate.ts": "8560db435c0af848",
-    "connectors/fixtures.ts": "a2d2a0978c0f4ba7",
+    "connectors/contract-gate.ts": "65eb62bfd949c4a5",
+    "connectors/fixtures.ts": "0e5163c7d153501f",
+    "connectors/gemini-cli.ts": "3d9df1aab81d7e96",
     "connectors/grok.ts": "81b0afa2879e70e0",
     "connectors/kimi.ts": "1c0cfa0c285bbad1",
     "connectors/manual.ts": "418604ac5bcbe4d2",
-    "connectors/opencode.ts": "33058c80bb58a818",
+    "connectors/opencode.ts": "7ab6511b2538a5cf",
     "connectors/openrouter.ts": "5f769739e57aa9f3",
-    "connectors/index.ts": "a3cb74df73b1dcfc",
+    "connectors/index.ts": "fbccbd162a379ac3",
     "adapters/claude-code.ts": "ded7f4a19f13e33b",
-    "ui/provider-connect.ts": "420879d2e32f81a2",
-    "ui/provider-row.ts": "a039f1c510093595",
-    "ui/tokens.css": "f9793d487bfa6ba7"
+    "ui/provider-connect.ts": "a4234d51317c28e3",
+    "ui/provider-row.ts": "214b1be446d0d1c3",
+    "ui/tokens.css": "cb2e0580478da248"
   }
 }

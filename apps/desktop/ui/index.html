@@ -130,19 +130,6 @@
           </button>
         </div>
       </div>
-
-      <div class="strip-state" aria-label="Overall state">
-        <span class="live-chip">
-          <span class="pressure-dot" id="state-dot" aria-hidden="true"></span>
-          <span id="reason-code">Ready</span>
-        </span>
-        <div class="strip-side">
-          <span class="chip muted" id="rec-chip" hidden>
-            <span id="rec-code"></span>
-          </span>
-          <span class="stamp" id="stamp">Waiting</span>
-        </div>
-      </div>
     </header>
 
     <nav class="tabs" role="tablist" aria-label="Views">
@@ -188,7 +175,7 @@
           </div>
           <div class="empty-actions">
             <a class="empty-action primary" href="https://openlimiter.com/en/docs/providers" target="_blank" rel="noopener noreferrer">Download CLIs</a>
-            <a class="empty-action" href="https://openlimiter.com/en/pro" target="_blank" rel="noopener noreferrer">Sign in</a>
+            <a class="empty-action" href="https://openlimiter.com/en/pro" target="_blank" rel="noopener noreferrer">Sign in / Create account</a>
           </div>
         </div>
       </section>
@@ -204,7 +191,10 @@
           <div>
             <h1>Accounts</h1>
           </div>
-          <button type="button" id="add-account">Add account</button>
+          <div class="accounts-toolbar-actions">
+            <a class="empty-action" href="https://openlimiter.com/en/pro" target="_blank" rel="noopener noreferrer">Sign in / Create account</a>
+            <button type="button" id="add-account">Add account</button>
+          </div>
         </div>
 
         <section id="provider-catalogue" class="surface conn-block provider-directory" aria-labelledby="provider-catalogue-title" tabindex="-1">

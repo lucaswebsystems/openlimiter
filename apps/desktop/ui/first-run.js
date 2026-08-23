@@ -86,13 +86,6 @@ const PROVIDERS = Object.freeze([
     action: "Connect",
     fallback: "Key needed",
   },
-  {
-    code: "MANUAL",
-    name: "Manual",
-    subtitle: "Custom limit",
-    action: "Add numbers",
-    fallback: "Manual entry",
-  },
 ]);
 
 const KNOWN_CODES_BY_COMPACT = new Map(
@@ -349,7 +342,7 @@ function renderProviders(screen, result, options) {
     signIn.target = "_blank";
     signIn.rel = "noopener noreferrer";
     signIn.className = "first-run-empty-action";
-    signIn.textContent = "Sign in";
+    signIn.textContent = "Sign in / Create account";
     actions.append(downloads, signIn);
     list.append(actions);
     downloads.focus();

@@ -119,6 +119,8 @@ const WINDOW_NAMES: Readonly<Record<string, string>> = {
   DAILY: "Daily",
   ONE_DAY: "Daily",
   SEVEN_DAY: "Weekly",
+  SEVEN_DAY_OPUS: "Weekly Opus",
+  SEVEN_DAY_SONNET: "Weekly Sonnet",
   WEEKLY: "Weekly",
   THIRTY_DAY: "Monthly",
   MONTHLY: "Monthly",
@@ -139,6 +141,8 @@ const WINDOW_RANK: Readonly<Record<string, number>> = {
   DAILY: 30,
   ONE_DAY: 30,
   SEVEN_DAY: 40,
+  SEVEN_DAY_OPUS: 41,
+  SEVEN_DAY_SONNET: 42,
   WEEKLY: 40,
   THIRTY_DAY: 50,
   MONTHLY: 50,
@@ -405,7 +409,12 @@ export type ProviderMetricColumn = "session" | "week" | "month";
 
 const METRIC_METERS: Readonly<Record<ProviderMetricColumn, ReadonlySet<string>>> = {
   session: new Set(["FIVE_MINUTE", "HOURLY", "FIVE_HOUR", "SESSION"]),
-  week: new Set(["SEVEN_DAY", "WEEKLY"]),
+  week: new Set([
+    "SEVEN_DAY",
+    "SEVEN_DAY_OPUS",
+    "SEVEN_DAY_SONNET",
+    "WEEKLY"
+  ]),
   month: new Set(["THIRTY_DAY", "MONTHLY", "ON_DEMAND_MONTHLY"]),
 };
 
@@ -480,16 +489,11 @@ export function providerTableHeaderMarkup(): string {
 }
 
 export function providerRowMarkup(row: ProviderAccountRowView): string {
-  const account = row.showAccountLabel
-    ? '<span class="account-value" title="' + escapeText(row.accountLabel) + '">' +
-      escapeText(row.accountLabel) + "</span>"
-    : "";
-
   return (
     '<article class="row" aria-label="' + escapeText(row.providerLabel + ", " + row.accountLabel) + '">' +
     '<header class="identity"><span class="mark" aria-hidden="true">' +
     PROVIDER_MARKS[row.provider] + '</span><strong class="provider-name">' +
-    escapeText(row.providerLabel) + "</strong>" + account + "</header>" +
+    escapeText(row.providerLabel) + "</strong></header>" +
     '<div class="windows">' + row.windows.map(windowLineMarkup).join("") + "</div></article>"
   );
 }
@@ -881,15 +885,6 @@ const PROVIDER_ROW_STYLE = `
   line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.account-value {
-  max-width: min(14rem, 45%);
-  margin-left: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--row-muted);
 }
 .windows {
   display: grid;

@@ -6,14 +6,9 @@ import {
   buildProviderDirectory,
   defineProviderRowElement,
   setProviderRowData,
-  type Advice,
   type ProviderAccountRowView,
   type ProviderDirectoryRow,
 } from "./engine";
-import {
-  providerName,
-  reasonPressure,
-} from "./language";
 import registry from "../../lib/provider-specs.generated.json";
 import { ProviderMark } from "./marks";
 
@@ -82,63 +77,27 @@ export function ProviderRows({ rows }: { rows: readonly ProviderAccountRowView[]
  *
  * The lockup is the real one: the ring mark and the wordmark in Baloo 2, at
  * the proportion the site header uses, rendered on the server and handed down
- * as a prop so the font never enters this bundle. Beside it sit the three
- * facts the engine has to offer, every one of them an enum code printed as it
- * is with one plain sentence underneath so the code does not have to be
- * learned: what it calls the overall state, which provider it would prefer and
- * why, and when the reading on screen was taken.
+ * as a prop so the font never enters this bundle. The other side holds actions
+ * only. Quota facts belong to the provider window rows below.
  */
 export function HeaderStrip({
   lockup,
-  advice,
-  asOf,
-  demo,
   busy,
   onRefresh,
   actions,
 }: {
   lockup: ReactNode;
-  advice: Advice | null;
-  asOf: string | null;
-  demo: boolean;
   busy: boolean;
   onRefresh: () => void;
   actions?: ReactNode;
 }) {
-  const reason = advice === null || !advice.inject ? "UNKNOWN" : advice.reason;
-  const pressure = reasonPressure[reason];
-  const recommendation = advice?.recommendation ?? null;
-  const reasonLabel = {
-    HEALTHY: "Clear",
-    NEAR_CAP: "Watch",
-    AT_CAP: "Limit",
-    UNKNOWN: "Ready",
-  }[reason];
-
   return (
     <section
-      aria-label="Overall state"
-      data-demo={demo ? "" : undefined}
+      aria-label="Application controls"
       className="ol-rise ol-commandbar"
     >
-      {demo && <DemoStrip className="" />}
       <div className="ol-commandbar-main">
         <div className="ol-commandbar-brand">{lockup}</div>
-        <div className="ol-commandbar-state">
-          <span className="ol-live-chip">
-            <span aria-hidden="true" data-pressure={pressure} className="ol-pressure-dot" />
-            {busy ? "Syncing" : reasonLabel}
-          </span>
-          {recommendation !== null && recommendation.code === "PREFER" && (
-            <span className="ol-next-provider" title="Preferred provider">
-              Next {providerName(recommendation.provider)}
-            </span>
-          )}
-          <span className="ol-updated">
-            {asOf === null ? "Waiting" : asOf}
-          </span>
-          {demo && <DemoDataChip />}
-        </div>
         <div className="ol-commandbar-actions">
           {actions}
           <Button

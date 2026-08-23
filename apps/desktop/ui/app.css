@@ -424,57 +424,6 @@ h1 {
   flex: none;
 }
 
-.strip-state {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 12px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--hairline);
-}
-
-.pressure-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--ol-radius-pill);
-  background: var(--muted);
-  flex: none;
-}
-
-.pressure-dot[data-pressure="ok"] { background: var(--meter-ok); }
-.pressure-dot[data-pressure="high"] { background: var(--meter-high); }
-.pressure-dot[data-pressure="watch"] { background: var(--meter-watch); }
-.pressure-dot[data-pressure="critical"] { background: var(--meter-critical); }
-
-.strip-line {
-  margin: 0;
-  flex: 1 1 200px;
-  min-width: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
-}
-
-.strip-side {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  min-width: 0;
-}
-
-.rec-line {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
-}
-
-.stamp {
-  font-size: 11px;
-  color: var(--muted);
-}
-
 /*
   The toggle offers the theme you are not in, and the swap is pure CSS keyed
   off the same attribute the palette is, so the correct icon is right on the
@@ -1081,7 +1030,7 @@ footer p {
   card is the .surface shape at twenty pixels of padding, chips are the pill,
   buttons are the one button. The only new drawing is the state dot, and its
   colours are the same blue band tokens the meters use, applied to connection
-  health rather than to quota pressure. Red remains reserved for critical use.
+  health rather than to quota pressure. Every pressure state stays blue.
   Where a reading came from stays a neutral chip, exactly as before.
 */
 .scheduler-line {
@@ -1554,8 +1503,7 @@ pre,
   box-shadow: var(--ol-elev-1);
 }
 
-.chip,
-.live-chip {
+.chip {
   border-radius: var(--ol-radius-pill);
   font-size: var(--ol-text-micro);
 }
@@ -1884,49 +1832,6 @@ button.first-run-continue {
   gap: var(--ol-space-1);
 }
 
-.strip-state {
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  gap: var(--ol-space-2);
-}
-
-.strip-side {
-  flex-wrap: nowrap;
-  gap: var(--ol-space-2);
-}
-
-.live-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ol-space-1);
-  padding: var(--ol-space-1) var(--ol-space-2);
-  background: var(--ol-live-soft);
-  color: var(--ol-live);
-  font-family: var(--ol-font-sans);
-  font-weight: 650;
-}
-
-.live-dot {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: var(--ol-radius-pill);
-  background: currentColor;
-  animation: livePulse 2.4s var(--ol-ease-out) infinite;
-}
-
-@keyframes livePulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--ol-live-soft); }
-  50% { box-shadow: 0 0 0 var(--ol-space-1) transparent; }
-}
-
-.stamp {
-  font-size: var(--ol-text-micro);
-  font-variant-numeric: tabular-nums;
-}
-
 .tabs {
   display: flex;
   width: auto;
@@ -2079,6 +1984,12 @@ main {
   margin: var(--ol-space-1) 0 0;
   color: var(--ol-muted);
   font-size: var(--ol-text-micro);
+}
+
+.accounts-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
 }
 
 #panel-connections:not([hidden]) {
@@ -2502,18 +2413,6 @@ pre {
     grid-row: 1;
   }
 
-  .strip-state {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    scrollbar-width: none;
-  }
-
-  .strip-state::-webkit-scrollbar {
-    display: none;
-  }
-
   .rec-detail,
   .wordmark {
     display: none;
@@ -2533,7 +2432,13 @@ pre {
     flex-direction: column;
   }
 
-  #add-account {
+  .accounts-toolbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #add-account,
+  .accounts-toolbar-actions .empty-action {
     width: 100%;
   }
 
@@ -2581,7 +2486,4 @@ pre {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .live-dot {
-    animation: none;
-  }
 }

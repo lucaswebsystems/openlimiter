@@ -40,6 +40,7 @@ import {
 import { parseAntigravityPayload } from "./antigravity";
 import { parseClaudePayload } from "./claude";
 import { parseCodexPayload } from "./codex";
+import { parseGeminiCliPayload } from "./gemini-cli";
 import { parseGrokPayload } from "./grok";
 import { parseKimiPayload } from "./kimi";
 import { parseManualPayload } from "./manual";
@@ -73,6 +74,7 @@ const PARSER_BY_PROVIDER: Readonly<Partial<Record<ProviderCode, Parser>>> = {
   OPENROUTER: parseOpenrouterPayload,
   CODEX: parseCodexPayload,
   ANTIGRAVITY: parseAntigravityPayload,
+  GEMINI_CLI: parseGeminiCliPayload,
   OPENCODE: parseOpencodePayload,
   GROK: parseGrokPayload,
   KIMI: parseKimiPayload,

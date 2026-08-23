@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { launchNotice, normalizeDetections } from "./first-run.js";
+
+test("keeps the no CLI state to one line and two actions", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  const start = html.indexOf('<section id="panel-meters"');
+  const end = html.indexOf("</section>", start);
+  const panel = html.slice(start, end);
+
+  assert.match(panel, /<h3>No supported AI CLIs found\.<\/h3>/u);
+  assert.equal((panel.match(/<a class="empty-action/g) ?? []).length, 2);
+  assert.equal(panel.includes("<p"), false);
+});
 
 test("shows the two SmartScreen actions for an unsigned Windows release", () => {
   assert.deepEqual(launchNotice("Win32"), {
@@ -97,8 +109,9 @@ test("stale detected accounts name the CLI recovery without exposing identity", 
 test("an unavailable backend never becomes a false absent claim", () => {
   const result = normalizeDetections(null);
   assert.equal(result.available, false);
-  assert.equal(result.providers.length, 9);
+  assert.equal(result.providers.length, 8);
   assert.equal(result.providers.every((entry) => entry.state === "unavailable"), true);
+  assert.equal(result.providers.some((entry) => entry.code === "MANUAL"), false);
 });
 
 test("a successful empty scan is a coherent fresh machine state", () => {
@@ -115,7 +128,7 @@ test("a successful empty scan is a coherent fresh machine state", () => {
     ].map((provider_id) => ({ provider_id, state: "absent", accounts: [] })),
   });
   assert.equal(result.available, true);
-  assert.equal(result.providers.length, 9);
+  assert.equal(result.providers.length, 8);
   assert.equal(result.providers.every((entry) => entry.state === "absent"), true);
 });
 
@@ -142,7 +155,7 @@ test("unknown providers never enter the first run rows", () => {
   const result = normalizeDetections({
     providers: [{ provider_id: "other", state: "present", accounts: [] }],
   });
-  assert.equal(result.providers.length, 9);
+  assert.equal(result.providers.length, 8);
   assert.equal(result.providers.some((entry) => entry.code === "OTHER"), false);
 });
 

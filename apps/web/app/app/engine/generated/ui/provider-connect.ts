@@ -49,20 +49,10 @@ export const PROVIDER_RECOGNITION_ORDER = [
   "anthropic/claude-code",
   "google/gemini-cli",
   "google/antigravity",
-  "perplexity/api",
   "xai/api",
   "moonshot/api",
-  "github/copilot",
-  "cursor/editor",
-  "windsurf/editor",
-  "ollama/local",
-  "lmstudio/local",
-  "together/api",
-  "mistral/api",
-  "deepseek/api",
   "opencode/opencode",
   "openrouter/api",
-  "openlimiter/manual",
 ] as const;
 
 const READY_CONNECTORS = new Set([
@@ -74,7 +64,6 @@ const READY_CONNECTORS = new Set([
   "opencode",
   "grok",
   "kimi",
-  "manual",
 ]);
 
 /** Grok and Kimi are entering through local discovery despite their API catalog entries. */

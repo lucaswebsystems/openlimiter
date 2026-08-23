@@ -70,6 +70,7 @@ const MIRROR = {
       "codex.ts",
       "contract-gate.ts",
       "fixtures.ts",
+      "gemini-cli.ts",
       "grok.ts",
       "kimi.ts",
       "manual.ts",

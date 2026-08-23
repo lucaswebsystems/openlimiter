@@ -158,32 +158,11 @@ function decorateProviderHeads() {
 
 decorateProviderHeads();
 
-/* The same sentences apps/web/app/app/language.ts renders, word for word,
-   with the % sign the reference uses rather than the word. */
-const REASON_PRESSURE = {
-  HEALTHY: "ok",
-  NEAR_CAP: "high",
-  AT_CAP: "critical",
-  UNKNOWN: "none",
-};
-
-const REASON_LABEL = {
-  HEALTHY: "Clear",
-  NEAR_CAP: "Watch",
-  AT_CAP: "Limit",
-  UNKNOWN: "Ready",
-};
-
 const elements = {
   rows: document.getElementById("provider-rows"),
   empty: document.getElementById("empty"),
   context: document.getElementById("context"),
   statusline: document.getElementById("statusline"),
-  stamp: document.getElementById("stamp"),
-  reasonCode: document.getElementById("reason-code"),
-  recChip: document.getElementById("rec-chip"),
-  recCode: document.getElementById("rec-code"),
-  stateDot: document.getElementById("state-dot"),
   refresh: document.getElementById("refresh"),
   theme: document.getElementById("theme"),
   addAccount: document.getElementById("add-account"),
@@ -401,27 +380,12 @@ async function refresh() {
       : context;
     elements.statusline.textContent = renderClaudeStatusline(advice);
 
-    const reason = advice.inject ? advice.reason : "UNKNOWN";
-    elements.reasonCode.textContent = REASON_LABEL[reason];
-    elements.stateDot.dataset.pressure = REASON_PRESSURE[reason];
-
-    const recommendation = advice.recommendation;
-    if (recommendation.code === "PREFER") {
-      elements.recChip.className = "chip accent";
-      elements.recChip.hidden = false;
-      elements.recCode.textContent = "Next " + (PROVIDER_NAMES[recommendation.provider] ?? recommendation.provider);
-    } else {
-      elements.recChip.hidden = true;
-    }
-
-    elements.stamp.textContent = new Date().toLocaleTimeString();
-
     await setTrayStatus({ providers: trayProviders(advice) });
     /* The Claude card's ready or collecting split reads the cache through
        the flag set above, so it is told the cache moved. */
     noteMetersRefreshed();
   } catch {
-    elements.stamp.textContent = "Cache unavailable";
+    /* A failed refresh leaves the last valid provider rows untouched. */
   } finally {
     refreshing = false;
     elements.refresh.disabled = false;

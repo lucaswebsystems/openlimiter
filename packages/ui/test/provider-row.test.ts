@@ -89,9 +89,8 @@ describe("provider account rows", () => {
     const gemini = rows.find((row) => row.provider === "GEMINI_CLI");
     const grok = rows.find((row) => row.provider === "GROK");
     const kimi = rows.find((row) => row.provider === "KIMI");
-    const manual = rows.find((row) => row.provider === "MANUAL");
 
-    expect(rows).toHaveLength(9);
+    expect(rows).toHaveLength(8);
     expect(rows.map((row) => row.provider)).toEqual([
       "CODEX",
       "CLAUDE",
@@ -101,16 +100,12 @@ describe("provider account rows", () => {
       "KIMI",
       "OPENCODE",
       "OPENROUTER",
-      "MANUAL",
     ]);
     expect(codex?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
     expect(gemini?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
     expect(grok?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
     expect(kimi?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
-    expect(manual?.fallback).toMatchObject({
-      kind: "manual_entry",
-      title: "Manual entry",
-    });
+    expect(rows.some((row) => row.provider === "MANUAL")).toBe(false);
   });
 
   it("renders one compact usage line and one bar for every window", () => {
@@ -138,6 +133,20 @@ describe("provider account rows", () => {
     expect(markup).not.toContain("No data");
     expect(markup).toContain('<span class="window-reset">1h 30m</span>');
     expect(markup).toContain('<strong class="window-percent">63.0%</strong>');
+    expect(markup).not.toContain('<span class="account-value"');
+  });
+
+  it("keeps account identity accessible without rendering an account badge", () => {
+    const row = buildProviderAccountRows(
+      [snapshot("CODEX", "FIVE_HOUR", 63, "work")],
+      NOW,
+      [],
+      { providers: ["CODEX"] },
+    )[0];
+
+    expect(row).toBeDefined();
+    const markup = providerRowMarkup(row!);
+    expect(markup).toContain('aria-label="Codex, work"');
     expect(markup).not.toContain('<span class="account-value"');
   });
 

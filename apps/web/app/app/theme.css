@@ -278,30 +278,6 @@
   color: var(--ol-muted);
 }
 
-/* The dot on the state chip in the header strip. */
-.ol-pressure-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: var(--ol-radius-pill);
-  background-color: var(--ol-muted);
-}
-
-.ol-pressure-dot[data-pressure="ok"] {
-  background-color: var(--ol-meter-ok);
-}
-
-.ol-pressure-dot[data-pressure="high"] {
-  background-color: var(--ol-meter-high);
-}
-
-.ol-pressure-dot[data-pressure="watch"] {
-  background-color: var(--ol-meter-watch);
-}
-
-.ol-pressure-dot[data-pressure="critical"] {
-  background-color: var(--ol-meter-critical);
-}
-
 /*
   Freshness, which is a different question from pressure and is never painted
   in a pressure colour. Solid means read just now, a hollow ring means the
@@ -1006,65 +982,18 @@ body:has(.ol-product-shell) .page-overlap {
 }
 
 .ol-commandbar-brand,
-.ol-commandbar-actions,
-.ol-commandbar-state {
+.ol-commandbar-actions {
   display: flex;
   min-width: 0;
   align-items: center;
 }
 
-.ol-commandbar-actions,
-.ol-commandbar-state {
+.ol-commandbar-actions {
   gap: var(--ol-space-2);
 }
 
-.ol-commandbar-state {
-  justify-content: flex-end;
-}
-
-.ol-chip,
-.ol-live-chip {
+.ol-chip {
   border-radius: var(--ol-radius-pill);
-}
-
-.ol-live-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ol-space-1);
-  padding: var(--ol-space-1) var(--ol-space-2);
-  background: var(--ol-live-soft);
-  color: var(--ol-live);
-  border: 1px solid color-mix(in srgb, var(--ol-accent) 24%, var(--ol-hairline));
-  border-radius: var(--ol-radius-pill);
-  font-family: var(--ol-font-sans);
-  font-size: var(--ol-text-micro);
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
-}
-
-.ol-next-provider {
-  color: var(--ol-soft);
-  font-size: var(--ol-text-caption);
-  font-weight: 600;
-}
-
-.ol-live-dot {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: var(--ol-radius-pill);
-  background: currentColor;
-  animation: olProductPulse 2.4s var(--ol-ease-out) infinite;
-}
-
-.ol-updated {
-  color: var(--ol-muted);
-  font-size: var(--ol-text-micro);
-  font-variant-numeric: tabular-nums;
-}
-
-@keyframes olProductPulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--ol-live-soft); }
-  50% { box-shadow: 0 0 0 var(--ol-space-1) transparent; }
 }
 
 .ol-product-tabs {
@@ -1711,19 +1640,6 @@ body:has(.ol-product-shell) .page-overlap {
     padding-bottom: var(--ol-space-2);
   }
 
-  .ol-commandbar-state {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: flex-start;
-    overflow-x: auto;
-    padding-bottom: var(--ol-space-1);
-    scrollbar-width: none;
-  }
-
-  .ol-commandbar-state::-webkit-scrollbar {
-    display: none;
-  }
-
   .ol-source-grid {
     grid-template-columns: 1fr;
   }
@@ -1739,9 +1655,7 @@ body:has(.ol-product-shell) .page-overlap {
     display: none;
   }
 
-  .ol-product-wordmark,
-  .ol-updated,
-  .ol-commandbar-state > .ol-chip:nth-of-type(2) {
+  .ol-product-wordmark {
     display: none;
   }
 
@@ -1832,7 +1746,6 @@ body:has(.ol-product-shell) .page-overlap {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ol-live-dot,
   .ol-product-shell .ol-rise {
     animation: none;
   }

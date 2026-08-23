@@ -482,16 +482,11 @@ export function providerTableHeaderMarkup(): string {
 }
 
 export function providerRowMarkup(row: ProviderAccountRowView): string {
-  const account = row.showAccountLabel
-    ? '<span class="account-value" title="' + escapeText(row.accountLabel) + '">' +
-      escapeText(row.accountLabel) + "</span>"
-    : "";
-
   return (
     '<article class="row" aria-label="' + escapeText(row.providerLabel + ", " + row.accountLabel) + '">' +
     '<header class="identity"><span class="mark" aria-hidden="true">' +
     PROVIDER_MARKS[row.provider] + '</span><strong class="provider-name">' +
-    escapeText(row.providerLabel) + "</strong>" + account + "</header>" +
+    escapeText(row.providerLabel) + "</strong></header>" +
     '<div class="windows">' + row.windows.map(windowLineMarkup).join("") + "</div></article>"
   );
 }
@@ -883,15 +878,6 @@ const PROVIDER_ROW_STYLE = `
   line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.account-value {
-  max-width: min(14rem, 45%);
-  margin-left: auto;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--row-muted);
 }
 .windows {
   display: grid;

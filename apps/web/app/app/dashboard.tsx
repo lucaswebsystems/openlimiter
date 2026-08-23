@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   PROVIDER_CODES,
@@ -252,7 +253,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    *
    * Kept beside the readings rather than inside them, because a rejected
    * reading is not a reading: the provider's card still shows the last good
-   * one and says, in red, that the newer document was refused. Cleared on the
+   * one and says that the newer document was refused. Cleared on the
    * next successful read of that provider, and never stored, since a failure
    * is about a document rather than about the state of a quota. It belongs to
    * the live store only: a fixture cannot fail to parse.
@@ -529,21 +530,12 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     [shown, now, shownFailures, demo],
   );
 
-  const asOf = useMemo(() => {
-    if (now === null) return null;
-    const parsed = Date.parse(now);
-    return Number.isFinite(parsed) ? new Date(parsed).toLocaleTimeString() : null;
-  }, [now]);
-
   return (
     <div className="ol-dashboard">
       {demo && <DemoBanner onLeave={leaveDemo} />}
 
       <HeaderStrip
         lockup={lockup}
-        advice={dash?.advice ?? null}
-        asOf={asOf}
-        demo={demo}
         busy={busy}
         onRefresh={refresh}
         actions={
@@ -604,9 +596,17 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           <Panel
             title="Accounts"
             action={
-              <Button tone="primary" onClick={focusDirectory}>
-                Add account
-              </Button>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Link
+                  href="/en/pro"
+                  className="ol-control ol-control-quiet ol-tap focus-ring inline-flex items-center justify-center border text-sm font-medium"
+                >
+                  Sign in / Create account
+                </Link>
+                <Button tone="primary" onClick={focusDirectory}>
+                  Add account
+                </Button>
+              </div>
             }
             demo={demo}
           >
