@@ -4,6 +4,38 @@ All notable project changes appear in this file.
 
 ## [Unreleased]
 
+## [1.0.2] (2026-08-23)
+
+### Added
+
+The web dashboard can show bounded quota snapshots from the optional hosted sync
+service after sign in. Web and desktop account surfaces now make sign in and
+account creation explicit, while every local feature still works without an
+account.
+
+### Changed
+
+Desktop and web now render one compact line per quota window under each provider
+heading. Every line contains only its window name, continuous bar, percentage,
+and reset time. The visible provider catalogue is limited to the eight sources
+that have collectors.
+
+Antigravity now reads the authenticated quota summary directly with the same
+request contract used by the installed client. The site keeps the video hero,
+uses restrained motion with a reduced motion fallback, and updates returning
+web application clients when a new build is deployed.
+
+The download page now selects the current operating system automatically and
+keeps other platforms behind one quiet link. Pricing states that local use and
+sync are free, and lists the planned Pro service boundaries without claiming
+those features ship today.
+
+### Distribution
+
+This patch ships unsigned Windows and Linux desktop packages. Both packages are
+installed and launch tested by the release workflow. macOS remains excluded.
+The npm command line package remains unpublished.
+
 ## [1.0.1] (2026-08-21)
 
 ### Changed

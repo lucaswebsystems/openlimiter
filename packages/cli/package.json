@@ -1,6 +1,6 @@
 {
   "name": "openlimiter",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A local command line meter for AI quota, usage, and reset times.",
   "type": "module",
   "main": "./dist/index.js",
