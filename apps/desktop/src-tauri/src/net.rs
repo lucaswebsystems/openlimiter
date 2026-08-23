@@ -50,17 +50,12 @@ pub const GROK_USAGE_URL: &str = "https://cli-chat-proxy.grok.com/v1/billing?for
 /// The Kimi Code usage report used by the official Kimi CLI.
 pub const KIMI_USAGE_URL: &str = "https://api.kimi.com/coding/v1/usages";
 
-/// The Antigravity account bootstrap, used to resolve the server managed
-/// Cloud Code project before a quota read.
-pub const ANTIGRAVITY_BOOTSTRAP_URL: &str =
-    "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist";
-
 /// The Antigravity quota summary, on Google's metadata plane.
 ///
-/// Evidence, recorded 2026-08-19 against agy 1.1.15: the same unexpired
-/// keyring token produced a 403 when this endpoint received `{}` and produced
-/// a 200 response with two groups and four buckets after `loadCodeAssist`
-/// resolved the companion project and that project was sent in the body.
+/// Evidence, recorded 2026-08-23 by the machine's continuously running budget
+/// accountant: the token stored under `gemini:antigravity` returns the quota
+/// groups from this address when sent an empty JSON object, bearer auth, JSON
+/// content type, and a nonempty user agent. No project bootstrap is involved.
 pub const ANTIGRAVITY_QUOTA_URL: &str =
     "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
 
@@ -102,9 +97,7 @@ pub const OPENCODE_WORKSPACE_URL_SUFFIX: &str = "/go";
 ///
 /// One variant is not necessarily one request. `OpencodeUsage` owns two
 /// constant addresses because its entry point names the workspace carrying
-/// the meters. `AntigravityQuota` also owns two constant addresses because
-/// its bootstrap resolves the server managed project required by the quota
-/// request body.
+/// the meters.
 ///
 /// The rejected alternative was a sixth enum variant for the entry point. It
 /// was rejected because the endpoint vocabulary is the frozen contract shared
@@ -158,7 +151,7 @@ impl ProviderEndpoint {
             ProviderEndpoint::OpenrouterKey => OPENROUTER_KEY_URL,
             ProviderEndpoint::OpenrouterCredits => OPENROUTER_CREDITS_URL,
             ProviderEndpoint::CodexUsage => CODEX_USAGE_URL,
-            ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_BOOTSTRAP_URL,
+            ProviderEndpoint::AntigravityQuota => ANTIGRAVITY_QUOTA_URL,
             ProviderEndpoint::GeminiCliLoad => GEMINI_CLI_LOAD_URL,
             ProviderEndpoint::GeminiCliQuota => GEMINI_CLI_QUOTA_URL,
             ProviderEndpoint::OpencodeUsage => OPENCODE_AUTH_URL,
@@ -191,12 +184,10 @@ impl ProviderEndpoint {
         }
     }
 
-    /// The first request body, when the endpoint demands one. The second
-    /// Antigravity body is constructed only from a validated project returned
-    /// by the first request.
+    /// The request body, when the endpoint demands one.
     pub const fn body(self) -> Option<&'static str> {
         match self {
-            ProviderEndpoint::AntigravityQuota => Some(ANTIGRAVITY_BOOTSTRAP_BODY),
+            ProviderEndpoint::AntigravityQuota => Some(ANTIGRAVITY_QUOTA_BODY),
             ProviderEndpoint::GeminiCliLoad => Some(GEMINI_CLI_LOAD_BODY),
             /* The quota body contains one validated server supplied project
             identifier and is constructed only by `fetch_gemini_cli_quota`. */
@@ -212,8 +203,8 @@ impl ProviderEndpoint {
     }
 }
 
-/// The exact bootstrap metadata emitted by the current agy client.
-pub const ANTIGRAVITY_BOOTSTRAP_BODY: &str = r#"{"metadata":{"ideType":"ANTIGRAVITY","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}}"#;
+/// The exact body used by the machine's working Antigravity quota reader.
+pub const ANTIGRAVITY_QUOTA_BODY: &str = "{}";
 
 /// The same metadata Gemini CLI sends when it resolves an already onboarded
 /// Google account. Undefined project fields are omitted, exactly as JSON
@@ -405,46 +396,6 @@ impl WorkspaceHandle {
     }
 }
 
-/// A server resolved Cloud Code project, validated before it can enter the
-/// second Antigravity request body.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct AntigravityProject(String);
-
-impl AntigravityProject {
-    fn parse(text: &str) -> Option<Self> {
-        if !(6..=63).contains(&text.len()) {
-            return None;
-        }
-        let mut bytes = text.bytes();
-        let first = bytes.next()?;
-        if !first.is_ascii_lowercase() {
-            return None;
-        }
-        if !bytes.all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-') {
-            return None;
-        }
-        if text.ends_with('-') {
-            return None;
-        }
-        Some(Self(text.to_string()))
-    }
-
-    fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-#[derive(Deserialize)]
-struct AntigravityBootstrapResponse {
-    #[serde(rename = "cloudaicompanionProject")]
-    project: String,
-}
-
-#[derive(Serialize)]
-struct AntigravityQuotaRequest<'a> {
-    project: &'a str,
-}
-
 /// What a transport hands back. The body is present only for a status in the
 /// 200 range; the transport drops every other body without reading it.
 pub struct TransportReply {
@@ -581,7 +532,6 @@ pub async fn fetch_endpoint<T: Transport>(
         if auth != AuthApplication::AntigravitySessionBearer || provider_account_id.is_some() {
             return Err(NetError::Protocol);
         }
-        return fetch_antigravity_quota(transport, secret).await;
     }
     if matches!(
         auth,
@@ -618,52 +568,6 @@ pub async fn fetch_endpoint<T: Transport>(
     };
     let reply = transport
         .send(&request, secret)
-        .await
-        .map_err(NetError::from)?;
-    outcome_of(reply)
-}
-
-/// Resolve the server managed project and then ask for quota. Both addresses,
-/// methods, bodies and the authentication scheme stay closed inside this
-/// module; the caller can supply only the credential already assigned to the
-/// Antigravity reader.
-async fn fetch_antigravity_quota<T: Transport>(
-    transport: &T,
-    secret: &str,
-) -> Result<EndpointOutcome, NetError> {
-    let bootstrap = EndpointRequest {
-        url: ANTIGRAVITY_BOOTSTRAP_URL,
-        method: HttpMethod::Post,
-        auth: AuthApplication::AntigravitySessionBearer,
-        provider_account_id: None,
-        body: Some(ANTIGRAVITY_BOOTSTRAP_BODY),
-    };
-    let bootstrap = outcome_of(
-        transport
-            .send(&bootstrap, secret)
-            .await
-            .map_err(NetError::from)?,
-    )?;
-    if !(200..=299).contains(&bootstrap.status) {
-        return Ok(bootstrap);
-    }
-    let parsed: AntigravityBootstrapResponse =
-        serde_json::from_str(bootstrap.body.as_deref().ok_or(NetError::Protocol)?)
-            .map_err(|_| NetError::Protocol)?;
-    let project = AntigravityProject::parse(&parsed.project).ok_or(NetError::Protocol)?;
-    let body = serde_json::to_string(&AntigravityQuotaRequest {
-        project: project.as_str(),
-    })
-    .map_err(|_| NetError::Protocol)?;
-    let quota = EndpointRequest {
-        url: ANTIGRAVITY_QUOTA_URL,
-        method: HttpMethod::Post,
-        auth: AuthApplication::AntigravitySessionBearer,
-        provider_account_id: None,
-        body: Some(&body),
-    };
-    let reply = transport
-        .send(&quota, secret)
         .await
         .map_err(NetError::from)?;
     outcome_of(reply)
@@ -1095,23 +999,12 @@ mod tests {
     }
 
     fn transport_for(
-        endpoint: ProviderEndpoint,
+        _endpoint: ProviderEndpoint,
         status: u16,
         body: Vec<u8>,
         retry_after_seconds: Option<u64>,
     ) -> RecordingTransport {
-        if endpoint == ProviderEndpoint::AntigravityQuota && (200..=299).contains(&status) {
-            RecordingTransport::scripted(vec![
-                (
-                    200,
-                    br#"{"cloudaicompanionProject":"fixture-project-123"}"#.to_vec(),
-                    None,
-                ),
-                (status, body, retry_after_seconds),
-            ])
-        } else {
-            RecordingTransport::replying(status, body, retry_after_seconds)
-        }
+        RecordingTransport::replying(status, body, retry_after_seconds)
     }
 
     /* ------------------------------------------------------- the allowlist */
@@ -1151,7 +1044,6 @@ mod tests {
                 OPENROUTER_KEY_URL.to_string(),
                 OPENROUTER_CREDITS_URL.to_string(),
                 CODEX_USAGE_URL.to_string(),
-                ANTIGRAVITY_BOOTSTRAP_URL.to_string(),
                 ANTIGRAVITY_QUOTA_URL.to_string(),
                 /* Two hops, both built here from constants and one validated
                 handle. */
@@ -1193,7 +1085,7 @@ mod tests {
         }
         assert_eq!(
             ProviderEndpoint::AntigravityQuota.body(),
-            Some(ANTIGRAVITY_BOOTSTRAP_BODY)
+            Some(ANTIGRAVITY_QUOTA_BODY)
         );
         assert_eq!(
             ProviderEndpoint::GeminiCliLoad.body(),
@@ -1232,12 +1124,7 @@ mod tests {
             }
             let bodies = transport.recorded_bodies();
             if endpoint == ProviderEndpoint::AntigravityQuota {
-                assert_eq!(bodies.len(), 2);
-                assert_eq!(bodies[0].as_deref(), Some(ANTIGRAVITY_BOOTSTRAP_BODY));
-                assert_eq!(
-                    bodies[1].as_deref(),
-                    Some(r#"{"project":"fixture-project-123"}"#)
-                );
+                assert_eq!(bodies, vec![Some(ANTIGRAVITY_QUOTA_BODY.to_string())]);
             } else {
                 assert!(bodies.iter().all(Option::is_none));
             }
@@ -1486,11 +1373,11 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::new();
         let request = EndpointRequest {
-            url: ANTIGRAVITY_BOOTSTRAP_URL,
+            url: ANTIGRAVITY_QUOTA_URL,
             method: HttpMethod::Post,
             auth: AuthApplication::AntigravitySessionBearer,
             provider_account_id: None,
-            body: Some(ANTIGRAVITY_BOOTSTRAP_BODY),
+            body: Some(ANTIGRAVITY_QUOTA_BODY),
         };
         let built = authenticated_builder(&client, &request, "credential-canary")
             .expect("headers")
@@ -1506,7 +1393,7 @@ mod tests {
         );
         assert_eq!(
             built.body().and_then(reqwest::Body::as_bytes),
-            Some(ANTIGRAVITY_BOOTSTRAP_BODY.as_bytes())
+            Some(ANTIGRAVITY_QUOTA_BODY.as_bytes())
         );
     }
 
@@ -1728,7 +1615,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            13,
+            12,
             "an address appeared outside the constants"
         );
     }

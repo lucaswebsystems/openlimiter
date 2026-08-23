@@ -426,9 +426,7 @@ mod tests {
     use std::fs;
 
     use crate::cache_write::CACHE_FILE_NAME;
-    use crate::net::{
-        HttpMethod, ANTIGRAVITY_BOOTSTRAP_BODY, ANTIGRAVITY_BOOTSTRAP_URL, ANTIGRAVITY_QUOTA_URL,
-    };
+    use crate::net::{HttpMethod, ANTIGRAVITY_QUOTA_BODY, ANTIGRAVITY_QUOTA_URL};
     use crate::test_support::{RecordingTransport, TempDir};
     use zeroize::Zeroizing;
 
@@ -483,14 +481,7 @@ mod tests {
     }
 
     fn quota_transport(body: Vec<u8>) -> RecordingTransport {
-        RecordingTransport::scripted(vec![
-            (
-                200,
-                br#"{"cloudaicompanionProject":"fixture-project-123"}"#.to_vec(),
-                None,
-            ),
-            (200, body, None),
-        ])
+        RecordingTransport::replying(200, body, None)
     }
 
     #[tokio::test]
@@ -508,27 +499,15 @@ mod tests {
         )
         .await;
         assert!(matches!(outcome, AntigravityOutcome::CacheCommitted { .. }));
-        assert_eq!(
-            transport.recorded_urls(),
-            vec![ANTIGRAVITY_BOOTSTRAP_URL, ANTIGRAVITY_QUOTA_URL]
-        );
-        assert_eq!(
-            transport.recorded_methods(),
-            vec![HttpMethod::Post, HttpMethod::Post]
-        );
+        assert_eq!(transport.recorded_urls(), vec![ANTIGRAVITY_QUOTA_URL]);
+        assert_eq!(transport.recorded_methods(), vec![HttpMethod::Post]);
         assert_eq!(
             transport.recorded_auths(),
-            vec![
-                AuthApplication::AntigravitySessionBearer,
-                AuthApplication::AntigravitySessionBearer
-            ]
+            vec![AuthApplication::AntigravitySessionBearer]
         );
         assert_eq!(
             transport.recorded_bodies(),
-            vec![
-                Some(ANTIGRAVITY_BOOTSTRAP_BODY.to_string()),
-                Some(r#"{"project":"fixture-project-123"}"#.to_string())
-            ]
+            vec![Some(ANTIGRAVITY_QUOTA_BODY.to_string())]
         );
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
         assert!(cache.contains("ANTIGRAVITY"));
@@ -565,7 +544,7 @@ mod tests {
         .await;
 
         assert!(matches!(second, AntigravityOutcome::Cached { .. }));
-        assert_eq!(transport.recorded_urls().len(), 2);
+        assert_eq!(transport.recorded_urls().len(), 1);
     }
 
     #[tokio::test]
