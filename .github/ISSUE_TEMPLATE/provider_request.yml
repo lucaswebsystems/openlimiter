@@ -1,0 +1,55 @@
+name: Provider request
+description: Request a provider reader with evidence from its documentation.
+title: "[Provider]: "
+labels: ["connector"]
+body:
+  - type: input
+    id: provider
+    attributes:
+      label: Provider
+      placeholder: Provider name
+    validations:
+      required: true
+  - type: input
+    id: documentation
+    attributes:
+      label: Provider documentation
+      description: Link to the provider source that defines authentication, usage, credits, budgets, and reset windows.
+      placeholder: https://docs.example.com/usage
+    validations:
+      required: true
+  - type: dropdown
+    id: interface_status
+    attributes:
+      label: Interface type
+      options:
+        - Documented API
+        - Native local payload
+        - Internal endpoint
+        - Authenticated scrape
+        - Manual entry
+    validations:
+      required: true
+  - type: textarea
+    id: windows
+    attributes:
+      label: Documented windows or spend model
+      description: List each subscription window, or explain the provider budget, hard limit, spend, and remaining credit model.
+    validations:
+      required: true
+  - type: textarea
+    id: limitations
+    attributes:
+      label: Limitations
+      description: Explain drift risk, credential origin, availability, and automation risk.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I did not include a real credential, account identifier, response body, email, cookie, session, or machine path.
+          required: true
+        - label: I understand that a new reader ships UNVERIFIED until reviewed evidence proves otherwise.
+          required: true

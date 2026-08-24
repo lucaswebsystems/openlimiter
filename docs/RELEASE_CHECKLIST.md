@@ -34,7 +34,7 @@ The workflow uses a hosted runner and short lived OIDC credentials. It does not 
 4. Confirm that Windows reports the installers as unsigned and that the documented SmartScreen path says `More info`, then `Run anyway`.
 5. Publish the draft only after Lucas approves it.
 
-Version 1.0 does not enable automatic updates. Updater metadata and signatures begin with a later release that has a dedicated update signing key. Operating system signing is separate: Windows 1.0 is intentionally unsigned, while no unsigned macOS build is distributed.
+Version 1.1 enables the official Tauri updater. The workflow must create signed updater bundles and `latest.json` from the same tag as the installers. Confirm the manifest signature and each updater signature before publishing the draft. Operating system signing is separate: Windows remains intentionally unsigned, while no unsigned macOS build is distributed.
 
 ## Public site
 

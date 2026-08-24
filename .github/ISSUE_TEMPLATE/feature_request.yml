@@ -1,5 +1,5 @@
 name: Feature request
-description: Propose a focused improvement.
+description: Propose one focused behavior with a verifiable outcome.
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
@@ -22,5 +22,12 @@ body:
     attributes:
       label: Safety and privacy
       description: Explain effects on secrets, cache state, agent context, and network egress.
+    validations:
+      required: true
+  - type: textarea
+    id: proof
+    attributes:
+      label: Acceptance proof
+      description: State the smallest test or capture that would prove the behavior is complete.
     validations:
       required: true

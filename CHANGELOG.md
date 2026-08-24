@@ -4,6 +4,52 @@ All notable project changes appear in this file.
 
 ## [Unreleased]
 
+## [1.1.0] (2026-08-24)
+
+### Added
+
+The desktop now begins with a free OpenLimiter account sign in. Google, GitHub,
+and email are available when their Supabase providers are configured. A cached
+session keeps local meters usable while the backend is unreachable, and local
+collection never waits for the network.
+
+Free native desktop notifications cover the 60, 75, and 90 percent transitions.
+The Home bell lists recent events. Reset notices stay off by default. The signed
+release channel now has the official Tauri updater, including launch checks,
+manual checks, an install banner, signed artifacts, and `latest.json`.
+
+The public repository now includes an evidence led README, contribution rules,
+and focused issue forms for bugs, provider requests, and features.
+
+### Changed
+
+Home and the tray show only providers the user configured. Each configured
+provider renders every trusted window as a separate line. Subscription windows
+use semantic percentage bars. API providers use spend against a known ceiling,
+or a neutral spent and remaining credit line when the service exposes no cap.
+
+Configuration contains providers only. Account details, sync, update checks,
+about, and sign out live in the menu. Sync starts on after sign in, sends only
+bounded usage display data, and has a clear off switch.
+
+The canonical pre redesign lockup is frozen across 87 generated web, PWA,
+desktop, installer, package, and tray outputs. Shared tokens now control spacing,
+type, radius, color, motion, and bar styling across shipped surfaces.
+
+### Pro status
+
+Email, phone push, custom thresholds, quiet hours, and a daily digest are
+implemented locally behind the existing entitlement boundary. Hosted activation
+and end to end delivery proof remain required before checkout can open. Pro
+themes, multiple subscription gating, heavy API usage features, and the history
+and forecast view do not ship in this release.
+
+### Distribution
+
+Windows and Linux remain the supported desktop targets. They are unsigned.
+macOS remains excluded. The planned Pro price now matches the executable Stripe
+contract at 5 dollars per month or 50 dollars per year.
+
 ## [1.0.2] (2026-08-23)
 
 ### Added

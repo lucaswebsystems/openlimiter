@@ -14,25 +14,28 @@ Publishing the client is deliberate. You can inspect every network value the app
 
 Every feature that runs on your machine is free and stays free. This promise covers every connector, every meter, every local notification, every dashboard, every command line feature, every statusline option, local advice, manual entry, and local ingestion.
 
-An entitlement check protects only the three Pro service families below. If Pro access ends, those services stop. Free sync and the local application continue. The local application does not lose a feature, change a meter, or require a reinstall.
+An entitlement check protects only hosted Pro work. If Pro access ends, those services stop. Free sync and the local application continue. The local application does not lose a feature, change a meter, or require a reinstall.
 
-Optional snapshot sync is free, off by default, and never entitlement gated. Nothing leaves the machine unless the user signs in and enables it. Signing out never changes or deletes the local cache.
+Snapshot sync is free, enabled by default after sign in, and never entitlement gated. It sends only usage percentages and can be turned off at any time. Signing out never changes or deletes the local cache.
 
 ## What Pro contains
 
-Pro contains exactly three hosted services.
+Pro is not available for purchase yet. Its planned deliverables are these six areas.
 
-1. Email when a provider crosses a chosen threshold or resets.
-2. Ninety day usage history with burn rate forecasts.
-3. Live budget context for coding agent routing.
+1. Email and phone push notifications with custom thresholds, quiet hours, and a daily digest.
+2. Token based accent and background variants. Dark and light remain free.
+3. More than one subscription per provider.
+4. Features for heavy API usage.
+5. Ninety day usage history with burn rate forecasts.
+6. Live budget context for coding agent routing.
 
 The routing context is advice. The coding agent chooses whether to follow it. OpenLimiter never intercepts, executes, redirects, or authenticates an agent request.
 
-Current quota synchronization between devices and the phone PWA is free. Device management, weekly digests, team dashboards, and priority requests are not part of Pro.
+Current quota synchronization between devices and the phone PWA is free. Device management, team dashboards, and priority requests are not part of Pro.
 
 ## Price and trial
 
-Pro is planned at $5 per month or $48 per year. Checkout is not available before the hosted service launches.
+Pro is planned at $5 per month or $50 per year. Checkout is not available before every promised launch requirement is implemented, activated, and proven.
 
 When the trial or subscription ends, only hosted access ends. Local mode remains unchanged.
 
@@ -50,11 +53,11 @@ Multiple embedded public keys may coexist, so a new signing key can overlap the 
 
 ## What optional sync sends
 
-After explicit sign in and a separate enable action, the desktop may send selected provider code, opaque account label, window name, bounded usage percentage, reset time, observation time, and opaque device identifier. Free accounts retain only current snapshots. Entitled accounts also retain ninety day samples for alerts, history, forecasts, and routing context.
+After sign in, the desktop may send selected provider code, opaque account label, window name, bounded usage percentage, reset time, observation time, and opaque device identifier. Sync defaults on and can be turned off. Free accounts retain only current snapshots. Entitled accounts also retain ninety day samples for alerts, history, forecasts, and routing context.
 
 Provider credentials, provider response bodies, prompts, source code, local configuration, and diagnostics never enter sync or Pro. The database has no column for them. Extra JSON fields are discarded before storage. A total sync database breach exposes quota display metadata and cannot reach a provider account. The returned routing context is treated as untrusted data and rebuilt from a closed shape before the coding agent hook reads it.
 
-Local mode sends no data to OpenLimiter and needs no account.
+The local product and the OpenLimiter account are free. Local collection keeps running offline. Only usage percentages sync, never keys or credentials, and sync can be turned off.
 
 ## Public build configuration
 
