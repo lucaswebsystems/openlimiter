@@ -35,7 +35,7 @@
       "endpoints": [
         "https://github.com/lucaswebsystems/openlimiter/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5OTIzMDNBMzk1MjcxN0YKUldSL2NWSTVPakNTV2I5clFPSlZpTzRjY0tzRzNQL0hCVkJsMWlRMFF6UTZwTFJKZzR4Z2k5bEIK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ1RjI0OTAxM0Y3NzVGNDEKUldSQlgzYy9BVW55MVVZNlVtc3ljcklzdnNzS052TmY0d1A1S2R4T005SFJkYm1QMThobE9VWG4K"
     }
   },
   "bundle": {

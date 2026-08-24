@@ -90,6 +90,13 @@ jobs:
         working-directory: apps/desktop
         run: node scripts/build-ui.mjs
 
+      - name: Verify updater signing secret encoding
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          node -e 'const key = process.env.TAURI_SIGNING_PRIVATE_KEY || ""; const bytes = Buffer.from(key, "utf8"); if (!bytes.length) throw new Error("Updater signing secret is missing"); if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) throw new Error("Updater signing secret has a UTF 8 BOM"); if (![...bytes].every((byte) => byte >= 32 && byte <= 126)) throw new Error("Updater signing secret must contain ASCII text only"); console.log("Updater signing secret encoding verified");'
+
       - name: Build and attach the unsigned installers
         uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1
         env:
