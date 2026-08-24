@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 171.953125 36" width="343.90625" height="72" role="img" aria-label="OpenLimiter" data-source-commit="38c96fddab35cf50dd0bccd413ec9be78575d4ed" data-source-surface="apps/web/components/brand.tsx">
+  <style>
+    @font-face {
+      font-family: 'OpenLimiter Wordmark';
+      src: url(data:font/woff2;base64,d09GMgABAAAAAAWUAA4AAAAACmwAAAU7AAGzMwAAAAAAAAAAAAAAAAAAAAAAAAAAG4IcHIEYBmA/U1RBVCoAbBEICogohlsBNgIkAywLGAAEIAWDQgcgG5QIUVRysgB8dWAb0x/qoigpxwxhYrRsybL59p5owgLZLfKp4ShvKeNtUM/v95s997731RAL3SVJaJRE1kSimiayeGhUskayuYFrekXQVSmMiMuO8kDJA7k3empKTs6K8WB/e9vvEggk4a4sjaOsPPBEA0w09P18XvZaJxkjmWZq6xfAGjqJJ942//3z878W4O+Plb6/29Zg1WIttCKRiYt5nWC3QjcHFp1gUWB3INFvOuZsoyMw1alLort1IxDX411yuX1uY/ag3qbahNEM18gxMCuJD0VneaTYHwVMivJJLQNlIBD2YqL0BRmIMtOSYMGPnBAI0cap8//EVcB5q7eoAwC7FdoakTj444fAOFGeBCIcMTFGPEczAV8f5iQFW8O2sC3ivJWME0zDG6Ixf7Y56noxpG0XbfLnk62W8rrYREMWxwMTqpECEuWI1AAifUJCigR+nNy3PlKwh2eAsbFox2YUIYpybaNr+xa/jHO6tt8X+MGSgAD6LROgSZGyUqG4HNSJ36LkxADMw9naMoABB4oSXsEk62nyqhLMuDeUzMBZnBJ6gv7qdmTbhlUrli29I8KiUgabQOXlq0AboBcQgmSnOpZyAgmscXnFCMM4DDMG55dzmywmxDANJsB4Z5NF6AZPnNNJ0WEuXQnRDjwV11t+nJjcCXbfkyf5iWfPYv3Pn+sKT5+2+59h/gn0PR0lz9NSi9Y9OpLJ1Ebwmy11iUVn0NSK0beDzus/PxxnzXosOpdB6C7Zwpef0knD9ZZvT1IkAq7+cz14RCAkd5vt9q1rsXSpcOnaAkjdME+1RJ9qEdxFAuyyak2h4J7iFdqX72MVygsmnz+P9T97jgrzLTsgnnhUys2n0ONCt0xh69PUVOg7SUxuF2cFw+7ngWiFYNm2zJXkFAxlESuDx8Ula3UHn3imk6ZDlA8lo+1nBc9TvSPb1cGqoMBy37RxjnxC+O5/b36/AZf+p4Fxu/LY6bHwtNS7nk+Ul8fLKLlx3HRfWUVuTVwM8FRU5tTExT1maNmrn0KYad0cnYJCIcBkNt7L1zJMEvsC58iexPAdY1rdAxtSfLRZ/t4pKrvAQmf3HB/FrQU4oMpRNVmmVJST6jEsoMuw8QlPIyHR0i5G43ueyT8K3oQ2omKz97Rs35flaL3E1/t9ptTBIUG5puS028w1UlW+YkNHtHIt1yfySxLt6ZJCOUSdbUJ6wXiMSeoh0gNugCQlVKjXnwR+tRSgbGuJpZplsQJtkPh6P86VeZbUZxwZdR3k4XADVaWQSnfvuuQ0/5oGxwjXFMmFaKU4HHl/XqOg15L+bnEhkd50uF1ltL/Aq7ATnpOYhvekEU6VjaNFaWPuwyyxS64nqzV9/hGX/jlX3WkAaS4G/I1QK1VFc8Kulh3lKEs84zJD4yPfF1xxHWdJ2/ktfai88cPmbxYS4j0eNAFd9eXKdhMD+pp51EJepuc16twjwM3eigfA7W7e8TV/2ei1FwNCBkD4pPij4wrSR38NhOwnkasM49tEnrOSJeYjoKv1c55tJ7SSYzE5z4XthcRAwrOUA/l42/MEYqYkqIsB6yCzpck326Rdsp0Wf4P9Onagxj8r1BBlEUEyWp6hHNkYwBWGC1lkIomD2LRuwwGiTUIRl0Y0DENsIt5ZGAU14SAuuBwSxmIj5kkcDs52aM0akTze0jW2aoLRrbmhagtx1Fqm2psW8jq+ekInT8T+59QnSuTSjFg2rNqzbt2RG0/abh1FHX4lCnRNex5NxhjI1Rdf6Fkr1r09lEB0/W+2CQAA) format('woff2');
+      font-weight: 600;
+      font-style: normal;
+    }
+    .wordmark {
+      font-family: 'OpenLimiter Wordmark';
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.6px;
+      fill: #F2F2F3;
+    }
+  </style>
+  <g id="openlimiter-mark" transform="scale(0.18)" data-centre="100" data-radius="72" data-stroke="34">
+    <path d="M 100.000 28.000 A 72 72 0 0 1 172.000 100.000" fill="none" stroke="#0866FF" stroke-opacity="1.000" stroke-width="34" stroke-linecap="butt" data-start="0.000000" data-sweep="90.000000"/>
+    <path d="M 171.299 110.020 A 72 72 0 0 1 121.589 168.687" fill="none" stroke="#0866FF" stroke-opacity="0.893" stroke-width="34" stroke-linecap="butt" data-start="98.000000" data-sweep="64.551649"/>
+    <path d="M 111.819 171.023 A 72 72 0 0 1 56.819 157.614" fill="none" stroke="#0866FF" stroke-opacity="0.786" stroke-width="34" stroke-linecap="butt" data-start="170.551649" data-sweep="46.299060"/>
+    <path d="M 49.221 151.044 A 72 72 0 0 1 29.558 114.898" fill="none" stroke="#0866FF" stroke-opacity="0.679" stroke-width="34" stroke-linecap="butt" data-start="224.850709" data-sweep="33.207563"/>
+    <path d="M 28.170 104.949 A 72 72 0 0 1 32.289 75.521" fill="none" stroke="#0866FF" stroke-opacity="0.571" stroke-width="34" stroke-linecap="butt" data-start="266.058272" data-sweep="23.817810"/>
+    <path d="M 36.355 66.336 A 72 72 0 0 1 49.052 49.125" fill="none" stroke="#0866FF" stroke-opacity="0.464" stroke-width="34" stroke-linecap="butt" data-start="297.876082" data-sweep="17.083099"/>
+    <path d="M 56.628 42.529 A 72 72 0 0 1 69.813 34.634" fill="none" stroke="#0866FF" stroke-opacity="0.357" stroke-width="34" stroke-linecap="butt" data-start="322.959181" data-sweep="12.252691"/>
+    <path d="M 79.204 31.069 A 72 72 0 0 1 89.980 28.701" fill="none" stroke="#0866FF" stroke-opacity="0.250" stroke-width="34" stroke-linecap="butt" data-start="343.211873" data-sweep="8.788127"/>
+  </g>
+  <text class="wordmark" x="46" y="18" dominant-baseline="central">OpenLimiter</text>
+</svg>

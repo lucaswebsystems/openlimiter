@@ -10,33 +10,38 @@
  * Nothing here draws the mark. app/app/engine/icons.mjs owns the only
  * rasteriser in the repository and it is used unchanged, then repainted: see
  * `repaint` for exactly how, and why that is an exact operation rather than an
- * approximation. The result is that the ring in a launcher, the ring in a tab,
- * the ring in the desktop application's taskbar icon and the ring in the header
+ * approximation. The result is that the mark in a launcher, a tab, the
+ * desktop application's taskbar icon, and the header
  * are all one piece of geometry with one definition.
  *
  * The treatments below are also what apps/desktop/scripts/icons.mjs imports, so
  * the desktop application's icon and the website's icons cannot drift apart.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { assertGeometry, encodePng, renderTile } from "../app/app/engine/icons.mjs";
+import {
+  BRAND_RGB,
+  assertGeometry,
+  encodePng,
+  renderTile,
+} from "../app/app/engine/icons.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, "..", "public", "icons");
 
 /* The brand, in the same two values lib/image-palette.ts names. Change one
    there, change it here in the same pass. */
-export const BRAND = [0x08, 0x66, 0xff];
+export const BRAND = BRAND_RGB;
 export const CANVAS = [0x0d, 0x0d, 0x0f];
 
 /**
- * The scale that puts the ring's own edge on the edge of its square.
+ * The scale that puts the mark's own edge on the edge of its square.
  *
  * The arcs sit on a radius of 72 with a stroke of 34 inside a 200 unit box, so
- * the outer edge of the ink is 89 units from the centre and the artwork carries
- * 11 units of padding on every side. Multiplying the mark by 200/178 spends
- * that padding, and the ring then touches all four edges.
+ * the outer edge of the ink is 89 units from the centre. Multiplying the mark
+ * by 200/178 spends that padding.
  */
 const EDGE_TO_EDGE = 100 / 89;
 
@@ -44,10 +49,10 @@ const EDGE_TO_EDGE = 100 / 89;
 const SAFE_AREA = 0.8;
 
 /**
- * The ring and nothing else: no ground, no padding, corner to corner. Every
+ * The mark and nothing else: no ground, no padding, corner to corner. Every
  * icon a browser paints beside a name takes this, and app/icon.tsx says why.
  */
-export const RING = {
+export const MARK = {
   cornerRatio: 0,
   markRatio: EDGE_TO_EDGE,
   ground: null,
@@ -60,7 +65,7 @@ export const RING = {
  * Android crops a maskable icon into whatever shape the launcher prefers, so
  * paint has to reach every corner of the square or the crop bites into the
  * wallpaper. This one therefore fills its square with the site's own canvas
- * colour and pulls the ring inside the eighty percent the platform promises to
+ * colour and pulls the mark inside the eighty percent the platform promises to
  * keep, which is the whole point of the maskable purpose.
  */
 export const MASKABLE = {
@@ -71,37 +76,40 @@ export const MASKABLE = {
 };
 
 /**
- * The desktop application's icon: the transparent ring, exactly like the
+ * The desktop application's icon: the transparent mark, exactly like the
  * favicon, by the founder's explicit call. No tile, no ground: the taskbar or
  * dock paints straight through the gaps. The one trade this makes, and it was
- * made knowingly: macOS dock convention is a filled rounded tile, so the ring
+ * made knowingly: macOS dock convention is a filled rounded tile, so the mark
  * reads less native there than a tiled icon would.
- * apps/desktop/scripts/icons.mjs renders it at every size Windows, macOS and
- * Linux ask for.
+ * The Tauri icon pipeline renders it at every package size Windows and Linux
+ * ask for, directly from the canonical SVG.
  */
-export const APP_TILE = {
+export const APP_ICON = {
   cornerRatio: 0,
   markRatio: EDGE_TO_EDGE,
   ground: null,
   ink: BRAND,
 };
 
+/** Compatibility alias for the desktop generator. */
+export const GAUGE = MARK;
+
 /**
  * Repaint a tile the shared rasteriser produced, in place.
  *
- * The rasteriser draws one thing: the ring in white over a solid brand blue,
+ * The rasteriser draws one thing: the mark in white over a solid brand blue,
  * with the alpha channel carrying the rounded corner. Its red channel is a
  * straight interpolation from the blue's 8 to the white's 255, so the ink
  * coverage of every pixel comes back out of it exactly, to within half of one
  * of the 247 steps it was quantised into. Recovering that and painting it again
  * in two other colours is therefore lossless enough to be invisible, and it
- * keeps the arcs, the anti aliasing and the corner in one place.
+ * keeps the arc, the anti aliasing and the corner in one place.
  *
  * A null ground means no ground at all: the pixel takes the ink colour and the
  * coverage becomes its alpha, which is what a tileless icon is.
  */
 function repaint(pixels, { ground, ink }) {
-  const floor = 0x08;
+  const floor = BRAND[0];
   const span = 0xff - floor;
   for (let offset = 0; offset < pixels.length; offset += 4) {
     const coverage = (pixels[offset] - floor) / span;
@@ -132,12 +140,19 @@ if (process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === imp
   assertGeometry();
   mkdirSync(OUT, { recursive: true });
   const files = [
-    ["openlimiter-192.png", 192, RING],
-    ["openlimiter-512.png", 512, RING],
+    ["openlimiter-192.png", 192, MARK],
+    ["openlimiter-512.png", 512, MARK],
     ["openlimiter-maskable-512.png", 512, MASKABLE],
   ];
   for (const [name, size, treatment] of files) {
     writeFileSync(path.join(OUT, name), renderPng(size, treatment));
     process.stdout.write("Wrote " + name + " at " + String(size) + " pixels.\n");
   }
+  const canonical = readFileSync(
+    path.resolve(HERE, "..", "..", "..", "assets", "brand", "openlimiter-lockup.svg"),
+  );
+  writeFileSync(
+    path.resolve(HERE, "..", "..", "..", "assets", "brand", "web-icons.provenance.json"),
+    JSON.stringify({ canonicalSha256: createHash("sha256").update(canonical).digest("hex") }, null, 2) + "\n",
+  );
 }

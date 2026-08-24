@@ -1,10 +1,11 @@
 @import "tailwindcss";
+@import "./app/engine/generated/ui/tokens.css";
 
 /*
   Design tokens.
 
-  Every colour on this site is one of the variables below, and every one is
-  defined for both themes. The `@theme inline` block only forwards the variable
+  Every colour on this site comes from packages/ui/src/tokens.css. The
+  `@theme inline` block only forwards the variable
   into Tailwind, so a utility such as `bg-canvas` resolves at paint time and
   follows whichever theme is active. No component file carries a raw colour.
 
@@ -15,12 +16,8 @@
   on: surface is white at roughly 3 percent over canvas, raised is white at 5,
   hairline is white at 10 and hairline-strong is white at 20.
 
-  There is exactly one accent, and it is the brand blue #0866ff, the same blue
-  the mark is drawn in and the same blue the desktop application uses. On the
-  near black canvas a lighter step of that blue carries text and links, because
-  #0866ff itself only reaches 3.8:1 there, and the pure blue is kept for filled
-  controls, which put white on top of it. The light theme mirrors that: a
-  darker blue for text, the pure blue for fills.
+  There is exactly one system accent, the same brand blue the mark and desktop
+  application use. Provider artwork is the documented exception.
 
   The light palette keeps the same structure, flipped.
 
@@ -78,16 +75,23 @@
 
   --color-announce: var(--ol-announce);
   --color-announce-fg: var(--ol-announce-fg);
+
+  --font-sans: var(--ol-font-sans);
+  --font-mono: var(--ol-font-mono);
+
+  --radius-sm: var(--ol-radius-xs);
+  --radius-md: var(--ol-radius-sm);
+  --radius-lg: var(--ol-radius-md);
+  --radius-xl: var(--ol-radius-lg);
+  --radius-2xl: var(--ol-radius-xl);
 }
 
 @theme {
   /* The plain system stack, exactly as the reference uses it. There is no
      brand face on this site: headings, body and the wordmark all render in
      whatever the visitor's operating system calls its interface font. */
-  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  --font-sans: var(--ol-font-sans);
+  --font-mono: var(--ol-font-mono);
 
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
@@ -96,202 +100,14 @@
   --radius-phone: 2.5rem;
 }
 
-/* Dark palette. The product is dark first, so this is the default for every
-   browser and every theme state, whatever the system preference says. Light is
-   available only when a visitor asks for it through the toggle. */
+/* Site layout aliases. Visual values stay in the canonical token sheet. */
 :root {
-  color-scheme: dark;
-
-  --ol-canvas: #0d0d0f;
-  --ol-surface: #141416;
-  --ol-raised: #1a1a1d;
-  --ol-code: #0a0a0c;
-  --ol-frame: #131315;
-  --ol-track: #34343a;
-
-  --ol-hairline: #24242a;
-  --ol-hairline-strong: #3c3c44;
-
-  --ol-brand: #0866ff;
-
-  --ol-heading: #fafafa;
-  --ol-body: #fafafa;
-  --ol-soft: #b6b6bd;
-  --ol-muted: #aaaab2;
-
-  --ol-accent: #7db4ff;
-  --ol-accent-hover: #a3caff;
-  --ol-accent-subtle: #0d1b33;
-  --ol-accent-solid: #0866ff;
-  --ol-accent-solid-hover: #0552d6;
-  --ol-on-accent: #ffffff;
-
-  --ol-solid: #fafafa;
-  --ol-solid-hover: #e4e4e4;
-  --ol-on-solid: #0d0d0f;
-
-  --ol-elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.45);
-  --ol-elev-2: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 8px 20px -14px rgb(0 0 0 / 0.75);
-
-  --ol-announce: #0866ff;
-  --ol-announce-fg: #ffffff;
-  --ol-announce-h: 2.25rem;
-
-  /* The frosted header's fixed dark coat. Its own tokens rather than a read of
-     the surface tokens, because the header's tint layers sit OUTSIDE the dark
-     island scope on purpose: the page tint must resolve to the real page theme
-     while this pair stays dark whatever the theme says. Same values in both
-     themes, declared once here and never overridden. */
-  --ol-nav-dark-surface: #0d0d0f;
-  --ol-nav-dark-line: #24242a;
-
-  /* The header bar's height, the one number the sticky bar, the row inside it
-     and the fold's pull under it all read. Lucas's call (2026-08-10): the bar
-     breathes, at least 10 to 15px of air above and below the controls. 76px
-     where the sheet trigger sets the row (56 + 10 each side), 80px where the
-     desktop controls do (52 + 14 each side). */
-  --ol-header-h: 4.75rem;
-}
-
-@media (min-width: 1024px) {
-  :root {
-    --ol-header-h: 5rem;
-  }
-}
-
-/* Kept so the cascade below still resolves; the dark values already apply. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-
-    --ol-canvas: #0d0d0f;
-    --ol-surface: #141416;
-    --ol-raised: #1a1a1d;
-    --ol-code: #0a0a0c;
-    --ol-frame: #131315;
-    --ol-track: #34343a;
-
-    --ol-hairline: #24242a;
-    --ol-hairline-strong: #3c3c44;
-
-    --ol-brand: #0866ff;
-
-    --ol-heading: #fafafa;
-    --ol-body: #fafafa;
-    --ol-soft: #b6b6bd;
-    --ol-muted: #aaaab2;
-
-    --ol-accent: #7db4ff;
-    --ol-accent-hover: #a3caff;
-    --ol-accent-subtle: #0d1b33;
-    --ol-accent-solid: #0866ff;
-    --ol-accent-solid-hover: #0552d6;
-    --ol-on-accent: #ffffff;
-
-    --ol-solid: #fafafa;
-    --ol-solid-hover: #e4e4e4;
-    --ol-on-solid: #0d0d0f;
-
-    --ol-elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.45);
-    --ol-elev-2: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 8px 20px -14px rgb(0 0 0 / 0.75);
-
-    --ol-announce: #0866ff;
-    --ol-announce-fg: #ffffff;
-  }
-}
-
-/* The toggle. Last, so an explicit choice beats the system preference. */
-:root[data-theme="dark"] {
-  color-scheme: dark;
-
-  --ol-canvas: #0d0d0f;
-  --ol-surface: #141416;
-  --ol-raised: #1a1a1d;
-  --ol-code: #0a0a0c;
-  --ol-frame: #131315;
-  --ol-track: #34343a;
-
-  --ol-hairline: #24242a;
-  --ol-hairline-strong: #3c3c44;
-
-  --ol-brand: #0866ff;
-
-  --ol-heading: #fafafa;
-  --ol-body: #fafafa;
-  --ol-soft: #b6b6bd;
-  --ol-muted: #aaaab2;
-
-  --ol-accent: #7db4ff;
-  --ol-accent-hover: #a3caff;
-  --ol-accent-subtle: #0d1b33;
-  --ol-accent-solid: #0866ff;
-  --ol-accent-solid-hover: #0552d6;
-  --ol-on-accent: #ffffff;
-
-  --ol-solid: #fafafa;
-  --ol-solid-hover: #e4e4e4;
-  --ol-on-solid: #0d0d0f;
-
-  --ol-elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.45);
-  --ol-elev-2: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 8px 20px -14px rgb(0 0 0 / 0.75);
-
-  --ol-announce: #0866ff;
-  --ol-announce-fg: #ffffff;
-}
-
-/* Light, only when a visitor explicitly asks for it through the toggle. */
-:root[data-theme="light"] {
-  color-scheme: light;
-
-  --ol-canvas: #f8f8f9;
-  --ol-surface: #f1f1f3;
-  --ol-raised: #ebebed;
-  --ol-code: #eeeef0;
-  --ol-frame: #ececee;
-  --ol-track: #d6d6da;
-
-  --ol-hairline: #e0e0e3;
-  --ol-hairline-strong: #c6c6cb;
-
-  --ol-brand: #0866ff;
-
-  --ol-heading: #0d0d0f;
-  --ol-body: #0d0d0f;
-  --ol-soft: #46464d;
-  --ol-muted: #55555e;
-
-  --ol-accent: #0b5ad0;
-  --ol-accent-hover: #08429e;
-  --ol-accent-subtle: #e3ecff;
-  --ol-accent-solid: #0866ff;
-  --ol-accent-solid-hover: #0552d6;
-  --ol-on-accent: #ffffff;
-
-  --ol-solid: #0d0d0f;
-  --ol-solid-hover: #26262c;
-  --ol-on-solid: #fafafa;
-
-  /*
-    Elevation in light, and why it is this small.
-
-    The wide blurry drop this site used to carry read as smudge rather than
-    lift: on a near white canvas a large blur radius spreads a grey haze over
-    several hundred pixels and the edge of the card disappears into it. What
-    separates a surface from a page in light is the hairline border, which
-    every card already has. The shadow only has to seat that border, so it is
-    one pixel of offset and a two pixel blur at 5 percent, with a second, wider
-    pass at 10 percent reserved for the two objects that genuinely float, the
-    product frame and the phone shells. Both are measured in device pixels
-    rather than guessed: nothing here blurs further than 14 pixels.
-  */
-  --ol-elev-1: 0 1px 2px 0 rgb(13 13 15 / 0.05);
-  --ol-elev-2: 0 1px 2px 0 rgb(13 13 15 / 0.06), 0 6px 14px -10px rgb(13 13 15 / 0.14);
-
-  /* The one pairing that does not flip with the theme. The bar is the brand
-     blue in both, and white on that blue measures 4.82:1, which clears AA for
-     normal text. Flipping it would make the promo read as page furniture. */
-  --ol-announce: #0866ff;
-  --ol-announce-fg: #ffffff;
+  --ol-announce: var(--ol-accent-solid);
+  --ol-announce-fg: var(--ol-on-accent);
+  --ol-announce-h: var(--ol-control-height);
+  --ol-nav-dark-surface: var(--ol-fixed-dark-canvas);
+  --ol-nav-dark-line: var(--ol-fixed-dark-hairline);
+  --ol-header-h: calc(var(--ol-space-7) + var(--ol-space-6));
 }
 
 *,
@@ -300,42 +116,15 @@
   box-sizing: border-box;
 }
 
-/*
-  Typography: two faces, and the line between them.
-
-  Headings are Baloo 2 at 600, the same file and the same weight the wordmark
-  is set in, so the page and the mark speak with one voice. Everything else,
-  body copy, buttons, chips, links, captions and every number, stays in the
-  system stack. That is the whole system: two faces, one downloaded file, and
-  the file is loaded exactly once in lib/fonts.ts.
-
-  `--font-brand` is published on the root element by the layout. The fallback
-  behind it matters: if the file has not arrived, or a visitor blocks it, a
-  heading renders in the system stack at the same size rather than in a serif
-  the browser picked, and `display: swap` then hands it the real face.
-
-  TRACKING, and why it is negative at every level.
-
-  Baloo 2 is a rounded display face with generous sidebearings, which is what
-  makes it friendly at a wordmark's size and bubbly at a headline's. Set at the
-  metrics this layout was built on it opened the headline up by roughly a
-  character across two lines. So each level is pulled back in, hardest where
-  the type is largest and the effect is worst: three percent of an em on the
-  hero, two and a half on a section heading, one and a half on the small
-  titles. Sizes and weights are untouched; only the space between letters
-  moved, which keeps the rhythm the rest of the page was measured against.
-
-  `.heading-face` is for the titles that are not heading elements: an FAQ
-  question inside a summary, a card title in a paragraph, a footer column
-  label. It carries exactly what an h4 carries, so nothing drifts.
-*/
+/* One shared system face. Size, weight and leading come from the product
+   contract, while tracking only tightens large display copy. */
 h1,
 h2,
 h3,
 h4,
 .heading-face {
-  font-family: var(--font-brand), ui-sans-serif, system-ui, sans-serif;
-  font-weight: 600;
+  font-family: var(--ol-font-sans);
+  font-weight: var(--ol-weight-semibold);
   letter-spacing: -0.015em;
 }
 
@@ -358,7 +147,7 @@ html {
   scroll-behavior: smooth;
   /* The header is sticky now, so an anchor jump has to land below the bar,
      not under it: the bar's own height plus a breath of air. */
-  scroll-padding-top: calc(var(--ol-header-h) + 1.25rem);
+  scroll-padding-top: calc(var(--ol-header-h) + var(--ol-space-5));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -369,6 +158,14 @@ body {
   color: var(--ol-body);
   overflow-x: hidden;
 }
+
+/* Official provider colour is confined to provider artwork. */
+.ol-provider-glyph[data-provider="CLAUDE"] { color: var(--ol-provider-claude); }
+.ol-provider-glyph[data-provider="OPENROUTER"] { color: var(--ol-provider-openrouter); }
+.ol-provider-glyph[data-provider="CODEX"] { color: var(--ol-provider-codex); }
+.ol-provider-glyph[data-provider="OPENCODE"] { color: var(--ol-provider-opencode); }
+.ol-provider-glyph[data-provider="GROK"] { color: var(--ol-provider-grok); }
+.ol-provider-glyph[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
 
 /* Keyboard focus. Interactive elements never drop the indicator, they replace
    it with an accent outline that reads clearly on either theme. Use the inset
@@ -535,6 +332,33 @@ body:has(.ol-shell) .announce-bar {
   display: none;
 }
 
+/* The two generated lockups differ only in wordmark ink. The explicit product
+   theme owns the swap, while the transparent site header uses the dark lockup
+   over its fixed dark hero treatment. */
+.brand-lockup {
+  aspect-ratio: 171.953125 / 36;
+}
+
+.brand-lockup-image {
+  grid-area: 1 / 1;
+}
+
+.brand-lockup-dark {
+  display: none;
+}
+
+:root:not([data-theme="light"]) .brand-lockup-light,
+.site-header[data-bar="none"] .brand-lockup-light,
+.site-header[data-bar="dark"] .brand-lockup-light {
+  display: none;
+}
+
+:root:not([data-theme="light"]) .brand-lockup-dark,
+.site-header[data-bar="none"] .brand-lockup-dark,
+.site-header[data-bar="dark"] .brand-lockup-dark {
+  display: block;
+}
+
 :root[data-theme="light"] .shot-dark {
   display: none;
 }
@@ -562,18 +386,22 @@ body:has(.ol-shell) .announce-bar {
   padding: var(--bezel);
   border-radius: calc(var(--screen) * 0.135 + var(--bezel));
   background:
-    linear-gradient(150deg, #4a4a52 0%, #17171a 22%, #0b0b0d 52%, #1e1e22 78%, #45454d 100%);
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.5),
-    0 24px 48px -20px rgb(0 0 0 / 0.55),
-    inset 0 0 0 1px rgb(255 255 255 / 0.07);
+    linear-gradient(
+      150deg,
+      var(--ol-fixed-dark-hairline-strong) 0%,
+      var(--ol-fixed-dark-raised) 22%,
+      var(--ol-fixed-dark-canvas) 52%,
+      var(--ol-fixed-dark-elevated) 78%,
+      var(--ol-fixed-dark-hairline-strong) 100%
+    );
+  box-shadow: var(--ol-fixed-dark-elev-2);
 }
 
 .phone-status-bar {
   position: relative;
   width: var(--screen);
   height: calc(var(--screen) * (44 / 390));
-  background-color: #0b0b0d;
+  background-color: var(--ol-fixed-dark-canvas);
   border-top-left-radius: calc(var(--screen) * 0.135);
   border-top-right-radius: calc(var(--screen) * 0.135);
   border-bottom-left-radius: calc(var(--screen) * 0.04);
@@ -607,9 +435,9 @@ body:has(.ol-shell) .announce-bar {
 .phone-island {
   width: calc(var(--screen) * 0.333);
   height: calc(var(--screen) * (18 / 390));
-  border-radius: 9999px;
-  background-color: #000000;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  border-radius: var(--ol-radius-pill);
+  background-color: var(--ol-fixed-dark-code);
+  box-shadow: var(--ol-fixed-dark-elev-1);
 }
 
 /*
@@ -639,7 +467,7 @@ body:has(.ol-shell) .announce-bar {
 .strip-track {
   display: flex;
   width: max-content;
-  gap: 1rem;
+  gap: var(--ol-space-4);
   animation: strip-slide var(--strip-duration, 46s) linear infinite;
 }
 
@@ -661,46 +489,6 @@ body:has(.ol-shell) .announce-bar {
        its last card, which is where the second copy starts. */
     transform: translateX(calc(-50% - 0.5rem));
   }
-}
-
-/* The mark draw.
-
-   The one signature moment on the site. The ring builds itself from its widest
-   arc down to its smallest, every segment taking 320ms and each starting 52ms
-   after the one before, so the whole gesture is finished in 684ms.
-
-   Every arc carries pathLength="1", so one dash length covers all eight
-   whatever their real geometry. `backwards` holds the hidden start state
-   through the delay and then hands the segment back to its ordinary style,
-   which is the fully drawn ring. Nothing but the mark itself is affected, and
-   the mark is decorative, so no reader ever waits on this. */
-@keyframes ol-mark-draw {
-  from {
-    stroke-dashoffset: 1;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-[data-brand-mark="draw"] path {
-  stroke-dasharray: 1;
-  animation: ol-mark-draw 320ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
-}
-
-[data-brand-mark="draw"] path:nth-child(1) { animation-delay: 0ms; }
-[data-brand-mark="draw"] path:nth-child(2) { animation-delay: 52ms; }
-[data-brand-mark="draw"] path:nth-child(3) { animation-delay: 104ms; }
-[data-brand-mark="draw"] path:nth-child(4) { animation-delay: 156ms; }
-[data-brand-mark="draw"] path:nth-child(5) { animation-delay: 208ms; }
-[data-brand-mark="draw"] path:nth-child(6) { animation-delay: 260ms; }
-[data-brand-mark="draw"] path:nth-child(7) { animation-delay: 312ms; }
-[data-brand-mark="draw"] path:nth-child(8) { animation-delay: 364ms; }
-
-/* Already played this session, so the mark is simply there. */
-:root[data-mark-drawn="1"] [data-brand-mark="draw"] path {
-  stroke-dasharray: none;
-  animation: none;
 }
 
 /*
@@ -846,7 +634,7 @@ body:has(.ol-shell) .announce-bar {
    itself plus a breath. One rule, keyed off the same absence the frosted bar
    default already keys off. */
 body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
-  padding-top: calc(var(--ol-header-h) + 2.5rem);
+  padding-top: calc(var(--ol-header-h) + var(--ol-space-6));
 }
 
 /* The header watcher's top marker: one bar height of the fold's top, sized by
@@ -932,22 +720,16 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
   every line stays protected, and from 1280 up, where the copy really fits in
   the left half, the horizontal ramp returns.
 
-  One lever, `--fold-scrim-strength`, multiplies every stop. The pattern's
-  own contrast prover swept the levels against real frames and shipped 0.5:
-  at 0.5 the worst text block still measured 4.65:1, and 0.45 already dropped
-  two blocks below AA. The ported stops keep that lever at the shipped value,
-  and the numbers for OUR footage are re-measured against the composed pixels
-  in the round that ships this file.
+  The stop strengths below are the measured values for this footage.
 */
 .hero-scrim-side {
-  --fold-scrim-strength: 0.5;
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: linear-gradient(
     to right,
-    rgb(0 0 0 / calc(0.62 * var(--fold-scrim-strength))) 0%,
-    rgb(0 0 0 / calc(0.55 * var(--fold-scrim-strength))) 100%
+    color-mix(in srgb, var(--ol-fixed-dark-canvas) 31%, transparent) 0%,
+    color-mix(in srgb, var(--ol-fixed-dark-canvas) 27.5%, transparent) 100%
   );
 }
 
@@ -955,10 +737,10 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
   .hero-scrim-side {
     background: linear-gradient(
       to right,
-      rgb(0 0 0 / calc(0.86 * var(--fold-scrim-strength))) 0%,
-      rgb(0 0 0 / calc(0.78 * var(--fold-scrim-strength))) 40%,
-      rgb(0 0 0 / calc(0.5 * var(--fold-scrim-strength))) 62%,
-      rgb(0 0 0 / calc(0.14 * var(--fold-scrim-strength))) 84%,
+      color-mix(in srgb, var(--ol-fixed-dark-canvas) 43%, transparent) 0%,
+      color-mix(in srgb, var(--ol-fixed-dark-canvas) 39%, transparent) 40%,
+      color-mix(in srgb, var(--ol-fixed-dark-canvas) 25%, transparent) 62%,
+      color-mix(in srgb, var(--ol-fixed-dark-canvas) 7%, transparent) 84%,
       transparent 100%
     );
   }
@@ -973,7 +755,11 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.45) 0%, transparent 24%);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ol-fixed-dark-canvas) 45%, transparent) 0%,
+    transparent 24%
+  );
 }
 
 /*
@@ -1074,34 +860,31 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
 .site-header[data-bar="dark"] .site-header-scope {
   color-scheme: dark;
 
-  --ol-canvas: #0d0d0f;
-  --ol-surface: #141416;
-  --ol-raised: #1a1a1d;
-  --ol-code: #0a0a0c;
-  --ol-frame: #131315;
-  --ol-track: #34343a;
-
-  --ol-hairline: #24242a;
-  --ol-hairline-strong: #3c3c44;
-
-  --ol-heading: #fafafa;
-  --ol-body: #fafafa;
-  --ol-soft: #b6b6bd;
-  --ol-muted: #aaaab2;
-
-  --ol-accent: #7db4ff;
-  --ol-accent-hover: #a3caff;
-  --ol-accent-subtle: #0d1b33;
-  --ol-accent-solid: #0866ff;
-  --ol-accent-solid-hover: #0552d6;
-  --ol-on-accent: #ffffff;
-
-  --ol-solid: #fafafa;
-  --ol-solid-hover: #e4e4e4;
-  --ol-on-solid: #0d0d0f;
-
-  --ol-elev-1: 0 1px 2px 0 rgb(0 0 0 / 0.45);
-  --ol-elev-2: 0 1px 2px 0 rgb(0 0 0 / 0.5), 0 8px 20px -14px rgb(0 0 0 / 0.75);
+  --ol-canvas: var(--ol-fixed-dark-canvas);
+  --ol-surface: var(--ol-fixed-dark-surface);
+  --ol-raised: var(--ol-fixed-dark-raised);
+  --ol-elevated: var(--ol-fixed-dark-elevated);
+  --ol-code: var(--ol-fixed-dark-code);
+  --ol-frame: var(--ol-fixed-dark-frame);
+  --ol-track: var(--ol-fixed-dark-track);
+  --ol-hairline: var(--ol-fixed-dark-hairline);
+  --ol-hairline-strong: var(--ol-fixed-dark-hairline-strong);
+  --ol-heading: var(--ol-fixed-dark-heading);
+  --ol-body: var(--ol-fixed-dark-body);
+  --ol-soft: var(--ol-fixed-dark-soft);
+  --ol-muted: var(--ol-fixed-dark-muted);
+  --ol-faint: var(--ol-fixed-dark-faint);
+  --ol-accent: var(--ol-fixed-dark-accent);
+  --ol-accent-hover: var(--ol-fixed-dark-accent-hover);
+  --ol-accent-subtle: var(--ol-fixed-dark-accent-subtle);
+  --ol-accent-solid: var(--ol-fixed-dark-accent-solid);
+  --ol-accent-solid-hover: var(--ol-fixed-dark-accent-solid-hover);
+  --ol-on-accent: var(--ol-fixed-dark-on-accent);
+  --ol-solid: var(--ol-fixed-dark-solid);
+  --ol-solid-hover: var(--ol-fixed-dark-solid-hover);
+  --ol-on-solid: var(--ol-fixed-dark-on-solid);
+  --ol-elev-1: var(--ol-fixed-dark-elev-1);
+  --ol-elev-2: var(--ol-fixed-dark-elev-2);
 }
 
 /* A phone gets the still frame and never the file. The component is what
@@ -1170,14 +953,14 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
   display: inline-block;
   width: 3px;
   height: 3px;
-  margin: 0 0.5rem;
+  margin: 0 var(--ol-space-2);
   vertical-align: middle;
-  border-radius: 9999px;
-  background: rgb(255 255 255 / 0.5);
+  border-radius: var(--ol-radius-pill);
+  background: color-mix(in srgb, var(--ol-fixed-dark-heading) 50%, transparent);
 }
 
 :root[data-theme="light"] .legal-dot::before {
-  background: rgb(0 0 0 / 0.5);
+  background: color-mix(in srgb, var(--ol-heading) 50%, transparent);
 }
 
 .site-header {
@@ -1207,7 +990,7 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity 250ms ease;
+  transition: opacity var(--ol-motion-base) var(--ol-ease-out);
   border-bottom: 1px solid transparent;
 }
 
@@ -1215,25 +998,14 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
   backdrop-filter: blur(18px) saturate(140%);
 }
 
-/* 72% coats, the founder's glass, and the ink pays for it: at this opacity
-   the DARK theme still clears AA with room (7.18:1 measured worst on the
-   composed pixels), but the light theme's ordinary muted grey fell to 4.23:1
-   over the busiest home page bands. The cure is not a heavier coat, it is
-   darker ink: the light header's quiet step drops to #3f3f47 in the rule
-   further down, re measured over the same worst bands before shipping. */
+/* The glass coat and its ink both resolve through the shared palette. */
 .hdr-tint-page {
   background: color-mix(in srgb, var(--ol-canvas) 72%, transparent);
   border-bottom-color: var(--ol-hairline);
 }
 
-/* The light theme's quiet header ink, darker than the page's muted token,
-   because the 72% glass lets anything pass behind it. #38383f against the
-   darkest pixel the coat can compose (pure black behind 72% light canvas,
-   rgb(178,178,180)) measures 5.05:1, so the WORST POSSIBLE content behind
-   the glass still clears AA with margin: a floor proof, not a sample. Page
-   state only: over the footage the ink is already the full heading white. */
 :root[data-theme="light"] .site-header:not([data-bar="none"]):not([data-bar="dark"]) .hdr-ink {
-  color: #38383f;
+  color: var(--ol-soft);
 }
 
 .hdr-tint-dark {

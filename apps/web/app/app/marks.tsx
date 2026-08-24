@@ -4,7 +4,7 @@ import {
   ClaudeMark,
   CodexMark,
   GeminiMark,
-  GoogleMark,
+  AntigravityMark,
   KimiMark,
   ManualMark,
   OpenCodeMark,
@@ -34,8 +34,7 @@ const MARKS: Record<string, (props: { className?: string }) => React.ReactNode> 
   OPENROUTER: OpenRouterMark,
   /* Simple Icons ships no OpenAI mark, so this is the lettered tile. */
   CODEX: CodexMark,
-  /* Antigravity is Google's, and takes the Google mark the catalogue gives it. */
-  ANTIGRAVITY: GoogleMark,
+  ANTIGRAVITY: AntigravityMark,
   /* Gemini CLI keeps Gemini's own spark rather than the generic Google G. */
   GEMINI_CLI: GeminiMark,
   OPENCODE: OpenCodeMark,

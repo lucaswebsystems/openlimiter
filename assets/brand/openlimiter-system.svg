@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="264" viewBox="0 0 900 264" role="img" aria-labelledby="title description">
+  <title id="title">OpenLimiter visual system</title>
+  <desc id="description">The canonical blue, typography, spacing and radius scales.</desc>
+  <rect width="900" height="264" rx="20" fill="#0E131B"/>
+  <rect x="48" y="48" width="112" height="112" rx="16" fill="#2F81F7"/>
+  <text x="48" y="190" fill="#FAFAFA" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="16" font-weight="600">Blue</text>
+  <text x="48" y="216" fill="#929EAD" font-family="ui-monospace, Consolas, monospace" font-size="13">#2F81F7</text>
+  <text x="216" y="64" fill="#FAFAFA" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="36" font-weight="600">OpenLimiter</text>
+  <text x="216" y="96" fill="#C3CCD8" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="13">System sans, 400 / 500 / 600 / 700</text>
+  <text x="216" y="138" fill="#929EAD" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="13">Spacing</text>
+  <g fill="#2F81F7">
+    <rect x="216" y="154" width="4" height="16" rx="2"/>
+    <rect x="240" y="154" width="8" height="16" rx="2"/>
+    <rect x="268" y="154" width="12" height="16" rx="2"/>
+    <rect x="300" y="154" width="16" height="16" rx="2"/>
+    <rect x="336" y="154" width="24" height="16" rx="2"/>
+    <rect x="380" y="154" width="32" height="16" rx="2"/>
+    <rect x="432" y="154" width="48" height="16" rx="2"/>
+  </g>
+  <text x="216" y="204" fill="#929EAD" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="13">Radius</text>
+  <g fill="#141B26" stroke="#34445B">
+    <rect x="216" y="216" width="56" height="32" rx="8"/>
+    <rect x="288" y="216" width="56" height="32" rx="12"/>
+    <rect x="360" y="216" width="56" height="32" rx="16"/>
+    <rect x="432" y="216" width="56" height="32" rx="20"/>
+    <rect x="504" y="216" width="72" height="32" rx="16"/>
+  </g>
+</svg>

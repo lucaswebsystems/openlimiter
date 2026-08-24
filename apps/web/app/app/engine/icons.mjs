@@ -2,8 +2,8 @@
  * The mark rasteriser. A library, and nothing else.
  *
  * This module writes no files and has no program of its own. It owns one
- * thing, which is the only rasteriser in the repository: the approved arc
- * geometry from lib/brand.ts and assets/brand/generate.mjs, turned into
+ * thing, which is the only rasteriser in the repository: the approved gauge
+ * geometry from assets/brand/openlimiter-lockup.svg, turned into
  * pixels, plus a minimal PNG encoder. Nothing outside Node's own zlib is used.
  *
  * WHERE ICONS ARE ACTUALLY WRITTEN
@@ -26,68 +26,67 @@
  * maskable one and a desktop tile without knowing about any of them.
  */
 import { deflateSync } from "node:zlib";
+import { readFileSync } from "node:fs";
 
-/* The two values the intermediate is drawn in. Not a brand decision: the
-   caller repaints every pixel. See `repaint` in apps/web/scripts/icons.mjs. */
-const BLUE = [0x08, 0x66, 0xff];
 const WHITE = [0xff, 0xff, 0xff];
 
-/* The approved mark, in its own two hundred unit box. Eight arcs on one
-   radius, the first sweeping a quarter turn and each next one a fixed
-   fraction of the one before, with equal gaps that close the circle. */
-const SEGMENTS = 8;
-const FIRST_SWEEP = 90;
-const GAP = 8;
-const RADIUS = 72;
-const STROKE = 34;
-const ALPHA_FLOOR = 0.25;
+/* The SVG is the single source used by the Tauri icon pipeline and by this
+   rasteriser. Data attributes make the arc measurable without maintaining a
+   second drawing in JavaScript. */
+const SOURCE_URL = new URL("../../../../../assets/brand/openlimiter-lockup.svg", import.meta.url);
+const SOURCE = readFileSync(SOURCE_URL, "utf8");
+const COLOUR_MATCH = SOURCE.match(/stroke="#([0-9A-Fa-f]{6})"/);
+if (COLOUR_MATCH === null) throw new Error("The canonical lockup is missing its mark colour.");
+export const BRAND_RGB = [0, 2, 4].map((offset) =>
+  Number.parseInt(COLOUR_MATCH[1].slice(offset, offset + 2), 16),
+);
+/* The intermediate begins in canonical blue and is repainted by its caller. */
+const BLUE = BRAND_RGB;
 
-function solveRatio() {
-  const target = 360 - SEGMENTS * GAP;
-  let low = 0.05;
-  let high = 0.999;
-  for (let step = 0; step < 200; step += 1) {
-    const ratio = (low + high) / 2;
-    const sum = (FIRST_SWEEP * (1 - Math.pow(ratio, SEGMENTS))) / (1 - ratio);
-    if (sum > target) high = ratio;
-    else low = ratio;
-  }
-  return (low + high) / 2;
+function numberAttribute(name) {
+  const match = SOURCE.match(new RegExp(`${name}="([0-9.]+)"`));
+  if (match === null) throw new Error(`The brand source is missing ${name}.`);
+  return Number(match[1]);
 }
 
-const RATIO = solveRatio();
+const CENTRE = numberAttribute("data-centre");
+const RADIUS = numberAttribute("data-radius");
+const STROKE = numberAttribute("data-stroke");
+const MARK_GROUP = SOURCE.match(
+  /<g id="openlimiter-mark"[^>]*>([\s\S]*?)<\/g>/,
+)?.[1];
+if (MARK_GROUP === undefined) throw new Error("The canonical lockup is missing its mark.");
+const SEGMENT_LIST = [...MARK_GROUP.matchAll(/<path\b([^>]*)\/>/g)].map((match) => {
+  const attributes = match[1];
+  const value = (name) => {
+    const found = attributes.match(new RegExp(`${name}="([0-9.]+)"`));
+    if (found === null) throw new Error(`The canonical mark segment is missing ${name}.`);
+    return Number(found[1]);
+  };
+  return {
+    start: value("data-start"),
+    sweep: value("data-sweep"),
+    alpha: value("stroke-opacity"),
+  };
+});
 
-const SEGMENT_LIST = (() => {
-  const list = [];
-  let angle = 0;
-  for (let index = 0; index < SEGMENTS; index += 1) {
-    const sweep = FIRST_SWEEP * Math.pow(RATIO, index);
-    const alpha = 1 - (1 - ALPHA_FLOOR) * (index / (SEGMENTS - 1));
-    list.push({ start: angle, sweep, alpha: Number(alpha.toFixed(3)) });
-    angle += sweep + GAP;
-  }
-  return list;
-})();
-
-/* The first arc has to start at twelve o'clock and sweep exactly a quarter
-   turn, and the last has to close the circle. If the maths ever stops doing
-   that, nothing is written. */
 function assertGeometry() {
-  const first = SEGMENT_LIST[0];
-  const last = SEGMENT_LIST[SEGMENT_LIST.length - 1];
-  const closes = last.start + last.sweep + GAP;
-  if (first.start !== 0 || first.sweep !== FIRST_SWEEP) {
-    throw new Error("The first arc is no longer a quarter turn from the top.");
+  if (SEGMENT_LIST.length !== 8) throw new Error("The frozen live mark must contain eight segments.");
+  if (CENTRE !== 100 || RADIUS !== 72 || STROKE !== 34) {
+    throw new Error("The frozen live mark geometry no longer matches its approved construction.");
   }
-  if (Math.abs(closes - 360) > 0.001) {
-    throw new Error("The arcs no longer close the circle: " + String(closes));
+  if (SEGMENT_LIST[0].start !== 0 || SEGMENT_LIST[0].sweep !== 90) {
+    throw new Error("The first frozen live segment must be a quarter turn from the top.");
+  }
+  if (!SOURCE.includes('stroke="#0866FF"') || !SOURCE.includes('stroke-linecap="butt"')) {
+    throw new Error("The frozen live mark must use the approved blue and flat terminals.");
   }
 }
 
 const SAMPLES = 4;
 
 /**
- * Rasterise the mark on a tile, at any size.
+ * Rasterise the frozen mark on a tile, at any size.
  *
  * Exported so the desktop application can render its own icons from this one
  * definition rather than keeping a second copy of the artwork.

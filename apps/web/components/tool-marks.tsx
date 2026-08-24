@@ -9,7 +9,8 @@ import type { ReactNode } from "react";
  * copied into this file verbatim at version 16.28.0. Nothing is hotlinked and
  * nothing is fetched at runtime: the paths ship inside the bundle, drawn at
  * 24 units, filled with `currentColor`, so each one follows the theme like any
- * other piece of type. No brand colour appears anywhere on this site.
+ * other piece of type. Provider colour comes from the canonical product token
+ * sheet, with multicolour artwork retaining its official gradient.
  *
  * Simple Icons deliberately does not carry a mark for OpenAI, Google
  * Antigravity or Together, so those three fall back to `InitialMark`, a clean
@@ -23,19 +24,21 @@ import type { ReactNode } from "react";
  */
 
 export interface ToolMarkProps {
-  /** Sizing only. Colour comes from the parent, always `currentColor`. */
+  /** Sizing only. Colour comes from the shared provider token. */
   className?: string;
 }
 
 /** Every mark on the site is one of these: 24 units, filled, decorative. */
 function BrandGlyph({
   path,
+  provider,
   className = "h-5 w-5",
-}: ToolMarkProps & { path: string }) {
+}: ToolMarkProps & { path: string; provider?: string }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      className={className}
+      className={`${className} ol-provider-glyph`}
+      data-provider={provider}
       fill="currentColor"
       aria-hidden="true"
       focusable="false"
@@ -133,7 +136,7 @@ const KIMI_PATH =
 /* The published marks. */
 
 export function ClaudeMark({ className }: ToolMarkProps) {
-  return <BrandGlyph path={CLAUDE_PATH} className={className} />;
+  return <BrandGlyph path={CLAUDE_PATH} provider="CLAUDE" className={className} />;
 }
 
 /**
@@ -141,9 +144,6 @@ export function ClaudeMark({ className }: ToolMarkProps) {
  * from red-orange at top through green to blue at the base.
  */
 export function AntigravityMark({ className = "h-5 w-5" }: ToolMarkProps) {
-  /* The real arch, in the site's monochrome standard: every provider mark
-     renders currentColor with the theme, founder's order (2026-08-11), so the
-     gradient the mark ships with elsewhere stays off this site. */
   return (
     <svg
       viewBox="0 0 24 24"
@@ -151,9 +151,17 @@ export function AntigravityMark({ className = "h-5 w-5" }: ToolMarkProps) {
       aria-hidden="true"
       focusable="false"
     >
+      <defs>
+        <linearGradient id="ol-antigravity-gradient" x1="12" y1="1.8" x2="12" y2="22.4" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="var(--ol-provider-google-red)" />
+          <stop offset="0.34" stopColor="var(--ol-provider-google-yellow)" />
+          <stop offset="0.66" stopColor="var(--ol-provider-google-green)" />
+          <stop offset="1" stopColor="var(--ol-provider-google-blue)" />
+        </linearGradient>
+      </defs>
       <path
         d="M12 1.8C14.8 1.8 17.1 7.8 19.6 14.2C20.5 16.5 21.4 19 21.4 20.2C21.4 21.8 19.8 22.4 17.8 20.6C16.3 16.8 14.1 12.5 12 12.5C9.9 12.5 7.7 16.8 6.2 20.6C4.2 22.4 2.6 21.8 2.6 20.2C2.6 19 3.5 16.5 4.4 14.2C6.9 7.8 9.2 1.8 12 1.8Z"
-        fill="currentColor"
+        fill="url(#ol-antigravity-gradient)"
       />
     </svg>
   );
@@ -164,11 +172,11 @@ export function GoogleMark({ className }: ToolMarkProps) {
 }
 
 export function OpenCodeMark({ className }: ToolMarkProps) {
-  return <BrandGlyph path={OPENCODE_PATH} className={className} />;
+  return <BrandGlyph path={OPENCODE_PATH} provider="OPENCODE" className={className} />;
 }
 
 export function OpenRouterMark({ className }: ToolMarkProps) {
-  return <BrandGlyph path={OPENROUTER_PATH} className={className} />;
+  return <BrandGlyph path={OPENROUTER_PATH} provider="OPENROUTER" className={className} />;
 }
 
 export function PerplexityMark({ className }: ToolMarkProps) {
@@ -176,11 +184,22 @@ export function PerplexityMark({ className }: ToolMarkProps) {
 }
 
 export function XaiMark({ className }: ToolMarkProps) {
-  return <BrandGlyph path={X_PATH} className={className} />;
+  return <BrandGlyph path={X_PATH} provider="GROK" className={className} />;
 }
 
 export function GeminiMark({ className }: ToolMarkProps) {
-  return <BrandGlyph path={GEMINI_PATH} className={className} />;
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" focusable="false">
+      <defs>
+        <linearGradient id="ol-gemini-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="var(--ol-provider-gemini-blue)" />
+          <stop offset="0.52" stopColor="var(--ol-provider-gemini-purple)" />
+          <stop offset="1" stopColor="var(--ol-provider-gemini-coral)" />
+        </linearGradient>
+      </defs>
+      <path d={GEMINI_PATH} fill="url(#ol-gemini-gradient)" />
+    </svg>
+  );
 }
 
 export function CopilotMark({ className }: ToolMarkProps) {
@@ -221,11 +240,11 @@ export function DeepSeekMark({ className }: ToolMarkProps) {
 }
 
 export function KimiMark({ className }: ToolMarkProps) {
-  return <BrandGlyph path={KIMI_PATH} className={className} />;
+  return <BrandGlyph path={KIMI_PATH} provider="KIMI" className={className} />;
 }
 
 export function OpenAIMark({ className }: ToolMarkProps) {
-  return <BrandGlyph path={OPENAI_PATH} className={className} />;
+  return <BrandGlyph path={OPENAI_PATH} provider="CODEX" className={className} />;
 }
 
 /* The three with no published mark, and the one that is not a brand at all. */

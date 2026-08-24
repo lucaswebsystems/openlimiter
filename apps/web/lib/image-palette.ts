@@ -4,43 +4,44 @@
  * These routes render in an isolated satori context with no stylesheet, so they
  * cannot read the design tokens in app/globals.css. This module is the single
  * place those literals may live, and every value mirrors a token by name.
- * Change a token in globals.css, change it here in the same pass.
+ * Change a token in packages/ui/src/tokens.css, change it here in the same
+ * pass.
  *
  * A social card has no theme to follow, so these mirror the dark palette, which
  * is the one that reads best as a thumbnail.
  */
 export const imagePalette = {
   /** mirrors --ol-canvas, dark */
-  canvas: "#0d0d0f",
+  canvas: "#080b10",
   /** mirrors --ol-surface, dark */
-  surface: "#141416",
+  surface: "#0e131b",
   /** mirrors --ol-hairline, dark */
-  hairline: "#24242a",
+  hairline: "#202b3a",
   /** mirrors --ol-heading, dark */
   heading: "#fafafa",
   /** mirrors --ol-soft, dark */
-  body: "#b6b6bd",
+  body: "#c3ccd8",
   /** mirrors --ol-accent-solid, both themes */
-  accent: "#0866ff",
+  accent: "#2f81f7",
   /** mirrors --ol-on-accent, both themes */
   onAccent: "#ffffff",
   /** mirrors --ol-brand. The one blue in assets/brand, unchanged by theme. */
-  brand: "#0866ff",
+  brand: "#2f81f7",
   /** mirrors --ol-canvas, light */
-  canvasLight: "#f8f8f9",
+  canvasLight: "#f4f7fb",
 } as const;
 
 /**
- * The icon treatment: the ring, and nothing whatsoever behind it.
+ * The icon treatment: the frozen mark, and nothing whatsoever behind it.
  *
  * Every icon a browser paints beside a name takes this. The tab favicon, the
  * iOS home screen icon and the two "any" icons in the web application manifest
- * are the mark in the brand blue on a transparent ground, cropped to the ring's
+ * are the mark in the brand blue on a transparent ground, cropped to the mark's
  * own outer edge so it fills its square corner to corner with no padding.
  *
  * There is no tile because a tile is a second shape competing with the mark.
- * At sixteen pixels a rounded blue square with a small ring inside it reads as
- * a rounded blue square, and every pixel spent on padding is a pixel the ring
+ * At sixteen pixels a rounded blue square with a small mark inside it reads as
+ * a rounded blue square, and every pixel spent on padding is a pixel the mark
  * does not have. Tileless, the mark is the icon.
  *
  * Two surfaces deliberately do not take this treatment, and both have a reason
@@ -49,13 +50,11 @@ export const imagePalette = {
  *   Android maskable, in public/icons, crops to whatever shape the launcher
  *   prefers and guarantees only the central eighty percent. An icon with no
  *   ground would be cropped straight into the wallpaper, so that one file fills
- *   its square with the canvas colour and pulls the ring into the safe area.
+ *   its square with the canvas colour and pulls the mark into the safe area.
  *   scripts/icons.mjs renders it and says the same thing at the point of use.
  *
- *   The desktop application icon keeps a tile, because an operating system
- *   paints it on a dock, a taskbar and a wallpaper it did not choose, and every
- *   application beside it has a solid silhouette. apps/desktop/scripts/icons.mjs
- *   owns that one.
+ *   The desktop icon remains transparent. The Tauri icon pipeline receives the
+ *   canonical SVG directly and generates every package size from it.
  */
 export const iconMark = {
   background: "transparent",

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="176" viewBox="0 0 900 176" role="img" aria-labelledby="title description">
+  <title id="title">OpenLimiter meter anatomy</title>
+  <desc id="description">A window name, a blue usage bar, a percentage and a reset time.</desc>
+  <rect width="900" height="176" rx="20" fill="#0E131B"/>
+  <text x="48" y="50" fill="#FAFAFA" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="16" font-weight="600">5 hour</text>
+  <rect x="48" y="76" width="640" height="10" rx="5" fill="#202B3B"/>
+  <rect x="48" y="76" width="448" height="10" rx="5" fill="#2F81F7"/>
+  <text x="720" y="84" fill="#FAFAFA" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="14" font-weight="600">70%</text>
+  <text x="48" y="128" fill="#929EAD" font-family="ui-sans-serif, system-ui, Segoe UI, sans-serif" font-size="13">resets 14:31</text>
+</svg>

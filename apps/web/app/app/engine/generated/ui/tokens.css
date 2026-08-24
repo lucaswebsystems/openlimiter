@@ -5,9 +5,9 @@
 /*
  * OpenLimiter product tokens.
  *
- * This is the one visual contract for the web dashboard and desktop window.
- * Marketing pages keep their own broader theme. Product surfaces load this
- * file last, then consume only these variables. No network font is required.
+ * This is the one visual contract for every shipped surface: marketing, web
+ * dashboard, PWA and desktop. Surfaces consume these variables and never
+ * redefine them. No network font is required.
  */
 
 :root {
@@ -56,16 +56,50 @@
   --ol-backdrop: rgb(0 0 0 / 0.55);
   --ol-meter-stale-mix: 58%;
 
-  /* Shape identifies providers. Colour stays inside the one accent system. */
-  --ol-provider-claude: var(--ol-accent);
-  --ol-provider-openrouter: var(--ol-accent);
-  --ol-provider-codex: var(--ol-accent);
-  --ol-provider-antigravity: var(--ol-accent);
-  --ol-provider-gemini: var(--ol-accent);
-  --ol-provider-opencode: var(--ol-accent);
-  --ol-provider-grok: var(--ol-accent);
-  --ol-provider-kimi: var(--ol-accent);
+  /* Fixed dark chrome for artwork and the video header in either theme. */
+  --ol-fixed-dark-canvas: #080b10;
+  --ol-fixed-dark-surface: #0e131b;
+  --ol-fixed-dark-raised: #141b26;
+  --ol-fixed-dark-elevated: #1a2432;
+  --ol-fixed-dark-code: #070a0f;
+  --ol-fixed-dark-frame: #0b1017;
+  --ol-fixed-dark-track: #202b3b;
+  --ol-fixed-dark-hairline: #202b3a;
+  --ol-fixed-dark-hairline-strong: #34445b;
+  --ol-fixed-dark-heading: #fafafa;
+  --ol-fixed-dark-body: #e4e4e7;
+  --ol-fixed-dark-soft: #c3ccd8;
+  --ol-fixed-dark-muted: #929ead;
+  --ol-fixed-dark-faint: #667386;
+  --ol-fixed-dark-accent: #79b8ff;
+  --ol-fixed-dark-accent-hover: #a5d2ff;
+  --ol-fixed-dark-accent-subtle: rgb(47 129 247 / 0.14);
+  --ol-fixed-dark-accent-solid: #2f81f7;
+  --ol-fixed-dark-accent-solid-hover: #58a6ff;
+  --ol-fixed-dark-on-accent: #ffffff;
+  --ol-fixed-dark-solid: #fafafa;
+  --ol-fixed-dark-solid-hover: #e4e4e7;
+  --ol-fixed-dark-on-solid: #09090b;
+  --ol-fixed-dark-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.035);
+  --ol-fixed-dark-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.045), 0 20px 64px rgb(0 0 0 / 0.24);
+
+  /* Provider artwork is the sole exception to the system palette. */
+  --ol-provider-claude: #d97757;
+  --ol-provider-openrouter: var(--ol-heading);
+  --ol-provider-codex: var(--ol-heading);
+  --ol-provider-antigravity: var(--ol-heading);
+  --ol-provider-gemini: var(--ol-heading);
+  --ol-provider-opencode: var(--ol-heading);
+  --ol-provider-grok: var(--ol-heading);
+  --ol-provider-kimi: #007cff;
   --ol-provider-manual: var(--ol-accent);
+  --ol-provider-google-blue: #4285f4;
+  --ol-provider-google-red: #ea4335;
+  --ol-provider-google-yellow: #fbbc04;
+  --ol-provider-google-green: #34a853;
+  --ol-provider-gemini-blue: #4e82ee;
+  --ol-provider-gemini-purple: #8e75b2;
+  --ol-provider-gemini-coral: #d96570;
 
   /* Type */
   --ol-font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -78,6 +112,10 @@
   --ol-text-display: 2.25rem;
   --ol-leading-tight: 1.15;
   --ol-leading-body: 1.45;
+  --ol-weight-regular: 400;
+  --ol-weight-medium: 500;
+  --ol-weight-semibold: 600;
+  --ol-weight-bold: 700;
 
   /* Space, one four pixel rhythm */
   --ol-space-1: 0.25rem;
@@ -186,15 +224,6 @@
   --ol-skeleton-sheen: rgb(9 105 218 / 0.07);
   --ol-backdrop: rgb(13 22 35 / 0.42);
   --ol-meter-stale-mix: 82%;
-  --ol-provider-claude: var(--ol-accent);
-  --ol-provider-openrouter: var(--ol-accent);
-  --ol-provider-codex: var(--ol-accent);
-  --ol-provider-antigravity: var(--ol-accent);
-  --ol-provider-gemini: var(--ol-accent);
-  --ol-provider-opencode: var(--ol-accent);
-  --ol-provider-grok: var(--ol-accent);
-  --ol-provider-kimi: var(--ol-accent);
-  --ol-provider-manual: var(--ol-accent);
   --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.8);
   --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 18px 60px rgb(17 17 20 / 0.08);
   --sheen: rgb(13 22 35 / 0.025);
