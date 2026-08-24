@@ -804,101 +804,6 @@ async fn service_call(
     post_json("/pro-service", &session(store)?, &Value::Object(payload)).await
 }
 
-fn usage_windows() -> Result<Vec<Value>, ProFailure> {
-    let Some(text) = crate::state::read_cache() else {
-        return Ok(Vec::new());
-    };
-    let document: Value = serde_json::from_str(&text).map_err(|_| ProFailure::Storage)?;
-    let snapshots = document
-        .get("snapshots")
-        .and_then(Value::as_array)
-        .ok_or(ProFailure::Storage)?;
-    if snapshots.len() > 512 {
-        return Err(ProFailure::Storage);
-    }
-    let mut selected: HashMap<(String, String), (f64, Option<String>)> = HashMap::new();
-    for snapshot in snapshots {
-        if snapshot.get("unit").and_then(Value::as_str) != Some("PERCENT") {
-            continue;
-        }
-        let Some(provider) = snapshot.get("provider").and_then(Value::as_str) else {
-            continue;
-        };
-        let Some(meter) = snapshot.get("meter").and_then(Value::as_str) else {
-            continue;
-        };
-        let Some(usage) = snapshot.get("value").and_then(Value::as_f64) else {
-            continue;
-        };
-        if !valid_code(provider, 32)
-            || !valid_code(meter, 48)
-            || !usage.is_finite()
-            || !(0.0..=100.0).contains(&usage)
-        {
-            continue;
-        }
-        let reset_at = match snapshot.get("resetAt") {
-            None | Some(Value::Null) => None,
-            Some(Value::String(value))
-                if value.len() <= 64
-                    && time::OffsetDateTime::parse(
-                        value,
-                        &time::format_description::well_known::Rfc3339,
-                    )
-                    .is_ok() =>
-            {
-                Some(value.clone())
-            }
-            _ => continue,
-        };
-        let key = (provider.to_string(), meter.to_string());
-        match selected.get(&key) {
-            Some((current, _)) if *current >= usage => {}
-            _ => {
-                selected.insert(key, (usage, reset_at));
-            }
-        }
-    }
-    if selected.len() > 64 {
-        return Err(ProFailure::InvalidInput);
-    }
-    let mut rows = selected.into_iter().collect::<Vec<_>>();
-    rows.sort_by(|left, right| left.0.cmp(&right.0));
-    Ok(rows
-        .into_iter()
-        .map(|((provider, meter), (usage_percent, reset_at))| {
-            json!({
-                "provider": provider,
-                "meter": meter,
-                "usage_percent": usage_percent,
-                "reset_at": reset_at,
-            })
-        })
-        .collect())
-}
-
-async fn sync_usage_snapshot(store: &dyn SecretStore) -> Result<bool, ProFailure> {
-    let windows = usage_windows()?;
-    if windows.is_empty() {
-        return Ok(false);
-    }
-    let mut payload = Map::new();
-    payload.insert(
-        "event_id".to_string(),
-        Value::String(uuid::Uuid::new_v4().to_string()),
-    );
-    payload.insert("windows".to_string(), Value::Array(windows));
-    service_call(
-        store,
-        ProServiceInput {
-            action: ProAction::IngestSnapshot,
-            payload,
-        },
-    )
-    .await?;
-    Ok(true)
-}
-
 #[tauri::command]
 pub fn pro_status(store: State<'_, KeyringStore>) -> ProStatus {
     current_status(store.inner())
@@ -917,7 +822,6 @@ pub async fn pro_set_session(
         .store_secret(SESSION_CREDENTIAL_ID, &access_token)
         .map_err(ProFailure::from)?;
     let status = refresh_with_failure_tracking(store.inner()).await?;
-    let _ = sync_usage_snapshot(store.inner()).await;
     let _ = sync_agent_context(store.inner()).await;
     Ok(status)
 }
@@ -970,8 +874,10 @@ pub async fn pro_sync_agent_context(store: State<'_, KeyringStore>) -> Result<bo
 
 #[tauri::command]
 pub async fn pro_sync_hosted(store: State<'_, KeyringStore>) -> Result<bool, ProFailure> {
-    let uploaded = sync_usage_snapshot(store.inner()).await?;
-    let context = sync_agent_context(store.inner()).await?;
+    let uploaded = crate::account::sync_snapshot(store.inner())
+        .await
+        .map_err(|_| ProFailure::Network)?;
+    let context = sync_agent_context(store.inner()).await.unwrap_or(false);
     Ok(uploaded || context)
 }
 
@@ -999,7 +905,6 @@ pub fn spawn_silent_refresh() {
         loop {
             interval.tick().await;
             let _ = refresh_with_failure_tracking(&store).await;
-            let _ = sync_usage_snapshot(&store).await;
             let _ = sync_agent_context(&store).await;
         }
     });

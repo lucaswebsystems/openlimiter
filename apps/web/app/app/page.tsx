@@ -1,7 +1,6 @@
 import { Dashboard } from "./dashboard";
 import { BrandLockup } from "@/components/brand";
 import { SHELL } from "@/components/ui";
-import { wordmarkFont } from "@/lib/fonts";
 
 /**
  * The application at /app.
@@ -18,8 +17,7 @@ import { wordmarkFont } from "@/lib/fonts";
  *
  * Two things are rendered here rather than in the dashboard, and both for the
  * same reason: they are static, so they belong on the server. The lockup is
- * handed down as a prop, which keeps the wordmark's font out of the client
- * bundle entirely. The splash is plain markup with a CSS animation, so it can
+ * handed down as a prop. The splash is plain markup with a CSS animation, so it can
  * paint before a single line of JavaScript has run, which is the only moment
  * it is needed.
  */
@@ -48,14 +46,7 @@ export default function AppPage() {
   return (
     <>
       <Splash />
-      {/* The brand face reaches this route's stylesheet through the custom
-          property the font module publishes, so `.ol-brand-font` in theme.css
-          can set a heading without a component to hang a class on. It is the
-          same self hosted file the wordmark already uses. */}
-      <main
-        id="main"
-        className={`${wordmarkFont.variable} ol-product-shell ol-shell ${SHELL}`}
-      >
+      <main id="main" className={`ol-product-shell ol-shell ${SHELL}`}>
         <Dashboard
           lockup={
             <div className="flex min-w-0 items-center gap-3">

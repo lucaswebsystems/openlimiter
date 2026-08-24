@@ -1,6 +1,6 @@
 [package]
 name = "openlimiter-desktop"
-version = "1.0.2"
+version = "1.1.0"
 description = "A local quota meter for AI subscriptions, in a window and beside the clock."
 authors = ["Lucas Costa"]
 license = "Apache-2.0"
@@ -24,6 +24,8 @@ tauri-build = { version = "2", features = [] }
 # icons embedded below it. Both are local Tauri capabilities.
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-updater = "2.10"
+tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The v1 feature is exactly the three stores the connection design names:
@@ -60,6 +62,7 @@ time = { version = "0.3.55", features = ["formatting", "macros", "parsing"] }
 regex = "1.13.1"
 base64 = "0.22.1"
 ed25519-dalek = "2.2.0"
+url = "2"
 
 [target.'cfg(windows)'.dependencies]
 # Antigravity uses the vendor target `gemini:antigravity`, which differs from

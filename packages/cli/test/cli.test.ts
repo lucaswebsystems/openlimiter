@@ -176,8 +176,10 @@ describe("CLI", () => {
           "fresh NONE                     NONE  [import only]",
         "MANUAL      MONTHLY           ###....... 35.00PERCENT NONE          " +
           "fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
-        "ANTIGRAVITY PRIMARY           ##........ 28.00PERCENT NONE          " +
-          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]"
+        "ANTIGRAVITY FIVE_HOUR         ##........ 28.00PERCENT NONE          " +
+          "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
+        "ANTIGRAVITY SEVEN_DAY         #......... 10.00PERCENT NONE          " +
+          "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]"
       ].join("\n"));
     });
 
@@ -244,7 +246,7 @@ describe("CLI", () => {
         provider: string;
         provenance?: { sourceKind: string; observedVia: string };
       }[];
-      expect(rows).toHaveLength(13);
+      expect(rows).toHaveLength(14);
       for (const row of rows) {
         expect(row.provenance).toEqual({
           sourceKind: "explicit_ingest",

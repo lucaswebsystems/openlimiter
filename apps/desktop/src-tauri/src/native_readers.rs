@@ -210,25 +210,25 @@ fn pool_prefixes(buckets: &[Value]) -> Option<Vec<&str>> {
     Some(prefixes)
 }
 
-fn antigravity_windows(buckets: &[Value], now_ms: u64) -> Option<Vec<(f64, u64, String)>> {
+fn antigravity_windows(buckets: &[Value], now_ms: u64) -> Option<Vec<(String, f64, u64, String)>> {
     let mut windows = Vec::new();
     for entry in buckets {
         let bucket = entry.as_object()?;
         let fraction = number(bucket.get("remainingFraction"), 1.0)?;
-        let seconds = match bucket
+        let (meter, seconds) = match bucket
             .get("window")?
             .as_str()?
             .to_ascii_lowercase()
             .as_str()
         {
-            "5h" => 18_000,
-            "weekly" => 604_800,
+            "5h" => ("FIVE_HOUR", 18_000),
+            "weekly" => ("SEVEN_DAY", 604_800),
             _ => return None,
         };
         let horizon = seconds * 2 + CLOCK_SKEW_SECONDS;
         let reset_at = future_rfc3339(bucket.get("resetTime")?.as_str()?, now_ms, horizon)?;
         let percent = ((1.0 - fraction).clamp(0.0, 1.0) * 1_000.0).round() / 10.0;
-        windows.push((percent, seconds, reset_at));
+        windows.push((meter.to_string(), percent, seconds, reset_at));
     }
     (!windows.is_empty()).then_some(windows)
 }
@@ -236,7 +236,7 @@ fn antigravity_windows(buckets: &[Value], now_ms: u64) -> Option<Vec<(f64, u64, 
 fn parse_antigravity(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
     let groups = root.get("groups")?.as_array()?;
-    let mut tracked: Option<Vec<(f64, u64, String)>> = None;
+    let mut tracked: Option<Vec<(String, f64, u64, String)>> = None;
     for entry in groups {
         let buckets = entry.as_object()?.get("buckets")?.as_array()?;
         let prefixes = pool_prefixes(buckets)?;
@@ -249,27 +249,31 @@ fn parse_antigravity(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sn
         tracked = Some(antigravity_windows(buckets, now_ms)?);
     }
     let tracked = tracked?;
-    let binding = tracked
-        .into_iter()
-        .max_by(|left, right| left.0.total_cmp(&right.0))?;
     let observed_at = iso_from_epoch_ms(now_ms)?;
     let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
-    Some(vec![base_snapshot(
-        "ANTIGRAVITY",
-        "PRIMARY",
-        binding.0,
-        SnapshotWindow {
-            kind: "rolling".to_string(),
-            duration_seconds: Some(binding.1),
-        },
-        Some(binding.2),
-        "internal_payload",
-        "estimated",
-        &observed_at,
-        &expires_at,
-        labels("official-local-tool", "internal-endpoint", "high"),
-        account_id,
-    )])
+    Some(
+        tracked
+            .into_iter()
+            .map(|(meter, percent, seconds, reset_at)| {
+                base_snapshot(
+                    "ANTIGRAVITY",
+                    &meter,
+                    percent,
+                    SnapshotWindow {
+                        kind: "rolling".to_string(),
+                        duration_seconds: Some(seconds),
+                    },
+                    Some(reset_at),
+                    "internal_payload",
+                    "estimated",
+                    &observed_at,
+                    &expires_at,
+                    labels("official-local-tool", "internal-endpoint", "high"),
+                    account_id,
+                )
+            })
+            .collect(),
+    )
 }
 
 fn grok_period(
@@ -598,6 +602,25 @@ mod tests {
         assert!(rows
             .iter()
             .any(|row| row.meter == "MONTHLY" && row.value == 30.0));
+    }
+
+    #[test]
+    fn antigravity_keeps_session_and_weekly_as_separate_windows() {
+        let now_ms = now();
+        let five_hour_reset = iso_from_epoch_ms(now_ms + 18_000_000).expect("reset");
+        let weekly_reset = iso_from_epoch_ms(now_ms + 604_800_000).expect("reset");
+        let body = format!(
+            r#"{{"groups":[{{"buckets":[{{"bucketId":"gemini-main","remainingFraction":0.75,"window":"5h","resetTime":"{five_hour_reset}"}},{{"bucketId":"gemini-weekly","remainingFraction":0.4,"window":"weekly","resetTime":"{weekly_reset}"}}]}}]}}"#
+        );
+        let rows =
+            parse_body(ReaderId::AntigravityQuota, &body, now_ms, ACCOUNT).expect("readable quota");
+        assert_eq!(rows.len(), 2);
+        assert!(rows
+            .iter()
+            .any(|row| row.meter == "FIVE_HOUR" && row.value == 25.0));
+        assert!(rows
+            .iter()
+            .any(|row| row.meter == "SEVEN_DAY" && row.value == 60.0));
     }
 
     #[test]

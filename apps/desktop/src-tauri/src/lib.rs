@@ -1,3 +1,4 @@
+mod account;
 mod antigravity_credential;
 mod antigravity_oauth;
 mod cache_write;
@@ -20,6 +21,7 @@ mod native_readers;
 mod native_snapshot;
 mod native_time;
 mod net;
+mod notifications;
 mod poll_identity;
 mod pro;
 mod provider_detection;
@@ -103,7 +105,10 @@ pub fn run() {
         .manage(collector_runtime::CollectorRuntime::default())
         .manage(request_policy::RequestPolicy::at_state_directory())
         .manage(updates::PendingUpdate::default())
+        .manage(notifications::NotificationState::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             read_cache,
             read_manual,
@@ -121,6 +126,13 @@ pub fn run() {
             commands::rescan_detected_providers,
             commands::refresh_detected_claude,
             commands::claude_connect_preflight,
+            account::account_status,
+            account::account_email,
+            account::account_oauth,
+            account::account_set_sync,
+            account::account_logout,
+            account::account_sync_snapshot,
+            account::account_sync_configured_snapshot,
             pro::pro_status,
             pro::pro_set_session,
             pro::pro_refresh,
@@ -128,6 +140,10 @@ pub fn run() {
             pro::pro_sync_agent_context,
             pro::pro_sync_hosted,
             pro::pro_disconnect,
+            notifications::evaluate_notifications,
+            notifications::notification_events,
+            notifications::notification_settings,
+            notifications::set_notification_settings,
             updates::check_for_update,
             updates::install_update
         ])
@@ -136,6 +152,7 @@ pub fn run() {
             parsing and cache commits never depend on a webview receiving an
             event or being allowed to run a timer. */
             collector_runtime::spawn_collector(app.handle().clone());
+            account::spawn_sync();
             pro::spawn_silent_refresh();
             let initial = tray::view(Vec::new()).expect("an empty tray view is valid");
             let menu = tray::menu(app.handle(), &initial)?;

@@ -30,7 +30,7 @@
     "closeMenu": "Close menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro is coming soon. The complete local product remains free and needs no account.",
+    "message": "OpenLimiter Pro is coming soon. The local product and account are free. Only usage percentages sync, never keys or credentials.",
     "short": "OpenLimiter Pro is coming soon",
     "dismiss": "Close this announcement"
   },
@@ -42,7 +42,7 @@
     "community": "Community",
     "trust": "Trust",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | Local first | Zero telemetry | No tracking | No accounts",
+    "licenceNote": "Apache 2.0 | Local first | Zero telemetry | No tracking | Free account",
     "licenceRead": "Read the licence",
     "rights": "All rights reserved",
     "licensed": "Apache 2.0 licensed",
@@ -438,11 +438,11 @@
       },
       "free": {
         "question": "Is it free?",
-        "answer": "Everything that runs locally is free and always will be, under Apache 2.0: every connector, the agent context block, themes, the whole command line tool, and all three ingestion paths, with no usage limit and no account. Desktop notifications are not built yet and will be free too."
+        "answer": "Everything that runs locally is free and always will be, under Apache 2.0. The OpenLimiter account is free. Local notifications are free. Only usage percentages sync, never keys or credentials, and sync can be turned off."
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro is coming soon at $5 a month or $48 a year. It has exactly three services: threshold alerts, history and forecasting, and agent auto routing. Every local feature remains free."
+        "answer": "OpenLimiter Pro is coming soon at $5 a month or $50 a year. It is planned to include email and push notifications, token based themes, multiple subscriptions per provider, heavy API usage features, history and forecasting, and agent auto routing. Every local feature remains free."
       }
     }
   },
@@ -454,7 +454,7 @@
       "status": "available",
       "price": "Free",
       "priceNote": "forever, and in the licence",
-      "lead": "Local use needs no account. Sync is optional.",
+      "lead": "The local product and account are free. Sync defaults on and can be turned off.",
       "footnote": "Open source under <licence>Apache 2.0</licence>, so this cannot be taken away later. The licence is the promise.",
       "lines": {
         "connectors": "Every supported provider",
@@ -464,7 +464,7 @@
         "themes": "Themes, in the desktop application and in the browser",
         "cli": "The full command line tool and every statusline setting",
         "ingestion": "All three ingestion paths: a connector, ingest, or manual entry",
-        "noLimits": "No usage limit, no account, no feature locked behind anything"
+        "noLimits": "No usage limit, free account, no local feature locked behind anything"
       }
     },
     "pro": {
@@ -497,7 +497,7 @@
     "commitments": {
       "runsLocal": {
         "title": "It runs on your machine",
-        "detail": "Local mode has zero telemetry and no account. Provider connections talk only to that provider through a fixed allowlist, with credentials held by the operating system. Pro is optional and sends selected bounded quota snapshots only after sign in."
+        "detail": "Local mode has zero telemetry. The account is free. Provider connections talk only to that provider through a fixed allowlist, with credentials held by the operating system. Only usage percentages sync, and sync can be turned off."
       },
       "reportsNobody": {
         "title": "It reports to nobody",
@@ -1436,7 +1436,7 @@
           },
           "sync": {
             "title": "Planned: OpenLimiter Pro",
-            "intro": "OpenLimiter Pro is coming soon at $5 a month or $48 a year. Nothing local moves behind it. See <pricing>pricing</pricing> for the current plan.",
+            "intro": "OpenLimiter Pro is coming soon at $5 a month or $50 a year. Nothing local moves behind it. See <pricing>pricing</pricing> for the current plan.",
             "bullets": {
               "status": "Status: planned. Pro is not available yet.",
               "alerts": "Threshold and reset email alerts.",
@@ -1455,7 +1455,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Sign in for sync. Pro is coming soon at $5 a month or $48 a year.",
+    "lead": "Sign in for sync. Pro is coming soon at $5 a month or $50 a year.",
     "comingSoonLead": "Sign in or create an account to sync. OpenLimiter Pro is coming soon, and the complete local product remains free.",
     "configMissing": "Pro is coming soon.",
     "emailLabel": "Email",

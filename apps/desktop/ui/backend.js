@@ -121,6 +121,11 @@ const FAILURE_SENTENCES = {
   no_pending_update: "No downloaded update is waiting to be installed.",
   update_install_failed: "The update could not be installed.",
   update_state_unavailable: "The pending update state could not be read.",
+  authentication: "The account details were not accepted.",
+  oauth_busy: "Another sign in is already in progress.",
+  oauth_timeout: "The sign in window timed out.",
+  oauth_rejected: "The sign in response could not be verified.",
+  email_confirmation_required: "Check your email to confirm your account, then sign in.",
 };
 
 function absent(command) {
@@ -396,6 +401,56 @@ export async function proSyncHosted() {
 /** Remove the Pro session, trust anchor, token, and hosted context. */
 export async function proDisconnect() {
   return call("pro_disconnect");
+}
+
+/** Read the cached account and refresh it when the backend is reachable. */
+export async function accountStatus() {
+  return call("account_status");
+}
+
+/** Create or open an email account without retaining either field here. */
+export async function accountEmail({ email, password, create }) {
+  return call("account_email", { input: { email, password, create } });
+}
+
+/** Open a provider OAuth flow whose callback is verified by the native shell. */
+export async function accountOauth(provider) {
+  if (provider !== "google" && provider !== "github") {
+    return refusedInput("account_oauth");
+  }
+  return call("account_oauth", { input: { provider } });
+}
+
+/** Change the clear sync switch. The native upload path enforces this value. */
+export async function accountSetSync(enabled) {
+  return call("account_set_sync", { enabled: enabled === true });
+}
+
+/** Remove the cached account session. */
+export async function accountLogout() {
+  return call("account_logout");
+}
+
+/** Upload the current bounded percentages when the free sync switch is on. */
+export async function accountSyncSnapshot() {
+  return call("account_sync_snapshot");
+}
+
+/** Persist explicit provider consent before uploading the filtered snapshot set. */
+export async function accountSyncConfiguredSnapshot(providers) {
+  return call("account_sync_configured_snapshot", {
+    configuredProviders: Array.isArray(providers) ? providers : [],
+  });
+}
+
+/** Feed only bounded percentages into the free native notification rules. */
+export async function evaluateNotifications(samples) {
+  return call("evaluate_notifications", { samples });
+}
+
+/** Recent local transition events for the bell. */
+export async function notificationEvents() {
+  return call("notification_events");
 }
 
 /** Check the signed release channel without installing anything. */

@@ -1,6 +1,6 @@
-# Optional snapshot sync
+# Snapshot sync
 
-OpenLimiter remains complete without an account. Sync is free, off by default, and has no entitlement check. Nothing leaves the machine until the user signs in and enables it. Signing out disables sync and removes only OpenLimiter account material. It never changes `openlimiter-cache.json`, local connectors, the tray, or local advice.
+The local product and the OpenLimiter account are free. The desktop requires sign in before its dashboard opens, while local collection keeps running even when the network is unavailable. A cached session keeps the application usable offline. Sync is free, enabled by default after sign in, and has no entitlement check. It can be turned off from the application menu. Signing out removes only OpenLimiter account material. It never changes `openlimiter-cache.json`, local connectors, the tray, or local advice.
 
 ## Stored shape
 
@@ -8,17 +8,21 @@ The desktop constructs one closed row per quota window with `provider`, `account
 
 The sync database contains no field for provider credentials, provider tokens, provider response bodies, prompts, source code, local configuration, or diagnostics. Both the desktop and Edge Function rebuild the request from the closed shape. Extra input fields are discarded. A total sync database breach exposes quota display metadata and cannot reach a provider account.
 
-## Desktop hooks for the visual lane
+## Desktop commands
 
-The Tauri backend exposes three commands.
+The Tauri backend exposes the account and sync commands used by the desktop interface.
 
-1. `sync_status` returns `{ enabled, signed_in }`.
+1. `account_status` returns only configuration, sign in, email, sync preference and backend reachability. It never returns tokens.
 
-2. `sync_set_enabled` receives `{ input: { enabled } }`. Enabling requires an OpenLimiter session and performs the first upload. Disabling never changes local data.
+2. `account_email` creates or signs in with email and password. When email confirmation is required, it returns a closed failure that tells the person to confirm and then sign in.
 
-3. `sync_now` uploads only when sync is enabled.
+3. `account_oauth` supports Google and GitHub through PKCE and an exact loopback callback.
 
-The existing `pro_set_session` command stores the Supabase access token in the operating system credential store. It no longer requires a Pro entitlement. `pro_disconnect` signs out, disables sync, and preserves local quota data.
+4. `account_set_sync` changes the clear sync switch. Disabling never changes local data.
+
+5. `account_sync_configured_snapshot` uploads only configured providers and only when sync is enabled.
+
+6. `account_logout` removes the OpenLimiter account session and preserves local quota data.
 
 ## Web hook for the visual lane
 
@@ -28,4 +32,4 @@ The Next application is already the PWA. The same authenticated reader supplies 
 
 ## Configuration
 
-The web host receives `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. These are public client values. The desktop receives `OPENLIMITER_PRO_URL`, ending in `/functions/v1`, at compile time. Release builds require HTTPS. Debug builds permit plain HTTP only for `127.0.0.1` and `localhost` so local Supabase can be exercised safely.
+The web host receives `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. These are public client values. The desktop receives `OPENLIMITER_SUPABASE_URL` and `OPENLIMITER_SUPABASE_ANON_KEY` at compile time. The key must use the public `sb_publishable_` format. The release workflow reads both values from GitHub Actions repository variables. They are never hardcoded. Pro calls separately receive `OPENLIMITER_PRO_URL`, ending in `/functions/v1`, at compile time. Release builds require HTTPS. Debug builds permit plain HTTP only for `127.0.0.1` and `localhost` so local Supabase can be exercised safely.

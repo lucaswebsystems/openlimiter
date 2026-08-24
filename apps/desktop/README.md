@@ -6,8 +6,9 @@ puts the provider under the most pressure next to your clock.
 
 Local first, like everything else here. It reads provider sessions already on
 this machine, stores OpenLimiter connection state locally, and contacts only a
-provider that the user connected. It never rewrites a provider's own files and
-sends no telemetry to OpenLimiter.
+provider that the user connected. The free account syncs only bounded usage
+percentages by default, never provider credentials or provider response bodies,
+and the person can turn sync off. There is no analytics or tracking.
 
 The packaged 1.0 release targets Windows and Linux. macOS remains coming soon,
 with no unsigned public binary because Gatekeeper blocks it.
@@ -71,18 +72,20 @@ copy.
 
 ## Icons
 
-`pnpm icons` renders every icon in `src-tauri/icons` from the same approved arc
-geometry the website and the favicon use, with no image library involved. It
-writes the four PNGs Tauri bundles, three small tray sizes, and a multi size
-`icon.ico` for Windows.
+`pnpm icons` first derives `assets/brand/openlimiter-mark.svg` from the frozen
+lockup, then sends it through the Tauri icon pipeline. Tauri writes the window,
+taskbar, Windows installer, and Linux package sizes. The final step writes the
+tray sizes from that same parsed geometry and blue.
 
-It does not write `icon.icns`. The launch workflow deliberately produces no
-macOS artifact while signing and notarisation remain unavailable.
+The pipeline also writes an `icon.icns`, but the launch workflow deliberately
+produces no macOS artifact while signing and notarisation remain unavailable.
 
 ## What it deliberately does not do
 
-- No telemetry, no analytics, no crash reporting, no update ping.
+- No telemetry, analytics or crash reporting. The official updater checks the
+  GitHub release manifest.
 - No provider file rewrites and no export of provider credentials.
-- No OpenLimiter telemetry or central usage service.
+- No provider credentials, response bodies, prompts, source code or diagnostics
+  in the OpenLimiter sync service.
 - No file system, shell, or clipboard capability exposed to the webview. The
   capability file in `src-tauri/capabilities` says so exactly.

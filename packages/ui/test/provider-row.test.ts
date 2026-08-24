@@ -83,23 +83,25 @@ describe("provider account rows", () => {
     expect(rows.map((row) => row.accountLabel)).toEqual(["Local account", "none"]);
   });
 
-  it("uses explicit fallback states when no reading exists", () => {
-    const rows = buildProviderAccountRows([], NOW);
+  it("shows no provider until one is explicitly configured", () => {
+    expect(buildProviderAccountRows([], NOW)).toEqual([]);
+  });
+
+  it("uses explicit fallback states only for configured providers", () => {
+    const rows = buildProviderAccountRows([], NOW, [], {
+      providers: ["CODEX", "GEMINI_CLI", "GROK", "KIMI"],
+    });
     const codex = rows.find((row) => row.provider === "CODEX");
     const gemini = rows.find((row) => row.provider === "GEMINI_CLI");
     const grok = rows.find((row) => row.provider === "GROK");
     const kimi = rows.find((row) => row.provider === "KIMI");
 
-    expect(rows).toHaveLength(8);
+    expect(rows).toHaveLength(4);
     expect(rows.map((row) => row.provider)).toEqual([
       "CODEX",
-      "CLAUDE",
       "GEMINI_CLI",
-      "ANTIGRAVITY",
       "GROK",
       "KIMI",
-      "OPENCODE",
-      "OPENROUTER",
     ]);
     expect(codex?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
     expect(gemini?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
@@ -234,13 +236,34 @@ describe("provider account rows", () => {
     )[0];
 
     expect(creditRow?.windows[0]).toMatchObject({
-      label: "Credits",
+      label: "Credit spend",
       readout: "$12.47",
+      metricKind: "bounded_spend",
       tone: "watch",
     });
     expect(monthlyRow?.windows[0]).toMatchObject({ label: "Monthly", tone: "high" });
     expect(headroomTone(91)).toBe("critical");
     expect(headroomTone(20)).toBe("ok");
+  });
+
+  it("keeps spend without a ceiling neutral", () => {
+    const spend: Snapshot = {
+      ...snapshot("OPENROUTER", "CREDITS", 12.47),
+      unit: "CREDITS",
+    };
+    const row = buildProviderAccountRows([spend], NOW, [], {
+      providers: ["OPENROUTER"],
+    })[0];
+    expect(row?.windows[0]).toMatchObject({
+      label: "Credit spend",
+      readout: "12.47 credits spent",
+      metricKind: "unbounded_spend",
+      tone: "none",
+      usedPercent: null,
+    });
+    const markup = providerRowMarkup(row!);
+    expect(markup).toContain('class="window-meter neutral"');
+    expect(markup).not.toContain('role="progressbar"');
   });
 
   it("labels every Grok, Kimi, and Gemini window after their connectors land", () => {

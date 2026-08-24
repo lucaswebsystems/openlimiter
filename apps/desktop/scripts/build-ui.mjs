@@ -24,7 +24,14 @@
  * The Claude adapter also omits its Node only hosted cache helper. Its pure
  * context and statusline renderers remain the code the command line tool runs.
  */
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -146,7 +153,24 @@ function browserSafeAdapter(source) {
 }
 
 assertBuilt();
-rmSync(DIST, { recursive: true, force: true });
+/* WebView2 can keep the directory itself open after its last window closes.
+   Windows still permits removing every child in that state. The fallback
+   therefore preserves only the locked empty directory, never stale assets. */
+try {
+  rmSync(DIST, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+} catch (error) {
+  if (process.platform !== "win32" || !["EBUSY", "EPERM"].includes(error?.code)) {
+    throw error;
+  }
+  for (const entry of readdirSync(DIST)) {
+    rmSync(path.join(DIST, entry), {
+      recursive: true,
+      force: true,
+      maxRetries: 20,
+      retryDelay: 100,
+    });
+  }
+}
 mkdirSync(DIST, { recursive: true });
 writeFileSync(path.join(DIST, ".gitkeep"), "\n", "utf8");
 
@@ -191,6 +215,7 @@ const WINDOW_FILES = [
   "app.css",
   "app.js",
   "backend.js",
+  "configured-providers.js",
   "connections.js",
   "first-run.js",
 ];
@@ -199,8 +224,23 @@ for (const file of WINDOW_FILES) {
   copyFileSync(path.join(DESKTOP, "ui", file), path.join(DIST, file));
 }
 
+/* The two lockups are generated from the frozen canonical SVG. They stay as
+   files so the static webview never carries a second inline drawing. */
+const BRAND_FILES = [
+  "openlimiter-lockup-light.svg",
+  "openlimiter-lockup-dark.svg",
+  "openlimiter-mark.svg",
+];
+mkdirSync(path.join(DIST, "brand"), { recursive: true });
+for (const file of BRAND_FILES) {
+  copyFileSync(
+    path.join(DESKTOP, "ui", "brand", file),
+    path.join(DIST, "brand", file),
+  );
+}
+
 const copied = Object.values(COPY).reduce((total, spec) => total + spec.files.length, 0);
 process.stdout.write(
   `Assembled ui/dist from ${String(copied)} compiled modules, one token sheet and ` +
-    `${String(WINDOW_FILES.length)} window files.\n`,
+    `${String(WINDOW_FILES.length)} window files and ${String(BRAND_FILES.length)} brand files.\n`,
 );

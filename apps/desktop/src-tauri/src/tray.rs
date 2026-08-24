@@ -7,8 +7,7 @@ use tauri::{AppHandle, Runtime};
 
 pub const ID: &str = "openlimiter-tray";
 
-const PROVIDER_LIMIT: usize = 9;
-const BAR_CELLS: usize = 8;
+const PROVIDER_LIMIT: usize = 8;
 
 const ICON_UNKNOWN: &[u8] = include_bytes!("../icons/tray-unknown-32.png");
 const ICON_OK: &[u8] = include_bytes!("../icons/tray-ok-32.png");
@@ -16,11 +15,7 @@ const ICON_WATCH: &[u8] = include_bytes!("../icons/tray-watch-32.png");
 const ICON_HIGH: &[u8] = include_bytes!("../icons/tray-high-32.png");
 const ICON_CRITICAL: &[u8] = include_bytes!("../icons/tray-critical-32.png");
 
-/// One provider line delivered by the webview.
-///
-/// This is deliberately smaller than a snapshot. The tray needs a closed
-/// provider id and one already normalized percentage. It never receives an
-/// account id, a reset time, a provider body or a credential.
+/// One configured provider and its worst window reading, delivered by the webview.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct ProviderStatus {
     pub provider: String,
@@ -62,7 +57,6 @@ fn provider(code: &str) -> Option<(&'static str, &'static str)> {
         "OPENCODE" => Some(("OPENCODE", "OpenCode")),
         "GROK" => Some(("GROK", "Grok")),
         "KIMI" => Some(("KIMI", "Kimi")),
-        "MANUAL" => Some(("MANUAL", "Manual")),
         _ => None,
     }
 }
@@ -81,16 +75,10 @@ fn whole_percent(value: f64) -> u8 {
     value.floor() as u8
 }
 
-fn bar(value: Option<f64>) -> String {
-    let filled = value
-        .map(|percent| ((percent / 100.0) * BAR_CELLS as f64).round() as usize)
-        .unwrap_or(0)
-        .min(BAR_CELLS);
-    let empty = BAR_CELLS - filled;
-    let suffix = value
-        .map(|percent| format!(" {:>3}%", whole_percent(percent)))
-        .unwrap_or_else(|| " unknown".to_string());
-    format!("{}{}{}", "█".repeat(filled), "░".repeat(empty), suffix)
+fn reading(value: Option<f64>) -> String {
+    value
+        .map(|percent| format!("{}%", whole_percent(percent)))
+        .unwrap_or_else(|| "\u{2014}".to_string())
 }
 
 pub fn view(statuses: Vec<ProviderStatus>) -> Result<View, &'static str> {
@@ -128,21 +116,20 @@ pub fn view(statuses: Vec<ProviderStatus>) -> Result<View, &'static str> {
         "OPENCODE" => 5,
         "GROK" => 6,
         "KIMI" => 7,
-        "MANUAL" => 8,
         _ => usize::MAX,
     });
 
     let worst = providers
         .iter()
-        .filter_map(|entry| entry.usage_percent.map(|value| (entry.name, value)))
-        .max_by(|left, right| left.1.total_cmp(&right.1));
+        .filter_map(|entry| entry.usage_percent)
+        .max_by(f64::total_cmp);
 
-    let Some((worst_name, worst_usage)) = worst else {
+    let Some(worst_usage) = worst else {
         return Ok(View {
             pressure: Pressure::Unknown,
             title: "OpenLimiter".to_string(),
-            tooltip: "OpenLimiter: no reading yet.".to_string(),
-            summary: "No quota reading yet".to_string(),
+            tooltip: "OpenLimiter: \u{2014} headroom".to_string(),
+            summary: "\u{2014} headroom".to_string(),
             providers,
         });
     };
@@ -151,7 +138,7 @@ pub fn view(statuses: Vec<ProviderStatus>) -> Result<View, &'static str> {
     Ok(View {
         pressure: pressure_of(Some(worst_usage)),
         title: format!("{headroom}% left"),
-        tooltip: format!("OpenLimiter: {worst_name} has {headroom}% headroom."),
+        tooltip: format!("OpenLimiter: {headroom}% headroom"),
         summary: format!("{headroom}% headroom"),
         providers,
     })
@@ -170,24 +157,30 @@ pub fn icon(view: &View) -> tauri::Result<Image<'static>> {
 
 pub fn menu<R: Runtime>(app: &AppHandle<R>, view: &View) -> tauri::Result<Menu<R>> {
     let menu = Menu::new(app)?;
-    let summary = MenuItem::with_id(app, "summary", &view.summary, false, None::<&str>)?;
-    menu.append(&summary)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "summary",
+        &view.summary,
+        false,
+        None::<&str>,
+    )?)?;
 
     for entry in &view.providers {
         let id = format!("provider:{}", entry.code.to_ascii_lowercase());
-        let text = format!("{}  {}", entry.name, bar(entry.usage_percent));
-        let item = MenuItem::with_id(app, id, text, false, None::<&str>)?;
-        menu.append(&item)?;
+        let text = format!("{}  {}", entry.name, reading(entry.usage_percent));
+        menu.append(&MenuItem::with_id(app, id, text, false, None::<&str>)?)?;
     }
 
-    let separator = PredefinedMenuItem::separator(app)?;
-    menu.append(&separator)?;
-    let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
-    let refresh = MenuItem::with_id(app, "refresh", "Refresh", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    menu.append(&open)?;
-    menu.append(&refresh)?;
-    menu.append(&quit)?;
+    menu.append(&PredefinedMenuItem::separator(app)?)?;
+    menu.append(&MenuItem::with_id(app, "open", "Open", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        "refresh",
+        "Refresh",
+        true,
+        None::<&str>,
+    )?)?;
+    menu.append(&MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?)?;
     Ok(menu)
 }
 
@@ -227,27 +220,26 @@ mod tests {
         let rendered = view(vec![
             status("CODEX", Some(42.9)),
             status("CLAUDE", Some(91.7)),
-            status("MANUAL", None),
         ])
         .expect("valid view");
         assert_eq!(rendered.pressure, Pressure::Critical);
         assert_eq!(rendered.title, "9% left");
-        assert_eq!(rendered.tooltip, "OpenLimiter: Claude has 9% headroom.");
+        assert_eq!(rendered.tooltip, "OpenLimiter: 9% headroom");
         assert_eq!(rendered.summary, "9% headroom");
     }
 
     #[test]
-    fn provider_rows_are_canonical_and_unknown_is_not_zero() {
+    fn provider_rows_are_text_only_and_missing_readings_use_a_dash() {
         let rendered =
-            view(vec![status("manual", None), status("claude", Some(12.4))]).expect("valid view");
+            view(vec![status("codex", None), status("claude", Some(12.4))]).expect("valid view");
         assert_eq!(rendered.providers[0].code, "CLAUDE");
-        assert_eq!(rendered.providers[1].code, "MANUAL");
-        assert_eq!(bar(rendered.providers[0].usage_percent), "█░░░░░░░  12%");
-        assert_eq!(bar(rendered.providers[1].usage_percent), "░░░░░░░░ unknown");
+        assert_eq!(rendered.providers[1].code, "CODEX");
+        assert_eq!(reading(rendered.providers[0].usage_percent), "12%");
+        assert_eq!(reading(rendered.providers[1].usage_percent), "\u{2014}");
     }
 
     #[test]
-    fn every_product_provider_reaches_the_tray() {
+    fn every_supported_provider_reaches_the_tray() {
         let rendered = view(vec![
             status("CLAUDE", None),
             status("OPENROUTER", None),
@@ -257,7 +249,6 @@ mod tests {
             status("OPENCODE", None),
             status("GROK", None),
             status("KIMI", None),
-            status("MANUAL", None),
         ])
         .expect("every provider is valid");
         assert_eq!(rendered.providers.len(), PROVIDER_LIMIT);
@@ -270,12 +261,14 @@ mod tests {
         let rendered = view(vec![status("CLAUDE", None)]).expect("valid view");
         assert_eq!(rendered.pressure, Pressure::Unknown);
         assert_eq!(rendered.title, "OpenLimiter");
-        assert_eq!(rendered.summary, "No quota reading yet");
+        assert_eq!(rendered.tooltip, "OpenLimiter: \u{2014} headroom");
+        assert_eq!(rendered.summary, "\u{2014} headroom");
     }
 
     #[test]
     fn invalid_input_is_refused() {
         assert!(view(vec![status("OTHER", Some(10.0))]).is_err());
+        assert!(view(vec![status("MANUAL", Some(10.0))]).is_err());
         assert!(view(vec![status("CODEX", Some(101.0))]).is_err());
         assert!(view(vec![status("CODEX", None), status("codex", None)]).is_err());
     }

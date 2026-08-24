@@ -476,7 +476,7 @@ export const documentedFixtures: readonly DocumentedFixture[] = [
       "the reference reader: groups of buckets carrying remainingFraction and " +
       "an RFC3339 resetTime. Google publishes nothing, so this is design " +
       "evidence only.",
-    expectedMeters: 1,
+    expectedMeters: 2,
     build: (now) => antigravityFixture(now)
   },
   {

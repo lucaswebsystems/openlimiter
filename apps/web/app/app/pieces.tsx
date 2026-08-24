@@ -1,6 +1,7 @@
 "use client";
 
 import { createElement, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import {
   PROVIDER_ROW_TAG,
   buildProviderDirectory,
@@ -75,21 +76,22 @@ export function ProviderRows({ rows }: { rows: readonly ProviderAccountRowView[]
 /**
  * The strip above the cards, which is this application's own title bar.
  *
- * The lockup is the real one: the ring mark and the wordmark in Baloo 2, at
- * the proportion the site header uses, rendered on the server and handed down
- * as a prop so the font never enters this bundle. The other side holds actions
- * only. Quota facts belong to the provider window rows below.
+ * The lockup uses the canonical gauge and system wordmark at the same
+ * proportion as the site header. The other side holds actions only. Quota
+ * facts belong to the provider window rows below.
  */
 export function HeaderStrip({
   lockup,
   busy,
   onRefresh,
   actions,
+  showRefresh = true,
 }: {
   lockup: ReactNode;
   busy: boolean;
   onRefresh: () => void;
   actions?: ReactNode;
+  showRefresh?: boolean;
 }) {
   return (
     <section
@@ -100,15 +102,17 @@ export function HeaderStrip({
         <div className="ol-commandbar-brand">{lockup}</div>
         <div className="ol-commandbar-actions">
           {actions}
-          <Button
-            tone="ghost"
-            onClick={onRefresh}
-            disabled={busy}
-            title="Reads stored data on this device."
-          >
-            <RefreshGlyph spinning={busy} />
-            Sync
-          </Button>
+          {showRefresh && (
+            <Button
+              tone="ghost"
+              onClick={onRefresh}
+              disabled={busy}
+              title="Reads synced data again."
+            >
+              <RefreshGlyph spinning={busy} />
+              Sync
+            </Button>
+          )}
         </div>
       </div>
     </section>
@@ -263,39 +267,9 @@ export function SkeletonRows({ count = 4 }: { count?: number }) {
  */
 export function FirstRunState({ onConnect }: { onConnect: () => void }) {
   return (
-    <section className="ol-rise ol-empty-row">
-      <div className="ol-empty-identity">
-        <span aria-hidden="true" className="ol-empty-mark">
-          <PlugGlyph />
-        </span>
-        <div>
-          <h3 className="ol-brand-font">Connect your first account</h3>
-        </div>
-      </div>
-      <Button tone="primary" onClick={onConnect}>
-        Add account
-      </Button>
-    </section>
-  );
-}
-
-function PlugGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-6 w-6"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M9 3v6M15 3v6" />
-      <path d="M6 9h12v3a6 6 0 0 1-12 0Z" />
-      <path d="M12 18v3" />
-    </svg>
+    <button type="button" className="ol-rise ol-empty-line focus-ring" onClick={onConnect}>
+      No providers configured. Open Configuration.
+    </button>
   );
 }
 
@@ -463,7 +437,7 @@ export function DemoBanner({ onLeave }: { onLeave: () => void }) {
 
 /* ---------------------------------------------------------------- settings */
 
-function GearGlyph() {
+function MenuGlyph() {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -476,8 +450,7 @@ function GearGlyph() {
       aria-hidden="true"
       focusable="false"
     >
-      <circle cx="12" cy="12" r="3.1" />
-      <path d="M19.4 14.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.11a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.11a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.11a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.11a1.7 1.7 0 0 0-1.49 1.03Z" />
+      <path d="M4 7h16M4 12h16M4 17h16" />
     </svg>
   );
 }
@@ -496,17 +469,17 @@ function GearGlyph() {
  * its own expanded state, so the whole thing behaves like the disclosure it is.
  */
 export function SettingsMenu({
-  demo,
-  onEnterDemo,
-  onLeaveDemo,
-  onClear,
-  clearable,
+  accountEmail,
+  syncEnabled,
+  onSyncChange,
+  onCheckUpdate,
+  onLogout,
 }: {
-  demo: boolean;
-  onEnterDemo: () => void;
-  onLeaveDemo: () => void;
-  onClear: () => void;
-  clearable: boolean;
+  accountEmail: string;
+  syncEnabled: boolean;
+  onSyncChange: (enabled: boolean) => void;
+  onCheckUpdate: () => void;
+  onLogout: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
@@ -535,8 +508,8 @@ export function SettingsMenu({
         type="button"
         aria-expanded={open}
         aria-haspopup="true"
-        aria-label="Settings"
-        title="Settings"
+        aria-label="Open menu"
+        title="Open menu"
         onClick={() => {
           setOpen((current) => !current);
         }}
@@ -544,71 +517,26 @@ export function SettingsMenu({
           open ? "bg-surface" : "bg-transparent"
         }`}
       >
-        <GearGlyph />
+        <MenuGlyph />
       </button>
 
       {open && (
-        <div className="ol-menu" role="group" aria-label="Settings">
-          <p className="ol-menu-label">Developer</p>
-          <div className="px-3 pb-3">
-            <p className="ol-brand-font text-sm text-heading">Demo mode</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted">
-              Fills the dashboard with the project&apos;s own synthetic fixtures,
-              in a separate store, watermarked everywhere. Your readings stay
-              where they are and come back when you leave.
-            </p>
-            <div className="mt-3">
-              {demo ? (
-                <Button
-                  onClick={() => {
-                    onLeaveDemo();
-                    setOpen(false);
-                  }}
-                >
-                  Leave demo mode
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => {
-                    onEnterDemo();
-                    setOpen(false);
-                  }}
-                >
-                  Enter demo mode
-                </Button>
-              )}
-            </div>
+        <div className="ol-menu" role="group" aria-label="Account menu">
+          <div className="px-3 py-3">
+            <p className="ol-brand-font text-sm text-heading">{accountEmail}</p>
           </div>
-          {/* There are two stores and this button empties exactly one of them,
-              so it says which. While demo mode is on it is the demo store: the
-              live readings are behind the fixtures on screen, and a control
-              that emptied them would show no visible change at all. */}
-          <div className="border-t border-hairline px-3 py-3">
-            <p className="ol-brand-font text-sm text-heading">
-              {demo ? "Stored demo readings" : "Stored readings"}
-            </p>
-            <p className="mt-1 text-xs leading-relaxed text-muted">
-              {demo
-                ? "Forgets the synthetic fixtures only. Your own readings are in a separate store and are not touched by this."
-                : "Forgets what this browser kept. It cannot reach a provider, so nothing anywhere else changes."}
-            </p>
-            <div className="mt-3">
-              <Button
-                tone="quiet"
-                disabled={!clearable}
-                title={
-                  demo
-                    ? "Clears the demo store only. The live store is left exactly as it is."
-                    : "Clears the live store only. The demo fixtures are left exactly as they are."
-                }
-                onClick={() => {
-                  onClear();
-                  setOpen(false);
-                }}
-              >
-                {demo ? "Clear demo readings" : "Clear live readings"}
-              </Button>
-            </div>
+          <label className="ol-menu-toggle border-t border-hairline px-3 py-3">
+            <span>Sync usage percentages</span>
+            <input
+              type="checkbox"
+              checked={syncEnabled}
+              onChange={(event) => onSyncChange(event.target.checked)}
+            />
+          </label>
+          <div className="grid gap-2 border-t border-hairline px-3 py-3">
+            <Button onClick={onCheckUpdate}>Check for updates</Button>
+            <Link className="ol-menu-link focus-ring" href="/en/docs">About OpenLimiter</Link>
+            <Button tone="quiet" onClick={onLogout}>Log out</Button>
           </div>
         </div>
       )}

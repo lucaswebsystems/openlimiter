@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+const SERVICE_WORKER_PROTOCOL = "5";
+
 function buildKey(): string {
   const assets = Array.from(document.scripts)
     .map((script) => script.src)
@@ -13,7 +15,7 @@ function buildKey(): string {
     hash ^= assets.charCodeAt(index);
     hash = Math.imul(hash, 16_777_619);
   }
-  return (hash >>> 0).toString(36);
+  return `${SERVICE_WORKER_PROTOCOL}-${(hash >>> 0).toString(36)}`;
 }
 
 /**
@@ -27,6 +29,7 @@ function buildKey(): string {
  */
 export function RegisterServiceWorker() {
   useEffect(() => {
+    if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
     /* An insecure origin has no service worker, and that is fine: the page
        works without one, it simply will not open offline. */

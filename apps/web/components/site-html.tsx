@@ -10,7 +10,6 @@ import { ScrollTop } from "@/components/scroll-top";
 import { LOCALES, type Locale } from "@/i18n/locales";
 import { announceArmScript } from "@/lib/announce";
 import { markArmScript } from "@/lib/brand";
-import { wordmarkFont } from "@/lib/fonts";
 import { motionArmScript } from "@/lib/motion";
 import { themeArmScript } from "@/lib/theme";
 import "@/app/globals.css";
@@ -90,11 +89,7 @@ export async function SiteHtml({
   const offer = localised ? await localeOfferCopy() : null;
 
   return (
-    /* The display face is published as a custom property on the root element,
-       which is what lets app/globals.css set every heading in it without a
-       class on each one, and what lets the dashboard's own stylesheet reach
-       the same loaded file. See lib/fonts.ts: it is loaded once. */
-    <html lang={locale} className={wordmarkFont.variable} suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body className="min-h-screen bg-canvas font-sans text-body antialiased selection:bg-accent-subtle selection:text-heading">
         {/* These synchronous scripts are the first body children, before any
             visible content, so stored presentation state is applied before

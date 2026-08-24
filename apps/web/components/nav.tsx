@@ -130,7 +130,7 @@ export async function Nav() {
             <SiteLink
               href="/"
               aria-label={common("homeAria")}
-              className="focus-ring -ml-[5px] flex items-center rounded max-[359px]:-ml-[4px]"
+              className="focus-ring flex items-center rounded"
             >
               {/* The one instance allowed to play the draw in. See lib/brand.ts.
                   The wordmark carries `leading-none` so flex centres the

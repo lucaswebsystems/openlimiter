@@ -4,15 +4,12 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-const UPDATE_PUBLIC_KEY: Option<&str> = option_env!("OPENLIMITER_UPDATER_PUBLIC_KEY");
-
 #[derive(Default)]
 pub struct PendingUpdate(Mutex<Option<Update>>);
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum UpdateFailure {
-    UpdaterUnconfigured,
     UpdateCheckFailed,
     NoPendingUpdate,
     UpdateInstallFailed,
@@ -31,10 +28,6 @@ pub async fn check_for_update(
     app: AppHandle,
     pending: State<'_, PendingUpdate>,
 ) -> Result<Option<UpdateMetadata>, UpdateFailure> {
-    if UPDATE_PUBLIC_KEY.is_none() {
-        return Err(UpdateFailure::UpdaterUnconfigured);
-    }
-
     let update = app
         .updater()
         .map_err(|_| UpdateFailure::UpdateCheckFailed)?
@@ -56,7 +49,10 @@ pub async fn check_for_update(
 }
 
 #[tauri::command]
-pub async fn install_update(pending: State<'_, PendingUpdate>) -> Result<(), UpdateFailure> {
+pub async fn install_update(
+    app: AppHandle,
+    pending: State<'_, PendingUpdate>,
+) -> Result<(), UpdateFailure> {
     let update = {
         let mut slot = pending
             .0
@@ -68,7 +64,8 @@ pub async fn install_update(pending: State<'_, PendingUpdate>) -> Result<(), Upd
     update
         .download_and_install(|_, _| {}, || {})
         .await
-        .map_err(|_| UpdateFailure::UpdateInstallFailed)
+        .map_err(|_| UpdateFailure::UpdateInstallFailed)?;
+    app.restart();
 }
 
 #[cfg(test)]

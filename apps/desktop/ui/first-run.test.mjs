@@ -4,15 +4,43 @@ import test from "node:test";
 
 import { launchNotice, normalizeDetections } from "./first-run.js";
 
-test("keeps the no CLI state to one line and two actions", () => {
+test("keeps an unconfigured Home to one line pointing at Configuration", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   const start = html.indexOf('<section id="panel-meters"');
   const end = html.indexOf("</section>", start);
   const panel = html.slice(start, end);
 
-  assert.match(panel, /<h3>No supported AI CLIs found\.<\/h3>/u);
-  assert.equal((panel.match(/<a class="empty-action/g) ?? []).length, 2);
+  assert.equal((panel.match(/class="empty-line/g) ?? []).length, 1);
+  assert.match(panel, />No providers configured\. Open Configuration\.<\/button>/u);
   assert.equal(panel.includes("<p"), false);
+});
+
+test("keeps the account gate mandatory before provider setup", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
+
+  assert.match(html, /id="account-google"[\s\S]*Continue with Google/u);
+  assert.match(html, /id="account-github"[\s\S]*Continue with GitHub/u);
+  assert.match(html, /id="account-email-form"[\s\S]*Create account/u);
+  assert.equal(/skip|continue without|not now/iu.test(html.slice(
+    html.indexOf('id="account-gate"'),
+    html.indexOf('id="first-run-setup"'),
+  )), false);
+  assert.match(
+    source,
+    /await options\.accountStatus\(\)[\s\S]*signedIn !== true[\s\S]*gate\.hidden = false[\s\S]*setup\.hidden = true/u,
+  );
+});
+
+test("lets a cached signed in session continue while the backend is offline", () => {
+  const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+
+  assert.match(source, /result\.value\?\.signedIn !== true/u);
+  assert.equal(source.includes("backendReachable"), false);
+  assert.match(app, /status\.signedIn && status\.backendReachable === false/u);
+  assert.match(html, /Offline\. Local collection is still running\./u);
 });
 
 test("shows the two SmartScreen actions for an unsigned Windows release", () => {

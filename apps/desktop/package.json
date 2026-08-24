@@ -1,6 +1,6 @@
 {
   "name": "@openlimiter/desktop",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "description": "OpenLimiter in a window and beside the clock, on Windows and Linux.",
   "license": "Apache-2.0",
@@ -16,14 +16,14 @@
     "node": "24.15.0"
   },
   "scripts": {
-    "icons": "node scripts/icons.mjs",
+    "icons": "node ../../assets/brand/generate.mjs && tauri icon ../../assets/brand/openlimiter-mark.svg --output src-tauri/icons && node scripts/icons.mjs",
     "build:ui": "node scripts/build-ui.mjs",
-    "test:first-run": "node --test ui/first-run.test.mjs",
+    "test:first-run": "node --test ui/*.test.mjs",
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.9.6"
+    "@tauri-apps/cli": "2.11.4"
   }
 }

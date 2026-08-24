@@ -55,13 +55,13 @@ function groups(
 
 
 describe("antigravity: the shape a real account produced", () => {
-  it("parses the observed shape into exactly one meter", () => {
+  it("parses every observed window into a separate meter", () => {
     const meters = parseAntigravityPayload(antigravityFixture(NOW), NOW);
     expect(meters).not.toBeNull();
-    expect(meters).toHaveLength(1);
+    expect(meters).toHaveLength(2);
     expect(meters?.[0]?.provider).toBe("ANTIGRAVITY");
     expect(meters?.[0]?.unit).toBe("PERCENT");
-    expect(meters?.[0]?.meter).toBe("PRIMARY");
+    expect(meters?.map((meter) => meter.meter)).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
   });
 
   it("reads the reading the provider actually stated", () => {
@@ -77,9 +77,7 @@ describe("antigravity: the shape a real account produced", () => {
     expect(meters?.[0]?.value).toBe(75);
   });
 
-  it("names the binding window, not the first one", () => {
-    /* The window that will stop the work is the one with the highest usage,
-       whatever order the provider listed them in. */
+  it("keeps the session and weekly windows even when weekly is binding", () => {
     const meters = parseAntigravityPayload(
       groups([
         bucket("gemini-pro-5h", "5h", 0.9),
@@ -87,8 +85,11 @@ describe("antigravity: the shape a real account produced", () => {
       ]),
       NOW
     );
-    expect(meters?.[0]?.value).toBe(90);
-    expect(meters?.[0]?.window).toEqual({ kind: "rolling", durationSeconds: 604_800 });
+    expect(meters).toHaveLength(2);
+    expect(meters?.[0]?.value).toBe(10);
+    expect(meters?.[0]?.window).toEqual({ kind: "rolling", durationSeconds: 18_000 });
+    expect(meters?.[1]?.value).toBe(90);
+    expect(meters?.[1]?.window).toEqual({ kind: "rolling", durationSeconds: 604_800 });
   });
 
   it("leaves the third party pool alone instead of conflating two wallets", () => {

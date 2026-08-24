@@ -30,7 +30,7 @@
     "closeMenu": "Cerrar menú"
   },
   "announce": {
-    "message": "OpenLimiter Pro estará disponible próximamente. El producto local completo sigue siendo gratis y no requiere una cuenta.",
+    "message": "OpenLimiter Pro estará disponible próximamente. El producto local y la cuenta son gratis. Solo se sincronizan porcentajes de uso, nunca claves ni credenciales.",
     "short": "OpenLimiter Pro estará disponible próximamente",
     "dismiss": "Cerrar este aviso"
   },
@@ -42,7 +42,7 @@
     "community": "Comunidad",
     "trust": "Confianza",
     "issues": "Incidencias",
-    "licenceNote": "Apache 2.0 | Con prioridad local | Cero telemetría | Sin seguimiento | Sin cuentas",
+    "licenceNote": "Apache 2.0 | Con prioridad local | Cero telemetría | Sin seguimiento | Cuenta gratis",
     "licenceRead": "Leer la licencia",
     "rights": "Todos los derechos reservados",
     "licensed": "Licencia Apache 2.0",
@@ -438,11 +438,11 @@
       },
       "free": {
         "question": "¿Es gratis?",
-        "answer": "Todo lo que corre localmente es gratis y siempre lo será, bajo Apache 2.0: cada connector, el bloque de agent context, los temas, toda la herramienta de línea de comandos y las tres rutas de ingesta, sin límite de uso y sin cuenta. Las notificaciones de escritorio todavía no están construidas y también serán gratis."
+        "answer": "Todo lo que corre localmente es gratis y siempre lo será, bajo Apache 2.0. La cuenta de OpenLimiter es gratis. Las notificaciones locales son gratis. Solo se sincronizan porcentajes de uso, nunca claves ni credenciales, y la sincronización se puede desactivar."
       },
       "pro": {
         "question": "¿Qué es OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro estará disponible próximamente por $5 al mes o $48 al año. Tiene exactamente tres servicios: alertas de umbral, historial y previsiones, y enrutamiento automático de agentes. Todas las funciones locales siguen gratis."
+        "answer": "OpenLimiter Pro estará disponible próximamente por $5 al mes o $50 al año. Está previsto que incluya notificaciones por correo y push, temas basados en tokens, varias suscripciones por proveedor, funciones para uso intensivo de API, historial y previsiones, y enrutamiento automático de agentes. Todas las funciones locales siguen gratis."
       }
     }
   },
@@ -454,7 +454,7 @@
       "status": "disponible",
       "price": "Gratis",
       "priceNote": "para siempre, y en la licencia",
-      "lead": "El uso local no requiere cuenta. La sincronización es opcional.",
+      "lead": "El producto local y la cuenta son gratis. La sincronización empieza activada y se puede desactivar.",
       "footnote": "Código abierto bajo <licence>Apache 2.0</licence>, así que esto no se puede quitar después. La licencia es la promesa.",
       "lines": {
         "connectors": "Todos los proveedores compatibles",
@@ -464,7 +464,7 @@
         "themes": "Temas, en la aplicación de escritorio y en el navegador",
         "cli": "La herramienta de línea de comandos completa y cada ajuste de statusline",
         "ingestion": "Las tres rutas de ingesta: un connector, ingest o manual entry",
-        "noLimits": "Sin límite de uso, sin cuenta, ninguna función bloqueada detrás de nada"
+        "noLimits": "Sin límite de uso, cuenta gratis, ninguna función local bloqueada"
       }
     },
     "pro": {
@@ -497,7 +497,7 @@
     "commitments": {
       "runsLocal": {
         "title": "Corre en tu máquina",
-        "detail": "El modo local no tiene telemetría ni cuenta. Las conexiones hablan solo con cada proveedor y las credenciales quedan en el sistema operativo. Pro es opcional y envía datos limitados de cuota solo después de iniciar sesión."
+        "detail": "El modo local no tiene telemetría. La cuenta es gratis. Las conexiones hablan solo con cada proveedor y las credenciales quedan en el sistema operativo. Solo se sincronizan porcentajes de uso y la sincronización se puede desactivar."
       },
       "reportsNobody": {
         "title": "No le reporta a nadie",
@@ -1436,7 +1436,7 @@
           },
           "sync": {
             "title": "Planeado: OpenLimiter Pro",
-            "intro": "OpenLimiter Pro estará disponible próximamente por $5 al mes o $48 al año. Nada local pasa detrás. Consulta <pricing>precios</pricing> para ver el plan actual.",
+            "intro": "OpenLimiter Pro estará disponible próximamente por $5 al mes o $50 al año. Nada local pasa detrás. Consulta <pricing>precios</pricing> para ver el plan actual.",
             "bullets": {
               "status": "Estado: planeado. Pro todavía no está disponible.",
               "alerts": "Alertas por email al cruzar un límite o reiniciar.",
@@ -1455,7 +1455,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Inicia sesión para sincronizar. Pro estará disponible próximamente por $5 al mes o $48 al año.",
+    "lead": "Inicia sesión para sincronizar. Pro estará disponible próximamente por $5 al mes o $50 al año.",
     "comingSoonLead": "Inicia sesión o crea una cuenta para sincronizar. OpenLimiter Pro llegará próximamente y el producto local completo seguirá siendo gratis.",
     "configMissing": "Pro estará disponible próximamente.",
     "emailLabel": "Email",

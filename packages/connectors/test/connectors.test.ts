@@ -324,7 +324,7 @@ describe("connector contracts", () => {
     const now = new Date().toISOString();
     expect(parseClaudePayload(claudeFixture(now), now)).toHaveLength(2);
     expect(parseCodexPayload(codexFixture(now), now)).toHaveLength(1);
-    expect(parseAntigravityPayload(antigravityFixture(now), now)).toHaveLength(1);
+    expect(parseAntigravityPayload(antigravityFixture(now), now)).toHaveLength(2);
     expect(parseOpencodePayload(opencodeFixture(now), now)).toHaveLength(3);
     expect(parseGrokPayload(grokFixture(now), now)).toHaveLength(2);
     expect(parseKimiPayload(kimiFixture(now), now)).toHaveLength(2);

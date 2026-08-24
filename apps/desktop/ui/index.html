@@ -19,21 +19,17 @@
        * a light window never flashes dark on its way to being light.
        */
       (function () {
-        var firstRunComplete = false;
         try {
           var stored = window.localStorage.getItem("openlimiter-theme");
           if (stored === "light" || stored === "dark") {
             document.documentElement.setAttribute("data-theme", stored);
           }
-          firstRunComplete =
-            window.localStorage.getItem("openlimiter-first-run-complete-v1") ===
-            "complete";
         } catch (error) {
           /* Storage refused. Dark is already the default. */
         }
         document.documentElement.setAttribute(
           "data-first-run",
-          firstRunComplete ? "complete" : "pending",
+          "pending",
         );
       })();
     </script>
@@ -48,14 +44,38 @@
       aria-describedby="first-run-intro first-run-helper"
     >
       <div class="first-run-panel surface">
-        <div class="first-run-lockup">
-          <span class="first-run-logo" aria-hidden="true"></span>
-          <span class="first-run-brand">OpenLimiter</span>
+        <div class="first-run-lockup" role="img" aria-label="OpenLimiter">
+          <img class="brand-lockup-light" src="./brand/openlimiter-lockup-light.svg" alt="" />
+          <img class="brand-lockup-dark" src="./brand/openlimiter-lockup-dark.svg" alt="" />
         </div>
-        <h1 id="first-run-title">Connect your accounts</h1>
-        <p id="first-run-intro" class="first-run-intro">
-          Local tools appear automatically.
-        </p>
+        <div id="account-gate">
+          <h1 id="account-gate-title">Sign in to OpenLimiter</h1>
+          <p id="first-run-intro" class="first-run-intro">
+            Your free account keeps usage percentages on every device.
+          </p>
+          <div class="account-provider-actions">
+            <button type="button" id="account-google" class="account-provider">Continue with Google</button>
+            <button type="button" id="account-github" class="account-provider">Continue with GitHub</button>
+          </div>
+          <form id="account-email-form" class="account-email-form">
+            <label>
+              Email
+              <input id="account-email" class="field" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Password
+              <input id="account-password" class="field" type="password" autocomplete="current-password" minlength="8" required />
+            </label>
+            <div class="account-email-actions">
+              <button type="submit" id="account-email-sign-in" class="first-run-continue">Sign in</button>
+              <button type="button" id="account-email-create">Create account</button>
+            </div>
+          </form>
+          <p id="account-gate-status" class="first-run-status" role="status"></p>
+        </div>
+        <div id="first-run-setup" hidden>
+          <h1 id="first-run-title">Choose local providers</h1>
+          <p class="first-run-intro">Only usage percentages sync. Keys and credentials stay on this device.</p>
         <div id="first-run-launch-note" class="first-run-launch-note" role="note" hidden>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M12 3 20 6v5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-3Z" />
@@ -66,34 +86,25 @@
             <span id="first-run-launch-detail"></span>
           </p>
         </div>
-        <div id="first-run-providers" class="first-run-providers" aria-live="polite"></div>
-        <p id="first-run-status" class="first-run-status" role="status">
-          Checking local tools.
-        </p>
-        <button type="button" id="first-run-continue" class="first-run-continue">
-          Open dashboard
-        </button>
-        <p id="first-run-helper" class="first-run-helper">
-          Local first. Network only when connected.
-        </p>
+          <div id="first-run-providers" class="first-run-providers" aria-live="polite"></div>
+          <p id="first-run-status" class="first-run-status" role="status">
+            Checking local tools.
+          </p>
+          <button type="button" id="first-run-continue" class="first-run-continue">
+            Open dashboard
+          </button>
+          <p id="first-run-helper" class="first-run-helper">
+            Provider access stays local. Sync can be turned off at any time.
+          </p>
+        </div>
       </div>
     </section>
 
     <header class="strip">
       <div class="strip-top">
-        <div class="lockup">
-          <!-- The mark, eight segment variant, the artwork in assets/brand. -->
-          <svg viewBox="0 0 200 200" width="32" height="32" aria-hidden="true" focusable="false">
-            <path d="M 100.000 28.000 A 72 72 0 0 1 172.000 100.000" fill="none" stroke="currentColor" stroke-opacity="1" stroke-width="34" stroke-linecap="butt" />
-            <path d="M 171.299 110.020 A 72 72 0 0 1 121.589 168.687" fill="none" stroke="currentColor" stroke-opacity="0.893" stroke-width="34" stroke-linecap="butt" />
-            <path d="M 111.819 171.023 A 72 72 0 0 1 56.819 157.614" fill="none" stroke="currentColor" stroke-opacity="0.786" stroke-width="34" stroke-linecap="butt" />
-            <path d="M 49.221 151.044 A 72 72 0 0 1 29.558 114.898" fill="none" stroke="currentColor" stroke-opacity="0.679" stroke-width="34" stroke-linecap="butt" />
-            <path d="M 28.170 104.949 A 72 72 0 0 1 32.289 75.521" fill="none" stroke="currentColor" stroke-opacity="0.571" stroke-width="34" stroke-linecap="butt" />
-            <path d="M 36.355 66.336 A 72 72 0 0 1 49.052 49.125" fill="none" stroke="currentColor" stroke-opacity="0.464" stroke-width="34" stroke-linecap="butt" />
-            <path d="M 56.628 42.529 A 72 72 0 0 1 69.813 34.634" fill="none" stroke="currentColor" stroke-opacity="0.357" stroke-width="34" stroke-linecap="butt" />
-            <path d="M 79.204 31.069 A 72 72 0 0 1 89.980 28.701" fill="none" stroke="currentColor" stroke-opacity="0.25" stroke-width="34" stroke-linecap="butt" />
-          </svg>
-          <span class="wordmark">OpenLimiter</span>
+        <div class="lockup" role="img" aria-label="OpenLimiter">
+          <img class="brand-lockup-light" src="./brand/openlimiter-lockup-light.svg" alt="" />
+          <img class="brand-lockup-dark" src="./brand/openlimiter-lockup-dark.svg" alt="" />
         </div>
         <div class="actions">
           <button
@@ -113,24 +124,44 @@
               <path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6l1.4 1.4m10 10 1.4 1.4m0-12.8-1.4 1.4m-10 10-1.4 1.4" />
             </svg>
           </button>
-          <!-- It says what it does: the button rereads two files on this
-               disk. Asking a provider directly is the Connections tab's job,
-               through the backend, and only for connections that actually
-               exist in this build. -->
           <button
             type="button"
-            id="refresh"
-            title="Reads stored data on this computer."
+            id="notification-bell"
+            class="icon"
+            aria-label="Notifications"
+            aria-expanded="false"
+            aria-controls="notification-popover"
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <path d="M20 11a8 8 0 1 0-.7 4.3" />
-              <path d="M20 5.5V11h-5.5" />
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+              <path d="M10 21h4" />
             </svg>
-            Sync
+          </button>
+          <button type="button" id="menu-button" class="icon" aria-label="Open menu" aria-expanded="false" aria-controls="app-menu">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
           </button>
         </div>
       </div>
+      <div id="notification-popover" class="header-popover" hidden>
+        <strong>Notifications</strong>
+        <div id="notification-events" class="notification-events"><p>No recent notifications.</p></div>
+      </div>
+      <div id="app-menu" class="header-popover app-menu" hidden>
+        <div class="menu-account">
+          <strong id="menu-account-email">Signed out</strong>
+          <span id="menu-backend-state"></span>
+        </div>
+        <label class="menu-toggle"><span>Sync usage percentages</span><input id="menu-sync" type="checkbox" checked /></label>
+        <button type="button" id="menu-update">Check for updates</button>
+        <a href="https://openlimiter.com/en/docs" target="_blank" rel="noopener noreferrer">About OpenLimiter</a>
+        <button type="button" id="menu-logout">Log out</button>
+      </div>
     </header>
+
+    <button type="button" id="update-banner" class="update-banner" hidden></button>
+    <p id="offline-banner" class="offline-banner" hidden>Offline. Local collection is still running.</p>
 
     <nav class="tabs" role="tablist" aria-label="Views">
       <button
@@ -150,17 +181,7 @@
         aria-controls="panel-connections"
         tabindex="-1"
       >
-        Accounts
-      </button>
-      <button
-        type="button"
-        role="tab"
-        id="tab-advanced"
-        aria-selected="false"
-        aria-controls="panel-advanced"
-        tabindex="-1"
-      >
-        Advanced
+        Configuration
       </button>
     </nav>
 
@@ -170,13 +191,7 @@
 
         <!-- Home view empty state. -->
         <div id="empty" class="empty" hidden>
-          <div class="empty-copy">
-            <h3>No supported AI CLIs found.</h3>
-          </div>
-          <div class="empty-actions">
-            <a class="empty-action primary" href="https://openlimiter.com/en/docs/providers" target="_blank" rel="noopener noreferrer">Download CLIs</a>
-            <a class="empty-action" href="https://openlimiter.com/en/pro" target="_blank" rel="noopener noreferrer">Sign in / Create account</a>
-          </div>
+          <button type="button" id="empty-connect" class="empty-line">No providers configured. Open Configuration.</button>
         </div>
       </section>
 
@@ -187,16 +202,6 @@
         tabindex="-1"
         hidden
       >
-        <div class="accounts-toolbar">
-          <div>
-            <h1>Accounts</h1>
-          </div>
-          <div class="accounts-toolbar-actions">
-            <a class="empty-action" href="https://openlimiter.com/en/pro" target="_blank" rel="noopener noreferrer">Sign in / Create account</a>
-            <button type="button" id="add-account">Add account</button>
-          </div>
-        </div>
-
         <section id="provider-catalogue" class="surface conn-block provider-directory" aria-labelledby="provider-catalogue-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="provider-catalogue-title">Providers</h2>
@@ -475,62 +480,6 @@
           </div>
         </section>
 
-      </section>
-
-      <!-- Advanced Section -->
-      <section
-        id="panel-advanced"
-        role="tabpanel"
-        aria-labelledby="tab-advanced"
-        tabindex="-1"
-        hidden
-      >
-        <!-- Diagnostics -->
-        <div class="surface conn-block">
-          <h2>Diagnostics</h2>
-          <p id="where" class="conn-lead">Looking for the cache.</p>
-          <p id="scheduler-line" class="scheduler-line" role="status">
-            Waiting for the connection backend.
-          </p>
-        </div>
-
-        <!-- Agent Context Configuration -->
-        <div class="surface conn-block">
-          <h2>Agent context configuration</h2>
-          <div class="block-section">
-            <h3>What an agent would be told</h3>
-            <pre id="context">Nothing yet.</pre>
-          </div>
-          <div class="block-section">
-            <h3>Statusline output</h3>
-            <pre id="statusline">OpenLimiter UNKNOWN</pre>
-          </div>
-        </div>
-
-        <!-- Statusline Manual Copy Block -->
-        <div class="surface conn-block">
-          <h2>Statusline manual configuration</h2>
-          <p class="conn-lead">
-            OpenLimiter never changes Claude Code settings. Merge this block yourself, then use Verify on the Connections tab to check what is present.
-          </p>
-          <pre id="claude-snippet"></pre>
-          <div class="conn-actions">
-            <button type="button" id="claude-copy">Copy settings block</button>
-          </div>
-        </div>
-
-        <!-- Paste and Ingestion Surfaces -->
-        <div id="manual-entry-panel" class="surface conn-block" tabindex="-1">
-          <h2>Ingestion and CLI methods</h2>
-          <p class="conn-lead">
-            Alternative manual methods to supply quota data to OpenLimiter:
-          </p>
-          <ul class="ways">
-            <li><b>1</b><span>Point the Claude Code statusline command at OpenLimiter, and the reading arrives on its own.</span></li>
-            <li><b>2</b><span>Run openlimiter ingest in a terminal for any provider that parses but has no reader.</span></li>
-            <li><b>3</b><span>Write a manual quota document into the state directory.</span></li>
-          </ul>
-        </div>
       </section>
 
       <footer>

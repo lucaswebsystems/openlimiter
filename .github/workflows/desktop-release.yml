@@ -94,6 +94,11 @@ jobs:
         uses: tauri-apps/tauri-action@944946e3e4cac6603d1fe8f514171e9ecd3c78aa # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          OPENLIMITER_SUPABASE_URL: ${{ vars.OPENLIMITER_SUPABASE_URL }}
+          OPENLIMITER_SUPABASE_ANON_KEY: ${{ vars.OPENLIMITER_SUPABASE_ANON_KEY }}
+          OPENLIMITER_PRO_URL: ${{ vars.OPENLIMITER_PRO_URL }}
+          OPENLIMITER_PRO_PUBLIC_KEYS: ${{ vars.OPENLIMITER_PRO_PUBLIC_KEYS }}
         with:
           projectPath: apps/desktop
           tagName: ${{ inputs.tag || github.ref_name }}

@@ -57,7 +57,7 @@ export const SPONSORS_URL = "https://github.com/sponsors/lucaswebsystems";
 export const COFFEE_URL = "https://buymeacoffee.com/lucaswebsystems";
 
 export const PRO_MONTHLY_PRICE = "$5";
-export const PRO_YEARLY_PRICE = "$48";
+export const PRO_YEARLY_PRICE = "$50";
 
 export const AUTHOR_NAME = "Lucas Costa";
 export const AUTHOR_EMAIL = "lucas@lucaswebsystems.com";
@@ -84,7 +84,7 @@ export const AUTHOR_LINKEDIN = "https://www.linkedin.com/in/lucas-costa-t/";
 export const HERO_BACKDROP_ENABLED: boolean = true;
 
 /** The version this site describes. Kept in step with the root CHANGELOG. */
-export const CURRENT_VERSION = "1.0.2";
+export const CURRENT_VERSION = "1.1.0";
 
 /**
  * What actually ships today, in one place, so no surface can quietly promote a

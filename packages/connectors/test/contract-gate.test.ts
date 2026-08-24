@@ -60,7 +60,7 @@ const cases: readonly Case[] = [
   {
     provider: "ANTIGRAVITY",
     good: antigravityFixture(NOW),
-    goodMeters: 1,
+    goodMeters: 2,
     /* The flat used_percent shape from an early prototype, never seen live. */
     wrongShape: { quota: { used_percent: 40 } }
   },

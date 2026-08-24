@@ -1,5 +1,12 @@
 export const FIRST_RUN_STORAGE_KEY = "openlimiter-first-run-complete-v1";
 
+import {
+  configureProvider,
+  isProviderConfigured,
+  readConfiguredProviders,
+  unconfigureProvider,
+} from "./configured-providers.js";
+
 /**
  * The launch truth shown before provider setup begins.
  *
@@ -290,7 +297,21 @@ function providerRow(provider, detection, available, options, screen) {
       detail.textContent = status.detail;
       fact.append(detail);
     }
-    row.append(fact);
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "first-run-install";
+    const reflect = () => {
+      const configured = isProviderConfigured(provider.code);
+      add.textContent = configured ? "Remove" : "Add";
+      add.setAttribute("aria-pressed", configured ? "true" : "false");
+    };
+    add.addEventListener("click", () => {
+      if (isProviderConfigured(provider.code)) unconfigureProvider(provider.code);
+      else configureProvider(provider.code);
+      reflect();
+    });
+    reflect();
+    row.append(fact, add);
   } else if (status.state === "absent" && provider.action !== null) {
     const missing = document.createElement("span");
     missing.className = "first-run-missing";
@@ -303,6 +324,7 @@ function providerRow(provider, detection, available, options, screen) {
     install.textContent = provider.action;
     install.setAttribute("aria-label", provider.action + " " + provider.name);
     install.addEventListener("click", () => {
+      configureProvider(provider.code);
       completeFirstRun(screen);
       options.onInstall(provider.code);
     });
@@ -326,7 +348,7 @@ function renderProviders(screen, result, options) {
   );
   if (result.available && !hasDetectedCli) {
     screen.dataset.empty = "true";
-    const title = screen.querySelector("#first-run-title");
+    const title = screen.querySelector("#first-run-setup h1");
     if (title !== null) title.textContent = "No supported AI CLIs found.";
     list.textContent = "";
     const actions = document.createElement("div");
@@ -337,13 +359,15 @@ function renderProviders(screen, result, options) {
     downloads.rel = "noopener noreferrer";
     downloads.className = "first-run-empty-action primary";
     downloads.textContent = "Download CLIs";
-    const signIn = document.createElement("a");
-    signIn.href = "https://openlimiter.com/en/pro";
-    signIn.target = "_blank";
-    signIn.rel = "noopener noreferrer";
-    signIn.className = "first-run-empty-action";
-    signIn.textContent = "Sign in / Create account";
-    actions.append(downloads, signIn);
+    const configure = document.createElement("button");
+    configure.type = "button";
+    configure.className = "first-run-empty-action";
+    configure.textContent = "Configuration";
+    configure.addEventListener("click", () => {
+      completeFirstRun(screen);
+      options.onInstall("CODEX");
+    });
+    actions.append(downloads, configure);
     list.append(actions);
     downloads.focus();
     return;
@@ -366,8 +390,50 @@ function renderProviders(screen, result, options) {
 
 export function initFirstRun(options) {
   const screen = document.getElementById("first-run");
-  if (screen === null || document.documentElement.dataset.firstRun === "complete") {
-    return;
+  if (screen === null) return;
+
+  const gate = screen.querySelector("#account-gate");
+  const setup = screen.querySelector("#first-run-setup");
+  const gateStatus = screen.querySelector("#account-gate-status");
+  const email = screen.querySelector("#account-email");
+  const password = screen.querySelector("#account-password");
+  const emailForm = screen.querySelector("#account-email-form");
+  const createButton = screen.querySelector("#account-email-create");
+  const googleButton = screen.querySelector("#account-google");
+  const githubButton = screen.querySelector("#account-github");
+
+  document.documentElement.dataset.firstRun = "pending";
+
+  let providersRendered = false;
+  async function showSetup() {
+    screen.setAttribute("aria-labelledby", "first-run-title");
+    gate.hidden = true;
+    setup.hidden = false;
+    if (providersRendered) return;
+    providersRendered = true;
+    const response = await options.detectProviders();
+    renderProviders(
+      screen,
+      normalizeDetections(response.ok ? response.value : null),
+      options,
+    );
+  }
+
+  function showAccountFailure(result) {
+    if (gateStatus === null) return;
+    gateStatus.textContent = result?.message ??
+      "Sign in could not be completed. Check your connection and try again.";
+  }
+
+  async function runAccount(action) {
+    if (gateStatus !== null) gateStatus.textContent = "Opening secure sign in.";
+    const result = await action();
+    if (!result.ok || result.value?.signedIn !== true) {
+      showAccountFailure(result);
+      return;
+    }
+    options.onAccountState(result.value);
+    await showSetup();
   }
 
   const notice = launchNotice(options.platform ?? browserPlatform());
@@ -393,12 +459,47 @@ export function initFirstRun(options) {
   });
   continueButton?.focus();
 
+  emailForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void runAccount(() => options.accountEmail({
+      email: email?.value ?? "",
+      password: password?.value ?? "",
+      create: false,
+    }));
+  });
+  createButton?.addEventListener("click", () => {
+    void runAccount(() => options.accountEmail({
+      email: email?.value ?? "",
+      password: password?.value ?? "",
+      create: true,
+    }));
+  });
+  googleButton?.addEventListener("click", () => {
+    void runAccount(() => options.accountOauth("google"));
+  });
+  githubButton?.addEventListener("click", () => {
+    void runAccount(() => options.accountOauth("github"));
+  });
+
   void (async () => {
-    const response = await options.detectProviders();
-    renderProviders(
-      screen,
-      normalizeDetections(response.ok ? response.value : null),
-      options,
-    );
+    const result = await options.accountStatus();
+    if (!result.ok || result.value?.signedIn !== true) {
+      screen.setAttribute("aria-labelledby", "account-gate-title");
+      gate.hidden = false;
+      setup.hidden = true;
+      if (result.ok && result.value?.configured === false && gateStatus !== null) {
+        gateStatus.textContent = "Account sign in is not configured in this build.";
+      }
+      return;
+    }
+    options.onAccountState(result.value);
+    if (
+      window.localStorage.getItem(FIRST_RUN_STORAGE_KEY) === "complete" &&
+      readConfiguredProviders().length > 0
+    ) {
+      completeFirstRun(screen);
+      return;
+    }
+    await showSetup();
   })();
 }

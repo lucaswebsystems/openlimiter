@@ -30,7 +30,7 @@
  */
 
 /* The registering page hashes its Next assets into this query value. */
-const BUILD = new URL(self.location.href).searchParams.get("build") || "bootstrap-v4";
+const BUILD = new URL(self.location.href).searchParams.get("build") || "bootstrap-v5";
 const VERSION = "openlimiter-app-" + BUILD.replace(/[^a-z0-9]/giu, "").slice(0, 24);
 
 /* The one path this worker is allowed to touch, and its assets. */
@@ -156,6 +156,48 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       });
+    }),
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data === null ? {} : event.data.json();
+  } catch {
+    payload = {};
+  }
+  const title = typeof payload.title === "string" ? payload.title : "OpenLimiter";
+  const body = typeof payload.body === "string" ? payload.body : "Usage notification";
+  const tag = typeof payload.tag === "string" ? payload.tag : "openlimiter";
+  const url = typeof payload.url === "string" && payload.url.startsWith("/app")
+    ? payload.url
+    : "/app";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      tag,
+      icon: "/icons/openlimiter-192.png",
+      badge: "/icons/openlimiter-192.png",
+      data: { url },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const path = typeof event.notification.data?.url === "string"
+    ? event.notification.data.url
+    : "/app";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+      for (const client of clients) {
+        if (new URL(client.url).pathname.startsWith("/app")) {
+          await client.focus();
+          return;
+        }
+      }
+      await self.clients.openWindow(path);
     }),
   );
 });

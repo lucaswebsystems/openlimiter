@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "OpenLimiter",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "identifier": "com.openlimiter.desktop",
   "build": {
     "frontendDist": "../ui/dist",
@@ -32,17 +32,20 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": [],
-      "pubkey": ""
+      "endpoints": [
+        "https://github.com/lucaswebsystems/openlimiter/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ3MTg4ODcwMjVBOUZFMkQKUldRdC9xa2xjSWdZMXpKZ3pKYk1DZ2FzemhHMkJpS1J5emZqOWk4Q2dqOHZ5UlFwTG9hL3RxVVcK"
     }
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "category": "DeveloperTool",
     "copyright": "Copyright 2026 Lucas Costa. Apache License 2.0.",
     "shortDescription": "Quota for the AI subscriptions you already pay for.",
-    "longDescription": "OpenLimiter reads the quota of your AI subscriptions on your own machine and shows it in a window and beside the clock. It is local first, with no account or telemetry. Network requests go only to a connected provider, while optional Pro sends bounded quota snapshots after sign in.",
+    "longDescription": "OpenLimiter reads the quota of your AI subscriptions on your own machine and shows it in a window and beside the clock. The free account syncs only bounded usage percentages by default and can be turned off. Provider credentials never leave the device, and there is no analytics or tracking.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -47,9 +47,10 @@
       "encoding": "json",
       "parser": "parseAntigravityPayload",
       "evidence": "observed",
-      "expectedMeters": 1,
+      "expectedMeters": 2,
       "expect": [
-        { "meter": "PRIMARY", "value": 72 }
+        { "meter": "FIVE_HOUR", "value": 72 },
+        { "meter": "SEVEN_DAY", "value": 45 }
       ]
     },
     {

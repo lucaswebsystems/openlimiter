@@ -70,7 +70,7 @@ keep it in English: it is a status value, not an adjective.
 
 ## 3. Prices, numbers and dates
 
-Never edit a price. `$5` monthly and `$48` yearly come from `lib/site.ts`, so a
+Never edit a price. `$5` monthly and `$50` yearly come from `lib/site.ts`, so a
 translation supplies only the sentence around each value.
 
 Same for `{count}`, `{name}` and every other brace. A plural looks like this and
@@ -83,7 +83,7 @@ Translate the words inside the braces. Keep `#`, keep the keywords `plural`,
 (`few`, `many`, `zero`) where the rules require them. Japanese needs only
 `other`.
 
-The public contract is `$5` monthly or `$48` yearly. Pro is coming soon, so no
+The public contract is `$5` monthly or `$50` yearly. Pro is coming soon, so no
 checkout is visible. Do not add another price, a discount percentage, an end date, or a
 countdown that the English does not have.
 

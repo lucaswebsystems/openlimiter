@@ -24,9 +24,11 @@ describe("desktop connection wiring", () => {
     );
   });
 
-  it("dispatches catalogue refresh and diagnostics, and no click falls through", () => {
+  it("dispatches catalogue refresh and inline diagnostics, and no click falls through", () => {
     expect(source).toMatch(/rowData\.action === connectionNextAction\.CONNECTED[\s\S]*await refreshNow\(record\)/u);
-    expect(source).toMatch(/rowData\.action === connectionNextAction\.ERROR[\s\S]*diagnosticsTab\.click\(\)/u);
+    expect(source).toMatch(
+      /rowData\.action === connectionNextAction\.ERROR[\s\S]*el\.absent\.hidden = false[\s\S]*This provider needs attention/u
+    );
     /* Every state that is not connected or error resolves to the provider's
        own setup card, unconditionally, so a click can never be silently
        dropped. The old pin required a NOT_CONFIGURED guard here; that guard

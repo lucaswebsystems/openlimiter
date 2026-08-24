@@ -35,6 +35,7 @@ import {
 } from "./engine/core/index.js";
 import { buildProviderDirectory } from "./engine/ui/provider-connect.js";
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
+import { configureProvider } from "./configured-providers.js";
 import { normalizeDetections } from "./first-run.js";
 import * as backend from "./backend.js";
 
@@ -654,6 +655,7 @@ function renderProviderAccounts(providerId, records, now) {
 /* ----------------------------------------------------------------- render */
 
 function renderSchedulerLine() {
+  if (el.schedulerLine === null) return;
   if (session.backendPresent === false) {
     el.schedulerLine.textContent =
       "The native collector is unavailable: this build has no connection backend.";
@@ -679,7 +681,7 @@ function renderSchedulerLine() {
 }
 
 function renderClaude() {
-  el.claudeSnippet.textContent = CLAUDE_SETUP_SNIPPET;
+  if (el.claudeSnippet !== null) el.claudeSnippet.textContent = CLAUDE_SETUP_SNIPPET;
   if (el.claudeBody) el.claudeBody.textContent = "";
 
   /* No backend, no look. Saying "looking" while nothing can look would be a
@@ -965,12 +967,7 @@ function directoryState(rowData) {
 }
 
 function openManualEntry() {
-  document.getElementById("tab-advanced")?.click();
-  const target = document.getElementById("manual-entry-panel");
-  window.setTimeout(() => {
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
-    target?.focus({ preventScroll: true });
-  }, 0);
+  window.open("https://openlimiter.com/en/docs/providers", "_blank", "noopener,noreferrer");
 }
 
 export function openProviderConnection(provider) {
@@ -1093,6 +1090,9 @@ function renderCatalogue() {
         btn.className = "primary";
       }
       btn.addEventListener("click", () => {
+        if (rowData.connectorId !== null && rowData.connectorId !== "manual") {
+          configureProvider(rowData.connectorId);
+        }
         if (rowData.action === connectionNextAction.CONNECTED && rowData.connectorId !== null) {
           const record = records[rowData.connectorId];
           if (record === undefined) {
@@ -1107,8 +1107,9 @@ function renderCatalogue() {
           return;
         }
         if (rowData.action === connectionNextAction.ERROR) {
-          const diagnosticsTab = document.getElementById("tab-advanced");
-          if (diagnosticsTab) diagnosticsTab.click();
+          el.absent.hidden = false;
+          el.absent.querySelector("p").textContent =
+            "This provider needs attention. Open its provider card and try again.";
           return;
         }
         if (
@@ -1295,6 +1296,7 @@ async function submitOpenrouter() {
 }
 
 async function copyClaudeSnippet() {
+  if (el.claudeSnippet === null) return;
   try {
     await window.navigator.clipboard.writeText(CLAUDE_SETUP_SNIPPET);
     setNote(
@@ -1423,7 +1425,7 @@ export function initConnections(configuration) {
   el.openrouterSubmit.addEventListener("click", () => {
     void submitOpenrouter();
   });
-  el.claudeCopy.addEventListener("click", () => {
+  el.claudeCopy?.addEventListener("click", () => {
     void copyClaudeSnippet();
   });
   if (el.claudeVerify) {

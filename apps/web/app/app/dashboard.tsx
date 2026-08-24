@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   PROVIDER_CODES,
-  combine,
   buildProviderAccountRows,
   dashboardView,
   parseQuotaText,
@@ -16,9 +15,7 @@ import {
 import { InstallControl } from "./install";
 import {
   Button,
-  CodeBlock,
   DemoBanner,
-  DemoDataChip,
   FirstRunState,
   HeaderStrip,
   Panel,
@@ -29,8 +26,8 @@ import {
   Tabs,
   type TabDefinition,
 } from "./pieces";
-import { CLAUDE_STATUSLINE_WIRING } from "./language";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell, type AlertScope } from "./notification-bell";
 import {
   createSyncClient,
   readSyncedUsage,
@@ -118,6 +115,7 @@ const BUSY_FLOOR_MILLISECONDS = 240;
 const READY_ATTR = "data-ol-ready";
 
 const SYNC_FRESH_MILLISECONDS = 5 * 60_000;
+const WEB_SYNC_KEY = "openlimiter-web-sync-enabled";
 
 function snapshotsFromSync(providers: readonly SyncedProviderUsage[]): Snapshot[] {
   const supported = new Set<string>(PROVIDER_CODES);
@@ -155,17 +153,78 @@ const NO_FAILURES: readonly ProviderFailure[] = [];
 
 const TABS: readonly TabDefinition[] = [
   { id: "home", label: "Home" },
-  { id: "connections", label: "Accounts" },
-  { id: "advanced", label: "Advanced" },
+  { id: "connections", label: "Configuration" },
 ];
 
-const messages = {
-  empty: "Nothing was pasted, so there is nothing to read.",
-  not_json:
-    "That is not valid JSON. Paste the whole document, including its outer braces.",
-  no_meters:
-    "That parsed as JSON, but no bounded meter survived validation. Nothing is assumed from it, so every provider stays unknown.",
-} as const;
+function AccountGate({ client }: { client: SupabaseClient | null }) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function oauth(provider: "google" | "github") {
+    if (client === null) return;
+    setBusy(true);
+    setMessage("");
+    const { error } = await client.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.href.split("?")[0] },
+    });
+    if (error !== null) {
+      setBusy(false);
+      setMessage("Sign in could not be started.");
+    }
+  }
+
+  async function emailSignIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (client === null || email.trim() === "") return;
+    setBusy(true);
+    setMessage("");
+    const { error } = await client.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.href.split("?")[0] },
+    });
+    setBusy(false);
+    setMessage(error === null ? "Check your email to finish signing in." : "Email sign in is unavailable.");
+  }
+
+  return (
+    <section className="ol-account-gate" aria-labelledby="account-gate-title">
+      <h1 id="account-gate-title">Sign in to OpenLimiter</h1>
+      <p>Your free account shows synced usage percentages on every device.</p>
+      {client === null ? (
+        <p>Account sign in is not configured in this deployment.</p>
+      ) : (
+        <>
+          <div className="ol-account-provider-actions">
+            <Button disabled={busy} onClick={() => void oauth("google")}>Continue with Google</Button>
+            <Button disabled={busy} onClick={() => void oauth("github")}>Continue with GitHub</Button>
+          </div>
+          <form onSubmit={emailSignIn} className="ol-account-email-form">
+            <label htmlFor="account-email">Email</label>
+            <input
+              id="account-email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="focus-ring ol-account-email"
+            />
+            <button
+              type="submit"
+              disabled={busy}
+              className="ol-control ol-control-primary ol-tap focus-ring border text-sm font-medium"
+            >
+              Sign in or create with email
+            </button>
+          </form>
+          <p role="status">{message}</p>
+        </>
+      )}
+    </section>
+  );
+}
 
 /**
  * Read one store back.
@@ -258,17 +317,14 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    * is about a document rather than about the state of a quota. It belongs to
    * the live store only: a fixture cannot fail to parse.
    */
-  const [failures, setFailures] = useState<readonly ProviderFailure[]>([]);
-  const [text, setText] = useState("");
-  const [note, setNote] = useState<{ tone: "ok" | "bad"; message: string } | null>(null);
+  const [failures] = useState<readonly ProviderFailure[]>([]);
   const [now, setNow] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [dragging, setDragging] = useState(false);
   const [tab, setTab] = useState<string>("connections");
   const [syncedUsage, setSyncedUsage] = useState<SyncedUsageResult | null>(null);
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [syncEnabled, setSyncEnabled] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<ProviderDirectoryRow | null>(null);
-  const fileInput = useRef<HTMLInputElement | null>(null);
-  const textArea = useRef<HTMLTextAreaElement | null>(null);
   const busyTimer = useRef<number | null>(null);
   const syncClient = useMemo(() => createSyncClient(), []);
 
@@ -282,6 +338,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setLive(storedLive);
     setDemoSnapshots(storedDemo);
     setMode(storedMode);
+    setSyncEnabled(window.localStorage.getItem(WEB_SYNC_KEY) !== "false");
     setNow(new Date().toISOString());
 
     const activeSnapshots = storedMode === "demo" ? storedDemo : storedLive;
@@ -303,16 +360,29 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   }, []);
 
   const refreshSyncedUsage = useCallback(() => {
+    if (!syncEnabled) {
+      setSyncedUsage({ ok: false, reason: "signed_out" });
+      return;
+    }
     void readSyncedUsage(syncClient).then((result) => {
       setSyncedUsage(result);
       if (result.ok && result.providers.length > 0) setTab("home");
     });
-  }, [syncClient]);
+  }, [syncClient, syncEnabled]);
 
   useEffect(() => {
     refreshSyncedUsage();
-    if (syncClient === null) return;
-    const { data } = syncClient.auth.onAuthStateChange(() => {
+    if (syncClient === null) {
+      setSession(null);
+      return;
+    }
+    setSession(null);
+    void syncClient.auth
+      .getSession()
+      .then(({ data }) => setSession(data.session))
+      .catch(() => setSession(null));
+    const { data } = syncClient.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
       window.setTimeout(refreshSyncedUsage, 0);
     });
     window.addEventListener("focus", refreshSyncedUsage);
@@ -336,59 +406,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const leaveDemo = useCallback(() => {
     setMode("live");
     saveMode("live");
-    setNote(null);
   }, []);
 
-  /**
-   * Take in a document.
-   *
-   * Refused outright while demo mode is on. The alternative is to merge a real
-   * reading into a synthetic list, which is the exact defect this rewrite
-   * exists to remove, and silently leaving demo mode on somebody's behalf would
-   * mean their paste lands on a screen they think is a fixture. So it says no,
-   * in a sentence, and the banner overhead carries the way out.
-   */
-  const read = useCallback(
-    (incoming: string) => {
-      if (mode === "demo") {
-        setNote({
-          tone: "bad",
-          message:
-            "Demo mode is on, so this document was not read. Real readings are never mixed into synthetic ones. Leave demo mode and supply it again.",
-        });
-        return;
-      }
-      work(() => {
-        const instant = new Date().toISOString();
-        const result = parseQuotaText(incoming, instant);
-        /* A refused reading is reported on its provider's own card, whether or
-           not anything else in the same document survived. */
-        setFailures(result.failures);
-        if (!result.ok) {
-          setNote({ tone: "bad", message: messages[result.reason] });
-          setNow(instant);
-          return;
-        }
-        setLive((current) => {
-          const merged = combine(current, result.snapshots);
-          saveStore(LIVE_KEY, merged);
-          return merged;
-        });
-        setNow(instant);
-        setNote({
-          tone: "ok",
-          message:
-            "Read " +
-            String(result.snapshots.length) +
-            (result.snapshots.length === 1 ? " meter from " : " meters from ") +
-            result.recognised.join(", ") +
-            ".",
-        });
-        setTab("home");
-      });
-    },
-    [mode, work],
-  );
+  const enterDemo = useCallback(() => {
+    const samples = sampleSnapshots(new Date().toISOString());
+    setDemoSnapshots(samples);
+    saveStore(DEMO_KEY, samples);
+    setMode("demo");
+    saveMode("demo");
+    setTab("home");
+  }, []);
 
   /**
    * Read the device again.
@@ -411,30 +438,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   }, [mode, refreshSyncedUsage, work]);
 
   /**
-   * Turn demo mode on.
-   *
-   * It writes the fixtures to the demo key and sets the mode. It does not name
-   * the live key, so there is no arrangement of this code in which entering
-   * demo mode can touch a real reading.
-   */
-  const enterDemo = useCallback(() => {
-    work(() => {
-      const instant = new Date().toISOString();
-      const next = sampleSnapshots(instant);
-      setDemoSnapshots(next);
-      saveStore(DEMO_KEY, next);
-      setMode("demo");
-      saveMode("demo");
-      setNow(instant);
-      setNote({
-        tone: "ok",
-        message: "Demo readings only.",
-      });
-      setTab("home");
-    });
-  }, [work]);
-
-  /**
    * Forget whichever store is on screen, and only that one.
    *
    * THE MODE DECIDES THE KEY, AND IT HAS TO
@@ -451,64 +454,15 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    * forget. Demo mode never names the live key and live mode never names the
    * demo key, which is the same rule the rest of this file already keeps.
    */
-  const clear = useCallback(() => {
-    if (demo) {
-      setDemoSnapshots([]);
-    } else {
-      setLive([]);
-      setFailures([]);
-    }
-    setText("");
-    setNote(null);
-    setTab("connections");
-    try {
-      window.localStorage.removeItem(demo ? DEMO_KEY : LIVE_KEY);
-    } catch {
-      /* Nothing to clear if storage was never available. */
-    }
-  }, [demo]);
-
-  const acceptFile = useCallback(
-    (file: File | undefined) => {
-      if (file === undefined) return;
-      file
-        .text()
-        .then((contents) => {
-          setText(contents);
-          read(contents);
-        })
-        .catch(() => {
-          setNote({ tone: "bad", message: "That file could not be read." });
-        });
-    },
-    [read],
-  );
-
   const openConnections = useCallback(() => {
     setTab("connections");
-  }, []);
-
-  const focusDirectory = useCallback(() => {
-    setSelectedProvider(null);
-    setTab("connections");
-    window.setTimeout(() => {
-      document
-        .querySelector<HTMLElement>("#provider-directory .ol-directory-action")
-        ?.focus();
-    }, 0);
-  }, []);
-
-  const openManualEntry = useCallback(() => {
-    setSelectedProvider(null);
-    setTab("advanced");
-    window.setTimeout(() => textArea.current?.focus(), 0);
   }, []);
 
   const syncedSnapshots = useMemo(
     () => (syncedUsage?.ok === true ? snapshotsFromSync(syncedUsage.providers) : []),
     [syncedUsage],
   );
-  const showingSync = !demo && syncedSnapshots.length > 0;
+  const showingSync = syncEnabled && !demo && syncedSnapshots.length > 0;
 
   /* One trusted source is on screen at a time, and this is where that is decided. */
   const shown = demo ? demoSnapshots : showingSync ? syncedSnapshots : live;
@@ -530,6 +484,39 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     [shown, now, shownFailures, demo],
   );
 
+  const alertScopes = useMemo(() => {
+    const scopes = new Map<string, AlertScope>();
+    for (const snapshot of shown) {
+      if (snapshot.unit !== "PERCENT") continue;
+      const key = `${snapshot.provider}\u001f${snapshot.meter}`;
+      scopes.set(key, {
+        provider: snapshot.provider,
+        meter: snapshot.meter,
+        label: `${snapshot.provider} ${snapshot.meter}`,
+      });
+    }
+    return [...scopes.values()];
+  }, [shown]);
+
+  if (session === undefined) {
+    return <div className="ol-dashboard"><SkeletonRows /></div>;
+  }
+
+  if (session === null) {
+    return (
+      <div className="ol-dashboard">
+        <HeaderStrip
+          lockup={lockup}
+          busy={false}
+          onRefresh={() => {}}
+          showRefresh={false}
+          actions={<ThemeToggle className="h-9 w-9" />}
+        />
+        <AccountGate client={syncClient} />
+      </div>
+    );
+  }
+
   return (
     <div className="ol-dashboard">
       {demo && <DemoBanner onLeave={leaveDemo} />}
@@ -540,21 +527,26 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         onRefresh={refresh}
         actions={
           <>
+            {syncClient !== null && <NotificationBell client={syncClient} scopes={alertScopes} />}
             <InstallControl />
             <ThemeToggle className="mr-1 h-9 w-9" />
             <SettingsMenu
-              demo={demo}
-              onEnterDemo={enterDemo}
-              onLeaveDemo={leaveDemo}
-              onClear={clear}
-              /* Whether there is anything to forget is a question about the
-                 store the button will actually name, so it is asked of that
-                 store and not of the other one. */
-              clearable={
-                (demo
-                  ? demoSnapshots.length > 0
-                  : live.length > 0 || failures.length > 0) || text !== ""
-              }
+              accountEmail={session.user.email ?? "Signed in"}
+              syncEnabled={syncEnabled}
+              onSyncChange={(enabled) => {
+                setSyncEnabled(enabled);
+                window.localStorage.setItem(WEB_SYNC_KEY, enabled ? "true" : "false");
+              }}
+              onCheckUpdate={() => {
+                if (navigator.serviceWorker === undefined) return;
+                void navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+                  await Promise.all(registrations.map((registration) => registration.update()));
+                  window.location.reload();
+                });
+              }}
+              onLogout={() => {
+                void syncClient?.auth.signOut();
+              }}
             />
           </>
         }
@@ -593,26 +585,10 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           tabIndex={-1}
           className="ol-panel"
         >
-          <Panel
-            title="Accounts"
-            action={
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Link
-                  href="/en/pro"
-                  className="ol-control ol-control-quiet ol-tap focus-ring inline-flex items-center justify-center border text-sm font-medium"
-                >
-                  Sign in / Create account
-                </Link>
-                <Button tone="primary" onClick={focusDirectory}>
-                  Add account
-                </Button>
-              </div>
-            }
-            demo={demo}
-          >
+          <Panel title="Providers" demo={demo}>
             <ProviderDirectory
               onConnect={setSelectedProvider}
-              onManual={openManualEntry}
+              onManual={setSelectedProvider}
               onEnterDemo={enterDemo}
             />
             {selectedProvider !== null && (
@@ -643,163 +619,10 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                 </div>
               </section>
             )}
-            {note !== null && (
-              <p
-                role="status"
-                className={`ol-inline-note ${
-                  note.tone === "bad" ? "text-heading" : "text-body"
-                }`}
-              >
-                {note.message}
-              </p>
-            )}
           </Panel>
         </div>
       )}
 
-      {tab === "advanced" && (
-        <div
-          id="panel-advanced"
-          role="tabpanel"
-          aria-labelledby="tab-advanced"
-          tabIndex={-1}
-          className="ol-panel ol-advanced-stack"
-        >
-          <Panel
-            title="Import a document"
-            description="Paste or drop a quota document."
-            demo={demo}
-          >
-            {demo && (
-              <p className="mb-3 text-sm leading-relaxed text-heading">
-                Leave demo mode before importing.
-              </p>
-            )}
-            <div
-              onDragOver={(event) => {
-                event.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => {
-                setDragging(false);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                setDragging(false);
-                acceptFile(event.dataTransfer.files[0]);
-              }}
-            >
-              <label htmlFor="quota-input" className="sr-only">
-                Quota document
-              </label>
-              <textarea
-                id="quota-input"
-                ref={textArea}
-                value={text}
-                onChange={(event) => {
-                  setText(event.target.value);
-                }}
-                spellCheck={false}
-                rows={8}
-                placeholder={
-                  '{ "rate_limits": { "seven_day": { "used_percentage": 64.2, "resets_at": 1760000000 } } }'
-                }
-                className={`focus-ring-inset w-full resize-y rounded-lg border bg-code p-3.5 font-mono text-xs leading-relaxed text-body outline-none transition-colors ${
-                  dragging ? "border-accent-solid" : "border-hairline"
-                }`}
-              />
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Button
-                tone="primary"
-                disabled={demo}
-                onClick={() => {
-                  read(text);
-                }}
-              >
-                Read it
-              </Button>
-              <Button
-                disabled={demo}
-                onClick={() => {
-                  fileInput.current?.click();
-                }}
-              >
-                Choose a file
-              </Button>
-            </div>
-            {note !== null && (
-              <p
-                role="status"
-                className={`mt-3 text-sm leading-relaxed ${
-                  note.tone === "bad" ? "text-heading" : "text-body"
-                }`}
-              >
-                {note.message}
-              </p>
-            )}
-          </Panel>
-
-          <Panel
-            title="Claude Code statusline configuration"
-            description="Connect Claude Code automatically."
-            demo={demo}
-          >
-            <pre className="overflow-x-auto rounded-md border border-hairline bg-code p-3 font-mono text-xs leading-relaxed text-body">
-              <code>{CLAUDE_STATUSLINE_WIRING}</code>
-            </pre>
-          </Panel>
-
-          <Panel
-            title="What an agent would be told"
-            description="Exact context sent to your agent."
-            action={demo ? <DemoDataChip /> : undefined}
-            demo={demo}
-          >
-            {dash === null || dash.agentContext === "" ? (
-              <p className="text-sm leading-relaxed text-body">
-                No reliable reading yet.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                <CodeBlock
-                  label="UserPromptSubmit hook"
-                  text={dash.agentContext}
-                  synthetic={demo}
-                />
-                <CodeBlock label="Statusline" text={dash.statusline} synthetic={demo} />
-              </div>
-            )}
-          </Panel>
-
-          <Panel title="Sources">
-            <div className="ol-source-grid">
-              <div>
-                <h3 className="ol-brand-font text-sm text-heading">Tool</h3>
-                <code className="font-mono text-xs text-muted">openlimiter export</code>
-              </div>
-              <div>
-                <h3 className="ol-brand-font text-sm text-heading">Agent</h3>
-                <p className="text-xs text-muted">Paste a statusline payload.</p>
-              </div>
-              <div>
-                <h3 className="ol-brand-font text-sm text-heading">Manual</h3>
-                <p className="text-xs text-muted">Import your own limit.</p>
-              </div>
-            </div>
-          </Panel>
-        </div>
-      )}
-      <input
-        ref={fileInput}
-        type="file"
-        accept="application/json,.json,.txt"
-        className="sr-only"
-        onChange={(event) => {
-          acceptFile(event.target.files?.[0]);
-          event.target.value = "";
-        }}
-      />
     </div>
   );
 }
