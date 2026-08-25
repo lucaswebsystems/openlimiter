@@ -47,7 +47,7 @@ export function DeviceFrame() {
        reader can scan to, one lead sentence, then the frame. Lucas's call
        (2026-08-10) after the fold shipped with the image butted straight
        against the footage. */
-    <section className={`${SHELL} relative pb-8 pt-16 md:pb-16 md:pt-24`}>
+    <section className={`${SHELL} relative py-16 md:py-24`}>
       <SectionHeading title={t("title")} lead={t("lead")} />
       <div {...reveal} data-scroll-pin="">
         <div className="elev-2 overflow-hidden rounded-xl border border-hairline bg-frame p-2 sm:rounded-2xl sm:p-3">
@@ -72,7 +72,9 @@ export function DeviceFrame() {
           />
         </div>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-2xl text-xs leading-relaxed text-muted">{t("caption")}</p>
+          <p className="max-w-2xl text-xs leading-relaxed text-muted">
+            {t("caption")}
+          </p>
           <span className="flex-none">
             <DemoDataChip />
           </span>

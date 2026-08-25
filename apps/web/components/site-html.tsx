@@ -1,5 +1,6 @@
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
+import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import { AnnouncementBar } from "@/components/announcement-bar";
 import { Footer } from "@/components/footer";
@@ -13,6 +14,13 @@ import { markArmScript } from "@/lib/brand";
 import { motionArmScript } from "@/lib/motion";
 import { themeArmScript } from "@/lib/theme";
 import "@/app/globals.css";
+
+const inter = Inter({
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
+  variable: "--ol-font-inter",
+  preload: true,
+});
 
 /**
  * The document, in one place, for all three root layouts.
@@ -63,8 +71,11 @@ async function localeOfferCopy(): Promise<LocaleOfferCopy> {
   const entries = await Promise.all(
     LOCALES.map(async (locale) => {
       const t = await getTranslations({ locale, namespace: "localeOffer" });
-      return [locale, { title: t("title"), action: t("action"), dismiss: t("dismiss") }] as const;
-    }),
+      return [
+        locale,
+        { title: t("title"), action: t("action"), dismiss: t("dismiss") },
+      ] as const;
+    })
   );
   return Object.fromEntries(entries) as LocaleOfferCopy;
 }
@@ -83,13 +94,13 @@ export async function SiteHtml({
   const t = await getTranslations({ locale, namespace: "common" });
 
   const clientMessages = Object.fromEntries(
-    CLIENT_NAMESPACES.map((namespace) => [namespace, messages[namespace]]),
+    CLIENT_NAMESPACES.map((namespace) => [namespace, messages[namespace]])
   );
 
   const offer = localised ? await localeOfferCopy() : null;
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale} className={inter.variable} suppressHydrationWarning>
       <body className="min-h-screen bg-canvas font-sans text-body antialiased selection:bg-accent-subtle selection:text-heading">
         {/* These synchronous scripts are the first body children, before any
             visible content, so stored presentation state is applied before

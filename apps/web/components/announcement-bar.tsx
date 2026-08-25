@@ -52,10 +52,12 @@ export async function AnnouncementBar() {
 
   return (
     <div className="announce-bar bg-announce text-announce-fg">
-      <div className={`${SHELL} flex h-[var(--ol-announce-h)] items-center gap-2`}>
+      <div
+        className={`${SHELL} flex h-[var(--ol-announce-h)] items-center gap-2`}
+      >
         <SiteLink
           href={ANNOUNCE_HREF}
-          className="focus-ring-inset group flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded text-xs font-medium"
+          className="focus-ring-inset group flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors duration-200"
         >
           <span className="sr-only">{t("message")}</span>
           {/* A small spark on the left, drawn here: the promo is a founding

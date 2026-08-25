@@ -156,7 +156,11 @@ const VERIFICATION_META: Record<string, CellMeta> = {
  * guess at which of the existing words it resembles, so this one case stays
  * an untranslated literal on purpose.
  */
-function cellFor(t: Translate, table: Record<string, CellMeta>, value: string): CellValue {
+function cellFor(
+  t: Translate,
+  table: Record<string, CellMeta>,
+  value: string
+): CellValue {
   const meta = table[value];
   return meta === undefined
     ? { word: value, affirmative: false }
@@ -182,9 +186,11 @@ function stateOf(t: Translate, entry: RegistryEntry | undefined): string {
   if (entry === undefined) return t("state.noSpec");
   /* A product whose only reader is the person typing is Manual whether or not
      anything is implemented, because there is nothing for a reader to do. */
-  if (entry.readers.every((reader) => reader === "manual")) return t("state.manual");
+  if (entry.readers.every((reader) => reader === "manual"))
+    return t("state.manual");
   if (entry.support.reader !== "implemented") return t("state.importOnly");
-  if (entry.readers.some((reader) => LOCAL_READERS.has(reader))) return t("state.localCli");
+  if (entry.readers.some((reader) => LOCAL_READERS.has(reader)))
+    return t("state.localCli");
   return t("state.connected");
 }
 
@@ -304,7 +310,7 @@ const unspecified = rows.filter((row) => row.entry === undefined).length;
 
 /** Registry entries this table does not draw, which is every planned product. */
 const elsewhere = entries.filter(
-  (entry) => !PRESENTATION.some((presented) => presented.specId === entry.id),
+  (entry) => !PRESENTATION.some((presented) => presented.specId === entry.id)
 ).length;
 
 function Cell({ value }: { value: CellValue }) {
@@ -328,7 +334,10 @@ const COLUMN_KEYS = ["parser", "reader", "auth", "verification"] as const;
  * Both layouts below read this, so the narrow one and the wide one cannot
  * disagree about a cell: there is one derivation and two ways of drawing it.
  */
-function stagesOf(t: Translate, entry: RegistryEntry | undefined): readonly CellValue[] {
+function stagesOf(
+  t: Translate,
+  entry: RegistryEntry | undefined
+): readonly CellValue[] {
   if (entry === undefined) {
     const unstated = unstatedCell(t);
     return [unstated, unstated, unstated, unstated];
@@ -355,7 +364,10 @@ function StageCard({ row }: { row: Row }) {
   const t = useTranslations("connections");
   const stages = stagesOf(t, row.entry);
   const fallback = unstatedCell(t);
-  const columns = COLUMN_KEYS.map((key) => ({ key, label: t(`columns.${key}`) }));
+  const columns = COLUMN_KEYS.map((key) => ({
+    key,
+    label: t(`columns.${key}`),
+  }));
   return (
     <li className="rounded-xl border border-hairline bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
@@ -363,7 +375,9 @@ function StageCard({ row }: { row: Row }) {
           <span className="flex-none text-soft">
             <row.Mark className="h-4 w-4" />
           </span>
-          <span className="heading-face truncate text-sm text-heading">{row.name}</span>
+          <span className="heading-face truncate text-sm text-heading">
+            {row.name}
+          </span>
         </span>
         <Chip tone="neutral" className="flex-none whitespace-nowrap">
           {stateOf(t, row.entry)}
@@ -397,16 +411,24 @@ function StageCard({ row }: { row: Row }) {
 
 export function ConnectionMatrix() {
   const t = useTranslations("connections");
-  const columns = COLUMN_KEYS.map((key) => ({ key, label: t(`columns.${key}`) }));
+  const columns = COLUMN_KEYS.map((key) => ({
+    key,
+    label: t(`columns.${key}`),
+  }));
 
   return (
     <div className="mt-10" {...reveal}>
       <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h3 className="font-mono text-2xs uppercase tracking-widest text-heading">
+        <p className="eyebrow font-mono text-2xs uppercase tracking-widest text-heading">
           {t("heading.title")}
-        </h3>
-        <span aria-hidden="true" className="hidden h-px flex-1 bg-hairline sm:block" />
-        <p className="w-full text-xs text-muted sm:w-auto">{t("heading.note")}</p>
+        </p>
+        <span
+          aria-hidden="true"
+          className="hidden h-px flex-1 bg-hairline sm:block"
+        />
+        <p className="w-full text-xs text-muted sm:w-auto">
+          {t("heading.note")}
+        </p>
       </div>
 
       {/* One card per provider below the medium breakpoint. Same data, same
@@ -450,16 +472,22 @@ export function ConnectionMatrix() {
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.key} className="border-b border-hairline last:border-b-0">
+              <tr
+                key={row.key}
+                className="border-b border-hairline last:border-b-0"
+              >
                 <th scope="row" className="px-5 py-3.5 font-normal">
                   <span className="flex items-center gap-2.5">
                     <span className="text-soft">
                       <row.Mark className="h-4 w-4" />
                     </span>
-                    <span className="heading-face text-sm text-heading">{row.name}</span>
+                    <span className="heading-face text-sm text-heading">
+                      {row.name}
+                    </span>
                   </span>
                   <span className="mt-1 block text-xs leading-relaxed text-muted">
-                    {t(`providers.${row.factKey}.fact`)} {readerLine(t, row.entry)}
+                    {t(`providers.${row.factKey}.fact`)}{" "}
+                    {readerLine(t, row.entry)}
                   </span>
                 </th>
                 <td className="px-5 py-3.5 align-top">
@@ -472,7 +500,10 @@ export function ConnectionMatrix() {
                     was confirmed against a live account. Nothing here can raise
                     any of the four. */}
                 {stagesOf(t, row.entry).map((stage, index) => (
-                  <td key={COLUMN_KEYS[index]} className="px-5 py-3.5 align-top">
+                  <td
+                    key={COLUMN_KEYS[index]}
+                    className="px-5 py-3.5 align-top"
+                  >
                     <Cell value={stage} />
                   </td>
                 ))}
@@ -489,14 +520,13 @@ export function ConnectionMatrix() {
         {t("footnote.lead")}{" "}
         {unspecified > 0 && (
           <>
-            {t("footnote.unspecified", { count: unspecified, total: rows.length })}{" "}
+            {t("footnote.unspecified", {
+              count: unspecified,
+              total: rows.length,
+            })}{" "}
           </>
         )}
-        {elsewhere > 0 && (
-          <>
-            {t("footnote.elsewhere", { count: elsewhere })}{" "}
-          </>
-        )}
+        {elsewhere > 0 && <>{t("footnote.elsewhere", { count: elsewhere })} </>}
         {t("footnote.tail")}
       </p>
     </div>

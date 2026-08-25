@@ -49,7 +49,9 @@ function ToolTile({ tool }: { tool: Tool }) {
         <tool.Mark className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="heading-face block truncate text-sm text-heading">{tool.name}</span>
+        <span className="heading-face block truncate text-sm text-heading">
+          {tool.name}
+        </span>
         <span className="mt-0.5 block text-xs text-muted">
           {t("tile.connector")}
         </span>
@@ -63,9 +65,17 @@ function GroupLabel({ title, note }: { title: string; note: string }) {
     /* Below the small breakpoint the note takes a line of its own and the rule
        goes away, so a short label and a long one wrap the same way instead of
        one of them squeezing the rule down to a stub. */
-    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1" {...revealSm}>
-      <h3 className="font-mono text-2xs uppercase tracking-widest text-heading">{title}</h3>
-      <span aria-hidden="true" className="hidden h-px flex-1 bg-hairline sm:block" />
+    <div
+      className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1"
+      {...revealSm}
+    >
+      <p className="eyebrow font-mono text-2xs uppercase tracking-widest text-heading">
+        {title}
+      </p>
+      <span
+        aria-hidden="true"
+        className="hidden h-px flex-1 bg-hairline sm:block"
+      />
       <p className="w-full text-xs text-muted sm:w-auto">{note}</p>
     </div>
   );
@@ -77,8 +87,14 @@ export function WorksWith() {
     <section id="providers">
       <SectionHeading title={t("title")} lead={t("lead")} />
 
-      <GroupLabel title={t("groups.today.label")} note={t("groups.today.note")} />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" {...revealGroup}>
+      <GroupLabel
+        title={t("groups.today.label")}
+        note={t("groups.today.note")}
+      />
+      <div
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        {...revealGroup}
+      >
         {todayTools.map((tool) => (
           <ToolTile key={tool.name} tool={tool} />
         ))}
@@ -88,9 +104,14 @@ export function WorksWith() {
           reading that six accounts get connected. */}
       <ConnectionMatrix />
 
-      <p className="mt-6 w-full text-center text-sm leading-relaxed text-muted" {...reveal}>
+      <p
+        className="mt-6 w-full text-center text-sm leading-relaxed text-muted"
+        {...reveal}
+      >
         {t.rich("footnote", {
-          code: (chunks) => <span className="font-mono text-2xs text-heading">{chunks}</span>,
+          code: (chunks) => (
+            <span className="font-mono text-2xs text-heading">{chunks}</span>
+          ),
           link: (chunks) => (
             <SiteLink
               href="/docs/providers"

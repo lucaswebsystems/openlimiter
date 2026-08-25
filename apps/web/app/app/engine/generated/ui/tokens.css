@@ -7,7 +7,8 @@
  *
  * This is the one visual contract for every shipped surface: marketing, web
  * dashboard, PWA and desktop. Surfaces consume these variables and never
- * redefine them. No network font is required.
+ * redefine them. Web builds preload the bundled Inter variable face while
+ * native surfaces fall back to the same system stack.
  */
 
 :root {
@@ -31,10 +32,10 @@
 
   /* One blue accent. Pressure changes saturation and weight, never hue. */
   --ol-brand: #2f81f7;
-  --ol-accent: #79b8ff;
+  --ol-accent: var(--ol-brand);
   --ol-accent-hover: #a5d2ff;
   --ol-accent-subtle: rgb(47 129 247 / 0.14);
-  --ol-accent-solid: #2f81f7;
+  --ol-accent-solid: var(--ol-accent);
   --ol-accent-solid-hover: #58a6ff;
   --ol-on-accent: #ffffff;
   --ol-solid: #fafafa;
@@ -71,17 +72,18 @@
   --ol-fixed-dark-soft: #c3ccd8;
   --ol-fixed-dark-muted: #929ead;
   --ol-fixed-dark-faint: #667386;
-  --ol-fixed-dark-accent: #79b8ff;
+  --ol-fixed-dark-accent: #2f81f7;
   --ol-fixed-dark-accent-hover: #a5d2ff;
   --ol-fixed-dark-accent-subtle: rgb(47 129 247 / 0.14);
-  --ol-fixed-dark-accent-solid: #2f81f7;
+  --ol-fixed-dark-accent-solid: var(--ol-fixed-dark-accent);
   --ol-fixed-dark-accent-solid-hover: #58a6ff;
   --ol-fixed-dark-on-accent: #ffffff;
   --ol-fixed-dark-solid: #fafafa;
   --ol-fixed-dark-solid-hover: #e4e4e7;
   --ol-fixed-dark-on-solid: #09090b;
   --ol-fixed-dark-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.035);
-  --ol-fixed-dark-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.045), 0 20px 64px rgb(0 0 0 / 0.24);
+  --ol-fixed-dark-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.045),
+    0 20px 64px rgb(0 0 0 / 0.24);
 
   /* Provider artwork is the sole exception to the system palette. */
   --ol-provider-claude: #d97757;
@@ -102,8 +104,10 @@
   --ol-provider-gemini-coral: #d96570;
 
   /* Type */
-  --ol-font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --ol-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --ol-font-sans: var(--ol-font-inter, "Inter"), ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+  --ol-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
   --ol-text-micro: 0.6875rem;
   --ol-text-caption: 0.75rem;
   --ol-text-body: 0.8125rem;
@@ -136,7 +140,8 @@
 
   /* Calm elevation */
   --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.035);
-  --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.045), 0 20px 64px rgb(0 0 0 / 0.24);
+  --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.045),
+    0 20px 64px rgb(0 0 0 / 0.24);
 
   /* Mechanical motion */
   --ol-motion-fast: 120ms;
@@ -202,11 +207,11 @@
   --ol-soft: #46566b;
   --ol-muted: #617087;
   --ol-faint: #8491a3;
-  --ol-brand: #0969da;
-  --ol-accent: #0969da;
+  --ol-brand: #2f81f7;
+  --ol-accent: var(--ol-brand);
   --ol-accent-hover: #0550ae;
   --ol-accent-subtle: #e5f1ff;
-  --ol-accent-solid: #0969da;
+  --ol-accent-solid: var(--ol-accent);
   --ol-accent-solid-hover: #0550ae;
   --ol-on-accent: #ffffff;
   --ol-solid: #0d1623;
@@ -225,7 +230,8 @@
   --ol-backdrop: rgb(13 22 35 / 0.42);
   --ol-meter-stale-mix: 82%;
   --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.8);
-  --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.9), 0 18px 60px rgb(17 17 20 / 0.08);
+  --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.9),
+    0 18px 60px rgb(17 17 20 / 0.08);
   --sheen: rgb(13 22 35 / 0.025);
 }
 

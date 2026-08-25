@@ -160,12 +160,24 @@ body {
 }
 
 /* Official provider colour is confined to provider artwork. */
-.ol-provider-glyph[data-provider="CLAUDE"] { color: var(--ol-provider-claude); }
-.ol-provider-glyph[data-provider="OPENROUTER"] { color: var(--ol-provider-openrouter); }
-.ol-provider-glyph[data-provider="CODEX"] { color: var(--ol-provider-codex); }
-.ol-provider-glyph[data-provider="OPENCODE"] { color: var(--ol-provider-opencode); }
-.ol-provider-glyph[data-provider="GROK"] { color: var(--ol-provider-grok); }
-.ol-provider-glyph[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
+.ol-provider-glyph[data-provider="CLAUDE"] {
+  color: var(--ol-provider-claude);
+}
+.ol-provider-glyph[data-provider="OPENROUTER"] {
+  color: var(--ol-provider-openrouter);
+}
+.ol-provider-glyph[data-provider="CODEX"] {
+  color: var(--ol-provider-codex);
+}
+.ol-provider-glyph[data-provider="OPENCODE"] {
+  color: var(--ol-provider-opencode);
+}
+.ol-provider-glyph[data-provider="GROK"] {
+  color: var(--ol-provider-grok);
+}
+.ol-provider-glyph[data-provider="KIMI"] {
+  color: var(--ol-provider-kimi);
+}
 
 /* Keyboard focus. Interactive elements never drop the indicator, they replace
    it with an accent outline that reads clearly on either theme. Use the inset
@@ -228,7 +240,11 @@ body:has(.ol-shell) .announce-bar {
 
 @media (hover: hover) {
   .announce-dismiss:hover {
-    background-color: color-mix(in srgb, var(--ol-announce-fg) 18%, transparent);
+    background-color: color-mix(
+      in srgb,
+      var(--ol-announce-fg) 18%,
+      transparent
+    );
   }
 }
 
@@ -385,15 +401,14 @@ body:has(.ol-shell) .announce-bar {
   width: calc(var(--screen) + var(--bezel) * 2);
   padding: var(--bezel);
   border-radius: calc(var(--screen) * 0.135 + var(--bezel));
-  background:
-    linear-gradient(
-      150deg,
-      var(--ol-fixed-dark-hairline-strong) 0%,
-      var(--ol-fixed-dark-raised) 22%,
-      var(--ol-fixed-dark-canvas) 52%,
-      var(--ol-fixed-dark-elevated) 78%,
-      var(--ol-fixed-dark-hairline-strong) 100%
-    );
+  background: linear-gradient(
+    150deg,
+    var(--ol-fixed-dark-hairline-strong) 0%,
+    var(--ol-fixed-dark-raised) 22%,
+    var(--ol-fixed-dark-canvas) 52%,
+    var(--ol-fixed-dark-elevated) 78%,
+    var(--ol-fixed-dark-hairline-strong) 100%
+  );
   box-shadow: var(--ol-fixed-dark-elev-2);
 }
 
@@ -515,12 +530,8 @@ body:has(.ol-shell) .announce-bar {
 }
 
 :root[data-motion] [data-reveal] {
-  transition:
-    color 200ms ease,
-    background-color 200ms ease,
-    border-color 200ms ease,
-    box-shadow 200ms ease,
-    translate 200ms ease;
+  transition: color 200ms ease, background-color 200ms ease,
+    border-color 200ms ease, box-shadow 200ms ease, translate 200ms ease;
 }
 
 :root[data-motion] [data-reveal]:not([data-revealed]) {
@@ -535,14 +546,30 @@ body:has(.ol-shell) .announce-bar {
 
 /* The stagger, inside a group only. Direct children step 70ms apart; the
    eighth onwards share a delay rather than making a reader wait longer. */
-[data-reveal-group] > *:nth-child(1) { --reveal-delay: 0ms; }
-[data-reveal-group] > *:nth-child(2) { --reveal-delay: 70ms; }
-[data-reveal-group] > *:nth-child(3) { --reveal-delay: 140ms; }
-[data-reveal-group] > *:nth-child(4) { --reveal-delay: 210ms; }
-[data-reveal-group] > *:nth-child(5) { --reveal-delay: 280ms; }
-[data-reveal-group] > *:nth-child(6) { --reveal-delay: 350ms; }
-[data-reveal-group] > *:nth-child(7) { --reveal-delay: 420ms; }
-[data-reveal-group] > *:nth-child(n + 8) { --reveal-delay: 490ms; }
+[data-reveal-group] > *:nth-child(1) {
+  --reveal-delay: 0ms;
+}
+[data-reveal-group] > *:nth-child(2) {
+  --reveal-delay: 70ms;
+}
+[data-reveal-group] > *:nth-child(3) {
+  --reveal-delay: 140ms;
+}
+[data-reveal-group] > *:nth-child(4) {
+  --reveal-delay: 210ms;
+}
+[data-reveal-group] > *:nth-child(5) {
+  --reveal-delay: 280ms;
+}
+[data-reveal-group] > *:nth-child(6) {
+  --reveal-delay: 350ms;
+}
+[data-reveal-group] > *:nth-child(7) {
+  --reveal-delay: 420ms;
+}
+[data-reveal-group] > *:nth-child(n + 8) {
+  --reveal-delay: 490ms;
+}
 
 /*
   Pointer response.
@@ -555,12 +582,8 @@ body:has(.ol-shell) .announce-bar {
 */
 .lift,
 .lift-sm {
-  transition:
-    color 200ms ease,
-    background-color 200ms ease,
-    border-color 200ms ease,
-    box-shadow 200ms ease,
-    translate 200ms ease;
+  transition: color 200ms ease, background-color 200ms ease,
+    border-color 200ms ease, box-shadow 200ms ease, translate 200ms ease;
 }
 
 @media (hover: hover) {
@@ -802,6 +825,8 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
 
 .fold-enter {
   animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
   /* `both` holds the first frame through the delay: without it, the rows that
      fade would blink visible before their own turn. */
   animation-fill-mode: both;
@@ -838,8 +863,12 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fold-enter {
+  .fold-enter,
+  [class*="reveal"] {
     animation: none;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none;
   }
 }
 
@@ -1004,7 +1033,9 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
   border-bottom-color: var(--ol-hairline);
 }
 
-:root[data-theme="light"] .site-header:not([data-bar="none"]):not([data-bar="dark"]) .hdr-ink {
+:root[data-theme="light"]
+  .site-header:not([data-bar="none"]):not([data-bar="dark"])
+  .hdr-ink {
   color: var(--ol-soft);
 }
 
@@ -1040,7 +1071,9 @@ body:not(:has(.hero-fold)) .page-overlap > *:not(.site-header) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
+  *,
+  ::before,
+  ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

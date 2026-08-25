@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import type { ReactNode } from "react";
 import { AboutCard } from "@/components/about-card";
 import { BrandLockup } from "@/components/brand";
 import { DeviceFrame } from "@/components/device-frame";
@@ -59,10 +60,14 @@ async function DocsLine() {
   /* One sentence with two links inside it, so it is one message with two tags
      rather than five fragments a translator would have to reassemble. The word
      order around the links is theirs to change. */
-  const linkClass = "focus-ring rounded text-accent transition-colors hover:text-accent-hover";
+  const linkClass =
+    "focus-ring rounded text-accent transition-colors hover:text-accent-hover";
 
   return (
-    <p className="w-full text-center text-sm leading-relaxed text-muted" {...reveal}>
+    <p
+      className="w-full text-center text-sm leading-relaxed text-muted"
+      {...reveal}
+    >
       {t.rich("docsLine", {
         agentContext: (chunks) => (
           <SiteLink href="/docs/agent-context" className={linkClass}>
@@ -83,12 +88,24 @@ async function BridgeBand() {
   const t = await getTranslations("home");
 
   return (
-    <div className="flex flex-col items-center gap-1.5 px-6 pb-16 pt-4" {...reveal}>
-      <BrandLockup markClassName="h-6 w-6 flex-none text-brand" wordClassName="text-base" />
+    <div
+      className="flex flex-col items-center gap-1.5 px-6 py-16 md:py-24"
+      {...reveal}
+    >
+      <BrandLockup
+        markClassName="h-6 w-6 flex-none text-brand"
+        wordClassName="text-base"
+      />
       <p className="w-full text-center text-lg text-soft">{t("bridge.line")}</p>
-      <p className="w-full text-center text-sm text-muted">{t("bridge.note")}</p>
+      <p className="w-full text-center text-sm text-muted">
+        {t("bridge.note")}
+      </p>
     </div>
   );
+}
+
+function SectionBand({ children }: { children: ReactNode }) {
+  return <div className="py-16 md:py-24">{children}</div>;
 }
 
 export default async function Home({ params }: LocaleParams) {
@@ -108,19 +125,35 @@ export default async function Home({ params }: LocaleParams) {
       <Hero />
       <DeviceFrame />
       <BridgeBand />
-      <div className={`${SHELL} pb-6 pt-4 md:pb-20 md:pt-16`}>
-        <div className="space-y-24">
-          <IntegrationStrip />
-          <WorksWith />
-          <RunsWhere />
-          <WebApp />
-          <DocsLine />
-          <Faq />
+      <div className={SHELL}>
+        <div>
+          <SectionBand>
+            <IntegrationStrip />
+          </SectionBand>
+          <SectionBand>
+            <WorksWith />
+          </SectionBand>
+          <SectionBand>
+            <RunsWhere />
+          </SectionBand>
+          <SectionBand>
+            <WebApp />
+          </SectionBand>
+          <SectionBand>
+            <DocsLine />
+          </SectionBand>
+          <SectionBand>
+            <Faq />
+          </SectionBand>
           {/* Price last, after every question a reader could have had. It keeps
               its own anchor, which the header button and the pricing links in
               the documentation both point at. */}
-          <Pricing />
-          <AboutCard />
+          <SectionBand>
+            <Pricing />
+          </SectionBand>
+          <SectionBand>
+            <AboutCard />
+          </SectionBand>
         </div>
       </div>
     </main>
