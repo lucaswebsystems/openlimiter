@@ -63,7 +63,9 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   MANUAL: "Manual",
 };
 
-const PROVIDER_CODE_BY_SPEC_ID: Readonly<Record<string, ProviderCode | undefined>> = {
+const PROVIDER_CODE_BY_SPEC_ID: Readonly<
+  Record<string, ProviderCode | undefined>
+> = {
   "openai/codex": "CODEX",
   "anthropic/claude-code": "CLAUDE",
   "google/gemini-cli": "GEMINI_CLI",
@@ -75,16 +77,15 @@ const PROVIDER_CODE_BY_SPEC_ID: Readonly<Record<string, ProviderCode | undefined
   "openlimiter/manual": "MANUAL",
 };
 
-const DEFAULT_PROVIDER_CODES: readonly ProviderCode[] = PROVIDER_RECOGNITION_ORDER.flatMap(
-  (specId) => {
+const DEFAULT_PROVIDER_CODES: readonly ProviderCode[] =
+  PROVIDER_RECOGNITION_ORDER.flatMap((specId) => {
     const provider = PROVIDER_CODE_BY_SPEC_ID[specId];
     return provider === undefined ? [] : [provider];
-  },
-);
+  });
 
 const PROVIDER_MARKS: Record<ProviderCode, string> = {
   CLAUDE:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20M2 12h20M4.9 4.9l14.2 14.2M19.1 4.9 4.9 19.1M7.8 3.1l8.4 17.8M20.9 7.8 3.1 16.2M16.2 3.1 7.8 20.9M3.1 7.8l17.8 8.4"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>',
   OPENROUTER:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.778 1.844v1.919c-3.16-.14-5.68.42-8.702 2.242-2.911 2.066-2.731 1.95-4.14 2.75-.792.447-3.934 1.131-3.936 1.131v4.229s3.003.555 3.795 1.132c1.41.798 1.228.683 4.14 2.75 3.02 1.821 5.68 2.382 8.703 2.21v1.919l7.222-4.168-7.222-4.17v2.176c-2.231.1-3.645-.075-6.257-1.444-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 2.61-1.37 4.025-1.545 6.255-1.446v2.176L24 6.014Z"/></svg>',
   CODEX:
@@ -95,10 +96,8 @@ const PROVIDER_MARKS: Record<ProviderCode, string> = {
     '<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ol-gemini-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="var(--ol-provider-gemini-blue)"/><stop offset=".52" stop-color="var(--ol-provider-gemini-purple)"/><stop offset="1" stop-color="var(--ol-provider-gemini-coral)"/></linearGradient></defs><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81" fill="url(#ol-gemini-gradient)"/></svg>',
   OPENCODE:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 24H2V0h20Zm-5-19.2H7v14.4h10Z"/></svg>',
-  GROK:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>',
-  KIMI:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.765.351C22.998.351 24 1.353 24 2.586S22.998 4.82 21.765 4.82h-1.974c-.15 0-.26-.12-.26-.26V2.586A2.237 2.237 0 0 1 21.765.35M9.41 13.388l8.447-8.377c.16-.16.07-.471-.14-.471h-4.55s-.1.02-.14.06l-9.099 9.029c-.14.14-.35.02-.35-.21V4.81c0-.15-.1-.27-.221-.27H.22c-.12 0-.22.12-.22.27v18.57c0 .15.1.27.22.27h3.137c.12 0 .22-.12.22-.27v-3.79c0-.08.03-.16.08-.21l2.826-2.796c.07-.07.16-.08.241-.03l7.546 5.551a8.9 8.9 0 0 0 4.018 1.493c.12.01.23-.11.23-.27V19.76c0-.14-.08-.25-.19-.26a5.8 5.8 0 0 1-2.355-.942l-6.533-4.73c-.14-.09-.15-.32-.03-.441"/></svg>',
+  GROK: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>',
+  KIMI: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.765.351C22.998.351 24 1.353 24 2.586S22.998 4.82 21.765 4.82h-1.974c-.15 0-.26-.12-.26-.26V2.586A2.237 2.237 0 0 1 21.765.35M9.41 13.388l8.447-8.377c.16-.16.07-.471-.14-.471h-4.55s-.1.02-.14.06l-9.099 9.029c-.14.14-.35.02-.35-.21V4.81c0-.15-.1-.27-.221-.27H.22c-.12 0-.22.12-.22.27v18.57c0 .15.1.27.22.27h3.137c.12 0 .22-.12.22-.27v-3.79c0-.08.03-.16.08-.21l2.826-2.796c.07-.07.16-.08.241-.03l7.546 5.551a8.9 8.9 0 0 0 4.018 1.493c.12.01.23-.11.23-.27V19.76c0-.14-.08-.25-.19-.26a5.8 5.8 0 0 1-2.355-.942l-6.533-4.73c-.14-.09-.15-.32-.03-.441"/></svg>',
   MANUAL:
     '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none"><path d="M16.6 3.6a2 2 0 0 1 2.8 2.8L8.5 17.3l-3.7.9.9-3.7Z"/><path d="m14.6 5.6 3.8 3.8M4 21h16"/></svg>',
 };
@@ -191,13 +190,14 @@ function windowName(code: string, provider: ProviderCode): string {
   }
   return words
     .map((word, index) =>
-      index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word,
+      index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word
     )
     .join(" ");
 }
 
 function compareWindows(left: Snapshot, right: Snapshot): number {
-  const rank = (WINDOW_RANK[left.meter] ?? 90) - (WINDOW_RANK[right.meter] ?? 90);
+  const rank =
+    (WINDOW_RANK[left.meter] ?? 90) - (WINDOW_RANK[right.meter] ?? 90);
   return rank !== 0 ? rank : left.meter.localeCompare(right.meter);
 }
 
@@ -218,7 +218,10 @@ const MINUTE = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 
-export function resetCountdown(resetAt: string | null, now: string): string | null {
+export function resetCountdown(
+  resetAt: string | null,
+  now: string
+): string | null {
   if (resetAt === null) return null;
   const target = Date.parse(resetAt);
   const current = Date.parse(now);
@@ -251,7 +254,8 @@ function toWindowView(snapshot: Snapshot, now: string): ProviderWindowView {
   const label = windowName(snapshot.meter, snapshot.provider);
   const usedPercent = state === "unknown" ? null : clampPercent(snapshot.value);
   const tone = usedPercent === null ? "none" : headroomTone(usedPercent);
-  const resetLabel = state === "unknown" ? null : resetCountdown(snapshot.resetAt, now);
+  const resetLabel =
+    state === "unknown" ? null : resetCountdown(snapshot.resetAt, now);
 
   if (usedPercent === null) {
     return {
@@ -279,18 +283,22 @@ function toWindowView(snapshot: Snapshot, now: string): ProviderWindowView {
   const metricKind = hasMoney
     ? "bounded_spend"
     : unboundedSpend
-      ? "unbounded_spend"
-      : "percent";
+    ? "unbounded_spend"
+    : "percent";
   const readout = hasMoney
     ? "$" + floorFixed(snapshot.usedAmount ?? 0, 2)
     : unboundedSpend
-      ? floorFixed(snapshot.value, 2) + " credits spent"
-      : used + "%";
+    ? floorFixed(snapshot.value, 2) + " credits spent"
+    : used + "%";
   const detail = hasMoney
-    ? "$" + floorFixed(snapshot.limitAmount ?? 0, 2) + " limit, " + available + "% free"
+    ? "$" +
+      floorFixed(snapshot.limitAmount ?? 0, 2) +
+      " limit, " +
+      available +
+      "% free"
     : unboundedSpend
-      ? "No budget ceiling"
-      : available + "% free";
+    ? "No budget ceiling"
+    : available + "% free";
   const reset = resetLabel === null ? "" : ", " + resetLabel.toLowerCase();
 
   return {
@@ -316,7 +324,7 @@ function compareAccountIds(left: string | null, right: string | null): number {
 }
 
 function fallbackFor(
-  provider: ProviderCode,
+  provider: ProviderCode
 ): NonNullable<ProviderAccountRowView["fallback"]> {
   if (provider === "MANUAL") {
     return {
@@ -336,16 +344,17 @@ export function buildProviderAccountRows(
   snapshots: readonly Snapshot[],
   now: string,
   failures: readonly ProviderFailure[] = [],
-  options: ProviderRowOptions = {},
+  options: ProviderRowOptions = {}
 ): readonly ProviderAccountRowView[] {
   const observed = new Set(snapshots.map((snapshot) => snapshot.provider));
   const providers =
-    options.providers ?? DEFAULT_PROVIDER_CODES.filter((provider) => observed.has(provider));
+    options.providers ??
+    DEFAULT_PROVIDER_CODES.filter((provider) => observed.has(provider));
   const failureByProvider = new Map(
     dedupeFailures(failures).map((failure) => [
       failure.provider,
       failureSentence[failure.category],
-    ]),
+    ])
   );
   const rows: ProviderAccountRowView[] = [];
 
@@ -379,7 +388,9 @@ export function buildProviderAccountRows(
 
     const accountIds = [...groups.keys()].sort(compareAccountIds);
     for (const accountId of accountIds) {
-      const accountSnapshots = [...(groups.get(accountId) ?? [])].sort(compareWindows);
+      const accountSnapshots = [...(groups.get(accountId) ?? [])].sort(
+        compareWindows
+      );
       const lead = accountSnapshots[0];
       rows.push({
         key:
@@ -392,7 +403,9 @@ export function buildProviderAccountRows(
         accountLabel: accountId ?? "Local account",
         showAccountLabel: groups.size > 1,
         sourceLabel: lead === undefined ? null : sourceLine(lead),
-        windows: accountSnapshots.map((snapshot) => toWindowView(snapshot, now)),
+        windows: accountSnapshots.map((snapshot) =>
+          toWindowView(snapshot, now)
+        ),
         fallback: null,
         failure: failureByProvider.get(provider) ?? null,
         demo: options.demo ?? false,
@@ -413,19 +426,18 @@ function escapeText(value: string): string {
 }
 
 function percentLabel(window: ProviderWindowView): string {
-  return window.usedPercent === null ? "No data" : floorFixed(window.usedPercent, 1) + "%";
+  return window.usedPercent === null
+    ? "No data"
+    : floorFixed(window.usedPercent, 1) + "%";
 }
 
 export type ProviderMetricColumn = "session" | "week" | "month";
 
-const METRIC_METERS: Readonly<Record<ProviderMetricColumn, ReadonlySet<string>>> = {
+const METRIC_METERS: Readonly<
+  Record<ProviderMetricColumn, ReadonlySet<string>>
+> = {
   session: new Set(["FIVE_MINUTE", "HOURLY", "FIVE_HOUR", "SESSION"]),
-  week: new Set([
-    "SEVEN_DAY",
-    "SEVEN_DAY_OPUS",
-    "SEVEN_DAY_SONNET",
-    "WEEKLY"
-  ]),
+  week: new Set(["SEVEN_DAY", "SEVEN_DAY_OPUS", "SEVEN_DAY_SONNET", "WEEKLY"]),
   month: new Set(["THIRTY_DAY", "MONTHLY", "ON_DEMAND_MONTHLY"]),
 };
 
@@ -434,7 +446,7 @@ function baseMeterKey(key: string): string {
 }
 
 export function closestToLimit(
-  windows: readonly ProviderWindowView[],
+  windows: readonly ProviderWindowView[]
 ): ProviderWindowView | null {
   let closest: ProviderWindowView | null = null;
   for (const window of windows) {
@@ -443,7 +455,10 @@ export function closestToLimit(
       continue;
     }
     if (window.usedPercent === null) continue;
-    if (closest.usedPercent === null || window.usedPercent > closest.usedPercent) {
+    if (
+      closest.usedPercent === null ||
+      window.usedPercent > closest.usedPercent
+    ) {
       closest = window;
     }
   }
@@ -452,32 +467,50 @@ export function closestToLimit(
 
 export function windowForMetric(
   windows: readonly ProviderWindowView[],
-  metric: ProviderMetricColumn,
+  metric: ProviderMetricColumn
 ): ProviderWindowView | null {
   return closestToLimit(
-    windows.filter((window) => METRIC_METERS[metric].has(baseMeterKey(window.key))),
+    windows.filter((window) =>
+      METRIC_METERS[metric].has(baseMeterKey(window.key))
+    )
   );
 }
 
 function meterMarkup(window: ProviderWindowView, className: string): string {
   if (window.metricKind === "unbounded_spend") {
-    return '<span class="' + className + ' neutral" aria-label="' +
-      escapeText(window.label + ", no budget ceiling") + '"></span>';
+    return (
+      '<span class="' +
+      className +
+      ' neutral" aria-label="' +
+      escapeText(window.label + ", no budget ceiling") +
+      '"></span>'
+    );
   }
   const valueAttributes =
     window.usedPercent === null
       ? 'aria-valuetext="No data"'
-      : 'aria-valuenow="' + String(window.usedPercent) + '" aria-valuetext="' +
-        escapeText(percentLabel(window) + " used") + '"';
+      : 'aria-valuenow="' +
+        String(window.usedPercent) +
+        '" aria-valuetext="' +
+        escapeText(percentLabel(window) + " used") +
+        '"';
   const fill =
     window.usedPercent === null
       ? ""
-      : '<span class="meter-fill" style="width:' + String(window.usedPercent) + '%"></span>';
+      : '<span class="meter-fill" style="width:' +
+        String(window.usedPercent) +
+        '%"></span>';
 
   return (
-    '<span class="' + className + '" role="progressbar" aria-label="' +
-    escapeText(window.label) + '" aria-valuemin="0" aria-valuemax="100" ' +
-    valueAttributes + ">" + fill + "</span>"
+    '<span class="' +
+    className +
+    '" role="progressbar" aria-label="' +
+    escapeText(window.label) +
+    '" aria-valuemin="0" aria-valuemax="100" ' +
+    valueAttributes +
+    ">" +
+    fill +
+    "</span>"
   );
 }
 
@@ -490,12 +523,25 @@ function compactResetLabel(resetLabel: string | null): string {
 function windowLineMarkup(window: ProviderWindowView): string {
   const reset = compactResetLabel(window.resetLabel);
   return (
-    '<div class="window-line" data-tone="' + window.tone + '" data-state="' +
-    window.state + '" aria-label="' + escapeText(window.accessibleLabel) + '">' +
-    '<span class="window-name" title="' + escapeText(window.label) + '">' +
-    escapeText(window.label) + "</span>" + meterMarkup(window, "window-meter") +
-    '<strong class="window-percent">' + escapeText(window.readout) + "</strong>" +
-    '<span class="window-reset">' + escapeText(reset) + "</span></div>"
+    '<div class="window-line" data-tone="' +
+    window.tone +
+    '" data-state="' +
+    window.state +
+    '" aria-label="' +
+    escapeText(window.accessibleLabel) +
+    '">' +
+    '<span class="window-name" title="' +
+    escapeText(window.label) +
+    '">' +
+    escapeText(window.label) +
+    "</span>" +
+    meterMarkup(window, "window-meter") +
+    '<strong class="window-percent">' +
+    escapeText(window.readout) +
+    "</strong>" +
+    '<span class="window-reset">' +
+    escapeText(reset) +
+    "</span></div>"
   );
 }
 
@@ -505,11 +551,17 @@ export function providerTableHeaderMarkup(): string {
 
 export function providerRowMarkup(row: ProviderAccountRowView): string {
   return (
-    '<article class="row" aria-label="' + escapeText(row.providerLabel + ", " + row.accountLabel) + '">' +
+    '<article class="row" aria-label="' +
+    escapeText(row.providerLabel + ", " + row.accountLabel) +
+    '">' +
     '<header class="identity"><span class="mark" aria-hidden="true">' +
-    PROVIDER_MARKS[row.provider] + '</span><strong class="provider-name">' +
-    escapeText(row.providerLabel) + "</strong></header>" +
-    '<div class="windows">' + row.windows.map(windowLineMarkup).join("") + "</div></article>"
+    PROVIDER_MARKS[row.provider] +
+    '</span><strong class="provider-name">' +
+    escapeText(row.providerLabel) +
+    "</strong></header>" +
+    '<div class="windows">' +
+    row.windows.map(windowLineMarkup).join("") +
+    "</div></article>"
   );
 }
 
@@ -581,7 +633,7 @@ const PROVIDER_ROW_STYLE = `
   color: var(--row-heading);
   box-shadow: var(--ol-elev-1);
 }
-.mark svg { width: 1.125rem; height: 1.125rem; }
+.mark svg { width: 1.25rem; height: 1.25rem; }
 :host([data-provider="CLAUDE"]) .mark { color: var(--ol-provider-claude); }
 :host([data-provider="OPENROUTER"]) .mark { color: var(--ol-provider-openrouter); }
 :host([data-provider="CODEX"]) .mark { color: var(--ol-provider-codex); }
@@ -591,7 +643,6 @@ const PROVIDER_ROW_STYLE = `
 :host([data-provider="GROK"]) .mark { color: var(--ol-provider-grok); }
 :host([data-provider="KIMI"]) .mark { color: var(--ol-provider-kimi); }
 :host([data-provider="MANUAL"]) .mark { color: var(--ol-provider-manual); }
-:host([data-provider="CLAUDE"]) .mark svg,
 :host([data-provider="MANUAL"]) .mark svg {
   fill: none;
   stroke: currentColor;
@@ -599,6 +650,7 @@ const PROVIDER_ROW_STYLE = `
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+:host([data-provider="CLAUDE"]) .mark svg,
 :host([data-provider="OPENROUTER"]) .mark svg,
 :host([data-provider="CODEX"]) .mark svg,
 :host([data-provider="OPENCODE"]) .mark svg,
@@ -886,7 +938,7 @@ const PROVIDER_ROW_STYLE = `
   background: var(--row-raised);
   box-shadow: none;
 }
-.mark svg { width: 0.9375rem; height: 0.9375rem; }
+.mark svg { width: 1.25rem; height: 1.25rem; }
 .provider-name {
   min-width: 0;
   overflow: hidden;
@@ -1035,7 +1087,8 @@ export const PROVIDER_TABLE_HEADER_TAG = "openlimiter-provider-table-header";
 
 export function defineProviderTableHeaderElement(): void {
   if (typeof globalThis.customElements === "undefined") return;
-  if (globalThis.customElements.get(PROVIDER_TABLE_HEADER_TAG) !== undefined) return;
+  if (globalThis.customElements.get(PROVIDER_TABLE_HEADER_TAG) !== undefined)
+    return;
   const BaseElement = globalThis.HTMLElement;
   if (typeof BaseElement === "undefined") return;
 
@@ -1044,18 +1097,28 @@ export function defineProviderTableHeaderElement(): void {
       super();
       const root = this.attachShadow({ mode: "open" });
       root.innerHTML =
-        "<style>" + PROVIDER_TABLE_HEADER_STYLE + "</style>" + providerTableHeaderMarkup();
+        "<style>" +
+        PROVIDER_TABLE_HEADER_STYLE +
+        "</style>" +
+        providerTableHeaderMarkup();
     }
   }
 
-  globalThis.customElements.define(PROVIDER_TABLE_HEADER_TAG, OpenLimiterProviderTableHeader);
+  globalThis.customElements.define(
+    PROVIDER_TABLE_HEADER_TAG,
+    OpenLimiterProviderTableHeader
+  );
 }
 
-export function createProviderTableHeaderElement(ownerDocument?: Document): HTMLElement {
+export function createProviderTableHeaderElement(
+  ownerDocument?: Document
+): HTMLElement {
   defineProviderTableHeaderElement();
   const documentRef = ownerDocument ?? globalThis.document;
   if (documentRef === undefined) {
-    throw new Error("A document is required to create a provider table header.");
+    throw new Error(
+      "A document is required to create a provider table header."
+    );
   }
   return documentRef.createElement(PROVIDER_TABLE_HEADER_TAG);
 }
@@ -1099,7 +1162,10 @@ export function defineProviderRowElement(): void {
     #render(): void {
       if (this.#rowData === null) return;
       this.#root.innerHTML =
-        "<style>" + PROVIDER_ROW_STYLE + "</style>" + providerRowMarkup(this.#rowData);
+        "<style>" +
+        PROVIDER_ROW_STYLE +
+        "</style>" +
+        providerRowMarkup(this.#rowData);
     }
   }
 
@@ -1108,7 +1174,7 @@ export function defineProviderRowElement(): void {
 
 export function setProviderRowData(
   element: HTMLElement,
-  row: ProviderAccountRowView,
+  row: ProviderAccountRowView
 ): void {
   defineProviderRowElement();
   (element as ProviderRowHost).rowData = row;
@@ -1116,7 +1182,7 @@ export function setProviderRowData(
 
 export function createProviderRowElement(
   row: ProviderAccountRowView,
-  ownerDocument?: Document,
+  ownerDocument?: Document
 ): HTMLElement {
   defineProviderRowElement();
   const documentRef = ownerDocument ?? globalThis.document;

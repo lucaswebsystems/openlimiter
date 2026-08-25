@@ -1,6 +1,5 @@
 import { Dashboard } from "./dashboard";
 import { BrandLockup } from "@/components/brand";
-import { SHELL } from "@/components/ui";
 
 /**
  * The application at /app.
@@ -46,7 +45,10 @@ export default function AppPage() {
   return (
     <>
       <Splash />
-      <main id="main" className={`ol-product-shell ol-shell ${SHELL}`}>
+      <main
+        id="main"
+        className="ol-product-shell ol-shell mx-auto w-full max-w-7xl"
+      >
         <Dashboard
           lockup={
             <div className="flex min-w-0 items-center gap-3">

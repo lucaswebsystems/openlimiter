@@ -16,7 +16,7 @@ function snapshot(
   meter: string,
   value: number,
   accountId?: string,
-  resetAt: string | null = null,
+  resetAt: string | null = null
 ): Snapshot {
   return {
     provider,
@@ -50,7 +50,7 @@ describe("provider account rows", () => {
       ],
       NOW,
       [],
-      { providers: ["CODEX"] },
+      { providers: ["CODEX"] }
     );
 
     expect(rows).toHaveLength(2);
@@ -75,12 +75,15 @@ describe("provider account rows", () => {
       ],
       NOW,
       [],
-      { providers: ["CODEX"] },
+      { providers: ["CODEX"] }
     );
 
     expect(rows).toHaveLength(2);
     expect(new Set(rows.map((row) => row.key)).size).toBe(2);
-    expect(rows.map((row) => row.accountLabel)).toEqual(["Local account", "none"]);
+    expect(rows.map((row) => row.accountLabel)).toEqual([
+      "Local account",
+      "none",
+    ]);
   });
 
   it("shows no provider until one is explicitly configured", () => {
@@ -103,22 +106,40 @@ describe("provider account rows", () => {
       "GROK",
       "KIMI",
     ]);
-    expect(codex?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
-    expect(gemini?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
-    expect(grok?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
-    expect(kimi?.fallback).toMatchObject({ kind: "not_found", title: "Not connected" });
+    expect(codex?.fallback).toMatchObject({
+      kind: "not_found",
+      title: "Not connected",
+    });
+    expect(gemini?.fallback).toMatchObject({
+      kind: "not_found",
+      title: "Not connected",
+    });
+    expect(grok?.fallback).toMatchObject({
+      kind: "not_found",
+      title: "Not connected",
+    });
+    expect(kimi?.fallback).toMatchObject({
+      kind: "not_found",
+      title: "Not connected",
+    });
     expect(rows.some((row) => row.provider === "MANUAL")).toBe(false);
   });
 
   it("renders one compact usage line and one bar for every window", () => {
     const row = buildProviderAccountRows(
       [
-        snapshot("CLAUDE", "FIVE_HOUR", 63, "primary", "2026-08-19T13:30:00.000Z"),
+        snapshot(
+          "CLAUDE",
+          "FIVE_HOUR",
+          63,
+          "primary",
+          "2026-08-19T13:30:00.000Z"
+        ),
         snapshot("CLAUDE", "SEVEN_DAY", 28, "primary"),
       ],
       NOW,
       [],
-      { providers: ["CLAUDE"] },
+      { providers: ["CLAUDE"] }
     )[0];
 
     expect(row).toBeDefined();
@@ -128,6 +149,8 @@ describe("provider account rows", () => {
     expect(markup).toContain("Weekly");
     expect(markup).toContain("63.0%");
     expect(markup).toContain("<svg");
+    expect(markup).toContain('d="m4.7144 15.9555');
+    expect(markup).not.toContain('d="M12 2v20M2 12h20');
     expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(2);
     expect(markup).not.toContain("mini-window");
     expect(markup).not.toContain("mini-meter");
@@ -143,7 +166,7 @@ describe("provider account rows", () => {
       [snapshot("CODEX", "FIVE_HOUR", 63, "work")],
       NOW,
       [],
-      { providers: ["CODEX"] },
+      { providers: ["CODEX"] }
     )[0];
 
     expect(row).toBeDefined();
@@ -161,21 +184,30 @@ describe("provider account rows", () => {
       ],
       NOW,
       [],
-      { providers: ["CLAUDE"] },
+      { providers: ["CLAUDE"] }
     )[0];
 
     expect(row).toBeDefined();
-    expect(closestToLimit(row!.windows)).toMatchObject({ label: "Weekly", usedPercent: 62 });
-    expect(windowForMetric(row!.windows, "session")).toMatchObject({ usedPercent: 38 });
-    expect(windowForMetric(row!.windows, "week")).toMatchObject({ usedPercent: 62 });
-    expect(windowForMetric(row!.windows, "month")).toMatchObject({ usedPercent: 41 });
+    expect(closestToLimit(row!.windows)).toMatchObject({
+      label: "Weekly",
+      usedPercent: 62,
+    });
+    expect(windowForMetric(row!.windows, "session")).toMatchObject({
+      usedPercent: 38,
+    });
+    expect(windowForMetric(row!.windows, "week")).toMatchObject({
+      usedPercent: 62,
+    });
+    expect(windowForMetric(row!.windows, "month")).toMatchObject({
+      usedPercent: 41,
+    });
     const markup = providerRowMarkup(row!);
-    expect(markup).toContain('>5 hour session</span>');
-    expect(markup).toContain('>Weekly</span>');
-    expect(markup).toContain('>Monthly</span>');
-    expect(markup).toContain('>38.0%</strong>');
-    expect(markup).toContain('>62.0%</strong>');
-    expect(markup).toContain('>41.0%</strong>');
+    expect(markup).toContain(">5 hour session</span>");
+    expect(markup).toContain(">Weekly</span>");
+    expect(markup).toContain(">Monthly</span>");
+    expect(markup).toContain(">38.0%</strong>");
+    expect(markup).toContain(">62.0%</strong>");
+    expect(markup).toContain(">41.0%</strong>");
     expect(markup.match(/role=\"progressbar\"/g)).toHaveLength(3);
   });
 
@@ -188,7 +220,7 @@ describe("provider account rows", () => {
       ],
       NOW,
       [],
-      { providers: ["CLAUDE"] },
+      { providers: ["CLAUDE"] }
     )[0];
 
     expect(row?.windows.map((window) => window.label)).toEqual([
@@ -203,7 +235,9 @@ describe("provider account rows", () => {
   });
 
   it("does not render a broken looking meter for an unavailable reading", () => {
-    const row = buildProviderAccountRows([], NOW, [], { providers: ["GROK"] })[0];
+    const row = buildProviderAccountRows([], NOW, [], {
+      providers: ["GROK"],
+    })[0];
 
     expect(row).toBeDefined();
     const markup = providerRowMarkup(row!);
@@ -214,7 +248,9 @@ describe("provider account rows", () => {
 
   it("formats a bounded reset countdown and omits an absent reset", () => {
     expect(resetCountdown(null, NOW)).toBeNull();
-    expect(resetCountdown("2026-08-21T14:00:00.000Z", NOW)).toBe("Resets in 2d 2h");
+    expect(resetCountdown("2026-08-21T14:00:00.000Z", NOW)).toBe(
+      "Resets in 2d 2h"
+    );
   });
 
   it("labels credit and monthly windows and colors them by remaining headroom", () => {
@@ -232,7 +268,7 @@ describe("provider account rows", () => {
       [snapshot("MANUAL", "MONTHLY", 80)],
       NOW,
       [],
-      { providers: ["MANUAL"] },
+      { providers: ["MANUAL"] }
     )[0];
 
     expect(creditRow?.windows[0]).toMatchObject({
@@ -241,7 +277,10 @@ describe("provider account rows", () => {
       metricKind: "bounded_spend",
       tone: "watch",
     });
-    expect(monthlyRow?.windows[0]).toMatchObject({ label: "Monthly", tone: "high" });
+    expect(monthlyRow?.windows[0]).toMatchObject({
+      label: "Monthly",
+      tone: "high",
+    });
     expect(headroomTone(91)).toBe("critical");
     expect(headroomTone(20)).toBe("ok");
   });
@@ -279,22 +318,18 @@ describe("provider account rows", () => {
       ],
       NOW,
       [],
-      { providers: ["GROK", "KIMI", "GEMINI_CLI"] },
+      { providers: ["GROK", "KIMI", "GEMINI_CLI"] }
     );
     const byProvider = new Map(rows.map((row) => [row.provider, row]));
 
-    expect(byProvider.get("GROK")?.windows.map((window) => window.label)).toEqual([
-      "Weekly",
-      "On demand monthly",
-    ]);
-    expect(byProvider.get("KIMI")?.windows.map((window) => window.label)).toEqual([
-      "5 hour session",
-      "Weekly",
-      "5 hour session 2",
-    ]);
-    expect(byProvider.get("GEMINI_CLI")?.windows.map((window) => window.label)).toEqual([
-      "Gemini 3.1 Pro Preview",
-      "Gemini 3 Flash Preview",
-    ]);
+    expect(
+      byProvider.get("GROK")?.windows.map((window) => window.label)
+    ).toEqual(["Weekly", "On demand monthly"]);
+    expect(
+      byProvider.get("KIMI")?.windows.map((window) => window.label)
+    ).toEqual(["5 hour session", "Weekly", "5 hour session 2"]);
+    expect(
+      byProvider.get("GEMINI_CLI")?.windows.map((window) => window.label)
+    ).toEqual(["Gemini 3.1 Pro Preview", "Gemini 3 Flash Preview"]);
   });
 });

@@ -59,15 +59,12 @@
   The application shell.
 
   One element wraps the whole route, and it is the only place the installed
-  window's geometry is dealt with. `env(safe-area-inset-*)` is zero in a browser
-  tab and on every desktop, so the `max()` below is simply the ordinary padding
-  everywhere except an installed copy on a notched phone, where it grows enough
-  to clear the notch and the home indicator. The layout sets `viewport-fit:
-  cover`, which is what makes those values non zero in the first place.
+  window's geometry is dealt with. The dashboard owns its horizontal inset so
+  the brand, controls and panels share one edge. This wrapper only clears the
+  home indicator. The layout sets `viewport-fit: cover`, which is what makes
+  the safe area value non zero in the first place.
 */
 .ol-shell {
-  padding-left: max(0px, env(safe-area-inset-left));
-  padding-right: max(0px, env(safe-area-inset-right));
   padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -467,11 +464,8 @@
 .ol-tap {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition:
-    color 200ms ease,
-    background-color 200ms ease,
-    border-color 200ms ease,
-    scale 120ms ease;
+  transition: color 200ms ease, background-color 200ms ease,
+    border-color 200ms ease, scale 120ms ease;
 }
 
 .ol-tap:active {
@@ -571,9 +565,7 @@
   animation: none;
   opacity: 0;
   visibility: hidden;
-  transition:
-    opacity 200ms ease,
-    visibility 0s linear 200ms;
+  transition: opacity 200ms ease, visibility 0s linear 200ms;
 }
 
 /*
@@ -780,16 +772,31 @@
 }
 
 .ol-rise {
-  animation: ol-rise-in 560ms cubic-bezier(0, 0, 0.58, 1) var(--ol-rise-delay, 0ms) backwards;
+  animation: ol-rise-in 560ms cubic-bezier(0, 0, 0.58, 1)
+    var(--ol-rise-delay, 0ms) backwards;
 }
 
-.ol-stagger > *:nth-child(1) { --ol-rise-delay: 0ms; }
-.ol-stagger > *:nth-child(2) { --ol-rise-delay: 70ms; }
-.ol-stagger > *:nth-child(3) { --ol-rise-delay: 140ms; }
-.ol-stagger > *:nth-child(4) { --ol-rise-delay: 210ms; }
-.ol-stagger > *:nth-child(5) { --ol-rise-delay: 280ms; }
-.ol-stagger > *:nth-child(6) { --ol-rise-delay: 350ms; }
-.ol-stagger > *:nth-child(n + 7) { --ol-rise-delay: 420ms; }
+.ol-stagger > *:nth-child(1) {
+  --ol-rise-delay: 0ms;
+}
+.ol-stagger > *:nth-child(2) {
+  --ol-rise-delay: 70ms;
+}
+.ol-stagger > *:nth-child(3) {
+  --ol-rise-delay: 140ms;
+}
+.ol-stagger > *:nth-child(4) {
+  --ol-rise-delay: 210ms;
+}
+.ol-stagger > *:nth-child(5) {
+  --ol-rise-delay: 280ms;
+}
+.ol-stagger > *:nth-child(6) {
+  --ol-rise-delay: 350ms;
+}
+.ol-stagger > *:nth-child(n + 7) {
+  --ol-rise-delay: 420ms;
+}
 
 /*
   The tab panels.
@@ -861,8 +868,11 @@
 
 body:has(.ol-product-shell) {
   min-height: 100svh;
-  background:
-    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--ol-accent) 7%, transparent), transparent 34rem),
+  background: radial-gradient(
+      circle at 50% 0%,
+      color-mix(in srgb, var(--ol-accent) 7%, transparent),
+      transparent 34rem
+    ),
     var(--ol-canvas);
 }
 
@@ -876,9 +886,12 @@ body:has(.ol-product-shell) .page-overlap {
   min-height: 100svh;
 }
 
+body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
+  padding-top: max(var(--ol-space-5), env(safe-area-inset-top));
+}
+
 .ol-product-shell {
   min-height: 100svh;
-  padding-top: max(var(--ol-space-3), env(safe-area-inset-top));
   padding-bottom: max(var(--ol-space-6), env(safe-area-inset-bottom));
   color: var(--ol-body);
   font-family: var(--ol-font-sans);
@@ -893,6 +906,32 @@ body:has(.ol-product-shell) .page-overlap {
 .ol-dashboard {
   display: grid;
   gap: var(--ol-space-4);
+  padding-left: max(var(--ol-space-5), env(safe-area-inset-left));
+  padding-right: max(var(--ol-space-5), env(safe-area-inset-right));
+}
+
+@media (min-width: 768px) {
+  body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
+    padding-top: max(var(--ol-space-6), env(safe-area-inset-top));
+  }
+
+  .ol-dashboard {
+    padding-left: max(var(--ol-space-7), env(safe-area-inset-left));
+    padding-right: max(var(--ol-space-7), env(safe-area-inset-right));
+  }
+}
+
+@media (min-width: 1024px) {
+  .ol-dashboard {
+    padding-left: max(
+      calc(var(--ol-space-7) + var(--ol-space-4)),
+      env(safe-area-inset-left)
+    );
+    padding-right: max(
+      calc(var(--ol-space-7) + var(--ol-space-4)),
+      env(safe-area-inset-right)
+    );
+  }
 }
 
 .ol-account-gate {
@@ -1003,7 +1042,7 @@ body:has(.ol-product-shell) .page-overlap {
 .ol-commandbar-main {
   display: grid;
   min-height: 3.75rem;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--ol-space-4);
 }
@@ -1016,6 +1055,7 @@ body:has(.ol-product-shell) .page-overlap {
 }
 
 .ol-commandbar-actions {
+  justify-content: flex-end;
   gap: var(--ol-space-2);
 }
 
@@ -1227,6 +1267,11 @@ body:has(.ol-product-shell) .page-overlap {
   box-shadow: var(--ol-elev-1);
 }
 
+.ol-provider-mark svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
 .ol-row-skeleton {
   display: grid;
   min-height: var(--ol-row-min-height);
@@ -1296,8 +1341,7 @@ body:has(.ol-product-shell) .page-overlap {
   padding: var(--ol-space-2) var(--ol-space-3);
   border-radius: var(--ol-radius-sm);
   font-family: var(--ol-font-sans);
-  transition:
-    border-color var(--ol-motion-fast) var(--ol-ease-out),
+  transition: border-color var(--ol-motion-fast) var(--ol-ease-out),
     background-color var(--ol-motion-fast) var(--ol-ease-out),
     color var(--ol-motion-fast) var(--ol-ease-out),
     transform var(--ol-motion-fast) var(--ol-ease-out);
@@ -1368,16 +1412,36 @@ body:has(.ol-product-shell) .page-overlap {
   gap: var(--ol-space-3);
 }
 
-.ol-provider-mark[data-provider="CLAUDE"] { color: var(--ol-provider-claude); }
-.ol-provider-mark[data-provider="OPENROUTER"] { color: var(--ol-provider-openrouter); }
-.ol-provider-mark[data-provider="CODEX"] { color: var(--ol-provider-codex); }
-.ol-provider-mark[data-provider="ANTIGRAVITY"] { color: var(--ol-provider-antigravity); }
-.ol-provider-mark[data-provider="GEMINI_CLI"] { color: var(--ol-provider-gemini); }
-.ol-provider-mark[data-provider="OPENCODE"] { color: var(--ol-provider-opencode); }
-.ol-provider-mark[data-provider="GROK"] { color: var(--ol-provider-grok); }
-.ol-provider-mark[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
-.ol-provider-mark[data-provider="MANUAL"] { color: var(--ol-provider-manual); }
-.ol-provider-mark[data-provider="DEMO"] { color: var(--ol-accent); }
+.ol-provider-mark[data-provider="CLAUDE"] {
+  color: var(--ol-provider-claude);
+}
+.ol-provider-mark[data-provider="OPENROUTER"] {
+  color: var(--ol-provider-openrouter);
+}
+.ol-provider-mark[data-provider="CODEX"] {
+  color: var(--ol-provider-codex);
+}
+.ol-provider-mark[data-provider="ANTIGRAVITY"] {
+  color: var(--ol-provider-antigravity);
+}
+.ol-provider-mark[data-provider="GEMINI_CLI"] {
+  color: var(--ol-provider-gemini);
+}
+.ol-provider-mark[data-provider="OPENCODE"] {
+  color: var(--ol-provider-opencode);
+}
+.ol-provider-mark[data-provider="GROK"] {
+  color: var(--ol-provider-grok);
+}
+.ol-provider-mark[data-provider="KIMI"] {
+  color: var(--ol-provider-kimi);
+}
+.ol-provider-mark[data-provider="MANUAL"] {
+  color: var(--ol-provider-manual);
+}
+.ol-provider-mark[data-provider="DEMO"] {
+  color: var(--ol-accent);
+}
 
 .ol-account-name {
   display: flex;
@@ -1743,8 +1807,14 @@ body:has(.ol-product-shell) .page-overlap {
 }
 
 @keyframes olProductRise {
-  from { opacity: 0; transform: translate3d(0, var(--ol-space-2), 0); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translate3d(0, var(--ol-space-2), 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (hover: hover) {
@@ -1770,20 +1840,18 @@ body:has(.ol-product-shell) .page-overlap {
 }
 
 @media (max-width: 639px) {
-  .ol-product-shell {
-    padding-right: var(--ol-space-3);
-    padding-left: var(--ol-space-3);
-  }
-
   .ol-product-shell .ol-demo-banner-detail {
     display: none;
   }
 
   .ol-commandbar-main {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
   }
 
   .ol-commandbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
     justify-content: flex-start;
     gap: var(--ol-space-1);
   }

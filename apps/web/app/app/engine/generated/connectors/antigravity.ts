@@ -78,6 +78,7 @@ export const ANTIGRAVITY_WINDOWS: Readonly<Record<string, number>> = {
 };
 
 interface ParsedWindow {
+  meter: "FIVE_HOUR" | "SEVEN_DAY";
   percent: number;
   seconds: number;
   resetAt: string;
@@ -110,7 +111,12 @@ function readBuckets(buckets: readonly unknown[], now: string): ParsedWindow[] |
        than a quota bar can show. Clamped, because floating point subtraction
        of a fraction can land a hair outside the range. */
     const percent = Math.round(Math.max(0, Math.min(100, (1 - fraction) * 100)) * 10) / 10;
-    windows.push({ percent, seconds, resetAt });
+    windows.push({
+      meter: name.toLowerCase() === "5h" ? "FIVE_HOUR" : "SEVEN_DAY",
+      percent,
+      seconds,
+      resetAt
+    });
   }
   return windows.length === 0 ? null : windows;
 }
@@ -131,11 +137,10 @@ function poolPrefixes(buckets: readonly unknown[]): Set<string> | null {
 }
 
 /**
- * The tracked pool's binding window, as one meter.
+ * Every documented window in the tracked pool, as its own meter.
  *
- * One meter rather than one per window, matching what the reference reader's
- * bar shows and what the registry declares: the BINDING window, meaning the one
- * with the highest usage, because that is the one that will stop the work.
+ * The shell may still derive one binding percentage for advice and the tray,
+ * but the dashboard must not discard the other window to get there.
  *
  * The third party pool that rides the same subscription is deliberately not
  * modelled. It is a real second wallet, and reporting it under this provider's
@@ -167,22 +172,18 @@ export function parseAntigravityPayload(
   if (tracked === null) return null;
   const expiresAt = shortExpiry(now);
   if (expiresAt === null) return null;
-  let binding = tracked[0]!;
-  for (const candidate of tracked.slice(1)) {
-    if (candidate.percent > binding.percent) binding = candidate;
-  }
-  return [rawMeter({
+  return tracked.map((candidate) => rawMeter({
     provider: "ANTIGRAVITY",
-    meter: "PRIMARY",
-    value: binding.percent,
-    window: { kind: "rolling", durationSeconds: binding.seconds },
-    resetAt: binding.resetAt,
+    meter: candidate.meter,
+    value: candidate.percent,
+    window: { kind: "rolling", durationSeconds: candidate.seconds },
+    resetAt: candidate.resetAt,
     source: "internal_payload",
     precision: "estimated",
     observedAt: now,
     expiresAt,
     labels: antigravityLabels
-  })];
+  }));
 }
 
 export const antigravityConnector: ConnectorContract = {

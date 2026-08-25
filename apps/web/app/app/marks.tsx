@@ -29,7 +29,10 @@ import {
  * only mapping left here is which provider code gets which mark.
  */
 
-const MARKS: Record<string, (props: { className?: string }) => React.ReactNode> = {
+const MARKS: Record<
+  string,
+  (props: { className?: string }) => React.ReactNode
+> = {
   CLAUDE: ClaudeMark,
   OPENROUTER: OpenRouterMark,
   /* Simple Icons ships no OpenAI mark, so this is the lettered tile. */
@@ -47,7 +50,7 @@ const MARKS: Record<string, (props: { className?: string }) => React.ReactNode> 
 export function ProviderMark({
   provider,
   label,
-  className = "h-4 w-4",
+  className = "h-5 w-5",
 }: {
   provider: string;
   label?: string;

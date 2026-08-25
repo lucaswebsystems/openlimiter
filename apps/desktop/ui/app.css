@@ -36,7 +36,7 @@ body {
 body {
   margin: 0;
   color: var(--body);
-  font: var(--ol-text-label)/var(--ol-leading-body) var(--ol-font-sans);
+  font: var(--ol-text-label) / var(--ol-leading-body) var(--ol-font-sans);
   -webkit-font-smoothing: antialiased;
   /* A window is dragged by its title bar, never by selecting its contents. */
   user-select: none;
@@ -77,7 +77,8 @@ html[data-first-run="complete"] .first-run {
 
 .first-run-kicker {
   margin: var(--ol-space-5) 0 var(--ol-space-1);
-  font: var(--ol-weight-semibold) var(--ol-text-micro)/var(--ol-leading-body) var(--ol-font-mono);
+  font: var(--ol-weight-semibold) var(--ol-text-micro) / var(--ol-leading-body)
+    var(--ol-font-mono);
   letter-spacing: 0.14em;
   color: var(--accent);
 }
@@ -319,10 +320,7 @@ button {
   font-weight: var(--ol-weight-medium);
   line-height: var(--ol-leading-body);
   cursor: pointer;
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease,
     translate 0.2s ease;
 }
 
@@ -516,10 +514,7 @@ main {
   background: var(--surface);
   padding: var(--ol-space-5);
   box-shadow: inset 0 1px 0 0 var(--sheen);
-  transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    translate 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, translate 0.2s ease;
 }
 
 .card:hover {
@@ -578,7 +573,7 @@ main {
 
 .code {
   margin-top: var(--ol-space-1);
-  font: var(--ol-text-micro)/var(--ol-leading-tight) var(--ol-font-mono);
+  font: var(--ol-text-micro) / var(--ol-leading-tight) var(--ol-font-mono);
   letter-spacing: 0.14em;
   color: var(--muted);
 }
@@ -808,8 +803,6 @@ main {
   color: var(--meter-error);
 }
 
-
-
 /* -------------------------------------------------------------------- meter */
 
 /*
@@ -839,13 +832,25 @@ main {
   --pressure: var(--pressure-base);
 }
 
-.meter[data-pressure="ok"] { --pressure-base: var(--meter-ok); }
-.meter[data-pressure="high"] { --pressure-base: var(--meter-high); }
-.meter[data-pressure="watch"] { --pressure-base: var(--meter-watch); }
-.meter[data-pressure="critical"] { --pressure-base: var(--meter-critical); }
+.meter[data-pressure="ok"] {
+  --pressure-base: var(--meter-ok);
+}
+.meter[data-pressure="high"] {
+  --pressure-base: var(--meter-high);
+}
+.meter[data-pressure="watch"] {
+  --pressure-base: var(--meter-watch);
+}
+.meter[data-pressure="critical"] {
+  --pressure-base: var(--meter-critical);
+}
 
 .meter[data-state="stale"] {
-  --pressure: color-mix(in srgb, var(--pressure-base) var(--stale-mix), var(--surface));
+  --pressure: color-mix(
+    in srgb,
+    var(--pressure-base) var(--stale-mix),
+    var(--surface)
+  );
 }
 
 .meter-fill {
@@ -886,10 +891,18 @@ main {
 
 /* The number keeps its full colour whatever its freshness: a percentage has to
    stay legible, and the hollow dot and the word stale carry the state. */
-.value[data-pressure="ok"] { color: var(--meter-ok); }
-.value[data-pressure="high"] { color: var(--meter-high); }
-.value[data-pressure="watch"] { color: var(--meter-watch); }
-.value[data-pressure="critical"] { color: var(--meter-critical); }
+.value[data-pressure="ok"] {
+  color: var(--meter-ok);
+}
+.value[data-pressure="high"] {
+  color: var(--meter-high);
+}
+.value[data-pressure="watch"] {
+  color: var(--meter-watch);
+}
+.value[data-pressure="critical"] {
+  color: var(--meter-critical);
+}
 
 /* -------------------------------------------------------------------- empty */
 
@@ -986,7 +999,7 @@ pre {
   border: 1px solid var(--hairline);
   border-radius: var(--ol-radius-sm);
   background: var(--code);
-  font: var(--ol-text-caption)/var(--ol-leading-body) var(--ol-font-mono);
+  font: var(--ol-text-caption) / var(--ol-leading-body) var(--ol-font-mono);
   color: var(--body);
   white-space: pre-wrap;
   word-break: break-word;
@@ -1356,7 +1369,7 @@ button.confirming {
   border-radius: var(--ol-radius-sm);
   background: var(--code);
   color: var(--body);
-  font: var(--ol-text-body)/var(--ol-leading-body) var(--ol-font-mono);
+  font: var(--ol-text-body) / var(--ol-leading-body) var(--ol-font-mono);
 }
 
 .field:focus-visible {
@@ -1406,18 +1419,42 @@ button.confirming {
   animation: rise-in 560ms cubic-bezier(0, 0, 0.58, 1) backwards;
 }
 
-.card:nth-child(1) { animation-delay: 0ms; }
-.card:nth-child(2) { animation-delay: 70ms; }
-.card:nth-child(3) { animation-delay: 140ms; }
-.card:nth-child(4) { animation-delay: 210ms; }
-.card:nth-child(5) { animation-delay: 280ms; }
-.card:nth-child(n + 6) { animation-delay: 350ms; }
-.provider-rows > openlimiter-provider-row:nth-child(1) { animation-delay: 0ms; }
-.provider-rows > openlimiter-provider-row:nth-child(2) { animation-delay: 70ms; }
-.provider-rows > openlimiter-provider-row:nth-child(3) { animation-delay: 140ms; }
-.provider-rows > openlimiter-provider-row:nth-child(4) { animation-delay: 210ms; }
-.provider-rows > openlimiter-provider-row:nth-child(5) { animation-delay: 280ms; }
-.provider-rows > openlimiter-provider-row:nth-child(n + 6) { animation-delay: 350ms; }
+.card:nth-child(1) {
+  animation-delay: 0ms;
+}
+.card:nth-child(2) {
+  animation-delay: 70ms;
+}
+.card:nth-child(3) {
+  animation-delay: 140ms;
+}
+.card:nth-child(4) {
+  animation-delay: 210ms;
+}
+.card:nth-child(5) {
+  animation-delay: 280ms;
+}
+.card:nth-child(n + 6) {
+  animation-delay: 350ms;
+}
+.provider-rows > openlimiter-provider-row:nth-child(1) {
+  animation-delay: 0ms;
+}
+.provider-rows > openlimiter-provider-row:nth-child(2) {
+  animation-delay: 70ms;
+}
+.provider-rows > openlimiter-provider-row:nth-child(3) {
+  animation-delay: 140ms;
+}
+.provider-rows > openlimiter-provider-row:nth-child(4) {
+  animation-delay: 210ms;
+}
+.provider-rows > openlimiter-provider-row:nth-child(5) {
+  animation-delay: 280ms;
+}
+.provider-rows > openlimiter-provider-row:nth-child(n + 6) {
+  animation-delay: 350ms;
+}
 
 /* A panel cross fades in on the same curve over a shorter distance. */
 @keyframes panel-in {
@@ -1486,11 +1523,14 @@ button.confirming {
 /* Product surface */
 
 body {
-  background:
-    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--ol-accent) 7%, transparent), transparent 34rem),
+  background: radial-gradient(
+      circle at 50% 0%,
+      color-mix(in srgb, var(--ol-accent) 7%, transparent),
+      transparent 34rem
+    ),
     var(--ol-canvas);
   color: var(--ol-body);
-  font: var(--ol-text-body)/var(--ol-leading-body) var(--ol-font-sans);
+  font: var(--ol-text-body) / var(--ol-leading-body) var(--ol-font-sans);
 }
 
 .mono,
@@ -1519,9 +1559,9 @@ button {
   border-radius: var(--ol-radius-sm);
   background: transparent;
   color: var(--ol-heading);
-  font: var(--ol-weight-semibold) var(--ol-text-body)/var(--ol-leading-tight) var(--ol-font-sans);
-  transition:
-    background-color var(--ol-motion-fast) var(--ol-ease-out),
+  font: var(--ol-weight-semibold) var(--ol-text-body) / var(--ol-leading-tight)
+    var(--ol-font-sans);
+  transition: background-color var(--ol-motion-fast) var(--ol-ease-out),
     border-color var(--ol-motion-fast) var(--ol-ease-out),
     color var(--ol-motion-fast) var(--ol-ease-out),
     transform var(--ol-motion-fast) var(--ol-ease-out);
@@ -1562,8 +1602,11 @@ button.first-run-continue:hover,
 .first-run {
   min-height: 100svh;
   padding: var(--ol-space-5);
-  background:
-    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--ol-accent) 10%, transparent), transparent 28rem),
+  background: radial-gradient(
+      circle at 50% 0%,
+      color-mix(in srgb, var(--ol-accent) 10%, transparent),
+      transparent 28rem
+    ),
     var(--ol-canvas);
 }
 
@@ -1707,19 +1750,37 @@ button.first-run-continue:hover,
 
 .first-run-mark svg,
 .conn-provider-mark svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
-.first-run-row[data-provider="CLAUDE"] .first-run-mark { color: var(--ol-provider-claude); }
-.first-run-row[data-provider="CODEX"] .first-run-mark { color: var(--ol-provider-codex); }
-.first-run-row[data-provider="GROK"] .first-run-mark { color: var(--ol-provider-grok); }
-.first-run-row[data-provider="KIMI"] .first-run-mark { color: var(--ol-provider-kimi); }
-.first-run-row[data-provider="ANTIGRAVITY"] .first-run-mark { color: var(--ol-provider-antigravity); }
-.first-run-row[data-provider="GEMINI_CLI"] .first-run-mark { color: var(--ol-provider-gemini); }
-.first-run-row[data-provider="OPENCODE"] .first-run-mark { color: var(--ol-provider-opencode); }
-.first-run-row[data-provider="OPENROUTER"] .first-run-mark { color: var(--ol-provider-openrouter); }
-.first-run-row[data-provider="MANUAL"] .first-run-mark { color: var(--ol-provider-manual); }
+.first-run-row[data-provider="CLAUDE"] .first-run-mark {
+  color: var(--ol-provider-claude);
+}
+.first-run-row[data-provider="CODEX"] .first-run-mark {
+  color: var(--ol-provider-codex);
+}
+.first-run-row[data-provider="GROK"] .first-run-mark {
+  color: var(--ol-provider-grok);
+}
+.first-run-row[data-provider="KIMI"] .first-run-mark {
+  color: var(--ol-provider-kimi);
+}
+.first-run-row[data-provider="ANTIGRAVITY"] .first-run-mark {
+  color: var(--ol-provider-antigravity);
+}
+.first-run-row[data-provider="GEMINI_CLI"] .first-run-mark {
+  color: var(--ol-provider-gemini);
+}
+.first-run-row[data-provider="OPENCODE"] .first-run-mark {
+  color: var(--ol-provider-opencode);
+}
+.first-run-row[data-provider="OPENROUTER"] .first-run-mark {
+  color: var(--ol-provider-openrouter);
+}
+.first-run-row[data-provider="MANUAL"] .first-run-mark {
+  color: var(--ol-provider-manual);
+}
 
 .first-run-identity-copy {
   display: flex;
@@ -2086,14 +2147,30 @@ main {
   gap: var(--ol-space-3);
 }
 
-.conn-provider-mark[data-provider="CLAUDE"] { color: var(--ol-provider-claude); }
-.conn-provider-mark[data-provider="OPENROUTER"] { color: var(--ol-provider-openrouter); }
-.conn-provider-mark[data-provider="CODEX"] { color: var(--ol-provider-codex); }
-.conn-provider-mark[data-provider="ANTIGRAVITY"] { color: var(--ol-provider-antigravity); }
-.conn-provider-mark[data-provider="GEMINI_CLI"] { color: var(--ol-provider-gemini); }
-.conn-provider-mark[data-provider="OPENCODE"] { color: var(--ol-provider-opencode); }
-.conn-provider-mark[data-provider="GROK"] { color: var(--ol-provider-grok); }
-.conn-provider-mark[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
+.conn-provider-mark[data-provider="CLAUDE"] {
+  color: var(--ol-provider-claude);
+}
+.conn-provider-mark[data-provider="OPENROUTER"] {
+  color: var(--ol-provider-openrouter);
+}
+.conn-provider-mark[data-provider="CODEX"] {
+  color: var(--ol-provider-codex);
+}
+.conn-provider-mark[data-provider="ANTIGRAVITY"] {
+  color: var(--ol-provider-antigravity);
+}
+.conn-provider-mark[data-provider="GEMINI_CLI"] {
+  color: var(--ol-provider-gemini);
+}
+.conn-provider-mark[data-provider="OPENCODE"] {
+  color: var(--ol-provider-opencode);
+}
+.conn-provider-mark[data-provider="GROK"] {
+  color: var(--ol-provider-grok);
+}
+.conn-provider-mark[data-provider="KIMI"] {
+  color: var(--ol-provider-kimi);
+}
 
 .conn-head h2 {
   overflow: hidden;
@@ -2306,19 +2383,37 @@ pre {
 }
 
 .catalogue-mark svg {
-  width: 1rem;
-  height: 1rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
-.catalogue-mark[data-provider="CLAUDE"] { color: var(--ol-provider-claude); }
-.catalogue-mark[data-provider="OPENROUTER"] { color: var(--ol-provider-openrouter); }
-.catalogue-mark[data-provider="CODEX"] { color: var(--ol-provider-codex); }
-.catalogue-mark[data-provider="ANTIGRAVITY"] { color: var(--ol-provider-antigravity); }
-.catalogue-mark[data-provider="GEMINI_CLI"] { color: var(--ol-provider-gemini); }
-.catalogue-mark[data-provider="OPENCODE"] { color: var(--ol-provider-opencode); }
-.catalogue-mark[data-provider="GROK"] { color: var(--ol-provider-grok); }
-.catalogue-mark[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
-.catalogue-mark[data-provider="MANUAL"] { color: var(--ol-provider-manual); }
+.catalogue-mark[data-provider="CLAUDE"] {
+  color: var(--ol-provider-claude);
+}
+.catalogue-mark[data-provider="OPENROUTER"] {
+  color: var(--ol-provider-openrouter);
+}
+.catalogue-mark[data-provider="CODEX"] {
+  color: var(--ol-provider-codex);
+}
+.catalogue-mark[data-provider="ANTIGRAVITY"] {
+  color: var(--ol-provider-antigravity);
+}
+.catalogue-mark[data-provider="GEMINI_CLI"] {
+  color: var(--ol-provider-gemini);
+}
+.catalogue-mark[data-provider="OPENCODE"] {
+  color: var(--ol-provider-opencode);
+}
+.catalogue-mark[data-provider="GROK"] {
+  color: var(--ol-provider-grok);
+}
+.catalogue-mark[data-provider="KIMI"] {
+  color: var(--ol-provider-kimi);
+}
+.catalogue-mark[data-provider="MANUAL"] {
+  color: var(--ol-provider-manual);
+}
 
 .catalogue-name {
   display: flex;

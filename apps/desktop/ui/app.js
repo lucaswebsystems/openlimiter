@@ -108,18 +108,22 @@ const THEME_KEY = "openlimiter-theme";
  * These strings are constants. Nothing read off disk ever reaches innerHTML.
  */
 const FILLED_OPEN =
-  '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true" focusable="false">';
+  '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" focusable="false">';
 
 const STROKED_OPEN =
-  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" ' +
+  '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" ' +
   'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">';
 
 const MARKS = {
-  CLAUDE: FILLED_OPEN + '<path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>',
-  OPENROUTER: FILLED_OPEN + '<path d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/></svg>',
+  CLAUDE:
+    FILLED_OPEN +
+    '<path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></svg>',
+  OPENROUTER:
+    FILLED_OPEN +
+    '<path d="M16.778 1.844v1.919q-.569-.026-1.138-.032-.708-.008-1.415.037c-1.93.126-4.023.728-6.149 2.237-2.911 2.066-2.731 1.95-4.14 2.75-.396.223-1.342.574-2.185.798-.841.225-1.753.333-1.751.333v4.229s.768.108 1.61.333c.842.224 1.789.575 2.185.799 1.41.798 1.228.683 4.14 2.75 2.126 1.509 4.22 2.11 6.148 2.236.88.058 1.716.041 2.555.005v1.918l7.222-4.168-7.222-4.17v2.176c-.86.038-1.611.065-2.278.021-1.364-.09-2.417-.357-3.979-1.465-2.244-1.593-2.866-2.027-3.68-2.508.889-.518 1.449-.906 3.822-2.59 1.56-1.109 2.614-1.377 3.978-1.466.667-.044 1.418-.017 2.278.02v2.176L24 6.014Z"/></svg>',
   OPENCODE: FILLED_OPEN + '<path d="M22 24H2V0h20zM17 4.8H7v14.4h10z"/></svg>',
   ANTIGRAVITY:
-    '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">' +
+    '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">' +
     '<defs><linearGradient id="ol-antigravity-gradient" x1="12" y1="1.8" x2="12" y2="22.4" gradientUnits="userSpaceOnUse">' +
     '<stop offset="0" stop-color="var(--ol-provider-google-red)"/>' +
     '<stop offset=".34" stop-color="var(--ol-provider-google-yellow)"/>' +
@@ -127,7 +131,7 @@ const MARKS = {
     '<stop offset="1" stop-color="var(--ol-provider-google-blue)"/></linearGradient></defs>' +
     '<path d="M12 1.8C14.8 1.8 17.1 7.8 19.6 14.2C20.5 16.5 21.4 19 21.4 20.2C21.4 21.8 19.8 22.4 17.8 20.6C16.3 16.8 14.1 12.5 12 12.5C9.9 12.5 7.7 16.8 6.2 20.6C4.2 22.4 2.6 21.8 2.6 20.2C2.6 19 3.5 16.5 4.4 14.2C6.9 7.8 9.2 1.8 12 1.8Z" fill="url(#ol-antigravity-gradient)"/></svg>',
   GEMINI_CLI:
-    '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">' +
+    '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">' +
     '<defs><linearGradient id="ol-gemini-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">' +
     '<stop offset="0" stop-color="var(--ol-provider-gemini-blue)"/>' +
     '<stop offset=".52" stop-color="var(--ol-provider-gemini-purple)"/>' +
@@ -250,7 +254,9 @@ function beginAddAccount() {
   panel?.setAttribute("data-adding", "");
   window.setTimeout(() => panel?.removeAttribute("data-adding"), 1200);
   window.requestAnimationFrame(() => {
-    const target = document.querySelector("#catalogue-rows .catalogue-action button");
+    const target = document.querySelector(
+      "#catalogue-rows .catalogue-action button"
+    );
     target?.scrollIntoView({ behavior: "smooth", block: "center" });
     target?.focus({ preventScroll: true });
   });
@@ -273,11 +279,14 @@ function applyAccountState(status) {
   elements.menuEmail.textContent = status.signedIn
     ? String(status.email ?? "Signed in")
     : "Signed out";
-  elements.menuBackend.textContent = status.backendReachable === false && status.signedIn
-    ? "Cached session"
-    : "";
+  elements.menuBackend.textContent =
+    status.backendReachable === false && status.signedIn
+      ? "Cached session"
+      : "";
   elements.menuSync.checked = status.syncEnabled !== false;
-  elements.offlineBanner.hidden = !(status.signedIn && status.backendReachable === false);
+  elements.offlineBanner.hidden = !(
+    status.signedIn && status.backendReachable === false
+  );
 }
 
 function eventSentence(event) {
@@ -285,7 +294,14 @@ function eventSentence(event) {
     return event.provider + " " + event.windowName + " reset.";
   }
   const threshold = String(event.kind ?? "").replace("threshold_", "");
-  return event.provider + " " + event.windowName + " reached " + threshold + " percent.";
+  return (
+    event.provider +
+    " " +
+    event.windowName +
+    " reached " +
+    threshold +
+    " percent."
+  );
 }
 
 async function renderNotificationEvents() {
@@ -310,7 +326,9 @@ async function runUpdateCheck(silent) {
   if (!silent) elements.menuUpdate.textContent = "Checking for updates";
   const result = await checkForUpdate();
   if (!result.ok) {
-    if (!silent) elements.menuUpdate.textContent = result.message ?? "Update check unavailable";
+    if (!silent)
+      elements.menuUpdate.textContent =
+        result.message ?? "Update check unavailable";
     return;
   }
   if (result.value === null) {
@@ -318,7 +336,8 @@ async function runUpdateCheck(silent) {
     return;
   }
   const version = String(result.value.version ?? "new version");
-  elements.updateBanner.textContent = "OpenLimiter " + version + " is ready. Install now.";
+  elements.updateBanner.textContent =
+    "OpenLimiter " + version + " is ready. Install now.";
   elements.updateBanner.hidden = false;
   elements.menuUpdate.textContent = "Install OpenLimiter " + version;
 }
@@ -339,7 +358,10 @@ elements.menuButton?.addEventListener("click", () => {
 });
 
 document.addEventListener("click", (event) => {
-  if (event.target instanceof Node && !event.target.parentElement?.closest(".strip")) {
+  if (
+    event.target instanceof Node &&
+    !event.target.parentElement?.closest(".strip")
+  ) {
     closeHeaderPopovers();
   }
 });
@@ -362,7 +384,8 @@ elements.updateBanner?.addEventListener("click", () => {
   void installUpdate().then((result) => {
     if (!result.ok) {
       elements.updateBanner.disabled = false;
-      elements.updateBanner.textContent = result.message ?? "Update install unavailable";
+      elements.updateBanner.textContent =
+        result.message ?? "Update install unavailable";
     }
   });
 });
@@ -424,12 +447,17 @@ async function collect(now) {
         suppressions: suppressionRead.suppressions,
       });
       for (const suppression of suppressionRead.suppressions) {
-        failures.push({ provider: suppression.provider, category: "PROVIDER_DRIFT" });
+        failures.push({
+          provider: suppression.provider,
+          category: "PROVIDER_DRIFT",
+        });
       }
     } else {
       /* An unreadable suppression list cannot prove any cached row is still
          trustworthy. Keep every named provider visible as unknown. */
-      for (const provider of new Set(report.snapshots.map((row) => row.provider))) {
+      for (const provider of new Set(
+        report.snapshots.map((row) => row.provider)
+      )) {
         failures.push({ provider, category: "PROVIDER_DRIFT" });
       }
     }
@@ -460,7 +488,7 @@ async function collect(now) {
 /** One bounded percentage per provider for the native tray menu. */
 function trayProviders(advice, configuredProviders) {
   const byProvider = new Map(
-    advice.providers.map((entry) => [entry.provider, entry.usagePercent]),
+    advice.providers.map((entry) => [entry.provider, entry.usagePercent])
   );
   return configuredProviders.map((provider) => ({
     provider,
@@ -486,27 +514,32 @@ async function refresh() {
     const { snapshots, failures } = await collect(now);
     const configuredProviders = readConfiguredProviders();
     const visible = snapshots.filter((snapshot) =>
-      configuredProviders.includes(snapshot.provider),
+      configuredProviders.includes(snapshot.provider)
     );
     const visibleFailures = failures.filter((failure) =>
-      configuredProviders.includes(failure.provider),
+      configuredProviders.includes(failure.provider)
     );
     const advice = buildAdvice(visible, now, configuredProviders);
     freshLocalClaude = snapshots.some(
       (snapshot) =>
         snapshot.provider === "CLAUDE" &&
         (snapshot.provenance?.sourceKind === "statusline_payload" ||
-          ((snapshot.provenance === undefined || snapshot.provenance === null) &&
+          ((snapshot.provenance === undefined ||
+            snapshot.provenance === null) &&
             snapshot.source === "native_payload")) &&
-        freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh",
+        freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh"
     );
     if (!initialTabDetermined) {
       initialTabDetermined = true;
       const connectionsRes = await listConnections();
-      const connList = connectionsRes.ok ? normalizeConnectionList(connectionsRes.value) : [];
+      const connList = connectionsRes.ok
+        ? normalizeConnectionList(connectionsRes.value)
+        : [];
       const hasConnections =
         connList.length > 0 ||
-        snapshots.some((s) => freshness(s.observedAt, s.expiresAt, now) !== "unknown");
+        snapshots.some(
+          (s) => freshness(s.observedAt, s.expiresAt, now) !== "unknown"
+        );
       if (hasConnections) {
         selectTab(0);
       } else {
@@ -519,7 +552,7 @@ async function refresh() {
       visible,
       now,
       visibleFailures,
-      { providers: configuredProviders },
+      { providers: configuredProviders }
     ).filter((row) => row.windows.length > 0);
     for (const row of providerRows) {
       elements.rows.append(createProviderRowElement(row));
@@ -529,7 +562,10 @@ async function refresh() {
     elements.rows.hidden = providerRows.length === 0;
 
     const notificationSamples = visible
-      .filter((snapshot) => snapshot.unit === "PERCENT" && Number.isFinite(snapshot.value))
+      .filter(
+        (snapshot) =>
+          snapshot.unit === "PERCENT" && Number.isFinite(snapshot.value)
+      )
       .map((snapshot) => ({
         provider: snapshot.provider,
         window_name: snapshot.meter,
@@ -543,7 +579,9 @@ async function refresh() {
       }
     }
 
-    await setTrayStatus({ providers: trayProviders(advice, configuredProviders) });
+    await setTrayStatus({
+      providers: trayProviders(advice, configuredProviders),
+    });
     /* The Claude card's ready or collecting split reads the cache through
        the flag set above, so it is told the cache moved. */
     noteMetersRefreshed();
@@ -566,14 +604,16 @@ elements.theme.addEventListener("click", () => {
   const light = document.documentElement.getAttribute("data-theme") === "light";
   const next = light ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", next);
-  elements.theme.setAttribute("aria-pressed", next === "dark" ? "true" : "false");
+  elements.theme.setAttribute(
+    "aria-pressed",
+    next === "dark" ? "true" : "false"
+  );
   try {
     window.localStorage.setItem(THEME_KEY, next);
   } catch {
     /* Storage refused. The choice still applies to this window. */
   }
 });
-
 
 /* ----------------------------------------------------------- provider connect */
 
@@ -590,13 +630,21 @@ function setCardNote(node, text, tone) {
  * be missing on these paths, and the caller asked `snapshots !== null`, which
  * `undefined` satisfies. A refused probe therefore reported a parsed test.
  */
-const NOTHING_TESTED = { ok: false, snapshots: null, drifted: false, generation: null };
+const NOTHING_TESTED = {
+  ok: false,
+  snapshots: null,
+  drifted: false,
+  generation: null,
+};
 
 async function testConnectionHelper(connectionId) {
   const result = await testProvider({ connectionId });
   if (!result.ok) {
     if (result.reason === BACKEND_ABSENT) {
-      return { ...NOTHING_TESTED, note: "This build has no connection backend yet." };
+      return {
+        ...NOTHING_TESTED,
+        note: "This build has no connection backend yet.",
+      };
     }
     return { ...NOTHING_TESTED, note: result.message };
   }
@@ -608,7 +656,14 @@ async function testConnectionHelper(connectionId) {
   };
 }
 
-async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, keyInputId, submitBtnId, noteElId }) {
+async function handleConnectSubmit({
+  providerId,
+  credentialKind,
+  aliasInputId,
+  keyInputId,
+  submitBtnId,
+  noteElId,
+}) {
   const input = document.getElementById(keyInputId);
   const aliasInput = document.getElementById(aliasInputId);
   const noteEl = document.getElementById(noteElId);
@@ -624,9 +679,13 @@ async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, k
     return;
   }
 
-  const alias = aliasInput ? (aliasInput.value.trim() || "default") : "default";
+  const alias = aliasInput ? aliasInput.value.trim() || "default" : "default";
   submitBtn.disabled = true;
-  setCardNote(noteEl, "Storing the credential in the credential store.", "plain");
+  setCardNote(
+    noteEl,
+    "Storing the credential in the credential store.",
+    "plain"
+  );
 
   const connected = await connectProvider({
     providerId,
@@ -646,22 +705,29 @@ async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, k
   }
 
   setCardNote(noteEl, "Stored. Testing the connection now.", "plain");
-  const connectionId = typeof connected.value === "string"
-    ? connected.value
-    : (normalizeConnection(connected.value)?.id ?? null);
+  const connectionId =
+    typeof connected.value === "string"
+      ? connected.value
+      : normalizeConnection(connected.value)?.id ?? null;
 
   const listRes = await listConnections();
   let record = null;
   if (listRes.ok) {
     const connections = normalizeConnectionList(listRes.value);
-    record = (connectionId !== null
-      ? connections.find((e) => e.id === connectionId)
-      : undefined) ?? connections.filter((e) => e.provider === providerId.toUpperCase()).at(-1);
+    record =
+      (connectionId !== null
+        ? connections.find((e) => e.id === connectionId)
+        : undefined) ??
+      connections.filter((e) => e.provider === providerId.toUpperCase()).at(-1);
   }
 
   const targetId = record ? record.id : connectionId;
   if (!targetId) {
-    setCardNote(noteEl, "The credential was stored, and no connection record came back to test.", "bad");
+    setCardNote(
+      noteEl,
+      "The credential was stored, and no connection record came back to test.",
+      "bad"
+    );
     submitBtn.disabled = false;
     connectionsTabShown();
     return;
@@ -679,7 +745,9 @@ async function handleConnectSubmit({ providerId, credentialKind, aliasInputId, k
   if (tested.note !== null) {
     setCardNote(noteEl, "The test failed. " + tested.note, "bad");
   } else {
-    const sentence = settledState ? (connectionSentence[settledState] || settledState) : "Connected.";
+    const sentence = settledState
+      ? connectionSentence[settledState] || settledState
+      : "Connected.";
     setCardNote(
       noteEl,
       "Test finished. " + sentence,
@@ -746,7 +814,9 @@ function fillStaticHonestyLabels() {
 fillStaticHonestyLabels();
 
 function decorateConnectionCardsHonestyLabels() {
-  const cardElements = document.querySelectorAll("#connections-cards .conn-card");
+  const cardElements = document.querySelectorAll(
+    "#connections-cards .conn-card"
+  );
   cardElements.forEach((cardNode) => {
     const nameEl = cardNode.querySelector(".card-id .name");
     const headEl = cardNode.querySelector(".conn-head");
