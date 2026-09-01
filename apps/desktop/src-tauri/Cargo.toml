@@ -55,14 +55,20 @@ fs2 = "0.4.3"
 httpdate = "1.0.3"
 # Only the interval timer for the native collector; every listed feature is
 # already in the dependency tree through tauri and reqwest.
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["net", "sync", "time"] }
 # Native readers validate and emit the cache's canonical UTC timestamps.
 time = { version = "0.3.55", features = ["formatting", "macros", "parsing"] }
+# Quiet hours are stored with an IANA zone. chrono-tz embeds the zone database,
+# which keeps daylight saving behavior consistent on Windows, Linux, and macOS.
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+chrono-tz = "0.10"
 # The explicit only OpenCode reader mirrors the connector's bounded HTML scan.
 regex = "1.13.1"
 base64 = "0.22.1"
 ed25519-dalek = "2.2.0"
 url = "2"
+rust_decimal = { version = "1", default-features = false, features = ["std"] }
+unicode-normalization = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 # Antigravity uses the vendor target `gemini:antigravity`, which differs from

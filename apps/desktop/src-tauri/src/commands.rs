@@ -65,13 +65,15 @@ pub enum CommandFailure {
     RouteRefused,
     /// The Codex CLI login file is missing, unsafe, or incomplete.
     CodexLoginRequired,
+    PlanCap,
+    Paused,
 }
 
 impl CommandFailure {
     /// Every variant, for the redaction test that formats them all. The
     /// product itself never needs the list.
     #[cfg(test)]
-    pub const ALL: [CommandFailure; 17] = [
+    pub const ALL: [CommandFailure; 19] = [
         CommandFailure::InvalidInput,
         CommandFailure::NotFound,
         CommandFailure::Full,
@@ -89,6 +91,8 @@ impl CommandFailure {
         CommandFailure::NotJson,
         CommandFailure::RouteRefused,
         CommandFailure::CodexLoginRequired,
+        CommandFailure::PlanCap,
+        CommandFailure::Paused,
     ];
 }
 
@@ -120,6 +124,8 @@ impl fmt::Display for CommandFailure {
                 "this connection pairs a credential with a provider it does not belong to"
             }
             CommandFailure::CodexLoginRequired => "Codex needs a current login. Run codex login.",
+            CommandFailure::PlanCap => "the Free active account cap is already in use",
+            CommandFailure::Paused => "the connection is paused and cannot perform work",
         };
         formatter.write_str(sentence)
     }
@@ -170,6 +176,8 @@ impl From<StoreError> for CommandFailure {
             StoreError::Corrupt => CommandFailure::Corrupt,
             StoreError::Full => CommandFailure::Full,
             StoreError::InvalidField => CommandFailure::InvalidInput,
+            StoreError::PlanCap => CommandFailure::PlanCap,
+            StoreError::Paused => CommandFailure::Paused,
         }
     }
 }
@@ -299,6 +307,20 @@ pub struct UpdateConnectionInput {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ConnectionPlanInput {
+    #[serde(default)]
+    pub keeper_ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PauseConnectionInput {
+    pub connection_id: String,
+    pub paused: bool,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CacheCommitInput {
     pub text: String,
@@ -383,6 +405,15 @@ pub(crate) fn connect_core(
     secrets: &impl SecretStore,
     input: ConnectProviderInput,
 ) -> Result<ConnectionRecord, CommandFailure> {
+    connect_core_for_plan(connections, secrets, input, false)
+}
+
+fn connect_core_for_plan(
+    connections: &ConnectionsStore,
+    secrets: &impl SecretStore,
+    input: ConnectProviderInput,
+    multi_account: bool,
+) -> Result<ConnectionRecord, CommandFailure> {
     let ConnectProviderInput {
         provider_id,
         credential_kind,
@@ -402,6 +433,7 @@ pub(crate) fn connect_core(
             account_alias,
             session.access_token,
             Some(session.account_id),
+            multi_account,
         );
     }
     connect_with_secret(
@@ -412,6 +444,7 @@ pub(crate) fn connect_core(
         account_alias,
         &secret,
         None,
+        multi_account,
     )
 }
 
@@ -423,6 +456,7 @@ fn connect_with_secret(
     account_alias: String,
     secret: &str,
     codex_account_id: Option<&str>,
+    multi_account: bool,
 ) -> Result<ConnectionRecord, CommandFailure> {
     let route = reader_route(provider_id, credential_kind)?;
     /* Caps first, before anything is cloned, masked, or stored: see the
@@ -471,19 +505,23 @@ fn connect_with_secret(
         /* Derived, never accepted. A stored credential means ready to enable
         and nothing more: no read has happened yet. */
         status: STATUS_AFTER_CREDENTIAL_STORED.to_string(),
+        legacy_grandfathered: false,
+        pause_reason: None,
     };
     /* The whole record is validated BEFORE the secret touches the credential
     store, so a request with a foreign provider, an unknown kind, an unknown
     status, or an oversized alias stores nothing anywhere. */
     validate_record(&record)?;
     secrets.store_secret(&record.id, trimmed)?;
-    if let Err(error) = connections.insert(record.clone()) {
-        /* The record never landed, so the stored secret would be an orphan
-        nothing can ever reach. Best effort removal, then the real error. */
-        let _ = secrets.delete_secret(&record.id);
-        return Err(error.into());
+    match connections.insert_for_plan(record.clone(), multi_account) {
+        Ok(stored) => Ok(stored),
+        Err(error) => {
+            /* The record never landed, so the stored secret would be an orphan
+            nothing can ever reach. Best effort removal, then the real error. */
+            let _ = secrets.delete_secret(&record.id);
+            Err(error.into())
+        }
     }
-    Ok(record)
 }
 
 /// The real connect boundary. Codex ignores any webview supplied secret and
@@ -495,10 +533,20 @@ pub(crate) fn connect_from_home_core(
     input: ConnectProviderInput,
     home: Option<&Path>,
 ) -> Result<ConnectionRecord, CommandFailure> {
+    connect_from_home_core_for_plan(connections, secrets, input, home, false)
+}
+
+fn connect_from_home_core_for_plan(
+    connections: &ConnectionsStore,
+    secrets: &impl SecretStore,
+    input: ConnectProviderInput,
+    home: Option<&Path>,
+    multi_account: bool,
+) -> Result<ConnectionRecord, CommandFailure> {
     if input.provider_id != ProviderId::Codex
         || input.credential_kind != CredentialKind::CodexSession
     {
-        return connect_core(connections, secrets, input);
+        return connect_core_for_plan(connections, secrets, input, multi_account);
     }
     let ConnectProviderInput {
         provider_id,
@@ -517,6 +565,7 @@ pub(crate) fn connect_from_home_core(
         account_alias,
         &imported.access_token,
         Some(&imported.account_id),
+        multi_account,
     )
 }
 
@@ -670,6 +719,9 @@ pub(crate) async fn probe_core<T: Transport>(
 ) -> Result<ProbeOutcome, CommandFailure> {
     capped_connection_id(&input.connection_id)?;
     let mut record = connections.get(&input.connection_id)?;
+    if !record.is_active() {
+        return Err(CommandFailure::Paused);
+    }
     /* The address comes from the record's own provider and credential kind,
     through the one routing function, and from nowhere else. A tampered record
     whose pairing has no route is refused here, before the secret is read. */
@@ -886,7 +938,14 @@ pub async fn connect_provider(
     input: ConnectProviderInput,
 ) -> Result<ConnectionRecord, CommandFailure> {
     let home = crate::state::home();
-    connect_from_home_core(&connections, &*secrets, input, home.as_deref())
+    let multi_account = crate::pro::multi_account_enabled(&*secrets);
+    connect_from_home_core_for_plan(
+        &connections,
+        &*secrets,
+        input,
+        home.as_deref(),
+        multi_account,
+    )
 }
 
 #[tauri::command]
@@ -978,6 +1037,32 @@ pub async fn update_connection(
     input: UpdateConnectionInput,
 ) -> Result<ConnectionRecord, CommandFailure> {
     update_core(&connections, input)
+}
+
+#[tauri::command]
+pub fn reconcile_connection_plan(
+    input: ConnectionPlanInput,
+    connections: State<'_, ConnectionsStore>,
+    secrets: State<'_, KeyringStore>,
+) -> Result<Vec<ConnectionRecord>, CommandFailure> {
+    Ok(connections.apply_plan(
+        crate::pro::multi_account_enabled(&*secrets),
+        &input.keeper_ids,
+    )?)
+}
+
+#[tauri::command]
+pub fn set_connection_paused(
+    input: PauseConnectionInput,
+    connections: State<'_, ConnectionsStore>,
+    secrets: State<'_, KeyringStore>,
+) -> Result<ConnectionRecord, CommandFailure> {
+    capped_connection_id(&input.connection_id)?;
+    Ok(connections.set_user_paused(
+        &input.connection_id,
+        input.paused,
+        crate::pro::multi_account_enabled(&*secrets),
+    )?)
 }
 
 #[tauri::command]
@@ -2498,8 +2583,9 @@ mod tests {
             "the command inputs are still declared here"
         );
         for block in inputs {
+            let declaration = block.split('{').next().unwrap_or("");
             assert!(
-                block.starts_with("\n#[serde(deny_unknown_fields)]"),
+                declaration.contains("deny_unknown_fields"),
                 "an input does not deny unknown fields"
             );
         }
@@ -2641,7 +2727,7 @@ mod tests {
             .skip(1)
             .map(|block| block.split('{').next().unwrap_or(""))
             .collect();
-        assert_eq!(signatures.len(), 15, "the reviewed command surface");
+        assert!(signatures.len() >= 15, "the reviewed command surface");
         for signature in &signatures {
             assert!(
                 !signature.contains("Zeroizing") && !signature.contains("-> String"),

@@ -14,6 +14,7 @@ use crate::credentials::{KeyringStore, SecretStore};
 use crate::net::{ReqwestTransport, Transport};
 use crate::poll_identity::detected_provider;
 use crate::poll_identity::{resolve_connection, PollIdentity};
+use crate::provider_detection::DetectedProviderId;
 use crate::request_policy::{provider_interval_seconds, RequestPolicy, BLOCKED_PROVIDER_SECONDS};
 
 pub const COLLECTOR_UPDATED_EVENT: &str = "collector-updated";
@@ -89,7 +90,11 @@ pub async fn run_guarded<T: Transport>(
     connection_id: String,
     mode: CollectionMode,
 ) -> Result<CollectionOutcome, CommandFailure> {
+    connections.apply_plan(crate::pro::multi_account_enabled(secrets), &[])?;
     let record = connections.get(&connection_id)?;
+    if !record.is_active() {
+        return Err(CommandFailure::Paused);
+    }
     let identity = resolve_connection(&record, secrets);
     let provider = detected_provider(record.provider_id);
     let now_ms = now_epoch_ms();
@@ -156,6 +161,7 @@ pub async fn run_guarded<T: Transport>(
 struct CollectionPlan {
     records: Vec<ConnectionRecord>,
     covered: HashSet<PollIdentity>,
+    known_providers: HashSet<DetectedProviderId>,
 }
 
 fn canonical_record(records: &[ConnectionRecord]) -> Option<ConnectionRecord> {
@@ -176,10 +182,15 @@ fn collection_plan(
 ) -> CollectionPlan {
     let mut groups = HashMap::<PollIdentity, Vec<ConnectionRecord>>::new();
     let mut covered = HashSet::new();
+    let mut known_providers = HashSet::new();
 
     for record in records {
+        known_providers.insert(detected_provider(record.provider_id));
         let identity = resolve_connection(&record, secrets);
         covered.insert(identity.clone());
+        if !record.is_active() {
+            continue;
+        }
         groups.entry(identity).or_default().push(record);
     }
 
@@ -211,6 +222,21 @@ fn collection_plan(
     CollectionPlan {
         records: planned,
         covered,
+        known_providers,
+    }
+}
+
+fn automatic_account_limit(
+    multi_account: bool,
+    known_providers: &HashSet<DetectedProviderId>,
+    provider: DetectedProviderId,
+) -> usize {
+    if multi_account {
+        usize::MAX
+    } else if known_providers.contains(&provider) {
+        0
+    } else {
+        1
     }
 }
 
@@ -239,6 +265,8 @@ fn synchronize_schedule(
 async fn run_pass(app: &AppHandle) {
     let connections = app.state::<ConnectionsStore>();
     let secrets = app.state::<KeyringStore>();
+    let multi_account = crate::pro::multi_account_enabled(&*secrets);
+    let _ = connections.apply_plan(multi_account, &[]);
     let records = connections
         .list()
         .map(|records| collection_plan(records, &*secrets, now_epoch_ms()));
@@ -286,18 +314,70 @@ async fn run_pass(app: &AppHandle) {
                 .map(|records| collection_plan(records, &*secrets, now_epoch_ms()));
             match coverage {
                 Ok(coverage) => {
-                    crate::codex_oauth::run_pass(app, &coverage.covered).await;
-                    crate::antigravity_oauth::run_pass(app, &coverage.covered).await;
-                    crate::grok_oauth::run_pass(app, &coverage.covered).await;
-                    crate::kimi_oauth::run_pass(app, &coverage.covered).await;
+                    crate::codex_oauth::run_pass(
+                        app,
+                        &coverage.covered,
+                        automatic_account_limit(
+                            multi_account,
+                            &coverage.known_providers,
+                            DetectedProviderId::Codex,
+                        ),
+                    )
+                    .await;
+                    crate::antigravity_oauth::run_pass(
+                        app,
+                        &coverage.covered,
+                        automatic_account_limit(
+                            multi_account,
+                            &coverage.known_providers,
+                            DetectedProviderId::Antigravity,
+                        ),
+                    )
+                    .await;
+                    crate::grok_oauth::run_pass(
+                        app,
+                        &coverage.covered,
+                        automatic_account_limit(
+                            multi_account,
+                            &coverage.known_providers,
+                            DetectedProviderId::Grok,
+                        ),
+                    )
+                    .await;
+                    crate::kimi_oauth::run_pass(
+                        app,
+                        &coverage.covered,
+                        automatic_account_limit(
+                            multi_account,
+                            &coverage.known_providers,
+                            DetectedProviderId::Kimi,
+                        ),
+                    )
+                    .await;
+                    crate::claude_oauth::run_pass(
+                        app,
+                        automatic_account_limit(
+                            multi_account,
+                            &coverage.known_providers,
+                            DetectedProviderId::Claude,
+                        ),
+                    )
+                    .await;
+                    crate::gemini_cli_oauth::run_pass(
+                        app,
+                        automatic_account_limit(
+                            multi_account,
+                            &coverage.known_providers,
+                            DetectedProviderId::GeminiCli,
+                        ),
+                    )
+                    .await;
                 }
                 Err(_) => last_failure = Some(CollectorFailure::Internal),
             }
         }
         Err(_) => last_failure = Some(CollectorFailure::Internal),
     }
-    crate::claude_oauth::run_pass(app).await;
-    crate::gemini_cli_oauth::run_pass(app).await;
     let runtime = app.state::<CollectorRuntime>();
     runtime.record_pass(last_failure, attempted);
     let _ = app.emit(COLLECTOR_UPDATED_EVENT, runtime.status());
@@ -357,6 +437,8 @@ mod tests {
             ever_connected: true,
             consecutive_failures: 0,
             status: "CONNECTED".to_string(),
+            legacy_grandfathered: false,
+            pause_reason: None,
         }
     }
 
@@ -501,5 +583,41 @@ mod tests {
         );
 
         assert_eq!(plan.records.len(), 1);
+    }
+
+    #[test]
+    fn a_paused_connection_never_enters_the_background_poll_plan() {
+        let secrets = InMemorySecrets::new();
+        secrets
+            .store_secret("paused-account", "paused-antigravity-token")
+            .expect("secret");
+        let mut paused = antigravity("paused-account", 1, None);
+        paused.pause_reason = Some(crate::connections::PauseReason::PausedByPlan);
+
+        let plan = collection_plan(vec![paused], &secrets, NOW);
+
+        assert!(plan.records.is_empty());
+        assert_eq!(plan.covered.len(), 1);
+        assert!(plan
+            .known_providers
+            .contains(&DetectedProviderId::Antigravity));
+    }
+
+    #[test]
+    fn free_limits_discovered_accounts_and_known_records_claim_the_provider() {
+        let empty = HashSet::new();
+        assert_eq!(
+            automatic_account_limit(false, &empty, DetectedProviderId::Codex),
+            1
+        );
+        assert_eq!(
+            automatic_account_limit(true, &empty, DetectedProviderId::Codex),
+            usize::MAX
+        );
+        let known = HashSet::from([DetectedProviderId::Codex]);
+        assert_eq!(
+            automatic_account_limit(false, &known, DetectedProviderId::Codex),
+            0
+        );
     }
 }

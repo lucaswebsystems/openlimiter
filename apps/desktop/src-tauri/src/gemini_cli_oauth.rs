@@ -564,10 +564,11 @@ async fn collect_account_guarded<T: Transport>(
     (outcome, abort_provider)
 }
 
-pub async fn run_pass(app: &AppHandle) {
-    let account_ids = app
+pub async fn run_pass(app: &AppHandle, automatic_account_limit: usize) {
+    let mut account_ids = app
         .state::<DetectionStore>()
         .account_ids(DetectedProviderId::GeminiCli);
+    account_ids.truncate(automatic_account_limit);
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<GeminiCliOauthRuntime>();

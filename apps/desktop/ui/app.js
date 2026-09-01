@@ -567,10 +567,14 @@ async function refresh() {
           snapshot.unit === "PERCENT" && Number.isFinite(snapshot.value)
       )
       .map((snapshot) => ({
+        accountId: snapshot.accountId ?? "default",
         provider: snapshot.provider,
-        window_name: snapshot.meter,
-        usage_percent: snapshot.value,
-        reset_at: snapshot.resetAt ?? null,
+        meter: "provider_usage_percent",
+        windowName: snapshot.meter,
+        windowId: snapshot.resetAt ?? `meter:${snapshot.meter}`,
+        windowIsAuthoritative: snapshot.resetAt !== null && snapshot.resetAt !== undefined,
+        value: snapshot.value,
+        observedAt: snapshot.observedAt,
       }));
     if (notificationSamples.length > 0) {
       const result = await evaluateNotifications(notificationSamples);
