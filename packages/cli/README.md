@@ -16,6 +16,25 @@ openlimiter demo
 
 The demo uses synthetic data and does not read a provider account.
 
+## Agent context hooks
+
+Install or remove a user scoped hook explicitly:
+
+```bash
+openlimiter hooks install codex
+openlimiter hooks uninstall codex
+openlimiter hooks status codex
+openlimiter hooks repair codex
+```
+
+Installation preserves unrelated agent configuration, writes a recoverable backup, performs no network request, and refuses an untested agent version or unsafe configuration path. Hook execution reads only the short lived local snapshot and fails open with no context.
+
+Grok Build does not currently expose a documented dynamic context surface. Its `UserPromptSubmit` hook discards successful stdout, so OpenLimiter does not install a Grok hook or claim injection support. Use the explicit command instead:
+
+```bash
+openlimiter status --agent-context
+```
+
 ## Provider inputs
 
 | Provider | How data reaches OpenLimiter |
