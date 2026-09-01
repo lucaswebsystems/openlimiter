@@ -48,8 +48,8 @@ collection:
       endpoint_id: codex_usage
       credential_kind: codex_session
       evidence_fixture: codex.sanitized_live.usage
-      evidence_status: pending_capture
-      last_verified_at: null
+      evidence_status: captured
+      last_verified_at: "2026-09-01"
 
 connections:
   - reader: experimental

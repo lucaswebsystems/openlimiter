@@ -45,8 +45,8 @@ collection:
       endpoint_id: antigravity_quota
       credential_kind: antigravity_session
       evidence_fixture: antigravity.sanitized_live.quota
-      evidence_status: pending_capture
-      last_verified_at: null
+      evidence_status: captured
+      last_verified_at: "2026-09-01"
 
 connections:
   - reader: experimental
