@@ -2,6 +2,7 @@
   "name": "@openlimiter/web",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": "24.15.0"
