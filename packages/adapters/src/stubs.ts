@@ -1,5 +1,11 @@
 import type { Advice } from "@openlimiter/core";
-import { buildAgentContext } from "./claude-code.js";
+import {
+  AGENT_CONTEXT_SCALAR_LIMIT,
+  SPILL_CONTEXT_NOTICE,
+  buildAgentContext,
+  unicodeScalarLength
+} from "./claude-code.js";
+import { validatedUntrustedLines } from "./agent-context-cache.js";
 
 export const HOOK_INPUT_MAX_BYTES = 65_536;
 
@@ -26,8 +32,41 @@ export interface AgentHookRequest {
 
 export interface AgentHookResult {
   stdout: string;
-  diagnostic: "" | "event" | "input" | "oversized" | "version";
+  diagnostic: AgentContextDiagnosticCode;
   exitCode: 0;
+}
+
+export type AgentContextDiagnosticCode =
+  | ""
+  | "context"
+  | "event"
+  | "input"
+  | "oversized"
+  | "version";
+
+export interface AgentContextAdapterV1Input {
+  agent_id: AgentId;
+  hook_event: string;
+  host_version: string;
+  invocation_id: string;
+  invocation_number?: number;
+  cwd?: string;
+  raw_input: string;
+}
+
+export interface AgentContextAdapterV1Output {
+  inject_text: string;
+  spill_reference: string;
+  diagnostic_code: AgentContextDiagnosticCode;
+  exit_code: 0;
+}
+
+export interface AgentContextAdapterV1 {
+  readonly version: 1;
+  execute(
+    input: AgentContextAdapterV1Input,
+    validatedContext: string
+  ): AgentContextAdapterV1Output;
 }
 
 export interface AgentCompatibilityGate {
@@ -175,6 +214,63 @@ function empty(agent: AgentId, diagnostic: AgentHookResult["diagnostic"]): Agent
   };
 }
 
+function emptyContract(
+  diagnosticCode: AgentContextDiagnosticCode
+): AgentContextAdapterV1Output {
+  return {
+    inject_text: "",
+    spill_reference: "",
+    diagnostic_code: diagnosticCode,
+    exit_code: 0
+  };
+}
+
+function executeSharedContract(
+  input: AgentContextAdapterV1Input,
+  validatedContext: string,
+  allowUntestedVersion: boolean
+): AgentContextAdapterV1Output {
+  if (input.agent_id === "grok") return emptyContract("event");
+  const contract = contracts[input.agent_id];
+  if (
+    input.hook_event !== contract.eventName ||
+    input.invocation_id === "" ||
+    (input.invocation_number !== undefined &&
+      (!Number.isSafeInteger(input.invocation_number) || input.invocation_number < 0)) ||
+    (input.cwd !== undefined && typeof input.cwd !== "string")
+  ) return emptyContract("event");
+  if (Buffer.byteLength(input.raw_input, "utf8") > HOOK_INPUT_MAX_BYTES) {
+    return emptyContract("oversized");
+  }
+  if (
+    !allowUntestedVersion &&
+    !AGENT_COMPATIBILITY[input.agent_id].testedVersions.includes(input.host_version)
+  ) return emptyContract("version");
+  if (input.agent_id === "antigravity" && input.invocation_number !== 0) {
+    return emptyContract("");
+  }
+  if (validatedContext === "") return emptyContract("");
+  if (
+    unicodeScalarLength(validatedContext) > AGENT_CONTEXT_SCALAR_LIMIT ||
+    validatedUntrustedLines(validatedContext) === null
+  ) return emptyContract("context");
+  return {
+    inject_text: validatedContext,
+    spill_reference: validatedContext.includes(SPILL_CONTEXT_NOTICE)
+      ? SPILL_CONTEXT_NOTICE
+      : "",
+    diagnostic_code: "",
+    exit_code: 0
+  };
+}
+
+export const agentContextAdapterV1: AgentContextAdapterV1 = {
+  version: 1,
+  execute(input, validatedContext) {
+    return executeSharedContract(input, validatedContext, false);
+  }
+};
+
 function render(agent: Exclude<AgentId, "grok">, context: string): string {
   if (context === "") return agent === "antigravity" || agent === "gemini" ? "{}" : "";
   if (agent === "kimi" || agent === "opencode") return context;
@@ -192,7 +288,33 @@ function render(agent: Exclude<AgentId, "grok">, context: string): string {
   });
 }
 
-function runValidatedAgentHook(request: AgentHookRequest): AgentHookResult {
+function normalizedInput(
+  request: AgentHookRequest,
+  input: Record<string, unknown>,
+  contract: InputContract
+): AgentContextAdapterV1Input {
+  const invocationId = request.agent === "antigravity"
+    ? input["conversationId"]
+    : input["session_id"];
+  const cwd = input["cwd"];
+  const invocationNumber = input["invocationNum"];
+  return {
+    agent_id: request.agent,
+    hook_event: contract.eventName,
+    host_version: request.hostVersion,
+    invocation_id: typeof invocationId === "string" ? invocationId : "",
+    ...(typeof invocationNumber === "number"
+      ? { invocation_number: invocationNumber }
+      : {}),
+    ...(typeof cwd === "string" ? { cwd } : {}),
+    raw_input: request.rawInput ?? ""
+  };
+}
+
+function runValidatedAgentHook(
+  request: AgentHookRequest,
+  allowUntestedVersion: boolean
+): AgentHookResult {
   if (request.agent === "grok") return empty("grok", "event");
   if (request.rawInput === null) return empty(request.agent, "input");
   if (Buffer.byteLength(request.rawInput, "utf8") > HOOK_INPUT_MAX_BYTES) {
@@ -206,24 +328,25 @@ function runValidatedAgentHook(request: AgentHookRequest): AgentHookResult {
   }
   const contract = contracts[request.agent];
   if (!validInput(input, contract)) return empty(request.agent, "event");
-  if (request.agent === "antigravity" && input["invocationNum"] !== 0) {
-    return empty(request.agent, "");
-  }
-  return { stdout: render(request.agent, request.context), diagnostic: "", exitCode: 0 };
+  const result = executeSharedContract(
+    normalizedInput(request, input, contract),
+    request.context,
+    allowUntestedVersion
+  );
+  return {
+    stdout: render(request.agent, result.inject_text),
+    diagnostic: result.diagnostic_code,
+    exitCode: result.exit_code
+  };
 }
 
 export function runAgentHook(request: AgentHookRequest): AgentHookResult {
-  if (request.agent === "grok") return empty("grok", "event");
-  const gate = AGENT_COMPATIBILITY[request.agent];
-  if (!gate.testedVersions.includes(request.hostVersion)) {
-    return empty(request.agent, "version");
-  }
-  return runValidatedAgentHook(request);
+  return runValidatedAgentHook(request, false);
 }
 
 /** Test fixture seam for hosts that have no passing version gate yet. */
 export function runAgentHookFixture(request: AgentHookRequest): AgentHookResult {
-  return runValidatedAgentHook(request);
+  return runValidatedAgentHook(request, true);
 }
 
 export const claudeCodeAdapter: AgentAdapter = {

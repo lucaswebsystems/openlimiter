@@ -17,6 +17,7 @@ export type {
 export {
   AGENT_COMPATIBILITY,
   HOOK_INPUT_MAX_BYTES,
+  agentContextAdapterV1,
   antigravityAdapter,
   claudeCodeAdapter,
   codexCliAdapter,
@@ -27,6 +28,10 @@ export {
 } from "./stubs.js";
 export type {
   AgentAdapter,
+  AgentContextAdapterV1,
+  AgentContextAdapterV1Input,
+  AgentContextAdapterV1Output,
+  AgentContextDiagnosticCode,
   AgentCompatibilityGate,
   AgentHookRequest,
   AgentHookResult,
