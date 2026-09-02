@@ -337,7 +337,7 @@
         "label": "Webアプリを開く"
       },
       "macos": {
-        "aria": "OpenLimiterのmacOSデスクトップアプリは近日公開"
+        "aria": "OpenLimiterのmacOSデスクトップアプリをダウンロード、未署名ビルド"
       },
       "iphone": {
         "aria": "iPhone：Webアプリをホーム画面に追加できます。App Store版はありません"
@@ -352,7 +352,7 @@
     },
     "rows": {
       "windows": "Windows版をダウンロード",
-      "macos": "macOSは近日公開",
+      "macos": "macOS版をダウンロード",
       "linux": "Linux版をダウンロード",
       "webApp": "Webアプリを開く",
       "iphone": "iPhoneにインストール",
@@ -369,7 +369,7 @@
       "play": "アニメーションを再生",
       "pause": "アニメーションを一時停止"
     },
-    "disclaimer": "Windows版とLinux版のデスクトップビルドを利用できます。Windows版は未署名のため、初回起動時にSmartScreenが表示されます。「詳細情報」、続けて「実行」を選んでください。macOS版は近日公開です。npmとWebアプリは現在利用できます。ネイティブのモバイルアプリケーションはまだ作られていません。"
+    "disclaimer": "Windows版、macOS版、Linux版のデスクトップビルドを利用できます。Windows版とmacOS版は未署名です。Windowsでは「詳細情報」、続けて「実行」を選び、macOSでは一度だけ「このまま開く」を選んでください。正確な手順はダウンロードページにあります。npmとWebアプリは現在利用できます。ネイティブのモバイルアプリケーションはまだ作られていません。"
   },
   "home": {
     "docsLine": "そのどちらも、詳しくドキュメント化されています。<agentContext>エージェントに何が伝えられるか</agentContext>と、<cli>付属するすべてのコマンド</cli>です。",

@@ -337,7 +337,7 @@
         "label": "Abrir o web app"
       },
       "macos": {
-        "aria": "Aplicativo de desktop para macOS em breve"
+        "aria": "Baixar o aplicativo de desktop do OpenLimiter para macOS, build sem assinatura"
       },
       "iphone": {
         "aria": "iPhone: o web app se instala na sua tela de início, não existe app na App Store"
@@ -352,7 +352,7 @@
     },
     "rows": {
       "windows": "Baixar para Windows",
-      "macos": "macOS em breve",
+      "macos": "Baixar para macOS",
       "linux": "Baixar para Linux",
       "webApp": "Abrir o web app",
       "iphone": "Instalar no iPhone",
@@ -369,7 +369,7 @@
       "play": "Reproduzir animação",
       "pause": "Pausar animação"
     },
-    "disclaimer": "As builds de desktop para Windows e Linux estão disponíveis. A build do Windows não é assinada, então o SmartScreen avisa na primeira execução: escolha Mais informações e depois Executar assim mesmo. O macOS chega em breve. O npm e o web app estão disponíveis agora. Os aplicativos móveis nativos não foram construídos."
+    "disclaimer": "As builds de desktop para Windows, macOS e Linux estão disponíveis. Windows e macOS não são assinados: o SmartScreen pede Mais informações e depois Executar assim mesmo, e o macOS pede Abrir Assim Mesmo uma vez. A página de download tem os passos exatos. O npm e o web app estão disponíveis agora. Os aplicativos móveis nativos não foram construídos."
   },
   "home": {
     "docsLine": "As duas coisas estão documentadas em detalhe: <agentContext>o que um agente recebe</agentContext> e <cli>cada comando que ele já traz</cli>.",

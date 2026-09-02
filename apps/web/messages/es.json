@@ -337,7 +337,7 @@
         "label": "Abrir la aplicación web"
       },
       "macos": {
-        "aria": "Aplicación de escritorio para macOS próximamente"
+        "aria": "Descargar la aplicación de escritorio de OpenLimiter para macOS, compilación sin firmar"
       },
       "iphone": {
         "aria": "iPhone: la aplicación web se instala en tu pantalla de inicio, no hay aplicación en la App Store"
@@ -352,7 +352,7 @@
     },
     "rows": {
       "windows": "Descargar para Windows",
-      "macos": "macOS próximamente",
+      "macos": "Descargar para macOS",
       "linux": "Descargar para Linux",
       "webApp": "Abrir la aplicación web",
       "iphone": "Instalar en iPhone",
@@ -369,7 +369,7 @@
       "play": "Reproducir animación",
       "pause": "Pausar animación"
     },
-    "disclaimer": "Las compilaciones de escritorio para Windows y Linux están disponibles. La compilación de Windows no está firmada, así que SmartScreen avisa en el primer inicio: elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente. npm y la aplicación web ya están disponibles. Las aplicaciones móviles nativas no están construidas."
+    "disclaimer": "Las compilaciones de escritorio para Windows, macOS y Linux están disponibles. Windows y macOS no están firmados: SmartScreen pide Más información y luego Ejecutar de todas formas, y macOS pide Abrir igualmente una vez. La página de descarga tiene los pasos exactos. npm y la aplicación web ya están disponibles. Las aplicaciones móviles nativas no están construidas."
   },
   "home": {
     "docsLine": "Ambas cosas están documentadas en detalle: <agentContext>lo que se le dice a un agente</agentContext> y <cli>cada comando con el que se distribuye</cli>.",

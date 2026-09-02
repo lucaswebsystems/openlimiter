@@ -337,7 +337,7 @@
         "label": "Open the web app"
       },
       "macos": {
-        "aria": "OpenLimiter desktop for macOS is coming soon"
+        "aria": "Download the OpenLimiter desktop app for macOS, unsigned build"
       },
       "iphone": {
         "aria": "iPhone: the web app installs to your home screen, there is no App Store app"
@@ -352,7 +352,7 @@
     },
     "rows": {
       "windows": "Download for Windows",
-      "macos": "macOS coming soon",
+      "macos": "Download for macOS",
       "linux": "Download for Linux",
       "webApp": "Open the web app",
       "iphone": "Install on iPhone",
@@ -369,7 +369,7 @@
       "play": "Play motion",
       "pause": "Pause motion"
     },
-    "disclaimer": "Packaged desktop builds ship for Windows and Linux. The Windows build is unsigned, so SmartScreen warns on first run: choose More info, then Run anyway. macOS is coming soon. npm and the web app are available now. Native mobile applications are not built."
+    "disclaimer": "Packaged desktop builds ship for Windows, macOS and Linux. Windows and macOS are unsigned: SmartScreen wants More info then Run anyway, and macOS wants Open Anyway once. The download page has the exact steps. npm and the web app are available now. Native mobile applications are not built."
   },
   "home": {
     "docsLine": "Both of those are written up in full: <agentContext>what an agent is told</agentContext> and <cli>every command it ships with</cli>.",
