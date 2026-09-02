@@ -527,8 +527,53 @@ function compactResetLabel(resetLabel: string | null): string {
   return resetLabel.replace(/^Resets in /u, "");
 }
 
+function bandIconMarkup(tone: HeadroomTone, state: SnapshotState): string {
+  if (state === "stale" || state === "unknown") {
+    return (
+      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Stale reading" role="img">' +
+      '<circle cx="8" cy="8" r="6" stroke-dasharray="3 3"/>' +
+      '<path d="m4.5 4.5 7 7"/>' +
+      "</svg>"
+    );
+  }
+  if (tone === "ok") {
+    return (
+      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Normal headroom" role="img">' +
+      '<path d="M8 1.5 2.5 3.8v4.5c0 3.6 2.4 5.9 5.5 6.7 3.1-.8 5.5-3.1 5.5-6.7V3.8L8 1.5Z"/>' +
+      '<path d="m5.5 8 1.8 1.8 3.5-3.5"/>' +
+      "</svg>"
+    );
+  }
+  if (tone === "watch") {
+    return (
+      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Watch threshold" role="img">' +
+      '<path d="M8 2.2 1.5 13.5h13L8 2.2Z"/>' +
+      '<path d="M8 6.5v3M8 11.5v.5"/>' +
+      "</svg>"
+    );
+  }
+  if (tone === "high") {
+    return (
+      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="High utilization" role="img">' +
+      '<path d="M8 1.5 14.5 8 8 14.5 1.5 8 8 1.5Z"/>' +
+      '<path d="M8 5.5v3.2M8 11v.5"/>' +
+      "</svg>"
+    );
+  }
+  if (tone === "critical") {
+    return (
+      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Critical depletion" role="img">' +
+      '<path d="M5 1.5h6l3.5 3.5v6L11 14.5H5L1.5 11V5L5 1.5Z"/>' +
+      '<path d="M8 5v3.8M8 11.2v.5"/>' +
+      "</svg>"
+    );
+  }
+  return "";
+}
+
 function windowLineMarkup(window: ProviderWindowView): string {
   const reset = compactResetLabel(window.resetLabel);
+  const icon = bandIconMarkup(window.tone, window.state);
   return (
     '<div class="window-line" data-tone="' +
     window.tone +
@@ -544,8 +589,10 @@ function windowLineMarkup(window: ProviderWindowView): string {
     "</span>" +
     meterMarkup(window, "window-meter") +
     '<strong class="window-percent">' +
+    icon +
+    '<span>' +
     escapeText(window.readout) +
-    "</strong>" +
+    "</span></strong>" +
     '<span class="window-reset">' +
     escapeText(reset) +
     "</span></div>"
@@ -973,7 +1020,7 @@ const PROVIDER_ROW_STYLE = `
 .window-line {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(7rem, 0.85fr) minmax(8rem, 1.8fr) 4.5rem 5rem;
+  grid-template-columns: minmax(7rem, 0.85fr) minmax(8rem, 1.8fr) 5.75rem 5rem;
   align-items: center;
   gap: var(--ol-space-3);
 }
@@ -1007,15 +1054,26 @@ const PROVIDER_ROW_STYLE = `
 .window-line[data-tone="ok"] .meter-fill { background: var(--row-ok); }
 .window-line[data-tone="watch"] .meter-fill { background: var(--row-watch); }
 .window-line[data-tone="high"] .meter-fill { background: var(--row-high); }
+.window-line[data-tone="critical"] .meter-fill { background: var(--row-critical); }
 .window-line[data-state="stale"] .meter-fill {
   background: var(--ol-meter-hatched-pattern, repeating-linear-gradient(45deg, var(--row-ghost), var(--row-ghost) 6px, transparent 6px, transparent 12px)) !important;
   opacity: 1 !important;
 }
 .window-percent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
   color: var(--row-accent);
   font-size: var(--ol-text-body);
   font-weight: var(--ol-weight-bold);
   text-align: right;
+  white-space: nowrap;
+}
+.band-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
 }
 .window-line[data-tone="ok"] .window-percent { color: var(--row-ok-label, var(--row-ok)); }
 .window-line[data-tone="watch"] .window-percent { color: var(--row-watch-label, var(--row-watch)); }
@@ -1041,7 +1099,7 @@ const PROVIDER_ROW_STYLE = `
     margin-top: var(--ol-space-3);
   }
   .window-line {
-    grid-template-columns: minmax(4.8rem, 0.9fr) minmax(4.5rem, 1.25fr) 3.35rem 3.5rem;
+    grid-template-columns: minmax(4.8rem, 0.9fr) minmax(4.5rem, 1.25fr) 4.6rem 3.5rem;
     gap: var(--ol-space-2);
   }
   .window-name,
