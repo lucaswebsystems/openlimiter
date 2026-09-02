@@ -42,7 +42,7 @@
     "community": "Comunidad",
     "trust": "Confianza",
     "issues": "Incidencias",
-    "licenceNote": "Apache 2.0 | Con prioridad local | Cero telemetría | Sin seguimiento | Cuenta gratis",
+    "licenceNote": "Apache 2.0 | Local primero | Cero telemetría en la app | Sin cookies de rastreo | Cuenta gratuita",
     "licenceRead": "Leer la licencia",
     "rights": "Todos los derechos reservados",
     "licensed": "Licencia Apache 2.0",
@@ -758,7 +758,7 @@
       },
       "reportsNobody": {
         "title": "No le reporta a nadie",
-        "detail": "El modo local y el sitio público no informan a nadie y no tienen analítica. Pro es opcional y recibe datos limitados de cuota solo después de iniciar sesión, nunca credenciales del proveedor."
+        "detail": "La aplicación no informa a nadie. No envía telemetría en ningún modo. Este sitio cuenta vistas de página sin cookies, lo que es un recuento de páginas y no un perfil tuyo. Pro es opcional y recibe solo instantáneas acotadas de cuota después de iniciar sesión, nunca credenciales de proveedor."
       },
       "unknownStaysUnknown": {
         "title": "Unknown se queda unknown",
@@ -979,7 +979,7 @@
             "calloutBody": "OpenLimiter entrega consejos de enrutamiento. No enruta solicitudes por ti, no evade un límite y nunca modifica los artefactos de autenticación de un proveedor. La decisión sigue siendo tuya y de tu agente.",
             "bullets": {
               "proxy": "No es un proxy. Tus solicitudes siguen yendo directo a tu proveedor.",
-              "dashboard": "No es un servicio de panel. No hay servidor de OpenLimiter, no hay cuenta y no hay telemetría.",
+              "dashboard": "No es un servicio de dashboard. El modo local no tiene cuenta, ni servidor, ni telemetría: lee lo que ya está en tu máquina. La mitad alojada, que es opcional, existe solo para llevar tus propias lecturas entre tus propios dispositivos.",
               "billing": "No es una herramienta de facturación. Reporta cuánto de una ventana consumiste, no cuánto te van a cobrar."
             }
           },
@@ -1679,8 +1679,8 @@
             "title": "Las garantías",
             "calloutTitle": "Qué garantiza OpenLimiter",
             "bullets": {
-              "noServer": "<strong>No hay servidor de OpenLimiter.</strong> Nada se envía a los autores del proyecto, porque no hay a dónde enviarlo.",
-              "noTelemetry": "<strong>No hay telemetría.</strong> Ninguna orden envía uso, diagnósticos, identificadores, prompts ni estado de quota a ningún lado.",
+              "noServer": "<strong>El modo local no llega a ningún servidor de OpenLimiter.</strong> No se envía nada a los autores del proyecto, porque en modo local no hay adónde enviarlo. El servicio alojado existe solo para la cuenta gratuita, para la sincronización y para Pro, y solo después de iniciar sesión.",
+              "noTelemetry": "<strong>No hay telemetría.</strong> Ningún comando envía uso, diagnósticos, identificadores ni prompts a ninguna parte, en ningún modo. El estado de cuota sale de tu máquina solo mediante la sincronización, solo después de iniciar sesión, y solo como las lecturas acotadas que puedes desactivar.",
               "hookNoNetwork": "<strong>El hook no hace ninguna solicitud de red.</strong> Lee la caché local y nada más.",
               "noEgress": "<strong>El modo local no envía nada a OpenLimiter.</strong> Las conexiones hablan solo con cada proveedor. Pro opcional envía datos limitados de cuota al servicio después de iniciar sesión, nunca credenciales del proveedor.",
               "unknownNeverZero": "<strong>Unknown nunca se convierte en cero.</strong> Lo ausente, lo expirado, lo malformado y lo no reconocido, todo se resuelve como unknown.",

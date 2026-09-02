@@ -42,7 +42,7 @@
     "community": "Community",
     "trust": "Trust",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | Local first | Zero telemetry | No tracking | Free account",
+    "licenceNote": "Apache 2.0 | Local first | Zero app telemetry | No tracking cookies | Free account",
     "licenceRead": "Read the licence",
     "rights": "All rights reserved",
     "licensed": "Apache 2.0 licensed",
@@ -758,7 +758,7 @@
       },
       "reportsNobody": {
         "title": "It reports to nobody",
-        "detail": "Local mode and the public website report to nobody and have no analytics. Pro is optional and receives selected bounded quota snapshots only after sign in, never provider credentials."
+        "detail": "The app reports to nobody. It sends no telemetry in any mode. This website counts page views without cookies, which is a count of pages rather than a profile of you. Pro is optional and receives selected bounded quota snapshots only after sign in, never provider credentials."
       },
       "unknownStaysUnknown": {
         "title": "Unknown stays unknown",
@@ -979,7 +979,7 @@
             "calloutBody": "OpenLimiter provides routing advice. It does not route requests for you, it does not bypass a limit, and it never mutates a provider's authentication artifacts. The decision stays with you and your agent.",
             "bullets": {
               "proxy": "It is not a proxy. Your requests keep going straight to your provider.",
-              "dashboard": "It is not a dashboard service. There is no OpenLimiter server, no account, and no telemetry.",
+              "dashboard": "It is not a dashboard service. Local mode has no account, no server and no telemetry: it reads what is already on your machine. The optional hosted half exists only to carry your own readings between your own devices.",
               "billing": "It is not a billing tool. It reports how much of a window you have consumed, not what you will be charged."
             }
           },
@@ -1679,8 +1679,8 @@
             "title": "The guarantees",
             "calloutTitle": "What OpenLimiter guarantees",
             "bullets": {
-              "noServer": "<strong>There is no OpenLimiter server.</strong> Nothing is sent to the project authors, because there is nowhere to send it.",
-              "noTelemetry": "<strong>There is no telemetry.</strong> No command sends usage, diagnostics, identifiers, prompts, or quota state anywhere.",
+              "noServer": "<strong>Local mode reaches no OpenLimiter server.</strong> Nothing is sent to the project authors, because in local mode there is nowhere to send it. The hosted service exists only for the free account, for sync and for Pro, and only after you sign in.",
+              "noTelemetry": "<strong>There is no telemetry.</strong> No command sends usage, diagnostics, identifiers or prompts anywhere, in any mode. Quota state leaves your machine only through sync, only after you sign in, and only as the bounded readings you can switch off.",
               "hookNoNetwork": "<strong>The hook makes no network request.</strong> It reads the local cache and nothing else.",
               "noEgress": "<strong>Local mode sends nothing to OpenLimiter.</strong> Provider connections talk only to that provider through a fixed allowlist. Optional Pro sends selected bounded quota snapshots to the hosted service after sign in, never provider credentials.",
               "unknownNeverZero": "<strong>Unknown never becomes zero.</strong> Missing, expired, malformed, and unrecognised input all resolve to unknown.",

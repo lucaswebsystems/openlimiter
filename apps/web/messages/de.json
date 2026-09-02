@@ -42,7 +42,7 @@
     "community": "Community",
     "trust": "Vertrauen",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | Lokal zuerst | Keine Telemetrie | Kein Tracking | Kostenloses Konto",
+    "licenceNote": "Apache 2.0 | Lokal zuerst | Null Telemetrie in der App | Keine Tracking Cookies | Kostenloses Konto",
     "licenceRead": "Lizenz lesen",
     "rights": "Alle Rechte vorbehalten",
     "licensed": "Apache 2.0 lizenziert",
@@ -758,7 +758,7 @@
       },
       "reportsNobody": {
         "title": "Es berichtet niemandem",
-        "detail": "Der lokale Modus und die öffentliche Website melden niemandem etwas und haben keine Analytik. Pro ist optional und erhält erst nach der Anmeldung ausgewählte begrenzte Kontingentdaten, niemals Anbieter Zugangsdaten."
+        "detail": "Die Anwendung meldet niemandem etwas. Sie sendet in keinem Modus Telemetrie. Diese Website zählt Seitenaufrufe ohne Cookies, was eine Zahl von Seiten ist und kein Profil von dir. Pro ist freiwillig und erhält ausgewählte begrenzte Quota Momentaufnahmen erst nach der Anmeldung, nie Anbieterzugangsdaten."
       },
       "unknownStaysUnknown": {
         "title": "Unknown bleibt unknown",
@@ -979,7 +979,7 @@
             "calloutBody": "OpenLimiter gibt Routingempfehlungen. Es routet keine Anfragen für dich, umgeht kein Limit, und verändert nie die Authentifizierungsartefakte eines Providers. Die Entscheidung bleibt bei dir und deinem Agenten.",
             "bullets": {
               "proxy": "Es ist kein Proxy. Deine Anfragen gehen weiterhin direkt an deinen Provider.",
-              "dashboard": "Es ist kein Dashboard Dienst. Es gibt keinen OpenLimiter Server, kein Konto und keine Telemetrie.",
+              "dashboard": "Es ist kein Dashboard Dienst. Der lokale Modus hat kein Konto, keinen Server und keine Telemetrie: er liest, was ohnehin auf deinem Rechner liegt. Die freiwillige gehostete Hälfte existiert nur, um deine eigenen Werte zwischen deinen eigenen Geräten zu tragen.",
               "billing": "Es ist kein Abrechnungstool. Es meldet, wie viel von einem Fenster du verbraucht hast, nicht, was dir berechnet wird."
             }
           },
@@ -1679,8 +1679,8 @@
             "title": "Die Garantien",
             "calloutTitle": "Was OpenLimiter garantiert",
             "bullets": {
-              "noServer": "<strong>Es gibt keinen OpenLimiter Server.</strong> Nichts wird an die Projektautoren gesendet, weil es nirgendwohin zu senden gibt.",
-              "noTelemetry": "<strong>Es gibt keine Telemetrie.</strong> Kein Befehl sendet Nutzung, Diagnosen, Identifikatoren, Prompts, oder Quotastatus irgendwohin.",
+              "noServer": "<strong>Der lokale Modus erreicht keinen OpenLimiter Server.</strong> Den Autoren des Projekts wird nichts gesendet, weil es im lokalen Modus keinen Ort dafür gibt. Der gehostete Dienst existiert nur für das kostenlose Konto, für die Synchronisierung und für Pro, und erst nach der Anmeldung.",
+              "noTelemetry": "<strong>Es gibt keine Telemetrie.</strong> Kein Befehl sendet Nutzung, Diagnose, Kennungen oder Prompts irgendwohin, in keinem Modus. Quota Zustand verlässt deinen Rechner nur über die Synchronisierung, nur nach der Anmeldung und nur als die begrenzten Werte, die du abschalten kannst.",
               "hookNoNetwork": "<strong>Der Hook stellt keine Netzwerkanfrage.</strong> Er liest den lokalen Cache und sonst nichts.",
               "noEgress": "<strong>Der lokale Modus sendet nichts an OpenLimiter.</strong> Anbieter Verbindungen sprechen nur mit dem jeweiligen Anbieter. Optionales Pro sendet nach der Anmeldung ausgewählte begrenzte Kontingentdaten an den Dienst, niemals Anbieter Zugangsdaten.",
               "unknownNeverZero": "<strong>Unknown wird nie zu null.</strong> Fehlende, abgelaufene, fehlerhafte und nicht erkannte Eingaben lösen sich alle in unknown auf.",
