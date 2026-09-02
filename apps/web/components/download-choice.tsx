@@ -4,12 +4,6 @@ import { useEffect, useState } from "react";
 
 type Platform = "windows" | "linux" | "macos";
 
-interface Choice {
-  platform: Platform;
-  label: string;
-  href?: string;
-}
-
 function detectedPlatform(): Platform {
   const value = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
   if (value.includes("mac")) return "macos";
@@ -51,36 +45,85 @@ export function DownloadChoice({
 
   useEffect(() => setPlatform(detectedPlatform()), []);
 
-  const choices: readonly Choice[] = [
-    { platform: "windows", label: windowsLabel, href: windowsHref },
-    { platform: "linux", label: linuxLabel, href: linuxHref },
-    { platform: "macos", label: macosLabel, href: macosHref },
+  const targets = [
+    {
+      id: "windows" as const,
+      label: windowsLabel,
+      href: windowsHref,
+      note: smartScreen,
+    },
+    {
+      id: "macos" as const,
+      label: macosLabel,
+      href: macosHref,
+      note: openAnyway,
+    },
+    {
+      id: "linux" as const,
+      label: linuxLabel,
+      href: linuxHref,
+      note: null,
+    },
   ];
-  const primary = choices.find((choice) => choice.platform === platform) ?? choices[0]!;
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col items-center rounded-2xl border border-hairline bg-surface p-7 text-center sm:p-9">
-      {primary.href ? (
-        <a href={primary.href} className="focus-ring lift-sm inline-flex min-h-12 items-center justify-center rounded-xl bg-accent px-6 text-sm font-semibold text-on-accent hover:bg-accent-hover">
-          {primary.label}
+    <div className="mx-auto flex max-w-4xl flex-col items-center rounded-2xl border border-hairline bg-surface p-6 sm:p-8 text-center elev-1">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full text-left">
+        {targets.map((target) => {
+          const isDetected = target.id === platform;
+          return (
+            <div
+              key={target.id}
+              className={`flex flex-col justify-between rounded-xl border p-5 transition-colors ${
+                isDetected
+                  ? "border-accent bg-accent-subtle/30"
+                  : "border-hairline bg-raised/50 hover:border-hairline-strong"
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="heading-face text-sm font-semibold text-heading">
+                    {target.id === "windows"
+                      ? "Windows"
+                      : target.id === "macos"
+                        ? "macOS"
+                        : "Linux"}
+                  </span>
+                  {isDetected && (
+                    <span className="rounded-full bg-accent px-2 py-0.5 text-2xs font-medium text-on-accent">
+                      Detected
+                    </span>
+                  )}
+                </div>
+                {target.note && (
+                  <p className="text-xs leading-relaxed text-muted mb-4">
+                    {target.note}
+                  </p>
+                )}
+              </div>
+              <a
+                href={target.href}
+                className={`focus-ring lift-sm inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
+                  isDetected
+                    ? "bg-accent text-on-accent hover:bg-accent-hover"
+                    : "border border-hairline-strong bg-surface text-heading hover:bg-raised"
+                }`}
+              >
+                {target.label}
+              </a>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-8 border-t border-hairline pt-5 w-full text-center">
+        <a
+          href={otherHref}
+          className="focus-ring inline-block rounded text-sm text-muted underline underline-offset-4 hover:text-heading"
+        >
+          {otherLabel}
         </a>
-      ) : (
-        <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-hairline px-6 text-sm font-semibold text-muted">
-          {primary.label}
-        </span>
-      )}
-
-      {platform === "windows" && (
-        <p className="mt-3 text-xs text-muted">{smartScreen}</p>
-      )}
-
-      {platform === "macos" && (
-        <p className="mt-3 text-xs text-muted">{openAnyway}</p>
-      )}
-
-      <a href={otherHref} className="focus-ring mt-5 rounded text-sm text-muted underline underline-offset-4 hover:text-heading">
-        {otherLabel}
-      </a>
+      </div>
     </div>
   );
 }
