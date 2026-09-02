@@ -935,3 +935,119 @@ select.field:focus-visible {
     transition: none;
   }
 }
+
+/* ------------------------------------------------------- the three steps */
+
+/*
+ * Named steps rather than a bar. A person who can read where the setup ends
+ * finishes it; a bar at forty percent tells them nothing they can act on.
+ */
+.first-run-steps {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-3);
+  margin: 0 0 var(--ol-space-4);
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.first-run-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+}
+
+.first-run-steps li + li::before {
+  content: "";
+  width: 1.25rem;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+
+.first-run-steps li[data-state="current"] {
+  color: var(--accent);
+}
+
+.first-run-steps li[data-state="done"] {
+  color: var(--ol-band-green-label);
+}
+
+/* ----------------------------------------------------------- step one */
+
+/*
+ * The alerts request. It is the only screen in the product that asks for
+ * something rather than reporting something, so it is given room: one
+ * heading, the reason, what declining costs, and two controls of equal
+ * weight. A decline that is styled as a mistake is not a real choice.
+ */
+.permission-step {
+  display: grid;
+  gap: var(--ol-space-3);
+  max-width: 34rem;
+  text-align: left;
+}
+
+.permission-title {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--ol-text-title);
+  font-weight: var(--ol-weight-semibold);
+  line-height: var(--ol-leading-tight);
+  text-wrap: balance;
+}
+
+.permission-lede {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--ol-text-body);
+  line-height: var(--ol-leading-body);
+}
+
+.permission-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.permission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ol-space-2);
+  margin-top: var(--ol-space-1);
+}
+
+.permission-action {
+  padding: var(--ol-space-2) var(--ol-space-4);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--ol-radius-sm);
+  background: transparent;
+  color: var(--heading);
+  font-family: inherit;
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-medium);
+  cursor: pointer;
+}
+
+.permission-action.primary {
+  border-color: var(--accent-subtle);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.permission-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.permission-status {
+  margin: 0;
+  min-height: 1em;
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+}

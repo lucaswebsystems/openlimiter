@@ -10,10 +10,18 @@ import {
 /**
  * The launch truth shown before provider setup begins.
  *
- * Windows is intentionally shipped without code signing, so the only useful
- * copy is the two SmartScreen controls a person has just used. No unsigned
- * macOS release is offered because Gatekeeper blocks it, including when a
- * developer opens this screen from a local macOS build.
+ * Both desktop builds ship unsigned on purpose, so the only useful copy on
+ * this screen is the exact control a person needs on the operating system
+ * they are standing in front of. Windows shows the two SmartScreen actions.
+ *
+ * macOS now has a release, so the line that used to promise a future one is
+ * gone. It went stale the moment the unsigned universal app and dmg were
+ * built, and a screen telling someone a download does not exist while they
+ * are running that download is worse than a screen saying nothing at all.
+ * Gatekeeper refuses an unsigned app on a plain double click and offers no
+ * way forward from its dialogue, so the copy names the gesture that works.
+ *
+ * Linux gets nothing, because nothing stands between the file and running it.
  */
 export function launchNotice(platform) {
   const value = String(platform ?? "").toLowerCase();
@@ -25,8 +33,9 @@ export function launchNotice(platform) {
   }
   if (value.includes("mac")) {
     return {
-      title: "macOS release coming soon",
-      detail: "No public download is available yet.",
+      title: "Unsigned macOS build",
+      detail:
+        "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
     };
   }
   return null;
@@ -222,12 +231,76 @@ export function normalizeDetections(value) {
   };
 }
 
+/**
+ * The three steps, and the one rule about them.
+ *
+ * A step is marked done only once it has actually happened. Marking a step
+ * complete because it was displayed is how a setup ends up claiming to have
+ * asked for something it never asked for, and this one asks for a real
+ * operating system permission.
+ */
+export const FIRST_RUN_STEPS = ["permission", "agents", "ready"];
+
+export function markStep(root, current) {
+  const list = root?.querySelector("#first-run-steps");
+  if (list === null || list === undefined) return;
+  list.hidden = false;
+  const at = FIRST_RUN_STEPS.indexOf(current);
+  for (const item of list.querySelectorAll("li")) {
+    const index = FIRST_RUN_STEPS.indexOf(item.getAttribute("data-step"));
+    item.removeAttribute("aria-current");
+    if (index < at) item.setAttribute("data-state", "done");
+    else if (index === at) {
+      item.setAttribute("data-state", "current");
+      item.setAttribute("aria-current", "step");
+    } else item.setAttribute("data-state", "todo");
+  }
+}
+
+/**
+ * Ask the operating system, once, and never pretend to have asked.
+ *
+ * A browser with no Notification API and a webview whose shell has not wired
+ * one both report "unsupported" rather than "denied", because they are
+ * different facts: one is a build that cannot ask and the other is a person
+ * who said no.
+ */
+export async function requestAlertPermission(notification = globalThis.Notification) {
+  if (notification === undefined || typeof notification.requestPermission !== "function") {
+    return "unsupported";
+  }
+  if (notification.permission === "granted") return "granted";
+  if (notification.permission === "denied") return "denied";
+  try {
+    return await notification.requestPermission();
+  } catch (error) {
+    return "unsupported";
+  }
+}
+
+export function permissionSentence(outcome) {
+  if (outcome === "granted") {
+    return "Alerts are on. You can change the thresholds or set quiet hours in Settings.";
+  }
+  if (outcome === "denied") {
+    return "The operating system is holding alerts. Every meter still works, and the system settings can undo this later.";
+  }
+  if (outcome === "skipped") {
+    return "Skipped. Alerts can be turned on in Settings whenever you want them.";
+  }
+  return "This build cannot show system alerts, so nothing was asked for. The meters are unaffected.";
+}
+
 function completeFirstRun(screen) {
   try {
     window.localStorage.setItem(FIRST_RUN_STORAGE_KEY, "complete");
   } catch {
     /* The current session can still continue when storage is unavailable. */
   }
+  /* Step three is not a screen. It is the window a person lands in, already
+     reading, which is why the last step is marked and then immediately gone
+     rather than dwelt on with a congratulation nobody needs. */
+  markStep(screen, "ready");
   document.documentElement.dataset.firstRun = "complete";
   screen.hidden = true;
 }
@@ -399,16 +472,40 @@ export function initFirstRun(options) {
   const password = screen.querySelector("#account-password");
   const emailForm = screen.querySelector("#account-email-form");
   const createButton = screen.querySelector("#account-email-create");
+  const magicButton = screen.querySelector("#account-magic-link");
   const googleButton = screen.querySelector("#account-google");
   const githubButton = screen.querySelector("#account-github");
 
   document.documentElement.dataset.firstRun = "pending";
 
   let providersRendered = false;
+  const permission = screen.querySelector("#first-run-permission");
+  const permissionStatus = screen.querySelector("#first-run-permission-status");
+
+  /* Step one. Shown after sign in and before anything is detected, because a
+     person who has just been told what alerts are for is the person who can
+     answer the operating system's prompt meaningfully. */
+  function showPermission() {
+    screen.setAttribute("aria-labelledby", "first-run-permission-title");
+    gate.hidden = true;
+    setup.hidden = true;
+    if (permission !== null) permission.hidden = false;
+    markStep(screen, "permission");
+  }
+
+  async function finishPermission(outcome) {
+    if (permissionStatus !== null) {
+      permissionStatus.textContent = permissionSentence(outcome);
+    }
+    await showSetup();
+  }
+
   async function showSetup() {
     screen.setAttribute("aria-labelledby", "first-run-title");
     gate.hidden = true;
+    if (permission !== null) permission.hidden = true;
     setup.hidden = false;
+    markStep(screen, "agents");
     if (providersRendered) return;
     providersRendered = true;
     const response = await options.detectProviders();
@@ -418,6 +515,15 @@ export function initFirstRun(options) {
       options,
     );
   }
+
+  screen.querySelector("#first-run-allow")?.addEventListener("click", async () => {
+    const outcome = await requestAlertPermission();
+    await finishPermission(outcome);
+  });
+
+  screen.querySelector("#first-run-skip-alerts")?.addEventListener("click", () => {
+    void finishPermission("skipped");
+  });
 
   function showAccountFailure(result) {
     if (gateStatus === null) return;
@@ -433,7 +539,7 @@ export function initFirstRun(options) {
       return;
     }
     options.onAccountState(result.value);
-    await showSetup();
+    showPermission();
   }
 
   const notice = launchNotice(options.platform ?? browserPlatform());
@@ -474,6 +580,34 @@ export function initFirstRun(options) {
       create: true,
     }));
   });
+  /*
+   * The magic link, for a person with neither of the two provider accounts,
+   * or who would rather not type a password into a desktop window. It sends
+   * an empty password with create off, which is what the broker reads as a
+   * link request, and it never advances the screen: the link is followed in a
+   * browser and this window picks the session up when it comes back.
+   */
+  magicButton?.addEventListener("click", async () => {
+    const address = email?.value ?? "";
+    if (address.trim() === "") {
+      if (gateStatus !== null) {
+        gateStatus.textContent = "Enter the email address to send the link to.";
+      }
+      email?.focus();
+      return;
+    }
+    if (gateStatus !== null) gateStatus.textContent = "Sending the link.";
+    const result = await options.accountEmail({
+      email: address,
+      password: "",
+      create: false,
+    });
+    if (gateStatus === null) return;
+    gateStatus.textContent = result.ok
+      ? "Check " + address + " and open the link on this device."
+      : (result.message ?? "The link could not be sent. Check your connection.");
+  });
+
   googleButton?.addEventListener("click", () => {
     void runAccount(() => options.accountOauth("google"));
   });
@@ -500,6 +634,6 @@ export function initFirstRun(options) {
       completeFirstRun(screen);
       return;
     }
-    await showSetup();
+    showPermission();
   })();
 }

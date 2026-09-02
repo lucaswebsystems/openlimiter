@@ -70,10 +70,27 @@
             <div class="account-email-actions">
               <button type="submit" id="account-email-sign-in" class="first-run-continue">Sign in</button>
               <button type="button" id="account-email-create">Create account</button>
+              <!--
+                The fallback for a person whose provider account is not one of
+                the two above, or who would rather not hand a password to a
+                desktop window at all. It asks for nothing but the address.
+              -->
+              <button type="button" id="account-magic-link">Email me a link instead</button>
             </div>
           </form>
           <p id="account-gate-status" class="first-run-status" role="status"></p>
         </div>
+        <!--
+          Three steps, named before the first one starts. A person who can see
+          where the setup ends is a person who will finish it, and there is
+          nothing here worth hiding behind a progress bar with no labels.
+        -->
+        <ol class="first-run-steps" id="first-run-steps" hidden>
+          <li data-step="permission" aria-current="step">Alerts</li>
+          <li data-step="agents">Agents</li>
+          <li data-step="ready">Ready</li>
+        </ol>
+
         <div id="first-run-setup" hidden>
           <h1 id="first-run-title">Choose local providers</h1>
           <p class="first-run-intro">Only usage percentages sync. Keys and credentials stay on this device.</p>
@@ -98,6 +115,42 @@
             Provider access stays local. Sync can be turned off at any time.
           </p>
         </div>
+        <!--
+          Its own class names on purpose. The empty state restyles every
+          .first-run-* class to shrink the panel down to one line, and this
+          step is never the empty state, so borrowing those names would let a
+          detection result silently rewrite a permission request.
+        -->
+        <div id="first-run-permission" class="permission-step" hidden>
+          <h2 class="permission-title" id="first-run-permission-title">Let OpenLimiter tell you before you run out</h2>
+          <!--
+            The reason, before the ask. A permission prompt with no stated
+            purpose is the one a person denies by reflex, and the reflex is
+            correct: nobody should grant something whose use was not explained.
+          -->
+          <p class="permission-lede">
+            OpenLimiter watches the quota windows you already pay for and says
+            something at 60, 80 and 90 percent, and once more when a window
+            resets. That is the whole of it. There is no marketing message, no
+            digest you did not ask for, and no notification that is not about a
+            number on your own screen.
+          </p>
+          <p class="permission-note">
+            You can decide the thresholds, set quiet hours, or turn alerts off
+            entirely in Settings. Declining here changes nothing else: every
+            meter keeps working.
+          </p>
+          <div class="permission-actions">
+            <button type="button" id="first-run-allow" class="permission-action primary">
+              Allow alerts
+            </button>
+            <button type="button" id="first-run-skip-alerts" class="permission-action">
+              Not now
+            </button>
+          </div>
+          <p id="first-run-permission-status" class="permission-status" role="status"></p>
+        </div>
+
       </div>
     </section>
 

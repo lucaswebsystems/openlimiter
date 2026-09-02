@@ -12,7 +12,26 @@ test("keeps an unconfigured Home to one line pointing at Configuration", () => {
 
   assert.equal((panel.match(/class="empty-line/g) ?? []).length, 1);
   assert.match(panel, />No providers configured\. Open Configuration\.<\/button>/u);
-  assert.equal(panel.includes("<p"), false);
+
+  /*
+   * Home carries the live meter, the stale strip and the failure alerts now,
+   * and each of those is prose. The guarantee this test exists for is not
+   * "Home has no paragraph", it is "an unconfigured Home is one line", so
+   * every paragraph on the panel has to start hidden and be revealed only by
+   * something the window can actually prove. A paragraph that ships visible
+   * would be back to explaining an empty screen at someone.
+   */
+  for (const paragraph of panel.matchAll(/<p[^>]*>/gu)) {
+    const tag = paragraph[0];
+    const container = panel.slice(0, paragraph.index);
+    const openedBlock = container.lastIndexOf("<div");
+    const openedHidden =
+      openedBlock >= 0 && /hidden/u.test(panel.slice(openedBlock, panel.indexOf(">", openedBlock)));
+    assert.ok(
+      /hidden/u.test(tag) || openedHidden,
+      "a Home paragraph ships visible: " + tag,
+    );
+  }
 });
 
 test("keeps the account gate mandatory before provider setup", () => {
@@ -50,11 +69,21 @@ test("shows the two SmartScreen actions for an unsigned Windows release", () => 
   });
 });
 
-test("keeps an unsigned macOS release unavailable", () => {
+test("names the Gatekeeper gesture for the unsigned macOS release", () => {
   assert.deepEqual(launchNotice("MacIntel"), {
-    title: "macOS release coming soon",
-    detail: "No public download is available yet.",
+    title: "Unsigned macOS build",
+    detail:
+      "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
   });
+});
+
+test("no longer claims a macOS release is coming", () => {
+  /* The unsigned universal app and dmg exist. A first run screen telling a
+     person on macOS that there is no download, while they are running the
+     download, is the one sentence on this screen that cannot be true. */
+  const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
+  assert.equal(source.includes("coming soon"), false);
+  assert.equal(source.includes("No public download"), false);
 });
 
 test("does not add a launch warning on Linux", () => {
