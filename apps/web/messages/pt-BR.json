@@ -49,9 +49,63 @@
     "security": "Segurança"
   },
   "terms": {
-    "title": "Terms and conditions",
-    "lead": "These terms explain the rules for using the OpenLimiter website and software. They are meant to be clear and practical.",
-    "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software."
+    "title": "Termos e condições",
+    "lead": "As regras para usar o site e o software do OpenLimiter, e os termos da assinatura Pro. A intenção é que sejam claros e práticos.",
+    "metaDescription": "Os termos que valem quando você usa o site e o software de código aberto do OpenLimiter, incluindo cobrança, cancelamento, reembolso e falha de pagamento do Pro.",
+    "sections": {
+      "acceptance": {
+        "title": "Aceitação",
+        "body": "Ao acessar ou usar este site, você concorda com estes termos. Se não concordar, por favor pare de usar o site. O seu uso do software é regido separadamente pela licença dele, e assinar o Pro acrescenta as seções de assinatura abaixo."
+      },
+      "licence": {
+        "title": "Licença do software",
+        "body": "O OpenLimiter é software livre e de código aberto disponibilizado sob a <licence>Apache License 2.0</licence>. É essa licença, e não estes termos de site, que rege o seu direito de usar, copiar, modificar e distribuir o software."
+      },
+      "account": {
+        "title": "A conta e o Pro",
+        "body": "A conta é gratuita e opcional, e tudo o que é local continua gratuito com ou sem ela. O Pro é uma assinatura de serviços hospedados: alertas, histórico de noventa dias com previsão, contexto de roteamento hospedado, mais de uma conta por provedor, um preset de exibição Pro e o beta de gasto de API. O Pro acrescenta serviços hospedados e nunca retira um recurso local. O limite gratuito de uma conta por provedor é aplicado pelo aplicativo de desktop como uma política em código aberto, e não como uma barreira de segurança: é uma promessa sobre como o produto se comporta, não uma restrição técnica."
+      },
+      "billing": {
+        "title": "Cobrança",
+        "body": "O Pro custa 5 dólares americanos por mês ou 50 dólares americanos por ano, e os primeiros 30 dias são gratuitos sem exigir cartão. Os pagamentos são processados pela Stripe, que atua como processadora e guarda os dados do seu cartão. O imposto é calculado automaticamente no checkout e pode ser somado ao preço anunciado conforme o lugar onde você está, e é por isso que um endereço de cobrança é pedido. A assinatura é renovada automaticamente ao fim de cada período até você cancelar."
+      },
+      "cancellation": {
+        "title": "Cancelamento",
+        "body": "Você pode cancelar quando quiser pelo Portal do Cliente da Stripe, acessado a partir da tela de cobrança na sua conta. O cancelamento passa a valer no fim do período que você já pagou: os recursos Pro continuam funcionando até essa data e então param. Cancelar não apaga os seus dados, e tudo o que é local continua funcionando exatamente como antes."
+      },
+      "refund": {
+        "title": "Reembolsos",
+        "body": "Há reembolso integral mediante pedido dentro de 14 dias corridos de qualquer cobrança, mensal ou anual, sem precisar justificar. Escreva para o endereço no pé desta página e diga a qual cobrança se refere. Um reembolso integral confirmado cancela aquela assinatura na hora e encerra o Pro, e nunca toca em nada guardado na sua própria máquina. Depois de 14 dias uma cobrança não é automaticamente reembolsável, e mesmo assim o pedido é lido e respondido."
+      },
+      "failedPayment": {
+        "title": "Falha de pagamento",
+        "body": "Se um pagamento falhar, o Pro entra em estado de pendência e você mantém o acesso hospedado por 72 horas fixas contadas dessa primeira falha. Novas tentativas e novas falhas não prolongam essa janela. Pagar a fatura em aberto dentro dela restaura o acesso imediatamente. Se a fatura continuar em aberto quando a janela fechar, os recursos hospedados param e tudo o que é local continua funcionando. Um pagamento bem sucedido mais tarde pode restaurar o acesso, a menos que a assinatura já tenha sido cancelada ou reembolsada."
+      },
+      "warranty": {
+        "title": "Sem garantia",
+        "body": "O site, o software e os serviços hospedados são fornecidos como estão e conforme a disponibilidade. Não prometemos que serão sempre exatos, completos, seguros ou disponíveis. As leituras de quota vêm de interfaces controladas pelos provedores e podem mudar sem aviso, então uma leitura pode faltar, estar velha ou estar errada, e ela nunca deve ser a sua única proteção contra ultrapassar um limite. Na máxima extensão permitida por lei, todas as garantias são excluídas."
+      },
+      "liability": {
+        "title": "Limitação de responsabilidade",
+        "body": "Na máxima extensão permitida por lei, Lucas Costa e os contribuidores do OpenLimiter não respondem por danos indiretos, incidentais, especiais, consequenciais ou punitivos, nem por perda de dados, lucros, receita ou oportunidades, decorrentes do uso ou da impossibilidade de uso do site, do software ou dos serviços hospedados. Qualquer responsabilidade que a lei não permita excluir fica limitada ao valor que você pagou nos doze meses anteriores à reclamação, ou ao mínimo que a lei permitir, se for maior."
+      },
+      "links": {
+        "title": "Links externos",
+        "body": "Este site pode levar a serviços que o OpenLimiter não controla, e o produto lê interfaces que pertencem a outras empresas. Esses serviços têm os próprios termos e as próprias práticas de privacidade. Não somos responsáveis pelo conteúdo, pela disponibilidade ou pela conduta deles, e nada aqui cria uma relação com eles nem um endosso por parte deles."
+      },
+      "changes": {
+        "title": "Mudanças nestes termos",
+        "body": "Podemos atualizar estes termos quando o site, o software, a assinatura ou a lei aplicável mudarem. Os novos termos passam a valer quando são publicados nesta página. Continuar usando o site depois de uma atualização significa que você aceita a versão revista. Uma mudança que afete uma assinatura ativa é anunciada antes de valer para ela."
+      },
+      "privacy": {
+        "title": "Privacidade",
+        "body": "O que é coletado, para onde vai e por quanto tempo fica guardado está na <privacy>política de privacidade</privacy>, que faz parte destes termos. Em resumo: o modo local não coleta nada, e a conta existe apenas para carregar as suas próprias leituras de quota e a sua assinatura."
+      },
+      "contact": {
+        "title": "Contato",
+        "body": "Dúvidas sobre estes termos, e pedidos de reembolso ou de cancelamento, podem ser enviados para <mail>lucas@lucaswebsystems.com</mail>."
+      }
+    }
   },
   "privacy": {
     "title": "Privacidade",

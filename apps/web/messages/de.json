@@ -49,9 +49,63 @@
     "security": "Sicherheit"
   },
   "terms": {
-    "title": "Terms and conditions",
-    "lead": "These terms explain the rules for using the OpenLimiter website and software. They are meant to be clear and practical.",
-    "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software."
+    "title": "Nutzungsbedingungen",
+    "lead": "Die Regeln für die Nutzung der OpenLimiter Website und Software sowie die Bedingungen des Pro Abonnements. Sie sollen klar und praktisch sein.",
+    "metaDescription": "Die Bedingungen, die für die Nutzung der OpenLimiter Website und der quelloffenen Software gelten, einschließlich Abrechnung, Kündigung, Rückerstattung und fehlgeschlagener Zahlungen bei Pro.",
+    "sections": {
+      "acceptance": {
+        "title": "Zustimmung",
+        "body": "Mit dem Zugriff auf diese Website oder ihrer Nutzung stimmst du diesen Bedingungen zu. Wenn du nicht zustimmst, nutze die Website bitte nicht weiter. Deine Nutzung der Software richtet sich gesondert nach ihrer Lizenz, und der Abschluss von Pro fügt die Abonnementabschnitte weiter unten hinzu."
+      },
+      "licence": {
+        "title": "Softwarelizenz",
+        "body": "OpenLimiter ist freie und quelloffene Software unter der <licence>Apache License 2.0</licence>. Diese Lizenz und nicht diese Websitebedingungen regelt dein Recht, die Software zu nutzen, zu kopieren, zu verändern und weiterzugeben."
+      },
+      "account": {
+        "title": "Das Konto und Pro",
+        "body": "Ein Konto ist kostenlos und freiwillig, und alles Lokale bleibt mit oder ohne Konto kostenlos. Pro ist ein Abonnement gehosteter Dienste: Warnungen, neunzig Tage Verlauf mit Prognose, gehosteter Routing Kontext, mehr als ein Konto je Anbieter, ein Pro Darstellungspreset und die API Ausgaben Beta. Pro fügt gehostete Dienste hinzu und nimmt nie eine lokale Funktion weg. Die kostenlose Grenze von einem Konto je Anbieter setzt die Desktopanwendung als Richtlinie in quelloffenem Code durch, nicht als Sicherheitsgrenze: sie ist ein Versprechen über das Verhalten des Produkts und keine technische Sperre."
+      },
+      "billing": {
+        "title": "Abrechnung",
+        "body": "Pro kostet 5 US Dollar im Monat oder 50 US Dollar im Jahr, und die ersten 30 Tage sind kostenlos und ohne Karte. Die Zahlungen wickelt Stripe ab, das als Zahlungsdienstleister auftritt und deine Kartendaten hält. Die Steuer wird beim Bezahlen automatisch berechnet und kann je nach deinem Aufenthaltsort auf den genannten Preis aufgeschlagen werden, und deshalb wird eine Rechnungsadresse erhoben. Ein Abonnement verlängert sich am Ende jedes Zeitraums automatisch, bis du kündigst."
+      },
+      "cancellation": {
+        "title": "Kündigung",
+        "body": "Du kannst jederzeit über das Stripe Kundenportal kündigen, erreichbar über den Abrechnungsbildschirm in deinem Konto. Die Kündigung wirkt zum Ende des bereits bezahlten Zeitraums: die Pro Funktionen laufen bis zu diesem Datum weiter und hören dann auf. Kündigen löscht deine Daten nicht, und alles Lokale funktioniert genau wie zuvor."
+      },
+      "refund": {
+        "title": "Rückerstattungen",
+        "body": "Eine vollständige Rückerstattung gibt es auf Anfrage innerhalb von 14 Kalendertagen nach jeder Abbuchung, monatlich wie jährlich, ohne Begründung. Schreibe an die Adresse am Fuß dieser Seite und nenne die betreffende Abbuchung. Eine bestätigte vollständige Rückerstattung kündigt dieses Abonnement sofort und beendet Pro, und sie rührt nichts an, was auf deinem eigenen Rechner liegt. Nach 14 Tagen ist eine Abbuchung nicht mehr automatisch erstattungsfähig, und eine Anfrage wird trotzdem gelesen und beantwortet."
+      },
+      "failedPayment": {
+        "title": "Fehlgeschlagene Zahlungen",
+        "body": "Schlägt eine Zahlung fehl, geht Pro in den Zustand überfällig, und du behältst den gehosteten Zugang für feste 72 Stunden ab diesem ersten Fehlschlag. Weitere Versuche und weitere Fehlschläge verlängern dieses Fenster nicht. Wird die offene Rechnung darin bezahlt, ist der Zugang sofort wieder da. Ist die Rechnung beim Schließen des Fensters weiterhin offen, hören die gehosteten Funktionen auf, und alles Lokale läuft weiter. Eine spätere erfolgreiche Zahlung kann den Zugang wiederherstellen, sofern das Abonnement nicht bereits gekündigt oder erstattet wurde."
+      },
+      "warranty": {
+        "title": "Keine Gewährleistung",
+        "body": "Die Website, die Software und die gehosteten Dienste werden so wie sie sind und nach Verfügbarkeit bereitgestellt. Wir versprechen nicht, dass sie stets genau, vollständig, sicher oder verfügbar sind. Quota Werte stammen aus Schnittstellen, die den Anbietern gehören, und können sich ohne Ankündigung ändern, ein Wert kann also fehlen, veraltet oder falsch sein und darf nie deine einzige Absicherung gegen das Überschreiten eines Limits sein. Soweit gesetzlich zulässig, wird jede Gewährleistung ausgeschlossen."
+      },
+      "liability": {
+        "title": "Haftungsbeschränkung",
+        "body": "Soweit gesetzlich zulässig, haften Lucas Costa und die Mitwirkenden an OpenLimiter nicht für mittelbare, beiläufige, besondere, Folge oder Strafschäden und nicht für verlorene Daten, Gewinne, Einnahmen oder Gelegenheiten, die aus der Nutzung oder der Unmöglichkeit der Nutzung der Website, der Software oder der gehosteten Dienste entstehen. Jede Haftung, die das Gesetz auszuschließen nicht erlaubt, ist auf den Betrag begrenzt, den du in den zwölf Monaten vor dem Anspruch gezahlt hast, oder auf das gesetzliche Mindestmaß, falls dieses höher ist."
+      },
+      "links": {
+        "title": "Externe Links",
+        "body": "Diese Website kann auf Dienste verweisen, die OpenLimiter nicht kontrolliert, und das Produkt liest Schnittstellen, die anderen Unternehmen gehören. Diese Dienste haben eigene Bedingungen und eigene Datenschutzpraktiken. Wir sind für ihre Inhalte, ihre Verfügbarkeit und ihr Verhalten nicht verantwortlich, und nichts hiervon begründet eine Beziehung zu ihnen oder eine Befürwortung durch sie."
+      },
+      "changes": {
+        "title": "Änderungen dieser Bedingungen",
+        "body": "Wir können diese Bedingungen ändern, wenn sich die Website, die Software, das Abonnement oder das geltende Recht ändern. Neue Bedingungen gelten, sobald sie auf dieser Seite veröffentlicht sind. Nutzt du die Website nach einer Aktualisierung weiter, nimmst du die überarbeitete Fassung an. Eine Änderung, die ein laufendes Abonnement betrifft, wird angekündigt, bevor sie darauf angewendet wird."
+      },
+      "privacy": {
+        "title": "Datenschutz",
+        "body": "Was erhoben wird, wohin es geht und wie lange es bleibt, steht in der <privacy>Datenschutzerklärung</privacy>, die Teil dieser Bedingungen ist. Kurz gesagt: der lokale Modus erhebt nichts, und das Konto existiert nur, um deine eigenen Quota Werte und dein Abonnement zu tragen."
+      },
+      "contact": {
+        "title": "Kontakt",
+        "body": "Fragen zu diesen Bedingungen sowie Rückerstattungs und Kündigungsanfragen können an <mail>lucas@lucaswebsystems.com</mail> gehen."
+      }
+    }
   },
   "privacy": {
     "title": "Datenschutz",
