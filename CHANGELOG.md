@@ -4,6 +4,29 @@ All notable project changes appear in this file.
 
 ## [Unreleased]
 
+Version 1.2.0, in progress. Nothing below is released until the tag exists.
+
+### Added
+
+- A privacy policy at `/privacy`, in all five published languages, written from the real data map rather than from a template: what local mode collects, which fields sync carries, every retention window, the processors involved, and the deletion path.
+- Subscription terms: billing through Stripe with automatic tax, cancellation at period end through the Stripe Customer Portal, a full refund on request within 14 days of any charge, and one fixed 72 hour grace after a first failed payment that retries never extend.
+- The agent context documentation now lists every agent the hook installer knows, with the state a live fixture recorded on a real machine rather than the state a roadmap hoped for, plus the OpenCode kill switch and the reason Grok Build cannot be injected into.
+- A public macOS download, unsigned, with the exact first run steps: open it once, then System Settings, Privacy and Security, Open Anyway.
+
+### Changed
+
+- The documentation lists all nine connectors. Gemini CLI, Grok and Kimi join the table with the labels their parsers declare.
+- The pricing page states the six Pro lines honestly, labels the API spend meters a beta, names the organisation admin or management key they need, says a project key will not work, and shows Moonshot as balance rather than spend.
+- The free plan states its cap of one active account per provider, which Pro raises.
+- The website counts page views without cookies through Vercel Web Analytics. The application still sends nothing, and the two claims are now stated separately instead of as one.
+- Claims that no OpenLimiter server and no account exist are scoped to local mode, which is where they are true, now that a free account, sync and Pro exist.
+- `llms.txt` rewritten for 1.2.0: nine connectors, the account, the six Pro lines, checkout through Stripe, and the agent adapter states.
+
+### Distribution
+
+- Desktop builds for Windows, macOS and Linux. Windows and macOS are unsigned and each states its one time allow step.
+- macOS is excluded from the update manifest until signed and notarised builds exist, so until then a new version is a new download.
+
 ## [1.1.0] (2026-08-24)
 
 ### Added

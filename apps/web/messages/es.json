@@ -876,9 +876,9 @@
   },
   "changelog": {
     "metaTitle": "Registro de cambios: cada release y qué cambió",
-    "metaDescription": "Cada versión publicada de OpenLimiter, renderizada desde el CHANGELOG.md en la raíz del repositorio.",
+    "metaDescription": "Todas las versiones publicadas de OpenLimiter, más el trabajo en curso, renderizadas desde el CHANGELOG.md de la raíz del repositorio.",
     "title": "Registro de cambios",
-    "lead": "Cada versión publicada de OpenLimiter, leída directamente del archivo que el propio repositorio mantiene, en el orden en que ese archivo las lista.",
+    "lead": "Todas las versiones publicadas de OpenLimiter, leídas directamente del archivo que el propio repositorio mantiene, en el orden en que ese archivo las lista. Lo que está bajo Unreleased está escrito pero no publicado.",
     "empty": "No se encontró ningún CHANGELOG.md en este checkout, así que no hay nada que mostrar aquí. El archivo que lee esta página está en la raíz del <repo>repositorio</repo>, y es la única copia que existe de estas notas.",
     "sourceNote": "Esta página se renderiza desde el <file>CHANGELOG.md</file> en la raíz del repositorio. Nada aquí está escrito dos veces, así que no hay una segunda copia que se desalinee del código publicado."
   },
