@@ -122,6 +122,13 @@ export function WorksWith() {
           ),
         })}
       </p>
+
+      <p
+        className="mt-4 w-full text-center text-xs leading-relaxed text-muted/80"
+        {...reveal}
+      >
+        {t("compatibilityNote")}
+      </p>
     </section>
   );
 }

@@ -494,6 +494,7 @@
     },
     "feedIn": "Como alimentar um",
     "footnote": "Todo connector vem marcado <code>UNVERIFIED</code>, que é o padrão honesto: nenhum verificador explícito confirmou ainda um formato contra uma conta real. Três deles leem interfaces internas às ferramentas de outra empresa, que podem mudar sem aviso, e quando isso acontece, esse provedor falha de forma segura para unknown em vez de chutar. <link>Cada connector e seu estado real</link>.",
+    "compatibilityNote": "Nomes de produtos, logotipos, marcas e outras marcas comerciais apresentados ou mencionados no OpenLimiter são de propriedade de seus respectivos titulares. Esses titulares de marcas não são afiliados ao OpenLimiter, aos nossos produtos ou ao nosso site. Eles não patrocinam nem endossam o OpenLimiter. O uso dessas marcas não implica qualquer afiliação ou endosso.",
     "manualNote": "Toda ferramenta desta página já pode ser medida hoje. Conecte a ferramenta a partir do aplicativo de desktop, ou, em Avançado, anote os números com manual entry, ou envie um payload com ingest a partir de qualquer script que você controle. De um jeito ou de outro, ele cai no mesmo snapshot que um connector."
   },
   "runsWhere": {

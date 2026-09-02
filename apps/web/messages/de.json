@@ -494,6 +494,7 @@
     },
     "feedIn": "So fütterst du einen",
     "footnote": "Jeder Connector wird als <code>UNVERIFIED</code> ausgeliefert, der ehrliche Standard: Noch hat kein expliziter Verifier eine Form gegen ein echtes Konto bestätigt. Drei von ihnen lesen Schnittstellen, die intern zum Tooling eines anderen gehören und sich ohne Ankündigung ändern können, und tut eine das, fällt dieser Provider geschlossen auf unknown zurück, statt zu raten. <link>Jeder Connector und sein echter Stand</link>.",
+    "compatibilityNote": "Produktnamen, Logos, Marken und andere Warenzeichen, die in OpenLimiter verwendet werden oder auf die verwiesen wird, sind Eigentum der jeweiligen Markeninhaber. Diese Markeninhaber sind nicht mit OpenLimiter, unseren Produkten oder unserer Website verbunden. Sie sponsern oder unterstützen OpenLimiter nicht. Die Verwendung begründet keine Zugehörigkeit oder Befürwortung.",
     "manualNote": "Jedes Tool auf dieser Seite lässt sich schon heute in den Meter aufnehmen. Verbinde es über die Desktop Anwendung, oder trag unter Erweitert die Zahlen per manual entry ein, oder leite eine Payload per ingest aus einem beliebigen Skript ein, das du kontrollierst. So oder so landet es im selben Snapshot wie ein Connector."
   },
   "runsWhere": {
