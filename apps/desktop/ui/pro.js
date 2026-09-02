@@ -429,8 +429,11 @@ export async function renderPro(mount) {
     '<section class="surface block" aria-labelledby="history-title">' +
     '<h2 id="history-title">History and forecast</h2>' +
     (isPro
-      ? '<div class="placeholder"><strong>Ninety days of history is syncing</strong><span>Charts appear here once the hosted service has more than one day to draw. Nothing is estimated across a period that was not observed.</span></div>'
-      : '<div class="placeholder"><strong>History and forecast are Pro</strong><span>The current reading is Free and always on. Pro keeps ninety days of it privately and projects when a budget will be reached.</span></div>') +
+      /* The heading above already says what this is. A placeholder that
+         repeats it spends a line telling a person something they have just
+         read, so it states the one thing they cannot see instead. */
+      ? '<div class="placeholder"><span>Charts appear once the hosted service has more than one day to draw. Nothing is estimated across a period that was not observed.</span></div>'
+      : '<div class="placeholder"><span>The current reading is Free and always on. Pro keeps ninety days of it privately and projects when a budget will be reached.</span></div>') +
     "</section>";
 
   wirePro();

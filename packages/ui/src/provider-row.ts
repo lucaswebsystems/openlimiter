@@ -628,11 +628,21 @@ export function providerRowMarkup(row: ProviderAccountRowView): string {
     '<article class="row" aria-label="' +
     escapeText(row.providerLabel + ", " + row.accountLabel) +
     '">' +
-    '<header class="identity"><span class="mark" aria-hidden="true">' +
+    '<header class="identity"><span class="identity-name">' +
+    '<span class="mark" aria-hidden="true">' +
     PROVIDER_MARKS[row.provider] +
     '</span><strong class="provider-name">' +
     escapeText(row.providerLabel) +
-    "</strong></header>" +
+    "</strong>" +
+    (row.showAccountLabel
+      ? '<span class="account-label">' + escapeText(row.accountLabel) + "</span>"
+      : "") +
+    "</span>" +
+    /* Two column headings, over the two columns they name. They are what
+       turns a stack of lines into a table a person can read down. */
+    '<span class="column-label">Used</span>' +
+    '<span class="column-label">Resets in</span>' +
+    "</header>" +
     '<div class="windows">' +
     row.windows.map(windowLineMarkup).join("") +
     "</div></article>"
@@ -752,7 +762,7 @@ const PROVIDER_ROW_STYLE = `
   overflow: hidden;
   color: var(--row-heading);
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-bold);
+  font-weight: var(--ol-weight-semibold);
   line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -849,7 +859,7 @@ const PROVIDER_ROW_STYLE = `
   font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
   font-size: var(--ol-text-title);
   font-variant-numeric: tabular-nums;
-  font-weight: var(--ol-weight-bold);
+  font-weight: var(--ol-weight-semibold);
   letter-spacing: -0.035em;
   line-height: 1;
   white-space: nowrap;
@@ -903,7 +913,7 @@ const PROVIDER_ROW_STYLE = `
   line-height: var(--ol-leading-tight);
   white-space: nowrap;
 }
-.metric-empty { color: var(--row-faint); font-weight: var(--ol-weight-medium); }
+.metric-empty { color: var(--row-faint); font-weight: var(--ol-weight-regular); }
 .reset {
   gap: var(--ol-space-1);
   border-right: 0;
@@ -996,21 +1006,64 @@ const PROVIDER_ROW_STYLE = `
   }
 }
 
-/* One provider heading, then one compact four item line for every window. */
+/*
+ * One provider heading, then one compact four item line for every window.
+ *
+ * The heading and the lines share a single grid definition, named once below.
+ * That is the whole point of this block: the mark and the provider name start
+ * on the same left edge as every window name under them, and the two column
+ * headings sit exactly over the percentage and the countdown they name. A
+ * heading laid out on its own axis is what makes a card read as a poster with
+ * a table stapled underneath rather than as one object.
+ */
 .row {
-  display: block;
+  display: grid;
+  /* One column. The wide table template above belongs to the other form this
+     component can take, and leaving it in place put the heading and the lines
+     into six columns that neither of them was written for. */
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--ol-space-3);
   min-height: 0;
   padding: var(--ol-space-4);
   overflow: hidden;
+  /* The one grid the heading and every line share, in one place. */
+  --row-columns: minmax(7rem, 0.85fr) minmax(8rem, 1.8fr) 4.5rem 5rem;
 }
 .identity {
-  display: flex;
+  display: grid;
   min-height: 0;
-  flex-direction: row;
+  grid-template-columns: var(--row-columns);
+  align-items: center;
+  gap: var(--ol-space-3);
+  padding: 0 0 var(--ol-space-3);
+  border: 0;
+  border-bottom: 1px solid var(--row-hairline);
+}
+.identity-name {
+  display: flex;
+  min-width: 0;
   align-items: center;
   gap: var(--ol-space-2);
-  padding: 0;
-  border: 0;
+  /* Over the name and the meter, so the mark never crowds the first bar. */
+  grid-column: 1 / 3;
+}
+.account-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--row-muted);
+  font-size: var(--ol-text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.column-label {
+  color: var(--row-muted);
+  font-size: var(--ol-text-micro);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 .mark {
   width: 1.75rem;
@@ -1026,7 +1079,7 @@ const PROVIDER_ROW_STYLE = `
   overflow: hidden;
   color: var(--row-heading);
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-bold);
+  font-weight: var(--ol-weight-semibold);
   line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1034,12 +1087,11 @@ const PROVIDER_ROW_STYLE = `
 .windows {
   display: grid;
   gap: var(--ol-space-3);
-  margin-top: var(--ol-space-4);
 }
 .window-line {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(7rem, 0.85fr) minmax(8rem, 1.8fr) 4.5rem 5rem;
+  grid-template-columns: var(--row-columns);
   align-items: center;
   gap: var(--ol-space-3);
 }
@@ -1107,7 +1159,7 @@ const PROVIDER_ROW_STYLE = `
 .window-percent {
   color: var(--row-accent);
   font-size: var(--ol-text-body);
-  font-weight: var(--ol-weight-bold);
+  font-weight: var(--ol-weight-semibold);
   text-align: right;
 }
 .window-line[data-band="green"] .window-readout { color: var(--row-ok-label); }
@@ -1141,14 +1193,16 @@ const PROVIDER_ROW_STYLE = `
     padding: 0;
     border: 0;
   }
-  .windows {
+  .row {
     gap: var(--ol-space-2);
-    margin-top: var(--ol-space-3);
+    /* One override, and the heading follows the lines because they read the
+       same variable rather than repeating the same four values twice. */
+    --row-columns: minmax(4.8rem, 0.9fr) minmax(4.5rem, 1.25fr) 3.35rem 3.5rem;
   }
-  .window-line {
-    grid-template-columns: minmax(4.8rem, 0.9fr) minmax(4.5rem, 1.25fr) 3.35rem 3.5rem;
-    gap: var(--ol-space-2);
-  }
+  .windows { gap: var(--ol-space-2); }
+  .identity,
+  .window-line { gap: var(--ol-space-2); }
+  .account-label { display: none; }
   .window-name,
   .window-percent { font-size: var(--ol-text-micro); }
   .band-icon svg { width: 0.75rem; height: 0.75rem; }
@@ -1177,7 +1231,7 @@ const PROVIDER_TABLE_HEADER_STYLE = `
   align-items: center;
   color: var(--ol-muted, var(--muted));
   font-size: var(--ol-text-micro);
-  font-weight: var(--ol-weight-bold);
+  font-weight: var(--ol-weight-semibold);
   letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;

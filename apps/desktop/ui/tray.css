@@ -398,7 +398,7 @@ body.tray {
   color: var(--ol-heading);
   font-family: inherit;
   font-size: var(--ol-text-body);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
   cursor: pointer;
   transition: background var(--ol-motion-fast) var(--ol-ease-out),
     border-color var(--ol-motion-fast) var(--ol-ease-out);

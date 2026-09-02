@@ -324,7 +324,9 @@ export async function renderSettings(mount) {
     '<div class="block-head"><h2 id="alerts-title">Alerts</h2>' +
     switchMarkup("alerts-enabled", enabled) +
     "</div>" +
-    '<p class="note tight">OpenLimiter tells you when a window crosses a threshold, and once more when it resets. Choose which crossings are worth interrupting you for.</p>' +
+    /* The switches below say which crossings to choose. The note says only
+       what a crossing is. */
+    '<p class="note tight">OpenLimiter tells you when a window crosses a threshold, and once more when it resets.</p>' +
     '<div class="stack">' +
     THRESHOLDS.map(
       (threshold) =>

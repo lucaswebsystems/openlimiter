@@ -95,7 +95,7 @@
 .line-label strong {
   color: var(--heading);
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
 }
 
 .line-label span {
@@ -395,7 +395,7 @@ button.danger:hover {
   overflow: hidden;
   color: var(--heading);
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -518,7 +518,7 @@ button.danger:hover {
 .choice-body strong {
   color: var(--heading);
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
 }
 
 .choice-body span {
@@ -638,7 +638,7 @@ select.field:focus-visible {
 .event-body strong {
   color: var(--heading);
   font-size: var(--ol-text-body);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
 }
 
 .event-body span {
@@ -688,7 +688,7 @@ select.field:focus-visible {
 .preset-name {
   color: var(--heading);
   font-size: var(--ol-text-caption);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
 }
 
 /* ------------------------------------------------------------------- Pro */
@@ -777,7 +777,7 @@ select.field:focus-visible {
 .device-body strong {
   color: var(--heading);
   font-size: var(--ol-text-body);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
 }
 
 .device-body span {
@@ -800,7 +800,7 @@ select.field:focus-visible {
 .placeholder strong {
   color: var(--soft);
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
 }
 
 .placeholder span {
@@ -831,7 +831,7 @@ select.field:focus-visible {
 .spend-provider {
   color: var(--heading);
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
 }
 
 .spend-key {
@@ -891,7 +891,7 @@ select.field:focus-visible {
 
 .eligibility-list strong {
   color: var(--heading);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
 }
 
 .disclosure {
@@ -1039,7 +1039,7 @@ select.field:focus-visible {
   color: var(--heading);
   font-family: inherit;
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-medium);
+  font-weight: var(--ol-weight-regular);
   cursor: pointer;
 }
 
@@ -1068,9 +1068,19 @@ select.field:focus-visible {
  * them. It has to be findable, it never has to be read twice, and it must not
  * become the largest block of text on an empty window.
  */
+/*
+ * The legal line, as a footer rather than as a paragraph.
+ *
+ * It has to be present on every surface that draws a provider mark, and it is
+ * read once in the life of an install. A narrow block of body text at the foot
+ * of the window gave it the weight of content it does not have, and on an
+ * empty screen it became the largest thing there. It is one full width muted
+ * line now, and the sentences live behind a disclosure for the person who
+ * actually wants them.
+ */
 #trademark-note {
-  max-width: 68ch;
-  margin: var(--ol-space-5) 0 var(--ol-space-3);
+  width: 100%;
+  margin: var(--ol-space-5) 0 0;
   padding-top: var(--ol-space-3);
   border-top: 1px solid var(--hairline);
   /* Measured, not guessed: --ol-faint is a decorative ink and reads at
@@ -1079,6 +1089,47 @@ select.field:focus-visible {
   color: var(--muted);
   font-size: var(--ol-text-micro);
   line-height: var(--ol-leading-body);
+}
+
+#trademark-note > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-1) 0;
+  color: var(--muted);
+}
+
+#trademark-note > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A caret that turns, so the control looks like the disclosure it is. */
+#trademark-note > summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  flex: none;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+  transition: rotate var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+#trademark-note[open] > summary::before {
+  rotate: 90deg;
+}
+
+#trademark-note > p {
+  max-width: 78ch;
+  margin: var(--ol-space-2) 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #trademark-note > summary::before {
+    transition: none;
+  }
 }
 
 /* -------------------------------------------------------- the focus ring */
@@ -1146,10 +1197,9 @@ select.field:focus-visible {
  * size instead of thinning out.
  */
 main,
-body > .tabs,
 body > .strip > .strip-top {
   width: 100%;
-  max-width: 46rem;
+  max-width: var(--window-column, 46rem);
   margin-inline: auto;
 }
 
@@ -1161,5 +1211,62 @@ body > .tabs {
 }
 
 body > .tabs {
-  padding-inline: max(var(--ol-space-4), calc((100% - 46rem) / 2));
+  padding-inline: max(
+    var(--ol-space-4),
+    calc((100% - var(--window-column, 46rem)) / 2)
+  );
+}
+
+/*
+ * Above 1100 the window stops being a column and becomes a composition.
+ *
+ * A stack of six near identical cards is a list. It is the right shape at 520
+ * pixels, where there is only ever one column, and the wrong one on a monitor,
+ * where the same stack leaves two thirds of the screen empty and still makes a
+ * person scroll for the sixth provider.
+ *
+ * So the panel becomes a twelve column grid. The instrument spans all twelve,
+ * because it is the one thing on the screen that is not a peer of the others,
+ * and each provider card takes six. Twelve divides by two, three and four, so
+ * a later denser view has somewhere to go without this rule being rewritten.
+ *
+ * The cards stretch to a common height per row rather than each shrinking to
+ * its own contents. Two cards side by side at different heights read as two
+ * unrelated things; at one height they read as a row.
+ */
+@media (min-width: 1100px) {
+  body {
+    --window-column: 74rem;
+  }
+
+  #panel-meters {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: stretch;
+    gap: var(--ol-space-4);
+  }
+
+  #panel-meters > * {
+    grid-column: 1 / -1;
+  }
+
+  #panel-meters .hero {
+    margin-bottom: 0;
+  }
+
+  .provider-rows {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    align-items: stretch;
+    gap: var(--ol-space-4);
+  }
+
+  .provider-rows > openlimiter-provider-row {
+    grid-column: span 6;
+    /* The element is the card, so the height has to reach the row it is in
+       and then through the shadow boundary to the card inside it. */
+    display: block;
+    height: 100%;
+  }
 }
