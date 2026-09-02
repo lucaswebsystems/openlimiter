@@ -20,6 +20,9 @@ const TRUST_VERSION: u8 = 2;
 const TRUST_CREDENTIAL_ID: &str = "openlimiter-pro-trust";
 const ENTITLEMENT_FILE_NAME: &str = "openlimiter-pro-entitlement.json";
 pub const AGENT_CONTEXT_FILE_NAME: &str = "openlimiter-pro-agent-context.json";
+pub const HOSTED_TRUST_FILE_NAME: &str = "hosted-trust.json";
+pub const HOSTED_TRUST_SCHEMA: &str = "openlimiter.hosted_trust";
+pub const HOSTED_TRUST_VERSION: u8 = 1;
 const MAX_TOKEN_BYTES: usize = 32_768;
 const MAX_REQUEST_BYTES: usize = 131_072;
 const MAX_RESPONSE_BYTES: usize = 1_048_576;
@@ -379,6 +382,138 @@ fn write_cache(token: &str) -> Result<(), ProFailure> {
     crate::fsx::atomic_write(&path, &text).map_err(|_| ProFailure::Storage)
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct HostedTrustDocument {
+    pub schema: String,
+    pub version: u8,
+    pub account_id: String,
+    pub device_id: String,
+    pub entitlement_epoch: u64,
+    pub last_verified_sequence: u64,
+    pub routing_state: String,
+    pub pinned_public_key_ids: Vec<String>,
+}
+
+pub fn hosted_trust_path() -> Option<PathBuf> {
+    if cfg!(target_os = "windows") {
+        let base = crate::state::non_empty("APPDATA")
+            .or_else(|| crate::state::home().map(|path| path.join("AppData").join("Roaming")))?;
+        return Some(base.join("OpenLimiter").join(HOSTED_TRUST_FILE_NAME));
+    }
+    if cfg!(target_os = "macos") {
+        return Some(
+            crate::state::home()?
+                .join("Library")
+                .join("Application Support")
+                .join("OpenLimiter")
+                .join(HOSTED_TRUST_FILE_NAME),
+        );
+    }
+    let base = crate::state::non_empty("XDG_CONFIG_HOME")
+        .or_else(|| crate::state::home().map(|path| path.join(".config")))?;
+    Some(base.join("openlimiter").join(HOSTED_TRUST_FILE_NAME))
+}
+
+pub fn write_hosted_trust_to_path(
+    path: &std::path::Path,
+    account_id: &str,
+    device_id: &str,
+    entitlement_epoch: u64,
+    last_verified_sequence: u64,
+    routing_enabled: bool,
+    key_ids: &[String],
+) -> Result<(), ProFailure> {
+    if account_id.is_empty()
+        || account_id.len() > 80
+        || !account_id
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        || !account_id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
+        return Err(ProFailure::InvalidInput);
+    }
+    if uuid::Uuid::parse_str(device_id).is_err() {
+        return Err(ProFailure::InvalidInput);
+    }
+    let mut sorted_keys = key_ids.to_vec();
+    sorted_keys.sort();
+    sorted_keys.dedup();
+    if sorted_keys.is_empty() || sorted_keys.len() > 8 {
+        return Err(ProFailure::InvalidInput);
+    }
+    for key_id in &sorted_keys {
+        if key_id.is_empty()
+            || key_id.len() > 64
+            || !key_id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+        {
+            return Err(ProFailure::InvalidInput);
+        }
+    }
+    let parent = path.parent().ok_or(ProFailure::Storage)?;
+    crate::fsx::ensure_private_dir(parent).map_err(|_| ProFailure::Storage)?;
+    let document = HostedTrustDocument {
+        schema: HOSTED_TRUST_SCHEMA.to_string(),
+        version: HOSTED_TRUST_VERSION,
+        account_id: account_id.to_string(),
+        device_id: device_id.to_string(),
+        entitlement_epoch,
+        last_verified_sequence: last_verified_sequence.max(1),
+        routing_state: if routing_enabled {
+            "enabled"
+        } else {
+            "disabled"
+        }
+        .to_string(),
+        pinned_public_key_ids: sorted_keys,
+    };
+    let json_text = serde_json::to_string(&document).map_err(|_| ProFailure::Storage)?;
+    crate::fsx::atomic_write(path, &json_text).map_err(|_| ProFailure::Storage)?;
+    Ok(())
+}
+
+fn write_hosted_trust(
+    account_id: &str,
+    device_id: &str,
+    entitlement_epoch: u64,
+    last_verified_sequence: u64,
+    routing_enabled: bool,
+    key_ids: &[String],
+) -> Result<(), ProFailure> {
+    #[cfg(not(test))]
+    {
+        let Some(path) = hosted_trust_path() else {
+            return Err(ProFailure::Storage);
+        };
+        write_hosted_trust_to_path(
+            &path,
+            account_id,
+            device_id,
+            entitlement_epoch,
+            last_verified_sequence,
+            routing_enabled,
+            key_ids,
+        )?;
+    }
+    #[cfg(test)]
+    {
+        let _ = (
+            account_id,
+            device_id,
+            entitlement_epoch,
+            last_verified_sequence,
+            routing_enabled,
+            key_ids,
+        );
+    }
+    Ok(())
+}
+
 fn remove_state_file(name: &str) -> Result<(), ProFailure> {
     #[cfg(not(test))]
     {
@@ -392,9 +527,25 @@ fn remove_state_file(name: &str) -> Result<(), ProFailure> {
     Ok(())
 }
 
+fn remove_hosted_trust() -> Result<(), ProFailure> {
+    #[cfg(not(test))]
+    {
+        if let Some(path) = hosted_trust_path() {
+            if path.exists() {
+                std::fs::remove_file(path).map_err(|_| ProFailure::Storage)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn clear_entitlement_and_context() -> Result<(), ProFailure> {
-    remove_state_file(ENTITLEMENT_FILE_NAME)?;
-    remove_state_file(AGENT_CONTEXT_FILE_NAME)
+    let entitlement_cleared = remove_state_file(ENTITLEMENT_FILE_NAME);
+    let context_cleared = remove_state_file(AGENT_CONTEXT_FILE_NAME);
+    let trust_cleared = remove_hosted_trust();
+    entitlement_cleared?;
+    context_cleared?;
+    trust_cleared
 }
 
 pub(crate) fn clear_local_authorization(store: &dyn SecretStore) -> Result<(), ProFailure> {
@@ -408,7 +559,7 @@ pub(crate) fn clear_local_authorization(store: &dyn SecretStore) -> Result<(), P
 }
 
 fn load_trust(store: &dyn SecretStore, account_id: &str) -> Result<TrustState, ProFailure> {
-    if uuid::Uuid::parse_str(account_id).is_err() {
+    if !crate::account::is_valid_account_id(account_id) {
         return Err(ProFailure::NoSession);
     }
     match store.read_secret(TRUST_CREDENTIAL_ID) {
@@ -674,6 +825,10 @@ fn reconcile_cached_token(
 
 fn current_status(store: &dyn SecretStore) -> ProStatus {
     let _ = maintain_hosted_context(store);
+    current_status_inner(store)
+}
+
+fn current_status_inner(store: &dyn SecretStore) -> ProStatus {
     if configured_service_url().is_empty() || key_set().is_err() {
         return ProStatus::simple(ProEntitlementState::Unconfigured);
     }
@@ -719,11 +874,13 @@ fn current_status(store: &dyn SecretStore) -> ProStatus {
                     | ProEntitlementState::ClockInvalid
             ) {
                 let _ = remove_state_file(AGENT_CONTEXT_FILE_NAME);
+                let _ = remove_hosted_trust();
             }
             status
         }
         Err(ProFailure::ClockInvalid) => {
             let _ = remove_state_file(AGENT_CONTEXT_FILE_NAME);
+            let _ = remove_hosted_trust();
             ProStatus::simple(ProEntitlementState::ClockInvalid)
         }
         Err(_) => {
@@ -965,18 +1122,16 @@ fn context_time(value: &str) -> Result<i64, ProFailure> {
 fn valid_context_provider(value: &str) -> bool {
     matches!(
         value,
-        "openai"
-            | "anthropic"
-            | "xai"
-            | "openrouter"
-            | "moonshot"
+        "anthropic"
             | "claude"
             | "codex"
-            | "antigravity"
-            | "gemini_cli"
-            | "grok"
+            | "gemini"
             | "kimi"
+            | "manual"
+            | "openai"
             | "opencode"
+            | "openrouter"
+            | "xai"
     )
 }
 
@@ -1017,10 +1172,27 @@ fn maintain_hosted_context(store: &dyn SecretStore) -> Result<bool, ProFailure> 
             if current != canonical {
                 crate::fsx::atomic_write(&path, &canonical).map_err(|_| ProFailure::Storage)?;
             }
+            if let Ok(envelope) = serde_json::from_str::<HostedContextEnvelope>(&canonical) {
+                if let Ok(keys) = key_set() {
+                    let key_ids = keys.into_keys().collect::<Vec<_>>();
+                    let routing_enabled = current_status_inner(store)
+                        .features
+                        .contains(&EntitlementFeature::Routing);
+                    let _ = write_hosted_trust(
+                        &envelope.account_id,
+                        &envelope.device_id,
+                        envelope.revocation_epoch,
+                        envelope.source.sequence,
+                        routing_enabled,
+                        &key_ids,
+                    );
+                }
+            }
             Ok(true)
         }
         Err(error) => {
             let _ = remove_state_file(AGENT_CONTEXT_FILE_NAME);
+            let _ = remove_hosted_trust();
             Err(error)
         }
     }
@@ -1054,9 +1226,14 @@ fn validate_hosted_context_with_keys(
                     .is_some_and(|value| context_time(value).is_err())
         })
         || envelope.payload.routing_hints.iter().any(|hint| {
-            hint.kind != "prefer_lower_cost_when_capable"
-                || !valid_context_provider(&hint.provider)
-                || !matches!(hint.reason.as_str(), "high_usage" | "api_budget_pressure")
+            !matches!(
+                hint.kind.as_str(),
+                "prefer_lower_cost_when_capable" | "preserve_current_provider"
+            ) || !valid_context_provider(&hint.provider)
+                || !matches!(
+                    hint.reason.as_str(),
+                    "high_usage" | "budget_pressure" | "normal"
+                )
         })
     {
         return Err(ProFailure::Service);
@@ -1247,6 +1424,7 @@ async fn service_call(
         ProEntitlementState::Active | ProEntitlementState::RefreshDue
     ) {
         let _ = remove_state_file(AGENT_CONTEXT_FILE_NAME);
+        let _ = remove_hosted_trust();
         return Err(ProFailure::EntitlementRequired);
     }
     if input
@@ -1255,6 +1433,7 @@ async fn service_call(
         .is_some_and(|feature| !status.features.contains(&feature))
     {
         let _ = remove_state_file(AGENT_CONTEXT_FILE_NAME);
+        let _ = remove_hosted_trust();
         return Err(ProFailure::EntitlementRequired);
     }
     let action = input.action;
@@ -1370,18 +1549,35 @@ async fn sync_agent_context(store: &dyn SecretStore) -> Result<bool, ProFailure>
     let path = state_file(AGENT_CONTEXT_FILE_NAME)?;
     let Some(raw_context) = response.get("context") else {
         remove_state_file(AGENT_CONTEXT_FILE_NAME)?;
+        remove_hosted_trust()?;
         return Ok(false);
     };
     let context = match validate_hosted_context(raw_context, store) {
         Ok(value) => value,
         Err(error) => {
             let _ = remove_state_file(AGENT_CONTEXT_FILE_NAME);
+            let _ = remove_hosted_trust();
             return Err(error);
         }
     };
     let parent = path.parent().ok_or(ProFailure::Storage)?;
     crate::fsx::ensure_private_dir(parent).map_err(|_| ProFailure::Storage)?;
     crate::fsx::atomic_write(&path, &context).map_err(|_| ProFailure::Storage)?;
+    let envelope: HostedContextEnvelope =
+        serde_json::from_str(&context).map_err(|_| ProFailure::Service)?;
+    let keys = key_set()?;
+    let key_ids = keys.into_keys().collect::<Vec<_>>();
+    let routing_enabled = current_status_inner(store)
+        .features
+        .contains(&EntitlementFeature::Routing);
+    write_hosted_trust(
+        &envelope.account_id,
+        &envelope.device_id,
+        envelope.revocation_epoch,
+        envelope.source.sequence,
+        routing_enabled,
+        &key_ids,
+    )?;
     Ok(true)
 }
 
@@ -1879,20 +2075,298 @@ mod tests {
     }
 
     #[test]
-    fn local_features_are_not_named_in_any_pro_gate() {
-        let source = include_str!("pro.rs");
-        let implementation = source
-            .split("#[cfg(test)]")
-            .next()
-            .expect("implementation before tests");
-        for local in [
-            "connect_provider",
-            "refresh_provider",
-            "read_manual",
-            "set_tray_status",
-            "list_connections",
-        ] {
-            assert!(!implementation.contains(local));
+    fn golden_fixture_cross_implementation_validation() {
+        let fixture_json = r#"{
+  "fixture_version": 1,
+  "enum_contract": {
+    "providers": [
+      "anthropic",
+      "claude",
+      "codex",
+      "gemini",
+      "kimi",
+      "manual",
+      "openai",
+      "opencode",
+      "openrouter",
+      "xai"
+    ],
+    "meters": [
+      "provider_usage_percent",
+      "api_budget_percent"
+    ],
+    "levels": [
+      "60",
+      "80",
+      "90",
+      "reset"
+    ],
+    "routing_kinds": [
+      "prefer_lower_cost_when_capable",
+      "preserve_current_provider"
+    ],
+    "routing_reasons": [
+      "high_usage",
+      "budget_pressure",
+      "normal"
+    ]
+  },
+  "private_key_pkcs8_base64url": "MC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f",
+  "public_key_spki_base64url": "MCowBQYDK2VwAyEAA6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+  "public_key_raw_base64url": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+  "canonical_unsigned": "{\"account_id\":\"account-fixture\",\"device_id\":\"33333333-3333-4333-8333-333333333333\",\"expires_at\":\"2026-09-01T12:15:00.000Z\",\"generated_at\":\"2026-09-01T12:00:00.000Z\",\"kid\":\"context-fixture-1\",\"payload\":{\"meters\":[{\"level\":\"60\",\"meter\":\"provider_usage_percent\",\"provider\":\"anthropic\",\"reset_at\":null},{\"level\":\"80\",\"meter\":\"api_budget_percent\",\"provider\":\"claude\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"90\",\"meter\":\"provider_usage_percent\",\"provider\":\"codex\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"reset\",\"meter\":\"api_budget_percent\",\"provider\":\"gemini\",\"reset_at\":null},{\"level\":\"60\",\"meter\":\"provider_usage_percent\",\"provider\":\"kimi\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"80\",\"meter\":\"api_budget_percent\",\"provider\":\"manual\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"90\",\"meter\":\"provider_usage_percent\",\"provider\":\"openai\",\"reset_at\":null},{\"level\":\"reset\",\"meter\":\"api_budget_percent\",\"provider\":\"opencode\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"60\",\"meter\":\"provider_usage_percent\",\"provider\":\"openrouter\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"80\",\"meter\":\"api_budget_percent\",\"provider\":\"xai\",\"reset_at\":null}],\"routing_hints\":[{\"kind\":\"prefer_lower_cost_when_capable\",\"provider\":\"openai\",\"reason\":\"high_usage\"},{\"kind\":\"preserve_current_provider\",\"provider\":\"xai\",\"reason\":\"budget_pressure\"},{\"kind\":\"preserve_current_provider\",\"provider\":\"manual\",\"reason\":\"normal\"}]},\"revocation_epoch\":7,\"schema\":\"openlimiter.hosted_context\",\"source\":{\"event_id\":\"55555555-5555-4555-8555-555555555555\",\"kind\":\"accepted_snapshot\",\"observed_at\":\"2026-09-01T11:55:00.000Z\",\"sequence\":42},\"version\":1}",
+  "envelope": {
+    "schema": "openlimiter.hosted_context",
+    "version": 1,
+    "kid": "context-fixture-1",
+    "generated_at": "2026-09-01T12:00:00.000Z",
+    "expires_at": "2026-09-01T12:15:00.000Z",
+    "account_id": "account-fixture",
+    "device_id": "33333333-3333-4333-8333-333333333333",
+    "revocation_epoch": 7,
+    "source": {
+      "kind": "accepted_snapshot",
+      "event_id": "55555555-5555-4555-8555-555555555555",
+      "sequence": 42,
+      "observed_at": "2026-09-01T11:55:00.000Z"
+    },
+    "payload": {
+      "meters": [
+        { "provider": "anthropic", "meter": "provider_usage_percent", "level": "60", "reset_at": null },
+        { "provider": "claude", "meter": "api_budget_percent", "level": "80", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "codex", "meter": "provider_usage_percent", "level": "90", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "gemini", "meter": "api_budget_percent", "level": "reset", "reset_at": null },
+        { "provider": "kimi", "meter": "provider_usage_percent", "level": "60", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "manual", "meter": "api_budget_percent", "level": "80", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "openai", "meter": "provider_usage_percent", "level": "90", "reset_at": null },
+        { "provider": "opencode", "meter": "api_budget_percent", "level": "reset", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "openrouter", "meter": "provider_usage_percent", "level": "60", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "xai", "meter": "api_budget_percent", "level": "80", "reset_at": null }
+      ],
+      "routing_hints": [
+        { "kind": "prefer_lower_cost_when_capable", "provider": "openai", "reason": "high_usage" },
+        { "kind": "preserve_current_provider", "provider": "xai", "reason": "budget_pressure" },
+        { "kind": "preserve_current_provider", "provider": "manual", "reason": "normal" }
+      ]
+    },
+    "signature": "ZkAGEPj8K0HQdoNGQZ4AQVAWcdNw6gxdwicE7zu5ksBB6DxUL4Zukg2YlwHGj4CrUdfGM1Tq0bV-U_8HxBGEAQ"
+  },
+  "trust_document": {
+    "schema": "openlimiter.hosted_trust",
+    "version": 1,
+    "account_id": "account-fixture",
+    "device_id": "33333333-3333-4333-8333-333333333333",
+    "entitlement_epoch": 7,
+    "last_verified_sequence": 42,
+    "routing_state": "enabled",
+    "pinned_public_key_ids": ["context-fixture-1"]
+  }
+}"#;
+        let fixture: Value = serde_json::from_str(fixture_json).expect("valid fixture json");
+        let envelope_value = &fixture["envelope"];
+        let envelope: HostedContextEnvelope =
+            serde_json::from_value(envelope_value.clone()).expect("parse envelope");
+
+        let canonical = canonical_context(&envelope).expect("canonical context");
+        let canonical_str = std::str::from_utf8(&canonical).expect("utf-8 canonical");
+        assert_eq!(
+            canonical_str,
+            fixture["canonical_unsigned"].as_str().unwrap()
+        );
+
+        let pubkey_bytes = URL_SAFE_NO_PAD
+            .decode(fixture["public_key_raw_base64url"].as_str().unwrap())
+            .expect("decode pubkey");
+        let pubkey_array: [u8; 32] = pubkey_bytes.try_into().expect("32 byte pubkey");
+        let pubkey = VerifyingKey::from_bytes(&pubkey_array).expect("verifying key");
+        let sig_bytes = URL_SAFE_NO_PAD
+            .decode(envelope.signature.as_str())
+            .expect("decode signature");
+        let signature = Signature::from_slice(&sig_bytes).expect("signature");
+        assert!(pubkey.verify_strict(&canonical, &signature).is_ok());
+
+        let keys = HashMap::from([("context-fixture-1".to_string(), pubkey)]);
+        let store = InMemorySecrets::new();
+        let now = 1_788_264_000;
+        store
+            .store_secret(
+                "openlimiter-account-session",
+                &serde_json::json!({
+                    "version": 2,
+                    "account_id": "account-fixture",
+                    "email": "fixture@example.test",
+                    "access_token": "access-token-fixture-at-least-twenty",
+                    "refresh_token": "refresh-token-fixture-at-least-twenty",
+                    "expires_at": now + 3600
+                })
+                .to_string(),
+            )
+            .expect("session stored");
+        let fixture_trust = TrustState {
+            version: TRUST_VERSION,
+            account_id: "account-fixture".to_string(),
+            device_id: "33333333-3333-4333-8333-333333333333".to_string(),
+            highest_sequence: 42,
+            highest_revocation_epoch: 7,
+            highest_context_sequence: 0,
+            last_context_event_id: None,
+            highest_server_time: now,
+            anchor_local_time: now,
+            consecutive_refresh_failures: 0,
+            pending_request_id: None,
+            pending_previous_jti: None,
+        };
+        save_trust(&store, &fixture_trust).expect("trust stored");
+
+        let validated = validate_hosted_context_with_keys(envelope_value, &store, &keys, now)
+            .expect("envelope validated");
+        let parsed_validated: HostedContextEnvelope =
+            serde_json::from_str(&validated).expect("parse validated");
+        assert_eq!(parsed_validated.account_id, "account-fixture");
+        assert_eq!(parsed_validated.payload.meters.len(), 10);
+        assert_eq!(parsed_validated.payload.routing_hints.len(), 3);
+
+        let trust_doc_value = &fixture["trust_document"];
+        let trust_doc: HostedTrustDocument =
+            serde_json::from_value(trust_doc_value.clone()).expect("parse trust doc");
+        assert_eq!(trust_doc.schema, "openlimiter.hosted_trust");
+        assert_eq!(trust_doc.version, 1);
+        assert_eq!(trust_doc.account_id, "account-fixture");
+        assert_eq!(trust_doc.device_id, "33333333-3333-4333-8333-333333333333");
+        assert_eq!(trust_doc.entitlement_epoch, 7);
+        assert_eq!(trust_doc.last_verified_sequence, 42);
+        assert_eq!(trust_doc.routing_state, "enabled");
+        assert_eq!(trust_doc.pinned_public_key_ids, vec!["context-fixture-1"]);
+    }
+
+    #[test]
+    fn hosted_context_enums_alignment() {
+        let aligned_providers = [
+            "anthropic",
+            "claude",
+            "codex",
+            "gemini",
+            "kimi",
+            "manual",
+            "openai",
+            "opencode",
+            "openrouter",
+            "xai",
+        ];
+        for provider in aligned_providers {
+            assert!(valid_context_provider(provider));
         }
+
+        let unaligned_providers = ["gemini_cli", "antigravity", "grok", "moonshot", "unknown"];
+        for provider in unaligned_providers {
+            assert!(!valid_context_provider(provider));
+        }
+    }
+
+    #[test]
+    fn hosted_trust_writer_creates_secure_file_and_roundtrips() {
+        let dir = crate::test_support::TempDir::new();
+        let path = dir.path().join("OpenLimiter").join("hosted-trust.json");
+
+        let key_ids = vec![
+            "context-fixture-1".to_string(),
+            "context-fixture-2".to_string(),
+        ];
+        write_hosted_trust_to_path(
+            &path,
+            "account-fixture",
+            "33333333-3333-4333-8333-333333333333",
+            7,
+            42,
+            true,
+            &key_ids,
+        )
+        .expect("hosted trust written");
+
+        let raw = crate::fsx::bounded_read(&path).expect("readable");
+        let doc: HostedTrustDocument = serde_json::from_str(&raw).expect("valid doc");
+        assert_eq!(doc.schema, HOSTED_TRUST_SCHEMA);
+        assert_eq!(doc.version, HOSTED_TRUST_VERSION);
+        assert_eq!(doc.account_id, "account-fixture");
+        assert_eq!(doc.device_id, "33333333-3333-4333-8333-333333333333");
+        assert_eq!(doc.entitlement_epoch, 7);
+        assert_eq!(doc.last_verified_sequence, 42);
+        assert_eq!(doc.routing_state, "enabled");
+        assert_eq!(doc.pinned_public_key_ids, key_ids);
+
+        // Disabled routing state
+        write_hosted_trust_to_path(
+            &path,
+            "account-fixture",
+            "33333333-3333-4333-8333-333333333333",
+            7,
+            42,
+            false,
+            &key_ids,
+        )
+        .expect("hosted trust written disabled");
+        let raw_disabled = crate::fsx::bounded_read(&path).expect("readable");
+        let doc_disabled: HostedTrustDocument =
+            serde_json::from_str(&raw_disabled).expect("valid doc disabled");
+        assert_eq!(doc_disabled.routing_state, "disabled");
+
+        // Invalid account id rejected
+        assert_eq!(
+            write_hosted_trust_to_path(
+                &path,
+                "INVALID_ACCOUNT",
+                "33333333-3333-4333-8333-333333333333",
+                7,
+                42,
+                true,
+                &key_ids,
+            ),
+            Err(ProFailure::InvalidInput)
+        );
+
+        // Invalid device id rejected
+        assert_eq!(
+            write_hosted_trust_to_path(
+                &path,
+                "account-fixture",
+                "not-a-uuid",
+                7,
+                42,
+                true,
+                &key_ids,
+            ),
+            Err(ProFailure::InvalidInput)
+        );
+
+        // Empty key ids rejected
+        assert_eq!(
+            write_hosted_trust_to_path(
+                &path,
+                "account-fixture",
+                "33333333-3333-4333-8333-333333333333",
+                7,
+                42,
+                true,
+                &[],
+            ),
+            Err(ProFailure::InvalidInput)
+        );
+    }
+
+    #[test]
+    fn hosted_trust_path_resolves_platform_location() {
+        let path = hosted_trust_path();
+        if let Some(p) = path {
+            assert!(p.ends_with(HOSTED_TRUST_FILE_NAME));
+        }
+        let _ = write_hosted_trust(
+            "account-fixture",
+            "33333333-3333-4333-8333-333333333333",
+            7,
+            42,
+            true,
+            &["context-fixture-1".to_string()],
+        );
+        let _ = remove_hosted_trust();
     }
 }

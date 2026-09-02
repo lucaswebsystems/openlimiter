@@ -201,6 +201,18 @@ fn jwt_subject(access_token: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+pub(crate) fn is_valid_account_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 80
+        && value
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        && value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
 fn stored_session(store: &dyn SecretStore) -> Result<StoredSession, AccountFailure> {
     let raw = store
         .read_secret(ACCOUNT_CREDENTIAL_ID)
@@ -216,7 +228,7 @@ fn stored_session(store: &dyn SecretStore) -> Result<StoredSession, AccountFailu
         persist_session(store, &session)?;
     }
     if session.version != 2
-        || uuid::Uuid::parse_str(&session.account_id).is_err()
+        || !is_valid_account_id(&session.account_id)
         || !valid_email(&session.email)
         || session.access_token.len() < 20
         || session.access_token.len() > 32_768

@@ -23,7 +23,7 @@ pub(crate) fn home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-fn non_empty(name: &str) -> Option<PathBuf> {
+pub(crate) fn non_empty(name: &str) -> Option<PathBuf> {
     match env::var_os(name) {
         Some(value) if !value.is_empty() => Some(PathBuf::from(value)),
         _ => None,
