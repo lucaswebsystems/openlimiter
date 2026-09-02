@@ -27,6 +27,7 @@ import {
   type TabDefinition,
 } from "./pieces";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LiveMeter } from "./live-meter";
 import { NotificationBell, type AlertScope } from "./notification-bell";
 import {
   createSyncClient,
@@ -571,6 +572,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           ) : (
             <div className="ol-home-stack">
               {!hasReadings && <FirstRunState onConnect={openConnections} />}
+              {hasReadings && <LiveMeter snapshots={shown} now={now} demo={demo} />}
               <ProviderRows rows={providerRows} />
             </div>
           )}

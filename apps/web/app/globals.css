@@ -102,6 +102,41 @@
 
 /* Site layout aliases. Visual values stay in the canonical token sheet. */
 :root {
+  --ol-font-heading: var(--ol-font-baloo, "Baloo 2"), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --ol-font-sans: var(--ol-font-inter, "Inter"), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ol-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* 5 Band Quota System Tokens (Dark Theme) */
+  --ol-band-green-fill: #2ea043;
+  --ol-band-green-label: #3fb950;
+  --ol-band-green-subtle: rgb(46 160 67 / 0.14);
+
+  --ol-band-yellow-fill: #d29922;
+  --ol-band-yellow-label: #e3b341;
+  --ol-band-yellow-subtle: rgb(210 153 34 / 0.14);
+
+  --ol-band-orange-fill: #db6d28;
+  --ol-band-orange-label: #ffa657;
+  --ol-band-orange-subtle: rgb(219 109 40 / 0.14);
+
+  --ol-band-red-fill: #f85149;
+  --ol-band-red-label: #ff7b72;
+  --ol-band-red-subtle: rgb(248 81 73 / 0.14);
+
+  --ol-band-stale-fill: #72839b;
+  --ol-band-stale-label: #929ead;
+  --ol-band-stale-subtle: rgb(114 131 155 / 0.14);
+
+  --ol-meter-hatched-pattern: repeating-linear-gradient(
+    45deg,
+    #72839b 0,
+    #72839b 6px,
+    #202b3b 6px,
+    #202b3b 12px
+  );
+  --ol-band-hatched-pattern: var(--ol-meter-hatched-pattern);
+  --ol-band-hatched-label: var(--ol-band-stale-label);
+
   --ol-announce: var(--ol-accent-solid);
   --ol-announce-fg: var(--ol-on-accent);
   --ol-announce-h: var(--ol-control-height);
@@ -110,22 +145,63 @@
   --ol-header-h: calc(var(--ol-space-7) + var(--ol-space-6));
 }
 
+:root[data-theme="light"] {
+  /* 5 Band Quota System Tokens (Light Theme) */
+  --ol-band-green-fill: #1a7f37;
+  --ol-band-green-label: #116329;
+  --ol-band-green-subtle: rgb(26 127 55 / 0.14);
+
+  --ol-band-yellow-fill: #9e6a03;
+  --ol-band-yellow-label: #744210;
+  --ol-band-yellow-subtle: rgb(158 106 3 / 0.14);
+
+  --ol-band-orange-fill: #bc4c00;
+  --ol-band-orange-label: #872b00;
+  --ol-band-orange-subtle: rgb(188 76 0 / 0.14);
+
+  --ol-band-red-fill: #cf222e;
+  --ol-band-red-label: #82071e;
+  --ol-band-red-subtle: rgb(207 34 46 / 0.14);
+
+  --ol-band-stale-fill: #617087;
+  --ol-band-stale-label: #46566b;
+  --ol-band-stale-subtle: rgb(97 112 135 / 0.14);
+
+  --ol-meter-hatched-pattern: repeating-linear-gradient(
+    45deg,
+    #617087 0,
+    #617087 6px,
+    #d7e1ee 6px,
+    #d7e1ee 12px
+  );
+  --ol-band-hatched-pattern: var(--ol-meter-hatched-pattern);
+  --ol-band-hatched-label: var(--ol-band-stale-label);
+}
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-/* One shared system face. Size, weight and leading come from the product
+/* One shared heading face. Size, weight and leading come from the product
    contract, while tracking only tightens large display copy. */
 h1,
 h2,
 h3,
 h4,
 .heading-face {
-  font-family: var(--ol-font-sans);
+  font-family: var(--ol-font-heading);
   font-weight: var(--ol-weight-semibold);
   letter-spacing: -0.015em;
+}
+
+.tabular,
+.window-percent,
+.window-reset,
+.spend-value {
+  font-family: var(--ol-font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 h1 {

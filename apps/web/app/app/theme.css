@@ -129,39 +129,36 @@
 }
 
 .ol-meter[data-pressure="ok"] {
-  --ol-pressure-base: var(--ol-meter-ok);
+  --ol-pressure-base: var(--ol-band-green-fill);
 }
 
 .ol-meter[data-pressure="high"] {
-  --ol-pressure-base: var(--ol-meter-high);
+  --ol-pressure-base: var(--ol-band-orange-fill);
 }
 
 .ol-meter[data-pressure="watch"] {
-  --ol-pressure-base: var(--ol-meter-watch);
+  --ol-pressure-base: var(--ol-band-yellow-fill);
 }
 
 .ol-meter[data-pressure="critical"] {
-  --ol-pressure-base: var(--ol-meter-critical);
+  --ol-pressure-base: var(--ol-band-red-fill);
 }
 
 .ol-meter[data-pressure="none"] {
-  --ol-pressure-base: var(--ol-meter-ghost);
+  --ol-pressure-base: var(--ol-band-stale-fill);
 }
 
-/* Fresh paints the pressure colour itself. A stale bar keeps the hue and fades
-   toward the surface, so it still reads as a reading and still reads as an old
-   one. The number beside it is never faded: a percentage has to stay legible,
-   and the hollow dot and the word stale already carry the state. */
+/* Fresh paints the pressure colour itself. A stale bar renders the hatched pattern. */
 .ol-meter {
   --ol-pressure: var(--ol-pressure-base);
 }
 
 .ol-meter[data-state="stale"] {
-  --ol-pressure: color-mix(
-    in srgb,
-    var(--ol-pressure-base) var(--ol-meter-stale-mix),
-    var(--ol-surface)
-  );
+  --ol-pressure: var(--ol-band-stale-fill);
+}
+
+.ol-meter[data-state="stale"] .ol-meter-fill {
+  background: var(--ol-meter-hatched-pattern) !important;
 }
 
 /*
@@ -177,7 +174,7 @@
   height: 100%;
   border-radius: inherit;
   background-color: var(--ol-pressure);
-  transition: width 320ms cubic-bezier(0, 0, 0.58, 1);
+  transition: width var(--ol-motion-base) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out);
 }
 
 /*
@@ -195,7 +192,7 @@
      carries no word: that row has an Unknown cell of its own. */
   height: 1.25rem;
   background-color: transparent;
-  box-shadow: inset 0 0 0 1px var(--ol-meter-ghost);
+  box-shadow: inset 0 0 0 1px var(--ol-band-stale-fill);
 }
 
 .ol-meter-sm[data-state="unknown"] {
@@ -206,7 +203,7 @@
   padding-inline: var(--ol-space-3);
   font-size: var(--ol-text-micro);
   line-height: 1;
-  color: var(--ol-muted);
+  color: var(--ol-band-stale-label);
 }
 
 .ol-meter-sm {
@@ -215,23 +212,104 @@
 
 /* The number beside a bar, painted in the bar's own colour. */
 .ol-pressure-text[data-pressure="ok"] {
-  color: var(--ol-meter-ok);
+  color: var(--ol-band-green-label);
 }
 
 .ol-pressure-text[data-pressure="high"] {
-  color: var(--ol-meter-high);
+  color: var(--ol-band-orange-label);
 }
 
 .ol-pressure-text[data-pressure="watch"] {
-  color: var(--ol-meter-watch);
+  color: var(--ol-band-yellow-label);
 }
 
 .ol-pressure-text[data-pressure="critical"] {
-  color: var(--ol-meter-critical);
+  color: var(--ol-band-red-label);
 }
 
 .ol-pressure-text[data-pressure="none"] {
-  color: var(--ol-muted);
+  color: var(--ol-band-stale-label);
+}
+
+/* Provider Row Web Component overrides to guarantee 5 semantic bands */
+.window-line[data-tone="ok"] .meter-fill { background: var(--ol-band-green-fill) !important; }
+.window-line[data-tone="ok"] .window-percent { color: var(--ol-band-green-label) !important; }
+
+.window-line[data-tone="watch"] .meter-fill { background: var(--ol-band-yellow-fill) !important; }
+.window-line[data-tone="watch"] .window-percent { color: var(--ol-band-yellow-label) !important; }
+
+.window-line[data-tone="high"] .meter-fill { background: var(--ol-band-orange-fill) !important; }
+.window-line[data-tone="high"] .window-percent { color: var(--ol-band-orange-label) !important; }
+
+.window-line[data-tone="critical"] .meter-fill { background: var(--ol-band-red-fill) !important; }
+.window-line[data-tone="critical"] .window-percent { color: var(--ol-band-red-label) !important; }
+
+.window-line[data-tone="stale"] .meter-fill,
+.window-line[data-state="stale"] .meter-fill {
+  background: var(--ol-meter-hatched-pattern) !important;
+  opacity: 1 !important;
+}
+.window-line[data-tone="stale"] .window-percent,
+.window-line[data-state="stale"] .window-percent {
+  color: var(--ol-band-stale-label) !important;
+}
+
+/* Signature Live Meter Styling */
+.ol-live-meter-card {
+  transition: border-color var(--ol-motion-fast) var(--ol-ease-out),
+    box-shadow var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+.ol-live-pulse-dot {
+  display: inline-block;
+  width: 0.5rem; /* 8px */
+  height: 0.5rem; /* 8px */
+  border-radius: var(--ol-radius-pill);
+  background-color: var(--ol-live);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ol-live) 25%, transparent),
+    0 0 8px var(--ol-live);
+  animation: olLivePulse 2000ms ease-in-out infinite;
+}
+
+@keyframes olLivePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--ol-live) 35%, transparent),
+      0 0 12px var(--ol-live);
+  }
+}
+
+.ol-band-badge {
+  transition: background-color var(--ol-motion-fast) var(--ol-ease-out),
+    color var(--ol-motion-fast) var(--ol-ease-out),
+    border-color var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+.ol-ring-progress {
+  transition: stroke-dashoffset var(--ol-motion-base) var(--ol-ease-out),
+    stroke var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+.ol-live-meter-bar-fill {
+  transition: width var(--ol-motion-base) var(--ol-ease-out),
+    background-color var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-live-pulse-dot {
+    animation: none !important;
+    transform: none !important;
+  }
+  .ol-ring-progress,
+  .ol-live-meter-bar-fill,
+  .ol-band-badge {
+    transition: none !important;
+  }
 }
 
 /*
