@@ -36,9 +36,12 @@ import {
   parseOpenrouterPayload
 } from "@openlimiter/connectors";
 import {
+  AGENT_COMPATIBILITY,
   agentContextFromCache,
   agentContextSpillFromCache,
+  agentVersionCompatibility,
   changeAgentHook,
+  detectAgentInstallation,
   readAgentHookStatus,
   runAgentHook,
   validateAgentExecutableStamp,
@@ -46,6 +49,8 @@ import {
   type AgentId,
   type AgentInstallation,
   type HostedContextTrust,
+  type HostedTrustLoadOptions,
+  loadHostedContextTrust,
   renderClaudeStatusline
 } from "@openlimiter/adapters";
 import { homedir } from "node:os";
@@ -125,6 +130,8 @@ export interface CliDependencies {
   platform: NodeJS.Platform;
   detectedAgentInstallations: Readonly<Partial<Record<AgentId, AgentInstallation | null>>>;
   hostedContextTrust?: HostedContextTrust;
+  hostedContextPublicKeys?: HostedTrustLoadOptions["pinnedPublicKeys"];
+  hostedTrustConfigRoot?: string;
   /**
    * Called once the serve command is listening.
    *
@@ -165,6 +172,26 @@ function defaults(): CliDependencies {
 
 function succeed(stdout: string): CliResult {
   return { exitCode: EXIT_OK, stdout, stderr: "" };
+}
+
+async function resolvedHostedTrust(
+  dependencies: CliDependencies,
+  now: string
+): Promise<HostedContextTrust | undefined> {
+  if (dependencies.hostedContextTrust !== undefined) {
+    return dependencies.hostedContextTrust;
+  }
+  return await loadHostedContextTrust({
+    homeDirectory: dependencies.homeDirectory,
+    platform: dependencies.platform,
+    now,
+    ...(dependencies.hostedContextPublicKeys === undefined
+      ? {}
+      : { pinnedPublicKeys: dependencies.hostedContextPublicKeys }),
+    ...(dependencies.hostedTrustConfigRoot === undefined
+      ? {}
+      : { trustedPlatformConfigRoot: dependencies.hostedTrustConfigRoot })
+  });
 }
 
 function fail(exitCode: number, message: string, stdout = ""): CliResult {
@@ -655,13 +682,12 @@ async function hookProtocolCommand(
 ): Promise<CliResult> {
   const agentFlag = flagValue(argumentsList, "--agent");
   if (agentFlag === undefined) {
+    const hostedTrust = await resolvedHostedTrust(dependencies, now);
     return succeed(await agentContextFromCache(
       dependencies.stateDirectory,
       now,
       PROVIDER_CODES,
-      dependencies.hostedContextTrust === undefined
-        ? {}
-        : { hostedTrust: dependencies.hostedContextTrust }
+      hostedTrust === undefined ? {} : { hostedTrust }
     ));
   }
   const agent = agentArgument(agentFlag);
@@ -692,13 +718,12 @@ async function hookProtocolCommand(
       ) return fallback();
     }
     const rawInput = await dependencies.readStandardInput();
+    const hostedTrust = await resolvedHostedTrust(dependencies, now);
     const context = await agentContextFromCache(
       dependencies.stateDirectory,
       now,
       PROVIDER_CODES,
-      dependencies.hostedContextTrust === undefined
-        ? {}
-        : { hostedTrust: dependencies.hostedContextTrust }
+      hostedTrust === undefined ? {} : { hostedTrust }
     );
     return succeed(runAgentHook({ agent, hostVersion, rawInput, context }).stdout);
   })();
@@ -727,11 +752,31 @@ async function hooksCommand(
     const status = await readAgentHookStatus(agent, {
       homeDirectory: dependencies.homeDirectory
     });
+    const hasKnownInstallation = Object.prototype.hasOwnProperty.call(
+      dependencies.detectedAgentInstallations,
+      agent
+    );
+    const installation = hasKnownInstallation
+      ? dependencies.detectedAgentInstallations[agent] ?? null
+      : await detectAgentInstallation(agent, {
+          environment: dependencies.environment,
+          platform: dependencies.platform
+        });
+    const gate = AGENT_COMPATIBILITY[agent];
+    const compatibility = installation === null
+      ? null
+      : agentVersionCompatibility(agent, installation.version);
     const location = status.configPath ?? "NONE";
     return succeed([
       "agent=" + agent,
       "installed=" + (status.installed ? "yes" : "no"),
-      "config=" + location
+      "config=" + location,
+      ...(compatibility === "newer" && gate.minimumTestedVersion !== null
+        ? [
+            "warning=detected version " + installation!.version +
+              " is newer than minimum tested " + gate.minimumTestedVersion
+          ]
+        : [])
     ].join("\n"));
   }
   const knownInstallation = Object.prototype.hasOwnProperty.call(
@@ -776,13 +821,12 @@ async function explicitStatusCommand(
   if (!argumentsList.includes("--agent-context")) {
     return fail(EXIT_USAGE, "openlimiter status: use --agent-context.");
   }
+  const hostedTrust = await resolvedHostedTrust(dependencies, now);
   const context = await agentContextFromCache(
     dependencies.stateDirectory,
     now,
     PROVIDER_CODES,
-    dependencies.hostedContextTrust === undefined
-      ? {}
-      : { hostedTrust: dependencies.hostedContextTrust }
+    hostedTrust === undefined ? {} : { hostedTrust }
   );
   const spill = await agentContextSpillFromCache(dependencies.stateDirectory, now);
   const stdout = [context, spill].filter((value) => value !== "").join("\n");

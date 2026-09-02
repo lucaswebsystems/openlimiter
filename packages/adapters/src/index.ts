@@ -1,6 +1,7 @@
 export * from "./claude-code.js";
 export * from "./agent-context-cache.js";
 export * from "./hosted-context.js";
+export * from "./hosted-trust.js";
 export {
   changeAgentHook,
   detectAgentInstallation,
@@ -17,6 +18,7 @@ export type {
 export {
   AGENT_COMPATIBILITY,
   HOOK_INPUT_MAX_BYTES,
+  agentVersionCompatibility,
   agentContextAdapterV1,
   antigravityAdapter,
   claudeCodeAdapter,
@@ -33,6 +35,7 @@ export type {
   AgentContextAdapterV1Output,
   AgentContextDiagnosticCode,
   AgentCompatibilityGate,
+  AgentVersionCompatibility,
   AgentHookRequest,
   AgentHookResult,
   AgentId

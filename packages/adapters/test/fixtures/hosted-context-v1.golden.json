@@ -1,0 +1,86 @@
+{
+  "fixture_version": 1,
+  "enum_contract": {
+    "providers": [
+      "anthropic",
+      "claude",
+      "codex",
+      "gemini",
+      "kimi",
+      "manual",
+      "openai",
+      "opencode",
+      "openrouter",
+      "xai"
+    ],
+    "meters": [
+      "provider_usage_percent",
+      "api_budget_percent"
+    ],
+    "levels": [
+      "60",
+      "80",
+      "90",
+      "reset"
+    ],
+    "routing_kinds": [
+      "prefer_lower_cost_when_capable",
+      "preserve_current_provider"
+    ],
+    "routing_reasons": [
+      "high_usage",
+      "budget_pressure",
+      "normal"
+    ]
+  },
+  "private_key_pkcs8_base64url": "MC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f",
+  "public_key_spki_base64url": "MCowBQYDK2VwAyEAA6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+  "public_key_raw_base64url": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+  "canonical_unsigned": "{\"account_id\":\"account-fixture\",\"device_id\":\"33333333-3333-4333-8333-333333333333\",\"expires_at\":\"2026-09-01T12:15:00.000Z\",\"generated_at\":\"2026-09-01T12:00:00.000Z\",\"kid\":\"context-fixture-1\",\"payload\":{\"meters\":[{\"level\":\"60\",\"meter\":\"provider_usage_percent\",\"provider\":\"anthropic\",\"reset_at\":null},{\"level\":\"80\",\"meter\":\"api_budget_percent\",\"provider\":\"claude\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"90\",\"meter\":\"provider_usage_percent\",\"provider\":\"codex\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"reset\",\"meter\":\"api_budget_percent\",\"provider\":\"gemini\",\"reset_at\":null},{\"level\":\"60\",\"meter\":\"provider_usage_percent\",\"provider\":\"kimi\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"80\",\"meter\":\"api_budget_percent\",\"provider\":\"manual\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"90\",\"meter\":\"provider_usage_percent\",\"provider\":\"openai\",\"reset_at\":null},{\"level\":\"reset\",\"meter\":\"api_budget_percent\",\"provider\":\"opencode\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"60\",\"meter\":\"provider_usage_percent\",\"provider\":\"openrouter\",\"reset_at\":\"2026-09-01T13:00:00.000Z\"},{\"level\":\"80\",\"meter\":\"api_budget_percent\",\"provider\":\"xai\",\"reset_at\":null}],\"routing_hints\":[{\"kind\":\"prefer_lower_cost_when_capable\",\"provider\":\"openai\",\"reason\":\"high_usage\"},{\"kind\":\"preserve_current_provider\",\"provider\":\"xai\",\"reason\":\"budget_pressure\"},{\"kind\":\"preserve_current_provider\",\"provider\":\"manual\",\"reason\":\"normal\"}]},\"revocation_epoch\":7,\"schema\":\"openlimiter.hosted_context\",\"source\":{\"event_id\":\"55555555-5555-4555-8555-555555555555\",\"kind\":\"accepted_snapshot\",\"observed_at\":\"2026-09-01T11:55:00.000Z\",\"sequence\":42},\"version\":1}",
+  "envelope": {
+    "schema": "openlimiter.hosted_context",
+    "version": 1,
+    "kid": "context-fixture-1",
+    "generated_at": "2026-09-01T12:00:00.000Z",
+    "expires_at": "2026-09-01T12:15:00.000Z",
+    "account_id": "account-fixture",
+    "device_id": "33333333-3333-4333-8333-333333333333",
+    "revocation_epoch": 7,
+    "source": {
+      "kind": "accepted_snapshot",
+      "event_id": "55555555-5555-4555-8555-555555555555",
+      "sequence": 42,
+      "observed_at": "2026-09-01T11:55:00.000Z"
+    },
+    "payload": {
+      "meters": [
+        { "provider": "anthropic", "meter": "provider_usage_percent", "level": "60", "reset_at": null },
+        { "provider": "claude", "meter": "api_budget_percent", "level": "80", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "codex", "meter": "provider_usage_percent", "level": "90", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "gemini", "meter": "api_budget_percent", "level": "reset", "reset_at": null },
+        { "provider": "kimi", "meter": "provider_usage_percent", "level": "60", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "manual", "meter": "api_budget_percent", "level": "80", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "openai", "meter": "provider_usage_percent", "level": "90", "reset_at": null },
+        { "provider": "opencode", "meter": "api_budget_percent", "level": "reset", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "openrouter", "meter": "provider_usage_percent", "level": "60", "reset_at": "2026-09-01T13:00:00.000Z" },
+        { "provider": "xai", "meter": "api_budget_percent", "level": "80", "reset_at": null }
+      ],
+      "routing_hints": [
+        { "kind": "prefer_lower_cost_when_capable", "provider": "openai", "reason": "high_usage" },
+        { "kind": "preserve_current_provider", "provider": "xai", "reason": "budget_pressure" },
+        { "kind": "preserve_current_provider", "provider": "manual", "reason": "normal" }
+      ]
+    },
+    "signature": "ZkAGEPj8K0HQdoNGQZ4AQVAWcdNw6gxdwicE7zu5ksBB6DxUL4Zukg2YlwHGj4CrUdfGM1Tq0bV-U_8HxBGEAQ"
+  },
+  "trust_document": {
+    "schema": "openlimiter.hosted_trust",
+    "version": 1,
+    "account_id": "account-fixture",
+    "device_id": "33333333-3333-4333-8333-333333333333",
+    "entitlement_epoch": 7,
+    "last_verified_sequence": 42,
+    "routing_state": "enabled",
+    "pinned_public_key_ids": ["context-fixture-1"]
+  }
+}

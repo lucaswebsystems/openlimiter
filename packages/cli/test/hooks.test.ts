@@ -1,13 +1,21 @@
+import { createPublicKey } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { PassThrough } from "node:stream";
 import { FIXTURE_NOW, codexFixture } from "@openlimiter/connectors";
+import {
+  HOSTED_CONTEXT_FILE_NAME,
+  hostedTrustFilePath,
+  type HostedContextEnvelope,
+  type HostedTrustDocument
+} from "@openlimiter/adapters";
 import { afterEach, describe, expect, it } from "vitest";
 import { readStandardInputText, runCli } from "../src/index.js";
 
 const created: string[] = [];
+const HOSTED_FIXTURE_NOW = "2026-09-01T12:05:00.000Z";
 
 async function temporaryDirectory(prefix: string): Promise<string> {
   const directory = await mkdtemp(path.join(tmpdir(), prefix));
@@ -129,6 +137,100 @@ describe("hook CLI", () => {
     expect(output.hookSpecificOutput.hookEventName).toBe("UserPromptSubmit");
     expect(output.hookSpecificOutput.additionalContext)
       .toContain('<openlimiter_untrusted_data version="1">');
+  });
+
+  it("accepts newer releases, rejects older releases, and warns once in hooks status", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-hook-minimum-");
+    await runCli(["snapshot", "--refresh"], {
+      stateDirectory,
+      now: () => FIXTURE_NOW,
+      payloads: { codex: codexFixture(FIXTURE_NOW) },
+      colorOutput: false
+    });
+    expect((await runCli([
+      "hook", "--agent", "codex", "--host-version", "0.153.0"
+    ], {
+      stateDirectory,
+      now: () => FIXTURE_NOW,
+      readStandardInput: async () => codexInput()
+    })).stdout).toContain("additionalContext");
+    expect(await runCli([
+      "hook", "--agent", "codex", "--host-version", "0.151.9"
+    ], {
+      stateDirectory,
+      now: () => FIXTURE_NOW,
+      readStandardInput: async () => codexInput()
+    })).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    const status = await runCli(["hooks", "status", "claude"], {
+      detectedAgentInstallations: {
+        claude: {
+          version: "2.1.258",
+          executable: "C:\\fixture\\claude.exe",
+          fileSize: 1,
+          mtimeMilliseconds: 1
+        }
+      }
+    });
+    expect(status.exitCode).toBe(0);
+    expect(status.stdout.split("\n").filter((line) => line.startsWith("warning=")))
+      .toEqual(["warning=detected version 2.1.258 is newer than minimum tested 2.1.257"]);
+  });
+
+  it("loads hosted trust only from the protected desktop bridge", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-hosted-state-");
+    const homeDirectory = await temporaryDirectory("openlimiter-cli-hosted-home-");
+    const fixture = JSON.parse(await readFile(
+      path.join(
+        process.cwd(),
+        "packages",
+        "adapters",
+        "test",
+        "fixtures",
+        "hosted-context-v1.golden.json"
+      ),
+      "utf8"
+    )) as {
+      envelope: HostedContextEnvelope;
+      public_key_spki_base64url: string;
+      trust_document: HostedTrustDocument;
+    };
+    await writeFile(
+      path.join(stateDirectory, HOSTED_CONTEXT_FILE_NAME),
+      JSON.stringify(fixture.envelope),
+      "utf8"
+    );
+    const attackerDirectory = await temporaryDirectory("openlimiter-cli-hosted-override-");
+    await writeFile(
+      path.join(attackerDirectory, "hosted-trust.json"),
+      JSON.stringify(fixture.trust_document),
+      "utf8"
+    );
+    const publicKey = createPublicKey({
+      key: Buffer.from(fixture.public_key_spki_base64url, "base64url"),
+      format: "der",
+      type: "spki"
+    });
+    const dependencies = {
+      stateDirectory,
+      homeDirectory,
+      platform: "win32" as const,
+      now: () => HOSTED_FIXTURE_NOW,
+      environment: {
+        APPDATA: attackerDirectory,
+        OPENLIMITER_HOSTED_TRUST_PATH: path.join(attackerDirectory, "hosted-trust.json")
+      },
+      hostedContextPublicKeys: { "context-fixture-1": publicKey },
+      readStandardInput: async () => codexInput()
+    };
+    expect(await runCli([
+      "hook", "--agent", "codex", "--host-version", "0.152.0"
+    ], dependencies)).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    const trustFile = hostedTrustFilePath("win32", homeDirectory);
+    await mkdir(path.dirname(trustFile), { recursive: true });
+    await writeFile(trustFile, JSON.stringify(fixture.trust_document), "utf8");
+    expect((await runCli([
+      "hook", "--agent", "codex", "--host-version", "0.152.0"
+    ], dependencies)).stdout).toContain("hosted_status provider=ANTHROPIC");
   });
 
   it("is silent for a missing snapshot and for an unknown host version", async () => {

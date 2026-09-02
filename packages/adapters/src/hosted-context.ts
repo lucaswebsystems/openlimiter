@@ -8,7 +8,9 @@ export const HOSTED_RECORD_LIMIT = 40;
 
 const keyIdPattern = /^[A-Za-z0-9_.-]{1,64}$/u;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-const providerNames = new Set([
+const accountPattern = /^[a-z0-9][a-z0-9-]{0,79}$/u;
+
+export const HOSTED_CONTEXT_PROVIDERS = [
   "anthropic",
   "claude",
   "codex",
@@ -19,21 +21,27 @@ const providerNames = new Set([
   "opencode",
   "openrouter",
   "xai"
-]);
-const meterNames = new Set([
+] as const;
+export const HOSTED_CONTEXT_METERS = [
   "provider_usage_percent",
   "api_budget_percent"
-]);
-const levels = new Set(["60", "80", "90", "reset"]);
-const hintKinds = new Set([
+] as const;
+export const HOSTED_CONTEXT_LEVELS = ["60", "80", "90", "reset"] as const;
+export const HOSTED_CONTEXT_ROUTING_KINDS = [
   "prefer_lower_cost_when_capable",
   "preserve_current_provider"
-]);
-const hintReasons = new Set([
+] as const;
+export const HOSTED_CONTEXT_ROUTING_REASONS = [
   "high_usage",
   "budget_pressure",
   "normal"
-]);
+] as const;
+
+const providerNames = new Set<string>(HOSTED_CONTEXT_PROVIDERS);
+const meterNames = new Set<string>(HOSTED_CONTEXT_METERS);
+const levels = new Set<string>(HOSTED_CONTEXT_LEVELS);
+const hintKinds = new Set<string>(HOSTED_CONTEXT_ROUTING_KINDS);
+const hintReasons = new Set<string>(HOSTED_CONTEXT_ROUTING_REASONS);
 
 export interface HostedMeter {
   provider: string;
@@ -255,7 +263,7 @@ class StrictJsonParser {
   }
 }
 
-function strictJson(text: string): unknown {
+export function parseStrictJson(text: string): unknown {
   return new StrictJsonParser(text).parse();
 }
 
@@ -291,6 +299,10 @@ function safeIdentifier(value: unknown): value is string {
 
 function uuid(value: unknown): value is string {
   return typeof value === "string" && uuidPattern.test(value);
+}
+
+function accountIdentifier(value: unknown): value is string {
+  return typeof value === "string" && accountPattern.test(value);
 }
 
 function integer(value: unknown): value is number {
@@ -357,7 +369,7 @@ function envelopeFromUnknown(value: unknown): HostedContextEnvelope | null {
     !safeIdentifier(value["kid"]) ||
     !instant(value["generated_at"]) ||
     !instant(value["expires_at"]) ||
-    !uuid(value["account_id"]) ||
+    !accountIdentifier(value["account_id"]) ||
     !uuid(value["device_id"]) ||
     !integer(value["revocation_epoch"]) ||
     value["signature"] === undefined ||
@@ -387,7 +399,7 @@ export function validateHostedContextBytes(
   }
   let parsed: unknown;
   try {
-    parsed = strictJson(text);
+    parsed = parseStrictJson(text);
   } catch {
     return { ok: false, reason: "malformed" };
   }

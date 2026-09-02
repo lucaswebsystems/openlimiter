@@ -27,6 +27,11 @@ import {
 } from "./claude-code.js";
 import {
   HOSTED_CONTEXT_MAX_BYTES,
+  HOSTED_CONTEXT_LEVELS,
+  HOSTED_CONTEXT_METERS,
+  HOSTED_CONTEXT_PROVIDERS,
+  HOSTED_CONTEXT_ROUTING_KINDS,
+  HOSTED_CONTEXT_ROUTING_REASONS,
   hostedPayloadLines,
   validateHostedContextBytes,
   type HostedContextTrust
@@ -163,22 +168,11 @@ const localRecommendationReason = new Set([
   "NO_FRESH_DATA",
   "NO_HEALTHY_PROVIDER"
 ]);
-const hostedProvider = new Set([
-  "ANTHROPIC", "CLAUDE", "CODEX", "GEMINI", "KIMI", "MANUAL", "OPENAI", "OPENCODE",
-  "OPENROUTER", "XAI"
-]);
-const hostedMeter = new Set([
-  "provider_usage_percent",
-  "api_budget_percent"
-]);
-const hostedLevel = new Set(["60", "80", "90", "reset"]);
-const hostedKind = new Set([
-  "prefer_lower_cost_when_capable",
-  "preserve_current_provider"
-]);
-const hostedReason = new Set([
-  "high_usage", "budget_pressure", "normal"
-]);
+const hostedProvider = new Set(HOSTED_CONTEXT_PROVIDERS.map((value) => value.toUpperCase()));
+const hostedMeter = new Set<string>(HOSTED_CONTEXT_METERS);
+const hostedLevel = new Set<string>(HOSTED_CONTEXT_LEVELS);
+const hostedKind = new Set<string>(HOSTED_CONTEXT_ROUTING_KINDS);
+const hostedReason = new Set<string>(HOSTED_CONTEXT_ROUTING_REASONS);
 
 function validIsoOrNone(value: string): boolean {
   if (value === "NONE" || exactInstant(value)) return true;
