@@ -1332,8 +1332,8 @@
       },
       "agent-context": {
         "title": "Agent context",
-        "description": "Qué inyectan el statusline y el prompt hook de Claude Code, y el límite que mantiene fuera el texto del proveedor.",
-        "lead": "Dos superficies llegan a tu agente: una línea para que tú la leas en el statusline, y un bloque de contexto acotado para el modelo. Esta página documenta exactamente qué contiene cada uno, y el límite que mantiene el texto del proveedor fuera de ambos.",
+        "description": "Qué inyectan la statusline y el hook de prompt, qué agentes lo reciben de verdad, y la frontera que deja fuera el texto del proveedor.",
+        "lead": "Dos superficies llegan a tu agente: una statusline de una línea para que la leas tú y un bloque de contexto acotado para el modelo. Esta página documenta exactamente qué contiene cada una, qué agentes lo reciben de verdad, y la frontera que deja fuera el texto del proveedor en ambas.",
         "sections": {
           "statusline": {
             "title": "El statusline",
@@ -1402,6 +1402,60 @@
               "inspect": "Correr <code>openlimiter hook</code> en una terminal imprime exactamente lo que se inyectaría, una forma segura de inspeccionarlo antes de conectarlo a una sesión real."
             },
             "writes": "El statusline es la única ruta que escribe. Consulta <config>configuración</config> para ver los ajustes exactos de Claude Code, y <cli>la referencia de la CLI</cli> para las órdenes."
+          },
+          "agents": {
+            "title": "Qué agentes reciben el bloque",
+            "intro": "Haber escrito un adaptador no es lo mismo que un agente reciba el bloque, así que los estados de abajo son lo que una prueba en vivo demostró en una máquina real el 1 de septiembre de 2026, no lo que esperaba una hoja de ruta. Dos agentes están soportados, dos están hechos pero bloqueados hasta que pase una prueba, uno es una opción experimental, y en uno no se puede inyectar nada.",
+            "caption": "Cada agente, el id que acepta el instalador, y si el bloque le llega",
+            "columns": {
+              "agent": "agente",
+              "id": "id",
+              "state": "estado"
+            },
+            "rows": {
+              "claude": {
+                "name": "Claude Code",
+                "state": "Soportado desde 2.1.257. Una prueba en vivo demostró que el bloque llega. Una versión más nueva sigue habilitada y el estado imprime una línea de aviso, y una más antigua se rechaza."
+              },
+              "codex": {
+                "name": "Codex CLI",
+                "state": "Soportado desde 0.152.0. Una prueba en vivo demostró que el bloque llega por el evento de envío de prompt."
+              },
+              "gemini": {
+                "name": "Gemini CLI",
+                "state": "Hecho pero bloqueado. El adaptador apunta al evento previo al agente, pero aquí no había binario para demostrarlo, así que la instalación sigue cerrada hasta que pase una prueba."
+              },
+              "kimi": {
+                "name": "Kimi Code CLI",
+                "state": "Hecho pero bloqueado. En 1.50.0 el hook se ejecutó y el host descartó lo que imprimió, así que nada llegó al contexto y la instalación sigue cerrada."
+              },
+              "antigravity": {
+                "name": "Antigravity CLI",
+                "state": "Excluido. La versión 1.1.23 no expone subcomando de hooks y no disparó ningún evento, así que no hay dónde instalar. La superficie del editor es aparte y no está implementada."
+              },
+              "opencode": {
+                "name": "OpenCode",
+                "state": "Experimental y desactivado por defecto. Fijado a 1.18.11 y requiere el interruptor descrito abajo. Queda fuera de lo que promete esta versión."
+              },
+              "grok": {
+                "name": "Grok Build",
+                "state": "Sin soporte de inyección. Grok descarta lo que imprime un hook correcto, así que no hay superficie de contexto. Usa el comando de abajo en su lugar."
+              }
+            },
+            "installing": {
+              "title": "Instalar un hook",
+              "body": "La instalación es de ámbito de usuario e idempotente. Conserva el resto de la configuración de tu agente, sustituye el archivo de forma atómica, deja un <code>.openlimiter.bak</code> recuperable, no hace ninguna petición de red y rechaza rutas inseguras o enlazadas. <code>status</code> informa de lo que está instalado y de si la versión detectada del host es conocida, <code>repair</code> reescribe la entrada después de que el ejecutable de OpenLimiter cambie de sitio, y <code>uninstall</code> la quita y deja todo lo demás donde estaba.",
+              "terminalLabel": "terminal"
+            },
+            "opencode": {
+              "calloutTitle": "OpenCode es una elección explícita",
+              "calloutBody": "OpenCode no documenta ningún evento de inyección de prompt. El adaptador usa una transformación no documentada, está fijado a la versión exacta con la que se inspeccionó, y no hace absolutamente nada salvo que <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> esté puesto tanto al instalar como al ejecutar. Es experimental a propósito, puede dejar de funcionar en cualquier versión, y no forma parte de lo que promete esta versión."
+            },
+            "grok": {
+              "title": "Grok Build, y por qué no hay hook",
+              "body": "Grok Build ejecuta un hook de envío de prompt y luego tira lo que el hook imprimió, y no documenta ningún equivalente de un campo de contexto adicional. Ningún trabajo de adaptador cambia eso, así que OpenLimiter no instala nada en Grok y lo dice aquí, en vez de entregar algo que en silencio no hace nada. Lo que ofrece a cambio es un comando que ejecutas tú, que imprime el mismo bloque para que lo leas o lo pegues.",
+              "terminalLabel": "terminal"
+            }
           }
         }
       },

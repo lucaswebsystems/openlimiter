@@ -1332,8 +1332,8 @@
       },
       "agent-context": {
         "title": "Agent context",
-        "description": "Was die Claude Code Statusline und der Prompt Hook injizieren, und die Grenze, die Provider Text draußen hält.",
-        "lead": "Zwei Oberflächen erreichen deinen Agenten: eine einzeilige Statusline zum Lesen für dich, und ein begrenzter Context Block für das Modell. Diese Seite dokumentiert genau, was jeder davon enthält, und die Grenze, die Provider Text aus beiden heraushält.",
+        "description": "Was die Statusline und der Prompt Hook einspeisen, welche Agenten es tatsächlich erhalten und die Grenze, die Anbietertext draußen hält.",
+        "lead": "Zwei Flächen erreichen deinen Agenten: eine einzeilige Statusline zum Lesen und ein begrenzter Kontextblock für das Modell. Diese Seite hält fest, was jede genau enthält, welche Agenten es tatsächlich erhalten und die Grenze, die Anbietertext aus beiden heraushält.",
         "sections": {
           "statusline": {
             "title": "Die Statusline",
@@ -1402,6 +1402,60 @@
               "inspect": "<code>openlimiter hook</code> in einem Terminal auszuführen, gibt genau aus, was injiziert würde, ein sicherer Weg, es zu prüfen, bevor du es in eine echte Session verdrahtest."
             },
             "writes": "Die Statusline ist der einzige Weg, der schreibt. Sieh <config>Konfiguration</config> für die genauen Claude Code Einstellungen, und <cli>die CLI Referenz</cli> für die Befehle."
+          },
+          "agents": {
+            "title": "Welche Agenten den Block erhalten",
+            "intro": "Einen Adapter geschrieben zu haben ist nicht dasselbe, wie dass ein Agent den Block erhält. Die Zustände unten sind daher das, was am 1. September 2026 eine Live Prüfung auf einem echten Rechner bewiesen hat, nicht das, was eine Roadmap sich erhofft hat. Zwei Agenten sind unterstützt, zwei sind gebaut und gesperrt, bis eine Prüfung besteht, einer ist eine ausdrückliche Testoption, und in einen lässt sich überhaupt nichts einspeisen.",
+            "caption": "Jeder Agent, die id, die der Installer nimmt, und ob der Block ihn erreicht",
+            "columns": {
+              "agent": "Agent",
+              "id": "id",
+              "state": "Zustand"
+            },
+            "rows": {
+              "claude": {
+                "name": "Claude Code",
+                "state": "Unterstützt ab 2.1.257. Eine Live Prüfung hat bewiesen, dass der Block ankommt. Eine neuere Version bleibt aktiv und der Status gibt eine Warnzeile aus, eine ältere wird abgelehnt."
+              },
+              "codex": {
+                "name": "Codex CLI",
+                "state": "Unterstützt ab 0.152.0. Eine Live Prüfung hat bewiesen, dass der Block über das Ereignis beim Absenden des Prompts ankommt."
+              },
+              "gemini": {
+                "name": "Gemini CLI",
+                "state": "Gebaut und gesperrt. Der Adapter zielt auf das Ereignis vor dem Agenten, doch hier war keine Binärdatei vorhanden, um das zu beweisen, also bleibt die Installation zu, bis eine Prüfung besteht."
+              },
+              "kimi": {
+                "name": "Kimi Code CLI",
+                "state": "Gebaut und gesperrt. Unter 1.50.0 lief der Hook, und der Host verwarf, was er ausgab, es erreichte also nichts den Kontext und die Installation bleibt zu."
+              },
+              "antigravity": {
+                "name": "Antigravity CLI",
+                "state": "Ausgeschlossen. Version 1.1.23 bietet keinen Hooks Unterbefehl und löste kein Ereignis aus, es gibt also nichts, in das installiert werden könnte. Die Editorfläche ist getrennt und nicht umgesetzt."
+              },
+              "opencode": {
+                "name": "OpenCode",
+                "state": "Experimentell und standardmäßig aus. Auf 1.18.11 festgelegt und erfordert den unten beschriebenen Schalter. Es liegt außerhalb dessen, was diese Version verspricht."
+              },
+              "grok": {
+                "name": "Grok Build",
+                "state": "Keine Unterstützung für Einspeisung. Grok verwirft, was ein erfolgreicher Hook ausgibt, es gibt also gar keine Kontextfläche. Nutze stattdessen den Befehl unten."
+              }
+            },
+            "installing": {
+              "title": "Einen Hook installieren",
+              "body": "Die Installation gilt im Benutzerbereich und ist idempotent. Sie bewahrt die übrige Konfiguration deines Agenten, ersetzt die Datei atomar, hinterlässt eine wiederherstellbare <code>.openlimiter.bak</code>, stellt keine Netzanfrage und weist unsichere oder verlinkte Pfade ab. <code>status</code> meldet, was installiert ist und ob die erkannte Hostversion bekannt ist, <code>repair</code> schreibt den Eintrag neu, nachdem die OpenLimiter Programmdatei umgezogen ist, und <code>uninstall</code> entfernt ihn und lässt alles daneben, wo es war.",
+              "terminalLabel": "Terminal"
+            },
+            "opencode": {
+              "calloutTitle": "OpenCode ist eine ausdrückliche Entscheidung",
+              "calloutBody": "OpenCode dokumentiert kein Ereignis zum Einspeisen in einen Prompt. Der Adapter nutzt eine undokumentierte Transformation, ist auf genau die geprüfte Version festgelegt und tut überhaupt nichts, solange nicht <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> sowohl beim Installieren als auch beim Ausführen gesetzt ist. Er ist absichtlich experimentell, kann mit jeder Version aufhören zu funktionieren, und gehört nicht zu dem, was diese Version verspricht."
+            },
+            "grok": {
+              "title": "Grok Build, und warum es keinen Hook gibt",
+              "body": "Grok Build führt einen Hook beim Absenden des Prompts aus und wirft danach weg, was der Hook ausgegeben hat, und es dokumentiert kein Gegenstück zu einem zusätzlichen Kontextfeld. Keine Adapterarbeit ändert daran etwas, also installiert OpenLimiter nichts in Grok und sagt das hier, statt etwas auszuliefern, das still nichts tut. Angeboten wird stattdessen ein Befehl, den du selbst ausführst und der denselben Block zum Lesen oder Einfügen ausgibt.",
+              "terminalLabel": "Terminal"
+            }
           }
         }
       },

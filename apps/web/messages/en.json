@@ -1332,8 +1332,8 @@
       },
       "agent-context": {
         "title": "Agent context",
-        "description": "What the Claude Code statusline and prompt hook inject, and the boundary that keeps provider text out.",
-        "lead": "Two surfaces reach your agent: a one line statusline for you to read, and a bounded context block for the model. This page documents exactly what each one contains and the boundary that keeps provider text out of both.",
+        "description": "What the statusline and the prompt hook inject, which agents actually receive it, and the boundary that keeps provider text out.",
+        "lead": "Two surfaces reach your agent: a one line statusline for you to read, and a bounded context block for the model. This page documents exactly what each one contains, which agents actually receive it, and the boundary that keeps provider text out of both.",
         "sections": {
           "statusline": {
             "title": "The statusline",
@@ -1402,6 +1402,60 @@
               "inspect": "Running <code>openlimiter hook</code> in a terminal prints exactly what would be injected, which is a safe way to inspect it before wiring it into a real session."
             },
             "writes": "The statusline is the only path that writes. See <config>configuration</config> for the exact Claude Code settings, and <cli>the CLI reference</cli> for the commands."
+          },
+          "agents": {
+            "title": "Which agents receive the block",
+            "intro": "Having written an adapter is not the same as an agent receiving the block, so the states below are what a live fixture proved on a real machine on 1 September 2026, not what a roadmap hoped for. Two agents are supported, two are built and gated until a fixture passes, one is an experimental opt in, and one cannot be injected into at all.",
+            "caption": "Each agent, the id the installer takes, and whether the block reaches it",
+            "columns": {
+              "agent": "agent",
+              "id": "id",
+              "state": "state"
+            },
+            "rows": {
+              "claude": {
+                "name": "Claude Code",
+                "state": "Supported from 2.1.257. A live fixture proved the block arrives. A newer release stays enabled and status prints one warning line, and an older one is denied."
+              },
+              "codex": {
+                "name": "Codex CLI",
+                "state": "Supported from 0.152.0. A live fixture proved the block arrives through the prompt submit event."
+              },
+              "gemini": {
+                "name": "Gemini CLI",
+                "state": "Built and gated. The adapter targets the before agent event, but no binary was present to prove it here, so installation stays closed until a fixture passes."
+              },
+              "kimi": {
+                "name": "Kimi Code CLI",
+                "state": "Built and gated. On 1.50.0 the hook ran and the host discarded what it printed, so nothing reached the context and installation stays closed."
+              },
+              "antigravity": {
+                "name": "Antigravity CLI",
+                "state": "Excluded. Version 1.1.23 exposes no hooks subcommand and fired no event, so there is nothing to install into. The editor surface is separate and not implemented."
+              },
+              "opencode": {
+                "name": "OpenCode",
+                "state": "Experimental and off by default. Pinned to 1.18.11 and requires the switch described below. It sits outside what this release promises."
+              },
+              "grok": {
+                "name": "Grok Build",
+                "state": "Not supported for injection. Grok discards what a successful hook prints, so there is no context surface at all. Use the command below instead."
+              }
+            },
+            "installing": {
+              "title": "Installing a hook",
+              "body": "Installation is user scoped and idempotent. It preserves the rest of your agent's configuration, replaces the file atomically, leaves one recoverable <code>.openlimiter.bak</code>, makes no network request, and refuses unsafe or linked paths. <code>status</code> reports what is installed and whether the detected host version is known, <code>repair</code> rewrites the entry after the OpenLimiter executable moves, and <code>uninstall</code> removes it and leaves everything around it where it was.",
+              "terminalLabel": "terminal"
+            },
+            "opencode": {
+              "calloutTitle": "OpenCode is an explicit opt in",
+              "calloutBody": "OpenCode documents no prompt injection event. The adapter uses an undocumented transform, is pinned to the exact version it was inspected against, and does nothing at all unless <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> is set both when installing and when running. It is experimental on purpose, it can stop working at any release, and it is not part of what this version promises."
+            },
+            "grok": {
+              "title": "Grok Build, and why there is no hook",
+              "body": "Grok Build runs a prompt submit hook and then throws away what the hook printed, and it documents no equivalent of an additional context field. No amount of adapter work changes that, so OpenLimiter installs nothing into Grok and says so here rather than shipping something that silently does nothing. What it offers instead is a command you run yourself, which prints the same block for you to read or paste.",
+              "terminalLabel": "terminal"
+            }
           }
         }
       },

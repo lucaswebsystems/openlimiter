@@ -10,6 +10,27 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
   return docMetadata("/docs/agent-context", await pageLocale(params));
 }
 
+/**
+ * The agents the hook installer knows about, in the order the table reads.
+ *
+ * The `id` is the exact word `openlimiter hooks install` takes, and the state
+ * is the one the compatibility matrix recorded on a real machine rather than
+ * the one the roadmap hoped for. Two agents passed a live fixture, two are
+ * built and gated until one passes, one is an experimental opt in, and one is
+ * excluded because its host throws away what a hook prints. That distinction
+ * is the whole reason this table exists: an agent listed as supported here has
+ * been observed receiving the block, not merely written an adapter for.
+ */
+const AGENTS = [
+  { key: "claude", id: "claude" },
+  { key: "codex", id: "codex" },
+  { key: "gemini", id: "gemini" },
+  { key: "kimi", id: "kimi" },
+  { key: "antigravity", id: "antigravity" },
+  { key: "opencode", id: "opencode" },
+  { key: "grok", id: "grok" },
+] as const;
+
 /** The field names of the context block, in the order the table lists them. */
 const BLOCK_FIELDS = [
   { field: "schema", key: "schema" },
@@ -79,6 +100,46 @@ unknown=CODEX,ANTIGRAVITY,OPENCODE,MANUAL
                   field: <Code>{row.field}</Code>,
                   meaning: t.rich(`context-block.fields.rows.${row.key}.meaning`, { code }),
                 }))}
+              />
+            </>
+          ),
+        },
+        {
+          id: "agents",
+          title: t("agents.title"),
+          body: (
+            <>
+              <P>{t("agents.intro")}</P>
+              <Table
+                caption={t("agents.caption")}
+                columns={[
+                  { key: "agent", header: t("agents.columns.agent") },
+                  { key: "id", header: t("agents.columns.id") },
+                  { key: "state", header: t("agents.columns.state") },
+                ]}
+                rows={AGENTS.map((agent) => ({
+                  agent: t(`agents.rows.${agent.key}.name`),
+                  id: <Code>{agent.id}</Code>,
+                  state: t(`agents.rows.${agent.key}.state`),
+                }))}
+              />
+              <Sub id="installing">{t("agents.installing.title")}</Sub>
+              <P>{t.rich("agents.installing.body", { code })}</P>
+              <CodeBlock
+                label={t("agents.installing.terminalLabel")}
+                code={`openlimiter hooks install claude
+openlimiter hooks status claude
+openlimiter hooks repair claude
+openlimiter hooks uninstall claude`}
+              />
+              <Callout tone="note" title={t("agents.opencode.calloutTitle")}>
+                {t.rich("agents.opencode.calloutBody", { code })}
+              </Callout>
+              <Sub id="grok">{t("agents.grok.title")}</Sub>
+              <P>{t.rich("agents.grok.body", { code })}</P>
+              <CodeBlock
+                label={t("agents.grok.terminalLabel")}
+                code={`openlimiter status --agent-context`}
               />
             </>
           ),
