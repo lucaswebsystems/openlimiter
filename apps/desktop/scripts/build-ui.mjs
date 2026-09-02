@@ -218,6 +218,12 @@ const WINDOW_FILES = [
   "configured-providers.js",
   "connections.js",
   "first-run.js",
+  /* The signature meter, and the tray popover, which is its own document
+     because Rust gives it its own window. */
+  "live-meter.js",
+  "tray.html",
+  "tray.css",
+  "tray.js",
 ];
 
 for (const file of WINDOW_FILES) {

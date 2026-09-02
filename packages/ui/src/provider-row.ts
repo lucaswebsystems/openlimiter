@@ -175,6 +175,27 @@ const BAND_ICONS: Record<QuotaBand, string> = {
     '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3.7 3.7l8.6 8.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
 };
 
+/**
+ * The artwork and the band shape, for a surface that is not this row.
+ *
+ * The tray popover draws its own compact rows at 360 pixels, where this row's
+ * grid does not fit. It still has to be the same product, so it reaches for
+ * the same drawings here rather than keeping a second copy that slowly
+ * becomes a second opinion about what Claude's mark looks like.
+ */
+export function providerMarkMarkup(provider: ProviderCode): string {
+  return PROVIDER_MARKS[provider];
+}
+
+export function bandIconSvg(band: QuotaBand): string {
+  return BAND_ICONS[band];
+}
+
+/** The band for a used percentage that is known to be fresh. */
+export function bandForPercent(usedPercent: number): QuotaBand {
+  return BAND_BY_TONE[headroomTone(usedPercent)] ?? "stale";
+}
+
 const BAND_BY_TONE: Readonly<Record<HeadroomTone, QuotaBand | null>> = {
   ok: "green",
   watch: "yellow",

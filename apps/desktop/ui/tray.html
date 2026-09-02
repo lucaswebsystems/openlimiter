@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>OpenLimiter</title>
+    <link rel="stylesheet" href="./theme.css" />
+    <link rel="stylesheet" href="./engine/ui/tokens.css" />
+    <link rel="stylesheet" href="./tray.css" />
+    <script>
+      /*
+       * The popover opens under the cursor and is read in well under a second,
+       * so it cannot afford a flash of the wrong theme on the way to the right
+       * one. The stored choice is applied before the first pixel, exactly as
+       * the main window does it, and from the same key.
+       */
+      (function () {
+        try {
+          var stored = window.localStorage.getItem("openlimiter-theme");
+          if (stored === "light" || stored === "dark") {
+            document.documentElement.setAttribute("data-theme", stored);
+          }
+        } catch (error) {
+          /* Storage refused. Dark is already the default. */
+        }
+      })();
+    </script>
+  </head>
+  <body class="tray">
+    <header class="tray-head">
+      <span class="tray-brand">
+        <img
+          class="tray-mark icon-to-dark"
+          src="./brand/openlimiter-mark.svg"
+          alt=""
+          width="16"
+          height="16"
+        />
+        <strong>OpenLimiter</strong>
+      </span>
+      <span class="tray-state" id="tray-state" role="status">
+        <span class="tray-pip" id="tray-pip" aria-hidden="true"></span>
+        <span id="tray-state-text">Reading</span>
+      </span>
+    </header>
+
+    <!--
+      One glanceable state, which is the whole job of this surface. The
+      headline says the single most pressed window across every connected
+      account, in the band's own colour, so the popover answers the question
+      before a person's eye reaches the list underneath it.
+    -->
+    <section class="tray-glance" id="tray-glance" data-band="stale" hidden>
+      <span class="glance-band" id="glance-band"></span>
+      <p class="glance-line">
+        <strong class="glance-value" id="glance-value">--</strong>
+        <span class="glance-subject" id="glance-subject"></span>
+      </p>
+      <p class="glance-reset" id="glance-reset"></p>
+    </section>
+
+    <main class="tray-list" id="tray-list" aria-label="Connected providers"></main>
+
+    <p class="tray-empty" id="tray-empty" hidden>
+      No provider is connected yet. Open OpenLimiter to connect one.
+    </p>
+
+    <p class="tray-absent" id="tray-absent" hidden>
+      This build has no connection backend, so there is nothing to read.
+    </p>
+
+    <!--
+      Every control here also exists in the main window. The tray is a faster
+      route to the product, never the only route to a part of it, so a person
+      who hides the tray icon loses convenience and no capability.
+    -->
+    <footer class="tray-foot">
+      <button type="button" id="tray-open" class="tray-primary">
+        Open OpenLimiter
+      </button>
+      <button type="button" id="tray-refresh" class="tray-quiet">Refresh</button>
+      <span class="tray-observed" id="tray-observed"></span>
+    </footer>
+
+    <script type="module" src="./tray.js"></script>
+  </body>
+</html>
