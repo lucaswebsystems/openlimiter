@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   agentContextFromCache,
   agentContextAdapterV1,
+  agentVersionCompatibility,
   changeAgentHook,
   detectAgentInstallation,
   quoteHookArgument,
@@ -65,7 +66,7 @@ function configPath(agent: Exclude<AgentId, "grok">, home: string): string {
   if (agent === "codex") return path.join(home, ".codex", "hooks.json");
   if (agent === "gemini") return path.join(home, ".gemini", "settings.json");
   if (agent === "antigravity") return path.join(home, ".gemini", "config", "hooks.json");
-  if (agent === "kimi") return path.join(home, ".kimi-code", "config.toml");
+  if (agent === "kimi") return path.join(home, ".kimi", "config.toml");
   return path.join(home, ".config", "opencode", "plugins", "openlimiter.js");
 }
 
@@ -194,7 +195,7 @@ describe("hook configuration mutation", () => {
     const options = await fixtureOptions();
     const result = await changeAgentHookFixture("kimi", "uninstall", options);
     expect(result).toMatchObject({ supported: true, changed: false });
-    await expect(stat(path.join(options.homeDirectory, ".kimi-code")))
+    await expect(stat(path.join(options.homeDirectory, ".kimi")))
       .rejects.toMatchObject({ code: "ENOENT" });
   });
 
@@ -251,6 +252,10 @@ describe("hook configuration mutation", () => {
     expect(await changeAgentHook("claude", "install", {
       ...options,
       detectedVersion: "2.1.258"
+    })).toMatchObject({ supported: true, changed: true });
+    expect(await changeAgentHook("claude", "install", {
+      ...options,
+      detectedVersion: "2.1.256"
     })).toMatchObject({ supported: false, changed: false });
     expect(await changeAgentHook("gemini", "install", {
       ...options,
@@ -270,6 +275,14 @@ describe("hook configuration mutation", () => {
       changed: false,
       configPath: null
     });
+  });
+
+  it("uses minimum tested version semantics", () => {
+    expect(agentVersionCompatibility("claude", "2.1.256")).toBe("older");
+    expect(agentVersionCompatibility("claude", "2.1.257")).toBe("supported");
+    expect(agentVersionCompatibility("claude", "2.1.258")).toBe("newer");
+    expect(agentVersionCompatibility("claude", "2.1.257-beta.1")).toBe("unsupported");
+    expect(agentVersionCompatibility("kimi", "1.50.0")).toBe("unsupported");
   });
 
   it("fails closed when a Windows command shim cannot be executed without a shell", async () => {
@@ -333,9 +346,8 @@ const inputs = {
   kimi: {
     hook_event_name: "UserPromptSubmit",
     session_id: "session",
-    session_title: "title",
-    client_type: "cli",
-    cwd: "C:\\work"
+    cwd: "C:\\work",
+    prompt: "pong"
   },
   opencode: {
     hook_event_name: "OpenCodeSystemTransform",
@@ -493,5 +505,20 @@ describe("agent hook protocol", () => {
       expect(result.stdout).toBe("");
       expect(result.diagnostic).not.toBe("");
     }
+  });
+
+  it("accepts a newer host version while rejecting an older one", () => {
+    expect(runAgentHook({
+      agent: "claude",
+      hostVersion: "2.1.258",
+      rawInput: JSON.stringify(inputs.claude),
+      context: CONTEXT
+    }).stdout).toContain("additionalContext");
+    expect(runAgentHook({
+      agent: "claude",
+      hostVersion: "2.1.256",
+      rawInput: JSON.stringify(inputs.claude),
+      context: CONTEXT
+    })).toMatchObject({ stdout: "", diagnostic: "version", exitCode: 0 });
   });
 });

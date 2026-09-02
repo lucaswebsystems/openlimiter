@@ -70,19 +70,48 @@ export interface AgentContextAdapterV1 {
 }
 
 export interface AgentCompatibilityGate {
-  testedVersions: readonly string[];
+  minimumTestedVersion: string | null;
   launchState: "included" | "gated" | "experimental" | "excluded";
 }
 
 export const AGENT_COMPATIBILITY: Readonly<Record<AgentId, AgentCompatibilityGate>> = {
-  claude: { testedVersions: ["2.1.257"], launchState: "included" },
-  codex: { testedVersions: ["0.152.0"], launchState: "included" },
-  gemini: { testedVersions: [], launchState: "gated" },
-  antigravity: { testedVersions: [], launchState: "gated" },
-  kimi: { testedVersions: [], launchState: "gated" },
-  opencode: { testedVersions: ["1.18.11"], launchState: "experimental" },
-  grok: { testedVersions: [], launchState: "excluded" }
+  claude: { minimumTestedVersion: "2.1.257", launchState: "included" },
+  codex: { minimumTestedVersion: "0.152.0", launchState: "included" },
+  gemini: { minimumTestedVersion: null, launchState: "gated" },
+  antigravity: { minimumTestedVersion: null, launchState: "excluded" },
+  kimi: { minimumTestedVersion: null, launchState: "gated" },
+  opencode: { minimumTestedVersion: "1.18.11", launchState: "experimental" },
+  grok: { minimumTestedVersion: null, launchState: "excluded" }
 };
+
+export type AgentVersionCompatibility =
+  | "newer"
+  | "older"
+  | "supported"
+  | "unsupported";
+
+function semanticVersion(value: string): readonly [number, number, number] | null {
+  const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u.exec(value);
+  if (match === null) return null;
+  const parts = match.slice(1).map(Number);
+  if (parts.some((part) => !Number.isSafeInteger(part))) return null;
+  return [parts[0]!, parts[1]!, parts[2]!];
+}
+
+export function agentVersionCompatibility(
+  agent: AgentId,
+  version: string
+): AgentVersionCompatibility {
+  const minimum = AGENT_COMPATIBILITY[agent].minimumTestedVersion;
+  const actualParts = semanticVersion(version);
+  const minimumParts = minimum === null ? null : semanticVersion(minimum);
+  if (actualParts === null || minimumParts === null) return "unsupported";
+  for (let index = 0; index < actualParts.length; index += 1) {
+    if (actualParts[index]! > minimumParts[index]!) return "newer";
+    if (actualParts[index]! < minimumParts[index]!) return "older";
+  }
+  return "supported";
+}
 
 interface InputContract {
   eventKey: string | null;
@@ -161,9 +190,8 @@ const contracts: Readonly<Record<Exclude<AgentId, "grok">, InputContract>> = {
     required: {
       hook_event_name: "string",
       session_id: "string",
-      session_title: "string",
-      client_type: "string",
-      cwd: "string"
+      cwd: "string",
+      prompt: "string"
     },
     optional: {}
   },
@@ -244,7 +272,9 @@ function executeSharedContract(
   }
   if (
     !allowUntestedVersion &&
-    !AGENT_COMPATIBILITY[input.agent_id].testedVersions.includes(input.host_version)
+    !["supported", "newer"].includes(
+      agentVersionCompatibility(input.agent_id, input.host_version)
+    )
   ) return emptyContract("version");
   if (input.agent_id === "antigravity" && input.invocation_number !== 0) {
     return emptyContract("");

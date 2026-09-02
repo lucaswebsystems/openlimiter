@@ -2,7 +2,11 @@ import { execFile } from "node:child_process";
 import { lstat, mkdir, open, unlink, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { canonicalJson, writeFileAtomically } from "@openlimiter/core";
-import { AGENT_COMPATIBILITY, type AgentId } from "./stubs.js";
+import {
+  AGENT_COMPATIBILITY,
+  agentVersionCompatibility,
+  type AgentId
+} from "./stubs.js";
 
 const CONFIG_MAX_BYTES = 1_048_576;
 const MANAGED_FLAG = "--managed-hook openlimiter-v1";
@@ -55,7 +59,7 @@ function targetFor(agent: AgentId, home: string): AgentTarget | null {
     return { format: "antigravity", path: path.join(home, ".gemini", "config", "hooks.json"), timeout: 1 };
   }
   if (agent === "kimi") {
-    return { format: "kimi", path: path.join(home, ".kimi-code", "config.toml"), timeout: 1 };
+    return { format: "kimi", path: path.join(home, ".kimi", "config.toml"), timeout: 1 };
   }
   if (agent === "opencode") {
     return {
@@ -709,8 +713,11 @@ export async function changeAgentHook(
     ) {
       return unsupported(agent, action, version, target, "Experimental OpenCode support is disabled.");
     }
-    if (version === null || !gate.testedVersions.includes(version)) {
-      return unsupported(agent, action, version, target, "The detected agent version is not in the tested compatibility table.");
+    if (
+      version === null ||
+      !["supported", "newer"].includes(agentVersionCompatibility(agent, version))
+    ) {
+      return unsupported(agent, action, version, target, "The detected agent version is older than the minimum tested version or is not a valid release version.");
     }
     if (detected === null) {
       return unsupported(agent, action, version, target, "The agent executable could not be pinned safely.");

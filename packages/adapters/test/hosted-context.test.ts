@@ -153,9 +153,8 @@ function hookInput(agent: Exclude<AgentId, "grok">): string {
     return JSON.stringify({
       hook_event_name: "UserPromptSubmit",
       session_id: "session",
-      session_title: "title",
-      client_type: "cli",
-      cwd: "C:\\work"
+      cwd: "C:\\work",
+      prompt: "pong"
     });
   }
   return JSON.stringify({
