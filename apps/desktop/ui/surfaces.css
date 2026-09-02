@@ -1130,3 +1130,36 @@ select.field:focus-visible {
     outline-offset: 2px;
   }
 }
+
+/* ------------------------------------------------ the window, made wide */
+
+/*
+ * This window ships at 520 by 720 and is allowed down to 380 by 480. A person
+ * can still drag it wide, and on a 1440 pixel monitor the old rule let one
+ * meter row grow to eleven hundred pixels of bar. A bar that long stops being
+ * a proportion and becomes a horizon: the eye cannot judge 84 against 68 when
+ * both are most of a screen wide, and the row reads as a phone layout that has
+ * been stretched rather than a layout that was designed for the space.
+ *
+ * So the content holds a column and the extra width becomes margin. That is
+ * the same decision the references make, and it is why they stay dense at any
+ * size instead of thinning out.
+ */
+main,
+body > .tabs,
+body > .strip > .strip-top {
+  width: 100%;
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+/* The header rule and the tab underline still run the full width, because a
+   divider that stops short of the edges reads as an unfinished card. */
+body > .strip,
+body > .tabs {
+  max-width: none;
+}
+
+body > .tabs {
+  padding-inline: max(var(--ol-space-4), calc((100% - 46rem) / 2));
+}

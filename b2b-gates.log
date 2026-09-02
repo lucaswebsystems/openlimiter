@@ -1,0 +1,50 @@
+
+===== pnpm install --ignore-workspace --frozen-lockfile (apps/desktop) =====
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+[96mdevDependencies:[39m
+[32m+[39m @tauri-apps/cli [90m2.11.4[39m
+
+Done in 1.7s
+EXIT=0
+
+===== pnpm test:first-run (apps/desktop) =====
+
+> @openlimiter/desktop@1.1.0 test:first-run C:\Users\lucas\Desktop\Claude\Personal\OpenLimiter\launch-2026-09-01\wt\desktop-ui\apps\desktop
+> node --test ui/*.test.mjs
+
+[32m✔ stores only explicitly supported providers [90m(3.281ms)[39m[39m
+[32m✔ removes a configured provider without affecting the others [90m(0.3233ms)[39m[39m
+[32m✔ keeps an unconfigured Home to one line pointing at Configuration [90m(2.9563ms)[39m[39m
+[32m✔ keeps the account gate mandatory before provider setup [90m(1.7063ms)[39m[39m
+[32m✔ lets a cached signed in session continue while the backend is offline [90m(1.4569ms)[39m[39m
+[32m✔ shows the two SmartScreen actions for an unsigned Windows release [90m(2.6626ms)[39m[39m
+[32m✔ names the Gatekeeper gesture for the unsigned macOS release [90m(0.2428ms)[39m[39m
+[32m✔ no longer claims a macOS release is coming [90m(0.434ms)[39m[39m
+[32m✔ does not add a launch warning on Linux [90m(0.1524ms)[39m[39m
+[32m✔ normalizes every Lane 1 state and keeps only account counts [90m(0.7279ms)[39m[39m
+[32m✔ accepts the legacy Claude detection until Lane 1 lands [90m(0.2275ms)[39m[39m
+[32m✔ stale detected accounts name the CLI recovery without exposing identity [90m(0.29ms)[39m[39m
+[32m✔ an unavailable backend never becomes a false absent claim [90m(0.1662ms)[39m[39m
+[32m✔ a successful empty scan is a coherent fresh machine state [90m(0.2721ms)[39m[39m
+[32m✔ normalizes the detected Gemini CLI provider without losing its separator [90m(0.1991ms)[39m[39m
+[32m✔ unknown providers never enter the first run rows [90m(0.1002ms)[39m[39m
+[32m✔ accepts the future detector aliases for Grok and Kimi [90m(0.1051ms)[39m[39m
+[34mℹ tests 17[39m
+[34mℹ suites 0[39m
+[34mℹ pass 17[39m
+[34mℹ fail 0[39m
+[34mℹ cancelled 0[39m
+[34mℹ skipped 0[39m
+[34mℹ todo 0[39m
+[34mℹ duration_ms 194.5835[39m
+EXIT=0
+
+===== pnpm build:ui (apps/desktop) =====
+
+> @openlimiter/desktop@1.1.0 build:ui C:\Users\lucas\Desktop\Claude\Personal\OpenLimiter\launch-2026-09-01\wt\desktop-ui\apps\desktop
+> node scripts/build-ui.mjs
+
+Assembled ui/dist from 27 compiled modules, one token sheet and 17 window files and 3 brand files.
+EXIT=0
