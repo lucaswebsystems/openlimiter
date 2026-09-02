@@ -426,7 +426,7 @@
       },
       "openCode": {
         "tag": "すでに開いているセッションを読み取ります",
-        "detail": "既存のセッションの裏にある使用量ビューを読み取ります。6つのconnectorの中で自動化リスクが最も高く、そのセッションが期限切れになった瞬間に停止します。"
+        "detail": "既存のセッションの裏にある使用量ビューを読み取ります。9つのconnectorの中で自動化リスクが最も高く、そのセッションが期限切れになった瞬間に停止します。"
       },
       "gemini": {
         "tag": "インストール済みCLIからモデルquotaを読み取ります",
@@ -480,7 +480,7 @@
     "groups": {
       "today": {
         "label": "今日から利用可能",
-        "note": "6つのconnectorがこのリリースに含まれています"
+        "note": "9つのconnectorがこのリリースに含まれています"
       },
       "planned": {
         "label": "計画中",
@@ -605,7 +605,7 @@
   },
   "cliTranscript": {
     "captions": {
-      "demo": "6つのconnectorすべてを、1つのスキーマで",
+      "demo": "9つのconnectorすべてを、1つのスキーマで",
       "statusline": "Statusline、すでに見ている場所にバーを",
       "statuslineNarrow": "1行に、最も悪いプロバイダーだけを残す",
       "statuslinePlain": "0.1.0の行を、リクエストに応じて",
@@ -672,7 +672,7 @@
       },
       "providersToday": {
         "question": "今日時点でどのプロバイダーが動きますか。",
-        "answer": "6つのconnectorが提供されています。ネイティブのstatuslineペイロードによるClaude、ドキュメント化された構造によるOpenRouter、壊れる可能性のある内部構造によるCodexとAntigravity、壊れる可能性のある既存セッションによるOpenCode、そしてmanual entryです。明示的な検証者が存在するまで、すべてUNVERIFIEDのマークがついています。"
+        "answer": "9つのconnectorが提供されています。ネイティブのstatuslineペイロードによるClaude、ドキュメント化された構造によるOpenRouter、壊れる可能性のある内部構造によるCodex、Antigravity、Gemini CLI、Grok、Kimi、壊れる可能性のある既存セッションによるOpenCode、そしてmanual entryです。明示的な検証者が存在するまで、すべてUNVERIFIEDのマークがついています。"
       },
       "apiKey": {
         "question": "APIキーは必要ですか。",
@@ -1001,12 +1001,12 @@
       },
       "providers": {
         "title": "対応プロバイダー",
-        "description": "今日提供されている6つのconnectorが、それぞれ何を読み取り、どれくらい壊れやすいか。",
-        "lead": "今日、6つのconnectorが提供されています。それぞれが、認証情報がどこから来るか、そのデータインターフェースがどれくらい公式なものか、どれくらい壊れやすいかを説明する、自前の誠実なラベルを持っています。",
+        "description": "現在提供している9つのコネクタと、それぞれが何を読み、どれだけ壊れやすいか。",
+        "lead": "現在9つのコネクタがあります。それぞれが、認証情報の出どころ、データインターフェースの公式度、壊れやすさを示す正直なラベルを持っています。",
         "sections": {
-          "the-six": {
-            "title": "6つのconnector",
-            "caption": "今日提供されているconnectorと、それぞれが何を読み取り、どれくらい安定しているか",
+          "the-nine": {
+            "title": "9つのコネクタ",
+            "caption": "現在提供しているコネクタと、それぞれが読むものと安定度",
             "columns": {
               "id": "id",
               "reads": "読み取るもの",
@@ -1036,6 +1036,18 @@
               "manual": {
                 "reads": "自分で書いた数値",
                 "status": "Manual entry。壊れることも、推測することもありません。"
+              },
+              "gemini_cli": {
+                "reads": "Gemini CLIが自身のモデル向けに定義するquotaバケット",
+                "status": "内部エンドポイント。自動化リスク高。予告なく壊れることがあります。"
+              },
+              "grok": {
+                "reads": "Grok CLIの背後にある請求レスポンス。週次のクレジットwindowと任意のオンデマンド上限を含みます",
+                "status": "内部エンドポイント。自動化リスク高。予告なく壊れることがあります。"
+              },
+              "kimi": {
+                "reads": "Kimi CLIが定義する利用状況レスポンス。週次サマリーと5時間の上限を含みます",
+                "status": "内部エンドポイント。自動化リスク高。予告なく壊れることがあります。"
               }
             },
             "calloutTitle": "すべてのconnectorはUNVERIFIEDのマークつきで提供されます",
@@ -1047,7 +1059,7 @@
             "bullets": {
               "claude": "<code>claude</code>には、標準入力に届くstatuslineペイロードが供給されます。Claude Codeが組み込まれていれば、この経路は自動です。",
               "manual": "<code>manual</code>には、状態ディレクトリに置いたドキュメントが供給されます。",
-              "ingestOnly": "コマンドラインツールでは、<code>codex</code>、<code>antigravity</code>、<code>opencode</code>、<code>openrouter</code>には引き続き専用のリーダーがなく、<code>openlimiter ingest --provider '<id>'</code>を通じてのみデータを受け取ります。デスクトップアプリケーションはCodexとOpenRouterをライブで読み取り、AntigravityとOpenCodeには手動の実験的な貼り付け経路を提供します。"
+              "ingestOnly": "コマンドラインツールでは、<code>codex</code>、<code>antigravity</code>、<code>gemini_cli</code>、<code>grok</code>、<code>kimi</code>、<code>opencode</code>、<code>openrouter</code>に専用のリーダーはなく、<code>openlimiter ingest --provider '<id>'</code>からのみデータを受け取ります。デスクトップアプリはCodex、Gemini CLI、Grok、Kimi、OpenRouterをライブで読み、AntigravityとOpenCodeには手動かつ実験的な貼り付け経路を用意しています。"
             },
             "exactShapes": "3つの経路すべてと、それぞれが受け付ける正確な構造は<docs>取り込みのページ</docs>に記載されています。"
           },
@@ -1078,7 +1090,7 @@
           },
           "not-yet": {
             "title": "まだ存在しないconnector",
-            "body": "実在するのは上の6つだけです。それ以外に期待するものは何であれ、作られておらず、予定にもなく、想定すべきではありません。サブスクリプションにconnectorがない場合、今日はmanualの経路が、自分で入力する数値でそれをカバーします。"
+            "body": "実在するのは上の9つだけです。それ以外に期待されるものは、作られておらず、予定にもなく、あるものとして扱うべきではありません。コネクタのないサブスクリプションは、今日のところ自分で数値を入力する手動の経路が受け持ちます。"
           }
         }
       },
@@ -1641,7 +1653,7 @@
             "bullets": {
               "noOfficialApi": "ほとんどのコンシューマー向けサブスクリプションのプロバイダーは、公式のquota APIを提供していません。そのため、いくつかのconnectorは、予告なく変更されたり消えたりしうる非公式なインターフェースを扱っています。",
               "unverified": "すべてのconnectorは<code>UNVERIFIED</code>のマークつきで提供されます。ここにあるものは何一つ、明示的な検証者によって実際のアカウントに対して確認されていません。",
-              "opencode": "OpenCodeのconnectorは、認証が必要なページの構造を扱っており、自動化リスクが高いものです。6つの中で最も壊れやすいものとして扱ってください。",
+              "opencode": "OpenCodeのconnectorは、認証が必要なページの構造を扱っており、自動化リスクが高いものです。9つの中で最も壊れやすいものとして扱ってください。",
               "adviceOnly": "OpenLimiterはルーティングのアドバイスを提供します。自動でリクエストをルーティングすることも、上限を回避することも、エージェントの認証の仕組みを変えることもありません。"
             }
           },

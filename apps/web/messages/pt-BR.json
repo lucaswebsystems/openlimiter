@@ -426,7 +426,7 @@
       },
       "openCode": {
         "tag": "lê uma sessão que você já abriu",
-        "detail": "Descreve a visão de uso por trás de uma sessão existente. Carrega o maior risco de automação dos seis e para no instante em que essa sessão expira."
+        "detail": "Descreve a visão de uso por trás de uma sessão existente. Carrega o maior risco de automação dos nove e para no instante em que essa sessão expira."
       },
       "gemini": {
         "tag": "lê a quota de modelos pela CLI instalada",
@@ -480,7 +480,7 @@
     "groups": {
       "today": {
         "label": "Já disponíveis",
-        "note": "Seis connectors vêm nesta versão"
+        "note": "Nove connectors vêm nesta versão"
       },
       "planned": {
         "label": "Planejados",
@@ -605,7 +605,7 @@
   },
   "cliTranscript": {
     "captions": {
-      "demo": "Seis connectors, um só schema",
+      "demo": "Nove connectors, um só schema",
       "statusline": "Statusline, barras onde você já olha",
       "statuslineNarrow": "Uma linha, com os piores provedores mantidos",
       "statuslinePlain": "A linha da 0.1.0, sob pedido",
@@ -672,7 +672,7 @@
       },
       "providersToday": {
         "question": "Quais provedores funcionam hoje?",
-        "answer": "Seis connectors vêm inclusos: Claude pelo payload nativo do statusline, OpenRouter pelo formato documentado dele, Codex e Antigravity por formatos internos que podem quebrar, OpenCode por uma sessão existente que pode quebrar, e manual entry. Todos vêm marcados UNVERIFIED até existir um verificador explícito."
+        "answer": "Nove connectors vêm inclusos: Claude pelo payload nativo do statusline, OpenRouter pelo formato documentado dele, Codex, Antigravity, Gemini CLI, Grok e Kimi por formatos internos que podem quebrar, OpenCode por uma sessão existente que pode quebrar, e manual entry. Todos vêm marcados UNVERIFIED até existir um verificador explícito."
       },
       "apiKey": {
         "question": "Eu preciso de uma chave de API?",
@@ -1001,12 +1001,12 @@
       },
       "providers": {
         "title": "Provedores suportados",
-        "description": "Os seis connectors que já vêm hoje, o que cada um lê, e quão provável é que quebre.",
-        "lead": "Seis connectors já vêm hoje. Cada um carrega seus próprios rótulos honestos, descrevendo de onde vêm as credenciais dele, quão oficial é a interface de dados dele, e quão provável é que ele quebre.",
+        "description": "Os nove conectores que existem hoje, o que cada um lê e a chance de cada um quebrar.",
+        "lead": "Hoje existem nove conectores. Cada um carrega os próprios rótulos honestos dizendo de onde vêm as credenciais, quão oficial é a interface de dados e qual a chance de quebrar.",
         "sections": {
-          "the-six": {
-            "title": "Os seis connectors",
-            "caption": "Connectors que já vêm hoje, com o que cada um lê e quão estável ele é",
+          "the-nine": {
+            "title": "Os nove conectores",
+            "caption": "Conectores que existem hoje, com o que cada um lê e quão estável é",
             "columns": {
               "id": "id",
               "reads": "lê",
@@ -1036,6 +1036,18 @@
               "manual": {
                 "reads": "Números que você mesmo escreve",
                 "status": "Manual entry. Nunca quebra, nunca chuta."
+              },
+              "gemini_cli": {
+                "reads": "Os baldes de quota que o Gemini CLI define para os próprios modelos",
+                "status": "Endpoint interno. Alto risco de automação. Pode quebrar sem aviso."
+              },
+              "grok": {
+                "reads": "A resposta de faturamento por trás do Grok CLI, com a janela semanal de créditos e o teto opcional sob demanda",
+                "status": "Endpoint interno. Alto risco de automação. Pode quebrar sem aviso."
+              },
+              "kimi": {
+                "reads": "A resposta de uso que o Kimi CLI define, com o resumo semanal e o limite de cinco horas",
+                "status": "Endpoint interno. Alto risco de automação. Pode quebrar sem aviso."
               }
             },
             "calloutTitle": "Todo connector vem marcado UNVERIFIED",
@@ -1047,7 +1059,7 @@
             "bullets": {
               "claude": "<code>claude</code> é alimentado pelo payload de statusline chegando na entrada padrão. Esse caminho é automático assim que o Claude Code está conectado.",
               "manual": "<code>manual</code> é alimentado por um documento que você coloca no diretório de estado.",
-              "ingestOnly": "Na ferramenta de linha de comando, <code>codex</code>, <code>antigravity</code>, <code>opencode</code> e <code>openrouter</code> ainda não têm um leitor próprio; ela só aceita dados por <code>openlimiter ingest --provider '<id>'</code>. O aplicativo de desktop lê Codex e OpenRouter ao vivo, e oferece uma via manual e experimental para colar os dados de Antigravity e OpenCode."
+              "ingestOnly": "Na ferramenta de linha de comando, <code>codex</code>, <code>antigravity</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code>, <code>opencode</code> e <code>openrouter</code> não têm leitor próprio; ela só aceita dados via <code>openlimiter ingest --provider '<id>'</code>. O aplicativo de desktop lê Codex, Gemini CLI, Grok, Kimi e OpenRouter ao vivo, e oferece um caminho manual e experimental de colagem para Antigravity e OpenCode."
             },
             "exactShapes": "A <docs>página de ingestão</docs> documenta os três caminhos e os formatos exatos que eles aceitam."
           },
@@ -1078,7 +1090,7 @@
           },
           "not-yet": {
             "title": "Connectors que ainda não existem",
-            "body": "Só os seis acima são reais. Qualquer outra coisa que você possa esperar não está construída, não está agendada, e não deveria ser presumida. Se uma assinatura não tem connector, o caminho manual cobre isso hoje, com números que você mesmo digita."
+            "body": "Só os nove acima são reais. Qualquer outra coisa que você espere não está construída, não está agendada e não deve ser presumida. Se uma assinatura não tem conector, o caminho manual cobre ela hoje com números que você mesmo digita."
           }
         }
       },
@@ -1641,7 +1653,7 @@
             "bullets": {
               "noOfficialApi": "A maioria dos provedores de assinatura para consumidor não oferece nenhuma API oficial de quota. Vários connectors, por isso, descrevem interfaces não oficiais que podem mudar ou desaparecer sem aviso.",
               "unverified": "Todo connector vem marcado <code>UNVERIFIED</code>. Nada aqui foi confirmado contra uma conta real por um verificador explícito.",
-              "opencode": "O connector do OpenCode descreve o formato de uma página autenticada e carrega alto risco de automação. Trate como o mais frágil dos seis.",
+              "opencode": "O connector do OpenCode descreve o formato de uma página autenticada e carrega alto risco de automação. Trate como o mais frágil dos nove.",
               "adviceOnly": "O OpenLimiter fornece recomendações de roteamento. Ele não roteia requisições automaticamente, não contorna limites, e não muda como seu agente se autentica."
             }
           },

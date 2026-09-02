@@ -426,7 +426,7 @@
       },
       "openCode": {
         "tag": "reads a session you already opened",
-        "detail": "Describes the usage view behind an existing session. It carries the highest automation risk of the six and stops the moment that session expires."
+        "detail": "Describes the usage view behind an existing session. It carries the highest automation risk of the nine and stops the moment that session expires."
       },
       "gemini": {
         "tag": "reads model quota through the installed CLI",
@@ -480,7 +480,7 @@
     "groups": {
       "today": {
         "label": "Ships today",
-        "note": "Six connectors ship in this release"
+        "note": "Nine connectors ship in this release"
       },
       "planned": {
         "label": "Planned",
@@ -605,7 +605,7 @@
   },
   "cliTranscript": {
     "captions": {
-      "demo": "All six connectors, one schema",
+      "demo": "All nine connectors, one schema",
       "statusline": "Statusline, bars where you already look",
       "statuslineNarrow": "One row, worst providers kept",
       "statuslinePlain": "The 0.1.0 line, on request",
@@ -672,7 +672,7 @@
       },
       "providersToday": {
         "question": "Which providers work today?",
-        "answer": "Six connectors ship: Claude through the native statusline payload, OpenRouter through its documented shape, Codex and Antigravity through internal shapes that may break, OpenCode through an existing session that may break, and manual entry. Every one is marked UNVERIFIED until an explicit verifier exists."
+        "answer": "Nine connectors ship: Claude through the native statusline payload, OpenRouter through its documented shape, Codex, Antigravity, Gemini CLI, Grok and Kimi through internal shapes that may break, OpenCode through an existing session that may break, and manual entry. Every one is marked UNVERIFIED until an explicit verifier exists."
       },
       "apiKey": {
         "question": "Do I need an API key?",
@@ -1001,11 +1001,11 @@
       },
       "providers": {
         "title": "Supported providers",
-        "description": "The six connectors that ship today, what each one reads, and how likely it is to break.",
-        "lead": "Six connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
+        "description": "The nine connectors that ship today, what each one reads, and how likely it is to break.",
+        "lead": "Nine connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
         "sections": {
-          "the-six": {
-            "title": "The six connectors",
+          "the-nine": {
+            "title": "The nine connectors",
             "caption": "Connectors that ship today, with what each one reads and how stable it is",
             "columns": {
               "id": "id",
@@ -1036,6 +1036,18 @@
               "manual": {
                 "reads": "Numbers you write yourself",
                 "status": "Manual entry. Never breaks, never guesses."
+              },
+              "gemini_cli": {
+                "reads": "The quota buckets the Gemini CLI defines for its own models",
+                "status": "Internal endpoint. High automation risk. May break without notice."
+              },
+              "grok": {
+                "reads": "The billing response behind the Grok CLI, with its weekly credit window and optional on demand cap",
+                "status": "Internal endpoint. High automation risk. May break without notice."
+              },
+              "kimi": {
+                "reads": "The usage response the Kimi CLI defines, with its weekly summary and five hour limit",
+                "status": "Internal endpoint. High automation risk. May break without notice."
               }
             },
             "calloutTitle": "Every connector ships marked UNVERIFIED",
@@ -1047,7 +1059,7 @@
             "bullets": {
               "claude": "<code>claude</code> is fed by the statusline payload arriving on standard input. That path is automatic once Claude Code is wired up.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "In the command line tool, <code>codex</code>, <code>antigravity</code>, <code>opencode</code> and <code>openrouter</code> still have no reader of their own; it only accepts data through <code>openlimiter ingest --provider '<id>'</code>. The desktop application reads Codex and OpenRouter live, and offers a manual, experimental paste path for Antigravity and OpenCode."
+              "ingestOnly": "In the command line tool, <code>codex</code>, <code>antigravity</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code>, <code>opencode</code> and <code>openrouter</code> have no reader of their own; it only accepts data through <code>openlimiter ingest --provider '<id>'</code>. The desktop application reads Codex, Gemini CLI, Grok, Kimi and OpenRouter live, and offers a manual, experimental paste path for Antigravity and OpenCode."
             },
             "exactShapes": "The <docs>ingestion page</docs> documents all three paths and the exact shapes they accept."
           },
@@ -1078,7 +1090,7 @@
           },
           "not-yet": {
             "title": "Connectors that do not exist yet",
-            "body": "Only the six above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
+            "body": "Only the nine above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
           }
         }
       },
@@ -1641,7 +1653,7 @@
             "bullets": {
               "noOfficialApi": "Most consumer subscription providers offer no official quota API. Several connectors therefore describe unofficial interfaces that can change or disappear without notice.",
               "unverified": "Every connector ships marked <code>UNVERIFIED</code>. Nothing here has been confirmed against a live account by an explicit verifier.",
-              "opencode": "The OpenCode connector describes an authenticated page shape and carries high automation risk. Treat it as the most fragile of the six.",
+              "opencode": "The OpenCode connector describes an authenticated page shape and carries high automation risk. Treat it as the most fragile of the nine.",
               "adviceOnly": "OpenLimiter provides routing advice. It does not route requests automatically, bypass limits, or change how your agent authenticates."
             }
           },
