@@ -199,7 +199,7 @@ const STYLE = `
   transition: color var(--ol-motion-fast) var(--ol-ease-out);
 }
 .dial-unit {
-  color: var(--ol-faint);
+  color: var(--ol-muted);
   font-size: var(--ol-text-micro);
   font-weight: var(--ol-weight-semibold);
   letter-spacing: 0.12em;
@@ -223,7 +223,7 @@ const STYLE = `
   white-space: nowrap;
 }
 .account {
-  color: var(--ol-faint);
+  color: var(--ol-muted);
   font-size: var(--ol-text-caption);
   white-space: nowrap;
 }
@@ -350,7 +350,11 @@ function template() {
     '<div class="readout">' +
     '<div class="headline"><span class="pip" aria-hidden="true"></span>' +
     '<span class="window-name"></span><span class="account"></span></div>' +
-    '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100">' +
+    /* Named and described before any data arrives. A progressbar that exists
+       with no name is one a screen reader announces as an anonymous slider,
+       and the instrument is built in the document before it is ever fed. */
+    '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" ' +
+    'aria-label="Quota window usage" aria-valuetext="No reading yet">' +
     '<span class="bar-fill"></span></div>' +
     '<div class="foot"><span class="headroom"></span>' +
     '<span class="reset"><span class="band-name"></span>' +

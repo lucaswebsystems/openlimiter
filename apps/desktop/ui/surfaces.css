@@ -63,9 +63,13 @@
   white-space: nowrap;
 }
 
+/* --ol-muted was measured against --ol-surface, and it passes there. These
+   run on --ol-raised as well, where the light theme loses just enough to fall
+   to 4.47:1, so they take the next ink up rather than the theme being retuned
+   underneath the other lane building on the same token sheet. */
 .note {
   margin: 0;
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-caption);
   line-height: var(--ol-leading-body);
 }
@@ -95,7 +99,7 @@
 }
 
 .line-label span {
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-caption);
 }
 
@@ -112,7 +116,7 @@
   border: 1px solid var(--hairline);
   border-radius: var(--ol-radius-pill);
   background: var(--raised);
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-micro);
   font-weight: var(--ol-weight-semibold);
   letter-spacing: 0.06em;
@@ -145,7 +149,10 @@
 .badge[data-tone="accent"] {
   border-color: var(--accent-subtle);
   background: var(--accent-subtle);
-  color: var(--accent);
+  /* The accent on its own tint is 3.28:1 in the light theme. The hover value
+     is the pressed shade of the same hue, so the badge stays one colour idea
+     and clears the minimum in both themes. */
+  color: var(--ol-accent-hover);
 }
 
 .button-row {
@@ -394,7 +401,7 @@ button.danger:hover {
 }
 
 .account-detail {
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-caption);
 }
 
@@ -409,7 +416,7 @@ button.danger:hover {
   align-items: center;
   justify-content: space-between;
   gap: var(--ol-space-3);
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-caption);
 }
 
@@ -493,7 +500,7 @@ button.danger:hover {
 }
 
 .choice:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ol-accent);
   outline-offset: 2px;
 }
 
@@ -515,7 +522,7 @@ button.danger:hover {
 }
 
 .choice-body span {
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-caption);
 }
 
@@ -566,7 +573,7 @@ button.danger:hover {
 }
 
 .switch:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ol-accent);
   outline-offset: 2px;
 }
 
@@ -600,7 +607,7 @@ select.field {
 
 .field-inline input:focus-visible,
 select.field:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ol-accent);
   outline-offset: 1px;
 }
 
@@ -635,7 +642,7 @@ select.field:focus-visible {
 }
 
 .event-body span {
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-micro);
 }
 
@@ -774,7 +781,7 @@ select.field:focus-visible {
 }
 
 .device-body span {
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-micro);
 }
 
@@ -797,7 +804,7 @@ select.field:focus-visible {
 }
 
 .placeholder span {
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-caption);
 }
 
@@ -828,7 +835,7 @@ select.field:focus-visible {
 }
 
 .spend-key {
-  color: var(--muted);
+  color: var(--soft);
   font-family: var(--ol-font-mono);
   font-size: var(--ol-text-caption);
 }
@@ -970,7 +977,9 @@ select.field:focus-visible {
 }
 
 .first-run-steps li[data-state="current"] {
-  color: var(--accent);
+  /* Same reason as the accent badge: the accent on the canvas is 3.49:1 in
+     the light theme, and this is eleven pixel uppercase. */
+  color: var(--ol-accent-hover);
 }
 
 .first-run-steps li[data-state="done"] {
@@ -1010,7 +1019,7 @@ select.field:focus-visible {
 
 .permission-note {
   margin: 0;
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-caption);
   line-height: var(--ol-leading-body);
 }
@@ -1041,13 +1050,83 @@ select.field:focus-visible {
 }
 
 .permission-action:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ol-accent);
   outline-offset: 2px;
 }
 
 .permission-status {
   margin: 0;
   min-height: 1em;
-  color: var(--muted);
+  color: var(--soft);
   font-size: var(--ol-text-caption);
+}
+
+/* ------------------------------------------------------- the legal line */
+
+/*
+ * Present on every screen that can draw a provider mark, and quiet on all of
+ * them. It has to be findable, it never has to be read twice, and it must not
+ * become the largest block of text on an empty window.
+ */
+#trademark-note {
+  max-width: 68ch;
+  margin: var(--ol-space-5) 0 var(--ol-space-3);
+  padding-top: var(--ol-space-3);
+  border-top: 1px solid var(--hairline);
+  /* Measured, not guessed: --ol-faint is a decorative ink and reads at
+     4.09:1 on the dark canvas and 2.98:1 on the light one. Small print is
+     still print, so this is the quietest ink that clears 4.5:1. */
+  color: var(--muted);
+  font-size: var(--ol-text-micro);
+  line-height: var(--ol-leading-body);
+}
+
+/* -------------------------------------------------------- the focus ring */
+
+/*
+ * One ring, from one token, on everything a keyboard can reach.
+ *
+ * The token draws two rings rather than one: a two pixel band of the canvas
+ * colour, then two pixels of accent outside it. The inner band is what keeps
+ * the ring visible against a control whose own background is close to the
+ * accent, which a single outline is not.
+ *
+ * It is deliberately last in the cascade and deliberately wide, because the
+ * failure mode of a focus style is not "too loud", it is "a person tabbing
+ * through a window and losing their place".
+ */
+:where(
+  a[href],
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: none;
+  box-shadow: var(--ol-focus-ring);
+  /* The ring is drawn outside the box, so anything clipping its own overflow
+     would swallow it. Lifting the focused control is enough to escape a
+     sibling stacking context without changing the layout by a pixel. */
+  position: relative;
+  z-index: 1;
+}
+
+/* A tab panel is focused programmatically when its tab is chosen. Ringing the
+   whole panel at that moment would be shouting: the tab already has the ring,
+   and the panel is where the eye has just been sent. */
+[role="tabpanel"]:focus,
+[role="tabpanel"]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Windows high contrast throws every colour away, including the accent this
+   ring is drawn in. A forced colour outline is the only thing that survives. */
+@media (forced-colors: active) {
+  :where(a[href], button, input, select, textarea, summary):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
 }

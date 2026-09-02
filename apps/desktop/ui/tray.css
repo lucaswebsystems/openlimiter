@@ -298,7 +298,9 @@ body.tray {
 .tray-window {
   min-width: 0;
   overflow: hidden;
-  color: var(--ol-faint);
+  /* --ol-faint reads 4.09:1 dark and 2.98:1 light on this canvas, and this
+     line names the window a percentage belongs to, so it has to be read. */
+  color: var(--ol-muted);
   font-size: var(--ol-text-micro);
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -671,12 +671,15 @@ function paintFailures(failures) {
   elements.failures.hidden = rows.length === 0;
   elements.failures.innerHTML = rows
     .map((failure) => {
-      const sentence = failureSentence(failure);
+      /* A fixed table, not a function. The core keeps one sentence per
+         category so no surface can invent a variation of its own, and a
+         category with no entry shows its own code rather than nothing. */
+      const sentence = failureSentence[failure.category] ?? failure.category;
       return (
         '<div class="alert" role="status"><strong>' +
         String(PROVIDER_NAMES[failure.provider] ?? failure.provider) +
         "</strong><p>" +
-        String(sentence ?? failure.category) +
+        String(sentence) +
         "</p></div>"
       );
     })
@@ -777,8 +780,13 @@ async function refresh() {
     /* The Claude card's ready or collecting split reads the cache through
        the flag set above, so it is told the cache moved. */
     noteMetersRefreshed();
-  } catch {
-    /* A failed refresh leaves the last valid provider rows untouched. */
+  } catch (error) {
+    /* A failed refresh leaves the last valid provider rows untouched, which
+       is the right behaviour and was also, for a while, a place a real bug
+       went to die. The reason is surfaced now: an interface that cannot say
+       why it stopped updating is one nobody can debug from a screenshot. */
+    if (elements.loading !== null) elements.loading.hidden = true;
+    paintFailures([{ provider: "MANUAL", category: "PAYLOAD_UNREADABLE" }]);
   } finally {
     refreshing = false;
   }
