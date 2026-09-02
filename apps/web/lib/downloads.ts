@@ -54,6 +54,8 @@ const WINDOWS_MSI = `OpenLimiter_${CURRENT_VERSION}_x64_en-US.msi`;
 const LINUX_APPIMAGE = `OpenLimiter_${CURRENT_VERSION}_amd64.AppImage`;
 const LINUX_DEB = `OpenLimiter_${CURRENT_VERSION}_amd64.deb`;
 const LINUX_RPM = `OpenLimiter-${CURRENT_VERSION}-1.x86_64.rpm`;
+const MACOS_ARM_DMG = `OpenLimiter_${CURRENT_VERSION}_aarch64.dmg`;
+const MACOS_INTEL_DMG = `OpenLimiter_${CURRENT_VERSION}_x64.dmg`;
 
 /** The direct link to one packaged file on the tagged release. */
 function releaseAsset(file: string): string {
@@ -125,8 +127,22 @@ export const downloadTargets: readonly DownloadTarget[] = [
     ],
   },
   {
+    /* macOS ships unsigned, with a full download rather than a waiting list.
+       An unsigned build is honest about the cost it imposes: the first open is
+       refused and the reader has to grant it once in System Settings, which the
+       row's note spells out step by step. The disk image is Apple silicon,
+       because that is what most Macs are now, and the Intel image is one line
+       below it for the machines that are not.
+
+       What macOS deliberately does NOT get yet is the updater. It stays out of
+       the update manifest until signed and notarised builds exist, because an
+       update that cannot verify a signature is worse than no update. */
     id: "macos",
-    state: "in development",
+    state: "available",
+    assets: [
+      { id: "appleSilicon", href: releaseAsset(MACOS_ARM_DMG), primary: true },
+      { id: "intel", href: releaseAsset(MACOS_INTEL_DMG) },
+    ],
   },
   {
     id: "linux",

@@ -688,7 +688,7 @@
       },
       "desktopOrPhone": {
         "question": "Gibt es eine Desktop oder Handy App?",
-        "answer": "Die Desktop Tray Anwendung gibt es für Windows und Linux. Windows ist nicht signiert, daher kann SmartScreen erscheinen: Wähl Weitere Informationen und dann Trotzdem ausführen. macOS kommt bald, und es wird kein unsignierter macOS Build angeboten, weil Gatekeeper ihn blockiert. Auf einem Handy öffnet sich die Web App im Browser und installiert sich auf einen Startbildschirm. Native iOS und Android Anwendungen sind nicht gebaut, nichts steht in einem Store, und es gibt keine Warteliste. Die Download Seite listet jede Plattform mit ihrem echten Stand."
+        "answer": "Die Desktopanwendung im Infobereich gibt es für Windows, macOS und Linux. Windows und macOS sind unsigniert, jedes fragt also einmal nach: unter Windows im SmartScreen Weitere Informationen und dann Trotzdem ausführen, unter macOS die Systemeinstellungen öffnen, zu Datenschutz und Sicherheit gehen und Trotzdem öffnen wählen. macOS bleibt von automatischen Updates ausgenommen, bis es signierte und notarisierte Builds gibt. Auf dem Telefon öffnet die Web App im Browser und installiert sich auf den Startbildschirm. Native Anwendungen für iOS und Android gibt es nicht, in keinem Store liegt etwas, und eine Warteliste existiert nicht. Die Downloadseite führt jede Plattform mit ihrem echten Zustand auf."
       },
       "free": {
         "question": "Ist es kostenlos?",
@@ -772,15 +772,16 @@
   },
   "download": {
     "metaTitle": "Download",
-    "metaDescription": "OpenLimiter für Windows oder Linux holen, das Kommandozeilen Tool von npm installieren oder die Web App öffnen. macOS kommt bald.",
+    "metaDescription": "Hole OpenLimiter für Windows, macOS oder Linux, installiere das Kommandozeilenwerkzeug aus npm, oder öffne die Web App.",
     "title": "Download",
-    "lead": "Desktop Builds für Windows und Linux sind jetzt verfügbar. Der Windows Build ist nicht signiert: Wähl in SmartScreen Weitere Informationen und dann Trotzdem ausführen. macOS kommt bald. npm und die Web App sind ebenfalls verfügbar.",
+    "lead": "Desktop Builds für Windows, macOS und Linux sind jetzt verfügbar. Windows und macOS sind unsigniert, jede Seite bittet dich also einmal um Freigabe: unter Windows wähle Weitere Informationen und dann Trotzdem ausführen, unter macOS öffne die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle Trotzdem öffnen. npm und die Web App sind ebenfalls verfügbar.",
     "choice": {
       "windows": "Für Windows herunterladen",
       "linux": "Für Linux herunterladen",
-      "macos": "macOS kommt bald",
+      "macos": "Für macOS herunterladen",
       "other": "Andere Plattformen",
-      "smartScreen": "Dieser Windows Build ist nicht signiert, daher kann SmartScreen warnen: wähle Weitere Informationen und dann Trotzdem ausführen."
+      "smartScreen": "Dieser Windows Build ist nicht signiert, daher kann SmartScreen warnen: wähle Weitere Informationen und dann Trotzdem ausführen.",
+      "openAnyway": "Dieser macOS Build ist unsigniert. Öffne ihn einmal, dann öffne die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle Trotzdem öffnen. Diese Schaltfläche liefert das Apple silicon Image, Intel Macs nehmen das x64 Image von der Release Seite. Automatische Updates kommen mit signierten Builds."
     },
     "states": {
       "available": "verfügbar",
@@ -789,7 +790,7 @@
     },
     "available": {
       "title": "Jetzt verfügbar",
-      "lead": "Windows und Linux haben gepackte Desktop Builds, und jeder Link unten führt direkt zur Datei. Das Kommandozeilen Tool ist auf jeder Plattform eine npm Installation, oder ein Klon, wenn du es lieber aus dem Quellcode baust. Die Web App braucht nichts Installiertes."
+      "lead": "Windows, macOS und Linux haben paketierte Desktop Builds, und jeder Link unten führt direkt zur Datei. Das Kommandozeilenwerkzeug ist ein npm install auf jeder Plattform, oder ein Clone, wenn du lieber selbst baust. Die Web App braucht keine Installation."
     },
     "phone": {
       "title": "Auf deinem Handy",
@@ -799,7 +800,7 @@
     },
     "building": {
       "title": "Kommt bald",
-      "lead": "Die macOS Desktop App ist gebaut, aber es gibt keinen öffentlichen Download, bis sie Gatekeeper normal passieren kann."
+      "lead": "Signierte und notarisierte macOS Builds und die automatischen Updates, die davon abhängen. Die macOS Anwendung ist heute schon herunterladbar und bleibt aus dem Update Manifest heraus, bis sie signiert werden kann, denn ein Update, dessen Signatur nicht geprüft werden kann, ist schlimmer als gar kein Update."
     },
     "notBuilt": {
       "title": "Noch nicht gebaut",
@@ -830,8 +831,12 @@
       },
       "macos": {
         "name": "macOS",
-        "summary": "Die macOS Desktop App kommt bald. Es wird kein unsignierter Build verteilt, weil Gatekeeper ihn blockiert.",
-        "note": "Das Kommandozeilen Tool ist heute auf macOS über npm verfügbar."
+        "summary": "Die Desktopanwendung wird für macOS als Disk Image paketiert, eines für Apple silicon und eines für Intel, und beide hängen am Release. Der Build ist unsigniert, Gatekeeper verweigert also das erste Öffnen, und du gibst es einmal in den Systemeinstellungen frei. Das Kommandozeilenwerkzeug installiert sich unter macOS aus npm wie überall sonst.",
+        "note": "Unsignierter macOS Build. Öffne das Disk Image, ziehe OpenLimiter in den Programme Ordner und öffne es einmal. macOS verweigert diesen ersten Versuch: öffne die Systemeinstellungen, gehe zu Datenschutz und Sicherheit, scrolle zu Sicherheit und wähle neben der OpenLimiter Meldung Trotzdem öffnen, dann bestätige. Das machst du genau einmal. macOS bleibt von automatischen Updates ausgenommen, bis es signierte und notarisierte Builds gibt, bis dahin ist eine neue Version ein neuer Download von dieser Seite.",
+        "assets": {
+          "appleSilicon": "Disk Image für Apple silicon",
+          "intel": "Disk Image für Intel"
+        }
       },
       "linux": {
         "name": "Linux",
@@ -856,8 +861,8 @@
       },
       "desktop": {
         "name": "Desktop Anwendung",
-        "summary": "Ein Tray Icon neben der Systemuhr liest denselben lokalen Cache wie das Kommandozeilen Tool, sodass Quota ohne offenes Terminal sichtbar ist. Gepackte Releases gibt es für Windows und Linux. macOS kommt bald. Automatische Updates beginnen mit dem ersten Release, das den Updater aktiviert.",
-        "note": "Der Windows Build ist nicht signiert. SmartScreen: Wähl Weitere Informationen und dann Trotzdem ausführen."
+        "summary": "Ein Symbol in der Taskleiste neben der Systemuhr liest denselben lokalen Cache wie das Kommandozeilenwerkzeug, die Quota ist also ohne offenes Terminal sichtbar. Paketierte Releases gibt es für Windows, macOS und Linux. Automatische Updates decken Windows und Linux ab, macOS kommt dazu, sobald es signierte Builds gibt.",
+        "note": "Die Builds für Windows und macOS sind unsigniert. Unter Windows, SmartScreen: wähle Weitere Informationen und dann Trotzdem ausführen. Unter macOS: Systemeinstellungen, Datenschutz und Sicherheit, Trotzdem öffnen."
       },
       "iphone": {
         "name": "iOS",
@@ -1742,10 +1747,10 @@
           },
           "desktop": {
             "title": "Ausgeliefert: die Desktop Anwendung",
-            "intro": "Eine kleine Desktop Anwendung mit einem Tray Icon neben der Systemuhr liest denselben lokalen Cache, den das Kommandozeilen Tool schreibt, sodass Quota ohne offenes Terminal auf einen Blick sichtbar ist. Die Windows und Linux Builds hängen am Release. macOS kommt bald.",
+            "intro": "Eine kleine Desktopanwendung mit einem Symbol neben der Systemuhr liest denselben lokalen Cache, den das Kommandozeilenwerkzeug schreibt, die Quota ist also ohne offenes Terminal im Blick. Paketierte Builds für Windows, macOS und Linux hängen am Release.",
             "bullets": {
-              "status": "Status: ausgeliefert für Windows und Linux. macOS kommt bald und hat keinen öffentlichen Download.",
-              "signing": "Windows wird unsigniert ausgeliefert. SmartScreen: Wähl Weitere Informationen und dann Trotzdem ausführen. macOS wartet auf Signierung und Notarisierung.",
+              "status": "Stand: ausgeliefert für Windows, macOS und Linux, mit einem öffentlichen Download für jedes.",
+              "signing": "Windows und macOS sind unsigniert. Unter Windows, SmartScreen: Weitere Informationen und dann Trotzdem ausführen. Unter macOS: Systemeinstellungen, Datenschutz und Sicherheit, Trotzdem öffnen. macOS bleibt von automatischen Updates ausgenommen, bis Signierung und Notarisierung vorliegen.",
               "updates": "Geplant: ein automatischer Update Kanal. Den gibt es heute nicht."
             }
           },

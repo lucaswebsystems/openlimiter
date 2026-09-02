@@ -688,7 +688,7 @@
       },
       "desktopOrPhone": {
         "question": "¿Hay una aplicación de escritorio o de teléfono?",
-        "answer": "La aplicación de escritorio con bandeja del sistema está disponible para Windows y Linux. Windows no está firmado, así que SmartScreen puede aparecer: elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente, y no se ofrece una compilación sin firma porque Gatekeeper la bloquea. En un teléfono, la aplicación web se abre en el navegador y se instala en una pantalla de inicio. Las aplicaciones nativas para iOS y Android no están construidas, nada está en una tienda y no hay lista de espera. La página de descarga lista cada plataforma con su estado real."
+        "answer": "La aplicación de bandeja de escritorio se distribuye para Windows, macOS y Linux. Windows y macOS no están firmados, así que cada uno pide permiso una vez: en Windows, en SmartScreen, elige Más información y luego Ejecutar de todas formas; en macOS, abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. macOS queda fuera de las actualizaciones automáticas hasta que existan builds firmadas y notarizadas. En el móvil, la aplicación web se abre en el navegador y se instala en la pantalla de inicio. No hay aplicaciones nativas de iOS ni de Android, no hay nada en ninguna tienda y no hay lista de espera. La página de descarga muestra cada plataforma con su estado real."
       },
       "free": {
         "question": "¿Es gratis?",
@@ -772,15 +772,16 @@
   },
   "download": {
     "metaTitle": "Descargar",
-    "metaDescription": "Consigue OpenLimiter para Windows o Linux, instala la herramienta de línea de comandos desde npm o abre la aplicación web. macOS llegará próximamente.",
+    "metaDescription": "Descarga OpenLimiter para Windows, macOS o Linux, instala la herramienta de línea de comandos desde npm, o abre la aplicación web.",
     "title": "Descargar",
-    "lead": "Las compilaciones de escritorio para Windows y Linux están disponibles. La compilación de Windows no está firmada: en SmartScreen, elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente. npm y la aplicación web también están disponibles.",
+    "lead": "Las builds de escritorio para Windows, macOS y Linux ya están disponibles. Windows y macOS salen sin firmar, así que cada uno te pide autorizarlo una vez: en Windows elige Más información y luego Ejecutar de todas formas, y en macOS abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. npm y la aplicación web también están disponibles.",
     "choice": {
       "windows": "Descargar para Windows",
       "linux": "Descargar para Linux",
-      "macos": "macOS próximamente",
+      "macos": "Descargar para macOS",
       "other": "Otras plataformas",
-      "smartScreen": "Esta versión para Windows no está firmada, por lo que SmartScreen puede advertirte: elige Más información y luego Ejecutar de todas formas."
+      "smartScreen": "Esta versión para Windows no está firmada, por lo que SmartScreen puede advertirte: elige Más información y luego Ejecutar de todas formas.",
+      "openAnyway": "Esta build de macOS no está firmada. Ábrela una vez, luego abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. Este botón es la imagen de disco para Apple silicon; los Mac Intel toman la x64 desde la página del release. Las actualizaciones automáticas llegan con las builds firmadas."
     },
     "states": {
       "available": "disponible",
@@ -789,7 +790,7 @@
     },
     "available": {
       "title": "Disponible ahora",
-      "lead": "Windows y Linux tienen compilaciones de escritorio empaquetadas, y cada enlace de abajo va directo al archivo. La herramienta de línea de comandos es una sola instalación de npm en cualquier plataforma, o un clonado si prefieres construirla desde el código fuente. La aplicación web no necesita nada instalado."
+      "lead": "Windows, macOS y Linux tienen builds de escritorio empaquetadas, y cada enlace de abajo va directo al archivo. La herramienta de línea de comandos es un npm install en cualquier plataforma, o un clone si prefieres compilar desde el código. La aplicación web no necesita instalar nada."
     },
     "phone": {
       "title": "En tu teléfono",
@@ -799,7 +800,7 @@
     },
     "building": {
       "title": "Próximamente",
-      "lead": "La aplicación de escritorio para macOS está construida, pero no se ofrecerá una descarga pública hasta que pueda superar Gatekeeper con normalidad."
+      "lead": "Builds de macOS firmadas y notarizadas, y las actualizaciones automáticas que dependen de ellas. La aplicación de macOS ya se puede descargar hoy y queda fuera del manifiesto de actualización hasta que pueda firmarse, porque una actualización cuya firma no se puede comprobar es peor que ninguna actualización."
     },
     "notBuilt": {
       "title": "Todavía no construido",
@@ -830,8 +831,12 @@
       },
       "macos": {
         "name": "macOS",
-        "summary": "La aplicación de escritorio para macOS llegará próximamente. No se distribuye una compilación sin firma porque Gatekeeper la bloquea.",
-        "note": "La herramienta de línea de comandos ya está disponible en macOS desde npm."
+        "summary": "La aplicación de escritorio se empaqueta para macOS como imagen de disco, una para Apple silicon y otra para Intel, y ambas se adjuntan al release. La build no está firmada, así que Gatekeeper rechaza la primera apertura y tú la autorizas una vez en Ajustes del Sistema. La herramienta de línea de comandos se instala desde npm en macOS igual que en cualquier sitio.",
+        "note": "Build de macOS sin firmar. Abre la imagen de disco, arrastra OpenLimiter a Aplicaciones y ábrelo una vez. macOS rechaza ese primer intento: abre Ajustes del Sistema, ve a Privacidad y seguridad, baja hasta Seguridad y elige Abrir igualmente junto al mensaje de OpenLimiter, y confirma. Esto se hace una sola vez. macOS queda fuera de las actualizaciones automáticas hasta que existan builds firmadas y notarizadas, así que hasta entonces una versión nueva es una nueva descarga desde esta página.",
+        "assets": {
+          "appleSilicon": "Imagen de disco para Apple silicon",
+          "intel": "Imagen de disco para Intel"
+        }
       },
       "linux": {
         "name": "Linux",
@@ -856,8 +861,8 @@
       },
       "desktop": {
         "name": "Aplicación de escritorio",
-        "summary": "Un ícono de bandeja junto al reloj del sistema lee la misma caché local que la herramienta de línea de comandos, así que la quota se ve sin abrir una terminal. Las versiones empaquetadas están disponibles para Windows y Linux. macOS llegará próximamente. Las actualizaciones automáticas comienzan con el primer release que active el actualizador.",
-        "note": "La compilación de Windows no está firmada. SmartScreen: elige Más información y luego Ejecutar de todos modos."
+        "summary": "Un icono en la bandeja, junto al reloj del sistema, lee la misma caché local que la herramienta de línea de comandos, así que la cuota se ve sin ningún terminal abierto. Los releases empaquetados salen para Windows, macOS y Linux. Las actualizaciones automáticas cubren Windows y Linux; macOS se une cuando existan builds firmadas.",
+        "note": "Las builds de Windows y macOS no están firmadas. En Windows, SmartScreen: elige Más información y luego Ejecutar de todas formas. En macOS: Ajustes del Sistema, Privacidad y seguridad, Abrir igualmente."
       },
       "iphone": {
         "name": "iOS",
@@ -1742,10 +1747,10 @@
           },
           "desktop": {
             "title": "Distribuido: la aplicación de escritorio",
-            "intro": "Una pequeña aplicación de escritorio con un ícono de bandeja junto al reloj del sistema lee la misma caché local que escribe la herramienta de línea de comandos, así que la quota se ve de un vistazo sin abrir una terminal. Las compilaciones de Windows y Linux están adjuntas al release. macOS llegará próximamente.",
+            "intro": "Una pequeña aplicación de escritorio con un icono en la bandeja, junto al reloj del sistema, lee la misma caché local que escribe la herramienta de línea de comandos, así que la cuota se ve sin ningún terminal abierto. Las builds empaquetadas de Windows, macOS y Linux se adjuntan al release.",
             "bullets": {
-              "status": "Estado: distribuida en Windows y Linux. macOS llegará próximamente y no tiene descarga pública.",
-              "signing": "Windows se distribuirá sin firma. SmartScreen: elige Más información y luego Ejecutar de todos modos. macOS espera la firma y la notarización.",
+              "status": "Estado: disponible en Windows, macOS y Linux, con descarga pública para cada uno.",
+              "signing": "Windows y macOS salen sin firmar. En Windows, SmartScreen: elige Más información y luego Ejecutar de todas formas. En macOS: Ajustes del Sistema, Privacidad y seguridad, Abrir igualmente. macOS queda fuera de las actualizaciones automáticas hasta que existan firma y notarización.",
               "updates": "Planeado: un canal de actualización automática. Hoy no hay ninguno."
             }
           },

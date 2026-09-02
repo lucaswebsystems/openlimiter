@@ -688,7 +688,7 @@
       },
       "desktopOrPhone": {
         "question": "Is there a desktop or phone app?",
-        "answer": "The desktop tray application ships for Windows and Linux. Windows is unsigned, so SmartScreen may appear: choose More info, then Run anyway. macOS is coming soon, and no unsigned macOS build is offered because Gatekeeper blocks it. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
+        "answer": "The desktop tray application ships for Windows, macOS and Linux. Windows and macOS are unsigned, so each asks once: on Windows, SmartScreen, choose More info then Run anyway; on macOS, open System Settings, go to Privacy and Security, and choose Open Anyway. macOS stays out of automatic updates until signed and notarised builds exist. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
       },
       "free": {
         "question": "Is it free?",
@@ -772,15 +772,16 @@
   },
   "download": {
     "metaTitle": "Download",
-    "metaDescription": "Get OpenLimiter for Windows or Linux, install the command line tool from npm, or open the web app. macOS is coming soon.",
+    "metaDescription": "Get OpenLimiter for Windows, macOS or Linux, install the command line tool from npm, or open the web app.",
     "title": "Download",
-    "lead": "Windows and Linux desktop builds are available now. The Windows build is unsigned: in SmartScreen, choose More info, then Run anyway. macOS is coming soon. npm and the web app are also available.",
+    "lead": "Windows, macOS and Linux desktop builds are available now. Windows and macOS ship unsigned, so each one asks you to allow it once: on Windows choose More info then Run anyway, and on macOS open System Settings, go to Privacy and Security, and choose Open Anyway. npm and the web app are also available.",
     "choice": {
       "windows": "Download for Windows",
       "linux": "Download for Linux",
-      "macos": "macOS coming soon",
+      "macos": "Download for macOS",
       "other": "Other platforms",
-      "smartScreen": "This Windows build is unsigned, so SmartScreen may warn you: choose More info, then Run anyway."
+      "smartScreen": "This Windows build is unsigned, so SmartScreen may warn you: choose More info, then Run anyway.",
+      "openAnyway": "This macOS build is unsigned. Open it once, then open System Settings, go to Privacy and Security, and choose Open Anyway. This button is the Apple silicon disk image; Intel Macs take the x64 one from the release page. Automatic updates arrive with signed builds."
     },
     "states": {
       "available": "available",
@@ -789,7 +790,7 @@
     },
     "available": {
       "title": "Available now",
-      "lead": "Windows and Linux have packaged desktop builds, and every link below goes straight to the file. The command line tool is one npm install on any platform, or one clone if you prefer to build from source. The web app needs nothing installed."
+      "lead": "Windows, macOS and Linux have packaged desktop builds, and every link below goes straight to the file. The command line tool is one npm install on any platform, or one clone if you prefer to build from source. The web app needs nothing installed."
     },
     "phone": {
       "title": "On your phone",
@@ -799,7 +800,7 @@
     },
     "building": {
       "title": "Coming soon",
-      "lead": "The macOS desktop app is built, but no public download is offered until it can pass Gatekeeper normally."
+      "lead": "Signed and notarised macOS builds, and the automatic updates that depend on them. The macOS app is downloadable today and is excluded from the update manifest until it can be signed, because an update whose signature cannot be checked is worse than no update at all."
     },
     "notBuilt": {
       "title": "Not built yet",
@@ -830,8 +831,12 @@
       },
       "macos": {
         "name": "macOS",
-        "summary": "The macOS desktop app is coming soon. No unsigned build is distributed because Gatekeeper blocks it.",
-        "note": "The command line tool is available on macOS from npm today."
+        "summary": "The desktop application is packaged for macOS as a disk image, one for Apple silicon and one for Intel, and both are attached to the release. The build is unsigned, so Gatekeeper refuses the first open and you allow it once in System Settings. The command line tool installs from npm on macOS like anywhere else.",
+        "note": "Unsigned macOS build. Open the disk image, drag OpenLimiter to Applications, and open it once. macOS refuses that first attempt: open System Settings, go to Privacy and Security, scroll to Security, and choose Open Anyway beside the OpenLimiter message, then confirm. You do this once. macOS is excluded from automatic updates until signed and notarised builds exist, so until then a new version is a new download from this page.",
+        "assets": {
+          "appleSilicon": "Apple silicon disk image",
+          "intel": "Intel disk image"
+        }
       },
       "linux": {
         "name": "Linux",
@@ -856,8 +861,8 @@
       },
       "desktop": {
         "name": "Desktop application",
-        "summary": "A tray icon beside the system clock reads the same local cache as the command line tool, so quota is visible with no terminal open. Packaged releases ship for Windows and Linux. macOS is coming soon. Automatic updates begin with the first updater enabled release.",
-        "note": "The Windows build is unsigned. SmartScreen: choose More info, then Run anyway."
+        "summary": "A tray icon beside the system clock reads the same local cache as the command line tool, so quota is visible with no terminal open. Packaged releases ship for Windows, macOS and Linux. Automatic updates cover Windows and Linux; macOS joins them when signed builds exist.",
+        "note": "The Windows and macOS builds are unsigned. On Windows, SmartScreen: choose More info, then Run anyway. On macOS: System Settings, Privacy and Security, Open Anyway."
       },
       "iphone": {
         "name": "iOS",
@@ -1742,10 +1747,10 @@
           },
           "desktop": {
             "title": "Shipped: the desktop application",
-            "intro": "A small desktop application with a tray icon next to the system clock reads the same local cache the command line tool writes, so quota is glanceable without a terminal open. Packaged Windows and Linux builds are attached to the release. macOS is coming soon.",
+            "intro": "A small desktop application with a tray icon next to the system clock reads the same local cache the command line tool writes, so quota is glanceable without a terminal open. Packaged Windows, macOS and Linux builds are attached to the release.",
             "bullets": {
-              "status": "Status: shipped on Windows and Linux. macOS is coming soon and has no public download.",
-              "signing": "Windows ships unsigned. SmartScreen: choose More info, then Run anyway. macOS waits for signing and notarisation.",
+              "status": "Status: shipped on Windows, macOS and Linux, with a public download for each.",
+              "signing": "Windows and macOS ship unsigned. On Windows, SmartScreen: choose More info, then Run anyway. On macOS: System Settings, Privacy and Security, Open Anyway. macOS is excluded from automatic updates until signing and notarisation exist.",
               "updates": "Planned: an automatic update channel. There is none today."
             }
           },
