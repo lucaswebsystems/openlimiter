@@ -696,13 +696,13 @@
       },
       "pro": {
         "question": "O que é o OpenLimiter Pro?",
-        "answer": "O OpenLimiter Pro chega em breve por $5 ao mês ou $50 ao ano. Estão previstos notificações por email e push, temas baseados em tokens, várias assinaturas por provedor, recursos para uso pesado de API, histórico e previsões e roteamento automático de agentes. Todos os recursos locais continuam gratuitos."
+        "answer": "O OpenLimiter Pro chega em breve por $5 ao mês ou $50 ao ano, com os primeiros 30 dias gratuitos e sem cartão. Ele acrescenta seis serviços hospedados: alertas por email e push, noventa dias de histórico com previsão, contexto de roteamento hospedado, mais de uma conta por provedor, um preset Pro de cor de destaque ou densidade, e medidores de gasto de API em beta declarado. Todo recurso local continua gratuito, e há reembolso integral mediante pedido dentro de 14 dias de qualquer cobrança."
       }
     }
   },
   "pricing": {
     "title": "Preços",
-    "lead": "O modo local continua grátis. A sincronização está incluída.",
+    "lead": "O local continua gratuito. A sincronização está incluída. O Pro é a metade hospedada.",
     "plannedChip": "planejado",
     "free": {
       "status": "disponível",
@@ -718,7 +718,8 @@
         "themes": "Temas, no aplicativo de desktop e no navegador",
         "cli": "A ferramenta de linha de comando completa e cada configuração de statusline",
         "ingestion": "Os três caminhos de ingestão: um connector, ingest, ou manual entry",
-        "noLimits": "Sem limite de uso, conta grátis, nenhum recurso local trancado"
+        "noLimits": "Sem limite de uso, conta gratuita e nenhum recurso local preso atrás de nada",
+        "oneAccount": "Uma conta ativa por provedor, e o Pro amplia isso"
       }
     },
     "pro": {
@@ -728,19 +729,21 @@
       "or": "ou",
       "perYear": "por ano",
       "trialChip": "30 dias gratuitos",
-      "priceNote": "Os primeiros 30 dias são gratuitos e não exigem cartão. Quando o acesso termina, somente os serviços hospedados param. Nada local muda.",
-      "lead": "Três ferramentas hospedadas para planejamento e roteamento.",
-      "footnote": "Nada local fica atrás deste plano. O Pro vende serviço hospedado, nunca interruptores locais.",
+      "priceNote": "Os primeiros 30 dias são gratuitos e sem cartão. Quando o acesso termina, param apenas os serviços hospedados. Nada local muda.",
+      "lead": "Seis serviços hospedados para alertar, planejar e rotear.",
+      "footnote": "Nada local passa para trás deste plano. O Pro vende serviço hospedado, nunca interruptores locais.",
       "lines": {
-        "alerts": "Notificações de limite por email e push",
-        "themes": "Temas",
-        "multiSubscription": "Mais de uma assinatura por provedor",
-        "heavyApi": "Recursos para uso intenso de API",
-        "history": "Histórico e previsões",
-        "routing": "Roteamento automático de agentes"
+        "alerts": "Alertas por email e push em 60, 80 e 90 por cento, e quando uma janela reseta",
+        "themes": "Um preset Pro de cor de destaque ou de densidade",
+        "multiSubscription": "Mais de uma conta por provedor",
+        "heavyApi": "Medidores de gasto de API com orçamento mensal, declarados beta",
+        "history": "Noventa dias de histórico, com previsão até o dia em que a janela acaba",
+        "routing": "Contexto de roteamento hospedado, para o agente logado ler a mesma orientação em qualquer aparelho"
       },
       "cta": "Começar 30 dias gratuitos",
-      "comingSoonCta": "Pro em breve"
+      "comingSoonCta": "Pro em breve",
+      "eligibility": "O beta de gasto de API lê a própria área de faturamento do provedor, então exige uma chave de administrador de organização ou de gerenciamento: chave de admin de organização da OpenAI, chave da Admin API de organização da Anthropic, chave de gerenciamento da xAI ou chave de gerenciamento do OpenRouter. Uma chave de projeto não funciona. A Moonshot aparece como saldo, não como gasto, e nunca vira número mensal, previsão ou alerta de orçamento.",
+      "refund": "Reembolso integral mediante pedido dentro de 14 dias de qualquer cobrança, mensal ou anual. Você mesmo cancela quando quiser no Portal do Cliente da Stripe."
     },
     "roadmapCta": "O que está realmente planejado",
     "sourceCta": "Ler o código fonte"

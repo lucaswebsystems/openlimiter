@@ -696,13 +696,13 @@
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro is coming soon at $5 a month or $50 a year. It is planned to include email and push notifications, token based themes, multiple subscriptions per provider, heavy API usage features, history and forecasting, and agent auto routing. Every local feature remains free."
+        "answer": "OpenLimiter Pro is coming soon at $5 a month or $50 a year, with the first 30 days free and no card required. It adds six hosted services: email and push alerts, ninety day history with a forecast, hosted routing context, more than one account per provider, one Pro accent or density preset, and API spend meters in a labelled beta. Every local feature remains free, and a full refund is available on request within 14 days of any charge."
       }
     }
   },
   "pricing": {
     "title": "Pricing",
-    "lead": "Local stays free. Sync is included.",
+    "lead": "Local stays free. Sync is included. Pro is the hosted half.",
     "plannedChip": "planned",
     "free": {
       "status": "available",
@@ -718,7 +718,8 @@
         "themes": "Themes, in the desktop application and in the browser",
         "cli": "The full command line tool and every statusline setting",
         "ingestion": "All three ingestion paths: a connector, ingest, or manual entry",
-        "noLimits": "No usage limit, free account, no local feature locked behind anything"
+        "noLimits": "No usage limit, free account, and no local feature locked behind anything",
+        "oneAccount": "One active account per provider, and Pro raises that"
       }
     },
     "pro": {
@@ -729,18 +730,20 @@
       "perYear": "a year",
       "trialChip": "30 days free",
       "priceNote": "The first 30 days are free with no card required. When access ends, only the hosted services stop. Nothing local changes.",
-      "lead": "Three hosted tools for planning and routing.",
+      "lead": "Six hosted services for alerting, planning and routing.",
       "footnote": "Nothing local ever moves behind this plan. Pro sells hosted service, never local switches.",
       "lines": {
-        "alerts": "Email and push threshold notifications",
-        "themes": "Themes",
-        "multiSubscription": "More than one subscription per provider",
-        "heavyApi": "Features for heavy API usage",
-        "history": "History and forecasting",
-        "routing": "Agent auto routing"
+        "alerts": "Email and push alerts at 60, 80 and 90 percent, and when a window resets",
+        "themes": "One Pro accent or density preset",
+        "multiSubscription": "More than one account per provider",
+        "heavyApi": "API spend meters with a monthly budget, labelled beta",
+        "history": "Ninety days of history, with a forecast to the day a window runs out",
+        "routing": "Hosted routing context, so a signed in agent reads the same advice on every device"
       },
       "cta": "Start 30 days free",
-      "comingSoonCta": "Pro coming soon"
+      "comingSoonCta": "Pro coming soon",
+      "eligibility": "The API spend beta reads the provider's own billing surface, so it needs an organisation admin or management key: an OpenAI organisation admin key, an Anthropic organisation Admin API key, an xAI management key, or an OpenRouter management key. A project key will not work. Moonshot is shown as balance, not spend, and is never turned into a monthly figure, a forecast or a budget alert.",
+      "refund": "Full refund on request within 14 days of any charge, monthly or annual. Cancel yourself at any time in the Stripe Customer Portal."
     },
     "roadmapCta": "What is actually planned",
     "sourceCta": "Read the source"

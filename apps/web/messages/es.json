@@ -696,13 +696,13 @@
       },
       "pro": {
         "question": "¿Qué es OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro estará disponible próximamente por $5 al mes o $50 al año. Está previsto que incluya notificaciones por correo y push, temas basados en tokens, varias suscripciones por proveedor, funciones para uso intensivo de API, historial y previsiones, y enrutamiento automático de agentes. Todas las funciones locales siguen gratis."
+        "answer": "OpenLimiter Pro llega pronto por $5 al mes o $50 al año, con los primeros 30 días gratis y sin tarjeta. Añade seis servicios alojados: alertas por correo y push, noventa días de historial con previsión, contexto de enrutado alojado, más de una cuenta por proveedor, un preset Pro de color de acento o densidad, y medidores de gasto de API en beta declarada. Toda función local sigue siendo gratuita, y hay reembolso íntegro a petición dentro de los 14 días siguientes a cualquier cargo."
       }
     }
   },
   "pricing": {
     "title": "Precios",
-    "lead": "El modo local sigue gratis. La sincronización está incluida.",
+    "lead": "Lo local sigue gratis. La sincronización va incluida. Pro es la mitad alojada.",
     "plannedChip": "planeado",
     "free": {
       "status": "disponible",
@@ -718,7 +718,8 @@
         "themes": "Temas, en la aplicación de escritorio y en el navegador",
         "cli": "La herramienta de línea de comandos completa y cada ajuste de statusline",
         "ingestion": "Las tres rutas de ingesta: un connector, ingest o manual entry",
-        "noLimits": "Sin límite de uso, cuenta gratis, ninguna función local bloqueada"
+        "noLimits": "Sin límite de uso, cuenta gratuita y ninguna función local encerrada tras nada",
+        "oneAccount": "Una cuenta activa por proveedor, y Pro amplía ese límite"
       }
     },
     "pro": {
@@ -728,19 +729,21 @@
       "or": "o",
       "perYear": "al año",
       "trialChip": "30 días gratis",
-      "priceNote": "Los primeros 30 días son gratis y no requieren tarjeta. Cuando termina el acceso, solo paran los servicios alojados. Nada local cambia.",
-      "lead": "Tres herramientas alojadas para planificación y enrutamiento.",
-      "footnote": "Nada local pasa detrás de este plan. Pro vende servicio alojado, nunca interruptores locales.",
+      "priceNote": "Los primeros 30 días son gratis y sin tarjeta. Cuando termina el acceso, solo se detienen los servicios alojados. Nada local cambia.",
+      "lead": "Seis servicios alojados para avisar, planificar y enrutar.",
+      "footnote": "Nada local pasa nunca detrás de este plan. Pro vende servicio alojado, nunca interruptores locales.",
       "lines": {
-        "alerts": "Notificaciones de umbral por correo y push",
-        "themes": "Temas",
-        "multiSubscription": "Más de una suscripción por proveedor",
-        "heavyApi": "Funciones para uso intensivo de API",
-        "history": "Historial y previsiones",
-        "routing": "Enrutamiento automático de agentes"
+        "alerts": "Alertas por correo y push al 60, 80 y 90 por ciento, y cuando una ventana se reinicia",
+        "themes": "Un preset Pro de color de acento o de densidad",
+        "multiSubscription": "Más de una cuenta por proveedor",
+        "heavyApi": "Medidores de gasto de API con presupuesto mensual, en beta declarada",
+        "history": "Noventa días de historial, con una previsión hasta el día en que se agota una ventana",
+        "routing": "Contexto de enrutado alojado, para que un agente con sesión iniciada lea el mismo consejo en cualquier dispositivo"
       },
       "cta": "Empezar 30 días gratis",
-      "comingSoonCta": "Pro próximamente"
+      "comingSoonCta": "Pro próximamente",
+      "eligibility": "La beta de gasto de API lee la propia superficie de facturación del proveedor, así que necesita una clave de administrador de organización o de gestión: una clave de admin de organización de OpenAI, una clave de la Admin API de organización de Anthropic, una clave de gestión de xAI o una clave de gestión de OpenRouter. Una clave de proyecto no sirve. Moonshot se muestra como saldo, no como gasto, y nunca se convierte en una cifra mensual, una previsión ni una alerta de presupuesto.",
+      "refund": "Reembolso íntegro a petición dentro de los 14 días siguientes a cualquier cargo, mensual o anual. Puedes cancelar tú mismo cuando quieras en el Portal de Clientes de Stripe."
     },
     "roadmapCta": "Qué está realmente planeado",
     "sourceCta": "Leer el código fuente"

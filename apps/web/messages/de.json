@@ -696,13 +696,13 @@
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro kommt demnächst für $5 pro Monat oder $50 pro Jahr. Geplant sind Benachrichtigungen per E Mail und Push, tokenbasierte Themes, mehrere Abonnements pro Anbieter, Funktionen für intensive API Nutzung, Verlauf und Prognosen sowie automatische Agentenweiterleitung. Alle lokalen Funktionen bleiben kostenlos."
+        "answer": "OpenLimiter Pro kommt demnächst für $5 im Monat oder $50 im Jahr, die ersten 30 Tage kostenlos und ohne Karte. Es fügt sechs gehostete Dienste hinzu: Warnungen per E Mail und Push, neunzig Tage Verlauf mit Prognose, gehosteten Routing Kontext, mehr als ein Konto je Anbieter, ein Pro Preset für Akzentfarbe oder Dichte und API Ausgabenmesser in einer gekennzeichneten Beta. Jede lokale Funktion bleibt kostenlos, und innerhalb von 14 Tagen nach jeder Abbuchung gibt es auf Anfrage die volle Rückerstattung."
       }
     }
   },
   "pricing": {
     "title": "Preise",
-    "lead": "Lokal bleibt kostenlos. Synchronisierung ist enthalten.",
+    "lead": "Lokal bleibt kostenlos. Synchronisierung ist dabei. Pro ist die gehostete Hälfte.",
     "plannedChip": "geplant",
     "free": {
       "status": "verfügbar",
@@ -718,7 +718,8 @@
         "themes": "Themes, in der Desktop Anwendung und im Browser",
         "cli": "Das vollständige Kommandozeilen Tool und jede Statusline Einstellung",
         "ingestion": "Alle drei Ingestionswege: ein Connector, ingest, oder manual entry",
-        "noLimits": "Kein Nutzungslimit, kostenloses Konto, keine lokale Funktion gesperrt"
+        "noLimits": "Keine Nutzungsgrenze, kostenloses Konto und keine lokale Funktion hinter irgendetwas eingesperrt",
+        "oneAccount": "Ein aktives Konto je Anbieter, und Pro hebt das an"
       }
     },
     "pro": {
@@ -728,19 +729,21 @@
       "or": "oder",
       "perYear": "pro Jahr",
       "trialChip": "30 Tage kostenlos",
-      "priceNote": "Die ersten 30 Tage sind ohne Karte kostenlos. Wenn der Zugang endet, stoppen nur die gehosteten Dienste. Lokal ändert sich nichts.",
-      "lead": "Drei gehostete Werkzeuge für Planung und Weiterleitung.",
-      "footnote": "Nichts Lokales wandert hinter diesen Plan. Pro verkauft gehosteten Dienst, niemals lokale Schalter.",
+      "priceNote": "Die ersten 30 Tage sind kostenlos und ohne Karte. Endet der Zugang, hören nur die gehosteten Dienste auf. Lokal ändert sich nichts.",
+      "lead": "Sechs gehostete Dienste zum Warnen, Planen und Routen.",
+      "footnote": "Nichts Lokales wandert je hinter diesen Tarif. Pro verkauft gehosteten Dienst, nie lokale Schalter.",
       "lines": {
-        "alerts": "Schwellenwertmeldungen per E Mail und Push",
-        "themes": "Themes",
-        "multiSubscription": "Mehr als ein Abo je Provider",
-        "heavyApi": "Funktionen für intensive API Nutzung",
-        "history": "Verlauf und Prognosen",
-        "routing": "Automatische Agentenweiterleitung"
+        "alerts": "Warnungen per E Mail und Push bei 60, 80 und 90 Prozent und beim Zurücksetzen eines Fensters",
+        "themes": "Ein Pro Preset für Akzentfarbe oder Dichte",
+        "multiSubscription": "Mehr als ein Konto je Anbieter",
+        "heavyApi": "API Ausgabenmesser mit Monatsbudget, als Beta gekennzeichnet",
+        "history": "Neunzig Tage Verlauf, mit einer Prognose bis zu dem Tag, an dem ein Fenster aufgebraucht ist",
+        "routing": "Gehosteter Routing Kontext, damit ein angemeldeter Agent auf jedem Gerät denselben Hinweis liest"
       },
       "cta": "30 Tage kostenlos starten",
-      "comingSoonCta": "Pro kommt demnächst"
+      "comingSoonCta": "Pro kommt demnächst",
+      "eligibility": "Die API Ausgaben Beta liest die Abrechnungsoberfläche des Anbieters selbst und braucht daher einen Organisationsadmin oder Verwaltungsschlüssel: einen OpenAI Organisationsadminschlüssel, einen Anthropic Admin API Schlüssel der Organisation, einen xAI Verwaltungsschlüssel oder einen OpenRouter Verwaltungsschlüssel. Ein Projektschlüssel funktioniert nicht. Moonshot wird als Guthaben und nicht als Ausgabe gezeigt und nie in eine Monatszahl, eine Prognose oder eine Budgetwarnung verwandelt.",
+      "refund": "Vollständige Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung, monatlich wie jährlich. Kündigen kannst du jederzeit selbst im Stripe Kundenportal."
     },
     "roadmapCta": "Was tatsächlich geplant ist",
     "sourceCta": "Quellcode lesen"

@@ -35,6 +35,7 @@ function CheckGlyph() {
 const FREE_LINES: readonly { id: string }[] = [
   { id: "connectors" },
   { id: "sync" },
+  { id: "oneAccount" },
   { id: "noLimits" },
 ];
 
@@ -171,6 +172,13 @@ export async function Pricing() {
             lines={PRO_LINES}
             label={(id) => t(`pro.lines.${id}`)}
           />
+          {/* The two sentences a reader needs before they can judge the list:
+             which credential the API spend beta actually requires, and what
+             happens to the money if the plan is not what they hoped. Both use
+             the card's own muted body style rather than introducing a new one,
+             because this wave is copy and the styleboard gate is still open. */}
+          <p className="mt-6 text-sm leading-relaxed text-muted">{t("pro.eligibility")}</p>
+          <p className="mt-3 text-sm leading-relaxed text-muted">{t("pro.refund")}</p>
         </PlanCard>
       </div>
     </section>
