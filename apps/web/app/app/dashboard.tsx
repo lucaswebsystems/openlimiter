@@ -35,6 +35,9 @@ import {
   type SyncedProviderUsage,
   type SyncedUsageResult,
 } from "@/lib/synced-usage";
+import { getDevPreviewSnapshots } from "./dev-preview";
+
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 /**
  * The dashboard.
@@ -331,6 +334,12 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
   const demo = mode === "demo";
 
+  const isDevPreview = useMemo(() => {
+    if (!IS_DEV || typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("preview") === "1" || window.location.search.includes("preview=1");
+  }, []);
+
   useEffect(() => {
     migrateLegacy();
     const storedLive = loadStore(LIVE_KEY);
@@ -343,7 +352,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setNow(new Date().toISOString());
 
     const activeSnapshots = storedMode === "demo" ? storedDemo : storedLive;
-    if (activeSnapshots.length > 0) {
+    if (isDevPreview || activeSnapshots.length > 0) {
       setTab("home");
     } else {
       setTab("connections");
@@ -358,7 +367,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       window.clearInterval(timer);
       if (busyTimer.current !== null) window.clearTimeout(busyTimer.current);
     };
-  }, []);
+  }, [isDevPreview]);
 
   const refreshSyncedUsage = useCallback(() => {
     if (!syncEnabled) {
@@ -465,9 +474,20 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   );
   const showingSync = syncEnabled && !demo && syncedSnapshots.length > 0;
 
+  const devSnapshots = useMemo(
+    () => (isDevPreview && now !== null ? getDevPreviewSnapshots(now) : []),
+    [isDevPreview, now],
+  );
+
   /* One trusted source is on screen at a time, and this is where that is decided. */
-  const shown = demo ? demoSnapshots : showingSync ? syncedSnapshots : live;
-  const shownFailures = demo || showingSync ? NO_FAILURES : failures;
+  const shown = isDevPreview
+    ? devSnapshots
+    : demo
+      ? demoSnapshots
+      : showingSync
+        ? syncedSnapshots
+        : live;
+  const shownFailures = isDevPreview || demo || showingSync ? NO_FAILURES : failures;
 
   /* The rendered shape of every reading. */
   const dash = useMemo(
@@ -481,8 +501,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     () =>
       now === null
         ? []
-        : buildProviderAccountRows(shown, now, shownFailures, { demo }),
-    [shown, now, shownFailures, demo],
+        : buildProviderAccountRows(shown, now, shownFailures, { demo: demo || isDevPreview }),
+    [shown, now, shownFailures, demo, isDevPreview],
   );
 
   const alertScopes = useMemo(() => {
@@ -499,11 +519,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     return [...scopes.values()];
   }, [shown]);
 
-  if (session === undefined) {
+  const effectiveSession =
+    isDevPreview && IS_DEV
+      ? ({ user: { email: "preview@openlimiter.com" } } as unknown as Session)
+      : session;
+
+  if (effectiveSession === undefined) {
     return <div className="ol-dashboard"><SkeletonRows /></div>;
   }
 
-  if (session === null) {
+  if (effectiveSession === null) {
     return (
       <div className="ol-dashboard">
         <HeaderStrip
@@ -532,7 +557,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             <InstallControl />
             <ThemeToggle className="mr-1 h-9 w-9" />
             <SettingsMenu
-              accountEmail={session.user.email ?? "Signed in"}
+              accountEmail={effectiveSession.user.email ?? "Signed in"}
               syncEnabled={syncEnabled}
               onSyncChange={(enabled) => {
                 setSyncEnabled(enabled);

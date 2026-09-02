@@ -782,7 +782,8 @@
       "macos": "Descargar para macOS",
       "other": "Otras plataformas",
       "smartScreen": "Esta versión para Windows no está firmada, por lo que SmartScreen puede advertirte: elige Más información y luego Ejecutar de todas formas.",
-      "openAnyway": "Esta build de macOS no está firmada. Ábrela una vez, luego abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. Este botón es la imagen de disco para Apple silicon; los Mac Intel toman la x64 desde la página del release. Las actualizaciones automáticas llegan con las builds firmadas."
+      "openAnyway": "Esta build de macOS no está firmada. Ábrela una vez, luego abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. Este botón es la imagen de disco para Apple silicon; los Mac Intel toman la x64 desde la página del release. Las actualizaciones automáticas llegan con las builds firmadas.",
+      "linuxNote": "Paquetes AppImage, deb y rpm disponibles. Se ejecuta directamente sin advertencia de firma."
     },
     "states": {
       "available": "disponible",

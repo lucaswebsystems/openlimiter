@@ -255,6 +255,36 @@ body {
   color: var(--ol-provider-kimi);
 }
 
+/* Live Pulse Dot and Ring Animation */
+.ol-live-pulse-dot {
+  display: inline-block;
+  width: 0.5rem; /* 8px */
+  height: 0.5rem; /* 8px */
+  border-radius: var(--ol-radius-pill);
+  background-color: var(--ol-live);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ol-live) 25%, transparent),
+    0 0 8px var(--ol-live);
+  animation: olLivePulse 2000ms ease-in-out infinite;
+}
+
+@keyframes olLivePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--ol-live) 35%, transparent),
+      0 0 12px var(--ol-live);
+  }
+}
+
+.ol-ring-progress {
+  transition: stroke-dashoffset var(--ol-motion-base) var(--ol-ease-out),
+    stroke var(--ol-motion-fast) var(--ol-ease-out);
+}
+
 /* Keyboard focus. Interactive elements never drop the indicator, they replace
    it with an accent outline that reads clearly on either theme. Use the inset
    variant inside clipped containers, where an outset ring gets cut off. */

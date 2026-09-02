@@ -782,7 +782,8 @@
       "macos": "Download for macOS",
       "other": "Other platforms",
       "smartScreen": "This Windows build is unsigned, so SmartScreen may warn you: choose More info, then Run anyway.",
-      "openAnyway": "This macOS build is unsigned. Open it once, then open System Settings, go to Privacy and Security, and choose Open Anyway. This button is the Apple silicon disk image; Intel Macs take the x64 one from the release page. Automatic updates arrive with signed builds."
+      "openAnyway": "This macOS build is unsigned. Open it once, then open System Settings, go to Privacy and Security, and choose Open Anyway. This button is the Apple silicon disk image; Intel Macs take the x64 one from the release page. Automatic updates arrive with signed builds.",
+      "linuxNote": "AppImage, deb and rpm packages are available. Runs directly with no signing warning."
     },
     "states": {
       "available": "available",
