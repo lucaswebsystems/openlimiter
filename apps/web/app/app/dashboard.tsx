@@ -334,13 +334,20 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
   const demo = mode === "demo";
 
-  const isDevPreview = useMemo(() => {
-    if (!IS_DEV || typeof window === "undefined") return false;
-    const params = new URLSearchParams(window.location.search);
-    return params.get("preview") === "1" || window.location.search.includes("preview=1");
-  }, []);
+  const [mounted, setMounted] = useState(false);
+  const [isDevPreview, setIsDevPreview] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    let devActive = false;
+    if (IS_DEV && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("preview") === "1" || window.location.search.includes("preview=1")) {
+        devActive = true;
+        setIsDevPreview(true);
+      }
+    }
+
     migrateLegacy();
     const storedLive = loadStore(LIVE_KEY);
     const storedDemo = loadStore(DEMO_KEY);
@@ -352,7 +359,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setNow(new Date().toISOString());
 
     const activeSnapshots = storedMode === "demo" ? storedDemo : storedLive;
-    if (isDevPreview || activeSnapshots.length > 0) {
+    if (devActive || activeSnapshots.length > 0) {
       setTab("home");
     } else {
       setTab("connections");
@@ -524,7 +531,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       ? ({ user: { email: "preview@openlimiter.com" } } as unknown as Session)
       : session;
 
-  if (effectiveSession === undefined) {
+  if (!mounted || effectiveSession === undefined) {
     return <div className="ol-dashboard"><SkeletonRows /></div>;
   }
 

@@ -583,10 +583,15 @@ const PROVIDER_ROW_STYLE = `
   --row-faint: var(--ol-faint, var(--muted));
   --row-hairline: var(--ol-hairline, var(--hairline));
   --row-hairline-strong: var(--ol-hairline-strong, var(--hairline-strong));
-  --row-ok: var(--ol-meter-ok, var(--meter-ok));
-  --row-watch: var(--ol-meter-watch, var(--meter-watch));
-  --row-high: var(--ol-meter-high, var(--meter-high));
-  --row-critical: var(--ol-meter-critical, var(--meter-critical));
+  --row-ok: var(--ol-band-green-fill, var(--ol-meter-ok, #2ea043));
+  --row-watch: var(--ol-band-yellow-fill, var(--ol-meter-watch, #d29922));
+  --row-high: var(--ol-band-orange-fill, var(--ol-meter-high, #db6d28));
+  --row-critical: var(--ol-band-red-fill, var(--ol-meter-critical, #f85149));
+  --row-ok-label: var(--ol-band-green-label, var(--row-ok));
+  --row-watch-label: var(--ol-band-yellow-label, var(--row-watch));
+  --row-high-label: var(--ol-band-orange-label, var(--row-high));
+  --row-critical-label: var(--ol-band-red-label, var(--row-critical));
+  --row-stale-label: var(--ol-band-stale-label, var(--row-muted));
   --row-track: var(--ol-meter-empty, var(--meter-empty));
   --row-ghost: var(--ol-meter-ghost, var(--meter-ghost));
   --row-live: var(--ol-live, var(--meter-ok));
@@ -774,10 +779,11 @@ const PROVIDER_ROW_STYLE = `
   line-height: 1;
   white-space: nowrap;
 }
-.usage[data-tone="ok"] .hero-readout { color: var(--row-ok); }
-.usage[data-tone="watch"] .hero-readout { color: var(--row-watch); }
-.usage[data-tone="high"] .hero-readout { color: var(--row-high); }
-.usage[data-tone="critical"] .hero-readout { color: var(--row-critical); }
+.usage[data-tone="ok"] .hero-readout { color: var(--row-ok-label, var(--row-ok)); }
+.usage[data-tone="watch"] .hero-readout { color: var(--row-watch-label, var(--row-watch)); }
+.usage[data-tone="high"] .hero-readout { color: var(--row-high-label, var(--row-high)); }
+.usage[data-tone="critical"] .hero-readout { color: var(--row-critical-label, var(--row-critical)); }
+.usage[data-state="stale"] .hero-readout { color: var(--row-stale-label, var(--row-muted)) !important; }
 .hero-meter {
   position: relative;
   display: block;
@@ -804,7 +810,10 @@ const PROVIDER_ROW_STYLE = `
 .usage[data-tone="watch"] .meter-fill { background: var(--row-watch); }
 .usage[data-tone="high"] .meter-fill { background: var(--row-high); }
 .usage[data-tone="critical"] .meter-fill { background: var(--row-critical); }
-.usage[data-state="stale"] .meter-fill { opacity: 0.58; }
+.usage[data-state="stale"] .meter-fill {
+  background: var(--ol-meter-hatched-pattern, repeating-linear-gradient(45deg, var(--row-ghost), var(--row-ghost) 6px, transparent 6px, transparent 12px)) !important;
+  opacity: 1 !important;
+}
 .metric,
 .reset {
   display: flex;
@@ -992,21 +1001,21 @@ const PROVIDER_ROW_STYLE = `
 .window-line[data-tone="watch"] .meter-fill { background: var(--row-watch); }
 .window-line[data-tone="high"] .meter-fill { background: var(--row-high); }
 .window-line[data-tone="critical"] .meter-fill { background: var(--row-critical); }
-.window-meter.neutral {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--row-hairline-strong);
+.window-line[data-state="stale"] .meter-fill {
+  background: var(--ol-meter-hatched-pattern, repeating-linear-gradient(45deg, var(--row-ghost), var(--row-ghost) 6px, transparent 6px, transparent 12px)) !important;
+  opacity: 1 !important;
 }
-.window-line[data-state="stale"] .meter-fill { opacity: 0.58; }
 .window-percent {
   color: var(--row-accent);
   font-size: var(--ol-text-body);
   font-weight: var(--ol-weight-bold);
   text-align: right;
 }
-.window-line[data-tone="ok"] .window-percent { color: var(--row-ok); }
-.window-line[data-tone="watch"] .window-percent { color: var(--row-watch); }
-.window-line[data-tone="high"] .window-percent { color: var(--row-high); }
-.window-line[data-tone="critical"] .window-percent { color: var(--row-critical); }
+.window-line[data-tone="ok"] .window-percent { color: var(--row-ok-label, var(--row-ok)); }
+.window-line[data-tone="watch"] .window-percent { color: var(--row-watch-label, var(--row-watch)); }
+.window-line[data-tone="high"] .window-percent { color: var(--row-high-label, var(--row-high)); }
+.window-line[data-tone="critical"] .window-percent { color: var(--row-critical-label, var(--row-critical)); }
+.window-line[data-state="stale"] .window-percent { color: var(--row-stale-label, var(--row-muted)) !important; }
 .window-line[data-tone="none"] .window-percent { color: var(--row-soft); }
 .window-reset {
   min-height: 1em;
