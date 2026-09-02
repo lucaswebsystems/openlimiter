@@ -270,9 +270,10 @@ const STYLE = `
 .foot {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--ol-space-3);
+  gap: var(--ol-space-1) var(--ol-space-3);
 }
 .headroom {
   color: var(--ol-muted);
@@ -425,8 +426,8 @@ export class OpenLimiterLiveMeter extends HTMLElement {
       const headroom = Math.max(0, 100 - used);
       nodes.headroom.textContent =
         headroom === 0
-          ? "No headroom left in this window"
-          : headroom.toFixed(0) + "% headroom remaining";
+          ? "No headroom left"
+          : headroom.toFixed(0) + "% headroom left";
       nodes.bar.setAttribute("aria-valuenow", String(Math.round(used)));
       nodes.bar.setAttribute(
         "aria-valuetext",

@@ -1,0 +1,937 @@
+/*
+ * The screens app.css did not have yet: the plan cap, notifications and
+ * settings, the Pro surfaces, API spend, and the states that are not the happy
+ * one.
+ *
+ * Same two rules as app.css. Every shape mirrors a shape the window already
+ * has, so a dialog is a card with a backdrop and a badge is a chip, and not one
+ * literal colour appears below this line. tokens.css is the only file in this
+ * window allowed to name one.
+ *
+ * The vocabulary here is deliberately small. Four things do all the work:
+ *
+ *   .block   a titled section inside a tab
+ *   .stack   a vertical rhythm at one gap
+ *   .line    a row with a label on the left and a control on the right
+ *   .badge   a chip that states a machine fact in a person's words
+ *
+ * Anything that needed a fifth thing was usually a sign the screen was saying
+ * something twice.
+ */
+
+/* ------------------------------------------------------------- primitives */
+
+.stack {
+  display: grid;
+  gap: var(--ol-space-3);
+}
+
+.stack.wide {
+  gap: var(--ol-space-4);
+}
+
+.block {
+  display: grid;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-4);
+}
+
+.block > h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--ol-text-title);
+  font-weight: var(--ol-weight-semibold);
+  line-height: var(--ol-leading-tight);
+}
+
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  min-width: 0;
+}
+
+.block-head h2 {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--heading);
+  font-size: var(--ol-text-title);
+  font-weight: var(--ol-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.note.tight {
+  max-width: 46ch;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ol-space-3);
+  min-height: 2rem;
+}
+
+.line-label {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.line-label strong {
+  color: var(--heading);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-medium);
+}
+
+.line-label span {
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+}
+
+.line + .line {
+  padding-top: var(--ol-space-3);
+  border-top: 1px solid var(--hairline);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ol-space-1);
+  padding: 2px var(--ol-space-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-pill);
+  background: var(--raised);
+  color: var(--muted);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Every badge tone is a band tone. A paused row and an eighty percent meter
+   are the same amount of someone's attention, so they use the same scale. */
+.badge[data-tone="ok"] {
+  border-color: var(--ol-band-green-subtle);
+  background: var(--ol-band-green-subtle);
+  color: var(--ol-band-green-label);
+}
+.badge[data-tone="watch"] {
+  border-color: var(--ol-band-yellow-subtle);
+  background: var(--ol-band-yellow-subtle);
+  color: var(--ol-band-yellow-label);
+}
+.badge[data-tone="high"] {
+  border-color: var(--ol-band-orange-subtle);
+  background: var(--ol-band-orange-subtle);
+  color: var(--ol-band-orange-label);
+}
+.badge[data-tone="critical"] {
+  border-color: var(--ol-band-red-subtle);
+  background: var(--ol-band-red-subtle);
+  color: var(--ol-band-red-label);
+}
+.badge[data-tone="accent"] {
+  border-color: var(--accent-subtle);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ol-space-2);
+}
+
+button.primary {
+  border-color: var(--accent-subtle);
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+button.primary:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+button.small {
+  padding: var(--ol-space-1) var(--ol-space-3);
+  font-size: var(--ol-text-caption);
+}
+
+button.danger:hover {
+  border-color: var(--ol-band-red-fill);
+  color: var(--ol-band-red-label);
+}
+
+/* --------------------------------------------------------- the live meter */
+
+.hero {
+  display: grid;
+  gap: var(--ol-space-3);
+  margin-bottom: var(--ol-space-4);
+}
+
+.hero-caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  color: var(--muted);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-caption .mono {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ------------------------------------------------------------- the states */
+
+/*
+ * A skeleton, at the exact geometry of the thing it stands in for. A spinner
+ * says something is happening; a skeleton says what is about to be there, and
+ * that is the difference between waiting and being kept waiting.
+ */
+.skeleton-row {
+  display: grid;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-sm);
+  background: var(--surface);
+}
+
+.skeleton-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-3);
+}
+
+.skeleton-bar {
+  height: var(--ol-meter-height);
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-skeleton);
+  animation: skeleton-breathe 1500ms ease-in-out infinite;
+}
+
+.skeleton-bar.tile {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--ol-radius-xs);
+  flex: none;
+}
+
+.skeleton-bar.name {
+  width: 40%;
+  height: 0.75rem;
+}
+
+.skeleton-bar:nth-child(2) {
+  animation-delay: 120ms;
+}
+.skeleton-bar:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes skeleton-breathe {
+  0%,
+  100% {
+    background: var(--ol-skeleton);
+  }
+  50% {
+    background: var(--ol-elevated);
+  }
+}
+
+.alert {
+  display: grid;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-4);
+  border: 1px solid var(--ol-band-red-subtle);
+  border-left: 3px solid var(--ol-band-red-fill);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-band-red-subtle);
+}
+
+.alert strong {
+  color: var(--ol-band-red-label);
+  font-size: var(--ol-text-label);
+}
+
+.alert p {
+  margin: 0;
+  color: var(--body);
+  font-size: var(--ol-text-body);
+}
+
+.alert code {
+  padding: 1px var(--ol-space-1);
+  border-radius: var(--ol-radius-xs);
+  background: var(--code);
+  color: var(--heading);
+  font-family: var(--ol-font-mono);
+  font-size: var(--ol-text-caption);
+}
+
+.callout {
+  display: grid;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-4);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--ol-radius-sm);
+  background: var(--raised);
+}
+
+.callout strong {
+  color: var(--heading);
+  font-size: var(--ol-text-label);
+}
+
+.callout p {
+  margin: 0;
+  color: var(--soft);
+  font-size: var(--ol-text-body);
+}
+
+.stale-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-xs);
+  background: var(--raised);
+  color: var(--ol-band-stale-label);
+  font-size: var(--ol-text-caption);
+}
+
+.stale-swatch {
+  width: 2.5rem;
+  height: var(--ol-mini-meter-height);
+  flex: none;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-band-hatched-pattern);
+}
+
+/* ---------------------------------------------------------- the plan cap */
+
+.account-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-xs);
+  background: var(--raised);
+}
+
+/* The one place a provider's own colour touches a surface: a hairline down the
+   leading edge of the card its mark heads. Never a meter. */
+.account-row[data-active="true"] {
+  border-left: 2px solid var(--provider-accent, var(--accent));
+}
+
+.account-row[data-paused="true"] {
+  background: transparent;
+}
+
+.account-mark {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-xs);
+  background: var(--surface);
+  color: var(--provider-accent, var(--heading));
+}
+
+.account-mark svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.account-body {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.account-name {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  min-width: 0;
+}
+
+.account-alias {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--heading);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-detail {
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+}
+
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+}
+
+.cap-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+}
+
+.provider-group {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+.provider-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-2);
+  color: var(--soft);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ----------------------------------------------------------- the dialogue */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  padding: var(--ol-space-4);
+  background: var(--ol-backdrop);
+}
+
+.sheet-panel {
+  width: min(100%, 28rem);
+  max-height: calc(100vh - var(--ol-space-6));
+  overflow-y: auto;
+  display: grid;
+  gap: var(--ol-space-4);
+  padding: var(--ol-space-5);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--ol-radius-md);
+  background: var(--surface);
+  box-shadow: var(--ol-elev-2);
+}
+
+.sheet-panel h2 {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--ol-text-title);
+  font-weight: var(--ol-weight-semibold);
+}
+
+.sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ol-space-2);
+}
+
+/* A radio that is a row, because the thing being chosen is an account and an
+   account is a row everywhere else in this window. */
+.choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-xs);
+  background: var(--raised);
+  cursor: pointer;
+}
+
+.choice:hover {
+  border-color: var(--hairline-strong);
+}
+
+.choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.choice input {
+  margin-top: 3px;
+  accent-color: var(--accent);
+}
+
+.choice-body {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.choice-body strong {
+  color: var(--heading);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-medium);
+}
+
+.choice-body span {
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+}
+
+/* ------------------------------------------------------------ settings */
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  width: 2.5rem;
+  height: 1.375rem;
+  flex: none;
+  align-items: center;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--ol-radius-pill);
+  background: var(--raised);
+  cursor: pointer;
+  transition: background var(--ol-motion-fast) var(--ol-ease-out),
+    border-color var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.switch-thumb {
+  position: absolute;
+  left: 2px;
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--ol-radius-pill);
+  background: var(--muted);
+  transition: translate var(--ol-motion-fast) var(--ol-ease-out),
+    background var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+.switch:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.switch:has(input:checked) .switch-thumb {
+  translate: 1.0625rem 0;
+  background: var(--accent);
+}
+
+.switch:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+}
+
+.field-inline input[type="time"],
+.field-inline select,
+select.field {
+  padding: var(--ol-space-1) var(--ol-space-2);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--ol-radius-xs);
+  background: var(--raised);
+  color: var(--heading);
+  font-family: var(--ol-font-mono);
+  font-size: var(--ol-text-body);
+  font-variant-numeric: tabular-nums;
+}
+
+select.field {
+  font-family: var(--ol-font-sans);
+}
+
+.field-inline input:focus-visible,
+select.field:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-2) 0;
+}
+
+.event-row + .event-row {
+  border-top: 1px solid var(--hairline);
+}
+
+.event-kind {
+  font-family: var(--ol-font-mono);
+  font-size: var(--ol-text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.event-body {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.event-body strong {
+  color: var(--heading);
+  font-size: var(--ol-text-body);
+  font-weight: var(--ol-weight-medium);
+}
+
+.event-body span {
+  color: var(--muted);
+  font-size: var(--ol-text-micro);
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: var(--ol-space-2);
+}
+
+.preset {
+  display: grid;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-xs);
+  background: var(--raised);
+  cursor: pointer;
+  text-align: left;
+}
+
+.preset[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.preset[disabled] {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.preset-swatches {
+  display: flex;
+  gap: 3px;
+}
+
+.preset-swatch {
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--ol-radius-xs);
+  border: 1px solid var(--hairline);
+}
+
+.preset-name {
+  color: var(--heading);
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-medium);
+}
+
+/* ------------------------------------------------------------------- Pro */
+
+.plan-card {
+  display: grid;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-sm);
+  background: var(--raised);
+}
+
+.plan-card[data-state="active"],
+.plan-card[data-state="trial"] {
+  border-color: var(--accent-subtle);
+  border-left: 3px solid var(--accent);
+}
+
+.plan-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+}
+
+.plan-name {
+  color: var(--heading);
+  font-size: var(--ol-text-title);
+  font-weight: var(--ol-weight-semibold);
+}
+
+.feature-list {
+  display: grid;
+  gap: var(--ol-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ol-space-2);
+  color: var(--soft);
+  font-size: var(--ol-text-body);
+}
+
+.feature-list svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+}
+
+.feature-list li[data-on="true"] {
+  color: var(--body);
+}
+
+.feature-list li[data-on="true"] svg {
+  color: var(--ol-band-green-label);
+}
+
+.feature-list li[data-on="false"] svg {
+  color: var(--faint, var(--muted));
+}
+
+.device-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-2) 0;
+}
+
+.device-row + .device-row {
+  border-top: 1px solid var(--hairline);
+}
+
+.device-body {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.device-body strong {
+  color: var(--heading);
+  font-size: var(--ol-text-body);
+  font-weight: var(--ol-weight-medium);
+}
+
+.device-body span {
+  color: var(--muted);
+  font-size: var(--ol-text-micro);
+}
+
+/* A placeholder that admits what it is. A greyed chart with invented bars
+   would be a lie drawn in the product's own design language. */
+.placeholder {
+  display: grid;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-5) var(--ol-space-4);
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--ol-radius-sm);
+  background: var(--code);
+  text-align: center;
+}
+
+.placeholder strong {
+  color: var(--soft);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-medium);
+}
+
+.placeholder span {
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+}
+
+/* ------------------------------------------------------------ API spend */
+
+.spend-source {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-xs);
+  background: var(--raised);
+}
+
+.spend-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  min-width: 0;
+}
+
+.spend-provider {
+  color: var(--heading);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-medium);
+}
+
+.spend-key {
+  color: var(--muted);
+  font-family: var(--ol-font-mono);
+  font-size: var(--ol-text-caption);
+}
+
+.spend-value {
+  color: var(--heading);
+  font-family: var(--ol-font-mono);
+  font-size: var(--ol-text-title);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--ol-weight-semibold);
+}
+
+.spend-budget {
+  height: var(--ol-mini-meter-height);
+  overflow: hidden;
+  border-radius: var(--ol-radius-pill);
+  background: var(--track);
+}
+
+.spend-budget-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ol-band-green-fill);
+}
+
+.spend-budget-fill[data-band="yellow"] {
+  background: var(--ol-band-yellow-fill);
+}
+.spend-budget-fill[data-band="orange"] {
+  background: var(--ol-band-orange-fill);
+}
+.spend-budget-fill[data-band="red"] {
+  background: var(--ol-band-red-fill);
+}
+
+.eligibility-list {
+  display: grid;
+  gap: var(--ol-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.eligibility-list li {
+  display: grid;
+  gap: 2px;
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border-left: 2px solid var(--hairline-strong);
+  color: var(--soft);
+  font-size: var(--ol-text-body);
+}
+
+.eligibility-list strong {
+  color: var(--heading);
+  font-weight: var(--ol-weight-medium);
+}
+
+.disclosure {
+  margin: 0;
+  padding: var(--ol-space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--ol-radius-sm);
+  background: var(--code);
+  color: var(--body);
+  font-size: var(--ol-text-body);
+  line-height: var(--ol-leading-body);
+}
+
+/* -------------------------------------------------------------- responsive */
+
+/*
+ * The compact minimum window is 380 by 480, and the row form has to survive
+ * it. Below 24rem a two column line becomes two lines rather than two columns
+ * that are each too narrow to read.
+ */
+@media (max-width: 26rem) {
+  .block {
+    padding: var(--ol-space-3);
+  }
+  .line {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--ol-space-2);
+  }
+  .account-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .account-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+  .spend-source {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-bar {
+    animation: none;
+  }
+  .switch,
+  .switch-thumb {
+    transition: none;
+  }
+}
