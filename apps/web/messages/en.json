@@ -53,6 +53,206 @@
     "lead": "These terms explain the rules for using the OpenLimiter website and software. They are meant to be clear and practical.",
     "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software."
   },
+  "privacy": {
+    "title": "Privacy",
+    "lead": "What OpenLimiter collects, what it never collects, where each piece goes, and how long it is kept. This is written from the data flows that exist in the product, not from a template.",
+    "metaDescription": "How OpenLimiter handles data. Local mode collects nothing, the account and sync fields are listed one by one, provider keys stay in your operating system keyring, and every retention window is named.",
+    "summary": {
+      "title": "The short version",
+      "bullets": {
+        "local": "Local mode collects nothing. No account, no server, and nothing leaves your machine.",
+        "account": "An account is optional. It exists so your own quota percentages can reach your own other devices, and so Pro can be attached to something.",
+        "sync": "What syncs is bounded quota state: a provider, a meter, a window, a percentage and timestamps. Never prompts, never code, never the contents of a file.",
+        "keys": "Provider credentials and API keys stay in your operating system keyring on your own device. They are never sent to OpenLimiter.",
+        "website": "This website counts page views without cookies. The app sends nothing.",
+        "sell": "Nothing is sold, rented, or handed to an advertiser. There is no advertising here."
+      }
+    },
+    "local": {
+      "title": "Local mode collects nothing",
+      "body": "The command line tool, the desktop application and the web app all run on your machine, and in local mode there is no account and no service behind them. There is nothing to collect because there is nowhere for it to go.",
+      "bullets": {
+        "reads": "Connectors read files your installed tools already wrote, read only. They never rewrite, repair or migrate what they open.",
+        "credentials": "Provider credentials are held by your operating system credential store. OpenLimiter never copies one into a cache, an export, a diagnostic or a log.",
+        "telemetry": "The app sends no telemetry, no usage, no diagnostics, no identifiers and no prompt content anywhere.",
+        "account": "No sign in is required to use any local feature, and no local feature is held back until you sign in."
+      }
+    },
+    "account": {
+      "title": "The account",
+      "body": "An account is only needed for the hosted parts: syncing your quota between your devices, and Pro. Sign in runs on Supabase, which hosts the database and the authentication for the hosted service.",
+      "bullets": {
+        "identity": "You can sign in with GitHub, with Google, or with a magic link sent to your email address. Which one you pick is your choice and you can link another later.",
+        "stored": "The account holds your email address, the identifier the sign in provider returns, the time you created the account and the time you last signed in.",
+        "password": "There is no password, so there is no password to leak. GitHub and Google never hand over your password either, only a confirmation that you are you.",
+        "devices": "Each device you sign in on gets a label, a creation time and a last seen time, so you can see the list and revoke any device from it."
+      }
+    },
+    "sync": {
+      "title": "What sync actually sends",
+      "body": "Sync exists so a number you already have on one machine is visible on another. It carries the reading and nothing around it.",
+      "bullets": {
+        "fields": "One row per meter: which provider, which meter, which window, a bounded usage percentage, when the window resets, when the reading was observed, an opaque account identifier and the device that sent it.",
+        "never": "It never carries a prompt, a response, a file name, a file path, source code, a project name, a repository, a provider credential or a provider message.",
+        "retention": "Your current snapshot is kept for seven days. It is replaced every time a newer reading arrives.",
+        "off": "Sync defaults on and can be turned off in settings. With it off, the readings stay on the device that took them."
+      }
+    },
+    "history": {
+      "title": "Pro history and forecast",
+      "body": "Pro keeps the readings you already sync so a longer window can be drawn and a burn forecast can be calculated from it. It is the same bounded rows, kept for longer.",
+      "bullets": {
+        "window": "A rolling ninety days while Pro is active. Day ninety one is not queryable, because it is not there.",
+        "gaps": "A gap stays a gap. Nothing is interpolated, estimated across a missing period, or invented to make a chart look continuous.",
+        "afterPro": "When Pro ends, the hosted history is kept for thirty days so you can export it, and during that time it is not readable by history, forecast or alerts. At the end of day thirty it is purged.",
+        "local": "History held locally by the desktop application is yours and is untouched by any of this. Ending Pro never deletes it."
+      }
+    },
+    "alerts": {
+      "title": "Alerts by email and push",
+      "body": "Pro can tell you when a window crosses sixty, eighty or ninety percent, and when it resets. Email is delivered by Resend and push by your browser or operating system push service.",
+      "bullets": {
+        "generic": "By default a message carries only the product name, the provider name, the level as sixty, eighty, ninety or reset, one generic line, and a link to the signed in product. No exact percentage, no amount, no model, no project, no budget and no forecast date.",
+        "detail": "A detailed email is a separate opt in that you have to accept. It may add the exact percentage, the amount, the budget and the forecast date for your own data. If the fields ever change, the consent version changes and detail goes back to off until you accept it again.",
+        "push": "Push never has a detailed mode, whatever the email setting says. A push payload never carries usage detail, so a locked screen never shows one.",
+        "disable": "Each channel is switched off separately. Turning one off suppresses work not yet handed to a provider, and a single message already accepted by a provider may still arrive."
+      }
+    },
+    "spend": {
+      "title": "API spend keys, in beta",
+      "body": "The API spend meter reads your own billing or balance figures from the provider that owns them. It is a labelled beta and it is best effort observation, so it can be delayed, incomplete, corrected or unavailable.",
+      "bullets": {
+        "keyring": "The key you give it is stored in your operating system keyring, in a namespace of its own. There is no readback: after you save it, nothing in the interface can show it to you again.",
+        "host": "The key is sent only to the fixed HTTPS host of the provider it belongs to. Redirects are rejected, requests and errors are redacted, and the size and duration of every call are capped.",
+        "never": "The key is never sent to OpenLimiter, never stored on the hosted service, and never appears in a log, an analytics property, a crash report or a support record.",
+        "revoke": "Removing a source deletes its key from the keyring immediately and offers to delete the samples it produced."
+      }
+    },
+    "payments": {
+      "title": "Payments and tax",
+      "body": "Pro is paid through Stripe. Card details are entered on Stripe and never reach OpenLimiter, which receives only the outcome and the identifiers it needs to keep your access in step with your subscription.",
+      "bullets": {
+        "stripe": "Stripe holds your payment method, your billing address and your invoices. OpenLimiter stores the customer and subscription identifiers, the plan, the status and the period dates.",
+        "tax": "Tax is calculated automatically at checkout, which is why a billing address is collected. The address is used for tax and invoicing and for nothing else.",
+        "refund": "A full refund is available on request within fourteen days of any charge. A confirmed full refund ends Pro immediately and leaves your local data untouched.",
+        "records": "Billing and tax records are kept as long as tax law requires, which is longer than the product windows below. Account deletion pseudonymises the link between you and a record that has to stay."
+      }
+    },
+    "website": {
+      "title": "This website",
+      "body": "The website and the app are two different things with two different answers, and it would be dishonest to give them one.",
+      "bullets": {
+        "counts": "The website counts page views without cookies. It is Vercel Web Analytics, and what it produces is a count of how many people opened which page.",
+        "cookies": "No cookie is set to track you, no profile is built, and nothing follows you to another site. The only cookies here are the one that remembers the language you chose and the one that remembers you closed a banner.",
+        "app": "The app sends nothing. There is no analytics of any kind in the desktop application, the command line tool or the web app.",
+        "language": "Your browser's language header is read to offer you a translated page. The offer is a banner you can take or close, and it never moves you off the page you asked for."
+      }
+    },
+    "processors": {
+      "title": "Who else touches the data",
+      "intro": "Four services are involved in the hosted parts. Each one sees only what its job needs, and each one is named here so the list can be checked rather than trusted.",
+      "caption": "The services involved in the hosted parts and what each one holds",
+      "columns": {
+        "who": "service",
+        "what": "what it holds"
+      },
+      "rows": {
+        "supabase": {
+          "who": "Supabase",
+          "what": "The database and the sign in. Your account, your synced readings, your alert preferences and your device list."
+        },
+        "vercel": {
+          "who": "Vercel",
+          "what": "Hosting for this website, and the cookieless page view count. It never sees your account data."
+        },
+        "stripe": {
+          "who": "Stripe",
+          "what": "Payment method, billing address, invoices and tax calculation. It never sees your quota data."
+        },
+        "resend": {
+          "who": "Resend",
+          "what": "Delivery of email alerts and sign in links. It sees your email address and the generic message text."
+        }
+      }
+    },
+    "bases": {
+      "title": "Where this applies and why we may do it",
+      "body": "OpenLimiter is offered worldwide and is written to the European and United Kingdom data protection rules and to the Brazilian LGPD, because those are the strictest of the markets it serves. Wherever you live, the same reasons apply.",
+      "bullets": {
+        "contract": "To perform the agreement with you: the account, sync, Pro history, routing context and billing. Without these there is no product to deliver.",
+        "consent": "With your consent: detailed alert emails and push notifications. Both are optional, both are off until you turn them on, and both can be withdrawn without losing anything else.",
+        "interests": "For legitimate interests: keeping the service secure, preventing abuse of the sign in and the sync endpoints, and counting page views on this website without cookies.",
+        "legal": "To meet a legal obligation: keeping the billing and tax records that tax law requires."
+      },
+      "transfers": "The hosted services run on infrastructure that may sit outside your country. Where personal data leaves the European Economic Area or the United Kingdom, it travels under the standard contractual clauses those services publish."
+    },
+    "retention": {
+      "title": "How long each thing is kept",
+      "intro": "Every window below is a real limit in the system rather than an intention. Deleting your account overrides all of them.",
+      "caption": "Each kind of data and how long it is kept",
+      "columns": {
+        "what": "data",
+        "howLong": "kept for"
+      },
+      "rows": {
+        "local": {
+          "what": "Anything on your own machine",
+          "howLong": "Until you delete it. It is not ours to remove."
+        },
+        "snapshots": {
+          "what": "Your current synced snapshot",
+          "howLong": "Seven days, replaced by each newer reading."
+        },
+        "history": {
+          "what": "Pro history while Pro is active",
+          "howLong": "A rolling ninety days."
+        },
+        "afterPro": {
+          "what": "Pro history after Pro ends",
+          "howLong": "Thirty days, for export only, then purged."
+        },
+        "backups": {
+          "what": "Encrypted backup copies",
+          "howLong": "No later than thirty days after the primary rows go."
+        },
+        "alerts": {
+          "what": "Alert delivery records",
+          "howLong": "Ninety days. Redacted provider errors, thirty days."
+        },
+        "exports": {
+          "what": "A data export you asked for",
+          "howLong": "The download expires after twenty four hours."
+        },
+        "billing": {
+          "what": "Billing and tax records",
+          "howLong": "As long as tax law requires."
+        }
+      }
+    },
+    "rights": {
+      "title": "Your rights, and the controls that deliver them",
+      "body": "A right you cannot exercise is not a right, so each one below is a control in the product rather than a request you have to write.",
+      "bullets": {
+        "export": "Export everything the hosted service holds about you, as a machine readable archive with an accessible table beside it. Provider keys are never in it, because they were never there.",
+        "delete": "Delete your account. Your product data goes within twenty four hours, encrypted backup copies expire within thirty days, and nothing local is touched.",
+        "devices": "See every device signed in to your account and revoke any of them. A revoked device loses hosted access immediately.",
+        "channels": "Turn email or push off separately, at any time, without affecting the other.",
+        "withdraw": "Withdraw consent for detailed emails or for push. Withdrawing it stops the detail, not the account.",
+        "complain": "Complain to your local data protection authority if you think this is being handled badly. You do not have to come to us first."
+      },
+      "deletion": "Deletion runs from the account screen, and it asks you to sign in again first because it cannot be undone. If you would rather it were done for you, write to the address below and say <code>delete my account</code>."
+    },
+    "children": {
+      "title": "Children",
+      "body": "OpenLimiter is a developer tool and is not directed at children. It is not knowingly offered to anyone under sixteen, and no account is created for one. If you believe a child has created an account, write to the address below and it will be removed."
+    },
+    "changes": {
+      "title": "Changes, and how to reach a person",
+      "body": "This page changes when the product changes. When a change alters what is collected, where it goes, or how long it is kept, the date below moves and the change is described in the changelog rather than made quietly.",
+      "contact": "Questions, requests and complaints go to <mail>lucas@lucaswebsystems.com</mail>, and a person reads them. The rules for using the site itself are in the <terms>terms and conditions</terms>.",
+      "updated": "This policy takes effect with version 1.2.0. Last updated on 1 September 2026."
+    }
+  },
   "localeSwitcher": {
     "label": "Language"
   },

@@ -53,6 +53,206 @@
     "lead": "These terms explain the rules for using the OpenLimiter website and software. They are meant to be clear and practical.",
     "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software."
   },
+  "privacy": {
+    "title": "Privacidad",
+    "lead": "Qué recoge OpenLimiter, qué no recoge nunca, adónde va cada cosa y cuánto tiempo se guarda. Esto está escrito a partir de los flujos de datos que existen en el producto, no a partir de una plantilla.",
+    "metaDescription": "Cómo trata los datos OpenLimiter. El modo local no recoge nada, los campos de la cuenta y de la sincronización están listados uno por uno, las claves de proveedor se quedan en el llavero del sistema operativo y cada plazo de retención tiene nombre.",
+    "summary": {
+      "title": "La versión corta",
+      "bullets": {
+        "local": "El modo local no recoge nada. Sin cuenta, sin servidor y nada sale de tu máquina.",
+        "account": "La cuenta es opcional. Existe para que tus propios porcentajes de cuota lleguen a tus otros dispositivos y para que Pro tenga dónde apoyarse.",
+        "sync": "Lo que se sincroniza es estado de cuota acotado: un proveedor, un medidor, una ventana, un porcentaje y marcas de tiempo. Nunca prompts, nunca código, nunca el contenido de un archivo.",
+        "keys": "Las credenciales de proveedor y las claves de API se quedan en el llavero del sistema operativo de tu propio dispositivo. Nunca se envían a OpenLimiter.",
+        "website": "Este sitio cuenta vistas de página sin cookies. La aplicación no envía nada.",
+        "sell": "Nada se vende, se alquila ni se entrega a un anunciante. Aquí no hay publicidad."
+      }
+    },
+    "local": {
+      "title": "El modo local no recoge nada",
+      "body": "La herramienta de línea de comandos, la aplicación de escritorio y la aplicación web se ejecutan en tu máquina, y en modo local no hay cuenta ni servicio detrás de ellas. No hay nada que recoger porque no hay adónde enviarlo.",
+      "bullets": {
+        "reads": "Los conectores leen archivos que tus herramientas ya escribieron, solo lectura. Nunca reescriben, reparan ni migran lo que abren.",
+        "credentials": "Las credenciales de proveedor las guarda el almacén de credenciales del sistema operativo. OpenLimiter nunca copia una en una caché, una exportación, un diagnóstico o un registro.",
+        "telemetry": "La aplicación no envía telemetría, uso, diagnósticos, identificadores ni contenido de prompts a ninguna parte.",
+        "account": "Ninguna función local exige iniciar sesión, y ninguna función local queda retenida hasta que inicies sesión."
+      }
+    },
+    "account": {
+      "title": "La cuenta",
+      "body": "La cuenta solo hace falta para las partes alojadas: sincronizar tu cuota entre tus dispositivos y Pro. El inicio de sesión funciona sobre Supabase, que aloja la base de datos y la autenticación del servicio.",
+      "bullets": {
+        "identity": "Puedes entrar con GitHub, con Google o con un enlace mágico enviado a tu correo. La elección es tuya y luego puedes vincular otra.",
+        "stored": "La cuenta guarda tu dirección de correo, el identificador que devuelve el proveedor de inicio de sesión, la hora en que creaste la cuenta y la hora de tu último acceso.",
+        "password": "No hay contraseña, así que no hay contraseña que filtrar. GitHub y Google tampoco entregan tu contraseña, solo la confirmación de que eres tú.",
+        "devices": "Cada dispositivo en el que inicias sesión recibe una etiqueta, una fecha de creación y una fecha de último uso, para que veas la lista y revoques cualquiera de ellos."
+      }
+    },
+    "sync": {
+      "title": "Qué envía realmente la sincronización",
+      "body": "La sincronización existe para que un número que ya tienes en una máquina se vea en otra. Lleva la lectura y nada de lo que la rodea.",
+      "bullets": {
+        "fields": "Una fila por medidor: qué proveedor, qué medidor, qué ventana, un porcentaje de uso acotado, cuándo se reinicia la ventana, cuándo se observó la lectura, un identificador opaco de cuenta y el dispositivo que la envió.",
+        "never": "Nunca lleva un prompt, una respuesta, un nombre de archivo, una ruta, código fuente, un nombre de proyecto, un repositorio, una credencial de proveedor ni un mensaje del proveedor.",
+        "retention": "Tu instantánea actual se guarda siete días. Se reemplaza cada vez que llega una lectura más nueva.",
+        "off": "La sincronización viene activada y se puede desactivar en los ajustes. Con ella desactivada, las lecturas se quedan en el dispositivo que las tomó."
+      }
+    },
+    "history": {
+      "title": "Historial y previsión de Pro",
+      "body": "Pro guarda las lecturas que ya sincronizas para poder dibujar una ventana más larga y calcular una previsión de consumo a partir de ella. Son las mismas filas acotadas, guardadas más tiempo.",
+      "bullets": {
+        "window": "Noventa días móviles mientras Pro esté activo. El día noventa y uno no se puede consultar, porque no está ahí.",
+        "gaps": "Un hueco sigue siendo un hueco. Nada se interpola, se estima sobre un periodo ausente ni se inventa para que un gráfico parezca continuo.",
+        "afterPro": "Cuando Pro termina, el historial alojado se guarda treinta días para que puedas exportarlo, y durante ese tiempo no lo pueden leer el historial, la previsión ni las alertas. Al final del día treinta se borra.",
+        "local": "El historial que la aplicación de escritorio guarda en local es tuyo y nada de esto lo toca. Terminar Pro nunca lo borra."
+      }
+    },
+    "alerts": {
+      "title": "Alertas por correo y push",
+      "body": "Pro puede avisarte cuando una ventana cruza el sesenta, el ochenta o el noventa por ciento y cuando se reinicia. El correo lo entrega Resend y el push el servicio de tu navegador o de tu sistema operativo.",
+      "bullets": {
+        "generic": "Por defecto el mensaje lleva solo el nombre del producto, el nombre del proveedor, el nivel como sesenta, ochenta, noventa o reinicio, una línea genérica y un enlace al producto con la sesión iniciada. Sin porcentaje exacto, sin importe, sin modelo, sin proyecto, sin presupuesto y sin fecha de previsión.",
+        "detail": "El correo detallado es un permiso aparte que tienes que aceptar. Puede añadir el porcentaje exacto, el importe, el presupuesto y la fecha de previsión de tus propios datos. Si los campos cambian, la versión del consentimiento cambia y el detalle vuelve a quedar desactivado hasta que lo aceptes de nuevo.",
+        "push": "El push nunca tiene modo detallado, sea cual sea el ajuste del correo. Un mensaje push nunca lleva detalle de uso, así que una pantalla bloqueada nunca muestra uno.",
+        "disable": "Cada canal se desactiva por separado. Desactivar uno suprime el trabajo que aún no se ha entregado a un proveedor, y un único mensaje ya aceptado por un proveedor todavía puede llegar."
+      }
+    },
+    "spend": {
+      "title": "Claves de gasto de API, en beta",
+      "body": "El medidor de gasto de API lee tus propias cifras de facturación o de saldo en el proveedor que es dueño de ellas. Es una beta declarada y es observación de mejor esfuerzo, así que puede llegar con retraso, incompleta, corregida o no llegar.",
+      "bullets": {
+        "keyring": "La clave que le das se guarda en el llavero del sistema operativo, en un espacio propio. No hay relectura: después de guardarla, nada en la interfaz puede volver a mostrarte la clave.",
+        "host": "La clave se envía solo al host HTTPS fijo del proveedor al que pertenece. Las redirecciones se rechazan, las peticiones y los errores se redactan, y el tamaño y la duración de cada llamada tienen tope.",
+        "never": "La clave nunca se envía a OpenLimiter, nunca se guarda en el servicio alojado y nunca aparece en un registro, en una propiedad de analítica, en un informe de fallo ni en un registro de soporte.",
+        "revoke": "Quitar una fuente borra su clave del llavero de inmediato y ofrece borrar las muestras que produjo."
+      }
+    },
+    "payments": {
+      "title": "Pagos e impuestos",
+      "body": "Pro se paga mediante Stripe. Los datos de la tarjeta se escriben en Stripe y nunca llegan a OpenLimiter, que recibe solo el resultado y los identificadores que necesita para mantener tu acceso al día con tu suscripción.",
+      "bullets": {
+        "stripe": "Stripe guarda tu método de pago, tu dirección de facturación y tus facturas. OpenLimiter guarda los identificadores de cliente y de suscripción, el plan, el estado y las fechas del periodo.",
+        "tax": "El impuesto se calcula automáticamente en el pago, y por eso se pide una dirección de facturación. La dirección se usa para el impuesto y la factura y para nada más.",
+        "refund": "Hay reembolso íntegro a petición dentro de los catorce días siguientes a cualquier cargo. Un reembolso íntegro confirmado termina Pro de inmediato y deja tus datos locales intactos.",
+        "records": "Los registros de facturación e impuestos se guardan el tiempo que exige la ley fiscal, que es más largo que los plazos de producto de abajo. Borrar la cuenta seudonimiza el vínculo entre tú y un registro que debe permanecer."
+      }
+    },
+    "website": {
+      "title": "Este sitio web",
+      "body": "El sitio y la aplicación son dos cosas distintas con dos respuestas distintas, y sería deshonesto dar una sola.",
+      "bullets": {
+        "counts": "El sitio cuenta vistas de página sin cookies. Es Vercel Web Analytics, y lo que produce es un recuento de cuántas personas abrieron qué página.",
+        "cookies": "No se pone ninguna cookie para rastrearte, no se construye ningún perfil y nada te sigue a otro sitio. Las únicas cookies aquí son la que recuerda el idioma que elegiste y la que recuerda que cerraste un aviso.",
+        "app": "La aplicación no envía nada. No hay analítica de ningún tipo en la aplicación de escritorio, en la herramienta de línea de comandos ni en la aplicación web.",
+        "language": "La cabecera de idioma de tu navegador se lee para ofrecerte una página traducida. La oferta es un aviso que puedes aceptar o cerrar, y nunca te saca de la página que pediste."
+      }
+    },
+    "processors": {
+      "title": "Quién más toca los datos",
+      "intro": "Cuatro servicios participan en las partes alojadas. Cada uno ve solo lo que su trabajo necesita, y cada uno está nombrado aquí para que la lista se pueda comprobar en lugar de creer.",
+      "caption": "Los servicios que participan en las partes alojadas y qué guarda cada uno",
+      "columns": {
+        "who": "servicio",
+        "what": "qué guarda"
+      },
+      "rows": {
+        "supabase": {
+          "who": "Supabase",
+          "what": "La base de datos y el inicio de sesión. Tu cuenta, tus lecturas sincronizadas, tus preferencias de alerta y tu lista de dispositivos."
+        },
+        "vercel": {
+          "who": "Vercel",
+          "what": "El alojamiento de este sitio y el recuento de vistas sin cookies. Nunca ve los datos de tu cuenta."
+        },
+        "stripe": {
+          "who": "Stripe",
+          "what": "Método de pago, dirección de facturación, facturas y cálculo de impuestos. Nunca ve tus datos de cuota."
+        },
+        "resend": {
+          "who": "Resend",
+          "what": "La entrega de las alertas por correo y de los enlaces de inicio de sesión. Ve tu dirección de correo y el texto genérico del mensaje."
+        }
+      }
+    },
+    "bases": {
+      "title": "Dónde se aplica esto y por qué está permitido",
+      "body": "OpenLimiter se ofrece en todo el mundo y está escrito conforme a las normas europeas y británicas de protección de datos y a la LGPD brasileña, porque son las más estrictas de los mercados a los que sirve. Vivas donde vivas, valen las mismas razones.",
+      "bullets": {
+        "contract": "Para cumplir el acuerdo contigo: la cuenta, la sincronización, el historial Pro, el contexto de enrutado y la facturación. Sin eso no hay producto que entregar.",
+        "consent": "Con tu consentimiento: los correos de alerta detallados y las notificaciones push. Los dos son opcionales, los dos están desactivados hasta que los actives y los dos se pueden retirar sin perder nada más.",
+        "interests": "Por interés legítimo: mantener el servicio seguro, evitar el abuso del inicio de sesión y de los puntos de sincronización, y contar vistas de página en este sitio sin cookies.",
+        "legal": "Para cumplir una obligación legal: conservar los registros de facturación e impuestos que exige la ley fiscal."
+      },
+      "transfers": "Los servicios alojados funcionan sobre infraestructura que puede estar fuera de tu país. Cuando datos personales salen del Espacio Económico Europeo o del Reino Unido, viajan bajo las cláusulas contractuales tipo que esos servicios publican."
+    },
+    "retention": {
+      "title": "Cuánto tiempo se guarda cada cosa",
+      "intro": "Cada plazo de abajo es un límite real del sistema, no una intención. Borrar tu cuenta se impone a todos ellos.",
+      "caption": "Cada tipo de dato y cuánto tiempo se guarda",
+      "columns": {
+        "what": "dato",
+        "howLong": "se guarda"
+      },
+      "rows": {
+        "local": {
+          "what": "Cualquier cosa en tu propia máquina",
+          "howLong": "Hasta que la borres. No es nuestra para quitarla."
+        },
+        "snapshots": {
+          "what": "Tu instantánea sincronizada actual",
+          "howLong": "Siete días, reemplazada por cada lectura más nueva."
+        },
+        "history": {
+          "what": "Historial Pro mientras Pro está activo",
+          "howLong": "Noventa días móviles."
+        },
+        "afterPro": {
+          "what": "Historial Pro después de que Pro termina",
+          "howLong": "Treinta días, solo para exportar, y luego se borra."
+        },
+        "backups": {
+          "what": "Copias de seguridad cifradas",
+          "howLong": "Como muy tarde treinta días después de que se vayan las filas primarias."
+        },
+        "alerts": {
+          "what": "Registros de entrega de alertas",
+          "howLong": "Noventa días. Los errores de proveedor redactados, treinta días."
+        },
+        "exports": {
+          "what": "Una exportación de datos que pediste",
+          "howLong": "La descarga caduca a las veinticuatro horas."
+        },
+        "billing": {
+          "what": "Registros de facturación e impuestos",
+          "howLong": "El tiempo que exige la ley fiscal."
+        }
+      }
+    },
+    "rights": {
+      "title": "Tus derechos y los controles que los hacen reales",
+      "body": "Un derecho que no puedes ejercer no es un derecho, así que cada punto de abajo es un control del producto y no una solicitud que tengas que redactar.",
+      "bullets": {
+        "export": "Exportar todo lo que el servicio alojado guarda sobre ti, como un archivo legible por máquina con una tabla accesible al lado. Las claves de proveedor nunca están en él, porque nunca estuvieron ahí.",
+        "delete": "Borrar tu cuenta. Los datos de producto se van en veinticuatro horas, las copias de seguridad cifradas caducan en treinta días y nada local se toca.",
+        "devices": "Ver todos los dispositivos con sesión iniciada en tu cuenta y revocar cualquiera. Un dispositivo revocado pierde el acceso alojado de inmediato.",
+        "channels": "Desactivar el correo o el push por separado, cuando quieras, sin afectar al otro.",
+        "withdraw": "Retirar el consentimiento de los correos detallados o del push. Retirarlo detiene el detalle, no la cuenta.",
+        "complain": "Reclamar ante tu autoridad de protección de datos si crees que esto se está llevando mal. No hace falta que hables antes con nosotros."
+      },
+      "deletion": "El borrado se hace desde la pantalla de la cuenta y te pide iniciar sesión otra vez antes, porque no se puede deshacer. Si prefieres que lo hagamos nosotros, escribe a la dirección de abajo y di <code>delete my account</code>."
+    },
+    "children": {
+      "title": "Menores",
+      "body": "OpenLimiter es una herramienta para quien programa y no está dirigida a menores. No se ofrece a sabiendas a nadie menor de dieciséis años y no se crea ninguna cuenta para uno. Si crees que un menor ha creado una cuenta, escribe a la dirección de abajo y se eliminará."
+    },
+    "changes": {
+      "title": "Cambios y cómo hablar con una persona",
+      "body": "Esta página cambia cuando cambia el producto. Cuando un cambio altera qué se recoge, adónde va o cuánto tiempo se guarda, la fecha de abajo se mueve y el cambio se describe en el changelog en lugar de hacerse en silencio.",
+      "contact": "Las dudas, las solicitudes y las reclamaciones van a <mail>lucas@lucaswebsystems.com</mail>, y las lee una persona. Las reglas de uso del sitio están en los <terms>términos y condiciones</terms>.",
+      "updated": "Esta política entra en vigor con la versión 1.2.0. Última actualización el 1 de septiembre de 2026."
+    }
+  },
   "localeSwitcher": {
     "label": "Idioma"
   },

@@ -53,6 +53,206 @@
     "lead": "These terms explain the rules for using the OpenLimiter website and software. They are meant to be clear and practical.",
     "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software."
   },
+  "privacy": {
+    "title": "Datenschutz",
+    "lead": "Was OpenLimiter erhebt, was es niemals erhebt, wohin jedes Stück geht und wie lange es aufbewahrt wird. Geschrieben aus den Datenflüssen, die es im Produkt wirklich gibt, nicht aus einer Vorlage.",
+    "metaDescription": "Wie OpenLimiter mit Daten umgeht. Der lokale Modus erhebt nichts, die Felder von Konto und Synchronisierung sind einzeln aufgeführt, Anbieterschlüssel bleiben im Schlüsselbund des Betriebssystems, und jede Aufbewahrungsfrist ist benannt.",
+    "summary": {
+      "title": "Die kurze Fassung",
+      "bullets": {
+        "local": "Der lokale Modus erhebt nichts. Kein Konto, kein Server, und nichts verlässt deinen Rechner.",
+        "account": "Ein Konto ist freiwillig. Es existiert, damit deine eigenen Quota Prozentwerte deine anderen Geräte erreichen und damit Pro an etwas hängen kann.",
+        "sync": "Synchronisiert wird begrenzter Quota Zustand: ein Anbieter, ein Messwert, ein Fenster, ein Prozentwert und Zeitstempel. Niemals Prompts, niemals Code, niemals der Inhalt einer Datei.",
+        "keys": "Anbieterzugangsdaten und API Schlüssel bleiben im Schlüsselbund des Betriebssystems auf deinem eigenen Gerät. Sie werden nie an OpenLimiter gesendet.",
+        "website": "Diese Website zählt Seitenaufrufe ohne Cookies. Die Anwendung sendet nichts.",
+        "sell": "Nichts wird verkauft, vermietet oder an einen Werbetreibenden gegeben. Hier gibt es keine Werbung."
+      }
+    },
+    "local": {
+      "title": "Der lokale Modus erhebt nichts",
+      "body": "Das Kommandozeilenwerkzeug, die Desktopanwendung und die Web App laufen alle auf deinem Rechner, und im lokalen Modus steht kein Konto und kein Dienst dahinter. Es gibt nichts zu erheben, weil es keinen Ort gibt, an den es gehen könnte.",
+      "bullets": {
+        "reads": "Konnektoren lesen Dateien, die deine installierten Werkzeuge bereits geschrieben haben, nur lesend. Sie schreiben nie zurück, reparieren nicht und migrieren nicht, was sie öffnen.",
+        "credentials": "Anbieterzugangsdaten liegen im Anmeldeinformationsspeicher des Betriebssystems. OpenLimiter kopiert keine davon in einen Cache, einen Export, eine Diagnose oder ein Protokoll.",
+        "telemetry": "Die Anwendung sendet keine Telemetrie, keine Nutzung, keine Diagnose, keine Kennungen und keine Prompt Inhalte irgendwohin.",
+        "account": "Keine lokale Funktion verlangt eine Anmeldung, und keine lokale Funktion wird zurückgehalten, bis du dich anmeldest."
+      }
+    },
+    "account": {
+      "title": "Das Konto",
+      "body": "Ein Konto wird nur für die gehosteten Teile gebraucht: die Synchronisierung deiner Quota zwischen deinen Geräten und Pro. Die Anmeldung läuft über Supabase, das die Datenbank und die Authentifizierung des Dienstes hostet.",
+      "bullets": {
+        "identity": "Du kannst dich mit GitHub, mit Google oder mit einem Magic Link an deine E Mail Adresse anmelden. Die Wahl liegt bei dir, und du kannst später eine weitere verknüpfen.",
+        "stored": "Das Konto hält deine E Mail Adresse, die Kennung, die der Anmeldeanbieter zurückgibt, den Zeitpunkt der Kontoerstellung und den Zeitpunkt deiner letzten Anmeldung.",
+        "password": "Es gibt kein Passwort, also gibt es auch keines, das auslaufen könnte. GitHub und Google geben dein Passwort ebenfalls nie weiter, nur die Bestätigung, dass du es bist.",
+        "devices": "Jedes Gerät, auf dem du dich anmeldest, bekommt eine Bezeichnung, einen Erstellungszeitpunkt und einen Zeitpunkt der letzten Nutzung, damit du die Liste siehst und jedes davon widerrufen kannst."
+      }
+    },
+    "sync": {
+      "title": "Was die Synchronisierung wirklich sendet",
+      "body": "Die Synchronisierung existiert, damit eine Zahl, die du auf einem Rechner schon hast, auf einem anderen sichtbar wird. Sie trägt den Messwert und nichts drumherum.",
+      "bullets": {
+        "fields": "Eine Zeile pro Messwert: welcher Anbieter, welcher Messwert, welches Fenster, ein begrenzter Nutzungsprozentwert, wann das Fenster zurückgesetzt wird, wann der Wert beobachtet wurde, eine undurchsichtige Kontokennung und das Gerät, das gesendet hat.",
+        "never": "Sie trägt nie einen Prompt, eine Antwort, einen Dateinamen, einen Pfad, Quelltext, einen Projektnamen, ein Repository, Anbieterzugangsdaten oder eine Anbieternachricht.",
+        "retention": "Deine aktuelle Momentaufnahme wird sieben Tage aufbewahrt. Sie wird ersetzt, sobald ein neuerer Wert eintrifft.",
+        "off": "Die Synchronisierung ist voreingestellt an und lässt sich in den Einstellungen abschalten. Ist sie aus, bleiben die Werte auf dem Gerät, das sie erhoben hat."
+      }
+    },
+    "history": {
+      "title": "Pro Verlauf und Prognose",
+      "body": "Pro bewahrt die Werte auf, die du ohnehin synchronisierst, damit ein längeres Fenster gezeichnet und daraus eine Verbrauchsprognose berechnet werden kann. Es sind dieselben begrenzten Zeilen, nur länger aufbewahrt.",
+      "bullets": {
+        "window": "Rollierende neunzig Tage, solange Pro aktiv ist. Tag einundneunzig ist nicht abfragbar, weil er nicht da ist.",
+        "gaps": "Eine Lücke bleibt eine Lücke. Nichts wird interpoliert, über einen fehlenden Zeitraum geschätzt oder erfunden, damit ein Diagramm durchgehend aussieht.",
+        "afterPro": "Wenn Pro endet, wird der gehostete Verlauf dreißig Tage aufbewahrt, damit du ihn exportieren kannst, und in dieser Zeit können Verlauf, Prognose und Warnungen ihn nicht lesen. Am Ende von Tag dreißig wird er gelöscht.",
+        "local": "Der Verlauf, den die Desktopanwendung lokal hält, gehört dir und wird davon nicht berührt. Das Ende von Pro löscht ihn nie."
+      }
+    },
+    "alerts": {
+      "title": "Warnungen per E Mail und Push",
+      "body": "Pro kann dir sagen, wenn ein Fenster sechzig, achtzig oder neunzig Prozent überschreitet und wenn es zurückgesetzt wird. E Mail liefert Resend aus, Push der Push Dienst deines Browsers oder deines Betriebssystems.",
+      "bullets": {
+        "generic": "Voreingestellt trägt eine Nachricht nur den Produktnamen, den Anbieternamen, die Stufe als sechzig, achtzig, neunzig oder Zurücksetzung, eine allgemeine Zeile und einen Link in das angemeldete Produkt. Kein genauer Prozentwert, kein Betrag, kein Modell, kein Projekt, kein Budget und kein Prognosedatum.",
+        "detail": "Eine ausführliche E Mail ist eine eigene Einwilligung, die du erteilen musst. Sie darf den genauen Prozentwert, den Betrag, das Budget und das Prognosedatum deiner eigenen Daten ergänzen. Ändern sich die Felder je, ändert sich die Version der Einwilligung, und die Ausführlichkeit steht wieder auf aus, bis du erneut zustimmst.",
+        "push": "Push hat nie einen ausführlichen Modus, ganz gleich, was für die E Mail eingestellt ist. Eine Push Nachricht trägt keine Nutzungsdetails, ein gesperrter Bildschirm zeigt also nie welche.",
+        "disable": "Jeder Kanal wird getrennt abgeschaltet. Einen abzuschalten unterdrückt Arbeit, die noch nicht an einen Anbieter übergeben wurde, und eine einzelne Nachricht, die ein Anbieter bereits angenommen hat, kann trotzdem ankommen."
+      }
+    },
+    "spend": {
+      "title": "API Ausgabenschlüssel, in der Beta",
+      "body": "Der API Ausgabenmesser liest deine eigenen Abrechnungs oder Guthabenzahlen bei dem Anbieter, dem sie gehören. Er ist eine erklärte Beta und eine Beobachtung nach bestem Bemühen, also kann sie verspätet, unvollständig, korrigiert oder gar nicht verfügbar sein.",
+      "bullets": {
+        "keyring": "Der Schlüssel, den du angibst, liegt im Schlüsselbund des Betriebssystems, in einem eigenen Bereich. Es gibt kein Zurücklesen: nach dem Speichern kann dir nichts in der Oberfläche den Schlüssel wieder zeigen.",
+        "host": "Der Schlüssel geht nur an den festen HTTPS Host des Anbieters, zu dem er gehört. Weiterleitungen werden abgelehnt, Anfragen und Fehler werden geschwärzt, und Größe und Dauer jedes Aufrufs sind gedeckelt.",
+        "never": "Der Schlüssel wird nie an OpenLimiter gesendet, nie im gehosteten Dienst gespeichert und erscheint nie in einem Protokoll, einer Analyseeigenschaft, einem Absturzbericht oder einem Supportvorgang.",
+        "revoke": "Eine Quelle zu entfernen löscht ihren Schlüssel sofort aus dem Schlüsselbund und bietet an, die von ihr erzeugten Werte zu löschen."
+      }
+    },
+    "payments": {
+      "title": "Zahlungen und Steuern",
+      "body": "Pro wird über Stripe bezahlt. Kartendaten werden bei Stripe eingegeben und erreichen OpenLimiter nie, das nur das Ergebnis erhält und die Kennungen, die es braucht, um deinen Zugang mit deinem Abonnement in Einklang zu halten.",
+      "bullets": {
+        "stripe": "Stripe hält deine Zahlungsmethode, deine Rechnungsadresse und deine Rechnungen. OpenLimiter speichert die Kunden und Abonnementkennungen, den Tarif, den Status und die Zeitraumdaten.",
+        "tax": "Die Steuer wird beim Bezahlen automatisch berechnet, und deshalb wird eine Rechnungsadresse erhoben. Die Adresse dient der Steuer und der Rechnung und sonst nichts.",
+        "refund": "Eine vollständige Rückerstattung gibt es auf Anfrage innerhalb von vierzehn Tagen nach jeder Abbuchung. Eine bestätigte vollständige Rückerstattung beendet Pro sofort und lässt deine lokalen Daten unberührt.",
+        "records": "Abrechnungs und Steuerunterlagen werden so lange aufbewahrt, wie das Steuerrecht es verlangt, was länger ist als die Produktfristen weiter unten. Die Kontolöschung pseudonymisiert die Verbindung zwischen dir und einem Datensatz, der bleiben muss."
+      }
+    },
+    "website": {
+      "title": "Diese Website",
+      "body": "Die Website und die Anwendung sind zwei verschiedene Dinge mit zwei verschiedenen Antworten, und es wäre unredlich, nur eine zu geben.",
+      "bullets": {
+        "counts": "Die Website zählt Seitenaufrufe ohne Cookies. Es ist Vercel Web Analytics, und was dabei herauskommt, ist eine Zahl, wie viele Menschen welche Seite geöffnet haben.",
+        "cookies": "Es wird kein Cookie gesetzt, um dich zu verfolgen, kein Profil gebildet, und nichts folgt dir auf eine andere Website. Die einzigen Cookies hier sind das, welches deine gewählte Sprache merkt, und das, welches merkt, dass du einen Hinweis geschlossen hast.",
+        "app": "Die Anwendung sendet nichts. Es gibt keinerlei Analyse in der Desktopanwendung, im Kommandozeilenwerkzeug oder in der Web App.",
+        "language": "Der Sprachkopf deines Browsers wird gelesen, um dir eine übersetzte Seite anzubieten. Das Angebot ist ein Hinweis, den du annehmen oder schließen kannst, und es holt dich nie von der Seite weg, die du aufgerufen hast."
+      }
+    },
+    "processors": {
+      "title": "Wer die Daten sonst noch berührt",
+      "intro": "An den gehosteten Teilen sind vier Dienste beteiligt. Jeder sieht nur, was seine Aufgabe braucht, und jeder ist hier benannt, damit die Liste geprüft und nicht bloß geglaubt werden kann.",
+      "caption": "Die an den gehosteten Teilen beteiligten Dienste und was jeder davon hält",
+      "columns": {
+        "who": "Dienst",
+        "what": "was er hält"
+      },
+      "rows": {
+        "supabase": {
+          "who": "Supabase",
+          "what": "Die Datenbank und die Anmeldung. Dein Konto, deine synchronisierten Werte, deine Warneinstellungen und deine Geräteliste."
+        },
+        "vercel": {
+          "who": "Vercel",
+          "what": "Das Hosting dieser Website und die Zählung der Seitenaufrufe ohne Cookies. Es sieht deine Kontodaten nie."
+        },
+        "stripe": {
+          "who": "Stripe",
+          "what": "Zahlungsmethode, Rechnungsadresse, Rechnungen und Steuerberechnung. Es sieht deine Quota Daten nie."
+        },
+        "resend": {
+          "who": "Resend",
+          "what": "Die Zustellung der E Mail Warnungen und der Anmeldelinks. Es sieht deine E Mail Adresse und den allgemeinen Nachrichtentext."
+        }
+      }
+    },
+    "bases": {
+      "title": "Wo das gilt und warum es erlaubt ist",
+      "body": "OpenLimiter wird weltweit angeboten und ist nach den europäischen und britischen Datenschutzregeln sowie nach der brasilianischen LGPD geschrieben, weil das die strengsten der bedienten Märkte sind. Wo immer du lebst, gelten dieselben Gründe.",
+      "bullets": {
+        "contract": "Zur Erfüllung des Vertrags mit dir: Konto, Synchronisierung, Pro Verlauf, Routing Kontext und Abrechnung. Ohne sie gibt es kein Produkt zu liefern.",
+        "consent": "Mit deiner Einwilligung: ausführliche Warn E Mails und Push Benachrichtigungen. Beide sind freiwillig, beide sind aus, bis du sie einschaltest, und beide lassen sich widerrufen, ohne sonst etwas zu verlieren.",
+        "interests": "Aus berechtigtem Interesse: den Dienst sicher halten, Missbrauch der Anmeldung und der Synchronisierungsendpunkte verhindern und Seitenaufrufe auf dieser Website ohne Cookies zählen.",
+        "legal": "Zur Erfüllung einer rechtlichen Pflicht: die Abrechnungs und Steuerunterlagen aufbewahren, die das Steuerrecht verlangt."
+      },
+      "transfers": "Die gehosteten Dienste laufen auf Infrastruktur, die außerhalb deines Landes liegen kann. Wo personenbezogene Daten den Europäischen Wirtschaftsraum oder das Vereinigte Königreich verlassen, reisen sie unter den Standardvertragsklauseln, die diese Dienste veröffentlichen."
+    },
+    "retention": {
+      "title": "Wie lange jedes Stück aufbewahrt wird",
+      "intro": "Jede Frist unten ist eine echte Grenze im System und keine Absicht. Dein Konto zu löschen setzt sich über alle hinweg.",
+      "caption": "Jede Datenart und wie lange sie aufbewahrt wird",
+      "columns": {
+        "what": "Daten",
+        "howLong": "aufbewahrt"
+      },
+      "rows": {
+        "local": {
+          "what": "Alles auf deinem eigenen Rechner",
+          "howLong": "Bis du es löschst. Es ist nicht unseres zum Entfernen."
+        },
+        "snapshots": {
+          "what": "Deine aktuelle synchronisierte Momentaufnahme",
+          "howLong": "Sieben Tage, ersetzt durch jeden neueren Wert."
+        },
+        "history": {
+          "what": "Pro Verlauf, solange Pro aktiv ist",
+          "howLong": "Rollierende neunzig Tage."
+        },
+        "afterPro": {
+          "what": "Pro Verlauf, nachdem Pro endet",
+          "howLong": "Dreißig Tage, nur zum Exportieren, dann gelöscht."
+        },
+        "backups": {
+          "what": "Verschlüsselte Sicherungskopien",
+          "howLong": "Spätestens dreißig Tage, nachdem die Primärzeilen weg sind."
+        },
+        "alerts": {
+          "what": "Zustellprotokolle der Warnungen",
+          "howLong": "Neunzig Tage. Geschwärzte Anbieterfehler dreißig Tage."
+        },
+        "exports": {
+          "what": "Ein Datenexport, den du angefordert hast",
+          "howLong": "Der Download verfällt nach vierundzwanzig Stunden."
+        },
+        "billing": {
+          "what": "Abrechnungs und Steuerunterlagen",
+          "howLong": "So lange, wie das Steuerrecht es verlangt."
+        }
+      }
+    },
+    "rights": {
+      "title": "Deine Rechte und die Bedienelemente, die sie einlösen",
+      "body": "Ein Recht, das du nicht ausüben kannst, ist keines, deshalb ist jeder Punkt unten ein Bedienelement im Produkt und kein Antrag, den du formulieren musst.",
+      "bullets": {
+        "export": "Alles exportieren, was der gehostete Dienst über dich hält, als maschinenlesbares Archiv mit einer zugänglichen Tabelle daneben. Anbieterschlüssel sind nie darin, weil sie nie dort waren.",
+        "delete": "Dein Konto löschen. Die Produktdaten gehen binnen vierundzwanzig Stunden, verschlüsselte Sicherungskopien verfallen binnen dreißig Tagen, und nichts Lokales wird angerührt.",
+        "devices": "Jedes an deinem Konto angemeldete Gerät sehen und jedes davon widerrufen. Ein widerrufenes Gerät verliert den gehosteten Zugang sofort.",
+        "channels": "E Mail oder Push getrennt abschalten, jederzeit, ohne das andere zu berühren.",
+        "withdraw": "Die Einwilligung für ausführliche E Mails oder für Push widerrufen. Der Widerruf beendet die Ausführlichkeit, nicht das Konto.",
+        "complain": "Dich bei deiner Datenschutzaufsicht beschweren, wenn du meinst, dass hier schlecht damit umgegangen wird. Du musst nicht zuerst zu uns kommen."
+      },
+      "deletion": "Die Löschung läuft über den Kontobildschirm und verlangt vorher eine erneute Anmeldung, weil sie nicht rückgängig zu machen ist. Wenn du lieber möchtest, dass wir sie vornehmen, schreibe an die Adresse unten und sag <code>delete my account</code>."
+    },
+    "children": {
+      "title": "Kinder",
+      "body": "OpenLimiter ist ein Werkzeug für Menschen, die programmieren, und richtet sich nicht an Kinder. Es wird wissentlich niemandem unter sechzehn angeboten, und für ein Kind wird kein Konto angelegt. Wenn du glaubst, dass ein Kind ein Konto angelegt hat, schreibe an die Adresse unten, und es wird entfernt."
+    },
+    "changes": {
+      "title": "Änderungen und wie du einen Menschen erreichst",
+      "body": "Diese Seite ändert sich, wenn sich das Produkt ändert. Wenn eine Änderung betrifft, was erhoben wird, wohin es geht oder wie lange es bleibt, rückt das Datum unten weiter, und die Änderung steht im Changelog, statt still zu geschehen.",
+      "contact": "Fragen, Anliegen und Beschwerden gehen an <mail>lucas@lucaswebsystems.com</mail>, und ein Mensch liest sie. Die Regeln für die Nutzung der Website selbst stehen in den <terms>Nutzungsbedingungen</terms>.",
+      "updated": "Diese Erklärung gilt ab Version 1.2.0. Zuletzt aktualisiert am 1. September 2026."
+    }
+  },
   "localeSwitcher": {
     "label": "Sprache"
   },
