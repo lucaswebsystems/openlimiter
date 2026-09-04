@@ -1,0 +1,40 @@
+{
+  "five_hour": {
+    "utilization": 90,
+    "resets_at": "2026-08-07T12:37:26.000Z"
+  },
+  "seven_day": {
+    "utilization": 18,
+    "resets_at": "2026-08-11T12:00:00.000Z"
+  },
+  "seven_day_oauth_apps": {
+    "utilization": 0,
+    "resets_at": "2026-08-11T12:00:00.000Z"
+  },
+  "extra_usage": {
+    "used_amount": 12.47,
+    "limit_amount": 20,
+    "currency": "USD",
+    "resets_at": "2026-08-27T12:00:00.000Z"
+  },
+  "limits": [
+    {
+      "kind": "weekly_scoped",
+      "percent": 61,
+      "resets_at": "2026-08-11T12:00:00.000Z",
+      "scope": { "model": { "display_name": "Opus" } }
+    },
+    {
+      "kind": "weekly_scoped",
+      "percent": 21.5,
+      "resets_at": "2026-08-11T12:00:00.000Z",
+      "scope": { "model": { "display_name": "Fable 5" } }
+    },
+    {
+      "kind": "monthly_scoped",
+      "percent": 5,
+      "resets_at": "2026-08-27T12:00:00.000Z",
+      "scope": { "model": { "display_name": "Haiku" } }
+    }
+  ]
+}

@@ -41,8 +41,10 @@ const cases: readonly Case[] = [
     provider: "CLAUDE",
     good: claudeFixture(NOW),
     goodMeters: 2,
-    /* The invented utilization field no release emits. */
-    wrongShape: { rate_limits: { five_hour: { utilization: 42, resets_at: 1_767_243_600 } } }
+    /* Camel case field names no Claude document has ever used. `utilization`
+       is no longer a wrong shape: it is what the api/oauth/usage document
+       states, and refusing it was finding F-201. */
+    wrongShape: { rate_limits: { five_hour: { usedPercentage: 42, resetsAt: 1_767_243_600 } } }
   },
   {
     provider: "OPENROUTER",

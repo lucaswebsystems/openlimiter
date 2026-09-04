@@ -1,5 +1,5 @@
 {
-  "note": "Frozen redacted sample responses, one file per provider. Each file is a real response shape sourced from the recorded evidence in Product Idea/reference-implementation, with every identifying value removed. The parser named below reads the file against captureClock and must return exactly the meters listed. captureClock is the instant these fixtures were pinned to, chosen so every reset instant in every file still lands in the future of that clock and inside its window's plausibility horizon.",
+  "note": "Frozen redacted sample responses, one file per provider. Each file is a real response shape sourced from the recorded evidence in Product Idea/reference-implementation, with every identifying value removed. The parser named below reads the file against captureClock and must return exactly the meters listed. captureClock is the instant these fixtures were pinned to, chosen so every reset instant in every file still lands in the future of that clock and inside its window's plausibility horizon. Claude ships three files rather than one: the documented two window statusline payload, a full statusline payload carrying every model specific weekly bucket plus the additive model_scoped list, and the raw api/oauth/usage document that openlimiter ingest is handed, which states utilization with ISO resets and adds extra_usage and a scoped limits list.",
   "captureClock": "2026-08-07T12:00:00.000Z",
   "providers": [
     {
@@ -11,8 +11,86 @@
       "evidence": "documented",
       "expectedMeters": 2,
       "expect": [
-        { "meter": "FIVE_HOUR", "value": 47.5 },
-        { "meter": "SEVEN_DAY", "value": 63.2 }
+        {
+          "meter": "FIVE_HOUR",
+          "value": 47.5
+        },
+        {
+          "meter": "SEVEN_DAY",
+          "value": 63.2
+        }
+      ]
+    },
+    {
+      "provider": "CLAUDE",
+      "connector": "claude",
+      "file": "claude.statusline.full.json",
+      "encoding": "json",
+      "parser": "parseClaudePayload",
+      "evidence": "documented",
+      "expectedMeters": 6,
+      "expect": [
+        {
+          "meter": "FIVE_HOUR",
+          "value": 47.5
+        },
+        {
+          "meter": "SEVEN_DAY",
+          "value": 63.2
+        },
+        {
+          "meter": "SEVEN_DAY_OAUTH_APPS",
+          "value": 3.1
+        },
+        {
+          "meter": "SEVEN_DAY_OPUS",
+          "value": 61
+        },
+        {
+          "meter": "SEVEN_DAY_SONNET",
+          "value": 12.4
+        },
+        {
+          "meter": "SEVEN_DAY_FABLE_5",
+          "value": 21.5
+        }
+      ]
+    },
+    {
+      "provider": "CLAUDE",
+      "connector": "claude",
+      "file": "claude.usage.json",
+      "encoding": "json",
+      "parser": "parseClaudePayload",
+      "evidence": "observed",
+      "expectedMeters": 6,
+      "expect": [
+        {
+          "meter": "FIVE_HOUR",
+          "value": 90
+        },
+        {
+          "meter": "SEVEN_DAY",
+          "value": 18
+        },
+        {
+          "meter": "SEVEN_DAY_OAUTH_APPS",
+          "value": 0
+        },
+        {
+          "meter": "SEVEN_DAY_OPUS",
+          "value": 61
+        },
+        {
+          "meter": "SEVEN_DAY_FABLE_5",
+          "value": 21.5
+        },
+        {
+          "meter": "EXTRA_USAGE",
+          "value": 62.35,
+          "usedAmount": 12.47,
+          "limitAmount": 20
+        }
       ]
     },
     {
@@ -24,7 +102,12 @@
       "evidence": "documented",
       "expectedMeters": 1,
       "expect": [
-        { "meter": "CREDITS", "value": 62.35, "usedAmount": 12.47, "limitAmount": 20 }
+        {
+          "meter": "CREDITS",
+          "value": 62.35,
+          "usedAmount": 12.47,
+          "limitAmount": 20
+        }
       ]
     },
     {
@@ -36,8 +119,14 @@
       "evidence": "observed",
       "expectedMeters": 2,
       "expect": [
-        { "meter": "FIVE_HOUR", "value": 84 },
-        { "meter": "SEVEN_DAY", "value": 96 }
+        {
+          "meter": "FIVE_HOUR",
+          "value": 84
+        },
+        {
+          "meter": "SEVEN_DAY",
+          "value": 96
+        }
       ]
     },
     {
@@ -49,8 +138,14 @@
       "evidence": "observed",
       "expectedMeters": 2,
       "expect": [
-        { "meter": "FIVE_HOUR", "value": 72 },
-        { "meter": "SEVEN_DAY", "value": 45 }
+        {
+          "meter": "FIVE_HOUR",
+          "value": 72
+        },
+        {
+          "meter": "SEVEN_DAY",
+          "value": 45
+        }
       ]
     },
     {
@@ -62,8 +157,14 @@
       "evidence": "official_source",
       "expectedMeters": 2,
       "expect": [
-        { "meter": "GEMINI_3_1_PRO_PREVIEW", "value": 25 },
-        { "meter": "GEMINI_3_FLASH_PREVIEW", "value": 0 }
+        {
+          "meter": "GEMINI_3_1_PRO_PREVIEW",
+          "value": 25
+        },
+        {
+          "meter": "GEMINI_3_FLASH_PREVIEW",
+          "value": 0
+        }
       ]
     },
     {
@@ -75,9 +176,18 @@
       "evidence": "scrape",
       "expectedMeters": 3,
       "expect": [
-        { "meter": "FIVE_HOUR", "value": 40 },
-        { "meter": "SEVEN_DAY", "value": 92 },
-        { "meter": "MONTHLY", "value": 15 }
+        {
+          "meter": "FIVE_HOUR",
+          "value": 40
+        },
+        {
+          "meter": "SEVEN_DAY",
+          "value": 92
+        },
+        {
+          "meter": "MONTHLY",
+          "value": 15
+        }
       ]
     },
     {
@@ -89,8 +199,14 @@
       "evidence": "official_source",
       "expectedMeters": 2,
       "expect": [
-        { "meter": "WEEKLY", "value": 42.5 },
-        { "meter": "ON_DEMAND_MONTHLY", "value": 6 }
+        {
+          "meter": "WEEKLY",
+          "value": 42.5
+        },
+        {
+          "meter": "ON_DEMAND_MONTHLY",
+          "value": 6
+        }
       ]
     },
     {
@@ -102,8 +218,14 @@
       "evidence": "official_source",
       "expectedMeters": 2,
       "expect": [
-        { "meter": "WEEKLY", "value": 10.44921875 },
-        { "meter": "FIVE_HOUR", "value": 69.5 }
+        {
+          "meter": "WEEKLY",
+          "value": 10.44921875
+        },
+        {
+          "meter": "FIVE_HOUR",
+          "value": 69.5
+        }
       ]
     }
   ]
