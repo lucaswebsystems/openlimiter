@@ -1,4 +1,9 @@
 {
+  "productionBranch": "main",
+  "releaseBranch": "main",
+  "releaseVia": "cli",
+  "releaseCommand": "vercel deploy --prod",
   "searchMode": "public",
-  "productionUrl": "https://openlimiter.com"
+  "productionUrl": "https://openlimiter.com",
+  "allowPushToProductionBranch": false
 }
