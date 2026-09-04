@@ -219,14 +219,32 @@ export type ConnectorResult =
  */
 export type ConnectorEncoding = "json" | "text";
 
+/**
+ * How much the INTERFACE behind a reader can be relied on.
+ *
+ * Not how good the parser is. A reader pointed at a documented response and a
+ * reader pointed at a rendered page can both be flawless and still deserve
+ * different sentences on a surface, because only one of them has a contract
+ * behind it. Absent means stable, so a reader says nothing unless it has
+ * something to admit.
+ */
+export type ConnectorMaturity = "stable" | "beta";
+
 export interface ConnectorContract {
   readonly id: Lowercase<ProviderCode>;
   readonly displayName: string;
   readonly labels: ConnectorLabels;
   /** Whether this connector's parser wants parsed JSON or the raw text. */
   readonly encoding: ConnectorEncoding;
+  /** Stated only when it is not stable, so silence is never a claim. */
+  readonly maturity?: ConnectorMaturity;
   detect(environment: Readonly<Record<string, string | undefined>>): boolean;
   read(context: ConnectorReadContext): Promise<ConnectorResult>;
+}
+
+/** A reader's maturity, with the default spelled out rather than assumed. */
+export function connectorMaturity(connector: ConnectorContract): ConnectorMaturity {
+  return connector.maturity ?? "stable";
 }
 
 export type AdviceReason = "HEALTHY" | "NEAR_CAP" | "AT_CAP" | "UNKNOWN";

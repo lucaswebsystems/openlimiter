@@ -1,13 +1,15 @@
 // This interface is UNOFFICIAL and may break.
+import { connectionStatus } from "@openlimiter/core";
 import type {
+  ConnectionStatus,
   ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
+  ConnectorMaturity,
   ConnectorResult,
   RawMeter
 } from "@openlimiter/core";
 import {
-  connectorConnection,
   durationSecondsFromWords,
   instantAfter,
   rawMeter,
@@ -44,11 +46,24 @@ export const opencodeLabels = {
 
 export const opencodeHonesty = "UNVERIFIED_AUTHENTICATED_SCRAPE_HIGH_RISK" as const;
 
+/**
+ * BETA, and stated rather than implied.
+ *
+ * Every other reader in this package reads an interface: documented, private,
+ * or declared in a vendor's own client source, but an interface. This one reads
+ * a page that was designed for a person's eyes, whose wording nobody promised
+ * and which has already been renamed once underneath it. That is a different
+ * class of thing, and a surface that shows it beside the others has to be able
+ * to say so.
+ */
+export const opencodeMaturity = "beta" as const satisfies ConnectorMaturity;
+
 export const opencodeInput = {
   kind: "authenticated_page_payload",
   pathTemplate: "{browserSession}/usage",
   readMode: "read_only",
-  honesty: opencodeHonesty
+  honesty: opencodeHonesty,
+  maturity: opencodeMaturity
 } as const;
 
 /**
@@ -124,20 +139,54 @@ function tagsIn(html: string, from: number, to: number): Tag[] {
  */
 export const OPENCODE_MAX_PAGE_CHARS = 1_048_576;
 
+export type OpencodeMeter = "FIVE_HOUR" | "SEVEN_DAY" | "MONTHLY";
+
 /**
- * The three windows the workspace page renders, and how long each one is.
+ * The cadences the workspace page renders, and how each one is recognised.
  *
- * All three are required. Matched by label, in the page's own words.
+ * This used to be three exact phrases, all three required, and the page renamed
+ * them. Three exact strings is the most brittle possible way to read a document
+ * whose wording nobody promised us, and the failure was total: one renamed
+ * heading and the whole reader went dark on a page still rendering all three
+ * figures.
+ *
+ * So a cadence is now recognised by the WORD that names it, case insensitively,
+ * with the wordings seen so far and the obvious neighbours of each. Structure
+ * still does the real work: a match only produces a reading if it sits in a
+ * container that holds a percentage and names no other cadence, which is the
+ * guard that stops a heading from borrowing the figure beside it.
  */
 export const OPENCODE_WINDOWS: readonly {
-  readonly label: string;
-  readonly meter: "FIVE_HOUR" | "SEVEN_DAY" | "MONTHLY";
+  readonly meter: OpencodeMeter;
   readonly seconds: number;
+  /** Every wording this cadence has been seen under, matched case blind. */
+  readonly pattern: RegExp;
 }[] = [
-  { label: "Rolling Usage", meter: "FIVE_HOUR", seconds: 18_000 },
-  { label: "Weekly Usage", meter: "SEVEN_DAY", seconds: 604_800 },
-  { label: "Monthly Usage", meter: "MONTHLY", seconds: 2_592_000 }
+  {
+    meter: "FIVE_HOUR",
+    seconds: 18_000,
+    pattern: /\b(?:rolling|session|5[\s-]*hour|five[\s-]*hour)\b/giu
+  },
+  {
+    meter: "SEVEN_DAY",
+    seconds: 604_800,
+    pattern: /\b(?:weekly|week|7[\s-]*day|seven[\s-]*day)\b/giu
+  },
+  {
+    meter: "MONTHLY",
+    seconds: 2_592_000,
+    pattern: /\b(?:monthly|month|30[\s-]*day|thirty[\s-]*day)\b/giu
+  }
 ];
+
+/**
+ * What a logged out workspace page says instead of a meter.
+ *
+ * Read only to tell a person WHICH thing went wrong. A page this reader cannot
+ * read is either a layout change or a session that ended, and those need
+ * different sentences: one is ours to fix and the other is one click.
+ */
+const SIGNED_OUT = /\b(?:sign[\s-]?in|sign[\s-]?up|log[\s-]?in|create an account)\b/iu;
 
 /**
  * Markup and hydration comments, removed so text can be matched.
@@ -150,17 +199,26 @@ export const OPENCODE_WINDOWS: readonly {
  */
 const MARKUP = /<!--[\s\S]*?-->|<[^>]*>/gu;
 
-/** A percentage as the page prints it: a whole number and a percent sign. */
-const PERCENT = /(\d{1,3})\s*%/u;
+/**
+ * A percentage as the page prints it.
+ *
+ * The decimal part is optional because the page has printed both "92%" and
+ * "92.4%", and a reader that only knows whole numbers reads the second as 92
+ * or as nothing at all depending on where the match lands. The number pattern
+ * is what this reader trusts; the wording around it is not.
+ */
+const PERCENT = /(\d{1,3}(?:\.\d{1,2})?)\s*%/u;
 
 /**
  * A countdown as the page prints it.
  *
- * Anchored on the words, and consuming only consecutive number and unit pairs,
- * so it cannot wander into the next window's duration if a label boundary ever
- * moves.
+ * Anchored on the verb rather than one exact phrase, because "Resets in",
+ * "Renews in" and "Refreshes in" all name the same thing and the page has used
+ * more than one. It still consumes only consecutive number and unit pairs, so
+ * it cannot wander into the next window's duration if a boundary ever moves.
  */
-const RESETS_IN = /Resets in\s+((?:\d{1,6}\s*(?:day|hour|minute|second)s?\s*)+)/iu;
+const RESETS_IN =
+  /\b(?:resets?|renews?|refreshes|refresh)\b(?:\s+in)?[:\s]\s*((?:\d{1,6}\s*(?:day|hour|minute|second)s?\s*)+)/iu;
 
 function flatten(fragment: string): string {
   return fragment.replace(MARKUP, " ").split(/\s+/u).filter(Boolean).join(" ");
@@ -245,14 +303,14 @@ function enclosingElement(
 function windowRegion(
   html: string,
   labelAt: number,
-  otherLabels: readonly string[]
+  otherLabels: readonly RegExp[]
 ): string | null {
   let position = labelAt;
   for (let level = 0; level < MAX_CONTAINER_DEPTH; level += 1) {
     const element = enclosingElement(html, position);
     if (element === null) return null;
     const segment = flatten(html.slice(element.from, element.to));
-    if (otherLabels.some((label) => segment.includes(label))) return null;
+    if (otherLabels.some((pattern) => matches(pattern, segment))) return null;
     if (PERCENT.test(segment)) return segment;
     /* No figure at this level, so try the block above it. */
     position = element.openedAt;
@@ -261,61 +319,93 @@ function windowRegion(
 }
 
 interface ParsedWindow {
-  meter: "FIVE_HOUR" | "SEVEN_DAY" | "MONTHLY";
+  meter: OpencodeMeter;
   percent: number;
   seconds: number;
   resetAt: string | null;
 }
 
 /**
- * Every window the page states, or null unless all three are there.
+ * Whether a position sits inside a tag rather than in text a person reads.
  *
- * Each window's segment runs from its own label to the next label in page
- * order, so a percentage can only ever be read out of the block that belongs to
- * it.
+ * A cadence word in `class="monthly-card"` is markup, not a heading, and
+ * treating it as one would put a label in a place the reader then has to
+ * resolve a container for. Cheap and exact enough: the last angle bracket
+ * before the position decides.
  */
-function parseWindows(html: string, now: string): ParsedWindow[] | null {
-  const found: {
-    at: number;
-    label: string;
-    meter: "FIVE_HOUR" | "SEVEN_DAY" | "MONTHLY";
-    seconds: number;
-  }[] = [];
+function insideTag(html: string, at: number): boolean {
+  return html.lastIndexOf("<", at) > html.lastIndexOf(">", at);
+}
+
+/** Whether a pattern matches, without carrying lastIndex between calls. */
+function matches(pattern: RegExp, text: string): boolean {
+  pattern.lastIndex = 0;
+  return pattern.test(text);
+}
+
+interface LabelHit {
+  readonly at: number;
+  readonly meter: OpencodeMeter;
+  readonly seconds: number;
+  readonly others: readonly RegExp[];
+}
+
+/**
+ * Where each cadence is named on the page, when it is named exactly once.
+ *
+ * A cadence named nowhere is a window this page is not rendering. A cadence
+ * named twice is two candidate containers and no way to know which one is the
+ * meter, so it is ambiguous. Both cost that cadence and nothing else: losing
+ * one bar is a smaller failure than drawing a bar with somebody else's number
+ * in it, and losing all three because one heading was renamed, which is what
+ * this reader used to do, is the largest failure of the three.
+ */
+function findLabels(html: string): LabelHit[] {
+  const hits: LabelHit[] = [];
   for (const window of OPENCODE_WINDOWS) {
-    const at = html.indexOf(window.label);
-    if (at < 0) return null;
-    /* One occurrence only. A page rendering a label twice gives this reader two
-       candidate containers and no way to know which is the meter. */
-    if (html.indexOf(window.label, at + window.label.length) >= 0) return null;
-    found.push({
-      at,
-      label: window.label,
+    window.pattern.lastIndex = 0;
+    const positions: number[] = [];
+    for (const match of html.matchAll(window.pattern)) {
+      const at = match.index ?? -1;
+      if (at < 0 || insideTag(html, at)) continue;
+      positions.push(at);
+      /* Two is already ambiguous, so there is no reason to scan a large page
+         looking for a third. */
+      if (positions.length > 1) break;
+    }
+    if (positions.length !== 1) continue;
+    hits.push({
+      at: positions[0] ?? 0,
       meter: window.meter,
-      seconds: window.seconds
+      seconds: window.seconds,
+      others: OPENCODE_WINDOWS
+        .filter((other) => other.meter !== window.meter)
+        .map((other) => other.pattern)
     });
   }
-  found.sort((left, right) => left.at - right.at);
+  return hits.sort((left, right) => left.at - right.at);
+}
+
+/**
+ * Every window this page states, or null when it states none this reader can
+ * believe.
+ *
+ * Each window's figure is read out of its own CONTAINER and nowhere else, so a
+ * percentage can only ever be attributed to the block that rendered it. A
+ * window whose container cannot be resolved, or holds no percentage, or holds
+ * an impossible one, is dropped alone: the page is a rendered document rather
+ * than a contract, and one block changing shape is not a reason to discard the
+ * blocks that did not.
+ */
+function parseWindows(html: string, now: string): ParsedWindow[] | null {
   const windows: ParsedWindow[] = [];
-  for (const start of found) {
-    /*
-     * The readable region is this window's own CONTAINER, and nothing past it.
-     *
-     * A character count was not enough, and the way it failed is worth stating:
-     * "the first percentage within two thousand characters after the label"
-     * still reaches a footer whenever the window's own percentage is absent, so
-     * a page that stopped rendering one meter would report an unrelated figure
-     * as that meter. Outside the container is outside, at any distance.
-     */
-    const segment = windowRegion(
-      html,
-      start.at,
-      found.filter((entry) => entry.label !== start.label).map((entry) => entry.label)
-    );
-    if (segment === null) return null;
+  for (const hit of findLabels(html)) {
+    const segment = windowRegion(html, hit.at, hit.others);
+    if (segment === null) continue;
     const percentMatch = PERCENT.exec(segment);
-    if (percentMatch === null) return null;
-    const percent = Number.parseInt(percentMatch[1] ?? "", 10);
-    if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
+    if (percentMatch === null) continue;
+    const percent = Number.parseFloat(percentMatch[1] ?? "");
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) continue;
     /* The countdown is optional, because the page omits it on a window that has
        no reset pending. A missing countdown costs the countdown and nothing
        else: the percentage beside it was still rendered by the provider. */
@@ -323,13 +413,13 @@ function parseWindows(html: string, now: string): ParsedWindow[] | null {
     const seconds =
       resetMatch === null ? null : durationSecondsFromWords(resetMatch[1] ?? "");
     windows.push({
-      meter: start.meter,
+      meter: hit.meter,
       percent,
-      seconds: start.seconds,
+      seconds: hit.seconds,
       resetAt: seconds === null ? null : instantAfter(now, seconds)
     });
   }
-  return windows;
+  return windows.length === 0 ? null : windows;
 }
 
 /**
@@ -343,7 +433,20 @@ function parseWindows(html: string, now: string): ParsedWindow[] | null {
 export function parseOpencodePayload(payload: unknown, now: string): RawMeter[] | null {
   if (typeof payload !== "string") return null;
   if (payload.length === 0 || payload.length > OPENCODE_MAX_PAGE_CHARS) return null;
-  const windows = parseWindows(payload, now);
+  /*
+   * Fail soft, and mean it. This is the only reader in the package pointed at a
+   * rendered document rather than an interface, so it is the only one where an
+   * unforeseen shape can reach code that was not written for it. A thrown error
+   * here would take down whatever was collecting, which would turn one changed
+   * page into a broken product, so the whole scan answers null instead and the
+   * connection below says what a person should do about it.
+   */
+  let windows: ParsedWindow[] | null = null;
+  try {
+    windows = parseWindows(payload, now);
+  } catch {
+    return null;
+  }
   if (windows === null || windows.length === 0) return null;
   const expiresAt = shortExpiry(now);
   if (expiresAt === null) return null;
@@ -366,21 +469,41 @@ export function parseOpencodePayload(payload: unknown, now: string): RawMeter[] 
 /** The local application that owns this browser session. */
 export const OPENCODE_TOOL: ConnectionTool = "OpenCode";
 
+/**
+ * The connection this reader reports, which is not the generic one.
+ *
+ * A page it cannot read has two very different causes, and they need two
+ * different sentences. A logged out workspace renders a sign in form, and the
+ * fix is one click in a window the person already has open. Anything else is a
+ * layout this build no longer understands, which is ours to fix, and the honest
+ * instruction is to reconnect and tell us if it keeps happening. Neither one
+ * throws, and neither one is silence.
+ */
+export function opencodeConnection(parsed: boolean, payload: unknown): ConnectionStatus {
+  if (parsed) return connectionStatus("CONNECTED", null, OPENCODE_TOOL);
+  /* Nothing arrived at all, which is a session that has not been opened yet
+     rather than a fault. Anything that DID arrive and could not be read is a
+     fault, whatever type it turned out to be. */
+  if (payload === undefined || payload === null) {
+    return connectionStatus("DETECTED", "tool_not_running", OPENCODE_TOOL);
+  }
+  return typeof payload === "string" && SIGNED_OUT.test(payload)
+    ? connectionStatus("AUTH_EXPIRED", "token_expired", OPENCODE_TOOL)
+    : connectionStatus("ERROR", "shape_mismatch", OPENCODE_TOOL);
+}
+
 export const opencodeConnector: ConnectorContract = {
   id: "opencode",
   displayName: "OpenCode",
   encoding: "text",
+  maturity: opencodeMaturity,
   labels: opencodeLabels,
   detect(environment) {
     return environment["OPENCODE_SESSION_PRESENT"] === "1";
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseOpencodePayload(context.payload, context.now);
-    const connection = connectorConnection(
-      meters !== null,
-      context.payload,
-      OPENCODE_TOOL
-    );
+    const connection = opencodeConnection(meters !== null, context.payload);
     return meters === null
       ? { ok: false, reason: "unknown", connection }
       : { ok: true, meters, connection };
