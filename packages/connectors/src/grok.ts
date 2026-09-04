@@ -147,7 +147,7 @@ export const GROK_TOOL: ConnectionTool = "Grok Build";
 
 export const grokConnector: ConnectorContract = {
   id: "grok",
-  displayName: "Grok",
+  displayName: "Grok Build",
   encoding: grokEncoding,
   labels: grokLabels,
   detect(environment) {

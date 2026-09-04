@@ -265,7 +265,7 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   ANTIGRAVITY: "Antigravity",
   GEMINI_CLI: "Gemini CLI",
   OPENCODE: "OpenCode",
-  GROK: "Grok",
+  GROK: "Grok Build",
   KIMI: "Kimi",
   MANUAL: "Manual",
 };
