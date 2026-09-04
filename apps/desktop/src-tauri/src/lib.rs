@@ -1,6 +1,7 @@
 mod account;
 mod antigravity_credential;
 mod antigravity_oauth;
+mod api_spend;
 mod cache_write;
 mod claude_connect;
 mod claude_detect;
@@ -91,6 +92,8 @@ pub fn run() {
     tauri::Builder::default()
         .manage(connections::ConnectionsStore::at_state_directory())
         .manage(credentials::KeyringStore)
+        .manage(credentials::ApiSpendKeyringStore)
+        .manage(api_spend::ApiSpendState::default())
         .manage(std::sync::Arc::new(
             cache_write::CacheWriter::at_state_directory(),
         ))
@@ -114,6 +117,11 @@ pub fn run() {
             read_manual,
             state_directory,
             set_tray_status,
+            api_spend::api_spend_status,
+            api_spend::api_spend_save_source,
+            api_spend::api_spend_refresh,
+            api_spend::api_spend_remove_source,
+            api_spend::api_spend_set_budget,
             commands::connect_provider,
             commands::test_provider,
             commands::refresh_provider,
@@ -121,6 +129,8 @@ pub fn run() {
             commands::disconnect_provider,
             commands::list_connections,
             commands::update_connection,
+            commands::reconcile_connection_plan,
+            commands::set_connection_paused,
             commands::detect_local_tools,
             commands::list_detected_providers,
             commands::rescan_detected_providers,
@@ -134,7 +144,6 @@ pub fn run() {
             account::account_sync_snapshot,
             account::account_sync_configured_snapshot,
             pro::pro_status,
-            pro::pro_set_session,
             pro::pro_refresh,
             pro::pro_service,
             pro::pro_sync_agent_context,
@@ -152,6 +161,7 @@ pub fn run() {
             parsing and cache commits never depend on a webview receiving an
             event or being allowed to run a timer. */
             collector_runtime::spawn_collector(app.handle().clone());
+            api_spend::spawn_polling(app.handle().clone());
             account::spawn_sync();
             pro::spawn_silent_refresh();
             let initial = tray::view(Vec::new()).expect("an empty tray view is valid");

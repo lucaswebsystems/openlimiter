@@ -137,6 +137,8 @@ mod tests {
             ever_connected: true,
             consecutive_failures: 0,
             status: "CONNECTED".to_string(),
+            legacy_grandfathered: false,
+            pause_reason: None,
         }
     }
 

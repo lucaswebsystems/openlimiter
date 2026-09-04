@@ -12,9 +12,7 @@ describe("notification product boundary", () => {
   it("keeps free local thresholds in the desktop process", () => {
     const rust = source("apps/desktop/src-tauri/src/notifications.rs");
     const app = source("apps/desktop/ui/app.js");
-    expect(rust).toContain("Self::Yellow => Some(60)");
-    expect(rust).toContain("Self::Orange => Some(75)");
-    expect(rust).toContain("Self::Red => Some(90)");
+    expect(rust).toContain("const THRESHOLDS: [u32; 3] = [60, 80, 90]");
     expect(rust).toContain("tauri_plugin_notification::NotificationExt");
     expect(app).toContain("evaluateNotifications(notificationSamples)");
     expect(app).toContain("renderNotificationEvents");

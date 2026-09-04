@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -16,7 +17,6 @@ use zeroize::Zeroizing;
 use crate::credentials::{CredentialError, KeyringStore, SecretStore};
 
 const ACCOUNT_CREDENTIAL_ID: &str = "openlimiter-account-session";
-const PRO_SESSION_CREDENTIAL_ID: &str = "openlimiter-pro-session";
 const SYNC_SETTING_CREDENTIAL_ID: &str = "openlimiter-sync-enabled";
 const SYNC_DEVICE_CREDENTIAL_ID: &str = "openlimiter-sync-device-id";
 const CONFIGURED_PROVIDERS_CREDENTIAL_ID: &str = "openlimiter-configured-providers";
@@ -52,6 +52,8 @@ pub enum AccountFailure {
 #[serde(deny_unknown_fields)]
 struct StoredSession {
     version: u8,
+    #[serde(default)]
+    account_id: String,
     email: String,
     access_token: String,
     refresh_token: String,
@@ -60,6 +62,7 @@ struct StoredSession {
 
 #[derive(Debug, Deserialize)]
 struct AuthUser {
+    id: Option<String>,
     email: Option<String>,
 }
 
@@ -184,6 +187,32 @@ fn configured_providers_from(store: &dyn SecretStore) -> HashSet<String> {
         .collect()
 }
 
+fn jwt_subject(access_token: &str) -> Option<String> {
+    let payload = access_token.split('.').nth(1)?;
+    if payload.len() > 16_384 {
+        return None;
+    }
+    let bytes = URL_SAFE_NO_PAD.decode(payload).ok()?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    value
+        .get("sub")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| uuid::Uuid::parse_str(value).is_ok())
+        .map(str::to_string)
+}
+
+pub(crate) fn is_valid_account_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 80
+        && value
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        && value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
 fn stored_session(store: &dyn SecretStore) -> Result<StoredSession, AccountFailure> {
     let raw = store
         .read_secret(ACCOUNT_CREDENTIAL_ID)
@@ -191,42 +220,79 @@ fn stored_session(store: &dyn SecretStore) -> Result<StoredSession, AccountFailu
             CredentialError::NotFound => AccountFailure::Authentication,
             CredentialError::Store => AccountFailure::Storage,
         })?;
-    serde_json::from_str(&raw).map_err(|_| AccountFailure::Storage)
+    let mut session: StoredSession =
+        serde_json::from_str(&raw).map_err(|_| AccountFailure::Storage)?;
+    if session.account_id.is_empty() {
+        session.account_id = jwt_subject(&session.access_token).ok_or(AccountFailure::Storage)?;
+        session.version = 2;
+        persist_session(store, &session)?;
+    }
+    if session.version != 2
+        || !is_valid_account_id(&session.account_id)
+        || !valid_email(&session.email)
+        || session.access_token.len() < 20
+        || session.access_token.len() > 32_768
+        || session.refresh_token.len() < 20
+        || session.refresh_token.len() > 32_768
+    {
+        return Err(AccountFailure::Storage);
+    }
+    Ok(session)
+}
+
+fn persist_session(store: &dyn SecretStore, session: &StoredSession) -> Result<(), AccountFailure> {
+    let encoded =
+        Zeroizing::new(serde_json::to_string(session).map_err(|_| AccountFailure::Storage)?);
+    store
+        .store_secret(ACCOUNT_CREDENTIAL_ID, &encoded)
+        .map_err(|_| AccountFailure::Storage)
 }
 
 fn save_session(
     store: &dyn SecretStore,
     response: AuthResponse,
+    previous: Option<&StoredSession>,
 ) -> Result<StoredSession, AccountFailure> {
     let access_token = response
         .access_token
         .ok_or(AccountFailure::Authentication)?;
     let refresh_token = response
         .refresh_token
+        .or_else(|| previous.map(|value| value.refresh_token.clone()))
+        .ok_or(AccountFailure::Authentication)?;
+    let account_id = response
+        .user
+        .as_ref()
+        .and_then(|user| user.id.clone())
+        .or_else(|| jwt_subject(&access_token))
+        .or_else(|| previous.map(|value| value.account_id.clone()))
+        .filter(|value| uuid::Uuid::parse_str(value).is_ok())
         .ok_or(AccountFailure::Authentication)?;
     let email = response
         .user
         .and_then(|user| user.email)
+        .or_else(|| previous.map(|value| value.email.clone()))
         .filter(|value| valid_email(value))
         .ok_or(AccountFailure::Authentication)?;
-    if access_token.len() < 20 || access_token.len() > 32_768 || refresh_token.len() < 20 {
+    if access_token.len() < 20
+        || access_token.len() > 32_768
+        || refresh_token.len() < 20
+        || refresh_token.len() > 32_768
+    {
         return Err(AccountFailure::Authentication);
     }
     let session = StoredSession {
-        version: 1,
+        version: 2,
+        account_id,
         email,
         access_token,
         refresh_token,
         expires_at: now_seconds() + response.expires_in.unwrap_or(3_600).clamp(60, 86_400),
     };
-    let encoded =
-        Zeroizing::new(serde_json::to_string(&session).map_err(|_| AccountFailure::Storage)?);
-    store
-        .store_secret(ACCOUNT_CREDENTIAL_ID, &encoded)
-        .map_err(|_| AccountFailure::Storage)?;
-    store
-        .store_secret(PRO_SESSION_CREDENTIAL_ID, &session.access_token)
-        .map_err(|_| AccountFailure::Storage)?;
+    if previous.is_some_and(|value| value.account_id != session.account_id) {
+        crate::pro::clear_local_authorization(store).map_err(|_| AccountFailure::Storage)?;
+    }
+    persist_session(store, &session)?;
     Ok(session)
 }
 
@@ -276,6 +342,27 @@ async fn refresh_session(session: &StoredSession) -> Result<AuthResponse, Accoun
         serde_json::json!({ "refresh_token": session.refresh_token }),
     )
     .await
+}
+
+fn session_refresh_lock() -> &'static tokio::sync::Mutex<()> {
+    static LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
+}
+
+pub(crate) async fn current_access_token(
+    store: &dyn SecretStore,
+) -> Result<Zeroizing<String>, AccountFailure> {
+    let _held = session_refresh_lock().lock().await;
+    let mut session = stored_session(store)?;
+    if session.expires_at <= now_seconds() + 120 {
+        let response = refresh_session(&session).await?;
+        session = save_session(store, response, Some(&session))?;
+    }
+    Ok(Zeroizing::new(session.access_token))
+}
+
+pub(crate) fn active_account_id(store: &dyn SecretStore) -> Result<String, AccountFailure> {
+    stored_session(store).map(|session| session.account_id)
 }
 
 fn sync_device_id(store: &dyn SecretStore) -> Result<String, AccountFailure> {
@@ -408,10 +495,7 @@ pub(crate) async fn sync_snapshot(store: &dyn SecretStore) -> Result<bool, Accou
     if rows.is_empty() {
         return Ok(false);
     }
-    let mut session = stored_session(store)?;
-    if session.expires_at <= now_seconds() + 120 {
-        session = save_session(store, refresh_session(&session).await?)?;
-    }
+    let access_token = current_access_token(store).await?;
     let observed_at = time::OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)
         .map_err(|_| AccountFailure::Storage)?;
@@ -429,7 +513,7 @@ pub(crate) async fn sync_snapshot(store: &dyn SecretStore) -> Result<bool, Accou
     let response = client()?
         .post(endpoint)
         .header("apikey", configured_key())
-        .bearer_auth(&session.access_token)
+        .bearer_auth(&*access_token)
         .header(ACCEPT, "application/json")
         .header(CONTENT_TYPE, "application/json")
         .body(payload)
@@ -457,17 +541,11 @@ fn status_for(store: &dyn SecretStore, backend_reachable: bool) -> AccountStatus
 pub async fn account_status(
     store: State<'_, KeyringStore>,
 ) -> Result<AccountStatus, AccountFailure> {
-    let Ok(session) = stored_session(store.inner()) else {
+    let Ok(_session) = stored_session(store.inner()) else {
         return Ok(status_for(store.inner(), configured()));
     };
-    if session.expires_at > now_seconds() + 120 {
-        return Ok(status_for(store.inner(), true));
-    }
-    Ok(match refresh_session(&session).await {
-        Ok(response) => match save_session(store.inner(), response) {
-            Ok(_) => status_for(store.inner(), true),
-            Err(_) => status_for(store.inner(), false),
-        },
+    Ok(match current_access_token(store.inner()).await {
+        Ok(_) => status_for(store.inner(), true),
         Err(_) => status_for(store.inner(), false),
     })
 }
@@ -501,7 +579,8 @@ pub async fn account_email(
     {
         return Err(AccountFailure::EmailConfirmationRequired);
     }
-    save_session(store.inner(), response)?;
+    let previous = stored_session(store.inner()).ok();
+    save_session(store.inner(), response, previous.as_ref())?;
     Ok(status_for(store.inner(), true))
 }
 
@@ -600,7 +679,8 @@ pub async fn account_oauth(
         serde_json::json!({ "auth_code": code, "code_verifier": verifier }),
     )
     .await?;
-    save_session(store.inner(), response)?;
+    let previous = stored_session(store.inner()).ok();
+    save_session(store.inner(), response, previous.as_ref())?;
     Ok(status_for(store.inner(), true))
 }
 
@@ -619,14 +699,28 @@ pub fn account_set_sync(
 }
 
 #[tauri::command]
-pub fn account_logout(store: State<'_, KeyringStore>) -> Result<(), AccountFailure> {
-    for id in [ACCOUNT_CREDENTIAL_ID, PRO_SESSION_CREDENTIAL_ID] {
-        match store.delete_secret(id) {
-            Ok(()) | Err(CredentialError::NotFound) => {}
-            Err(_) => return Err(AccountFailure::Storage),
+pub async fn account_logout(store: State<'_, KeyringStore>) -> Result<(), AccountFailure> {
+    if let Ok(access_token) = current_access_token(store.inner()).await {
+        let endpoint = format!("{}/auth/v1/logout", configured_url().trim_end_matches('/'));
+        if let Ok(client) = client() {
+            let _ = client
+                .post(endpoint)
+                .header("apikey", configured_key())
+                .bearer_auth(&*access_token)
+                .send()
+                .await;
         }
     }
-    Ok(())
+    let account_cleared = matches!(
+        store.delete_secret(ACCOUNT_CREDENTIAL_ID),
+        Ok(()) | Err(CredentialError::NotFound)
+    );
+    let pro_cleared = crate::pro::clear_local_authorization(store.inner()).is_ok();
+    if account_cleared && pro_cleared {
+        Ok(())
+    } else {
+        Err(AccountFailure::Storage)
+    }
 }
 
 #[tauri::command]
@@ -717,7 +811,8 @@ mod tests {
     fn cached_session_remains_signed_in_when_the_backend_is_unreachable() {
         let store = InMemorySecrets::new();
         let session = StoredSession {
-            version: 1,
+            version: 2,
+            account_id: "00000000-0000-4000-8000-000000000001".to_string(),
             email: "person@example.com".to_string(),
             access_token: "a".repeat(32),
             refresh_token: "r".repeat(32),
@@ -743,5 +838,57 @@ mod tests {
                 .expect("email confirmation failure"),
             serde_json::json!({ "kind": "email_confirmation_required" })
         );
+    }
+
+    #[test]
+    fn an_account_switch_clears_the_previous_device_grant_before_save() {
+        let store = InMemorySecrets::new();
+        let previous = StoredSession {
+            version: 2,
+            account_id: "00000000-0000-4000-8000-000000000001".to_string(),
+            email: "first@example.com".to_string(),
+            access_token: "first-access-token-at-least-twenty".to_string(),
+            refresh_token: "first-refresh-token-at-least-twenty".to_string(),
+            expires_at: now_seconds() + 3_600,
+        };
+        persist_session(&store, &previous).expect("previous session");
+        store
+            .store_secret("openlimiter-pro-trust", "old-device-grant")
+            .expect("old grant");
+
+        let saved = save_session(
+            &store,
+            AuthResponse {
+                access_token: Some("second-access-token-at-least-twenty".to_string()),
+                refresh_token: Some("second-refresh-token-at-least-twenty".to_string()),
+                expires_in: Some(3_600),
+                user: Some(AuthUser {
+                    id: Some("00000000-0000-4000-8000-000000000002".to_string()),
+                    email: Some("second@example.com".to_string()),
+                }),
+            },
+            Some(&previous),
+        )
+        .expect("switched session");
+        assert_eq!(saved.account_id, "00000000-0000-4000-8000-000000000002");
+        assert_eq!(
+            store.read_secret("openlimiter-pro-trust"),
+            Err(CredentialError::NotFound)
+        );
+        assert_eq!(store.stored_count(), 1);
+    }
+
+    #[test]
+    fn pro_has_no_mirrored_supabase_session_record() {
+        let legacy_key = concat!("openlimiter-pro-", "session");
+        let account_source = include_str!("account.rs");
+        let pro_source = include_str!("pro.rs");
+        assert!(!account_source.contains(legacy_key));
+        assert!(!pro_source.contains(legacy_key));
+        let pro_implementation = pro_source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("production implementation");
+        assert!(!pro_implementation.contains("refresh_token"));
     }
 }

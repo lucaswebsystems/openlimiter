@@ -24,15 +24,14 @@ pub const CONNECTIONS_FILE_NAME: &str = "connections.json";
 
 /// Version of the document this build writes.
 ///
-/// Version 2 replaced every free form string that mattered with a closed enum,
-/// and replaced two timestamps that described what a probe DID with three
-/// fields that describe what a probe ACHIEVED. The change is a real one for an
-/// old reader, not a new optional field it could ignore, which is why the
-/// number moved.
-pub const CONNECTIONS_DOCUMENT_VERSION: u64 = 2;
+/// Version 3 adds the one time Free account cap migration and durable pause
+/// state. The migration ledger is internal and cannot be supplied by IPC.
+pub const CONNECTIONS_DOCUMENT_VERSION: u64 = 3;
 
 /// The version this build still reads, and migrates, and never writes.
 pub const CONNECTIONS_DOCUMENT_VERSION_LEGACY: u64 = 1;
+pub const CONNECTIONS_DOCUMENT_VERSION_PRE_CAP: u64 = 2;
+const CAP_MIGRATION_VERSION: u8 = 1;
 
 /// More connections than any person holds subscriptions; a bound, not a goal.
 pub const MAX_CONNECTIONS: usize = 100;
@@ -58,6 +57,15 @@ pub const MAX_CONSECUTIVE_FAILURES: u32 = 1_000_000;
 /// Highest attempt generation a stored record may claim. One probe per second
 /// for three hundred years would not reach it; a document that does was edited.
 pub const MAX_ATTEMPT_GENERATION: u64 = 10_000_000_000;
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PauseReason {
+    PausedByPlan,
+    PausedByUser,
+    CredentialInvalid,
+    ProviderUnavailable,
+}
 
 /// The connection state vocabulary, mirroring `CONNECTION_STATES` in
 /// `packages/core/src/connection-state.ts:12-26`. The state machine itself
@@ -143,6 +151,16 @@ pub struct ConnectionRecord {
     #[serde(default)]
     pub consecutive_failures: u32,
     pub status: String,
+    #[serde(default)]
+    pub legacy_grandfathered: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pause_reason: Option<PauseReason>,
+}
+
+impl ConnectionRecord {
+    pub fn is_active(&self) -> bool {
+        self.pause_reason.is_none()
+    }
 }
 
 /// Account identifiers are intentionally absent from debug output because a
@@ -170,13 +188,39 @@ impl fmt::Debug for ConnectionRecord {
             .field("ever_connected", &self.ever_connected)
             .field("consecutive_failures", &self.consecutive_failures)
             .field("status", &self.status)
+            .field("legacy_grandfathered", &self.legacy_grandfathered)
+            .field("pause_reason", &self.pause_reason)
             .finish()
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ConsumedLegacy {
+    provider_id: ProviderId,
+    stable_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct CapMigrationV1 {
+    version: u8,
+    completed_at: u64,
+    grandfathered_ids: Vec<String>,
+    #[serde(default)]
+    consumed: Vec<ConsumedLegacy>,
+}
+
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ConnectionsDocument {
     version: u64,
+    connections: Vec<ConnectionRecord>,
+    cap_migration_v1: CapMigrationV1,
+}
+
+#[derive(Deserialize)]
+struct ConnectionsDocumentV2 {
     connections: Vec<ConnectionRecord>,
 }
 
@@ -283,6 +327,8 @@ fn migrate_legacy_record(legacy: LegacyConnectionRecord) -> Result<ConnectionRec
         ever_connected: legacy.last_test_at.is_some() || legacy.last_refresh_at.is_some(),
         consecutive_failures: 0,
         status: legacy.status,
+        legacy_grandfathered: false,
+        pause_reason: None,
     };
     validate_record(&record).map_err(|_| StoreError::Corrupt)?;
     Ok(record)
@@ -303,6 +349,10 @@ pub enum StoreError {
     Full,
     /// A field is missing, empty where it may not be, or over its bound.
     InvalidField,
+    /// Free already has the active account allowed for this provider.
+    PlanCap,
+    /// The connection is preserved but cannot perform work while paused.
+    Paused,
     /// The operating system refused a read or a write.
     Io,
 }
@@ -315,6 +365,8 @@ impl fmt::Display for StoreError {
             StoreError::Corrupt => "the connections file is not readable as written",
             StoreError::Full => "the connections file is at its bound",
             StoreError::InvalidField => "a connection field is empty or over its bound",
+            StoreError::PlanCap => "the Free active account cap is already in use",
+            StoreError::Paused => "the connection is paused and cannot perform work",
             StoreError::Io => "the connections file could not be read or written",
         };
         formatter.write_str(sentence)
@@ -334,6 +386,103 @@ pub fn now_epoch_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
         .unwrap_or(0)
+}
+
+fn empty_document() -> ConnectionsDocument {
+    ConnectionsDocument {
+        version: CONNECTIONS_DOCUMENT_VERSION,
+        connections: Vec::new(),
+        cap_migration_v1: CapMigrationV1 {
+            version: CAP_MIGRATION_VERSION,
+            completed_at: now_epoch_ms().max(1),
+            grandfathered_ids: Vec::new(),
+            consumed: Vec::new(),
+        },
+    }
+}
+
+fn migrate_cap_document(
+    mut connections: Vec<ConnectionRecord>,
+) -> Result<ConnectionsDocument, StoreError> {
+    if connections.len() > MAX_CONNECTIONS {
+        return Err(StoreError::Corrupt);
+    }
+    let mut grandfathered_ids = Vec::with_capacity(connections.len());
+    for record in &mut connections {
+        record.base_seconds = record.reader_id.base_seconds();
+        validate_record(record).map_err(|_| StoreError::Corrupt)?;
+        if grandfathered_ids.contains(&record.id) {
+            return Err(StoreError::Corrupt);
+        }
+        record.legacy_grandfathered = true;
+        grandfathered_ids.push(record.id.clone());
+    }
+    grandfathered_ids.sort();
+    let document = ConnectionsDocument {
+        version: CONNECTIONS_DOCUMENT_VERSION,
+        connections,
+        cap_migration_v1: CapMigrationV1 {
+            version: CAP_MIGRATION_VERSION,
+            completed_at: now_epoch_ms().max(1),
+            grandfathered_ids,
+            consumed: Vec::new(),
+        },
+    };
+    validate_document(&document)?;
+    Ok(document)
+}
+
+fn validate_document(document: &ConnectionsDocument) -> Result<(), StoreError> {
+    if document.version != CONNECTIONS_DOCUMENT_VERSION
+        || document.cap_migration_v1.version != CAP_MIGRATION_VERSION
+        || !valid_timestamp(document.cap_migration_v1.completed_at)
+        || document.connections.len() > MAX_CONNECTIONS
+        || document.cap_migration_v1.grandfathered_ids.len() > MAX_CONNECTIONS
+        || document.cap_migration_v1.consumed.len() > MAX_CONNECTIONS
+    {
+        return Err(StoreError::Corrupt);
+    }
+    let mut connection_ids: Vec<&str> = Vec::with_capacity(document.connections.len());
+    for record in &document.connections {
+        validate_record(record).map_err(|_| StoreError::Corrupt)?;
+        if connection_ids.contains(&record.id.as_str()) {
+            return Err(StoreError::Corrupt);
+        }
+        connection_ids.push(&record.id);
+        let in_ledger = document
+            .cap_migration_v1
+            .grandfathered_ids
+            .contains(&record.id);
+        let consumed = document
+            .cap_migration_v1
+            .consumed
+            .iter()
+            .any(|entry| entry.stable_id == record.id);
+        if record.legacy_grandfathered != (in_ledger && !consumed) {
+            return Err(StoreError::Corrupt);
+        }
+    }
+    let mut ledger_ids: Vec<&str> = Vec::new();
+    for id in &document.cap_migration_v1.grandfathered_ids {
+        if !valid_id(id) || ledger_ids.contains(&id.as_str()) {
+            return Err(StoreError::Corrupt);
+        }
+        ledger_ids.push(id);
+    }
+    let mut consumed_ids: Vec<&str> = Vec::new();
+    for consumed in &document.cap_migration_v1.consumed {
+        if !valid_id(&consumed.stable_id)
+            || !document
+                .cap_migration_v1
+                .grandfathered_ids
+                .contains(&consumed.stable_id)
+            || consumed_ids.contains(&consumed.stable_id.as_str())
+        {
+            return Err(StoreError::Corrupt);
+        }
+        consumed_ids.push(&consumed.stable_id);
+    }
+    Ok(())
 }
 
 pub struct ConnectionsStore {
@@ -362,7 +511,7 @@ impl ConnectionsStore {
             .ok_or(StoreError::NoStateDirectory)
     }
 
-    fn load(&self) -> Result<Vec<ConnectionRecord>, StoreError> {
+    fn load(&self) -> Result<ConnectionsDocument, StoreError> {
         let file = self.file()?;
         let Some(text) = fsx::bounded_read(&file) else {
             /* Missing is an empty store; unreadable and oversized also land
@@ -371,7 +520,7 @@ impl ConnectionsStore {
             one: parsing what exists is attempted first. */
             return match std::fs::symlink_metadata(&file) {
                 Ok(_) => Err(StoreError::Corrupt),
-                Err(_) => Ok(Vec::new()),
+                Err(_) => Ok(empty_document()),
             };
         };
         /* The version is read first and on its own, so a shape this build does
@@ -381,11 +530,16 @@ impl ConnectionsStore {
         reads AND writes, so the file survives. */
         let probe: DocumentVersionProbe =
             serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
-        let mut connections = match probe.version {
+        let mut document = match probe.version {
             CONNECTIONS_DOCUMENT_VERSION => {
                 let document: ConnectionsDocument =
                     serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
-                document.connections
+                document
+            }
+            CONNECTIONS_DOCUMENT_VERSION_PRE_CAP => {
+                let document: ConnectionsDocumentV2 =
+                    serde_json::from_str(&text).map_err(|_| StoreError::Corrupt)?;
+                migrate_cap_document(document.connections)?
             }
             CONNECTIONS_DOCUMENT_VERSION_LEGACY => {
                 /* Migrated in memory only. Nothing is written here: version 2
@@ -401,88 +555,279 @@ impl ConnectionsStore {
                 for legacy in document.connections {
                     migrated.push(migrate_legacy_record(legacy)?);
                 }
-                migrated
+                migrate_cap_document(migrated)?
             }
             _ => return Err(StoreError::Corrupt),
         };
         /* Cadence is policy, not stored input. This also hydrates every version
         2 record written before the field existed. */
-        for record in &mut connections {
+        for record in &mut document.connections {
             record.base_seconds = record.reader_id.base_seconds();
         }
-        if connections.len() > MAX_CONNECTIONS {
-            return Err(StoreError::Corrupt);
+        validate_document(&document)?;
+        if probe.version != CONNECTIONS_DOCUMENT_VERSION {
+            self.save_document(&document)?;
+            let reopened = fsx::bounded_read(&file).ok_or(StoreError::Io)?;
+            let verified: ConnectionsDocument =
+                serde_json::from_str(&reopened).map_err(|_| StoreError::Io)?;
+            validate_document(&verified)?;
+            return Ok(verified);
         }
-        /* The file is input, not truth. Every record is validated on the way
-        in, exactly as it is on the way out, so a tampered document is a typed
-        corrupt error that blocks writes and never reaches the credential
-        store or the webview as trusted data. */
-        for record in &connections {
-            if validate_record(record).is_err() {
-                return Err(StoreError::Corrupt);
-            }
-        }
-        let mut seen: Vec<&str> = Vec::with_capacity(connections.len());
-        for record in &connections {
-            if seen.contains(&record.id.as_str()) {
-                return Err(StoreError::Corrupt);
-            }
-            seen.push(&record.id);
-        }
-        Ok(connections)
+        Ok(document)
     }
 
-    fn save(&self, connections: Vec<ConnectionRecord>) -> Result<(), StoreError> {
+    fn save_document(&self, document: &ConnectionsDocument) -> Result<(), StoreError> {
         let directory = self
             .directory
             .as_ref()
             .ok_or(StoreError::NoStateDirectory)?;
         fsx::ensure_private_dir(directory)?;
-        let document = ConnectionsDocument {
-            version: CONNECTIONS_DOCUMENT_VERSION,
-            connections,
-        };
-        let text = serde_json::to_string(&document).map_err(|_| StoreError::Io)?;
+        validate_document(document)?;
+        let text = serde_json::to_string(document).map_err(|_| StoreError::Io)?;
+        let round_trip: ConnectionsDocument =
+            serde_json::from_str(&text).map_err(|_| StoreError::Io)?;
+        validate_document(&round_trip)?;
         fsx::atomic_write(&self.file()?, &text)?;
         Ok(())
     }
 
     pub fn list(&self) -> Result<Vec<ConnectionRecord>, StoreError> {
         let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
-        self.load()
+        Ok(self.load()?.connections)
     }
 
     pub fn get(&self, id: &str) -> Result<ConnectionRecord, StoreError> {
         let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
         self.load()?
+            .connections
             .into_iter()
             .find(|record| record.id == id)
             .ok_or(StoreError::NotFound)
     }
 
     pub fn insert(&self, record: ConnectionRecord) -> Result<(), StoreError> {
+        self.insert_for_plan(record, true).map(|_| ())
+    }
+
+    pub fn insert_for_plan(
+        &self,
+        mut record: ConnectionRecord,
+        multi_account: bool,
+    ) -> Result<ConnectionRecord, StoreError> {
         validate_record(&record)?;
-        let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
-        let mut connections = self.load()?;
-        if connections.len() >= MAX_CONNECTIONS {
-            return Err(StoreError::Full);
-        }
-        if connections.iter().any(|existing| existing.id == record.id) {
+        if record.legacy_grandfathered || record.pause_reason.is_some() {
             return Err(StoreError::InvalidField);
         }
-        connections.push(record);
-        self.save(connections)
+        let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
+        let mut document = self.load()?;
+        if document.connections.len() >= MAX_CONNECTIONS {
+            return Err(StoreError::Full);
+        }
+        if document
+            .connections
+            .iter()
+            .any(|existing| existing.id == record.id)
+            || document
+                .cap_migration_v1
+                .grandfathered_ids
+                .contains(&record.id)
+        {
+            return Err(StoreError::InvalidField);
+        }
+        if !multi_account {
+            let active_same_provider = document
+                .connections
+                .iter()
+                .any(|existing| existing.provider_id == record.provider_id && existing.is_active());
+            if active_same_provider {
+                record.pause_reason = Some(PauseReason::PausedByPlan);
+            }
+        }
+        document.connections.push(record.clone());
+        self.save_document(&document)?;
+        Ok(record)
     }
 
     pub fn remove(&self, id: &str) -> Result<(), StoreError> {
         let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
-        let mut connections = self.load()?;
-        let before = connections.len();
-        connections.retain(|record| record.id != id);
-        if connections.len() == before {
-            return Err(StoreError::NotFound);
+        let mut document = self.load()?;
+        let index = document
+            .connections
+            .iter()
+            .position(|record| record.id == id)
+            .ok_or(StoreError::NotFound)?;
+        let removed = document.connections.remove(index);
+        if removed.legacy_grandfathered
+            && !document
+                .cap_migration_v1
+                .consumed
+                .iter()
+                .any(|entry| entry.stable_id == removed.id)
+        {
+            document.cap_migration_v1.consumed.push(ConsumedLegacy {
+                provider_id: removed.provider_id,
+                stable_id: removed.id,
+            });
         }
-        self.save(connections)
+        self.save_document(&document)
+    }
+
+    pub fn apply_plan(
+        &self,
+        multi_account: bool,
+        keeper_ids: &[String],
+    ) -> Result<Vec<ConnectionRecord>, StoreError> {
+        if keeper_ids.len() > ProviderId::ALL.len() || keeper_ids.iter().any(|id| !valid_id(id)) {
+            return Err(StoreError::InvalidField);
+        }
+        let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
+        let mut document = self.load()?;
+        if !multi_account {
+            let mut selected_providers = Vec::new();
+            for keeper_id in keeper_ids {
+                let keeper = document
+                    .connections
+                    .iter()
+                    .find(|record| &record.id == keeper_id)
+                    .filter(|record| {
+                        !record.legacy_grandfathered
+                            && matches!(record.pause_reason, None | Some(PauseReason::PausedByPlan))
+                    })
+                    .ok_or(StoreError::InvalidField)?;
+                if selected_providers.contains(&keeper.provider_id) {
+                    return Err(StoreError::InvalidField);
+                }
+                selected_providers.push(keeper.provider_id);
+            }
+        }
+        let before = document.connections.clone();
+        for provider in ProviderId::ALL {
+            if multi_account {
+                for record in document
+                    .connections
+                    .iter_mut()
+                    .filter(|record| record.provider_id == provider)
+                {
+                    if record.pause_reason == Some(PauseReason::PausedByPlan) {
+                        record.pause_reason = None;
+                    }
+                }
+                continue;
+            }
+            let active_legacy = document.connections.iter().any(|record| {
+                record.provider_id == provider && record.legacy_grandfathered && record.is_active()
+            });
+            let keeper = if active_legacy {
+                None
+            } else {
+                keeper_ids
+                    .iter()
+                    .find(|id| {
+                        document.connections.iter().any(|record| {
+                            &record.id == *id
+                                && record.provider_id == provider
+                                && !record.legacy_grandfathered
+                                && matches!(
+                                    record.pause_reason,
+                                    None | Some(PauseReason::PausedByPlan)
+                                )
+                        })
+                    })
+                    .cloned()
+                    .or_else(|| {
+                        let active = document
+                            .connections
+                            .iter()
+                            .filter(|record| {
+                                record.provider_id == provider
+                                    && !record.legacy_grandfathered
+                                    && record.is_active()
+                            })
+                            .collect::<Vec<_>>();
+                        (active.len() == 1).then(|| active[0].id.clone())
+                    })
+                    .or_else(|| {
+                        document
+                            .connections
+                            .iter()
+                            .filter(|record| {
+                                record.provider_id == provider
+                                    && !record.legacy_grandfathered
+                                    && matches!(
+                                        record.pause_reason,
+                                        None | Some(PauseReason::PausedByPlan)
+                                    )
+                            })
+                            .min_by(|left, right| {
+                                left.created_at
+                                    .cmp(&right.created_at)
+                                    .then_with(|| left.id.cmp(&right.id))
+                            })
+                            .map(|record| record.id.clone())
+                    })
+            };
+            for record in document
+                .connections
+                .iter_mut()
+                .filter(|record| record.provider_id == provider && !record.legacy_grandfathered)
+            {
+                if !matches!(record.pause_reason, None | Some(PauseReason::PausedByPlan)) {
+                    continue;
+                }
+                record.pause_reason = if keeper.as_deref() == Some(record.id.as_str()) {
+                    None
+                } else {
+                    Some(PauseReason::PausedByPlan)
+                };
+            }
+        }
+        if document.connections != before {
+            self.save_document(&document)?;
+        }
+        Ok(document.connections)
+    }
+
+    pub fn set_user_paused(
+        &self,
+        id: &str,
+        paused: bool,
+        multi_account: bool,
+    ) -> Result<ConnectionRecord, StoreError> {
+        let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
+        let mut document = self.load()?;
+        let index = document
+            .connections
+            .iter()
+            .position(|record| record.id == id)
+            .ok_or(StoreError::NotFound)?;
+        if paused {
+            document.connections[index].pause_reason = Some(PauseReason::PausedByUser);
+        } else {
+            if !matches!(
+                document.connections[index].pause_reason,
+                Some(PauseReason::PausedByUser) | Some(PauseReason::PausedByPlan)
+            ) {
+                return Err(StoreError::InvalidField);
+            }
+            if !multi_account {
+                let provider = document.connections[index].provider_id;
+                let another_active =
+                    document
+                        .connections
+                        .iter()
+                        .enumerate()
+                        .any(|(other, record)| {
+                            other != index && record.provider_id == provider && record.is_active()
+                        });
+                if another_active {
+                    return Err(StoreError::PlanCap);
+                }
+            }
+            document.connections[index].pause_reason = None;
+        }
+        let changed = document.connections[index].clone();
+        self.save_document(&document)?;
+        Ok(changed)
     }
 
     /// Decide and change one record inside a single held lock.
@@ -507,8 +852,9 @@ impl ConnectionsStore {
         E: From<StoreError>,
     {
         let _held = self.guard.lock().map_err(|_| E::from(StoreError::Io))?;
-        let mut connections = self.load().map_err(E::from)?;
-        let record = connections
+        let mut document = self.load().map_err(E::from)?;
+        let record = document
+            .connections
             .iter_mut()
             .find(|record| record.id == id)
             .ok_or_else(|| E::from(StoreError::NotFound))?;
@@ -521,7 +867,7 @@ impl ConnectionsStore {
         if !identity_kept {
             return Err(E::from(StoreError::InvalidField));
         }
-        self.save(connections).map_err(E::from)?;
+        self.save_document(&document).map_err(E::from)?;
         Ok(changed)
     }
 
@@ -537,8 +883,9 @@ impl ConnectionsStore {
         F: FnOnce(&mut ConnectionRecord),
     {
         let _held = self.guard.lock().map_err(|_| StoreError::Io)?;
-        let mut connections = self.load()?;
-        let record = connections
+        let mut document = self.load()?;
+        let record = document
+            .connections
             .iter_mut()
             .find(|record| record.id == id)
             .ok_or(StoreError::NotFound)?;
@@ -549,7 +896,7 @@ impl ConnectionsStore {
         if !identity_kept {
             return Err(StoreError::InvalidField);
         }
-        self.save(connections)?;
+        self.save_document(&document)?;
         Ok(changed)
     }
 }
@@ -673,6 +1020,8 @@ mod tests {
             ever_connected: false,
             consecutive_failures: 0,
             status: "READY_TO_ENABLE".to_string(),
+            legacy_grandfathered: false,
+            pause_reason: None,
         }
     }
 
@@ -710,7 +1059,7 @@ mod tests {
     fn write_document(dir: &TempDir, records: &[String]) {
         let text = format!(
             r#"{{"version":{},"connections":[{}]}}"#,
-            CONNECTIONS_DOCUMENT_VERSION,
+            CONNECTIONS_DOCUMENT_VERSION_PRE_CAP,
             records.join(",")
         );
         std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), text).expect("write");
@@ -1010,6 +1359,14 @@ mod tests {
                 "a connection field is empty or over its bound",
             ),
             (
+                StoreError::PlanCap,
+                "the Free active account cap is already in use",
+            ),
+            (
+                StoreError::Paused,
+                "the connection is paused and cannot perform work",
+            ),
+            (
                 StoreError::Io,
                 "the connections file could not be read or written",
             ),
@@ -1023,7 +1380,7 @@ mod tests {
     fn future_document_version_is_corrupt_and_blocks_writes() {
         let dir = TempDir::new();
         let text = format!(
-            r#"{{"version":3,"connections":[{}]}}"#,
+            r#"{{"version":4,"connections":[{}]}}"#,
             record_json("one", "personal", "openrouter_inference_key")
         );
         std::fs::write(dir.path().join(CONNECTIONS_FILE_NAME), text.clone()).expect("write");
@@ -1046,7 +1403,8 @@ mod tests {
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         store.insert(record("one")).expect("insert");
         let text = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
-        assert!(text.contains("\"version\":2"));
+        assert!(text.contains("\"version\":3"));
+        assert!(text.contains("\"cap_migration_v1\""));
         assert!(!text.contains("secret"));
     }
 
@@ -1086,6 +1444,7 @@ mod tests {
         assert_eq!(inference.attempt_generation, 0);
         assert_eq!(inference.consecutive_failures, 0);
         assert_eq!(inference.status, "CONNECTED");
+        assert!(inference.legacy_grandfathered);
 
         let management = &listed[1];
         assert_eq!(
@@ -1120,25 +1479,23 @@ mod tests {
     }
 
     #[test]
-    fn reading_a_version_one_document_does_not_rewrite_it() {
-        /* The migration is in memory. Version 2 reaches the disk on the next
-        successful mutation and not before, so opening the application and
-        changing nothing leaves the previous build's file exactly as it was. */
+    fn reading_a_version_one_document_commits_the_cap_migration() {
         let dir = TempDir::new();
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         write_legacy_document(
             &dir,
             &[legacy_record_json("abc-123", "inference", "null", "null")],
         );
-        let before = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
         store.list().expect("list");
         store.get("abc-123").expect("get");
         let after = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
-        assert_eq!(before, after);
+        assert!(after.contains("\"version\":3"));
+        assert!(after.contains("\"legacy_grandfathered\":true"));
+        assert!(after.contains("\"grandfathered_ids\":[\"abc-123\"]"));
     }
 
     #[test]
-    fn the_next_successful_mutation_writes_version_two() {
+    fn a_successful_mutation_keeps_version_three() {
         let dir = TempDir::new();
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         write_legacy_document(
@@ -1149,7 +1506,7 @@ mod tests {
             .update("abc-123", |it| it.status = "CONNECTED".to_string())
             .expect("update");
         let text = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).expect("read");
-        assert!(text.contains("\"version\":2"));
+        assert!(text.contains("\"version\":3"));
         assert!(text.contains("\"credential_kind\":\"openrouter_inference_key\""));
         assert!(text.contains("\"reader_id\":\"openrouter_key\""));
         assert!(!text.contains("key_kind"));
@@ -1269,6 +1626,105 @@ mod tests {
             "READY_TO_ENABLE",
             "a refusal must leave the record exactly as it was"
         );
+    }
+
+    #[test]
+    fn free_insertion_pauses_a_second_ordinary_account() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let first = store
+            .insert_for_plan(record("first"), false)
+            .expect("first account");
+        let second = store
+            .insert_for_plan(record("second"), false)
+            .expect("preserved second account");
+        assert!(first.is_active());
+        assert_eq!(second.pause_reason, Some(PauseReason::PausedByPlan));
+    }
+
+    #[test]
+    fn downgrade_uses_oldest_then_stable_id_and_never_deletes() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let mut newer = record("z-account");
+        newer.created_at = 1_770_000_000_100;
+        let mut oldest_b = record("b-account");
+        oldest_b.created_at = 1_770_000_000_000;
+        let mut oldest_a = record("a-account");
+        oldest_a.created_at = 1_770_000_000_000;
+        store.insert_for_plan(newer, true).unwrap();
+        store.insert_for_plan(oldest_b, true).unwrap();
+        store.insert_for_plan(oldest_a, true).unwrap();
+        let changed = store.apply_plan(false, &[]).unwrap();
+        assert_eq!(changed.len(), 3);
+        assert!(changed
+            .iter()
+            .find(|record| record.id == "a-account")
+            .unwrap()
+            .is_active());
+        assert!(changed
+            .iter()
+            .filter(|record| record.id != "a-account")
+            .all(|record| record.pause_reason == Some(PauseReason::PausedByPlan)));
+    }
+
+    #[test]
+    fn a_chosen_keeper_survives_later_automatic_reconciliation() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let mut oldest = record("oldest");
+        oldest.created_at = 1_700_000_000_000;
+        let mut chosen = record("chosen");
+        chosen.created_at = 1_800_000_000_000;
+        store.insert_for_plan(oldest, true).unwrap();
+        store.insert_for_plan(chosen, true).unwrap();
+
+        store
+            .apply_plan(false, &["chosen".to_string()])
+            .expect("explicit keeper");
+        store
+            .apply_plan(false, &[])
+            .expect("automatic reconciliation");
+        assert!(store.get("chosen").unwrap().is_active());
+        assert_eq!(
+            store.get("oldest").unwrap().pause_reason,
+            Some(PauseReason::PausedByPlan)
+        );
+    }
+
+    #[test]
+    fn downgrade_refuses_two_keepers_for_one_provider() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        store.insert_for_plan(record("first"), true).unwrap();
+        store.insert_for_plan(record("second"), true).unwrap();
+
+        assert_eq!(
+            store.apply_plan(false, &["first".to_string(), "second".to_string()]),
+            Err(StoreError::InvalidField)
+        );
+        assert!(store.get("first").unwrap().is_active());
+        assert!(store.get("second").unwrap().is_active());
+    }
+
+    #[test]
+    fn deleting_a_legacy_record_consumes_its_exception() {
+        let dir = TempDir::new();
+        write_legacy_document(
+            &dir,
+            &[legacy_record_json("abc-123", "inference", "null", "null")],
+        );
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        assert!(store.get("abc-123").unwrap().legacy_grandfathered);
+        store.remove("abc-123").unwrap();
+        let mut replacement = record("abc-123");
+        replacement.legacy_grandfathered = true;
+        assert_eq!(
+            store.insert_for_plan(replacement, true),
+            Err(StoreError::InvalidField)
+        );
+        let text = std::fs::read_to_string(dir.path().join(CONNECTIONS_FILE_NAME)).unwrap();
+        assert!(text.contains("\"stable_id\":\"abc-123\""));
     }
 
     #[test]

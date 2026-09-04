@@ -50,12 +50,13 @@
  * branch on stale_generation or busy, and `message` is the human sentence
  * with the raw kind kept visible inside it.
  *
- * SECRETS. connectProvider carries a provider credential and proSetSession
- * carries a Supabase access token. Each value crosses this module once on its
- * way to the operating system credential store. Neither value is logged,
- * retained here, or returned. A Codex connection may carry its nonsecret
- * account identifier beside the masked label, but neither value is ever
- * logged. There is no console call anywhere in this file.
+ * SECRETS. connectProvider carries a provider credential and
+ * apiSpendSaveSource carries one management key. Each value crosses this
+ * module once on its way to a dedicated operating system credential store.
+ * Neither value is logged, retained here, or returned. Supabase session tokens
+ * are owned entirely by the Rust account broker and never cross this module.
+ * A Codex connection may carry its nonsecret account identifier beside the
+ * masked label. There is no console call anywhere in this file.
  */
 
 /**
@@ -116,6 +117,9 @@ const FAILURE_SENTENCES = {
   network: "The Pro service could not be reached.",
   service: "The Pro service returned an unusable response.",
   entitlement_required: "This hosted service needs an active Pro entitlement.",
+  plan_cap: "Free allows one active account for this provider.",
+  paused: "This connection is paused and cannot perform work.",
+  device_cap_reached: "This account already has five active device grants.",
   updater_unconfigured: "Updates are not configured in this build.",
   update_check_failed: "The update check could not be completed.",
   no_pending_update: "No downloaded update is waiting to be installed.",
@@ -126,6 +130,11 @@ const FAILURE_SENTENCES = {
   oauth_timeout: "The sign in window timed out.",
   oauth_rejected: "The sign in response could not be verified.",
   email_confirmation_required: "Check your email to confirm your account, then sign in.",
+  keyring_unavailable: "The operating system keyring is unavailable.",
+  rate_limited: "The provider asked OpenLimiter to wait before trying again.",
+  provider_unavailable: "The provider management API is temporarily unavailable.",
+  invalid_response: "The provider management API returned an unsupported response.",
+  unsafe_destination: "The provider destination failed the fixed host policy.",
 };
 
 function absent(command) {
@@ -336,6 +345,20 @@ export async function listConnections() {
   return call("list_connections");
 }
 
+/** Apply the locally verified plan and optional downgrade keeper choices. */
+export async function reconcileConnectionPlan(keeperIds = []) {
+  return call("reconcile_connection_plan", {
+    input: { keeperIds: Array.isArray(keeperIds) ? keeperIds : [] },
+  });
+}
+
+/** Pause or resume one preserved local connection. */
+export async function setConnectionPaused(connectionId, paused) {
+  return call("set_connection_paused", {
+    input: { connectionId, paused: paused === true },
+  });
+}
+
 /** What supported local tools exist on this machine, without reading secrets. */
 export async function detectLocalTools() {
   return call("detect_local_tools");
@@ -366,18 +389,15 @@ const PRO_ACTIONS = new Set([
   "history",
   "agent_context",
   "dispatch_alerts",
+  "device_status",
+  "rename_device",
+  "revoke_device",
+  "revoke_other_devices",
 ]);
 
 /** Read the locally verified Pro state without contacting the service. */
 export async function proStatus() {
   return call("pro_status");
-}
-
-/** Store one authenticated Pro session and exchange its first device token. */
-export async function proSetSession(accessToken) {
-  return call("pro_set_session", {
-    input: { access_token: accessToken },
-  });
 }
 
 /** Refresh the signed device entitlement now. */
@@ -443,9 +463,49 @@ export async function accountSyncConfiguredSnapshot(providers) {
   });
 }
 
+/** Local API spend and balance observations. Management keys never return. */
+export async function apiSpendStatus() {
+  return call("api_spend_status");
+}
+
+/** Store one management key after the eligibility disclosure is confirmed. */
+export async function apiSpendSaveSource(input) {
+  return call("api_spend_save_source", { input });
+}
+
+/** Observe the selected provider through its fixed native adapter. */
+export async function apiSpendRefresh(sourceId, manual = true) {
+  return call("api_spend_refresh", { input: { sourceId, manual } });
+}
+
+/** Revoke the local key and remove its source, optionally deleting samples. */
+export async function apiSpendRemoveSource(sourceId, deleteSamples = false) {
+  return call("api_spend_remove_source", {
+    input: { sourceId, deleteSamples },
+  });
+}
+
+/** Set or clear the exact decimal local budget used for display. */
+export async function apiSpendSetBudget(sourceId, budgetUsd) {
+  return call("api_spend_set_budget", {
+    input: { sourceId, budgetUsd },
+  });
+}
+
 /** Feed only bounded percentages into the free native notification rules. */
 export async function evaluateNotifications(samples) {
-  return call("evaluate_notifications", { samples });
+  const systemTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  return call("evaluate_notifications", { samples, systemTimeZone });
+}
+
+/** Read the persisted local threshold, quiet hours, and snooze preferences. */
+export async function notificationSettings() {
+  return call("notification_settings");
+}
+
+/** Replace local notification preferences through the versioned Rust state. */
+export async function setNotificationSettings(settings) {
+  return call("set_notification_settings", { settings });
 }
 
 /** Recent local transition events for the bell. */
@@ -505,6 +565,8 @@ export function normalizeConnection(record) {
   const id = pick(record, ["id", "connection_id", "connectionId"]);
   if (id === null) return null;
   const provider = pick(record, ["provider_id", "provider", "providerId"]);
+  const rawPauseReason = pick(record, ["pause_reason", "pauseReason"]);
+  const pauseReason = typeof rawPauseReason === "string" ? rawPauseReason : null;
   return {
     id: String(id),
     provider: provider === null ? null : String(provider).toUpperCase(),
@@ -543,6 +605,10 @@ export function normalizeConnection(record) {
     consecutiveFailures: numberOf(
       pick(record, ["consecutive_failures", "consecutiveFailures"]),
     ),
+    legacyGrandfathered:
+      pick(record, ["legacy_grandfathered", "legacyGrandfathered"]) === true,
+    pauseReason,
+    active: pauseReason === null,
     everConnected:
       pick(record, ["ever_connected", "everConnected"]) === true,
   };
