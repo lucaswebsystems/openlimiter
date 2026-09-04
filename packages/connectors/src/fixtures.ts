@@ -697,15 +697,22 @@ export const claudeSanitizedLive: SanitizedLiveFixture = {
 export const codexSanitizedLive: SanitizedLiveFixture = {
   id: "codex.sanitized_live.usage",
   connector: "codex",
-  status: "pending_capture",
-  capturedAt: null,
-  providerVersion: null,
-  skipReason: "PENDING CAPTURE: no sanitized live Codex usage response exists " +
-    "yet. The request contract is recorded; the response is not. Capture one " +
-    "on a real account, reduce it to numbers and window lengths only, paste " +
-    "the result here, then remove this reason.",
-  expectedMeters: 0,
-  build: () => null
+  status: "captured",
+  capturedAt: "2026-09-01",
+  providerVersion: "codex-cli 0.152.0",
+  skipReason: null,
+  expectedMeters: 1,
+  /* Reduced by scripts/sanitize-capture.mjs. Numbers and closed vocabulary
+     words only: every other field of the real response was discarded rather
+     than redacted, so nothing identifying can be present even in principle.
+     Resets are seconds from capture, never instants, so this replays against
+     any clock and dates nobody's working day. */
+  capture: {
+    "usedPercent": 20,
+    "resetsInSeconds": 448881,
+    "limitWindowSeconds": 604800
+  },
+  build: (now) => rebuildCodexCapture(codexSanitizedLive.capture, now)
 };
 
 /**
@@ -719,15 +726,53 @@ export const codexSanitizedLive: SanitizedLiveFixture = {
 export const antigravitySanitizedLive: SanitizedLiveFixture = {
   id: "antigravity.sanitized_live.quota",
   connector: "antigravity",
-  status: "pending_capture",
-  capturedAt: null,
-  providerVersion: null,
-  skipReason: "PENDING CAPTURE: no sanitized live Antigravity quota summary " +
-    "exists yet. The request contract is recorded; the response is not. " +
-    "Capture one on a real account, reduce it to fractions and window " +
-    "lengths only, paste the result here, then remove this reason.",
-  expectedMeters: 0,
-  build: () => null
+  status: "captured",
+  capturedAt: "2026-09-01",
+  providerVersion: "antigravity/cli/1.1.15",
+  skipReason: null,
+  expectedMeters: 2,
+  /* Reduced by scripts/sanitize-capture.mjs. Numbers and closed vocabulary
+     words only: every other field of the real response was discarded rather
+     than redacted, so nothing identifying can be present even in principle.
+     Resets are seconds from capture, never instants, so this replays against
+     any clock and dates nobody's working day. */
+  capture: {
+    "groups": [
+      {
+        "buckets": [
+          {
+            "poolPrefix": "gemini",
+            "window": "weekly",
+            "remainingFraction": 0.9867396,
+            "resetsInSeconds": 524780
+          },
+          {
+            "poolPrefix": "gemini",
+            "window": "5h",
+            "remainingFraction": 0.9561311,
+            "resetsInSeconds": 9265
+          }
+        ]
+      },
+      {
+        "buckets": [
+          {
+            "poolPrefix": "3p",
+            "window": "weekly",
+            "remainingFraction": 1,
+            "resetsInSeconds": 604461
+          },
+          {
+            "poolPrefix": "3p",
+            "window": "5h",
+            "remainingFraction": 1,
+            "resetsInSeconds": 17661
+          }
+        ]
+      }
+    ]
+  },
+  build: (now) => rebuildAntigravityCapture(antigravitySanitizedLive.capture, now)
 };
 
 /**

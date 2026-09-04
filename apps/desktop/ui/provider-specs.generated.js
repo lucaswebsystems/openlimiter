@@ -229,8 +229,8 @@ export const PROVIDER_SPECS = {
             "endpointId": "antigravity_quota",
             "credentialKind": "antigravity_session",
             "evidenceFixture": "antigravity.sanitized_live.quota",
-            "evidenceStatus": "pending_capture",
-            "lastVerifiedAt": null
+            "evidenceStatus": "captured",
+            "lastVerifiedAt": "2026-09-01"
           }
         ]
       },
@@ -615,8 +615,8 @@ export const PROVIDER_SPECS = {
             "endpointId": "codex_usage",
             "credentialKind": "codex_session",
             "evidenceFixture": "codex.sanitized_live.usage",
-            "evidenceStatus": "pending_capture",
-            "lastVerifiedAt": null
+            "evidenceStatus": "captured",
+            "lastVerifiedAt": "2026-09-01"
           }
         ]
       },
