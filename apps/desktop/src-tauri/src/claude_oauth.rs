@@ -1395,4 +1395,44 @@ mod tests {
         )
         .is_some());
     }
+
+    /// The bug was that the desktop showed nothing, so parsing is only half of
+    /// it: every new meter has to survive the cache's own validator too, which
+    /// drops a row it does not accept without saying so.
+    #[tokio::test]
+    async fn every_new_meter_survives_the_write_and_reaches_the_cache() {
+        let dir = TempDir::new();
+        let transport = RecordingTransport::replying(
+            200,
+            full_contract_body().into_bytes(),
+            None,
+        );
+        let outcome = collect_with_secret(
+            &ClaudeOauthRuntime::default(),
+            &transport,
+            writer(&dir),
+            ACCOUNT,
+            &secret("every-bucket"),
+            NOW,
+        )
+        .await;
+
+        assert!(matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }));
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        for meter in [
+            "FIVE_HOUR",
+            "SEVEN_DAY",
+            "SEVEN_DAY_OPUS",
+            "SEVEN_DAY_SONNET",
+            "SEVEN_DAY_OAUTH_APPS",
+            "CINDER_COVE",
+            "SEVEN_DAY_FABLE",
+            "EXTRA_USAGE",
+        ] {
+            assert!(cache.contains(meter), "{meter} never reached the cache");
+        }
+        assert!(cache.contains("\"usedAmount\":12.5"));
+        assert!(cache.contains("\"limitAmount\":100.0"));
+        assert!(!cache.contains(TOKEN));
+    }
 }
