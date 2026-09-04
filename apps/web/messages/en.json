@@ -494,6 +494,7 @@
     },
     "feedIn": "How to feed one in",
     "footnote": "Every connector ships marked <code>UNVERIFIED</code>, the honest default: no verifier has confirmed a shape against a live account yet. Three read interfaces internal to somebody else's tooling, and when one changes, that provider fails closed to unknown rather than guessing. <link>Every connector and its real state</link>.",
+    "compatibilityNote": "Product names, logos, brands, and other trademarks featured or referred to within OpenLimiter are the property of their respective trademark holders. These trademark holders are not affiliated with OpenLimiter, our products, or our website. They do not sponsor or endorse OpenLimiter. Use of them does not imply any affiliation with or endorsement by them.",
     "manualNote": "Every tool on this page can be metered today. Connect it from the desktop application, or, under Advanced, write the numbers down with manual entry or pipe a payload in with ingest from any script you control. Either way it lands in the same snapshot as a connector."
   },
   "runsWhere": {
@@ -781,7 +782,8 @@
       "macos": "Download for macOS",
       "other": "Other platforms",
       "smartScreen": "This Windows build is unsigned, so SmartScreen may warn you: choose More info, then Run anyway.",
-      "openAnyway": "This macOS build is unsigned. Open it once, then open System Settings, go to Privacy and Security, and choose Open Anyway. This button is the Apple silicon disk image; Intel Macs take the x64 one from the release page. Automatic updates arrive with signed builds."
+      "openAnyway": "This macOS build is unsigned. Open it once, then open System Settings, go to Privacy and Security, and choose Open Anyway. This button is the Apple silicon disk image; Intel Macs take the x64 one from the release page. Automatic updates arrive with signed builds.",
+      "linuxNote": "AppImage, deb and rpm packages are available. Runs directly with no signing warning."
     },
     "states": {
       "available": "available",

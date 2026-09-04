@@ -43,6 +43,7 @@ export default async function DownloadPage({ params }: LocaleParams) {
           otherLabel={t("choice.other")}
           smartScreen={t("choice.smartScreen")}
           openAnyway={t("choice.openAnyway")}
+          linuxNote={t("choice.linuxNote")}
         />
       </div>
     </PageShell>

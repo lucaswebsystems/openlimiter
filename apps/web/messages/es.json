@@ -494,6 +494,7 @@
     },
     "feedIn": "Cómo alimentar uno",
     "footnote": "Cada connector se distribuye marcado <code>UNVERIFIED</code>, que es el valor por defecto honesto: todavía ningún verificador explícito confirmó una forma contra una cuenta real. Tres de ellos leen interfaces internas de herramientas de otros, que pueden cambiar sin aviso, y cuando eso pasa, ese proveedor falla de forma segura hacia unknown en vez de adivinar. <link>Cada connector y su estado real</link>.",
+    "compatibilityNote": "Los nombres de productos, logotipos, marcas y otras marcas comerciales que aparecen o a las que se hace referencia en OpenLimiter son propiedad de sus respectivos titulares. Dichos titulares no están afiliados a OpenLimiter, nuestros productos o nuestro sitio web. No patrocinan ni respaldan OpenLimiter. Su uso no implica ninguna afiliación o respaldo.",
     "manualNote": "Cada herramienta de esta página se puede medir hoy mismo. Conéctala desde la aplicación de escritorio, o, bajo Avanzado, anota los números con manual entry, o pásale una carga con ingest desde cualquier script que controles. De cualquier forma, termina en la misma instantánea que un connector."
   },
   "runsWhere": {
@@ -781,7 +782,8 @@
       "macos": "Descargar para macOS",
       "other": "Otras plataformas",
       "smartScreen": "Esta versión para Windows no está firmada, por lo que SmartScreen puede advertirte: elige Más información y luego Ejecutar de todas formas.",
-      "openAnyway": "Esta build de macOS no está firmada. Ábrela una vez, luego abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. Este botón es la imagen de disco para Apple silicon; los Mac Intel toman la x64 desde la página del release. Las actualizaciones automáticas llegan con las builds firmadas."
+      "openAnyway": "Esta build de macOS no está firmada. Ábrela una vez, luego abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. Este botón es la imagen de disco para Apple silicon; los Mac Intel toman la x64 desde la página del release. Las actualizaciones automáticas llegan con las builds firmadas.",
+      "linuxNote": "Paquetes AppImage, deb y rpm disponibles. Se ejecuta directamente sin advertencia de firma."
     },
     "states": {
       "available": "disponible",

@@ -42,10 +42,10 @@
   --ol-solid-hover: #e4e4e7;
   --ol-on-solid: #09090b;
 
-  --ol-meter-ok: #79b8ff;
-  --ol-meter-watch: #58a6ff;
-  --ol-meter-high: #2f81f7;
-  --ol-meter-critical: #1769d2;
+  --ol-meter-ok: var(--ol-band-green-fill, #2ea043);
+  --ol-meter-watch: var(--ol-band-yellow-fill, #d29922);
+  --ol-meter-high: var(--ol-band-orange-fill, #db6d28);
+  --ol-meter-critical: var(--ol-band-red-fill, #f85149);
   --ol-meter-error: var(--ol-meter-critical);
   --ol-meter-empty: var(--ol-track);
   --ol-meter-ghost: #43536a;
@@ -217,10 +217,10 @@
   --ol-solid: #0d1623;
   --ol-solid-hover: #263446;
   --ol-on-solid: #fafafa;
-  --ol-meter-ok: #1f6feb;
-  --ol-meter-watch: #0969da;
-  --ol-meter-high: #0550ae;
-  --ol-meter-critical: #033d8b;
+  --ol-meter-ok: var(--ol-band-green-fill, #1a7f37);
+  --ol-meter-watch: var(--ol-band-yellow-fill, #9e6a03);
+  --ol-meter-high: var(--ol-band-orange-fill, #bc4c00);
+  --ol-meter-critical: var(--ol-band-red-fill, #cf222e);
   --ol-meter-ghost: #aebed1;
   --ol-live: var(--ol-accent);
   --ol-live-soft: var(--ol-accent-subtle);
