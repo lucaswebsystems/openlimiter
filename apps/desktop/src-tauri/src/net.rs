@@ -211,6 +211,12 @@ pub const ANTIGRAVITY_QUOTA_BODY: &str = "{}";
 /// serialization in the maintained client omits them.
 pub const GEMINI_CLI_LOAD_BODY: &str = r#"{"metadata":{"ideType":"IDE_UNSPECIFIED","platform":"PLATFORM_UNSPECIFIED","pluginType":"GEMINI"}}"#;
 
+/// This product's own version, as every request that states one carries it.
+///
+/// One constant so a request cannot claim a version the user agent contradicts.
+/// A test below holds the two together.
+pub const OPENLIMITER_VERSION: &str = "1.0.2";
+
 /// The default identity carried by provider requests that accept third party
 /// clients. Antigravity is the exception documented below.
 pub const OPENLIMITER_USER_AGENT: &str = "OpenLimiter/1.0.2 (+https://openlimiter.com)";
@@ -232,6 +238,34 @@ pub const GROK_TOKEN_AUTH_HEADER: &str = "x-xai-token-auth";
 
 /// The fixed value paired with `GROK_TOKEN_AUTH_HEADER`.
 pub const GROK_TOKEN_AUTH_VALUE: &str = "xai-grok-cli";
+
+/// The client version header the Grok Build client states on this request.
+///
+/// FINDING F-204. The request was built without it, and without the mode
+/// header below, so the billing service was addressed by a client that named
+/// neither which client it was nor which mode it was asking in.
+pub const GROK_CLIENT_VERSION_HEADER: &str = "x-grok-client-version";
+
+/// The mode header that names how the client is asking.
+pub const GROK_CLIENT_MODE_HEADER: &str = "x-grok-client-mode";
+
+/// The value sent for `GROK_CLIENT_VERSION_HEADER`.
+///
+/// UNVERIFIED, and deliberately this product's own version. No captured Grok
+/// Build request exists in this repository, and `provider_specs/xai/grok-cli.yaml`
+/// documents the route and the credential but no value for this header, so
+/// there is nothing to copy. Stating a Grok Build release number nobody here
+/// has observed would be a fabricated claim about a client this is not, and
+/// the whole connector is labelled UNVERIFIED for exactly that reason.
+/// Replace this from a capture, never from memory.
+pub const GROK_CLIENT_VERSION_VALUE: &str = OPENLIMITER_VERSION;
+
+/// The value sent for `GROK_CLIENT_MODE_HEADER`.
+///
+/// UNVERIFIED for the same reason, and taken from the only client vocabulary
+/// the spec does publish: the token authentication marker above says this
+/// route is reached by a command line client, so the mode says the same.
+pub const GROK_CLIENT_MODE_VALUE: &str = "cli";
 
 /// The beta contract Claude Code sends when it asks for OAuth account usage.
 pub const CLAUDE_OAUTH_BETA_HEADER: &str = "anthropic-beta";
@@ -873,6 +907,8 @@ fn authenticated_builder(
                 .header(reqwest::header::ACCEPT, "application/json")
                 .header(GROK_ACCOUNT_HEADER, account_header)
                 .header(GROK_TOKEN_AUTH_HEADER, GROK_TOKEN_AUTH_VALUE)
+                .header(GROK_CLIENT_VERSION_HEADER, GROK_CLIENT_VERSION_VALUE)
+                .header(GROK_CLIENT_MODE_HEADER, GROK_CLIENT_MODE_VALUE)
         }
         AuthApplication::KimiSessionBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
@@ -1277,6 +1313,47 @@ mod tests {
         assert_eq!(headers[reqwest::header::ACCEPT], "application/json");
         assert!(headers[CODEX_ACCOUNT_HEADER].is_sensitive());
         assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
+    }
+
+    /// Finding F-204: the request named neither the client nor the mode.
+    ///
+    /// The billing route is the Grok Build client's own, and that client tells
+    /// the service which client version is asking and in which mode. This
+    /// request stated neither, so it was distinguishable from the client whose
+    /// contract it is reusing by exactly the two headers below.
+    #[test]
+    fn the_grok_request_states_its_client_version_and_mode() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        let request = EndpointRequest {
+            url: GROK_USAGE_URL,
+            method: HttpMethod::Get,
+            auth: AuthApplication::GrokSessionBearer,
+            provider_account_id: Some("grok-user-canary"),
+            body: None,
+        };
+        let built = authenticated_builder(&client, &request, "grok-token-canary")
+            .expect("headers")
+            .build()
+            .expect("request");
+        let headers = built.headers();
+        assert_eq!(
+            headers[GROK_CLIENT_VERSION_HEADER],
+            GROK_CLIENT_VERSION_VALUE
+        );
+        assert_eq!(headers[GROK_CLIENT_MODE_HEADER], GROK_CLIENT_MODE_VALUE);
+        /* Neither is a secret, and marking one sensitive would hide a header a
+        reviewer has to be able to read. */
+        assert!(!headers[GROK_CLIENT_VERSION_HEADER].is_sensitive());
+        assert!(!headers[GROK_CLIENT_MODE_HEADER].is_sensitive());
+    }
+
+    /// The version a request states and the version its user agent carries are
+    /// one value, so a header cannot drift into contradicting the other.
+    #[test]
+    fn the_stated_version_is_the_one_the_user_agent_carries() {
+        assert!(OPENLIMITER_USER_AGENT.contains(OPENLIMITER_VERSION));
+        assert_eq!(GROK_CLIENT_VERSION_VALUE, OPENLIMITER_VERSION);
     }
 
     #[test]
