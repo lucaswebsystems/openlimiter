@@ -12,6 +12,7 @@ import {
   type Snapshot,
   type SnapshotProvenance
 } from "@openlimiter/core";
+import { writeAgentContextSnapshot } from "@openlimiter/adapters";
 
 /** Largest document accepted on standard input. */
 export const STDIN_BYTE_LIMIT = 262_144;
@@ -80,8 +81,14 @@ export async function readStandardInputText(
     const chunks: Buffer[] = [];
     let total = 0;
     let settled = false;
-    const collected = (): string | null =>
-      chunks.length === 0 ? null : Buffer.concat(chunks).toString("utf8");
+    const collected = (): string | null => {
+      if (chunks.length === 0) return null;
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+      } catch {
+        return null;
+      }
+    };
     const finish = (value: string | null): void => {
       if (settled) return;
       settled = true;
@@ -223,10 +230,13 @@ export async function environmentWithLocalMarkers(
  */
 export async function persistSnapshots(
   incoming: readonly Snapshot[],
-  directory: string | undefined
+  directory: string | undefined,
+  now: string
 ): Promise<CacheMergeResult> {
-  return await mergeSnapshotCache(
+  const merged = await mergeSnapshotCache(
     incoming,
     directory ?? resolveStateDirectory()
   );
+  await writeAgentContextSnapshot(merged.merged, directory, now);
+  return merged;
 }
