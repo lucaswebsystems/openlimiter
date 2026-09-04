@@ -149,6 +149,7 @@ pub fn run() {
             pro::pro_sync_agent_context,
             pro::pro_sync_hosted,
             pro::pro_disconnect,
+            notifications::notification_gate,
             notifications::evaluate_notifications,
             notifications::notification_events,
             notifications::notification_settings,
