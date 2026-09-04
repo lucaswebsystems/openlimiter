@@ -705,12 +705,63 @@ fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -
     }
 }
 
+/// The directory names a Kimi Code installation is unpacked under.
+///
+/// The npm package, the standalone install and the shim all put the binary
+/// inside a directory that carries the product's own name, which is what
+/// separates it from another product that named its binary `kimi`.
+const KIMI_CODE_DIRECTORY_NAMES: [&str; 3] = ["kimi-code", "kimi_code", "kimicode"];
+
+/// Whether this directory sits inside a Kimi Code installation.
+fn inside_kimi_code_installation(directory: &Path) -> bool {
+    directory.components().any(|component| {
+        let name = component.as_os_str().to_string_lossy().to_ascii_lowercase();
+        KIMI_CODE_DIRECTORY_NAMES.contains(&name.as_str())
+    })
+}
+
+/// Whether Kimi Code has written its own profile on this machine.
+///
+/// The profile is written on first run, before any sign in, so it corroborates
+/// an installed but logged out CLI as well as a signed in one. `~/.kimi` is
+/// deliberately NOT here: it is the legacy directory, its name is the one
+/// another product can share, and the legacy credential file inside it is
+/// already a candidate path in its own right.
+fn kimi_code_profile_present(context: &DiscoveryContext) -> bool {
+    [
+        context.kimi_code_home.clone(),
+        context.kimi_share_dir.clone(),
+        context.home.as_deref().map(|home| home.join(".kimi-code")),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|path| safe_path_present(&path))
+}
+
+/// Whether this provider's own command line client is on the PATH.
+///
+/// FINDING F-205. A name is not an identity. Every provider here was accepted
+/// on the NAME of a binary in a PATH directory, and `kimi` on this machine is
+/// Hermes Agent, an unrelated product that happens to share the word. Kimi
+/// Code was therefore reported installed, with a sign in offered for a CLI
+/// that had never been there, and the account list said the login was the
+/// missing part rather than the product.
+///
+/// So the name of the Kimi binary now has to be corroborated: it either sits
+/// inside an installation named after the product, or the product's own
+/// profile exists on this machine. Nothing is executed and no version is
+/// asked for, because running a stranger's binary to find out whose it is
+/// costs more than the question is worth. Every other provider keeps the name
+/// rule, which their own names have not collided under.
 fn executable_present(provider: DetectedProviderId, context: &DiscoveryContext) -> bool {
     let names = executable_names(provider, context.platform);
+    let corroborated =
+        provider != DetectedProviderId::Kimi || kimi_code_profile_present(context);
     context.path_entries.iter().any(|directory| {
         names
             .iter()
             .any(|name| safe_path_present(&directory.join(name)))
+            && (corroborated || inside_kimi_code_installation(directory))
     })
 }
 
@@ -1814,20 +1865,72 @@ mod tests {
         assert!(kimi.accounts[0].automatic_collection);
     }
 
+    /// Grok is still found by its name alone. Kimi is not, and the three tests
+    /// below say why.
     #[test]
     fn new_provider_executables_without_credentials_are_logged_out() {
         let dir = TempDir::new();
         write(&dir.path().join("bin").join("grok"), "binary marker");
-        write(&dir.path().join("bin").join("kimi"), "binary marker");
         let inventory = scan_inventory(
             &context(DiscoveryPlatform::Linux, dir.path()),
             1_800_000_000_000,
         );
-        for id in [DetectedProviderId::Grok, DetectedProviderId::Kimi] {
-            let found = provider(&inventory.report, id);
-            assert_eq!(found.state, ProviderPresence::InstalledLoggedOut);
-            assert_eq!(found.recovery, Some(RecoveryAction::SignInToCli));
-        }
+        let found = provider(&inventory.report, DetectedProviderId::Grok);
+        assert_eq!(found.state, ProviderPresence::InstalledLoggedOut);
+        assert_eq!(found.recovery, Some(RecoveryAction::SignInToCli));
+    }
+
+    /// Finding F-205: a name is not an identity.
+    ///
+    /// `kimi` on this machine's PATH is Hermes Agent, an unrelated product
+    /// that happens to share the word, and it was enough to report Kimi Code
+    /// installed and to offer a sign in for a CLI that was never there. The
+    /// executable now has to be corroborated by the installation it sits in or
+    /// by the profile Kimi Code writes.
+    #[test]
+    fn an_executable_named_kimi_is_not_kimi_code_on_its_own() {
+        let dir = TempDir::new();
+        write(
+            &dir.path().join("bin").join("kimi"),
+            "an unrelated agent that shares the name",
+        );
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+        let kimi = provider(&inventory.report, DetectedProviderId::Kimi);
+        assert_eq!(kimi.state, ProviderPresence::Absent);
+        assert_eq!(kimi.recovery, Some(RecoveryAction::ManualEntry));
+    }
+
+    #[test]
+    fn kimi_code_installed_under_its_own_directory_is_found() {
+        let dir = TempDir::new();
+        let installed = dir.path().join("kimi-code").join("bin");
+        write(&installed.join("kimi"), "binary marker");
+        let mut discovery = context(DiscoveryPlatform::Linux, dir.path());
+        discovery.path_entries = vec![installed];
+        let inventory = scan_inventory(&discovery, 1_800_000_000_000);
+        let kimi = provider(&inventory.report, DetectedProviderId::Kimi);
+        assert_eq!(kimi.state, ProviderPresence::InstalledLoggedOut);
+        assert_eq!(kimi.recovery, Some(RecoveryAction::SignInToCli));
+    }
+
+    #[test]
+    fn kimi_code_with_its_own_profile_is_found_wherever_it_sits_on_path() {
+        let dir = TempDir::new();
+        write(&dir.path().join("bin").join("kimi"), "binary marker");
+        write(
+            &dir.path().join(".kimi-code").join("settings.json"),
+            "{\"theme\":\"dark\"}",
+        );
+        let inventory = scan_inventory(
+            &context(DiscoveryPlatform::Linux, dir.path()),
+            1_800_000_000_000,
+        );
+        let kimi = provider(&inventory.report, DetectedProviderId::Kimi);
+        assert_eq!(kimi.state, ProviderPresence::InstalledLoggedOut);
+        assert_eq!(kimi.recovery, Some(RecoveryAction::SignInToCli));
     }
 
     #[test]
