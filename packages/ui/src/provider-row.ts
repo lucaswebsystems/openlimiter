@@ -114,6 +114,8 @@ const WINDOW_NAMES: Readonly<Record<string, string>> = {
   SEVEN_DAY: "Weekly",
   SEVEN_DAY_OPUS: "Weekly Opus",
   SEVEN_DAY_SONNET: "Weekly Sonnet",
+  SEVEN_DAY_OAUTH_APPS: "Weekly OAuth apps",
+  EXTRA_USAGE: "Extra usage",
   WEEKLY: "Weekly",
   THIRTY_DAY: "Monthly",
   MONTHLY: "Monthly",
@@ -123,6 +125,18 @@ const WINDOW_NAMES: Readonly<Record<string, string>> = {
   HARD_LIMIT: "Hard limit",
   LIMIT: "Hard limit",
 };
+
+/**
+ * Where a model specific weekly bucket sorts.
+ *
+ * Right after the week it belongs to, and before the month, so the weekly group
+ * reads as one block whatever models an account happens to have. Explicit ranks
+ * above still win, which is what keeps Opus ahead of Sonnet.
+ */
+const MODEL_WEEKLY_RANK = 45;
+
+/** The prefix Claude builds every model specific weekly code on. */
+const MODEL_WEEKLY_PREFIX = "SEVEN_DAY_";
 
 const WINDOW_RANK: Readonly<Record<string, number>> = {
   FIVE_HOUR: 10,
@@ -136,10 +150,12 @@ const WINDOW_RANK: Readonly<Record<string, number>> = {
   SEVEN_DAY: 40,
   SEVEN_DAY_OPUS: 41,
   SEVEN_DAY_SONNET: 42,
+  SEVEN_DAY_OAUTH_APPS: 43,
   WEEKLY: 40,
   THIRTY_DAY: 50,
   MONTHLY: 50,
   ON_DEMAND_MONTHLY: 51,
+  EXTRA_USAGE: 52,
   CREDITS: 60,
   BALANCE: 60,
   HARD_LIMIT: 70,
@@ -236,12 +252,38 @@ const PRECISION_LABELS: Record<SnapshotPrecision, string> = {
   manual: "manual",
 };
 
+/**
+ * A model specific weekly bucket, in words.
+ *
+ * Claude states one weekly pool per model, and those codes are built from names
+ * the provider chose, so this build cannot hold a label for each one and must
+ * not shout the code at a person instead. The cadence stays in front, where the
+ * eye reads it, and the model follows in brackets: SEVEN_DAY_FABLE_5 reads as
+ * "Weekly (Fable 5)". An explicit label always wins, because "Weekly Opus" was
+ * already shipped and reads better than the generated form.
+ */
+function modelWeeklyName(code: string): string | null {
+  if (!code.startsWith(MODEL_WEEKLY_PREFIX)) return null;
+  const words = code
+    .slice(MODEL_WEEKLY_PREFIX.length)
+    .toLowerCase()
+    .split(/[\s_-]+/u)
+    .filter((word) => word !== "");
+  if (words.length === 0) return null;
+  const model = words
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+  return "Weekly (" + model + ")";
+}
+
 function windowName(code: string, provider: ProviderCode): string {
   if (provider === "OPENROUTER" && (code === "CREDITS" || code === "BALANCE")) {
     return "Credit spend";
   }
   const known = WINDOW_NAMES[code];
   if (known !== undefined) return known;
+  const modelWeekly = modelWeeklyName(code);
+  if (modelWeekly !== null) return modelWeekly;
   const numbered = code.match(/^(.+)_([2-9][0-9]*)$/u);
   if (numbered !== null) {
     const base = WINDOW_NAMES[numbered[1] ?? ""];
@@ -265,9 +307,14 @@ function windowName(code: string, provider: ProviderCode): string {
     .join(" ");
 }
 
+export function windowRank(code: string): number {
+  const known = WINDOW_RANK[code];
+  if (known !== undefined) return known;
+  return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;
+}
+
 function compareWindows(left: Snapshot, right: Snapshot): number {
-  const rank =
-    (WINDOW_RANK[left.meter] ?? 90) - (WINDOW_RANK[right.meter] ?? 90);
+  const rank = windowRank(left.meter) - windowRank(right.meter);
   return rank !== 0 ? rank : left.meter.localeCompare(right.meter);
 }
 

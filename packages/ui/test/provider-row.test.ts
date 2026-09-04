@@ -332,4 +332,60 @@ describe("provider account rows", () => {
       byProvider.get("GEMINI_CLI")?.windows.map((window) => window.label)
     ).toEqual(["Gemini 3.1 Pro Preview", "Gemini 3 Flash Preview"]);
   });
+
+  it("labels a model specific weekly bucket and sorts it with its own week", () => {
+    /* Claude states one weekly pool per model and generates their codes from
+       names it chose, so no table here can hold a label for each one. The
+       cadence leads, the model follows in brackets, and the whole weekly group
+       sorts together instead of scattering after the month. */
+    const rows = buildProviderAccountRows(
+      [
+        snapshot("CLAUDE", "SEVEN_DAY_FABLE_5", 21.5, "claude-account"),
+        snapshot("CLAUDE", "MONTHLY", 9, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY_SONNET", 12.4, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY", 41.2, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY_OPUS", 61, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY_OAUTH_APPS", 3.1, "claude-account"),
+        snapshot("CLAUDE", "FIVE_HOUR", 23.5, "claude-account"),
+      ],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] }
+    );
+    expect(rows[0]?.windows.map((window) => window.label)).toEqual([
+      "5 hour session",
+      "Weekly",
+      "Weekly Opus",
+      "Weekly Sonnet",
+      "Weekly OAuth apps",
+      "Weekly (Fable 5)",
+      "Monthly",
+    ]);
+  });
+
+  it("keeps the explicit weekly labels this product already shipped", () => {
+    const rows = buildProviderAccountRows(
+      [
+        snapshot("CLAUDE", "SEVEN_DAY_OPUS", 61, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY_HAIKU_4_5", 4, "claude-account"),
+      ],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] }
+    );
+    expect(rows[0]?.windows.map((window) => window.label)).toEqual([
+      "Weekly Opus",
+      "Weekly (Haiku 4 5)",
+    ]);
+  });
+
+  it("labels the extra usage pool rather than shouting its code", () => {
+    const rows = buildProviderAccountRows(
+      [snapshot("CLAUDE", "EXTRA_USAGE", 62.35, "claude-account")],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] }
+    );
+    expect(rows[0]?.windows[0]?.label).toBe("Extra usage");
+  });
 });
