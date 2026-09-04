@@ -65,7 +65,7 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   ANTIGRAVITY: "Antigravity",
   GEMINI_CLI: "Gemini CLI",
   OPENCODE: "OpenCode",
-  GROK: "Grok",
+  GROK: "Grok Build",
   KIMI: "Kimi",
   MANUAL: "Manual",
 };
@@ -98,9 +98,9 @@ const PROVIDER_MARKS: Record<ProviderCode, string> = {
   CODEX:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.911 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.182a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.096 5.98 5.98 0 0 0 .511 4.911 6.051 6.051 0 0 0 6.514 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.989 5.989 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073Zm-9.022 12.608a4.476 4.476 0 0 1-2.877-1.041l.142-.08 4.778-2.758a.795.795 0 0 0 .393-.682v-6.736l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494Zm-9.661-4.125a4.471 4.471 0 0 1-.534-3.014l.142.085 4.783 2.758a.771.771 0 0 0 .78 0l5.843-3.368v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.499 4.499 0 0 1-6.141-1.646ZM2.341 7.896a4.485 4.485 0 0 1 2.365-1.973V11.6a.766.766 0 0 0 .388.677l5.815 3.354-2.02 1.169a.076.076 0 0 1-.071 0l-4.83-2.787a4.504 4.504 0 0 1-1.647-6.141Zm16.596 3.855-5.833-3.387 2.015-1.164a.076.076 0 0 1 .071 0l4.831 2.791a4.494 4.494 0 0 1-.677 8.104v-5.677a.79.79 0 0 0-.407-.667Zm2.011-3.023-.142-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.831-2.787a4.499 4.499 0 0 1 6.68 4.66ZM8.307 12.863l-2.02-1.164a.08.08 0 0 1-.038-.056V6.074a4.499 4.499 0 0 1 7.375-3.454l-.142.081-4.778 2.758a.795.795 0 0 0-.393.681Zm1.097-2.365 2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5Z"/></svg>',
   ANTIGRAVITY:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ol-antigravity-gradient" x1="12" y1="1.8" x2="12" y2="22.4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="var(--ol-provider-google-red)"/><stop offset=".34" stop-color="var(--ol-provider-google-yellow)"/><stop offset=".66" stop-color="var(--ol-provider-google-green)"/><stop offset="1" stop-color="var(--ol-provider-google-blue)"/></linearGradient></defs><path d="M12 1.8C14.8 1.8 17.1 7.8 19.6 14.2C20.5 16.5 21.4 19 21.4 20.2C21.4 21.8 19.8 22.4 17.8 20.6C16.3 16.8 14.1 12.5 12 12.5C9.9 12.5 7.7 16.8 6.2 20.6C4.2 22.4 2.6 21.8 2.6 20.2C2.6 19 3.5 16.5 4.4 14.2C6.9 7.8 9.2 1.8 12 1.8Z" fill="url(#ol-antigravity-gradient)"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ol-antigravity-gradient" x1="12" y1="1.8" x2="12" y2="22.4" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="var(--ol-provider-google-red, #ea4335)"/><stop offset=".34" stop-color="var(--ol-provider-google-yellow, #fbbc04)"/><stop offset=".66" stop-color="var(--ol-provider-google-green, #34a853)"/><stop offset="1" stop-color="var(--ol-provider-google-blue, #4285f4)"/></linearGradient></defs><path d="M12 1.8C14.8 1.8 17.1 7.8 19.6 14.2C20.5 16.5 21.4 19 21.4 20.2C21.4 21.8 19.8 22.4 17.8 20.6C16.3 16.8 14.1 12.5 12 12.5C9.9 12.5 7.7 16.8 6.2 20.6C4.2 22.4 2.6 21.8 2.6 20.2C2.6 19 3.5 16.5 4.4 14.2C6.9 7.8 9.2 1.8 12 1.8Z" fill="url(#ol-antigravity-gradient)"/></svg>',
   GEMINI_CLI:
-    '<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ol-gemini-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="var(--ol-provider-gemini-blue)"/><stop offset=".52" stop-color="var(--ol-provider-gemini-purple)"/><stop offset="1" stop-color="var(--ol-provider-gemini-coral)"/></linearGradient></defs><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81" fill="url(#ol-gemini-gradient)"/></svg>',
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ol-gemini-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="var(--ol-provider-gemini-blue, #4e82ee)"/><stop offset=".52" stop-color="var(--ol-provider-gemini-purple, #8e75b2)"/><stop offset="1" stop-color="var(--ol-provider-gemini-coral, #d96570)"/></linearGradient></defs><path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81" fill="url(#ol-gemini-gradient)"/></svg>',
   OPENCODE:
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 24H2V0h20Zm-5-19.2H7v14.4h10Z"/></svg>',
   GROK: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>',
@@ -121,6 +121,8 @@ const WINDOW_NAMES: Readonly<Record<string, string>> = {
   SEVEN_DAY: "Weekly",
   SEVEN_DAY_OPUS: "Weekly Opus",
   SEVEN_DAY_SONNET: "Weekly Sonnet",
+  SEVEN_DAY_OAUTH_APPS: "Weekly OAuth apps",
+  EXTRA_USAGE: "Extra usage",
   WEEKLY: "Weekly",
   THIRTY_DAY: "Monthly",
   MONTHLY: "Monthly",
@@ -130,6 +132,18 @@ const WINDOW_NAMES: Readonly<Record<string, string>> = {
   HARD_LIMIT: "Hard limit",
   LIMIT: "Hard limit",
 };
+
+/**
+ * Where a model specific weekly bucket sorts.
+ *
+ * Right after the week it belongs to, and before the month, so the weekly group
+ * reads as one block whatever models an account happens to have. Explicit ranks
+ * above still win, which is what keeps Opus ahead of Sonnet.
+ */
+const MODEL_WEEKLY_RANK = 45;
+
+/** The prefix Claude builds every model specific weekly code on. */
+const MODEL_WEEKLY_PREFIX = "SEVEN_DAY_";
 
 const WINDOW_RANK: Readonly<Record<string, number>> = {
   FIVE_HOUR: 10,
@@ -143,15 +157,87 @@ const WINDOW_RANK: Readonly<Record<string, number>> = {
   SEVEN_DAY: 40,
   SEVEN_DAY_OPUS: 41,
   SEVEN_DAY_SONNET: 42,
+  SEVEN_DAY_OAUTH_APPS: 43,
   WEEKLY: 40,
   THIRTY_DAY: 50,
   MONTHLY: 50,
   ON_DEMAND_MONTHLY: 51,
+  EXTRA_USAGE: 52,
   CREDITS: 60,
   BALANCE: 60,
   HARD_LIMIT: 70,
   LIMIT: 70,
 };
+
+/**
+ * The five bands, as the eye reads them.
+ *
+ * `tone` answers how much headroom is left and `state` answers whether the
+ * reading can be trusted at all. A stale reading has no band, whatever its
+ * last number was, so distrust wins over pressure here and the meter is drawn
+ * hatched rather than coloured. Colour alone never carries the answer: every
+ * band ships a shape beside the percentage, which is what keeps the meter
+ * legible in greyscale and to a person who does not separate red from green.
+ */
+export type QuotaBand = "green" | "yellow" | "orange" | "red" | "stale";
+
+const BAND_ICONS: Record<QuotaBand, string> = {
+  /* Checkmark shield: normal headroom. */
+  green:
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1.2 2.9 3v4.3c0 3 2.1 5.8 5.1 6.6 3-.8 5.1-3.6 5.1-6.6V3Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="m5.8 7.9 1.6 1.7 3-3.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  /* Warning triangle: the watch threshold. */
+  yellow:
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2 14 13H2Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6.4v3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".85" fill="currentColor"/></svg>',
+  /* Alert diamond: high utilisation. */
+  orange:
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1.6 14.4 8 8 14.4 1.6 8Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 4.9v3.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="10.7" r=".85" fill="currentColor"/></svg>',
+  /* Octagon exclamation: critical depletion. */
+  red: '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.5 1.4h5l3.6 3.6v5l-3.6 3.6h-5L1.9 10v-5Z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 4.6v3.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="10.8" r=".85" fill="currentColor"/></svg>',
+  /* Disconnected circle: stale, unknown, or logged out. */
+  stale:
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.1" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3.7 3.7l8.6 8.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+};
+
+/**
+ * The artwork and the band shape, for a surface that is not this row.
+ *
+ * The tray popover draws its own compact rows at 360 pixels, where this row's
+ * grid does not fit. It still has to be the same product, so it reaches for
+ * the same drawings here rather than keeping a second copy that slowly
+ * becomes a second opinion about what Claude's mark looks like.
+ */
+export function providerMarkMarkup(provider: ProviderCode): string {
+  return PROVIDER_MARKS[provider];
+}
+
+export function bandIconSvg(band: QuotaBand): string {
+  return BAND_ICONS[band];
+}
+
+/** The band for a used percentage that is known to be fresh. */
+export function bandForPercent(usedPercent: number): QuotaBand {
+  return BAND_BY_TONE[headroomTone(usedPercent)] ?? "stale";
+}
+
+const BAND_BY_TONE: Readonly<Record<HeadroomTone, QuotaBand | null>> = {
+  ok: "green",
+  watch: "yellow",
+  high: "orange",
+  critical: "red",
+  none: null,
+};
+
+/** The band a drawn window belongs to, or null when there is nothing to band. */
+export function windowBand(window: ProviderWindowView): QuotaBand | null {
+  if (window.state !== "fresh") return "stale";
+  return BAND_BY_TONE[window.tone];
+}
+
+function bandIconMarkup(window: ProviderWindowView): string {
+  const band = windowBand(window);
+  if (band === null) return "";
+  return '<span class="band-icon" aria-hidden="true">' + BAND_ICONS[band] + "</span>";
+}
 
 const STATE_LABELS: Record<SnapshotState, string> = {
   fresh: "Live",
@@ -173,12 +259,38 @@ const PRECISION_LABELS: Record<SnapshotPrecision, string> = {
   manual: "manual",
 };
 
+/**
+ * A model specific weekly bucket, in words.
+ *
+ * Claude states one weekly pool per model, and those codes are built from names
+ * the provider chose, so this build cannot hold a label for each one and must
+ * not shout the code at a person instead. The cadence stays in front, where the
+ * eye reads it, and the model follows in brackets: SEVEN_DAY_FABLE_5 reads as
+ * "Weekly (Fable 5)". An explicit label always wins, because "Weekly Opus" was
+ * already shipped and reads better than the generated form.
+ */
+function modelWeeklyName(code: string): string | null {
+  if (!code.startsWith(MODEL_WEEKLY_PREFIX)) return null;
+  const words = code
+    .slice(MODEL_WEEKLY_PREFIX.length)
+    .toLowerCase()
+    .split(/[\s_-]+/u)
+    .filter((word) => word !== "");
+  if (words.length === 0) return null;
+  const model = words
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+  return "Weekly (" + model + ")";
+}
+
 function windowName(code: string, provider: ProviderCode): string {
   if (provider === "OPENROUTER" && (code === "CREDITS" || code === "BALANCE")) {
     return "Credit spend";
   }
   const known = WINDOW_NAMES[code];
   if (known !== undefined) return known;
+  const modelWeekly = modelWeeklyName(code);
+  if (modelWeekly !== null) return modelWeekly;
   const numbered = code.match(/^(.+)_([2-9][0-9]*)$/u);
   if (numbered !== null) {
     const base = WINDOW_NAMES[numbered[1] ?? ""];
@@ -202,9 +314,14 @@ function windowName(code: string, provider: ProviderCode): string {
     .join(" ");
 }
 
+export function windowRank(code: string): number {
+  const known = WINDOW_RANK[code];
+  if (known !== undefined) return known;
+  return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;
+}
+
 function compareWindows(left: Snapshot, right: Snapshot): number {
-  const rank =
-    (WINDOW_RANK[left.meter] ?? 90) - (WINDOW_RANK[right.meter] ?? 90);
+  const rank = windowRank(left.meter) - windowRank(right.meter);
   return rank !== 0 ? rank : left.meter.localeCompare(right.meter);
 }
 
@@ -527,58 +644,15 @@ function compactResetLabel(resetLabel: string | null): string {
   return resetLabel.replace(/^Resets in /u, "");
 }
 
-function bandIconMarkup(tone: HeadroomTone, state: SnapshotState): string {
-  if (state === "stale" || state === "unknown") {
-    return (
-      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Stale reading" role="img">' +
-      '<circle cx="8" cy="8" r="6" stroke-dasharray="3 3"/>' +
-      '<path d="m4.5 4.5 7 7"/>' +
-      "</svg>"
-    );
-  }
-  if (tone === "ok") {
-    return (
-      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Normal headroom" role="img">' +
-      '<path d="M8 1.5 2.5 3.8v4.5c0 3.6 2.4 5.9 5.5 6.7 3.1-.8 5.5-3.1 5.5-6.7V3.8L8 1.5Z"/>' +
-      '<path d="m5.5 8 1.8 1.8 3.5-3.5"/>' +
-      "</svg>"
-    );
-  }
-  if (tone === "watch") {
-    return (
-      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Watch threshold" role="img">' +
-      '<path d="M8 2.2 1.5 13.5h13L8 2.2Z"/>' +
-      '<path d="M8 6.5v3M8 11.5v.5"/>' +
-      "</svg>"
-    );
-  }
-  if (tone === "high") {
-    return (
-      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="High utilization" role="img">' +
-      '<path d="M8 1.5 14.5 8 8 14.5 1.5 8 8 1.5Z"/>' +
-      '<path d="M8 5.5v3.2M8 11v.5"/>' +
-      "</svg>"
-    );
-  }
-  if (tone === "critical") {
-    return (
-      '<svg viewBox="0 0 16 16" class="band-icon" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="Critical depletion" role="img">' +
-      '<path d="M5 1.5h6l3.5 3.5v6L11 14.5H5L1.5 11V5L5 1.5Z"/>' +
-      '<path d="M8 5v3.8M8 11.2v.5"/>' +
-      "</svg>"
-    );
-  }
-  return "";
-}
-
 function windowLineMarkup(window: ProviderWindowView): string {
   const reset = compactResetLabel(window.resetLabel);
-  const icon = bandIconMarkup(window.tone, window.state);
   return (
     '<div class="window-line" data-tone="' +
     window.tone +
     '" data-state="' +
     window.state +
+    '" data-band="' +
+    (windowBand(window) ?? "none") +
     '" aria-label="' +
     escapeText(window.accessibleLabel) +
     '">' +
@@ -588,11 +662,11 @@ function windowLineMarkup(window: ProviderWindowView): string {
     escapeText(window.label) +
     "</span>" +
     meterMarkup(window, "window-meter") +
+    '<span class="window-readout">' +
+    bandIconMarkup(window) +
     '<strong class="window-percent">' +
-    icon +
-    '<span>' +
     escapeText(window.readout) +
-    "</span></strong>" +
+    "</strong></span>" +
     '<span class="window-reset">' +
     escapeText(reset) +
     "</span></div>"
@@ -608,11 +682,21 @@ export function providerRowMarkup(row: ProviderAccountRowView): string {
     '<article class="row" aria-label="' +
     escapeText(row.providerLabel + ", " + row.accountLabel) +
     '">' +
-    '<header class="identity"><span class="mark" aria-hidden="true">' +
+    '<header class="identity"><span class="identity-name">' +
+    '<span class="mark" aria-hidden="true">' +
     PROVIDER_MARKS[row.provider] +
     '</span><strong class="provider-name">' +
     escapeText(row.providerLabel) +
-    "</strong></header>" +
+    "</strong>" +
+    (row.showAccountLabel
+      ? '<span class="account-label">' + escapeText(row.accountLabel) + "</span>"
+      : "") +
+    "</span>" +
+    /* Two column headings, over the two columns they name. They are what
+       turns a stack of lines into a table a person can read down. */
+    '<span class="column-label">Used</span>' +
+    '<span class="column-label">Resets in</span>' +
+    "</header>" +
     '<div class="windows">' +
     row.windows.map(windowLineMarkup).join("") +
     "</div></article>"
@@ -637,15 +721,16 @@ const PROVIDER_ROW_STYLE = `
   --row-faint: var(--ol-faint, var(--muted));
   --row-hairline: var(--ol-hairline, var(--hairline));
   --row-hairline-strong: var(--ol-hairline-strong, var(--hairline-strong));
-  --row-ok: var(--ol-band-green-fill, var(--ol-meter-ok, #2ea043));
-  --row-watch: var(--ol-band-yellow-fill, var(--ol-meter-watch, #d29922));
-  --row-high: var(--ol-band-orange-fill, var(--ol-meter-high, #db6d28));
-  --row-critical: var(--ol-band-red-fill, var(--ol-meter-critical, #f85149));
+  --row-ok: var(--ol-band-green-fill, var(--ol-meter-ok, var(--meter-ok)));
+  --row-watch: var(--ol-band-yellow-fill, var(--ol-meter-watch, var(--meter-watch)));
+  --row-high: var(--ol-band-orange-fill, var(--ol-meter-high, var(--meter-high)));
+  --row-critical: var(--ol-band-red-fill, var(--ol-meter-critical, var(--meter-critical)));
   --row-ok-label: var(--ol-band-green-label, var(--row-ok));
   --row-watch-label: var(--ol-band-yellow-label, var(--row-watch));
   --row-high-label: var(--ol-band-orange-label, var(--row-high));
   --row-critical-label: var(--ol-band-red-label, var(--row-critical));
-  --row-stale-label: var(--ol-band-stale-label, var(--row-muted));
+  --row-stale-label: var(--ol-band-stale-label, var(--ol-muted, var(--muted)));
+  --row-hatched: var(--ol-band-hatched-pattern, var(--ol-track, var(--track)));
   --row-track: var(--ol-meter-empty, var(--meter-empty));
   --row-ghost: var(--ol-meter-ghost, var(--meter-ghost));
   --row-live: var(--ol-live, var(--meter-ok));
@@ -731,7 +816,7 @@ const PROVIDER_ROW_STYLE = `
   overflow: hidden;
   color: var(--row-heading);
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-bold);
+  font-weight: var(--ol-weight-semibold);
   line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -828,16 +913,17 @@ const PROVIDER_ROW_STYLE = `
   font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
   font-size: var(--ol-text-title);
   font-variant-numeric: tabular-nums;
-  font-weight: var(--ol-weight-bold);
+  font-weight: var(--ol-weight-semibold);
   letter-spacing: -0.035em;
   line-height: 1;
   white-space: nowrap;
 }
-.usage[data-tone="ok"] .hero-readout { color: var(--row-ok-label, var(--row-ok)); }
-.usage[data-tone="watch"] .hero-readout { color: var(--row-watch-label, var(--row-watch)); }
-.usage[data-tone="high"] .hero-readout { color: var(--row-high-label, var(--row-high)); }
-.usage[data-tone="critical"] .hero-readout { color: var(--row-critical-label, var(--row-critical)); }
-.usage[data-state="stale"] .hero-readout { color: var(--row-stale-label, var(--row-muted)) !important; }
+.usage[data-tone="ok"] .hero-readout { color: var(--row-ok-label); }
+.usage[data-tone="watch"] .hero-readout { color: var(--row-watch-label); }
+.usage[data-tone="high"] .hero-readout { color: var(--row-high-label); }
+.usage[data-tone="critical"] .hero-readout { color: var(--row-critical-label); }
+.usage[data-state="stale"] .hero-readout,
+.usage[data-state="unknown"] .hero-readout { color: var(--row-stale-label); }
 .hero-meter {
   position: relative;
   display: block;
@@ -864,10 +950,7 @@ const PROVIDER_ROW_STYLE = `
 .usage[data-tone="watch"] .meter-fill { background: var(--row-watch); }
 .usage[data-tone="high"] .meter-fill { background: var(--row-high); }
 .usage[data-tone="critical"] .meter-fill { background: var(--row-critical); }
-.usage[data-state="stale"] .meter-fill {
-  background: var(--ol-meter-hatched-pattern, repeating-linear-gradient(45deg, var(--row-ghost), var(--row-ghost) 6px, transparent 6px, transparent 12px)) !important;
-  opacity: 1 !important;
-}
+.usage[data-state="stale"] .meter-fill { opacity: 0.58; }
 .metric,
 .reset {
   display: flex;
@@ -884,7 +967,7 @@ const PROVIDER_ROW_STYLE = `
   line-height: var(--ol-leading-tight);
   white-space: nowrap;
 }
-.metric-empty { color: var(--row-faint); font-weight: var(--ol-weight-medium); }
+.metric-empty { color: var(--row-faint); font-weight: var(--ol-weight-regular); }
 .reset {
   gap: var(--ol-space-1);
   border-right: 0;
@@ -977,21 +1060,64 @@ const PROVIDER_ROW_STYLE = `
   }
 }
 
-/* One provider heading, then one compact four item line for every window. */
+/*
+ * One provider heading, then one compact four item line for every window.
+ *
+ * The heading and the lines share a single grid definition, named once below.
+ * That is the whole point of this block: the mark and the provider name start
+ * on the same left edge as every window name under them, and the two column
+ * headings sit exactly over the percentage and the countdown they name. A
+ * heading laid out on its own axis is what makes a card read as a poster with
+ * a table stapled underneath rather than as one object.
+ */
 .row {
-  display: block;
+  display: grid;
+  /* One column. The wide table template above belongs to the other form this
+     component can take, and leaving it in place put the heading and the lines
+     into six columns that neither of them was written for. */
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--ol-space-3);
   min-height: 0;
   padding: var(--ol-space-4);
   overflow: hidden;
+  /* The one grid the heading and every line share, in one place. */
+  --row-columns: minmax(7rem, 0.85fr) minmax(8rem, 1.8fr) 4.5rem 5rem;
 }
 .identity {
-  display: flex;
+  display: grid;
   min-height: 0;
-  flex-direction: row;
+  grid-template-columns: var(--row-columns);
+  align-items: center;
+  gap: var(--ol-space-3);
+  padding: 0 0 var(--ol-space-3);
+  border: 0;
+  border-bottom: 1px solid var(--row-hairline);
+}
+.identity-name {
+  display: flex;
+  min-width: 0;
   align-items: center;
   gap: var(--ol-space-2);
-  padding: 0;
-  border: 0;
+  /* Over the name and the meter, so the mark never crowds the first bar. */
+  grid-column: 1 / 3;
+}
+.account-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--row-muted);
+  font-size: var(--ol-text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.column-label {
+  color: var(--row-muted);
+  font-size: var(--ol-text-micro);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 .mark {
   width: 1.75rem;
@@ -1007,7 +1133,7 @@ const PROVIDER_ROW_STYLE = `
   overflow: hidden;
   color: var(--row-heading);
   font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-bold);
+  font-weight: var(--ol-weight-semibold);
   line-height: var(--ol-leading-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1015,12 +1141,11 @@ const PROVIDER_ROW_STYLE = `
 .windows {
   display: grid;
   gap: var(--ol-space-3);
-  margin-top: var(--ol-space-4);
 }
 .window-line {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(7rem, 0.85fr) minmax(8rem, 1.8fr) 5.75rem 5rem;
+  grid-template-columns: var(--row-columns);
   align-items: center;
   gap: var(--ol-space-3);
 }
@@ -1051,36 +1176,64 @@ const PROVIDER_ROW_STYLE = `
   background: transparent;
   box-shadow: inset 0 0 0 1px var(--row-ghost);
 }
-.window-line[data-tone="ok"] .meter-fill { background: var(--row-ok); }
-.window-line[data-tone="watch"] .meter-fill { background: var(--row-watch); }
-.window-line[data-tone="high"] .meter-fill { background: var(--row-high); }
-.window-line[data-tone="critical"] .meter-fill { background: var(--row-critical); }
-.window-line[data-state="stale"] .meter-fill {
-  background: var(--ol-meter-hatched-pattern, repeating-linear-gradient(45deg, var(--row-ghost), var(--row-ghost) 6px, transparent 6px, transparent 12px)) !important;
-  opacity: 1 !important;
+.window-line[data-band="green"] .meter-fill { background: var(--row-ok); }
+.window-line[data-band="yellow"] .meter-fill { background: var(--row-watch); }
+.window-line[data-band="orange"] .meter-fill { background: var(--row-high); }
+.window-line[data-band="red"] .meter-fill { background: var(--row-critical); }
+.window-meter.neutral {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--row-hairline-strong);
 }
-.window-percent {
+/* A stale window is hatched across the whole track, not a faded colour bar.
+   The last number is still printed beside it, and the hatch is what says the
+   number is old. Fading the fill would have quietly broken its contrast. */
+.window-line[data-band="stale"] .window-meter {
+  background: var(--row-hatched);
+}
+.window-line[data-band="stale"] .meter-fill { background: transparent; }
+.window-readout {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.35rem;
-  color: var(--row-accent);
-  font-size: var(--ol-text-body);
-  font-weight: var(--ol-weight-bold);
-  text-align: right;
-  white-space: nowrap;
+  gap: var(--ol-space-1);
 }
+/* Shape beside hue. The band icon is the half of the answer that survives
+   greyscale, a colour vision difference, and a glance from across a desk. */
 .band-icon {
+  display: inline-flex;
+  flex: none;
+  color: inherit;
+}
+.band-icon svg {
   width: 0.875rem;
   height: 0.875rem;
-  flex: none;
+  display: block;
 }
-.window-line[data-tone="ok"] .window-percent { color: var(--row-ok-label, var(--row-ok)); }
-.window-line[data-tone="watch"] .window-percent { color: var(--row-watch-label, var(--row-watch)); }
-.window-line[data-tone="high"] .window-percent { color: var(--row-high-label, var(--row-high)); }
-.window-line[data-tone="critical"] .window-percent { color: var(--row-critical-label, var(--row-critical)); }
-.window-line[data-state="stale"] .window-percent { color: var(--row-stale-label, var(--row-muted)) !important; }
-.window-line[data-tone="none"] .window-percent { color: var(--row-soft); }
+.window-percent {
+  color: var(--row-accent);
+  font-size: var(--ol-text-body);
+  font-weight: var(--ol-weight-semibold);
+  text-align: right;
+}
+.window-line[data-band="green"] .window-readout { color: var(--row-ok-label); }
+.window-line[data-band="yellow"] .window-readout { color: var(--row-watch-label); }
+.window-line[data-band="orange"] .window-readout { color: var(--row-high-label); }
+.window-line[data-band="red"] .window-readout { color: var(--row-critical-label); }
+.window-line[data-band="stale"] .window-readout { color: var(--row-stale-label); }
+.window-line .window-percent { color: inherit; }
+.window-line[data-band="none"] .window-readout { color: var(--row-soft); }
+/* Crossing 60, 80 or 90 changes the hue. The width tween is the slower of the
+   two so the bar arrives at its new length just after it has admitted its new
+   band, which is what makes a threshold feel crossed rather than redrawn. */
+.meter-fill {
+  transition: width var(--ol-motion-base, 180ms)
+      var(--ol-ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    background-color var(--ol-motion-fast, 120ms) linear;
+}
+.window-readout {
+  transition: color var(--ol-motion-fast, 120ms) linear;
+}
 .window-reset {
   min-height: 1em;
   color: var(--row-muted);
@@ -1094,21 +1247,26 @@ const PROVIDER_ROW_STYLE = `
     padding: 0;
     border: 0;
   }
-  .windows {
+  .row {
     gap: var(--ol-space-2);
-    margin-top: var(--ol-space-3);
+    /* One override, and the heading follows the lines because they read the
+       same variable rather than repeating the same four values twice. */
+    --row-columns: minmax(4.8rem, 0.9fr) minmax(4.5rem, 1.25fr) 3.35rem 3.5rem;
   }
-  .window-line {
-    grid-template-columns: minmax(4.8rem, 0.9fr) minmax(4.5rem, 1.25fr) 4.6rem 3.5rem;
-    gap: var(--ol-space-2);
-  }
+  .windows { gap: var(--ol-space-2); }
+  .identity,
+  .window-line { gap: var(--ol-space-2); }
+  .account-label { display: none; }
   .window-name,
   .window-percent { font-size: var(--ol-text-micro); }
+  .band-icon svg { width: 0.75rem; height: 0.75rem; }
   .window-reset { font-size: var(--ol-text-micro); }
 }
 @media (prefers-reduced-motion: reduce) {
   .meter-fill,
   .usage[data-state="fresh"] .state-dot { animation: none; }
+  .meter-fill,
+  .window-readout { transition: none; }
 }
 `;
 
@@ -1127,7 +1285,7 @@ const PROVIDER_TABLE_HEADER_STYLE = `
   align-items: center;
   color: var(--ol-muted, var(--muted));
   font-size: var(--ol-text-micro);
-  font-weight: var(--ol-weight-bold);
+  font-weight: var(--ol-weight-semibold);
   letter-spacing: 0.08em;
   line-height: 1;
   text-transform: uppercase;

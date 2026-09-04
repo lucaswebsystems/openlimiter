@@ -231,26 +231,49 @@
   color: var(--ol-band-stale-label);
 }
 
-/* Provider Row Web Component overrides to guarantee 5 semantic bands */
-.window-line[data-tone="ok"] .meter-fill { background: var(--ol-band-green-fill) !important; }
-.window-line[data-tone="ok"] .window-percent { color: var(--ol-band-green-label) !important; }
+/* Provider row overrides, keyed on the band the shared engine actually emits.
+ *
+ * packages/ui/src/provider-row.ts is the source of truth. A window line carries
+ * data-band for the colour, data-state for whether the reading can be trusted
+ * at all, and data-tone for headroom; the usage hero carries data-tone. This
+ * file keyed window lines on data-tone alone, which has no stale value, so a
+ * stale window kept the colour of its last reading while the hero above it
+ * correctly went grey. Colour is a claim about how much room is left, and a
+ * reading nobody can trust has no claim to make.
+ *
+ * The readout is coloured rather than the percentage alone, so the band shape
+ * beside it is coloured too: the shape is what keeps this legible in greyscale
+ * and to a person who does not separate red from green. */
+.window-line[data-band="green"] .meter-fill { background: var(--ol-band-green-fill) !important; }
+.window-line[data-band="green"] .window-readout { color: var(--ol-band-green-label) !important; }
 
-.window-line[data-tone="watch"] .meter-fill { background: var(--ol-band-yellow-fill) !important; }
-.window-line[data-tone="watch"] .window-percent { color: var(--ol-band-yellow-label) !important; }
+.window-line[data-band="yellow"] .meter-fill { background: var(--ol-band-yellow-fill) !important; }
+.window-line[data-band="yellow"] .window-readout { color: var(--ol-band-yellow-label) !important; }
 
-.window-line[data-tone="high"] .meter-fill { background: var(--ol-band-orange-fill) !important; }
-.window-line[data-tone="high"] .window-percent { color: var(--ol-band-orange-label) !important; }
+.window-line[data-band="orange"] .meter-fill { background: var(--ol-band-orange-fill) !important; }
+.window-line[data-band="orange"] .window-readout { color: var(--ol-band-orange-label) !important; }
 
-.window-line[data-tone="critical"] .meter-fill { background: var(--ol-band-red-fill) !important; }
-.window-line[data-tone="critical"] .window-percent { color: var(--ol-band-red-label) !important; }
+.window-line[data-band="red"] .meter-fill { background: var(--ol-band-red-fill) !important; }
+.window-line[data-band="red"] .window-readout { color: var(--ol-band-red-label) !important; }
 
-.window-line[data-tone="stale"] .meter-fill,
-.window-line[data-state="stale"] .meter-fill {
+/* Stale and unknown both draw hatched. windowBand already collapses them into
+ * one band, and the state selectors stand beside it so a surface that emits
+ * only data-state still loses the colour rather than keeping a stale one. */
+.window-line[data-band="stale"] .meter-fill,
+.window-line[data-state="stale"] .meter-fill,
+.window-line[data-state="unknown"] .meter-fill {
   background: var(--ol-meter-hatched-pattern) !important;
   opacity: 1 !important;
 }
-.window-line[data-tone="stale"] .window-percent,
-.window-line[data-state="stale"] .window-percent {
+.window-line[data-band="stale"] .window-readout,
+.window-line[data-state="stale"] .window-readout,
+.window-line[data-state="unknown"] .window-readout {
+  color: var(--ol-band-stale-label) !important;
+}
+
+/* A fresh window with no percentage to state. There is nothing to colour, so
+ * nothing is coloured, and the row still reads as present rather than absent. */
+.window-line[data-band="none"] .window-readout {
   color: var(--ol-band-stale-label) !important;
 }
 
