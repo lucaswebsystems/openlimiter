@@ -24,6 +24,7 @@ import {
   buildAdvice,
   connectionSentence,
   dedupeFailures,
+  failureSentence,
   freshness,
   mergeSnapshots,
   normalizeMetersReport,
@@ -33,9 +34,17 @@ import {
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import {
+  bandForPercent,
   buildProviderAccountRows,
   createProviderRowElement,
 } from "./engine/ui/provider-row.js";
+/* The four screens the connection and entitlement contract asks for. Each one
+   owns its own tab and reads the backend itself, so a failure in one leaves
+   the other three drawing what they can prove. */
+import { defineLiveMeter } from "./live-meter.js";
+import { renderPlanCap } from "./plan-cap.js";
+import { renderSettings } from "./settings.js";
+import { renderPro, renderSpend } from "./pro.js";
 /* Every word the Rust process hears from this file goes through the backend
    adapter, so a build without a given command degrades to an honest absence
    instead of a module level crash, and a static serve of these files renders
@@ -57,6 +66,7 @@ import {
   normalizeCollectionOutcome,
   normalizeConnection,
   normalizeConnectionList,
+  proStatus,
   readCache,
   readManual,
   notificationEvents,
@@ -198,19 +208,85 @@ const elements = {
   offlineBanner: document.getElementById("offline-banner"),
   addAccount: document.getElementById("add-account"),
   emptyConnect: document.getElementById("empty-connect"),
+  hero: document.getElementById("hero"),
+  heroMeter: document.getElementById("hero-meter"),
+  heroObserved: document.getElementById("hero-observed"),
+  staleStrip: document.getElementById("stale-strip"),
+  staleStripText: document.getElementById("stale-strip-text"),
+  failures: document.getElementById("failures"),
+  loading: document.getElementById("loading"),
+  planCapMount: document.getElementById("plan-cap-mount"),
+  planCapPlan: document.getElementById("plan-cap-plan"),
+  spendMount: document.getElementById("spend-mount"),
+  proMount: document.getElementById("pro-mount"),
+  settingsMount: document.getElementById("settings-mount"),
   tabs: [
     document.getElementById("tab-meters"),
+    document.getElementById("tab-spend"),
     document.getElementById("tab-connections"),
+    document.getElementById("tab-settings"),
   ],
   panels: [
     document.getElementById("panel-meters"),
+    document.getElementById("panel-spend"),
     document.getElementById("panel-connections"),
+    document.getElementById("panel-settings"),
   ],
 };
+
+defineLiveMeter();
+
+/* The first paint of a tab is deferred until it is opened. A window that
+   builds four screens before showing one is a window that opens slowly. */
+const painted = new Set();
+
+async function paintTab(id) {
+  if (id === "tab-connections") {
+    await renderPlanCap(elements.planCapMount, { onChange: () => void refresh() });
+    await paintPlanBadge();
+    painted.add(id);
+    return;
+  }
+  if (id === "tab-spend") {
+    await renderSpend(elements.spendMount);
+    painted.add(id);
+    return;
+  }
+  if (id === "tab-settings") {
+    await renderPro(elements.proMount);
+    await renderSettings(elements.settingsMount);
+    painted.add(id);
+  }
+}
+
+async function paintPlanBadge() {
+  const result = await proStatus();
+  const plan = result.ok ? (result.value?.plan_state ?? "free") : "free";
+  if (elements.planCapPlan === null) return;
+  const names = {
+    free: "Free",
+    active: "Pro",
+    trial: "Trial",
+    past_due: "Payment failed",
+    canceled: "Ending",
+  };
+  elements.planCapPlan.textContent = names[plan] ?? plan;
+  if (plan === "active" || plan === "trial") {
+    elements.planCapPlan.setAttribute("data-tone", "accent");
+  } else {
+    elements.planCapPlan.removeAttribute("data-tone");
+  }
+}
 
 /* -------------------------------------------------------------------- tabs */
 
 let initialTabDetermined = false;
+
+/* The strip is four wide now, so a caller names the tab and never the number.
+   A position typed as a literal is a position that goes wrong the next time a
+   tab is added between two others. */
+const TAB_METERS = 0;
+const TAB_CONNECTIONS = 2;
 
 function selectTab(index, isUserClick = false) {
   if (isUserClick) {
@@ -231,6 +307,8 @@ function selectTab(index, isUserClick = false) {
     connectionsTabShown();
     decorateConnectionCardsHonestyLabels();
   }
+  const id = elements.tabs[index]?.id;
+  if (id !== undefined && id !== "tab-meters") void paintTab(id);
 }
 
 elements.tabs.forEach((tab, index) => {
@@ -249,7 +327,7 @@ elements.tabs.forEach((tab, index) => {
 });
 
 function beginAddAccount() {
-  selectTab(1, true);
+  selectTab(TAB_CONNECTIONS, true);
   const panel = document.getElementById("panel-connections");
   panel?.setAttribute("data-adding", "");
   window.setTimeout(() => panel?.removeAttribute("data-adding"), 1200);
@@ -506,8 +584,116 @@ let refreshing = false;
  */
 let freshLocalClaude = false;
 
+/**
+ * The one window that most deserves the instrument.
+ *
+ * "Most pressed" is the highest live percentage, and a stale reading never
+ * wins it. An old ninety is not more urgent than a current eighty, it is only
+ * louder, and putting it in the hero would be the window shouting a number it
+ * has already stopped believing.
+ */
+function heroWindow(rows) {
+  let best = null;
+  for (const row of rows) {
+    for (const window of row.windows) {
+      if (window.usedPercent === null) continue;
+      if (window.state !== "fresh") continue;
+      if (best === null || window.usedPercent > best.window.usedPercent) {
+        best = { row, window };
+      }
+    }
+  }
+  return best;
+}
+
+function paintHero(rows, now) {
+  if (elements.hero === null || elements.heroMeter === null) return;
+  const best = heroWindow(rows);
+  if (best === null) {
+    elements.hero.hidden = true;
+    return;
+  }
+  elements.hero.hidden = false;
+  elements.heroMeter.meter = {
+    windowName: best.window.label,
+    accountLabel: best.row.showAccountLabel ? best.row.accountLabel : best.row.providerLabel,
+    usedPercent: best.window.usedPercent,
+    band: bandForPercent(best.window.usedPercent),
+    live: true,
+    resetAt: bestResetAt(best.row, best.window),
+  };
+  if (elements.heroObserved !== null) {
+    elements.heroObserved.textContent = new Date(now).toLocaleTimeString();
+  }
+}
+
+/* The view carries a rendered countdown but not the instant behind it, and the
+   instrument needs the instant so it can tick. It is read back off the
+   snapshot the row was built from. */
+let resetInstants = new Map();
+
+function bestResetAt(row, window) {
+  return resetInstants.get(row.provider + "::" + (row.accountId ?? "") + "::" + window.key) ?? null;
+}
+
+function rememberResets(snapshots) {
+  resetInstants = new Map();
+  for (const snapshot of snapshots) {
+    if (typeof snapshot.resetAt !== "string") continue;
+    resetInstants.set(
+      snapshot.provider + "::" + (snapshot.accountId ?? "") + "::" + snapshot.meter,
+      snapshot.resetAt
+    );
+  }
+}
+
+/**
+ * The stale strip, which exists so a screen full of hatched bars is explained
+ * once rather than eight times. It only appears when nothing on screen is
+ * live, because a mix of fresh and stale rows already says which is which.
+ */
+function paintStaleStrip(rows) {
+  if (elements.staleStrip === null) return;
+  const drawn = rows.flatMap((row) => row.windows);
+  const anyLive = drawn.some((window) => window.state === "fresh");
+  const anyStale = drawn.some((window) => window.state !== "fresh");
+  elements.staleStrip.hidden = anyLive || !anyStale || drawn.length === 0;
+  if (elements.staleStripText !== null && !elements.staleStrip.hidden) {
+    elements.staleStripText.textContent =
+      "Nothing on screen is a live reading. Every bar below is hatched and shows the last number that was observed, not the number now.";
+  }
+}
+
+/** One alert per failed provider, in the core's own sentence. */
+function paintFailures(failures) {
+  if (elements.failures === null) return;
+  const rows = dedupeFailures(failures);
+  elements.failures.hidden = rows.length === 0;
+  elements.failures.innerHTML = rows
+    .map((failure) => {
+      /* A fixed table, not a function. The core keeps one sentence per
+         category so no surface can invent a variation of its own, and a
+         category with no entry shows its own code rather than nothing. */
+      const sentence = failureSentence[failure.category] ?? failure.category;
+      return (
+        '<div class="alert" role="status"><strong>' +
+        String(PROVIDER_NAMES[failure.provider] ?? failure.provider) +
+        "</strong><p>" +
+        String(sentence) +
+        "</p></div>"
+      );
+    })
+    .join("");
+}
+
 async function refresh() {
   if (refreshing) return;
+  /* Shown until the first collect answers, then never again: a second wait is
+     a repaint of numbers already on screen and must not blank them. */
+  if (elements.loading !== null && !painted.has("first")) {
+    elements.loading.hidden = false;
+    painted.add("first");
+  }
   refreshing = true;
   try {
     const now = new Date().toISOString();
@@ -541,13 +727,14 @@ async function refresh() {
           (s) => freshness(s.observedAt, s.expiresAt, now) !== "unknown"
         );
       if (hasConnections) {
-        selectTab(0);
+        selectTab(TAB_METERS);
       } else {
-        selectTab(1);
+        selectTab(TAB_CONNECTIONS);
       }
     }
 
     elements.rows.textContent = "";
+    rememberResets(visible);
     const providerRows = buildProviderAccountRows(
       visible,
       now,
@@ -558,8 +745,12 @@ async function refresh() {
       elements.rows.append(createProviderRowElement(row));
     }
 
+    if (elements.loading !== null) elements.loading.hidden = true;
     elements.empty.hidden = providerRows.length > 0;
     elements.rows.hidden = providerRows.length === 0;
+    paintHero(providerRows, now);
+    paintStaleStrip(providerRows);
+    paintFailures(visibleFailures);
 
     const notificationSamples = visible
       .filter(
@@ -589,8 +780,13 @@ async function refresh() {
     /* The Claude card's ready or collecting split reads the cache through
        the flag set above, so it is told the cache moved. */
     noteMetersRefreshed();
-  } catch {
-    /* A failed refresh leaves the last valid provider rows untouched. */
+  } catch (error) {
+    /* A failed refresh leaves the last valid provider rows untouched, which
+       is the right behaviour and was also, for a while, a place a real bug
+       went to die. The reason is surfaced now: an interface that cannot say
+       why it stopped updating is one nobody can debug from a screenshot. */
+    if (elements.loading !== null) elements.loading.hidden = true;
+    paintFailures([{ provider: "MANUAL", category: "PAYLOAD_UNREADABLE" }]);
   } finally {
     refreshing = false;
   }
@@ -925,7 +1121,7 @@ initFirstRun({
     void refresh();
   },
   onInstall: (provider) => {
-    selectTab(1, true);
+    selectTab(TAB_CONNECTIONS, true);
     openProviderConnection(provider);
   },
 });

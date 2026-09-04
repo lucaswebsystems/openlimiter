@@ -589,6 +589,10 @@ export function normalizeConnection(record) {
       "credential_label",
       "credentialLabel",
     ]),
+    /* Contract 3.3 names the oldest created_at as the deterministic keeper
+       when a person does not choose one, so the view needs the instant and
+       not only the order a list command happened to send. */
+    createdAt: instantOf(pick(record, ["created_at", "createdAt"])),
     lastSuccessAt: instantOf(pick(record, ["last_success_at", "lastSuccessAt"])),
     lastAttemptAt: instantOf(pick(record, ["last_attempt_at", "lastAttemptAt"])),
     nextRefreshAt: instantOf(

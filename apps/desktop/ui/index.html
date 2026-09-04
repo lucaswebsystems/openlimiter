@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="./theme.css" />
     <link rel="stylesheet" href="./engine/ui/tokens.css" />
     <link rel="stylesheet" href="./app.css" />
+    <link rel="stylesheet" href="./surfaces.css" />
     <script>
       /*
        * The theme, applied before the first pixel.
@@ -69,10 +70,27 @@
             <div class="account-email-actions">
               <button type="submit" id="account-email-sign-in" class="first-run-continue">Sign in</button>
               <button type="button" id="account-email-create">Create account</button>
+              <!--
+                The fallback for a person whose provider account is not one of
+                the two above, or who would rather not hand a password to a
+                desktop window at all. It asks for nothing but the address.
+              -->
+              <button type="button" id="account-magic-link">Email me a link instead</button>
             </div>
           </form>
           <p id="account-gate-status" class="first-run-status" role="status"></p>
         </div>
+        <!--
+          Three steps, named before the first one starts. A person who can see
+          where the setup ends is a person who will finish it, and there is
+          nothing here worth hiding behind a progress bar with no labels.
+        -->
+        <ol class="first-run-steps" id="first-run-steps" hidden>
+          <li data-step="permission" aria-current="step">Alerts</li>
+          <li data-step="agents">Agents</li>
+          <li data-step="ready">Ready</li>
+        </ol>
+
         <div id="first-run-setup" hidden>
           <h1 id="first-run-title">Choose local providers</h1>
           <p class="first-run-intro">Only usage percentages sync. Keys and credentials stay on this device.</p>
@@ -97,6 +115,42 @@
             Provider access stays local. Sync can be turned off at any time.
           </p>
         </div>
+        <!--
+          Its own class names on purpose. The empty state restyles every
+          .first-run-* class to shrink the panel down to one line, and this
+          step is never the empty state, so borrowing those names would let a
+          detection result silently rewrite a permission request.
+        -->
+        <div id="first-run-permission" class="permission-step" hidden>
+          <h2 class="permission-title" id="first-run-permission-title">Let OpenLimiter tell you before you run out</h2>
+          <!--
+            The reason, before the ask. A permission prompt with no stated
+            purpose is the one a person denies by reflex, and the reflex is
+            correct: nobody should grant something whose use was not explained.
+          -->
+          <p class="permission-lede">
+            OpenLimiter watches the quota windows you already pay for and says
+            something at 60, 80 and 90 percent, and once more when a window
+            resets. That is the whole of it. There is no marketing message, no
+            digest you did not ask for, and no notification that is not about a
+            number on your own screen.
+          </p>
+          <p class="permission-note">
+            You can decide the thresholds, set quiet hours, or turn alerts off
+            entirely in Settings. Declining here changes nothing else: every
+            meter keeps working.
+          </p>
+          <div class="permission-actions">
+            <button type="button" id="first-run-allow" class="permission-action primary">
+              Allow alerts
+            </button>
+            <button type="button" id="first-run-skip-alerts" class="permission-action">
+              Not now
+            </button>
+          </div>
+          <p id="first-run-permission-status" class="permission-status" role="status"></p>
+        </div>
+
       </div>
     </section>
 
@@ -176,17 +230,79 @@
       <button
         type="button"
         role="tab"
+        id="tab-spend"
+        aria-selected="false"
+        aria-controls="panel-spend"
+        tabindex="-1"
+      >
+        API spend
+      </button>
+      <button
+        type="button"
+        role="tab"
         id="tab-connections"
         aria-selected="false"
         aria-controls="panel-connections"
         tabindex="-1"
       >
-        Configuration
+        Connections
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="tab-settings"
+        aria-selected="false"
+        aria-controls="panel-settings"
+        tabindex="-1"
+      >
+        Settings
       </button>
     </nav>
 
     <main>
       <section id="panel-meters" role="tabpanel" aria-labelledby="tab-meters" tabindex="-1">
+        <!--
+          The instrument, above the list. The window under the most pressure
+          gets said once, large, before a person has to read a table to find
+          it. app.js hands it a percentage, a band and a reset instant that
+          the core has already decided.
+        -->
+        <div class="hero" id="hero" hidden>
+          <p class="hero-caption">
+            <span>Closest to its limit</span>
+            <span class="mono" id="hero-observed"></span>
+          </p>
+          <openlimiter-live-meter id="hero-meter"></openlimiter-live-meter>
+        </div>
+
+        <!-- The stale notice, when nothing on screen is a live reading. -->
+        <p class="stale-strip" id="stale-strip" hidden>
+          <span class="stale-swatch" aria-hidden="true"></span>
+          <span id="stale-strip-text"></span>
+        </p>
+
+        <!-- One alert per provider that failed, in the words the core used. -->
+        <div id="failures" class="stack" hidden></div>
+
+        <!-- The skeleton, at the geometry of the rows it stands in for. -->
+        <div id="loading" class="stack" hidden aria-hidden="true">
+          <div class="skeleton-row">
+            <div class="skeleton-head">
+              <span class="skeleton-bar tile"></span>
+              <span class="skeleton-bar name"></span>
+            </div>
+            <span class="skeleton-bar"></span>
+            <span class="skeleton-bar"></span>
+          </div>
+          <div class="skeleton-row">
+            <div class="skeleton-head">
+              <span class="skeleton-bar tile"></span>
+              <span class="skeleton-bar name"></span>
+            </div>
+            <span class="skeleton-bar"></span>
+          </div>
+        </div>
+
         <div id="provider-rows" class="provider-rows" aria-label="Provider usage by account"></div>
 
         <!-- Home view empty state. -->
@@ -196,12 +312,46 @@
       </section>
 
       <section
+        id="panel-spend"
+        role="tabpanel"
+        aria-labelledby="tab-spend"
+        tabindex="-1"
+        hidden
+      >
+        <div id="spend-mount" class="stack wide"></div>
+      </section>
+
+      <section
+        id="panel-settings"
+        role="tabpanel"
+        aria-labelledby="tab-settings"
+        tabindex="-1"
+        hidden
+      >
+        <div id="pro-mount" class="stack wide"></div>
+        <div id="settings-mount" class="stack wide"></div>
+      </section>
+
+      <section
         id="panel-connections"
         role="tabpanel"
         aria-labelledby="tab-connections"
         tabindex="-1"
         hidden
       >
+        <!--
+          The accounts that exist, what the plan allows, and why any of them is
+          paused. It heads this tab because a person who opens Connections
+          almost always came to answer one of those three questions.
+        -->
+        <section class="surface block" id="plan-cap" aria-labelledby="plan-cap-title" tabindex="-1">
+          <div class="block-head">
+            <h2 id="plan-cap-title">Accounts</h2>
+            <span class="badge" id="plan-cap-plan">Free</span>
+          </div>
+          <div id="plan-cap-mount" class="stack wide"></div>
+        </section>
+
         <section id="provider-catalogue" class="surface conn-block provider-directory" aria-labelledby="provider-catalogue-title" tabindex="-1">
           <div class="conn-head">
             <h2 id="provider-catalogue-title">Providers</h2>
@@ -483,6 +633,23 @@
       </section>
 
       <footer>
+        <!--
+          Said once, where every surface that draws a provider mark can point
+          at it. Nominative use, and the sentence that makes that explicit.
+          Folded away because it is read once in the life of an install and
+          should not be the largest thing on an empty window.
+        -->
+        <details id="trademark-note">
+          <summary>Trademark notice</summary>
+          <p>
+            Product names, logos, brands, and other trademarks featured or
+            referred to within OpenLimiter are the property of their respective
+            trademark holders. These trademark holders are not affiliated with
+            OpenLimiter, our products, or our website. They do not sponsor or
+            endorse OpenLimiter. Use of them does not imply any affiliation
+            with or endorsement by them.
+          </p>
+        </details>
       </footer>
     </main>
 

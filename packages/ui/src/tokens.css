@@ -38,10 +38,60 @@
   --ol-solid-hover: #e4e4e7;
   --ol-on-solid: #09090b;
 
-  --ol-meter-ok: #79b8ff;
-  --ol-meter-watch: #58a6ff;
-  --ol-meter-high: #2f81f7;
-  --ol-meter-critical: #1769d2;
+  /*
+   * The five band quota ramp.
+   *
+   * A meter answers one question: how close is this window to running out.
+   * A single blue ramp made every answer look the same, so the ramp is now
+   * semantic. Used percentage maps straight onto operational urgency and the
+   * hue is the answer, not decoration. Provider brand colour never appears
+   * on a bar. Every pair below was measured: a fill clears 3.0:1 against the
+   * track for WCAG 1.4.11, a label clears 4.5:1 against the surface it sits
+   * on for WCAG 1.4.3.
+   *
+   *   band 1   0 to 59    normal headroom      fill 4.23:1  label 7.33:1
+   *   band 2  60 to 79    watch threshold      fill 5.66:1  label 9.57:1
+   *   band 3  80 to 89    high utilisation     fill 4.24:1  label 9.62:1
+   *   band 4  90 and up   critical depletion   fill 4.26:1  label 7.39:1
+   *   band 5  stale       no trustworthy read  fill 3.70:1  label 6.84:1
+   */
+  --ol-band-green-fill: #2ea043;
+  --ol-band-green-label: #3fb950;
+  --ol-band-green-subtle: rgb(46 160 67 / 0.14);
+  --ol-band-yellow-fill: #d29922;
+  --ol-band-yellow-label: #e3b341;
+  --ol-band-yellow-subtle: rgb(210 153 34 / 0.14);
+  --ol-band-orange-fill: #db6d28;
+  --ol-band-orange-label: #ffa657;
+  --ol-band-orange-subtle: rgb(219 109 40 / 0.14);
+  --ol-band-red-fill: #f85149;
+  --ol-band-red-label: #ff7b72;
+  --ol-band-red-subtle: rgb(248 81 73 / 0.15);
+  --ol-band-stale-fill: #72839b;
+  --ol-band-stale-label: #929ead;
+  --ol-band-stale-subtle: rgb(114 131 155 / 0.14);
+
+  /* Stale is drawn, not tinted. A hatch reads as "no live reading" at a
+     glance and survives greyscale, which a desaturated colour does not. */
+  --ol-band-hatched-pattern: repeating-linear-gradient(
+    45deg,
+    #72839b 0,
+    #72839b 6px,
+    #202b3b 6px,
+    #202b3b 12px
+  );
+  --ol-band-hatched-label: var(--ol-band-stale-label);
+
+  /* The old ramp names now resolve to the bands, so every surface that
+     already consumes them moves together and none of them matches by hand. */
+  --ol-meter-ok: var(--ol-band-green-fill);
+  --ol-meter-watch: var(--ol-band-yellow-fill);
+  --ol-meter-high: var(--ol-band-orange-fill);
+  --ol-meter-critical: var(--ol-band-red-fill);
+  --ol-meter-ok-label: var(--ol-band-green-label);
+  --ol-meter-watch-label: var(--ol-band-yellow-label);
+  --ol-meter-high-label: var(--ol-band-orange-label);
+  --ol-meter-critical-label: var(--ol-band-red-label);
   --ol-meter-error: var(--ol-meter-critical);
   --ol-meter-empty: var(--ol-track);
   --ol-meter-ghost: #43536a;
@@ -213,10 +263,31 @@
   --ol-solid: #0d1623;
   --ol-solid-hover: #263446;
   --ol-on-solid: #fafafa;
-  --ol-meter-ok: #1f6feb;
-  --ol-meter-watch: #0969da;
-  --ol-meter-high: #0550ae;
-  --ol-meter-critical: #033d8b;
+  /* The same five bands, re measured against the light surface stack.
+     Fills 3.84 / 3.52 / 3.81 / 4.05 / 3.81 to 1 against the light track,
+     labels 7.39 / 8.30 / 8.84 / 10.51 / 7.49 to 1 against the surface. */
+  --ol-band-green-fill: #1a7f37;
+  --ol-band-green-label: #116329;
+  --ol-band-green-subtle: rgb(26 127 55 / 0.12);
+  --ol-band-yellow-fill: #9e6a03;
+  --ol-band-yellow-label: #744210;
+  --ol-band-yellow-subtle: rgb(158 106 3 / 0.12);
+  --ol-band-orange-fill: #bc4c00;
+  --ol-band-orange-label: #872b00;
+  --ol-band-orange-subtle: rgb(188 76 0 / 0.12);
+  --ol-band-red-fill: #cf222e;
+  --ol-band-red-label: #82071e;
+  --ol-band-red-subtle: rgb(207 34 46 / 0.12);
+  --ol-band-stale-fill: #617087;
+  --ol-band-stale-label: #46566b;
+  --ol-band-stale-subtle: rgb(97 112 135 / 0.12);
+  --ol-band-hatched-pattern: repeating-linear-gradient(
+    45deg,
+    #617087 0,
+    #617087 6px,
+    #d7e1ee 6px,
+    #d7e1ee 12px
+  );
   --ol-meter-ghost: #aebed1;
   --ol-live: var(--ol-accent);
   --ol-live-soft: var(--ol-accent-subtle);

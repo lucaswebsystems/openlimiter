@@ -1,0 +1,442 @@
+/*
+ * The tray popover, at 360 by 420.
+ *
+ * This surface is read in a glance and dismissed. Everything in it is sized
+ * for that: one headline that answers the question before the list is reached,
+ * four item rows dense enough that six accounts fit without a scroll, and a
+ * footer whose first control is the way back into the product.
+ *
+ * The geometry is fixed rather than fluid because the window is fixed. A
+ * popover that reflows is a popover whose rows move under the cursor between
+ * two openings, and this one is opened dozens of times a day.
+ *
+ * Not one literal colour appears below this line, the same rule app.css keeps.
+ * tokens.css is the only file allowed to name one.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--ol-canvas);
+}
+
+body.tray {
+  width: 360px;
+  height: 420px;
+  display: flex;
+  flex-direction: column;
+  color: var(--ol-body);
+  font: var(--ol-text-body) / var(--ol-leading-body) var(--ol-font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------- head */
+
+.tray-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-3) var(--ol-space-4);
+  border-bottom: 1px solid var(--ol-hairline);
+  background: var(--ol-surface);
+}
+
+.tray-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-label);
+}
+
+.tray-mark {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+}
+
+.tray-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tray-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-band-stale-fill);
+}
+
+.tray-state[data-live="true"] .tray-pip {
+  background: var(--ol-band-green-fill);
+  animation: tray-pulse 2000ms var(--ol-ease-out) infinite;
+}
+
+@keyframes tray-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  60% {
+    transform: scale(1.25);
+  }
+}
+
+/* ------------------------------------------------------------- the glance */
+
+/*
+ * The single most pressed window, said once, large. A person opens this
+ * popover to find out whether they are about to be cut off, and this line is
+ * the answer. The band tint is the only fill on the surface, which is what
+ * lets it be read peripherally.
+ */
+.tray-glance {
+  flex: none;
+  display: grid;
+  gap: 2px;
+  padding: var(--ol-space-2) var(--ol-space-4) var(--ol-space-3);
+  border-bottom: 1px solid var(--ol-hairline);
+  background: var(--glance-subtle);
+  border-left: 3px solid var(--glance-fill);
+  --glance-fill: var(--ol-band-stale-fill);
+  --glance-label: var(--ol-band-stale-label);
+  --glance-subtle: var(--ol-band-stale-subtle);
+}
+
+.tray-glance[data-band="green"] {
+  --glance-fill: var(--ol-band-green-fill);
+  --glance-label: var(--ol-band-green-label);
+  --glance-subtle: var(--ol-band-green-subtle);
+}
+.tray-glance[data-band="yellow"] {
+  --glance-fill: var(--ol-band-yellow-fill);
+  --glance-label: var(--ol-band-yellow-label);
+  --glance-subtle: var(--ol-band-yellow-subtle);
+}
+.tray-glance[data-band="orange"] {
+  --glance-fill: var(--ol-band-orange-fill);
+  --glance-label: var(--ol-band-orange-label);
+  --glance-subtle: var(--ol-band-orange-subtle);
+}
+.tray-glance[data-band="red"] {
+  --glance-fill: var(--ol-band-red-fill);
+  --glance-label: var(--ol-band-red-label);
+  --glance-subtle: var(--ol-band-red-subtle);
+}
+
+.glance-band {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ol-space-1);
+  color: var(--glance-label);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.glance-band svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.glance-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ol-space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.glance-value {
+  color: var(--glance-label);
+  font-family: var(--ol-font-mono);
+  font-size: var(--ol-text-title);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1.1;
+}
+
+.glance-subject {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ol-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glance-reset {
+  margin: 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------- list */
+
+.tray-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--ol-space-2) var(--ol-space-3);
+}
+
+.tray-list::-webkit-scrollbar {
+  width: 8px;
+}
+.tray-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--ol-radius-pill);
+  background-clip: content-box;
+  background-color: var(--ol-hairline-strong);
+}
+
+/*
+ * One row, four items: mark and name, meter, percentage, reset. The columns
+ * are fixed so eight rows line their numbers up in one vertical rule, which is
+ * what makes a list of percentages scannable rather than merely present.
+ */
+.tray-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.5rem 3rem;
+  grid-template-areas:
+    "name meter percent"
+    "name reset percent";
+  align-items: center;
+  column-gap: var(--ol-space-2);
+  padding: var(--ol-space-2) var(--ol-space-1);
+  border-radius: var(--ol-radius-xs);
+  --tray-fill: var(--ol-band-stale-fill);
+  --tray-label: var(--ol-band-stale-label);
+}
+
+.tray-row[data-band="green"] {
+  --tray-fill: var(--ol-band-green-fill);
+  --tray-label: var(--ol-band-green-label);
+}
+.tray-row[data-band="yellow"] {
+  --tray-fill: var(--ol-band-yellow-fill);
+  --tray-label: var(--ol-band-yellow-label);
+}
+.tray-row[data-band="orange"] {
+  --tray-fill: var(--ol-band-orange-fill);
+  --tray-label: var(--ol-band-orange-label);
+}
+.tray-row[data-band="red"] {
+  --tray-fill: var(--ol-band-red-fill);
+  --tray-label: var(--ol-band-red-label);
+}
+
+.tray-row + .tray-row {
+  border-top: 1px solid var(--ol-hairline);
+  border-radius: 0;
+}
+
+.tray-identity {
+  grid-area: name;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--ol-space-2);
+}
+
+/* The one place a provider's own colour is allowed: its mark, and a hairline
+   on the tile behind it. Never the meter beside it. */
+.tray-mark-tile {
+  display: inline-flex;
+  width: 1.375rem;
+  height: 1.375rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-xs);
+  background: var(--ol-raised);
+  color: var(--tray-provider, var(--ol-heading));
+}
+
+.tray-mark-tile svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.tray-names {
+  min-width: 0;
+  display: grid;
+  line-height: 1.25;
+}
+
+.tray-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ol-heading);
+  font-size: var(--ol-text-body);
+  font-weight: var(--ol-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tray-window {
+  min-width: 0;
+  overflow: hidden;
+  /* --ol-faint reads 4.09:1 dark and 2.98:1 light on this canvas, and this
+     line names the window a percentage belongs to, so it has to be read. */
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tray-meter {
+  grid-area: meter;
+  position: relative;
+  height: 0.3125rem;
+  overflow: hidden;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-track);
+  align-self: end;
+  margin-bottom: 2px;
+}
+
+.tray-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tray-fill);
+  transition: width var(--ol-motion-base) var(--ol-ease-out),
+    background-color var(--ol-motion-fast) var(--ol-ease-linear);
+}
+
+.tray-row[data-band="stale"] .tray-meter {
+  background: var(--ol-band-hatched-pattern);
+}
+.tray-row[data-band="stale"] .tray-meter-fill {
+  background: transparent;
+}
+
+.tray-reset {
+  grid-area: reset;
+  align-self: start;
+  color: var(--ol-muted);
+  font-family: var(--ol-font-mono);
+  font-size: var(--ol-text-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tray-percent {
+  grid-area: percent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ol-space-1);
+  color: var(--tray-label);
+  font-family: var(--ol-font-mono);
+  font-size: var(--ol-text-body);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--ol-weight-semibold);
+  transition: color var(--ol-motion-fast) var(--ol-ease-linear);
+}
+
+.tray-percent svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+}
+
+.tray-empty,
+.tray-absent {
+  flex: 1 1 auto;
+  display: grid;
+  align-content: center;
+  margin: 0;
+  padding: var(--ol-space-5) var(--ol-space-4);
+  color: var(--ol-muted);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------- foot */
+
+.tray-foot {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ol-space-2);
+  padding: var(--ol-space-2) var(--ol-space-4) var(--ol-space-3);
+  border-top: 1px solid var(--ol-hairline);
+  background: var(--ol-surface);
+}
+
+.tray-foot button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-xs);
+  background: transparent;
+  color: var(--ol-heading);
+  font-family: inherit;
+  font-size: var(--ol-text-body);
+  font-weight: var(--ol-weight-regular);
+  cursor: pointer;
+  transition: background var(--ol-motion-fast) var(--ol-ease-out),
+    border-color var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+.tray-primary {
+  border-color: var(--ol-accent-subtle);
+  background: var(--ol-accent-subtle);
+  color: var(--ol-accent);
+}
+
+.tray-foot button:hover {
+  border-color: var(--ol-heading);
+}
+
+.tray-primary:hover {
+  border-color: var(--ol-accent);
+}
+
+.tray-foot button:focus-visible {
+  outline: 2px solid var(--ol-accent);
+  outline-offset: 2px;
+}
+
+.tray-observed {
+  grid-column: 1 / -1;
+  color: var(--ol-faint);
+  font-size: var(--ol-text-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tray-state[data-live="true"] .tray-pip {
+    animation: none;
+  }
+  .tray-meter-fill,
+  .tray-percent,
+  .tray-foot button {
+    transition: none;
+  }
+}
