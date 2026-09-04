@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 import { Inter } from "next/font/google";
@@ -89,7 +90,28 @@ export async function SiteHtml({
    * control points at the same page in another language or it does not appear.
    */
   localised = true,
-}: Readonly<{ locale: Locale; children: ReactNode; localised?: boolean }>) {
+  /**
+   * WHERE THE PAGE VIEW COUNT IS ALLOWED TO RUN, AND WHERE IT IS NOT.
+   *
+   * The website counts page views. The product does not send anything, and the
+   * dashboard at /app is the product: it runs the same engine as the command
+   * line tool, in the reader's own tab, on a document they never upload. The
+   * download page and the privacy policy both promise that the web app sends
+   * nothing, so a counter on that route would make this site a liar in the one
+   * place it can least afford to be one.
+   *
+   * So the marketing pages and the blog carry the counter, and `/app` sets this
+   * to false. It is cookieless either way: Vercel Web Analytics identifies no
+   * one, sets no cookie and builds no profile, which is what lets the privacy
+   * page describe it in one honest sentence.
+   */
+  analytics = true,
+}: Readonly<{
+  locale: Locale;
+  children: ReactNode;
+  localised?: boolean;
+  analytics?: boolean;
+}>) {
   const messages = await getMessages({ locale });
   const t = await getTranslations({ locale, namespace: "common" });
 
@@ -138,6 +160,7 @@ export async function SiteHtml({
               site is published in and who has never answered the question. It
               overlays the page and reserves no space. See components/locale-offer.tsx. */}
           {offer !== null && <LocaleOffer locale={locale} copy={offer} />}
+          {analytics && <Analytics />}
         </NextIntlClientProvider>
       </body>
     </html>

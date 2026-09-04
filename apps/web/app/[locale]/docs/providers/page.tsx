@@ -9,12 +9,22 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
   return docMetadata("/docs/providers", await pageLocale(params));
 }
 
-/** The connector ids, in the order the first table lists them. */
+/**
+ * The connector ids, in the order the first table lists them.
+ *
+ * These are the parser ids, spelled exactly as `openlimiter ingest --provider`
+ * wants them, which is why Gemini appears as `gemini_cli`. Nine ship: the six
+ * this page has always listed, plus the three that arrived with the Gemini CLI,
+ * Grok and Kimi readers.
+ */
 const CONNECTOR_IDS = [
   "claude",
   "openrouter",
   "codex",
   "antigravity",
+  "gemini_cli",
+  "grok",
+  "kimi",
   "opencode",
   "manual",
 ] as const;
@@ -32,25 +42,25 @@ export default async function ProvidersPage({ params }: LocaleParams) {
       id="providers"
       sections={[
         {
-          id: "the-six",
-          title: t("the-six.title"),
+          id: "the-nine",
+          title: t("the-nine.title"),
           body: (
             <>
               <Table
-                caption={t("the-six.caption")}
+                caption={t("the-nine.caption")}
                 columns={[
-                  { key: "id", header: t("the-six.columns.id") },
-                  { key: "reads", header: t("the-six.columns.reads") },
-                  { key: "status", header: t("the-six.columns.status") },
+                  { key: "id", header: t("the-nine.columns.id") },
+                  { key: "reads", header: t("the-nine.columns.reads") },
+                  { key: "status", header: t("the-nine.columns.status") },
                 ]}
                 rows={CONNECTOR_IDS.map((id) => ({
                   id: <Code>{id}</Code>,
-                  reads: t(`the-six.rows.${id}.reads`),
-                  status: t(`the-six.rows.${id}.status`),
+                  reads: t(`the-nine.rows.${id}.reads`),
+                  status: t(`the-nine.rows.${id}.status`),
                 }))}
               />
-              <Callout tone="key" title={t("the-six.calloutTitle")}>
-                {t.rich("the-six.calloutBody", {
+              <Callout tone="key" title={t("the-nine.calloutTitle")}>
+                {t.rich("the-nine.calloutBody", {
                   code: (chunks) => <Code>{chunks}</Code>,
                 })}
               </Callout>

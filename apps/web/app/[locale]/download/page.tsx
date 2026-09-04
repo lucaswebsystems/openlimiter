@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
   });
 }
 
-function primaryAsset(platform: "windows" | "linux"): string {
+function primaryAsset(platform: "windows" | "linux" | "macos"): string {
   const target = downloadTargets.find((entry) => entry.id === platform);
   const asset = target?.assets?.find((entry) => entry.primary === true);
   if (asset === undefined) throw new Error(`Missing ${platform} download asset.`);
@@ -35,12 +35,14 @@ export default async function DownloadPage({ params }: LocaleParams) {
         <DownloadChoice
           windowsHref={primaryAsset("windows")}
           linuxHref={primaryAsset("linux")}
+          macosHref={primaryAsset("macos")}
           otherHref={`${REPO_URL}/releases/tag/v${CURRENT_VERSION}`}
           windowsLabel={t("choice.windows")}
           linuxLabel={t("choice.linux")}
           macosLabel={t("choice.macos")}
           otherLabel={t("choice.other")}
           smartScreen={t("choice.smartScreen")}
+          openAnyway={t("choice.openAnyway")}
         />
       </div>
     </PageShell>

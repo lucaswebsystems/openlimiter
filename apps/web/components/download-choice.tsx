@@ -20,21 +20,32 @@ function detectedPlatform(): Platform {
 export function DownloadChoice({
   windowsHref,
   linuxHref,
+  macosHref,
   otherHref,
   windowsLabel,
   linuxLabel,
   macosLabel,
   otherLabel,
   smartScreen,
+  openAnyway,
 }: {
   windowsHref: string;
   linuxHref: string;
+  macosHref: string;
   otherHref: string;
   windowsLabel: string;
   linuxLabel: string;
   macosLabel: string;
   otherLabel: string;
   smartScreen: string;
+  /**
+   * What a Mac reader has to do the first time, and what they do not get yet.
+   *
+   * Both builds this site offers are unsigned, and an unsigned build is only
+   * honest if the note is beside the button rather than three sections below
+   * it. macOS gets the same treatment Windows already had.
+   */
+  openAnyway: string;
 }) {
   const [platform, setPlatform] = useState<Platform>("windows");
 
@@ -43,7 +54,7 @@ export function DownloadChoice({
   const choices: readonly Choice[] = [
     { platform: "windows", label: windowsLabel, href: windowsHref },
     { platform: "linux", label: linuxLabel, href: linuxHref },
-    { platform: "macos", label: macosLabel },
+    { platform: "macos", label: macosLabel, href: macosHref },
   ];
   const primary = choices.find((choice) => choice.platform === platform) ?? choices[0]!;
 
@@ -61,6 +72,10 @@ export function DownloadChoice({
 
       {platform === "windows" && (
         <p className="mt-3 text-xs text-muted">{smartScreen}</p>
+      )}
+
+      {platform === "macos" && (
+        <p className="mt-3 text-xs text-muted">{openAnyway}</p>
       )}
 
       <a href={otherHref} className="focus-ring mt-5 rounded text-sm text-muted underline underline-offset-4 hover:text-heading">

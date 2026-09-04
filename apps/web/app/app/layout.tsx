@@ -117,8 +117,12 @@ export const viewport: Viewport = {
 export default function AppLayout({ children }: Readonly<{ children: ReactNode }>) {
   setRequestLocale(DEFAULT_LOCALE);
 
+  /* `analytics` off: this route is the product, not the website. It runs the
+     engine in the reader's own tab on a document they never upload, and both
+     the download page and the privacy policy promise the web app sends
+     nothing. See components/site-html.tsx. */
   return (
-    <SiteHtml locale={DEFAULT_LOCALE} localised={false}>
+    <SiteHtml locale={DEFAULT_LOCALE} localised={false} analytics={false}>
       <RegisterServiceWorker />
       {children}
     </SiteHtml>

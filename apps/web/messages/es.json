@@ -42,16 +42,270 @@
     "community": "Comunidad",
     "trust": "Confianza",
     "issues": "Incidencias",
-    "licenceNote": "Apache 2.0 | Con prioridad local | Cero telemetría | Sin seguimiento | Cuenta gratis",
+    "licenceNote": "Apache 2.0 | Local primero | Cero telemetría en la app | Sin cookies de rastreo | Cuenta gratuita",
     "licenceRead": "Leer la licencia",
     "rights": "Todos los derechos reservados",
     "licensed": "Licencia Apache 2.0",
     "security": "Seguridad"
   },
   "terms": {
-    "title": "Terms and conditions",
-    "lead": "These terms explain the rules for using the OpenLimiter website and software. They are meant to be clear and practical.",
-    "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software."
+    "title": "Términos y condiciones",
+    "lead": "Las reglas para usar el sitio web y el software de OpenLimiter, y las condiciones de la suscripción Pro. La intención es que sean claras y prácticas.",
+    "metaDescription": "Los términos que se aplican cuando usas el sitio web y el software de código abierto de OpenLimiter, incluidos el cobro, la cancelación, los reembolsos y los pagos fallidos de Pro.",
+    "sections": {
+      "acceptance": {
+        "title": "Aceptación",
+        "body": "Al acceder a este sitio web o usarlo, aceptas estos términos. Si no estás de acuerdo, deja de usar el sitio. Tu uso del software se rige aparte por su licencia, y contratar Pro añade las secciones de suscripción de más abajo."
+      },
+      "licence": {
+        "title": "Licencia del software",
+        "body": "OpenLimiter es software libre y de código abierto publicado bajo la <licence>Apache License 2.0</licence>. Es esa licencia, y no estos términos del sitio, la que rige tu derecho a usar, copiar, modificar y distribuir el software."
+      },
+      "account": {
+        "title": "La cuenta y Pro",
+        "body": "La cuenta es gratuita y opcional, y todo lo local sigue siendo gratuito con ella o sin ella. Pro es una suscripción a servicios alojados: alertas, noventa días de historial con previsión, contexto de enrutado alojado, más de una cuenta por proveedor, un preset de presentación Pro y la beta de gasto de API. Pro añade servicios alojados y nunca quita una función local. El límite gratuito de una cuenta por proveedor lo aplica la aplicación de escritorio como una política en código abierto, no como una barrera de seguridad: es una promesa sobre cómo se comporta el producto, no una restricción técnica."
+      },
+      "billing": {
+        "title": "Cobro",
+        "body": "Pro cuesta 5 dólares estadounidenses al mes o 50 dólares estadounidenses al año, y los primeros 30 días son gratis sin tarjeta. Los pagos los procesa Stripe, que actúa como procesador y guarda los datos de tu tarjeta. El impuesto se calcula automáticamente en el pago y puede sumarse al precio indicado según dónde estés, y por eso se pide una dirección de facturación. La suscripción se renueva automáticamente al final de cada periodo hasta que la canceles."
+      },
+      "cancellation": {
+        "title": "Cancelación",
+        "body": "Puedes cancelar cuando quieras desde el Portal de Clientes de Stripe, al que se llega desde la pantalla de facturación de tu cuenta. La cancelación surte efecto al final del periodo que ya has pagado: las funciones Pro siguen funcionando hasta esa fecha y luego se detienen. Cancelar no borra tus datos, y todo lo local sigue funcionando exactamente igual."
+      },
+      "refund": {
+        "title": "Reembolsos",
+        "body": "Hay reembolso íntegro a petición dentro de los 14 días naturales siguientes a cualquier cargo, mensual o anual, sin necesidad de motivo. Escribe a la dirección del pie de esta página e indica de qué cargo se trata. Un reembolso íntegro confirmado cancela esa suscripción de inmediato y termina Pro, y nunca toca nada guardado en tu propia máquina. Pasados los 14 días un cargo no es reembolsable de forma automática, y aun así la petición se lee y se responde."
+      },
+      "failedPayment": {
+        "title": "Pagos fallidos",
+        "body": "Si un pago falla, Pro pasa a estado de impago y conservas el acceso alojado durante 72 horas fijas contadas desde ese primer fallo. Los reintentos y los fallos posteriores no amplían esa ventana. Pagar la factura pendiente dentro de ella restablece el acceso de inmediato. Si la factura sigue impagada cuando la ventana se cierra, las funciones alojadas se detienen y todo lo local sigue funcionando. Un pago posterior correcto puede restablecer el acceso, salvo que la suscripción ya se haya cancelado o reembolsado."
+      },
+      "warranty": {
+        "title": "Sin garantía",
+        "body": "El sitio web, el software y los servicios alojados se ofrecen tal cual y según disponibilidad. No prometemos que vayan a ser siempre exactos, completos, seguros ni estar disponibles. Las lecturas de cuota provienen de interfaces que controlan los proveedores y pueden cambiar sin aviso, así que una lectura puede faltar, estar desactualizada o ser errónea, y nunca debe ser tu única protección para no superar un límite. En la máxima medida que permita la ley, se excluyen todas las garantías."
+      },
+      "liability": {
+        "title": "Limitación de responsabilidad",
+        "body": "En la máxima medida que permita la ley, Lucas Costa y quienes contribuyen a OpenLimiter no responden por daños indirectos, incidentales, especiales, consecuentes o punitivos, ni por la pérdida de datos, beneficios, ingresos u oportunidades, derivados del uso o de la imposibilidad de uso del sitio web, del software o de los servicios alojados. Cualquier responsabilidad que la ley no permita excluir queda limitada al importe que hayas pagado en los doce meses anteriores a la reclamación, o al mínimo que permita la ley si es mayor."
+      },
+      "links": {
+        "title": "Enlaces externos",
+        "body": "Este sitio web puede enlazar a servicios que OpenLimiter no controla, y el producto lee interfaces que pertenecen a otras empresas. Esos servicios tienen sus propios términos y sus propias prácticas de privacidad. No somos responsables de su contenido, su disponibilidad ni su conducta, y nada de esto crea una relación con ellos ni un respaldo por su parte."
+      },
+      "changes": {
+        "title": "Cambios en estos términos",
+        "body": "Podemos actualizar estos términos cuando cambien el sitio web, el software, la suscripción o la ley aplicable. Los nuevos términos entran en vigor cuando se publican en esta página. Seguir usando el sitio después de una actualización significa que aceptas la versión revisada. Un cambio que afecte a una suscripción activa se anuncia antes de aplicarse a ella."
+      },
+      "privacy": {
+        "title": "Privacidad",
+        "body": "Qué se recoge, adónde va y cuánto tiempo se guarda está en la <privacy>política de privacidad</privacy>, que forma parte de estos términos. En resumen: el modo local no recoge nada, y la cuenta existe solo para llevar tus propias lecturas de cuota y tu suscripción."
+      },
+      "contact": {
+        "title": "Contacto",
+        "body": "Las dudas sobre estos términos, y las solicitudes de reembolso o de cancelación, se pueden enviar a <mail>lucas@lucaswebsystems.com</mail>."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Privacidad",
+    "lead": "Qué recoge OpenLimiter, qué no recoge nunca, adónde va cada cosa y cuánto tiempo se guarda. Esto está escrito a partir de los flujos de datos que existen en el producto, no a partir de una plantilla.",
+    "metaDescription": "Cómo trata los datos OpenLimiter. El modo local no recoge nada, los campos de la cuenta y de la sincronización están listados uno por uno, las claves de proveedor se quedan en el llavero del sistema operativo y cada plazo de retención tiene nombre.",
+    "summary": {
+      "title": "La versión corta",
+      "bullets": {
+        "local": "El modo local no recoge nada. Sin cuenta, sin servidor y nada sale de tu máquina.",
+        "account": "La cuenta es opcional. Existe para que tus propios porcentajes de cuota lleguen a tus otros dispositivos y para que Pro tenga dónde apoyarse.",
+        "sync": "Lo que se sincroniza es estado de cuota acotado: un proveedor, un medidor, una ventana, un porcentaje y marcas de tiempo. Nunca prompts, nunca código, nunca el contenido de un archivo.",
+        "keys": "Las credenciales de proveedor y las claves de API se quedan en el llavero del sistema operativo de tu propio dispositivo. Nunca se envían a OpenLimiter.",
+        "website": "Este sitio cuenta vistas de página sin cookies. La aplicación no envía nada.",
+        "sell": "Nada se vende, se alquila ni se entrega a un anunciante. Aquí no hay publicidad."
+      }
+    },
+    "local": {
+      "title": "El modo local no recoge nada",
+      "body": "La herramienta de línea de comandos, la aplicación de escritorio y la aplicación web se ejecutan en tu máquina, y en modo local no hay cuenta ni servicio detrás de ellas. No hay nada que recoger porque no hay adónde enviarlo.",
+      "bullets": {
+        "reads": "Los conectores leen archivos que tus herramientas ya escribieron, solo lectura. Nunca reescriben, reparan ni migran lo que abren.",
+        "credentials": "Las credenciales de proveedor las guarda el almacén de credenciales del sistema operativo. OpenLimiter nunca copia una en una caché, una exportación, un diagnóstico o un registro.",
+        "telemetry": "La aplicación no envía telemetría, uso, diagnósticos, identificadores ni contenido de prompts a ninguna parte.",
+        "account": "Ninguna función local exige iniciar sesión, y ninguna función local queda retenida hasta que inicies sesión."
+      }
+    },
+    "account": {
+      "title": "La cuenta",
+      "body": "La cuenta solo hace falta para las partes alojadas: sincronizar tu cuota entre tus dispositivos y Pro. El inicio de sesión funciona sobre Supabase, que aloja la base de datos y la autenticación del servicio.",
+      "bullets": {
+        "identity": "Puedes entrar con GitHub, con Google o con un enlace mágico enviado a tu correo. La elección es tuya y luego puedes vincular otra.",
+        "stored": "La cuenta guarda tu dirección de correo, el identificador que devuelve el proveedor de inicio de sesión, la hora en que creaste la cuenta y la hora de tu último acceso.",
+        "password": "No hay contraseña, así que no hay contraseña que filtrar. GitHub y Google tampoco entregan tu contraseña, solo la confirmación de que eres tú.",
+        "devices": "Cada dispositivo en el que inicias sesión recibe una etiqueta, una fecha de creación y una fecha de último uso, para que veas la lista y revoques cualquiera de ellos."
+      }
+    },
+    "sync": {
+      "title": "Qué envía realmente la sincronización",
+      "body": "La sincronización existe para que un número que ya tienes en una máquina se vea en otra. Lleva la lectura y nada de lo que la rodea.",
+      "bullets": {
+        "fields": "Una fila por medidor: qué proveedor, qué medidor, qué ventana, un porcentaje de uso acotado, cuándo se reinicia la ventana, cuándo se observó la lectura, un identificador opaco de cuenta y el dispositivo que la envió.",
+        "never": "Nunca lleva un prompt, una respuesta, un nombre de archivo, una ruta, código fuente, un nombre de proyecto, un repositorio, una credencial de proveedor ni un mensaje del proveedor.",
+        "retention": "Tu instantánea actual se guarda siete días. Se reemplaza cada vez que llega una lectura más nueva.",
+        "off": "La sincronización viene activada y se puede desactivar en los ajustes. Con ella desactivada, las lecturas se quedan en el dispositivo que las tomó."
+      }
+    },
+    "history": {
+      "title": "Historial y previsión de Pro",
+      "body": "Pro guarda las lecturas que ya sincronizas para poder dibujar una ventana más larga y calcular una previsión de consumo a partir de ella. Son las mismas filas acotadas, guardadas más tiempo.",
+      "bullets": {
+        "window": "Noventa días móviles mientras Pro esté activo. El día noventa y uno no se puede consultar, porque no está ahí.",
+        "gaps": "Un hueco sigue siendo un hueco. Nada se interpola, se estima sobre un periodo ausente ni se inventa para que un gráfico parezca continuo.",
+        "afterPro": "Cuando Pro termina, el historial alojado se guarda treinta días para que puedas exportarlo, y durante ese tiempo no lo pueden leer el historial, la previsión ni las alertas. Al final del día treinta se borra.",
+        "local": "El historial que la aplicación de escritorio guarda en local es tuyo y nada de esto lo toca. Terminar Pro nunca lo borra."
+      }
+    },
+    "alerts": {
+      "title": "Alertas por correo y push",
+      "body": "Pro puede avisarte cuando una ventana cruza el sesenta, el ochenta o el noventa por ciento y cuando se reinicia. El correo lo entrega Resend y el push el servicio de tu navegador o de tu sistema operativo.",
+      "bullets": {
+        "generic": "Por defecto el mensaje lleva solo el nombre del producto, el nombre del proveedor, el nivel como sesenta, ochenta, noventa o reinicio, una línea genérica y un enlace al producto con la sesión iniciada. Sin porcentaje exacto, sin importe, sin modelo, sin proyecto, sin presupuesto y sin fecha de previsión.",
+        "detail": "El correo detallado es un permiso aparte que tienes que aceptar. Puede añadir el porcentaje exacto, el importe, el presupuesto y la fecha de previsión de tus propios datos. Si los campos cambian, la versión del consentimiento cambia y el detalle vuelve a quedar desactivado hasta que lo aceptes de nuevo.",
+        "push": "El push nunca tiene modo detallado, sea cual sea el ajuste del correo. Un mensaje push nunca lleva detalle de uso, así que una pantalla bloqueada nunca muestra uno.",
+        "disable": "Cada canal se desactiva por separado. Desactivar uno suprime el trabajo que aún no se ha entregado a un proveedor, y un único mensaje ya aceptado por un proveedor todavía puede llegar."
+      }
+    },
+    "spend": {
+      "title": "Claves de gasto de API, en beta",
+      "body": "El medidor de gasto de API lee tus propias cifras de facturación o de saldo en el proveedor que es dueño de ellas. Es una beta declarada y es observación de mejor esfuerzo, así que puede llegar con retraso, incompleta, corregida o no llegar.",
+      "bullets": {
+        "keyring": "La clave que le das se guarda en el llavero del sistema operativo, en un espacio propio. No hay relectura: después de guardarla, nada en la interfaz puede volver a mostrarte la clave.",
+        "host": "La clave se envía solo al host HTTPS fijo del proveedor al que pertenece. Las redirecciones se rechazan, las peticiones y los errores se redactan, y el tamaño y la duración de cada llamada tienen tope.",
+        "never": "La clave nunca se envía a OpenLimiter, nunca se guarda en el servicio alojado y nunca aparece en un registro, en una propiedad de analítica, en un informe de fallo ni en un registro de soporte.",
+        "revoke": "Quitar una fuente borra su clave del llavero de inmediato y ofrece borrar las muestras que produjo."
+      }
+    },
+    "payments": {
+      "title": "Pagos e impuestos",
+      "body": "Pro se paga mediante Stripe. Los datos de la tarjeta se escriben en Stripe y nunca llegan a OpenLimiter, que recibe solo el resultado y los identificadores que necesita para mantener tu acceso al día con tu suscripción.",
+      "bullets": {
+        "stripe": "Stripe guarda tu método de pago, tu dirección de facturación y tus facturas. OpenLimiter guarda los identificadores de cliente y de suscripción, el plan, el estado y las fechas del periodo.",
+        "tax": "El impuesto se calcula automáticamente en el pago, y por eso se pide una dirección de facturación. La dirección se usa para el impuesto y la factura y para nada más.",
+        "refund": "Hay reembolso íntegro a petición dentro de los catorce días siguientes a cualquier cargo. Un reembolso íntegro confirmado termina Pro de inmediato y deja tus datos locales intactos.",
+        "records": "Los registros de facturación e impuestos se guardan el tiempo que exige la ley fiscal, que es más largo que los plazos de producto de abajo. Borrar la cuenta seudonimiza el vínculo entre tú y un registro que debe permanecer."
+      }
+    },
+    "website": {
+      "title": "Este sitio web",
+      "body": "El sitio y la aplicación son dos cosas distintas con dos respuestas distintas, y sería deshonesto dar una sola.",
+      "bullets": {
+        "counts": "El sitio cuenta vistas de página sin cookies. Es Vercel Web Analytics, y lo que produce es un recuento de cuántas personas abrieron qué página.",
+        "cookies": "No se pone ninguna cookie para rastrearte, no se construye ningún perfil y nada te sigue a otro sitio. Las únicas cookies aquí son la que recuerda el idioma que elegiste y la que recuerda que cerraste un aviso.",
+        "app": "La aplicación no envía nada. No hay analítica de ningún tipo en la aplicación de escritorio, en la herramienta de línea de comandos ni en la aplicación web.",
+        "language": "La cabecera de idioma de tu navegador se lee para ofrecerte una página traducida. La oferta es un aviso que puedes aceptar o cerrar, y nunca te saca de la página que pediste."
+      }
+    },
+    "processors": {
+      "title": "Quién más toca los datos",
+      "intro": "Cuatro servicios participan en las partes alojadas. Cada uno ve solo lo que su trabajo necesita, y cada uno está nombrado aquí para que la lista se pueda comprobar en lugar de creer.",
+      "caption": "Los servicios que participan en las partes alojadas y qué guarda cada uno",
+      "columns": {
+        "who": "servicio",
+        "what": "qué guarda"
+      },
+      "rows": {
+        "supabase": {
+          "who": "Supabase",
+          "what": "La base de datos y el inicio de sesión. Tu cuenta, tus lecturas sincronizadas, tus preferencias de alerta y tu lista de dispositivos."
+        },
+        "vercel": {
+          "who": "Vercel",
+          "what": "El alojamiento de este sitio y el recuento de vistas sin cookies. Nunca ve los datos de tu cuenta."
+        },
+        "stripe": {
+          "who": "Stripe",
+          "what": "Método de pago, dirección de facturación, facturas y cálculo de impuestos. Nunca ve tus datos de cuota."
+        },
+        "resend": {
+          "who": "Resend",
+          "what": "La entrega de las alertas por correo y de los enlaces de inicio de sesión. Ve tu dirección de correo y el texto genérico del mensaje."
+        }
+      }
+    },
+    "bases": {
+      "title": "Dónde se aplica esto y por qué está permitido",
+      "body": "OpenLimiter se ofrece en todo el mundo y está escrito conforme a las normas europeas y británicas de protección de datos y a la LGPD brasileña, porque son las más estrictas de los mercados a los que sirve. Vivas donde vivas, valen las mismas razones.",
+      "bullets": {
+        "contract": "Para cumplir el acuerdo contigo: la cuenta, la sincronización, el historial Pro, el contexto de enrutado y la facturación. Sin eso no hay producto que entregar.",
+        "consent": "Con tu consentimiento: los correos de alerta detallados y las notificaciones push. Los dos son opcionales, los dos están desactivados hasta que los actives y los dos se pueden retirar sin perder nada más.",
+        "interests": "Por interés legítimo: mantener el servicio seguro, evitar el abuso del inicio de sesión y de los puntos de sincronización, y contar vistas de página en este sitio sin cookies.",
+        "legal": "Para cumplir una obligación legal: conservar los registros de facturación e impuestos que exige la ley fiscal."
+      },
+      "transfers": "Los servicios alojados funcionan sobre infraestructura que puede estar fuera de tu país. Cuando datos personales salen del Espacio Económico Europeo o del Reino Unido, viajan bajo las cláusulas contractuales tipo que esos servicios publican."
+    },
+    "retention": {
+      "title": "Cuánto tiempo se guarda cada cosa",
+      "intro": "Cada plazo de abajo es un límite real del sistema, no una intención. Borrar tu cuenta se impone a todos ellos.",
+      "caption": "Cada tipo de dato y cuánto tiempo se guarda",
+      "columns": {
+        "what": "dato",
+        "howLong": "se guarda"
+      },
+      "rows": {
+        "local": {
+          "what": "Cualquier cosa en tu propia máquina",
+          "howLong": "Hasta que la borres. No es nuestra para quitarla."
+        },
+        "snapshots": {
+          "what": "Tu instantánea sincronizada actual",
+          "howLong": "Siete días, reemplazada por cada lectura más nueva."
+        },
+        "history": {
+          "what": "Historial Pro mientras Pro está activo",
+          "howLong": "Noventa días móviles."
+        },
+        "afterPro": {
+          "what": "Historial Pro después de que Pro termina",
+          "howLong": "Treinta días, solo para exportar, y luego se borra."
+        },
+        "backups": {
+          "what": "Copias de seguridad cifradas",
+          "howLong": "Como muy tarde treinta días después de que se vayan las filas primarias."
+        },
+        "alerts": {
+          "what": "Registros de entrega de alertas",
+          "howLong": "Noventa días. Los errores de proveedor redactados, treinta días."
+        },
+        "exports": {
+          "what": "Una exportación de datos que pediste",
+          "howLong": "La descarga caduca a las veinticuatro horas."
+        },
+        "billing": {
+          "what": "Registros de facturación e impuestos",
+          "howLong": "El tiempo que exige la ley fiscal."
+        }
+      }
+    },
+    "rights": {
+      "title": "Tus derechos y los controles que los hacen reales",
+      "body": "Un derecho que no puedes ejercer no es un derecho, así que cada punto de abajo es un control del producto y no una solicitud que tengas que redactar.",
+      "bullets": {
+        "export": "Exportar todo lo que el servicio alojado guarda sobre ti, como un archivo legible por máquina con una tabla accesible al lado. Las claves de proveedor nunca están en él, porque nunca estuvieron ahí.",
+        "delete": "Borrar tu cuenta. Los datos de producto se van en veinticuatro horas, las copias de seguridad cifradas caducan en treinta días y nada local se toca.",
+        "devices": "Ver todos los dispositivos con sesión iniciada en tu cuenta y revocar cualquiera. Un dispositivo revocado pierde el acceso alojado de inmediato.",
+        "channels": "Desactivar el correo o el push por separado, cuando quieras, sin afectar al otro.",
+        "withdraw": "Retirar el consentimiento de los correos detallados o del push. Retirarlo detiene el detalle, no la cuenta.",
+        "complain": "Reclamar ante tu autoridad de protección de datos si crees que esto se está llevando mal. No hace falta que hables antes con nosotros."
+      },
+      "deletion": "El borrado se hace desde la pantalla de la cuenta y te pide iniciar sesión otra vez antes, porque no se puede deshacer. Si prefieres que lo hagamos nosotros, escribe a la dirección de abajo y di <code>delete my account</code>."
+    },
+    "children": {
+      "title": "Menores",
+      "body": "OpenLimiter es una herramienta para quien programa y no está dirigida a menores. No se ofrece a sabiendas a nadie menor de dieciséis años y no se crea ninguna cuenta para uno. Si crees que un menor ha creado una cuenta, escribe a la dirección de abajo y se eliminará."
+    },
+    "changes": {
+      "title": "Cambios y cómo hablar con una persona",
+      "body": "Esta página cambia cuando cambia el producto. Cuando un cambio altera qué se recoge, adónde va o cuánto tiempo se guarda, la fecha de abajo se mueve y el cambio se describe en el changelog en lugar de hacerse en silencio.",
+      "contact": "Las dudas, las solicitudes y las reclamaciones van a <mail>lucas@lucaswebsystems.com</mail>, y las lee una persona. Las reglas de uso del sitio están en los <terms>términos y condiciones</terms>.",
+      "updated": "Esta política entra en vigor con la versión 1.2.0. Última actualización el 1 de septiembre de 2026."
+    }
   },
   "localeSwitcher": {
     "label": "Idioma"
@@ -83,7 +337,7 @@
         "label": "Abrir la aplicación web"
       },
       "macos": {
-        "aria": "Aplicación de escritorio para macOS próximamente"
+        "aria": "Descargar la aplicación de escritorio de OpenLimiter para macOS, compilación sin firmar"
       },
       "iphone": {
         "aria": "iPhone: la aplicación web se instala en tu pantalla de inicio, no hay aplicación en la App Store"
@@ -98,7 +352,7 @@
     },
     "rows": {
       "windows": "Descargar para Windows",
-      "macos": "macOS próximamente",
+      "macos": "Descargar para macOS",
       "linux": "Descargar para Linux",
       "webApp": "Abrir la aplicación web",
       "iphone": "Instalar en iPhone",
@@ -115,7 +369,7 @@
       "play": "Reproducir animación",
       "pause": "Pausar animación"
     },
-    "disclaimer": "Las compilaciones de escritorio para Windows y Linux están disponibles. La compilación de Windows no está firmada, así que SmartScreen avisa en el primer inicio: elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente. npm y la aplicación web ya están disponibles. Las aplicaciones móviles nativas no están construidas."
+    "disclaimer": "Las compilaciones de escritorio para Windows, macOS y Linux están disponibles. Windows y macOS no están firmados: SmartScreen pide Más información y luego Ejecutar de todas formas, y macOS pide Abrir igualmente una vez. La página de descarga tiene los pasos exactos. npm y la aplicación web ya están disponibles. Las aplicaciones móviles nativas no están construidas."
   },
   "home": {
     "docsLine": "Ambas cosas están documentadas en detalle: <agentContext>lo que se le dice a un agente</agentContext> y <cli>cada comando con el que se distribuye</cli>.",
@@ -172,7 +426,7 @@
       },
       "openCode": {
         "tag": "lee una sesión que ya abriste",
-        "detail": "Describe la vista de uso detrás de una sesión existente. Es el que carga el mayor riesgo de automatización de los seis, y se detiene en el momento en que esa sesión expira."
+        "detail": "Describe la vista de uso detrás de una sesión existente. Es el que carga el mayor riesgo de automatización de los nueve, y se detiene en el momento en que esa sesión expira."
       },
       "gemini": {
         "tag": "lee la cuota de modelos mediante la CLI instalada",
@@ -226,7 +480,7 @@
     "groups": {
       "today": {
         "label": "Ya distribuidos",
-        "note": "Seis connectors se distribuyen en este release"
+        "note": "Nueve connectors se distribuyen en este release"
       },
       "planned": {
         "label": "Planeados",
@@ -351,7 +605,7 @@
   },
   "cliTranscript": {
     "captions": {
-      "demo": "Los seis connectors, un solo esquema",
+      "demo": "Los nueve connectors, un solo esquema",
       "statusline": "Statusline, barras donde ya miras",
       "statuslineNarrow": "Una fila, se conservan los peores proveedores",
       "statuslinePlain": "La línea de 0.1.0, si la pides",
@@ -418,7 +672,7 @@
       },
       "providersToday": {
         "question": "¿Qué proveedores funcionan hoy?",
-        "answer": "Se distribuyen seis connectors: Claude a través de la carga nativa del statusline, OpenRouter a través de su forma documentada, Codex y Antigravity a través de formas internas que pueden romperse, OpenCode a través de una sesión existente que puede romperse, y manual entry. Todos están marcados UNVERIFIED hasta que exista un verificador explícito."
+        "answer": "Se distribuyen nueve connectors: Claude a través de la carga nativa del statusline, OpenRouter a través de su forma documentada, Codex, Antigravity, Gemini CLI, Grok y Kimi a través de formas internas que pueden romperse, OpenCode a través de una sesión existente que puede romperse, y manual entry. Todos están marcados UNVERIFIED hasta que exista un verificador explícito."
       },
       "apiKey": {
         "question": "¿Necesito una clave de API?",
@@ -434,7 +688,7 @@
       },
       "desktopOrPhone": {
         "question": "¿Hay una aplicación de escritorio o de teléfono?",
-        "answer": "La aplicación de escritorio con bandeja del sistema está disponible para Windows y Linux. Windows no está firmado, así que SmartScreen puede aparecer: elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente, y no se ofrece una compilación sin firma porque Gatekeeper la bloquea. En un teléfono, la aplicación web se abre en el navegador y se instala en una pantalla de inicio. Las aplicaciones nativas para iOS y Android no están construidas, nada está en una tienda y no hay lista de espera. La página de descarga lista cada plataforma con su estado real."
+        "answer": "La aplicación de bandeja de escritorio se distribuye para Windows, macOS y Linux. Windows y macOS no están firmados, así que cada uno pide permiso una vez: en Windows, en SmartScreen, elige Más información y luego Ejecutar de todas formas; en macOS, abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. macOS queda fuera de las actualizaciones automáticas hasta que existan builds firmadas y notarizadas. En el móvil, la aplicación web se abre en el navegador y se instala en la pantalla de inicio. No hay aplicaciones nativas de iOS ni de Android, no hay nada en ninguna tienda y no hay lista de espera. La página de descarga muestra cada plataforma con su estado real."
       },
       "free": {
         "question": "¿Es gratis?",
@@ -442,13 +696,13 @@
       },
       "pro": {
         "question": "¿Qué es OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro estará disponible próximamente por $5 al mes o $50 al año. Está previsto que incluya notificaciones por correo y push, temas basados en tokens, varias suscripciones por proveedor, funciones para uso intensivo de API, historial y previsiones, y enrutamiento automático de agentes. Todas las funciones locales siguen gratis."
+        "answer": "OpenLimiter Pro llega pronto por $5 al mes o $50 al año, con los primeros 30 días gratis y sin tarjeta. Añade seis servicios alojados: alertas por correo y push, noventa días de historial con previsión, contexto de enrutado alojado, más de una cuenta por proveedor, un preset Pro de color de acento o densidad, y medidores de gasto de API en beta declarada. Toda función local sigue siendo gratuita, y hay reembolso íntegro a petición dentro de los 14 días siguientes a cualquier cargo."
       }
     }
   },
   "pricing": {
     "title": "Precios",
-    "lead": "El modo local sigue gratis. La sincronización está incluida.",
+    "lead": "Lo local sigue gratis. La sincronización va incluida. Pro es la mitad alojada.",
     "plannedChip": "planeado",
     "free": {
       "status": "disponible",
@@ -464,7 +718,8 @@
         "themes": "Temas, en la aplicación de escritorio y en el navegador",
         "cli": "La herramienta de línea de comandos completa y cada ajuste de statusline",
         "ingestion": "Las tres rutas de ingesta: un connector, ingest o manual entry",
-        "noLimits": "Sin límite de uso, cuenta gratis, ninguna función local bloqueada"
+        "noLimits": "Sin límite de uso, cuenta gratuita y ninguna función local encerrada tras nada",
+        "oneAccount": "Una cuenta activa por proveedor, y Pro amplía ese límite"
       }
     },
     "pro": {
@@ -474,19 +729,21 @@
       "or": "o",
       "perYear": "al año",
       "trialChip": "30 días gratis",
-      "priceNote": "Los primeros 30 días son gratis y no requieren tarjeta. Cuando termina el acceso, solo paran los servicios alojados. Nada local cambia.",
-      "lead": "Tres herramientas alojadas para planificación y enrutamiento.",
-      "footnote": "Nada local pasa detrás de este plan. Pro vende servicio alojado, nunca interruptores locales.",
+      "priceNote": "Los primeros 30 días son gratis y sin tarjeta. Cuando termina el acceso, solo se detienen los servicios alojados. Nada local cambia.",
+      "lead": "Seis servicios alojados para avisar, planificar y enrutar.",
+      "footnote": "Nada local pasa nunca detrás de este plan. Pro vende servicio alojado, nunca interruptores locales.",
       "lines": {
-        "alerts": "Notificaciones de umbral por correo y push",
-        "themes": "Temas",
-        "multiSubscription": "Más de una suscripción por proveedor",
-        "heavyApi": "Funciones para uso intensivo de API",
-        "history": "Historial y previsiones",
-        "routing": "Enrutamiento automático de agentes"
+        "alerts": "Alertas por correo y push al 60, 80 y 90 por ciento, y cuando una ventana se reinicia",
+        "themes": "Un preset Pro de color de acento o de densidad",
+        "multiSubscription": "Más de una cuenta por proveedor",
+        "heavyApi": "Medidores de gasto de API con presupuesto mensual, en beta declarada",
+        "history": "Noventa días de historial, con una previsión hasta el día en que se agota una ventana",
+        "routing": "Contexto de enrutado alojado, para que un agente con sesión iniciada lea el mismo consejo en cualquier dispositivo"
       },
       "cta": "Empezar 30 días gratis",
-      "comingSoonCta": "Pro próximamente"
+      "comingSoonCta": "Pro próximamente",
+      "eligibility": "La beta de gasto de API lee la propia superficie de facturación del proveedor, así que necesita una clave de administrador de organización o de gestión: una clave de admin de organización de OpenAI, una clave de la Admin API de organización de Anthropic, una clave de gestión de xAI o una clave de gestión de OpenRouter. Una clave de proyecto no sirve. Moonshot se muestra como saldo, no como gasto, y nunca se convierte en una cifra mensual, una previsión ni una alerta de presupuesto.",
+      "refund": "Reembolso íntegro a petición dentro de los 14 días siguientes a cualquier cargo, mensual o anual. Puedes cancelar tú mismo cuando quieras en el Portal de Clientes de Stripe."
     },
     "roadmapCta": "Qué está realmente planeado",
     "sourceCta": "Leer el código fuente"
@@ -501,7 +758,7 @@
       },
       "reportsNobody": {
         "title": "No le reporta a nadie",
-        "detail": "El modo local y el sitio público no informan a nadie y no tienen analítica. Pro es opcional y recibe datos limitados de cuota solo después de iniciar sesión, nunca credenciales del proveedor."
+        "detail": "La aplicación no informa a nadie. No envía telemetría en ningún modo. Este sitio cuenta vistas de página sin cookies, lo que es un recuento de páginas y no un perfil tuyo. Pro es opcional y recibe solo instantáneas acotadas de cuota después de iniciar sesión, nunca credenciales de proveedor."
       },
       "unknownStaysUnknown": {
         "title": "Unknown se queda unknown",
@@ -515,15 +772,16 @@
   },
   "download": {
     "metaTitle": "Descargar",
-    "metaDescription": "Consigue OpenLimiter para Windows o Linux, instala la herramienta de línea de comandos desde npm o abre la aplicación web. macOS llegará próximamente.",
+    "metaDescription": "Descarga OpenLimiter para Windows, macOS o Linux, instala la herramienta de línea de comandos desde npm, o abre la aplicación web.",
     "title": "Descargar",
-    "lead": "Las compilaciones de escritorio para Windows y Linux están disponibles. La compilación de Windows no está firmada: en SmartScreen, elige Más información y luego Ejecutar de todos modos. macOS llegará próximamente. npm y la aplicación web también están disponibles.",
+    "lead": "Las builds de escritorio para Windows, macOS y Linux ya están disponibles. Windows y macOS salen sin firmar, así que cada uno te pide autorizarlo una vez: en Windows elige Más información y luego Ejecutar de todas formas, y en macOS abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. npm y la aplicación web también están disponibles.",
     "choice": {
       "windows": "Descargar para Windows",
       "linux": "Descargar para Linux",
-      "macos": "macOS próximamente",
+      "macos": "Descargar para macOS",
       "other": "Otras plataformas",
-      "smartScreen": "Esta versión para Windows no está firmada, por lo que SmartScreen puede advertirte: elige Más información y luego Ejecutar de todas formas."
+      "smartScreen": "Esta versión para Windows no está firmada, por lo que SmartScreen puede advertirte: elige Más información y luego Ejecutar de todas formas.",
+      "openAnyway": "Esta build de macOS no está firmada. Ábrela una vez, luego abre Ajustes del Sistema, ve a Privacidad y seguridad y elige Abrir igualmente. Este botón es la imagen de disco para Apple silicon; los Mac Intel toman la x64 desde la página del release. Las actualizaciones automáticas llegan con las builds firmadas."
     },
     "states": {
       "available": "disponible",
@@ -532,7 +790,7 @@
     },
     "available": {
       "title": "Disponible ahora",
-      "lead": "Windows y Linux tienen compilaciones de escritorio empaquetadas, y cada enlace de abajo va directo al archivo. La herramienta de línea de comandos es una sola instalación de npm en cualquier plataforma, o un clonado si prefieres construirla desde el código fuente. La aplicación web no necesita nada instalado."
+      "lead": "Windows, macOS y Linux tienen builds de escritorio empaquetadas, y cada enlace de abajo va directo al archivo. La herramienta de línea de comandos es un npm install en cualquier plataforma, o un clone si prefieres compilar desde el código. La aplicación web no necesita instalar nada."
     },
     "phone": {
       "title": "En tu teléfono",
@@ -542,7 +800,7 @@
     },
     "building": {
       "title": "Próximamente",
-      "lead": "La aplicación de escritorio para macOS está construida, pero no se ofrecerá una descarga pública hasta que pueda superar Gatekeeper con normalidad."
+      "lead": "Builds de macOS firmadas y notarizadas, y las actualizaciones automáticas que dependen de ellas. La aplicación de macOS ya se puede descargar hoy y queda fuera del manifiesto de actualización hasta que pueda firmarse, porque una actualización cuya firma no se puede comprobar es peor que ninguna actualización."
     },
     "notBuilt": {
       "title": "Todavía no construido",
@@ -573,8 +831,12 @@
       },
       "macos": {
         "name": "macOS",
-        "summary": "La aplicación de escritorio para macOS llegará próximamente. No se distribuye una compilación sin firma porque Gatekeeper la bloquea.",
-        "note": "La herramienta de línea de comandos ya está disponible en macOS desde npm."
+        "summary": "La aplicación de escritorio se empaqueta para macOS como imagen de disco, una para Apple silicon y otra para Intel, y ambas se adjuntan al release. La build no está firmada, así que Gatekeeper rechaza la primera apertura y tú la autorizas una vez en Ajustes del Sistema. La herramienta de línea de comandos se instala desde npm en macOS igual que en cualquier sitio.",
+        "note": "Build de macOS sin firmar. Abre la imagen de disco, arrastra OpenLimiter a Aplicaciones y ábrelo una vez. macOS rechaza ese primer intento: abre Ajustes del Sistema, ve a Privacidad y seguridad, baja hasta Seguridad y elige Abrir igualmente junto al mensaje de OpenLimiter, y confirma. Esto se hace una sola vez. macOS queda fuera de las actualizaciones automáticas hasta que existan builds firmadas y notarizadas, así que hasta entonces una versión nueva es una nueva descarga desde esta página.",
+        "assets": {
+          "appleSilicon": "Imagen de disco para Apple silicon",
+          "intel": "Imagen de disco para Intel"
+        }
       },
       "linux": {
         "name": "Linux",
@@ -599,8 +861,8 @@
       },
       "desktop": {
         "name": "Aplicación de escritorio",
-        "summary": "Un ícono de bandeja junto al reloj del sistema lee la misma caché local que la herramienta de línea de comandos, así que la quota se ve sin abrir una terminal. Las versiones empaquetadas están disponibles para Windows y Linux. macOS llegará próximamente. Las actualizaciones automáticas comienzan con el primer release que active el actualizador.",
-        "note": "La compilación de Windows no está firmada. SmartScreen: elige Más información y luego Ejecutar de todos modos."
+        "summary": "Un icono en la bandeja, junto al reloj del sistema, lee la misma caché local que la herramienta de línea de comandos, así que la cuota se ve sin ningún terminal abierto. Los releases empaquetados salen para Windows, macOS y Linux. Las actualizaciones automáticas cubren Windows y Linux; macOS se une cuando existan builds firmadas.",
+        "note": "Las builds de Windows y macOS no están firmadas. En Windows, SmartScreen: elige Más información y luego Ejecutar de todas formas. En macOS: Ajustes del Sistema, Privacidad y seguridad, Abrir igualmente."
       },
       "iphone": {
         "name": "iOS",
@@ -614,9 +876,9 @@
   },
   "changelog": {
     "metaTitle": "Registro de cambios: cada release y qué cambió",
-    "metaDescription": "Cada versión publicada de OpenLimiter, renderizada desde el CHANGELOG.md en la raíz del repositorio.",
+    "metaDescription": "Todas las versiones publicadas de OpenLimiter, más el trabajo en curso, renderizadas desde el CHANGELOG.md de la raíz del repositorio.",
     "title": "Registro de cambios",
-    "lead": "Cada versión publicada de OpenLimiter, leída directamente del archivo que el propio repositorio mantiene, en el orden en que ese archivo las lista.",
+    "lead": "Todas las versiones publicadas de OpenLimiter, leídas directamente del archivo que el propio repositorio mantiene, en el orden en que ese archivo las lista. Lo que está bajo Unreleased está escrito pero no publicado.",
     "empty": "No se encontró ningún CHANGELOG.md en este checkout, así que no hay nada que mostrar aquí. El archivo que lee esta página está en la raíz del <repo>repositorio</repo>, y es la única copia que existe de estas notas.",
     "sourceNote": "Esta página se renderiza desde el <file>CHANGELOG.md</file> en la raíz del repositorio. Nada aquí está escrito dos veces, así que no hay una segunda copia que se desalinee del código publicado."
   },
@@ -717,7 +979,7 @@
             "calloutBody": "OpenLimiter entrega consejos de enrutamiento. No enruta solicitudes por ti, no evade un límite y nunca modifica los artefactos de autenticación de un proveedor. La decisión sigue siendo tuya y de tu agente.",
             "bullets": {
               "proxy": "No es un proxy. Tus solicitudes siguen yendo directo a tu proveedor.",
-              "dashboard": "No es un servicio de panel. No hay servidor de OpenLimiter, no hay cuenta y no hay telemetría.",
+              "dashboard": "No es un servicio de dashboard. El modo local no tiene cuenta, ni servidor, ni telemetría: lee lo que ya está en tu máquina. La mitad alojada, que es opcional, existe solo para llevar tus propias lecturas entre tus propios dispositivos.",
               "billing": "No es una herramienta de facturación. Reporta cuánto de una ventana consumiste, no cuánto te van a cobrar."
             }
           },
@@ -744,12 +1006,12 @@
       },
       "providers": {
         "title": "Proveedores compatibles",
-        "description": "Los seis connectors que se distribuyen hoy, qué lee cada uno y qué tan probable es que se rompa.",
-        "lead": "Seis connectors se distribuyen hoy. Cada uno lleva sus propias etiquetas honestas que describen de dónde vienen sus credenciales, qué tan oficial es su interfaz de datos y qué tan probable es que se rompa.",
+        "description": "Los nueve conectores que existen hoy, qué lee cada uno y qué probabilidad tiene de romperse.",
+        "lead": "Hoy existen nueve conectores. Cada uno lleva sus propias etiquetas honestas que dicen de dónde vienen sus credenciales, cuán oficial es su interfaz de datos y qué probabilidad tiene de romperse.",
         "sections": {
-          "the-six": {
-            "title": "Los seis connectors",
-            "caption": "Connectors que se distribuyen hoy, con lo que lee cada uno y qué tan estable es",
+          "the-nine": {
+            "title": "Los nueve conectores",
+            "caption": "Conectores que existen hoy, con lo que lee cada uno y su estabilidad",
             "columns": {
               "id": "id",
               "reads": "lee",
@@ -779,6 +1041,18 @@
               "manual": {
                 "reads": "Números que escribes tú mismo",
                 "status": "Manual entry. Nunca se rompe, nunca adivina."
+              },
+              "gemini_cli": {
+                "reads": "Los cubos de cuota que el Gemini CLI define para sus propios modelos",
+                "status": "Endpoint interno. Riesgo de automatización alto. Puede romperse sin aviso."
+              },
+              "grok": {
+                "reads": "La respuesta de facturación detrás del Grok CLI, con su ventana semanal de créditos y el tope opcional bajo demanda",
+                "status": "Endpoint interno. Riesgo de automatización alto. Puede romperse sin aviso."
+              },
+              "kimi": {
+                "reads": "La respuesta de uso que el Kimi CLI define, con su resumen semanal y su límite de cinco horas",
+                "status": "Endpoint interno. Riesgo de automatización alto. Puede romperse sin aviso."
               }
             },
             "calloutTitle": "Cada connector se distribuye marcado UNVERIFIED",
@@ -790,7 +1064,7 @@
             "bullets": {
               "claude": "<code>claude</code> se alimenta con la carga del statusline que llega por entrada estándar. Esa ruta es automática una vez que Claude Code está conectado.",
               "manual": "<code>manual</code> se alimenta con un documento que colocas en el directorio de estado.",
-              "ingestOnly": "En la herramienta de línea de comandos, <code>codex</code>, <code>antigravity</code>, <code>opencode</code> y <code>openrouter</code> todavía no tienen un lector propio; solo acepta datos a través de <code>openlimiter ingest --provider '<id>'</code>. La aplicación de escritorio lee Codex y OpenRouter en vivo, y ofrece una vía manual y experimental para pegar los datos de Antigravity y OpenCode."
+              "ingestOnly": "En la herramienta de línea de comandos, <code>codex</code>, <code>antigravity</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code>, <code>opencode</code> y <code>openrouter</code> no tienen lector propio; solo acepta datos mediante <code>openlimiter ingest --provider '<id>'</code>. La aplicación de escritorio lee Codex, Gemini CLI, Grok, Kimi y OpenRouter en vivo, y ofrece una vía manual y experimental de pegado para Antigravity y OpenCode."
             },
             "exactShapes": "La <docs>página de ingesta</docs> documenta las tres rutas y las formas exactas que aceptan."
           },
@@ -821,7 +1095,7 @@
           },
           "not-yet": {
             "title": "Connectors que todavía no existen",
-            "body": "Solo los seis de arriba son reales. Cualquier otra cosa que esperes no está construida, no está programada, y no se debe asumir. Si una suscripción no tiene connector, la ruta manual la cubre hoy con números que ingresas tú mismo."
+            "body": "Solo los nueve de arriba son reales. Cualquier otra cosa que esperes no está construida, no está planificada y no debe darse por supuesta. Si una suscripción no tiene conector, la vía manual la cubre hoy con números que escribes tú."
           }
         }
       },
@@ -1063,8 +1337,8 @@
       },
       "agent-context": {
         "title": "Agent context",
-        "description": "Qué inyectan el statusline y el prompt hook de Claude Code, y el límite que mantiene fuera el texto del proveedor.",
-        "lead": "Dos superficies llegan a tu agente: una línea para que tú la leas en el statusline, y un bloque de contexto acotado para el modelo. Esta página documenta exactamente qué contiene cada uno, y el límite que mantiene el texto del proveedor fuera de ambos.",
+        "description": "Qué inyectan la statusline y el hook de prompt, qué agentes lo reciben de verdad, y la frontera que deja fuera el texto del proveedor.",
+        "lead": "Dos superficies llegan a tu agente: una statusline de una línea para que la leas tú y un bloque de contexto acotado para el modelo. Esta página documenta exactamente qué contiene cada una, qué agentes lo reciben de verdad, y la frontera que deja fuera el texto del proveedor en ambas.",
         "sections": {
           "statusline": {
             "title": "El statusline",
@@ -1133,6 +1407,60 @@
               "inspect": "Correr <code>openlimiter hook</code> en una terminal imprime exactamente lo que se inyectaría, una forma segura de inspeccionarlo antes de conectarlo a una sesión real."
             },
             "writes": "El statusline es la única ruta que escribe. Consulta <config>configuración</config> para ver los ajustes exactos de Claude Code, y <cli>la referencia de la CLI</cli> para las órdenes."
+          },
+          "agents": {
+            "title": "Qué agentes reciben el bloque",
+            "intro": "Haber escrito un adaptador no es lo mismo que un agente reciba el bloque, así que los estados de abajo son lo que una prueba en vivo demostró en una máquina real el 1 de septiembre de 2026, no lo que esperaba una hoja de ruta. Dos agentes están soportados, dos están hechos pero bloqueados hasta que pase una prueba, uno es una opción experimental, y en uno no se puede inyectar nada.",
+            "caption": "Cada agente, el id que acepta el instalador, y si el bloque le llega",
+            "columns": {
+              "agent": "agente",
+              "id": "id",
+              "state": "estado"
+            },
+            "rows": {
+              "claude": {
+                "name": "Claude Code",
+                "state": "Soportado desde 2.1.257. Una prueba en vivo demostró que el bloque llega. Una versión más nueva sigue habilitada y el estado imprime una línea de aviso, y una más antigua se rechaza."
+              },
+              "codex": {
+                "name": "Codex CLI",
+                "state": "Soportado desde 0.152.0. Una prueba en vivo demostró que el bloque llega por el evento de envío de prompt."
+              },
+              "gemini": {
+                "name": "Gemini CLI",
+                "state": "Hecho pero bloqueado. El adaptador apunta al evento previo al agente, pero aquí no había binario para demostrarlo, así que la instalación sigue cerrada hasta que pase una prueba."
+              },
+              "kimi": {
+                "name": "Kimi Code CLI",
+                "state": "Hecho pero bloqueado. En 1.50.0 el hook se ejecutó y el host descartó lo que imprimió, así que nada llegó al contexto y la instalación sigue cerrada."
+              },
+              "antigravity": {
+                "name": "Antigravity CLI",
+                "state": "Excluido. La versión 1.1.23 no expone subcomando de hooks y no disparó ningún evento, así que no hay dónde instalar. La superficie del editor es aparte y no está implementada."
+              },
+              "opencode": {
+                "name": "OpenCode",
+                "state": "Experimental y desactivado por defecto. Fijado a 1.18.11 y requiere el interruptor descrito abajo. Queda fuera de lo que promete esta versión."
+              },
+              "grok": {
+                "name": "Grok Build",
+                "state": "Sin soporte de inyección. Grok descarta lo que imprime un hook correcto, así que no hay superficie de contexto. Usa el comando de abajo en su lugar."
+              }
+            },
+            "installing": {
+              "title": "Instalar un hook",
+              "body": "La instalación es de ámbito de usuario e idempotente. Conserva el resto de la configuración de tu agente, sustituye el archivo de forma atómica, deja un <code>.openlimiter.bak</code> recuperable, no hace ninguna petición de red y rechaza rutas inseguras o enlazadas. <code>status</code> informa de lo que está instalado y de si la versión detectada del host es conocida, <code>repair</code> reescribe la entrada después de que el ejecutable de OpenLimiter cambie de sitio, y <code>uninstall</code> la quita y deja todo lo demás donde estaba.",
+              "terminalLabel": "terminal"
+            },
+            "opencode": {
+              "calloutTitle": "OpenCode es una elección explícita",
+              "calloutBody": "OpenCode no documenta ningún evento de inyección de prompt. El adaptador usa una transformación no documentada, está fijado a la versión exacta con la que se inspeccionó, y no hace absolutamente nada salvo que <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> esté puesto tanto al instalar como al ejecutar. Es experimental a propósito, puede dejar de funcionar en cualquier versión, y no forma parte de lo que promete esta versión."
+            },
+            "grok": {
+              "title": "Grok Build, y por qué no hay hook",
+              "body": "Grok Build ejecuta un hook de envío de prompt y luego tira lo que el hook imprimió, y no documenta ningún equivalente de un campo de contexto adicional. Ningún trabajo de adaptador cambia eso, así que OpenLimiter no instala nada en Grok y lo dice aquí, en vez de entregar algo que en silencio no hace nada. Lo que ofrece a cambio es un comando que ejecutas tú, que imprime el mismo bloque para que lo leas o lo pegues.",
+              "terminalLabel": "terminal"
+            }
           }
         }
       },
@@ -1351,8 +1679,8 @@
             "title": "Las garantías",
             "calloutTitle": "Qué garantiza OpenLimiter",
             "bullets": {
-              "noServer": "<strong>No hay servidor de OpenLimiter.</strong> Nada se envía a los autores del proyecto, porque no hay a dónde enviarlo.",
-              "noTelemetry": "<strong>No hay telemetría.</strong> Ninguna orden envía uso, diagnósticos, identificadores, prompts ni estado de quota a ningún lado.",
+              "noServer": "<strong>El modo local no llega a ningún servidor de OpenLimiter.</strong> No se envía nada a los autores del proyecto, porque en modo local no hay adónde enviarlo. El servicio alojado existe solo para la cuenta gratuita, para la sincronización y para Pro, y solo después de iniciar sesión.",
+              "noTelemetry": "<strong>No hay telemetría.</strong> Ningún comando envía uso, diagnósticos, identificadores ni prompts a ninguna parte, en ningún modo. El estado de cuota sale de tu máquina solo mediante la sincronización, solo después de iniciar sesión, y solo como las lecturas acotadas que puedes desactivar.",
               "hookNoNetwork": "<strong>El hook no hace ninguna solicitud de red.</strong> Lee la caché local y nada más.",
               "noEgress": "<strong>El modo local no envía nada a OpenLimiter.</strong> Las conexiones hablan solo con cada proveedor. Pro opcional envía datos limitados de cuota al servicio después de iniciar sesión, nunca credenciales del proveedor.",
               "unknownNeverZero": "<strong>Unknown nunca se convierte en cero.</strong> Lo ausente, lo expirado, lo malformado y lo no reconocido, todo se resuelve como unknown.",
@@ -1384,7 +1712,7 @@
             "bullets": {
               "noOfficialApi": "La mayoría de los proveedores de suscripción para consumidores no ofrecen una API de quota oficial. Varios connectors describen por lo tanto interfaces no oficiales que pueden cambiar o desaparecer sin aviso.",
               "unverified": "Cada connector se distribuye marcado <code>UNVERIFIED</code>. Nada aquí fue confirmado contra una cuenta real por un verificador explícito.",
-              "opencode": "El connector de OpenCode describe la forma de una página autenticada y lleva un riesgo de automatización alto. Trátalo como el más frágil de los seis.",
+              "opencode": "El connector de OpenCode describe la forma de una página autenticada y lleva un riesgo de automatización alto. Trátalo como el más frágil de los nueve.",
               "adviceOnly": "OpenLimiter entrega consejos de enrutamiento. No enruta solicitudes de forma automática, no evade límites, ni cambia cómo se autentica tu agente."
             }
           },
@@ -1419,10 +1747,10 @@
           },
           "desktop": {
             "title": "Distribuido: la aplicación de escritorio",
-            "intro": "Una pequeña aplicación de escritorio con un ícono de bandeja junto al reloj del sistema lee la misma caché local que escribe la herramienta de línea de comandos, así que la quota se ve de un vistazo sin abrir una terminal. Las compilaciones de Windows y Linux están adjuntas al release. macOS llegará próximamente.",
+            "intro": "Una pequeña aplicación de escritorio con un icono en la bandeja, junto al reloj del sistema, lee la misma caché local que escribe la herramienta de línea de comandos, así que la cuota se ve sin ningún terminal abierto. Las builds empaquetadas de Windows, macOS y Linux se adjuntan al release.",
             "bullets": {
-              "status": "Estado: distribuida en Windows y Linux. macOS llegará próximamente y no tiene descarga pública.",
-              "signing": "Windows se distribuirá sin firma. SmartScreen: elige Más información y luego Ejecutar de todos modos. macOS espera la firma y la notarización.",
+              "status": "Estado: disponible en Windows, macOS y Linux, con descarga pública para cada uno.",
+              "signing": "Windows y macOS salen sin firmar. En Windows, SmartScreen: elige Más información y luego Ejecutar de todas formas. En macOS: Ajustes del Sistema, Privacidad y seguridad, Abrir igualmente. macOS queda fuera de las actualizaciones automáticas hasta que existan firma y notarización.",
               "updates": "Planeado: un canal de actualización automática. Hoy no hay ninguno."
             }
           },
