@@ -1,5 +1,6 @@
 // This interface is UNOFFICIAL and may break.
 import type {
+  ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
@@ -8,6 +9,7 @@ import type {
 } from "@openlimiter/core";
 import {
   boundedNumber,
+  connectorConnection,
   futureInstantFromRfc3339,
   plausibleResetHorizon,
   rawMeter,
@@ -140,6 +142,9 @@ export function parseGrokPayload(payload: unknown, now: string): RawMeter[] | nu
   return meters;
 }
 
+/** The local application that owns this credential. */
+export const GROK_TOOL: ConnectionTool = "Grok Build";
+
 export const grokConnector: ConnectorContract = {
   id: "grok",
   displayName: "Grok",
@@ -150,8 +155,13 @@ export const grokConnector: ConnectorContract = {
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseGrokPayload(context.payload, context.now);
+    const connection = connectorConnection(
+      meters !== null,
+      context.payload,
+      GROK_TOOL
+    );
     return meters === null
-      ? { ok: false, reason: "unknown" }
-      : { ok: true, meters };
+      ? { ok: false, reason: "unknown", connection }
+      : { ok: true, meters, connection };
   }
 };

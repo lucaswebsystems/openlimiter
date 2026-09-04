@@ -1,10 +1,17 @@
 import type {
+  ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
   RawMeter
 } from "@openlimiter/core";
-import { boundedNumber, rawMeter, record, shortExpiry } from "./shared.js";
+import {
+  boundedNumber,
+  connectorConnection,
+  rawMeter,
+  record,
+  shortExpiry
+} from "./shared.js";
 
 export const openrouterLabels = {
   credentialOrigin: "user-key",
@@ -58,6 +65,9 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
   })];
 }
 
+/** No local application owns this key, so no instruction names one. */
+export const OPENROUTER_TOOL: ConnectionTool = null;
+
 export const openrouterConnector: ConnectorContract = {
   id: "openrouter",
   encoding: "json",
@@ -68,8 +78,13 @@ export const openrouterConnector: ConnectorContract = {
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseOpenrouterPayload(context.payload, context.now);
+    const connection = connectorConnection(
+      meters !== null,
+      context.payload,
+      OPENROUTER_TOOL
+    );
     return meters === null
-      ? { ok: false, reason: "unknown" }
-      : { ok: true, meters };
+      ? { ok: false, reason: "unknown", connection }
+      : { ok: true, meters, connection };
   }
 };

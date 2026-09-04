@@ -1,11 +1,13 @@
 // This interface is UNOFFICIAL and may break.
 import type {
+  ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
   RawMeter
 } from "@openlimiter/core";
 import {
+  connectorConnection,
   durationSecondsFromWords,
   instantAfter,
   rawMeter,
@@ -361,6 +363,9 @@ export function parseOpencodePayload(payload: unknown, now: string): RawMeter[] 
   );
 }
 
+/** The local application that owns this browser session. */
+export const OPENCODE_TOOL: ConnectionTool = "OpenCode";
+
 export const opencodeConnector: ConnectorContract = {
   id: "opencode",
   displayName: "OpenCode",
@@ -371,8 +376,13 @@ export const opencodeConnector: ConnectorContract = {
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseOpencodePayload(context.payload, context.now);
+    const connection = connectorConnection(
+      meters !== null,
+      context.payload,
+      OPENCODE_TOOL
+    );
     return meters === null
-      ? { ok: false, reason: "unknown" }
-      : { ok: true, meters };
+      ? { ok: false, reason: "unknown", connection }
+      : { ok: true, meters, connection };
   }
 };

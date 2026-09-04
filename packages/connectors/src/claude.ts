@@ -5,6 +5,7 @@
  * contract, cited in full above parseClaudePayload.
  */
 import type {
+  ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
@@ -12,6 +13,7 @@ import type {
 } from "@openlimiter/core";
 import {
   boundedNumber,
+  connectorConnection,
   futureInstantFromEpochSeconds,
   plausibleResetHorizon,
   rawMeter,
@@ -126,6 +128,9 @@ export function parseClaudePayload(payload: unknown, now: string): RawMeter[] | 
   return meters.length === 0 ? null : meters;
 }
 
+/** The local application that owns this credential. */
+export const CLAUDE_TOOL: ConnectionTool = "Claude Code";
+
 export const claudeConnector: ConnectorContract = {
   id: "claude",
   encoding: "json",
@@ -136,8 +141,13 @@ export const claudeConnector: ConnectorContract = {
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseClaudePayload(context.payload, context.now);
+    const connection = connectorConnection(
+      meters !== null,
+      context.payload,
+      CLAUDE_TOOL
+    );
     return meters === null
-      ? { ok: false, reason: "unknown" }
-      : { ok: true, meters };
+      ? { ok: false, reason: "unknown", connection }
+      : { ok: true, meters, connection };
   }
 };

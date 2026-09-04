@@ -1,3 +1,5 @@
+import type { ConnectionStatus } from "./connection-state.js";
+
 export const PROVIDER_CODES = [
   "CLAUDE",
   "OPENROUTER",
@@ -188,9 +190,22 @@ export interface ConnectorReadContext {
   environment: Readonly<Record<string, string | undefined>>;
 }
 
+/**
+ * What a reader answers, and how its connection is doing while it answers.
+ *
+ * `connection` is optional so every existing caller keeps compiling, and it is
+ * the same value on both branches on purpose: a reader that returned meters can
+ * still be degraded, and a reader that returned nothing still owes a person one
+ * sentence about what to do. The status is written by OpenLimiter from the
+ * closed vocabulary in connection-state.ts, never by a provider payload.
+ */
 export type ConnectorResult =
-  | { ok: true; meters: readonly RawMeter[] }
-  | { ok: false; reason: "unknown" | "unavailable" | "not_configured" };
+  | { ok: true; meters: readonly RawMeter[]; connection?: ConnectionStatus }
+  | {
+      ok: false;
+      reason: "unknown" | "unavailable" | "not_configured";
+      connection?: ConnectionStatus;
+    };
 
 /**
  * What a connector's payload IS, before its parser sees it.

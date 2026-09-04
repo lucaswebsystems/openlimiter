@@ -212,6 +212,123 @@ export const connectionNextAction = {
   ERROR: "View diagnostics"
 } as const satisfies Record<ConnectionState, string>;
 
+/**
+ * Why a connection is not simply working, in a closed vocabulary.
+ *
+ * A state says WHAT a connection is. A reason says why it got there, and it is
+ * the half a person actually needs: "stale" is a shrug, "stale because the
+ * stored credential stopped working" is something they can act on. Closed
+ * rather than free text, because a reason is rendered next to a button and a
+ * provider must never be able to write either one.
+ */
+export const CONNECTION_REASONS = [
+  "token_expired",
+  "reading_expired",
+  "tool_not_running",
+  "provider_refusing",
+  "shape_mismatch",
+  "network_unreachable",
+  "no_credential"
+] as const;
+
+export type ConnectionReason = (typeof CONNECTION_REASONS)[number];
+
+/** One sentence per reason, written for a person rather than for a log. */
+export const connectionReasonSentence = {
+  token_expired: "The credential this connection uses stopped working.",
+  reading_expired: "The newest reading is older than the window it describes.",
+  tool_not_running: "The local tool has not written a reading yet.",
+  provider_refusing: "The provider refused the last read.",
+  shape_mismatch: "The answer did not match the shape this build reads.",
+  network_unreachable: "The last read never reached the provider.",
+  no_credential: "No credential has been stored for this connection."
+} as const satisfies Record<ConnectionReason, string>;
+
+/**
+ * The connection as one value a surface can render without deciding anything.
+ *
+ * State, reason, and the one instruction that belongs to that pair. Every field
+ * is written by OpenLimiter and never by a provider, which is what keeps a
+ * payload from writing the sentence beside a button.
+ */
+export interface ConnectionStatus {
+  readonly state: ConnectionState;
+  readonly reason: ConnectionReason | null;
+  /** What the PERSON does next. Never something this app does on their behalf. */
+  readonly instruction: string;
+}
+
+/**
+ * The local tool a connection reads through, when one exists.
+ *
+ * Carried so an instruction can name it. A connection with no local tool, such
+ * as a remote read behind a key the person pasted, passes null and gets an
+ * instruction that names no tool rather than an invented one.
+ */
+export type ConnectionTool = string | null;
+
+/**
+ * The instruction for a reason, in the words of the thing the person does.
+ *
+ * Every one of these is an action a HUMAN takes. OpenLimiter never refreshes a
+ * command line tool's token, never signs anyone in, and never renews a
+ * credential it did not create, so no instruction here can be read as something
+ * this app is about to do by itself. That restraint is the product: a meter
+ * that quietly reauthenticated a coding agent would be a much larger thing than
+ * a meter, and it would be one nobody asked for.
+ */
+function reasonInstruction(reason: ConnectionReason, tool: ConnectionTool): string {
+  switch (reason) {
+    case "token_expired":
+      return tool === null
+        ? "Sign in again where this credential was created."
+        : "Open " + tool + " to refresh";
+    case "reading_expired":
+      return tool === null
+        ? "Refresh to read this connection again."
+        : "Open " + tool + " to refresh";
+    case "tool_not_running":
+      return tool === null
+        ? "Start the tool that writes this reading."
+        : "Open " + tool + " once so it writes a reading";
+    case "provider_refusing":
+      return "Wait for the next retry.";
+    case "shape_mismatch":
+      return tool === null
+        ? "Reconnect, then report this if it keeps happening."
+        : "Reconnect " + tool + ", then report this if it keeps happening";
+    case "network_unreachable":
+      return "Check the network, then retry.";
+    case "no_credential":
+      return "Add the credential this connection needs.";
+    default: {
+      const unreachable: never = reason;
+      return unreachable;
+    }
+  }
+}
+
+/**
+ * One connection status, from a state and an optional reason.
+ *
+ * Pure, total, and the only place an instruction is chosen. A reason wins the
+ * instruction whenever it has one, because it is the more specific fact; with
+ * no reason the state's own next action stands. Nothing here reads a clock, a
+ * network or a disk, so a surface and a test see the same answer.
+ */
+export function connectionStatus(
+  state: ConnectionState,
+  reason: ConnectionReason | null = null,
+  tool: ConnectionTool = null
+): ConnectionStatus {
+  return {
+    state,
+    reason,
+    instruction:
+      reason === null ? connectionNextAction[state] : reasonInstruction(reason, tool)
+  };
+}
+
 /** The seven providers on the Connect and See catalogue surface. */
 export const CATALOGUE_PROVIDER_IDS = [
   "claude",

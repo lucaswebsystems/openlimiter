@@ -1,5 +1,6 @@
 // This interface is UNOFFICIAL and may break.
 import type {
+  ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
@@ -7,6 +8,7 @@ import type {
 } from "@openlimiter/core";
 import {
   boundedFraction,
+  connectorConnection,
   futureInstantFromRfc3339,
   rawMeter,
   record,
@@ -89,6 +91,9 @@ export function parseGeminiCliPayload(
   return meters;
 }
 
+/** The local application that owns this credential. */
+export const GEMINI_CLI_TOOL: ConnectionTool = "Gemini CLI";
+
 export const geminiCliConnector: ConnectorContract = {
   id: "gemini_cli",
   displayName: "Gemini CLI",
@@ -99,8 +104,13 @@ export const geminiCliConnector: ConnectorContract = {
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseGeminiCliPayload(context.payload, context.now);
+    const connection = connectorConnection(
+      meters !== null,
+      context.payload,
+      GEMINI_CLI_TOOL
+    );
     return meters === null
-      ? { ok: false, reason: "unknown" }
-      : { ok: true, meters };
+      ? { ok: false, reason: "unknown", connection }
+      : { ok: true, meters, connection };
   }
 };
