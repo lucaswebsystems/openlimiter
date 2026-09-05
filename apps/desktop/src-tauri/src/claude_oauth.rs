@@ -1,8 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager};
 
 use crate::cache_write::CacheWriter;
@@ -164,42 +164,190 @@ fn labels() -> ConnectorLabels {
     }
 }
 
+/// The length of the session window, in seconds.
+const FIVE_HOUR_SECONDS: u64 = 18_000;
+
+/// The length of every weekly window, in seconds.
+const SEVEN_DAY_SECONDS: u64 = 604_800;
+
+/// Every root window this build names, with the meter code it keeps.
+///
+/// This list is an ORDER as much as a vocabulary. The meters leave this parse
+/// in the order written here, then the root buckets this build does not name,
+/// then the model scoped entries of `limits`, then extra usage. A stable order
+/// is what stops a redraw reshuffling the rows under somebody's pointer, and a
+/// second parse of one payload has to name the same meters in the same places.
+const ROOT_WINDOWS: [(&str, &str, u64); 5] = [
+    ("five_hour", "FIVE_HOUR", FIVE_HOUR_SECONDS),
+    ("seven_day", "SEVEN_DAY", SEVEN_DAY_SECONDS),
+    ("seven_day_opus", "SEVEN_DAY_OPUS", SEVEN_DAY_SECONDS),
+    ("seven_day_sonnet", "SEVEN_DAY_SONNET", SEVEN_DAY_SECONDS),
+    (
+        "seven_day_oauth_apps",
+        "SEVEN_DAY_OAUTH_APPS",
+        SEVEN_DAY_SECONDS,
+    ),
+];
+
+/// The prefix a weekly root key carries before the model it is scoped to.
+const WEEKLY_KEY_PREFIX: &str = "seven_day_";
+
+/// The prefix a model scoped meter code carries.
+const WEEKLY_METER_PREFIX: &str = "SEVEN_DAY_";
+
+/// The `limits` kind that states one model's own weekly allowance.
+const WEEKLY_SCOPED_KIND: &str = "weekly_scoped";
+
+/// The two root keys that are not windows.
+const LIMITS_KEY: &str = "limits";
+const EXTRA_USAGE_KEY: &str = "extra_usage";
+
+/// The meter the paid overflow allowance is reported as.
+const EXTRA_USAGE_METER: &str = "EXTRA_USAGE";
+
+/// Longest meter code the cache accepts, mirroring `safe_identifier` in
+/// `native_snapshot.rs`.
+const MAX_METER_BYTES: usize = 32;
+
+/// Largest amount the cache accepts on a row, mirroring `MAX_AMOUNT` there.
+const MAX_EXTRA_USAGE_AMOUNT: f64 = 1_000_000.0;
+
+/// The only currency the cache keeps amounts in.
+const CACHE_CURRENCY: &str = "USD";
+
+/// How far ahead a bucket of unstated length may reset: a year, the same bound
+/// `scripts/sanitize-capture.mjs` holds every countdown it keeps to.
+const UNKNOWN_WINDOW_MAX_AHEAD_SECONDS: u64 = 31_536_000;
+
+/// The shape of one bucket's window, and how far ahead its reset may fall.
+#[derive(Clone, Copy)]
+struct BucketWindow {
+    kind: &'static str,
+    duration_seconds: Option<u64>,
+}
+
+impl BucketWindow {
+    /// A window whose length the endpoint states.
+    const fn rolling(duration_seconds: u64) -> Self {
+        Self {
+            kind: "rolling",
+            duration_seconds: Some(duration_seconds),
+        }
+    }
+
+    /// A bucket this build has never seen. Its length is not guessed, because
+    /// a guessed length is a claim about a window nobody here has read.
+    const UNKNOWN: Self = Self {
+        kind: "unknown",
+        duration_seconds: None,
+    };
+
+    /// The paid overflow allowance: a budget with a billing period, and the
+    /// endpoint states neither its length nor when it turns over.
+    const BILLING_PERIOD: Self = Self {
+        kind: "fixed",
+        duration_seconds: None,
+    };
+
+    fn maximum_ahead(self) -> u64 {
+        match self.duration_seconds {
+            Some(seconds) => seconds
+                .saturating_mul(2)
+                .saturating_add(CLOCK_SKEW_SECONDS),
+            None => UNKNOWN_WINDOW_MAX_AHEAD_SECONDS,
+        }
+    }
+}
+
+/// Name a dropped bucket in a development build, and nothing in a shipped one.
+///
+/// One bucket that does not hold together is dropped ALONE now rather than
+/// taking the whole read with it, which is the right behaviour and is also
+/// silent, so a development build says which bucket went. Only this file's own
+/// vocabulary reaches the stream: `stage` is a literal from the call sites
+/// below and `meter` is a code this parse already validated, so nothing a
+/// provider wrote can be printed by this.
+fn dropped(stage: &str, meter: &str) {
+    #[cfg(debug_assertions)]
+    eprintln!("openlimiter: claude usage dropped a {stage} bucket ({meter})");
+    #[cfg(not(debug_assertions))]
+    let _ = (stage, meter);
+}
+
 fn percentage(value: Option<&Value>) -> Option<f64> {
     let value = value?.as_f64()?;
     (value.is_finite() && (0.0..=100.0).contains(&value)).then_some(value)
 }
 
-fn parse_window(
-    root: &Value,
-    key: &str,
+fn amount(value: Option<&Value>) -> Option<f64> {
+    let value = value?.as_f64()?;
+    (value.is_finite() && (0.0..=MAX_EXTRA_USAGE_AMOUNT).contains(&value)).then_some(value)
+}
+
+/// Fold a provider's own name for a bucket into one upper snake token.
+///
+/// Anything that is not a letter or a digit becomes a separator, so
+/// `cinder_cove` becomes `CINDER_COVE` and a display name like `Claude Opus
+/// 4.5` becomes `CLAUDE_OPUS_4_5`. A name with nothing alphanumeric in it
+/// yields nothing rather than an empty code.
+fn upper_snake(name: &str) -> Option<String> {
+    let mut token = String::with_capacity(name.len());
+    let mut separated = false;
+    for character in name.chars() {
+        if character.is_ascii_alphanumeric() {
+            if separated && !token.is_empty() {
+                token.push('_');
+            }
+            separated = false;
+            token.push(character.to_ascii_uppercase());
+        } else {
+            separated = true;
+        }
+    }
+    (!token.is_empty()).then_some(token)
+}
+
+/// Turn a bucket's name into a meter code the cache will accept, or nothing.
+///
+/// The cache's identifier rule is narrow on purpose: uppercase letters, digits
+/// and underscores, a letter first, thirty two bytes at most. A name that
+/// cannot survive that is refused rather than trimmed, because a trimmed code
+/// no longer names the bucket it came from.
+fn meter_code(prefix: &str, name: &str) -> Option<String> {
+    let code = format!("{prefix}{}", upper_snake(name)?);
+    let mut bytes = code.bytes();
+    let starts_with_letter = bytes.next().is_some_and(|byte| byte.is_ascii_uppercase());
+    (starts_with_letter
+        && code.len() <= MAX_METER_BYTES
+        && bytes.all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_'))
+    .then_some(code)
+}
+
+/// One cache row, built from a reading that already passed its own bounds.
+fn snapshot(
     meter: &str,
-    duration_seconds: u64,
+    value: f64,
+    window: BucketWindow,
+    reset_at: Option<String>,
     now_ms: u64,
     account_id: &str,
 ) -> Option<Snapshot> {
-    let window = root.get(key)?.as_object()?;
-    let value = percentage(window.get("utilization"))?;
-    let maximum_ahead = duration_seconds
-        .saturating_mul(2)
-        .saturating_add(CLOCK_SKEW_SECONDS);
-    let reset_at = future_rfc3339(window.get("resets_at")?.as_str()?, now_ms, maximum_ahead)?;
-    let observed_at = iso_from_epoch_ms(now_ms)?;
-    let expires_at =
-        iso_from_epoch_ms(now_ms.saturating_add(CACHE_FRESH_SECONDS.saturating_mul(1_000)))?;
     Some(Snapshot {
         provider: "CLAUDE".to_string(),
         meter: meter.to_string(),
         value,
         unit: "PERCENT".to_string(),
         window: SnapshotWindow {
-            kind: "rolling".to_string(),
-            duration_seconds: Some(duration_seconds),
+            kind: window.kind.to_string(),
+            duration_seconds: window.duration_seconds,
         },
-        reset_at: Some(reset_at),
+        reset_at,
         source: "internal_payload".to_string(),
         precision: "exact".to_string(),
-        observed_at,
-        expires_at,
+        observed_at: iso_from_epoch_ms(now_ms)?,
+        expires_at: iso_from_epoch_ms(
+            now_ms.saturating_add(CACHE_FRESH_SECONDS.saturating_mul(1_000)),
+        )?,
         labels: labels(),
         used_amount: None,
         limit_amount: None,
@@ -212,26 +360,240 @@ fn parse_window(
     })
 }
 
-pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
-    let root: Value = serde_json::from_str(body).ok()?;
-    if !root.is_object() {
+/// Read one bucket: a percentage under `percent_key`, and a reset that is
+/// ahead of this clock but not further ahead than its own window allows.
+///
+/// The root windows spell the percentage `utilization` and the scoped entries
+/// of `limits` spell it `percent`; nothing else about them differs, so one
+/// function reads both.
+fn parse_reading(
+    bucket: &Map<String, Value>,
+    percent_key: &str,
+    meter: &str,
+    window: BucketWindow,
+    now_ms: u64,
+    account_id: &str,
+) -> Option<Snapshot> {
+    let value = percentage(bucket.get(percent_key))?;
+    let reset_at = future_rfc3339(
+        bucket.get("resets_at")?.as_str()?,
+        now_ms,
+        window.maximum_ahead(),
+    )?;
+    snapshot(meter, value, window, Some(reset_at), now_ms, account_id)
+}
+
+/// How full the paid overflow allowance is, capped at full.
+///
+/// Extra usage is the ONE meter here that can honestly read past its own
+/// limit. The allowance is a budget a working session can overrun between two
+/// polls, and the endpoint keeps counting once it does, so an overspend is a
+/// real reading rather than a malformed one. It is reported full, which is the
+/// truthful end of the bar, and the exact dollars ride along beside it. A root
+/// window claiming more than a hundred percent is a different thing entirely,
+/// a percentage that cannot be one, and still costs its own bucket.
+fn extra_usage_percent(
+    extra: &Map<String, Value>,
+    used: Option<f64>,
+    limit: Option<f64>,
+) -> Option<f64> {
+    if let Some(stated) = extra.get("utilization").and_then(Value::as_f64) {
+        if stated.is_finite() && stated >= 0.0 {
+            return Some(stated.min(100.0));
+        }
+    }
+    let (used, limit) = (used?, limit?);
+    if limit <= 0.0 {
         return None;
     }
-    let session = parse_window(&root, "five_hour", "FIVE_HOUR", 18_000, now_ms, account_id)?;
-    let weekly = parse_window(&root, "seven_day", "SEVEN_DAY", 604_800, now_ms, account_id)?;
-    let mut snapshots = vec![session, weekly];
-    for (key, meter) in [
-        ("seven_day_opus", "SEVEN_DAY_OPUS"),
-        ("seven_day_sonnet", "SEVEN_DAY_SONNET"),
-    ] {
-        if root.get(key).is_none_or(Value::is_null) {
+    let percent = used / limit * 100.0;
+    percent.is_finite().then(|| percent.min(100.0))
+}
+
+/// The paid overflow allowance, as a percentage carrying its own dollars.
+///
+/// The row is a percentage like every other meter, which is what the bands and
+/// the bars read, and the dollars ride along in the amount fields the cache
+/// already has. They are attached in the currency the cache keeps amounts in,
+/// and both are attached or neither, because that is the only shape
+/// `normalize_snapshot` accepts. It applies its own rule to them on the way to
+/// disk and drops an amount pair it cannot vouch for, which is its business:
+/// what this parse owes the caller is the figures the endpoint stated.
+fn parse_extra_usage(
+    extra: &Map<String, Value>,
+    now_ms: u64,
+    account_id: &str,
+) -> Option<Snapshot> {
+    let used = amount(extra.get("used_credits"));
+    let limit = amount(extra.get("monthly_limit"));
+    let value = extra_usage_percent(extra, used, limit)?;
+    let currency = extra
+        .get("currency")
+        .and_then(Value::as_str)
+        .map(str::to_ascii_uppercase)
+        .filter(|currency| currency == CACHE_CURRENCY);
+    let mut row = snapshot(
+        EXTRA_USAGE_METER,
+        value,
+        BucketWindow::BILLING_PERIOD,
+        None,
+        now_ms,
+        account_id,
+    )?;
+    if let (Some(used), Some(limit), Some(currency)) = (used, limit, currency) {
+        row.used_amount = Some(used);
+        row.limit_amount = Some(limit);
+        row.currency = Some(currency);
+    }
+    Some(row)
+}
+
+/// The account's usage, one meter per bucket the endpoint states.
+///
+/// WHY EVERY BUCKET IS READ INDEPENDENTLY. This used to demand `five_hour` and
+/// `seven_day`, loop a literal list of two model windows, and abandon the
+/// whole read through `?` the moment any one of them did not parse. An account
+/// whose plan reports its weekly allowance per model, and no session window,
+/// therefore showed NOTHING at all, and one malformed optional bucket erased
+/// every good bucket beside it. So there are no required buckets left: each
+/// one is read on its own, a bucket that does not hold together is dropped
+/// alone, and the read fails only when nothing survived to report.
+///
+/// Four sources, in one fixed order:
+///
+///   the root windows this build names, keeping their own meter codes
+///   every other root object carrying a `utilization` and a `resets_at`,
+///     which keeps a bucket the endpoint adds next month readable today
+///   the model scoped entries of `limits`, which is where a weekly allowance
+///     for one model arrives with a display name rather than a fixed key
+///   `extra_usage`, when the account has the paid overflow enabled
+///
+/// A model stated twice, once as a root key and once in `limits`, is reported
+/// once. The root bucket wins because its meter code is one this build names
+/// and the UI already labels, and a display name that renames the same model
+/// would otherwise open a second bar for the same allowance.
+pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
+    let root: Value = serde_json::from_str(body).ok()?;
+    let root = root.as_object()?;
+    let mut rows: Vec<Snapshot> = Vec::new();
+    let mut taken: BTreeSet<String> = BTreeSet::new();
+    let mut root_models: BTreeSet<String> = BTreeSet::new();
+
+    for (key, meter, duration_seconds) in ROOT_WINDOWS {
+        let Some(bucket) = root.get(key).filter(|value| !value.is_null()) else {
+            continue;
+        };
+        let parsed = bucket.as_object().and_then(|bucket| {
+            parse_reading(
+                bucket,
+                "utilization",
+                meter,
+                BucketWindow::rolling(duration_seconds),
+                now_ms,
+                account_id,
+            )
+        });
+        let Some(row) = parsed else {
+            dropped("root window", meter);
+            continue;
+        };
+        if taken.insert(meter.to_string()) {
+            if let Some(model) = key.strip_prefix(WEEKLY_KEY_PREFIX) {
+                root_models.insert(model.to_ascii_lowercase());
+            }
+            rows.push(row);
+        }
+    }
+
+    for (key, value) in root {
+        let named = ROOT_WINDOWS.iter().any(|(root_key, _, _)| *root_key == key);
+        if named || key == LIMITS_KEY || key == EXTRA_USAGE_KEY {
             continue;
         }
-        snapshots.push(parse_window(
-            &root, key, meter, 604_800, now_ms, account_id,
-        )?);
+        let Some(bucket) = value.as_object() else {
+            continue;
+        };
+        if !bucket.contains_key("utilization") || !bucket.contains_key("resets_at") {
+            continue;
+        }
+        let Some(meter) = meter_code("", key) else {
+            dropped("unnamed root window", "unnamed");
+            continue;
+        };
+        let Some(row) = parse_reading(
+            bucket,
+            "utilization",
+            &meter,
+            BucketWindow::UNKNOWN,
+            now_ms,
+            account_id,
+        ) else {
+            dropped("unnamed root window", &meter);
+            continue;
+        };
+        if taken.insert(meter) {
+            rows.push(row);
+        }
     }
-    Some(snapshots)
+
+    for entry in root
+        .get(LIMITS_KEY)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let Some(entry) = entry.as_object() else {
+            continue;
+        };
+        if entry.get("kind").and_then(Value::as_str) != Some(WEEKLY_SCOPED_KIND) {
+            continue;
+        }
+        let Some(display_name) = entry
+            .get("scope")
+            .and_then(Value::as_object)
+            .and_then(|scope| scope.get("model"))
+            .and_then(Value::as_object)
+            .and_then(|model| model.get("display_name"))
+            .and_then(Value::as_str)
+        else {
+            continue;
+        };
+        let (Some(model), Some(meter)) = (
+            upper_snake(display_name),
+            meter_code(WEEKLY_METER_PREFIX, display_name),
+        ) else {
+            dropped("model scoped", "unnamed");
+            continue;
+        };
+        if root_models.contains(&model.to_ascii_lowercase()) || taken.contains(&meter) {
+            continue;
+        }
+        let Some(row) = parse_reading(
+            entry,
+            "percent",
+            &meter,
+            BucketWindow::rolling(SEVEN_DAY_SECONDS),
+            now_ms,
+            account_id,
+        ) else {
+            dropped("model scoped", &meter);
+            continue;
+        };
+        taken.insert(meter);
+        rows.push(row);
+    }
+
+    if let Some(extra) = root.get(EXTRA_USAGE_KEY).and_then(Value::as_object) {
+        if extra.get("is_enabled").and_then(Value::as_bool) == Some(true) {
+            match parse_extra_usage(extra, now_ms, account_id) {
+                Some(row) if taken.insert(EXTRA_USAGE_METER.to_string()) => rows.push(row),
+                Some(_) => {}
+                None => dropped("extra usage", EXTRA_USAGE_METER),
+            }
+        }
+    }
+
+    (!rows.is_empty()).then_some(rows)
 }
 
 fn net_failure(error: NetError) -> ClaudeOauthFailure {
@@ -587,15 +949,41 @@ mod tests {
             .any(|row| row.meter == "SEVEN_DAY_SONNET" && row.value == 19.0));
     }
 
+    /// The four payloads that used to make the whole read unknown.
+    ///
+    /// Each one still carries a bucket that does not hold together, and each
+    /// one now costs exactly that bucket. Only the first reports nothing, and
+    /// only because nothing else was in it.
     #[test]
-    fn any_required_window_drift_makes_the_whole_contract_unknown() {
-        for body in [
-            r#"{"five_hour":{"utilization":20,"resets_at":"2026-08-19T23:00:00Z"}}"#,
-            r#"{"five_hour":{"utilization":"20","resets_at":"2026-08-19T23:00:00Z"},"seven_day":{"utilization":30,"resets_at":"2026-08-24T12:00:00Z"}}"#,
-            r#"{"five_hour":{"utilization":20,"resets_at":"2020-01-01T00:00:00Z"},"seven_day":{"utilization":30,"resets_at":"2026-08-24T12:00:00Z"}}"#,
-            r#"{"five_hour":{"utilization":101,"resets_at":"2026-08-19T23:00:00Z"},"seven_day":{"utilization":30,"resets_at":"2026-08-24T12:00:00Z"}}"#,
+    fn a_drifted_bucket_no_longer_takes_the_whole_contract_with_it() {
+        let weekly = r#""seven_day":{"utilization":30,"resets_at":"2026-08-24T12:00:00Z"}"#;
+        for (drifted, surviving) in [
+            (
+                r#""five_hour":{"utilization":20,"resets_at":"2026-08-19T23:00:00Z"}"#,
+                Vec::new(),
+            ),
+            (
+                r#""five_hour":{"utilization":"20","resets_at":"2026-08-19T15:00:00Z"}"#,
+                vec!["SEVEN_DAY"],
+            ),
+            (
+                r#""five_hour":{"utilization":20,"resets_at":"2020-01-01T00:00:00Z"}"#,
+                vec!["SEVEN_DAY"],
+            ),
+            (
+                r#""five_hour":{"utilization":101,"resets_at":"2026-08-19T15:00:00Z"}"#,
+                vec!["SEVEN_DAY"],
+            ),
         ] {
-            assert!(parse_usage(body, NOW, ACCOUNT).is_none());
+            let body = if surviving.is_empty() {
+                format!("{{{drifted}}}")
+            } else {
+                format!("{{{drifted},{weekly}}}")
+            };
+            match parse_usage(&body, NOW, ACCOUNT) {
+                Some(rows) => assert_eq!(meters(&rows), surviving),
+                None => assert!(surviving.is_empty()),
+            }
         }
     }
 
@@ -828,5 +1216,314 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /* --------------------------------------------------- every bucket sent */
+
+    /// One capture of the Claude Code 2.1.261 `api/oauth/usage` response.
+    ///
+    /// Every shape this reader has to survive is here at once: the five root
+    /// windows the endpoint names, a root bucket this build has never heard
+    /// of, the extra usage block, and the `limits` array, whose model scoped
+    /// entries carry a display name rather than a fixed key. The percentages
+    /// and the instants are this file's own; no account's readings are here.
+    fn full_contract_body() -> String {
+        r#"{
+            "five_hour":{"utilization":23.5,"resets_at":"2026-08-19T15:00:00Z","overage_status":"none"},
+            "seven_day":{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"},
+            "seven_day_oauth_apps":{"utilization":3.0,"resets_at":"2026-08-24T12:00:00Z"},
+            "seven_day_opus":{"utilization":37.0,"resets_at":"2026-08-24T12:00:00Z"},
+            "seven_day_sonnet":{"utilization":19.0,"resets_at":"2026-08-24T12:00:00Z"},
+            "cinder_cove":{"utilization":8.5,"resets_at":"2026-08-24T12:00:00Z"},
+            "extra_usage":{"is_enabled":true,"monthly_limit":100.0,"used_credits":12.5,
+                "utilization":12.5,"currency":"USD","disabled_reason":null},
+            "limits":[
+                {"kind":"weekly_scoped","group":"model","percent":62.5,
+                 "resets_at":"2026-08-24T12:00:00Z","scope":{"model":{"display_name":"Fable"}}},
+                {"kind":"weekly_scoped","group":"model","percent":91.0,
+                 "resets_at":"2026-08-24T12:00:00Z","scope":{"model":{"display_name":"Opus"}}},
+                {"kind":"five_hour","group":"account","percent":23.5,
+                 "resets_at":"2026-08-19T15:00:00Z","scope":{}}
+            ]
+        }"#
+        .to_string()
+    }
+
+    fn meters(rows: &[Snapshot]) -> Vec<String> {
+        rows.iter().map(|row| row.meter.clone()).collect()
+    }
+
+    fn meter<'a>(rows: &'a [Snapshot], code: &str) -> &'a Snapshot {
+        rows.iter()
+            .find(|row| row.meter == code)
+            .unwrap_or_else(|| panic!("{code} is missing"))
+    }
+
+    #[test]
+    fn every_bucket_the_endpoint_states_becomes_its_own_meter() {
+        let rows = parse_usage(&full_contract_body(), NOW, ACCOUNT).expect("usage");
+
+        assert_eq!(
+            meters(&rows),
+            [
+                "FIVE_HOUR",
+                "SEVEN_DAY",
+                "SEVEN_DAY_OPUS",
+                "SEVEN_DAY_SONNET",
+                "SEVEN_DAY_OAUTH_APPS",
+                "CINDER_COVE",
+                "SEVEN_DAY_FABLE",
+                "EXTRA_USAGE"
+            ]
+        );
+        let fable = meter(&rows, "SEVEN_DAY_FABLE");
+        assert_eq!(fable.value, 62.5);
+        assert_eq!(fable.unit, "PERCENT");
+        assert_eq!(fable.window.duration_seconds, Some(604_800));
+        assert_eq!(fable.reset_at.as_deref(), Some("2026-08-24T12:00:00.000Z"));
+        let unnamed = meter(&rows, "CINDER_COVE");
+        assert_eq!(unnamed.value, 8.5);
+        assert_eq!(unnamed.window.kind, "unknown");
+        assert_eq!(unnamed.window.duration_seconds, None);
+        let extra = meter(&rows, "EXTRA_USAGE");
+        assert_eq!(extra.value, 12.5);
+        assert_eq!(extra.used_amount, Some(12.5));
+        assert_eq!(extra.limit_amount, Some(100.0));
+        assert_eq!(extra.currency.as_deref(), Some("USD"));
+        assert!(rows
+            .iter()
+            .all(|row| row.account_id.as_deref() == Some(ACCOUNT)));
+    }
+
+    #[test]
+    fn a_payload_with_no_session_window_still_reports_its_model_buckets() {
+        let rows = parse_usage(
+            r#"{
+                "five_hour":null,
+                "seven_day_opus":{"utilization":37.0,"resets_at":"2026-08-24T12:00:00Z"},
+                "limits":[{"kind":"weekly_scoped","group":"model","percent":62.5,
+                    "resets_at":"2026-08-24T12:00:00Z",
+                    "scope":{"model":{"display_name":"Fable"}}}]
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+
+        assert_eq!(meters(&rows), ["SEVEN_DAY_OPUS", "SEVEN_DAY_FABLE"]);
+        assert_eq!(meter(&rows, "SEVEN_DAY_FABLE").value, 62.5);
+    }
+
+    #[test]
+    fn one_malformed_bucket_is_dropped_without_taking_the_others() {
+        let rows = parse_usage(
+            r#"{
+                "five_hour":{"utilization":23.5,"resets_at":"2026-08-19T15:00:00Z"},
+                "seven_day":{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"},
+                "seven_day_sonnet":{"utilization":"nineteen","resets_at":"2026-08-24T12:00:00Z"},
+                "seven_day_opus":{"utilization":37.0,"resets_at":"2020-01-01T00:00:00Z"},
+                "limits":[{"kind":"weekly_scoped","group":"model","percent":140.0,
+                    "resets_at":"2026-08-24T12:00:00Z",
+                    "scope":{"model":{"display_name":"Fable"}}}]
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+
+        assert_eq!(meters(&rows), ["FIVE_HOUR", "SEVEN_DAY"]);
+    }
+
+    #[test]
+    fn a_model_stated_twice_is_reported_once_from_its_root_bucket() {
+        let rows = parse_usage(
+            r#"{
+                "seven_day":{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"},
+                "seven_day_opus":{"utilization":37.0,"resets_at":"2026-08-24T12:00:00Z"},
+                "limits":[
+                    {"kind":"weekly_scoped","group":"model","percent":91.0,
+                     "resets_at":"2026-08-24T12:00:00Z",
+                     "scope":{"model":{"display_name":"Opus"}}},
+                    {"kind":"weekly_scoped","group":"model","percent":11.0,
+                     "resets_at":"2026-08-24T12:00:00Z",
+                     "scope":{"model":{"display_name":"opus"}}}
+                ]
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+
+        assert_eq!(meters(&rows), ["SEVEN_DAY", "SEVEN_DAY_OPUS"]);
+        assert_eq!(meter(&rows, "SEVEN_DAY_OPUS").value, 37.0);
+    }
+
+    #[test]
+    fn the_same_payload_names_the_same_meters_in_the_same_order_every_time() {
+        let body = full_contract_body();
+        let first = parse_usage(&body, NOW, ACCOUNT).expect("usage");
+        let second = parse_usage(&body, NOW, ACCOUNT).expect("usage");
+
+        assert_eq!(meters(&first), meters(&second));
+        assert_eq!(
+            serde_json::to_string(&first).expect("wire"),
+            serde_json::to_string(&second).expect("wire")
+        );
+    }
+
+    #[test]
+    fn extra_usage_keeps_its_dollars_only_in_the_currency_the_cache_states() {
+        let rows = parse_usage(
+            r#"{
+                "seven_day":{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"},
+                "extra_usage":{"is_enabled":true,"monthly_limit":80.0,"used_credits":20.0,
+                    "utilization":25.0,"currency":"EUR","disabled_reason":null}
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+
+        let extra = meter(&rows, "EXTRA_USAGE");
+        assert_eq!(extra.value, 25.0);
+        assert_eq!(extra.used_amount, None);
+        assert_eq!(extra.limit_amount, None);
+        assert_eq!(extra.currency, None);
+    }
+
+    #[test]
+    fn the_contract_is_unknown_only_when_no_bucket_survives() {
+        for body in [
+            r#"{}"#,
+            r#"{"usage":40}"#,
+            r#"{"five_hour":{"utilization":"20","resets_at":"2026-08-19T15:00:00Z"}}"#,
+            r#"{"five_hour":{"utilization":20,"resets_at":"2020-01-01T00:00:00Z"}}"#,
+            r#"{"five_hour":{"utilization":101,"resets_at":"2026-08-19T15:00:00Z"}}"#,
+            r#"{"extra_usage":{"is_enabled":false,"monthly_limit":100,"used_credits":4}}"#,
+        ] {
+            assert!(parse_usage(body, NOW, ACCOUNT).is_none());
+        }
+        assert!(parse_usage(
+            r#"{"five_hour":{"utilization":20,"resets_at":"2026-08-19T15:00:00Z"}}"#,
+            NOW,
+            ACCOUNT
+        )
+        .is_some());
+    }
+
+    /// The bug was that the desktop showed nothing, so parsing is only half of
+    /// it: every new meter has to survive the cache's own validator too, which
+    /// drops a row it does not accept without saying so.
+    #[tokio::test]
+    async fn every_new_meter_survives_the_write_and_reaches_the_cache() {
+        let dir = TempDir::new();
+        let transport = RecordingTransport::replying(
+            200,
+            full_contract_body().into_bytes(),
+            None,
+        );
+        let outcome = collect_with_secret(
+            &ClaudeOauthRuntime::default(),
+            &transport,
+            writer(&dir),
+            ACCOUNT,
+            &secret("every-bucket"),
+            NOW,
+        )
+        .await;
+
+        assert!(matches!(outcome, ClaudeOauthOutcome::CacheCommitted { .. }));
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("cache");
+        for meter in [
+            "FIVE_HOUR",
+            "SEVEN_DAY",
+            "SEVEN_DAY_OPUS",
+            "SEVEN_DAY_SONNET",
+            "SEVEN_DAY_OAUTH_APPS",
+            "CINDER_COVE",
+            "SEVEN_DAY_FABLE",
+            "EXTRA_USAGE",
+        ] {
+            assert!(cache.contains(meter), "{meter} never reached the cache");
+        }
+        assert!(cache.contains("\"usedAmount\":12.5"));
+        assert!(cache.contains("\"limitAmount\":100.0"));
+        assert!(!cache.contains(TOKEN));
+    }
+
+    /// A display name is the provider's prose, so its capitalisation is not a
+    /// promise. The same model arriving as a root key and as a display name
+    /// that differs only in case is still one allowance and one bar.
+    #[test]
+    fn a_model_named_in_a_different_case_still_dedupes_to_one_meter() {
+        let rows = parse_usage(
+            r#"{
+                "seven_day_opus":{"utilization":37.0,"resets_at":"2026-08-24T12:00:00Z"},
+                "limits":[{"kind":"weekly_scoped","group":"model","percent":91.0,
+                    "resets_at":"2026-08-24T12:00:00Z",
+                    "scope":{"model":{"display_name":"OPUS"}}}]
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+
+        assert_eq!(meters(&rows), ["SEVEN_DAY_OPUS"]);
+        assert_eq!(meter(&rows, "SEVEN_DAY_OPUS").value, 37.0);
+    }
+
+    /// Extra usage is the one meter that can honestly read past its own limit.
+    ///
+    /// The allowance is a budget a working session can overrun between two
+    /// polls, and the endpoint keeps counting once it does. Dropping the
+    /// bucket there would hide the overspend exactly when it matters most, so
+    /// the reading is kept, the bar reads full, and both dollar figures stay
+    /// as the endpoint stated them. A root window above 100 is a different
+    /// thing, a percentage that cannot be one, and still drops alone.
+    #[test]
+    fn an_overspent_extra_usage_allowance_reads_full_rather_than_vanishing() {
+        let stated = parse_usage(
+            r#"{
+                "seven_day":{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"},
+                "extra_usage":{"is_enabled":true,"monthly_limit":50.0,"used_credits":62.5,
+                    "utilization":125.0,"currency":"USD","disabled_reason":null}
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+
+        let extra = meter(&stated, "EXTRA_USAGE");
+        assert_eq!(extra.value, 100.0);
+        assert_eq!(extra.used_amount, Some(62.5));
+        assert_eq!(extra.limit_amount, Some(50.0));
+        assert_eq!(extra.currency.as_deref(), Some("USD"));
+
+        /* The same overspend with no utilization stated, derived from the two
+        amounts, reads the same. */
+        let derived = parse_usage(
+            r#"{
+                "extra_usage":{"is_enabled":true,"monthly_limit":50.0,"used_credits":62.5,
+                    "currency":"USD","disabled_reason":null}
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+        assert_eq!(meter(&derived, "EXTRA_USAGE").value, 100.0);
+        assert_eq!(meter(&derived, "EXTRA_USAGE").limit_amount, Some(50.0));
+
+        /* And the root windows keep the rule they had: a utilization that
+        cannot be a percentage is malformed, and costs only its own bucket. */
+        let root = parse_usage(
+            r#"{
+                "five_hour":{"utilization":101,"resets_at":"2026-08-19T15:00:00Z"},
+                "seven_day":{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"}
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+        assert_eq!(meters(&root), ["SEVEN_DAY"]);
     }
 }

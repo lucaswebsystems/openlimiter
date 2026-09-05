@@ -3,7 +3,8 @@
  * Turn one raw provider response into a sanitized live fixture.
  *
  *   node scripts/sanitize-capture.mjs --provider codex --in raw.json
- *   node scripts/sanitize-capture.mjs --provider codex --in raw.json --write
+ *   node scripts/sanitize-capture.mjs --provider codex --in raw.json
+ *     --provider-version "codex-cli 0.152.0" --write
  *
  * WHY THIS EXISTS. The three live readers ship on a request contract that was
  * observed against real accounts, and on no captured RESPONSE at all. The
@@ -370,6 +371,71 @@ function reduceOpencode(raw) {
   return { windows };
 }
 
+/* ------------------------------------------------------------------ *
+ * How many meters the frozen capture will produce
+ *
+ * FINDING F-202. Both of the fields that describe a capture were written as
+ * constants: `providerVersion: null` and `expectedMeters: 1`, whatever had
+ * just been reduced. A fixture that says one meter while its payload carries
+ * four is not evidence, it is a number nobody read, and the two captures in
+ * the tree only carry true values because a human corrected them by hand
+ * afterwards. The count is derived from the reduction below, and the client
+ * version has to be stated on the command line.
+ *
+ * Each counter mirrors its parser, not its payload: the reduction can keep a
+ * bucket the reader deliberately does not report, and the count has to agree
+ * with the reader.
+ * ------------------------------------------------------------------ */
+
+/** Codex reports the primary window, and nothing else. */
+function countCodexMeters() {
+  return 1;
+}
+
+/**
+ * The pool Antigravity reports, mirroring ANTIGRAVITY_TRACKED_POOL in
+ * packages/connectors/src/antigravity.ts.
+ *
+ * The third party pool rides the same subscription and is deliberately not
+ * modelled there, so its buckets are reduced and kept but never counted.
+ */
+const ANTIGRAVITY_TRACKED_POOL = "gemini";
+
+function countAntigravityMeters(reduced) {
+  const tracked = reduced.groups.filter((group) =>
+    group.buckets.some((bucket) => bucket.poolPrefix === ANTIGRAVITY_TRACKED_POOL)
+  );
+  /* Two groups claiming the same pool is what the parser refuses outright, so
+     a count is not invented for it either. */
+  if (tracked.length !== 1) {
+    fail(
+      "the reduction holds " + String(tracked.length) + " groups in the " +
+        JSON.stringify(ANTIGRAVITY_TRACKED_POOL) + " pool. The parser reads " +
+        "exactly one, so there is no honest meter count for this capture."
+    );
+  }
+  return tracked[0].buckets.length;
+}
+
+/** OpenCode reports one meter per window label it found on the page. */
+function countOpencodeMeters(reduced) {
+  return reduced.windows.length;
+}
+
+/**
+ * The client version a capture was taken with, as stated on the command line.
+ *
+ * Bounded and closed on purpose: this string is written into a source file, so
+ * it is held to the shape a version takes and nothing else can ride in behind
+ * it. A capture whose client version is unknown is not frozen at all, because
+ * "which build answered this" is half of what makes a capture evidence.
+ */
+const PROVIDER_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._/+-]{0,63}$/u;
+
+function isProviderVersion(value) {
+  return typeof value === "string" && PROVIDER_VERSION_PATTERN.test(value);
+}
+
 /*
  * Every name spelled out rather than derived from another one.
  *
@@ -381,6 +447,7 @@ function reduceOpencode(raw) {
 const PROVIDERS = {
   codex: {
     reduce: reduceCodex,
+    meters: countCodexMeters,
     json: true,
     connector: "codex",
     constant: "codexSanitizedLive",
@@ -389,6 +456,7 @@ const PROVIDERS = {
   },
   antigravity: {
     reduce: reduceAntigravity,
+    meters: countAntigravityMeters,
     json: true,
     connector: "antigravity",
     constant: "antigravitySanitizedLive",
@@ -397,6 +465,7 @@ const PROVIDERS = {
   },
   opencode: {
     reduce: reduceOpencode,
+    meters: countOpencodeMeters,
     json: false,
     connector: "opencode",
     constant: "opencodeSanitizedLive",
@@ -502,7 +571,7 @@ function today() {
  * still pending: overwriting a capture that already exists should be a
  * deliberate act with a diff, not a side effect of running this twice.
  */
-function freeze(source, spec, reduced) {
+function freeze(source, spec, reduced, providerVersion) {
   const declaration = `export const ${spec.constant}: SanitizedLiveFixture = {`;
   const start = source.indexOf(declaration);
   if (start < 0) fail(`cannot find ${spec.constant} in fixtures.ts`);
@@ -525,9 +594,9 @@ function freeze(source, spec, reduced) {
     `  connector: ${JSON.stringify(spec.connector)},`,
     `  status: "captured",`,
     `  capturedAt: ${JSON.stringify(today())},`,
-    `  providerVersion: null,`,
+    `  providerVersion: ${JSON.stringify(providerVersion)},`,
     `  skipReason: null,`,
-    `  expectedMeters: 1,`,
+    `  expectedMeters: ${String(spec.meters(reduced))},`,
     `  /* Reduced by scripts/sanitize-capture.mjs. Numbers and closed vocabulary`,
     `     words only: every other field of the real response was discarded rather`,
     `     than redacted, so nothing identifying can be present even in principle.`,
@@ -552,11 +621,23 @@ function argument(name) {
 async function main() {
   const provider = argument("--provider");
   const input = argument("--in");
+  const providerVersion = argument("--provider-version");
   const write = process.argv.includes("--write");
   if (provider === null || input === null) {
     process.stderr.write(
       "usage: node scripts/sanitize-capture.mjs --provider <codex|antigravity|" +
-        "opencode> --in <file> [--write]\n"
+        "opencode> --in <file> [--provider-version <client version> --write]\n"
+    );
+    process.exitCode = 1;
+    return;
+  }
+  if (write && !isProviderVersion(providerVersion)) {
+    process.stderr.write(
+      "FAIL --provider-version is required with --write, and must be the " +
+        "version of the client the capture was taken with, such as " +
+        "\"codex-cli 0.152.0\". A frozen capture that does not say which " +
+        "build answered it is half a piece of evidence, and this field used " +
+        "to be written as null on every run.\n"
     );
     process.exitCode = 1;
     return;
@@ -602,7 +683,7 @@ async function main() {
   const source = await readFile(FIXTURES_FILE, "utf8");
   let updated;
   try {
-    updated = freeze(source, spec, reduced);
+    updated = freeze(source, spec, reduced, providerVersion);
   } catch (error) {
     process.stderr.write(
       "FAIL " + (error instanceof CaptureError ? error.message : String(error)) + "\n"
