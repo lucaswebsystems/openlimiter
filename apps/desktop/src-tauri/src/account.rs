@@ -879,6 +879,93 @@ mod tests {
     }
 
     #[test]
+    fn the_refresh_token_lives_in_the_credential_store_and_nowhere_else() {
+        /* The refresh token is the one value that can mint a new session, so
+        it goes to the operating system credential store and to no file this
+        window writes. One record holds the whole session; there is no second
+        copy anywhere for a backup tool to pick up. */
+        let store = InMemorySecrets::new();
+        let saved = save_session(
+            &store,
+            AuthResponse {
+                access_token: Some("an-access-token-at-least-twenty".to_string()),
+                refresh_token: Some("a-refresh-token-at-least-twenty".to_string()),
+                expires_in: Some(3_600),
+                user: Some(AuthUser {
+                    id: Some("00000000-0000-4000-8000-000000000001".to_string()),
+                    email: Some("person@example.com".to_string()),
+                }),
+            },
+            None,
+        )
+        .expect("a stored session");
+        assert_eq!(saved.refresh_token, "a-refresh-token-at-least-twenty");
+        assert_eq!(store.stored_count(), 1);
+
+        let read_back = stored_session(&store).expect("the session survives a read back");
+        assert_eq!(read_back.refresh_token, saved.refresh_token);
+        assert_eq!(read_back.account_id, saved.account_id);
+
+        /* And what the window is allowed to see carries neither token. */
+        let visible = serde_json::to_string(&status_for(&store, true)).expect("the status");
+        assert!(!visible.contains("a-refresh-token-at-least-twenty"));
+        assert!(!visible.contains("an-access-token-at-least-twenty"));
+    }
+
+    #[test]
+    fn a_renewal_keeps_the_refresh_token_the_service_did_not_reissue() {
+        /* Supabase rotates a refresh token on some renewals and not others.
+        Dropping the previous one when none came back would end the session at
+        the next renewal, which is a silent sign out an hour later. */
+        let store = InMemorySecrets::new();
+        let previous = StoredSession {
+            version: 2,
+            account_id: "00000000-0000-4000-8000-000000000001".to_string(),
+            email: "person@example.com".to_string(),
+            access_token: "the-old-access-token-at-least-twenty".to_string(),
+            refresh_token: "the-kept-refresh-token-at-least-twenty".to_string(),
+            expires_at: now_seconds() + 60,
+        };
+        persist_session(&store, &previous).expect("the previous session");
+
+        let renewed = save_session(
+            &store,
+            AuthResponse {
+                access_token: Some("the-new-access-token-at-least-twenty".to_string()),
+                refresh_token: None,
+                expires_in: Some(3_600),
+                user: None,
+            },
+            Some(&previous),
+        )
+        .expect("the renewed session");
+        assert_eq!(renewed.refresh_token, previous.refresh_token);
+        assert_eq!(renewed.account_id, previous.account_id);
+        assert_eq!(renewed.email, previous.email);
+        assert!(renewed.expires_at > previous.expires_at);
+    }
+
+    #[test]
+    fn a_session_shorter_than_the_bound_is_refused_rather_than_stored() {
+        let store = InMemorySecrets::new();
+        let outcome = save_session(
+            &store,
+            AuthResponse {
+                access_token: Some("short".to_string()),
+                refresh_token: Some("a-refresh-token-at-least-twenty".to_string()),
+                expires_in: Some(3_600),
+                user: Some(AuthUser {
+                    id: Some("00000000-0000-4000-8000-000000000001".to_string()),
+                    email: Some("person@example.com".to_string()),
+                }),
+            },
+            None,
+        );
+        assert!(matches!(outcome, Err(AccountFailure::Authentication)));
+        assert_eq!(store.stored_count(), 0);
+    }
+
+    #[test]
     fn pro_has_no_mirrored_supabase_session_record() {
         let legacy_key = concat!("openlimiter-pro-", "session");
         let account_source = include_str!("account.rs");
