@@ -87,6 +87,9 @@ import {
   testProvider,
 } from "./backend.js";
 import { readConfiguredProviders } from "./configured-providers.js";
+/* Every value on a failure card came off a file this window did not write, so
+   the card is built out of nodes and text rather than out of a markup string. */
+import { buildFailureRow } from "./failure-rows.js";
 import {
   connectionsTabShown,
   initConnections,
@@ -895,21 +898,23 @@ function paintFailures(failures) {
   if (elements.failures === null) return;
   const rows = dedupeFailures(failures);
   elements.failures.hidden = rows.length === 0;
-  elements.failures.innerHTML = rows
-    .map((failure) => {
-      /* A fixed table, not a function. The core keeps one sentence per
-         category so no surface can invent a variation of its own, and a
-         category with no entry shows its own code rather than nothing. */
-      const sentence = failureSentence[failure.category] ?? failure.category;
-      return (
-        '<div class="alert" role="status"><strong>' +
-        String(PROVIDER_NAMES[failure.provider] ?? failure.provider) +
-        "</strong><p>" +
-        String(sentence) +
-        "</p></div>"
-      );
-    })
-    .join("");
+  /* Nodes, not a markup string. Both halves of this card came off a file on
+     disk: the provider identifier from the snapshot cache, and the category
+     from whatever the core could make of it. A provider the table does not
+     know shows its own identifier, and a category with no sentence shows its
+     own code, so the fallback is the value itself in both cases. Concatenating
+     either into innerHTML would put a file this window did not write in charge
+     of the markup it renders. */
+  elements.failures.replaceChildren(
+    ...rows.map((failure) =>
+      buildFailureRow(
+        PROVIDER_NAMES[failure.provider] ?? failure.provider,
+        /* A fixed table, not a function. The core keeps one sentence per
+           category so no surface can invent a variation of its own. */
+        failureSentence[failure.category] ?? failure.category,
+      ),
+    ),
+  );
 }
 
 async function refresh() {

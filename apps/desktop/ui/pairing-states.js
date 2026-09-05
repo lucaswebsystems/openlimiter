@@ -16,6 +16,10 @@
 export const PAIRING_PHASES = Object.freeze([
   "pending",
   "claimed",
+  /* Not a server status. It is the moment between pressing Approve and the
+     service answering, and it is a state a person can be left sitting in, so
+     it gets a shape of its own rather than falling back to the code screen. */
+  "deciding",
   "approved",
   "delivered",
   "denied",
@@ -40,6 +44,13 @@ export function countdownText(secondsRemaining) {
   if (seconds === 0) return "This code has run out";
   if (seconds === 1) return "1 second left";
   return String(seconds) + " seconds left";
+}
+
+/** What the panel says while the service is being told the answer. */
+export function decidingHeadline(deviceName) {
+  const name =
+    typeof deviceName === "string" && deviceName !== "" ? deviceName : "the phone";
+  return "Deciding about " + name;
 }
 
 /** "Phone wants to pair: <name>", with a name for a phone that gave none. */

@@ -225,6 +225,9 @@ const WINDOW_FILES = [
   "configured-providers.js",
   "connections.js",
   "first-run.js",
+  /* The failure card, built out of nodes because every value on it came off a
+     file this window did not write. */
+  "failure-rows.js",
   /* The signature meter, the four screens built on the connection and
      entitlement contract, and the tray popover, which is its own document
      because Rust gives it its own window. */

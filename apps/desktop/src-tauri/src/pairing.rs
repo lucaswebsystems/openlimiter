@@ -60,6 +60,11 @@ const EXPIRY_TOLERANCE_SECONDS: i64 = 300;
 pub enum PairingPhase {
     Pending,
     Claimed,
+    /* Not a server status. It is the moment between a person pressing Approve
+    and the service answering, and it exists so that moment has a name: a
+    second press, or a second window, finds a pairing that is already being
+    decided rather than one that still looks decidable. */
+    Deciding,
     Approved,
     Denied,
     Delivered,
@@ -81,6 +86,16 @@ impl PairingPhase {
     /// Whether anything more can happen to this pairing.
     fn settled(self) -> bool {
         matches!(self, Self::Approved | Self::Denied | Self::Delivered | Self::Expired)
+    }
+
+    /// Whether a status poll would tell this window anything.
+    ///
+    /// A settled pairing cannot change again. A pairing being decided is
+    /// already waiting on an answer, and polling it would be worse than
+    /// useless: the server still reports it as claimed, and writing that back
+    /// would erase the transition that is holding a second approval off.
+    fn quiet(self) -> bool {
+        self.settled() || matches!(self, Self::Deciding)
     }
 }
 
@@ -119,6 +134,61 @@ impl PairingRuntime {
     fn write(&self, session: Option<PairingSession>) -> Result<(), ProFailure> {
         let mut held = self.session.lock().map_err(|_| ProFailure::Storage)?;
         *held = session;
+        Ok(())
+    }
+
+    /// Claim the pairing for a decision, and say what it was before.
+    ///
+    /// The check and the transition happen under ONE lock. Reading, deciding
+    /// the pairing is decidable, and then writing under a second lock leaves a
+    /// window in which a second press reads the same claimed pairing, reaches
+    /// the same answer, and sends a second approval for a code a person only
+    /// approved once. Writing the deciding phase here closes that window: the
+    /// second caller finds a pairing that is already being decided and is
+    /// refused by the same guard that let the first one through.
+    fn begin_decision(&self, now: i64) -> Result<PairingSession, ProFailure> {
+        let mut held = self.session.lock().map_err(|_| ProFailure::Storage)?;
+        let session = held.as_ref().ok_or(ProFailure::InvalidInput)?.clone();
+        guard_decision(&session, now)?;
+        *held = Some(PairingSession {
+            phase: PairingPhase::Deciding,
+            ..session.clone()
+        });
+        Ok(session)
+    }
+
+    /// Write a decided pairing back, onto the pairing it was decided about.
+    ///
+    /// An approval can be in flight while a person closes the panel or starts
+    /// a new pairing, and the answer arriving afterwards must not put the old
+    /// one back on screen. So the write only lands when the runtime still
+    /// holds the same code; the answer is still returned to the caller either
+    /// way, because it is true, it is just no longer what is on screen.
+    fn settle(&self, decided: &PairingSession) -> Result<bool, ProFailure> {
+        let mut held = self.session.lock().map_err(|_| ProFailure::Storage)?;
+        let current = held
+            .as_ref()
+            .is_some_and(|current| current.code == decided.code);
+        if current {
+            *held = Some(decided.clone());
+        }
+        Ok(current)
+    }
+
+    /// Put a pairing back the way it was when its decision could not be sent.
+    ///
+    /// Same rule as settling: only onto the pairing it belongs to, and only
+    /// while that pairing is still the one being decided. A failure that
+    /// restored a cancelled pairing would be the resurrection this guards
+    /// against, arriving through the error path instead of the success one.
+    fn abandon_decision(&self, claimed: &PairingSession) -> Result<(), ProFailure> {
+        let mut held = self.session.lock().map_err(|_| ProFailure::Storage)?;
+        let restorable = held.as_ref().is_some_and(|current| {
+            current.code == claimed.code && current.phase == PairingPhase::Deciding
+        });
+        if restorable {
+            *held = Some(claimed.clone());
+        }
         Ok(())
     }
 }
@@ -289,20 +359,37 @@ async fn action(
     crate::pro::post_pairing(store, payload).await
 }
 
+async fn send_decision(
+    store: &dyn SecretStore,
+    name: &str,
+    claimed: &PairingSession,
+    expected: PairingPhase,
+) -> Result<PairingSession, ProFailure> {
+    let device_id = crate::pro::desktop_device_id(store)?;
+    let response = action(store, name, &device_id, Some(&claimed.code)).await?;
+    parse_decision(&response, claimed, expected, now_seconds()?)
+}
+
 async fn decide(
     store: &dyn SecretStore,
     runtime: &PairingRuntime,
     name: &str,
     expected: PairingPhase,
 ) -> Result<PairingSession, ProFailure> {
-    let now = now_seconds()?;
-    let session = runtime.read()?.ok_or(ProFailure::InvalidInput)?;
-    guard_decision(&session, now)?;
-    let device_id = crate::pro::desktop_device_id(store)?;
-    let response = action(store, name, &device_id, Some(&session.code)).await?;
-    let decided = parse_decision(&response, &session, expected, now_seconds()?)?;
-    runtime.write(Some(decided.clone()))?;
-    Ok(decided)
+    /* The pairing is claimed for this decision before anything is sent, so a
+    second press has nothing left to decide, and it is put back if the send
+    fails so one unreachable service does not strand a pairing forever. */
+    let claimed = runtime.begin_decision(now_seconds()?)?;
+    match send_decision(store, name, &claimed, expected).await {
+        Ok(decided) => {
+            runtime.settle(&decided)?;
+            Ok(decided)
+        }
+        Err(error) => {
+            runtime.abandon_decision(&claimed)?;
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]
@@ -325,8 +412,10 @@ pub async fn pairing_status(
     let session = runtime.read()?.ok_or(ProFailure::InvalidInput)?;
     /* A settled pairing is not asked about again. The row is gone from the
     server within ten minutes of delivery, and a poll after that would turn a
-    finished pairing into an error message about a code nobody is holding. */
-    if session.phase.settled() {
+    finished pairing into an error message about a code nobody is holding. A
+    pairing being decided is left alone for a different reason: its answer is
+    already on its way, and the server would still call it claimed. */
+    if session.phase.quiet() {
         return Ok(PairingSession {
             seconds_remaining: remaining(session.expires_at, now_seconds()?),
             ..session
@@ -657,6 +746,129 @@ mod tests {
         assert_eq!(
             parse_status(&json!({}), &session, NOW + 5),
             Err(ProFailure::Service)
+        );
+    }
+
+    fn claimed() -> PairingSession {
+        parse_status(
+            &json!({
+                "status": "claimed",
+                "expires_at": NOW + PAIRING_TTL_SECONDS,
+                "device": { "name": "Lucas iPhone", "platform": "ios" },
+            }),
+            &pending(),
+            NOW + 5,
+        )
+        .expect("a claimed status")
+    }
+
+    #[test]
+    fn a_second_approve_is_refused_while_the_first_is_still_in_flight() {
+        /* Both calls used to read, both used to pass the guard, and both used
+        to send. Two approvals of one code is two device grants asked for by a
+        person who pressed a button once. */
+        let runtime = PairingRuntime::default();
+        runtime.write(Some(claimed())).expect("a claimed pairing");
+
+        let first = runtime
+            .begin_decision(NOW + 6)
+            .expect("the first decision is allowed");
+        assert_eq!(first.phase, PairingPhase::Claimed);
+        assert_eq!(
+            runtime.begin_decision(NOW + 6).map(|_| ()),
+            Err(ProFailure::InvalidInput),
+            "a second decision must be refused while one is in flight"
+        );
+        /* And the runtime says so out loud rather than still reading claimed. */
+        assert_eq!(
+            runtime.read().expect("the held pairing").map(|value| value.phase),
+            Some(PairingPhase::Deciding)
+        );
+    }
+
+    #[test]
+    fn a_status_poll_never_erases_a_decision_in_flight() {
+        /* The panel polls every two seconds. A poll landing mid approval used
+        to write the server's claimed status back over the transition, which
+        handed a second press a pairing that looked decidable again. */
+        let runtime = PairingRuntime::default();
+        runtime.write(Some(claimed())).expect("a claimed pairing");
+        runtime.begin_decision(NOW + 6).expect("the decision starts");
+        let held = runtime
+            .read()
+            .expect("the held pairing")
+            .expect("a pairing is held");
+        assert!(held.phase.quiet(), "a deciding pairing must not be polled");
+        assert!(!held.phase.settled(), "and it is not finished either");
+        assert!(PairingPhase::Claimed.quiet() == false);
+        assert!(PairingPhase::Pending.quiet() == false);
+    }
+
+    #[test]
+    fn a_decision_that_could_not_be_sent_puts_the_pairing_back() {
+        let runtime = PairingRuntime::default();
+        runtime.write(Some(claimed())).expect("a claimed pairing");
+        let held = runtime.begin_decision(NOW + 6).expect("the decision starts");
+        runtime.abandon_decision(&held).expect("the decision is abandoned");
+        assert_eq!(
+            runtime.read().expect("the held pairing").map(|value| value.phase),
+            Some(PairingPhase::Claimed)
+        );
+        runtime
+            .begin_decision(NOW + 7)
+            .expect("and the pairing can be decided again");
+    }
+
+    #[test]
+    fn a_pairing_cancelled_during_an_approval_is_not_resurrected() {
+        /* Closing the panel mid approval cleared the pairing, and the answer
+        arriving afterwards used to put it straight back on screen, complete
+        with a QR code for a code nobody was holding any more. */
+        let runtime = PairingRuntime::default();
+        runtime.write(Some(claimed())).expect("a claimed pairing");
+        let held = runtime.begin_decision(NOW + 6).expect("the decision starts");
+        runtime.write(None).expect("the panel is closed");
+
+        let decided = parse_decision(
+            &json!({ "status": "approved" }),
+            &held,
+            PairingPhase::Approved,
+            NOW + 7,
+        )
+        .expect("the approval still parses");
+        assert_eq!(
+            runtime.settle(&decided).expect("the write back is attempted"),
+            false
+        );
+        assert_eq!(runtime.read().expect("the runtime"), None);
+    }
+
+    #[test]
+    fn a_decision_never_lands_on_the_pairing_that_replaced_it() {
+        let runtime = PairingRuntime::default();
+        runtime.write(Some(claimed())).expect("a claimed pairing");
+        let held = runtime.begin_decision(NOW + 6).expect("the decision starts");
+
+        let mut replacement = created();
+        replacement["code"] = Value::String("ZZ23ZZZZ".to_string());
+        replacement["url"] = Value::String(format!("{PAIRING_URL_PREFIX}ZZ23ZZZZ"));
+        let newer = parse_create(&replacement, NOW + 7).expect("a second pairing");
+        runtime.write(Some(newer)).expect("the second pairing is held");
+
+        let decided = parse_decision(
+            &json!({ "status": "approved" }),
+            &held,
+            PairingPhase::Approved,
+            NOW + 8,
+        )
+        .expect("the approval still parses");
+        assert_eq!(
+            runtime.settle(&decided).expect("the write back is attempted"),
+            false
+        );
+        assert_eq!(
+            runtime.read().expect("the runtime").map(|value| value.code),
+            Some("ZZ23ZZZZ".to_string())
         );
     }
 

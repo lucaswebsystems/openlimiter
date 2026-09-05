@@ -7,6 +7,7 @@ import {
   SETTLED_COPY,
   claimHeadline,
   countdownText,
+  decidingHeadline,
   isSettled,
   pairingFailureSentence,
 } from "./pairing-states.js";
@@ -44,6 +45,10 @@ test("every phase a pairing can reach has a drawn state", () => {
       assert.match(source, /claimedState\(panel, session\)/u);
       continue;
     }
+    if (phase === "deciding") {
+      assert.match(source, /decidingState\(panel, session\)/u);
+      continue;
+    }
     assert.ok(
       Object.prototype.hasOwnProperty.call(SETTLED_COPY, phase),
       phase + " has no settled copy",
@@ -52,6 +57,21 @@ test("every phase a pairing can reach has a drawn state", () => {
   /* And the two that are not phases at all: nothing yet, and a failure. */
   assert.match(source, /idleState\(panel\)/u);
   assert.match(source, /failureState\(panel, state\.message\)/u);
+});
+
+test("a decision in flight has its own state and offers no second press", () => {
+  const source = panelSource();
+  const deciding = source.slice(
+    source.indexOf("function decidingState("),
+    source.indexOf("function settledState("),
+  );
+  assert.match(deciding, /decidingHeadline\(session\.deviceName\)/u);
+  assert.match(deciding, /does not need pressing again/u);
+  /* Neither button is drawn while the answer is on its way. Pressing Approve
+     twice is exactly what the transition in Rust exists to refuse. */
+  assert.equal(/phone-approve|phone-deny/u.test(deciding), false);
+  assert.equal(decidingHeadline("Lucas iPhone"), "Deciding about Lucas iPhone");
+  assert.equal(decidingHeadline(""), "Deciding about the phone");
 });
 
 test("the countdown counts down and never goes negative", () => {
@@ -135,6 +155,8 @@ test("no copy in the pairing surface carries a dash of any kind", () => {
     countdownText(90),
     countdownText(0),
     claimHeadline("Lucas iPhone"),
+    decidingHeadline("Lucas iPhone"),
+    decidingHeadline(null),
     pairingFailureSentence({ reason: "backend_absent" }),
     pairingFailureSentence({ kind: "device_cap_reached" }),
     pairingFailureSentence({ kind: "entitlement_required" }),

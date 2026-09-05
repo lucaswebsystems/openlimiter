@@ -30,6 +30,7 @@ import {
   SETTLED_COPY,
   claimHeadline,
   countdownText,
+  decidingHeadline,
   isSettled,
   pairingFailureSentence,
 } from "./pairing-states.js";
@@ -151,6 +152,21 @@ function claimedState(panel, session) {
   panel.append(actions);
 }
 
+/* Between the press and the answer. The buttons are gone, because pressing
+   Approve twice is the thing the window is holding off, and saying nothing at
+   all would leave a person pressing it again to find out. */
+function decidingState(panel, session) {
+  panel.append(element("strong", null, decidingHeadline(session.deviceName)));
+  panel.append(
+    element(
+      "p",
+      "note tight",
+      "Telling the service. This takes a moment and does not need pressing again.",
+    ),
+  );
+  return panel;
+}
+
 function settledState(panel, session) {
   const finished = SETTLED_COPY[session.phase];
   const head = element("div", "plan-headline");
@@ -200,6 +216,10 @@ export function renderPairing() {
   }
   if (session.phase === "claimed") {
     claimedState(panel, session);
+    return;
+  }
+  if (session.phase === "deciding") {
+    decidingState(panel, session);
     return;
   }
   if (isSettled(session.phase)) {
