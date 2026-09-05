@@ -183,9 +183,9 @@ export function DownloadChoice({
           {/* Desktop Titlebar Chrome */}
           <div className="flex items-center justify-between border-b border-hairline bg-raised/70 px-4 py-3">
             <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-[#FF5F57]/90" aria-hidden="true" />
-              <span className="h-3 w-3 rounded-full bg-[#FEBC2E]/90" aria-hidden="true" />
-              <span className="h-3 w-3 rounded-full bg-[#28C840]/90" aria-hidden="true" />
+              <span className="h-3 w-3 rounded-full bg-window-close/90" aria-hidden="true" />
+              <span className="h-3 w-3 rounded-full bg-window-minimise/90" aria-hidden="true" />
+              <span className="h-3 w-3 rounded-full bg-window-zoom/90" aria-hidden="true" />
             </div>
             <span className="heading-face text-xs font-semibold text-muted tracking-tight">
               OpenLimiter Desktop
