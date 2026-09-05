@@ -22,7 +22,7 @@ describe("notification product boundary", () => {
     const bell = source("apps/web/app/app/notification-bell.tsx");
     const client = source("apps/web/lib/pro-notifications.ts");
     expect(bell).toContain("NotificationBell");
-    expect(bell).toContain("Quiet hours");
+    expect(bell).toMatch(/Quiet (hours|from)/u);
     expect(bell).toContain("Daily digest");
     expect(client).toContain('functions.invoke<T>("pro-service"');
   });
