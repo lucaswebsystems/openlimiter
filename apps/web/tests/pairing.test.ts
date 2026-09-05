@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   initialPairState,
+  PAIRING_POLL_MAX_MILLISECONDS,
+  PAIRING_POLL_MILLISECONDS,
   PAIRING_TTL_SECONDS,
   pairCodeFromFragment,
   pairDeviceMeta,
@@ -30,6 +32,7 @@ function waiting(overrides: Partial<PairState> = {}): PairState {
     code: CODE,
     claimId: "8f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f",
     expiresAt: null,
+    pollInterval: PAIRING_POLL_MILLISECONDS,
     session: null,
     ...overrides,
   };
@@ -129,9 +132,33 @@ describe("pairStateAfterPoll", () => {
     expect(pairStateAfterPoll(current, { status: "claimed" }, 200)).toBe(current);
   });
 
-  it("holds the current state through a rate limit rather than failing", () => {
+  it("answers a rate limit by backing off rather than by failing", () => {
+    const current = waiting({ expiresAt: 1_800 });
+    const next = pairStateAfterPoll(current, { error: "rate_limited" }, 429);
+    expect(next.phase).toBe("waiting");
+    /* A NEW object, or the timer that was refused keeps its old interval. */
+    expect(next).not.toBe(current);
+    expect(next.pollInterval).toBe(PAIRING_POLL_MILLISECONDS * 2);
+    expect(next.expiresAt).toBe(1_800);
+    expect(next.claimId).toBe(current.claimId);
+  });
+
+  it("doubles the gap on every refusal and stops at the ceiling", () => {
+    let current = waiting();
+    const gaps: number[] = [];
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      current = pairStateAfterPoll(current, { error: "rate_limited" }, 429);
+      gaps.push(current.pollInterval);
+    }
+    expect(gaps).toEqual([4_000, 8_000, 15_000, 15_000, 15_000]);
+    expect(PAIRING_POLL_MAX_MILLISECONDS).toBe(15_000);
+  });
+
+  it("leaves the interval alone while a poll is merely waiting", () => {
     const current = waiting();
-    expect(pairStateAfterPoll(current, { error: "rate_limited" }, 429)).toBe(current);
+    expect(pairStateAfterPoll(current, { status: "pending" }, 200).pollInterval).toBe(
+      PAIRING_POLL_MILLISECONDS,
+    );
   });
 
   it("reads a denial and an expiry", () => {

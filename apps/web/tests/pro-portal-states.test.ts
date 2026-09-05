@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  authRedirectUrl,
   devicesOf,
   entitlementOf,
   failureForStatus,
@@ -191,6 +192,22 @@ describe("devicesOf", () => {
   it("returns nothing for anything that is not a list", () => {
     expect(devicesOf(null)).toEqual([]);
     expect(devicesOf({})).toEqual([]);
+  });
+});
+
+describe("authRedirectUrl", () => {
+  it("returns the page, with no query and no fragment on it", () => {
+    window.history.replaceState(null, "", "/pro?checkout=success#code=ABCD2345");
+    expect(authRedirectUrl()).toBe(`${window.location.origin}/pro`);
+  });
+
+  it("does not carry a fragment somebody put in the link", () => {
+    /* Cutting at the question mark used to leave this attached, which handed
+       the identity provider an address a crafted link had chosen. */
+    window.history.replaceState(null, "", "/pro#https://elsewhere.example");
+    expect(authRedirectUrl()).toBe(`${window.location.origin}/pro`);
+    expect(authRedirectUrl()).not.toContain("#");
+    expect(authRedirectUrl()).not.toContain("elsewhere");
   });
 });
 

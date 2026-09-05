@@ -44,6 +44,27 @@ import {
 
 export type JsonLdNode = Record<string, unknown>;
 
+/**
+ * One block, serialised for a script element.
+ *
+ * The three characters that can end a script early, or start a comment inside
+ * one, are written as their JSON unicode escapes: `<`, `>` and `&`. The result
+ * is the same JSON by every parser, and there is no sequence a value can carry
+ * that the HTML parser will read as markup. `</script>` inside a description
+ * becomes text, `<!--` becomes text, and an entity becomes text.
+ *
+ * Every string on this site is authored, so today nothing needs escaping. That
+ * is exactly the reason to do it here rather than to rely on remembering: the
+ * descriptions come from five message catalogs, and a catalog is the kind of
+ * file that eventually holds a sentence nobody reviewed with this in mind.
+ */
+export function jsonLdText(data: JsonLdNode): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+}
+
 const SCHEMA = "https://schema.org";
 
 /**

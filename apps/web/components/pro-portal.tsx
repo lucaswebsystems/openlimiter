@@ -4,6 +4,7 @@ import { createClient, type Session, type SupabaseClient } from "@supabase/supab
 import { useTranslations } from "next-intl";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  authRedirectUrl,
   openProBilling,
   proAccessState,
   proCanManageBilling,
@@ -189,7 +190,7 @@ export function ProPortal({ locale }: { locale: string }) {
     setSignInMode("working");
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.href.split("?")[0] },
+      options: { redirectTo: authRedirectUrl() },
     });
     if (error !== null) setSignInMode("error");
   }
@@ -200,7 +201,7 @@ export function ProPortal({ locale }: { locale: string }) {
     setSignInMode("working");
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: window.location.href.split("?")[0] },
+      options: { emailRedirectTo: authRedirectUrl() },
     });
     setSignInMode(error === null ? "sent" : "error");
   }

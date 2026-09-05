@@ -99,6 +99,7 @@ export function PairFlow() {
     code: null,
     claimId: null,
     expiresAt: null,
+    pollInterval: PAIRING_POLL_MILLISECONDS,
     session: null,
   });
   const [remaining, setRemaining] = useState<number | null>(null);
@@ -128,7 +129,15 @@ export function PairFlow() {
     };
   }, []);
 
-  /* Ask the server whether the desktop has answered, until it has or time is up. */
+  /*
+    Ask the server whether the desktop has answered, until it has or time is up.
+
+    The interval comes off the state rather than from a constant, so a refused
+    poll actually slows the next one down: `pairStateAfterPoll` answers a 429
+    with a new state carrying twice the gap, this effect sees a state it has not
+    seen before, and the timer is rebuilt at the new rate. A poll that is merely
+    waiting returns the same object, so the steady state rebuilds nothing.
+  */
   useEffect(() => {
     if (state.phase !== "waiting" || state.claimId === null) return;
     const claimId = state.claimId;
@@ -143,7 +152,7 @@ export function PairFlow() {
           setState((current) => pairStateAfterPoll(current, response.body, response.status));
         }
       });
-    }, PAIRING_POLL_MILLISECONDS);
+    }, state.pollInterval);
     return () => {
       live = false;
       window.clearInterval(timer);
