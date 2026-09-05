@@ -710,7 +710,18 @@ fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -
 /// The npm package, the standalone install and the shim all put the binary
 /// inside a directory that carries the product's own name, which is what
 /// separates it from another product that named its binary `kimi`.
-const KIMI_CODE_DIRECTORY_NAMES: [&str; 3] = ["kimi-code", "kimi_code", "kimicode"];
+///
+/// `kimi-cli` is here because a `uv tool install` names the tool directory
+/// after the distribution rather than the product, and `kimi code` because an
+/// installer that unpacks into a folder a human named writes the words with a
+/// space. The comparison is lower cased, so the capitalisation does not matter.
+const KIMI_CODE_DIRECTORY_NAMES: [&str; 5] = [
+    "kimi-code",
+    "kimi_code",
+    "kimicode",
+    "kimi-cli",
+    "kimi code",
+];
 
 /// Whether this directory sits inside a Kimi Code installation.
 fn inside_kimi_code_installation(directory: &Path) -> bool {
@@ -763,6 +774,72 @@ fn executable_present(provider: DetectedProviderId, context: &DiscoveryContext) 
             .any(|name| safe_path_present(&directory.join(name)))
             && (corroborated || inside_kimi_code_installation(directory))
     })
+}
+
+/// Where a client's own package metadata sits, relative to the directory its
+/// executable was found in.
+///
+/// A shim in `bin/` with the manifest one level up is the npm layout, and a
+/// manifest beside the binary is the flat one. Nothing deeper is walked: this
+/// is a lookup for a version a client already published about itself, not a
+/// search of the filesystem.
+const CLIENT_MANIFEST_PATHS: [&[&str]; 2] = [&["package.json"], &["..", "package.json"]];
+
+/// Longest version string accepted, matching `valid_client_version` in
+/// `net.rs`, which is the boundary that decides whether one may be sent.
+const MAX_CLIENT_VERSION_BYTES: usize = 32;
+
+/// The version of a provider's installed client, when the installation states
+/// one, and nothing when it does not.
+///
+/// Read from the package metadata the client ships beside its own executable,
+/// never by RUNNING it: the same rule finding F-205 settled, since executing
+/// a binary to ask whose it is costs more than the question is worth. Absent,
+/// unreadable, or malformed metadata is `None`, and a caller that wanted to
+/// state a version omits the claim instead of inventing one.
+fn installed_client_version(
+    provider: DetectedProviderId,
+    context: &DiscoveryContext,
+) -> Option<String> {
+    let names = executable_names(provider, context.platform);
+    for directory in &context.path_entries {
+        if !names
+            .iter()
+            .any(|name| safe_path_present(&directory.join(name)))
+        {
+            continue;
+        }
+        for relative in CLIENT_MANIFEST_PATHS {
+            let mut manifest = directory.clone();
+            for part in relative {
+                manifest.push(part);
+            }
+            if let Some(version) = manifest_version(&manifest) {
+                return Some(version);
+            }
+        }
+    }
+    None
+}
+
+fn manifest_version(path: &Path) -> Option<String> {
+    let raw = fsx::bounded_read(path)?;
+    let version = serde_json::from_str::<Value>(&raw)
+        .ok()?
+        .get("version")?
+        .as_str()?
+        .trim()
+        .to_string();
+    let shaped = !version.is_empty()
+        && version.len() <= MAX_CLIENT_VERSION_BYTES
+        && version
+            .bytes()
+            .next()
+            .is_some_and(|byte| byte.is_ascii_alphanumeric())
+        && version
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_' | b'+'));
+    shaped.then_some(version)
 }
 
 fn valid_secret(value: &str) -> bool {
@@ -1353,6 +1430,17 @@ impl DetectionStore {
         report
     }
 
+    /// The version of this provider's installed client, when the installation
+    /// states one on disk.
+    ///
+    /// A reader that borrows another client's request contract uses this to
+    /// say which build it is standing in for. Nothing is executed, and a
+    /// machine that states no version gets `None`, which the request layer
+    /// turns into a silent request rather than a guessed one.
+    pub fn client_version(&self, provider: DetectedProviderId) -> Option<String> {
+        installed_client_version(provider, &self.context)
+    }
+
     pub fn account_ids(&self, provider: DetectedProviderId) -> Vec<String> {
         self.inventory
             .read()
@@ -1931,6 +2019,69 @@ mod tests {
         let kimi = provider(&inventory.report, DetectedProviderId::Kimi);
         assert_eq!(kimi.state, ProviderPresence::InstalledLoggedOut);
         assert_eq!(kimi.recovery, Some(RecoveryAction::SignInToCli));
+    }
+
+    /// A `uv tool install` names the tool directory after the distribution,
+    /// `kimi-cli`, rather than after the product, so an installation that is
+    /// unmistakably Kimi Code sits in a directory the first version of this
+    /// rule did not recognise.
+    #[test]
+    fn kimi_code_installed_by_uv_tool_is_found() {
+        let dir = TempDir::new();
+        let installed = dir
+            .path()
+            .join(".local")
+            .join("share")
+            .join("uv")
+            .join("tools")
+            .join("kimi-cli")
+            .join("bin");
+        write(&installed.join("kimi"), "binary marker");
+        let mut discovery = context(DiscoveryPlatform::Linux, dir.path());
+        discovery.path_entries = vec![installed];
+        let inventory = scan_inventory(&discovery, 1_800_000_000_000);
+        let kimi = provider(&inventory.report, DetectedProviderId::Kimi);
+        assert_eq!(kimi.state, ProviderPresence::InstalledLoggedOut);
+        assert_eq!(kimi.recovery, Some(RecoveryAction::SignInToCli));
+    }
+
+    /// A reader that borrows another client's request contract may state that
+    /// client's version, and only a version the installation published itself.
+    #[test]
+    fn a_client_version_comes_from_the_installation_or_not_at_all() {
+        let dir = TempDir::new();
+        let bin = dir.path().join("bin");
+        write(&bin.join("grok"), "binary marker");
+        let mut discovery = context(DiscoveryPlatform::Linux, dir.path());
+        discovery.path_entries = vec![bin.clone()];
+
+        /* An installation that publishes nothing about itself yields nothing,
+        which is what keeps the request silent rather than inventive. */
+        assert_eq!(
+            installed_client_version(DetectedProviderId::Grok, &discovery),
+            None
+        );
+
+        /* The npm layout: a shim in bin/, the manifest one level up. */
+        write(
+            &dir.path().join("package.json"),
+            r#"{"name":"grok-build","version":"1.4.2"}"#,
+        );
+        assert_eq!(
+            installed_client_version(DetectedProviderId::Grok, &discovery),
+            Some("1.4.2".to_string())
+        );
+
+        /* A manifest that states something which is not a version states no
+        version: it is a file this process does not own. */
+        write(
+            &dir.path().join("package.json"),
+            r#"{"name":"grok-build","version":"1.4.2 (patched by hand)"}"#,
+        );
+        assert_eq!(
+            installed_client_version(DetectedProviderId::Grok, &discovery),
+            None
+        );
     }
 
     #[test]
