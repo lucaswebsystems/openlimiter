@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -30,6 +30,18 @@ const CONTEXT = [
   "</openlimiter_untrusted_data>"
 ].join("\n");
 
+/* The temp root in canonical form, which is the form the product compares
+   against. macOS keeps its temp directory behind a symbolic link (/var is
+   /private/var) and the GitHub Windows runner names its own with an 8.3 short
+   name; the product refuses both as a link in a protected path, so every
+   fixture starts from the canonical spelling and proves the same thing on
+   every operating system. */
+let canonicalTemp: string | undefined;
+async function scratchRoot(): Promise<string> {
+  canonicalTemp ??= await realpath(tmpdir());
+  return canonicalTemp;
+}
+
 const created: string[] = [];
 
 afterEach(async () => {
@@ -39,7 +51,7 @@ afterEach(async () => {
 });
 
 async function fixtureOptions(): Promise<HookInstallOptions> {
-  const homeDirectory = await mkdtemp(path.join(tmpdir(), "openlimiter-hooks-home-"));
+  const homeDirectory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-hooks-home-"));
   created.push(homeDirectory);
   const runtime = path.join(homeDirectory, "Runtime ü with spaces");
   await mkdir(runtime, { recursive: true });
@@ -361,7 +373,7 @@ describe("hook configuration mutation", () => {
   });
 
   it("fails closed when a Windows command shim cannot be executed without a shell", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-agent-shim-"));
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-agent-shim-"));
     created.push(directory);
     await writeFile(path.join(directory, "opencode.cmd"), "@exit /b 0\n", "utf8");
     await expect(detectAgentInstallation("opencode", {
@@ -371,7 +383,7 @@ describe("hook configuration mutation", () => {
   });
 
   it("ignores relative PATH entries during executable discovery", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-relative-path-"));
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-relative-path-"));
     created.push(directory);
     await writeFile(path.join(directory, "codex.exe"), "fixture", "utf8");
     await expect(detectAgentInstallation("codex", {
@@ -524,7 +536,7 @@ describe("agent hook protocol", () => {
         rawInput: JSON.stringify({ ...inputs[agent], unexpected: true }),
         context: CONTEXT
       }).stdout).toBe(emptyOutput);
-      const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-hook-missing-"));
+      const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-hook-missing-"));
       created.push(directory);
       const missingContext = await agentContextFromCache(
         directory,

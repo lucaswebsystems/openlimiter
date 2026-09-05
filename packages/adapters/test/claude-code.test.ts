@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
@@ -28,6 +28,18 @@ const advice: Advice = {
   }],
   unknownProviders: ["CODEX"]
 };
+
+/* The temp root in canonical form, which is the form the product compares
+   against. macOS keeps its temp directory behind a symbolic link (/var is
+   /private/var) and the GitHub Windows runner names its own with an 8.3 short
+   name; the product refuses both as a link in a protected path, so every
+   fixture starts from the canonical spelling and proves the same thing on
+   every operating system. */
+let canonicalTemp: string | undefined;
+async function scratchRoot(): Promise<string> {
+  canonicalTemp ??= await realpath(tmpdir());
+  return canonicalTemp;
+}
 
 const created: string[] = [];
 
@@ -150,7 +162,7 @@ describe("Claude adapter", () => {
   });
 
   it("reads only the cache within the hook budget", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-adapter-test-"));
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-adapter-test-"));
     created.push(directory);
     const snapshot: Snapshot = {
       provider: "CLAUDE",
@@ -188,7 +200,7 @@ describe("Claude adapter", () => {
   });
 
   it("rejects an edited shared snapshot rather than injecting it", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-adapter-test-"));
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-adapter-test-"));
     created.push(directory);
     const context = [
       '<openlimiter_untrusted_data version="1">',
@@ -218,7 +230,7 @@ describe("Claude adapter", () => {
   });
 
   it("silently clears an expired shared snapshot", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-adapter-stale-"));
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-adapter-stale-"));
     created.push(directory);
     const file = path.join(directory, "openlimiter-agent-context.json");
     await writeFile(file, JSON.stringify({

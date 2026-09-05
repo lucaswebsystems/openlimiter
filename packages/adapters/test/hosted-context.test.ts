@@ -1,5 +1,5 @@
 import { generateKeyPairSync, sign } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -25,6 +25,18 @@ const DEVICE_A = "33333333-3333-4333-8333-333333333333";
 const DEVICE_B = "44444444-4444-4444-8444-444444444444";
 const EVENT_ID = "55555555-5555-4555-8555-555555555555";
 const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+/* The temp root in canonical form, which is the form the product compares
+   against. macOS keeps its temp directory behind a symbolic link (/var is
+   /private/var) and the GitHub Windows runner names its own with an 8.3 short
+   name; the product refuses both as a link in a protected path, so every
+   fixture starts from the canonical spelling and proves the same thing on
+   every operating system. */
+let canonicalTemp: string | undefined;
+async function scratchRoot(): Promise<string> {
+  canonicalTemp ??= await realpath(tmpdir());
+  return canonicalTemp;
+}
+
 const created: string[] = [];
 
 afterEach(async () => {
@@ -349,7 +361,7 @@ describe("signed hosted context", () => {
   });
 
   it("renders only after trust validation and clears a rejected cache", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-hosted-test-"));
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-hosted-test-"));
     created.push(directory);
     const file = path.join(directory, HOSTED_CONTEXT_FILE_NAME);
     const original = JSON.stringify(signed());
@@ -368,7 +380,7 @@ describe("signed hosted context", () => {
   });
 
   it("clears hosted context when the routing kill switch is off", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-hosted-disabled-"));
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-hosted-disabled-"));
     created.push(directory);
     const file = path.join(directory, HOSTED_CONTEXT_FILE_NAME);
     await writeFile(file, JSON.stringify(signed()), "utf8");
@@ -388,7 +400,7 @@ describe("signed hosted context", () => {
         ? "2026-09-01T12:06:00.000Z"
         : index === 37 ? "2026-09-01T14:00:00.000Z" : null
     }));
-    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-hosted-spill-"));
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-hosted-spill-"));
     created.push(directory);
     await writeFile(
       path.join(directory, HOSTED_CONTEXT_FILE_NAME),
@@ -414,7 +426,7 @@ describe("signed hosted context", () => {
       level: index === 37 ? "90" : "60",
       reset_at: null
     }));
-    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-hosted-blocked-"));
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-hosted-blocked-"));
     created.push(directory);
     await writeFile(
       path.join(directory, HOSTED_CONTEXT_FILE_NAME),
@@ -435,7 +447,7 @@ describe("signed hosted context", () => {
   });
 
   it("does not follow a linked state directory", async () => {
-    const parent = await mkdtemp(path.join(tmpdir(), "openlimiter-hosted-link-"));
+    const parent = await mkdtemp(path.join(await scratchRoot(), "openlimiter-hosted-link-"));
     created.push(parent);
     const outside = path.join(parent, "outside");
     const linked = path.join(parent, "linked-state");
@@ -466,7 +478,9 @@ describe("signed hosted context", () => {
         trust: trust({ currentHostedRevocationEpoch: 8 })
       });
       for (const scenario of scenarios) {
-        const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-hosted-wrapper-"));
+        const directory = await mkdtemp(
+          path.join(await scratchRoot(), "openlimiter-hosted-wrapper-")
+        );
         created.push(directory);
         await writeFile(
           path.join(directory, HOSTED_CONTEXT_FILE_NAME),

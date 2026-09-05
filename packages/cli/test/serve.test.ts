@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -20,11 +20,23 @@ import {
  * never reach.
  */
 
+/* The temp root in canonical form, which is the form the product compares
+   against. macOS keeps its temp directory behind a symbolic link (/var is
+   /private/var) and the GitHub Windows runner names its own with an 8.3 short
+   name; the product refuses both as a link in a protected path, so every
+   fixture starts from the canonical spelling and proves the same thing on
+   every operating system. */
+let canonicalTemp: string | undefined;
+async function scratchRoot(): Promise<string> {
+  canonicalTemp ??= await realpath(tmpdir());
+  return canonicalTemp;
+}
+
 const directories: string[] = [];
 const servers: QuotaServerHandle[] = [];
 
 async function temporaryDirectory(): Promise<string> {
-  const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-serve-test-"));
+  const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-serve-test-"));
   directories.push(directory);
   return directory;
 }

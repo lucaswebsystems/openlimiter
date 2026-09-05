@@ -75,7 +75,9 @@ if (manifestIndex >= 0) {
     );
     const entry = platforms[name];
     requireCondition(
-      typeof entry?.url === "string" && entry.url.startsWith("https://github.com/"),
+      typeof entry?.url === "string" &&
+        (entry.url.startsWith("https://github.com/lucaswebsystems/openlimiter/") ||
+          entry.url.startsWith("https://api.github.com/repos/lucaswebsystems/openlimiter/releases/assets/")),
       `Updater platform ${name} has an unreviewed URL`,
     );
     requireCondition(

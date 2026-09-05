@@ -1,5 +1,5 @@
 import { createPublicKey } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
@@ -20,12 +20,24 @@ import { readSnapshotCache, writeSnapshotCache, type Snapshot } from "@openlimit
 import { afterEach, describe, expect, it } from "vitest";
 import { persistSnapshots, readStandardInputText, runCli } from "../src/index.js";
 
+/* The temp root in canonical form, which is the form the product compares
+   against. macOS keeps its temp directory behind a symbolic link (/var is
+   /private/var) and the GitHub Windows runner names its own with an 8.3 short
+   name; the product refuses both as a link in a protected path, so every
+   fixture starts from the canonical spelling and proves the same thing on
+   every operating system. */
+let canonicalTemp: string | undefined;
+async function scratchRoot(): Promise<string> {
+  canonicalTemp ??= await realpath(tmpdir());
+  return canonicalTemp;
+}
+
 const created: string[] = [];
 const HOSTED_FIXTURE_NOW = "2026-09-01T12:05:00.000Z";
 const HOSTED_FIXTURE_OWNER_SID = "S-1-5-21-1111111111-2222222222-3333333333-1001";
 
 async function temporaryDirectory(prefix: string): Promise<string> {
-  const directory = await mkdtemp(path.join(tmpdir(), prefix));
+  const directory = await mkdtemp(path.join(await scratchRoot(), prefix));
   created.push(directory);
   return directory;
 }
@@ -244,7 +256,9 @@ describe("hook CLI", () => {
     const dependencies = {
       stateDirectory,
       homeDirectory,
-      platform: "win32" as const,
+      /* The host's own layout. A Windows layout under a Unix home is a
+         backslash string Unix reads as one file name in the working directory. */
+      platform: process.platform,
       now: () => HOSTED_FIXTURE_NOW,
       /* A recorded owner only descriptor, with a fabricated account id. The
          Windows ownership rule itself is proved in the adapters suite. */
@@ -264,9 +278,12 @@ describe("hook CLI", () => {
     expect(await runCli([
       "hook", "--agent", "codex", "--host-version", "0.152.0"
     ], dependencies)).toEqual({ exitCode: 0, stdout: "", stderr: "" });
-    const trustFile = hostedTrustFilePath("win32", homeDirectory);
-    await mkdir(path.dirname(trustFile), { recursive: true });
-    await writeFile(trustFile, JSON.stringify(fixture.trust_document), "utf8");
+    const trustFile = hostedTrustFilePath(process.platform, homeDirectory);
+    await mkdir(path.dirname(trustFile), { recursive: true, mode: 0o700 });
+    await writeFile(trustFile, JSON.stringify(fixture.trust_document), {
+      encoding: "utf8",
+      mode: 0o600
+    });
     expect((await runCli([
       "hook", "--agent", "codex", "--host-version", "0.152.0"
     ], dependencies)).stdout).toContain("hosted_status provider=ANTHROPIC");
