@@ -24,7 +24,7 @@ jobs:
     environment: npm
     steps:
       - name: Check out source
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Install pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86
@@ -32,7 +32,7 @@ jobs:
           version: 9.15.0
 
       - name: Install Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 24.15.0
           registry-url: https://registry.npmjs.org
@@ -129,13 +129,21 @@ jobs:
           test -f "${destination}/openlimiter-${EXPECTED_VERSION}.tgz"
 
       - name: Publish core
-        run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-core-${{ inputs.version }}.tgz" --access public --provenance
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-core-${EXPECTED_VERSION}.tgz" --access public --provenance
 
       - name: Publish connectors
-        run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-connectors-${{ inputs.version }}.tgz" --access public --provenance
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-connectors-${EXPECTED_VERSION}.tgz" --access public --provenance
 
       - name: Publish adapters
-        run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-adapters-${{ inputs.version }}.tgz" --access public --provenance
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-adapters-${EXPECTED_VERSION}.tgz" --access public --provenance
 
       - name: Publish CLI
-        run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-${{ inputs.version }}.tgz" --access public --provenance
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-${EXPECTED_VERSION}.tgz" --access public --provenance

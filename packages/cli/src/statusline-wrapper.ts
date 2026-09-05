@@ -141,6 +141,11 @@ export async function runStatuslineWrapper(
     originalCommand,
     payload,
     options.timeoutMilliseconds ?? STATUSLINE_WRAPPER_TIMEOUT_MILLISECONDS,
+    // A statusline command is a user configured shell command string (pipes, quoting,
+    // env expansion), not an argv array: shell:true is required to honour it unchanged,
+    // exactly as encodeWrappedStatuslineCommand's contract above documents. The string
+    // is never built from untrusted network input; it is the user's own local setting.
+    // nosemgrep: javascript.lang.security.audit.spawn-shell-true.spawn-shell-true, javascript.lang.security.detect-child-process.detect-child-process
     options.spawnCommand ?? ((command) => spawn(command, {
       shell: true,
       windowsHide: true,

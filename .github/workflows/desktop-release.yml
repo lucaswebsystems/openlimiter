@@ -204,11 +204,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_HTTP_TIMEOUT: 30
+          TAG: ${{ inputs.tag }}
+          REPO: ${{ github.repository }}
+          PATTERN: ${{ matrix.pattern }}
         run: |
           set -euo pipefail
           artifact_dir="$RUNNER_TEMP/openlimiter-release"
           mkdir -p "$artifact_dir"
-          timeout 120s gh release download "${{ inputs.tag }}" --repo "${{ github.repository }}" --pattern "${{ matrix.pattern }}" --dir "$artifact_dir"
+          timeout 120s gh release download "$TAG" --repo "$REPO" --pattern "$PATTERN" --dir "$artifact_dir"
 
       - name: Verify the existing Windows installer installs and launches
         if: matrix.os == 'windows-latest'
@@ -256,10 +259,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_HTTP_TIMEOUT: 30
+          TAG: ${{ inputs.tag || github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/openlimiter-updater"
-          timeout 120s gh release download "${{ inputs.tag || github.ref_name }}" --repo "${{ github.repository }}" --pattern latest.json --dir "$RUNNER_TEMP/openlimiter-updater"
+          timeout 120s gh release download "$TAG" --repo "$REPO" --pattern latest.json --dir "$RUNNER_TEMP/openlimiter-updater"
 
       - name: Verify updater endpoint, key, signatures, URLs, and platforms
         run: node .github/scripts/verify-desktop-release-config.mjs --config-only --manifest "$RUNNER_TEMP/openlimiter-updater/latest.json"
