@@ -133,6 +133,14 @@ export interface CliDependencies {
   hostedContextPublicKeys?: HostedTrustLoadOptions["pinnedPublicKeys"];
   hostedTrustConfigRoot?: string;
   /**
+   * How the Windows owner and permissions of the trust file are read.
+   *
+   * The library default asks the operating system. A test injects a recorded
+   * answer instead, so a hostile ownership case can be proved without touching
+   * the security of a real file.
+   */
+  hostedTrustWindowsSecurity?: HostedTrustLoadOptions["windowsSecurity"];
+  /**
    * Called once the serve command is listening.
    *
    * The serve command never returns on its own, so this is the seam a test or
@@ -192,7 +200,10 @@ async function resolvedHostedTrust(
       : { pinnedPublicKeys: dependencies.hostedContextPublicKeys }),
     ...(dependencies.hostedTrustConfigRoot === undefined
       ? {}
-      : { trustedPlatformConfigRoot: dependencies.hostedTrustConfigRoot })
+      : { trustedPlatformConfigRoot: dependencies.hostedTrustConfigRoot }),
+    ...(dependencies.hostedTrustWindowsSecurity === undefined
+      ? {}
+      : { windowsSecurity: dependencies.hostedTrustWindowsSecurity })
   });
 }
 

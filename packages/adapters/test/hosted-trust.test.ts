@@ -26,12 +26,43 @@ import {
   hostedTrustFilePath,
   loadHostedContextTrust,
   validateHostedContextBytes,
+  windowsTrustIsOwnerOnly,
   type HostedContextEnvelope,
-  type HostedTrustDocument
+  type HostedTrustDocument,
+  type WindowsTrustSecurityProbe
 } from "../src/index.js";
 
 const NOW = "2026-09-01T12:05:00.000Z";
 const created: string[] = [];
+
+/*
+ * Recorded Windows security descriptors.
+ *
+ * Every account identifier below is fabricated. The shapes are the ones
+ * Get-Acl returns on Windows 11: a protected owner only descriptor, the
+ * inherited descriptor an ordinary file carries, a descriptor owned by
+ * another account, and one that keeps the owner but readmits a second
+ * principal. No test reads the security of a real file.
+ */
+const OWNER_SID = "S-1-5-21-1111111111-2222222222-3333333333-1001";
+const OWNER_ONLY_DESCRIPTOR = "O:" + OWNER_SID + "G:" + OWNER_SID +
+  "D:PAI(A;;FA;;;" + OWNER_SID + ")";
+const INHERITED_DESCRIPTOR = "O:" + OWNER_SID + "G:" + OWNER_SID +
+  "D:AI(A;ID;0x1301bf;;;S-1-5-21-4444444444-5555555555-6666666666-7777777777)" +
+  "(A;ID;FA;;;SY)(A;ID;FA;;;BA)(A;ID;FA;;;" + OWNER_SID + ")";
+const FOREIGN_OWNER_DESCRIPTOR = "O:S-1-5-18G:" + OWNER_SID +
+  "D:PAI(A;;FA;;;" + OWNER_SID + ")";
+const SHARED_DESCRIPTOR = "O:" + OWNER_SID + "G:" + OWNER_SID +
+  "D:PAI(A;;FA;;;" + OWNER_SID + ")(A;;FA;;;S-1-5-32-544)";
+
+function recordedSecurity(descriptor: string): WindowsTrustSecurityProbe {
+  return async () => ({
+    currentUserSid: OWNER_SID,
+    securityDescriptor: descriptor
+  });
+}
+
+const ownerOnlySecurity = recordedSecurity(OWNER_ONLY_DESCRIPTOR);
 
 interface GoldenFixture {
   fixture_version: number;
@@ -119,6 +150,7 @@ describe("protected hosted trust bridge", () => {
       homeDirectory: home,
       platform: "win32",
       now: NOW,
+      windowsSecurity: ownerOnlySecurity,
       pinnedPublicKeys: { "context-fixture-1": publicKey(fixture), unused: publicKey(fixture) }
     });
     expect(trust).toMatchObject({
@@ -154,6 +186,7 @@ describe("protected hosted trust bridge", () => {
         homeDirectory: home,
         platform: "win32",
         now: NOW,
+        windowsSecurity: ownerOnlySecurity,
         pinnedPublicKeys: { "context-fixture-1": key }
       })).resolves.toBeUndefined();
     }
@@ -162,6 +195,7 @@ describe("protected hosted trust bridge", () => {
       homeDirectory: missing,
       platform: "win32",
       now: NOW,
+      windowsSecurity: ownerOnlySecurity,
       pinnedPublicKeys: { "context-fixture-1": key }
     })).resolves.toBeUndefined();
   });
@@ -178,8 +212,59 @@ describe("protected hosted trust bridge", () => {
       homeDirectory: home,
       platform: "win32",
       now: NOW,
+      windowsSecurity: ownerOnlySecurity,
       pinnedPublicKeys: { "context-fixture-1": publicKey(fixture) }
     })).resolves.toBeUndefined();
+  });
+
+  it("refuses Windows trust that is not owned by the current user alone", async () => {
+    const fixture = await golden();
+    for (const windowsSecurity of [
+      recordedSecurity(INHERITED_DESCRIPTOR),
+      recordedSecurity(FOREIGN_OWNER_DESCRIPTOR),
+      recordedSecurity(SHARED_DESCRIPTOR),
+      recordedSecurity("O:" + OWNER_SID + "G:" + OWNER_SID + "D:NO_ACCESS_CONTROL"),
+      recordedSecurity("not a security descriptor"),
+      (async () => null) as WindowsTrustSecurityProbe,
+      (async () => {
+        throw new Error("probe failure");
+      }) as WindowsTrustSecurityProbe
+    ]) {
+      const home = await temporaryHome();
+      await writeTrust(home, fixture.trust_document);
+      await expect(loadHostedContextTrust({
+        homeDirectory: home,
+        platform: "win32",
+        now: NOW,
+        windowsSecurity,
+        pinnedPublicKeys: { "context-fixture-1": publicKey(fixture) }
+      })).resolves.toBeUndefined();
+    }
+  });
+
+  it("reads owner and access control out of a recorded security descriptor", () => {
+    expect(windowsTrustIsOwnerOnly({
+      currentUserSid: OWNER_SID,
+      securityDescriptor: OWNER_ONLY_DESCRIPTOR
+    })).toBe(true);
+    for (const securityDescriptor of [
+      INHERITED_DESCRIPTOR,
+      FOREIGN_OWNER_DESCRIPTOR,
+      SHARED_DESCRIPTOR,
+      "O:" + OWNER_SID + "G:" + OWNER_SID + "D:P(A;ID;FA;;;" + OWNER_SID + ")",
+      "O:" + OWNER_SID + "G:" + OWNER_SID + "D:PAI(A;;FA;;;" + OWNER_SID,
+      "D:PAI(A;;FA;;;" + OWNER_SID + ")",
+      ""
+    ]) {
+      expect(windowsTrustIsOwnerOnly({
+        currentUserSid: OWNER_SID,
+        securityDescriptor
+      })).toBe(false);
+    }
+    expect(windowsTrustIsOwnerOnly({
+      currentUserSid: "not-a-sid",
+      securityDescriptor: OWNER_ONLY_DESCRIPTOR
+    })).toBe(false);
   });
 
   it.runIf(process.platform !== "win32")(

@@ -22,6 +22,7 @@ import { persistSnapshots, readStandardInputText, runCli } from "../src/index.js
 
 const created: string[] = [];
 const HOSTED_FIXTURE_NOW = "2026-09-01T12:05:00.000Z";
+const HOSTED_FIXTURE_OWNER_SID = "S-1-5-21-1111111111-2222222222-3333333333-1001";
 
 async function temporaryDirectory(prefix: string): Promise<string> {
   const directory = await mkdtemp(path.join(tmpdir(), prefix));
@@ -245,6 +246,14 @@ describe("hook CLI", () => {
       homeDirectory,
       platform: "win32" as const,
       now: () => HOSTED_FIXTURE_NOW,
+      /* A recorded owner only descriptor, with a fabricated account id. The
+         Windows ownership rule itself is proved in the adapters suite. */
+      hostedTrustWindowsSecurity: async () => ({
+        currentUserSid: HOSTED_FIXTURE_OWNER_SID,
+        securityDescriptor: "O:" + HOSTED_FIXTURE_OWNER_SID +
+          "G:" + HOSTED_FIXTURE_OWNER_SID +
+          "D:PAI(A;;FA;;;" + HOSTED_FIXTURE_OWNER_SID + ")"
+      }),
       environment: {
         APPDATA: attackerDirectory,
         OPENLIMITER_HOSTED_TRUST_PATH: path.join(attackerDirectory, "hosted-trust.json")
