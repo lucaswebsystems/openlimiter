@@ -202,6 +202,9 @@
 
   /* Shared component geometry */
   --ol-control-height: 2.25rem;
+  /* The tall control: the sign in buttons on every surface, and the smallest
+     target a thumb can be asked to hit on a phone. */
+  --ol-control-height-touch: 2.75rem;
   --ol-row-min-height: 9rem;
   --ol-first-run-row-min-height: 3.75rem;
   --ol-window-mobile-width: 17rem;
