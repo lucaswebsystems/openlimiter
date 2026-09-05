@@ -256,7 +256,9 @@ describe("hook CLI", () => {
     const dependencies = {
       stateDirectory,
       homeDirectory,
-      platform: "win32" as const,
+      /* The host's own layout. A Windows layout under a Unix home is a
+         backslash string Unix reads as one file name in the working directory. */
+      platform: process.platform,
       now: () => HOSTED_FIXTURE_NOW,
       /* A recorded owner only descriptor, with a fabricated account id. The
          Windows ownership rule itself is proved in the adapters suite. */
@@ -276,9 +278,12 @@ describe("hook CLI", () => {
     expect(await runCli([
       "hook", "--agent", "codex", "--host-version", "0.152.0"
     ], dependencies)).toEqual({ exitCode: 0, stdout: "", stderr: "" });
-    const trustFile = hostedTrustFilePath("win32", homeDirectory);
-    await mkdir(path.dirname(trustFile), { recursive: true });
-    await writeFile(trustFile, JSON.stringify(fixture.trust_document), "utf8");
+    const trustFile = hostedTrustFilePath(process.platform, homeDirectory);
+    await mkdir(path.dirname(trustFile), { recursive: true, mode: 0o700 });
+    await writeFile(trustFile, JSON.stringify(fixture.trust_document), {
+      encoding: "utf8",
+      mode: 0o600
+    });
     expect((await runCli([
       "hook", "--agent", "codex", "--host-version", "0.152.0"
     ], dependencies)).stdout).toContain("hosted_status provider=ANTHROPIC");

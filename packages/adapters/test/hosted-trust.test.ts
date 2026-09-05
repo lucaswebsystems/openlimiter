@@ -48,6 +48,12 @@ async function scratchRoot(): Promise<string> {
 
 const created: string[] = [];
 
+/* Trust files are laid out for the host this suite runs on. A Windows layout
+   under a Unix home is a backslash string that Unix reads as one file name in
+   the working directory: it wrote junk into the checkout, and the loader then
+   passed against a file that was never where the test claimed it was. */
+const HOST_PLATFORM = process.platform;
+
 /*
  * Recorded Windows security descriptors.
  *
@@ -123,14 +129,20 @@ async function temporaryHome(): Promise<string> {
   return home;
 }
 
+/* Owner only modes throughout, so on a POSIX host the document is the only
+   thing under test; on Windows the recorded descriptor plays that part. */
 async function writeTrust(
   home: string,
-  document: HostedTrustDocument,
-  platform: NodeJS.Platform = "win32"
+  document: HostedTrustDocument | string,
+  platform: NodeJS.Platform = HOST_PLATFORM
 ): Promise<string> {
   const file = hostedTrustFilePath(platform, home);
   await mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-  await writeFile(file, JSON.stringify(document), { encoding: "utf8", mode: 0o600 });
+  await writeFile(
+    file,
+    typeof document === "string" ? document : JSON.stringify(document),
+    { encoding: "utf8", mode: 0o600 }
+  );
   return file;
 }
 
@@ -163,8 +175,9 @@ describe("protected hosted trust bridge", () => {
     await writeTrust(home, fixture.trust_document);
     const trust = await loadHostedContextTrust({
       homeDirectory: home,
-      platform: "win32",
+      platform: HOST_PLATFORM,
       now: NOW,
+      /* Consulted on Windows alone; a POSIX host reads the file's own mode. */
       windowsSecurity: ownerOnlySecurity,
       pinnedPublicKeys: { "context-fixture-1": publicKey(fixture), unused: publicKey(fixture) }
     });
@@ -194,12 +207,10 @@ describe("protected hosted trust bridge", () => {
       })
     ]) {
       const home = await temporaryHome();
-      const file = hostedTrustFilePath("win32", home);
-      await mkdir(path.dirname(file), { recursive: true });
-      await writeFile(file, contents, "utf8");
+      await writeTrust(home, contents);
       await expect(loadHostedContextTrust({
         homeDirectory: home,
-        platform: "win32",
+        platform: HOST_PLATFORM,
         now: NOW,
         windowsSecurity: ownerOnlySecurity,
         pinnedPublicKeys: { "context-fixture-1": key }
@@ -208,7 +219,7 @@ describe("protected hosted trust bridge", () => {
     const missing = await temporaryHome();
     await expect(loadHostedContextTrust({
       homeDirectory: missing,
-      platform: "win32",
+      platform: HOST_PLATFORM,
       now: NOW,
       windowsSecurity: ownerOnlySecurity,
       pinnedPublicKeys: { "context-fixture-1": key }
@@ -216,48 +227,62 @@ describe("protected hosted trust bridge", () => {
   });
 
   it("rejects a junction anywhere in the desktop trust path", async () => {
+    /* A home of its own, and the link sits exactly where the trust directory
+       belongs in the host's layout: a junction on Windows, a symbolic link
+       elsewhere. The document behind it is owner only and is the one that
+       loads two tests up, so the link is the only reason left for a refusal. */
     const fixture = await golden();
     const home = await temporaryHome();
     const outside = await temporaryHome();
-    const file = hostedTrustFilePath("win32", home);
-    await mkdir(path.dirname(path.dirname(file)), { recursive: true });
-    await writeFile(path.join(outside, "hosted-trust.json"), JSON.stringify(fixture.trust_document));
-    await symlink(outside, path.dirname(file), process.platform === "win32" ? "junction" : "dir");
+    const file = hostedTrustFilePath(HOST_PLATFORM, home);
+    await mkdir(path.dirname(path.dirname(file)), { recursive: true, mode: 0o700 });
+    await writeFile(
+      path.join(outside, path.basename(file)),
+      JSON.stringify(fixture.trust_document),
+      { encoding: "utf8", mode: 0o600 }
+    );
+    await symlink(outside, path.dirname(file), HOST_PLATFORM === "win32" ? "junction" : "dir");
     await expect(loadHostedContextTrust({
       homeDirectory: home,
-      platform: "win32",
+      platform: HOST_PLATFORM,
       now: NOW,
       windowsSecurity: ownerOnlySecurity,
       pinnedPublicKeys: { "context-fixture-1": publicKey(fixture) }
     })).resolves.toBeUndefined();
   });
 
-  it("refuses Windows trust that is not owned by the current user alone", async () => {
-    const fixture = await golden();
-    for (const windowsSecurity of [
-      recordedSecurity(INHERITED_DESCRIPTOR),
-      recordedSecurity(FOREIGN_OWNER_DESCRIPTOR),
-      recordedSecurity(SHARED_DESCRIPTOR),
-      recordedSecurity(DENY_DESCRIPTOR),
-      recordedSecurity("O:" + OWNER_SID + "G:" + OWNER_SID + "D:NO_ACCESS_CONTROL"),
-      recordedSecurity("O:" + OWNER_SID + "G:" + OWNER_SID + "D:P"),
-      recordedSecurity("not a security descriptor"),
-      (async () => null) as WindowsTrustSecurityProbe,
-      (async () => {
-        throw new Error("probe failure");
-      }) as WindowsTrustSecurityProbe
-    ]) {
-      const home = await temporaryHome();
-      await writeTrust(home, fixture.trust_document);
-      await expect(loadHostedContextTrust({
-        homeDirectory: home,
-        platform: "win32",
-        now: NOW,
-        windowsSecurity,
-        pinnedPublicKeys: { "context-fixture-1": publicKey(fixture) }
-      })).resolves.toBeUndefined();
+  it.runIf(HOST_PLATFORM === "win32")(
+    "refuses Windows trust that is not owned by the current user alone",
+    async () => {
+      /* The probe is wired in on Windows alone, so this runs where the probe
+         runs. The descriptor grammar it leans on is proved for every host in
+         the next test, and the POSIX ownership rule has its own test below. */
+      const fixture = await golden();
+      for (const windowsSecurity of [
+        recordedSecurity(INHERITED_DESCRIPTOR),
+        recordedSecurity(FOREIGN_OWNER_DESCRIPTOR),
+        recordedSecurity(SHARED_DESCRIPTOR),
+        recordedSecurity(DENY_DESCRIPTOR),
+        recordedSecurity("O:" + OWNER_SID + "G:" + OWNER_SID + "D:NO_ACCESS_CONTROL"),
+        recordedSecurity("O:" + OWNER_SID + "G:" + OWNER_SID + "D:P"),
+        recordedSecurity("not a security descriptor"),
+        (async () => null) as WindowsTrustSecurityProbe,
+        (async () => {
+          throw new Error("probe failure");
+        }) as WindowsTrustSecurityProbe
+      ]) {
+        const home = await temporaryHome();
+        await writeTrust(home, fixture.trust_document);
+        await expect(loadHostedContextTrust({
+          homeDirectory: home,
+          platform: "win32",
+          now: NOW,
+          windowsSecurity,
+          pinnedPublicKeys: { "context-fixture-1": publicKey(fixture) }
+        })).resolves.toBeUndefined();
+      }
     }
-  });
+  );
 
   it("reads owner and access control out of a recorded security descriptor", () => {
     expect(windowsTrustIsOwnerOnly({
@@ -287,16 +312,16 @@ describe("protected hosted trust bridge", () => {
     })).toBe(false);
   });
 
-  it.runIf(process.platform !== "win32")(
+  it.runIf(HOST_PLATFORM !== "win32")(
     "rejects group-readable trust on platforms with POSIX ownership",
     async () => {
       const fixture = await golden();
       const home = await temporaryHome();
-      const file = await writeTrust(home, fixture.trust_document, process.platform);
+      const file = await writeTrust(home, fixture.trust_document);
       await chmod(file, 0o640);
       await expect(loadHostedContextTrust({
         homeDirectory: home,
-        platform: process.platform,
+        platform: HOST_PLATFORM,
         now: NOW,
         pinnedPublicKeys: { "context-fixture-1": publicKey(fixture) }
       })).resolves.toBeUndefined();
