@@ -872,6 +872,17 @@ select.field:focus-visible {
   background: var(--ol-band-red-fill);
 }
 
+/* Capped: the free ceiling was crossed, so the real amount never reaches
+   this window. The bar still says so, the same hatch a stale reading uses
+   everywhere else, drawn full because there is no percentage left to draw. */
+.spend-budget[data-band="capped"] {
+  background: var(--ol-band-hatched-pattern);
+}
+.spend-budget-fill[data-band="capped"] {
+  width: 100%;
+  background: transparent;
+}
+
 .eligibility-list {
   display: grid;
   gap: var(--ol-space-2);
