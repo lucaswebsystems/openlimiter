@@ -9,7 +9,14 @@ import {
 } from "./stubs.js";
 
 const CONFIG_MAX_BYTES = 1_048_576;
-const MANAGED_FLAG = "--managed-hook openlimiter-v1";
+const MANAGED_MARKER_FLAG = "--managed-hook";
+const MANAGED_MARKER_VALUE = "openlimiter-v1";
+/* One managed handler renders exactly nine arguments, or fifteen when the
+   agent executable stamp is pinned. Both counts are part of the shape a
+   removal has to recognise, because that shape is the only thing that tells a
+   handler this product wrote from a handler that merely quotes its marker. */
+const MANAGED_ARGUMENT_COUNT = 9;
+const MANAGED_STAMPED_ARGUMENT_COUNT = 15;
 const ANTIGRAVITY_KEY = "openlimiter-managed-v1";
 const KIMI_BEGIN = "# openlimiter hook begin v1";
 const KIMI_END = "# openlimiter hook end v1";
@@ -245,18 +252,160 @@ function hookCommand(
   return { command: argv.map((argument) => quoteHookArgument(argument, platform)).join(" "), argv };
 }
 
-function managedCommand(value: unknown): boolean {
-  return typeof value === "string" && value.includes(MANAGED_FLAG);
+/**
+ * Read a rendered Windows command back into the arguments it was built from.
+ *
+ * The renderer above joins arguments with exactly one space and quotes only
+ * what has to be quoted, so this accepts that grammar and nothing else. A
+ * string it cannot account for is not a string this product wrote, and the
+ * caller treats that as "not managed" rather than guessing.
+ */
+function splitWindowsCommand(command: string): string[] | null {
+  const argv: string[] = [];
+  let index = 0;
+  while (index < command.length) {
+    if (command[index] === " ") return null;
+    let token = "";
+    if (command[index] === "\"") {
+      index += 1;
+      let slashes = 0;
+      let closed = false;
+      while (index < command.length) {
+        const character = command[index]!;
+        if (character === "\\") {
+          slashes += 1;
+          index += 1;
+          continue;
+        }
+        if (character === "\"") {
+          index += 1;
+          if (slashes % 2 === 1) {
+            token += "\\".repeat((slashes - 1) / 2) + "\"";
+            slashes = 0;
+            continue;
+          }
+          token += "\\".repeat(slashes / 2);
+          closed = true;
+          break;
+        }
+        token += "\\".repeat(slashes) + character;
+        slashes = 0;
+        index += 1;
+      }
+      if (!closed) return null;
+    } else {
+      while (index < command.length && command[index] !== " ") {
+        if (command[index] === "\"") return null;
+        token += command[index];
+        index += 1;
+      }
+    }
+    argv.push(token);
+    if (index < command.length) {
+      if (command[index] !== " ") return null;
+      index += 1;
+      if (index >= command.length) return null;
+    }
+  }
+  return argv.length === 0 ? null : argv;
 }
 
-function managedHandler(value: unknown): boolean {
+/** The same reverse reading for the POSIX single quote grammar. */
+function splitPosixCommand(command: string): string[] | null {
+  const argv: string[] = [];
+  let index = 0;
+  while (index < command.length) {
+    if (command[index] !== "'") return null;
+    index += 1;
+    let token = "";
+    let closed = false;
+    while (index < command.length) {
+      if (command[index] === "'") {
+        if (command.slice(index, index + 4) === "'\\''") {
+          token += "'";
+          index += 4;
+          continue;
+        }
+        index += 1;
+        closed = true;
+        break;
+      }
+      token += command[index];
+      index += 1;
+    }
+    if (!closed) return null;
+    argv.push(token);
+    if (index < command.length) {
+      if (command[index] !== " ") return null;
+      index += 1;
+      if (index >= command.length) return null;
+    }
+  }
+  return argv.length === 0 ? null : argv;
+}
+
+function absoluteArgument(value: string | undefined): boolean {
+  return value !== undefined && value !== "" &&
+    (path.win32.isAbsolute(value) || path.posix.isAbsolute(value));
+}
+
+/**
+ * Decide whether one argument list is exactly the handler this product installs.
+ *
+ * Every position is checked: the two absolute executables, the verb, the agent
+ * this configuration file belongs to, the host version, the optional pinned
+ * stamp, and the marker pair in the final two places. A user command that
+ * merely contains the marker text fails at the first position that disagrees,
+ * which is what keeps an unrelated hook out of the removal set.
+ */
+function managedArgv(argv: readonly string[], agent: AgentId): boolean {
+  if (
+    argv.length !== MANAGED_ARGUMENT_COUNT &&
+    argv.length !== MANAGED_STAMPED_ARGUMENT_COUNT
+  ) return false;
+  if (
+    argv[argv.length - 2] !== MANAGED_MARKER_FLAG ||
+    argv[argv.length - 1] !== MANAGED_MARKER_VALUE
+  ) return false;
+  if (!absoluteArgument(argv[0]) || !absoluteArgument(argv[1])) return false;
+  if (argv[2] !== "hook" || argv[3] !== "--agent" || argv[4] !== agent) return false;
+  const version = argv[6];
+  if (
+    argv[5] !== "--host-version" ||
+    version === undefined ||
+    version === "" ||
+    /\s/u.test(version)
+  ) return false;
+  if (argv.length === MANAGED_ARGUMENT_COUNT) return true;
+  return argv[7] === "--agent-executable" &&
+    absoluteArgument(argv[8]) &&
+    argv[9] === "--agent-file-size" &&
+    /^\d{1,16}$/u.test(argv[10] ?? "") &&
+    argv[11] === "--agent-mtime-ms" &&
+    /^\d{1,16}(?:\.\d{1,6})?$/u.test(argv[12] ?? "");
+}
+
+/**
+ * Recognise one installed handler, by shape rather than by substring.
+ *
+ * A handler carrying an argument array is compared position by position. A
+ * handler carrying a rendered command string is read back through both quoting
+ * grammars, because the string on disk was written by whichever platform ran
+ * the installation and a removal cannot assume it is the same one.
+ */
+function managedHandler(value: unknown, agent: AgentId): boolean {
   const handler = record(value);
   if (handler === null) return false;
-  if (managedCommand(handler["command"])) return true;
+  const command = handler["command"];
+  if (typeof command !== "string" || command === "") return false;
   const args = handler["args"];
-  return Array.isArray(args) &&
-    args.includes("--managed-hook") &&
-    args.includes("openlimiter-v1");
+  if (args !== undefined) {
+    return Array.isArray(args) &&
+      args.every((entry) => typeof entry === "string") &&
+      managedArgv([command, ...args as string[]], agent);
+  }
+  return [splitWindowsCommand(command), splitPosixCommand(command)]
+    .some((argv) => argv !== null && managedArgv(argv, agent));
 }
 
 function jsonHandler(
@@ -310,7 +459,7 @@ function jsonInstall(
     if (group === null || !Array.isArray(group["hooks"])) return [candidate];
     const handlers: unknown[] = [];
     for (const handler of group["hooks"] as unknown[]) {
-      if (!managedHandler(handler)) {
+      if (!managedHandler(handler, agent)) {
         handlers.push(handler);
       } else if (!found) {
         found = true;
@@ -328,7 +477,11 @@ function jsonInstall(
   return canonicalJson(root) + "\n";
 }
 
-function jsonUninstall(original: string | null, target: AgentTarget): string | null {
+function jsonUninstall(
+  original: string | null,
+  agent: AgentId,
+  target: AgentTarget
+): string | null {
   if (original === null) return null;
   const root = parseRoot(original);
   const hooks = record(root["hooks"]);
@@ -344,7 +497,7 @@ function jsonUninstall(original: string | null, target: AgentTarget): string | n
       continue;
     }
     const handlers = (group["hooks"] as unknown[]).filter((entry) => {
-      const managed = managedHandler(entry);
+      const managed = managedHandler(entry, agent);
       if (managed) removed = true;
       return !managed;
     });
@@ -367,7 +520,9 @@ function antigravityInstall(original: string | null, command: string): string {
   if (
     root[ANTIGRAVITY_KEY] !== undefined &&
     (!Array.isArray(managed?.["PreInvocation"]) ||
-      !(managed["PreInvocation"] as unknown[]).some(managedHandler))
+      !(managed["PreInvocation"] as unknown[]).some(
+        (entry) => managedHandler(entry, "antigravity")
+      ))
   ) throw new Error("managed hook name is already in use");
   root[ANTIGRAVITY_KEY] = desired;
   return canonicalJson(root) + "\n";
@@ -379,7 +534,7 @@ function antigravityUninstall(original: string | null): string | null {
   const managed = record(root[ANTIGRAVITY_KEY]);
   if (managed === null || !Array.isArray(managed["PreInvocation"])) return original;
   const handlers = managed["PreInvocation"] as unknown[];
-  if (!handlers.some(managedHandler)) return original;
+  if (!handlers.some((entry) => managedHandler(entry, "antigravity"))) return original;
   delete root[ANTIGRAVITY_KEY];
   return canonicalJson(root) + "\n";
 }
@@ -484,7 +639,7 @@ async function mutate(
           command,
           options.platform ?? process.platform
         )
-      : jsonUninstall(original, target);
+      : jsonUninstall(original, agent, target);
   } else if (target.format === "antigravity") {
     next = action === "install"
       ? antigravityInstall(original, command.command)
@@ -798,7 +953,9 @@ export async function readAgentHookStatus(
       const root = parseRoot(text);
       const definition = record(root[ANTIGRAVITY_KEY]);
       installed = Array.isArray(definition?.["PreInvocation"]) &&
-        (definition["PreInvocation"] as unknown[]).some(managedHandler);
+        (definition["PreInvocation"] as unknown[]).some(
+          (entry) => managedHandler(entry, agent)
+        );
     } else {
       const root = parseRoot(text);
       const hooks = record(root["hooks"]);
@@ -806,7 +963,9 @@ export async function readAgentHookStatus(
       installed = Array.isArray(groups) && groups.some((candidate) => {
         const group = record(candidate);
         return Array.isArray(group?.["hooks"]) &&
-          (group["hooks"] as unknown[]).some(managedHandler);
+          (group["hooks"] as unknown[]).some(
+            (entry) => managedHandler(entry, agent)
+          );
       });
     }
     return {
