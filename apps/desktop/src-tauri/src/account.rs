@@ -45,6 +45,9 @@ pub enum AccountFailure {
     OauthBusy,
     OauthTimeout,
     OauthRejected,
+    /// The service has not switched this provider on. Answered before a
+    /// browser tab is opened, so the window can say so in its own words.
+    ProviderDisabled,
     EmailConfirmationRequired,
 }
 
@@ -632,6 +635,58 @@ fn oauth_request(listener: &TcpListener) -> Result<(String, String), AccountFail
     }
 }
 
+/// Whether an authorize answer is the service refusing a provider it has not
+/// switched on. Only that exact refusal counts: a 400 with the provider named
+/// as not enabled. Any other status, and any other 400, is not a claim about
+/// the provider and is left for the browser to meet as it always has.
+fn provider_refused(status: reqwest::StatusCode, body: &[u8]) -> bool {
+    if status != reqwest::StatusCode::BAD_REQUEST {
+        return false;
+    }
+    let text = String::from_utf8_lossy(body).to_ascii_lowercase();
+    text.contains("not enabled") || text.contains("unsupported provider")
+}
+
+/// Ask the service whether the provider is switched on before a browser tab
+/// is opened for it.
+///
+/// A provider the project has not enabled does not fail when the tab opens.
+/// The service answers the authorize address with a 400 and a JSON body, the
+/// person is left looking at that JSON in place of the product, and this
+/// window waits three minutes for a callback that can never come before it
+/// reports a timeout. So the address is asked once first, with redirects left
+/// unfollowed: a switched on provider answers with a redirect to itself, a
+/// switched off one answers with the refusal. Anything short of that exact
+/// refusal, including a probe that could not be made at all, lets the sign
+/// in proceed, so this can only ever fall back to the old behaviour and
+/// never invent a refusal of its own.
+async fn provider_switched_on(authorize: &Url) -> Result<(), AccountFailure> {
+    let Ok(mut response) = client()?
+        .get(authorize.clone())
+        .header("apikey", configured_key())
+        .header(ACCEPT, "application/json")
+        .send()
+        .await
+    else {
+        return Ok(());
+    };
+    let status = response.status();
+    if status != reqwest::StatusCode::BAD_REQUEST {
+        return Ok(());
+    }
+    let mut bytes = Vec::new();
+    while let Ok(Some(chunk)) = response.chunk().await {
+        if bytes.len() + chunk.len() > MAX_RESPONSE_BYTES {
+            break;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if provider_refused(status, &bytes) {
+        return Err(AccountFailure::ProviderDisabled);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn account_oauth(
     input: OauthAccountInput,
@@ -664,6 +719,7 @@ pub async fn account_oauth(
         .append_pair("code_challenge", &challenge)
         .append_pair("code_challenge_method", "s256")
         .append_pair("state", &state);
+    provider_switched_on(&authorize).await?;
     app.opener()
         .open_url(authorize.as_str(), None::<&str>)
         .map_err(|_| AccountFailure::OauthRejected)?;
@@ -838,6 +894,31 @@ mod tests {
                 .expect("email confirmation failure"),
             serde_json::json!({ "kind": "email_confirmation_required" })
         );
+    }
+
+    #[test]
+    fn a_switched_off_provider_has_a_closed_failure_kind() {
+        assert_eq!(
+            serde_json::to_value(AccountFailure::ProviderDisabled).expect("provider disabled failure"),
+            serde_json::json!({ "kind": "provider_disabled" })
+        );
+    }
+
+    #[test]
+    fn only_the_service_refusal_reads_as_a_switched_off_provider() {
+        assert!(provider_refused(
+            reqwest::StatusCode::BAD_REQUEST,
+            br#"{"code":400,"error_code":"validation_failed","msg":"Unsupported provider: provider is not enabled"}"#
+        ));
+        assert!(!provider_refused(
+            reqwest::StatusCode::BAD_REQUEST,
+            br#"{"code":400,"msg":"Bad redirect"}"#
+        ));
+        assert!(!provider_refused(reqwest::StatusCode::FOUND, b""));
+        assert!(!provider_refused(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            b"provider is not enabled"
+        ));
     }
 
     #[test]

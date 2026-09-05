@@ -129,6 +129,7 @@ const FAILURE_SENTENCES = {
   oauth_busy: "Another sign in is already in progress.",
   oauth_timeout: "The sign in window timed out.",
   oauth_rejected: "The sign in response could not be verified.",
+  provider_disabled: "That sign in provider is not switched on yet.",
   email_confirmation_required: "Check your email to confirm your account, then sign in.",
   keyring_unavailable: "The operating system keyring is unavailable.",
   rate_limited: "The provider asked OpenLimiter to wait before trying again.",
