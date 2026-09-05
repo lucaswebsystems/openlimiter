@@ -5,6 +5,8 @@
  * Only import specifiers were rewritten. Edit the package instead, then run
  * the script again.
  */
+import type { ConnectionStatus } from "./connection-state";
+
 export const PROVIDER_CODES = [
   "CLAUDE",
   "OPENROUTER",
@@ -195,9 +197,22 @@ export interface ConnectorReadContext {
   environment: Readonly<Record<string, string | undefined>>;
 }
 
+/**
+ * What a reader answers, and how its connection is doing while it answers.
+ *
+ * `connection` is optional so every existing caller keeps compiling, and it is
+ * the same value on both branches on purpose: a reader that returned meters can
+ * still be degraded, and a reader that returned nothing still owes a person one
+ * sentence about what to do. The status is written by OpenLimiter from the
+ * closed vocabulary in connection-state.ts, never by a provider payload.
+ */
 export type ConnectorResult =
-  | { ok: true; meters: readonly RawMeter[] }
-  | { ok: false; reason: "unknown" | "unavailable" | "not_configured" };
+  | { ok: true; meters: readonly RawMeter[]; connection?: ConnectionStatus }
+  | {
+      ok: false;
+      reason: "unknown" | "unavailable" | "not_configured";
+      connection?: ConnectionStatus;
+    };
 
 /**
  * What a connector's payload IS, before its parser sees it.
@@ -211,14 +226,32 @@ export type ConnectorResult =
  */
 export type ConnectorEncoding = "json" | "text";
 
+/**
+ * How much the INTERFACE behind a reader can be relied on.
+ *
+ * Not how good the parser is. A reader pointed at a documented response and a
+ * reader pointed at a rendered page can both be flawless and still deserve
+ * different sentences on a surface, because only one of them has a contract
+ * behind it. Absent means stable, so a reader says nothing unless it has
+ * something to admit.
+ */
+export type ConnectorMaturity = "stable" | "beta";
+
 export interface ConnectorContract {
   readonly id: Lowercase<ProviderCode>;
   readonly displayName: string;
   readonly labels: ConnectorLabels;
   /** Whether this connector's parser wants parsed JSON or the raw text. */
   readonly encoding: ConnectorEncoding;
+  /** Stated only when it is not stable, so silence is never a claim. */
+  readonly maturity?: ConnectorMaturity;
   detect(environment: Readonly<Record<string, string | undefined>>): boolean;
   read(context: ConnectorReadContext): Promise<ConnectorResult>;
+}
+
+/** A reader's maturity, with the default spelled out rather than assumed. */
+export function connectorMaturity(connector: ConnectorContract): ConnectorMaturity {
+  return connector.maturity ?? "stable";
 }
 
 export type AdviceReason = "HEALTHY" | "NEAR_CAP" | "AT_CAP" | "UNKNOWN";

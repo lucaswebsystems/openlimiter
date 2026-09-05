@@ -1,0 +1,43 @@
+{
+  "hook_event_name": "Status",
+  "session_id": "REDACTED-SESSION-ID",
+  "transcript_path": "REDACTED",
+  "cwd": "REDACTED",
+  "version": "2.1.261",
+  "model": { "id": "REDACTED", "display_name": "REDACTED" },
+  "workspace": { "current_dir": "REDACTED", "project_dir": "REDACTED" },
+  "rate_limits": {
+    "five_hour": {
+      "used_percentage": 47.5,
+      "resets_at": 1786114800
+    },
+    "seven_day": {
+      "used_percentage": 63.2,
+      "resets_at": 1786536000
+    },
+    "seven_day_oauth_apps": {
+      "used_percentage": 3.1,
+      "resets_at": 1786536000
+    },
+    "seven_day_opus": {
+      "used_percentage": 61,
+      "resets_at": 1786536000
+    },
+    "seven_day_sonnet": {
+      "used_percentage": 12.4,
+      "resets_at": 1786536000
+    },
+    "model_scoped": [
+      {
+        "display_name": "Fable 5",
+        "utilization": 21.5,
+        "resets_at": "2026-08-11T12:00:00.000Z"
+      },
+      {
+        "display_name": "Opus",
+        "utilization": 61,
+        "resets_at": "2026-08-11T12:00:00.000Z"
+      }
+    ]
+  }
+}

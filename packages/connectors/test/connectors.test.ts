@@ -279,11 +279,62 @@ describe("connector contracts", () => {
 
   it("returns unknown for missing input", async () => {
     for (const connector of connectors) {
-      await expect(connector.read({
+      const result = await connector.read({ now: FIXTURE_NOW, environment: {} });
+      expect(result.ok).toBe(false);
+      expect(result.ok === false ? result.reason : null).toBe("unknown");
+    }
+  });
+
+  it("says a tool that never wrote a payload is waiting, not broken", async () => {
+    /* Nothing arrived and something arrived unreadable are different sentences
+       and different buttons. A reader that reports the same state for both
+       tells a person to reconnect a tool they simply have not opened. */
+    for (const connector of connectors) {
+      const result = await connector.read({ now: FIXTURE_NOW, environment: {} });
+      expect(result.connection?.state).toBe("DETECTED");
+      expect(result.connection?.reason).toBe("tool_not_running");
+    }
+  });
+
+  it("calls an unreadable payload our fault, and says how to reconnect", async () => {
+    for (const connector of connectors) {
+      const result = await connector.read({
+        payload: { nothing: "this build reads" },
         now: FIXTURE_NOW,
         environment: {}
-      })).resolves.toEqual({ ok: false, reason: "unknown" });
+      });
+      expect(result.ok).toBe(false);
+      expect(result.connection?.state).toBe("ERROR");
+      expect(result.connection?.reason).toBe("shape_mismatch");
+      expect(result.connection?.instruction).toContain("Reconnect");
     }
+  });
+
+  it("reports a connected lifecycle beside the meters it just read", async () => {
+    const result = await claudeConnector.read({
+      payload: claudeFixture(FIXTURE_NOW),
+      now: FIXTURE_NOW,
+      environment: {}
+    });
+    expect(result.ok).toBe(true);
+    expect(result.connection).toEqual({
+      state: "CONNECTED",
+      reason: null,
+      instruction: "Refresh now"
+    });
+  });
+
+  it("names the local tool in an instruction, and never offers to refresh it", async () => {
+    /* OpenLimiter reads tokens and refreshes none of them. The instruction is
+       always something the PERSON does, which is why it names the window they
+       open rather than promising a background repair. */
+    const result = await claudeConnector.read({
+      payload: "not a statusline payload",
+      now: FIXTURE_NOW,
+      environment: {}
+    });
+    expect(result.connection?.instruction).toContain("Claude Code");
+    expect(result.connection?.instruction.toLowerCase()).not.toContain("automatically");
   });
 
   it("rejects expired provider windows, for every source that states an instant", () => {

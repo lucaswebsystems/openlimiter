@@ -7,12 +7,14 @@
  */
 // This interface is UNOFFICIAL and may break.
 import type {
+  ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
   RawMeter
 } from "../core";
 import {
+  connectorConnection,
   futureInstantFromRfc3339,
   plausibleResetHorizon,
   rawMeter,
@@ -142,6 +144,9 @@ export function parseKimiPayload(payload: unknown, now: string): RawMeter[] | nu
   return meters;
 }
 
+/** The local application that owns this credential. */
+export const KIMI_TOOL: ConnectionTool = "Kimi CLI";
+
 export const kimiConnector: ConnectorContract = {
   id: "kimi",
   displayName: "Kimi",
@@ -152,8 +157,13 @@ export const kimiConnector: ConnectorContract = {
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseKimiPayload(context.payload, context.now);
+    const connection = connectorConnection(
+      meters !== null,
+      context.payload,
+      KIMI_TOOL
+    );
     return meters === null
-      ? { ok: false, reason: "unknown" }
-      : { ok: true, meters };
+      ? { ok: false, reason: "unknown", connection }
+      : { ok: true, meters, connection };
   }
 };

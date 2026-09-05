@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Snapshot } from "./engine";
+import {
+  bandForPercent,
+  headroomTone,
+  type HeadroomTone,
+  type QuotaBand,
+  type Snapshot,
+} from "./engine";
 import { ProviderMark } from "./marks";
 
 export interface LiveMeterProps {
@@ -64,64 +70,79 @@ function ClockGlyph({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
-export function getBandDetails(usedPercent: number | null, isStale: boolean) {
-  if (isStale || usedPercent === null) {
-    return {
-      band: 5,
-      name: "Stale / Unknown",
-      tone: "stale" as const,
-      statusLabel: "STALE",
-      fillVar: "var(--ol-band-stale-fill)",
-      labelVar: "var(--ol-band-stale-label)",
-      subtleVar: "var(--ol-band-stale-subtle)",
-      Icon: DisconnectedCircleIcon,
-    };
+/**
+ * How one band is drawn, and nothing about where the band came from.
+ *
+ * The scale itself belongs to packages/ui, where bandForPercent and
+ * headroomTone define it once for the tray, the command line and this page.
+ * This table is only the presentation of a band that has already been decided
+ * elsewhere, which is what keeps a hero and the rows beneath it from
+ * disagreeing about which colour eighty percent is.
+ */
+const BAND_PRESENTATION: Record<
+  QuotaBand,
+  {
+    name: string;
+    fillVar: string;
+    labelVar: string;
+    subtleVar: string;
+    Icon: (props: { className?: string }) => React.JSX.Element;
   }
-  if (usedPercent < 60) {
-    return {
-      band: 1,
-      name: "Normal Headroom",
-      tone: "ok" as const,
-      statusLabel: `${Math.round(usedPercent)}% USED`,
-      fillVar: "var(--ol-band-green-fill)",
-      labelVar: "var(--ol-band-green-label)",
-      subtleVar: "var(--ol-band-green-subtle)",
-      Icon: CheckmarkShieldIcon,
-    };
-  }
-  if (usedPercent < 80) {
-    return {
-      band: 2,
-      name: "Watch Threshold",
-      tone: "watch" as const,
-      statusLabel: `${Math.round(usedPercent)}% USED`,
-      fillVar: "var(--ol-band-yellow-fill)",
-      labelVar: "var(--ol-band-yellow-label)",
-      subtleVar: "var(--ol-band-yellow-subtle)",
-      Icon: WarningTriangleIcon,
-    };
-  }
-  if (usedPercent < 90) {
-    return {
-      band: 3,
-      name: "High Utilization",
-      tone: "high" as const,
-      statusLabel: `${Math.round(usedPercent)}% USED`,
-      fillVar: "var(--ol-band-orange-fill)",
-      labelVar: "var(--ol-band-orange-label)",
-      subtleVar: "var(--ol-band-orange-subtle)",
-      Icon: AlertDiamondIcon,
-    };
-  }
-  return {
-    band: 4,
+> = {
+  green: {
+    name: "Normal Headroom",
+    fillVar: "var(--ol-band-green-fill)",
+    labelVar: "var(--ol-band-green-label)",
+    subtleVar: "var(--ol-band-green-subtle)",
+    Icon: CheckmarkShieldIcon,
+  },
+  yellow: {
+    name: "Watch Threshold",
+    fillVar: "var(--ol-band-yellow-fill)",
+    labelVar: "var(--ol-band-yellow-label)",
+    subtleVar: "var(--ol-band-yellow-subtle)",
+    Icon: WarningTriangleIcon,
+  },
+  orange: {
+    name: "High Utilization",
+    fillVar: "var(--ol-band-orange-fill)",
+    labelVar: "var(--ol-band-orange-label)",
+    subtleVar: "var(--ol-band-orange-subtle)",
+    Icon: AlertDiamondIcon,
+  },
+  red: {
     name: "Critical Depletion",
-    tone: "critical" as const,
-    statusLabel: `${Math.round(usedPercent)}% USED`,
     fillVar: "var(--ol-band-red-fill)",
     labelVar: "var(--ol-band-red-label)",
     subtleVar: "var(--ol-band-red-subtle)",
     Icon: OctagonExclamationIcon,
+  },
+  stale: {
+    name: "Stale / Unknown",
+    fillVar: "var(--ol-band-stale-fill)",
+    labelVar: "var(--ol-band-stale-label)",
+    subtleVar: "var(--ol-band-stale-subtle)",
+    Icon: DisconnectedCircleIcon,
+  },
+};
+
+/**
+ * The band and the tone for one reading, from the shared engine.
+ *
+ * `band` is the colour, in the five value vocabulary window lines carry as
+ * data-band. `tone` is the headroom vocabulary the usage hero carries as
+ * data-tone, and a reading nobody can trust has no headroom to claim, so it is
+ * none rather than a fifth tone this page invented.
+ */
+export function getBandDetails(usedPercent: number | null, isStale: boolean) {
+  const unknown = isStale || usedPercent === null;
+  const band: QuotaBand = unknown ? "stale" : bandForPercent(usedPercent);
+  const tone: HeadroomTone = unknown ? "none" : headroomTone(usedPercent);
+  return {
+    band,
+    tone,
+    ...BAND_PRESENTATION[band],
+    statusLabel: unknown ? "STALE" : `${Math.round(usedPercent)}% USED`,
   };
 }
 

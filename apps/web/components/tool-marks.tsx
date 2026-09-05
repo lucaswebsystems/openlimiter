@@ -360,7 +360,7 @@ export const todayTools: readonly Tool[] = [
     detail: "Reads the model quota response through the installed Gemini CLI session.",
   },
   {
-    name: "Grok",
+    name: "Grok Build",
     Mark: XaiMark,
     state: "today",
     detail: "Reads subscription windows through the installed Grok session.",

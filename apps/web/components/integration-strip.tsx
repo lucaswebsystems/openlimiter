@@ -98,7 +98,7 @@ function getConnectors(t: ReturnType<typeof useTranslations<"integrations">>): S
       detail: t("connectors.openCode.detail"),
     },
     {
-      name: "Grok",
+      name: "Grok Build",
       Mark: XaiMark,
       state: "today",
       tag: t("connectors.grok.tag"),

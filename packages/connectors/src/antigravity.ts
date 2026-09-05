@@ -1,5 +1,6 @@
 // This interface is UNOFFICIAL and may break.
 import type {
+  ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
@@ -7,6 +8,7 @@ import type {
 } from "@openlimiter/core";
 import {
   boundedFraction,
+  connectorConnection,
   futureInstantFromRfc3339,
   plausibleResetHorizon,
   rawMeter,
@@ -179,6 +181,9 @@ export function parseAntigravityPayload(
   }));
 }
 
+/** The local application that owns this credential. */
+export const ANTIGRAVITY_TOOL: ConnectionTool = "Antigravity";
+
 export const antigravityConnector: ConnectorContract = {
   id: "antigravity",
   displayName: "Antigravity",
@@ -189,8 +194,13 @@ export const antigravityConnector: ConnectorContract = {
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseAntigravityPayload(context.payload, context.now);
+    const connection = connectorConnection(
+      meters !== null,
+      context.payload,
+      ANTIGRAVITY_TOOL
+    );
     return meters === null
-      ? { ok: false, reason: "unknown" }
-      : { ok: true, meters };
+      ? { ok: false, reason: "unknown", connection }
+      : { ok: true, meters, connection };
   }
 };

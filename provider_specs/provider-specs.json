@@ -1035,7 +1035,7 @@
       "id": "xai/grok-cli",
       "providerId": "xai",
       "productId": "grok-cli",
-      "displayName": "Grok",
+      "displayName": "Grok Build",
       "docsUrl": "https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs",
       "reviewedAt": "2026-08-19",
       "sourceStatus": "provisional",

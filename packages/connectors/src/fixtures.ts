@@ -998,30 +998,33 @@ const claudeMalformed: readonly MalformedFixture[] = [
     build: (now) => claudeWindows({ used_percentage: 42, resets_at: 0 }, undefined)
   },
   {
-    id: "claude.malformed.epoch_string",
+    id: "claude.edge.epoch_string",
     connector: "claude",
-    reason: "resets_at as a string rather than a number",
-    expectedMeters: 0,
+    reason: "resets_at as the digits of an epoch in quotes, which is a JSON " +
+      "writer quoting its numbers rather than a different instant",
+    expectedMeters: 1,
     build: (now) => claudeWindows(
       { used_percentage: 42, resets_at: String(epochOffset(now, FIVE_HOURS)) },
       undefined
     )
   },
   {
-    id: "claude.malformed.epoch_iso_string",
+    id: "claude.edge.reset_iso_string",
     connector: "claude",
-    reason: "resets_at as the ISO string our old invented shape used",
-    expectedMeters: 0,
+    reason: "resets_at as an ISO string, which the usage document and the " +
+      "model_scoped list both state, so it is a second encoding rather than drift",
+    expectedMeters: 1,
     build: (now) => claudeWindows(
       { used_percentage: 42, resets_at: offset(now, FIVE_HOURS) },
       undefined
     )
   },
   {
-    id: "claude.malformed.legacy_utilization_field",
+    id: "claude.edge.utilization_field",
     connector: "claude",
-    reason: "the invented utilization field, which no release is known to emit",
-    expectedMeters: 0,
+    reason: "utilization rather than used_percentage, which is what the " +
+      "api/oauth/usage document states for the same reading",
+    expectedMeters: 1,
     build: (now) => claudeWindows(
       { utilization: 42, resets_at: epochOffset(now, FIVE_HOURS) },
       undefined
@@ -1114,8 +1117,9 @@ const claudeMalformed: readonly MalformedFixture[] = [
   {
     id: "claude.edge.unknown_window_alongside",
     connector: "claude",
-    reason: "an undocumented three_hour window, dropped without disturbing the rest",
-    expectedMeters: 2,
+    reason: "an undocumented three_hour window, read under a code built from " +
+      "its own key rather than dropped, alongside the two documented windows",
+    expectedMeters: 3,
     build: (now) => ({
       rate_limits: {
         five_hour: goodFiveHour(now),
@@ -1127,8 +1131,9 @@ const claudeMalformed: readonly MalformedFixture[] = [
   {
     id: "claude.edge.unknown_window_only",
     connector: "claude",
-    reason: "nothing but an undocumented window, which is unknown",
-    expectedMeters: 0,
+    reason: "nothing but an undocumented window, which is still one real " +
+      "reading the provider stated",
+    expectedMeters: 1,
     build: (now) => ({
       rate_limits: {
         three_hour: { used_percentage: 10, resets_at: epochOffset(now, 10_800) }

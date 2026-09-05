@@ -332,4 +332,81 @@ describe("provider account rows", () => {
       byProvider.get("GEMINI_CLI")?.windows.map((window) => window.label)
     ).toEqual(["Gemini 3.1 Pro Preview", "Gemini 3 Flash Preview"]);
   });
+
+  it("labels a model specific weekly bucket and sorts it with its own week", () => {
+    /* Claude states one weekly pool per model and generates their codes from
+       names it chose, so no table here can hold a label for each one. The
+       cadence leads, the model follows in brackets, and the whole weekly group
+       sorts together instead of scattering after the month. */
+    const rows = buildProviderAccountRows(
+      [
+        snapshot("CLAUDE", "SEVEN_DAY_FABLE_5", 21.5, "claude-account"),
+        snapshot("CLAUDE", "MONTHLY", 9, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY_SONNET", 12.4, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY", 41.2, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY_OPUS", 61, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY_OAUTH_APPS", 3.1, "claude-account"),
+        snapshot("CLAUDE", "FIVE_HOUR", 23.5, "claude-account"),
+      ],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] }
+    );
+    expect(rows[0]?.windows.map((window) => window.label)).toEqual([
+      "5 hour session",
+      "Weekly",
+      "Weekly Opus",
+      "Weekly Sonnet",
+      "Weekly OAuth apps",
+      "Weekly (Fable 5)",
+      "Monthly",
+    ]);
+  });
+
+  it("keeps the explicit weekly labels this product already shipped", () => {
+    const rows = buildProviderAccountRows(
+      [
+        snapshot("CLAUDE", "SEVEN_DAY_OPUS", 61, "claude-account"),
+        snapshot("CLAUDE", "SEVEN_DAY_HAIKU_4_5", 4, "claude-account"),
+      ],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] }
+    );
+    expect(rows[0]?.windows.map((window) => window.label)).toEqual([
+      "Weekly Opus",
+      "Weekly (Haiku 4 5)",
+    ]);
+  });
+
+  it("labels the extra usage pool rather than shouting its code", () => {
+    const rows = buildProviderAccountRows(
+      [snapshot("CLAUDE", "EXTRA_USAGE", 62.35, "claude-account")],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] }
+    );
+    expect(rows[0]?.windows[0]?.label).toBe("Extra usage");
+  });
+
+  it("renders no meter fill at all for a window whose state is unknown", () => {
+    /* The fact every stylesheet keying the unknown state on .meter-fill gets
+       wrong. A window with no reliable reading has no percentage, so there is
+       no fill span to hatch: the track itself, .window-meter, is the only thing
+       there is to draw. Pinned here so an override written against it cannot
+       rot silently. */
+    const future = "2026-08-19T13:00:00.000Z";
+    const rows = buildProviderAccountRows(
+      [{ ...snapshot("CLAUDE", "FIVE_HOUR", 42, "claude-account"), observedAt: future }],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] }
+    );
+    expect(rows[0]?.windows[0]?.state).toBe("unknown");
+    expect(rows[0]?.windows[0]?.usedPercent).toBeNull();
+    const markup = providerRowMarkup(rows[0]!);
+    expect(markup).toContain('data-state="unknown"');
+    expect(markup).toContain('class="window-meter"');
+    expect(markup).not.toContain("meter-fill");
+  });
 });

@@ -47,11 +47,15 @@ import {
 import {
   PROVIDER_TABLE_HEADER_TAG,
   PROVIDER_ROW_TAG,
+  bandForPercent,
   buildProviderAccountRows,
   defineProviderTableHeaderElement,
   defineProviderRowElement,
+  headroomTone,
   setProviderRowData,
+  type HeadroomTone,
   type ProviderAccountRowView,
+  type QuotaBand,
 } from "./generated/ui/provider-row";
 
 /**
@@ -93,6 +97,11 @@ export {
   floorFixed,
   PROVIDER_TABLE_HEADER_TAG,
   PROVIDER_ROW_TAG,
+  /* The band scale itself, so this application never restates the thresholds.
+     Two implementations of one rule is how a hero and the rows under it end up
+     disagreeing about which colour 80 percent is. */
+  bandForPercent,
+  headroomTone,
   buildProviderAccountRows,
   defineProviderTableHeaderElement,
   defineProviderRowElement,
@@ -100,7 +109,12 @@ export {
   setProviderRowData,
 };
 
-export type { ProviderAccountRowView, ProviderDirectoryRow };
+export type {
+  HeadroomTone,
+  ProviderAccountRowView,
+  ProviderDirectoryRow,
+  QuotaBand,
+};
 
 export { buildProviderDirectory };
 

@@ -6,12 +6,20 @@
  * the script again.
  */
 import type {
+  ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
   RawMeter
 } from "../core";
-import { boundedNumber, futureInstant, rawMeter, record, shortExpiry } from "./shared";
+import {
+  boundedNumber,
+  connectorConnection,
+  futureInstant,
+  rawMeter,
+  record,
+  shortExpiry
+} from "./shared";
 
 export const manualLabels = {
   credentialOrigin: "user-entered",
@@ -82,6 +90,9 @@ export function parseManualPayload(payload: unknown, now: string): RawMeter[] | 
   return meters.length === 0 ? null : meters;
 }
 
+/** A person maintains this document, so no tool is named. */
+export const MANUAL_TOOL: ConnectionTool = null;
+
 export const manualConnector: ConnectorContract = {
   id: "manual",
   encoding: "json",
@@ -92,8 +103,13 @@ export const manualConnector: ConnectorContract = {
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseManualPayload(context.payload, context.now);
+    const connection = connectorConnection(
+      meters !== null,
+      context.payload,
+      MANUAL_TOOL
+    );
     return meters === null
-      ? { ok: false, reason: "unknown" }
-      : { ok: true, meters };
+      ? { ok: false, reason: "unknown", connection }
+      : { ok: true, meters, connection };
   }
 };
