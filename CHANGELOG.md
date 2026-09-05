@@ -2,11 +2,18 @@
 
 All notable project changes appear in this file.
 
-## [Unreleased]
+## [1.2.0] (2026-09-04)
 
-Version 1.2.0, in progress. Nothing below is released until the tag exists.
+The single public launch: every provider bar in one place, a free product that needs no account, and a Pro layer that can be paid for.
 
 ### Added
+
+- Every Claude bucket the usage API returns is now its own bar, including model specific weekly windows such as Fable 5, extra usage credits and any bucket Anthropic adds later; both the desktop reader and the TypeScript engine parse what arrives instead of a fixed list, and a bucket named by the server renders under its own name.
+- Phone access by QR: the desktop shows a pairing code, the phone claims it, the desktop approves, and the phone receives a read only device token that can be revoked from the device list.
+- Pro checkout and billing management from the desktop and the web portal, with GitHub and Google sign in and a magic link fallback; the trial starts on the server at first sign in.
+- API spend meters for OpenAI, Anthropic and xAI plus a Moonshot balance, free up to USD 100 per calendar month per source and capped with a hatched "100 plus" state above that without Pro; the real figure never leaks into a capped payload.
+- Contract suites for Gemini CLI, Grok Build and Kimi, a connection lifecycle on every reader (detected, connected, stale with an instruction, error), and a live smoke harness that only runs on request and writes sanitized evidence.
+- A macOS universal build in the release workflow, unsigned, with the documented open anyway steps.
 
 - A privacy policy at `/privacy`, in all five published languages, written from the real data map rather than from a template: what local mode collects, which fields sync carries, every retention window, the processors involved, and the deletion path.
 - Subscription terms: billing through Stripe with automatic tax, cancellation at period end through the Stripe Customer Portal, a full refund on request within 14 days of any charge, and one fixed 72 hour grace after a first failed payment that retries never extend.
@@ -14,6 +21,16 @@ Version 1.2.0, in progress. Nothing below is released until the tag exists.
 - A public macOS download, unsigned, with the exact first run steps: open it once, then System Settings, Privacy and Security, Open Anyway.
 
 ### Changed
+
+- First run shows the detected providers and real bars first; the account is optional and offered afterwards for phone access, sync and Pro, and sync is on once signed in.
+- Every notification is Pro: desktop toasts, email and phone push at 60, 80, 90 percent and on reset; a free machine never raises a toast and the bell says so.
+- Free keeps one active account per provider; existing multi account setups are grandfathered; a second account without Pro is refused and stores nothing.
+- Grok Build is named correctly everywhere and its requests carry the client version and mode headers only when the installed client's version is known.
+- Kimi Code detection no longer accepts any executable called kimi.
+- The OpenCode reader tolerates renamed headings and fails soft to a reconnect state instead of dropping every bar.
+- Overspent amounts survive normalisation on both the desktop and the web path beside a capped percent.
+- Node 24.13 or any newer 24.x release is accepted instead of one pinned patch version.
+- Release workflows pass inputs through the environment, every action is pinned to a commit, dependabot has a seven day cooldown, and the dependency audit is clean.
 
 - The documentation lists all nine connectors. Gemini CLI, Grok and Kimi join the table with the labels their parsers declare.
 - The pricing page states the six Pro lines honestly, labels the API spend meters a beta, names the organisation admin or management key they need, says a project key will not work, and shows Moonshot as balance rather than spend.
