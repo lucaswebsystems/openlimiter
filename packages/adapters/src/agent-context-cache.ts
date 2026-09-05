@@ -435,11 +435,14 @@ async function currentDocument(
 /**
  * Whether the document on disk already says something this write cannot improve.
  *
- * It has to be live, drawn later than this write, and stamped with the same
- * committed rows or a later observation than the ones in hand. An ingestion
- * that lost the race satisfies all three, and dropping it is what keeps the
- * injected context from falling behind the cache it was derived from. A
- * document without a stamp says nothing about the cache and never wins.
+ * The cache stamp is asked first and the clock only afterwards, because the
+ * two answer different questions. Different stamps mean the two writers hold
+ * different commits, and the later observation is the newer view no matter
+ * whose clock ran ahead: a machine whose time drifted forward must not be able
+ * to publish older rows over newer ones. Only when both writers hold the same
+ * commit does the clock decide, and then the later drawing is simply the
+ * fresher rendering of identical data. A document without a stamp says nothing
+ * about the cache and never wins.
  */
 function supersedes(
   existing: AgentContextDocument | null,
@@ -448,11 +451,16 @@ function supersedes(
 ): boolean {
   const existingStamp = existing?.cache_stamp;
   if (existing === null || existingStamp === undefined) return false;
-  const drawnAt = Date.parse(existing.generated_at);
-  if (!Number.isFinite(drawnAt) || drawnAt <= generated) return false;
-  if (existingStamp.digest === stamp.digest) return true;
+  if (existingStamp.digest === stamp.digest) {
+    const drawnAt = Date.parse(existing.generated_at);
+    return Number.isFinite(drawnAt) && drawnAt > generated;
+  }
   if (existingStamp.observed_at === "NONE" || stamp.observedAt === "NONE") return false;
-  return Date.parse(existingStamp.observed_at) >= Date.parse(stamp.observedAt);
+  const existingObserved = Date.parse(existingStamp.observed_at);
+  const observed = Date.parse(stamp.observedAt);
+  return Number.isFinite(existingObserved) &&
+    Number.isFinite(observed) &&
+    existingObserved > observed;
 }
 
 /**

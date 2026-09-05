@@ -16,7 +16,7 @@ import {
   type HostedContextEnvelope,
   type HostedTrustDocument
 } from "@openlimiter/adapters";
-import { readSnapshotCache, type Snapshot } from "@openlimiter/core";
+import { readSnapshotCache, writeSnapshotCache, type Snapshot } from "@openlimiter/core";
 import { afterEach, describe, expect, it } from "vitest";
 import { persistSnapshots, readStandardInputText, runCli } from "../src/index.js";
 
@@ -412,6 +412,72 @@ describe("hook CLI", () => {
       digest: agentContextCacheStamp(cached.ok ? cached.snapshots : []).digest,
       observed_at: later
     });
+  });
+
+  it("keeps a later wall clock from publishing an older cache stamp", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-context-skew-");
+    const older = "2026-09-01T12:00:00.000Z";
+    const newer = "2026-09-01T12:05:00.000Z";
+    const laterClock = "2026-09-01T12:06:00.000Z";
+    await writeSnapshotCache([meterSnapshot("CLAUDE", newer)], stateDirectory);
+    await writeAgentContextSnapshot(
+      [meterSnapshot("CLAUDE", newer)],
+      stateDirectory,
+      newer
+    );
+    /* The cache this writer would have reread is unreadable, so it falls back
+       to its own older rows while carrying the later clock of the two. */
+    await writeFile(
+      path.join(stateDirectory, "openlimiter-cache.json"),
+      "{not json",
+      "utf8"
+    );
+    await writeAgentContextSnapshot(
+      [meterSnapshot("CODEX", older)],
+      stateDirectory,
+      laterClock
+    );
+    const document = JSON.parse(await readFile(
+      path.join(stateDirectory, AGENT_CONTEXT_FILE_NAME),
+      "utf8"
+    )) as { context: string; cache_stamp: { observed_at: string } };
+    expect(document.cache_stamp.observed_at).toBe(newer);
+    expect(document.context).toContain("provider=CLAUDE");
+    expect(document.context).not.toContain("provider=CODEX");
+  });
+
+  it("writes nothing through a context read whose deadline has already passed", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-context-abort-");
+    await runCli(["snapshot", "--refresh"], {
+      stateDirectory,
+      now: () => FIXTURE_NOW,
+      payloads: { codex: codexFixture(FIXTURE_NOW) },
+      colorOutput: false
+    });
+    const spillFile = path.join(stateDirectory, AGENT_CONTEXT_SPILL_FILE_NAME);
+    await writeFile(spillFile, "sentinel", "utf8");
+    const deadline = new AbortController();
+    deadline.abort();
+    expect(await agentContextFromCache(stateDirectory, FIXTURE_NOW, undefined, {
+      signal: deadline.signal
+    })).toBe("");
+    expect(await readFile(spillFile, "utf8")).toBe("sentinel");
+  });
+
+  it("lets the next context writer run after one turn fails", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-context-turn-");
+    const now = "2026-09-01T12:00:00.000Z";
+    const snapshots = [meterSnapshot("CODEX", now)];
+    await writeSnapshotCache(snapshots, stateDirectory);
+    const blocker = path.join(stateDirectory, AGENT_CONTEXT_FILE_NAME);
+    await mkdir(path.join(blocker, "occupied"), { recursive: true });
+    const failing = writeAgentContextSnapshot(snapshots, stateDirectory, now);
+    const queued = writeAgentContextSnapshot(snapshots, stateDirectory, now);
+    await expect(failing).rejects.toThrow();
+    await expect(queued).rejects.toThrow();
+    await rm(blocker, { recursive: true, force: true });
+    await writeAgentContextSnapshot(snapshots, stateDirectory, now);
+    expect(await readFile(blocker, "utf8")).toContain("provider=CODEX");
   });
 
   it("writes nothing once a read resolves after the hard deadline", async () => {

@@ -220,6 +220,36 @@ describe("hook configuration mutation", () => {
     })).toMatchObject({ installed: false });
   });
 
+  it("removes a spaced executable path written in either quoting grammar", async () => {
+    for (const platform of ["win32", "linux"] as const) {
+      const options = { ...await fixtureOptions(), platform };
+      const file = configPath("codex", options.homeDirectory);
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(file, JSON.stringify({
+        hooks: {
+          UserPromptSubmit: [{ hooks: [{ type: "command", command: "keep this hook" }] }]
+        }
+      }), "utf8");
+      expect(await changeAgentHookFixture("codex", "install", options))
+        .toMatchObject({ supported: true, changed: true });
+      const installed = await readFile(file, "utf8");
+      expect(installed).toContain(
+        JSON.stringify(quoteHookArgument(options.nodeExecutable!, platform)).slice(1, -1)
+      );
+      expect(await readAgentHookStatus("codex", {
+        homeDirectory: options.homeDirectory
+      })).toMatchObject({ installed: true });
+      expect(await changeAgentHookFixture("codex", "uninstall", options))
+        .toMatchObject({ supported: true, changed: true });
+      const remaining = await readFile(file, "utf8");
+      expect(remaining).toContain("keep this hook");
+      expect(remaining).not.toContain("--managed-hook");
+      expect(await readAgentHookStatus("codex", {
+        homeDirectory: options.homeDirectory
+      })).toMatchObject({ installed: false });
+    }
+  });
+
   it("rejects a symlinked user configuration", async () => {
     const options = await fixtureOptions();
     const outside = path.join(options.homeDirectory, "outside-config");
