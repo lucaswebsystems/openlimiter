@@ -2044,3 +2044,83 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------- paired phone */
+
+/*
+  The two things a paired phone shows that a signed in browser does not: a
+  money row, which is an amount rather than a percentage, and a notice, which
+  is what a revoked device or an unanswered service reads as.
+
+  Both are built from the same tokens the rest of this file uses, at the same
+  radius and the same hairline, so the phone is the product at a narrower
+  width rather than a second design.
+*/
+
+.ol-device-money {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+.ol-device-money-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-raised);
+}
+
+.ol-device-money-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ol-soft);
+  font-size: var(--ol-text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ol-device-money-value {
+  flex: none;
+  color: var(--ol-heading);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--ol-weight-bold);
+}
+
+.ol-device-money-value[data-state="stale"] {
+  color: var(--ol-band-stale-label);
+}
+
+.ol-device-notice {
+  display: grid;
+  width: min(100%, 32rem);
+  gap: var(--ol-space-3);
+  margin: var(--ol-space-6) auto 0;
+  padding: var(--ol-space-5);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-lg);
+  background: var(--ol-surface);
+  box-shadow: var(--ol-elev-1);
+}
+
+.ol-device-notice h2 {
+  color: var(--ol-heading);
+  font-size: var(--ol-text-title);
+  font-weight: var(--ol-weight-bold);
+  line-height: var(--ol-leading-tight);
+}
+
+.ol-device-notice p {
+  margin: 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.ol-device-notice a {
+  color: var(--ol-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
