@@ -23,6 +23,7 @@ mod native_snapshot;
 mod native_time;
 mod net;
 mod notifications;
+mod pairing;
 mod poll_identity;
 mod pro;
 mod provider_detection;
@@ -109,6 +110,7 @@ pub fn run() {
         .manage(request_policy::RequestPolicy::at_state_directory())
         .manage(updates::PendingUpdate::default())
         .manage(notifications::NotificationState::default())
+        .manage(pairing::PairingRuntime::default())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -149,6 +151,15 @@ pub fn run() {
             pro::pro_sync_agent_context,
             pro::pro_sync_hosted,
             pro::pro_disconnect,
+            pro::pro_checkout_url,
+            pro::pro_portal_url,
+            pairing::pairing_start,
+            pairing::pairing_status,
+            pairing::pairing_approve,
+            pairing::pairing_deny,
+            pairing::pairing_cancel,
+            pairing::devices_list,
+            pairing::device_revoke,
             notifications::notification_gate,
             notifications::evaluate_notifications,
             notifications::notification_events,

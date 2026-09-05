@@ -1061,15 +1061,38 @@ impl<'de> Deserialize<'de> for StrictValue {
 }
 
 async fn post_json(path: &str, access_token: &str, payload: &Value) -> Result<Value, ProFailure> {
+    post_signed_json(path, access_token, None, payload).await
+}
+
+/// The one request shape, with the device token attached when the endpoint
+/// wants it.
+///
+/// `/pair-device` authorises the desktop twice over: the Supabase bearer says
+/// which account is asking, and `x-openlimiter-entitlement` says which device
+/// inside it. Sending the second only where it is required keeps every other
+/// call exactly as narrow as it was.
+async fn post_signed_json(
+    path: &str,
+    access_token: &str,
+    entitlement: Option<&str>,
+    payload: &Value,
+) -> Result<Value, ProFailure> {
     let body = serde_json::to_vec(payload).map_err(|_| ProFailure::InvalidInput)?;
     if body.len() > MAX_REQUEST_BYTES {
         return Err(ProFailure::InvalidInput);
     }
-    let response = network_client()?
+    let mut request = network_client()?
         .post(endpoint(path)?)
         .bearer_auth(access_token)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .header(reqwest::header::ACCEPT, "application/json")
+        .header(reqwest::header::ACCEPT, "application/json");
+    if let Some(token) = entitlement {
+        if token.is_empty() || token.len() > MAX_TOKEN_BYTES {
+            return Err(ProFailure::InvalidEntitlement);
+        }
+        request = request.header("x-openlimiter-entitlement", token);
+    }
+    let response = request
         .body(body)
         .send()
         .await
@@ -1562,6 +1585,146 @@ fn validate_device_action_payload(
         _ => {}
     }
     Ok(())
+}
+
+/// The billing period a person chose, in the vocabulary the Pro service reads.
+///
+/// The window says monthly and yearly because that is what the price page
+/// says. `create-checkout` reads `month` and `year`, so the translation lives
+/// here rather than in the interface, where a typo would be a silent 400.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProPlan {
+    Monthly,
+    Yearly,
+}
+
+impl ProPlan {
+    fn interval(self) -> &'static str {
+        match self {
+            Self::Monthly => "month",
+            Self::Yearly => "year",
+        }
+    }
+}
+
+/// Whether the person is being sent to manage billing or to cancel.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PortalIntent {
+    Manage,
+    Cancel,
+}
+
+impl PortalIntent {
+    fn action(self) -> &'static str {
+        match self {
+            Self::Manage => "manage",
+            Self::Cancel => "cancel",
+        }
+    }
+}
+
+/// A hosted address the window is about to hand to the system browser.
+///
+/// Both hosted billing surfaces answer with one absolute URL and nothing
+/// else, so both come back through this shape and both are checked the same
+/// way before anything is opened.
+fn hosted_url(response: &Value) -> Result<String, ProFailure> {
+    let url = response
+        .get("url")
+        .and_then(Value::as_str)
+        .ok_or(ProFailure::Service)?;
+    if url.len() > 2_048 {
+        return Err(ProFailure::Service);
+    }
+    let parsed = reqwest::Url::parse(url).map_err(|_| ProFailure::Service)?;
+    if parsed.scheme() != "https" || parsed.username() != "" || parsed.password().is_some() {
+        return Err(ProFailure::Service);
+    }
+    Ok(url.to_string())
+}
+
+/// The Supabase bearer for the signed in person, or a plain no session.
+pub(crate) async fn access_token(
+    store: &dyn SecretStore,
+) -> Result<zeroize::Zeroizing<String>, ProFailure> {
+    crate::account::current_access_token(store)
+        .await
+        .map_err(map_account_failure)
+}
+
+/// The device token this machine currently holds, refreshing it when it is due.
+///
+/// `pair-device` verifies the token against the live grant, so a token inside
+/// its refresh window would be rejected by the server rather than accepted on
+/// the honour system the way a local feature is. Refreshing first turns that
+/// into an ordinary success instead of an unexplained 401.
+pub(crate) async fn current_device_token(store: &dyn SecretStore) -> Result<String, ProFailure> {
+    let status = refresh_if_due(store).await?;
+    if !matches!(
+        status.state,
+        ProEntitlementState::Active | ProEntitlementState::RefreshDue
+    ) {
+        return Err(ProFailure::EntitlementRequired);
+    }
+    read_cache()?
+        .map(|cache| cache.token)
+        .ok_or(ProFailure::NoSession)
+}
+
+/// The identifier this machine is known by inside the account.
+pub(crate) fn desktop_device_id(store: &dyn SecretStore) -> Result<String, ProFailure> {
+    let account_id = crate::account::active_account_id(store).map_err(|_| ProFailure::NoSession)?;
+    Ok(load_trust(store, &account_id)?.device_id)
+}
+
+/// One `pair-device` action, authorised as both the account and this device.
+pub(crate) async fn post_pairing(
+    store: &dyn SecretStore,
+    payload: Value,
+) -> Result<Value, ProFailure> {
+    let access = access_token(store).await?;
+    let device_token = current_device_token(store).await?;
+    post_signed_json("/pair-device", &access, Some(&device_token), &payload).await
+}
+
+/// One hosted service action, for callers outside this module.
+pub(crate) async fn call_service(
+    store: &dyn SecretStore,
+    input: ProServiceInput,
+) -> Result<Value, ProFailure> {
+    service_call(store, input).await
+}
+
+#[tauri::command]
+pub async fn pro_checkout_url(
+    plan: ProPlan,
+    store: State<'_, KeyringStore>,
+) -> Result<String, ProFailure> {
+    let access = access_token(store.inner()).await?;
+    let response = post_json(
+        "/create-checkout",
+        &access,
+        &json!({ "interval": plan.interval() }),
+    )
+    .await?;
+    hosted_url(&response)
+}
+
+#[tauri::command]
+pub async fn pro_portal_url(
+    intent: PortalIntent,
+    store: State<'_, KeyringStore>,
+) -> Result<String, ProFailure> {
+    let access = access_token(store.inner()).await?;
+    let response = post_json(
+        "/customer-portal",
+        &access,
+        &json!({ "action": intent.action() }),
+    )
+    .await?;
+    hosted_url(&response)
 }
 
 #[tauri::command]
