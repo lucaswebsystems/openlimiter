@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   AGENT_CONTEXT_SCALAR_LIMIT,
+  AGENT_CONTEXT_SPILL_FILE_NAME,
   HOSTED_CONTEXT_FILE_NAME,
   agentContextFromCache,
   agentContextSpillFromCache,
@@ -403,6 +404,34 @@ describe("signed hosted context", () => {
     expect(context).toContain("hosted_routing_hint");
     expect(context).toContain("openlimiter status --agent-context");
     expect(await agentContextSpillFromCache(directory, NOW)).not.toBe("");
+  });
+
+  it("keeps the context when the spill file cannot be replaced", async () => {
+    const document = unsigned();
+    document.payload.meters = Array.from({ length: 38 }, (_, index) => ({
+      provider: "openai",
+      meter: "provider_usage_percent",
+      level: index === 37 ? "90" : "60",
+      reset_at: null
+    }));
+    const directory = await mkdtemp(path.join(tmpdir(), "openlimiter-hosted-blocked-"));
+    created.push(directory);
+    await writeFile(
+      path.join(directory, HOSTED_CONTEXT_FILE_NAME),
+      JSON.stringify(signed(document)),
+      "utf8"
+    );
+    /* Nothing can be renamed onto a directory, so the spill write fails the
+       way a locked or scanned file fails on Windows once its retries run out. */
+    await mkdir(
+      path.join(directory, AGENT_CONTEXT_SPILL_FILE_NAME, "occupied"),
+      { recursive: true }
+    );
+    const context = await agentContextFromCache(directory, NOW, undefined, {
+      hostedTrust: trust()
+    });
+    expect(context).toContain("level=90");
+    expect(await agentContextSpillFromCache(directory, NOW)).toBe("");
   });
 
   it("does not follow a linked state directory", async () => {

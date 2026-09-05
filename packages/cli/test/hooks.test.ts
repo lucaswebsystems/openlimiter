@@ -471,10 +471,18 @@ describe("hook CLI", () => {
     await writeSnapshotCache(snapshots, stateDirectory);
     const blocker = path.join(stateDirectory, AGENT_CONTEXT_FILE_NAME);
     await mkdir(path.join(blocker, "occupied"), { recursive: true });
-    const failing = writeAgentContextSnapshot(snapshots, stateDirectory, now);
-    const queued = writeAgentContextSnapshot(snapshots, stateDirectory, now);
-    await expect(failing).rejects.toThrow();
-    await expect(queued).rejects.toThrow();
+    /* Both writers are handled in the tick they are created and both are
+       awaited before the directory is touched. Which of them wins the turn is
+       not fixed, so attaching to one and only then to the other would leave
+       the loser's failure unobserved for as long as the first one runs. */
+    const settled = await Promise.allSettled([
+      writeAgentContextSnapshot(snapshots, stateDirectory, now),
+      writeAgentContextSnapshot(snapshots, stateDirectory, now)
+    ]);
+    expect(settled.map((outcome) => outcome.status)).toEqual([
+      "rejected",
+      "rejected"
+    ]);
     await rm(blocker, { recursive: true, force: true });
     await writeAgentContextSnapshot(snapshots, stateDirectory, now);
     expect(await readFile(blocker, "utf8")).toContain("provider=CODEX");
