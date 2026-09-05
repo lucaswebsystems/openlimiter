@@ -487,6 +487,16 @@ export const OPENCODE_TOOL: ConnectionTool = "OpenCode";
  * throws, and neither one is silence.
  */
 export function opencodeConnection(parsed: boolean, payload: unknown): ConnectionStatus {
+  /*
+   * The signed out marker is read BEFORE the parse result, and the order is the
+   * whole point. A page asking somebody to sign in is a page whose numbers are
+   * leftovers, and this reader can still find a percentage in leftovers, so
+   * asking "did it parse" first reports a live looking meter behind an account
+   * nobody is signed into. That is the exact claim this product exists to stop.
+   */
+  if (typeof payload === "string" && SIGNED_OUT.test(payload)) {
+    return connectionStatus("AUTH_EXPIRED", "token_expired", OPENCODE_TOOL);
+  }
   if (parsed) return connectionStatus("CONNECTED", null, OPENCODE_TOOL);
   /* Nothing arrived at all, which is a session that has not been opened yet
      rather than a fault. Anything that DID arrive and could not be read is a
@@ -494,9 +504,7 @@ export function opencodeConnection(parsed: boolean, payload: unknown): Connectio
   if (payload === undefined || payload === null) {
     return connectionStatus("DETECTED", "tool_not_running", OPENCODE_TOOL);
   }
-  return typeof payload === "string" && SIGNED_OUT.test(payload)
-    ? connectionStatus("AUTH_EXPIRED", "token_expired", OPENCODE_TOOL)
-    : connectionStatus("ERROR", "shape_mismatch", OPENCODE_TOOL);
+  return connectionStatus("ERROR", "shape_mismatch", OPENCODE_TOOL);
 }
 
 export const opencodeConnector: ConnectorContract = {

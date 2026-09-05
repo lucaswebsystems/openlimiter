@@ -1005,10 +1005,11 @@ const claudeMalformed: readonly MalformedFixture[] = [
     build: (now) => claudeWindows({ used_percentage: 42, resets_at: 0 }, undefined)
   },
   {
-    id: "claude.malformed.epoch_string",
+    id: "claude.edge.epoch_string",
     connector: "claude",
-    reason: "resets_at as a string rather than a number",
-    expectedMeters: 0,
+    reason: "resets_at as the digits of an epoch in quotes, which is a JSON " +
+      "writer quoting its numbers rather than a different instant",
+    expectedMeters: 1,
     build: (now) => claudeWindows(
       { used_percentage: 42, resets_at: String(epochOffset(now, FIVE_HOURS)) },
       undefined

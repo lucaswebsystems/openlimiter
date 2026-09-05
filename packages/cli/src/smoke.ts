@@ -78,7 +78,10 @@ const SECRET_PATTERNS: readonly (readonly [string, RegExp])[] = [
   ["a JSON web token", /\beyJ[A-Za-z0-9_-]{6,}/u],
   ["a bearer token", /\bBearer\s+\S/iu],
   ["an api key", /\b(?:sk|pk|xai|sess)-[A-Za-z0-9]{8,}/u],
-  ["a windows user path", /[A-Za-z]:\\+Users\\+[^\\\\"]+/u],
+  /* Case blind: Windows paths are, so the lower case spelling names the
+     same directory and leaks the same name. A case sensitive pattern here
+     caught the tidy spelling and let the one a shell prints straight by. */
+  ["a windows user path", /[A-Za-z]:\\+Users\\+[^\\\\"]+/iu],
   ["a unix home path", /\/(?:home|Users)\/[^/"]+/u],
   ["an authorization header", /"?authorization"?\s*[:=]/iu],
   ["a cookie", /\b(?:set-)?cookie\b/iu]

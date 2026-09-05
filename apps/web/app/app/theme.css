@@ -256,12 +256,21 @@
 .window-line[data-band="red"] .meter-fill { background: var(--ol-band-red-fill) !important; }
 .window-line[data-band="red"] .window-readout { color: var(--ol-band-red-label) !important; }
 
-/* Stale and unknown both draw hatched. windowBand already collapses them into
- * one band, and the state selectors stand beside it so a surface that emits
- * only data-state still loses the colour rather than keeping a stale one. */
+/* Stale and unknown both draw hatched, and they hatch DIFFERENT elements.
+ *
+ * A stale window has a reading that is merely too old to trust, so it still
+ * renders a fill span and the fill is what carries the hatch. An unknown window
+ * has no reading at all: provider-row.ts renders no fill span when usedPercent
+ * is null, so a rule keyed on .meter-fill there styles nothing and the track
+ * stayed a plain empty bar that reads as zero used. The track itself,
+ * .window-meter, is the only thing there is to draw, which is exactly what
+ * packages/ui does for the same state. */
 .window-line[data-band="stale"] .meter-fill,
-.window-line[data-state="stale"] .meter-fill,
-.window-line[data-state="unknown"] .meter-fill {
+.window-line[data-state="stale"] .meter-fill {
+  background: var(--ol-meter-hatched-pattern) !important;
+  opacity: 1 !important;
+}
+.window-line[data-state="unknown"] .window-meter {
   background: var(--ol-meter-hatched-pattern) !important;
   opacity: 1 !important;
 }

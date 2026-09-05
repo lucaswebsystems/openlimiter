@@ -117,10 +117,16 @@ function meterCode(value: unknown): string | null {
  * credential says `utilization`. They mean the same thing, and a reader that
  * knows only one of them reports nothing at all against the other, which is
  * finding F-201 in one sentence.
+ *
+ * Every name is tried until one of them is usable, rather than stopping at the
+ * first one PRESENT. A key that exists and holds null is not an answer, and a
+ * reader that treats it as one throws away the answer sitting beside it, which
+ * is the same failure in a smaller box.
  */
 function statedPercent(input: Record<string, unknown>): number | null {
   for (const field of ["used_percentage", "utilization", "percent"] as const) {
-    if (input[field] !== undefined) return boundedNumber(input[field]);
+    const value = boundedNumber(input[field]);
+    if (value !== null) return value;
   }
   return null;
 }
@@ -133,6 +139,18 @@ function statedPercent(input: Record<string, unknown>): number | null {
  * milliseconds and a string that is really a date in the past both fail, and
  * the window that stated them is dropped on its own.
  */
+/**
+ * An epoch written as digits in quotes, and long enough to be one.
+ *
+ * Nine digits is 1973 and thirteen is a millisecond stamp of today; outside
+ * that range a bare number is not an epoch at all, it is a year, an identifier,
+ * or a truncation, and it belongs in the date branch or nowhere.
+ */
+const QUOTED_EPOCH = /^\d{9,13}$/u;
+
+/** Digit count above which a quoted epoch is milliseconds rather than seconds. */
+const EPOCH_MILLISECOND_DIGITS = 13;
+
 function resetInstant(
   value: unknown,
   now: string,
@@ -141,10 +159,24 @@ function resetInstant(
   if (typeof value === "number") {
     return futureInstantFromEpochSeconds(value, now, maxAheadSeconds);
   }
-  if (typeof value === "string") {
-    return futureInstantFromRfc3339(value, now, maxAheadSeconds);
+  if (typeof value !== "string") return null;
+  /*
+   * A quoted epoch is read as an epoch BEFORE it is offered to the date
+   * parser, and the order is the whole point: Date.parse is willing to read
+   * "1767243600" as a year, so a reset five hours away reaches the wrong
+   * branch and becomes an instant thirty thousand years out or nothing at all.
+   * A JSON writer that quotes its numbers is not drift; the instant it names
+   * is unambiguous once the unit is settled, and the unit settles on length.
+   */
+  const trimmed = value.trim();
+  if (QUOTED_EPOCH.test(trimmed)) {
+    const digits = Number.parseInt(trimmed, 10);
+    const seconds = trimmed.length >= EPOCH_MILLISECOND_DIGITS
+      ? digits / 1_000
+      : digits;
+    return futureInstantFromEpochSeconds(seconds, now, maxAheadSeconds);
   }
-  return null;
+  return futureInstantFromRfc3339(value, now, maxAheadSeconds);
 }
 
 /**
@@ -232,15 +264,34 @@ function parseWindow(
  * Everything else in the table is ignored in silence, because a statusline
  * payload legitimately carries session identifiers and workspace paths beside
  * its meters and none of those are readings.
+ *
+ * The order is this build's, never the document's. Meter order used to follow
+ * JSON key order, which no provider promises and which a proxy, a
+ * re-serialiser or a client version bump changes for free, so the same account
+ * could produce two different meter lists on two consecutive reads.
  */
+function orderedWindowKeys(table: Record<string, unknown>): string[] {
+  const remaining = new Set(
+    Object.keys(table).filter((key) => !RESERVED_KEYS.has(key))
+  );
+  const ordered: string[] = [];
+  /* The buckets this build knows lead, shortest window first, which is the
+     order a person reads them in and the order every surface ranks them in. */
+  for (const key of Object.keys(KNOWN_WINDOWS)) {
+    if (!remaining.delete(key)) continue;
+    ordered.push(key);
+  }
+  return [...ordered, ...[...remaining].sort()];
+}
+
 function parseWindowTable(
   table: Record<string, unknown>,
   now: string,
   seen: Set<string>
 ): MeterInput[] {
   const found: MeterInput[] = [];
-  for (const [key, value] of Object.entries(table)) {
-    if (RESERVED_KEYS.has(key)) continue;
+  for (const key of orderedWindowKeys(table)) {
+    const value = table[key];
     const known = KNOWN_WINDOWS[key];
     const meter = known?.meter ?? meterCode(key);
     if (meter === null || seen.has(meter)) continue;
@@ -355,12 +406,24 @@ function parseExtraUsage(value: unknown, now: string): MeterInput | null {
   const input = record(value);
   if (input === null) return null;
   const used = amountField(input, ["used_amount", "used_credits", "used"]);
-  const limit = amountField(input, ["limit_amount", "limit_credits", "limit", "cap"]);
+  const limit = amountField(
+    input,
+    ["limit_amount", "limit_credits", "monthly_limit", "limit", "cap"]
+  );
   const stated = statedPercent(input);
+  /*
+   * Spend past the ceiling is capped, not dropped. The pool somebody has
+   * overspent is the pool they most need to see, and refusing it made the one
+   * bucket that was over its limit the one bucket that vanished. A percentage
+   * cannot exceed a hundred, so a hundred is what it reads, and the money that
+   * produced it travels on untouched for the normalizer to judge: it refuses a
+   * used figure larger than its own limit and drops all three money fields,
+   * which leaves the capped percentage standing on its own.
+   */
   const derived =
-    used === null || limit === null || limit <= 0 || used > limit
+    used === null || limit === null || limit <= 0
       ? null
-      : (used / limit) * 100;
+      : Math.min(100, (used / limit) * 100);
   const percent = stated ?? derived;
   if (percent === null || !Number.isFinite(percent) || percent < 0 || percent > 100) {
     return null;

@@ -388,4 +388,25 @@ describe("provider account rows", () => {
     );
     expect(rows[0]?.windows[0]?.label).toBe("Extra usage");
   });
+
+  it("renders no meter fill at all for a window whose state is unknown", () => {
+    /* The fact every stylesheet keying the unknown state on .meter-fill gets
+       wrong. A window with no reliable reading has no percentage, so there is
+       no fill span to hatch: the track itself, .window-meter, is the only thing
+       there is to draw. Pinned here so an override written against it cannot
+       rot silently. */
+    const future = "2026-08-19T13:00:00.000Z";
+    const rows = buildProviderAccountRows(
+      [{ ...snapshot("CLAUDE", "FIVE_HOUR", 42, "claude-account"), observedAt: future }],
+      NOW,
+      [],
+      { providers: ["CLAUDE"] }
+    );
+    expect(rows[0]?.windows[0]?.state).toBe("unknown");
+    expect(rows[0]?.windows[0]?.usedPercent).toBeNull();
+    const markup = providerRowMarkup(rows[0]!);
+    expect(markup).toContain('data-state="unknown"');
+    expect(markup).toContain('class="window-meter"');
+    expect(markup).not.toContain("meter-fill");
+  });
 });

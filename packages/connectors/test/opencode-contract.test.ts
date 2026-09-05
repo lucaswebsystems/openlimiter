@@ -472,6 +472,22 @@ describe("opencode: fails soft, and says which failure it was", () => {
     expect(result.connection?.instruction).toBe("Open OpenCode to refresh");
   });
 
+  it("calls a signed out page expired even when leftover text still parses", async () => {
+    /* A page that is asking somebody to sign in is a page whose numbers are
+       leftovers, whatever this reader managed to find in them. Reporting it as
+       connected is the exact claim this product exists to stop: a live looking
+       meter behind an account nobody is signed into. */
+    const signedOut = page(10, 20, 30).replace(
+      "<main>",
+      "<main><header><a href=\"/auth\">Sign in</a></header>"
+    );
+    expect(parseOpencodePayload(signedOut, NOW)).not.toBeNull();
+    const result = await read(signedOut);
+    expect(result.connection?.state).toBe("AUTH_EXPIRED");
+    expect(result.connection?.reason).toBe("token_expired");
+    expect(result.connection?.instruction).toBe("Open OpenCode to refresh");
+  });
+
   it("calls an unreadable layout our fault, and says to reconnect", async () => {
     const result = await read(
       "<!doctype html><html><body><main><p>Nothing here.</p></main></body></html>"

@@ -87,6 +87,7 @@ describe("smoke: nothing identifying leaves", () => {
     ["a bearer token", '{"header":"Bearer abc123"}'],
     ["an api key", '{"key":"sk-ABCDEFGH1234"}'],
     ["a windows user path", '{"path":"C:\\\\Users\\\\someone\\\\openlimiter"}'],
+    ["a windows user path", '{"path":"c:\\\\users\\\\someone\\\\openlimiter"}'],
     ["a unix home path", '{"path":"/home/someone/.openlimiter"}'],
     ["an authorization header", '{"authorization":"x"}'],
     ["a cookie", '{"cookie":"session=x"}']

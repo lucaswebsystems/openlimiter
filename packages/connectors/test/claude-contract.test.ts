@@ -622,14 +622,16 @@ function weeklyScoped(displayName: string, percent: number): Record<string, unkn
 describe("claude carries every bucket, not the two it was born with", () => {
   it("reads all five root buckets a Max account states", () => {
     const parsed = parseClaudePayload({ rate_limits: everyRootBucket() }, FIXTURE_NOW);
+    /* The order is this build's canonical one, shortest window first, and not
+       the order the payload happened to write its keys in. */
     expect(parsed?.map((meter) => meter.meter)).toEqual([
       "FIVE_HOUR",
       "SEVEN_DAY",
-      "SEVEN_DAY_OAUTH_APPS",
       "SEVEN_DAY_OPUS",
-      "SEVEN_DAY_SONNET"
+      "SEVEN_DAY_SONNET",
+      "SEVEN_DAY_OAUTH_APPS"
     ]);
-    expect(parsed?.map((meter) => meter.value)).toEqual([23.5, 41.2, 3.1, 61, 12.4]);
+    expect(parsed?.map((meter) => meter.value)).toEqual([23.5, 41.2, 61, 12.4, 3.1]);
     expect(normalizeMeters(parsed ?? [])).toHaveLength(5);
   });
 
@@ -714,8 +716,8 @@ describe("claude carries every bucket, not the two it was born with", () => {
     expect(parsed?.map((meter) => meter.meter)).toEqual([
       "FIVE_HOUR",
       "SEVEN_DAY",
-      "SEVEN_DAY_OAUTH_APPS",
       "SEVEN_DAY_SONNET",
+      "SEVEN_DAY_OAUTH_APPS",
       "SEVEN_DAY_FABLE_5"
     ]);
   });
@@ -902,9 +904,9 @@ describe("claude frozen files, read off disk", () => {
     expect(parsed?.map((meter) => meter.meter)).toEqual([
       "FIVE_HOUR",
       "SEVEN_DAY",
-      "SEVEN_DAY_OAUTH_APPS",
       "SEVEN_DAY_OPUS",
       "SEVEN_DAY_SONNET",
+      "SEVEN_DAY_OAUTH_APPS",
       "SEVEN_DAY_FABLE_5"
     ]);
     expect(normalizeMeters(parsed ?? [])).toHaveLength(6);
@@ -931,5 +933,202 @@ describe("claude frozen files, read off disk", () => {
       expect(raw).not.toContain("Bearer ");
       expect(raw).not.toMatch(/sk-[A-Za-z0-9]/u);
     }
+  });
+});
+
+/**
+ * Reading a bucket every way Claude states one, and in one settled order.
+ *
+ * Three tolerances and an ordering, each of which was a real reading this
+ * parser lost. A field that is present and unusable is not the same as a field
+ * that is absent, a reset is a reset whether it arrived as a number or as the
+ * digits of one in quotes, and a pool somebody overspent is the pool they most
+ * need to see.
+ */
+describe("claude: reads a bucket however the document states it", () => {
+  const WEEK = SEVEN_DAYS;
+
+  function bucket(fields: Record<string, unknown>): Record<string, unknown> {
+    return { rate_limits: { five_hour: fields } };
+  }
+
+  it("falls back to utilization when used_percentage is present but unusable", () => {
+    /* A key that exists and holds null is not an answer, and treating it as one
+       threw away the answer sitting beside it. The usage document and the
+       statusline state the same reading under two names, and a payload carrying
+       both with only one of them filled in is exactly the case a reader that
+       stops at the first present key gets wrong. */
+    for (const unusable of [null, "42", true, -1, 101, Number.NaN]) {
+      const parsed = parseClaudePayload(
+        bucket({
+          used_percentage: unusable,
+          utilization: 42,
+          resets_at: NOW_EPOCH + FIVE_HOURS
+        }),
+        FIXTURE_NOW
+      );
+      expect(parsed, String(unusable)).toHaveLength(1);
+      expect(parsed?.[0]?.value, String(unusable)).toBe(42);
+    }
+  });
+
+  it("still refuses a bucket where every stated percentage is unusable", () => {
+    /* Falling through is not guessing. When nothing readable is left the window
+       is dropped, exactly as it was before. */
+    expect(parseClaudePayload(
+      bucket({ used_percentage: null, utilization: "42", resets_at: NOW_EPOCH + FIVE_HOURS }),
+      FIXTURE_NOW
+    )).toBeNull();
+  });
+
+  it("prefers used_percentage when it is usable, so a payload cannot be talked out of it", () => {
+    const parsed = parseClaudePayload(
+      bucket({ used_percentage: 23.5, utilization: 99, resets_at: NOW_EPOCH + FIVE_HOURS }),
+      FIXTURE_NOW
+    );
+    expect(parsed?.[0]?.value).toBe(23.5);
+  });
+
+  it("reads a reset stated as the digits of an epoch in quotes", () => {
+    /* A JSON writer that quotes its numbers is not drift, it is a JSON writer
+       that quotes its numbers, and the instant it names is unambiguous. */
+    const parsed = parseClaudePayload(
+      bucket({ used_percentage: 42, resets_at: String(NOW_EPOCH + FIVE_HOURS) }),
+      FIXTURE_NOW
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed?.[0]?.resetAt).toBe("2026-01-01T05:00:00.000Z");
+  });
+
+  it("reads thirteen digits as milliseconds and ten as seconds", () => {
+    /* The one ambiguity a bare number string has, and it resolves on length:
+       ten digits in seconds is this decade, and the same value in milliseconds
+       is 1970. Thirteen digits is the other way round. */
+    const seconds = String(NOW_EPOCH + FIVE_HOURS);
+    const milliseconds = String((NOW_EPOCH + FIVE_HOURS) * 1_000);
+    expect(seconds).toHaveLength(10);
+    expect(milliseconds).toHaveLength(13);
+    expect(parseClaudePayload(
+      bucket({ used_percentage: 42, resets_at: milliseconds }),
+      FIXTURE_NOW
+    )?.[0]?.resetAt).toBe("2026-01-01T05:00:00.000Z");
+    expect(parseClaudePayload(
+      bucket({ used_percentage: 42, resets_at: seconds }),
+      FIXTURE_NOW
+    )?.[0]?.resetAt).toBe("2026-01-01T05:00:00.000Z");
+  });
+
+  it("reads a quoted epoch before trying to read it as a date", () => {
+    /* Order matters here. Date.parse is willing to read a bare number as a
+       year, so "1767243600" reaching the RFC3339 branch first is how a reset
+       five hours away becomes an instant in the far future or nothing at all. */
+    const parsed = parseClaudePayload(
+      bucket({ used_percentage: 42, resets_at: " " + String(NOW_EPOCH + FIVE_HOURS) + " " }),
+      FIXTURE_NOW
+    );
+    expect(parsed?.[0]?.resetAt).toBe("2026-01-01T05:00:00.000Z");
+  });
+
+  it("still refuses a numeric string that is not an epoch at all", () => {
+    for (const value of ["42", "2026", "12345678", "12345678901234", "1e9", "-1767243600"]) {
+      expect(parseClaudePayload(
+        bucket({ used_percentage: 42, resets_at: value }),
+        FIXTURE_NOW
+      ), value).toBeNull();
+    }
+  });
+
+  it("still refuses a quoted epoch that already passed or is implausible", () => {
+    expect(parseClaudePayload(
+      bucket({ used_percentage: 42, resets_at: String(NOW_EPOCH - FIVE_HOURS) }),
+      FIXTURE_NOW
+    )).toBeNull();
+    expect(parseClaudePayload(
+      bucket({ used_percentage: 42, resets_at: String(NOW_EPOCH + FIVE_HOURS * 2 + 3_601) }),
+      FIXTURE_NOW
+    )).toBeNull();
+  });
+
+  it("keeps an overspent extra usage pool, capped at a hundred", () => {
+    /* The pool somebody has overspent is the pool they most need to see, and
+       dropping it made the one bucket that was over its ceiling the one bucket
+       that vanished. The percentage cannot exceed a hundred, so it is capped
+       rather than invented. */
+    const parsed = parseClaudePayload({
+      five_hour: {
+        utilization: 12,
+        resets_at: new Date((NOW_EPOCH + FIVE_HOURS) * 1_000).toISOString()
+      },
+      extra_usage: { used_credits: 25, monthly_limit: 20, currency: "USD" }
+    }, FIXTURE_NOW);
+    const extra = parsed?.find((meter) => meter.meter === "EXTRA_USAGE");
+    expect(extra).toBeDefined();
+    expect(extra?.value).toBe(100);
+  });
+
+  it("lets the normalizer drop money that cannot be believed, keeping the percent", () => {
+    /* Spend larger than its own ceiling is a pair this build will not print, so
+       all three money fields go together and the capped percentage stands. */
+    const parsed = parseClaudePayload({
+      extra_usage: { used_amount: 25, limit_amount: 20, currency: "USD" }
+    }, FIXTURE_NOW);
+    const normalized = normalizeMeters(parsed ?? []);
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0]?.meter).toBe("EXTRA_USAGE");
+    expect(normalized[0]?.value).toBe(100);
+    expect(normalized[0]?.usedAmount).toBeUndefined();
+    expect(normalized[0]?.limitAmount).toBeUndefined();
+  });
+
+  it("still refuses an extra usage pool with no ceiling to spend against", () => {
+    expect(parseClaudePayload({ extra_usage: { used_amount: 25 } }, FIXTURE_NOW)).toBeNull();
+    expect(parseClaudePayload(
+      { extra_usage: { used_amount: 25, limit_amount: 0 } },
+      FIXTURE_NOW
+    )).toBeNull();
+  });
+
+  it("lists buckets in one canonical order, whatever order the payload used", () => {
+    /* Meter order followed JSON key order, which no provider promises and which
+       a proxy, a re-serialiser or a client version bump changes for free. The
+       known buckets lead in the order a person reads them, shortest window
+       first, and anything this build has not heard of follows alphabetically. */
+    const scrambled = {
+      rate_limits: {
+        seven_day_sonnet: { used_percentage: 12.4, resets_at: NOW_EPOCH + WEEK },
+        zulu_window: { used_percentage: 1, resets_at: NOW_EPOCH + WEEK },
+        seven_day_oauth_apps: { used_percentage: 3.1, resets_at: NOW_EPOCH + WEEK },
+        alpha_window: { used_percentage: 2, resets_at: NOW_EPOCH + WEEK },
+        seven_day: { used_percentage: 41.2, resets_at: NOW_EPOCH + WEEK },
+        seven_day_opus: { used_percentage: 61, resets_at: NOW_EPOCH + WEEK },
+        five_hour: { used_percentage: 23.5, resets_at: NOW_EPOCH + FIVE_HOURS }
+      }
+    };
+    expect(parseClaudePayload(scrambled, FIXTURE_NOW)?.map((meter) => meter.meter))
+      .toEqual([
+        "FIVE_HOUR",
+        "SEVEN_DAY",
+        "SEVEN_DAY_OPUS",
+        "SEVEN_DAY_SONNET",
+        "SEVEN_DAY_OAUTH_APPS",
+        "ALPHA_WINDOW",
+        "ZULU_WINDOW"
+      ]);
+  });
+
+  it("gives the same list for the same buckets written in two orders", () => {
+    const first = parseClaudePayload({
+      rate_limits: {
+        five_hour: { used_percentage: 23.5, resets_at: NOW_EPOCH + FIVE_HOURS },
+        seven_day_opus: { used_percentage: 61, resets_at: NOW_EPOCH + WEEK }
+      }
+    }, FIXTURE_NOW);
+    const second = parseClaudePayload({
+      rate_limits: {
+        seven_day_opus: { used_percentage: 61, resets_at: NOW_EPOCH + WEEK },
+        five_hour: { used_percentage: 23.5, resets_at: NOW_EPOCH + FIVE_HOURS }
+      }
+    }, FIXTURE_NOW);
+    expect(first).toEqual(second);
   });
 });
