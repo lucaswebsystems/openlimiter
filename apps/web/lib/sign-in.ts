@@ -126,6 +126,9 @@ export async function startOAuth(
   return { ok: true };
 }
 
+/** How long the probe waits for an answer before it stops deciding anything. */
+export const PROBE_TIMEOUT_MILLISECONDS = 4000;
+
 /**
  * The probe, the one function here that touches the network.
  *
@@ -133,13 +136,23 @@ export async function startOAuth(
  * authorize address with a redirect to itself, and following it from here
  * would fetch a login page nobody asked for; left unfollowed, the browser
  * reports an opaque redirect, which is read as the go ahead it is.
+ *
+ * A stalled connection is not an answer either. The request gives up after
+ * four seconds, the same way lib/github.ts does, and an abort counts as a
+ * probe that could not be made: the browser goes on to the provider rather
+ * than the card sitting on "Opening" with every control disabled.
  */
 export async function probeAuthorize(
   url: string,
   fetchImpl: typeof fetch = fetch,
+  timeoutMilliseconds: number = PROBE_TIMEOUT_MILLISECONDS,
 ): Promise<ProbeAnswer | null> {
   try {
-    const response = await fetchImpl(url, { redirect: "manual", credentials: "omit" });
+    const response = await fetchImpl(url, {
+      redirect: "manual",
+      credentials: "omit",
+      signal: AbortSignal.timeout(timeoutMilliseconds),
+    });
     if (response.type === "opaqueredirect") return { status: 302, body: null };
     let body: unknown = null;
     try {

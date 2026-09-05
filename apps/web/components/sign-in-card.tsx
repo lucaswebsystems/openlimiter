@@ -12,6 +12,7 @@ import {
   type OAuthProvider,
   type SignInState,
 } from "@/lib/sign-in";
+import { BrandLockup } from "./brand";
 import { SiteLink } from "./site-link";
 import { Button, FIELD, GitHubMark, GoogleMark, SectionPanel } from "./ui";
 
@@ -19,12 +20,14 @@ import { Button, FIELD, GitHubMark, GoogleMark, SectionPanel } from "./ui";
  * The sign in, drawn once.
  *
  * The dashboard gate at /app and the Pro portal both render this and nothing
- * else, so the two cannot drift apart. The composition is the one the product
- * standardised on: a title, one sentence saying what an account is for, the
- * two provider buttons with their marks leading, a rule reading "or", and the
- * email link kept behind a quiet link until somebody wants it. Every state
- * the card can be in has a shape: opening a provider, a link on its way, a
- * link sent, a provider the service has switched off, and a plain failure.
+ * else, so the two cannot drift apart. It is the one composition the desktop
+ * sheet and the desktop first run step draw as well: a centred head with the
+ * lockup, the title and one lead sentence, the two provider buttons with
+ * their marks leading, a rule reading "or", and the email link kept behind a
+ * link until somebody wants it. Only the title's size changes from host to
+ * host. Every state the card can be in has a shape: opening a provider, a
+ * link on its way, a link sent, a provider the service has switched off, and
+ * a plain failure.
  *
  * The card never asks for a password. The web signs in with a provider or
  * with a single use link, and the privacy page says so.
@@ -35,7 +38,9 @@ import { Button, FIELD, GitHubMark, GoogleMark, SectionPanel } from "./ui";
  * the gate to go to without an account: the readings a browser can show are
  * the ones a person's own devices synced. What it carries instead is the
  * honest sentence, that the desktop application needs no account at all, and
- * the way to it.
+ * the way to it. A page that renders it keeps its chrome quiet, see
+ * PageShell's quietChrome, so nothing lands on these controls at the phone
+ * width.
  */
 export function SignInCard({
   client,
@@ -48,6 +53,7 @@ export function SignInCard({
   const t = useTranslations("signIn");
   const formId = useId();
   const emailField = useRef<HTMLInputElement>(null);
+  const emailForm = useRef<HTMLFormElement>(null);
   const [state, setState] = useState<SignInState>({ kind: "idle" });
   const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -55,9 +61,13 @@ export function SignInCard({
   const Heading = heading;
 
   /* The field takes focus when it appears, and only then: a field that grabs
-     focus on mount would steal it from the provider buttons above it. */
+     focus on mount would steal it from the provider buttons above it. The
+     whole form is then brought into view, so the control that sends the link
+     is never left under the fold while the field it belongs to has focus. */
   useEffect(() => {
-    if (emailOpen) emailField.current?.focus();
+    if (!emailOpen) return;
+    emailField.current?.focus({ preventScroll: true });
+    emailForm.current?.scrollIntoView({ block: "nearest" });
   }, [emailOpen]);
 
   async function continueWith(provider: OAuthProvider) {
@@ -95,9 +105,12 @@ export function SignInCard({
   }
 
   return (
-    <SectionPanel className="mx-auto w-full max-w-md">
-      <Heading className="text-xl font-medium tracking-tight text-heading">{t("title")}</Heading>
-      <p className="mt-1 text-sm leading-relaxed text-muted">{t("lead")}</p>
+    <SectionPanel className="mx-auto w-full max-w-md scroll-mb-8">
+      <div className="grid justify-items-center gap-3 text-center">
+        <BrandLockup markClassName="h-7 w-7 flex-none text-brand" />
+        <Heading className="text-xl font-medium tracking-tight text-heading">{t("title")}</Heading>
+        <p className="max-w-xs text-sm leading-relaxed text-muted">{t("lead")}</p>
+      </div>
 
       <div className="mt-6 grid gap-2">
         <Button
@@ -130,7 +143,7 @@ export function SignInCard({
       </div>
 
       {emailOpen ? (
-        <form id={formId} onSubmit={sendLink} className="grid gap-2">
+        <form ref={emailForm} id={formId} onSubmit={sendLink} className="grid scroll-mb-8 gap-2">
           <label htmlFor={`${formId}-email`} className="text-sm font-medium text-heading">
             {t("emailLabel")}
           </label>
@@ -154,7 +167,7 @@ export function SignInCard({
         <div className="flex justify-center">
           <Button
             tone="quiet"
-            className="min-h-control-touch"
+            className="min-h-control-touch underline decoration-hairline-strong underline-offset-4 hover:decoration-heading"
             aria-expanded={false}
             aria-controls={formId}
             onClick={() => setEmailOpen(true)}

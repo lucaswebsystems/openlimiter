@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
   OAUTH_PROVIDERS,
+  PROBE_TIMEOUT_MILLISECONDS,
   emailSwitchedOff,
   otherProvider,
   probeAuthorize,
@@ -132,10 +133,12 @@ describe("probeAuthorize", () => {
     const fetchImpl = vi.fn(async () => ({ type: "opaqueredirect", status: 0 }) as Response);
     const answer = await probeAuthorize("https://auth.example/authorize", fetchImpl);
     expect(answer).toEqual({ status: 302, body: null });
-    expect(fetchImpl).toHaveBeenCalledWith("https://auth.example/authorize", {
-      redirect: "manual",
-      credentials: "omit",
-    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://auth.example/authorize",
+      expect.objectContaining({ redirect: "manual", credentials: "omit" }),
+    );
+    /* Every probe carries its own deadline. */
+    expect(fetchImpl.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("hands back the status and the parsed body of a refusal", async () => {
@@ -156,6 +159,28 @@ describe("probeAuthorize", () => {
       throw new TypeError("Failed to fetch");
     });
     expect(await probeAuthorize("https://auth.example/authorize", fetchImpl)).toBeNull();
+  });
+
+  it("gives up on a connection that never answers, and the browser still goes", async () => {
+    /* The request honours its signal and nothing else: it settles only when
+       the timeout aborts it, which is what a stalled connection looks like. */
+    const fetchImpl = vi.fn(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    );
+    const navigate = vi.fn();
+    const outcome = await startOAuth("github", {
+      authorizeUrl: async () => "https://auth.example/authorize?provider=github",
+      probe: (url) => probeAuthorize(url, fetchImpl as unknown as typeof fetch, 20),
+      navigate,
+    });
+    expect(outcome).toEqual({ ok: true });
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+    expect(PROBE_TIMEOUT_MILLISECONDS).toBe(4000);
   });
 });
 
@@ -195,5 +220,37 @@ describe("the marks", () => {
   it("never say Gmail", () => {
     expect(source("../messages/en.json")).not.toContain("Gmail");
     expect(source("../components/sign-in-card.tsx")).not.toContain("Gmail");
+  });
+});
+
+describe("the card's surroundings", () => {
+  it("keep the chrome quiet on the page that renders the card", () => {
+    /* The announcement bar and the locale toast landed on the card's own
+       controls at the phone width. The pro page declares quiet chrome on the
+       server, and the rule reads that declaration. */
+    expect(source("../app/[locale]/pro/page.tsx")).toContain("quietChrome");
+    expect(source("../components/page-shell.tsx")).toContain('"data-quiet-chrome"');
+    const globals = source("../app/globals.css");
+    expect(globals).toContain("body:has(main[data-quiet-chrome]) .announce-bar");
+    expect(globals).toContain("body:has(main[data-quiet-chrome]) .locale-offer");
+    expect(source("../components/locale-offer.tsx")).toContain('className="locale-offer ');
+  });
+
+  it("draw the card's ghost edges on the boundary token", () => {
+    const tokens = source("../../../packages/ui/src/tokens.css");
+    expect(tokens).toContain("--ol-control-border: #5a6d87;");
+    expect(tokens).toContain("--ol-control-border: #7f8fa5;");
+    expect(source("../app/globals.css")).toContain("--color-control-border: var(--ol-control-border);");
+    const ui = source("../components/ui.tsx");
+    expect(ui).toMatch(/ghost:\s*"border-control-border /u);
+    expect(ui).toMatch(/FIELD =\s*"[^"]*border-control-border/u);
+  });
+
+  it("lead with the lockup, one sentence, and the send control kept in view", () => {
+    const card = source("../components/sign-in-card.tsx");
+    expect(card).toContain("<BrandLockup");
+    expect(card).toContain('scrollIntoView({ block: "nearest" })');
+    expect(card).toContain("scroll-mb-8");
+    expect(card).toMatch(/underline decoration-hairline-strong underline-offset-4[^"]*"\s*aria-expanded/u);
   });
 });

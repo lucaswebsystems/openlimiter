@@ -54,6 +54,7 @@
 
   --color-hairline: var(--ol-hairline);
   --color-hairline-strong: var(--ol-hairline-strong);
+  --color-control-border: var(--ol-control-border);
 
   --color-heading: var(--ol-heading);
   --color-body: var(--ol-body);
@@ -358,6 +359,24 @@ body:has(.ol-shell) {
 
 :root[data-announce="off"] .announce-bar,
 body:has(.ol-shell) .announce-bar {
+  display: none;
+}
+
+/*
+  A page carrying the sign in card keeps its chrome quiet.
+
+  At the phone width the announcement bar above and the locale toast below
+  both landed on the card's own controls: the toast over "Use email instead"
+  and the card's foot, the bar over the head. A route that renders the card
+  says so on its main element, server rendered, and neither the bar nor the
+  toast paints there at all. Same mechanism as the application shell above.
+*/
+body:has(main[data-quiet-chrome]) {
+  --ol-announce-h: 0px;
+}
+
+body:has(main[data-quiet-chrome]) .announce-bar,
+body:has(main[data-quiet-chrome]) .locale-offer {
   display: none;
 }
 

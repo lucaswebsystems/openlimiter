@@ -1050,9 +1050,15 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   padding-top: var(--ol-space-5);
 }
 
+/* On a monitor the card is the only thing on the screen, so it sits at the
+   centre of it rather than at the top: a grid one viewport tall less the
+   header strip's two rhythms, with the card placed in the middle. */
 @media (min-width: 768px) {
   .ol-account-gate {
-    padding-top: var(--ol-space-7);
+    display: grid;
+    min-height: calc(100svh - var(--ol-space-7) * 2);
+    padding-top: 0;
+    place-items: center;
   }
 }
 

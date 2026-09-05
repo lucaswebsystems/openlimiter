@@ -13,14 +13,25 @@ import { reveal } from "@/lib/motion";
 export function PageShell({
   title,
   lead,
+  quietChrome = false,
   children,
 }: {
   title: string;
   lead: string;
+  /**
+   * For a page that renders the sign in card. The announcement bar and the
+   * locale toast stay off it, declared here on the server so neither paints
+   * first; the rule reads the attribute in app/globals.css.
+   */
+  quietChrome?: boolean;
   children: ReactNode;
 }) {
   return (
-    <main id="main" className={`${SHELL} pb-6 md:pb-20`}>
+    <main
+      id="main"
+      className={`${SHELL} pb-6 md:pb-20`}
+      {...(quietChrome ? { "data-quiet-chrome": "" } : {})}
+    >
       {/* Centered at full wrapper width, the same rule the home sections
          follow: the founder's standard for every one column surface. The
          balance keeps the last line from stranding three words. */}

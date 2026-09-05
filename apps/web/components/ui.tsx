@@ -80,8 +80,11 @@ const buttonBase =
 
 const buttonTone = {
   primary: "border-transparent bg-solid text-on-solid hover:bg-solid-hover",
+  /* The edge is the boundary token, not the strong hairline: a ghost button
+     has nothing but its edge to be found by, and the hairline measured under
+     the 3:1 WCAG 1.4.11 asks of it. */
   ghost:
-    "border-hairline-strong bg-transparent text-heading hover:border-heading hover:bg-surface",
+    "border-control-border bg-transparent text-heading hover:border-heading hover:bg-surface",
   /* A real surface fill for a button that sits on footage: a ghost outline
      over a moving picture is whatever the frame behind it says it is, so the
      fold's secondary controls are solid. Same border, same metrics, one
@@ -112,7 +115,7 @@ export function Button({ tone = "ghost", className = "", type = "button", childr
 
 /** The one text field, at the button's own radius and border. */
 export const FIELD =
-  "focus-ring w-full rounded-lg border border-hairline-strong bg-canvas px-4 py-3 text-sm text-body placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60";
+  "focus-ring w-full rounded-lg border border-control-border bg-canvas px-4 py-3 text-sm text-body placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60";
 
 /**
  * A button that is a link.

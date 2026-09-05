@@ -36,7 +36,7 @@ export default async function ProPage({ params }: LocaleParams) {
   const locale = await pageLocale(params);
   const t = await getTranslations("proPortal");
   return (
-    <PageShell title={t("title")} lead={t("lead")}>
+    <PageShell title={t("title")} lead={t("lead")} quietChrome>
       <ProPortal locale={locale} />
     </PageShell>
   );
