@@ -284,14 +284,6 @@ fn amount(value: Option<&Value>) -> Option<f64> {
     (value.is_finite() && (0.0..=MAX_EXTRA_USAGE_AMOUNT).contains(&value)).then_some(value)
 }
 
-fn percent_of(used: f64, limit: f64) -> Option<f64> {
-    if limit <= 0.0 || used > limit {
-        return None;
-    }
-    let percent = used / limit * 100.0;
-    (percent.is_finite() && (0.0..=100.0).contains(&percent)).then_some(percent)
-}
-
 /// Fold a provider's own name for a bucket into one upper snake token.
 ///
 /// Anything that is not a letter or a digit becomes a separator, so
@@ -391,14 +383,42 @@ fn parse_reading(
     snapshot(meter, value, window, Some(reset_at), now_ms, account_id)
 }
 
+/// How full the paid overflow allowance is, capped at full.
+///
+/// Extra usage is the ONE meter here that can honestly read past its own
+/// limit. The allowance is a budget a working session can overrun between two
+/// polls, and the endpoint keeps counting once it does, so an overspend is a
+/// real reading rather than a malformed one. It is reported full, which is the
+/// truthful end of the bar, and the exact dollars ride along beside it. A root
+/// window claiming more than a hundred percent is a different thing entirely,
+/// a percentage that cannot be one, and still costs its own bucket.
+fn extra_usage_percent(
+    extra: &Map<String, Value>,
+    used: Option<f64>,
+    limit: Option<f64>,
+) -> Option<f64> {
+    if let Some(stated) = extra.get("utilization").and_then(Value::as_f64) {
+        if stated.is_finite() && stated >= 0.0 {
+            return Some(stated.min(100.0));
+        }
+    }
+    let (used, limit) = (used?, limit?);
+    if limit <= 0.0 {
+        return None;
+    }
+    let percent = used / limit * 100.0;
+    percent.is_finite().then(|| percent.min(100.0))
+}
+
 /// The paid overflow allowance, as a percentage carrying its own dollars.
 ///
 /// The row is a percentage like every other meter, which is what the bands and
 /// the bars read, and the dollars ride along in the amount fields the cache
-/// already has. They are attached only in the currency the cache keeps amounts
-/// in and only when the used figure fits inside the limit, because
-/// `normalize_snapshot` drops all three otherwise and a row that lost its
-/// amounts silently would still claim to carry them here.
+/// already has. They are attached in the currency the cache keeps amounts in,
+/// and both are attached or neither, because that is the only shape
+/// `normalize_snapshot` accepts. It applies its own rule to them on the way to
+/// disk and drops an amount pair it cannot vouch for, which is its business:
+/// what this parse owes the caller is the figures the endpoint stated.
 fn parse_extra_usage(
     extra: &Map<String, Value>,
     now_ms: u64,
@@ -406,10 +426,7 @@ fn parse_extra_usage(
 ) -> Option<Snapshot> {
     let used = amount(extra.get("used_credits"));
     let limit = amount(extra.get("monthly_limit"));
-    let value = match percentage(extra.get("utilization")) {
-        Some(percent) => percent,
-        None => percent_of(used?, limit?)?,
-    };
+    let value = extra_usage_percent(extra, used, limit)?;
     let currency = extra
         .get("currency")
         .and_then(Value::as_str)
@@ -424,11 +441,9 @@ fn parse_extra_usage(
         account_id,
     )?;
     if let (Some(used), Some(limit), Some(currency)) = (used, limit, currency) {
-        if used <= limit {
-            row.used_amount = Some(used);
-            row.limit_amount = Some(limit);
-            row.currency = Some(currency);
-        }
+        row.used_amount = Some(used);
+        row.limit_amount = Some(limit);
+        row.currency = Some(currency);
     }
     Some(row)
 }
@@ -484,7 +499,7 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
         };
         if taken.insert(meter.to_string()) {
             if let Some(model) = key.strip_prefix(WEEKLY_KEY_PREFIX) {
-                root_models.insert(model.to_string());
+                root_models.insert(model.to_ascii_lowercase());
             }
             rows.push(row);
         }
@@ -1434,5 +1449,81 @@ mod tests {
         assert!(cache.contains("\"usedAmount\":12.5"));
         assert!(cache.contains("\"limitAmount\":100.0"));
         assert!(!cache.contains(TOKEN));
+    }
+
+    /// A display name is the provider's prose, so its capitalisation is not a
+    /// promise. The same model arriving as a root key and as a display name
+    /// that differs only in case is still one allowance and one bar.
+    #[test]
+    fn a_model_named_in_a_different_case_still_dedupes_to_one_meter() {
+        let rows = parse_usage(
+            r#"{
+                "seven_day_opus":{"utilization":37.0,"resets_at":"2026-08-24T12:00:00Z"},
+                "limits":[{"kind":"weekly_scoped","group":"model","percent":91.0,
+                    "resets_at":"2026-08-24T12:00:00Z",
+                    "scope":{"model":{"display_name":"OPUS"}}}]
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+
+        assert_eq!(meters(&rows), ["SEVEN_DAY_OPUS"]);
+        assert_eq!(meter(&rows, "SEVEN_DAY_OPUS").value, 37.0);
+    }
+
+    /// Extra usage is the one meter that can honestly read past its own limit.
+    ///
+    /// The allowance is a budget a working session can overrun between two
+    /// polls, and the endpoint keeps counting once it does. Dropping the
+    /// bucket there would hide the overspend exactly when it matters most, so
+    /// the reading is kept, the bar reads full, and both dollar figures stay
+    /// as the endpoint stated them. A root window above 100 is a different
+    /// thing, a percentage that cannot be one, and still drops alone.
+    #[test]
+    fn an_overspent_extra_usage_allowance_reads_full_rather_than_vanishing() {
+        let stated = parse_usage(
+            r#"{
+                "seven_day":{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"},
+                "extra_usage":{"is_enabled":true,"monthly_limit":50.0,"used_credits":62.5,
+                    "utilization":125.0,"currency":"USD","disabled_reason":null}
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+
+        let extra = meter(&stated, "EXTRA_USAGE");
+        assert_eq!(extra.value, 100.0);
+        assert_eq!(extra.used_amount, Some(62.5));
+        assert_eq!(extra.limit_amount, Some(50.0));
+        assert_eq!(extra.currency.as_deref(), Some("USD"));
+
+        /* The same overspend with no utilization stated, derived from the two
+        amounts, reads the same. */
+        let derived = parse_usage(
+            r#"{
+                "extra_usage":{"is_enabled":true,"monthly_limit":50.0,"used_credits":62.5,
+                    "currency":"USD","disabled_reason":null}
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+        assert_eq!(meter(&derived, "EXTRA_USAGE").value, 100.0);
+        assert_eq!(meter(&derived, "EXTRA_USAGE").limit_amount, Some(50.0));
+
+        /* And the root windows keep the rule they had: a utilization that
+        cannot be a percentage is malformed, and costs only its own bucket. */
+        let root = parse_usage(
+            r#"{
+                "five_hour":{"utilization":101,"resets_at":"2026-08-19T15:00:00Z"},
+                "seven_day":{"utilization":41.2,"resets_at":"2026-08-24T12:00:00Z"}
+            }"#,
+            NOW,
+            ACCOUNT,
+        )
+        .expect("usage");
+        assert_eq!(meters(&root), ["SEVEN_DAY"]);
     }
 }
