@@ -6,16 +6,23 @@ import { performance } from "node:perf_hooks";
 import { PassThrough } from "node:stream";
 import { FIXTURE_NOW, codexFixture } from "@openlimiter/connectors";
 import {
+  AGENT_CONTEXT_FILE_NAME,
+  AGENT_CONTEXT_SPILL_FILE_NAME,
   HOSTED_CONTEXT_FILE_NAME,
+  agentContextCacheStamp,
+  agentContextFromCache,
   hostedTrustFilePath,
+  writeAgentContextSnapshot,
   type HostedContextEnvelope,
   type HostedTrustDocument
 } from "@openlimiter/adapters";
+import { readSnapshotCache, writeSnapshotCache, type Snapshot } from "@openlimiter/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { readStandardInputText, runCli } from "../src/index.js";
+import { persistSnapshots, readStandardInputText, runCli } from "../src/index.js";
 
 const created: string[] = [];
 const HOSTED_FIXTURE_NOW = "2026-09-01T12:05:00.000Z";
+const HOSTED_FIXTURE_OWNER_SID = "S-1-5-21-1111111111-2222222222-3333333333-1001";
 
 async function temporaryDirectory(prefix: string): Promise<string> {
   const directory = await mkdtemp(path.join(tmpdir(), prefix));
@@ -40,6 +47,30 @@ function codexInput(): string {
     turn_id: "turn",
     prompt: "pong"
   });
+}
+
+function meterSnapshot(
+  provider: "CODEX" | "CLAUDE",
+  observedAt: string
+): Snapshot {
+  return {
+    provider,
+    meter: "FIVE_HOUR",
+    value: provider === "CODEX" ? 42 : 61,
+    unit: "PERCENT",
+    window: { kind: "rolling", durationSeconds: 18_000 },
+    resetAt: null,
+    source: "native_payload",
+    precision: "exact",
+    observedAt,
+    expiresAt: new Date(Date.parse(observedAt) + 600_000).toISOString(),
+    labels: {
+      credentialOrigin: "official-local-tool",
+      dataInterfaceStatus: "native-statusline-payload",
+      automationRisk: "low",
+      verification: "UNVERIFIED"
+    }
+  };
 }
 
 describe("hook CLI", () => {
@@ -215,6 +246,14 @@ describe("hook CLI", () => {
       homeDirectory,
       platform: "win32" as const,
       now: () => HOSTED_FIXTURE_NOW,
+      /* A recorded owner only descriptor, with a fabricated account id. The
+         Windows ownership rule itself is proved in the adapters suite. */
+      hostedTrustWindowsSecurity: async () => ({
+        currentUserSid: HOSTED_FIXTURE_OWNER_SID,
+        securityDescriptor: "O:" + HOSTED_FIXTURE_OWNER_SID +
+          "G:" + HOSTED_FIXTURE_OWNER_SID +
+          "D:PAI(A;;FA;;;" + HOSTED_FIXTURE_OWNER_SID + ")"
+      }),
       environment: {
         APPDATA: attackerDirectory,
         OPENLIMITER_HOSTED_TRUST_PATH: path.join(attackerDirectory, "hosted-trust.json")
@@ -340,6 +379,133 @@ describe("hook CLI", () => {
         stderr: ""
       });
     }
+  });
+
+  it("never injects a context older than the cache it came from", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-context-order-");
+    const earlier = "2026-09-01T12:00:00.000Z";
+    const later = "2026-09-01T12:01:00.000Z";
+    const first = await persistSnapshots(
+      [meterSnapshot("CODEX", earlier)],
+      stateDirectory,
+      earlier
+    );
+    await persistSnapshots(
+      [meterSnapshot("CLAUDE", later)],
+      stateDirectory,
+      later
+    );
+    /* The first ingestion committed first, so its derived write may still be
+       in flight when the second one commits. Landing it last must not put the
+       prompt context behind the durable cache. */
+    await writeAgentContextSnapshot(first.merged, stateDirectory, earlier);
+    const context = await agentContextFromCache(stateDirectory, later);
+    expect(context).toContain("provider=CODEX");
+    expect(context).toContain("provider=CLAUDE");
+    const cached = await readSnapshotCache(stateDirectory);
+    const document = JSON.parse(await readFile(
+      path.join(stateDirectory, AGENT_CONTEXT_FILE_NAME),
+      "utf8"
+    )) as { cache_stamp: { digest: string; observed_at: string } };
+    expect(cached.ok).toBe(true);
+    expect(document.cache_stamp).toEqual({
+      digest: agentContextCacheStamp(cached.ok ? cached.snapshots : []).digest,
+      observed_at: later
+    });
+  });
+
+  it("keeps a later wall clock from publishing an older cache stamp", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-context-skew-");
+    const older = "2026-09-01T12:00:00.000Z";
+    const newer = "2026-09-01T12:05:00.000Z";
+    const laterClock = "2026-09-01T12:06:00.000Z";
+    await writeSnapshotCache([meterSnapshot("CLAUDE", newer)], stateDirectory);
+    await writeAgentContextSnapshot(
+      [meterSnapshot("CLAUDE", newer)],
+      stateDirectory,
+      newer
+    );
+    /* The cache this writer would have reread is unreadable, so it falls back
+       to its own older rows while carrying the later clock of the two. */
+    await writeFile(
+      path.join(stateDirectory, "openlimiter-cache.json"),
+      "{not json",
+      "utf8"
+    );
+    await writeAgentContextSnapshot(
+      [meterSnapshot("CODEX", older)],
+      stateDirectory,
+      laterClock
+    );
+    const document = JSON.parse(await readFile(
+      path.join(stateDirectory, AGENT_CONTEXT_FILE_NAME),
+      "utf8"
+    )) as { context: string; cache_stamp: { observed_at: string } };
+    expect(document.cache_stamp.observed_at).toBe(newer);
+    expect(document.context).toContain("provider=CLAUDE");
+    expect(document.context).not.toContain("provider=CODEX");
+  });
+
+  it("writes nothing through a context read whose deadline has already passed", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-context-abort-");
+    await runCli(["snapshot", "--refresh"], {
+      stateDirectory,
+      now: () => FIXTURE_NOW,
+      payloads: { codex: codexFixture(FIXTURE_NOW) },
+      colorOutput: false
+    });
+    const spillFile = path.join(stateDirectory, AGENT_CONTEXT_SPILL_FILE_NAME);
+    await writeFile(spillFile, "sentinel", "utf8");
+    const deadline = new AbortController();
+    deadline.abort();
+    expect(await agentContextFromCache(stateDirectory, FIXTURE_NOW, undefined, {
+      signal: deadline.signal
+    })).toBe("");
+    expect(await readFile(spillFile, "utf8")).toBe("sentinel");
+  });
+
+  it("lets the next context writer run after one turn fails", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-context-turn-");
+    const now = "2026-09-01T12:00:00.000Z";
+    const snapshots = [meterSnapshot("CODEX", now)];
+    await writeSnapshotCache(snapshots, stateDirectory);
+    const blocker = path.join(stateDirectory, AGENT_CONTEXT_FILE_NAME);
+    await mkdir(path.join(blocker, "occupied"), { recursive: true });
+    const failing = writeAgentContextSnapshot(snapshots, stateDirectory, now);
+    const queued = writeAgentContextSnapshot(snapshots, stateDirectory, now);
+    await expect(failing).rejects.toThrow();
+    await expect(queued).rejects.toThrow();
+    await rm(blocker, { recursive: true, force: true });
+    await writeAgentContextSnapshot(snapshots, stateDirectory, now);
+    expect(await readFile(blocker, "utf8")).toContain("provider=CODEX");
+  });
+
+  it("writes nothing once a read resolves after the hard deadline", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-hook-late-");
+    await runCli(["snapshot", "--refresh"], {
+      stateDirectory,
+      now: () => FIXTURE_NOW,
+      payloads: { codex: codexFixture(FIXTURE_NOW) },
+      colorOutput: false
+    });
+    const spillFile = path.join(stateDirectory, AGENT_CONTEXT_SPILL_FILE_NAME);
+    await writeFile(spillFile, "sentinel", "utf8");
+    const start = performance.now();
+    const result = await runCli([
+      "hook", "--agent", "codex", "--host-version", "0.152.0"
+    ], {
+      stateDirectory,
+      now: () => FIXTURE_NOW,
+      readStandardInput: async () => await new Promise<string>((resolve) => {
+        setTimeout(() => resolve(codexInput()), 700);
+      })
+    });
+    expect(performance.now() - start).toBeLessThan(550);
+    expect(result).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+    expect(await readFile(spillFile, "utf8")).toBe("sentinel");
   });
 
   it("keeps an internal failure from becoming a nonzero agent exit for every adapter", async () => {

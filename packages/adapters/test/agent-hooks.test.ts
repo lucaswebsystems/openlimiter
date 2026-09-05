@@ -175,6 +175,81 @@ describe("hook configuration mutation", () => {
     });
   }
 
+  it("keeps a user hook that only mentions the managed marker", async () => {
+    const options = await fixtureOptions();
+    const file = configPath("codex", options.homeDirectory);
+    const nearMatches = [
+      {
+        type: "command",
+        command: 'audit --note "--managed-hook openlimiter-v1" --run'
+      },
+      {
+        type: "command",
+        command: quoteHookArgument(options.nodeExecutable!, "win32") +
+          " audit.js hook --agent codex --host-version 1.0.0" +
+          " --managed-hook openlimiter-v1 --extra"
+      },
+      {
+        type: "command",
+        command: options.nodeExecutable,
+        args: ["audit.js", "--managed-hook", "openlimiter-v1", "--tail"]
+      }
+    ];
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify({
+      hooks: { UserPromptSubmit: [{ hooks: nearMatches }] }
+    }), "utf8");
+    expect(await changeAgentHookFixture("codex", "install", options))
+      .toMatchObject({ supported: true, changed: true });
+    const installed = await readFile(file, "utf8");
+    for (const near of nearMatches) {
+      expect(installed).toContain(JSON.stringify(near.command).slice(1, -1));
+    }
+    expect(await readAgentHookStatus("codex", {
+      homeDirectory: options.homeDirectory
+    })).toMatchObject({ installed: true });
+    expect(await changeAgentHookFixture("codex", "uninstall", options))
+      .toMatchObject({ supported: true, changed: true });
+    const remaining = JSON.parse(
+      await readFile(file, "utf8")
+    ) as { hooks: { UserPromptSubmit: { hooks: unknown[] }[] } };
+    expect(remaining.hooks.UserPromptSubmit.flatMap((group) => group.hooks))
+      .toEqual(nearMatches);
+    expect(await readAgentHookStatus("codex", {
+      homeDirectory: options.homeDirectory
+    })).toMatchObject({ installed: false });
+  });
+
+  it("removes a spaced executable path written in either quoting grammar", async () => {
+    for (const platform of ["win32", "linux"] as const) {
+      const options = { ...await fixtureOptions(), platform };
+      const file = configPath("codex", options.homeDirectory);
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(file, JSON.stringify({
+        hooks: {
+          UserPromptSubmit: [{ hooks: [{ type: "command", command: "keep this hook" }] }]
+        }
+      }), "utf8");
+      expect(await changeAgentHookFixture("codex", "install", options))
+        .toMatchObject({ supported: true, changed: true });
+      const installed = await readFile(file, "utf8");
+      expect(installed).toContain(
+        JSON.stringify(quoteHookArgument(options.nodeExecutable!, platform)).slice(1, -1)
+      );
+      expect(await readAgentHookStatus("codex", {
+        homeDirectory: options.homeDirectory
+      })).toMatchObject({ installed: true });
+      expect(await changeAgentHookFixture("codex", "uninstall", options))
+        .toMatchObject({ supported: true, changed: true });
+      const remaining = await readFile(file, "utf8");
+      expect(remaining).toContain("keep this hook");
+      expect(remaining).not.toContain("--managed-hook");
+      expect(await readAgentHookStatus("codex", {
+        homeDirectory: options.homeDirectory
+      })).toMatchObject({ installed: false });
+    }
+  });
+
   it("rejects a symlinked user configuration", async () => {
     const options = await fixtureOptions();
     const outside = path.join(options.homeDirectory, "outside-config");

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import {
   chmod,
@@ -12,6 +13,7 @@ import {
   PROVIDER_CODES,
   buildAdvice,
   canonicalJson,
+  readSnapshotCache,
   resolveStateDirectory,
   writeFileAtomically,
   type ProviderCode,
@@ -46,6 +48,25 @@ export const AGENT_CONTEXT_SPILL_FILE_NAME = "openlimiter-agent-context-spill.js
 export const AGENT_CONTEXT_SPILL_MAX_BYTES = 32_768;
 export const HOSTED_CONTEXT_FILE_NAME = "openlimiter-pro-agent-context.json";
 
+/**
+ * Which durable snapshot cache commit a derived context describes.
+ *
+ * The prompt context is a view of the snapshot cache, and two ingestions can
+ * commit in one order and reach this file in the other. The digest names the
+ * exact committed rows and the instant names how recently they were observed,
+ * so a write that lost the race can be recognised and dropped instead of
+ * putting the injected context behind the cache it came from.
+ */
+export interface AgentContextCacheStamp {
+  digest: string;
+  observedAt: string;
+}
+
+interface AgentContextStampDocument {
+  digest: string;
+  observed_at: string;
+}
+
 interface AgentContextDocument {
   schema: typeof AGENT_CONTEXT_SCHEMA;
   version: typeof AGENT_CONTEXT_VERSION;
@@ -54,6 +75,27 @@ interface AgentContextDocument {
   source: "cli_snapshot" | "validated_spill";
   untrusted_data: true;
   context: string;
+  cache_stamp?: AgentContextStampDocument;
+}
+
+const stampDigestPattern = /^[0-9a-f]{32}$/u;
+
+/** Summarise one committed snapshot set as the stamp above. */
+export function agentContextCacheStamp(
+  snapshots: readonly Snapshot[]
+): AgentContextCacheStamp {
+  const observed = snapshots
+    .map((snapshot) => Date.parse(snapshot.observedAt))
+    .filter((value) => Number.isFinite(value));
+  return {
+    digest: createHash("sha256")
+      .update(canonicalJson(snapshots))
+      .digest("hex")
+      .slice(0, 32),
+    observedAt: observed.length === 0
+      ? "NONE"
+      : new Date(Math.max(...observed)).toISOString()
+  };
 }
 
 type SafeBytes =
@@ -258,6 +300,14 @@ export function validatedUntrustedLines(context: string): string[] | null {
   return body.length > 0 && body.every(validRenderedLine) ? body : null;
 }
 
+function validStamp(value: unknown): boolean {
+  if (!isRecord(value) || !exactKeys(value, ["digest", "observed_at"])) return false;
+  const observed = value["observed_at"];
+  return typeof value["digest"] === "string" &&
+    stampDigestPattern.test(value["digest"]) &&
+    (observed === "NONE" || exactInstant(observed));
+}
+
 function parseDocument(bytes: Buffer, now: string): AgentContextDocument | null {
   let text: string;
   try {
@@ -271,9 +321,13 @@ function parseDocument(bytes: Buffer, now: string): AgentContextDocument | null 
   } catch {
     return null;
   }
-  if (!isRecord(value) || !exactKeys(value, [
+  const baseKeys = [
     "context", "expires_at", "generated_at", "schema", "source", "untrusted_data", "version"
-  ])) return null;
+  ];
+  if (!isRecord(value)) return null;
+  const stamped = value["cache_stamp"] !== undefined;
+  if (!exactKeys(value, stamped ? [...baseKeys, "cache_stamp"] : baseKeys)) return null;
+  if (stamped && !validStamp(value["cache_stamp"])) return null;
   if (
     value["schema"] !== AGENT_CONTEXT_SCHEMA ||
     value["version"] !== AGENT_CONTEXT_VERSION ||
@@ -303,7 +357,8 @@ async function writeDocument(
   context: string,
   generatedAt: string,
   expiresAt: string,
-  maximumBytes: number
+  maximumBytes: number,
+  stamp?: AgentContextCacheStamp
 ): Promise<void> {
   if (await pathContainsLink(file)) throw new Error("Unsafe agent context path");
   const document: AgentContextDocument = {
@@ -313,7 +368,10 @@ async function writeDocument(
     expires_at: expiresAt,
     source,
     untrusted_data: true,
-    context
+    context,
+    ...(stamp === undefined
+      ? {}
+      : { cache_stamp: { digest: stamp.digest, observed_at: stamp.observedAt } })
   };
   const serialized = canonicalJson(document);
   if (Buffer.byteLength(serialized, "utf8") > maximumBytes) {
@@ -335,6 +393,87 @@ function futureExpiry(snapshots: readonly Snapshot[], generated: number): number
   return Math.min(ceiling, ...(expiries.length === 0 ? [ceiling] : expiries));
 }
 
+/*
+ * Derived context writers take FIFO turns per state directory.
+ *
+ * The turn covers reading the durable cache as well as replacing the file, so
+ * two ingestions in one process cannot read the same cache state and then
+ * write their views in the opposite order.
+ */
+const contextWriteQueues = new Map<string, Promise<void>>();
+
+async function withContextWriteTurn<Result>(
+  directory: string,
+  action: () => Promise<Result>
+): Promise<Result> {
+  const resolved = path.resolve(directory);
+  const key = process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  const previousTurn = contextWriteQueues.get(key);
+  let finishTurn: () => void = () => undefined;
+  const currentTurn = new Promise<void>((resolve) => {
+    finishTurn = resolve;
+  });
+  contextWriteQueues.set(key, currentTurn);
+  if (previousTurn !== undefined) await previousTurn;
+  try {
+    return await action();
+  } finally {
+    finishTurn();
+    if (contextWriteQueues.get(key) === currentTurn) contextWriteQueues.delete(key);
+  }
+}
+
+/** Read the live context document already on disk, when there is one. */
+async function currentDocument(
+  file: string,
+  now: string
+): Promise<AgentContextDocument | null> {
+  const read = await readBytesSafely(file, AGENT_CONTEXT_MAX_BYTES);
+  return read.ok ? parseDocument(read.bytes, now) : null;
+}
+
+/**
+ * Whether the document on disk already says something this write cannot improve.
+ *
+ * The cache stamp is asked first and the clock only afterwards, because the
+ * two answer different questions. Different stamps mean the two writers hold
+ * different commits, and the later observation is the newer view no matter
+ * whose clock ran ahead: a machine whose time drifted forward must not be able
+ * to publish older rows over newer ones. Only when both writers hold the same
+ * commit does the clock decide, and then the later drawing is simply the
+ * fresher rendering of identical data. A document without a stamp says nothing
+ * about the cache and never wins.
+ */
+function supersedes(
+  existing: AgentContextDocument | null,
+  stamp: AgentContextCacheStamp,
+  generated: number
+): boolean {
+  const existingStamp = existing?.cache_stamp;
+  if (existing === null || existingStamp === undefined) return false;
+  if (existingStamp.digest === stamp.digest) {
+    const drawnAt = Date.parse(existing.generated_at);
+    return Number.isFinite(drawnAt) && drawnAt > generated;
+  }
+  if (existingStamp.observed_at === "NONE" || stamp.observedAt === "NONE") return false;
+  const existingObserved = Date.parse(existingStamp.observed_at);
+  const observed = Date.parse(stamp.observedAt);
+  return Number.isFinite(existingObserved) &&
+    Number.isFinite(observed) &&
+    existingObserved > observed;
+}
+
+/**
+ * Replace the derived prompt context from the durable snapshot cache.
+ *
+ * The context is a view of the cache, never an independent record, so the
+ * committed rows are reread inside the write turn and used in preference to
+ * the caller's own list. An ingestion whose derived write lands after a later
+ * commit therefore publishes the later commit's rows rather than its own, and
+ * the stamp it leaves behind says which commit that was. The caller's list is
+ * the fallback for a cache that cannot be read at all, which is what lets a
+ * corrupt cache still clear this file.
+ */
 export async function writeAgentContextSnapshot(
   snapshots: readonly Snapshot[],
   directory: string | undefined,
@@ -346,41 +485,66 @@ export async function writeAgentContextSnapshot(
   await mkdir(base, { recursive: true, mode: 0o700 });
   if (await pathContainsLink(base)) throw new Error("Unsafe agent context directory");
   const file = path.join(base, AGENT_CONTEXT_FILE_NAME);
-  const context = buildAgentContext(buildAdvice(snapshots, now, expectedProviders));
-  const generated = Date.parse(now);
-  if (context === "" || !Number.isFinite(generated)) {
-    await safeRemove(file);
-    return;
-  }
-  const expires = futureExpiry(snapshots, generated);
-  if (expires <= generated) {
-    await safeRemove(file);
-    return;
-  }
-  await writeDocument(
-    file,
-    "cli_snapshot",
-    context,
-    new Date(generated).toISOString(),
-    new Date(expires).toISOString(),
-    AGENT_CONTEXT_MAX_BYTES
-  );
+  await withContextWriteTurn(base, async () => {
+    const cached = await readSnapshotCache(base);
+    const committed = cached.ok ? cached.snapshots : snapshots;
+    const stamp = agentContextCacheStamp(committed);
+    const context = buildAgentContext(buildAdvice(committed, now, expectedProviders));
+    const generated = Date.parse(now);
+    const existing = await currentDocument(file, now);
+    if (supersedes(existing, stamp, generated)) return;
+    if (context === "" || !Number.isFinite(generated)) {
+      await safeRemove(file);
+      return;
+    }
+    const expires = futureExpiry(committed, generated);
+    if (expires <= generated) {
+      await safeRemove(file);
+      return;
+    }
+    await writeDocument(
+      file,
+      "cli_snapshot",
+      context,
+      new Date(generated).toISOString(),
+      new Date(expires).toISOString(),
+      AGENT_CONTEXT_MAX_BYTES,
+      stamp
+    );
+  });
 }
 
-async function localLines(directory: string, now: string): Promise<string[]> {
+/**
+ * Whether this read is still allowed to change anything on disk.
+ *
+ * A hook answers on a hard deadline. Once that deadline has passed the caller
+ * has already emitted its fallback, so work still in flight repairs nothing and
+ * must not leave a file behind that nobody asked for.
+ */
+function stillWritable(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted !== true;
+}
+
+async function localLines(
+  directory: string,
+  now: string,
+  signal?: AbortSignal
+): Promise<string[]> {
   const read = await readBytesSafely(
     path.join(directory, AGENT_CONTEXT_FILE_NAME),
     AGENT_CONTEXT_MAX_BYTES
   );
   if (!read.ok) {
-    if (read.reason === "oversized") {
+    if (read.reason === "oversized" && stillWritable(signal)) {
       await safeRemove(path.join(directory, AGENT_CONTEXT_FILE_NAME));
     }
     return [];
   }
   const document = parseDocument(read.bytes, now);
   if (document === null || document.source !== "cli_snapshot") {
-    await safeRemove(path.join(directory, AGENT_CONTEXT_FILE_NAME));
+    if (stillWritable(signal)) {
+      await safeRemove(path.join(directory, AGENT_CONTEXT_FILE_NAME));
+    }
     return [];
   }
   return validatedUntrustedLines(document.context) ?? [];
@@ -389,18 +553,19 @@ async function localLines(directory: string, now: string): Promise<string[]> {
 async function hostedLines(
   directory: string,
   now: string,
-  trust: HostedContextTrust | undefined
+  trust: HostedContextTrust | undefined,
+  signal?: AbortSignal
 ): Promise<string[]> {
   if (trust === undefined) return [];
   const file = path.join(directory, HOSTED_CONTEXT_FILE_NAME);
   const read = await readBytesSafely(file, HOSTED_CONTEXT_MAX_BYTES);
   if (!read.ok) {
-    if (read.reason === "oversized") await safeRemove(file);
+    if (read.reason === "oversized" && stillWritable(signal)) await safeRemove(file);
     return [];
   }
   const validated = validateHostedContextBytes(read.bytes, { ...trust, now });
   if (!validated.ok) {
-    await safeRemove(file);
+    if (stillWritable(signal)) await safeRemove(file);
     return [];
   }
   return hostedPayloadLines(validated.envelope).sort((left, right) => {
@@ -494,6 +659,13 @@ function prioritizeOverflow(lines: readonly string[]): string[] {
 
 export interface AgentContextReadOptions {
   hostedTrust?: HostedContextTrust;
+  /**
+   * Deadline for the caller that asked for this context.
+   *
+   * Once it is aborted the answer is already gone, so the read stops short of
+   * every file mutation instead of repairing a cache nobody will look at.
+   */
+  signal?: AbortSignal;
 }
 
 export async function clearHostedAgentContext(directory?: string): Promise<void> {
@@ -511,15 +683,17 @@ export async function agentContextFromCache(
   options: AgentContextReadOptions = {}
 ): Promise<string> {
   const base = directory ?? resolveStateDirectory();
+  if (!stillWritable(options.signal)) return "";
   const [local, hosted] = await Promise.all([
-    localLines(base, now),
-    hostedLines(base, now, options.hostedTrust)
+    localLines(base, now, options.signal),
+    hostedLines(base, now, options.hostedTrust, options.signal)
   ]);
   if (local.length === 0 && hosted.length === 0) {
-    await updateSpill(base, "", now);
+    if (stillWritable(options.signal)) await updateSpill(base, "", now);
     return "";
   }
   const bounded = boundAgentContext(prioritizeOverflow([...local, ...hosted]));
+  if (!stillWritable(options.signal)) return "";
   await updateSpill(base, bounded.spill, now);
   return bounded.context;
 }

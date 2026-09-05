@@ -47,8 +47,8 @@ if (wrapperRequested && wrapped === null) {
 } else {
   const result = await runCli(argumentsList, {
     promptForSecret,
-    readStandardInput: () => argumentsList[0] === "hook"
-      ? readStandardInputText(process.stdin, HOOK_INPUT_MAX_BYTES)
+    readStandardInput: (signal) => argumentsList[0] === "hook"
+      ? readStandardInputText(process.stdin, HOOK_INPUT_MAX_BYTES, undefined, signal)
       : readStandardInputText()
   });
   if (result.stdout !== "") process.stdout.write(result.stdout + "\n");
