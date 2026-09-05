@@ -1143,6 +1143,279 @@ select.field:focus-visible {
   }
 }
 
+/* ------------------------------------------------------------ the sign in */
+
+/*
+ * One body, two hosts.
+ *
+ * The sheet and the first run account step draw the same nodes: the two
+ * provider buttons with their marks leading, a rule reading "or", the email
+ * form kept behind a quiet link, and one status line. app.js moves that body
+ * between the two hosts, so there is exactly one password field in the
+ * document and one place for a sign in bug to live.
+ *
+ * The composition is the calm one. GitHub leads, because this is a tool for
+ * people who write code, and it is the one filled control; Google follows as
+ * a ghost carrying its own four colours; everything under the rule is quieter
+ * than everything above it, and the way past the whole thing is a link with
+ * the honest sentence beside it.
+ */
+.sign-in-panel {
+  gap: var(--ol-space-5);
+  padding: var(--ol-space-6) var(--ol-space-5) var(--ol-space-5);
+}
+
+.sign-in-head {
+  display: grid;
+  justify-items: center;
+  gap: var(--ol-space-3);
+  text-align: center;
+}
+
+/* The window's own lockup, at the size the window's header draws it. */
+.sign-in-lockup img {
+  width: auto;
+  height: 1.75rem;
+}
+
+.sign-in-head h2 {
+  margin: 0;
+}
+
+.sign-in-lead {
+  margin: 0;
+  max-width: 30ch;
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.sign-in-body {
+  display: grid;
+  gap: var(--ol-space-3);
+}
+
+.sign-in-providers {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+button.sign-in-provider {
+  width: 100%;
+  min-height: var(--ol-control-height-touch);
+  gap: var(--ol-space-3);
+  padding-inline: var(--ol-space-4);
+  font-size: var(--ol-text-label);
+}
+
+/* The one filled control in the body, GitHub and the form's own Sign in: the
+   site's monochrome primary, near white on the dark theme and near black on
+   the light one, which is also the one presentation GitHub asks for its mark,
+   black on white or white on black. The window's `.primary` is the soft
+   tinted button and is deliberately not this. */
+.sign-in-body button.filled {
+  border-color: var(--solid);
+  background: var(--solid);
+  color: var(--on-solid);
+}
+
+.sign-in-body button.filled:hover {
+  border-color: var(--solid-hover);
+  background: var(--solid-hover);
+}
+
+/* Both marks at the one size every provider mark in the product is drawn. */
+.sign-in-mark {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+
+.sign-in-divider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ol-space-3);
+  color: var(--muted);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sign-in-divider::before,
+.sign-in-divider::after {
+  content: "";
+  height: 1px;
+  background: var(--hairline);
+}
+
+/* A link shaped control: no border, no fill, and it does not lift. */
+button.sign-in-quiet {
+  justify-self: center;
+  min-height: var(--ol-control-height);
+  padding: var(--ol-space-1) var(--ol-space-3);
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-weight: var(--ol-weight-medium);
+}
+
+button.sign-in-quiet:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--heading);
+  transform: none;
+}
+
+.sign-in-email {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+.sign-in-field {
+  margin-top: var(--ol-space-1);
+  color: var(--soft);
+  font-size: var(--ol-text-caption);
+}
+
+/* An address and a password are words rather than code, so these two fields
+   take the window's sans face, at the tall control's height. */
+.sign-in-email .field {
+  min-height: var(--ol-control-height-touch);
+  padding: var(--ol-space-2) var(--ol-space-3);
+  font-family: var(--ol-font-sans);
+  font-size: var(--ol-text-label);
+}
+
+.sign-in-email-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ol-space-2);
+  margin-top: var(--ol-space-1);
+}
+
+.sign-in-email-actions button {
+  width: 100%;
+  min-height: var(--ol-control-height-touch);
+}
+
+/*
+ * The status line, one shape per tone. Working is neutral, a refusal is red,
+ * a session is green, and a link or a confirmation on its way is the accent:
+ * the same pairs the meters use, so nothing new has to be learned here. With
+ * no tone it keeps its place in the accessibility tree and none on screen,
+ * the clip pattern, so a screen reader is already listening when the first
+ * sentence lands.
+ */
+.sign-in-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ol-space-2);
+  margin: 0;
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--ol-radius-sm);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.sign-in-status:not([data-tone]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.sign-in-status[data-tone="working"] {
+  border-color: var(--hairline);
+  background: var(--raised);
+  color: var(--soft);
+}
+
+.sign-in-status[data-tone="error"] {
+  background: var(--ol-band-red-subtle);
+  color: var(--ol-band-red-label);
+}
+
+.sign-in-status[data-tone="success"] {
+  background: var(--ol-band-green-subtle);
+  color: var(--ol-band-green-label);
+}
+
+.sign-in-status[data-tone="sent"] {
+  background: var(--accent-subtle);
+  color: var(--ol-accent-hover);
+}
+
+.sign-in-status-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid currentColor;
+  border-radius: var(--ol-radius-pill);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1;
+}
+
+.sign-in-status[data-tone="working"] .sign-in-status-mark {
+  border-width: 2px;
+  border-right-color: transparent;
+  animation: sign-in-spin 0.8s linear infinite;
+}
+
+.sign-in-status[data-tone="error"] .sign-in-status-mark::before {
+  content: "!";
+}
+
+.sign-in-status[data-tone="success"] .sign-in-status-mark::before,
+.sign-in-status[data-tone="sent"] .sign-in-status-mark::before {
+  content: "✓";
+}
+
+@keyframes sign-in-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The foot: the honest way past an optional account, quiet, with the
+   sentence that makes it honest right beside it. */
+.sign-in-foot {
+  display: grid;
+  justify-items: center;
+  gap: var(--ol-space-1);
+  text-align: center;
+}
+
+.sign-in-foot-note {
+  color: var(--muted);
+  font-size: var(--ol-text-micro);
+  line-height: var(--ol-leading-body);
+}
+
+/* While a sign in is in flight the controls are disabled by app.js and the
+   pointer says so; nothing is hidden, so nothing can be lost. */
+.sign-in-body[aria-busy="true"] {
+  cursor: progress;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sign-in-status[data-tone="working"] .sign-in-status-mark {
+    animation: none;
+    border-right-color: currentColor;
+    border-style: dotted;
+  }
+}
+
 /* -------------------------------------------------------- the focus ring */
 
 /*

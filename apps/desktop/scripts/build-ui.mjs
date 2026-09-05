@@ -241,6 +241,9 @@ const WINDOW_FILES = [
      set of states be tested without a window anywhere near it. */
   "pairing.js",
   "pairing-states.js",
+  /* The sign in's own vocabulary: every sentence the sheet and the first run
+     card can say, in a module that imports nothing. */
+  "sign-in-states.js",
   "qr.js",
   "tray.html",
   "tray.css",
@@ -249,6 +252,19 @@ const WINDOW_FILES = [
 
 for (const file of WINDOW_FILES) {
   copyFileSync(path.join(DESKTOP, "ui", file), path.join(DIST, file));
+}
+
+/* The two provider marks the sign in draws. Google's G is served as the file
+   Google publishes, in its own four colours; the GitHub mark is the file the
+   inline drawing in index.html is checked against. Third party artwork lives
+   apart from the product's own brand files, which a manifest freezes. */
+const MARK_FILES = ["github-mark.svg", "google-g.svg"];
+mkdirSync(path.join(DIST, "marks"), { recursive: true });
+for (const file of MARK_FILES) {
+  copyFileSync(
+    path.join(DESKTOP, "ui", "marks", file),
+    path.join(DIST, "marks", file),
+  );
 }
 
 /* The two lockups are generated from the frozen canonical SVG. They stay as
@@ -269,5 +285,6 @@ for (const file of BRAND_FILES) {
 const copied = Object.values(COPY).reduce((total, spec) => total + spec.files.length, 0);
 process.stdout.write(
   `Assembled ui/dist from ${String(copied)} compiled modules, one token sheet and ` +
-    `${String(WINDOW_FILES.length)} window files and ${String(BRAND_FILES.length)} brand files.\n`,
+    `${String(WINDOW_FILES.length)} window files, ${String(BRAND_FILES.length)} brand files and ` +
+    `${String(MARK_FILES.length)} provider marks.\n`,
 );

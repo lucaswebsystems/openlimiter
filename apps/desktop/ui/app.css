@@ -1585,7 +1585,6 @@ button:focus-visible,
 }
 
 button.first-run-continue,
-#add-account,
 #empty-connect {
   border-color: var(--ol-accent-solid);
   background: var(--ol-accent-solid);
@@ -1593,7 +1592,6 @@ button.first-run-continue,
 }
 
 button.first-run-continue:hover,
-#add-account:hover,
 #empty-connect:hover {
   border-color: var(--ol-accent-solid-hover);
   background: var(--ol-accent-solid-hover);
@@ -1647,6 +1645,13 @@ button.first-run-continue:hover,
   font-size: var(--ol-text-display);
   font-weight: var(--ol-weight-bold);
   line-height: var(--ol-leading-tight);
+  /* The window's own h1 rule keeps the header on one line. A first run title
+     is a sentence, and the account step's runs to three lines at this width;
+     left on one line it grew the whole screen past the window's edge. */
+  white-space: normal;
+  text-wrap: balance;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .first-run-intro {
@@ -1697,8 +1702,10 @@ button.first-run-continue:hover,
 /* The launch notice replaces the generic intro instead of pushing the primary
    action below the native 520 by 720 window. The rows return to the compact
    density used by the original first run surface only while that notice is
-   present, which keeps all nine providers and the dashboard action visible. */
-.first-run[data-launch-notice="visible"] .first-run-intro {
+   present, which keeps all nine providers and the dashboard action visible.
+   Only the setup step's intro gives way: the account step's sentence is what
+   says why an account exists, and the notice is not on that screen. */
+.first-run[data-launch-notice="visible"] #first-run-setup .first-run-intro {
   display: none;
 }
 
@@ -1982,40 +1989,6 @@ button.first-run-continue {
   color: var(--ol-muted);
   font-size: var(--ol-text-micro);
   text-align: center;
-}
-
-.account-provider-actions,
-.account-email-form,
-.account-email-actions {
-  display: grid;
-  gap: var(--ol-space-2);
-}
-
-.account-provider-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-bottom: var(--ol-space-4);
-}
-
-.account-email-form label {
-  display: grid;
-  gap: var(--ol-space-1);
-  color: var(--ol-muted);
-  font-size: var(--ol-text-micro);
-}
-
-.account-email-form .field {
-  min-height: var(--ol-control-height);
-  padding: var(--ol-space-2) var(--ol-space-3);
-}
-
-.account-email-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: var(--ol-space-2);
-}
-
-.account-email-actions button {
-  width: 100%;
-  margin: 0;
 }
 
 .tabs {
@@ -2634,24 +2607,22 @@ pre {
 
 /* ------------------------------------------------- the optional account */
 
-/* Two answers, side by side, so neither is the small one. "Not now" is a real
-   choice about an optional account rather than a way out of a wall. */
-.first-run-account-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--ol-space-2);
+/* The account step hosts the one sign in body, the same nodes the sheet draws,
+   so the providers and their marks are right there rather than behind a
+   second dialog. The body's own shapes live in surfaces.css beside the sheet;
+   this is only where it sits on the first run panel. "Not now" follows it as
+   a quiet control with the honest sentence beside it, a real choice about an
+   optional account rather than a way out of a wall. */
+.first-run-account-mount {
+  margin-top: var(--ol-space-5);
+}
+
+.first-run-account-mount:empty {
+  display: none;
+}
+
+#first-run-account .sign-in-foot {
   margin-top: var(--ol-space-4);
-}
-
-.first-run-account-actions button.first-run-continue {
-  margin-top: 0;
-}
-
-button.first-run-skip {
-  width: 100%;
-  border-color: var(--hairline-strong);
-  background: transparent;
-  color: var(--body);
 }
 
 /* -------------------------------------------------- the alert plan gate */

@@ -90,8 +90,9 @@
           It used to be a wall: no meter until you signed in, on a product
           whose whole promise is that it reads what is already on your own
           machine. Nothing about a local quota needs an account, so nothing
-          local waits for one. What an account adds is named here, once, and
-          "Not now" is a real answer rather than a smaller button.
+          local waits for one. What an account adds is named here, once, the
+          window's one sign in body is placed here for the length of the
+          step, and "Not now" is a real answer rather than a smaller button.
         -->
         <div id="first-run-account" hidden>
           <h1 id="first-run-account-title">Sign in to see this on your phone and to unlock Pro</h1>
@@ -100,11 +101,11 @@
             to your phone, and it is how Pro alerts and more than one account
             per provider are turned on.
           </p>
-          <div class="first-run-account-actions">
-            <button type="button" id="first-run-sign-in" class="first-run-continue">Sign in</button>
-            <button type="button" id="first-run-not-now" class="first-run-skip">Not now</button>
+          <div id="first-run-sign-in-mount" class="first-run-account-mount"></div>
+          <div class="sign-in-foot">
+            <button type="button" id="first-run-not-now" class="sign-in-quiet">Not now</button>
+            <span class="sign-in-foot-note">Every meter here keeps working without an account.</span>
           </div>
-          <p id="first-run-account-status" class="first-run-status" role="status"></p>
         </div>
       </div>
     </section>
@@ -112,45 +113,63 @@
     <!--
       One sign in, in one place.
 
-      The first run offer and the account menu both open this. Two copies of a
-      password field is two places for a bug to live, and the second one is
-      always the one that stops being fixed.
+      The first run step and the account menu both draw this body. Two copies
+      of a password field is two places for a bug to live, and the second one
+      is always the one that stops being fixed, so the body is one set of
+      nodes: the sheet owns it, app.js lends it to the first run step and
+      takes it back. The GitHub mark is the file in marks/, inlined on
+      currentColor so it takes the colour of the control it sits in; a test
+      fails if the drawing and the file ever drift. The Google G is that file,
+      in its own four colours, unmodified.
     -->
     <section id="sign-in" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sign-in-title" hidden>
-      <div class="sheet-panel">
-        <h2 id="sign-in-title">Sign in to OpenLimiter</h2>
-        <p class="note tight">
-          It carries your usage percentages to your phone and unlocks Pro.
-          Nothing local waits for it: every meter in this window keeps running
-          whether you sign in or not.
-        </p>
-        <div class="account-provider-actions">
-          <button type="button" id="account-google" class="account-provider">Continue with Google</button>
-          <button type="button" id="account-github" class="account-provider">Continue with GitHub</button>
-        </div>
-        <form id="account-email-form" class="account-email-form">
-          <label>
-            Email
-            <input id="account-email" class="field" type="email" autocomplete="email" required />
-          </label>
-          <label>
-            Password
-            <input id="account-password" class="field" type="password" autocomplete="current-password" minlength="8" required />
-          </label>
-          <div class="account-email-actions">
-            <button type="submit" id="account-email-sign-in" class="first-run-continue">Sign in</button>
-            <button type="button" id="account-email-create">Create account</button>
-            <!--
-              The fallback for a person whose provider account is not one of
-              the two above, or who would rather not hand a password to a
-              desktop window at all. It asks for nothing but the address.
-            -->
-            <button type="button" id="account-magic-link">Email me a link instead</button>
+      <div class="sheet-panel sign-in-panel">
+        <div class="sign-in-head">
+          <div class="sign-in-lockup" role="img" aria-label="OpenLimiter">
+            <img class="brand-lockup-light" src="./brand/openlimiter-lockup-light.svg" alt="" />
+            <img class="brand-lockup-dark" src="./brand/openlimiter-lockup-dark.svg" alt="" />
           </div>
-        </form>
-        <p id="sign-in-status" class="first-run-status" role="status"></p>
-        <div class="sheet-actions">
-          <button type="button" id="sign-in-close">Close</button>
+          <h2 id="sign-in-title">Sign in to OpenLimiter</h2>
+          <p class="sign-in-lead">See every bar on your phone and unlock Pro.</p>
+        </div>
+        <div id="sign-in-slot">
+          <div id="sign-in-body" class="sign-in-body" aria-busy="false">
+            <div class="sign-in-providers">
+              <button type="button" id="account-github" class="sign-in-provider filled">
+                <svg class="sign-in-mark" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path fill="currentColor" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                </svg>
+                <span>Continue with GitHub</span>
+              </button>
+              <button type="button" id="account-google" class="sign-in-provider">
+                <img class="sign-in-mark" src="./marks/google-g.svg" alt="" aria-hidden="true" />
+                <span>Continue with Google</span>
+              </button>
+            </div>
+            <div class="sign-in-divider" aria-hidden="true"><span>or</span></div>
+            <button type="button" id="account-email-toggle" class="sign-in-quiet" aria-expanded="false" aria-controls="account-email-form">Use email instead</button>
+            <form id="account-email-form" class="sign-in-email" hidden>
+              <label class="sign-in-field" for="account-email">Email</label>
+              <input id="account-email" class="field" type="email" autocomplete="email" required />
+              <label class="sign-in-field" for="account-password">Password</label>
+              <input id="account-password" class="field" type="password" autocomplete="current-password" minlength="8" required />
+              <div class="sign-in-email-actions">
+                <button type="submit" id="account-email-sign-in" class="filled">Sign in</button>
+                <button type="button" id="account-email-create">Create account</button>
+              </div>
+            </form>
+            <!-- Present from the first paint, so assistive technology is
+                 already listening when the first sentence lands. It has no
+                 size until it has a tone. -->
+            <p id="sign-in-status" class="sign-in-status" role="status" aria-live="polite">
+              <span class="sign-in-status-mark" aria-hidden="true"></span>
+              <span id="sign-in-status-text"></span>
+            </p>
+          </div>
+        </div>
+        <div class="sign-in-foot">
+          <button type="button" id="sign-in-close" class="sign-in-quiet">Not now</button>
+          <span class="sign-in-foot-note">Every meter in this window keeps running without an account.</span>
         </div>
       </div>
     </section>
