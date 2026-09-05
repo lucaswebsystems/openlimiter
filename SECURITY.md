@@ -18,7 +18,7 @@ Connector drift without a security impact is a compatibility issue. Please use t
 
 Local mode has no telemetry. No local command sends usage, diagnostics, identifiers, prompts, or quota state to the project authors.
 
-OpenLimiter sync is explicit, free, off by default, and separate from telemetry. Nothing leaves the machine until the user signs in and enables sync. The desktop then sends only provider code, opaque account label, window name, bounded usage percentage, reset time, observation time, and opaque device identifier. Provider credentials, prompts, source code, provider response bodies, local configuration, and diagnostics never enter sync or Pro. Signing out never changes local data.
+OpenLimiter sync is explicit, free, and separate from telemetry. Nothing leaves the machine until the user signs in; signing in turns sync on, because moving percentages between devices is what the account exists for, and sync can be turned off at any time. The desktop then sends only provider code, opaque account label, window name, bounded usage percentage, reset time, observation time, and opaque device identifier. Provider credentials, prompts, source code, provider response bodies, local configuration, and diagnostics never enter sync or Pro. Signing out never changes local data.
 
 Row level security limits each authenticated user to their own current snapshots. Direct client writes are revoked. A closed Edge Function authenticates the user and calls the storage procedure with the server resolved user identifier. Hosted traffic uses HTTPS and Supabase supplies storage encryption. Current snapshots expire after seven days without refresh. Pro history expires after ninety days.
 

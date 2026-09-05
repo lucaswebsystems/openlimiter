@@ -101,12 +101,12 @@ function GitHubMark() {
  *
  * It keeps its own four colours because a provider mark is used unmodified, and
  * it stays out of this file so no brand colour is ever written as a literal in
- * a component. See public/brand/google-g.svg.
+ * a component. See public/marks/google-g.svg.
  */
 function GoogleMark() {
   /* eslint-disable-next-line @next/next/no-img-element -- a brand mark served
      verbatim, at its intrinsic size, with no optimisation pass over it. */
-  return <img src="/brand/google-g.svg" alt="" aria-hidden="true" className="h-4 w-4 flex-none" />;
+  return <img src="/marks/google-g.svg" alt="" aria-hidden="true" className="h-4 w-4 flex-none" />;
 }
 
 /* ------------------------------------------------------------------ client */
