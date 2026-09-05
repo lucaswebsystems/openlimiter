@@ -214,10 +214,12 @@ function descriptorSections(descriptor: string): Map<string, string> | null {
  * Decide whether a Windows trust file is the current user's alone.
  *
  * The owner has to be this account, because an owner can rewrite permissions
- * whatever they currently say. The access list has to be protected, so no
- * inherited entry from a parent folder applies, and every entry in it has to
- * name this account and nobody else. Anything else, including a descriptor
- * that does not parse, means no trust.
+ * whatever they currently say. The access list has to be present, protected
+ * against inheritance, and made of nothing but allow entries naming this same
+ * account. A denial, an inherited entry, a second principal, an empty list, an
+ * absent list, and a descriptor that does not parse all mean no trust: the
+ * question is whether this file is exactly the current user's, and every one
+ * of those answers it with something other than yes.
  */
 export function windowsTrustIsOwnerOnly(security: WindowsTrustSecurity): boolean {
   const sid = security.currentUserSid;
@@ -232,15 +234,13 @@ export function windowsTrustIsOwnerOnly(security: WindowsTrustSecurity): boolean
   const entries = dacl.slice(firstEntry);
   if (!/^[A-Z]*$/u.test(flags) || !flags.includes("P")) return false;
   if (!/^(?:\([^()]*\))+$/u.test(entries)) return false;
-  let granted = false;
   for (const entry of entries.slice(1, -1).split(")(")) {
     const fields = entry.split(";");
     if (fields.length < 6 || fields.length > 7) return false;
-    if (fields[0] !== "A" && fields[0] !== "D") return false;
+    if (fields[0] !== "A") return false;
     if ((fields[1] ?? "").includes("ID") || fields[5] !== sid) return false;
-    if (fields[0] === "A") granted = true;
   }
-  return granted;
+  return true;
 }
 
 /*

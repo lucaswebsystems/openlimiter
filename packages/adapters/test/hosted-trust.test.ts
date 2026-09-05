@@ -54,6 +54,8 @@ const FOREIGN_OWNER_DESCRIPTOR = "O:S-1-5-18G:" + OWNER_SID +
   "D:PAI(A;;FA;;;" + OWNER_SID + ")";
 const SHARED_DESCRIPTOR = "O:" + OWNER_SID + "G:" + OWNER_SID +
   "D:PAI(A;;FA;;;" + OWNER_SID + ")(A;;FA;;;S-1-5-32-544)";
+const DENY_DESCRIPTOR = "O:" + OWNER_SID + "G:" + OWNER_SID +
+  "D:PAI(A;;FA;;;" + OWNER_SID + ")(D;;FW;;;" + OWNER_SID + ")";
 
 function recordedSecurity(descriptor: string): WindowsTrustSecurityProbe {
   return async () => ({
@@ -223,7 +225,9 @@ describe("protected hosted trust bridge", () => {
       recordedSecurity(INHERITED_DESCRIPTOR),
       recordedSecurity(FOREIGN_OWNER_DESCRIPTOR),
       recordedSecurity(SHARED_DESCRIPTOR),
+      recordedSecurity(DENY_DESCRIPTOR),
       recordedSecurity("O:" + OWNER_SID + "G:" + OWNER_SID + "D:NO_ACCESS_CONTROL"),
+      recordedSecurity("O:" + OWNER_SID + "G:" + OWNER_SID + "D:P"),
       recordedSecurity("not a security descriptor"),
       (async () => null) as WindowsTrustSecurityProbe,
       (async () => {
@@ -251,6 +255,9 @@ describe("protected hosted trust bridge", () => {
       INHERITED_DESCRIPTOR,
       FOREIGN_OWNER_DESCRIPTOR,
       SHARED_DESCRIPTOR,
+      DENY_DESCRIPTOR,
+      "O:" + OWNER_SID + "G:" + OWNER_SID + "D:NO_ACCESS_CONTROL",
+      "O:" + OWNER_SID + "G:" + OWNER_SID + "D:P",
       "O:" + OWNER_SID + "G:" + OWNER_SID + "D:P(A;ID;FA;;;" + OWNER_SID + ")",
       "O:" + OWNER_SID + "G:" + OWNER_SID + "D:PAI(A;;FA;;;" + OWNER_SID,
       "D:PAI(A;;FA;;;" + OWNER_SID + ")",
