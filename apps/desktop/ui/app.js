@@ -45,6 +45,15 @@ import { defineLiveMeter } from "./live-meter.js";
 import { renderPlanCap } from "./plan-cap.js";
 import { renderSettings } from "./settings.js";
 import { renderPro, renderSpend } from "./pro.js";
+/* The phone panel and the device list it produces. Both live behind an
+   account, and both are drawn by their own module rather than here. */
+import {
+  initPairing,
+  pairingPanelClosed,
+  pairingPanelOpened,
+  renderDevices,
+  setPairingAccountState,
+} from "./pairing.js";
 /* Every word the Rust process hears from this file goes through the backend
    adapter, so a build without a given command degrades to an honest absence
    instead of a module level crash, and a static serve of these files renders
@@ -70,7 +79,10 @@ import {
   readCache,
   readManual,
   notificationEvents,
+  notificationGate,
+  proCheckoutUrl,
   proDisconnect,
+  proRefresh,
   setTrayStatus,
   testProvider,
 } from "./backend.js";
@@ -81,7 +93,11 @@ import {
   noteMetersRefreshed,
   openProviderConnection,
 } from "./connections.js";
-import { initFirstRun } from "./first-run.js";
+import {
+  initFirstRun,
+  permissionSentence,
+  requestAlertPermission,
+} from "./first-run.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
@@ -204,6 +220,23 @@ const elements = {
   menuSync: document.getElementById("menu-sync"),
   menuUpdate: document.getElementById("menu-update"),
   menuLogout: document.getElementById("menu-logout"),
+  menuSignIn: document.getElementById("menu-signin"),
+  menuSignInButton: document.getElementById("menu-sign-in"),
+  menuSignedIn: document.getElementById("menu-signed-in"),
+  phoneButton: document.getElementById("phone-button"),
+  phonePopover: document.getElementById("phone-popover"),
+  notificationGate: document.getElementById("notification-gate"),
+  notificationUpgrade: document.getElementById("notification-upgrade"),
+  signIn: document.getElementById("sign-in"),
+  signInClose: document.getElementById("sign-in-close"),
+  signInStatus: document.getElementById("sign-in-status"),
+  signInEmail: document.getElementById("account-email"),
+  signInPassword: document.getElementById("account-password"),
+  signInForm: document.getElementById("account-email-form"),
+  signInCreate: document.getElementById("account-email-create"),
+  signInMagic: document.getElementById("account-magic-link"),
+  signInGoogle: document.getElementById("account-google"),
+  signInGithub: document.getElementById("account-github"),
   updateBanner: document.getElementById("update-banner"),
   offlineBanner: document.getElementById("offline-banner"),
   addAccount: document.getElementById("add-account"),
@@ -348,24 +381,146 @@ elements.emptyConnect?.addEventListener("click", beginAddAccount);
 function closeHeaderPopovers() {
   elements.notificationPopover.hidden = true;
   elements.menu.hidden = true;
+  if (elements.phonePopover !== null && !elements.phonePopover.hidden) {
+    elements.phonePopover.hidden = true;
+    pairingPanelClosed();
+  }
   elements.bell.setAttribute("aria-expanded", "false");
   elements.menuButton.setAttribute("aria-expanded", "false");
+  elements.phoneButton?.setAttribute("aria-expanded", "false");
 }
+
+/** Whether a session exists right now. The sign in card and the phone panel
+    both branch on it, so it has one owner and is read rather than guessed. */
+let signedIn = false;
 
 function applyAccountState(status) {
   if (status === null || typeof status !== "object") return;
-  elements.menuEmail.textContent = status.signedIn
+  signedIn = status.signedIn === true;
+  elements.menuEmail.textContent = signedIn
     ? String(status.email ?? "Signed in")
     : "Signed out";
   elements.menuBackend.textContent =
-    status.backendReachable === false && status.signedIn
-      ? "Cached session"
-      : "";
+    status.backendReachable === false && signedIn ? "Cached session" : "";
   elements.menuSync.checked = status.syncEnabled !== false;
-  elements.offlineBanner.hidden = !(
-    status.signedIn && status.backendReachable === false
-  );
+  elements.offlineBanner.hidden = !(signedIn && status.backendReachable === false);
+  /* Signed out, the menu offers the card instead of a switch that has nothing
+     to switch and a log out that has nothing to end. */
+  if (elements.menuSignIn !== null) elements.menuSignIn.hidden = signedIn;
+  if (elements.menuSignedIn !== null) elements.menuSignedIn.hidden = !signedIn;
+  if (elements.menuLogout !== null) elements.menuLogout.hidden = !signedIn;
+  setPairingAccountState(signedIn);
 }
+
+/* ------------------------------------------------------------- signing in */
+
+/**
+ * One sign in sheet, opened from two places.
+ *
+ * The first run offer and the account menu both raise this, and a success is
+ * announced on the window so first run can finish itself without owning a
+ * second copy of the form.
+ */
+function openSignIn() {
+  if (elements.signIn === null) return;
+  closeHeaderPopovers();
+  elements.signIn.hidden = false;
+  if (elements.signInStatus !== null) elements.signInStatus.textContent = "";
+  elements.signInEmail?.focus();
+}
+
+function closeSignIn() {
+  if (elements.signIn === null) return;
+  elements.signIn.hidden = true;
+  if (elements.signInPassword instanceof HTMLInputElement) {
+    elements.signInPassword.value = "";
+  }
+}
+
+function signInFailed(result) {
+  if (elements.signInStatus === null) return;
+  elements.signInStatus.textContent =
+    result?.message ??
+    "Sign in could not be completed. Check your connection and try again.";
+}
+
+async function runSignIn(action) {
+  if (elements.signInStatus !== null) {
+    elements.signInStatus.textContent = "Opening secure sign in.";
+  }
+  const result = await action();
+  if (!result.ok || result.value?.signedIn !== true) {
+    signInFailed(result);
+    return;
+  }
+  applyAccountState(result.value);
+  if (result.value.syncEnabled !== false) {
+    void accountSyncConfiguredSnapshot(readConfiguredProviders());
+  }
+  closeSignIn();
+  window.dispatchEvent(new CustomEvent("openlimiter:signed-in"));
+  void refresh();
+}
+
+elements.signInClose?.addEventListener("click", closeSignIn);
+elements.menuSignInButton?.addEventListener("click", openSignIn);
+
+elements.signInForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  void runSignIn(() =>
+    accountEmail({
+      email: elements.signInEmail?.value ?? "",
+      password: elements.signInPassword?.value ?? "",
+      create: false,
+    }),
+  );
+});
+
+elements.signInCreate?.addEventListener("click", () => {
+  void runSignIn(() =>
+    accountEmail({
+      email: elements.signInEmail?.value ?? "",
+      password: elements.signInPassword?.value ?? "",
+      create: true,
+    }),
+  );
+});
+
+/*
+ * The magic link, for a person with neither provider account, or who would
+ * rather not type a password into a desktop window. It sends an empty password
+ * with create off, which is what the broker reads as a link request, and it
+ * never advances the sheet: the link is followed in a browser and this window
+ * picks the session up when it comes back.
+ */
+elements.signInMagic?.addEventListener("click", () => {
+  void (async () => {
+    const address = elements.signInEmail?.value ?? "";
+    if (address.trim() === "") {
+      if (elements.signInStatus !== null) {
+        elements.signInStatus.textContent =
+          "Enter the email address to send the link to.";
+      }
+      elements.signInEmail?.focus();
+      return;
+    }
+    if (elements.signInStatus !== null) {
+      elements.signInStatus.textContent = "Sending the link.";
+    }
+    const result = await accountEmail({ email: address, password: "", create: false });
+    if (elements.signInStatus === null) return;
+    elements.signInStatus.textContent = result.ok
+      ? "Check " + address + " and open the link on this device."
+      : (result.message ?? "The link could not be sent. Check your connection.");
+  })();
+});
+
+elements.signInGoogle?.addEventListener("click", () => {
+  void runSignIn(() => accountOauth("google"));
+});
+elements.signInGithub?.addEventListener("click", () => {
+  void runSignIn(() => accountOauth("github"));
+});
 
 function eventSentence(event) {
   if (event.kind === "reset") {
@@ -420,12 +575,51 @@ async function runUpdateCheck(silent) {
   elements.menuUpdate.textContent = "Install OpenLimiter " + version;
 }
 
+/* Asked once per window, and only where it can be honoured. A Free machine
+   raises no toast at all, so asking the operating system for permission to
+   raise one would be asking for something nothing would ever use. */
+let permissionAsked = false;
+
+async function paintAlertGate() {
+  if (elements.notificationGate === null) return;
+  const result = await notificationGate();
+  const entitled = result.ok && result.value?.entitled === true;
+  elements.notificationGate.hidden = entitled;
+  if (!entitled || permissionAsked) return;
+  permissionAsked = true;
+  const outcome = await requestAlertPermission();
+  if (outcome === "granted") return;
+  const note = document.getElementById("notification-gate-note");
+  if (note === null) return;
+  elements.notificationGate.hidden = false;
+  const title = document.getElementById("notification-gate-title");
+  if (title !== null) title.textContent = "Alerts are on for your plan";
+  note.textContent = permissionSentence(outcome);
+  elements.notificationUpgrade?.setAttribute("hidden", "");
+}
+
+elements.notificationUpgrade?.addEventListener("click", () => {
+  void openCheckout("monthly");
+});
+
 elements.bell?.addEventListener("click", () => {
   const opening = elements.notificationPopover.hidden;
   closeHeaderPopovers();
   elements.notificationPopover.hidden = !opening;
   elements.bell.setAttribute("aria-expanded", opening ? "true" : "false");
-  if (opening) void renderNotificationEvents();
+  if (opening) {
+    void renderNotificationEvents();
+    void paintAlertGate();
+  }
+});
+
+elements.phoneButton?.addEventListener("click", () => {
+  if (elements.phonePopover === null) return;
+  const opening = elements.phonePopover.hidden;
+  closeHeaderPopovers();
+  elements.phonePopover.hidden = !opening;
+  elements.phoneButton.setAttribute("aria-expanded", opening ? "true" : "false");
+  if (opening) pairingPanelOpened();
 });
 
 elements.menuButton?.addEventListener("click", () => {
@@ -433,6 +627,7 @@ elements.menuButton?.addEventListener("click", () => {
   closeHeaderPopovers();
   elements.menu.hidden = !opening;
   elements.menuButton.setAttribute("aria-expanded", opening ? "true" : "false");
+  if (opening && signedIn) void renderDevices();
 });
 
 document.addEventListener("click", (event) => {
@@ -478,6 +673,37 @@ elements.menuLogout?.addEventListener("click", () => {
 
 void accountStatus().then((result) => {
   if (result.ok) applyAccountState(result.value);
+});
+
+/**
+ * Send a person to hosted Checkout, in their own browser.
+ *
+ * Rust opens the address the server returned, so nothing about a price or a
+ * session is assembled here. Coming back to this window refreshes the
+ * entitlement, which is why a completed purchase shows within seconds rather
+ * than at the next hourly refresh.
+ */
+async function openCheckout(plan) {
+  if (!signedIn) {
+    openSignIn();
+    return;
+  }
+  const result = await proCheckoutUrl(plan);
+  if (result.ok) return;
+  const note = document.getElementById("notification-gate-note");
+  if (note !== null) {
+    note.textContent = result.message ?? "Checkout could not be opened.";
+  }
+}
+
+/* A purchase happens in a browser, so the window learns about it by coming
+   back into focus. Refreshing then is the difference between "it worked" and
+   "restart the app". */
+window.addEventListener("focus", () => {
+  if (!signedIn) return;
+  void proRefresh().then(() => {
+    void paintPlanBadge();
+  });
 });
 
 /* ------------------------------------------------------------------ reading */
@@ -1105,12 +1331,14 @@ if (cardsContainer) {
   observer.observe(cardsContainer, { childList: true, subtree: true });
 }
 
+initPairing({ onSignIn: openSignIn });
+
 initFirstRun({
   accountStatus,
-  accountEmail,
-  accountOauth,
   detectProviders: listDetectedProviders,
   markFor: (code) => MARKS[code] ?? "",
+  isSignedIn: () => signedIn,
+  onSignInRequested: openSignIn,
   onAccountState: (status) => {
     applyAccountState(status);
     if (status.syncEnabled !== false) {

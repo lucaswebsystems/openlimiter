@@ -117,7 +117,7 @@ const FAILURE_SENTENCES = {
   network: "The Pro service could not be reached.",
   service: "The Pro service returned an unusable response.",
   entitlement_required: "This hosted service needs an active Pro entitlement.",
-  plan_cap: "Free allows one active account for this provider.",
+  plan_cap: "Pro unlocks more accounts. Free reads one account per provider.",
   paused: "This connection is paused and cannot perform work.",
   device_cap_reached: "This account already has five active device grants.",
   updater_unconfigured: "Updates are not configured in this build.",
@@ -423,6 +423,69 @@ export async function proDisconnect() {
   return call("pro_disconnect");
 }
 
+/* The two billing plans, spelled the way the Rust side reads them. Anything
+   else is refused here rather than sent and answered with a bare 400. */
+const PRO_PLANS = new Set(["monthly", "yearly"]);
+const PORTAL_INTENTS = new Set(["manage", "cancel"]);
+
+/**
+ * The hosted Checkout address for one plan.
+ *
+ * The server assembles the session and answers with a URL. Nothing about a
+ * price, a customer or a tax rule is decided in this window, which is why the
+ * only thing crossing here is the word monthly or the word yearly.
+ */
+export async function proCheckoutUrl(plan) {
+  if (!PRO_PLANS.has(plan)) return refusedInput("pro_checkout_url");
+  return call("pro_checkout_url", { plan });
+}
+
+/** The hosted billing portal address, to manage or to cancel. */
+export async function proPortalUrl(intent = "manage") {
+  if (!PORTAL_INTENTS.has(intent)) return refusedInput("pro_portal_url");
+  return call("pro_portal_url", { intent });
+}
+
+/* --------------------------------------------------------- phone pairing */
+
+/** Ask the service for a fresh pairing code and its two minute life. */
+export async function pairingStart() {
+  return call("pairing_start");
+}
+
+/** Where the pairing in flight has got to. */
+export async function pairingStatus() {
+  return call("pairing_status");
+}
+
+/** Let the claimed phone in. */
+export async function pairingApprove() {
+  return call("pairing_approve");
+}
+
+/** Turn the claimed phone away and spend the code. */
+export async function pairingDeny() {
+  return call("pairing_deny");
+}
+
+/** Forget the pairing in flight. The code lapses on the server on its own. */
+export async function pairingCancel() {
+  return call("pairing_cancel");
+}
+
+/** Every device grant on the account, with the current one marked. */
+export async function devicesList() {
+  return call("devices_list");
+}
+
+/** Revoke one device grant, so its next read is refused. */
+export async function deviceRevoke(deviceId) {
+  if (typeof deviceId !== "string" || deviceId === "") {
+    return refusedInput("device_revoke");
+  }
+  return call("device_revoke", { input: { device_id: deviceId } });
+}
+
 /** Read the cached account and refresh it when the backend is reachable. */
 export async function accountStatus() {
   return call("account_status");
@@ -511,6 +574,17 @@ export async function setNotificationSettings(settings) {
 /** Recent local transition events for the bell. */
 export async function notificationEvents() {
   return call("notification_events");
+}
+
+/**
+ * Whether this machine may raise an alert at all.
+ *
+ * Every notification is a Pro capability, so the bell asks this before it
+ * draws anything. A Free window says so plainly rather than offering switches
+ * that would change nothing.
+ */
+export async function notificationGate() {
+  return call("notification_gate");
 }
 
 /** Check the signed release channel without installing anything. */

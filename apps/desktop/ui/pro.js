@@ -32,6 +32,8 @@ import {
   apiSpendRemoveSource,
   apiSpendSaveSource,
   apiSpendStatus,
+  proCheckoutUrl,
+  proPortalUrl,
   proService,
   proStatus,
 } from "./backend.js";
@@ -100,13 +102,40 @@ const FEATURES = [
   { key: "theme_preset", label: "Theme presets" },
 ];
 
+/* The service says trialing; this window has always said trial. Both are
+   listed so a plan state never renders as its own raw code. */
 const PLAN_NAMES = {
   free: "Free",
   active: "Pro",
   trial: "Pro trial",
+  trialing: "Pro trial",
   past_due: "Pro, payment failed",
   canceled: "Pro, ending",
 };
+
+const TRIAL_STATES = new Set(["trial", "trialing"]);
+const ENTITLED_STATES = new Set(["active", "trial", "trialing"]);
+
+/**
+ * Whole days left in a trial, from the instant the service reported.
+ *
+ * The server starts the trial at first sign in and this window never starts
+ * one, so this is a reading rather than a decision. A trial whose end is in
+ * the past reads as zero rather than as a negative number nobody can act on.
+ */
+export function trialDaysRemaining(trialEndsAt, now = Date.now()) {
+  const at = Date.parse(String(trialEndsAt ?? ""));
+  if (!Number.isFinite(at)) return null;
+  return Math.max(0, Math.ceil((at - now) / 86_400_000));
+}
+
+/** "Pro trial, 12 days left", said the way a person counts days. */
+export function trialSentence(days) {
+  if (days === null) return "Pro trial running";
+  if (days === 0) return "Pro trial, ending today";
+  if (days === 1) return "Pro trial, 1 day left";
+  return "Pro trial, " + String(days) + " days left";
+}
 
 const TICK =
   '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.4 8.4 3 3 6.2-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -153,17 +182,14 @@ function budgetBand(spend, budget) {
 
 /* ---------------------------------------------------------------- the plan */
 
-function planMarkup(pro) {
+function planMarkup(pro, trialDays) {
   const planState = pro?.plan_state ?? "free";
-  const isPro = planState === "active" || planState === "trial";
-  const trialDays = pro?.trial_days_remaining;
+  const isPro = ENTITLED_STATES.has(planState);
 
   const banner =
-    planState === "trial"
+    TRIAL_STATES.has(planState)
       ? '<div class="callout"><strong>' +
-        (typeof trialDays === "number"
-          ? String(trialDays) + " days left in your trial"
-          : "Trial running") +
+        escapeText(trialSentence(trialDays)) +
         "</strong><p>Every Pro capability is on. No card was asked for and none is needed until the trial ends. If it ends without one, the window returns to Free and keeps every local reading, every connection and every setting.</p></div>"
       : planState === "past_due"
       ? '<div class="alert"><strong>The last payment did not go through</strong><p>Pro keeps working until ' +
@@ -208,9 +234,16 @@ function planMarkup(pro) {
     (isPro
       ? '<button type="button" id="pro-portal">Manage billing</button>' +
         '<button type="button" id="pro-refresh-plan">Refresh entitlement</button>'
-      : '<button type="button" class="primary" id="pro-start-trial">Start the 30 day trial</button>' +
-        '<button type="button" id="pro-compare">What Pro adds</button>') +
+      /* The client never starts a trial. The service starts one at first sign
+         in, and what this button does is send a person to hosted Checkout for
+         the plan they picked. Two buttons, because a yearly price hidden
+         behind a monthly one is a price nobody finds. */
+      : '<button type="button" class="primary" id="pro-upgrade-monthly">Upgrade to Pro, 5 dollars a month</button>' +
+        '<button type="button" id="pro-upgrade-yearly">Or 50 dollars a year</button>') +
     "</div>" +
+    (isPro
+      ? ""
+      : '<p class="note tight" id="pro-billing-note" role="status">Checkout opens in your browser. This window picks the change up as soon as you come back to it.</p>') +
     (pro?.grace_until
       ? '<p class="note">Local Pro features keep working offline until ' +
         escapeText(whenText(pro.grace_until)) +
@@ -399,9 +432,10 @@ export async function renderPro(mount) {
   state.mount = mount;
   if (mount === null) return;
 
-  const [proResult, devicesResult] = await Promise.all([
+  const [proResult, devicesResult, accountResult] = await Promise.all([
     proStatus(),
     proService("device_status", {}),
+    proService("account_status", {}),
   ]);
 
   if (!proResult.ok && proResult.reason === BACKEND_ABSENT) {
@@ -414,12 +448,18 @@ export async function renderPro(mount) {
   state.pro = pro;
   const devices = devicesResult.ok ? (devicesResult.value?.devices ?? []) : [];
   const cap = pro?.device_cap ?? 1;
-  const isPro = pro?.plan_state === "active" || pro?.plan_state === "trial";
+  const isPro = ENTITLED_STATES.has(pro?.plan_state);
+  /* The trial's end is the service's fact, read here and never invented. A
+     window with no answer says "Pro trial running" rather than a made up
+     number of days. */
+  const trialDays = accountResult.ok
+    ? trialDaysRemaining(accountResult.value?.trial_ends_at)
+    : null;
 
   mount.innerHTML =
     '<section class="surface block" aria-labelledby="plan-title">' +
     '<h2 id="plan-title">Plan</h2>' +
-    planMarkup(pro) +
+    planMarkup(pro, trialDays) +
     "</section>" +
     '<section class="surface block" aria-labelledby="devices-title">' +
     '<h2 id="devices-title">Devices</h2>' +
@@ -485,10 +525,29 @@ export async function renderSpend(mount) {
   wireSpend();
 }
 
+function billingNote(sentence) {
+  const note = document.getElementById("pro-billing-note");
+  if (note !== null) note.textContent = sentence;
+}
+
 function wirePro() {
-  document.getElementById("pro-start-trial")?.addEventListener("click", async () => {
-    await proService("start_trial", {});
-    await renderPro(state.mount);
+  for (const [id, plan] of [
+    ["pro-upgrade-monthly", "monthly"],
+    ["pro-upgrade-yearly", "yearly"],
+  ]) {
+    document.getElementById(id)?.addEventListener("click", async () => {
+      billingNote("Opening Checkout in your browser.");
+      const result = await proCheckoutUrl(plan);
+      billingNote(
+        result.ok
+          ? "Checkout is open in your browser. Come back to this window when you are done and the plan updates here."
+          : (result.message ?? "Checkout could not be opened."),
+      );
+    });
+  }
+  document.getElementById("pro-portal")?.addEventListener("click", async () => {
+    const result = await proPortalUrl("manage");
+    if (!result.ok) billingNote(result.message ?? "Billing could not be opened.");
   });
   document.getElementById("pro-refresh-plan")?.addEventListener("click", async () => {
     await proStatus();
