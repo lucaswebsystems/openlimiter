@@ -4,6 +4,7 @@ import { createClient, type Session, type SupabaseClient } from "@supabase/supab
 import { useTranslations } from "next-intl";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  authRedirectUrl,
   openProBilling,
   proAccessState,
   proCanManageBilling,
@@ -101,12 +102,12 @@ function GitHubMark() {
  *
  * It keeps its own four colours because a provider mark is used unmodified, and
  * it stays out of this file so no brand colour is ever written as a literal in
- * a component. See public/brand/google-g.svg.
+ * a component. See public/marks/google-g.svg.
  */
 function GoogleMark() {
   /* eslint-disable-next-line @next/next/no-img-element -- a brand mark served
      verbatim, at its intrinsic size, with no optimisation pass over it. */
-  return <img src="/brand/google-g.svg" alt="" aria-hidden="true" className="h-4 w-4 flex-none" />;
+  return <img src="/marks/google-g.svg" alt="" aria-hidden="true" className="h-4 w-4 flex-none" />;
 }
 
 /* ------------------------------------------------------------------ client */
@@ -189,7 +190,7 @@ export function ProPortal({ locale }: { locale: string }) {
     setSignInMode("working");
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.href.split("?")[0] },
+      options: { redirectTo: authRedirectUrl() },
     });
     if (error !== null) setSignInMode("error");
   }
@@ -200,7 +201,7 @@ export function ProPortal({ locale }: { locale: string }) {
     setSignInMode("working");
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: window.location.href.split("?")[0] },
+      options: { emailRedirectTo: authRedirectUrl() },
     });
     setSignInMode(error === null ? "sent" : "error");
   }

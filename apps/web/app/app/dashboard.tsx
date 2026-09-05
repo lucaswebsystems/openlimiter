@@ -36,6 +36,7 @@ import {
   type SyncedUsageResult,
 } from "@/lib/synced-usage";
 import { getDevPreviewSnapshots } from "./dev-preview";
+import { authRedirectUrl } from "@/lib/pro";
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
@@ -171,7 +172,7 @@ function AccountGate({ client }: { client: SupabaseClient | null }) {
     setMessage("");
     const { error } = await client.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.href.split("?")[0] },
+      options: { redirectTo: authRedirectUrl() },
     });
     if (error !== null) {
       setBusy(false);
@@ -186,7 +187,7 @@ function AccountGate({ client }: { client: SupabaseClient | null }) {
     setMessage("");
     const { error } = await client.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: window.location.href.split("?")[0] },
+      options: { emailRedirectTo: authRedirectUrl() },
     });
     setBusy(false);
     setMessage(error === null ? "Check your email to finish signing in." : "Email sign in is unavailable.");

@@ -227,6 +227,25 @@ export async function revokeProDevice(
   return result.ok ? { ok: true, value: result.value.revoked === true } : result;
 }
 
+/**
+ * Where a sign in comes back to.
+ *
+ * The origin and the path of the page that started it, and nothing else. It
+ * used to be the current address with everything after a question mark cut
+ * off, which reads as the same thing and is not: a fragment survives that cut,
+ * so `/pro#anything` would have been handed to the identity provider as the
+ * address to return to and would have come back attached to the session. A
+ * fragment never reaches a server, so nothing upstream would ever have seen it
+ * either.
+ *
+ * Building the URL out of the two parts that are the page removes the question
+ * entirely. There is no query to strip, no fragment to forget, and no crafted
+ * link that can steer where a completed sign in lands.
+ */
+export function authRedirectUrl(): string {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
 /* ------------------------------------------------------------ pure decisions */
 
 /**
