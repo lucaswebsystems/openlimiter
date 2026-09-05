@@ -12,6 +12,7 @@ import {
   type Snapshot,
   type SnapshotProvenance
 } from "@openlimiter/core";
+import { writeAgentContextSnapshot } from "@openlimiter/adapters";
 
 /** Largest document accepted on standard input. */
 export const STDIN_BYTE_LIMIT = 262_144;
@@ -73,25 +74,37 @@ export type JsonText = { ok: true; value: unknown } | { ok: false };
 export async function readStandardInputText(
   stream: NodeJS.ReadStream = process.stdin,
   byteLimit = STDIN_BYTE_LIMIT,
-  timeoutMilliseconds = STDIN_TIMEOUT_MILLISECONDS
+  timeoutMilliseconds = STDIN_TIMEOUT_MILLISECONDS,
+  signal?: AbortSignal
 ): Promise<string | null> {
-  if (stream.isTTY === true) return null;
+  if (stream.isTTY === true || signal?.aborted === true) return null;
   return await new Promise<string | null>((resolve) => {
     const chunks: Buffer[] = [];
     let total = 0;
     let settled = false;
-    const collected = (): string | null =>
-      chunks.length === 0 ? null : Buffer.concat(chunks).toString("utf8");
+    const collected = (): string | null => {
+      if (chunks.length === 0) return null;
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks));
+      } catch {
+        return null;
+      }
+    };
     const finish = (value: string | null): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
       stream.off("data", onData);
       stream.off("end", onEnd);
       stream.off("error", onError);
       stream.pause();
       resolve(value);
     };
+    /* A caller on a deadline stops listening the moment the deadline passes,
+       so a producer that never closes the pipe cannot keep this read alive
+       behind an answer that has already been given. */
+    const onAbort = (): void => finish(null);
     const onData = (chunk: Buffer): void => {
       total += chunk.length;
       if (total > byteLimit) {
@@ -103,6 +116,7 @@ export async function readStandardInputText(
     const onEnd = (): void => finish(collected());
     const onError = (): void => finish(null);
     const timer = setTimeout(() => finish(collected()), timeoutMilliseconds);
+    signal?.addEventListener("abort", onAbort, { once: true });
     stream.on("data", onData);
     stream.on("end", onEnd);
     stream.on("error", onError);
@@ -223,10 +237,13 @@ export async function environmentWithLocalMarkers(
  */
 export async function persistSnapshots(
   incoming: readonly Snapshot[],
-  directory: string | undefined
+  directory: string | undefined,
+  now: string
 ): Promise<CacheMergeResult> {
-  return await mergeSnapshotCache(
+  const merged = await mergeSnapshotCache(
     incoming,
     directory ?? resolveStateDirectory()
   );
+  await writeAgentContextSnapshot(merged.merged, directory, now);
+  return merged;
 }

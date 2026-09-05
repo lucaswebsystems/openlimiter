@@ -2,7 +2,53 @@
 
 All notable project changes appear in this file.
 
-## [Unreleased]
+## [1.2.0] (2026-09-04)
+
+The single public launch: every provider bar in one place, a free product that needs no account, and a Pro layer that can be paid for.
+
+### Added
+
+- Every Claude bucket the usage API returns is now its own bar, including model specific weekly windows such as Fable 5, extra usage credits and any bucket Anthropic adds later; both the desktop reader and the TypeScript engine parse what arrives instead of a fixed list, and a bucket named by the server renders under its own name.
+- Phone access by QR: the desktop shows a pairing code, the phone claims it, the desktop approves, and the phone receives a read only device token that can be revoked from the device list.
+- Pro checkout and billing management from the desktop and the web portal, with GitHub and Google sign in and a magic link fallback; the trial starts on the server at first sign in.
+- API spend meters for OpenAI, Anthropic and xAI plus a Moonshot balance, free up to USD 100 per calendar month per source and capped with a hatched "100 plus" state above that without Pro; the real figure never leaks into a capped payload.
+- Contract suites for Gemini CLI, Grok Build and Kimi, a connection lifecycle on every reader (detected, connected, stale with an instruction, error), and a live smoke harness that only runs on request and writes sanitized evidence.
+- A macOS universal build in the release workflow, unsigned, with the documented open anyway steps.
+
+- A privacy policy at `/privacy`, in all five published languages, written from the real data map rather than from a template: what local mode collects, which fields sync carries, every retention window, the processors involved, and the deletion path.
+- Subscription terms: billing through Stripe with automatic tax, cancellation at period end through the Stripe Customer Portal, a full refund on request within 14 days of any charge, and one fixed 72 hour grace after a first failed payment that retries never extend.
+- The agent context documentation now lists every agent the hook installer knows, with the state a live fixture recorded on a real machine rather than the state a roadmap hoped for, plus the OpenCode kill switch and the reason Grok Build cannot be injected into.
+- A public macOS download, unsigned, with the exact first run steps: open it once, then System Settings, Privacy and Security, Open Anyway.
+
+### Changed
+
+- First run shows the detected providers and real bars first; the account is optional and offered afterwards for phone access, sync and Pro, and sync is on once signed in.
+- Every notification is Pro: desktop toasts, email and phone push at 60, 80, 90 percent and on reset; a free machine never raises a toast and the bell says so.
+- Free keeps one active account per provider; existing multi account setups are grandfathered; a second account without Pro is refused and stores nothing.
+- Grok Build is named correctly everywhere and its requests carry the client version and mode headers only when the installed client's version is known.
+- Kimi Code detection no longer accepts any executable called kimi.
+- The OpenCode reader tolerates renamed headings and fails soft to a reconnect state instead of dropping every bar.
+- Overspent amounts survive normalisation on both the desktop and the web path beside a capped percent.
+- Node 24.13 or any newer 24.x release is accepted instead of one pinned patch version.
+- Release workflows pass inputs through the environment, every action is pinned to a commit, dependabot has a seven day cooldown, and the dependency audit is clean.
+
+- The documentation lists all nine connectors. Gemini CLI, Grok and Kimi join the table with the labels their parsers declare.
+- The pricing page states the six Pro lines honestly, labels the API spend meters a beta, names the organisation admin or management key they need, says a project key will not work, and shows Moonshot as balance rather than spend.
+- The free plan states its cap of one active account per provider, which Pro raises.
+- The website counts page views without cookies through Vercel Web Analytics. The application still sends nothing, and the two claims are now stated separately instead of as one.
+- Claims that no OpenLimiter server and no account exist are scoped to local mode, which is where they are true, now that a free account, sync and Pro exist.
+- `llms.txt` rewritten for 1.2.0: nine connectors, the account, the six Pro features, checkout through Stripe, and the agent adapter states.
+- The site promise is now that everything you can see is free, and that alerts, history, phone access, extra accounts and spend tracking above 100 US dollars a calendar month for each source are Pro. Pro is six features, four hosted and two local, rather than six hosted services.
+- Sync is on from the moment you sign in, because moving your own percentages between your own devices is what signing in is for. Every public statement about the default now says so.
+- Moonshot is described as a balance with three components in the provider's own currency, never as spend, a forecast or a budget alert.
+- Hosted routing context is described as a signed envelope the release build verifies, which is the path that ships, rather than as the same advice on every device.
+- The privacy page names seven services rather than four, adding GitHub and Google for sign in and the browser and operating system push services that deliver an alert, and the retention introduction names its local, backup and legal billing exceptions.
+
+### Distribution
+
+- Desktop builds for Windows, macOS and Linux. Windows and macOS are unsigned and each states its one time allow step.
+- macOS ships as one unsigned universal disk image, `OpenLimiter_1.2.0_universal.dmg`, which runs on Apple silicon and on Intel. The site used to advertise a separate Apple silicon image and an Intel image, and neither has ever been attached to a release.
+- macOS is excluded from the update manifest until signed and notarised builds exist, so until then a new version is a new download.
 
 ## [1.1.0] (2026-08-24)
 

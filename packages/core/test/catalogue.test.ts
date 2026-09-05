@@ -18,7 +18,7 @@ describe("provider catalogue", () => {
         ["codex", "Codex", "existing_local_cli"],
         ["antigravity", "Antigravity", "existing_local_cli"],
         ["opencode", "OpenCode", "manual"],
-        ["grok", "Grok", "existing_local_cli"],
+        ["grok", "Grok Build", "existing_local_cli"],
         ["kimi", "Kimi", "existing_local_cli"]
       ]);
   });

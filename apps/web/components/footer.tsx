@@ -205,6 +205,7 @@ function LanguageColumn({ title }: { title: string }) {
 export function Footer({ localised = true }: { localised?: boolean }) {
   const t = useTranslations("footer");
   const terms = useTranslations("terms");
+  const privacy = useTranslations("privacy");
   const localeSwitcher = useTranslations("localeSwitcher");
   const routes = useTranslations("common.routes");
   const common = useTranslations("common");
@@ -278,6 +279,13 @@ export function Footer({ localised = true }: { localised?: boolean }) {
             className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
           >
             {terms("title")}
+          </SiteLink>
+          <span className="legal-dot" aria-hidden="true" />
+          <SiteLink
+            href="/privacy"
+            className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+          >
+            {privacy("title")}
           </SiteLink>
         </p>
         <p className="justify-self-center text-xs leading-relaxed text-muted md:justify-self-end">

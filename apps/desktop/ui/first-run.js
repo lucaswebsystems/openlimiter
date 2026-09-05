@@ -10,10 +10,18 @@ import {
 /**
  * The launch truth shown before provider setup begins.
  *
- * Windows is intentionally shipped without code signing, so the only useful
- * copy is the two SmartScreen controls a person has just used. No unsigned
- * macOS release is offered because Gatekeeper blocks it, including when a
- * developer opens this screen from a local macOS build.
+ * Both desktop builds ship unsigned on purpose, so the only useful copy on
+ * this screen is the exact control a person needs on the operating system
+ * they are standing in front of. Windows shows the two SmartScreen actions.
+ *
+ * macOS now has a release, so the line that used to promise a future one is
+ * gone. It went stale the moment the unsigned universal app and dmg were
+ * built, and a screen telling someone a download does not exist while they
+ * are running that download is worse than a screen saying nothing at all.
+ * Gatekeeper refuses an unsigned app on a plain double click and offers no
+ * way forward from its dialogue, so the copy names the gesture that works.
+ *
+ * Linux gets nothing, because nothing stands between the file and running it.
  */
 export function launchNotice(platform) {
   const value = String(platform ?? "").toLowerCase();
@@ -25,8 +33,9 @@ export function launchNotice(platform) {
   }
   if (value.includes("mac")) {
     return {
-      title: "macOS release coming soon",
-      detail: "No public download is available yet.",
+      title: "Unsigned macOS build",
+      detail:
+        "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
     };
   }
   return null;
@@ -222,12 +231,81 @@ export function normalizeDetections(value) {
   };
 }
 
+/**
+ * The three steps, and the one rule about them.
+ *
+ * A step is marked done only once it has actually happened. Marking a step
+ * complete because it was displayed is how a setup ends up claiming to have
+ * done something it never did.
+ *
+ * Agents comes first now. It used to come second, behind a sign in wall, on a
+ * product whose entire promise is reading what is already on your own machine.
+ * Nothing local needs an account, so nothing local waits for one: detection
+ * runs the moment the window opens and the bars are real within seconds. The
+ * account is the last step and it has a plain way past it.
+ */
+export const FIRST_RUN_STEPS = ["agents", "account", "ready"];
+
+export function markStep(root, current) {
+  const list = root?.querySelector("#first-run-steps");
+  if (list === null || list === undefined) return;
+  list.hidden = false;
+  const at = FIRST_RUN_STEPS.indexOf(current);
+  for (const item of list.querySelectorAll("li")) {
+    const index = FIRST_RUN_STEPS.indexOf(item.getAttribute("data-step"));
+    item.removeAttribute("aria-current");
+    if (index < at) item.setAttribute("data-state", "done");
+    else if (index === at) {
+      item.setAttribute("data-state", "current");
+      item.setAttribute("aria-current", "step");
+    } else item.setAttribute("data-state", "todo");
+  }
+}
+
+/**
+ * Ask the operating system, once, and never pretend to have asked.
+ *
+ * A browser with no Notification API and a webview whose shell has not wired
+ * one both report "unsupported" rather than "denied", because they are
+ * different facts: one is a build that cannot ask and the other is a person
+ * who said no.
+ */
+export async function requestAlertPermission(notification = globalThis.Notification) {
+  if (notification === undefined || typeof notification.requestPermission !== "function") {
+    return "unsupported";
+  }
+  if (notification.permission === "granted") return "granted";
+  if (notification.permission === "denied") return "denied";
+  try {
+    return await notification.requestPermission();
+  } catch (error) {
+    return "unsupported";
+  }
+}
+
+export function permissionSentence(outcome) {
+  if (outcome === "granted") {
+    return "Alerts are on. You can change the thresholds or set quiet hours in Settings.";
+  }
+  if (outcome === "denied") {
+    return "The operating system is holding alerts. Every meter still works, and the system settings can undo this later.";
+  }
+  if (outcome === "skipped") {
+    return "Skipped. Alerts can be turned on in Settings whenever you want them.";
+  }
+  return "This build cannot show system alerts, so nothing was asked for. The meters are unaffected.";
+}
+
 function completeFirstRun(screen) {
   try {
     window.localStorage.setItem(FIRST_RUN_STORAGE_KEY, "complete");
   } catch {
     /* The current session can still continue when storage is unavailable. */
   }
+  /* Step three is not a screen. It is the window a person lands in, already
+     reading, which is why the last step is marked and then immediately gone
+     rather than dwelt on with a congratulation nobody needs. */
+  markStep(screen, "ready");
   document.documentElement.dataset.firstRun = "complete";
   screen.hidden = true;
 }
@@ -392,23 +470,22 @@ export function initFirstRun(options) {
   const screen = document.getElementById("first-run");
   if (screen === null) return;
 
-  const gate = screen.querySelector("#account-gate");
   const setup = screen.querySelector("#first-run-setup");
-  const gateStatus = screen.querySelector("#account-gate-status");
-  const email = screen.querySelector("#account-email");
-  const password = screen.querySelector("#account-password");
-  const emailForm = screen.querySelector("#account-email-form");
-  const createButton = screen.querySelector("#account-email-create");
-  const googleButton = screen.querySelector("#account-google");
-  const githubButton = screen.querySelector("#account-github");
+  const account = screen.querySelector("#first-run-account");
+  const accountStatusLine = screen.querySelector("#first-run-account-status");
 
   document.documentElement.dataset.firstRun = "pending";
 
   let providersRendered = false;
+
+  /* Step one, and the first thing on screen. Detection starts before anything
+     is asked of a person, so the window they are looking at is already doing
+     the job they installed it for. */
   async function showSetup() {
     screen.setAttribute("aria-labelledby", "first-run-title");
-    gate.hidden = true;
+    if (account !== null) account.hidden = true;
     setup.hidden = false;
+    markStep(screen, "agents");
     if (providersRendered) return;
     providersRendered = true;
     const response = await options.detectProviders();
@@ -419,21 +496,24 @@ export function initFirstRun(options) {
     );
   }
 
-  function showAccountFailure(result) {
-    if (gateStatus === null) return;
-    gateStatus.textContent = result?.message ??
-      "Sign in could not be completed. Check your connection and try again.";
-  }
-
-  async function runAccount(action) {
-    if (gateStatus !== null) gateStatus.textContent = "Opening secure sign in.";
-    const result = await action();
-    if (!result.ok || result.value?.signedIn !== true) {
-      showAccountFailure(result);
+  /* Step two. Offered once, at the end, with "Not now" as a real answer and
+     not a smaller button beside a bigger one. */
+  function showAccount() {
+    screen.setAttribute("aria-labelledby", "first-run-account-title");
+    setup.hidden = true;
+    if (account === null) {
+      completeFirstRun(screen);
+      options.onContinue();
       return;
     }
-    options.onAccountState(result.value);
-    await showSetup();
+    account.hidden = false;
+    markStep(screen, "account");
+    screen.querySelector("#first-run-sign-in")?.focus();
+  }
+
+  function finish() {
+    completeFirstRun(screen);
+    options.onContinue();
   }
 
   const notice = launchNotice(options.platform ?? browserPlatform());
@@ -454,45 +534,32 @@ export function initFirstRun(options) {
 
   const continueButton = screen.querySelector("#first-run-continue");
   continueButton?.addEventListener("click", () => {
-    completeFirstRun(screen);
-    options.onContinue();
+    /* Somebody already signed in has nothing left to be asked. */
+    if (options.isSignedIn()) {
+      finish();
+      return;
+    }
+    showAccount();
   });
-  continueButton?.focus();
 
-  emailForm?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    void runAccount(() => options.accountEmail({
-      email: email?.value ?? "",
-      password: password?.value ?? "",
-      create: false,
-    }));
+  screen.querySelector("#first-run-not-now")?.addEventListener("click", finish);
+  screen.querySelector("#first-run-sign-in")?.addEventListener("click", () => {
+    if (accountStatusLine !== null) {
+      accountStatusLine.textContent = "Opening sign in.";
+    }
+    options.onSignInRequested();
   });
-  createButton?.addEventListener("click", () => {
-    void runAccount(() => options.accountEmail({
-      email: email?.value ?? "",
-      password: password?.value ?? "",
-      create: true,
-    }));
-  });
-  googleButton?.addEventListener("click", () => {
-    void runAccount(() => options.accountOauth("google"));
-  });
-  githubButton?.addEventListener("click", () => {
-    void runAccount(() => options.accountOauth("github"));
+
+  /* The window owns the sign in sheet, so it tells this screen when one
+     succeeded rather than this screen owning a second copy of the form. */
+  window.addEventListener("openlimiter:signed-in", () => {
+    if (document.documentElement.dataset.firstRun !== "pending") return;
+    finish();
   });
 
   void (async () => {
     const result = await options.accountStatus();
-    if (!result.ok || result.value?.signedIn !== true) {
-      screen.setAttribute("aria-labelledby", "account-gate-title");
-      gate.hidden = false;
-      setup.hidden = true;
-      if (result.ok && result.value?.configured === false && gateStatus !== null) {
-        gateStatus.textContent = "Account sign in is not configured in this build.";
-      }
-      return;
-    }
-    options.onAccountState(result.value);
+    if (result.ok) options.onAccountState(result.value);
     if (
       window.localStorage.getItem(FIRST_RUN_STORAGE_KEY) === "complete" &&
       readConfiguredProviders().length > 0

@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": "24.15.0"
+    "node": ">=24.13.0 <25"
   },
   "scripts": {
     "check:node": "node scripts/require-node-version.mjs",
@@ -22,6 +22,7 @@
     "specs:emit": "node scripts/require-node-version.mjs && node scripts/validate-provider-specs.mjs --emit",
     "vitest:safe": "node scripts/require-node-version.mjs && node --require ./scripts/vitest-bootstrap.cjs ./node_modules/vitest/vitest.mjs",
     "test": "node scripts/require-node-version.mjs && pnpm test:brand && pnpm test:specs && pnpm test:i18n && pnpm test:pricing && pnpm test:compile && pnpm vitest:safe run --configLoader runner --config vitest.config.mjs",
+    "smoke:live": "node scripts/require-node-version.mjs && node scripts/smoke-live.mjs",
     "changeset": "node scripts/require-node-version.mjs && changeset",
     "version": "node scripts/require-node-version.mjs && changeset version",
     "release:inspect": "pnpm build && pnpm --filter openlimiter release:inspect"

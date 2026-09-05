@@ -1,0 +1,36 @@
+{
+  "groups": [
+    {
+      "buckets": [
+        {
+          "poolPrefix": "gemini",
+          "window": "weekly",
+          "remainingFraction": 0.9867396,
+          "resetsInSeconds": 524780
+        },
+        {
+          "poolPrefix": "gemini",
+          "window": "5h",
+          "remainingFraction": 0.9561311,
+          "resetsInSeconds": 9265
+        }
+      ]
+    },
+    {
+      "buckets": [
+        {
+          "poolPrefix": "3p",
+          "window": "weekly",
+          "remainingFraction": 1,
+          "resetsInSeconds": 604461
+        },
+        {
+          "poolPrefix": "3p",
+          "window": "5h",
+          "remainingFraction": 1,
+          "resetsInSeconds": 17661
+        }
+      ]
+    }
+  ]
+}

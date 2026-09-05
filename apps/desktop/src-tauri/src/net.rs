@@ -233,6 +233,34 @@ pub const GROK_TOKEN_AUTH_HEADER: &str = "x-xai-token-auth";
 /// The fixed value paired with `GROK_TOKEN_AUTH_HEADER`.
 pub const GROK_TOKEN_AUTH_VALUE: &str = "xai-grok-cli";
 
+/// The client version header the Grok Build client states on this request.
+///
+/// FINDING F-204. The request was built without it, and without the mode
+/// header below, so the billing service was addressed by a client that named
+/// neither which client it was nor which mode it was asking in.
+///
+/// UNVERIFIED, and sent only sometimes. No captured Grok Build request exists
+/// in this repository, and `provider_specs/xai/grok-cli.yaml` documents the
+/// route, the credential and the meters but no value for either header, so
+/// there is nothing here to copy. The version therefore comes from the
+/// installed client itself, read off disk by provider detection, and when the
+/// machine states no version BOTH headers are omitted. A fabricated version
+/// would be worse than a missing one: a missing header says nothing, and an
+/// invented one is a claim about a product this is not.
+pub const GROK_CLIENT_VERSION_HEADER: &str = "x-grok-client-version";
+
+/// The mode header that names how the client is asking.
+///
+/// Only ever sent beside a real version, so the pair is either the installed
+/// client's own answer or absent. The value is the one piece of client
+/// vocabulary the spec does publish: the token authentication marker above
+/// says this route is reached by a command line client, so the mode says the
+/// same.
+pub const GROK_CLIENT_MODE_HEADER: &str = "x-grok-client-mode";
+
+/// The value sent for `GROK_CLIENT_MODE_HEADER`.
+pub const GROK_CLIENT_MODE_VALUE: &str = "cli";
+
 /// The beta contract Claude Code sends when it asks for OAuth account usage.
 pub const CLAUDE_OAUTH_BETA_HEADER: &str = "anthropic-beta";
 
@@ -442,6 +470,10 @@ pub struct EndpointRequest<'a> {
     /// Present only when an endpoint requires an account header.
     pub provider_account_id: Option<&'a str>,
     pub body: Option<&'a str>,
+    /// The version of the local client this read borrows a contract from,
+    /// when detection found one on disk. `None` means the request says
+    /// nothing about a client version rather than guessing at one.
+    pub client_version: Option<&'a str>,
 }
 
 /// The one verb the subsystem needs from HTTP, behind a trait so tests inject
@@ -516,6 +548,58 @@ pub async fn fetch_endpoint<T: Transport>(
     secret: &str,
     provider_account_id: Option<&str>,
 ) -> Result<EndpointOutcome, NetError> {
+    fetch_endpoint_as(transport, endpoint, auth, secret, provider_account_id, None).await
+}
+
+/// The Grok billing read, stating the installed client's version when the
+/// machine has one to state.
+///
+/// FINDING F-204 asked for the two client headers the Grok Build client sends.
+/// They are sent only when provider detection has read a version off the
+/// installed client, because the alternative is stating a version this build
+/// invented, and a fabricated client version is worse than a missing one: it
+/// is a claim about a product this is not. A version that does not look like
+/// one is dropped here rather than written into a header.
+pub async fn fetch_grok_usage<T: Transport>(
+    transport: &T,
+    secret: &str,
+    provider_account_id: Option<&str>,
+    client_version: Option<&str>,
+) -> Result<EndpointOutcome, NetError> {
+    fetch_endpoint_as(
+        transport,
+        ProviderEndpoint::GrokUsage,
+        AuthApplication::GrokSessionBearer,
+        secret,
+        provider_account_id,
+        client_version.filter(|value| valid_client_version(value)),
+    )
+    .await
+}
+
+/// Whether a string is shaped like a client version, and so may be written
+/// into a request header.
+///
+/// Bounded and closed, because the value is read off disk from a file this
+/// process does not own. Anything else is dropped, never sent and never an
+/// error: a strange version file is not a reason to stop reading a quota.
+pub fn valid_client_version(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 32
+        && value.bytes().next().is_some_and(|byte| byte.is_ascii_alphanumeric())
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_' | b'+')
+        })
+}
+
+async fn fetch_endpoint_as<T: Transport>(
+    transport: &T,
+    endpoint: ProviderEndpoint,
+    auth: AuthApplication,
+    secret: &str,
+    provider_account_id: Option<&str>,
+    client_version: Option<&str>,
+) -> Result<EndpointOutcome, NetError> {
     if matches!(
         endpoint,
         ProviderEndpoint::GeminiCliLoad | ProviderEndpoint::GeminiCliQuota
@@ -549,6 +633,7 @@ pub async fn fetch_endpoint<T: Transport>(
             auth,
             provider_account_id: Some(account_id),
             body: endpoint.body(),
+            client_version,
         };
         let reply = transport
             .send(&request, secret)
@@ -565,6 +650,7 @@ pub async fn fetch_endpoint<T: Transport>(
         auth,
         provider_account_id: None,
         body: endpoint.body(),
+        client_version: None,
     };
     let reply = transport
         .send(&request, secret)
@@ -591,6 +677,7 @@ async fn fetch_gemini_cli<T: Transport>(
         auth: AuthApplication::GeminiCliBearer,
         provider_account_id: None,
         body: Some(body),
+        client_version: None,
     };
     let reply = transport
         .send(&request, secret)
@@ -655,6 +742,7 @@ async fn fetch_through_workspace<T: Transport>(
         auth,
         provider_account_id: None,
         body: None,
+        client_version: None,
     };
     let found = transport
         .send(&discovery, secret)
@@ -680,6 +768,7 @@ async fn fetch_through_workspace<T: Transport>(
         auth,
         provider_account_id: None,
         body: None,
+        client_version: None,
     };
     let reply = transport
         .send(&request, secret)
@@ -867,12 +956,22 @@ fn authenticated_builder(
             let mut account_header = reqwest::header::HeaderValue::from_str(account_id)
                 .map_err(|_| TransportFailure::Protocol)?;
             account_header.set_sensitive(true);
-            builder
+            let grok = builder
                 .header(reqwest::header::AUTHORIZATION, header_value)
                 .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
                 .header(reqwest::header::ACCEPT, "application/json")
                 .header(GROK_ACCOUNT_HEADER, account_header)
-                .header(GROK_TOKEN_AUTH_HEADER, GROK_TOKEN_AUTH_VALUE)
+                .header(GROK_TOKEN_AUTH_HEADER, GROK_TOKEN_AUTH_VALUE);
+            /* Both client headers or neither. The version is the installed
+            client's own, read off disk, and a machine that states none leaves
+            this request silent about a client version rather than inventing
+            one. The mode is only meaningful beside a version. */
+            match request.client_version.filter(|value| valid_client_version(value)) {
+                Some(version) => grok
+                    .header(GROK_CLIENT_VERSION_HEADER, version)
+                    .header(GROK_CLIENT_MODE_HEADER, GROK_CLIENT_MODE_VALUE),
+                None => grok,
+            }
         }
         AuthApplication::KimiSessionBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
@@ -1261,6 +1360,7 @@ mod tests {
             auth: AuthApplication::CodexSessionBearer,
             provider_account_id: Some("account-id-canary"),
             body: None,
+            client_version: None,
         };
         let built = authenticated_builder(&client, &request, "access-token-canary")
             .expect("headers")
@@ -1279,6 +1379,82 @@ mod tests {
         assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
     }
 
+    fn grok_request<'a>(client_version: Option<&'a str>) -> EndpointRequest<'a> {
+        EndpointRequest {
+            url: GROK_USAGE_URL,
+            method: HttpMethod::Get,
+            auth: AuthApplication::GrokSessionBearer,
+            provider_account_id: Some("grok-user-canary"),
+            body: None,
+            client_version,
+        }
+    }
+
+    fn grok_headers(request: &EndpointRequest<'_>) -> reqwest::header::HeaderMap {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        authenticated_builder(&client, request, "grok-token-canary")
+            .expect("headers")
+            .build()
+            .expect("request")
+            .headers()
+            .clone()
+    }
+
+    /// Finding F-204: the request named neither the client nor the mode.
+    ///
+    /// The billing route is the Grok Build client's own, and that client tells
+    /// the service which client version is asking and in which mode. The
+    /// version is the INSTALLED client's, read off disk by provider detection,
+    /// never a number this build made up.
+    #[test]
+    fn the_grok_request_states_the_version_detection_read_and_the_mode() {
+        let headers = grok_headers(&grok_request(Some("1.4.2")));
+
+        assert_eq!(headers[GROK_CLIENT_VERSION_HEADER], "1.4.2");
+        assert_eq!(headers[GROK_CLIENT_MODE_HEADER], GROK_CLIENT_MODE_VALUE);
+        /* Neither is a secret, and marking one sensitive would hide a header a
+        reviewer has to be able to read. */
+        assert!(!headers[GROK_CLIENT_VERSION_HEADER].is_sensitive());
+        assert!(!headers[GROK_CLIENT_MODE_HEADER].is_sensitive());
+        assert_eq!(headers[GROK_TOKEN_AUTH_HEADER], GROK_TOKEN_AUTH_VALUE);
+    }
+
+    /// A machine with no readable Grok Build version says nothing rather than
+    /// stating one this build invented. Both headers go together.
+    #[test]
+    fn the_grok_request_claims_no_client_when_no_version_was_read() {
+        let headers = grok_headers(&grok_request(None));
+
+        assert!(!headers.contains_key(GROK_CLIENT_VERSION_HEADER));
+        assert!(!headers.contains_key(GROK_CLIENT_MODE_HEADER));
+        /* The rest of the contract is untouched by the absence. */
+        assert_eq!(headers[GROK_ACCOUNT_HEADER], "grok-user-canary");
+        assert_eq!(headers[GROK_TOKEN_AUTH_HEADER], GROK_TOKEN_AUTH_VALUE);
+        assert_eq!(headers[reqwest::header::USER_AGENT], OPENLIMITER_USER_AGENT);
+    }
+
+    /// The version is read out of a file this process does not own, so a value
+    /// that is not shaped like a version is dropped rather than written into a
+    /// header, and dropping it takes the mode with it.
+    #[test]
+    fn a_string_that_is_not_a_version_never_reaches_a_header() {
+        for candidate in [
+            "1.4.2 (patched)",
+            "",
+            "-1.4.2",
+            "0123456789012345678901234567890123456789",
+        ] {
+            assert!(!valid_client_version(candidate));
+            let headers = grok_headers(&grok_request(Some(candidate)));
+            assert!(!headers.contains_key(GROK_CLIENT_VERSION_HEADER));
+            assert!(!headers.contains_key(GROK_CLIENT_MODE_HEADER));
+        }
+        for candidate in ["1.4.2", "0.1.0-beta.3", "2026.09.04+build_7"] {
+            assert!(valid_client_version(candidate));
+        }
+    }
+
     #[test]
     fn the_grok_request_carries_only_the_fixed_contract_and_resolved_identity() {
         let _ = rustls::crypto::ring::default_provider().install_default();
@@ -1289,6 +1465,7 @@ mod tests {
             auth: AuthApplication::GrokSessionBearer,
             provider_account_id: Some("grok-user-canary"),
             body: None,
+            client_version: None,
         };
         let built = authenticated_builder(&client, &request, "grok-token-canary")
             .expect("headers")
@@ -1311,6 +1488,7 @@ mod tests {
             auth: AuthApplication::ClaudeOauthBearer,
             provider_account_id: None,
             body: None,
+            client_version: None,
         };
         let built = authenticated_builder(&client, &request, "oauth-token-canary")
             .expect("headers")
@@ -1355,6 +1533,7 @@ mod tests {
                 auth,
                 provider_account_id: account,
                 body: None,
+                client_version: None,
             };
             let built = authenticated_builder(&client, &request, "credential-canary")
                 .expect("headers")
@@ -1378,6 +1557,7 @@ mod tests {
             auth: AuthApplication::AntigravitySessionBearer,
             provider_account_id: None,
             body: Some(ANTIGRAVITY_QUOTA_BODY),
+            client_version: None,
         };
         let built = authenticated_builder(&client, &request, "credential-canary")
             .expect("headers")

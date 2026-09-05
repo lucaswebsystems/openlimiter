@@ -54,6 +54,7 @@ const WINDOWS_MSI = `OpenLimiter_${CURRENT_VERSION}_x64_en-US.msi`;
 const LINUX_APPIMAGE = `OpenLimiter_${CURRENT_VERSION}_amd64.AppImage`;
 const LINUX_DEB = `OpenLimiter_${CURRENT_VERSION}_amd64.deb`;
 const LINUX_RPM = `OpenLimiter-${CURRENT_VERSION}-1.x86_64.rpm`;
+const MACOS_UNIVERSAL_DMG = `OpenLimiter_${CURRENT_VERSION}_universal.dmg`;
 
 /** The direct link to one packaged file on the tagged release. */
 function releaseAsset(file: string): string {
@@ -125,8 +126,25 @@ export const downloadTargets: readonly DownloadTarget[] = [
     ],
   },
   {
+    /* macOS ships unsigned, with a full download rather than a waiting list.
+       An unsigned build is honest about the cost it imposes: the first open is
+       refused and the reader has to grant it once in System Settings, which the
+       row's note spells out step by step.
+
+       ONE FILE, AND IT IS THE ONE CI PRODUCES
+       ---------------------------------------
+       The release workflow builds `universal-apple-darwin` and attaches the
+       single disk image that comes out of it, so this row names that file and
+       nothing else. It used to advertise a separate Apple silicon image and an
+       Intel image, and neither of those has ever existed on a release: two
+       buttons pointed at two files that were never uploaded.
+
+       What macOS deliberately does NOT get yet is the updater. It stays out of
+       the update manifest until signed and notarised builds exist, because an
+       update that cannot verify a signature is worse than no update. */
     id: "macos",
-    state: "in development",
+    state: "available",
+    assets: [{ id: "universal", href: releaseAsset(MACOS_UNIVERSAL_DMG), primary: true }],
   },
   {
     id: "linux",

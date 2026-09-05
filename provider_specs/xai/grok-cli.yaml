@@ -1,6 +1,9 @@
 provider_id: xai
+# The stored id stays grok-cli. Renaming it would orphan every persisted
+# snapshot, credential entry and cache row keyed on it, and a product name
+# is not an identity. Only the display name follows the official name.
 product_id: grok-cli
-display_name: Grok
+display_name: Grok Build
 
 source:
   docs_url: https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs

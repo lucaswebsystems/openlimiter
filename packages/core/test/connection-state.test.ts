@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONNECTION_REASONS,
   CONNECTION_STATES,
   NETWORK_FAILURE_ERROR_THRESHOLD,
   connectionNextAction,
+  connectionReasonSentence,
   connectionSentence,
+  connectionStatus,
   nextConnectionState,
   type ConnectionContext,
   type ConnectionEvent,
@@ -256,5 +259,73 @@ describe("connection transitions", () => {
     expect(nextConnectionState("CONNECTED", { kind: "declared_manual" }, fresh)).toBe("MANUAL");
     expect(nextConnectionState("CONNECTED", { kind: "declared_unsupported" }, fresh))
       .toBe("UNSUPPORTED");
+  });
+});
+
+/**
+ * The status a surface renders, held to the one promise this product makes:
+ * every instruction is something a PERSON does, never something OpenLimiter is
+ * about to do to a coding agent's credential on their behalf.
+ */
+describe("connection status", () => {
+  it("names a state with no reason and falls back to that state's own action", () => {
+    const status = connectionStatus("DETECTED");
+    expect(status.state).toBe("DETECTED");
+    expect(status.reason).toBeNull();
+    expect(status.instruction).toBe(connectionNextAction.DETECTED);
+  });
+
+  it("says to open the tool when a stored credential stopped working", () => {
+    const status = connectionStatus("STALE", "token_expired", "Claude Code");
+    expect(status.state).toBe("STALE");
+    expect(status.reason).toBe("token_expired");
+    expect(status.instruction).toBe("Open Claude Code to refresh");
+  });
+
+  it("gives an error a reconnect instruction rather than a shrug", () => {
+    const status = connectionStatus("ERROR", "shape_mismatch", "Claude Code");
+    expect(status.state).toBe("ERROR");
+    expect(status.instruction).toContain("Reconnect Claude Code");
+  });
+
+  it("names no tool when a connection has none, rather than inventing one", () => {
+    expect(connectionStatus("AUTH_EXPIRED", "token_expired").instruction)
+      .toBe("Sign in again where this credential was created.");
+    expect(connectionStatus("ERROR", "shape_mismatch").instruction)
+      .toBe("Reconnect, then report this if it keeps happening.");
+  });
+
+  it("never promises that OpenLimiter will refresh a credential itself", () => {
+    /* The whole point of the reason vocabulary: a meter that silently renewed a
+       coding agent's token would be a far larger thing than a meter. Every
+       instruction is therefore in the imperative addressed to the person. */
+    for (const reason of CONNECTION_REASONS) {
+      for (const tool of ["Claude Code", null] as const) {
+        const instruction = connectionStatus("STALE", reason, tool).instruction;
+        expect(instruction.length).toBeGreaterThan(0);
+        expect(instruction.toLowerCase()).not.toContain("we will");
+        expect(instruction.toLowerCase()).not.toContain("openlimiter will");
+        expect(instruction.toLowerCase()).not.toContain("automatically");
+      }
+    }
+  });
+
+  it("carries a human sentence for every reason it can report", () => {
+    for (const reason of CONNECTION_REASONS) {
+      const sentence = connectionReasonSentence[reason];
+      expect(typeof sentence).toBe("string");
+      expect(sentence.endsWith(".")).toBe(true);
+    }
+  });
+
+  it("answers for every state, so no surface can hit a missing instruction", () => {
+    for (const state of CONNECTION_STATES) {
+      expect(connectionStatus(state).instruction).toBe(connectionNextAction[state]);
+    }
+  });
+
+  it("is pure, so the same inputs always give the same status", () => {
+    expect(connectionStatus("STALE", "reading_expired", "Codex CLI"))
+      .toEqual(connectionStatus("STALE", "reading_expired", "Codex CLI"));
   });
 });

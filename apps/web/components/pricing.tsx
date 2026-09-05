@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
-import { Chip, SectionHeading } from "./ui";
+import { ButtonLink, Chip, SectionHeading } from "./ui";
 import { reveal, revealGroup } from "@/lib/motion";
 import { LICENSE_URL, PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
 
@@ -35,6 +35,7 @@ function CheckGlyph() {
 const FREE_LINES: readonly { id: string }[] = [
   { id: "connectors" },
   { id: "sync" },
+  { id: "oneAccount" },
   { id: "noLimits" },
 ];
 
@@ -147,8 +148,8 @@ export async function Pricing() {
 
         <PlanCard
           title="OpenLimiter Pro"
-          status={t("pro.comingSoonStatus")}
-          statusTone="neutral"
+          status={t("pro.status")}
+          statusTone="accent"
           price={
             <>
               <p className="mt-4 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
@@ -164,13 +165,26 @@ export async function Pricing() {
           }
           lead={t("pro.lead")}
           footnote={
-            <Chip tone="neutral">{t("pro.comingSoonCta")}</Chip>
+            <div className="space-y-3">
+              <ButtonLink href="/pro" tone="primary" className="w-full">
+                {t("pro.cta")}
+              </ButtonLink>
+              <p>{t("pro.footnote")}</p>
+            </div>
           }
         >
           <PlanList
             lines={PRO_LINES}
             label={(id) => t(`pro.lines.${id}`)}
           />
+          {/* The two sentences a reader needs before they can judge the list:
+             which credential the API spend beta actually requires, and what
+             happens to the money if the plan is not what they hoped. Both use
+             the card's own muted body style rather than introducing a new one,
+             because this wave is copy and the styleboard gate is still open. */}
+          <p className="mt-6 text-sm leading-relaxed text-muted">{t("pro.eligibility")}</p>
+          <p className="mt-3 text-sm leading-relaxed text-muted">{t("pro.refund")}</p>
+          <p className="mt-3 text-sm leading-relaxed text-muted">{t("pro.seller")}</p>
         </PlanCard>
       </div>
     </section>

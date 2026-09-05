@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { connectorMaturity } from "@openlimiter/core";
 import {
+  connectors,
   parseOpencodePayload,
+  opencodeConnector,
+  opencodeInput,
   opencodeLabels,
   opencodeFixture,
   opencodeSanitizedLive,
@@ -166,14 +170,17 @@ describe("opencode: the last window is bounded", () => {
       );
   }
 
-  it("refuses a window whose own percentage is missing, whatever is nearby", () => {
+  it("drops a window whose own percentage is missing, whatever is nearby", () => {
     /* Fails without the container boundary: the footer's figure is well inside
        the old two thousand character window, so the parse used to succeed and
-       report 97 as the monthly reading. */
+       report 97 as the monthly reading. The monthly bar now disappears, which
+       is the honest answer, and the two windows that DID render still report. */
     const hostile = monthlyMissingWithFooter(97);
     expect(hostile).not.toContain("30%");
     expect(hostile).toContain("97%");
-    expect(parseOpencodePayload(hostile, NOW)).toBeNull();
+    const meters = parseOpencodePayload(hostile, NOW);
+    expect(meters?.map((meter) => meter.meter)).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+    expect(byMeter(meters, "MONTHLY")).toBeUndefined();
   });
 
   it("does not let a nearby figure become the binding window", () => {
@@ -181,7 +188,6 @@ describe("opencode: the last window is bounded", () => {
        under the old bound it would not merely appear, it would WIN, and the
        product would recommend against a provider on a number from a footer. */
     const meters = parseOpencodePayload(monthlyMissingWithFooter(97), NOW);
-    expect(meters).toBeNull();
     const rendered = JSON.stringify(meters);
     expect(rendered).not.toContain("97");
   });
@@ -194,29 +200,38 @@ describe("opencode: the last window is bounded", () => {
     expect(byMeter(meters, "MONTHLY")?.value).toBe(30);
   });
 
-  it("refuses a page that renders a window label twice", () => {
-    /* Two candidate containers and no way to know which one is the meter. */
+  it("drops a cadence the page names twice, and keeps the ones it names once", () => {
+    /* Two candidate containers and no way to know which one is the meter, so
+       that cadence is ambiguous. Ambiguity costs one bar, never a wrong one. */
     const doubled = page(10, 20, 30).replace(
       "</main>",
       "<section><h3>Monthly Usage</h3><div>99%</div></section></main>"
     );
-    expect(parseOpencodePayload(doubled, NOW)).toBeNull();
+    const meters = parseOpencodePayload(doubled, NOW);
+    expect(meters?.map((meter) => meter.meter)).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+    expect(JSON.stringify(meters)).not.toContain("99");
   });
 
-  it("refuses a container that holds two window labels", () => {
-    /* One block naming two windows cannot be attributed to either. */
+  it("drops both windows when one container names two of them", () => {
+    /* One block naming two cadences cannot be attributed to either, so neither
+       is read out of it. The third window is untouched. */
     const merged = opencodePage(
       { percent: 10, resetsIn: null },
       { percent: 20, resetsIn: null },
       { percent: 30, resetsIn: null },
       NOW
     ).replace("</section><section><h3>Weekly Usage</h3>", "<h3>Weekly Usage</h3>");
-    expect(parseOpencodePayload(merged, NOW)).toBeNull();
+    const meters = parseOpencodePayload(merged, NOW);
+    expect(byMeter(meters, "FIVE_HOUR")).toBeUndefined();
+    expect(byMeter(meters, "SEVEN_DAY")).toBeUndefined();
+    expect(byMeter(meters, "MONTHLY")?.value).toBe(30);
   });
 
-  it("refuses an unbalanced page rather than reading it approximately", () => {
+  it("declines an unbalanced region rather than reading it approximately", () => {
     const unbalanced = page(10, 20, 30).replace("</section></main>", "</main>");
-    expect(parseOpencodePayload(unbalanced, NOW)).toBeNull();
+    const meters = parseOpencodePayload(unbalanced, NOW);
+    expect(byMeter(meters, "MONTHLY")).toBeUndefined();
+    expect(byMeter(meters, "FIVE_HOUR")?.value).toBe(10);
   });
 
   it("does not read a percentage from below the final label", () => {
@@ -232,7 +247,7 @@ describe("opencode: the last window is bounded", () => {
     expect(byMeter(meters, "MONTHLY")?.value).toBe(30);
   });
 
-  it("refuses when the final window's own percentage is pushed past the bound", () => {
+  it("drops a window whose own percentage is pushed past the bound", () => {
     /* The other direction, and it must fail closed rather than read further:
        a reading that is not inside the block it belongs to is not a reading. */
     const padding = "<span>" + "p".repeat(OPENCODE_MAX_SEGMENT_CHARS) + "</span>";
@@ -240,7 +255,9 @@ describe("opencode: the last window is bounded", () => {
       "<h3>Monthly Usage</h3>",
       "<h3>Monthly Usage</h3>" + padding
     );
-    expect(parseOpencodePayload(pushed, NOW)).toBeNull();
+    const meters = parseOpencodePayload(pushed, NOW);
+    expect(byMeter(meters, "MONTHLY")).toBeUndefined();
+    expect(byMeter(meters, "SEVEN_DAY")?.value).toBe(20);
   });
 
   it("keeps the reference reader's search bound", () => {
@@ -287,14 +304,14 @@ describe("opencode: everything it must refuse", () => {
     ["a string root, which is what an html error page arrives as",
       "<!doctype html><title>502 Bad Gateway</title>"],
     ["a number root", 42],
-    ["a page missing the rolling window", page(92, 40, 15).replace("Rolling Usage", "Something Else")],
-    ["a page missing the weekly window", page(92, 40, 15).replace("Weekly Usage", "Something Else")],
-    ["a page missing the monthly window", page(92, 40, 15).replace("Monthly Usage", "Something Else")],
-    ["a window with no percentage", opencodePage({ percent: 92, resetsIn: null }, { percent: 40, resetsIn: null }, { percent: 15, resetsIn: null }, NOW).replace("<!--$-->15%<!--/-->", "<!--$-->unknown<!--/-->")],
+    ["a page naming no cadence this reader knows",
+      page(92, 40, 15)
+        .replace("Rolling Usage", "Something Else")
+        .replace("Weekly Usage", "Another Thing")
+        .replace("Monthly Usage", "A Third Thing")],
     ["an empty page", ""],
     ["a login page", "<!doctype html><html><body><h1>Sign in</h1></body></html>"],
     ["the page as a parsed object rather than text", { html: page(92, 40, 15) }],
-    ["a percentage above one hundred", page(92, 40, 15).replace("<!--$-->92%<!--/-->", "<!--$-->101%<!--/-->")],
     ["a page over the bound this reader will look at", "x".repeat(1_048_577)],
   ];
 
@@ -303,6 +320,18 @@ describe("opencode: everything it must refuse", () => {
       expect(parseOpencodePayload(payload, NOW)).toBeNull();
     });
   }
+
+  it("drops a window stating an impossible percentage, and keeps the others", () => {
+    /* A figure over one hundred is not a reading, and the block that rendered
+       it is not trustworthy. The blocks beside it never stopped rendering. */
+    const meters = parseOpencodePayload(
+      page(92, 40, 15).replace("<!--$-->92%<!--/-->", "<!--$-->101%<!--/-->"),
+      NOW
+    );
+    expect(byMeter(meters, "FIVE_HOUR")).toBeUndefined();
+    expect(byMeter(meters, "SEVEN_DAY")?.value).toBe(40);
+    expect(JSON.stringify(meters)).not.toContain("101");
+  });
 
   it("never finds a plausible percentage somewhere else in the document", () => {
     /* The single most tempting bug in this whole product: a payload that
@@ -324,5 +353,197 @@ describe("opencode: everything it must refuse", () => {
 
   it("refuses prompt injection and an enormous number at the root", () => {
     expect(parseOpencodePayload({ ...hostileFixture }, NOW)).toBeNull();
+  });
+});
+
+/**
+ * Label tolerance, and why this reader stopped trusting three exact phrases.
+ *
+ * The workspace page renamed its headings and the reader went dark on a page
+ * that was still rendering all three figures. Three exact strings, all three
+ * required, is the most brittle possible way to read a document nobody promised
+ * us. The structure and the number pattern do the work now; the wording is a
+ * hint, matched case blind, and losing one hint costs one bar.
+ */
+describe("opencode: reads a page that renamed its headings", () => {
+  /** The same page under any wording, so the tolerance is the thing under test. */
+  function labelled(
+    rolling: string,
+    weekly: string,
+    monthly: string,
+    percents: readonly [number, number, number] = [10, 20, 30]
+  ): string {
+    return page(percents[0], percents[1], percents[2])
+      .replace("Rolling Usage", rolling)
+      .replace("Weekly Usage", weekly)
+      .replace("Monthly Usage", monthly);
+  }
+
+  const wordings: readonly (readonly [string, string, string, string])[] = [
+    ["the wording it shipped with", "Rolling Usage", "Weekly Usage", "Monthly Usage"],
+    ["all lower case", "rolling usage", "weekly usage", "monthly usage"],
+    ["all upper case", "ROLLING USAGE", "WEEKLY USAGE", "MONTHLY USAGE"],
+    ["limit rather than usage", "Rolling limit", "Weekly limit", "Monthly limit"],
+    ["the cadence alone", "Rolling", "Weekly", "Monthly"],
+    ["spelled out cadences", "Session usage", "7 day usage", "30 day usage"],
+    ["hyphenated cadences", "Five-hour window", "Seven-day window", "Thirty-day window"],
+    ["a sentence around the cadence", "Your rolling window", "This week so far", "This month so far"]
+  ];
+
+  for (const [reason, rolling, weekly, monthly] of wordings) {
+    it("reads " + reason, () => {
+      const meters = parseOpencodePayload(labelled(rolling, weekly, monthly), NOW);
+      expect(byMeter(meters, "FIVE_HOUR")?.value).toBe(10);
+      expect(byMeter(meters, "SEVEN_DAY")?.value).toBe(20);
+      expect(byMeter(meters, "MONTHLY")?.value).toBe(30);
+    });
+  }
+
+  it("keeps every window when the page reorders them", () => {
+    /* Order is presentation. A reader that keyed on it would relabel every pool
+       the day a designer moved a card. */
+    const reordered = "<!doctype html><html><body><main>" +
+      '<section><h3>Monthly Usage</h3><div class="bar"><span>30%</span></div></section>' +
+      '<section><h3>Rolling Usage</h3><div class="bar"><span>10%</span></div></section>' +
+      '<section><h3>Weekly Usage</h3><div class="bar"><span>20%</span></div></section>' +
+      "</main></body></html>";
+    const meters = parseOpencodePayload(reordered, NOW);
+    expect(meters?.map((meter) => meter.meter))
+      .toEqual(["MONTHLY", "FIVE_HOUR", "SEVEN_DAY"]);
+    expect(byMeter(meters, "FIVE_HOUR")?.value).toBe(10);
+    expect(byMeter(meters, "MONTHLY")?.value).toBe(30);
+  });
+
+  it("reports the windows it can read when one heading is renamed away", () => {
+    /* The failure this refit exists for: one unrecognised heading used to take
+       the whole reader down on a page still rendering the other two. */
+    const meters = parseOpencodePayload(
+      page(10, 20, 30).replace("Monthly Usage", "Something Else Entirely"),
+      NOW
+    );
+    expect(meters?.map((meter) => meter.meter)).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+  });
+
+  it("reads a fractional percentage, which a whole number pattern truncated", () => {
+    const meters = parseOpencodePayload(
+      page(10, 20, 30).replace("<!--$-->20%<!--/-->", "<!--$-->20.5%<!--/-->"),
+      NOW
+    );
+    expect(byMeter(meters, "SEVEN_DAY")?.value).toBe(20.5);
+  });
+
+  it("reads a countdown the page phrases another way", () => {
+    for (const verb of ["Resets in", "Renews in", "Refreshes in", "Resets:"]) {
+      const page20 = page(10, 20, 30).replace("Resets in", verb);
+      const meters = parseOpencodePayload(page20, NOW);
+      expect(byMeter(meters, "FIVE_HOUR")?.resetAt, verb).not.toBeNull();
+    }
+  });
+
+  it("ignores a cadence word that is markup rather than a heading", () => {
+    /* "monthly" inside a class name is not a label, and reading it as one would
+       hand this reader a container it has no business resolving. */
+    const styled = page(10, 20, 30)
+      .replace("<h3>Monthly Usage</h3>", '<h3 class="monthly-card">Monthly Usage</h3>');
+    expect(byMeter(parseOpencodePayload(styled, NOW), "MONTHLY")?.value).toBe(30);
+  });
+});
+
+describe("opencode: fails soft, and says which failure it was", () => {
+  async function read(payload: unknown) {
+    return await opencodeConnector.read({ payload, now: NOW, environment: {} });
+  }
+
+  it("reports connected when the page parsed", async () => {
+    const result = await read(page(10, 20, 30));
+    expect(result.ok).toBe(true);
+    expect(result.connection?.state).toBe("CONNECTED");
+  });
+
+  it("calls a logged out workspace an expired credential, not a broken build", async () => {
+    /* Two very different causes need two different sentences. This one is a
+       click in a window the person already has open. */
+    const result = await read(
+      "<!doctype html><html><body><h1>Sign in to OpenCode</h1></body></html>"
+    );
+    expect(result.ok).toBe(false);
+    expect(result.connection?.state).toBe("AUTH_EXPIRED");
+    expect(result.connection?.reason).toBe("token_expired");
+    expect(result.connection?.instruction).toBe("Open OpenCode to refresh");
+  });
+
+  it("calls a signed out page expired even when leftover text still parses", async () => {
+    /* A page that is asking somebody to sign in is a page whose numbers are
+       leftovers, whatever this reader managed to find in them. Reporting it as
+       connected is the exact claim this product exists to stop: a live looking
+       meter behind an account nobody is signed into. */
+    const signedOut = page(10, 20, 30).replace(
+      "<main>",
+      "<main><header><a href=\"/auth\">Sign in</a></header>"
+    );
+    expect(parseOpencodePayload(signedOut, NOW)).not.toBeNull();
+    const result = await read(signedOut);
+    expect(result.connection?.state).toBe("AUTH_EXPIRED");
+    expect(result.connection?.reason).toBe("token_expired");
+    expect(result.connection?.instruction).toBe("Open OpenCode to refresh");
+  });
+
+  it("calls an unreadable layout our fault, and says to reconnect", async () => {
+    const result = await read(
+      "<!doctype html><html><body><main><p>Nothing here.</p></main></body></html>"
+    );
+    expect(result.ok).toBe(false);
+    expect(result.connection?.state).toBe("ERROR");
+    expect(result.connection?.reason).toBe("shape_mismatch");
+    expect(result.connection?.instruction).toContain("Reconnect OpenCode");
+  });
+
+  it("says a page that never arrived is waiting, not broken", async () => {
+    const result = await read(undefined);
+    expect(result.connection?.state).toBe("DETECTED");
+    expect(result.connection?.reason).toBe("tool_not_running");
+  });
+
+  it("never throws, whatever the page turns out to be", () => {
+    /* The only reader in the package pointed at a rendered document, so the
+       only one where an unforeseen shape can reach code not written for it. A
+       thrown error would take down whatever was collecting. */
+    const hostile: readonly string[] = [
+      "<".repeat(5_000),
+      "<div".repeat(2_000),
+      "<section><h3>Weekly</h3>" + "</div>".repeat(500),
+      "Weekly " + "%".repeat(5_000),
+      "<!--" + "Monthly ".repeat(500),
+      "<section><h3>Rolling</h3><span>50%</span>"
+    ];
+    for (const page of hostile) {
+      expect(() => parseOpencodePayload(page, NOW)).not.toThrow();
+    }
+  });
+});
+
+describe("opencode: says out loud that it is beta", () => {
+  it("labels the connector beta, alone among the readers", () => {
+    /* Every other reader reads an interface. This one reads a page designed for
+       a person's eyes, whose wording nobody promised and which has already been
+       renamed underneath it. A surface showing it beside the others has to be
+       able to say so. */
+    expect(connectorMaturity(opencodeConnector)).toBe("beta");
+    for (const connector of connectors) {
+      const expected = connector.id === "opencode" ? "beta" : "stable";
+      expect(connectorMaturity(connector), connector.id).toBe(expected);
+    }
+  });
+
+  it("states the same maturity in the input metadata", () => {
+    expect(opencodeInput.maturity).toBe("beta");
+  });
+
+  it("does not let beta soften the honesty labels", () => {
+    /* Beta describes the interface's stability. The honesty labels describe how
+       the reading was obtained, and a scrape stays a scrape. */
+    expect(opencodeLabels.dataInterfaceStatus).toBe("authenticated-scrape");
+    expect(opencodeLabels.automationRisk).toBe("high");
+    expect(opencodeLabels.verification).toBe("UNVERIFIED");
   });
 });

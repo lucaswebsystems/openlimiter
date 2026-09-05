@@ -30,8 +30,8 @@
     "closeMenu": "Close menu"
   },
   "announce": {
-    "message": "OpenLimiter Pro is coming soon. The local product and account are free. Only usage percentages sync, never keys or credentials.",
-    "short": "OpenLimiter Pro is coming soon",
+    "message": "OpenLimiter Pro is here. Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above $100 are Pro.",
+    "short": "OpenLimiter Pro is here",
     "dismiss": "Close this announcement"
   },
   "footer": {
@@ -42,7 +42,7 @@
     "community": "Community",
     "trust": "Trust",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | Local first | Zero telemetry | No tracking | Free account",
+    "licenceNote": "Apache 2.0 | Local first | Zero app telemetry | No tracking cookies | Free account",
     "licenceRead": "Read the licence",
     "rights": "All rights reserved",
     "licensed": "Apache 2.0 licensed",
@@ -50,8 +50,274 @@
   },
   "terms": {
     "title": "Terms and conditions",
-    "lead": "These terms explain the rules for using the OpenLimiter website and software. They are meant to be clear and practical.",
-    "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software."
+    "lead": "The rules for using the OpenLimiter website and software, and the terms of the Pro subscription. They are meant to be clear and practical.",
+    "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software, including billing, cancellation, refunds and failed payments for Pro.",
+    "sections": {
+      "acceptance": {
+        "title": "Acceptance",
+        "body": "By accessing or using this website, you agree to these terms. If you do not agree, please stop using the website. Your use of the software is governed separately by its licence, and buying Pro adds the subscription sections below."
+      },
+      "licence": {
+        "title": "Software licence",
+        "body": "OpenLimiter is free open source software made available under the <licence>Apache License 2.0</licence>. That licence, rather than these website terms, governs your right to use, copy, modify, and distribute the software."
+      },
+      "account": {
+        "title": "The account and Pro",
+        "body": "An account is free, and everything you can see locally stays free with or without one. Signing in turns sync on, because moving your own percentages between your own devices is what signing in is for. Pro is six features: every alert, ninety day hosted history and forecast, hosted routing context, more than one account per provider, one Pro display preset, and the API spend beta above the free ceiling. Four are hosted services and two are switches in the local application. The free limit of one account per provider is enforced by the desktop application as a policy in open source code rather than as a security boundary, which is a promise about how the product behaves and not a technical restriction."
+      },
+      "billing": {
+        "title": "Billing",
+        "body": "Pro costs 5 US dollars a month or 50 US dollars a year, and the first 30 days are free with no card required. OpenLimiter Pro is sold by Lucas Costa. Payments are taken by Stripe, which acts as the payment processor and holds your card details. Tax is calculated automatically at checkout and may be added to the listed price depending on where you are, which is why a billing address is collected. A subscription renews automatically at the end of each period until you cancel it."
+      },
+      "cancellation": {
+        "title": "Cancellation",
+        "body": "You can cancel at any time from the Stripe Customer Portal, reached from the billing screen in your account. Cancellation takes effect at the end of the period you have already paid for: Pro features keep working until that date and then stop. Cancelling does not delete your data, and everything local keeps working exactly as it did."
+      },
+      "refund": {
+        "title": "Refunds",
+        "body": "A full refund is available on request within 14 calendar days of any charge, monthly or annual, without needing a reason. Write to the address at the foot of this page and say which charge it is about. A confirmed full refund cancels that subscription immediately and ends Pro, and it never touches anything stored on your own machine. After 14 days a charge is not automatically refundable, and a request is still read and answered."
+      },
+      "failedPayment": {
+        "title": "Failed payments",
+        "body": "If a payment fails, Pro enters a past due state and you keep hosted access for a fixed 72 hours from that first failure. Further retries and further failed attempts do not extend that window. Paying the outstanding invoice within it restores access straight away. If the invoice is still unpaid when the window closes, the hosted features stop and everything local keeps working. A later successful payment can restore access unless the subscription has already been cancelled or refunded."
+      },
+      "warranty": {
+        "title": "No warranty",
+        "body": "The website, the software and the hosted services are provided as is and as available. We do not promise that they will always be accurate, complete, secure, or available. Quota readings come from interfaces the providers control and can change without notice, so a reading may be missing, stale, or wrong, and it must never be your only safeguard against exceeding a limit. To the fullest extent allowed by law, all warranties are disclaimed."
+      },
+      "liability": {
+        "title": "Limitation of liability",
+        "body": "To the fullest extent allowed by law, Lucas Costa and the OpenLimiter contributors are not liable for any indirect, incidental, special, consequential, or punitive damages, or for lost data, profits, revenue, or opportunities, resulting from your use of, or inability to use, the website, the software or the hosted services. Any liability that the law does not allow us to exclude is limited to the amount you paid in the twelve months before the claim, or the minimum the law permits if that is greater."
+      },
+      "links": {
+        "title": "External links",
+        "body": "This website may link to services that OpenLimiter does not control, and the product reads interfaces that belong to other companies. Those services have their own terms and privacy practices. We are not responsible for their content, availability, or conduct, and nothing here creates a relationship with them or an endorsement by them."
+      },
+      "changes": {
+        "title": "Changes to these terms",
+        "body": "We may update these terms when the website, the software, the subscription, or applicable law changes. New terms take effect when they are published on this page. Continued use of the website after an update means that you accept the revised terms. A change that affects an active subscription is announced before it applies to it."
+      },
+      "privacy": {
+        "title": "Privacy",
+        "body": "What is collected, where it goes and how long it is kept is set out in the <privacy>privacy policy</privacy>, which forms part of these terms. In short: local mode collects nothing, and the account exists only to carry your own quota readings and your subscription."
+      },
+      "contact": {
+        "title": "Contact",
+        "body": "Questions about these terms, and refund or cancellation requests, may be sent to <mail>lucas@lucaswebsystems.com</mail>."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Privacy",
+    "lead": "What OpenLimiter collects, what it never collects, where each piece goes, and how long it is kept. This is written from the data flows that exist in the product, not from a template.",
+    "metaDescription": "How OpenLimiter handles data. Local mode collects nothing, the account and sync fields are listed one by one, provider keys stay in your operating system keyring, and every retention window is named.",
+    "summary": {
+      "title": "The short version",
+      "bullets": {
+        "local": "Local mode collects nothing. No account, no server, and nothing leaves your machine.",
+        "account": "An account is optional. Signing in exists so your own quota percentages can reach your own other devices, and so Pro can be attached to something. Sync is on from that moment.",
+        "sync": "What syncs is bounded quota state: a provider, a meter, a window, a percentage and timestamps. Never prompts, never code, never the contents of a file.",
+        "keys": "Provider credentials and API keys stay in your operating system keyring on your own device. They are never sent to OpenLimiter.",
+        "website": "This website counts page views without cookies. The app sends nothing.",
+        "sell": "Nothing is sold, rented, or handed to an advertiser. There is no advertising here."
+      }
+    },
+    "local": {
+      "title": "Local mode collects nothing",
+      "body": "The command line tool, the desktop application and the web app all run on your machine, and in local mode there is no account and no service behind them. There is nothing to collect because there is nowhere for it to go.",
+      "bullets": {
+        "reads": "Connectors read files your installed tools already wrote, read only. They never rewrite, repair or migrate what they open.",
+        "credentials": "Provider credentials are held by your operating system credential store. OpenLimiter never copies one into a cache, an export, a diagnostic or a log.",
+        "telemetry": "The app sends no telemetry, no usage, no diagnostics, no identifiers and no prompt content anywhere.",
+        "account": "No sign in is required to use any local feature. Everything you can see locally is free, and Pro sells alerts, history, phone access, extra accounts and spend tracking above the free ceiling."
+      }
+    },
+    "account": {
+      "title": "The account",
+      "body": "An account is only needed for the hosted parts: syncing your quota between your devices, and Pro. Sign in runs on Supabase, which hosts the database and the authentication for the hosted service.",
+      "bullets": {
+        "identity": "You can sign in with GitHub, with Google, or with a magic link sent to your email address. Which one you pick is your choice and you can link another later.",
+        "stored": "The account holds your email address, the identifier the sign in provider returns, the time you created the account and the time you last signed in.",
+        "password": "There is no password, so there is no password to leak. GitHub and Google never hand over your password either, only a confirmation that you are you.",
+        "devices": "Each device you sign in on gets a label, a creation time and a last seen time, so you can see the list and revoke any device from it."
+      }
+    },
+    "sync": {
+      "title": "What sync actually sends",
+      "body": "Sync exists so a number you already have on one machine is visible on another. It carries the reading and nothing around it.",
+      "bullets": {
+        "fields": "One row per meter: which provider, which meter, which window, a bounded usage percentage, when the window resets, when the reading was observed, an opaque account identifier and the device that sent it.",
+        "never": "It never carries a prompt, a response, a file name, a file path, source code, a project name, a repository, a provider credential or a provider message.",
+        "retention": "Your current snapshot is kept for seven days. It is replaced every time a newer reading arrives.",
+        "off": "Sync is on from the moment you sign in, because that is what signing in is for. You can turn it off in settings, and with it off the readings stay on the device that took them."
+      }
+    },
+    "history": {
+      "title": "Pro history and forecast",
+      "body": "Pro keeps the readings you already sync so a longer window can be drawn and a burn forecast can be calculated from it. It is the same bounded rows, kept for longer.",
+      "bullets": {
+        "window": "A rolling ninety days while Pro is active. Day ninety one is not queryable, because it is not there.",
+        "gaps": "A gap stays a gap. Nothing is interpolated, estimated across a missing period, or invented to make a chart look continuous.",
+        "afterPro": "When Pro ends, the hosted history is kept for thirty days so you can export it, and during that time it is not readable by history, forecast or alerts. At the end of day thirty it is purged.",
+        "local": "History held locally by the desktop application is yours and is untouched by any of this. Ending Pro never deletes it."
+      }
+    },
+    "alerts": {
+      "title": "Alerts on the desktop, by email and by push",
+      "body": "Every alert is part of Pro. It can tell you when a window crosses sixty, eighty or ninety percent, and when it resets. A desktop notification is drawn by the application on your own machine, email is delivered by Resend, and push by your browser or operating system push service.",
+      "bullets": {
+        "generic": "By default a message carries only the product name, the provider name, the level as sixty, eighty, ninety or reset, one generic line, and a link to the signed in product. No exact percentage, no amount, no model, no project, no budget and no forecast date.",
+        "detail": "A detailed email is a separate opt in that you have to accept. It may add the exact percentage, the amount, the budget and the forecast date for your own data. If the fields ever change, the consent version changes and detail goes back to off until you accept it again.",
+        "push": "Push never has a detailed mode, whatever the email setting says. A push payload never carries usage detail, so a locked screen never shows one.",
+        "disable": "Each channel is switched off separately. Turning one off suppresses work not yet handed to a provider, and a single message already accepted by a provider may still arrive."
+      }
+    },
+    "spend": {
+      "title": "API spend keys, in beta",
+      "body": "The API spend meter reads your own billing or balance figures from the provider that owns them. It is a labelled beta and it is best effort observation, so it can be delayed, incomplete, corrected or unavailable.",
+      "bullets": {
+        "keyring": "The key you give it is stored in your operating system keyring, in a namespace of its own. There is no readback: after you save it, nothing in the interface can show it to you again.",
+        "host": "The key is sent only to the fixed HTTPS host of the provider it belongs to. Redirects are rejected, requests and errors are redacted, and the size and duration of every call are capped.",
+        "never": "The key is never sent to OpenLimiter, never stored on the hosted service, and never appears in a log, an analytics property, a crash report or a support record.",
+        "revoke": "Removing a source deletes its key from the keyring immediately and offers to delete the samples it produced."
+      }
+    },
+    "payments": {
+      "title": "Payments and tax",
+      "body": "Pro is sold by Lucas Costa and paid through Stripe. Card details are entered on Stripe and never reach OpenLimiter, which receives only the outcome and the identifiers it needs to keep your access in step with your subscription.",
+      "bullets": {
+        "stripe": "Stripe holds your payment method, your billing address and your invoices. OpenLimiter stores the customer and subscription identifiers, the plan, the status and the period dates.",
+        "tax": "Tax is calculated automatically at checkout, which is why a billing address is collected. The address is used for tax and invoicing and for nothing else.",
+        "refund": "A full refund is available on request within fourteen days of any charge. A confirmed full refund ends Pro immediately and leaves your local data untouched.",
+        "records": "Billing and tax records are kept as long as tax law requires, which is longer than the product windows below. Account deletion pseudonymises the link between you and a record that has to stay."
+      }
+    },
+    "website": {
+      "title": "This website",
+      "body": "The website and the app are two different things with two different answers, and it would be dishonest to give them one.",
+      "bullets": {
+        "counts": "The website counts page views without cookies. It is Vercel Web Analytics, and what it produces is a count of how many people opened which page.",
+        "cookies": "No cookie is set to track you, no profile is built, and nothing follows you to another site. The only cookies here are the one that remembers the language you chose and the one that remembers you closed a banner.",
+        "app": "The app sends nothing. There is no analytics of any kind in the desktop application, the command line tool or the web app.",
+        "language": "Your browser's language header is read to offer you a translated page. The offer is a banner you can take or close, and it never moves you off the page you asked for."
+      }
+    },
+    "processors": {
+      "title": "Who else touches the data",
+      "intro": "Seven services are involved in the hosted parts. Each one sees only what its job needs, and each one is named here so the list can be checked rather than trusted.",
+      "caption": "The services involved in the hosted parts and what each one holds",
+      "columns": {
+        "who": "service",
+        "what": "what it holds"
+      },
+      "rows": {
+        "supabase": {
+          "who": "Supabase",
+          "what": "The database and the sign in. Your account, your synced readings, your alert preferences and your device list."
+        },
+        "vercel": {
+          "who": "Vercel",
+          "what": "Hosting for this website, and the cookieless page view count. It never sees your account data."
+        },
+        "stripe": {
+          "who": "Stripe",
+          "what": "Payment method, billing address, invoices and tax calculation. It never sees your quota data."
+        },
+        "resend": {
+          "who": "Resend",
+          "what": "Delivery of email alerts and sign in links. It sees your email address and the generic message text."
+        },
+        "github": {
+          "who": "GitHub",
+          "what": "Sign in, when you choose it. It confirms who you are and returns an identifier and your email address. It never sees your quota data, and it is kept for as long as the account exists."
+        },
+        "google": {
+          "who": "Google",
+          "what": "Sign in, when you choose it. It confirms who you are and returns an identifier and your email address. It never sees your quota data, and it is kept for as long as the account exists."
+        },
+        "push": {
+          "who": "Browser and operating system push services",
+          "what": "Delivery of a push alert to the device you enabled it on, through whichever service that browser uses. It holds the subscription endpoint and the message, and a push payload never carries usage detail. It is deleted when you turn push off or revoke the device."
+        }
+      }
+    },
+    "bases": {
+      "title": "Where this applies and why we may do it",
+      "body": "OpenLimiter is sold by Lucas Costa and is offered worldwide, and it is written to the European and United Kingdom data protection rules and to the Brazilian LGPD, because those are the strictest of the markets it serves. Wherever you live, the same reasons apply.",
+      "bullets": {
+        "contract": "To perform the agreement with you: the account, sync, Pro history, routing context and billing. Without these there is no product to deliver.",
+        "consent": "With your consent: detailed alert emails and push notifications. Both are optional, both are off until you turn them on, and both can be withdrawn without losing anything else.",
+        "interests": "For legitimate interests: keeping the service secure, preventing abuse of the sign in and the sync endpoints, and counting page views on this website without cookies.",
+        "legal": "To meet a legal obligation: keeping the billing and tax records that tax law requires."
+      },
+      "transfers": "The hosted services run on infrastructure that may sit outside your country. Where personal data leaves the European Economic Area or the United Kingdom, it travels under the standard contractual clauses those services publish."
+    },
+    "retention": {
+      "title": "How long each thing is kept",
+      "intro": "Every window below is a real limit in the system rather than an intention. Deleting your account overrides the active product windows, and three things sit outside that: anything on your own machine, which is not ours to remove, encrypted backup copies, which expire on their own schedule after the primary rows go, and the billing and tax records the law requires, which are pseudonymised rather than deleted.",
+      "caption": "Each kind of data and how long it is kept",
+      "columns": {
+        "what": "data",
+        "howLong": "kept for"
+      },
+      "rows": {
+        "local": {
+          "what": "Anything on your own machine",
+          "howLong": "Until you delete it. It is not ours to remove."
+        },
+        "snapshots": {
+          "what": "Your current synced snapshot",
+          "howLong": "Seven days, replaced by each newer reading."
+        },
+        "history": {
+          "what": "Pro history while Pro is active",
+          "howLong": "A rolling ninety days."
+        },
+        "afterPro": {
+          "what": "Pro history after Pro ends",
+          "howLong": "Thirty days, for export only, then purged."
+        },
+        "backups": {
+          "what": "Encrypted backup copies",
+          "howLong": "No later than thirty days after the primary rows go."
+        },
+        "alerts": {
+          "what": "Alert delivery records",
+          "howLong": "Ninety days. Redacted provider errors, thirty days."
+        },
+        "exports": {
+          "what": "A data export you asked for",
+          "howLong": "The download expires after twenty four hours."
+        },
+        "billing": {
+          "what": "Billing and tax records",
+          "howLong": "As long as tax law requires."
+        }
+      }
+    },
+    "rights": {
+      "title": "Your rights, and the controls that deliver them",
+      "body": "A right you cannot exercise is not a right, so each one below is a control in the product rather than a request you have to write.",
+      "bullets": {
+        "export": "Export everything the hosted service holds about you, as a machine readable archive with an accessible table beside it. Provider keys are never in it, because they were never there.",
+        "delete": "Delete your account. Your product data goes within twenty four hours, encrypted backup copies expire within thirty days, and nothing local is touched.",
+        "devices": "See every device signed in to your account, including a phone paired by QR, and revoke any of them. A revoked device loses hosted access immediately.",
+        "channels": "Turn email or push off separately, at any time, without affecting the other.",
+        "withdraw": "Withdraw consent for detailed emails or for push. Withdrawing it stops the detail, not the account.",
+        "complain": "Complain to your local data protection authority if you think this is being handled badly. You do not have to come to us first."
+      },
+      "deletion": "Deletion runs from the account screen, and it asks you to sign in again first because it cannot be undone. If you would rather it were done for you, write to the address below and say <code>delete my account</code>."
+    },
+    "children": {
+      "title": "Children",
+      "body": "OpenLimiter is a developer tool and is not directed at children. It is not knowingly offered to anyone under sixteen, and no account is created for one. If you believe a child has created an account, write to the address below and it will be removed."
+    },
+    "changes": {
+      "title": "Changes, and how to reach a person",
+      "body": "This page changes when the product changes. When a change alters what is collected, where it goes, or how long it is kept, the date below moves and the change is described in the changelog rather than made quietly.",
+      "contact": "Questions, requests and complaints go to <mail>lucas@lucaswebsystems.com</mail>, and a person reads them. The rules for using the site itself are in the <terms>terms and conditions</terms>.",
+      "updated": "This policy takes effect with version 1.2.0. Last updated on 4 September 2026."
+    }
   },
   "localeSwitcher": {
     "label": "Language"
@@ -83,7 +349,7 @@
         "label": "Open the web app"
       },
       "macos": {
-        "aria": "OpenLimiter desktop for macOS is coming soon"
+        "aria": "Download the OpenLimiter desktop app for macOS, unsigned build"
       },
       "iphone": {
         "aria": "iPhone: the web app installs to your home screen, there is no App Store app"
@@ -98,7 +364,7 @@
     },
     "rows": {
       "windows": "Download for Windows",
-      "macos": "macOS coming soon",
+      "macos": "Download for macOS",
       "linux": "Download for Linux",
       "webApp": "Open the web app",
       "iphone": "Install on iPhone",
@@ -115,7 +381,7 @@
       "play": "Play motion",
       "pause": "Pause motion"
     },
-    "disclaimer": "Packaged desktop builds ship for Windows and Linux. The Windows build is unsigned, so SmartScreen warns on first run: choose More info, then Run anyway. macOS is coming soon. npm and the web app are available now. Native mobile applications are not built."
+    "disclaimer": "Packaged desktop builds ship for Windows, macOS and Linux. Windows and macOS are unsigned: SmartScreen wants More info then Run anyway, and macOS wants Open Anyway once. The download page has the exact steps. npm and the web app are available now. Native mobile applications are not built."
   },
   "home": {
     "docsLine": "Both of those are written up in full: <agentContext>what an agent is told</agentContext> and <cli>every command it ships with</cli>.",
@@ -172,7 +438,7 @@
       },
       "openCode": {
         "tag": "reads a session you already opened",
-        "detail": "Describes the usage view behind an existing session. It carries the highest automation risk of the six and stops the moment that session expires."
+        "detail": "Describes the usage view behind an existing session. It carries the highest automation risk of the nine and stops the moment that session expires."
       },
       "gemini": {
         "tag": "reads model quota through the installed CLI",
@@ -226,7 +492,7 @@
     "groups": {
       "today": {
         "label": "Ships today",
-        "note": "Six connectors ship in this release"
+        "note": "Nine connectors ship in this release"
       },
       "planned": {
         "label": "Planned",
@@ -240,6 +506,7 @@
     },
     "feedIn": "How to feed one in",
     "footnote": "Every connector ships marked <code>UNVERIFIED</code>, the honest default: no verifier has confirmed a shape against a live account yet. Three read interfaces internal to somebody else's tooling, and when one changes, that provider fails closed to unknown rather than guessing. <link>Every connector and its real state</link>.",
+    "compatibilityNote": "Product names, logos, brands, and other trademarks featured or referred to within OpenLimiter are the property of their respective trademark holders. These trademark holders are not affiliated with OpenLimiter, our products, or our website. They do not sponsor or endorse OpenLimiter. Use of them does not imply any affiliation with or endorsement by them.",
     "manualNote": "Every tool on this page can be metered today. Connect it from the desktop application, or, under Advanced, write the numbers down with manual entry or pipe a payload in with ingest from any script you control. Either way it lands in the same snapshot as a connector."
   },
   "runsWhere": {
@@ -250,15 +517,15 @@
   "webApp": {
     "title": "Web app",
     "status": "live",
-    "lead": "A browser is the one surface every device already has. This one runs the same engine as the command line tool, on a document you give it, parsed entirely in the tab, with nothing uploaded, no account anywhere, and nothing to install before it works.",
+    "lead": "A browser is the one surface every device already has. This one runs the same engine as the command line tool, parsed entirely in the tab, with nothing to install before it works. Sign in and it shows the percentages your own devices synced; a phone paired by QR reads the same rows.",
     "facts": {
       "sameEngine": {
         "title": "The same engine, in the tab",
         "detail": "Not a second implementation. The core, the connectors and the adapter are mirrored from the command line tool into the browser bundle, so a reading here and a reading in a terminal cannot disagree."
       },
       "handDocument": {
-        "title": "You hand it the document",
-        "detail": "Paste or drop what openlimiter export prints. A browser tab cannot read your disk by itself, and nothing is uploaded to make up for that: parsing happens in the tab and no request leaves it."
+        "title": "Sign in, or hand it a document",
+        "detail": "Signed in, it shows the bounded percentages your own devices synced. You can also paste or drop what openlimiter export prints, and that parsing happens in the tab: a document you hand it is never uploaded."
       },
       "offline": {
         "title": "Installs, and works offline",
@@ -351,7 +618,7 @@
   },
   "cliTranscript": {
     "captions": {
-      "demo": "All six connectors, one schema",
+      "demo": "All nine connectors, one schema",
       "statusline": "Statusline, bars where you already look",
       "statuslineNarrow": "One row, worst providers kept",
       "statuslinePlain": "The 0.1.0 line, on request",
@@ -406,7 +673,7 @@
     "items": {
       "whatLeaves": {
         "question": "What actually leaves my machine?",
-        "answer": "In local mode, nothing leaves for OpenLimiter. Provider connections talk only to that provider through a fixed allowlist, and credentials stay in the operating system credential store. If you choose Pro, selected bounded quota snapshots go to the hosted service for alerts, history, forecasts, and agent routing. Provider credentials never go there."
+        "answer": "In local mode, nothing leaves for OpenLimiter. Provider connections talk only to that provider through a fixed allowlist, and credentials stay in the operating system credential store. When you sign in, selected bounded quota snapshots go to the hosted service so your own devices can see them, and Pro adds alerts, history, forecasts and agent routing on top of those. Provider credentials never go there."
       },
       "safeToPoint": {
         "question": "Is it safe to point at my tools?",
@@ -418,7 +685,7 @@
       },
       "providersToday": {
         "question": "Which providers work today?",
-        "answer": "Six connectors ship: Claude through the native statusline payload, OpenRouter through its documented shape, Codex and Antigravity through internal shapes that may break, OpenCode through an existing session that may break, and manual entry. Every one is marked UNVERIFIED until an explicit verifier exists."
+        "answer": "Nine connectors ship: Claude through the native statusline payload, OpenRouter through its documented shape, Codex, Antigravity, Gemini CLI, Grok and Kimi through internal shapes that may break, OpenCode through an existing session that may break, and manual entry. Every one is marked UNVERIFIED until an explicit verifier exists."
       },
       "apiKey": {
         "question": "Do I need an API key?",
@@ -434,59 +701,72 @@
       },
       "desktopOrPhone": {
         "question": "Is there a desktop or phone app?",
-        "answer": "The desktop tray application ships for Windows and Linux. Windows is unsigned, so SmartScreen may appear: choose More info, then Run anyway. macOS is coming soon, and no unsigned macOS build is offered because Gatekeeper blocks it. On a phone, the web app opens in the browser and installs to a home screen. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
+        "answer": "The desktop tray application ships for Windows, macOS and Linux. Windows and macOS are unsigned, so each asks once: on Windows, SmartScreen, choose More info then Run anyway; on macOS, open System Settings, go to Privacy and Security, and choose Open Anyway. macOS ships as one universal disk image and stays out of automatic updates until signed and notarised builds exist. On a phone, the web app opens in the browser and installs to a home screen, and the desktop application pairs a phone by QR code so it can read your quota. Native iOS and Android applications are not built, nothing is in a store, and there is no waiting list. The download page lists every platform with its real state."
       },
       "free": {
         "question": "Is it free?",
-        "answer": "Everything that runs locally is free and always will be, under Apache 2.0. The OpenLimiter account is free. Local notifications are free. Only usage percentages sync, never keys or credentials, and sync can be turned off."
+        "answer": "Everything you can see is free and always will be, under Apache 2.0. The OpenLimiter account is free. Alerts, ninety days of history, phone access, more than one account per provider and spend tracking above $100 a calendar month for each source are Pro. Only usage percentages sync, never keys or credentials."
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro is coming soon at $5 a month or $50 a year. It is planned to include email and push notifications, token based themes, multiple subscriptions per provider, heavy API usage features, history and forecasting, and agent auto routing. Every local feature remains free."
+        "answer": "OpenLimiter Pro is $5 a month or $50 a year, with the first 30 days free and no card required. It adds six things: every alert, as a desktop toast, an email and a phone push at 60, 80 and 90 percent and on reset; ninety days of hosted history with a forecast; hosted routing context; more than one account per provider; one Pro accent or density preset; and API spend meters in a labelled beta above the free ceiling of $100 a calendar month for each source. Four of those are hosted services and two are switches in the local application. A full refund is available on request within 14 days of any charge."
+      },
+      "alerts": {
+        "question": "Do I get alerts when a window fills up?",
+        "answer": "Yes, with Pro. Every alert is a Pro alert: a desktop notification, an email and a phone push, at 60, 80 and 90 percent of a window and again when that window resets. Those four moments are the product rather than a setting. A push payload never carries usage detail, so a locked screen never shows one."
+      },
+      "phoneAccess": {
+        "question": "Can I see my quota on my phone?",
+        "answer": "Yes, with Pro. The desktop application shows a QR code that lives for two minutes, you scan it with the phone, and you approve the pairing back on the desktop. The phone then holds a read only token: it can never change the account or upload anything, and revoking that device from the desktop or from your account page ends its access at once."
+      },
+      "spendCeiling": {
+        "question": "How much API spend does the free plan track?",
+        "answer": "Up to $100 a calendar month for each source, and Pro goes above that. API spend meters are a labelled beta that reads the provider's own billing surface, so they need an organisation admin or management key and a project key will not work. Moonshot is read as a balance rather than as spend, in three separate figures, and is never turned into a monthly total, a forecast or a budget alert."
       }
     }
   },
   "pricing": {
     "title": "Pricing",
-    "lead": "Local stays free. Sync is included.",
+    "lead": "Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above $100 are Pro.",
     "plannedChip": "planned",
     "free": {
       "status": "available",
       "price": "Free",
       "priceNote": "forever, and in the licence",
-      "lead": "The local product and account are free. Sync defaults on and can be turned off.",
+      "lead": "The local product and the account are free. Sync is on from the moment you sign in, because moving your own percentages between your own devices is what signing in is for.",
       "footnote": "Open source under <licence>Apache 2.0</licence>, so this cannot be taken away later. The licence is the promise.",
       "lines": {
         "connectors": "Every supported provider",
-        "sync": "Sync across your devices",
+        "sync": "Sync across your own devices, on from your first sign in",
         "agentContext": "The bounded agent context block and its routing advice",
-        "notifications": "Desktop notifications and sounds when a window nears its cap",
         "themes": "Themes, in the desktop application and in the browser",
         "cli": "The full command line tool and every statusline setting",
         "ingestion": "All three ingestion paths: a connector, ingest, or manual entry",
-        "noLimits": "No usage limit, free account, no local feature locked behind anything"
+        "noLimits": "No usage limit and no charge for the account. Everything you can see is free",
+        "oneAccount": "One active account per provider, and Pro raises that"
       }
     },
     "pro": {
       "status": "available",
-      "comingSoonStatus": "coming soon",
       "perMonth": "a month",
       "or": "or",
       "perYear": "a year",
       "trialChip": "30 days free",
-      "priceNote": "The first 30 days are free with no card required. When access ends, only the hosted services stop. Nothing local changes.",
-      "lead": "Three hosted tools for planning and routing.",
-      "footnote": "Nothing local ever moves behind this plan. Pro sells hosted service, never local switches.",
+      "priceNote": "The first 30 days are free with no card required. When access ends the Pro features stop: the hosted ones at once, and the local ones fall back to one account per provider and the standard theme. Everything you could see before Pro is unchanged.",
+      "lead": "Six Pro features. Four are hosted services and two are switches in the local application.",
+      "footnote": "Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above $100 are Pro.",
       "lines": {
-        "alerts": "Email and push threshold notifications",
-        "themes": "Themes",
-        "multiSubscription": "More than one subscription per provider",
-        "heavyApi": "Features for heavy API usage",
-        "history": "History and forecasting",
-        "routing": "Agent auto routing"
+        "alerts": "Every alert: a desktop toast, an email and a phone push at 60, 80 and 90 percent of a window, and when it resets",
+        "themes": "One Pro accent or density preset, applied in the local application",
+        "multiSubscription": "More than one account per provider, unlocked in the local application",
+        "heavyApi": "API spend meters, in beta. Free tracks up to $100 a calendar month for each source and Pro goes above it",
+        "history": "Ninety days of hosted history, with a forecast to the day a window runs out",
+        "routing": "Hosted routing context, signed by the service and verified by the release build before an agent reads it"
       },
       "cta": "Start 30 days free",
-      "comingSoonCta": "Pro coming soon"
+      "eligibility": "The API spend beta reads the provider's own billing surface, so it needs an organisation admin or management key: an OpenAI organisation admin key, an Anthropic organisation Admin API key, an xAI management key, or an OpenRouter management key. A project key will not work. Moonshot is read as a balance rather than as spend, in three separate figures, available, voucher and cash, in the currency the provider states, and it is never turned into a monthly figure, a forecast or a budget alert.",
+      "refund": "Full refund on request within 14 days of any charge, monthly or annual. Cancel yourself at any time in the Stripe Customer Portal.",
+      "seller": "OpenLimiter Pro is sold by Lucas Costa. Stripe takes the payment and calculates tax automatically."
     },
     "roadmapCta": "What is actually planned",
     "sourceCta": "Read the source"
@@ -501,7 +781,7 @@
       },
       "reportsNobody": {
         "title": "It reports to nobody",
-        "detail": "Local mode and the public website report to nobody and have no analytics. Pro is optional and receives selected bounded quota snapshots only after sign in, never provider credentials."
+        "detail": "The app reports to nobody. It sends no telemetry in any mode. This website counts page views without cookies, which is a count of pages rather than a profile of you. Pro is optional and receives selected bounded quota snapshots only after sign in, never provider credentials."
       },
       "unknownStaysUnknown": {
         "title": "Unknown stays unknown",
@@ -515,15 +795,17 @@
   },
   "download": {
     "metaTitle": "Download",
-    "metaDescription": "Get OpenLimiter for Windows or Linux, install the command line tool from npm, or open the web app. macOS is coming soon.",
+    "metaDescription": "Get OpenLimiter for Windows, macOS or Linux, install the command line tool from npm, or open the web app.",
     "title": "Download",
-    "lead": "Windows and Linux desktop builds are available now. The Windows build is unsigned: in SmartScreen, choose More info, then Run anyway. macOS is coming soon. npm and the web app are also available.",
+    "lead": "Windows, macOS and Linux desktop builds are available now. Windows and macOS ship unsigned, so each one asks you to allow it once: on Windows choose More info then Run anyway, and on macOS open System Settings, go to Privacy and Security, and choose Open Anyway. macOS ships as one universal disk image that runs on Apple silicon and on Intel. npm and the web app are also available.",
     "choice": {
       "windows": "Download for Windows",
       "linux": "Download for Linux",
-      "macos": "macOS coming soon",
+      "macos": "Download for macOS",
       "other": "Other platforms",
-      "smartScreen": "This Windows build is unsigned, so SmartScreen may warn you: choose More info, then Run anyway."
+      "smartScreen": "This Windows build is unsigned, so SmartScreen may warn you: choose More info, then Run anyway.",
+      "openAnyway": "This macOS build is unsigned. Open it once, then open System Settings, go to Privacy and Security, and choose Open Anyway. The disk image is universal, so it runs on Apple silicon and on Intel. Automatic updates arrive with signed builds.",
+      "linuxNote": "AppImage, deb and rpm packages are available. Runs directly with no signing warning."
     },
     "states": {
       "available": "available",
@@ -532,7 +814,7 @@
     },
     "available": {
       "title": "Available now",
-      "lead": "Windows and Linux have packaged desktop builds, and every link below goes straight to the file. The command line tool is one npm install on any platform, or one clone if you prefer to build from source. The web app needs nothing installed."
+      "lead": "Windows, macOS and Linux have packaged desktop builds, and every link below goes straight to the file. The command line tool is one npm install on any platform, or one clone if you prefer to build from source. The web app needs nothing installed."
     },
     "phone": {
       "title": "On your phone",
@@ -542,7 +824,7 @@
     },
     "building": {
       "title": "Coming soon",
-      "lead": "The macOS desktop app is built, but no public download is offered until it can pass Gatekeeper normally."
+      "lead": "Signed and notarised macOS builds, and the automatic updates that depend on them. The macOS app is downloadable today and is excluded from the update manifest until it can be signed, because an update whose signature cannot be checked is worse than no update at all."
     },
     "notBuilt": {
       "title": "Not built yet",
@@ -573,8 +855,11 @@
       },
       "macos": {
         "name": "macOS",
-        "summary": "The macOS desktop app is coming soon. No unsigned build is distributed because Gatekeeper blocks it.",
-        "note": "The command line tool is available on macOS from npm today."
+        "summary": "The desktop application is packaged for macOS as one universal disk image that runs on Apple silicon and on Intel, and it is attached to the release. The build is unsigned, so Gatekeeper refuses the first open and you allow it once in System Settings. The command line tool installs from npm on macOS like anywhere else.",
+        "note": "Unsigned macOS build. Open the disk image, drag OpenLimiter to Applications, and open it once. macOS refuses that first attempt: open System Settings, go to Privacy and Security, scroll to Security, and choose Open Anyway beside the OpenLimiter message, then confirm. You do this once. macOS is excluded from automatic updates until signed and notarised builds exist, so until then a new version is a new download from this page.",
+        "assets": {
+          "universal": "Universal disk image"
+        }
       },
       "linux": {
         "name": "Linux",
@@ -594,29 +879,29 @@
       },
       "web-app": {
         "name": "Web app",
-        "summary": "Nothing to install. The web app runs the same engine as the command line tool inside the browser tab, on a document you paste or drop, and it installs to a phone or desktop home screen and keeps working offline. Nothing is uploaded and there is no account.",
+        "summary": "Nothing to install. The web app runs the same engine as the command line tool inside the browser tab, and it installs to a phone or desktop home screen and keeps working offline. Sign in to see the percentages your own devices synced, or pair a phone from the desktop application by scanning the code it shows.",
         "hrefLabel": "Open the web app"
       },
       "desktop": {
         "name": "Desktop application",
-        "summary": "A tray icon beside the system clock reads the same local cache as the command line tool, so quota is visible with no terminal open. Packaged releases ship for Windows and Linux. macOS is coming soon. Automatic updates begin with the first updater enabled release.",
-        "note": "The Windows build is unsigned. SmartScreen: choose More info, then Run anyway."
+        "summary": "A tray icon beside the system clock reads the same local cache as the command line tool, so quota is visible with no terminal open. Packaged releases ship for Windows, macOS and Linux. Automatic updates cover Windows and Linux; macOS joins them when signed builds exist.",
+        "note": "The Windows and macOS builds are unsigned. On Windows, SmartScreen: choose More info, then Run anyway. On macOS: System Settings, Privacy and Security, Open Anyway."
       },
       "iphone": {
         "name": "iOS",
-        "summary": "Planned. Nothing has been submitted to the App Store, there is no build, and there is no waiting list. The web app installs to an iPhone home screen today, which is the nearest thing that exists."
+        "summary": "Planned. Nothing has been submitted to the App Store, there is no build, and there is no waiting list. What exists today is the web app on an iPhone home screen, and a phone paired from the desktop application by QR code so it can read your quota."
       },
       "android": {
         "name": "Android",
-        "summary": "Planned. Nothing has been submitted to Google Play, there is no build, and there is no waiting list. The web app installs to an Android home screen today, which is the nearest thing that exists."
+        "summary": "Planned. Nothing has been submitted to Google Play, there is no build, and there is no waiting list. What exists today is the web app on an Android home screen, and a phone paired from the desktop application by QR code so it can read your quota."
       }
     }
   },
   "changelog": {
     "metaTitle": "Changelog: every release and what changed",
-    "metaDescription": "Every released version of OpenLimiter, rendered from the CHANGELOG.md at the root of the repository.",
+    "metaDescription": "Every released version of OpenLimiter, plus the work in progress, rendered from the CHANGELOG.md at the root of the repository.",
     "title": "Changelog",
-    "lead": "Every released version of OpenLimiter, read straight from the file the repository itself keeps, in the order that file lists them.",
+    "lead": "Every released version of OpenLimiter, read straight from the file the repository itself keeps, in the order that file lists them. Anything under Unreleased is written down but not shipped.",
     "empty": "No CHANGELOG.md was found in this checkout, so there is nothing to show here. The file this page reads sits at the root of the <repo>repository</repo>, and it is the only copy of these notes there is.",
     "sourceNote": "This page is rendered from the <file>CHANGELOG.md</file> at the root of the repository. Nothing here is written twice, so there is no second copy to drift out of step with the released code."
   },
@@ -717,7 +1002,7 @@
             "calloutBody": "OpenLimiter provides routing advice. It does not route requests for you, it does not bypass a limit, and it never mutates a provider's authentication artifacts. The decision stays with you and your agent.",
             "bullets": {
               "proxy": "It is not a proxy. Your requests keep going straight to your provider.",
-              "dashboard": "It is not a dashboard service. There is no OpenLimiter server, no account, and no telemetry.",
+              "dashboard": "It is not a dashboard service. Local mode has no account, no server and no telemetry: it reads what is already on your machine. The optional hosted half exists only to carry your own readings between your own devices.",
               "billing": "It is not a billing tool. It reports how much of a window you have consumed, not what you will be charged."
             }
           },
@@ -744,11 +1029,11 @@
       },
       "providers": {
         "title": "Supported providers",
-        "description": "The six connectors that ship today, what each one reads, and how likely it is to break.",
-        "lead": "Six connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
+        "description": "The nine connectors that ship today, what each one reads, and how likely it is to break.",
+        "lead": "Nine connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
         "sections": {
-          "the-six": {
-            "title": "The six connectors",
+          "the-nine": {
+            "title": "The nine connectors",
             "caption": "Connectors that ship today, with what each one reads and how stable it is",
             "columns": {
               "id": "id",
@@ -779,6 +1064,18 @@
               "manual": {
                 "reads": "Numbers you write yourself",
                 "status": "Manual entry. Never breaks, never guesses."
+              },
+              "gemini_cli": {
+                "reads": "The quota buckets the Gemini CLI defines for its own models",
+                "status": "Internal endpoint. High automation risk. May break without notice."
+              },
+              "grok": {
+                "reads": "The billing response behind the Grok CLI, with its weekly credit window and optional on demand cap",
+                "status": "Internal endpoint. High automation risk. May break without notice."
+              },
+              "kimi": {
+                "reads": "The usage response the Kimi CLI defines, with its weekly summary and five hour limit",
+                "status": "Internal endpoint. High automation risk. May break without notice."
               }
             },
             "calloutTitle": "Every connector ships marked UNVERIFIED",
@@ -790,7 +1087,7 @@
             "bullets": {
               "claude": "<code>claude</code> is fed by the statusline payload arriving on standard input. That path is automatic once Claude Code is wired up.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "In the command line tool, <code>codex</code>, <code>antigravity</code>, <code>opencode</code> and <code>openrouter</code> still have no reader of their own; it only accepts data through <code>openlimiter ingest --provider '<id>'</code>. The desktop application reads Codex and OpenRouter live, and offers a manual, experimental paste path for Antigravity and OpenCode."
+              "ingestOnly": "In the command line tool, <code>codex</code>, <code>antigravity</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code>, <code>opencode</code> and <code>openrouter</code> have no reader of their own; it only accepts data through <code>openlimiter ingest --provider '<id>'</code>. The desktop application reads Codex, Gemini CLI, Grok, Kimi and OpenRouter live, and offers a manual, experimental paste path for Antigravity and OpenCode."
             },
             "exactShapes": "The <docs>ingestion page</docs> documents all three paths and the exact shapes they accept."
           },
@@ -821,7 +1118,7 @@
           },
           "not-yet": {
             "title": "Connectors that do not exist yet",
-            "body": "Only the six above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
+            "body": "Only the nine above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
           }
         }
       },
@@ -1063,8 +1360,8 @@
       },
       "agent-context": {
         "title": "Agent context",
-        "description": "What the Claude Code statusline and prompt hook inject, and the boundary that keeps provider text out.",
-        "lead": "Two surfaces reach your agent: a one line statusline for you to read, and a bounded context block for the model. This page documents exactly what each one contains and the boundary that keeps provider text out of both.",
+        "description": "What the statusline and the prompt hook inject, which agents actually receive it, and the boundary that keeps provider text out.",
+        "lead": "Two surfaces reach your agent: a one line statusline for you to read, and a bounded context block for the model. This page documents exactly what each one contains, which agents actually receive it, and the boundary that keeps provider text out of both.",
         "sections": {
           "statusline": {
             "title": "The statusline",
@@ -1133,6 +1430,60 @@
               "inspect": "Running <code>openlimiter hook</code> in a terminal prints exactly what would be injected, which is a safe way to inspect it before wiring it into a real session."
             },
             "writes": "The statusline is the only path that writes. See <config>configuration</config> for the exact Claude Code settings, and <cli>the CLI reference</cli> for the commands."
+          },
+          "agents": {
+            "title": "Which agents receive the block",
+            "intro": "Having written an adapter is not the same as an agent receiving the block, so the states below are what a live fixture proved on a real machine on 1 September 2026, not what a roadmap hoped for. Two agents are supported, two are built and gated until a fixture passes, one is an experimental opt in, and one cannot be injected into at all.",
+            "caption": "Each agent, the id the installer takes, and whether the block reaches it",
+            "columns": {
+              "agent": "agent",
+              "id": "id",
+              "state": "state"
+            },
+            "rows": {
+              "claude": {
+                "name": "Claude Code",
+                "state": "Supported from 2.1.257. A live fixture proved the block arrives. A newer release stays enabled and status prints one warning line, and an older one is denied."
+              },
+              "codex": {
+                "name": "Codex CLI",
+                "state": "Supported from 0.152.0. A live fixture proved the block arrives through the prompt submit event."
+              },
+              "gemini": {
+                "name": "Gemini CLI",
+                "state": "Built and gated. The adapter targets the before agent event, but no binary was present to prove it here, so installation stays closed until a fixture passes."
+              },
+              "kimi": {
+                "name": "Kimi Code CLI",
+                "state": "Built and gated. On 1.50.0 the hook ran and the host discarded what it printed, so nothing reached the context and installation stays closed."
+              },
+              "antigravity": {
+                "name": "Antigravity CLI",
+                "state": "Excluded. Version 1.1.23 exposes no hooks subcommand and fired no event, so there is nothing to install into. The editor surface is separate and not implemented."
+              },
+              "opencode": {
+                "name": "OpenCode",
+                "state": "Experimental and off by default. Pinned to 1.18.11 and requires the switch described below. It sits outside what this release promises."
+              },
+              "grok": {
+                "name": "Grok Build",
+                "state": "Not supported for injection. Grok discards what a successful hook prints, so there is no context surface at all. Use the command below instead."
+              }
+            },
+            "installing": {
+              "title": "Installing a hook",
+              "body": "Installation is user scoped and idempotent. It preserves the rest of your agent's configuration, replaces the file atomically, leaves one recoverable <code>.openlimiter.bak</code>, makes no network request, and refuses unsafe or linked paths. <code>status</code> reports what is installed and whether the detected host version is known, <code>repair</code> rewrites the entry after the OpenLimiter executable moves, and <code>uninstall</code> removes it and leaves everything around it where it was.",
+              "terminalLabel": "terminal"
+            },
+            "opencode": {
+              "calloutTitle": "OpenCode is an explicit opt in",
+              "calloutBody": "OpenCode documents no prompt injection event. The adapter uses an undocumented transform, is pinned to the exact version it was inspected against, and does nothing at all unless <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> is set both when installing and when running. It is experimental on purpose, it can stop working at any release, and it is not part of what this version promises."
+            },
+            "grok": {
+              "title": "Grok Build, and why there is no hook",
+              "body": "Grok Build runs a prompt submit hook and then throws away what the hook printed, and it documents no equivalent of an additional context field. No amount of adapter work changes that, so OpenLimiter installs nothing into Grok and says so here rather than shipping something that silently does nothing. What it offers instead is a command you run yourself, which prints the same block for you to read or paste.",
+              "terminalLabel": "terminal"
+            }
           }
         }
       },
@@ -1351,8 +1702,8 @@
             "title": "The guarantees",
             "calloutTitle": "What OpenLimiter guarantees",
             "bullets": {
-              "noServer": "<strong>There is no OpenLimiter server.</strong> Nothing is sent to the project authors, because there is nowhere to send it.",
-              "noTelemetry": "<strong>There is no telemetry.</strong> No command sends usage, diagnostics, identifiers, prompts, or quota state anywhere.",
+              "noServer": "<strong>Local mode reaches no OpenLimiter server.</strong> Nothing is sent to the project authors, because in local mode there is nowhere to send it. The hosted service exists only for the free account, for sync and for Pro, and only after you sign in.",
+              "noTelemetry": "<strong>There is no telemetry.</strong> No command sends usage, diagnostics, identifiers or prompts anywhere, in any mode. Quota state leaves your machine only through sync, only after you sign in, and only as the bounded readings you can switch off.",
               "hookNoNetwork": "<strong>The hook makes no network request.</strong> It reads the local cache and nothing else.",
               "noEgress": "<strong>Local mode sends nothing to OpenLimiter.</strong> Provider connections talk only to that provider through a fixed allowlist. Optional Pro sends selected bounded quota snapshots to the hosted service after sign in, never provider credentials.",
               "unknownNeverZero": "<strong>Unknown never becomes zero.</strong> Missing, expired, malformed, and unrecognised input all resolve to unknown.",
@@ -1384,7 +1735,7 @@
             "bullets": {
               "noOfficialApi": "Most consumer subscription providers offer no official quota API. Several connectors therefore describe unofficial interfaces that can change or disappear without notice.",
               "unverified": "Every connector ships marked <code>UNVERIFIED</code>. Nothing here has been confirmed against a live account by an explicit verifier.",
-              "opencode": "The OpenCode connector describes an authenticated page shape and carries high automation risk. Treat it as the most fragile of the six.",
+              "opencode": "The OpenCode connector describes an authenticated page shape and carries high automation risk. Treat it as the most fragile of the nine.",
               "adviceOnly": "OpenLimiter provides routing advice. It does not route requests automatically, bypass limits, or change how your agent authenticates."
             }
           },
@@ -1410,19 +1761,19 @@
       "roadmap": {
         "title": "Roadmap",
         "description": "What remains planned and not yet built: native mobile applications, code signing, and an automatic update channel.",
-        "lead": "OpenLimiter Pro is built. The items still marked planned below cannot be downloaded yet and have no waiting list. The distinction keeps this page honest about what ships now.",
+        "lead": "OpenLimiter Pro is available. The items still marked planned below cannot be downloaded yet and have no waiting list. The distinction keeps this page honest about what ships now.",
         "sections": {
           "not-available": {
             "title": "Read this first",
             "calloutTitle": "Planned means not built",
-            "calloutBody": "Every item marked planned below does not exist today. There is no native mobile application in any store, no code signing, and no automatic update channel. OpenLimiter Pro is listed separately as built."
+            "calloutBody": "Every item marked planned below does not exist today. There is no native mobile application in any store, no code signing, and no automatic update channel for macOS. OpenLimiter Pro is listed separately as available."
           },
           "desktop": {
             "title": "Shipped: the desktop application",
-            "intro": "A small desktop application with a tray icon next to the system clock reads the same local cache the command line tool writes, so quota is glanceable without a terminal open. Packaged Windows and Linux builds are attached to the release. macOS is coming soon.",
+            "intro": "A small desktop application with a tray icon next to the system clock reads the same local cache the command line tool writes, so quota is glanceable without a terminal open. Packaged Windows, macOS and Linux builds are attached to the release.",
             "bullets": {
-              "status": "Status: shipped on Windows and Linux. macOS is coming soon and has no public download.",
-              "signing": "Windows ships unsigned. SmartScreen: choose More info, then Run anyway. macOS waits for signing and notarisation.",
+              "status": "Status: shipped on Windows, macOS and Linux, with a public download for each.",
+              "signing": "Windows and macOS ship unsigned. On Windows, SmartScreen: choose More info, then Run anyway. On macOS: System Settings, Privacy and Security, Open Anyway. macOS is excluded from automatic updates until signing and notarisation exist.",
               "updates": "Planned: an automatic update channel. There is none today."
             }
           },
@@ -1436,13 +1787,13 @@
           },
           "sync": {
             "title": "Planned: OpenLimiter Pro",
-            "intro": "OpenLimiter Pro is coming soon at $5 a month or $50 a year. Nothing local moves behind it. See <pricing>pricing</pricing> for the current plan.",
+            "intro": "OpenLimiter Pro is available at $5 a month or $50 a year, with the first 30 days free and no card required. See <pricing>pricing</pricing> for what each line actually is.",
             "bullets": {
-              "status": "Status: planned. Pro is not available yet.",
+              "status": "Status: available. Sync is on from the moment you sign in.",
               "alerts": "Threshold and reset email alerts.",
               "history": "Ninety day hosted usage history with burn rate forecasts.",
               "routing": "Live budget context for coding agent routing.",
-              "localFirst": "The local first guarantee does not change. The command line tool and desktop local features work with no Pro account."
+              "localFirst": "Everything you can see is free. The command line tool and the desktop local features work with no Pro account."
             }
           },
           "following": {
@@ -1455,17 +1806,105 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Sign in for sync. Pro is coming soon at $5 a month or $50 a year.",
-    "comingSoonLead": "Sign in or create an account to sync. OpenLimiter Pro is coming soon, and the complete local product remains free.",
-    "configMissing": "Pro is coming soon.",
-    "emailLabel": "Email",
-    "emailPlaceholder": "you@example.com",
-    "sendLink": "Sign in or create account",
-    "linkSent": "Check your email for the sign in link.",
-    "signedIn": "You are signed in.",
+    "lead": "Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above $100 are Pro.",
+    "metaDescription": "Sign in to manage your OpenLimiter Pro plan, your billing and the devices that read your quota.",
+    "loading": "Reading your account.",
     "working": "Working",
     "signOut": "Sign out",
-    "privacy": "Provider credentials never enter this page.",
-    "error": "Pro could not complete that request. Try again."
+    "configMissing": {
+      "title": "Pro is not configured in this build",
+      "body": "This deployment carries no hosted address, so there is nothing to sign in to here. Everything local keeps working exactly as it does now."
+    },
+    "signIn": {
+      "title": "Sign in",
+      "body": "Signing in exists to move your percentages between your own devices, so sync is on from the moment you arrive. It carries bounded readings only: never a prompt, never a file, never a credential.",
+      "github": "Continue with GitHub",
+      "google": "Continue with Google",
+      "fallbackTitle": "Or use a sign in link",
+      "fallbackBody": "If neither of those suits you, we send a single use link to your email address instead.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
+      "send": "Send a sign in link",
+      "sent": "Check your email for the sign in link.",
+      "error": "That sign in could not be started. Try again.",
+      "privacy": "Provider credentials never enter this page."
+    },
+    "account": {
+      "signedInAs": "Signed in as",
+      "noEmail": "Your account"
+    },
+    "accountError": {
+      "title": "Your plan could not be read",
+      "body": "The hosted service did not answer. Nothing on your account changed, and nothing local is affected.",
+      "retry": "Try again"
+    },
+    "actionError": {
+      "title": "That request did not go through",
+      "body": "The hosted service refused it. Nothing was charged and nothing was changed. Try again in a moment."
+    },
+    "plan": {
+      "none": {
+        "chip": "no plan yet",
+        "title": "Your plan is still being set up",
+        "body": "The service opens the trial at your first sign in, so this page has nothing to show for a moment. Reload if it stays empty."
+      },
+      "trial": {
+        "chip": "trial",
+        "title": "You are on the free trial",
+        "body": "Every Pro service is on: alerts, ninety days of history with a forecast, hosted routing, phone access by QR, extra accounts, and spend tracking beyond the free ceiling of $100 a calendar month for each source. No card was asked for.",
+        "daysLeft": "{count, plural, one {# day left} other {# days left}} of the trial.",
+        "ends": "It ends on {date}."
+      },
+      "active": {
+        "chip": "active",
+        "title": "Pro is active",
+        "body": "Alerts, history, hosted routing, phone access, extra accounts and spend tracking above the free ceiling are all on.",
+        "renewsOn": "It renews on {date}.",
+        "endsOn": "It ends on {date} and does not renew."
+      },
+      "pastDue": {
+        "chip": "past due",
+        "title": "A payment did not go through",
+        "body": "Pro keeps working for a short grace period. Update the card in billing and it carries on with no gap."
+      },
+      "expired": {
+        "chip": "ended",
+        "title": "Pro has ended",
+        "body": "The hosted services stopped, and the local switches fell back to one account per provider and the standard theme. Everything you could see before Pro is unchanged. Your history is kept for thirty days so you can export it, then it is purged."
+      }
+    },
+    "upgrade": {
+      "title": "Take Pro",
+      "body": "One price, two intervals, and you can cancel yourself at any time. Tax is calculated at checkout.",
+      "monthly": "{price} a month",
+      "yearly": "{price} a year",
+      "note": "Payment runs on Stripe. A full refund is available on request within 14 days of any charge."
+    },
+    "billing": {
+      "title": "Billing",
+      "body": "Your card, your invoices and your billing address live on Stripe. Cancelling is one click there, and it takes effect at the end of the period you already paid for.",
+      "manage": "Manage billing"
+    },
+    "devices": {
+      "title": "Devices",
+      "body": "Every device signed in to this account, including a phone paired by QR. Revoking one takes its hosted access away immediately.",
+      "count": "{count} of {cap}",
+      "empty": "No device holds a grant yet. Sign in on the desktop application, or pair a phone from it.",
+      "current": "this one",
+      "revoke": "Revoke",
+      "lastSeen": "Last seen {date}",
+      "neverSeen": "Not seen yet"
+    },
+    "checkout": {
+      "success": {
+        "title": "Payment received",
+        "body": "Stripe confirmed the payment. Your plan updates here as soon as the service records it, which is usually a few seconds."
+      },
+      "cancel": {
+        "title": "Checkout was cancelled",
+        "body": "Nothing was charged and nothing changed. The trial and every local feature carry on exactly as before."
+      },
+      "dismiss": "Dismiss"
+    }
   }
 }

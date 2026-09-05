@@ -1,17 +1,18 @@
 # Gitleaks policy for this repository.
 #
-# Two things are allowlisted, and the reasons matter more than the entries.
-# The directories are build output and package caches: gitignored, never
-# pushed, and full of third party sample keys that are not ours to rotate.
-# The one literal is this repo's own synthetic masking test fixture, a
-# sequential hex string that was never a credential anywhere. Nothing else
-# is excepted; a real key must always fail this scan.
+# Two kinds of things are allowlisted, and the reasons matter more than the
+# entries. The directories are build output and package caches: gitignored,
+# never pushed, and full of third party sample keys that are not ours to
+# rotate. The literals are this repo's own synthetic test fixtures: values
+# that were generated for tests, never issued by any provider, and never
+# valid credentials anywhere. Nothing else is excepted; a real key must
+# always fail this scan.
 
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Build output, package caches, and the synthetic masking test literal"
+description = "Build output, package caches, and synthetic test literals/fixtures"
 paths = [
   '''\.pnpm-store/''',
   '''target/debug/''',
@@ -19,7 +20,34 @@ paths = [
   '''\.test-dist/''',
   '''node_modules/''',
   '''\.next[^/]*/''',
+  # The adapters package's golden fixture for the hosted context schema.
+  # Every field, including the synthetic PKCS8 keypair below, is fixed
+  # test data checked in on purpose so contract tests can diff against it.
+  '''^packages/adapters/test/fixtures/hosted-context-v1\.golden\.json$''',
+  # packages/cli/test/smoke.test.ts is the smoke harness sanitizer's own test
+  # corpus: fake API key shaped strings live there so the harness proves it
+  # refuses to write them into evidence. Nothing in that file is a credential.
+  '''packages/cli/test/smoke\.test\.ts''',
 ]
 regexes = [
   '''sk-or-v1-0123456789abcdef0123456789abcdef''',
+  # Synthetic Ed25519 private key in PKCS8/base64url form, built from the
+  # sequential byte sequence 00-1f (the same masking-test convention as the
+  # OpenRouter-shaped literal above). It backs a golden signature test and
+  # appears in two places: the test module of
+  # apps/desktop/src-tauri/src/pro.rs (line 2114) and the fixture file
+  # packages/adapters/test/fixtures/hosted-context-v1.golden.json (line 36).
+  # It was never a real keypair and nothing was ever signed with it outside
+  # these tests.
+  '''MC4CAQAwBQYDK2VwBCIEIAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4f''',
+  # Literal suffix of a hardcoded OpenAI cost-API endpoint constant in
+  # apps/desktop/src-tauri/src/api_spend.rs line 35. Gitleaks flags the
+  # port-and-path tail of the URL string; it is a public, documented API
+  # route baked into source, not a credential.
+  '''443/v1/organization/costs''',
+  # Fake admin key literal used only inside a unit test in
+  # apps/desktop/src-tauri/src/api_spend.rs line 1629 (the "secret-canary"
+  # test) to assert that secret values are scrubbed before anything is
+  # persisted to disk. Not a real credential and not derived from one.
+  '''secret-canary-never-persist-123456''',
 ]

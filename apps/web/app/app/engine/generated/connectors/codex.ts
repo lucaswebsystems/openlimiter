@@ -7,6 +7,7 @@
  */
 // This interface is UNOFFICIAL and may break.
 import type {
+  ConnectionTool,
   ConnectorContract,
   ConnectorLabels,
   ConnectorResult,
@@ -14,6 +15,7 @@ import type {
 } from "../core";
 import {
   boundedNumber,
+  connectorConnection,
   futureInstantFromEpochSeconds,
   plausibleResetHorizon,
   rawMeter,
@@ -156,6 +158,9 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
   return meters.length === 0 ? null : meters;
 }
 
+/** The local application that owns this credential. */
+export const CODEX_TOOL: ConnectionTool = "Codex CLI";
+
 export const codexConnector: ConnectorContract = {
   id: "codex",
   displayName: "Codex",
@@ -166,8 +171,13 @@ export const codexConnector: ConnectorContract = {
   },
   async read(context): Promise<ConnectorResult> {
     const meters = parseCodexPayload(context.payload, context.now);
+    const connection = connectorConnection(
+      meters !== null,
+      context.payload,
+      CODEX_TOOL
+    );
     return meters === null
-      ? { ok: false, reason: "unknown" }
-      : { ok: true, meters };
+      ? { ok: false, reason: "unknown", connection }
+      : { ok: true, meters, connection };
   }
 };

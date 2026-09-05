@@ -3,16 +3,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { readDeviceToken } from "@/lib/device-session";
 import {
-  deleteProAlertRule,
-  disableProPush,
-  enableProPush,
-  pushCapability,
-  readProNotificationState,
-  saveProAlertRule,
-  saveProNotificationPreferences,
-  type ProNotificationPreferences,
-  type ProNotificationState,
+  PRO_ALERT_THRESHOLDS,
+  readProAlertPreferences,
+  saveProAlertPreference,
+  type ProAlertChannel,
+  type ProAlertFailure,
+  type ProAlertPreference,
 } from "@/lib/pro-notifications";
 
 export interface AlertScope {
@@ -21,7 +19,7 @@ export interface AlertScope {
   label: string;
 }
 
-type LoadState = "idle" | "loading" | "ready" | "entitlement" | "unavailable";
+type LoadState = "idle" | "loading" | "ready" | ProAlertFailure;
 
 function BellGlyph() {
   return (
@@ -42,15 +40,38 @@ function BellGlyph() {
   );
 }
 
-function normalizedPreferences(value: ProNotificationPreferences): ProNotificationPreferences {
+const CHANNEL_LABEL: Record<ProAlertChannel, string> = {
+  email: "Email alerts",
+  push: "Phone push",
+};
+
+function emptyPreference(channel: ProAlertChannel): ProAlertPreference {
   return {
-    ...value,
-    quiet_start: value.quiet_start.slice(0, 5),
-    quiet_end: value.quiet_end.slice(0, 5),
-    daily_digest_time: value.daily_digest_time.slice(0, 5),
+    channel,
+    enabled: false,
+    timeZone: "UTC",
+    quietStart: "22:00",
+    quietEnd: "07:00",
+    snoozedUntil: null,
+    digestEnabled: false,
+    detailConsentVersion: null,
+    channelEpoch: 0,
   };
 }
 
+/**
+ * The alert control.
+ *
+ * Every alert is a Pro alert and every one of them fires at the same four
+ * moments: sixty, eighty and ninety percent of a window, and the reset. That is
+ * the product rather than a setting, so this panel states the thresholds and
+ * offers only the choices that exist: which channel is on, when it is quiet,
+ * and whether email may carry detail.
+ *
+ * A browser tab holds no device grant of its own, so the hosted alert actions
+ * refuse it. That is not an error to apologise for: it is where the feature
+ * lives, and the panel says so and points at the download.
+ */
 export function NotificationBell({
   client,
   scopes,
@@ -60,18 +81,15 @@ export function NotificationBell({
 }) {
   const [open, setOpen] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>("idle");
-  const [state, setState] = useState<ProNotificationState | null>(null);
+  const [preferences, setPreferences] = useState<ProAlertPreference[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [scopeKey, setScopeKey] = useState("");
-  const [threshold, setThreshold] = useState(90);
-  const [notifyReset, setNotifyReset] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
 
-  const availableScopes = useMemo(() => {
-    const unique = new Map<string, AlertScope>();
-    for (const scope of scopes) unique.set(`${scope.provider}\u001f${scope.meter}`, scope);
-    return [...unique.values()];
+  const watched = useMemo(() => {
+    const unique = new Set<string>();
+    for (const scope of scopes) unique.add(`${scope.provider}${scope.meter}`);
+    return unique.size;
   }, [scopes]);
 
   useEffect(() => {
@@ -93,108 +111,52 @@ export function NotificationBell({
   useEffect(() => {
     if (!open || loadState !== "idle") return;
     setLoadState("loading");
-    void readProNotificationState(client).then((result) => {
+    void readProAlertPreferences(client, readDeviceToken()).then((result) => {
       if (!result.ok) {
         setLoadState(result.reason);
         return;
       }
-      setState({
-        ...result.value,
-        preferences: normalizedPreferences(result.value.preferences),
-      });
-      setScopeKey((current) => current || (
-        availableScopes[0] === undefined
-          ? ""
-          : `${availableScopes[0].provider}\u001f${availableScopes[0].meter}`
-      ));
+      const byChannel = new Map(result.value.map((row) => [row.channel, row]));
+      setPreferences([
+        byChannel.get("email") ?? emptyPreference("email"),
+        byChannel.get("push") ?? emptyPreference("push"),
+      ]);
       setLoadState("ready");
     });
-  }, [availableScopes, client, loadState, open]);
+  }, [client, loadState, open]);
 
-  function updatePreferences(update: Partial<ProNotificationPreferences>) {
-    setState((current) => current === null
-      ? current
-      : { ...current, preferences: { ...current.preferences, ...update } });
-  }
-
-  async function savePreferences(preferences: ProNotificationPreferences) {
+  async function save(next: ProAlertPreference) {
     setBusy(true);
     setMessage("");
-    const result = await saveProNotificationPreferences(client, {
-      ...preferences,
-      time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-    });
+    const result = await saveProAlertPreference(
+      client,
+      {
+        channel: next.channel,
+        enabled: next.enabled,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        quietStart: next.quietStart,
+        quietEnd: next.quietEnd,
+        snoozedUntil: next.snoozedUntil,
+        digestEnabled: next.channel === "email" && next.digestEnabled,
+        detailConsent: next.channel === "email" && next.detailConsentVersion !== null,
+      },
+      readDeviceToken(),
+    );
     if (result.ok) {
-      updatePreferences(normalizedPreferences(result.value));
-      setMessage("Notification preferences saved.");
+      setPreferences((current) =>
+        current.map((row) => (row.channel === result.value.channel ? result.value : row)),
+      );
+      setMessage("Alert preferences saved.");
     } else {
-      setMessage("Notification preferences could not be saved.");
+      setMessage("Alert preferences could not be saved.");
     }
     setBusy(false);
   }
 
-  async function togglePush(enable: boolean) {
-    if (state === null) return;
-    setBusy(true);
-    setMessage("");
-    const subscription = enable
-      ? await enableProPush(client, state.vapidPublicKey)
-      : await disableProPush(client);
-    if (!subscription.ok) {
-      setMessage(pushCapability() === "permission_denied"
-        ? "Browser notification permission is blocked."
-        : "Push notifications are unavailable on this device.");
-      setBusy(false);
-      return;
-    }
-    const preferences = { ...state.preferences, push_enabled: enable };
-    const saved = await saveProNotificationPreferences(client, preferences);
-    if (saved.ok) {
-      setState({
-        ...state,
-        pushSubscribed: enable,
-        preferences: normalizedPreferences(saved.value),
-      });
-      setMessage(enable ? "Push notifications enabled." : "Push notifications disabled.");
-    } else {
-      setMessage("Push preferences could not be saved.");
-    }
-    setBusy(false);
-  }
-
-  async function addRule() {
-    if (state === null) return;
-    const [provider, meter] = scopeKey.split("\u001f");
-    if (provider === undefined || meter === undefined) return;
-    setBusy(true);
-    setMessage("");
-    const result = await saveProAlertRule(client, {
-      provider,
-      meter,
-      thresholdPercent: threshold,
-      notifyReset,
-    });
-    if (result.ok) {
-      setState({ ...state, rules: [...state.rules, result.value] });
-      setMessage("Alert rule added.");
-    } else {
-      setMessage("Alert rule could not be added.");
-    }
-    setBusy(false);
-  }
-
-  async function removeRule(ruleId: string) {
-    if (state === null) return;
-    setBusy(true);
-    setMessage("");
-    const result = await deleteProAlertRule(client, ruleId);
-    if (result.ok) {
-      setState({ ...state, rules: state.rules.filter((rule) => rule.id !== ruleId) });
-      setMessage("Alert rule removed.");
-    } else {
-      setMessage("Alert rule could not be removed.");
-    }
-    setBusy(false);
+  function update(channel: ProAlertChannel, patch: Partial<ProAlertPreference>) {
+    setPreferences((current) =>
+      current.map((row) => (row.channel === channel ? { ...row, ...patch } : row)),
+    );
   }
 
   return (
@@ -203,8 +165,8 @@ export function NotificationBell({
         type="button"
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label="Open notifications"
-        title="Open notifications"
+        aria-label="Open alerts"
+        title="Open alerts"
         onClick={() => setOpen((current) => !current)}
         className="ol-icon-control ol-tap focus-ring"
       >
@@ -212,96 +174,99 @@ export function NotificationBell({
       </button>
 
       {open && (
-        <section className="ol-menu ol-notification-popover" role="dialog" aria-label="Notifications">
+        <section className="ol-menu ol-notification-popover" role="dialog" aria-label="Alerts">
           <div className="ol-notification-heading">
-            <strong>Notifications</strong>
-            <span>Pro controls</span>
+            <strong>Alerts</strong>
+            <span>Pro</span>
           </div>
-          {loadState === "loading" && <p>Loading notification settings.</p>}
-          {loadState === "entitlement" && (
-            <p>Pro adds email, phone push, custom limits, quiet hours, and a daily digest. <Link href="/en/pricing">View pricing</Link>.</p>
-          )}
-          {loadState === "unavailable" && <p>Notification settings are unavailable right now.</p>}
-          {loadState === "ready" && state !== null && (
-            <div className="ol-notification-settings">
-              <label className="ol-notification-toggle">
-                <span>Email alerts</span>
-                <input
-                  type="checkbox"
-                  checked={state.preferences.email_enabled}
-                  onChange={(event) => updatePreferences({ email_enabled: event.target.checked })}
-                />
-              </label>
-              {!state.emailReady && <p>Email delivery will start when Resend is configured.</p>}
-              <div className="ol-notification-toggle">
-                <span>Phone push</span>
-                <button
-                  type="button"
-                  className="ol-inline-action focus-ring"
-                  disabled={busy || !state.pushReady}
-                  onClick={() => void togglePush(!state.pushSubscribed)}
-                >
-                  {state.pushSubscribed ? "Disable" : "Enable"}
-                </button>
-              </div>
-              {!state.pushReady && <p>Push delivery is not configured yet.</p>}
-              <label className="ol-notification-toggle">
-                <span>Quiet hours</span>
-                <input
-                  type="checkbox"
-                  checked={state.preferences.quiet_hours_enabled}
-                  onChange={(event) => updatePreferences({ quiet_hours_enabled: event.target.checked })}
-                />
-              </label>
-              {state.preferences.quiet_hours_enabled && (
-                <div className="ol-notification-times">
-                  <label>From<input type="time" value={state.preferences.quiet_start} onChange={(event) => updatePreferences({ quiet_start: event.target.value })} /></label>
-                  <label>Until<input type="time" value={state.preferences.quiet_end} onChange={(event) => updatePreferences({ quiet_end: event.target.value })} /></label>
-                </div>
-              )}
-              <label className="ol-notification-toggle">
-                <span>Daily digest</span>
-                <input
-                  type="checkbox"
-                  checked={state.preferences.daily_digest_enabled}
-                  onChange={(event) => updatePreferences({ daily_digest_enabled: event.target.checked })}
-                />
-              </label>
-              {state.preferences.daily_digest_enabled && (
-                <label className="ol-notification-time">Digest time<input type="time" value={state.preferences.daily_digest_time} onChange={(event) => updatePreferences({ daily_digest_time: event.target.value })} /></label>
-              )}
-              <button
-                type="button"
-                className="ol-control ol-control-ghost ol-tap focus-ring border text-sm font-medium"
-                disabled={busy}
-                onClick={() => void savePreferences(state.preferences)}
-              >
-                Save preferences
-              </button>
+          <p>
+            Every alert fires at {PRO_ALERT_THRESHOLDS.join(", ")} percent of a window, and again
+            when that window resets. Alerts are part of Pro.
+          </p>
+          {watched > 0 && <p>{watched} windows are on this screen right now.</p>}
 
-              <div className="ol-notification-rules">
-                <strong>Custom limits</strong>
-                {state.rules.map((rule) => (
-                  <div key={rule.id} className="ol-notification-rule">
-                    <span>{rule.provider} {rule.meter} at {rule.threshold_percent} percent</span>
-                    <button type="button" className="ol-inline-action focus-ring" disabled={busy} onClick={() => void removeRule(rule.id)}>Remove</button>
-                  </div>
-                ))}
-                {availableScopes.length === 0 ? (
-                  <p>Sync a provider before adding a custom limit.</p>
-                ) : (
-                  <div className="ol-notification-rule-form">
-                    <select aria-label="Provider window" value={scopeKey} onChange={(event) => setScopeKey(event.target.value)}>
-                      {availableScopes.map((scope) => (
-                        <option key={`${scope.provider}:${scope.meter}`} value={`${scope.provider}\u001f${scope.meter}`}>{scope.label}</option>
-                      ))}
-                    </select>
-                    <label>Percent<input type="number" min="1" max="100" value={threshold} onChange={(event) => setThreshold(Number(event.target.value))} /></label>
-                    <label className="ol-notification-toggle"><span>Notify on reset</span><input type="checkbox" checked={notifyReset} onChange={(event) => setNotifyReset(event.target.checked)} /></label>
-                    <button type="button" className="ol-control ol-control-ghost ol-tap focus-ring border text-sm font-medium" disabled={busy} onClick={() => void addRule()}>Add limit</button>
-                  </div>
-                )}
-              </div>
+          {loadState === "loading" && <p>Reading your alert preferences.</p>}
+          {loadState === "deviceRequired" && (
+            <p>
+              Alerts are arranged on a device that holds a grant. Open the desktop application and
+              turn them on there, then this account alerts every device.{" "}
+              <Link href="/en/download">Get the desktop application</Link>.
+            </p>
+          )}
+          {(loadState === "featureRequired" || loadState === "alreadySubscribed") && (
+            <p>
+              Alerts need Pro. <Link href="/en/pro">See what Pro adds</Link>.
+            </p>
+          )}
+          {loadState === "unauthenticated" && <p>Sign in again to read your alert preferences.</p>}
+          {(loadState === "unavailable" || loadState === "rateLimited") && (
+            <p>Alert preferences are unavailable right now.</p>
+          )}
+
+          {loadState === "ready" && (
+            <div className="ol-notification-settings">
+              {preferences.map((preference) => (
+                <div key={preference.channel}>
+                  <label className="ol-notification-toggle">
+                    <span>{CHANNEL_LABEL[preference.channel]}</span>
+                    <input
+                      type="checkbox"
+                      checked={preference.enabled}
+                      disabled={busy}
+                      onChange={(event) => {
+                        const next = { ...preference, enabled: event.target.checked };
+                        update(preference.channel, { enabled: event.target.checked });
+                        void save(next);
+                      }}
+                    />
+                  </label>
+                  {preference.enabled && (
+                    <div className="ol-notification-times">
+                      <label>
+                        Quiet from
+                        <input
+                          type="time"
+                          value={preference.quietStart}
+                          onChange={(event) =>
+                            update(preference.channel, { quietStart: event.target.value })
+                          }
+                          onBlur={() => void save(preference)}
+                        />
+                      </label>
+                      <label>
+                        Until
+                        <input
+                          type="time"
+                          value={preference.quietEnd}
+                          onChange={(event) =>
+                            update(preference.channel, { quietEnd: event.target.value })
+                          }
+                          onBlur={() => void save(preference)}
+                        />
+                      </label>
+                    </div>
+                  )}
+                  {preference.channel === "email" && preference.enabled && (
+                    <label className="ol-notification-toggle">
+                      <span>Daily digest</span>
+                      <input
+                        type="checkbox"
+                        checked={preference.digestEnabled}
+                        disabled={busy}
+                        onChange={(event) => {
+                          const next = { ...preference, digestEnabled: event.target.checked };
+                          update(preference.channel, { digestEnabled: event.target.checked });
+                          void save(next);
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              ))}
+              <p>
+                A push payload never carries usage detail, whatever the email setting says, so a
+                locked screen never shows one.
+              </p>
               <p role="status">{message}</p>
             </div>
           )}

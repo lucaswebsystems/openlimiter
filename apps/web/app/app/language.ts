@@ -140,16 +140,49 @@ const METER_NAMES: Record<string, string> = {
   DAILY: "Daily",
   ONE_DAY: "Daily",
   SEVEN_DAY: "Weekly",
+  SEVEN_DAY_OPUS: "Weekly Opus",
+  SEVEN_DAY_SONNET: "Weekly Sonnet",
+  SEVEN_DAY_OAUTH_APPS: "Weekly OAuth apps",
   WEEKLY: "Weekly",
   THIRTY_DAY: "Monthly",
   MONTHLY: "Monthly",
+  ON_DEMAND_MONTHLY: "On demand monthly",
+  EXTRA_USAGE: "Extra usage",
   CREDITS: "Credits",
   BALANCE: "Credits",
 };
 
+/** The prefix Claude builds every model specific weekly code on. */
+const MODEL_WEEKLY_PREFIX = "SEVEN_DAY_";
+
+/**
+ * A model specific weekly bucket, in words.
+ *
+ * Claude states one weekly pool per model, and those codes are built from names
+ * the provider chose, so this build cannot hold a label for each one and must
+ * not shout the code at a person instead. The cadence stays in front, where the
+ * eye reads it, and the model follows in brackets: SEVEN_DAY_FABLE_5 reads as
+ * "Weekly (Fable 5)". An explicit label above always wins.
+ */
+function modelWeeklyName(code: string): string | null {
+  if (!code.startsWith(MODEL_WEEKLY_PREFIX)) return null;
+  const words = code
+    .slice(MODEL_WEEKLY_PREFIX.length)
+    .toLowerCase()
+    .split(/[\s_-]+/u)
+    .filter((word) => word !== "");
+  if (words.length === 0) return null;
+  const model = words
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+  return "Weekly (" + model + ")";
+}
+
 export function meterName(code: string): string {
   const known = METER_NAMES[code];
   if (known !== undefined) return known;
+  const modelWeekly = modelWeeklyName(code);
+  if (modelWeekly !== null) return modelWeekly;
   const words = code.toLowerCase().split(/[\s_-]+/u).filter((word) => word !== "");
   if (words.length === 0) return code;
   return words
@@ -177,16 +210,31 @@ const METER_RANK: Record<string, number> = {
   DAILY: 30,
   ONE_DAY: 30,
   SEVEN_DAY: 40,
+  SEVEN_DAY_OPUS: 41,
+  SEVEN_DAY_SONNET: 42,
+  SEVEN_DAY_OAUTH_APPS: 43,
   WEEKLY: 40,
   THIRTY_DAY: 50,
   MONTHLY: 50,
+  ON_DEMAND_MONTHLY: 51,
+  EXTRA_USAGE: 52,
   CREDITS: 60,
   BALANCE: 60,
 };
 
+/**
+ * Where a model specific weekly bucket sorts.
+ *
+ * Right after the week it belongs to, and before the month, so the weekly group
+ * reads as one block whatever models an account happens to have.
+ */
+const MODEL_WEEKLY_RANK = 45;
+
 /** Unmapped codes sort after every known one, then alphabetically. */
 export function meterRank(code: string): number {
-  return METER_RANK[code] ?? 90;
+  const known = METER_RANK[code];
+  if (known !== undefined) return known;
+  return code.startsWith(MODEL_WEEKLY_PREFIX) ? MODEL_WEEKLY_RANK : 90;
 }
 
 /** Sort any list of meters into the reading order above, by code. */
@@ -217,7 +265,7 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   ANTIGRAVITY: "Antigravity",
   GEMINI_CLI: "Gemini CLI",
   OPENCODE: "OpenCode",
-  GROK: "Grok",
+  GROK: "Grok Build",
   KIMI: "Kimi",
   MANUAL: "Manual",
 };

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
+import { HOOK_INPUT_MAX_BYTES } from "@openlimiter/adapters";
 import { runCli } from "./cli.js";
 import { readStandardInputBuffer, readStandardInputText } from "./ingest.js";
 import {
@@ -46,7 +47,9 @@ if (wrapperRequested && wrapped === null) {
 } else {
   const result = await runCli(argumentsList, {
     promptForSecret,
-    readStandardInput: () => readStandardInputText()
+    readStandardInput: (signal) => argumentsList[0] === "hook"
+      ? readStandardInputText(process.stdin, HOOK_INPUT_MAX_BYTES, undefined, signal)
+      : readStandardInputText()
   });
   if (result.stdout !== "") process.stdout.write(result.stdout + "\n");
   if (result.stderr !== "") process.stderr.write(result.stderr + "\n");

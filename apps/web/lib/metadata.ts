@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { DEFAULT_LOCALE, LOCALES, LOCALE_FACES, type Locale } from "@/i18n/locales";
 import { localePath } from "@/i18n/routing";
 import { findDocPage } from "./docs";
-import { AUTHOR_NAME, SITE_NAME, TITLE_SUFFIX } from "./site";
+import { AUTHOR_NAME, SITE_NAME, SITE_URL, TITLE_SUFFIX } from "./site";
 
 /**
  * Per page metadata, built once.
@@ -124,6 +124,7 @@ export function pageMetadata(input: PageMetadataInput): Metadata {
   const path = localePath(locale, route);
 
   const shared = {
+    metadataBase: new URL(SITE_URL),
     title: absoluteTitle ? { absolute: title } : title,
     description,
     alternates: localised ? localeAlternates(route, locale) : { canonical: path },

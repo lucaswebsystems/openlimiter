@@ -85,6 +85,13 @@ const COPY = {
     from: path.join(REPOSITORY, "packages", "ui", "dist"),
     files: ["provider-connect.js", "provider-row.js"],
   },
+  /* The QR encoder the command line tool already ships. It has no imports and
+     no node surface at all, so the phone pairing panel draws the same symbol
+     `openlimiter serve` prints rather than carrying a second encoder. */
+  cli: {
+    from: path.join(REPOSITORY, "packages", "cli", "dist"),
+    files: ["qr.js"],
+  },
 };
 
 const CORE_BARREL = `/*
@@ -218,6 +225,26 @@ const WINDOW_FILES = [
   "configured-providers.js",
   "connections.js",
   "first-run.js",
+  /* The failure card, built out of nodes because every value on it came off a
+     file this window did not write. */
+  "failure-rows.js",
+  /* The signature meter, the four screens built on the connection and
+     entitlement contract, and the tray popover, which is its own document
+     because Rust gives it its own window. */
+  "live-meter.js",
+  "surfaces.css",
+  "plan-cap.js",
+  "settings.js",
+  "pro.js",
+  /* Phone pairing: the panel, the state vocabulary it draws from, and the
+     symbol. pairing-states.js imports nothing, which is what lets the whole
+     set of states be tested without a window anywhere near it. */
+  "pairing.js",
+  "pairing-states.js",
+  "qr.js",
+  "tray.html",
+  "tray.css",
+  "tray.js",
 ];
 
 for (const file of WINDOW_FILES) {

@@ -564,10 +564,11 @@ async fn collect_account_guarded<T: Transport>(
     (outcome, abort_provider)
 }
 
-pub async fn run_pass(app: &AppHandle) {
-    let account_ids = app
+pub async fn run_pass(app: &AppHandle, automatic_account_limit: usize) {
+    let mut account_ids = app
         .state::<DetectionStore>()
         .account_ids(DetectedProviderId::GeminiCli);
+    account_ids.truncate(automatic_account_limit);
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<GeminiCliOauthRuntime>();
@@ -680,8 +681,12 @@ mod tests {
     }
 
     fn detection(dir: &TempDir) -> DetectionStore {
+        // Synthetic, unsigned (alg "none") JWT fixture: header and payload are plain
+        // base64url JSON with no real signature, and the payload itself declares it is
+        // a synthetic test fixture. Neither this file's tests nor DetectionStore decode
+        // id_token's claims, so only its presence as a well formed JWT string matters.
         let id_token =
-            "eyJhbGciOiJub25lIn0.eyJzdWIiOiJnb29nbGUtdGVzdC11c2VyIiwiZW1haWwiOiJ0ZXN0QGV4YW1wbGUuY29tIn0.signature";
+            "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0LWZpeHR1cmUtbm90LWEtcmVhbC1hY2NvdW50IiwiZW1haWwiOiJzeW50aGV0aWMtand0LWZpeHR1cmVAZXhhbXBsZS5pbnZhbGlkIiwibm90ZSI6Im5vdCBhIHJlYWwgY3JlZGVudGlhbCwgZ2VuZXJhdGVkIGZvciBnZW1pbmlfY2xpX29hdXRoIHRlc3RzIn0.signature"; // nosemgrep: generic.secrets.security.detected-jwt-token.detected-jwt-token
         write(
             &dir.path().join(".gemini").join("oauth_creds.json"),
             &format!(

@@ -268,7 +268,7 @@ const PRESENTATION: readonly Presentation[] = [
   },
   {
     specId: "xai/grok-cli",
-    name: "Grok",
+    name: "Grok Build",
     Mark: XaiMark,
     factKey: "grok",
   },

@@ -27,6 +27,7 @@ import {
   type TabDefinition,
 } from "./pieces";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LiveMeter } from "./live-meter";
 import { NotificationBell, type AlertScope } from "./notification-bell";
 import {
   createSyncClient,
@@ -34,6 +35,10 @@ import {
   type SyncedProviderUsage,
   type SyncedUsageResult,
 } from "@/lib/synced-usage";
+import { getDevPreviewSnapshots } from "./dev-preview";
+import { authRedirectUrl } from "@/lib/pro";
+
+const IS_DEV = process.env.NODE_ENV !== "production";
 
 /**
  * The dashboard.
@@ -167,7 +172,7 @@ function AccountGate({ client }: { client: SupabaseClient | null }) {
     setMessage("");
     const { error } = await client.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.href.split("?")[0] },
+      options: { redirectTo: authRedirectUrl() },
     });
     if (error !== null) {
       setBusy(false);
@@ -182,7 +187,7 @@ function AccountGate({ client }: { client: SupabaseClient | null }) {
     setMessage("");
     const { error } = await client.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: window.location.href.split("?")[0] },
+      options: { emailRedirectTo: authRedirectUrl() },
     });
     setBusy(false);
     setMessage(error === null ? "Check your email to finish signing in." : "Email sign in is unavailable.");
@@ -330,7 +335,20 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
   const demo = mode === "demo";
 
+  const [mounted, setMounted] = useState(false);
+  const [isDevPreview, setIsDevPreview] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
+    let devActive = false;
+    if (IS_DEV && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("preview") === "1" || window.location.search.includes("preview=1")) {
+        devActive = true;
+        setIsDevPreview(true);
+      }
+    }
+
     migrateLegacy();
     const storedLive = loadStore(LIVE_KEY);
     const storedDemo = loadStore(DEMO_KEY);
@@ -342,7 +360,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setNow(new Date().toISOString());
 
     const activeSnapshots = storedMode === "demo" ? storedDemo : storedLive;
-    if (activeSnapshots.length > 0) {
+    if (devActive || activeSnapshots.length > 0) {
       setTab("home");
     } else {
       setTab("connections");
@@ -357,7 +375,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       window.clearInterval(timer);
       if (busyTimer.current !== null) window.clearTimeout(busyTimer.current);
     };
-  }, []);
+  }, [isDevPreview]);
 
   const refreshSyncedUsage = useCallback(() => {
     if (!syncEnabled) {
@@ -464,9 +482,20 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   );
   const showingSync = syncEnabled && !demo && syncedSnapshots.length > 0;
 
+  const devSnapshots = useMemo(
+    () => (isDevPreview && now !== null ? getDevPreviewSnapshots(now) : []),
+    [isDevPreview, now],
+  );
+
   /* One trusted source is on screen at a time, and this is where that is decided. */
-  const shown = demo ? demoSnapshots : showingSync ? syncedSnapshots : live;
-  const shownFailures = demo || showingSync ? NO_FAILURES : failures;
+  const shown = isDevPreview
+    ? devSnapshots
+    : demo
+      ? demoSnapshots
+      : showingSync
+        ? syncedSnapshots
+        : live;
+  const shownFailures = isDevPreview || demo || showingSync ? NO_FAILURES : failures;
 
   /* The rendered shape of every reading. */
   const dash = useMemo(
@@ -480,8 +509,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     () =>
       now === null
         ? []
-        : buildProviderAccountRows(shown, now, shownFailures, { demo }),
-    [shown, now, shownFailures, demo],
+        : buildProviderAccountRows(shown, now, shownFailures, { demo: demo || isDevPreview }),
+    [shown, now, shownFailures, demo, isDevPreview],
   );
 
   const alertScopes = useMemo(() => {
@@ -498,11 +527,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     return [...scopes.values()];
   }, [shown]);
 
-  if (session === undefined) {
+  const effectiveSession =
+    isDevPreview && IS_DEV
+      ? ({ user: { email: "preview@openlimiter.com" } } as unknown as Session)
+      : session;
+
+  if (!mounted || effectiveSession === undefined) {
     return <div className="ol-dashboard"><SkeletonRows /></div>;
   }
 
-  if (session === null) {
+  if (effectiveSession === null) {
     return (
       <div className="ol-dashboard">
         <HeaderStrip
@@ -531,7 +565,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             <InstallControl />
             <ThemeToggle className="mr-1 h-9 w-9" />
             <SettingsMenu
-              accountEmail={session.user.email ?? "Signed in"}
+              accountEmail={effectiveSession.user.email ?? "Signed in"}
               syncEnabled={syncEnabled}
               onSyncChange={(enabled) => {
                 setSyncEnabled(enabled);
@@ -571,6 +605,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           ) : (
             <div className="ol-home-stack">
               {!hasReadings && <FirstRunState onConnect={openConnections} />}
+              {hasReadings && <LiveMeter snapshots={shown} now={now} demo={demo} />}
               <ProviderRows rows={providerRows} />
             </div>
           )}

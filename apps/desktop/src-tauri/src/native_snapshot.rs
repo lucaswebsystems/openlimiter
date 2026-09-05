@@ -164,13 +164,30 @@ fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
     if !basic {
         return None;
     }
+    /*
+     * The amount pair, and why a used figure may exceed its limit.
+     *
+     * This used to require `used <= limit`, which read as a sanity check and
+     * behaved as a silent edit: a paid overflow allowance that a working
+     * session overran between two polls arrived with real dollars, failed that
+     * one comparison, and reached disk as a full bar over no amounts at all,
+     * which is the one reading nobody can act on. An overspend is not a
+     * malformed pair, it is the state the account is actually in, and the
+     * reader that produces it already caps the percentage at full.
+     *
+     * The bounds that remain are the ones that keep a row printable and
+     * bounded: both figures finite, neither negative, neither past MAX_AMOUNT,
+     * and the one currency this cache stores. A pair failing those still costs
+     * the pair, and never the row.
+     */
     let amounts_ok = match (&row.used_amount, &row.limit_amount, &row.currency) {
         (None, None, None) => true,
         (Some(used), Some(limit), Some(currency)) => {
             used.is_finite()
                 && limit.is_finite()
                 && *used >= 0.0
-                && *used <= *limit
+                && *used <= MAX_AMOUNT
+                && *limit >= 0.0
                 && *limit <= MAX_AMOUNT
                 && currency == "USD"
         }
@@ -440,5 +457,87 @@ mod tests {
         let rows = document["snapshots"].as_array().expect("rows");
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].get("accountId"), None);
+    }
+
+    fn overspent_extra_usage(now: u64) -> Snapshot {
+        Snapshot {
+            provider: "CLAUDE".to_string(),
+            meter: "EXTRA_USAGE".to_string(),
+            value: 100.0,
+            unit: "PERCENT".to_string(),
+            window: SnapshotWindow {
+                kind: "fixed".to_string(),
+                duration_seconds: None,
+            },
+            reset_at: None,
+            source: "internal_payload".to_string(),
+            precision: "exact".to_string(),
+            observed_at: iso_from_epoch_ms(now).expect("observed"),
+            expires_at: iso_from_epoch_ms(now + 1_200_000).expect("expires"),
+            labels: ConnectorLabels {
+                credential_origin: "official-local-tool".to_string(),
+                data_interface_status: "internal-endpoint".to_string(),
+                automation_risk: "high".to_string(),
+                verification: "UNVERIFIED".to_string(),
+            },
+            used_amount: Some(62.5),
+            limit_amount: Some(50.0),
+            currency: Some("USD".to_string()),
+            account_id: Some("claude-overspend".to_string()),
+            provenance: None,
+        }
+    }
+
+    /// A budget that was overrun is still a reading, on the way to disk and
+    /// on the way back.
+    ///
+    /// The reader keeps an overspent extra usage allowance and caps its bar at
+    /// full. Stripping the dollars here would undo exactly that: the row would
+    /// arrive saying a hundred percent of nothing, which is the one number
+    /// nobody can act on. Both amounts survive the write and the read.
+    #[test]
+    fn an_overspent_allowance_keeps_both_amounts_through_the_cache() {
+        let now = epoch_ms_from_rfc3339("2026-08-16T12:00:00.000Z").expect("fixture clock");
+        let committed = fold(
+            None,
+            "CLAUDE",
+            Some("claude-overspend"),
+            &CacheReport::Success(vec![overspent_extra_usage(now)]),
+        )
+        .expect("success fold");
+
+        assert!(committed.contains("\"usedAmount\":62.5"));
+        assert!(committed.contains("\"limitAmount\":50.0"));
+
+        let (rows, _) = read_document(Some(&committed)).expect("cache document");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].meter, "EXTRA_USAGE");
+        assert_eq!(rows[0].value, 100.0);
+        assert_eq!(rows[0].used_amount, Some(62.5));
+        assert_eq!(rows[0].limit_amount, Some(50.0));
+        assert_eq!(rows[0].currency.as_deref(), Some("USD"));
+    }
+
+    /// The bounds that remain are the ones that keep a row printable: an
+    /// amount outside them still costs the pair, an overspend does not.
+    #[test]
+    fn an_amount_outside_its_bounds_still_loses_the_pair() {
+        let now = epoch_ms_from_rfc3339("2026-08-16T12:00:00.000Z").expect("fixture clock");
+        for (used, limit, currency) in [
+            (-1.0, 50.0, "USD"),
+            (62.5, -50.0, "USD"),
+            (MAX_AMOUNT + 1.0, 50.0, "USD"),
+            (62.5, MAX_AMOUNT + 1.0, "USD"),
+            (62.5, 50.0, "EUR"),
+        ] {
+            let mut row = overspent_extra_usage(now);
+            row.used_amount = Some(used);
+            row.limit_amount = Some(limit);
+            row.currency = Some(currency.to_string());
+            let normalized = normalize_snapshot(row).expect("the row itself survives");
+            assert_eq!(normalized.used_amount, None);
+            assert_eq!(normalized.limit_amount, None);
+            assert_eq!(normalized.currency, None);
+        }
     }
 }

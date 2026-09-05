@@ -30,8 +30,8 @@
     "closeMenu": "Menü schließen"
   },
   "announce": {
-    "message": "OpenLimiter Pro kommt demnächst. Das lokale Produkt und das Konto sind kostenlos. Nur Nutzungsprozente werden synchronisiert, niemals Schlüssel oder Zugangsdaten.",
-    "short": "OpenLimiter Pro kommt demnächst",
+    "message": "OpenLimiter Pro ist da. Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
+    "short": "OpenLimiter Pro ist da",
     "dismiss": "Diese Ankündigung schließen"
   },
   "footer": {
@@ -42,16 +42,282 @@
     "community": "Community",
     "trust": "Vertrauen",
     "issues": "Issues",
-    "licenceNote": "Apache 2.0 | Lokal zuerst | Keine Telemetrie | Kein Tracking | Kostenloses Konto",
+    "licenceNote": "Apache 2.0 | Lokal zuerst | Null Telemetrie in der App | Keine Tracking Cookies | Kostenloses Konto",
     "licenceRead": "Lizenz lesen",
     "rights": "Alle Rechte vorbehalten",
     "licensed": "Apache 2.0 lizenziert",
     "security": "Sicherheit"
   },
   "terms": {
-    "title": "Terms and conditions",
-    "lead": "These terms explain the rules for using the OpenLimiter website and software. They are meant to be clear and practical.",
-    "metaDescription": "The terms that apply when you use the OpenLimiter website and open source software."
+    "title": "Nutzungsbedingungen",
+    "lead": "Die Regeln für die Nutzung der OpenLimiter Website und Software sowie die Bedingungen des Pro Abonnements. Sie sollen klar und praktisch sein.",
+    "metaDescription": "Die Bedingungen, die für die Nutzung der OpenLimiter Website und der quelloffenen Software gelten, einschließlich Abrechnung, Kündigung, Rückerstattung und fehlgeschlagener Zahlungen bei Pro.",
+    "sections": {
+      "acceptance": {
+        "title": "Zustimmung",
+        "body": "Mit dem Zugriff auf diese Website oder ihrer Nutzung stimmst du diesen Bedingungen zu. Wenn du nicht zustimmst, nutze die Website bitte nicht weiter. Deine Nutzung der Software richtet sich gesondert nach ihrer Lizenz, und der Abschluss von Pro fügt die Abonnementabschnitte weiter unten hinzu."
+      },
+      "licence": {
+        "title": "Softwarelizenz",
+        "body": "OpenLimiter ist freie und quelloffene Software unter der <licence>Apache License 2.0</licence>. Diese Lizenz und nicht diese Websitebedingungen regelt dein Recht, die Software zu nutzen, zu kopieren, zu verändern und weiterzugeben."
+      },
+      "account": {
+        "title": "Das Konto und Pro",
+        "body": "Ein Konto ist kostenlos, und alles, was du lokal siehst, bleibt mit oder ohne Konto kostenlos. Die Anmeldung schaltet die Synchronisierung ein, denn dafür gibt es sie: deine eigenen Prozentwerte zwischen deinen eigenen Geräten zu bewegen. Pro sind sechs Funktionen: jeder Alert, neunzig Tage gehosteter Verlauf mit Prognose, gehosteter Routing Kontext, mehr als ein Konto je Anbieter, eine Pro Anzeigevorgabe und das Ausgaben Beta über der kostenlosen Obergrenze. Vier sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung. Die kostenlose Grenze von einem Konto je Anbieter setzt die Desktopanwendung als Richtlinie in offenem Quelltext durch, nicht als Sicherheitsgrenze; das ist ein Versprechen über das Verhalten des Produkts und keine technische Sperre."
+      },
+      "billing": {
+        "title": "Abrechnung",
+        "body": "Pro kostet 5 US Dollar im Monat oder 50 US Dollar im Jahr, und die ersten 30 Tage sind kostenlos, ohne Karte. OpenLimiter Pro wird von Lucas Costa verkauft. Die Zahlungen nimmt Stripe entgegen, das als Zahlungsdienstleister auftritt und deine Kartendaten hält. Die Steuer wird beim Checkout automatisch berechnet und kann je nach deinem Ort zum genannten Preis hinzukommen, weshalb eine Rechnungsadresse erhoben wird. Ein Abonnement verlängert sich am Ende jedes Zeitraums automatisch, bis du kündigst."
+      },
+      "cancellation": {
+        "title": "Kündigung",
+        "body": "Du kannst jederzeit über das Stripe Kundenportal kündigen, erreichbar über den Abrechnungsbildschirm in deinem Konto. Die Kündigung wirkt zum Ende des bereits bezahlten Zeitraums: die Pro Funktionen laufen bis zu diesem Datum weiter und hören dann auf. Kündigen löscht deine Daten nicht, und alles Lokale funktioniert genau wie zuvor."
+      },
+      "refund": {
+        "title": "Rückerstattungen",
+        "body": "Eine vollständige Rückerstattung gibt es auf Anfrage innerhalb von 14 Kalendertagen nach jeder Abbuchung, monatlich wie jährlich, ohne Begründung. Schreibe an die Adresse am Fuß dieser Seite und nenne die betreffende Abbuchung. Eine bestätigte vollständige Rückerstattung kündigt dieses Abonnement sofort und beendet Pro, und sie rührt nichts an, was auf deinem eigenen Rechner liegt. Nach 14 Tagen ist eine Abbuchung nicht mehr automatisch erstattungsfähig, und eine Anfrage wird trotzdem gelesen und beantwortet."
+      },
+      "failedPayment": {
+        "title": "Fehlgeschlagene Zahlungen",
+        "body": "Schlägt eine Zahlung fehl, geht Pro in den Zustand überfällig, und du behältst den gehosteten Zugang für feste 72 Stunden ab diesem ersten Fehlschlag. Weitere Versuche und weitere Fehlschläge verlängern dieses Fenster nicht. Wird die offene Rechnung darin bezahlt, ist der Zugang sofort wieder da. Ist die Rechnung beim Schließen des Fensters weiterhin offen, hören die gehosteten Funktionen auf, und alles Lokale läuft weiter. Eine spätere erfolgreiche Zahlung kann den Zugang wiederherstellen, sofern das Abonnement nicht bereits gekündigt oder erstattet wurde."
+      },
+      "warranty": {
+        "title": "Keine Gewährleistung",
+        "body": "Die Website, die Software und die gehosteten Dienste werden so wie sie sind und nach Verfügbarkeit bereitgestellt. Wir versprechen nicht, dass sie stets genau, vollständig, sicher oder verfügbar sind. Quota Werte stammen aus Schnittstellen, die den Anbietern gehören, und können sich ohne Ankündigung ändern, ein Wert kann also fehlen, veraltet oder falsch sein und darf nie deine einzige Absicherung gegen das Überschreiten eines Limits sein. Soweit gesetzlich zulässig, wird jede Gewährleistung ausgeschlossen."
+      },
+      "liability": {
+        "title": "Haftungsbeschränkung",
+        "body": "Soweit gesetzlich zulässig, haften Lucas Costa und die Mitwirkenden an OpenLimiter nicht für mittelbare, beiläufige, besondere, Folge oder Strafschäden und nicht für verlorene Daten, Gewinne, Einnahmen oder Gelegenheiten, die aus der Nutzung oder der Unmöglichkeit der Nutzung der Website, der Software oder der gehosteten Dienste entstehen. Jede Haftung, die das Gesetz auszuschließen nicht erlaubt, ist auf den Betrag begrenzt, den du in den zwölf Monaten vor dem Anspruch gezahlt hast, oder auf das gesetzliche Mindestmaß, falls dieses höher ist."
+      },
+      "links": {
+        "title": "Externe Links",
+        "body": "Diese Website kann auf Dienste verweisen, die OpenLimiter nicht kontrolliert, und das Produkt liest Schnittstellen, die anderen Unternehmen gehören. Diese Dienste haben eigene Bedingungen und eigene Datenschutzpraktiken. Wir sind für ihre Inhalte, ihre Verfügbarkeit und ihr Verhalten nicht verantwortlich, und nichts hiervon begründet eine Beziehung zu ihnen oder eine Befürwortung durch sie."
+      },
+      "changes": {
+        "title": "Änderungen dieser Bedingungen",
+        "body": "Wir können diese Bedingungen ändern, wenn sich die Website, die Software, das Abonnement oder das geltende Recht ändern. Neue Bedingungen gelten, sobald sie auf dieser Seite veröffentlicht sind. Nutzt du die Website nach einer Aktualisierung weiter, nimmst du die überarbeitete Fassung an. Eine Änderung, die ein laufendes Abonnement betrifft, wird angekündigt, bevor sie darauf angewendet wird."
+      },
+      "privacy": {
+        "title": "Datenschutz",
+        "body": "Was erhoben wird, wohin es geht und wie lange es bleibt, steht in der <privacy>Datenschutzerklärung</privacy>, die Teil dieser Bedingungen ist. Kurz gesagt: der lokale Modus erhebt nichts, und das Konto existiert nur, um deine eigenen Quota Werte und dein Abonnement zu tragen."
+      },
+      "contact": {
+        "title": "Kontakt",
+        "body": "Fragen zu diesen Bedingungen sowie Rückerstattungs und Kündigungsanfragen können an <mail>lucas@lucaswebsystems.com</mail> gehen."
+      }
+    }
+  },
+  "privacy": {
+    "title": "Datenschutz",
+    "lead": "Was OpenLimiter erhebt, was es niemals erhebt, wohin jedes Stück geht und wie lange es aufbewahrt wird. Geschrieben aus den Datenflüssen, die es im Produkt wirklich gibt, nicht aus einer Vorlage.",
+    "metaDescription": "Wie OpenLimiter mit Daten umgeht. Der lokale Modus erhebt nichts, die Felder von Konto und Synchronisierung sind einzeln aufgeführt, Anbieterschlüssel bleiben im Schlüsselbund des Betriebssystems, und jede Aufbewahrungsfrist ist benannt.",
+    "summary": {
+      "title": "Die kurze Fassung",
+      "bullets": {
+        "local": "Der lokale Modus erhebt nichts. Kein Konto, kein Server, und nichts verlässt deinen Rechner.",
+        "account": "Ein Konto ist freiwillig. Die Anmeldung gibt es, damit deine eigenen Quota Prozentwerte deine anderen Geräte erreichen und damit Pro an etwas hängen kann. Ab diesem Moment ist die Synchronisierung aktiv.",
+        "sync": "Synchronisiert wird begrenzter Quota Zustand: ein Anbieter, ein Messwert, ein Fenster, ein Prozentwert und Zeitstempel. Niemals Prompts, niemals Code, niemals der Inhalt einer Datei.",
+        "keys": "Anbieterzugangsdaten und API Schlüssel bleiben im Schlüsselbund des Betriebssystems auf deinem eigenen Gerät. Sie werden nie an OpenLimiter gesendet.",
+        "website": "Diese Website zählt Seitenaufrufe ohne Cookies. Die Anwendung sendet nichts.",
+        "sell": "Nichts wird verkauft, vermietet oder an einen Werbetreibenden gegeben. Hier gibt es keine Werbung."
+      }
+    },
+    "local": {
+      "title": "Der lokale Modus erhebt nichts",
+      "body": "Das Kommandozeilenwerkzeug, die Desktopanwendung und die Web App laufen alle auf deinem Rechner, und im lokalen Modus steht kein Konto und kein Dienst dahinter. Es gibt nichts zu erheben, weil es keinen Ort gibt, an den es gehen könnte.",
+      "bullets": {
+        "reads": "Konnektoren lesen Dateien, die deine installierten Werkzeuge bereits geschrieben haben, nur lesend. Sie schreiben nie zurück, reparieren nicht und migrieren nicht, was sie öffnen.",
+        "credentials": "Anbieterzugangsdaten liegen im Anmeldeinformationsspeicher des Betriebssystems. OpenLimiter kopiert keine davon in einen Cache, einen Export, eine Diagnose oder ein Protokoll.",
+        "telemetry": "Die Anwendung sendet keine Telemetrie, keine Nutzung, keine Diagnose, keine Kennungen und keine Prompt Inhalte irgendwohin.",
+        "account": "Für keine lokale Funktion ist eine Anmeldung nötig. Alles, was du lokal siehst, ist kostenlos, und Pro verkauft Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über der kostenlosen Obergrenze."
+      }
+    },
+    "account": {
+      "title": "Das Konto",
+      "body": "Ein Konto wird nur für die gehosteten Teile gebraucht: die Synchronisierung deiner Quota zwischen deinen Geräten und Pro. Die Anmeldung läuft über Supabase, das die Datenbank und die Authentifizierung des Dienstes hostet.",
+      "bullets": {
+        "identity": "Du kannst dich mit GitHub, mit Google oder mit einem Magic Link an deine E Mail Adresse anmelden. Die Wahl liegt bei dir, und du kannst später eine weitere verknüpfen.",
+        "stored": "Das Konto hält deine E Mail Adresse, die Kennung, die der Anmeldeanbieter zurückgibt, den Zeitpunkt der Kontoerstellung und den Zeitpunkt deiner letzten Anmeldung.",
+        "password": "Es gibt kein Passwort, also gibt es auch keines, das auslaufen könnte. GitHub und Google geben dein Passwort ebenfalls nie weiter, nur die Bestätigung, dass du es bist.",
+        "devices": "Jedes Gerät, auf dem du dich anmeldest, bekommt eine Bezeichnung, einen Erstellungszeitpunkt und einen Zeitpunkt der letzten Nutzung, damit du die Liste siehst und jedes davon widerrufen kannst."
+      }
+    },
+    "sync": {
+      "title": "Was die Synchronisierung wirklich sendet",
+      "body": "Die Synchronisierung existiert, damit eine Zahl, die du auf einem Rechner schon hast, auf einem anderen sichtbar wird. Sie trägt den Messwert und nichts drumherum.",
+      "bullets": {
+        "fields": "Eine Zeile pro Messwert: welcher Anbieter, welcher Messwert, welches Fenster, ein begrenzter Nutzungsprozentwert, wann das Fenster zurückgesetzt wird, wann der Wert beobachtet wurde, eine undurchsichtige Kontokennung und das Gerät, das gesendet hat.",
+        "never": "Sie trägt nie einen Prompt, eine Antwort, einen Dateinamen, einen Pfad, Quelltext, einen Projektnamen, ein Repository, Anbieterzugangsdaten oder eine Anbieternachricht.",
+        "retention": "Deine aktuelle Momentaufnahme wird sieben Tage aufbewahrt. Sie wird ersetzt, sobald ein neuerer Wert eintrifft.",
+        "off": "Die Synchronisierung ist ab deiner Anmeldung aktiv, denn genau dafür ist die Anmeldung da. Du kannst sie in den Einstellungen abschalten, und dann bleiben die Messwerte auf dem Gerät, das sie genommen hat."
+      }
+    },
+    "history": {
+      "title": "Pro Verlauf und Prognose",
+      "body": "Pro bewahrt die Werte auf, die du ohnehin synchronisierst, damit ein längeres Fenster gezeichnet und daraus eine Verbrauchsprognose berechnet werden kann. Es sind dieselben begrenzten Zeilen, nur länger aufbewahrt.",
+      "bullets": {
+        "window": "Rollierende neunzig Tage, solange Pro aktiv ist. Tag einundneunzig ist nicht abfragbar, weil er nicht da ist.",
+        "gaps": "Eine Lücke bleibt eine Lücke. Nichts wird interpoliert, über einen fehlenden Zeitraum geschätzt oder erfunden, damit ein Diagramm durchgehend aussieht.",
+        "afterPro": "Wenn Pro endet, wird der gehostete Verlauf dreißig Tage aufbewahrt, damit du ihn exportieren kannst, und in dieser Zeit können Verlauf, Prognose und Warnungen ihn nicht lesen. Am Ende von Tag dreißig wird er gelöscht.",
+        "local": "Der Verlauf, den die Desktopanwendung lokal hält, gehört dir und wird davon nicht berührt. Das Ende von Pro löscht ihn nie."
+      }
+    },
+    "alerts": {
+      "title": "Alerts auf dem Desktop, per Mail und per Push",
+      "body": "Jeder Alert gehört zu Pro. Er kann dir sagen, wenn ein Fenster sechzig, achtzig oder neunzig Prozent überschreitet und wenn es zurückgesetzt wird. Eine Desktopmeldung zeichnet die Anwendung auf deinem eigenen Rechner, die Mail liefert Resend aus, den Push der Push Dienst deines Browsers oder deines Betriebssystems.",
+      "bullets": {
+        "generic": "Voreingestellt trägt eine Nachricht nur den Produktnamen, den Anbieternamen, die Stufe als sechzig, achtzig, neunzig oder Zurücksetzung, eine allgemeine Zeile und einen Link in das angemeldete Produkt. Kein genauer Prozentwert, kein Betrag, kein Modell, kein Projekt, kein Budget und kein Prognosedatum.",
+        "detail": "Eine ausführliche E Mail ist eine eigene Einwilligung, die du erteilen musst. Sie darf den genauen Prozentwert, den Betrag, das Budget und das Prognosedatum deiner eigenen Daten ergänzen. Ändern sich die Felder je, ändert sich die Version der Einwilligung, und die Ausführlichkeit steht wieder auf aus, bis du erneut zustimmst.",
+        "push": "Push hat nie einen ausführlichen Modus, ganz gleich, was für die E Mail eingestellt ist. Eine Push Nachricht trägt keine Nutzungsdetails, ein gesperrter Bildschirm zeigt also nie welche.",
+        "disable": "Jeder Kanal wird getrennt abgeschaltet. Einen abzuschalten unterdrückt Arbeit, die noch nicht an einen Anbieter übergeben wurde, und eine einzelne Nachricht, die ein Anbieter bereits angenommen hat, kann trotzdem ankommen."
+      }
+    },
+    "spend": {
+      "title": "API Ausgabenschlüssel, in der Beta",
+      "body": "Der API Ausgabenmesser liest deine eigenen Abrechnungs oder Guthabenzahlen bei dem Anbieter, dem sie gehören. Er ist eine erklärte Beta und eine Beobachtung nach bestem Bemühen, also kann sie verspätet, unvollständig, korrigiert oder gar nicht verfügbar sein.",
+      "bullets": {
+        "keyring": "Der Schlüssel, den du angibst, liegt im Schlüsselbund des Betriebssystems, in einem eigenen Bereich. Es gibt kein Zurücklesen: nach dem Speichern kann dir nichts in der Oberfläche den Schlüssel wieder zeigen.",
+        "host": "Der Schlüssel geht nur an den festen HTTPS Host des Anbieters, zu dem er gehört. Weiterleitungen werden abgelehnt, Anfragen und Fehler werden geschwärzt, und Größe und Dauer jedes Aufrufs sind gedeckelt.",
+        "never": "Der Schlüssel wird nie an OpenLimiter gesendet, nie im gehosteten Dienst gespeichert und erscheint nie in einem Protokoll, einer Analyseeigenschaft, einem Absturzbericht oder einem Supportvorgang.",
+        "revoke": "Eine Quelle zu entfernen löscht ihren Schlüssel sofort aus dem Schlüsselbund und bietet an, die von ihr erzeugten Werte zu löschen."
+      }
+    },
+    "payments": {
+      "title": "Zahlungen und Steuern",
+      "body": "Pro wird von Lucas Costa verkauft und über Stripe bezahlt. Kartendaten werden bei Stripe eingegeben und erreichen OpenLimiter nie, das nur das Ergebnis und die Kennungen bekommt, die es braucht, um deinen Zugang mit deinem Abonnement in Einklang zu halten.",
+      "bullets": {
+        "stripe": "Stripe hält deine Zahlungsmethode, deine Rechnungsadresse und deine Rechnungen. OpenLimiter speichert die Kunden und Abonnementkennungen, den Tarif, den Status und die Zeitraumdaten.",
+        "tax": "Die Steuer wird beim Bezahlen automatisch berechnet, und deshalb wird eine Rechnungsadresse erhoben. Die Adresse dient der Steuer und der Rechnung und sonst nichts.",
+        "refund": "Eine vollständige Rückerstattung gibt es auf Anfrage innerhalb von vierzehn Tagen nach jeder Abbuchung. Eine bestätigte vollständige Rückerstattung beendet Pro sofort und lässt deine lokalen Daten unberührt.",
+        "records": "Abrechnungs und Steuerunterlagen werden so lange aufbewahrt, wie das Steuerrecht es verlangt, was länger ist als die Produktfristen weiter unten. Die Kontolöschung pseudonymisiert die Verbindung zwischen dir und einem Datensatz, der bleiben muss."
+      }
+    },
+    "website": {
+      "title": "Diese Website",
+      "body": "Die Website und die Anwendung sind zwei verschiedene Dinge mit zwei verschiedenen Antworten, und es wäre unredlich, nur eine zu geben.",
+      "bullets": {
+        "counts": "Die Website zählt Seitenaufrufe ohne Cookies. Es ist Vercel Web Analytics, und was dabei herauskommt, ist eine Zahl, wie viele Menschen welche Seite geöffnet haben.",
+        "cookies": "Es wird kein Cookie gesetzt, um dich zu verfolgen, kein Profil gebildet, und nichts folgt dir auf eine andere Website. Die einzigen Cookies hier sind das, welches deine gewählte Sprache merkt, und das, welches merkt, dass du einen Hinweis geschlossen hast.",
+        "app": "Die Anwendung sendet nichts. Es gibt keinerlei Analyse in der Desktopanwendung, im Kommandozeilenwerkzeug oder in der Web App.",
+        "language": "Der Sprachkopf deines Browsers wird gelesen, um dir eine übersetzte Seite anzubieten. Das Angebot ist ein Hinweis, den du annehmen oder schließen kannst, und es holt dich nie von der Seite weg, die du aufgerufen hast."
+      }
+    },
+    "processors": {
+      "title": "Wer die Daten sonst noch berührt",
+      "intro": "An den gehosteten Teilen sind sieben Dienste beteiligt. Jeder sieht nur, was seine Aufgabe braucht, und jeder wird hier genannt, damit die Liste geprüft und nicht geglaubt werden muss.",
+      "caption": "Die an den gehosteten Teilen beteiligten Dienste und was jeder davon hält",
+      "columns": {
+        "who": "Dienst",
+        "what": "was er hält"
+      },
+      "rows": {
+        "supabase": {
+          "who": "Supabase",
+          "what": "Die Datenbank und die Anmeldung. Dein Konto, deine synchronisierten Werte, deine Warneinstellungen und deine Geräteliste."
+        },
+        "vercel": {
+          "who": "Vercel",
+          "what": "Das Hosting dieser Website und die Zählung der Seitenaufrufe ohne Cookies. Es sieht deine Kontodaten nie."
+        },
+        "stripe": {
+          "who": "Stripe",
+          "what": "Zahlungsmethode, Rechnungsadresse, Rechnungen und Steuerberechnung. Es sieht deine Quota Daten nie."
+        },
+        "resend": {
+          "who": "Resend",
+          "what": "Die Zustellung der E Mail Warnungen und der Anmeldelinks. Es sieht deine E Mail Adresse und den allgemeinen Nachrichtentext."
+        },
+        "github": {
+          "who": "GitHub",
+          "what": "Anmeldung, wenn du sie wählst. Bestätigt, wer du bist, und gibt eine Kennung und deine Mailadresse zurück. Sieht nie deine Quota Daten und bleibt, solange das Konto besteht."
+        },
+        "google": {
+          "who": "Google",
+          "what": "Anmeldung, wenn du sie wählst. Bestätigt, wer du bist, und gibt eine Kennung und deine Mailadresse zurück. Sieht nie deine Quota Daten und bleibt, solange das Konto besteht."
+        },
+        "push": {
+          "who": "Push Dienste des Browsers und des Betriebssystems",
+          "what": "Zustellung eines Push Alerts an das Gerät, auf dem du ihn eingeschaltet hast, über den Dienst, den dieser Browser nutzt. Er hält den Endpunkt des Abonnements und die Nachricht, und eine Push Nachricht trägt nie Nutzungsdetails. Sie wird gelöscht, wenn du Push abschaltest oder das Gerät widerrufst."
+        }
+      }
+    },
+    "bases": {
+      "title": "Wo das gilt und warum es erlaubt ist",
+      "body": "OpenLimiter wird von Lucas Costa verkauft und weltweit angeboten und ist nach den europäischen und britischen Datenschutzregeln sowie der brasilianischen LGPD geschrieben, weil das die strengsten der bedienten Märkte sind. Wo du auch lebst, es gelten dieselben Gründe.",
+      "bullets": {
+        "contract": "Zur Erfüllung des Vertrags mit dir: Konto, Synchronisierung, Pro Verlauf, Routing Kontext und Abrechnung. Ohne sie gibt es kein Produkt zu liefern.",
+        "consent": "Mit deiner Einwilligung: ausführliche Warn E Mails und Push Benachrichtigungen. Beide sind freiwillig, beide sind aus, bis du sie einschaltest, und beide lassen sich widerrufen, ohne sonst etwas zu verlieren.",
+        "interests": "Aus berechtigtem Interesse: den Dienst sicher halten, Missbrauch der Anmeldung und der Synchronisierungsendpunkte verhindern und Seitenaufrufe auf dieser Website ohne Cookies zählen.",
+        "legal": "Zur Erfüllung einer rechtlichen Pflicht: die Abrechnungs und Steuerunterlagen aufbewahren, die das Steuerrecht verlangt."
+      },
+      "transfers": "Die gehosteten Dienste laufen auf Infrastruktur, die außerhalb deines Landes liegen kann. Wo personenbezogene Daten den Europäischen Wirtschaftsraum oder das Vereinigte Königreich verlassen, reisen sie unter den Standardvertragsklauseln, die diese Dienste veröffentlichen."
+    },
+    "retention": {
+      "title": "Wie lange jedes Stück aufbewahrt wird",
+      "intro": "Jedes Fenster unten ist eine echte Grenze im System, keine Absicht. Das Löschen deines Kontos hat Vorrang vor den aktiven Produktfenstern, und drei Dinge liegen außerhalb: alles auf deinem eigenen Rechner, das nicht unseres ist, verschlüsselte Sicherungskopien, die nach den primären Zeilen nach eigenem Zeitplan ablaufen, und die vom Gesetz verlangten Abrechnungs und Steuerunterlagen, die pseudonymisiert statt gelöscht werden.",
+      "caption": "Jede Datenart und wie lange sie aufbewahrt wird",
+      "columns": {
+        "what": "Daten",
+        "howLong": "aufbewahrt"
+      },
+      "rows": {
+        "local": {
+          "what": "Alles auf deinem eigenen Rechner",
+          "howLong": "Bis du es löschst. Es ist nicht unseres zum Entfernen."
+        },
+        "snapshots": {
+          "what": "Deine aktuelle synchronisierte Momentaufnahme",
+          "howLong": "Sieben Tage, ersetzt durch jeden neueren Wert."
+        },
+        "history": {
+          "what": "Pro Verlauf, solange Pro aktiv ist",
+          "howLong": "Rollierende neunzig Tage."
+        },
+        "afterPro": {
+          "what": "Pro Verlauf, nachdem Pro endet",
+          "howLong": "Dreißig Tage, nur zum Exportieren, dann gelöscht."
+        },
+        "backups": {
+          "what": "Verschlüsselte Sicherungskopien",
+          "howLong": "Spätestens dreißig Tage, nachdem die Primärzeilen weg sind."
+        },
+        "alerts": {
+          "what": "Zustellprotokolle der Warnungen",
+          "howLong": "Neunzig Tage. Geschwärzte Anbieterfehler dreißig Tage."
+        },
+        "exports": {
+          "what": "Ein Datenexport, den du angefordert hast",
+          "howLong": "Der Download verfällt nach vierundzwanzig Stunden."
+        },
+        "billing": {
+          "what": "Abrechnungs und Steuerunterlagen",
+          "howLong": "So lange, wie das Steuerrecht es verlangt."
+        }
+      }
+    },
+    "rights": {
+      "title": "Deine Rechte und die Bedienelemente, die sie einlösen",
+      "body": "Ein Recht, das du nicht ausüben kannst, ist keines, deshalb ist jeder Punkt unten ein Bedienelement im Produkt und kein Antrag, den du formulieren musst.",
+      "bullets": {
+        "export": "Alles exportieren, was der gehostete Dienst über dich hält, als maschinenlesbares Archiv mit einer zugänglichen Tabelle daneben. Anbieterschlüssel sind nie darin, weil sie nie dort waren.",
+        "delete": "Dein Konto löschen. Die Produktdaten gehen binnen vierundzwanzig Stunden, verschlüsselte Sicherungskopien verfallen binnen dreißig Tagen, und nichts Lokales wird angerührt.",
+        "devices": "Jedes an deinem Konto angemeldete Gerät sehen, auch ein per QR gekoppeltes Telefon, und jedes davon widerrufen. Ein widerrufenes Gerät verliert den gehosteten Zugriff sofort.",
+        "channels": "E Mail oder Push getrennt abschalten, jederzeit, ohne das andere zu berühren.",
+        "withdraw": "Die Einwilligung für ausführliche E Mails oder für Push widerrufen. Der Widerruf beendet die Ausführlichkeit, nicht das Konto.",
+        "complain": "Dich bei deiner Datenschutzaufsicht beschweren, wenn du meinst, dass hier schlecht damit umgegangen wird. Du musst nicht zuerst zu uns kommen."
+      },
+      "deletion": "Die Löschung läuft über den Kontobildschirm und verlangt vorher eine erneute Anmeldung, weil sie nicht rückgängig zu machen ist. Wenn du lieber möchtest, dass wir sie vornehmen, schreibe an die Adresse unten und sag <code>delete my account</code>."
+    },
+    "children": {
+      "title": "Kinder",
+      "body": "OpenLimiter ist ein Werkzeug für Menschen, die programmieren, und richtet sich nicht an Kinder. Es wird wissentlich niemandem unter sechzehn angeboten, und für ein Kind wird kein Konto angelegt. Wenn du glaubst, dass ein Kind ein Konto angelegt hat, schreibe an die Adresse unten, und es wird entfernt."
+    },
+    "changes": {
+      "title": "Änderungen und wie du einen Menschen erreichst",
+      "body": "Diese Seite ändert sich, wenn sich das Produkt ändert. Wenn eine Änderung betrifft, was erhoben wird, wohin es geht oder wie lange es bleibt, rückt das Datum unten weiter, und die Änderung steht im Changelog, statt still zu geschehen.",
+      "contact": "Fragen, Anliegen und Beschwerden gehen an <mail>lucas@lucaswebsystems.com</mail>, und ein Mensch liest sie. Die Regeln für die Nutzung der Website selbst stehen in den <terms>Nutzungsbedingungen</terms>.",
+      "updated": "Diese Richtlinie gilt ab Version 1.2.0. Zuletzt aktualisiert am 4. September 2026."
+    }
   },
   "localeSwitcher": {
     "label": "Sprache"
@@ -83,7 +349,7 @@
         "label": "Web App öffnen"
       },
       "macos": {
-        "aria": "OpenLimiter Desktop App für macOS kommt bald"
+        "aria": "Die OpenLimiter Desktop App für macOS herunterladen, unsignierter Build"
       },
       "iphone": {
         "aria": "iPhone: Die Web App installiert sich auf deinen Startbildschirm, es gibt keine App Store App"
@@ -98,7 +364,7 @@
     },
     "rows": {
       "windows": "Für Windows herunterladen",
-      "macos": "macOS kommt bald",
+      "macos": "Für macOS herunterladen",
       "linux": "Für Linux herunterladen",
       "webApp": "Web App öffnen",
       "iphone": "Auf dem iPhone installieren",
@@ -115,7 +381,7 @@
       "play": "Animation abspielen",
       "pause": "Animation pausieren"
     },
-    "disclaimer": "Gepackte Desktop Builds gibt es für Windows und Linux. Der Windows Build ist nicht signiert, daher warnt SmartScreen beim ersten Start: Wähl Weitere Informationen und dann Trotzdem ausführen. macOS kommt bald. npm und die Web App sind jetzt verfügbar. Native mobile Anwendungen sind nicht gebaut."
+    "disclaimer": "Gepackte Desktop Builds gibt es für Windows, macOS und Linux. Windows und macOS sind nicht signiert: SmartScreen will Weitere Informationen und dann Trotzdem ausführen, und macOS will einmal Trotzdem öffnen. Die Downloadseite hat die genauen Schritte. npm und die Web App sind jetzt verfügbar. Native mobile Anwendungen sind nicht gebaut."
   },
   "home": {
     "docsLine": "Beides ist ausführlich dokumentiert: <agentContext>was ein Agent erfährt</agentContext> und <cli>jeder Befehl, mit dem es ausgeliefert wird</cli>.",
@@ -172,7 +438,7 @@
       },
       "openCode": {
         "tag": "liest eine Session, die du schon geöffnet hast",
-        "detail": "Beschreibt die Usage Ansicht hinter einer bestehenden Session. Es trägt das höchste Automatisierungsrisiko der sechs und stoppt in dem Moment, in dem diese Session abläuft."
+        "detail": "Beschreibt die Usage Ansicht hinter einer bestehenden Session. Es trägt das höchste Automatisierungsrisiko der neun und stoppt in dem Moment, in dem diese Session abläuft."
       },
       "gemini": {
         "tag": "liest Modellquota über die installierte CLI",
@@ -226,7 +492,7 @@
     "groups": {
       "today": {
         "label": "Ab heute dabei",
-        "note": "Sechs Connectors sind in diesem Release dabei"
+        "note": "Neun Connectors sind in diesem Release dabei"
       },
       "planned": {
         "label": "Geplant",
@@ -240,6 +506,7 @@
     },
     "feedIn": "So fütterst du einen",
     "footnote": "Jeder Connector wird als <code>UNVERIFIED</code> ausgeliefert, der ehrliche Standard: Noch hat kein expliziter Verifier eine Form gegen ein echtes Konto bestätigt. Drei von ihnen lesen Schnittstellen, die intern zum Tooling eines anderen gehören und sich ohne Ankündigung ändern können, und tut eine das, fällt dieser Provider geschlossen auf unknown zurück, statt zu raten. <link>Jeder Connector und sein echter Stand</link>.",
+    "compatibilityNote": "Produktnamen, Logos, Marken und andere Warenzeichen, die in OpenLimiter verwendet werden oder auf die verwiesen wird, sind Eigentum der jeweiligen Markeninhaber. Diese Markeninhaber sind nicht mit OpenLimiter, unseren Produkten oder unserer Website verbunden. Sie sponsern oder unterstützen OpenLimiter nicht. Die Verwendung begründet keine Zugehörigkeit oder Befürwortung.",
     "manualNote": "Jedes Tool auf dieser Seite lässt sich schon heute in den Meter aufnehmen. Verbinde es über die Desktop Anwendung, oder trag unter Erweitert die Zahlen per manual entry ein, oder leite eine Payload per ingest aus einem beliebigen Skript ein, das du kontrollierst. So oder so landet es im selben Snapshot wie ein Connector."
   },
   "runsWhere": {
@@ -250,15 +517,15 @@
   "webApp": {
     "title": "Web App",
     "status": "live",
-    "lead": "Ein Browser ist die eine Oberfläche, die jedes Gerät schon hat. Dieser fährt denselben Engine wie das Kommandozeilenwerkzeug, auf einem Dokument, das du ihm gibst, vollständig im Tab verarbeitet, ohne Upload, ohne Konto, und ohne dass vorher etwas installiert werden muss.",
+    "lead": "Ein Browser ist die eine Oberfläche, die jedes Gerät schon hat. Dieser führt dieselbe Engine aus wie das Kommandozeilenwerkzeug, vollständig im Tab ausgewertet, und es ist nichts zu installieren. Melde dich an, und er zeigt die Prozentwerte, die deine eigenen Geräte synchronisiert haben; ein per QR gekoppeltes Telefon liest dieselben Zeilen.",
     "facts": {
       "sameEngine": {
         "title": "Dieselbe Engine, im Tab",
         "detail": "Keine zweite Implementierung. Der Core, die Connectors und der Adapter werden vom Kommandozeilen Tool eins zu eins in das Browser Bundle gespiegelt, sodass sich ein Wert hier und ein Wert im Terminal nicht widersprechen können."
       },
       "handDocument": {
-        "title": "Du gibst ihr das Dokument",
-        "detail": "Füg ein oder zieh hinein, was openlimiter export ausgibt. Ein Browser Tab kann deine Festplatte nicht von sich aus lesen, und dafür wird auch nichts hochgeladen: Das Parsen passiert im Tab, und keine Anfrage verlässt ihn."
+        "title": "Anmelden oder ein Dokument übergeben",
+        "detail": "Angemeldet zeigt er die begrenzten Prozentwerte, die deine eigenen Geräte synchronisiert haben. Du kannst auch einfügen oder ablegen, was openlimiter export ausgibt, und diese Auswertung passiert im Tab: ein Dokument, das du übergibst, wird nie hochgeladen."
       },
       "offline": {
         "title": "Installiert sich, und funktioniert offline",
@@ -351,7 +618,7 @@
   },
   "cliTranscript": {
     "captions": {
-      "demo": "Alle sechs Connectors, ein Schema",
+      "demo": "Alle neun Connectors, ein Schema",
       "statusline": "Statusline, Balken dort, wo du ohnehin hinschaust",
       "statuslineNarrow": "Eine Zeile, schlechteste Provider behalten",
       "statuslinePlain": "Die 0.1.0 Zeile, auf Wunsch",
@@ -406,7 +673,7 @@
     "items": {
       "whatLeaves": {
         "question": "Was verlässt meinen Rechner wirklich?",
-        "answer": "Im lokalen Modus geht nichts an OpenLimiter. Anbieter Verbindungen sprechen nur mit dem jeweiligen Anbieter, und Zugangsdaten bleiben im Anmeldedatenspeicher des Betriebssystems. Wenn du Pro wählst, gehen ausgewählte begrenzte Kontingentdaten für Warnungen, Verlauf, Prognosen und Agent Routing an den Dienst. Anbieter Zugangsdaten gehen niemals dorthin."
+        "answer": "Im lokalen Modus verlässt nichts das Gerät Richtung OpenLimiter. Anbieterverbindungen sprechen über eine feste Liste nur mit dem jeweiligen Anbieter, und Zugangsdaten bleiben im Anmeldeinformationsspeicher des Betriebssystems. Wenn du dich anmeldest, gehen ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst, damit deine eigenen Geräte sie sehen, und Pro legt Alerts, Verlauf, Prognosen und Agenten Routing darauf. Anbieterzugangsdaten gehen nie dorthin."
       },
       "safeToPoint": {
         "question": "Ist es sicher, es auf meine Tools anzusetzen?",
@@ -418,7 +685,7 @@
       },
       "providersToday": {
         "question": "Welche Provider funktionieren heute?",
-        "answer": "Sechs Connectors sind dabei: Claude über die native Statusline Payload, OpenRouter über seine dokumentierte Form, Codex und Antigravity über interne Formen, die brechen können, OpenCode über eine bestehende Session, die brechen kann, und manual entry. Jeder ist als UNVERIFIED markiert, bis ein expliziter Verifier existiert."
+        "answer": "Neun Connectors sind dabei: Claude über die native Statusline Payload, OpenRouter über seine dokumentierte Form, Codex, Antigravity, Gemini CLI, Grok und Kimi über interne Formen, die brechen können, OpenCode über eine bestehende Session, die brechen kann, und manual entry. Jeder ist als UNVERIFIED markiert, bis ein expliziter Verifier existiert."
       },
       "apiKey": {
         "question": "Brauche ich einen API Key?",
@@ -434,59 +701,72 @@
       },
       "desktopOrPhone": {
         "question": "Gibt es eine Desktop oder Handy App?",
-        "answer": "Die Desktop Tray Anwendung gibt es für Windows und Linux. Windows ist nicht signiert, daher kann SmartScreen erscheinen: Wähl Weitere Informationen und dann Trotzdem ausführen. macOS kommt bald, und es wird kein unsignierter macOS Build angeboten, weil Gatekeeper ihn blockiert. Auf einem Handy öffnet sich die Web App im Browser und installiert sich auf einen Startbildschirm. Native iOS und Android Anwendungen sind nicht gebaut, nichts steht in einem Store, und es gibt keine Warteliste. Die Download Seite listet jede Plattform mit ihrem echten Stand."
+        "answer": "Die Desktopanwendung im Infobereich erscheint für Windows, macOS und Linux. Windows und macOS sind unsigniert, jeder fragt also einmal: unter Windows in SmartScreen Weitere Informationen und dann Trotzdem ausführen; unter macOS die Systemeinstellungen öffnen, zu Datenschutz und Sicherheit gehen und Trotzdem öffnen wählen. macOS erscheint als eine einzige universelle Abbilddatei und bleibt aus den automatischen Updates heraus, bis es signierte und notarisierte Builds gibt. Auf dem Telefon öffnet die Web App im Browser und installiert sich auf den Startbildschirm, und die Desktopanwendung koppelt ein Telefon per QR Code, damit es deine quota lesen kann. Native Anwendungen für iOS und Android werden nicht gebaut, in keinem Store liegt etwas, und es gibt keine Warteliste. Die Downloadseite listet jede Plattform mit ihrem echten Stand."
       },
       "free": {
         "question": "Ist es kostenlos?",
-        "answer": "Alles, was lokal läuft, ist unter Apache 2.0 kostenlos und bleibt es. Das OpenLimiter Konto ist kostenlos. Lokale Benachrichtigungen sind kostenlos. Nur Nutzungsprozente werden synchronisiert, niemals Schlüssel oder Zugangsdaten, und die Synchronisierung kann ausgeschaltet werden."
+        "answer": "Alles, was du siehst, ist kostenlos und bleibt es, unter Apache 2.0. Das OpenLimiter Konto ist kostenlos. Alerts, neunzig Tage Verlauf, Zugriff per Telefon, mehr als ein Konto je Anbieter und Ausgabenverfolgung über $100 pro Kalendermonat je Quelle gehören zu Pro. Synchronisiert werden nur Nutzungsprozente, nie Schlüssel oder Zugangsdaten."
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro kommt demnächst für $5 pro Monat oder $50 pro Jahr. Geplant sind Benachrichtigungen per E Mail und Push, tokenbasierte Themes, mehrere Abonnements pro Anbieter, Funktionen für intensive API Nutzung, Verlauf und Prognosen sowie automatische Agentenweiterleitung. Alle lokalen Funktionen bleiben kostenlos."
+        "answer": "OpenLimiter Pro kostet $5 im Monat oder $50 im Jahr, die ersten 30 Tage sind kostenlos und ohne Karte. Es kommen sechs Dinge dazu: jeder Alert, als Meldung auf dem Desktop, als Mail und als Push aufs Telefon bei 60, 80 und 90 Prozent und beim Zurücksetzen; neunzig Tage gehosteter Verlauf mit Prognose; gehosteter Routing Kontext; mehr als ein Konto je Anbieter; ein Pro Akzent oder eine Dichtevorgabe; und Ausgabenzähler für APIs in einem gekennzeichneten Beta über der kostenlosen Obergrenze von $100 pro Kalendermonat je Quelle. Vier davon sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung. Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung."
+      },
+      "alerts": {
+        "question": "Bekomme ich Alerts, wenn ein Fenster voll wird?",
+        "answer": "Ja, mit Pro. Jeder Alert gehört zu Pro: eine Desktopmeldung, eine Mail und ein Push aufs Telefon, bei 60, 80 und 90 Prozent eines Fensters und noch einmal, wenn dieses Fenster zurückgesetzt wird. Diese vier Momente sind das Produkt und keine Einstellung. Eine Push Nachricht trägt keine Nutzungsdetails, ein gesperrter Bildschirm zeigt also nie welche."
+      },
+      "phoneAccess": {
+        "question": "Kann ich meine quota auf dem Telefon sehen?",
+        "answer": "Ja, mit Pro. Die Desktopanwendung zeigt einen QR Code, der zwei Minuten lebt, du scannst ihn mit dem Telefon, und du bestätigst die Kopplung zurück auf dem Desktop. Das Telefon hält danach ein Token nur zum Lesen: es kann das Konto nie ändern und nichts hochladen, und ein Widerruf dieses Geräts auf dem Desktop oder auf deiner Kontoseite beendet den Zugriff sofort."
+      },
+      "spendCeiling": {
+        "question": "Wie viel API Ausgaben erfasst der kostenlose Plan?",
+        "answer": "Bis zu $100 pro Kalendermonat je Quelle, und Pro geht darüber hinaus. Die Ausgabenzähler sind ein gekennzeichnetes Beta, das die Abrechnungsoberfläche des Anbieters selbst liest, also brauchen sie einen Organisations oder Verwaltungsschlüssel, und ein Projektschlüssel funktioniert nicht. Moonshot wird als Guthaben gelesen und nicht als Ausgabe, in drei getrennten Werten, und wird nie zu einer Monatssumme, einer Prognose oder einem Budgetalert."
       }
     }
   },
   "pricing": {
     "title": "Preise",
-    "lead": "Lokal bleibt kostenlos. Synchronisierung ist enthalten.",
+    "lead": "Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
     "plannedChip": "geplant",
     "free": {
       "status": "verfügbar",
       "price": "Kostenlos",
       "priceNote": "für immer, und laut Lizenz",
-      "lead": "Das lokale Produkt und das Konto sind kostenlos. Die Synchronisierung ist zuerst aktiv und kann ausgeschaltet werden.",
+      "lead": "Das lokale Produkt und das Konto sind kostenlos. Die Synchronisierung ist ab dem Moment deiner Anmeldung aktiv, denn genau dafür gibt es die Anmeldung: deine Prozentwerte zwischen deinen eigenen Geräten zu bewegen.",
       "footnote": "Open Source unter <licence>Apache 2.0</licence>, das kann dir also später nicht genommen werden. Die Lizenz ist das Versprechen.",
       "lines": {
         "connectors": "Alle unterstützten Anbieter",
-        "sync": "Synchronisierung zwischen deinen Geräten",
+        "sync": "Synchronisierung zwischen deinen eigenen Geräten, aktiv ab der ersten Anmeldung",
         "agentContext": "Der begrenzte agent context block und seine Routingempfehlung",
-        "notifications": "Desktop Benachrichtigungen und Töne, wenn ein Fenster sich seiner Grenze nähert",
         "themes": "Themes, in der Desktop Anwendung und im Browser",
         "cli": "Das vollständige Kommandozeilen Tool und jede Statusline Einstellung",
         "ingestion": "Alle drei Ingestionswege: ein Connector, ingest, oder manual entry",
-        "noLimits": "Kein Nutzungslimit, kostenloses Konto, keine lokale Funktion gesperrt"
+        "noLimits": "Keine Nutzungsgrenze und keine Gebühr für das Konto. Alles, was du siehst, ist kostenlos",
+        "oneAccount": "Ein aktives Konto je Anbieter, und Pro hebt das an"
       }
     },
     "pro": {
       "status": "verfügbar",
-      "comingSoonStatus": "demnächst",
       "perMonth": "pro Monat",
       "or": "oder",
       "perYear": "pro Jahr",
       "trialChip": "30 Tage kostenlos",
-      "priceNote": "Die ersten 30 Tage sind ohne Karte kostenlos. Wenn der Zugang endet, stoppen nur die gehosteten Dienste. Lokal ändert sich nichts.",
-      "lead": "Drei gehostete Werkzeuge für Planung und Weiterleitung.",
-      "footnote": "Nichts Lokales wandert hinter diesen Plan. Pro verkauft gehosteten Dienst, niemals lokale Schalter.",
+      "priceNote": "Die ersten 30 Tage sind kostenlos, ohne Karte. Endet der Zugang, hören die Pro Funktionen auf: die gehosteten sofort, die lokalen fallen auf ein Konto je Anbieter und das Standardthema zurück. Alles, was du vor Pro sehen konntest, bleibt unverändert.",
+      "lead": "Sechs Pro Funktionen. Vier sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung.",
+      "footnote": "Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
       "lines": {
-        "alerts": "Schwellenwertmeldungen per E Mail und Push",
-        "themes": "Themes",
-        "multiSubscription": "Mehr als ein Abo je Provider",
-        "heavyApi": "Funktionen für intensive API Nutzung",
-        "history": "Verlauf und Prognosen",
-        "routing": "Automatische Agentenweiterleitung"
+        "alerts": "Jeder Alert: eine Meldung auf dem Desktop, eine Mail und ein Push aufs Telefon bei 60, 80 und 90 Prozent eines Fensters und beim Zurücksetzen",
+        "themes": "Ein Pro Akzent oder eine Dichtevorgabe, angewandt in der lokalen Anwendung",
+        "multiSubscription": "Mehr als ein Konto je Anbieter, in der lokalen Anwendung freigeschaltet",
+        "heavyApi": "Ausgabenzähler für APIs, im Beta. Kostenlos werden je Quelle bis zu $100 pro Kalendermonat erfasst, Pro geht darüber hinaus",
+        "history": "Neunzig Tage gehosteter Verlauf, mit einer Prognose bis zu dem Tag, an dem ein Fenster aufgebraucht ist",
+        "routing": "Gehosteter Routing Kontext, vom Dienst signiert und vom Release Build geprüft, bevor ein Agent ihn liest"
       },
       "cta": "30 Tage kostenlos starten",
-      "comingSoonCta": "Pro kommt demnächst"
+      "eligibility": "Das Ausgaben Beta liest die Abrechnungsoberfläche des Anbieters selbst und braucht deshalb einen Organisations oder Verwaltungsschlüssel: einen OpenAI Organisationsadminschlüssel, einen Anthropic Admin API Schlüssel der Organisation, einen xAI Verwaltungsschlüssel oder einen OpenRouter Verwaltungsschlüssel. Ein Projektschlüssel funktioniert nicht. Moonshot wird als Guthaben gelesen und nicht als Ausgabe, in drei getrennten Werten, verfügbar, Gutschein und Bar, in der Währung, die der Anbieter nennt, und es wird nie in einen Monatswert, eine Prognose oder einen Budgetalert verwandelt.",
+      "refund": "Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung, monatlich wie jährlich. Kündige jederzeit selbst im Stripe Customer Portal.",
+      "seller": "OpenLimiter Pro wird von Lucas Costa verkauft. Stripe nimmt die Zahlung entgegen und berechnet die Steuer automatisch."
     },
     "roadmapCta": "Was tatsächlich geplant ist",
     "sourceCta": "Quellcode lesen"
@@ -501,7 +781,7 @@
       },
       "reportsNobody": {
         "title": "Es berichtet niemandem",
-        "detail": "Der lokale Modus und die öffentliche Website melden niemandem etwas und haben keine Analytik. Pro ist optional und erhält erst nach der Anmeldung ausgewählte begrenzte Kontingentdaten, niemals Anbieter Zugangsdaten."
+        "detail": "Die Anwendung meldet niemandem etwas. Sie sendet in keinem Modus Telemetrie. Diese Website zählt Seitenaufrufe ohne Cookies, was eine Zahl von Seiten ist und kein Profil von dir. Pro ist freiwillig und erhält ausgewählte begrenzte Quota Momentaufnahmen erst nach der Anmeldung, nie Anbieterzugangsdaten."
       },
       "unknownStaysUnknown": {
         "title": "Unknown bleibt unknown",
@@ -515,15 +795,17 @@
   },
   "download": {
     "metaTitle": "Download",
-    "metaDescription": "OpenLimiter für Windows oder Linux holen, das Kommandozeilen Tool von npm installieren oder die Web App öffnen. macOS kommt bald.",
+    "metaDescription": "Hole OpenLimiter für Windows, macOS oder Linux, installiere das Kommandozeilenwerkzeug aus npm, oder öffne die Web App.",
     "title": "Download",
-    "lead": "Desktop Builds für Windows und Linux sind jetzt verfügbar. Der Windows Build ist nicht signiert: Wähl in SmartScreen Weitere Informationen und dann Trotzdem ausführen. macOS kommt bald. npm und die Web App sind ebenfalls verfügbar.",
+    "lead": "Die Desktop Builds für Windows, macOS und Linux sind jetzt verfügbar. Windows und macOS erscheinen unsigniert, jeder fragt dich also einmal um Erlaubnis: unter Windows wähle Weitere Informationen und dann Trotzdem ausführen, unter macOS öffne die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle Trotzdem öffnen. macOS erscheint als eine einzige universelle Abbilddatei, die auf Apple silicon und auf Intel läuft. npm und die Web App sind ebenfalls verfügbar.",
     "choice": {
       "windows": "Für Windows herunterladen",
       "linux": "Für Linux herunterladen",
-      "macos": "macOS kommt bald",
+      "macos": "Für macOS herunterladen",
       "other": "Andere Plattformen",
-      "smartScreen": "Dieser Windows Build ist nicht signiert, daher kann SmartScreen warnen: wähle Weitere Informationen und dann Trotzdem ausführen."
+      "smartScreen": "Dieser Windows Build ist nicht signiert, daher kann SmartScreen warnen: wähle Weitere Informationen und dann Trotzdem ausführen.",
+      "openAnyway": "Dieser macOS Build ist unsigniert. Öffne ihn einmal, öffne dann die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle Trotzdem öffnen. Die Abbilddatei ist universell und läuft auf Apple silicon und auf Intel. Automatische Updates kommen mit signierten Builds.",
+      "linuxNote": "AppImage, deb und rpm Pakete sind verfügbar. Startet direkt ohne Signaturwarnung."
     },
     "states": {
       "available": "verfügbar",
@@ -532,7 +814,7 @@
     },
     "available": {
       "title": "Jetzt verfügbar",
-      "lead": "Windows und Linux haben gepackte Desktop Builds, und jeder Link unten führt direkt zur Datei. Das Kommandozeilen Tool ist auf jeder Plattform eine npm Installation, oder ein Klon, wenn du es lieber aus dem Quellcode baust. Die Web App braucht nichts Installiertes."
+      "lead": "Windows, macOS und Linux haben paketierte Desktop Builds, und jeder Link unten führt direkt zur Datei. Das Kommandozeilenwerkzeug ist ein npm install auf jeder Plattform, oder ein Clone, wenn du lieber selbst baust. Die Web App braucht keine Installation."
     },
     "phone": {
       "title": "Auf deinem Handy",
@@ -542,7 +824,7 @@
     },
     "building": {
       "title": "Kommt bald",
-      "lead": "Die macOS Desktop App ist gebaut, aber es gibt keinen öffentlichen Download, bis sie Gatekeeper normal passieren kann."
+      "lead": "Signierte und notarisierte macOS Builds und die automatischen Updates, die davon abhängen. Die macOS Anwendung ist heute schon herunterladbar und bleibt aus dem Update Manifest heraus, bis sie signiert werden kann, denn ein Update, dessen Signatur nicht geprüft werden kann, ist schlimmer als gar kein Update."
     },
     "notBuilt": {
       "title": "Noch nicht gebaut",
@@ -573,8 +855,11 @@
       },
       "macos": {
         "name": "macOS",
-        "summary": "Die macOS Desktop App kommt bald. Es wird kein unsignierter Build verteilt, weil Gatekeeper ihn blockiert.",
-        "note": "Das Kommandozeilen Tool ist heute auf macOS über npm verfügbar."
+        "summary": "Die Desktopanwendung wird für macOS als eine einzige universelle Abbilddatei gepackt, die auf Apple silicon und auf Intel läuft, und sie hängt am Release. Der Build ist unsigniert, Gatekeeper verweigert also das erste Öffnen, und du erlaubst es einmal in den Systemeinstellungen. Das Kommandozeilenwerkzeug installiert sich unter macOS über npm wie überall sonst.",
+        "note": "Unsignierter macOS Build. Öffne das Disk Image, ziehe OpenLimiter in den Programme Ordner und öffne es einmal. macOS verweigert diesen ersten Versuch: öffne die Systemeinstellungen, gehe zu Datenschutz und Sicherheit, scrolle zu Sicherheit und wähle neben der OpenLimiter Meldung Trotzdem öffnen, dann bestätige. Das machst du genau einmal. macOS bleibt von automatischen Updates ausgenommen, bis es signierte und notarisierte Builds gibt, bis dahin ist eine neue Version ein neuer Download von dieser Seite.",
+        "assets": {
+          "universal": "Universelle Abbilddatei"
+        }
       },
       "linux": {
         "name": "Linux",
@@ -594,29 +879,29 @@
       },
       "web-app": {
         "name": "Web App",
-        "summary": "Nichts zu installieren. Die Web App läuft mit derselben Engine wie das Kommandozeilen Tool im Browser Tab, auf einem Dokument, das du einfügst oder hineinziehst, und sie installiert sich auf einen Handy oder Desktop Startbildschirm und läuft dort offline weiter. Es wird nichts hochgeladen, und es gibt kein Konto.",
+        "summary": "Nichts zu installieren. Die Web App führt dieselbe Engine wie das Kommandozeilenwerkzeug im Browsertab aus, installiert sich auf den Startbildschirm eines Telefons oder Desktops und arbeitet offline weiter. Melde dich an, um die Prozentwerte zu sehen, die deine eigenen Geräte synchronisiert haben, oder koppele ein Telefon aus der Desktopanwendung, indem du den angezeigten Code scannst.",
         "hrefLabel": "Web App öffnen"
       },
       "desktop": {
         "name": "Desktop Anwendung",
-        "summary": "Ein Tray Icon neben der Systemuhr liest denselben lokalen Cache wie das Kommandozeilen Tool, sodass Quota ohne offenes Terminal sichtbar ist. Gepackte Releases gibt es für Windows und Linux. macOS kommt bald. Automatische Updates beginnen mit dem ersten Release, das den Updater aktiviert.",
-        "note": "Der Windows Build ist nicht signiert. SmartScreen: Wähl Weitere Informationen und dann Trotzdem ausführen."
+        "summary": "Ein Symbol in der Taskleiste neben der Systemuhr liest denselben lokalen Cache wie das Kommandozeilenwerkzeug, die Quota ist also ohne offenes Terminal sichtbar. Paketierte Releases gibt es für Windows, macOS und Linux. Automatische Updates decken Windows und Linux ab, macOS kommt dazu, sobald es signierte Builds gibt.",
+        "note": "Die Builds für Windows und macOS sind unsigniert. Unter Windows, SmartScreen: wähle Weitere Informationen und dann Trotzdem ausführen. Unter macOS: Systemeinstellungen, Datenschutz und Sicherheit, Trotzdem öffnen."
       },
       "iphone": {
         "name": "iOS",
-        "summary": "Geplant. Nichts wurde beim App Store eingereicht, es gibt keinen Build, und es gibt keine Warteliste. Die Web App installiert sich heute schon auf einen iPhone Startbildschirm, das Nächste, was es gibt."
+        "summary": "Geplant. Es wurde nichts im App Store eingereicht, es gibt keinen Build und keine Warteliste. Was es heute gibt, ist die Web App auf dem Startbildschirm eines iPhone und ein Telefon, das aus der Desktopanwendung per QR Code gekoppelt wird und so deine quota lesen kann."
       },
       "android": {
         "name": "Android",
-        "summary": "Geplant. Nichts wurde bei Google Play eingereicht, es gibt keinen Build, und es gibt keine Warteliste. Die Web App installiert sich heute schon auf einen Android Startbildschirm, das Nächste, was es gibt."
+        "summary": "Geplant. Es wurde nichts bei Google Play eingereicht, es gibt keinen Build und keine Warteliste. Was es heute gibt, ist die Web App auf dem Startbildschirm eines Android und ein Telefon, das aus der Desktopanwendung per QR Code gekoppelt wird und so deine quota lesen kann."
       }
     }
   },
   "changelog": {
     "metaTitle": "Changelog: jeder Release und was sich geändert hat",
-    "metaDescription": "Jede veröffentlichte Version von OpenLimiter, gerendert aus der CHANGELOG.md im Root des Repositorys.",
+    "metaDescription": "Jede veröffentlichte Version von OpenLimiter, dazu die laufende Arbeit, gerendert aus der CHANGELOG.md im Wurzelverzeichnis des Repositorys.",
     "title": "Changelog",
-    "lead": "Jede veröffentlichte Version von OpenLimiter, direkt aus der Datei gelesen, die das Repository selbst führt, in der Reihenfolge, in der diese Datei sie listet.",
+    "lead": "Jede veröffentlichte Version von OpenLimiter, direkt aus der Datei gelesen, die das Repository selbst führt, in der Reihenfolge, in der diese Datei sie auflistet. Was unter Unreleased steht, ist aufgeschrieben, aber nicht ausgeliefert.",
     "empty": "In diesem Checkout wurde keine CHANGELOG.md gefunden, hier gibt es also nichts zu zeigen. Die Datei, die diese Seite liest, liegt im Root des <repo>Repositorys</repo>, und sie ist die einzige Kopie dieser Notizen, die es gibt.",
     "sourceNote": "Diese Seite wird aus der <file>CHANGELOG.md</file> im Root des Repositorys gerendert. Hier wird nichts doppelt geschrieben, es gibt also keine zweite Kopie, die vom veröffentlichten Code abweichen könnte."
   },
@@ -717,7 +1002,7 @@
             "calloutBody": "OpenLimiter gibt Routingempfehlungen. Es routet keine Anfragen für dich, umgeht kein Limit, und verändert nie die Authentifizierungsartefakte eines Providers. Die Entscheidung bleibt bei dir und deinem Agenten.",
             "bullets": {
               "proxy": "Es ist kein Proxy. Deine Anfragen gehen weiterhin direkt an deinen Provider.",
-              "dashboard": "Es ist kein Dashboard Dienst. Es gibt keinen OpenLimiter Server, kein Konto und keine Telemetrie.",
+              "dashboard": "Es ist kein Dashboard Dienst. Der lokale Modus hat kein Konto, keinen Server und keine Telemetrie: er liest, was ohnehin auf deinem Rechner liegt. Die freiwillige gehostete Hälfte existiert nur, um deine eigenen Werte zwischen deinen eigenen Geräten zu tragen.",
               "billing": "Es ist kein Abrechnungstool. Es meldet, wie viel von einem Fenster du verbraucht hast, nicht, was dir berechnet wird."
             }
           },
@@ -744,12 +1029,12 @@
       },
       "providers": {
         "title": "Unterstützte Provider",
-        "description": "Die sechs Connectors, die heute dabei sind, was jeder davon liest, und wie wahrscheinlich er kaputtgeht.",
-        "lead": "Sechs Connectors sind heute dabei. Jeder trägt seine eigenen ehrlichen Labels dafür, woher seine Zugangsdaten kommen, wie offiziell seine Datenschnittstelle ist, und wie wahrscheinlich er kaputtgeht.",
+        "description": "Die neun Konnektoren, die es heute gibt, was jeder liest und wie wahrscheinlich es ist, dass er bricht.",
+        "lead": "Heute gibt es neun Konnektoren. Jeder trägt seine eigenen ehrlichen Kennzeichnungen: woher seine Zugangsdaten kommen, wie offiziell seine Datenschnittstelle ist und wie wahrscheinlich es ist, dass er bricht.",
         "sections": {
-          "the-six": {
-            "title": "Die sechs Connectors",
-            "caption": "Connectors, die heute dabei sind, mit dem, was jeder liest, und wie stabil er ist",
+          "the-nine": {
+            "title": "Die neun Konnektoren",
+            "caption": "Konnektoren, die es heute gibt, mit dem, was jeder liest, und wie stabil er ist",
             "columns": {
               "id": "id",
               "reads": "liest",
@@ -779,6 +1064,18 @@
               "manual": {
                 "reads": "Zahlen, die du selbst einträgst",
                 "status": "Manual entry. Bricht nie, rät nie."
+              },
+              "gemini_cli": {
+                "reads": "Die Quota Töpfe, die das Gemini CLI für seine eigenen Modelle definiert",
+                "status": "Interner Endpunkt. Hohes Automatisierungsrisiko. Kann ohne Ankündigung brechen."
+              },
+              "grok": {
+                "reads": "Die Abrechnungsantwort hinter dem Grok CLI, mit dem wöchentlichen Guthabenfenster und der optionalen Obergrenze auf Abruf",
+                "status": "Interner Endpunkt. Hohes Automatisierungsrisiko. Kann ohne Ankündigung brechen."
+              },
+              "kimi": {
+                "reads": "Die Nutzungsantwort, die das Kimi CLI definiert, mit Wochenübersicht und Fünfstundenlimit",
+                "status": "Interner Endpunkt. Hohes Automatisierungsrisiko. Kann ohne Ankündigung brechen."
               }
             },
             "calloutTitle": "Jeder Connector wird als UNVERIFIED ausgeliefert",
@@ -790,7 +1087,7 @@
             "bullets": {
               "claude": "<code>claude</code> wird von der Statusline Payload gefüttert, die an der Standardeingabe ankommt. Dieser Weg läuft automatisch, sobald Claude Code verdrahtet ist.",
               "manual": "<code>manual</code> wird von einem Dokument gefüttert, das du im Statusverzeichnis ablegst.",
-              "ingestOnly": "Im Kommandozeilen Tool haben <code>codex</code>, <code>antigravity</code>, <code>opencode</code> und <code>openrouter</code> weiterhin keinen eigenen Reader; es nimmt Daten nur über <code>openlimiter ingest --provider '<id>'</code> entgegen. Die Desktop Anwendung liest Codex und OpenRouter live, und bietet für Antigravity und OpenCode einen manuellen, experimentellen Weg zum Einfügen."
+              "ingestOnly": "Im Kommandozeilenwerkzeug haben <code>codex</code>, <code>antigravity</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code>, <code>opencode</code> und <code>openrouter</code> keinen eigenen Leser; es nimmt Daten nur über <code>openlimiter ingest --provider '<id>'</code> entgegen. Die Desktopanwendung liest Codex, Gemini CLI, Grok, Kimi und OpenRouter live und bietet für Antigravity und OpenCode einen manuellen, experimentellen Einfügeweg."
             },
             "exactShapes": "Die <docs>Ingestion Seite</docs> dokumentiert alle drei Wege und die genauen Formen, die sie akzeptieren."
           },
@@ -821,7 +1118,7 @@
           },
           "not-yet": {
             "title": "Connectors, die es noch nicht gibt",
-            "body": "Nur die sechs oben sind real. Alles andere, worauf du hoffst, ist nicht gebaut, nicht eingeplant, und sollte nicht angenommen werden. Hat ein Abo keinen Connector, deckt der manuelle Weg es heute mit Zahlen ab, die du selbst einträgst."
+            "body": "Nur die neun oben sind echt. Alles andere, worauf du hoffen magst, ist nicht gebaut, nicht geplant und sollte nicht angenommen werden. Hat ein Abonnement keinen Konnektor, deckt der manuelle Weg es heute mit Zahlen ab, die du selbst einträgst."
           }
         }
       },
@@ -1063,8 +1360,8 @@
       },
       "agent-context": {
         "title": "Agent context",
-        "description": "Was die Claude Code Statusline und der Prompt Hook injizieren, und die Grenze, die Provider Text draußen hält.",
-        "lead": "Zwei Oberflächen erreichen deinen Agenten: eine einzeilige Statusline zum Lesen für dich, und ein begrenzter Context Block für das Modell. Diese Seite dokumentiert genau, was jeder davon enthält, und die Grenze, die Provider Text aus beiden heraushält.",
+        "description": "Was die Statusline und der Prompt Hook einspeisen, welche Agenten es tatsächlich erhalten und die Grenze, die Anbietertext draußen hält.",
+        "lead": "Zwei Flächen erreichen deinen Agenten: eine einzeilige Statusline zum Lesen und ein begrenzter Kontextblock für das Modell. Diese Seite hält fest, was jede genau enthält, welche Agenten es tatsächlich erhalten und die Grenze, die Anbietertext aus beiden heraushält.",
         "sections": {
           "statusline": {
             "title": "Die Statusline",
@@ -1133,6 +1430,60 @@
               "inspect": "<code>openlimiter hook</code> in einem Terminal auszuführen, gibt genau aus, was injiziert würde, ein sicherer Weg, es zu prüfen, bevor du es in eine echte Session verdrahtest."
             },
             "writes": "Die Statusline ist der einzige Weg, der schreibt. Sieh <config>Konfiguration</config> für die genauen Claude Code Einstellungen, und <cli>die CLI Referenz</cli> für die Befehle."
+          },
+          "agents": {
+            "title": "Welche Agenten den Block erhalten",
+            "intro": "Einen Adapter geschrieben zu haben ist nicht dasselbe, wie dass ein Agent den Block erhält. Die Zustände unten sind daher das, was am 1. September 2026 eine Live Prüfung auf einem echten Rechner bewiesen hat, nicht das, was eine Roadmap sich erhofft hat. Zwei Agenten sind unterstützt, zwei sind gebaut und gesperrt, bis eine Prüfung besteht, einer ist eine ausdrückliche Testoption, und in einen lässt sich überhaupt nichts einspeisen.",
+            "caption": "Jeder Agent, die id, die der Installer nimmt, und ob der Block ihn erreicht",
+            "columns": {
+              "agent": "Agent",
+              "id": "id",
+              "state": "Zustand"
+            },
+            "rows": {
+              "claude": {
+                "name": "Claude Code",
+                "state": "Unterstützt ab 2.1.257. Eine Live Prüfung hat bewiesen, dass der Block ankommt. Eine neuere Version bleibt aktiv und der Status gibt eine Warnzeile aus, eine ältere wird abgelehnt."
+              },
+              "codex": {
+                "name": "Codex CLI",
+                "state": "Unterstützt ab 0.152.0. Eine Live Prüfung hat bewiesen, dass der Block über das Ereignis beim Absenden des Prompts ankommt."
+              },
+              "gemini": {
+                "name": "Gemini CLI",
+                "state": "Gebaut und gesperrt. Der Adapter zielt auf das Ereignis vor dem Agenten, doch hier war keine Binärdatei vorhanden, um das zu beweisen, also bleibt die Installation zu, bis eine Prüfung besteht."
+              },
+              "kimi": {
+                "name": "Kimi Code CLI",
+                "state": "Gebaut und gesperrt. Unter 1.50.0 lief der Hook, und der Host verwarf, was er ausgab, es erreichte also nichts den Kontext und die Installation bleibt zu."
+              },
+              "antigravity": {
+                "name": "Antigravity CLI",
+                "state": "Ausgeschlossen. Version 1.1.23 bietet keinen Hooks Unterbefehl und löste kein Ereignis aus, es gibt also nichts, in das installiert werden könnte. Die Editorfläche ist getrennt und nicht umgesetzt."
+              },
+              "opencode": {
+                "name": "OpenCode",
+                "state": "Experimentell und standardmäßig aus. Auf 1.18.11 festgelegt und erfordert den unten beschriebenen Schalter. Es liegt außerhalb dessen, was diese Version verspricht."
+              },
+              "grok": {
+                "name": "Grok Build",
+                "state": "Keine Unterstützung für Einspeisung. Grok verwirft, was ein erfolgreicher Hook ausgibt, es gibt also gar keine Kontextfläche. Nutze stattdessen den Befehl unten."
+              }
+            },
+            "installing": {
+              "title": "Einen Hook installieren",
+              "body": "Die Installation gilt im Benutzerbereich und ist idempotent. Sie bewahrt die übrige Konfiguration deines Agenten, ersetzt die Datei atomar, hinterlässt eine wiederherstellbare <code>.openlimiter.bak</code>, stellt keine Netzanfrage und weist unsichere oder verlinkte Pfade ab. <code>status</code> meldet, was installiert ist und ob die erkannte Hostversion bekannt ist, <code>repair</code> schreibt den Eintrag neu, nachdem die OpenLimiter Programmdatei umgezogen ist, und <code>uninstall</code> entfernt ihn und lässt alles daneben, wo es war.",
+              "terminalLabel": "Terminal"
+            },
+            "opencode": {
+              "calloutTitle": "OpenCode ist eine ausdrückliche Entscheidung",
+              "calloutBody": "OpenCode dokumentiert kein Ereignis zum Einspeisen in einen Prompt. Der Adapter nutzt eine undokumentierte Transformation, ist auf genau die geprüfte Version festgelegt und tut überhaupt nichts, solange nicht <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> sowohl beim Installieren als auch beim Ausführen gesetzt ist. Er ist absichtlich experimentell, kann mit jeder Version aufhören zu funktionieren, und gehört nicht zu dem, was diese Version verspricht."
+            },
+            "grok": {
+              "title": "Grok Build, und warum es keinen Hook gibt",
+              "body": "Grok Build führt einen Hook beim Absenden des Prompts aus und wirft danach weg, was der Hook ausgegeben hat, und es dokumentiert kein Gegenstück zu einem zusätzlichen Kontextfeld. Keine Adapterarbeit ändert daran etwas, also installiert OpenLimiter nichts in Grok und sagt das hier, statt etwas auszuliefern, das still nichts tut. Angeboten wird stattdessen ein Befehl, den du selbst ausführst und der denselben Block zum Lesen oder Einfügen ausgibt.",
+              "terminalLabel": "Terminal"
+            }
           }
         }
       },
@@ -1351,8 +1702,8 @@
             "title": "Die Garantien",
             "calloutTitle": "Was OpenLimiter garantiert",
             "bullets": {
-              "noServer": "<strong>Es gibt keinen OpenLimiter Server.</strong> Nichts wird an die Projektautoren gesendet, weil es nirgendwohin zu senden gibt.",
-              "noTelemetry": "<strong>Es gibt keine Telemetrie.</strong> Kein Befehl sendet Nutzung, Diagnosen, Identifikatoren, Prompts, oder Quotastatus irgendwohin.",
+              "noServer": "<strong>Der lokale Modus erreicht keinen OpenLimiter Server.</strong> Den Autoren des Projekts wird nichts gesendet, weil es im lokalen Modus keinen Ort dafür gibt. Der gehostete Dienst existiert nur für das kostenlose Konto, für die Synchronisierung und für Pro, und erst nach der Anmeldung.",
+              "noTelemetry": "<strong>Es gibt keine Telemetrie.</strong> Kein Befehl sendet Nutzung, Diagnose, Kennungen oder Prompts irgendwohin, in keinem Modus. Quota Zustand verlässt deinen Rechner nur über die Synchronisierung, nur nach der Anmeldung und nur als die begrenzten Werte, die du abschalten kannst.",
               "hookNoNetwork": "<strong>Der Hook stellt keine Netzwerkanfrage.</strong> Er liest den lokalen Cache und sonst nichts.",
               "noEgress": "<strong>Der lokale Modus sendet nichts an OpenLimiter.</strong> Anbieter Verbindungen sprechen nur mit dem jeweiligen Anbieter. Optionales Pro sendet nach der Anmeldung ausgewählte begrenzte Kontingentdaten an den Dienst, niemals Anbieter Zugangsdaten.",
               "unknownNeverZero": "<strong>Unknown wird nie zu null.</strong> Fehlende, abgelaufene, fehlerhafte und nicht erkannte Eingaben lösen sich alle in unknown auf.",
@@ -1384,7 +1735,7 @@
             "bullets": {
               "noOfficialApi": "Die meisten Consumer Abo Provider bieten keine offizielle Quota API. Mehrere Connectors beschreiben deshalb inoffizielle Schnittstellen, die sich ohne Ankündigung ändern oder verschwinden können.",
               "unverified": "Jeder Connector wird als <code>UNVERIFIED</code> ausgeliefert. Nichts hier wurde von einem expliziten Verifier gegen ein echtes Konto bestätigt.",
-              "opencode": "Der OpenCode Connector beschreibt eine authentifizierte Seitenform und trägt hohes Automatisierungsrisiko. Behandle ihn als den zerbrechlichsten der sechs.",
+              "opencode": "Der OpenCode Connector beschreibt eine authentifizierte Seitenform und trägt hohes Automatisierungsrisiko. Behandle ihn als den zerbrechlichsten der neun.",
               "adviceOnly": "OpenLimiter gibt Routingempfehlungen. Es routet Anfragen nicht automatisch, umgeht keine Limits, und ändert nicht, wie dein Agent sich authentifiziert."
             }
           },
@@ -1410,19 +1761,19 @@
       "roadmap": {
         "title": "Roadmap",
         "description": "Was geplant und noch nicht gebaut ist: native mobile Anwendungen, Codesignierung und ein automatischer Update Kanal.",
-        "lead": "OpenLimiter Pro ist gebaut. Die unten weiterhin als geplant markierten Punkte können noch nicht heruntergeladen werden und haben keine Warteliste. Diese Trennung hält die Seite ehrlich.",
+        "lead": "OpenLimiter Pro ist verfügbar. Die unten weiterhin als geplant markierten Punkte lassen sich noch nicht herunterladen und haben keine Warteliste. Diese Unterscheidung hält die Seite ehrlich darüber, was jetzt ausgeliefert wird.",
         "sections": {
           "not-available": {
             "title": "Lies das zuerst",
             "calloutTitle": "Geplant heißt nicht gebaut",
-            "calloutBody": "Jeder unten als geplant markierte Punkt existiert heute nicht. Es gibt keine native mobile Anwendung in einem Store, keine Codesignierung und keinen automatischen Update Kanal. OpenLimiter Pro ist separat als gebaut aufgeführt."
+            "calloutBody": "Jeder unten als geplant markierte Punkt existiert heute nicht. Es gibt keine native mobile Anwendung in irgendeinem Store, keine Codesignatur und keinen Kanal für automatische Updates unter macOS. OpenLimiter Pro steht getrennt davon als verfügbar."
           },
           "desktop": {
             "title": "Ausgeliefert: die Desktop Anwendung",
-            "intro": "Eine kleine Desktop Anwendung mit einem Tray Icon neben der Systemuhr liest denselben lokalen Cache, den das Kommandozeilen Tool schreibt, sodass Quota ohne offenes Terminal auf einen Blick sichtbar ist. Die Windows und Linux Builds hängen am Release. macOS kommt bald.",
+            "intro": "Eine kleine Desktopanwendung mit einem Symbol neben der Systemuhr liest denselben lokalen Cache, den das Kommandozeilenwerkzeug schreibt, die Quota ist also ohne offenes Terminal im Blick. Paketierte Builds für Windows, macOS und Linux hängen am Release.",
             "bullets": {
-              "status": "Status: ausgeliefert für Windows und Linux. macOS kommt bald und hat keinen öffentlichen Download.",
-              "signing": "Windows wird unsigniert ausgeliefert. SmartScreen: Wähl Weitere Informationen und dann Trotzdem ausführen. macOS wartet auf Signierung und Notarisierung.",
+              "status": "Stand: ausgeliefert für Windows, macOS und Linux, mit einem öffentlichen Download für jedes.",
+              "signing": "Windows und macOS sind unsigniert. Unter Windows, SmartScreen: Weitere Informationen und dann Trotzdem ausführen. Unter macOS: Systemeinstellungen, Datenschutz und Sicherheit, Trotzdem öffnen. macOS bleibt von automatischen Updates ausgenommen, bis Signierung und Notarisierung vorliegen.",
               "updates": "Geplant: ein automatischer Update Kanal. Den gibt es heute nicht."
             }
           },
@@ -1436,13 +1787,13 @@
           },
           "sync": {
             "title": "Geplant: OpenLimiter Pro",
-            "intro": "OpenLimiter Pro kommt demnächst für $5 pro Monat oder $50 pro Jahr. Nichts Lokales wandert dahinter. Der aktuelle Plan steht unter <pricing>Preise</pricing>.",
+            "intro": "OpenLimiter Pro ist für $5 im Monat oder $50 im Jahr verfügbar, die ersten 30 Tage kostenlos und ohne Karte. Unter <pricing>Preise</pricing> steht, was jede Zeile tatsächlich ist.",
             "bullets": {
-              "status": "Status: geplant. Pro ist noch nicht verfügbar.",
+              "status": "Stand: verfügbar. Die Synchronisierung ist ab deiner Anmeldung aktiv.",
               "alerts": "E Mail Warnungen bei Schwellenwert und Rücksetzung.",
               "history": "Neunzig Tage gehosteter Nutzungsverlauf mit Verbrauchsprognosen.",
               "routing": "Aktueller Budgetkontext für Coding Agent Routing.",
-              "localFirst": "Die lokale Garantie bleibt bestehen. Befehlszeile und lokale Desktopfunktionen arbeiten ohne Pro Konto."
+              "localFirst": "Alles, was du siehst, ist kostenlos. Das Kommandozeilenwerkzeug und die lokalen Desktopfunktionen laufen ohne Pro Konto."
             }
           },
           "following": {
@@ -1455,17 +1806,105 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Melde dich für die Synchronisierung an. Pro kommt demnächst für $5 pro Monat oder $50 pro Jahr.",
-    "comingSoonLead": "Melde dich an oder erstelle ein Konto zum Synchronisieren. OpenLimiter Pro kommt bald, und das vollständige lokale Produkt bleibt kostenlos.",
-    "configMissing": "Pro kommt demnächst.",
-    "emailLabel": "E Mail",
-    "emailPlaceholder": "du@example.com",
-    "sendLink": "Anmelden oder Konto erstellen",
-    "linkSent": "Prüfe deine E Mail für den Anmeldelink.",
-    "signedIn": "Du bist angemeldet.",
-    "working": "Wird ausgeführt",
+    "lead": "Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
+    "metaDescription": "Melde dich an, um deinen OpenLimiter Pro Plan, deine Abrechnung und die Geräte zu verwalten, die deine quota lesen.",
+    "loading": "Dein Konto wird gelesen.",
+    "working": "Läuft",
     "signOut": "Abmelden",
-    "privacy": "Anbieter Zugangsdaten gelangen nie auf diese Seite.",
-    "error": "Pro konnte diese Anfrage nicht abschließen. Versuche es erneut."
+    "configMissing": {
+      "title": "Pro ist in diesem Build nicht konfiguriert",
+      "body": "Dieses Deployment trägt keine gehostete Adresse, hier gibt es also nichts, wo du dich anmelden könntest. Alles Lokale läuft genau so weiter wie jetzt."
+    },
+    "signIn": {
+      "title": "Anmelden",
+      "body": "Die Anmeldung gibt es, damit deine Prozentwerte zwischen deinen eigenen Geräten wandern, deshalb ist die Synchronisierung ab dem ersten Moment aktiv. Sie trägt ausschließlich begrenzte Messwerte: nie einen Prompt, nie eine Datei, nie eine Zugangsinformation.",
+      "github": "Weiter mit GitHub",
+      "google": "Weiter mit Google",
+      "fallbackTitle": "Oder nutze einen Anmeldelink",
+      "fallbackBody": "Wenn dir keines von beiden passt, schicken wir stattdessen einen einmalig gültigen Link an deine E Mail Adresse.",
+      "emailLabel": "E Mail",
+      "emailPlaceholder": "du@beispiel.de",
+      "send": "Anmeldelink senden",
+      "sent": "Sieh in deinem Postfach nach dem Anmeldelink.",
+      "error": "Diese Anmeldung konnte nicht gestartet werden. Versuche es erneut.",
+      "privacy": "Zugangsdaten von Anbietern erreichen diese Seite nie."
+    },
+    "account": {
+      "signedInAs": "Angemeldet als",
+      "noEmail": "Dein Konto"
+    },
+    "accountError": {
+      "title": "Dein Plan konnte nicht gelesen werden",
+      "body": "Der gehostete Dienst hat nicht geantwortet. An deinem Konto hat sich nichts geändert, und nichts Lokales ist betroffen.",
+      "retry": "Erneut versuchen"
+    },
+    "actionError": {
+      "title": "Diese Anfrage ist nicht durchgegangen",
+      "body": "Der gehostete Dienst hat sie abgelehnt. Es wurde nichts berechnet und nichts geändert. Versuche es gleich noch einmal."
+    },
+    "plan": {
+      "none": {
+        "chip": "noch kein Plan",
+        "title": "Dein Plan wird noch eingerichtet",
+        "body": "Der Dienst öffnet die Testphase bei deiner ersten Anmeldung, deshalb hat diese Seite einen Moment lang nichts zu zeigen. Lade neu, wenn sie leer bleibt."
+      },
+      "trial": {
+        "chip": "Testphase",
+        "title": "Du bist in der kostenlosen Testphase",
+        "body": "Alle Pro Dienste sind aktiv: Alerts, neunzig Tage Verlauf mit Prognose, gehostetes Routing, Zugriff per Telefon über QR, zusätzliche Konten und Ausgabenverfolgung über die kostenlose Obergrenze von $100 pro Kalendermonat je Quelle hinaus. Es wurde keine Karte verlangt.",
+        "daysLeft": "Noch {count, plural, one {# Tag} other {# Tage}} Testphase.",
+        "ends": "Sie endet am {date}."
+      },
+      "active": {
+        "chip": "aktiv",
+        "title": "Pro ist aktiv",
+        "body": "Alerts, Verlauf, gehostetes Routing, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über der kostenlosen Obergrenze sind alle aktiv.",
+        "renewsOn": "Er verlängert sich am {date}.",
+        "endsOn": "Er endet am {date} und verlängert sich nicht."
+      },
+      "pastDue": {
+        "chip": "Zahlung offen",
+        "title": "Eine Zahlung ist nicht durchgegangen",
+        "body": "Pro läuft für eine kurze Kulanzfrist weiter. Aktualisiere die Karte in der Abrechnung, dann geht es ohne Lücke weiter."
+      },
+      "expired": {
+        "chip": "beendet",
+        "title": "Pro ist beendet",
+        "body": "Die gehosteten Dienste sind gestoppt, und die lokalen Schalter sind auf ein Konto je Anbieter und das Standardthema zurückgefallen. Alles, was du vor Pro sehen konntest, bleibt unverändert. Dein Verlauf bleibt dreißig Tage zum Export erhalten und wird danach gelöscht."
+      }
+    },
+    "upgrade": {
+      "title": "Pro nehmen",
+      "body": "Ein Preis, zwei Intervalle, und du kannst jederzeit selbst kündigen. Die Steuer wird beim Checkout berechnet.",
+      "monthly": "{price} im Monat",
+      "yearly": "{price} im Jahr",
+      "note": "Die Zahlung läuft über Stripe. Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung."
+    },
+    "billing": {
+      "title": "Abrechnung",
+      "body": "Deine Karte, deine Rechnungen und deine Rechnungsadresse liegen bei Stripe. Kündigen ist dort ein Klick und wirkt zum Ende des bereits bezahlten Zeitraums.",
+      "manage": "Abrechnung verwalten"
+    },
+    "devices": {
+      "title": "Geräte",
+      "body": "Jedes an diesem Konto angemeldete Gerät, auch ein per QR gekoppeltes Telefon. Ein Widerruf nimmt ihm den gehosteten Zugriff sofort.",
+      "count": "{count} von {cap}",
+      "empty": "Noch hat kein Gerät eine Freigabe. Melde dich in der Desktopanwendung an, oder koppele von dort ein Telefon.",
+      "current": "dieses",
+      "revoke": "Widerrufen",
+      "lastSeen": "Zuletzt gesehen am {date}",
+      "neverSeen": "Noch nicht gesehen"
+    },
+    "checkout": {
+      "success": {
+        "title": "Zahlung eingegangen",
+        "body": "Stripe hat die Zahlung bestätigt. Dein Plan aktualisiert sich hier, sobald der Dienst sie verbucht, meist innerhalb weniger Sekunden."
+      },
+      "cancel": {
+        "title": "Der Checkout wurde abgebrochen",
+        "body": "Es wurde nichts berechnet und nichts geändert. Die Testphase und jede lokale Funktion laufen genau wie vorher weiter."
+      },
+      "dismiss": "Schließen"
+    }
   }
 }

@@ -24,6 +24,7 @@ import {
   buildAdvice,
   connectionSentence,
   dedupeFailures,
+  failureSentence,
   freshness,
   mergeSnapshots,
   normalizeMetersReport,
@@ -33,9 +34,26 @@ import {
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import {
+  bandForPercent,
   buildProviderAccountRows,
   createProviderRowElement,
 } from "./engine/ui/provider-row.js";
+/* The four screens the connection and entitlement contract asks for. Each one
+   owns its own tab and reads the backend itself, so a failure in one leaves
+   the other three drawing what they can prove. */
+import { defineLiveMeter } from "./live-meter.js";
+import { renderPlanCap } from "./plan-cap.js";
+import { renderSettings } from "./settings.js";
+import { renderPro, renderSpend } from "./pro.js";
+/* The phone panel and the device list it produces. Both live behind an
+   account, and both are drawn by their own module rather than here. */
+import {
+  initPairing,
+  pairingPanelClosed,
+  pairingPanelOpened,
+  renderDevices,
+  setPairingAccountState,
+} from "./pairing.js";
 /* Every word the Rust process hears from this file goes through the backend
    adapter, so a build without a given command degrades to an honest absence
    instead of a module level crash, and a static serve of these files renders
@@ -57,21 +75,32 @@ import {
   normalizeCollectionOutcome,
   normalizeConnection,
   normalizeConnectionList,
+  proStatus,
   readCache,
   readManual,
   notificationEvents,
+  notificationGate,
+  proCheckoutUrl,
   proDisconnect,
+  proRefresh,
   setTrayStatus,
   testProvider,
 } from "./backend.js";
 import { readConfiguredProviders } from "./configured-providers.js";
+/* Every value on a failure card came off a file this window did not write, so
+   the card is built out of nodes and text rather than out of a markup string. */
+import { buildFailureRow } from "./failure-rows.js";
 import {
   connectionsTabShown,
   initConnections,
   noteMetersRefreshed,
   openProviderConnection,
 } from "./connections.js";
-import { initFirstRun } from "./first-run.js";
+import {
+  initFirstRun,
+  permissionSentence,
+  requestAlertPermission,
+} from "./first-run.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
@@ -194,23 +223,106 @@ const elements = {
   menuSync: document.getElementById("menu-sync"),
   menuUpdate: document.getElementById("menu-update"),
   menuLogout: document.getElementById("menu-logout"),
+  menuSignIn: document.getElementById("menu-signin"),
+  menuSignInButton: document.getElementById("menu-sign-in"),
+  menuSignedIn: document.getElementById("menu-signed-in"),
+  phoneButton: document.getElementById("phone-button"),
+  phonePopover: document.getElementById("phone-popover"),
+  notificationGate: document.getElementById("notification-gate"),
+  notificationUpgrade: document.getElementById("notification-upgrade"),
+  signIn: document.getElementById("sign-in"),
+  signInClose: document.getElementById("sign-in-close"),
+  signInStatus: document.getElementById("sign-in-status"),
+  signInEmail: document.getElementById("account-email"),
+  signInPassword: document.getElementById("account-password"),
+  signInForm: document.getElementById("account-email-form"),
+  signInCreate: document.getElementById("account-email-create"),
+  signInMagic: document.getElementById("account-magic-link"),
+  signInGoogle: document.getElementById("account-google"),
+  signInGithub: document.getElementById("account-github"),
   updateBanner: document.getElementById("update-banner"),
   offlineBanner: document.getElementById("offline-banner"),
   addAccount: document.getElementById("add-account"),
   emptyConnect: document.getElementById("empty-connect"),
+  hero: document.getElementById("hero"),
+  heroMeter: document.getElementById("hero-meter"),
+  heroObserved: document.getElementById("hero-observed"),
+  staleStrip: document.getElementById("stale-strip"),
+  staleStripText: document.getElementById("stale-strip-text"),
+  failures: document.getElementById("failures"),
+  loading: document.getElementById("loading"),
+  planCapMount: document.getElementById("plan-cap-mount"),
+  planCapPlan: document.getElementById("plan-cap-plan"),
+  spendMount: document.getElementById("spend-mount"),
+  proMount: document.getElementById("pro-mount"),
+  settingsMount: document.getElementById("settings-mount"),
   tabs: [
     document.getElementById("tab-meters"),
+    document.getElementById("tab-spend"),
     document.getElementById("tab-connections"),
+    document.getElementById("tab-settings"),
   ],
   panels: [
     document.getElementById("panel-meters"),
+    document.getElementById("panel-spend"),
     document.getElementById("panel-connections"),
+    document.getElementById("panel-settings"),
   ],
 };
+
+defineLiveMeter();
+
+/* The first paint of a tab is deferred until it is opened. A window that
+   builds four screens before showing one is a window that opens slowly. */
+const painted = new Set();
+
+async function paintTab(id) {
+  if (id === "tab-connections") {
+    await renderPlanCap(elements.planCapMount, { onChange: () => void refresh() });
+    await paintPlanBadge();
+    painted.add(id);
+    return;
+  }
+  if (id === "tab-spend") {
+    await renderSpend(elements.spendMount);
+    painted.add(id);
+    return;
+  }
+  if (id === "tab-settings") {
+    await renderPro(elements.proMount);
+    await renderSettings(elements.settingsMount);
+    painted.add(id);
+  }
+}
+
+async function paintPlanBadge() {
+  const result = await proStatus();
+  const plan = result.ok ? (result.value?.plan_state ?? "free") : "free";
+  if (elements.planCapPlan === null) return;
+  const names = {
+    free: "Free",
+    active: "Pro",
+    trial: "Trial",
+    past_due: "Payment failed",
+    canceled: "Ending",
+  };
+  elements.planCapPlan.textContent = names[plan] ?? plan;
+  if (plan === "active" || plan === "trial") {
+    elements.planCapPlan.setAttribute("data-tone", "accent");
+  } else {
+    elements.planCapPlan.removeAttribute("data-tone");
+  }
+}
 
 /* -------------------------------------------------------------------- tabs */
 
 let initialTabDetermined = false;
+
+/* The strip is four wide now, so a caller names the tab and never the number.
+   A position typed as a literal is a position that goes wrong the next time a
+   tab is added between two others. */
+const TAB_METERS = 0;
+const TAB_CONNECTIONS = 2;
 
 function selectTab(index, isUserClick = false) {
   if (isUserClick) {
@@ -231,6 +343,8 @@ function selectTab(index, isUserClick = false) {
     connectionsTabShown();
     decorateConnectionCardsHonestyLabels();
   }
+  const id = elements.tabs[index]?.id;
+  if (id !== undefined && id !== "tab-meters") void paintTab(id);
 }
 
 elements.tabs.forEach((tab, index) => {
@@ -249,7 +363,7 @@ elements.tabs.forEach((tab, index) => {
 });
 
 function beginAddAccount() {
-  selectTab(1, true);
+  selectTab(TAB_CONNECTIONS, true);
   const panel = document.getElementById("panel-connections");
   panel?.setAttribute("data-adding", "");
   window.setTimeout(() => panel?.removeAttribute("data-adding"), 1200);
@@ -270,24 +384,146 @@ elements.emptyConnect?.addEventListener("click", beginAddAccount);
 function closeHeaderPopovers() {
   elements.notificationPopover.hidden = true;
   elements.menu.hidden = true;
+  if (elements.phonePopover !== null && !elements.phonePopover.hidden) {
+    elements.phonePopover.hidden = true;
+    pairingPanelClosed();
+  }
   elements.bell.setAttribute("aria-expanded", "false");
   elements.menuButton.setAttribute("aria-expanded", "false");
+  elements.phoneButton?.setAttribute("aria-expanded", "false");
 }
+
+/** Whether a session exists right now. The sign in card and the phone panel
+    both branch on it, so it has one owner and is read rather than guessed. */
+let signedIn = false;
 
 function applyAccountState(status) {
   if (status === null || typeof status !== "object") return;
-  elements.menuEmail.textContent = status.signedIn
+  signedIn = status.signedIn === true;
+  elements.menuEmail.textContent = signedIn
     ? String(status.email ?? "Signed in")
     : "Signed out";
   elements.menuBackend.textContent =
-    status.backendReachable === false && status.signedIn
-      ? "Cached session"
-      : "";
+    status.backendReachable === false && signedIn ? "Cached session" : "";
   elements.menuSync.checked = status.syncEnabled !== false;
-  elements.offlineBanner.hidden = !(
-    status.signedIn && status.backendReachable === false
-  );
+  elements.offlineBanner.hidden = !(signedIn && status.backendReachable === false);
+  /* Signed out, the menu offers the card instead of a switch that has nothing
+     to switch and a log out that has nothing to end. */
+  if (elements.menuSignIn !== null) elements.menuSignIn.hidden = signedIn;
+  if (elements.menuSignedIn !== null) elements.menuSignedIn.hidden = !signedIn;
+  if (elements.menuLogout !== null) elements.menuLogout.hidden = !signedIn;
+  setPairingAccountState(signedIn);
 }
+
+/* ------------------------------------------------------------- signing in */
+
+/**
+ * One sign in sheet, opened from two places.
+ *
+ * The first run offer and the account menu both raise this, and a success is
+ * announced on the window so first run can finish itself without owning a
+ * second copy of the form.
+ */
+function openSignIn() {
+  if (elements.signIn === null) return;
+  closeHeaderPopovers();
+  elements.signIn.hidden = false;
+  if (elements.signInStatus !== null) elements.signInStatus.textContent = "";
+  elements.signInEmail?.focus();
+}
+
+function closeSignIn() {
+  if (elements.signIn === null) return;
+  elements.signIn.hidden = true;
+  if (elements.signInPassword instanceof HTMLInputElement) {
+    elements.signInPassword.value = "";
+  }
+}
+
+function signInFailed(result) {
+  if (elements.signInStatus === null) return;
+  elements.signInStatus.textContent =
+    result?.message ??
+    "Sign in could not be completed. Check your connection and try again.";
+}
+
+async function runSignIn(action) {
+  if (elements.signInStatus !== null) {
+    elements.signInStatus.textContent = "Opening secure sign in.";
+  }
+  const result = await action();
+  if (!result.ok || result.value?.signedIn !== true) {
+    signInFailed(result);
+    return;
+  }
+  applyAccountState(result.value);
+  if (result.value.syncEnabled !== false) {
+    void accountSyncConfiguredSnapshot(readConfiguredProviders());
+  }
+  closeSignIn();
+  window.dispatchEvent(new CustomEvent("openlimiter:signed-in"));
+  void refresh();
+}
+
+elements.signInClose?.addEventListener("click", closeSignIn);
+elements.menuSignInButton?.addEventListener("click", openSignIn);
+
+elements.signInForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  void runSignIn(() =>
+    accountEmail({
+      email: elements.signInEmail?.value ?? "",
+      password: elements.signInPassword?.value ?? "",
+      create: false,
+    }),
+  );
+});
+
+elements.signInCreate?.addEventListener("click", () => {
+  void runSignIn(() =>
+    accountEmail({
+      email: elements.signInEmail?.value ?? "",
+      password: elements.signInPassword?.value ?? "",
+      create: true,
+    }),
+  );
+});
+
+/*
+ * The magic link, for a person with neither provider account, or who would
+ * rather not type a password into a desktop window. It sends an empty password
+ * with create off, which is what the broker reads as a link request, and it
+ * never advances the sheet: the link is followed in a browser and this window
+ * picks the session up when it comes back.
+ */
+elements.signInMagic?.addEventListener("click", () => {
+  void (async () => {
+    const address = elements.signInEmail?.value ?? "";
+    if (address.trim() === "") {
+      if (elements.signInStatus !== null) {
+        elements.signInStatus.textContent =
+          "Enter the email address to send the link to.";
+      }
+      elements.signInEmail?.focus();
+      return;
+    }
+    if (elements.signInStatus !== null) {
+      elements.signInStatus.textContent = "Sending the link.";
+    }
+    const result = await accountEmail({ email: address, password: "", create: false });
+    if (elements.signInStatus === null) return;
+    elements.signInStatus.textContent = result.ok
+      ? "Check " + address + " and open the link on this device."
+      : (result.message ?? "The link could not be sent. Check your connection.");
+  })();
+});
+
+elements.signInGoogle?.addEventListener("click", () => {
+  void runSignIn(() => accountOauth("google"));
+});
+elements.signInGithub?.addEventListener("click", () => {
+  void runSignIn(() => accountOauth("github"));
+});
 
 function eventSentence(event) {
   if (event.kind === "reset") {
@@ -342,12 +578,51 @@ async function runUpdateCheck(silent) {
   elements.menuUpdate.textContent = "Install OpenLimiter " + version;
 }
 
+/* Asked once per window, and only where it can be honoured. A Free machine
+   raises no toast at all, so asking the operating system for permission to
+   raise one would be asking for something nothing would ever use. */
+let permissionAsked = false;
+
+async function paintAlertGate() {
+  if (elements.notificationGate === null) return;
+  const result = await notificationGate();
+  const entitled = result.ok && result.value?.entitled === true;
+  elements.notificationGate.hidden = entitled;
+  if (!entitled || permissionAsked) return;
+  permissionAsked = true;
+  const outcome = await requestAlertPermission();
+  if (outcome === "granted") return;
+  const note = document.getElementById("notification-gate-note");
+  if (note === null) return;
+  elements.notificationGate.hidden = false;
+  const title = document.getElementById("notification-gate-title");
+  if (title !== null) title.textContent = "Alerts are on for your plan";
+  note.textContent = permissionSentence(outcome);
+  elements.notificationUpgrade?.setAttribute("hidden", "");
+}
+
+elements.notificationUpgrade?.addEventListener("click", () => {
+  void openCheckout("monthly");
+});
+
 elements.bell?.addEventListener("click", () => {
   const opening = elements.notificationPopover.hidden;
   closeHeaderPopovers();
   elements.notificationPopover.hidden = !opening;
   elements.bell.setAttribute("aria-expanded", opening ? "true" : "false");
-  if (opening) void renderNotificationEvents();
+  if (opening) {
+    void renderNotificationEvents();
+    void paintAlertGate();
+  }
+});
+
+elements.phoneButton?.addEventListener("click", () => {
+  if (elements.phonePopover === null) return;
+  const opening = elements.phonePopover.hidden;
+  closeHeaderPopovers();
+  elements.phonePopover.hidden = !opening;
+  elements.phoneButton.setAttribute("aria-expanded", opening ? "true" : "false");
+  if (opening) pairingPanelOpened();
 });
 
 elements.menuButton?.addEventListener("click", () => {
@@ -355,6 +630,7 @@ elements.menuButton?.addEventListener("click", () => {
   closeHeaderPopovers();
   elements.menu.hidden = !opening;
   elements.menuButton.setAttribute("aria-expanded", opening ? "true" : "false");
+  if (opening && signedIn) void renderDevices();
 });
 
 document.addEventListener("click", (event) => {
@@ -400,6 +676,37 @@ elements.menuLogout?.addEventListener("click", () => {
 
 void accountStatus().then((result) => {
   if (result.ok) applyAccountState(result.value);
+});
+
+/**
+ * Send a person to hosted Checkout, in their own browser.
+ *
+ * Rust opens the address the server returned, so nothing about a price or a
+ * session is assembled here. Coming back to this window refreshes the
+ * entitlement, which is why a completed purchase shows within seconds rather
+ * than at the next hourly refresh.
+ */
+async function openCheckout(plan) {
+  if (!signedIn) {
+    openSignIn();
+    return;
+  }
+  const result = await proCheckoutUrl(plan);
+  if (result.ok) return;
+  const note = document.getElementById("notification-gate-note");
+  if (note !== null) {
+    note.textContent = result.message ?? "Checkout could not be opened.";
+  }
+}
+
+/* A purchase happens in a browser, so the window learns about it by coming
+   back into focus. Refreshing then is the difference between "it worked" and
+   "restart the app". */
+window.addEventListener("focus", () => {
+  if (!signedIn) return;
+  void proRefresh().then(() => {
+    void paintPlanBadge();
+  });
 });
 
 /* ------------------------------------------------------------------ reading */
@@ -506,8 +813,118 @@ let refreshing = false;
  */
 let freshLocalClaude = false;
 
+/**
+ * The one window that most deserves the instrument.
+ *
+ * "Most pressed" is the highest live percentage, and a stale reading never
+ * wins it. An old ninety is not more urgent than a current eighty, it is only
+ * louder, and putting it in the hero would be the window shouting a number it
+ * has already stopped believing.
+ */
+function heroWindow(rows) {
+  let best = null;
+  for (const row of rows) {
+    for (const window of row.windows) {
+      if (window.usedPercent === null) continue;
+      if (window.state !== "fresh") continue;
+      if (best === null || window.usedPercent > best.window.usedPercent) {
+        best = { row, window };
+      }
+    }
+  }
+  return best;
+}
+
+function paintHero(rows, now) {
+  if (elements.hero === null || elements.heroMeter === null) return;
+  const best = heroWindow(rows);
+  if (best === null) {
+    elements.hero.hidden = true;
+    return;
+  }
+  elements.hero.hidden = false;
+  elements.heroMeter.meter = {
+    windowName: best.window.label,
+    accountLabel: best.row.showAccountLabel ? best.row.accountLabel : best.row.providerLabel,
+    usedPercent: best.window.usedPercent,
+    band: bandForPercent(best.window.usedPercent),
+    live: true,
+    resetAt: bestResetAt(best.row, best.window),
+  };
+  if (elements.heroObserved !== null) {
+    elements.heroObserved.textContent = new Date(now).toLocaleTimeString();
+  }
+}
+
+/* The view carries a rendered countdown but not the instant behind it, and the
+   instrument needs the instant so it can tick. It is read back off the
+   snapshot the row was built from. */
+let resetInstants = new Map();
+
+function bestResetAt(row, window) {
+  return resetInstants.get(row.provider + "::" + (row.accountId ?? "") + "::" + window.key) ?? null;
+}
+
+function rememberResets(snapshots) {
+  resetInstants = new Map();
+  for (const snapshot of snapshots) {
+    if (typeof snapshot.resetAt !== "string") continue;
+    resetInstants.set(
+      snapshot.provider + "::" + (snapshot.accountId ?? "") + "::" + snapshot.meter,
+      snapshot.resetAt
+    );
+  }
+}
+
+/**
+ * The stale strip, which exists so a screen full of hatched bars is explained
+ * once rather than eight times. It only appears when nothing on screen is
+ * live, because a mix of fresh and stale rows already says which is which.
+ */
+function paintStaleStrip(rows) {
+  if (elements.staleStrip === null) return;
+  const drawn = rows.flatMap((row) => row.windows);
+  const anyLive = drawn.some((window) => window.state === "fresh");
+  const anyStale = drawn.some((window) => window.state !== "fresh");
+  elements.staleStrip.hidden = anyLive || !anyStale || drawn.length === 0;
+  if (elements.staleStripText !== null && !elements.staleStrip.hidden) {
+    elements.staleStripText.textContent =
+      "Nothing on screen is a live reading. Every bar below is hatched and shows the last number that was observed, not the number now.";
+  }
+}
+
+/** One alert per failed provider, in the core's own sentence. */
+function paintFailures(failures) {
+  if (elements.failures === null) return;
+  const rows = dedupeFailures(failures);
+  elements.failures.hidden = rows.length === 0;
+  /* Nodes, not a markup string. Both halves of this card came off a file on
+     disk: the provider identifier from the snapshot cache, and the category
+     from whatever the core could make of it. A provider the table does not
+     know shows its own identifier, and a category with no sentence shows its
+     own code, so the fallback is the value itself in both cases. Concatenating
+     either into innerHTML would put a file this window did not write in charge
+     of the markup it renders. */
+  elements.failures.replaceChildren(
+    ...rows.map((failure) =>
+      buildFailureRow(
+        PROVIDER_NAMES[failure.provider] ?? failure.provider,
+        /* A fixed table, not a function. The core keeps one sentence per
+           category so no surface can invent a variation of its own. */
+        failureSentence[failure.category] ?? failure.category,
+      ),
+    ),
+  );
+}
+
 async function refresh() {
   if (refreshing) return;
+  /* Shown until the first collect answers, then never again: a second wait is
+     a repaint of numbers already on screen and must not blank them. */
+  if (elements.loading !== null && !painted.has("first")) {
+    elements.loading.hidden = false;
+    painted.add("first");
+  }
   refreshing = true;
   try {
     const now = new Date().toISOString();
@@ -541,13 +958,14 @@ async function refresh() {
           (s) => freshness(s.observedAt, s.expiresAt, now) !== "unknown"
         );
       if (hasConnections) {
-        selectTab(0);
+        selectTab(TAB_METERS);
       } else {
-        selectTab(1);
+        selectTab(TAB_CONNECTIONS);
       }
     }
 
     elements.rows.textContent = "";
+    rememberResets(visible);
     const providerRows = buildProviderAccountRows(
       visible,
       now,
@@ -558,8 +976,12 @@ async function refresh() {
       elements.rows.append(createProviderRowElement(row));
     }
 
+    if (elements.loading !== null) elements.loading.hidden = true;
     elements.empty.hidden = providerRows.length > 0;
     elements.rows.hidden = providerRows.length === 0;
+    paintHero(providerRows, now);
+    paintStaleStrip(providerRows);
+    paintFailures(visibleFailures);
 
     const notificationSamples = visible
       .filter(
@@ -567,10 +989,14 @@ async function refresh() {
           snapshot.unit === "PERCENT" && Number.isFinite(snapshot.value)
       )
       .map((snapshot) => ({
+        accountId: snapshot.accountId ?? "default",
         provider: snapshot.provider,
-        window_name: snapshot.meter,
-        usage_percent: snapshot.value,
-        reset_at: snapshot.resetAt ?? null,
+        meter: "provider_usage_percent",
+        windowName: snapshot.meter,
+        windowId: snapshot.resetAt ?? `meter:${snapshot.meter}`,
+        windowIsAuthoritative: snapshot.resetAt !== null && snapshot.resetAt !== undefined,
+        value: snapshot.value,
+        observedAt: snapshot.observedAt,
       }));
     if (notificationSamples.length > 0) {
       const result = await evaluateNotifications(notificationSamples);
@@ -585,8 +1011,13 @@ async function refresh() {
     /* The Claude card's ready or collecting split reads the cache through
        the flag set above, so it is told the cache moved. */
     noteMetersRefreshed();
-  } catch {
-    /* A failed refresh leaves the last valid provider rows untouched. */
+  } catch (error) {
+    /* A failed refresh leaves the last valid provider rows untouched, which
+       is the right behaviour and was also, for a while, a place a real bug
+       went to die. The reason is surfaced now: an interface that cannot say
+       why it stopped updating is one nobody can debug from a screenshot. */
+    if (elements.loading !== null) elements.loading.hidden = true;
+    paintFailures([{ provider: "MANUAL", category: "PAYLOAD_UNREADABLE" }]);
   } finally {
     refreshing = false;
   }
@@ -905,12 +1336,14 @@ if (cardsContainer) {
   observer.observe(cardsContainer, { childList: true, subtree: true });
 }
 
+initPairing({ onSignIn: openSignIn });
+
 initFirstRun({
   accountStatus,
-  accountEmail,
-  accountOauth,
   detectProviders: listDetectedProviders,
   markFor: (code) => MARKS[code] ?? "",
+  isSignedIn: () => signedIn,
+  onSignInRequested: openSignIn,
   onAccountState: (status) => {
     applyAccountState(status);
     if (status.syncEnabled !== false) {
@@ -921,7 +1354,7 @@ initFirstRun({
     void refresh();
   },
   onInstall: (provider) => {
-    selectTab(1, true);
+    selectTab(TAB_CONNECTIONS, true);
     openProviderConnection(provider);
   },
 });

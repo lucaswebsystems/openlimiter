@@ -36,9 +36,24 @@ import {
   parseOpenrouterPayload
 } from "@openlimiter/connectors";
 import {
+  AGENT_COMPATIBILITY,
   agentContextFromCache,
+  agentContextSpillFromCache,
+  agentVersionCompatibility,
+  changeAgentHook,
+  detectAgentInstallation,
+  readAgentHookStatus,
+  runAgentHook,
+  validateAgentExecutableStamp,
+  writeAgentContextSnapshot,
+  type AgentId,
+  type AgentInstallation,
+  type HostedContextTrust,
+  type HostedTrustLoadOptions,
+  loadHostedContextTrust,
   renderClaudeStatusline
 } from "@openlimiter/adapters";
+import { homedir } from "node:os";
 import {
   STATUSLINE_KEYS,
   defaultConfig,
@@ -98,7 +113,7 @@ export interface CliDependencies {
    * reader, which keeps every command deterministic when it is called in
    * process by a test or another tool.
    */
-  readStandardInput: () => Promise<string | null>;
+  readStandardInput: (signal?: AbortSignal) => Promise<string | null>;
   /**
    * Whether output may carry terminal colour.
    *
@@ -109,6 +124,22 @@ export interface CliDependencies {
    * capture redirected into a file carries no control characters at all.
    */
   colorOutput: boolean;
+  homeDirectory: string;
+  openLimiterScript: string;
+  nodeExecutable: string;
+  platform: NodeJS.Platform;
+  detectedAgentInstallations: Readonly<Partial<Record<AgentId, AgentInstallation | null>>>;
+  hostedContextTrust?: HostedContextTrust;
+  hostedContextPublicKeys?: HostedTrustLoadOptions["pinnedPublicKeys"];
+  hostedTrustConfigRoot?: string;
+  /**
+   * How the Windows owner and permissions of the trust file are read.
+   *
+   * The library default asks the operating system. A test injects a recorded
+   * answer instead, so a hostile ownership case can be proved without touching
+   * the security of a real file.
+   */
+  hostedTrustWindowsSecurity?: HostedTrustLoadOptions["windowsSecurity"];
   /**
    * Called once the serve command is listening.
    *
@@ -138,12 +169,42 @@ function defaults(): CliDependencies {
     now: () => new Date().toISOString(),
     payloads: {},
     readStandardInput: async () => null,
-    colorOutput: supportsColor(process.env, process.stdout.isTTY === true)
+    colorOutput: supportsColor(process.env, process.stdout.isTTY === true),
+    homeDirectory: homedir(),
+    openLimiterScript: process.argv[1] ?? "",
+    nodeExecutable: process.execPath,
+    platform: process.platform,
+    detectedAgentInstallations: {}
   };
 }
 
 function succeed(stdout: string): CliResult {
   return { exitCode: EXIT_OK, stdout, stderr: "" };
+}
+
+async function resolvedHostedTrust(
+  dependencies: CliDependencies,
+  now: string,
+  signal?: AbortSignal
+): Promise<HostedContextTrust | undefined> {
+  if (dependencies.hostedContextTrust !== undefined) {
+    return dependencies.hostedContextTrust;
+  }
+  return await loadHostedContextTrust({
+    homeDirectory: dependencies.homeDirectory,
+    platform: dependencies.platform,
+    now,
+    ...(signal === undefined ? {} : { signal }),
+    ...(dependencies.hostedContextPublicKeys === undefined
+      ? {}
+      : { pinnedPublicKeys: dependencies.hostedContextPublicKeys }),
+    ...(dependencies.hostedTrustConfigRoot === undefined
+      ? {}
+      : { trustedPlatformConfigRoot: dependencies.hostedTrustConfigRoot }),
+    ...(dependencies.hostedTrustWindowsSecurity === undefined
+      ? {}
+      : { windowsSecurity: dependencies.hostedTrustWindowsSecurity })
+  });
 }
 
 function fail(exitCode: number, message: string, stdout = ""): CliResult {
@@ -238,7 +299,8 @@ async function refresh(
   if (report.snapshots.length === 0) return { snapshots: [], failures };
   const persisted = await persistSnapshots(
     report.snapshots,
-    dependencies.stateDirectory
+    dependencies.stateDirectory,
+    now
   );
   return { snapshots: persisted.merged, failures };
 }
@@ -288,6 +350,11 @@ const help = [
   "openlimiter snapshot [--refresh]",
   "openlimiter statusline",
   "openlimiter hook [--dry-run]",
+  "openlimiter hooks install <agent>",
+  "openlimiter hooks uninstall <agent>",
+  "openlimiter hooks status <agent>",
+  "openlimiter hooks repair <agent>",
+  "openlimiter status --agent-context",
   "openlimiter ingest [--provider <id>] [--payload <json>]",
   "openlimiter config get statusline[.<key>]",
   "openlimiter config set statusline.<key> <value>",
@@ -325,7 +392,7 @@ async function ingestStandardInput(
     const incoming = normalizeMeters(withProvenance(meters, STATUSLINE_PROVENANCE));
     if (incoming.length === 0) return null;
     try {
-      return (await persistSnapshots(incoming, dependencies.stateDirectory)).merged;
+      return (await persistSnapshots(incoming, dependencies.stateDirectory, now)).merged;
     } catch {
       const existing = await cachedSnapshots(dependencies.stateDirectory);
       return mergeSnapshots(existing, incoming);
@@ -374,9 +441,25 @@ async function snapshotCommand(
   }
   const cached = await readSnapshotCache(dependencies.stateDirectory);
   if (!cached.ok && cached.reason !== "missing") {
+    await writeAgentContextSnapshot(
+      [],
+      dependencies.stateDirectory,
+      now,
+      PROVIDER_CODES
+    ).catch(() => undefined);
     return fail(EXIT_FAILURE, "openlimiter snapshot: quota state could not be read.");
   }
   const snapshots = cached.ok ? cached.snapshots : [];
+  try {
+    await writeAgentContextSnapshot(
+      snapshots,
+      dependencies.stateDirectory,
+      now,
+      PROVIDER_CODES
+    );
+  } catch {
+    return fail(EXIT_FAILURE, "openlimiter snapshot: agent context could not be written.");
+  }
   const stdout = withFailures(
     renderTable(snapshots, now, dependencies.colorOutput),
     failures,
@@ -537,7 +620,7 @@ async function ingestCommand(
     );
   }
   try {
-    const persisted = await persistSnapshots(incoming, dependencies.stateDirectory);
+    const persisted = await persistSnapshots(incoming, dependencies.stateDirectory, now);
     return succeed(
       "Ingested " + String(incoming.length) +
       " bounded meters. Cached meters: " + String(persisted.merged.length) + "."
@@ -565,6 +648,14 @@ async function statuslineCommand(
 ): Promise<CliResult> {
   const ingested = await ingestStandardInput(dependencies, now);
   const snapshots = ingested ?? await cachedSnapshots(dependencies.stateDirectory);
+  if (ingested === null) {
+    await writeAgentContextSnapshot(
+      snapshots,
+      dependencies.stateDirectory,
+      now,
+      PROVIDER_CODES
+    ).catch(() => undefined);
+  }
   const advice = buildAdvice(snapshots, now, PROVIDER_CODES);
   const config = await readStatuslineConfig(dependencies.stateDirectory);
   if (!config.bars) return succeed(renderClaudeStatusline(advice));
@@ -579,6 +670,204 @@ async function statuslineCommand(
       dependencies.colorOutput
     )
   }));
+}
+
+const agentAliases: Readonly<Record<string, AgentId>> = {
+  agy: "antigravity",
+  antigravity: "antigravity",
+  claude: "claude",
+  codex: "codex",
+  gemini: "gemini",
+  grok: "grok",
+  "grok-build": "grok",
+  kimi: "kimi",
+  opencode: "opencode"
+};
+
+function agentArgument(value: string | undefined): AgentId | null {
+  return value === undefined ? null : agentAliases[value.toLowerCase()] ?? null;
+}
+
+async function hookProtocolCommand(
+  dependencies: CliDependencies,
+  argumentsList: readonly string[],
+  now: string
+): Promise<CliResult> {
+  const agentFlag = flagValue(argumentsList, "--agent");
+  if (agentFlag === undefined) {
+    const hostedTrust = await resolvedHostedTrust(dependencies, now);
+    return succeed(await agentContextFromCache(
+      dependencies.stateDirectory,
+      now,
+      PROVIDER_CODES,
+      hostedTrust === undefined ? {} : { hostedTrust }
+    ));
+  }
+  const agent = agentArgument(agentFlag);
+  const hostVersion = flagValue(argumentsList, "--host-version");
+  if (agent === null || hostVersion === undefined) return succeed("");
+  if (
+    agent === "opencode" &&
+    dependencies.environment["OPENLIMITER_EXPERIMENTAL_OPENCODE"] !== "1"
+  ) return succeed("");
+  const fallback = (): CliResult => succeed(runAgentHook({
+    agent,
+    hostVersion,
+    rawInput: null,
+    context: ""
+  }).stdout);
+  /*
+   * The deadline both chooses the answer and cancels the work behind it.
+   * Racing alone left the loser running, so a slow read could still reach the
+   * context cache and rewrite a spill file long after the host had been given
+   * its reply. Every step below sees the same signal and stops at it.
+   */
+  const deadline = new AbortController();
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<CliResult>((resolve) => {
+    timer = setTimeout(() => {
+      deadline.abort();
+      resolve(fallback());
+    }, 450);
+  });
+  const work = (async (): Promise<CliResult> => {
+    if (flagValue(argumentsList, "--managed-hook") === "openlimiter-v1") {
+      const executable = flagValue(argumentsList, "--agent-executable");
+      const fileSize = Number(flagValue(argumentsList, "--agent-file-size"));
+      const mtime = Number(flagValue(argumentsList, "--agent-mtime-ms"));
+      if (
+        executable === undefined ||
+        !(await validateAgentExecutableStamp(executable, fileSize, mtime))
+      ) return fallback();
+    }
+    const rawInput = await dependencies.readStandardInput(deadline.signal);
+    if (deadline.signal.aborted) return fallback();
+    const hostedTrust = await resolvedHostedTrust(dependencies, now, deadline.signal);
+    if (deadline.signal.aborted) return fallback();
+    const context = await agentContextFromCache(
+      dependencies.stateDirectory,
+      now,
+      PROVIDER_CODES,
+      {
+        ...(hostedTrust === undefined ? {} : { hostedTrust }),
+        signal: deadline.signal
+      }
+    );
+    return succeed(runAgentHook({ agent, hostVersion, rawInput, context }).stdout);
+  })();
+  /* The race still sees a failure that arrives in time. This second handler
+     only keeps a failure that arrives too late from becoming an unhandled
+     rejection in the host process. */
+  void work.catch(() => undefined);
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    deadline.abort();
+  }
+}
+
+async function hooksCommand(
+  dependencies: CliDependencies,
+  argumentsList: readonly string[]
+): Promise<CliResult> {
+  const requestedAction = argumentsList[1];
+  const action = requestedAction === "repair" ? "install" : requestedAction;
+  const agent = agentArgument(argumentsList[2]);
+  if (
+    (action !== "install" && action !== "uninstall" && action !== "status") ||
+    agent === null
+  ) {
+    return fail(
+      EXIT_USAGE,
+      "openlimiter hooks: use install, uninstall, status, or repair with a known agent."
+    );
+  }
+  if (action === "status") {
+    const status = await readAgentHookStatus(agent, {
+      homeDirectory: dependencies.homeDirectory
+    });
+    const hasKnownInstallation = Object.prototype.hasOwnProperty.call(
+      dependencies.detectedAgentInstallations,
+      agent
+    );
+    const installation = hasKnownInstallation
+      ? dependencies.detectedAgentInstallations[agent] ?? null
+      : await detectAgentInstallation(agent, {
+          environment: dependencies.environment,
+          platform: dependencies.platform
+        });
+    const gate = AGENT_COMPATIBILITY[agent];
+    const compatibility = installation === null
+      ? null
+      : agentVersionCompatibility(agent, installation.version);
+    const location = status.configPath ?? "NONE";
+    return succeed([
+      "agent=" + agent,
+      "installed=" + (status.installed ? "yes" : "no"),
+      "config=" + location,
+      ...(compatibility === "newer" && gate.minimumTestedVersion !== null
+        ? [
+            "warning=detected version " + installation!.version +
+              " is newer than minimum tested " + gate.minimumTestedVersion
+          ]
+        : [])
+    ].join("\n"));
+  }
+  const knownInstallation = Object.prototype.hasOwnProperty.call(
+    dependencies.detectedAgentInstallations,
+    agent
+  ) ? dependencies.detectedAgentInstallations[agent] : undefined;
+  const result = await changeAgentHook(agent, action, {
+    homeDirectory: dependencies.homeDirectory,
+    openLimiterScript: dependencies.openLimiterScript,
+    nodeExecutable: dependencies.nodeExecutable,
+    environment: dependencies.environment,
+    platform: dependencies.platform,
+    ...(knownInstallation === undefined
+      ? {}
+      : knownInstallation === null
+        ? { detectedVersion: null }
+        : {
+            detectedVersion: knownInstallation.version,
+            agentExecutable: knownInstallation.executable,
+            agentFileSize: knownInstallation.fileSize,
+            agentMtimeMilliseconds: knownInstallation.mtimeMilliseconds
+          })
+  });
+  const preview = [
+    "agent=" + result.agent,
+    "action=" + result.action,
+    "changed=" + (result.changed ? "yes" : "no"),
+    "config=" + (result.configPath ?? "NONE"),
+    "backup=" + (result.backupPath ?? "NONE"),
+    "version=" + (result.version ?? "NONE")
+  ].join("\n");
+  return result.supported
+    ? succeed(preview)
+    : fail(EXIT_FAILURE, "openlimiter hooks: " + result.message, preview);
+}
+
+async function explicitStatusCommand(
+  dependencies: CliDependencies,
+  argumentsList: readonly string[],
+  now: string
+): Promise<CliResult> {
+  if (!argumentsList.includes("--agent-context")) {
+    return fail(EXIT_USAGE, "openlimiter status: use --agent-context.");
+  }
+  const hostedTrust = await resolvedHostedTrust(dependencies, now);
+  const context = await agentContextFromCache(
+    dependencies.stateDirectory,
+    now,
+    PROVIDER_CODES,
+    hostedTrust === undefined ? {} : { hostedTrust }
+  );
+  const spill = await agentContextSpillFromCache(dependencies.stateDirectory, now);
+  const stdout = [context, spill].filter((value) => value !== "").join("\n");
+  return stdout === ""
+    ? fail(EXIT_NO_DATA, "openlimiter status: no current agent context is available.")
+    : succeed(stdout);
 }
 
 /* --------------------------------------------------------------- config */
@@ -756,11 +1045,11 @@ export async function runCli(
       return await configCommand(dependencies, argumentsList);
     }
     if (command === "hook") {
-      return succeed(await agentContextFromCache(
-        dependencies.stateDirectory,
-        now,
-        PROVIDER_CODES
-      ));
+      return await hookProtocolCommand(dependencies, argumentsList, now);
+    }
+    if (command === "hooks") return await hooksCommand(dependencies, argumentsList);
+    if (command === "status") {
+      return await explicitStatusCommand(dependencies, argumentsList, now);
     }
     if (command === "doctor") return await doctorCommand(dependencies, now);
     if (command === "demo") {

@@ -5,7 +5,10 @@
  * Only import specifiers were rewritten. Edit the package instead, then run
  * the script again.
  */
+import { connectionStatus } from "../core";
 import type {
+  ConnectionStatus,
+  ConnectionTool,
   ConnectorLabels,
   ProviderCode,
   RawMeter,
@@ -14,6 +17,33 @@ import type {
   SnapshotSource,
   SnapshotWindow
 } from "../core";
+
+/**
+ * The connection lifecycle a reader reports beside its meters.
+ *
+ * Three outcomes, and the difference between the last two is the whole reason
+ * this exists. Nothing arrived at all is a tool that has not run yet, which is
+ * a person's next step and not a fault. Something arrived and this build could
+ * not read it is a FAULT, and it is ours rather than the provider's, which is
+ * exactly the failure the Claude statusline contract mismatch was: a healthy
+ * account, a well formed payload, and a parser that answered null in silence.
+ *
+ * `tool` names the local application that owns the credential, so an
+ * instruction can say which window to open. It is never a value a payload
+ * supplied, and no instruction it produces is something this app does by
+ * itself: OpenLimiter reads tokens and refreshes none of them.
+ */
+export function connectorConnection(
+  parsed: boolean,
+  payload: unknown,
+  tool: ConnectionTool
+): ConnectionStatus {
+  if (parsed) return connectionStatus("CONNECTED", null, tool);
+  if (payload === undefined || payload === null) {
+    return connectionStatus("DETECTED", "tool_not_running", tool);
+  }
+  return connectionStatus("ERROR", "shape_mismatch", tool);
+}
 
 export function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)

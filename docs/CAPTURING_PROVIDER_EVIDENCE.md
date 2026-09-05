@@ -80,13 +80,22 @@ numbers, and that reading is the actual safety mechanism; the script only makes
 the reading short. Then:
 
 ```
-node scripts/sanitize-capture.mjs --provider codex --in raw-codex.json --write
+node scripts/sanitize-capture.mjs --provider codex --in raw-codex.json
+  --provider-version "codex-cli 0.152.0" --write
 ```
 
 which freezes it into the fixture slot in `packages/connectors/src/fixtures.ts`,
 dated today, and flips its status from `pending_capture` to `captured`. It
 refuses to overwrite a slot that already holds a capture: replacing one is a
 deliberate edit with a reviewed diff.
+
+`--provider-version` is required with `--write` and is the version of the
+client the capture was taken with. A frozen capture that does not say which
+build answered it is half a piece of evidence, and the field used to be written
+as `null` on every run whatever had just been captured. `expectedMeters` is no
+longer written as a constant either: it is counted from the reduction, through
+the same rule the reader applies, so the count cannot disagree with the payload
+beside it.
 
 Then set that reader's `evidence_status` to `captured` and its
 `last_verified_at` to the same date in the provider's spec under

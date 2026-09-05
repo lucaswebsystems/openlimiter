@@ -1,0 +1,14 @@
+{
+  "windows": [
+    {
+      "window": "five_hour",
+      "utilization": 90,
+      "resetsInSeconds": 2246
+    },
+    {
+      "window": "seven_day",
+      "utilization": 18,
+      "resetsInSeconds": 377246
+    }
+  ]
+}

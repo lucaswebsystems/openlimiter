@@ -44,6 +44,27 @@ import {
 
 export type JsonLdNode = Record<string, unknown>;
 
+/**
+ * One block, serialised for a script element.
+ *
+ * The three characters that can end a script early, or start a comment inside
+ * one, are written as their JSON unicode escapes: `<`, `>` and `&`. The result
+ * is the same JSON by every parser, and there is no sequence a value can carry
+ * that the HTML parser will read as markup. `</script>` inside a description
+ * becomes text, `<!--` becomes text, and an entity becomes text.
+ *
+ * Every string on this site is authored, so today nothing needs escaping. That
+ * is exactly the reason to do it here rather than to rely on remembering: the
+ * descriptions come from five message catalogs, and a catalog is the kind of
+ * file that eventually holds a sentence nobody reviewed with this in mind.
+ */
+export function jsonLdText(data: JsonLdNode): string {
+  return JSON.stringify(data)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+}
+
 const SCHEMA = "https://schema.org";
 
 /**
@@ -115,12 +136,53 @@ export async function websiteSchema(locale: Locale): Promise<JsonLdNode> {
 }
 
 /**
+ * A subscription price, as a recurring offer rather than a one off number.
+ *
+ * A bare `price` on an offer reads as a single payment, which is the wrong
+ * answer for a plan that renews. The reference quantity is what says how long
+ * one payment buys: one month, or one year.
+ */
+function subscriptionOffer(
+  locale: Locale,
+  name: string,
+  price: string,
+  unitCode: "MON" | "ANN",
+): JsonLdNode {
+  return {
+    "@type": "Offer",
+    name,
+    price,
+    priceCurrency: "USD",
+    availability: "https://schema.org/InStock",
+    url: `${SITE_URL}${localePath(locale, "/pricing")}`,
+    priceSpecification: {
+      "@type": "UnitPriceSpecification",
+      price,
+      priceCurrency: "USD",
+      referenceQuantity: {
+        "@type": "QuantitativeValue",
+        value: 1,
+        unitCode,
+      },
+    },
+  };
+}
+
+/**
  * The product itself.
  *
- * The price is zero and the offer says so explicitly, because a reader and a
- * crawler both ask that question first. The licence points at the canonical
- * Apache 2.0 text rather than at a copy, and the download URL points at the
- * releases page, which is where every packaged build actually is.
+ * THREE OFFERS, BECAUSE THERE ARE THREE
+ * -------------------------------------
+ * A single zero priced offer was true when nothing was sold. It is not true
+ * now: everything a reader can see is free, and Pro is a real subscription at
+ * five US dollars a month or fifty a year. A crawler asking what this costs
+ * gets all three answers rather than the flattering one, and `isAccessibleForFree`
+ * stays true because the application itself is.
+ *
+ * The licence points at the canonical Apache 2.0 text rather than at a copy,
+ * and the download URL points at the releases page, which is where every
+ * packaged build actually is. macOS is named now that a universal disk image
+ * ships on the release rather than being promised.
  */
 export async function softwareApplicationSchema(locale: Locale): Promise<JsonLdNode> {
   const t = await getTranslations({ locale, namespace: "meta" });
@@ -134,17 +196,22 @@ export async function softwareApplicationSchema(locale: Locale): Promise<JsonLdN
     description: t("description"),
     inLanguage: locale,
     applicationCategory: "DeveloperApplication",
-    operatingSystem: "Windows, Linux",
+    operatingSystem: "Windows, macOS, Linux",
     softwareVersion: CURRENT_VERSION,
     downloadUrl: RELEASES_URL,
     license: LICENSE_SPDX_URL,
     isAccessibleForFree: true,
-    offers: {
-      "@type": "Offer",
-      price: "0",
-      priceCurrency: "USD",
-      availability: "https://schema.org/InStock",
-    },
+    offers: [
+      {
+        "@type": "Offer",
+        name: SITE_NAME,
+        price: "0",
+        priceCurrency: "USD",
+        availability: "https://schema.org/InStock",
+      },
+      subscriptionOffer(locale, `${SITE_NAME} Pro`, "5", "MON"),
+      subscriptionOffer(locale, `${SITE_NAME} Pro`, "50", "ANN"),
+    ],
     softwareHelp: {
       "@type": "WebPage",
       url: `${SITE_URL}${localePath(locale, "/docs")}`,

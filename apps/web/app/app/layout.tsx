@@ -51,7 +51,7 @@ import "./theme.css";
 
 const title = "Quota dashboard";
 const description =
-  "Read your AI subscription quota in the browser, with the same engine the command line tool uses. Everything stays on your device: nothing is uploaded, there is no account, and there is no analytics.";
+  "Read your AI subscription quota in the browser, with the same engine the command line tool uses. Sign in to see what your own devices synced, or pair a phone from the desktop application. A document you paste is parsed in the tab and never uploaded, and there is no analytics.";
 
 export const metadata: Metadata = {
   /* Both were inherited from the old root layout and have to be stated here now
@@ -117,8 +117,12 @@ export const viewport: Viewport = {
 export default function AppLayout({ children }: Readonly<{ children: ReactNode }>) {
   setRequestLocale(DEFAULT_LOCALE);
 
+  /* `analytics` off: this route is the product, not the website. It runs the
+     engine in the reader's own tab on a document they never upload, and both
+     the download page and the privacy policy promise the web app sends
+     nothing. See components/site-html.tsx. */
   return (
-    <SiteHtml locale={DEFAULT_LOCALE} localised={false}>
+    <SiteHtml locale={DEFAULT_LOCALE} localised={false} analytics={false}>
       <RegisterServiceWorker />
       {children}
     </SiteHtml>

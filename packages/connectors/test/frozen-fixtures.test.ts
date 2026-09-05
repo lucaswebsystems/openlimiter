@@ -84,8 +84,13 @@ describe("frozen provider fixtures", () => {
     expect(Number.isFinite(Date.parse(clock))).toBe(true);
   });
 
-  it("carries one frozen fixture file for all eight live providers", () => {
-    const connectors = manifest.providers.map((entry) => entry.connector).sort();
+  it("carries at least one frozen fixture file for all eight live providers", () => {
+    /* One file per provider was the floor, never the ceiling. Claude ships
+       three, because it answers in two different documents and the second one
+       is the shape this parser used to refuse. */
+    const connectors = [
+      ...new Set(manifest.providers.map((entry) => entry.connector))
+    ].sort();
     expect(connectors).toEqual(
       [
         "antigravity",

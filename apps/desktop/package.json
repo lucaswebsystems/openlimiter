@@ -1,8 +1,8 @@
 {
   "name": "@openlimiter/desktop",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "OpenLimiter in a window and beside the clock, on Windows and Linux.",
+  "description": "OpenLimiter in a window and beside the clock, on Windows, macOS, and Linux.",
   "license": "Apache-2.0",
   "author": "Lucas Costa (https://lucaswebsystems.com)",
   "homepage": "https://openlimiter.com",
@@ -18,6 +18,7 @@
   "scripts": {
     "icons": "node ../../assets/brand/generate.mjs && tauri icon ../../assets/brand/openlimiter-mark.svg --output src-tauri/icons && node scripts/icons.mjs",
     "build:ui": "node scripts/build-ui.mjs",
+    "test:ui": "node --test ui/*.test.mjs",
     "test:first-run": "node --test ui/*.test.mjs",
     "dev": "tauri dev",
     "build": "tauri build",

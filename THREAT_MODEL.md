@@ -18,6 +18,8 @@ Provider authentication artifacts are read only. OpenLimiter never rewrites, bac
 
 OpenRouter credentials belong only in the operating system credential store. Repository files, cache files, exports, diagnostics, fixtures, and logs must never contain the key.
 
+API spend management keys use the separate operating system keyring service `com.openlimiter.desktop.api-spend.v1`. A source document contains only a random UUID, provider, display label, safe suffix, eligibility class, local policy, and normalized observations. There is no key readback command. A failed keyring write creates no source, and revocation deletes the key before removing the source reference.
+
 The credential library call is behind an interface. Tests use only a memory implementation with a synthetic key.
 
 ## Connector drift
@@ -32,7 +34,11 @@ A well formed response whose meaning has changed is the dangerous case, because 
 
 The desktop application performs provider egress. Local command line and hook paths still read only local state.
 
-Every address the desktop process can reach is a compile time constant in `apps/desktop/src-tauri/src/net.rs`, reachable only through the closed `ProviderEndpoint` enum. There is no command that fetches a URL, and no URL, host, header, or method crosses IPC, appears in a provider specification, or is read out of a provider response. The transport speaks HTTPS only, refuses redirects, applies a fifteen second total budget, and bounds a response at one mebibyte. A body outside the 200 range is dropped unread.
+Every subscription usage address is a compile time constant in `apps/desktop/src-tauri/src/net.rs`, reachable only through the closed `ProviderEndpoint` enum. There is no command that fetches a URL, and no URL, host, header, or method crosses IPC, appears in a provider specification, or is read out of a provider response. The transport speaks HTTPS only, refuses redirects, applies a fifteen second total budget, and bounds a response at one mebibyte. A body outside the 200 range is dropped unread.
+
+API spend has a second closed local adapter in `apps/desktop/src-tauri/src/api_spend.rs`. It reaches only `api.openai.com`, `api.anthropic.com`, `management-api.x.ai`, `openrouter.ai`, and `api.moonshot.ai` on HTTPS port 443 and on their reviewed paths. Provider selection is a closed enum. The only variable path component is a validated xAI team identifier. DNS results are resolved before credentials are attached, private and special addresses are refused, and accepted public addresses are pinned into that request client. System proxies and redirects are disabled. Connect time is five seconds, total time is fifteen seconds, and both encoded and decoded response exposure are bounded to one mebibyte by requesting only identity encoding and refusing another encoding. Errors carry no URL, body, key, or provider text.
+
+OpenAI, Anthropic, xAI, and OpenRouter observations are spend. Moonshot exposes only the documented current balance and is always serialized and displayed as balance, never as spend. Missing periods remain gaps. OpenRouter lifetime usage becomes a period delta only when an observed baseline and uninterrupted observations prove that delta.
 
 Which address a stored secret may be sent to is decided by `reader_route`, exhaustively, from the connection's own provider and credential kind. All twenty provider and credential pairings are decided in code; the fifteen wrong ones are refused. A secret is never handed to an address that belongs to another provider.
 
@@ -40,11 +46,11 @@ One reader takes two requests. OpenCode publishes no usage interface, so its met
 
 No connector may send cache content, other provider state, prompts, source code, or diagnostics.
 
-Optional Pro adds a separate egress boundary. The desktop build carries one trusted HTTPS service origin and calls only fixed entitlement and hosted service paths. After explicit sign in it may send selected provider code, meter code, bounded usage percentage, and reset time. It never sends provider credentials, provider response bodies, prompts, source code, local configuration, or diagnostics. The session and trust anchor live in the operating system credential store.
+Optional Pro adds a separate egress boundary. The desktop build carries one trusted HTTPS service origin and calls only fixed entitlement and hosted service paths. After explicit sign in it may send selected provider code, meter code, bounded usage percentage, and reset time. It never sends provider credentials, provider response bodies, prompts, source code, local configuration, or diagnostics. One account session owns the sole access token broker. The device trust grant lives in the operating system credential store, while a signed entitlement and a signed hosted context envelope live in bounded local state files.
 
 The web Pro portal talks to the configured Supabase project for magic link authentication and the closed checkout function. A successful checkout redirects to Stripe. The project URL and anonymous Supabase key are public build values. No service role value, Stripe secret, signing private key, or private database shape appears in this repository.
 
-The Pro client verifies a short lived Ed25519 device entitlement offline. Device binding, monotonic sequence, one time identifiers, and an idempotent pending request reject copied or replayed state. Trusted server time makes a clock rollback fail closed. Multiple embedded public keys permit overlap during rotation. Service downtime is bounded by the signed grace period. Revocation stops refresh, so hosted access ends after that grace period.
+The Pro client verifies an Ed25519 device entitlement offline. Exact token constants are a 24 hour lifetime, a 12 hour refresh point, and a 72 hour local honor boundary. Device binding, account binding, revocation epoch, monotonic sequence, one time identifiers, and an idempotent pending request reject copied or replayed state. Trusted server time makes a clock rollback fail closed. Multiple embedded public keys permit overlap during rotation. Hosted calls require a currently active or refresh due entitlement and never use offline grace. Logout, account switch, denial, signature failure, and expiry clear authorization and hosted context.
 
 ## Completion integrity
 

@@ -393,11 +393,16 @@ fn uncovered_account_ids(
         .collect()
 }
 
-pub async fn run_pass(app: &AppHandle, covered: &HashSet<PollIdentity>) {
+pub async fn run_pass(
+    app: &AppHandle,
+    covered: &HashSet<PollIdentity>,
+    automatic_account_limit: usize,
+) {
     let detected_account_ids = app
         .state::<DetectionStore>()
         .account_ids(DetectedProviderId::Antigravity);
-    let account_ids = uncovered_account_ids(detected_account_ids, covered);
+    let mut account_ids = uncovered_account_ids(detected_account_ids, covered);
+    account_ids.truncate(automatic_account_limit);
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<AntigravityOauthRuntime>();
