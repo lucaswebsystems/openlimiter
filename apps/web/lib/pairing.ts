@@ -29,6 +29,17 @@ export const PAIRING_TTL_SECONDS = 120;
 /** How often the phone asks the server whether the desktop has answered. */
 export const PAIRING_POLL_MILLISECONDS = 2_000;
 
+/**
+ * The slowest the phone will ever ask.
+ *
+ * A refused poll is the server saying it has had enough for now, so asking
+ * again at the same rate is how a rate limit becomes a loop that never
+ * recovers. Each refusal doubles the gap up to this ceiling, and the ceiling
+ * exists because a pairing code only lives two minutes: waiting longer than
+ * this would spend the whole window not asking.
+ */
+export const PAIRING_POLL_MAX_MILLISECONDS = 15_000;
+
 export type PairPhase =
   | "reading"
   | "noCode"
@@ -47,6 +58,8 @@ export interface PairState {
   claimId: string | null;
   /** Unix seconds. When the claim stops being pollable. */
   expiresAt: number | null;
+  /** How long to wait before the next poll. Doubles on every refusal. */
+  pollInterval: number;
   /** Present only once the desktop approved and the delivery arrived. */
   session: DeviceSession | null;
 }
@@ -57,6 +70,7 @@ function state(partial: Partial<PairState>, previous?: PairState): PairState {
     code: null,
     claimId: null,
     expiresAt: null,
+    pollInterval: PAIRING_POLL_MILLISECONDS,
     session: null,
     ...previous,
     ...partial,
@@ -138,10 +152,9 @@ export function pairStateAfterPoll(
   response: unknown,
   status: number,
 ): PairState {
+  if (status === 429) return pairStateAfterRefusal(previous);
   if (status !== 200) {
-    return status === 429
-      ? previous
-      : state({ phase: status === 409 || status === 404 ? "expired" : "error" }, previous);
+    return state({ phase: status === 409 || status === 404 ? "expired" : "error" }, previous);
   }
   const row = payload(response);
   const value = typeof row?.status === "string" ? row.status : "";
@@ -155,6 +168,24 @@ export function pairStateAfterPoll(
       : state({ phase: "approved", session }, previous);
   }
   return state({ phase: "error" }, previous);
+}
+
+/**
+ * A refused poll, as a slower one.
+ *
+ * It returns a NEW state on purpose. Returning the previous object was correct
+ * about the phase and wrong about everything else: nothing re-rendered, so the
+ * timer that was refused kept its old interval and kept asking at exactly the
+ * rate the server had just declined. The deadline is untouched, because being
+ * rate limited does not buy a claim more time.
+ */
+export function pairStateAfterRefusal(previous: PairState): PairState {
+  return state(
+    {
+      pollInterval: Math.min(previous.pollInterval * 2, PAIRING_POLL_MAX_MILLISECONDS),
+    },
+    previous,
+  );
 }
 
 /** Whether the page should still be asking. */
