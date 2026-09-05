@@ -20,6 +20,11 @@
   --ol-track: #202b3b;
   --ol-hairline: #202b3a;
   --ol-hairline-strong: #34445b;
+  /* The boundary of a control that has to be found on its own: a ghost
+     button's edge, a field's rim. The strong hairline reads 1.93:1 against
+     the surface, short of the 3:1 WCAG 1.4.11 asks of a component edge; this
+     measures 3.57:1 on the dark surface and 3.29:1 on the light one. */
+  --ol-control-border: #5a6d87;
   --ol-heading: #fafafa;
   --ol-body: #e4e4e7;
   --ol-soft: #c3ccd8;
@@ -251,6 +256,7 @@
   --ol-track: #d7e1ee;
   --ol-hairline: #dbe4ef;
   --ol-hairline-strong: #b9c7d9;
+  --ol-control-border: #7f8fa5;
   --ol-heading: #0d1623;
   --ol-body: #263446;
   --ol-soft: #46566b;
