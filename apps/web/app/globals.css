@@ -88,6 +88,16 @@
   --radius-lg: var(--ol-radius-md);
   --radius-xl: var(--ol-radius-lg);
   --radius-2xl: var(--ol-radius-xl);
+
+  /* The tall control, for the sign in and for anything a thumb has to hit. */
+  --spacing-control-touch: var(--ol-control-height-touch);
+
+  /* The two bands a status line is allowed to borrow: a refusal is red and a
+     success is green, in the same pair the meters use. */
+  --color-band-red-subtle: var(--ol-band-red-subtle);
+  --color-band-red-label: var(--ol-band-red-label);
+  --color-band-green-subtle: var(--ol-band-green-subtle);
+  --color-band-green-label: var(--ol-band-green-label);
 }
 
 @theme {

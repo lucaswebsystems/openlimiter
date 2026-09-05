@@ -1,7 +1,7 @@
 "use client";
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   PROVIDER_CODES,
   buildProviderAccountRows,
@@ -26,7 +26,9 @@ import {
   Tabs,
   type TabDefinition,
 } from "./pieces";
+import { SignInCard } from "@/components/sign-in-card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SectionPanel } from "@/components/ui";
 import { LiveMeter } from "./live-meter";
 import { NotificationBell, type AlertScope } from "./notification-bell";
 import {
@@ -36,7 +38,6 @@ import {
   type SyncedUsageResult,
 } from "@/lib/synced-usage";
 import { getDevPreviewSnapshots } from "./dev-preview";
-import { authRedirectUrl } from "@/lib/pro";
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
@@ -161,71 +162,27 @@ const TABS: readonly TabDefinition[] = [
   { id: "connections", label: "Configuration" },
 ];
 
+/**
+ * The gate a signed out browser meets.
+ *
+ * It is the product's one sign in card, the same component the Pro portal
+ * draws, so the two cannot drift apart. A deployment with no hosted address
+ * has nothing to sign in to, and says so in the same shape rather than
+ * offering buttons that lead nowhere.
+ */
 function AccountGate({ client }: { client: SupabaseClient | null }) {
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  async function oauth(provider: "google" | "github") {
-    if (client === null) return;
-    setBusy(true);
-    setMessage("");
-    const { error } = await client.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: authRedirectUrl() },
-    });
-    if (error !== null) {
-      setBusy(false);
-      setMessage("Sign in could not be started.");
-    }
-  }
-
-  async function emailSignIn(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (client === null || email.trim() === "") return;
-    setBusy(true);
-    setMessage("");
-    const { error } = await client.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: authRedirectUrl() },
-    });
-    setBusy(false);
-    setMessage(error === null ? "Check your email to finish signing in." : "Email sign in is unavailable.");
-  }
-
   return (
-    <section className="ol-account-gate" aria-labelledby="account-gate-title">
-      <h1 id="account-gate-title">Sign in to OpenLimiter</h1>
-      <p>Your free account shows synced usage percentages on every device.</p>
+    <section className="ol-account-gate" aria-label="Sign in">
       {client === null ? (
-        <p>Account sign in is not configured in this deployment.</p>
+        <SectionPanel className="mx-auto w-full max-w-md">
+          <h1 className="text-xl font-medium tracking-tight text-heading">Sign in to OpenLimiter</h1>
+          <p className="mt-1 text-sm leading-relaxed text-muted">
+            Account sign in is not configured in this deployment. Every meter in the desktop
+            app keeps working without one.
+          </p>
+        </SectionPanel>
       ) : (
-        <>
-          <div className="ol-account-provider-actions">
-            <Button disabled={busy} onClick={() => void oauth("google")}>Continue with Google</Button>
-            <Button disabled={busy} onClick={() => void oauth("github")}>Continue with GitHub</Button>
-          </div>
-          <form onSubmit={emailSignIn} className="ol-account-email-form">
-            <label htmlFor="account-email">Email</label>
-            <input
-              id="account-email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="focus-ring ol-account-email"
-            />
-            <button
-              type="submit"
-              disabled={busy}
-              className="ol-control ol-control-primary ol-tap focus-ring border text-sm font-medium"
-            >
-              Sign in or create with email
-            </button>
-          </form>
-          <p role="status">{message}</p>
-        </>
+        <SignInCard client={client} heading="h1" />
       )}
     </section>
   );

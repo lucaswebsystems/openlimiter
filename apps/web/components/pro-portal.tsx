@@ -2,9 +2,8 @@
 
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { useTranslations } from "next-intl";
-import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  authRedirectUrl,
   openProBilling,
   proAccessState,
   proCanManageBilling,
@@ -23,6 +22,8 @@ import {
   type ProDevice,
 } from "@/lib/pro";
 import { PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
+import { SignInCard } from "./sign-in-card";
+import { Button, Chip, SectionPanel } from "./ui";
 
 /**
  * The Pro portal.
@@ -33,6 +34,11 @@ import { PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
  * state here is a bare sentence dropped on the canvas, because a bare sentence
  * is what a reader meets on the worst day of using a paid product.
  *
+ * The sign in itself is not drawn here. It is the site's one sign in card,
+ * the same component the dashboard gate renders, so the two cannot drift.
+ * Every button and panel below is the site's own primitive for the same
+ * reason: a second hand rolled button is the one that stops matching.
+ *
  * WHAT THE CLIENT DOES NOT DECIDE
  * -------------------------------
  * It never starts a trial. The server writes the trial row at first sign in and
@@ -40,75 +46,6 @@ import { PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
  * replayed request cannot grant itself anything. The same rule covers the plan
  * state, the features and the device cap: all of them are read, none computed.
  */
-
-/* -------------------------------------------------------------- primitives */
-
-const BUTTON_BASE =
-  "lift-sm focus-ring inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60";
-const BUTTON_PRIMARY = "border-transparent bg-solid text-on-solid hover:bg-solid-hover";
-const BUTTON_GHOST =
-  "border-hairline-strong bg-transparent text-heading hover:border-heading hover:bg-surface";
-const BUTTON_QUIET = "border-transparent text-muted hover:text-heading";
-const PANEL =
-  "elev-1 relative overflow-hidden rounded-2xl border border-hairline bg-surface p-6 md:p-8";
-const FIELD =
-  "focus-ring w-full rounded-lg border border-hairline-strong bg-canvas px-4 py-3 text-sm text-body";
-
-function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={`${PANEL} ${className}`}>
-      <span aria-hidden="true" className="hairline-sheen" />
-      {children}
-    </div>
-  );
-}
-
-function StateChip({
-  tone,
-  children,
-}: {
-  tone: "accent" | "neutral" | "strong";
-  children: ReactNode;
-}) {
-  const tint =
-    tone === "accent"
-      ? "border-accent-subtle bg-accent-subtle text-accent"
-      : tone === "strong"
-        ? "border-hairline bg-raised text-heading"
-        : "border-hairline bg-surface text-muted";
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium uppercase tracking-wider ${tint}`}
-    >
-      <span
-        aria-hidden="true"
-        className={`h-1.5 w-1.5 flex-none rounded-full ${tone === "accent" ? "bg-accent-solid" : tone === "strong" ? "bg-heading" : "bg-muted"}`}
-      />
-      {children}
-    </span>
-  );
-}
-
-function GitHubMark() {
-  return (
-    <svg className="h-4 w-4 flex-none fill-current" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-    </svg>
-  );
-}
-
-/**
- * Google's mark, served as the file Google publishes rather than redrawn here.
- *
- * It keeps its own four colours because a provider mark is used unmodified, and
- * it stays out of this file so no brand colour is ever written as a literal in
- * a component. See public/marks/google-g.svg.
- */
-function GoogleMark() {
-  /* eslint-disable-next-line @next/next/no-img-element -- a brand mark served
-     verbatim, at its intrinsic size, with no optimisation pass over it. */
-  return <img src="/marks/google-g.svg" alt="" aria-hidden="true" className="h-4 w-4 flex-none" />;
-}
 
 /* ------------------------------------------------------------------ client */
 
@@ -119,7 +56,6 @@ function client(): SupabaseClient | null {
   });
 }
 
-type SignInMode = "idle" | "working" | "sent" | "error";
 type AccountState = "loading" | "ready" | "error";
 type Action = "none" | "month" | "year" | "billing";
 
@@ -130,12 +66,13 @@ function formatDate(value: string | null, locale: string): string | null {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(parsed);
 }
 
+/* The one chip on this page: a plan state, spelled out in capitals. */
+const STATE_CHIP = "uppercase tracking-wider";
+
 export function ProPortal({ locale }: { locale: string }) {
   const t = useTranslations("proPortal");
   const supabase = useMemo(client, []);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const [email, setEmail] = useState("");
-  const [signInMode, setSignInMode] = useState<SignInMode>("idle");
   const [account, setAccount] = useState<ProAccount | null>(null);
   const [accountState, setAccountState] = useState<AccountState>("loading");
   const [action, setAction] = useState<Action>("none");
@@ -185,27 +122,6 @@ export function ProPortal({ locale }: { locale: string }) {
 
   useEffect(loadAccount, [loadAccount]);
 
-  async function oauth(provider: "github" | "google") {
-    if (supabase === null) return;
-    setSignInMode("working");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: authRedirectUrl() },
-    });
-    if (error !== null) setSignInMode("error");
-  }
-
-  async function sendLink(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (supabase === null || email.trim() === "") return;
-    setSignInMode("working");
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: authRedirectUrl() },
-    });
-    setSignInMode(error === null ? "sent" : "error");
-  }
-
   async function upgrade(interval: ProBillingInterval) {
     if (supabase === null) return;
     setAction(interval === "month" ? "month" : "year");
@@ -243,87 +159,28 @@ export function ProPortal({ locale }: { locale: string }) {
 
   if (supabase === null) {
     return (
-      <Panel>
+      <SectionPanel className="mx-auto w-full max-w-md">
         <h2 className="text-lg font-medium text-heading">{t("configMissing.title")}</h2>
         <p className="mt-2 text-sm leading-relaxed text-muted">{t("configMissing.body")}</p>
-      </Panel>
+      </SectionPanel>
     );
   }
 
   if (session === undefined) {
     return (
-      <Panel>
+      <SectionPanel className="mx-auto w-full max-w-md">
         <p className="text-sm text-muted" role="status">
           {t("loading")}
         </p>
-      </Panel>
+      </SectionPanel>
     );
   }
 
   if (session === null) {
     return (
-      <div className="mx-auto max-w-xl space-y-4">
+      <div className="mx-auto max-w-md space-y-4">
         {checkout !== null && <CheckoutNotice outcome={checkout} onDismiss={() => setCheckout(null)} />}
-        <Panel>
-          <h2 className="text-lg font-medium text-heading">{t("signIn.title")}</h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted">{t("signIn.body")}</p>
-
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              disabled={signInMode === "working"}
-              onClick={() => void oauth("github")}
-              className={`${BUTTON_BASE} ${BUTTON_PRIMARY}`}
-            >
-              <GitHubMark />
-              {t("signIn.github")}
-            </button>
-            <button
-              type="button"
-              disabled={signInMode === "working"}
-              onClick={() => void oauth("google")}
-              className={`${BUTTON_BASE} ${BUTTON_GHOST}`}
-            >
-              <GoogleMark />
-              {t("signIn.google")}
-            </button>
-          </div>
-
-          <div className="mt-7 border-t border-hairline pt-6">
-            <p className="text-sm font-medium text-heading">{t("signIn.fallbackTitle")}</p>
-            <p className="mt-1 text-sm leading-relaxed text-muted">{t("signIn.fallbackBody")}</p>
-            <form onSubmit={sendLink} className="mt-4 space-y-3">
-              <label className="block space-y-2 text-sm font-medium text-heading" htmlFor="pro-email">
-                <span>{t("signIn.emailLabel")}</span>
-                <input
-                  id="pro-email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder={t("signIn.emailPlaceholder")}
-                  className={FIELD}
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={signInMode === "working"}
-                className={`${BUTTON_BASE} ${BUTTON_GHOST} w-full`}
-              >
-                {signInMode === "working" ? t("working") : t("signIn.send")}
-              </button>
-            </form>
-          </div>
-
-          <p className="mt-5 text-sm leading-relaxed text-muted" role="status">
-            {signInMode === "sent"
-              ? t("signIn.sent")
-              : signInMode === "error"
-                ? t("signIn.error")
-                : t("signIn.privacy")}
-          </p>
-        </Panel>
+        <SignInCard client={supabase} heading="h2" />
       </div>
     );
   }
@@ -339,7 +196,7 @@ export function ProPortal({ locale }: { locale: string }) {
     <div className="mx-auto max-w-2xl space-y-4">
       {checkout !== null && <CheckoutNotice outcome={checkout} onDismiss={() => setCheckout(null)} />}
 
-      <Panel>
+      <SectionPanel>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm text-muted">{t("account.signedInAs")}</p>
@@ -347,9 +204,13 @@ export function ProPortal({ locale }: { locale: string }) {
               {session.user.email ?? t("account.noEmail")}
             </p>
           </div>
-          <StateChip tone={state === "active" || state === "trial" ? "accent" : "neutral"}>
+          <Chip
+            tone={state === "active" || state === "trial" ? "accent" : "neutral"}
+            dot
+            className={STATE_CHIP}
+          >
             {t(`plan.${state}.chip`)}
-          </StateChip>
+          </Chip>
         </div>
 
         {accountState === "loading" && (
@@ -362,13 +223,9 @@ export function ProPortal({ locale }: { locale: string }) {
           <div className="mt-6 rounded-xl border border-hairline bg-raised p-5">
             <p className="text-sm font-medium text-heading">{t("accountError.title")}</p>
             <p className="mt-1 text-sm leading-relaxed text-muted">{t("accountError.body")}</p>
-            <button
-              type="button"
-              onClick={loadAccount}
-              className={`${BUTTON_BASE} ${BUTTON_GHOST} mt-4`}
-            >
+            <Button tone="ghost" onClick={loadAccount} className="mt-4">
               {t("accountError.retry")}
-            </button>
+            </Button>
           </div>
         )}
 
@@ -391,53 +248,43 @@ export function ProPortal({ locale }: { locale: string }) {
             )}
           </div>
         )}
-      </Panel>
+      </SectionPanel>
 
       {accountState === "ready" && proCanUpgrade(state) && (
-        <Panel>
+        <SectionPanel>
           <h2 className="text-lg font-medium text-heading">{t("upgrade.title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">{t("upgrade.body")}</p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              disabled={action !== "none"}
-              onClick={() => void upgrade("month")}
-              className={`${BUTTON_BASE} ${BUTTON_PRIMARY}`}
-            >
+            <Button tone="primary" disabled={action !== "none"} onClick={() => void upgrade("month")}>
               {action === "month"
                 ? t("working")
                 : t("upgrade.monthly", { price: PRO_MONTHLY_PRICE })}
-            </button>
-            <button
-              type="button"
-              disabled={action !== "none"}
-              onClick={() => void upgrade("year")}
-              className={`${BUTTON_BASE} ${BUTTON_GHOST}`}
-            >
+            </Button>
+            <Button tone="ghost" disabled={action !== "none"} onClick={() => void upgrade("year")}>
               {action === "year" ? t("working") : t("upgrade.yearly", { price: PRO_YEARLY_PRICE })}
-            </button>
+            </Button>
           </div>
           <p className="mt-4 text-sm leading-relaxed text-muted">{t("upgrade.note")}</p>
-        </Panel>
+        </SectionPanel>
       )}
 
       {accountState === "ready" && proCanManageBilling(state) && (
-        <Panel>
+        <SectionPanel>
           <h2 className="text-lg font-medium text-heading">{t("billing.title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">{t("billing.body")}</p>
-          <button
-            type="button"
+          <Button
+            tone="primary"
             disabled={action !== "none"}
             onClick={() => void manageBilling()}
-            className={`${BUTTON_BASE} ${BUTTON_PRIMARY} mt-5`}
+            className="mt-5"
           >
             {action === "billing" ? t("working") : t("billing.manage")}
-          </button>
-        </Panel>
+          </Button>
+        </SectionPanel>
       )}
 
       {accountState === "ready" && (
-        <Panel>
+        <SectionPanel>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-medium text-heading">{t("devices.title")}</h2>
             <p className="text-sm text-muted">
@@ -463,7 +310,11 @@ export function ProPortal({ locale }: { locale: string }) {
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 truncate text-sm font-medium text-heading">
                       {device.label}
-                      {device.isCurrent && <StateChip tone="strong">{t("devices.current")}</StateChip>}
+                      {device.isCurrent && (
+                        <Chip tone="strong" dot className={STATE_CHIP}>
+                          {t("devices.current")}
+                        </Chip>
+                      )}
                     </p>
                     <p className="mt-0.5 text-xs text-muted">
                       {device.lastSeenAt === null
@@ -473,36 +324,27 @@ export function ProPortal({ locale }: { locale: string }) {
                           })}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    disabled={revoking !== null}
-                    onClick={() => void revoke(device)}
-                    className={`${BUTTON_BASE} ${BUTTON_GHOST}`}
-                  >
+                  <Button tone="ghost" disabled={revoking !== null} onClick={() => void revoke(device)}>
                     {revoking === device.deviceId ? t("working") : t("devices.revoke")}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
           )}
-        </Panel>
+        </SectionPanel>
       )}
 
       {actionFailed && (
-        <Panel>
+        <SectionPanel>
           <p className="text-sm font-medium text-heading">{t("actionError.title")}</p>
           <p className="mt-1 text-sm leading-relaxed text-muted">{t("actionError.body")}</p>
-        </Panel>
+        </SectionPanel>
       )}
 
       <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => void supabase.auth.signOut()}
-          className={`${BUTTON_BASE} ${BUTTON_QUIET}`}
-        >
+        <Button tone="quiet" onClick={() => void supabase.auth.signOut()}>
           {t("signOut")}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -517,16 +359,16 @@ function CheckoutNotice({
 }) {
   const t = useTranslations("proPortal.checkout");
   return (
-    <Panel className="border-accent-subtle">
+    <SectionPanel className="border-accent-subtle">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-medium text-heading">{t(`${outcome}.title`)}</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">{t(`${outcome}.body`)}</p>
         </div>
-        <button type="button" onClick={onDismiss} className={`${BUTTON_BASE} ${BUTTON_QUIET}`}>
+        <Button tone="quiet" onClick={onDismiss}>
           {t("dismiss")}
-        </button>
+        </Button>
       </div>
-    </Panel>
+    </SectionPanel>
   );
 }

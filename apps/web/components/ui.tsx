@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { SiteLink } from "./site-link";
 import { reveal } from "@/lib/motion";
 
@@ -45,16 +45,38 @@ export const FULL_BLEED = "-mx-6 md:-mx-12 lg:-mx-16";
  */
 export const VIEWPORT_BLEED = "relative left-1/2 w-screen -translate-x-1/2";
 
+/**
+ * The GitHub mark, the Invertocat silhouette, on currentColor.
+ *
+ * The path is the one in public/marks/github-mark.svg, inlined so it takes
+ * the colour of whatever it sits in and never waits on a request; a test
+ * fails the build if the two drift. It is drawn at 16 pixels in the chrome
+ * and at 20 on the sign in, above the minimum GitHub asks for, and it is
+ * never recoloured beyond black or white.
+ */
 export function GitHubMark({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg className={`${className} fill-current`} viewBox="0 0 24 24" aria-hidden="true">
+    <svg className={`${className} flex-none fill-current`} viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
     </svg>
   );
 }
 
+/**
+ * Google's G, served as the file Google publishes rather than redrawn here.
+ *
+ * It keeps its own four colours because a provider mark is used unmodified,
+ * and it stays out of this file so no brand colour is ever written as a
+ * literal in a component. See public/marks/google-g.svg.
+ */
+export function GoogleMark({ className = "h-4 w-4" }: { className?: string }) {
+  /* eslint-disable-next-line @next/next/no-img-element -- a brand mark served
+     verbatim, at its intrinsic size, with no optimisation pass over it. */
+  return <img src="/marks/google-g.svg" alt="" aria-hidden="true" className={`${className} flex-none`} />;
+}
+
 const buttonBase =
-  "lift-sm focus-ring inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium";
+  "lift-sm focus-ring inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60";
 
 const buttonTone = {
   primary: "border-transparent bg-solid text-on-solid hover:bg-solid-hover",
@@ -69,6 +91,28 @@ const buttonTone = {
 } as const;
 
 export type ButtonTone = keyof typeof buttonTone;
+
+/**
+ * A button that is pressed rather than followed.
+ *
+ * The same metrics and tones as ButtonLink, as an element that does something
+ * on this page: a sign in, a checkout, a revoke. Every pressable control on
+ * the site outside the dashboard's own engine views uses this, so a filled
+ * button and a ghost one line up on a row wherever they meet.
+ */
+export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { tone?: ButtonTone };
+
+export function Button({ tone = "ghost", className = "", type = "button", children, ...rest }: ButtonProps) {
+  return (
+    <button type={type} className={`${buttonBase} ${buttonTone[tone]} ${className}`} {...rest}>
+      {children}
+    </button>
+  );
+}
+
+/** The one text field, at the button's own radius and border. */
+export const FIELD =
+  "focus-ring w-full rounded-lg border border-hairline-strong bg-canvas px-4 py-3 text-sm text-body placeholder:text-muted disabled:cursor-not-allowed disabled:opacity-60";
 
 /**
  * A button that is a link.

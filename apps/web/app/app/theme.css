@@ -1044,50 +1044,16 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   }
 }
 
+/* The signed out gate is the site's one sign in card, components/sign-in-card.tsx,
+   drawn with the site's own primitives; it has no rules of its own here. */
 .ol-account-gate {
-  display: grid;
-  width: min(100%, 32rem);
-  gap: var(--ol-space-4);
-  margin: var(--ol-space-7) auto 0;
-  padding: var(--ol-space-5);
-  border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-lg);
-  background: var(--ol-surface);
-  box-shadow: var(--ol-elev-1);
+  padding-top: var(--ol-space-5);
 }
 
-.ol-account-gate h1 {
-  color: var(--ol-heading);
-  font-size: var(--ol-text-display);
-  font-weight: var(--ol-weight-bold);
-  line-height: var(--ol-leading-tight);
-}
-
-.ol-account-gate p,
-.ol-account-email-form label {
-  margin: 0;
-  color: var(--ol-muted);
-  font-size: var(--ol-text-caption);
-  line-height: var(--ol-leading-body);
-}
-
-.ol-account-provider-actions,
-.ol-account-email-form {
-  display: grid;
-  gap: var(--ol-space-2);
-}
-
-.ol-account-provider-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.ol-account-email {
-  min-height: var(--ol-control-height);
-  padding: var(--ol-space-2) var(--ol-space-3);
-  border: 1px solid var(--ol-hairline-strong);
-  border-radius: var(--ol-radius-sm);
-  background: var(--ol-canvas);
-  color: var(--ol-heading);
+@media (min-width: 768px) {
+  .ol-account-gate {
+    padding-top: var(--ol-space-7);
+  }
 }
 
 .ol-menu-toggle {
