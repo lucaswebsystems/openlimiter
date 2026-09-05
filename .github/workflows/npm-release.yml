@@ -131,19 +131,23 @@ jobs:
       - name: Publish core
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-core-${EXPECTED_VERSION}.tgz" --access public --provenance
 
       - name: Publish connectors
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-connectors-${EXPECTED_VERSION}.tgz" --access public --provenance
 
       - name: Publish adapters
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-adapters-${EXPECTED_VERSION}.tgz" --access public --provenance
 
       - name: Publish CLI
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-${EXPECTED_VERSION}.tgz" --access public --provenance
