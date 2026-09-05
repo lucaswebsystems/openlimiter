@@ -6,14 +6,19 @@ import { performance } from "node:perf_hooks";
 import { PassThrough } from "node:stream";
 import { FIXTURE_NOW, codexFixture } from "@openlimiter/connectors";
 import {
+  AGENT_CONTEXT_FILE_NAME,
   AGENT_CONTEXT_SPILL_FILE_NAME,
   HOSTED_CONTEXT_FILE_NAME,
+  agentContextCacheStamp,
+  agentContextFromCache,
   hostedTrustFilePath,
+  writeAgentContextSnapshot,
   type HostedContextEnvelope,
   type HostedTrustDocument
 } from "@openlimiter/adapters";
+import { readSnapshotCache, type Snapshot } from "@openlimiter/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { readStandardInputText, runCli } from "../src/index.js";
+import { persistSnapshots, readStandardInputText, runCli } from "../src/index.js";
 
 const created: string[] = [];
 const HOSTED_FIXTURE_NOW = "2026-09-01T12:05:00.000Z";
@@ -41,6 +46,30 @@ function codexInput(): string {
     turn_id: "turn",
     prompt: "pong"
   });
+}
+
+function meterSnapshot(
+  provider: "CODEX" | "CLAUDE",
+  observedAt: string
+): Snapshot {
+  return {
+    provider,
+    meter: "FIVE_HOUR",
+    value: provider === "CODEX" ? 42 : 61,
+    unit: "PERCENT",
+    window: { kind: "rolling", durationSeconds: 18_000 },
+    resetAt: null,
+    source: "native_payload",
+    precision: "exact",
+    observedAt,
+    expiresAt: new Date(Date.parse(observedAt) + 600_000).toISOString(),
+    labels: {
+      credentialOrigin: "official-local-tool",
+      dataInterfaceStatus: "native-statusline-payload",
+      automationRisk: "low",
+      verification: "UNVERIFIED"
+    }
+  };
 }
 
 describe("hook CLI", () => {
@@ -341,6 +370,39 @@ describe("hook CLI", () => {
         stderr: ""
       });
     }
+  });
+
+  it("never injects a context older than the cache it came from", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-context-order-");
+    const earlier = "2026-09-01T12:00:00.000Z";
+    const later = "2026-09-01T12:01:00.000Z";
+    const first = await persistSnapshots(
+      [meterSnapshot("CODEX", earlier)],
+      stateDirectory,
+      earlier
+    );
+    await persistSnapshots(
+      [meterSnapshot("CLAUDE", later)],
+      stateDirectory,
+      later
+    );
+    /* The first ingestion committed first, so its derived write may still be
+       in flight when the second one commits. Landing it last must not put the
+       prompt context behind the durable cache. */
+    await writeAgentContextSnapshot(first.merged, stateDirectory, earlier);
+    const context = await agentContextFromCache(stateDirectory, later);
+    expect(context).toContain("provider=CODEX");
+    expect(context).toContain("provider=CLAUDE");
+    const cached = await readSnapshotCache(stateDirectory);
+    const document = JSON.parse(await readFile(
+      path.join(stateDirectory, AGENT_CONTEXT_FILE_NAME),
+      "utf8"
+    )) as { cache_stamp: { digest: string; observed_at: string } };
+    expect(cached.ok).toBe(true);
+    expect(document.cache_stamp).toEqual({
+      digest: agentContextCacheStamp(cached.ok ? cached.snapshots : []).digest,
+      observed_at: later
+    });
   });
 
   it("writes nothing once a read resolves after the hard deadline", async () => {
