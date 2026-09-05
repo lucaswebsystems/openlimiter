@@ -10,30 +10,33 @@ When you hold several AI coding subscriptions at once, the scarce resource stops
 
 OpenLimiter reads quota data that already exists on your disk or is piped to it, normalises it, caches it locally, and exposes it three ways: to a person on a command line or a screen, and to an agent as a structured budget block injected into that agent's own context. The block carries enum codes, bounded percentages and timestamps only, and it declares itself as untrusted data in its own opening tag.
 
-There are two halves. Everything local is free and always will be. A free account adds sync between your own devices, and a paid plan called Pro adds hosted services on top of that.
+Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above 100 US dollars a calendar month for each source are Pro. A free account adds sync between your own devices, on from the moment you sign in, and a paid plan called Pro adds four hosted services and two local switches on top of that.
 
 ## What ships today
 
 - Command line tool, published on npm as `openlimiter`. Install it with `npm install -g openlimiter`. Commands include init, snapshot, statusline, hook, hooks, ingest, doctor, demo, export, status and serve.
-- Desktop tray application for Windows, macOS and Linux, built on continuous integration and attached to the GitHub release. Windows and macOS ship unsigned. In SmartScreen, choose More info, then Run anyway. On macOS, open the app once, then open System Settings, go to Privacy and Security, and choose Open Anyway. macOS is excluded from automatic updates until signed and notarised builds exist.
-- Web app at https://openlimiter.com/app. It runs the same engine inside a browser tab, on a document you paste or drop. Nothing is uploaded and there is no account.
+- Desktop tray application for Windows, macOS and Linux, built on continuous integration and attached to the GitHub release. Windows and macOS ship unsigned. In SmartScreen, choose More info, then Run anyway. macOS ships as one unsigned universal disk image that runs on Apple silicon and on Intel: open the app once, then open System Settings, go to Privacy and Security, and choose Open Anyway. macOS is excluded from automatic updates until signed and notarised builds exist.
+- Web app at https://openlimiter.com/app. It runs the same engine inside a browser tab. Signed in, it shows the bounded percentages your own devices synced. A document you paste or drop is parsed in the tab and is never uploaded.
 - Progressive web app. The web app installs to a phone or desktop home screen from the browser and keeps working offline. There is no iOS or Android application, nothing is in a store, and there is no waiting list.
-- A free account, with sign in through GitHub, Google, or a magic link sent to your email address. It syncs bounded quota readings between your own devices and nothing else.
+- A free account, with sign in through GitHub, Google, or a magic link sent to your email address. Sync is on from the moment you sign in, because moving your own percentages between your own devices is what signing in is for. It syncs bounded quota readings and nothing else.
+- Phone access by QR pairing. The desktop application shows a code that lives for two minutes, the phone scans it, the desktop approves it, and the phone then holds a read only token. It can never change the account or upload anything, and revoking the device ends its access at once.
 - LAN serving with `openlimiter serve`, which publishes read only quota on your local network behind a token that is generated on every start and never written to disk. It is meant for a trusted home or office network, not for the internet.
 - Agent adapters that inject the bounded budget block, installed with `openlimiter hooks install <agent>`.
 
 ## Pro
 
-Pro is a subscription to hosted services at 5 US dollars a month or 50 US dollars a year, with the first 30 days free and no card required. Checkout runs through Stripe, which acts as the payment processor and calculates tax automatically. A full refund is available on request within 14 days of any charge, and cancellation is self service through the Stripe Customer Portal.
+Pro costs 5 US dollars a month or 50 US dollars a year, with the first 30 days free and no card required. OpenLimiter Pro is sold by Lucas Costa. Checkout runs through Stripe, which acts as the payment processor and calculates tax automatically. A full refund is available on request within 14 days of any charge, and cancellation is self service through the Stripe Customer Portal.
 
-Pro sells six hosted services and never removes a local feature:
+Pro is six features. Four are hosted services and two are switches in the local application:
 
-- Email and push alerts at 60, 80 and 90 percent of a window, and when a window resets.
-- Ninety days of history, with a forecast to the day a window runs out.
-- Hosted routing context, so a signed in agent reads the same advice on every device.
-- More than one account per provider. The free plan allows one active account per provider.
-- One Pro accent or density preset.
-- API spend meters with a monthly budget, shipped as a labelled beta. It needs an organisation admin or management key, a project key will not work, and Moonshot is shown as balance rather than spend.
+- Every alert: a desktop notification, an email and a phone push at 60, 80 and 90 percent of a window, and when a window resets. Hosted.
+- Ninety days of history, with a forecast to the day a window runs out. Hosted.
+- Hosted routing context, signed by the service and verified by the release build before an agent reads it. A build without the pinned verification keys injects nothing rather than trusting an unverified envelope. Hosted.
+- API spend meters, shipped as a labelled beta. The free plan tracks up to 100 US dollars a calendar month for each source and Pro goes above it. It needs an organisation admin or management key and a project key will not work. Hosted.
+- More than one account per provider, unlocked in the local application. The free plan allows one active account per provider. Local.
+- One Pro accent or density preset, applied in the local application. Local.
+
+Moonshot is read as a balance rather than as spend: three separate figures, available, voucher and cash, in the currency the provider states. A balance never becomes a monthly figure, a forecast or a budget alert.
 
 ## What it never does
 
