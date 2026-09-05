@@ -24,6 +24,10 @@ paths = [
   # Every field, including the synthetic PKCS8 keypair below, is fixed
   # test data checked in on purpose so contract tests can diff against it.
   '''^packages/adapters/test/fixtures/hosted-context-v1\.golden\.json$''',
+  # packages/cli/test/smoke.test.ts is the smoke harness sanitizer's own test
+  # corpus: fake API key shaped strings live there so the harness proves it
+  # refuses to write them into evidence. Nothing in that file is a credential.
+  '''packages/cli/test/smoke\.test\.ts''',
 ]
 regexes = [
   '''sk-or-v1-0123456789abcdef0123456789abcdef''',
