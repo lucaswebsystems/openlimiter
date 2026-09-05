@@ -367,20 +367,37 @@ export async function writeAgentContextSnapshot(
   );
 }
 
-async function localLines(directory: string, now: string): Promise<string[]> {
+/**
+ * Whether this read is still allowed to change anything on disk.
+ *
+ * A hook answers on a hard deadline. Once that deadline has passed the caller
+ * has already emitted its fallback, so work still in flight repairs nothing and
+ * must not leave a file behind that nobody asked for.
+ */
+function stillWritable(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted !== true;
+}
+
+async function localLines(
+  directory: string,
+  now: string,
+  signal?: AbortSignal
+): Promise<string[]> {
   const read = await readBytesSafely(
     path.join(directory, AGENT_CONTEXT_FILE_NAME),
     AGENT_CONTEXT_MAX_BYTES
   );
   if (!read.ok) {
-    if (read.reason === "oversized") {
+    if (read.reason === "oversized" && stillWritable(signal)) {
       await safeRemove(path.join(directory, AGENT_CONTEXT_FILE_NAME));
     }
     return [];
   }
   const document = parseDocument(read.bytes, now);
   if (document === null || document.source !== "cli_snapshot") {
-    await safeRemove(path.join(directory, AGENT_CONTEXT_FILE_NAME));
+    if (stillWritable(signal)) {
+      await safeRemove(path.join(directory, AGENT_CONTEXT_FILE_NAME));
+    }
     return [];
   }
   return validatedUntrustedLines(document.context) ?? [];
@@ -389,18 +406,19 @@ async function localLines(directory: string, now: string): Promise<string[]> {
 async function hostedLines(
   directory: string,
   now: string,
-  trust: HostedContextTrust | undefined
+  trust: HostedContextTrust | undefined,
+  signal?: AbortSignal
 ): Promise<string[]> {
   if (trust === undefined) return [];
   const file = path.join(directory, HOSTED_CONTEXT_FILE_NAME);
   const read = await readBytesSafely(file, HOSTED_CONTEXT_MAX_BYTES);
   if (!read.ok) {
-    if (read.reason === "oversized") await safeRemove(file);
+    if (read.reason === "oversized" && stillWritable(signal)) await safeRemove(file);
     return [];
   }
   const validated = validateHostedContextBytes(read.bytes, { ...trust, now });
   if (!validated.ok) {
-    await safeRemove(file);
+    if (stillWritable(signal)) await safeRemove(file);
     return [];
   }
   return hostedPayloadLines(validated.envelope).sort((left, right) => {
@@ -494,6 +512,13 @@ function prioritizeOverflow(lines: readonly string[]): string[] {
 
 export interface AgentContextReadOptions {
   hostedTrust?: HostedContextTrust;
+  /**
+   * Deadline for the caller that asked for this context.
+   *
+   * Once it is aborted the answer is already gone, so the read stops short of
+   * every file mutation instead of repairing a cache nobody will look at.
+   */
+  signal?: AbortSignal;
 }
 
 export async function clearHostedAgentContext(directory?: string): Promise<void> {
@@ -511,15 +536,17 @@ export async function agentContextFromCache(
   options: AgentContextReadOptions = {}
 ): Promise<string> {
   const base = directory ?? resolveStateDirectory();
+  if (!stillWritable(options.signal)) return "";
   const [local, hosted] = await Promise.all([
-    localLines(base, now),
-    hostedLines(base, now, options.hostedTrust)
+    localLines(base, now, options.signal),
+    hostedLines(base, now, options.hostedTrust, options.signal)
   ]);
   if (local.length === 0 && hosted.length === 0) {
-    await updateSpill(base, "", now);
+    if (stillWritable(options.signal)) await updateSpill(base, "", now);
     return "";
   }
   const bounded = boundAgentContext(prioritizeOverflow([...local, ...hosted]));
+  if (!stillWritable(options.signal)) return "";
   await updateSpill(base, bounded.spill, now);
   return bounded.context;
 }

@@ -113,7 +113,7 @@ export interface CliDependencies {
    * reader, which keeps every command deterministic when it is called in
    * process by a test or another tool.
    */
-  readStandardInput: () => Promise<string | null>;
+  readStandardInput: (signal?: AbortSignal) => Promise<string | null>;
   /**
    * Whether output may carry terminal colour.
    *
@@ -176,7 +176,8 @@ function succeed(stdout: string): CliResult {
 
 async function resolvedHostedTrust(
   dependencies: CliDependencies,
-  now: string
+  now: string,
+  signal?: AbortSignal
 ): Promise<HostedContextTrust | undefined> {
   if (dependencies.hostedContextTrust !== undefined) {
     return dependencies.hostedContextTrust;
@@ -185,6 +186,7 @@ async function resolvedHostedTrust(
     homeDirectory: dependencies.homeDirectory,
     platform: dependencies.platform,
     now,
+    ...(signal === undefined ? {} : { signal }),
     ...(dependencies.hostedContextPublicKeys === undefined
       ? {}
       : { pinnedPublicKeys: dependencies.hostedContextPublicKeys }),
@@ -703,9 +705,19 @@ async function hookProtocolCommand(
     rawInput: null,
     context: ""
   }).stdout);
+  /*
+   * The deadline both chooses the answer and cancels the work behind it.
+   * Racing alone left the loser running, so a slow read could still reach the
+   * context cache and rewrite a spill file long after the host had been given
+   * its reply. Every step below sees the same signal and stops at it.
+   */
+  const deadline = new AbortController();
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<CliResult>((resolve) => {
-    timer = setTimeout(() => resolve(fallback()), 450);
+    timer = setTimeout(() => {
+      deadline.abort();
+      resolve(fallback());
+    }, 450);
   });
   const work = (async (): Promise<CliResult> => {
     if (flagValue(argumentsList, "--managed-hook") === "openlimiter-v1") {
@@ -717,19 +729,31 @@ async function hookProtocolCommand(
         !(await validateAgentExecutableStamp(executable, fileSize, mtime))
       ) return fallback();
     }
-    const rawInput = await dependencies.readStandardInput();
-    const hostedTrust = await resolvedHostedTrust(dependencies, now);
+    const rawInput = await dependencies.readStandardInput(deadline.signal);
+    if (deadline.signal.aborted) return fallback();
+    const hostedTrust = await resolvedHostedTrust(dependencies, now, deadline.signal);
+    if (deadline.signal.aborted) return fallback();
     const context = await agentContextFromCache(
       dependencies.stateDirectory,
       now,
       PROVIDER_CODES,
-      hostedTrust === undefined ? {} : { hostedTrust }
+      {
+        ...(hostedTrust === undefined ? {} : { hostedTrust }),
+        signal: deadline.signal
+      }
     );
     return succeed(runAgentHook({ agent, hostVersion, rawInput, context }).stdout);
   })();
-  const result = await Promise.race([work, timeout]);
-  if (timer !== undefined) clearTimeout(timer);
-  return result;
+  /* The race still sees a failure that arrives in time. This second handler
+     only keeps a failure that arrives too late from becoming an unhandled
+     rejection in the host process. */
+  void work.catch(() => undefined);
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    deadline.abort();
+  }
 }
 
 async function hooksCommand(

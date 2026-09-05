@@ -42,6 +42,13 @@ export interface HostedTrustLoadOptions {
   now: string;
   pinnedPublicKeys?: Readonly<Record<string, KeyLike>>;
   trustedPlatformConfigRoot?: string;
+  /**
+   * Deadline for the caller that asked for this trust document.
+   *
+   * A hook answers within a hard budget. When that budget is already spent the
+   * load stops rather than finishing work whose answer has nowhere to go.
+   */
+  signal?: AbortSignal;
 }
 
 const keyIdPattern = /^[A-Za-z0-9_.-]{1,64}$/u;
@@ -183,9 +190,11 @@ export function hostedTrustFilePath(
 export async function loadHostedContextTrust(
   options: HostedTrustLoadOptions
 ): Promise<HostedContextTrust | undefined> {
-  if (!path.isAbsolute(options.homeDirectory) || !Number.isFinite(Date.parse(options.now))) {
-    return undefined;
-  }
+  if (
+    options.signal?.aborted === true ||
+    !path.isAbsolute(options.homeDirectory) ||
+    !Number.isFinite(Date.parse(options.now))
+  ) return undefined;
   if (
     options.trustedPlatformConfigRoot !== undefined &&
     !(options.platform === "win32" ? path.win32 : path.posix)

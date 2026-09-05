@@ -6,6 +6,7 @@ import { performance } from "node:perf_hooks";
 import { PassThrough } from "node:stream";
 import { FIXTURE_NOW, codexFixture } from "@openlimiter/connectors";
 import {
+  AGENT_CONTEXT_SPILL_FILE_NAME,
   HOSTED_CONTEXT_FILE_NAME,
   hostedTrustFilePath,
   type HostedContextEnvelope,
@@ -340,6 +341,34 @@ describe("hook CLI", () => {
         stderr: ""
       });
     }
+  });
+
+  it("writes nothing once a read resolves after the hard deadline", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter-cli-hook-late-");
+    await runCli(["snapshot", "--refresh"], {
+      stateDirectory,
+      now: () => FIXTURE_NOW,
+      payloads: { codex: codexFixture(FIXTURE_NOW) },
+      colorOutput: false
+    });
+    const spillFile = path.join(stateDirectory, AGENT_CONTEXT_SPILL_FILE_NAME);
+    await writeFile(spillFile, "sentinel", "utf8");
+    const start = performance.now();
+    const result = await runCli([
+      "hook", "--agent", "codex", "--host-version", "0.152.0"
+    ], {
+      stateDirectory,
+      now: () => FIXTURE_NOW,
+      readStandardInput: async () => await new Promise<string>((resolve) => {
+        setTimeout(() => resolve(codexInput()), 700);
+      })
+    });
+    expect(performance.now() - start).toBeLessThan(550);
+    expect(result).toEqual({ exitCode: 0, stdout: "", stderr: "" });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+    expect(await readFile(spillFile, "utf8")).toBe("sentinel");
   });
 
   it("keeps an internal failure from becoming a nonzero agent exit for every adapter", async () => {
