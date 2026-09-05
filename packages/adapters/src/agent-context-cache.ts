@@ -589,6 +589,16 @@ async function hostedLines(
   });
 }
 
+/**
+ * Replace the overflow file that sits beside the injected context.
+ *
+ * This writer owns its own failures. The spill is a convenience a person can
+ * read later, not the context itself, and the caller is usually a hook that
+ * has already read good data and is holding it. Losing that data because a
+ * side file could not be replaced would turn a cosmetic problem into a silent
+ * one, and in a hook a rejection nobody is left to catch ends the process, so
+ * a write that cannot land gives up here and says nothing.
+ */
 async function updateSpill(directory: string, context: string, now: string): Promise<void> {
   const file = path.join(directory, AGENT_CONTEXT_SPILL_FILE_NAME);
   if (context === "") {
@@ -597,14 +607,18 @@ async function updateSpill(directory: string, context: string, now: string): Pro
   }
   const generated = Date.parse(now);
   if (!Number.isFinite(generated)) return;
-  await writeDocument(
-    file,
-    "validated_spill",
-    context,
-    new Date(generated).toISOString(),
-    new Date(generated + AGENT_CONTEXT_MAX_AGE_MILLISECONDS).toISOString(),
-    AGENT_CONTEXT_SPILL_MAX_BYTES
-  );
+  try {
+    await writeDocument(
+      file,
+      "validated_spill",
+      context,
+      new Date(generated).toISOString(),
+      new Date(generated + AGENT_CONTEXT_MAX_AGE_MILLISECONDS).toISOString(),
+      AGENT_CONTEXT_SPILL_MAX_BYTES
+    );
+  } catch {
+    await safeRemove(file);
+  }
 }
 
 function lineSeverity(line: string): number {
