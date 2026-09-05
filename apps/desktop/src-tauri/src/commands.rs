@@ -124,7 +124,9 @@ impl fmt::Display for CommandFailure {
                 "this connection pairs a credential with a provider it does not belong to"
             }
             CommandFailure::CodexLoginRequired => "Codex needs a current login. Run codex login.",
-            CommandFailure::PlanCap => "the Free active account cap is already in use",
+            CommandFailure::PlanCap => {
+                "Pro unlocks more accounts. Free reads one account per provider"
+            }
             CommandFailure::Paused => "the connection is paused and cannot perform work",
         };
         formatter.write_str(sentence)
@@ -1594,7 +1596,9 @@ mod tests {
                 if credential == CredentialKind::CodexSession {
                     input.secret = codex_test_secret();
                 }
-                let outcome = connect_core(&connections, &secrets, input);
+                /* On a plan that allows more than one account, so the thing
+                under test is the route table and not the Free cap. */
+                let outcome = connect_core_for_plan(&connections, &secrets, input, true);
                 if reader_route(provider, credential).is_ok() {
                     assert!(outcome.is_ok());
                     accepted += 1;

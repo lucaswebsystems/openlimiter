@@ -4,3 +4,17 @@
  * The canonical product palette, type, spacing, radius and motion contract is
  * packages/ui/src/tokens.css, copied beside this file during the desktop build.
  */
+
+/*
+ * The two colours the pairing symbol is drawn in.
+ *
+ * They live here because this is the desktop's token file, and they are the
+ * one pair in the product that must NOT follow the theme: a QR code is read by
+ * a camera, and a camera needs dark modules on a light field. A dark themed
+ * window that inverted them would be a window whose pairing code no phone can
+ * scan, which is a broken feature rather than a styling preference.
+ */
+:root {
+  --ol-qr-ground: #ffffff;
+  --ol-qr-ink: #000000;
+}

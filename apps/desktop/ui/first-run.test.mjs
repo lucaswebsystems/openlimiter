@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { launchNotice, normalizeDetections } from "./first-run.js";
+import { FIRST_RUN_STEPS, launchNotice, normalizeDetections } from "./first-run.js";
 
 test("keeps an unconfigured Home to one line pointing at Configuration", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
@@ -34,31 +34,73 @@ test("keeps an unconfigured Home to one line pointing at Configuration", () => {
   }
 });
 
-test("keeps the account gate mandatory before provider setup", () => {
-  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+test("reaches the providers before it ever mentions an account", () => {
+  /* The wall is gone. It used to be the first thing a person met: no meter,
+     no detection, nothing at all until they signed in, on a product whose
+     whole promise is reading what is already on their own machine. Detection
+     runs first now and the account is the last step. */
   const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 
-  assert.match(html, /id="account-google"[\s\S]*Continue with Google/u);
-  assert.match(html, /id="account-github"[\s\S]*Continue with GitHub/u);
-  assert.match(html, /id="account-email-form"[\s\S]*Create account/u);
-  assert.equal(/skip|continue without|not now/iu.test(html.slice(
-    html.indexOf('id="account-gate"'),
-    html.indexOf('id="first-run-setup"'),
-  )), false);
+  assert.deepEqual(FIRST_RUN_STEPS, ["agents", "account", "ready"]);
+  assert.equal(html.includes('id="account-gate"'), false);
+  assert.match(source, /await showSetup\(\)/u);
+  /* Nothing gates showSetup on a session: the load path runs it whatever the
+     account status came back as. */
   assert.match(
     source,
-    /await options\.accountStatus\(\)[\s\S]*signedIn !== true[\s\S]*gate\.hidden = false[\s\S]*setup\.hidden = true/u,
+    /const result = await options\.accountStatus\(\)[\s\S]*await showSetup\(\)/u,
   );
+  assert.equal(/gate\.hidden = false/u.test(source), false);
+});
+
+test("offers the account once, with the promised copy and a plain not now", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
+  const step = html.slice(
+    html.indexOf('id="first-run-account"'),
+    html.indexOf('id="first-run-account-status"'),
+  );
+
+  assert.match(step, /Sign in to see this on your phone and to unlock Pro/u);
+  assert.match(step, /id="first-run-not-now"[^>]*>Not now</u);
+  assert.match(step, /id="first-run-sign-in"/u);
+  /* Not now finishes first run outright rather than looping back. */
+  assert.match(source, /#first-run-not-now"\)\?\.addEventListener\("click", finish\)/u);
+});
+
+test("keeps one sign in form, reachable from the header account menu", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+
+  /* One password field in the document, not two. A second copy is a second
+     place for a bug to live and the one that stops being fixed. */
+  assert.equal((html.match(/id="account-password"/gu) ?? []).length, 1);
+  assert.equal((html.match(/id="account-email-form"/gu) ?? []).length, 1);
+  assert.match(html, /id="menu-sign-in"/u);
+  assert.match(app, /elements\.menuSignInButton\?\.addEventListener\("click", openSignIn\)/u);
+  assert.match(app, /onSignInRequested: openSignIn/u);
+  /* Signing in is announced, so first run can finish without owning a form. */
+  assert.match(app, /openlimiter:signed-in/u);
+});
+
+test("the account menu hides the switch and the log out while signed out", () => {
+  const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
+  assert.match(app, /elements\.menuSignIn\.hidden = signedIn/u);
+  assert.match(app, /elements\.menuSignedIn\.hidden = !signedIn/u);
+  assert.match(app, /elements\.menuLogout\.hidden = !signedIn/u);
+});
+
+test("the toggle says that signing in is what turns sync on", () => {
+  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+  assert.match(html, /Signing in turns this on\. Only percentages leave this device\./u);
 });
 
 test("lets a cached signed in session continue while the backend is offline", () => {
-  const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
   const app = readFileSync(new URL("./app.js", import.meta.url), "utf8");
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 
-  assert.match(source, /result\.value\?\.signedIn !== true/u);
-  assert.equal(source.includes("backendReachable"), false);
-  assert.match(app, /status\.signedIn && status\.backendReachable === false/u);
+  assert.match(app, /signedIn && status\.backendReachable === false/u);
   assert.match(html, /Offline\. Local collection is still running\./u);
 });
 

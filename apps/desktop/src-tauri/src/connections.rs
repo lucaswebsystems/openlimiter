@@ -365,7 +365,7 @@ impl fmt::Display for StoreError {
             StoreError::Corrupt => "the connections file is not readable as written",
             StoreError::Full => "the connections file is at its bound",
             StoreError::InvalidField => "a connection field is empty or over its bound",
-            StoreError::PlanCap => "the Free active account cap is already in use",
+            StoreError::PlanCap => "Pro unlocks more accounts. Free reads one per provider",
             StoreError::Paused => "the connection is paused and cannot perform work",
             StoreError::Io => "the connections file could not be read or written",
         };
@@ -639,8 +639,16 @@ impl ConnectionsStore {
                 .connections
                 .iter()
                 .any(|existing| existing.provider_id == record.provider_id && existing.is_active());
+            /* Free is one ACTIVE account per provider, and a second one is
+            refused rather than stored asleep. Storing it would leave a person
+            holding a credential OpenLimiter will never read, in a row that
+            explains itself as a plan pause, which reads as a punishment for
+            something they were never told they could not do. Refusing says
+            the same thing once, before anything is written, and leaves the
+            keyring exactly as it was. Extras that already exist keep their
+            paused row: those were added while the plan allowed them. */
             if active_same_provider {
-                record.pause_reason = Some(PauseReason::PausedByPlan);
+                return Err(StoreError::PlanCap);
             }
         }
         document.connections.push(record.clone());
@@ -1360,7 +1368,7 @@ mod tests {
             ),
             (
                 StoreError::PlanCap,
-                "the Free active account cap is already in use",
+                "Pro unlocks more accounts. Free reads one per provider",
             ),
             (
                 StoreError::Paused,
@@ -1629,17 +1637,67 @@ mod tests {
     }
 
     #[test]
-    fn free_insertion_pauses_a_second_ordinary_account() {
+    fn free_insertion_refuses_a_second_account_and_stores_nothing() {
         let dir = TempDir::new();
         let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
         let first = store
             .insert_for_plan(record("first"), false)
             .expect("first account");
-        let second = store
-            .insert_for_plan(record("second"), false)
-            .expect("preserved second account");
         assert!(first.is_active());
-        assert_eq!(second.pause_reason, Some(PauseReason::PausedByPlan));
+        assert_eq!(
+            store.insert_for_plan(record("second"), false).map(|_| ()),
+            Err(StoreError::PlanCap)
+        );
+        assert_eq!(store.list().expect("the stored list").len(), 1);
+        assert_eq!(store.get("second"), Err(StoreError::NotFound));
+    }
+
+    #[test]
+    fn a_second_account_lands_active_while_the_plan_allows_it() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        store
+            .insert_for_plan(record("first"), true)
+            .expect("first account");
+        let second = store
+            .insert_for_plan(record("second"), true)
+            .expect("second account");
+        assert!(second.is_active());
+        /* And when the entitlement lapses, that extra is paused rather than
+        removed: nothing a person connected is ever deleted by a plan. */
+        store.apply_plan(false, &[]).expect("the downgrade");
+        assert!(store.get("first").expect("first").is_active());
+        assert_eq!(
+            store.get("second").expect("second").pause_reason,
+            Some(PauseReason::PausedByPlan)
+        );
+    }
+
+    #[test]
+    fn a_grandfathered_account_survives_the_downgrade_beside_the_keeper() {
+        let dir = TempDir::new();
+        let store = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let mut legacy = record("legacy-one");
+        legacy.created_at = 1_770_000_000_000;
+        let mut also_legacy = record("legacy-two");
+        also_legacy.created_at = 1_770_000_000_100;
+        let migrated = migrate_cap_document(vec![legacy, also_legacy]).expect("the one time flag");
+        store.save_document(&migrated).expect("the migrated document");
+
+        store.apply_plan(false, &[]).expect("the downgrade");
+        assert!(store.get("legacy-one").expect("legacy one").is_active());
+        assert!(store.get("legacy-two").expect("legacy two").is_active());
+        assert!(store
+            .get("legacy-two")
+            .expect("legacy two")
+            .legacy_grandfathered);
+
+        /* Grandfathering covers what was already there, never a new account.
+        A third one on the same provider is refused like any other second. */
+        assert_eq!(
+            store.insert_for_plan(record("new-one"), false).map(|_| ()),
+            Err(StoreError::PlanCap)
+        );
     }
 
     #[test]

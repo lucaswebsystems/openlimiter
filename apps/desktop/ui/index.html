@@ -49,45 +49,14 @@
           <img class="brand-lockup-light" src="./brand/openlimiter-lockup-light.svg" alt="" />
           <img class="brand-lockup-dark" src="./brand/openlimiter-lockup-dark.svg" alt="" />
         </div>
-        <div id="account-gate">
-          <h1 id="account-gate-title">Sign in to OpenLimiter</h1>
-          <p id="first-run-intro" class="first-run-intro">
-            Your free account keeps usage percentages on every device.
-          </p>
-          <div class="account-provider-actions">
-            <button type="button" id="account-google" class="account-provider">Continue with Google</button>
-            <button type="button" id="account-github" class="account-provider">Continue with GitHub</button>
-          </div>
-          <form id="account-email-form" class="account-email-form">
-            <label>
-              Email
-              <input id="account-email" class="field" type="email" autocomplete="email" required />
-            </label>
-            <label>
-              Password
-              <input id="account-password" class="field" type="password" autocomplete="current-password" minlength="8" required />
-            </label>
-            <div class="account-email-actions">
-              <button type="submit" id="account-email-sign-in" class="first-run-continue">Sign in</button>
-              <button type="button" id="account-email-create">Create account</button>
-              <!--
-                The fallback for a person whose provider account is not one of
-                the two above, or who would rather not hand a password to a
-                desktop window at all. It asks for nothing but the address.
-              -->
-              <button type="button" id="account-magic-link">Email me a link instead</button>
-            </div>
-          </form>
-          <p id="account-gate-status" class="first-run-status" role="status"></p>
-        </div>
         <!--
           Three steps, named before the first one starts. A person who can see
           where the setup ends is a person who will finish it, and there is
           nothing here worth hiding behind a progress bar with no labels.
         -->
         <ol class="first-run-steps" id="first-run-steps" hidden>
-          <li data-step="permission" aria-current="step">Alerts</li>
-          <li data-step="agents">Agents</li>
+          <li data-step="agents" aria-current="step">Agents</li>
+          <li data-step="account">Account</li>
           <li data-step="ready">Ready</li>
         </ol>
 
@@ -109,48 +78,80 @@
             Checking local tools.
           </p>
           <button type="button" id="first-run-continue" class="first-run-continue">
-            Open dashboard
+            Continue
           </button>
           <p id="first-run-helper" class="first-run-helper">
             Provider access stays local. Sync can be turned off at any time.
           </p>
         </div>
         <!--
-          Its own class names on purpose. The empty state restyles every
-          .first-run-* class to shrink the panel down to one line, and this
-          step is never the empty state, so borrowing those names would let a
-          detection result silently rewrite a permission request.
-        -->
-        <div id="first-run-permission" class="permission-step" hidden>
-          <h2 class="permission-title" id="first-run-permission-title">Let OpenLimiter tell you before you run out</h2>
-          <!--
-            The reason, before the ask. A permission prompt with no stated
-            purpose is the one a person denies by reflex, and the reflex is
-            correct: nobody should grant something whose use was not explained.
-          -->
-          <p class="permission-lede">
-            OpenLimiter watches the quota windows you already pay for and says
-            something at 60, 80 and 90 percent, and once more when a window
-            resets. That is the whole of it. There is no marketing message, no
-            digest you did not ask for, and no notification that is not about a
-            number on your own screen.
-          </p>
-          <p class="permission-note">
-            You can decide the thresholds, set quiet hours, or turn alerts off
-            entirely in Settings. Declining here changes nothing else: every
-            meter keeps working.
-          </p>
-          <div class="permission-actions">
-            <button type="button" id="first-run-allow" class="permission-action primary">
-              Allow alerts
-            </button>
-            <button type="button" id="first-run-skip-alerts" class="permission-action">
-              Not now
-            </button>
-          </div>
-          <p id="first-run-permission-status" class="permission-status" role="status"></p>
-        </div>
+          The account, offered once, at the end, with a plain way past it.
 
+          It used to be a wall: no meter until you signed in, on a product
+          whose whole promise is that it reads what is already on your own
+          machine. Nothing about a local quota needs an account, so nothing
+          local waits for one. What an account adds is named here, once, and
+          "Not now" is a real answer rather than a smaller button.
+        -->
+        <div id="first-run-account" hidden>
+          <h1 id="first-run-account-title">Sign in to see this on your phone and to unlock Pro</h1>
+          <p class="first-run-intro">
+            Your meters are already running. An account carries the percentages
+            to your phone, and it is how Pro alerts and more than one account
+            per provider are turned on.
+          </p>
+          <div class="first-run-account-actions">
+            <button type="button" id="first-run-sign-in" class="first-run-continue">Sign in</button>
+            <button type="button" id="first-run-not-now" class="first-run-skip">Not now</button>
+          </div>
+          <p id="first-run-account-status" class="first-run-status" role="status"></p>
+        </div>
+      </div>
+    </section>
+
+    <!--
+      One sign in, in one place.
+
+      The first run offer and the account menu both open this. Two copies of a
+      password field is two places for a bug to live, and the second one is
+      always the one that stops being fixed.
+    -->
+    <section id="sign-in" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sign-in-title" hidden>
+      <div class="sheet-panel">
+        <h2 id="sign-in-title">Sign in to OpenLimiter</h2>
+        <p class="note tight">
+          It carries your usage percentages to your phone and unlocks Pro.
+          Nothing local waits for it: every meter in this window keeps running
+          whether you sign in or not.
+        </p>
+        <div class="account-provider-actions">
+          <button type="button" id="account-google" class="account-provider">Continue with Google</button>
+          <button type="button" id="account-github" class="account-provider">Continue with GitHub</button>
+        </div>
+        <form id="account-email-form" class="account-email-form">
+          <label>
+            Email
+            <input id="account-email" class="field" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Password
+            <input id="account-password" class="field" type="password" autocomplete="current-password" minlength="8" required />
+          </label>
+          <div class="account-email-actions">
+            <button type="submit" id="account-email-sign-in" class="first-run-continue">Sign in</button>
+            <button type="button" id="account-email-create">Create account</button>
+            <!--
+              The fallback for a person whose provider account is not one of
+              the two above, or who would rather not hand a password to a
+              desktop window at all. It asks for nothing but the address.
+            -->
+            <button type="button" id="account-magic-link">Email me a link instead</button>
+          </div>
+        </form>
+        <p id="sign-in-status" class="first-run-status" role="status"></p>
+        <div class="sheet-actions">
+          <button type="button" id="sign-in-close">Close</button>
+        </div>
       </div>
     </section>
 
@@ -191,6 +192,19 @@
               <path d="M10 21h4" />
             </svg>
           </button>
+          <button
+            type="button"
+            id="phone-button"
+            class="icon"
+            aria-label="Pair your phone"
+            aria-expanded="false"
+            aria-controls="phone-popover"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <rect x="7" y="2.5" width="10" height="19" rx="2.4" />
+              <path d="M11 18.5h2" />
+            </svg>
+          </button>
           <button type="button" id="menu-button" class="icon" aria-label="Open menu" aria-expanded="false" aria-controls="app-menu">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false">
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -200,17 +214,52 @@
       </div>
       <div id="notification-popover" class="header-popover" hidden>
         <strong>Notifications</strong>
+        <!--
+          Alerts are the one thing a server is paid to do while this window is
+          shut, so they are Pro. A Free window says that here, once, with the
+          way to change it beside it, instead of offering switches that would
+          fire nothing.
+        -->
+        <div id="notification-gate" class="notification-gate" hidden>
+          <strong id="notification-gate-title">Alerts are a Pro feature</strong>
+          <p id="notification-gate-note">
+            Every meter and every reading in this window is free and always
+            will be. Pro pays for the alert that reaches you when the window is
+            closed.
+          </p>
+          <button type="button" id="notification-upgrade" class="primary">Upgrade to Pro</button>
+        </div>
         <div id="notification-events" class="notification-events"><p>No recent notifications.</p></div>
+      </div>
+      <div id="phone-popover" class="header-popover" hidden>
+        <div id="phone-panel-body" class="phone-panel"></div>
       </div>
       <div id="app-menu" class="header-popover app-menu" hidden>
         <div class="menu-account">
           <strong id="menu-account-email">Signed out</strong>
           <span id="menu-backend-state"></span>
         </div>
-        <label class="menu-toggle"><span>Sync usage percentages</span><input id="menu-sync" type="checkbox" checked /></label>
+        <!--
+          The card that replaced the wall. It is offered, never insisted on,
+          and it says what an account is for rather than assuming a person
+          already knows.
+        -->
+        <div id="menu-signin" class="menu-signin" hidden>
+          <strong>Sign in to see this on your phone and to unlock Pro</strong>
+          <span>Every meter here keeps working without one.</span>
+          <button type="button" id="menu-sign-in" class="primary">Sign in</button>
+        </div>
+        <div id="menu-signed-in" hidden>
+          <label class="menu-toggle"><span>Sync usage percentages</span><input id="menu-sync" type="checkbox" checked /></label>
+          <p class="menu-sync-note" id="menu-sync-note">Signing in turns this on. Only percentages leave this device.</p>
+          <div class="menu-devices">
+            <strong>Devices</strong>
+            <div id="devices-mount" class="menu-device-list"></div>
+          </div>
+        </div>
         <button type="button" id="menu-update">Check for updates</button>
         <a href="https://openlimiter.com/en/docs" target="_blank" rel="noopener noreferrer">About OpenLimiter</a>
-        <button type="button" id="menu-logout">Log out</button>
+        <button type="button" id="menu-logout" hidden>Log out</button>
       </div>
     </header>
 

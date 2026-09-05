@@ -236,10 +236,15 @@ export function normalizeDetections(value) {
  *
  * A step is marked done only once it has actually happened. Marking a step
  * complete because it was displayed is how a setup ends up claiming to have
- * asked for something it never asked for, and this one asks for a real
- * operating system permission.
+ * done something it never did.
+ *
+ * Agents comes first now. It used to come second, behind a sign in wall, on a
+ * product whose entire promise is reading what is already on your own machine.
+ * Nothing local needs an account, so nothing local waits for one: detection
+ * runs the moment the window opens and the bars are real within seconds. The
+ * account is the last step and it has a plain way past it.
  */
-export const FIRST_RUN_STEPS = ["permission", "agents", "ready"];
+export const FIRST_RUN_STEPS = ["agents", "account", "ready"];
 
 export function markStep(root, current) {
   const list = root?.querySelector("#first-run-steps");
@@ -465,45 +470,20 @@ export function initFirstRun(options) {
   const screen = document.getElementById("first-run");
   if (screen === null) return;
 
-  const gate = screen.querySelector("#account-gate");
   const setup = screen.querySelector("#first-run-setup");
-  const gateStatus = screen.querySelector("#account-gate-status");
-  const email = screen.querySelector("#account-email");
-  const password = screen.querySelector("#account-password");
-  const emailForm = screen.querySelector("#account-email-form");
-  const createButton = screen.querySelector("#account-email-create");
-  const magicButton = screen.querySelector("#account-magic-link");
-  const googleButton = screen.querySelector("#account-google");
-  const githubButton = screen.querySelector("#account-github");
+  const account = screen.querySelector("#first-run-account");
+  const accountStatusLine = screen.querySelector("#first-run-account-status");
 
   document.documentElement.dataset.firstRun = "pending";
 
   let providersRendered = false;
-  const permission = screen.querySelector("#first-run-permission");
-  const permissionStatus = screen.querySelector("#first-run-permission-status");
 
-  /* Step one. Shown after sign in and before anything is detected, because a
-     person who has just been told what alerts are for is the person who can
-     answer the operating system's prompt meaningfully. */
-  function showPermission() {
-    screen.setAttribute("aria-labelledby", "first-run-permission-title");
-    gate.hidden = true;
-    setup.hidden = true;
-    if (permission !== null) permission.hidden = false;
-    markStep(screen, "permission");
-  }
-
-  async function finishPermission(outcome) {
-    if (permissionStatus !== null) {
-      permissionStatus.textContent = permissionSentence(outcome);
-    }
-    await showSetup();
-  }
-
+  /* Step one, and the first thing on screen. Detection starts before anything
+     is asked of a person, so the window they are looking at is already doing
+     the job they installed it for. */
   async function showSetup() {
     screen.setAttribute("aria-labelledby", "first-run-title");
-    gate.hidden = true;
-    if (permission !== null) permission.hidden = true;
+    if (account !== null) account.hidden = true;
     setup.hidden = false;
     markStep(screen, "agents");
     if (providersRendered) return;
@@ -516,30 +496,24 @@ export function initFirstRun(options) {
     );
   }
 
-  screen.querySelector("#first-run-allow")?.addEventListener("click", async () => {
-    const outcome = await requestAlertPermission();
-    await finishPermission(outcome);
-  });
-
-  screen.querySelector("#first-run-skip-alerts")?.addEventListener("click", () => {
-    void finishPermission("skipped");
-  });
-
-  function showAccountFailure(result) {
-    if (gateStatus === null) return;
-    gateStatus.textContent = result?.message ??
-      "Sign in could not be completed. Check your connection and try again.";
-  }
-
-  async function runAccount(action) {
-    if (gateStatus !== null) gateStatus.textContent = "Opening secure sign in.";
-    const result = await action();
-    if (!result.ok || result.value?.signedIn !== true) {
-      showAccountFailure(result);
+  /* Step two. Offered once, at the end, with "Not now" as a real answer and
+     not a smaller button beside a bigger one. */
+  function showAccount() {
+    screen.setAttribute("aria-labelledby", "first-run-account-title");
+    setup.hidden = true;
+    if (account === null) {
+      completeFirstRun(screen);
+      options.onContinue();
       return;
     }
-    options.onAccountState(result.value);
-    showPermission();
+    account.hidden = false;
+    markStep(screen, "account");
+    screen.querySelector("#first-run-sign-in")?.focus();
+  }
+
+  function finish() {
+    completeFirstRun(screen);
+    options.onContinue();
   }
 
   const notice = launchNotice(options.platform ?? browserPlatform());
@@ -560,73 +534,32 @@ export function initFirstRun(options) {
 
   const continueButton = screen.querySelector("#first-run-continue");
   continueButton?.addEventListener("click", () => {
-    completeFirstRun(screen);
-    options.onContinue();
-  });
-  continueButton?.focus();
-
-  emailForm?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    void runAccount(() => options.accountEmail({
-      email: email?.value ?? "",
-      password: password?.value ?? "",
-      create: false,
-    }));
-  });
-  createButton?.addEventListener("click", () => {
-    void runAccount(() => options.accountEmail({
-      email: email?.value ?? "",
-      password: password?.value ?? "",
-      create: true,
-    }));
-  });
-  /*
-   * The magic link, for a person with neither of the two provider accounts,
-   * or who would rather not type a password into a desktop window. It sends
-   * an empty password with create off, which is what the broker reads as a
-   * link request, and it never advances the screen: the link is followed in a
-   * browser and this window picks the session up when it comes back.
-   */
-  magicButton?.addEventListener("click", async () => {
-    const address = email?.value ?? "";
-    if (address.trim() === "") {
-      if (gateStatus !== null) {
-        gateStatus.textContent = "Enter the email address to send the link to.";
-      }
-      email?.focus();
+    /* Somebody already signed in has nothing left to be asked. */
+    if (options.isSignedIn()) {
+      finish();
       return;
     }
-    if (gateStatus !== null) gateStatus.textContent = "Sending the link.";
-    const result = await options.accountEmail({
-      email: address,
-      password: "",
-      create: false,
-    });
-    if (gateStatus === null) return;
-    gateStatus.textContent = result.ok
-      ? "Check " + address + " and open the link on this device."
-      : (result.message ?? "The link could not be sent. Check your connection.");
+    showAccount();
   });
 
-  googleButton?.addEventListener("click", () => {
-    void runAccount(() => options.accountOauth("google"));
+  screen.querySelector("#first-run-not-now")?.addEventListener("click", finish);
+  screen.querySelector("#first-run-sign-in")?.addEventListener("click", () => {
+    if (accountStatusLine !== null) {
+      accountStatusLine.textContent = "Opening sign in.";
+    }
+    options.onSignInRequested();
   });
-  githubButton?.addEventListener("click", () => {
-    void runAccount(() => options.accountOauth("github"));
+
+  /* The window owns the sign in sheet, so it tells this screen when one
+     succeeded rather than this screen owning a second copy of the form. */
+  window.addEventListener("openlimiter:signed-in", () => {
+    if (document.documentElement.dataset.firstRun !== "pending") return;
+    finish();
   });
 
   void (async () => {
     const result = await options.accountStatus();
-    if (!result.ok || result.value?.signedIn !== true) {
-      screen.setAttribute("aria-labelledby", "account-gate-title");
-      gate.hidden = false;
-      setup.hidden = true;
-      if (result.ok && result.value?.configured === false && gateStatus !== null) {
-        gateStatus.textContent = "Account sign in is not configured in this build.";
-      }
-      return;
-    }
-    options.onAccountState(result.value);
+    if (result.ok) options.onAccountState(result.value);
     if (
       window.localStorage.getItem(FIRST_RUN_STORAGE_KEY) === "complete" &&
       readConfiguredProviders().length > 0
@@ -634,6 +567,6 @@ export function initFirstRun(options) {
       completeFirstRun(screen);
       return;
     }
-    showPermission();
+    await showSetup();
   })();
 }

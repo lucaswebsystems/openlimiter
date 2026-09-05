@@ -203,12 +203,34 @@ struct TokenHeader {
     typ: String,
 }
 
+/// The audience and scope a desktop token must carry.
+///
+/// The Pro service issues phone tokens beside desktop ones now, and the two
+/// differ only in these two claims: a phone gets `aud` phone with `scope`
+/// read, a desktop gets `aud` desktop with `scope` full. A read scoped token
+/// authorises reading snapshots and nothing else, so it must never reach this
+/// window as an entitlement, whatever features it happens to list.
+const DESKTOP_AUDIENCE: &str = "desktop";
+const DESKTOP_SCOPE: &str = "full";
+
+/// What a token that predates the scope claim means.
+///
+/// Tokens minted before the phone pairing migration carry no `scope` at all
+/// and were desktop tokens by construction, so an absent claim reads as the
+/// full desktop scope. A phone token cannot slip through this door: it always
+/// carries `scope` read explicitly, and it carries `aud` phone besides.
+fn desktop_scope() -> String {
+    DESKTOP_SCOPE.to_string()
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EntitlementClaims {
     ver: u8,
     iss: String,
     aud: String,
+    #[serde(default = "desktop_scope")]
+    scope: String,
     sub: String,
     device_id: String,
     jti: String,
@@ -329,6 +351,13 @@ impl ProAction {
             | Self::RevokeDevice
             | Self::RevokeOtherDevices => None,
         }
+    }
+}
+
+impl EntitlementClaims {
+    /// Whether this token authorises this window rather than a paired phone.
+    fn is_desktop(&self) -> bool {
+        self.aud == DESKTOP_AUDIENCE && self.scope == DESKTOP_SCOPE
     }
 }
 
@@ -698,7 +727,7 @@ fn validate_claim_shape(claims: &EntitlementClaims) -> Result<(), ProFailure> {
         .all(|pair| pair[0].code() < pair[1].code());
     if claims.ver != 2
         || claims.iss != "openlimiter-pro"
-        || claims.aud != "desktop"
+        || !claims.is_desktop()
         || uuid::Uuid::parse_str(&claims.sub).is_err()
         || uuid::Uuid::parse_str(&claims.jti).is_err()
         || uuid::Uuid::parse_str(&claims.device_id).is_err()
@@ -761,10 +790,13 @@ fn status_for(
     } else {
         ProEntitlementState::Expired
     };
-    let locally_entitled = matches!(
-        state,
-        ProEntitlementState::Active | ProEntitlementState::RefreshDue | ProEntitlementState::Grace
-    );
+    let locally_entitled = token.claims.is_desktop()
+        && matches!(
+            state,
+            ProEntitlementState::Active
+                | ProEntitlementState::RefreshDue
+                | ProEntitlementState::Grace
+        );
     let features = if locally_entitled {
         token.claims.features.clone()
     } else {
@@ -888,6 +920,19 @@ fn current_status_inner(store: &dyn SecretStore) -> ProStatus {
             ProStatus::simple(ProEntitlementState::Invalid)
         }
     }
+}
+
+/// Whether this machine may raise a native alert right now.
+///
+/// Every notification is a Pro capability, so this is the one question the
+/// notification evaluator asks before it queues a toast. It follows the same
+/// honour policy the local feature gate above follows: a valid signed grace
+/// token keeps alerts, and malformed, expired, revoked or clock invalid state
+/// falls back to Free without deleting a single stored event.
+pub(crate) fn alerts_enabled(store: &dyn SecretStore) -> bool {
+    current_status(store)
+        .features
+        .contains(&EntitlementFeature::Alerts)
 }
 
 pub(crate) fn multi_account_enabled(store: &dyn SecretStore) -> bool {
@@ -1016,15 +1061,38 @@ impl<'de> Deserialize<'de> for StrictValue {
 }
 
 async fn post_json(path: &str, access_token: &str, payload: &Value) -> Result<Value, ProFailure> {
+    post_signed_json(path, access_token, None, payload).await
+}
+
+/// The one request shape, with the device token attached when the endpoint
+/// wants it.
+///
+/// `/pair-device` authorises the desktop twice over: the Supabase bearer says
+/// which account is asking, and `x-openlimiter-entitlement` says which device
+/// inside it. Sending the second only where it is required keeps every other
+/// call exactly as narrow as it was.
+async fn post_signed_json(
+    path: &str,
+    access_token: &str,
+    entitlement: Option<&str>,
+    payload: &Value,
+) -> Result<Value, ProFailure> {
     let body = serde_json::to_vec(payload).map_err(|_| ProFailure::InvalidInput)?;
     if body.len() > MAX_REQUEST_BYTES {
         return Err(ProFailure::InvalidInput);
     }
-    let response = network_client()?
+    let mut request = network_client()?
         .post(endpoint(path)?)
         .bearer_auth(access_token)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .header(reqwest::header::ACCEPT, "application/json")
+        .header(reqwest::header::ACCEPT, "application/json");
+    if let Some(token) = entitlement {
+        if token.is_empty() || token.len() > MAX_TOKEN_BYTES {
+            return Err(ProFailure::InvalidEntitlement);
+        }
+        request = request.header("x-openlimiter-entitlement", token);
+    }
+    let response = request
         .body(body)
         .send()
         .await
@@ -1519,6 +1587,146 @@ fn validate_device_action_payload(
     Ok(())
 }
 
+/// The billing period a person chose, in the vocabulary the Pro service reads.
+///
+/// The window says monthly and yearly because that is what the price page
+/// says. `create-checkout` reads `month` and `year`, so the translation lives
+/// here rather than in the interface, where a typo would be a silent 400.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProPlan {
+    Monthly,
+    Yearly,
+}
+
+impl ProPlan {
+    fn interval(self) -> &'static str {
+        match self {
+            Self::Monthly => "month",
+            Self::Yearly => "year",
+        }
+    }
+}
+
+/// Whether the person is being sent to manage billing or to cancel.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PortalIntent {
+    Manage,
+    Cancel,
+}
+
+impl PortalIntent {
+    fn action(self) -> &'static str {
+        match self {
+            Self::Manage => "manage",
+            Self::Cancel => "cancel",
+        }
+    }
+}
+
+/// A hosted address the window is about to hand to the system browser.
+///
+/// Both hosted billing surfaces answer with one absolute URL and nothing
+/// else, so both come back through this shape and both are checked the same
+/// way before anything is opened.
+fn hosted_url(response: &Value) -> Result<String, ProFailure> {
+    let url = response
+        .get("url")
+        .and_then(Value::as_str)
+        .ok_or(ProFailure::Service)?;
+    if url.len() > 2_048 {
+        return Err(ProFailure::Service);
+    }
+    let parsed = reqwest::Url::parse(url).map_err(|_| ProFailure::Service)?;
+    if parsed.scheme() != "https" || parsed.username() != "" || parsed.password().is_some() {
+        return Err(ProFailure::Service);
+    }
+    Ok(url.to_string())
+}
+
+/// The Supabase bearer for the signed in person, or a plain no session.
+pub(crate) async fn access_token(
+    store: &dyn SecretStore,
+) -> Result<zeroize::Zeroizing<String>, ProFailure> {
+    crate::account::current_access_token(store)
+        .await
+        .map_err(map_account_failure)
+}
+
+/// The device token this machine currently holds, refreshing it when it is due.
+///
+/// `pair-device` verifies the token against the live grant, so a token inside
+/// its refresh window would be rejected by the server rather than accepted on
+/// the honour system the way a local feature is. Refreshing first turns that
+/// into an ordinary success instead of an unexplained 401.
+pub(crate) async fn current_device_token(store: &dyn SecretStore) -> Result<String, ProFailure> {
+    let status = refresh_if_due(store).await?;
+    if !matches!(
+        status.state,
+        ProEntitlementState::Active | ProEntitlementState::RefreshDue
+    ) {
+        return Err(ProFailure::EntitlementRequired);
+    }
+    read_cache()?
+        .map(|cache| cache.token)
+        .ok_or(ProFailure::NoSession)
+}
+
+/// The identifier this machine is known by inside the account.
+pub(crate) fn desktop_device_id(store: &dyn SecretStore) -> Result<String, ProFailure> {
+    let account_id = crate::account::active_account_id(store).map_err(|_| ProFailure::NoSession)?;
+    Ok(load_trust(store, &account_id)?.device_id)
+}
+
+/// One `pair-device` action, authorised as both the account and this device.
+pub(crate) async fn post_pairing(
+    store: &dyn SecretStore,
+    payload: Value,
+) -> Result<Value, ProFailure> {
+    let access = access_token(store).await?;
+    let device_token = current_device_token(store).await?;
+    post_signed_json("/pair-device", &access, Some(&device_token), &payload).await
+}
+
+/// One hosted service action, for callers outside this module.
+pub(crate) async fn call_service(
+    store: &dyn SecretStore,
+    input: ProServiceInput,
+) -> Result<Value, ProFailure> {
+    service_call(store, input).await
+}
+
+#[tauri::command]
+pub async fn pro_checkout_url(
+    plan: ProPlan,
+    store: State<'_, KeyringStore>,
+) -> Result<String, ProFailure> {
+    let access = access_token(store.inner()).await?;
+    let response = post_json(
+        "/create-checkout",
+        &access,
+        &json!({ "interval": plan.interval() }),
+    )
+    .await?;
+    hosted_url(&response)
+}
+
+#[tauri::command]
+pub async fn pro_portal_url(
+    intent: PortalIntent,
+    store: State<'_, KeyringStore>,
+) -> Result<String, ProFailure> {
+    let access = access_token(store.inner()).await?;
+    let response = post_json(
+        "/customer-portal",
+        &access,
+        &json!({ "action": intent.action() }),
+    )
+    .await?;
+    hosted_url(&response)
+}
+
 #[tauri::command]
 pub fn pro_status(store: State<'_, KeyringStore>) -> ProStatus {
     current_status(store.inner())
@@ -1634,6 +1842,7 @@ mod tests {
             ver: 2,
             iss: "openlimiter-pro".to_string(),
             aud: "desktop".to_string(),
+            scope: "full".to_string(),
             sub: ACCOUNT_ID.to_string(),
             device_id: DEVICE_ID.to_string(),
             jti: "00000000-0000-4000-8000-000000000002".to_string(),
@@ -1693,6 +1902,100 @@ mod tests {
         short_grace.grace_until -= 1;
         assert_eq!(
             validate_claim_shape(&short_grace),
+            Err(ProFailure::InvalidEntitlement)
+        );
+    }
+
+    /// The claim payload the Pro service signs, as JSON, so the test exercises
+    /// the same deserializer a real token goes through rather than a struct
+    /// literal that cannot tell a present claim from a defaulted one.
+    fn claims_json(now: i64, scope: Option<&str>, aud: &str) -> String {
+        let mut payload = json!({
+            "ver": 2,
+            "iss": "openlimiter-pro",
+            "aud": aud,
+            "sub": ACCOUNT_ID,
+            "device_id": DEVICE_ID,
+            "jti": "00000000-0000-4000-8000-000000000002",
+            "seq": 4,
+            "iat": now,
+            "nbf": now,
+            "exp": now + TOKEN_LIFETIME_SECONDS,
+            "refresh_after": now + TOKEN_REFRESH_AFTER_SECONDS,
+            "grace_until": now + TOKEN_HONOR_UNTIL_SECONDS,
+            "server_time": now,
+            "revocation_epoch": 2,
+            "features": EntitlementFeature::ALL
+                .iter()
+                .map(|feature| feature.code())
+                .collect::<Vec<_>>(),
+            "plan_state": "active",
+            "interval": "monthly",
+        });
+        if let Some(scope) = scope {
+            payload
+                .as_object_mut()
+                .expect("claim object")
+                .insert("scope".to_string(), Value::String(scope.to_string()));
+        }
+        payload.to_string()
+    }
+
+    #[test]
+    fn a_desktop_token_carrying_the_new_scope_claim_still_parses() {
+        let now = 1_800_000_000;
+        let parsed: EntitlementClaims =
+            strict_json(claims_json(now, Some("full"), "desktop").as_bytes())
+                .expect("a scoped desktop token parses");
+        assert_eq!(parsed.scope, "full");
+        assert!(parsed.is_desktop());
+        assert!(validate_claim_shape(&parsed).is_ok());
+    }
+
+    #[test]
+    fn a_token_minted_before_the_scope_claim_reads_as_the_desktop_scope() {
+        let now = 1_800_000_000;
+        let parsed: EntitlementClaims = strict_json(claims_json(now, None, "desktop").as_bytes())
+            .expect("an unscoped desktop token parses");
+        assert_eq!(parsed.scope, "full");
+        assert!(validate_claim_shape(&parsed).is_ok());
+    }
+
+    #[test]
+    fn a_read_scoped_phone_token_is_refused_and_unlocks_nothing() {
+        let now = 1_800_000_000;
+        let phone: EntitlementClaims = strict_json(claims_json(now, Some("read"), "phone").as_bytes())
+            .expect("a phone token parses as JSON");
+        assert!(!phone.is_desktop());
+        assert_eq!(
+            validate_claim_shape(&phone),
+            Err(ProFailure::InvalidEntitlement)
+        );
+
+        /* Even if one reached status_for through some other door, it grants no
+        local feature: the phone scope is a read authorisation, never a plan. */
+        let token = VerifiedToken {
+            header: TokenHeader {
+                alg: "EdDSA".to_string(),
+                kid: "primary".to_string(),
+                typ: "OLP2".to_string(),
+            },
+            claims: phone,
+        };
+        let status = status_for(&token, &trust(now), now).expect("a status is still derived");
+        assert!(status.features.is_empty());
+        assert!(!status.multi_account);
+        assert!(!status.theme_preset);
+    }
+
+    #[test]
+    fn a_desktop_audience_with_a_read_scope_is_refused() {
+        let now = 1_800_000_000;
+        let mixed: EntitlementClaims =
+            strict_json(claims_json(now, Some("read"), "desktop").as_bytes())
+                .expect("the mixed token parses as JSON");
+        assert_eq!(
+            validate_claim_shape(&mixed),
             Err(ProFailure::InvalidEntitlement)
         );
     }
