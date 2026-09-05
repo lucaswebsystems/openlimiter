@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { FIXTURE_NOW, claudeFixture } from "@openlimiter/connectors";
@@ -166,18 +166,41 @@ describe("smoke: nothing identifying leaves", () => {
 });
 
 describe("smoke: where the evidence lands", () => {
-  it("finds the mission workspace from a lane worktree", () => {
-    expect(evidenceDirectory(
-      path.join("C:", "work", "launch-2026-09-01", "wt", "lane-ts-connectors"),
-      {}
-    )).toBe(path.join("C:", "work", "launch-2026-09-01", "providers"));
+  /* A mission workspace built for the test, under the scratch root. The
+     runners check the repository out under a root of their own, with nothing
+     beside it, and a fixture spelled with a drive letter is a relative path
+     everywhere but Windows. The lookup is by directory name, so the fixture
+     carries the name and nothing about this machine. */
+  async function missionWorkspace(): Promise<string> {
+    const workspace = path.join(await temporaryDirectory(), "launch-2026-09-01");
+    await mkdir(path.join(workspace, "wt", "lane-ts-connectors"), { recursive: true });
+    await mkdir(path.join(workspace, "openlimiter"), { recursive: true });
+    return workspace;
+  }
+
+  it("finds the mission workspace from a lane worktree", async () => {
+    const workspace = await missionWorkspace();
+    expect(evidenceDirectory(path.join(workspace, "wt", "lane-ts-connectors"), {}))
+      .toBe(path.join(workspace, "providers"));
   });
 
-  it("finds the same workspace from a checkout beside it", () => {
-    expect(evidenceDirectory(
-      path.join("C:", "work", "launch-2026-09-01", "openlimiter"),
-      {}
-    )).toBe(path.join("C:", "work", "launch-2026-09-01", "providers"));
+  it("finds the same workspace from a checkout beside it", async () => {
+    const workspace = await missionWorkspace();
+    expect(evidenceDirectory(path.join(workspace, "openlimiter"), {}))
+      .toBe(path.join(workspace, "providers"));
+  });
+
+  it("falls back to a sibling workspace when no ancestor carries the name", async () => {
+    const root = await temporaryDirectory();
+    expect(evidenceDirectory(path.join(root, "checkouts", "openlimiter"), {}))
+      .toBe(path.join(root, "launch-2026-09-01", "providers"));
+  });
+
+  it("walks a root with no drive letter, the shape of every Unix path", () => {
+    /* Both sides are resolved, so Windows prefixes its current drive to each
+       and Unix changes neither: the walk itself never depends on a drive. */
+    expect(evidenceDirectory("/work/launch-2026-09-01/wt/lane-ts-connectors", {}))
+      .toBe(path.resolve("/work/launch-2026-09-01/providers"));
   });
 
   it("lets a person send the evidence somewhere else entirely", async () => {
