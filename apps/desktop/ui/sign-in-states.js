@@ -20,7 +20,14 @@ export const SIGN_IN_PROVIDERS = Object.freeze(["github", "google"]);
 export const SIGN_IN_TONES = Object.freeze(["working", "error", "success", "sent"]);
 
 /** How long the success state stays on screen before the body is put away. */
-export const SIGNED_IN_DWELL_MILLISECONDS = 900;
+export const SIGNED_IN_DWELL_MILLISECONDS = 1200;
+
+/** How long a browser tab is given before the link is offered again. */
+export const REOPEN_AFTER_MILLISECONDS = 10_000;
+
+export const REOPEN_LABEL = "Open the link again";
+export const REOPEN_FAILED =
+  "The link could not be opened again. Finish in the tab that is already open.";
 
 /** The provider's own name, spelled the way the provider spells it. */
 export function providerName(provider) {

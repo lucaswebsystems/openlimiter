@@ -141,6 +141,7 @@ pub fn run() {
             account::account_status,
             account::account_email,
             account::account_oauth,
+            account::account_oauth_reopen,
             account::account_set_sync,
             account::account_logout,
             account::account_sync_snapshot,

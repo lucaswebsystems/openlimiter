@@ -95,15 +95,17 @@
           step, and "Not now" is a real answer rather than a smaller button.
         -->
         <div id="first-run-account" hidden>
-          <h1 id="first-run-account-title">Sign in to see this on your phone and to unlock Pro</h1>
-          <p class="first-run-intro">
-            Your meters are already running. An account carries the percentages
-            to your phone, and it is how Pro alerts and more than one account
-            per provider are turned on.
-          </p>
+          <div class="sign-in-head">
+            <div class="sign-in-lockup" role="img" aria-label="OpenLimiter">
+              <img class="brand-lockup-light" src="./brand/openlimiter-lockup-light.svg" alt="" />
+              <img class="brand-lockup-dark" src="./brand/openlimiter-lockup-dark.svg" alt="" />
+            </div>
+            <h1 id="first-run-account-title">Sign in to see this on your phone and to unlock Pro</h1>
+            <p class="sign-in-lead">Your meters are already running; an account carries their percentages to your phone and unlocks Pro.</p>
+          </div>
           <div id="first-run-sign-in-mount" class="first-run-account-mount"></div>
           <div class="sign-in-foot">
-            <button type="button" id="first-run-not-now" class="sign-in-quiet">Not now</button>
+            <button type="button" id="first-run-not-now" class="sign-in-ghost">Not now</button>
             <span class="sign-in-foot-note">Every meter here keeps working without an account.</span>
           </div>
         </div>
@@ -146,8 +148,19 @@
                 <span>Continue with Google</span>
               </button>
             </div>
+            <!-- A provider's answer lands right under the provider buttons.
+                 Present from the first paint, so assistive technology is
+                 already listening when the first sentence lands; it has no
+                 size until it has a tone. -->
+            <p id="sign-in-status" class="sign-in-status" role="status" aria-live="polite">
+              <span class="sign-in-status-mark" aria-hidden="true"></span>
+              <span id="sign-in-status-text"></span>
+            </p>
+            <!-- Offered once a browser tab has had ten seconds to come back,
+                 for a tab that was closed or lost. -->
+            <button type="button" id="account-oauth-reopen" class="sign-in-link" hidden>Open the link again</button>
             <div class="sign-in-divider" aria-hidden="true"><span>or</span></div>
-            <button type="button" id="account-email-toggle" class="sign-in-quiet" aria-expanded="false" aria-controls="account-email-form">Use email instead</button>
+            <button type="button" id="account-email-toggle" class="sign-in-link" aria-expanded="false" aria-controls="account-email-form">Use email instead</button>
             <form id="account-email-form" class="sign-in-email" hidden>
               <label class="sign-in-field" for="account-email">Email</label>
               <input id="account-email" class="field" type="email" autocomplete="email" required />
@@ -157,18 +170,24 @@
                 <button type="submit" id="account-email-sign-in" class="filled">Sign in</button>
                 <button type="button" id="account-email-create">Create account</button>
               </div>
+              <!-- The form's own answer lands under the form. -->
+              <p id="sign-in-email-status" class="sign-in-status" role="status" aria-live="polite">
+                <span class="sign-in-status-mark" aria-hidden="true"></span>
+                <span id="sign-in-email-status-text"></span>
+              </p>
             </form>
-            <!-- Present from the first paint, so assistive technology is
-                 already listening when the first sentence lands. It has no
-                 size until it has a tone. -->
-            <p id="sign-in-status" class="sign-in-status" role="status" aria-live="polite">
-              <span class="sign-in-status-mark" aria-hidden="true"></span>
-              <span id="sign-in-status-text"></span>
-            </p>
+            <!-- The arrival. The body gives way to one check and the address
+                 for a moment, with nothing live underneath it; the sentence
+                 is announced from the status row above, which keeps its place
+                 in the accessibility tree while it has no size. -->
+            <div class="sign-in-success" aria-hidden="true" hidden>
+              <span class="sign-in-success-mark">✓</span>
+              <p id="sign-in-success-text"></p>
+            </div>
           </div>
         </div>
         <div class="sign-in-foot">
-          <button type="button" id="sign-in-close" class="sign-in-quiet">Not now</button>
+          <button type="button" id="sign-in-close" class="sign-in-ghost">Not now</button>
           <span class="sign-in-foot-note">Every meter in this window keeps running without an account.</span>
         </div>
       </div>

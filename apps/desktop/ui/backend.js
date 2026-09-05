@@ -505,6 +505,11 @@ export async function accountOauth(provider) {
   return call("account_oauth", { input: { provider } });
 }
 
+/** Open the browser to the provider sign in already in flight, once more. */
+export async function accountOauthReopen() {
+  return call("account_oauth_reopen");
+}
+
 /** Change the clear sync switch. The native upload path enforces this value. */
 export async function accountSetSync(enabled) {
   return call("account_set_sync", { enabled: enabled === true });

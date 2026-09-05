@@ -485,6 +485,7 @@ export function initFirstRun(options) {
     if (account !== null) account.hidden = true;
     setup.hidden = false;
     markStep(screen, "agents");
+    screen.dataset.step = "agents";
     if (providersRendered) return;
     providersRendered = true;
     const response = await options.detectProviders();
@@ -510,6 +511,9 @@ export function initFirstRun(options) {
     }
     account.hidden = false;
     markStep(screen, "account");
+    /* The step wears the sign in's own centred head, so the panel's lockup
+       steps aside for it and the step marks sit on the centre line. */
+    screen.dataset.step = "account";
     const mount = screen.querySelector("#first-run-sign-in-mount");
     if (mount !== null) options.mountSignIn(mount);
   }
