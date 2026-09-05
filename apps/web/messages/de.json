@@ -710,6 +710,18 @@
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
         "answer": "OpenLimiter Pro kostet $5 im Monat oder $50 im Jahr, die ersten 30 Tage sind kostenlos und ohne Karte. Es kommen sechs Dinge dazu: jeder Alert, als Meldung auf dem Desktop, als Mail und als Push aufs Telefon bei 60, 80 und 90 Prozent und beim Zurücksetzen; neunzig Tage gehosteter Verlauf mit Prognose; gehosteter Routing Kontext; mehr als ein Konto je Anbieter; ein Pro Akzent oder eine Dichtevorgabe; und Ausgabenzähler für APIs in einem gekennzeichneten Beta über der kostenlosen Obergrenze von $100 pro Kalendermonat je Quelle. Vier davon sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung. Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung."
+      },
+      "alerts": {
+        "question": "Bekomme ich Alerts, wenn ein Fenster voll wird?",
+        "answer": "Ja, mit Pro. Jeder Alert gehört zu Pro: eine Desktopmeldung, eine Mail und ein Push aufs Telefon, bei 60, 80 und 90 Prozent eines Fensters und noch einmal, wenn dieses Fenster zurückgesetzt wird. Diese vier Momente sind das Produkt und keine Einstellung. Eine Push Nachricht trägt keine Nutzungsdetails, ein gesperrter Bildschirm zeigt also nie welche."
+      },
+      "phoneAccess": {
+        "question": "Kann ich meine quota auf dem Telefon sehen?",
+        "answer": "Ja, mit Pro. Die Desktopanwendung zeigt einen QR Code, der zwei Minuten lebt, du scannst ihn mit dem Telefon, und du bestätigst die Kopplung zurück auf dem Desktop. Das Telefon hält danach ein Token nur zum Lesen: es kann das Konto nie ändern und nichts hochladen, und ein Widerruf dieses Geräts auf dem Desktop oder auf deiner Kontoseite beendet den Zugriff sofort."
+      },
+      "spendCeiling": {
+        "question": "Wie viel API Ausgaben erfasst der kostenlose Plan?",
+        "answer": "Bis zu $100 pro Kalendermonat je Quelle, und Pro geht darüber hinaus. Die Ausgabenzähler sind ein gekennzeichnetes Beta, das die Abrechnungsoberfläche des Anbieters selbst liest, also brauchen sie einen Organisations oder Verwaltungsschlüssel, und ein Projektschlüssel funktioniert nicht. Moonshot wird als Guthaben gelesen und nicht als Ausgabe, in drei getrennten Werten, und wird nie zu einer Monatssumme, einer Prognose oder einem Budgetalert."
       }
     }
   },

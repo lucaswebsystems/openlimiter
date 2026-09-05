@@ -47,6 +47,9 @@ export const FAQ_IDS = [
   "desktopOrPhone",
   "free",
   "pro",
+  "alerts",
+  "phoneAccess",
+  "spendCeiling",
 ] as const;
 
 /**
@@ -94,10 +97,10 @@ export async function Faq() {
       <h2 className="text-center text-3xl font-medium text-heading" {...reveal}>
         {t("title")}
       </h2>
-      {/* Two columns from the large breakpoint. Nine items in one column ran
-          past a screen height on their own; in two they read as a block, and
-          each item is a self contained card so an open answer pushes only its
-          own column. */}
+      {/* Two columns from the large breakpoint. A single column ran past a
+          screen height on its own; in two they read as a block, and each item
+          is a self contained card so an open answer pushes only its own
+          column. */}
       <div className="grid gap-3 lg:grid-cols-2 lg:gap-x-4" {...revealGroup}>
         {items.map((item, index) => (
           <details

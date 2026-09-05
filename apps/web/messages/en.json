@@ -710,6 +710,18 @@
       "pro": {
         "question": "What is OpenLimiter Pro?",
         "answer": "OpenLimiter Pro is $5 a month or $50 a year, with the first 30 days free and no card required. It adds six things: every alert, as a desktop toast, an email and a phone push at 60, 80 and 90 percent and on reset; ninety days of hosted history with a forecast; hosted routing context; more than one account per provider; one Pro accent or density preset; and API spend meters in a labelled beta above the free ceiling of $100 a calendar month for each source. Four of those are hosted services and two are switches in the local application. A full refund is available on request within 14 days of any charge."
+      },
+      "alerts": {
+        "question": "Do I get alerts when a window fills up?",
+        "answer": "Yes, with Pro. Every alert is a Pro alert: a desktop notification, an email and a phone push, at 60, 80 and 90 percent of a window and again when that window resets. Those four moments are the product rather than a setting. A push payload never carries usage detail, so a locked screen never shows one."
+      },
+      "phoneAccess": {
+        "question": "Can I see my quota on my phone?",
+        "answer": "Yes, with Pro. The desktop application shows a QR code that lives for two minutes, you scan it with the phone, and you approve the pairing back on the desktop. The phone then holds a read only token: it can never change the account or upload anything, and revoking that device from the desktop or from your account page ends its access at once."
+      },
+      "spendCeiling": {
+        "question": "How much API spend does the free plan track?",
+        "answer": "Up to $100 a calendar month for each source, and Pro goes above that. API spend meters are a labelled beta that reads the provider's own billing surface, so they need an organisation admin or management key and a project key will not work. Moonshot is read as a balance rather than as spend, in three separate figures, and is never turned into a monthly total, a forecast or a budget alert."
       }
     }
   },

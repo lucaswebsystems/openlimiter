@@ -710,6 +710,18 @@
       "pro": {
         "question": "¿Qué es OpenLimiter Pro?",
         "answer": "OpenLimiter Pro cuesta $5 al mes o $50 al año, con los primeros 30 días gratis y sin tarjeta. Añade seis cosas: todas las alertas, como aviso de escritorio, correo y push en el teléfono al 60, 80 y 90 por ciento y al reiniciarse; noventa días de historial alojado con pronóstico; contexto de enrutamiento alojado; más de una cuenta por proveedor; un acento o preajuste de densidad Pro; y medidores de gasto de API en una beta etiquetada por encima del techo gratuito de $100 por mes natural para cada fuente. Cuatro de ellas son servicios alojados y dos son interruptores en la aplicación local. Reembolso completo a petición dentro de los 14 días siguientes a cualquier cargo."
+      },
+      "alerts": {
+        "question": "¿Recibo alertas cuando una ventana se llena?",
+        "answer": "Sí, con Pro. Todas las alertas forman parte de Pro: una notificación de escritorio, un correo y un push en el teléfono, al 60, 80 y 90 por ciento de una ventana y otra vez cuando esa ventana se reinicia. Esos cuatro momentos son el producto, no un ajuste. Una carga de push nunca lleva detalle de uso, así que una pantalla bloqueada nunca muestra uno."
+      },
+      "phoneAccess": {
+        "question": "¿Puedo ver mi quota en el teléfono?",
+        "answer": "Sí, con Pro. La aplicación de escritorio muestra un código QR que vive dos minutos, lo escaneas con el teléfono y apruebas el emparejamiento de vuelta en el escritorio. El teléfono pasa a tener un token de solo lectura: nunca puede cambiar la cuenta ni subir nada, y revocar ese dispositivo desde el escritorio o desde la página de tu cuenta termina su acceso de inmediato."
+      },
+      "spendCeiling": {
+        "question": "¿Cuánto gasto de API registra el plan gratuito?",
+        "answer": "Hasta $100 por mes natural para cada fuente, y Pro va por encima. Los medidores de gasto de API son una beta etiquetada que lee la propia superficie de facturación del proveedor, así que necesitan una clave de administrador de organización o de gestión, y una clave de proyecto no sirve. Moonshot se lee como saldo y no como gasto, en tres cifras separadas, y nunca se convierte en un total mensual, un pronóstico o una alerta de presupuesto."
       }
     }
   },

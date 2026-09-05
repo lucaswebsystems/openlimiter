@@ -710,6 +710,18 @@
       "pro": {
         "question": "O que é o OpenLimiter Pro?",
         "answer": "O OpenLimiter Pro custa $5 por mês ou $50 por ano, com os primeiros 30 dias gratuitos e sem cartão. Ele acrescenta seis coisas: todos os alertas, como aviso no desktop, email e push no celular a 60, 80 e 90 por cento e no reinício; noventa dias de histórico hospedado com previsão; contexto de roteamento hospedado; mais de uma conta por provedor; um acento ou preset de densidade Pro; e medidores de gasto de API em beta rotulado acima do teto gratuito de $100 por mês civil para cada fonte. Quatro deles são serviços hospedados e dois são chaves no aplicativo local. Reembolso integral mediante pedido em até 14 dias de qualquer cobrança."
+      },
+      "alerts": {
+        "question": "Recebo alertas quando uma janela enche?",
+        "answer": "Sim, com o Pro. Todos os alertas fazem parte do Pro: uma notificação no desktop, um email e um push no celular, a 60, 80 e 90 por cento de uma janela e de novo quando essa janela reinicia. Esses quatro momentos são o produto, não uma configuração. Uma carga de push nunca leva detalhe de uso, então uma tela bloqueada nunca mostra um."
+      },
+      "phoneAccess": {
+        "question": "Consigo ver minha quota no celular?",
+        "answer": "Sim, com o Pro. O aplicativo de desktop mostra um código QR que vive por dois minutos, você escaneia com o celular e aprova o pareamento de volta no desktop. O celular passa a ter um token somente de leitura: ele nunca pode alterar a conta nem enviar nada, e revogar esse dispositivo no desktop ou na página da sua conta encerra o acesso na hora."
+      },
+      "spendCeiling": {
+        "question": "Quanto de gasto de API o plano gratuito acompanha?",
+        "answer": "Até $100 por mês civil para cada fonte, e o Pro passa disso. Os medidores de gasto de API são um beta rotulado que lê a própria superfície de cobrança do provedor, então precisam de uma chave de administrador de organização ou de gerenciamento, e uma chave de projeto não funciona. A Moonshot é lida como saldo e não como gasto, em três valores separados, e nunca vira um total mensal, uma previsão ou um alerta de orçamento."
       }
     }
   },

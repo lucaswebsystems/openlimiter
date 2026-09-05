@@ -2,11 +2,13 @@
 
 All notable project changes appear in this file.
 
-## [Unreleased]
-
-Version 1.2.0, in progress. Nothing below is released until the tag exists.
+## [1.2.0] (2026-09-04)
 
 ### Added
+
+- Phone access by QR pairing. The desktop shows a code that lives for two minutes, the phone scans it at `/app/pair`, and the desktop approves it. The phone then holds a read only token that can never change the account or upload anything, and revoking the device ends its access at once.
+- A Pro account portal at `/pro`: sign in with GitHub or Google through Supabase with a sign in link as the fallback, the plan state with the days left on a trial, checkout for the monthly and the yearly price, the Stripe Customer Portal, and the device list with a revoke beside each row.
+- Every alert is a Pro alert, on three channels: a desktop notification, an email and a phone push, at 60, 80 and 90 percent of a window and again when it resets.
 
 - A privacy policy at `/privacy`, in all five published languages, written from the real data map rather than from a template: what local mode collects, which fields sync carries, every retention window, the processors involved, and the deletion path.
 - Subscription terms: billing through Stripe with automatic tax, cancellation at period end through the Stripe Customer Portal, a full refund on request within 14 days of any charge, and one fixed 72 hour grace after a first failed payment that retries never extend.
@@ -20,11 +22,17 @@ Version 1.2.0, in progress. Nothing below is released until the tag exists.
 - The free plan states its cap of one active account per provider, which Pro raises.
 - The website counts page views without cookies through Vercel Web Analytics. The application still sends nothing, and the two claims are now stated separately instead of as one.
 - Claims that no OpenLimiter server and no account exist are scoped to local mode, which is where they are true, now that a free account, sync and Pro exist.
-- `llms.txt` rewritten for 1.2.0: nine connectors, the account, the six Pro lines, checkout through Stripe, and the agent adapter states.
+- `llms.txt` rewritten for 1.2.0: nine connectors, the account, the six Pro features, checkout through Stripe, and the agent adapter states.
+- The site promise is now that everything you can see is free, and that alerts, history, phone access, extra accounts and spend tracking above 100 US dollars a calendar month for each source are Pro. Pro is six features, four hosted and two local, rather than six hosted services.
+- Sync is on from the moment you sign in, because moving your own percentages between your own devices is what signing in is for. Every public statement about the default now says so.
+- Moonshot is described as a balance with three components in the provider's own currency, never as spend, a forecast or a budget alert.
+- Hosted routing context is described as a signed envelope the release build verifies, which is the path that ships, rather than as the same advice on every device.
+- The privacy page names seven services rather than four, adding GitHub and Google for sign in and the browser and operating system push services that deliver an alert, and the retention introduction names its local, backup and legal billing exceptions.
 
 ### Distribution
 
 - Desktop builds for Windows, macOS and Linux. Windows and macOS are unsigned and each states its one time allow step.
+- macOS ships as one unsigned universal disk image, `OpenLimiter_1.2.0_universal.dmg`, which runs on Apple silicon and on Intel. The site used to advertise a separate Apple silicon image and an Intel image, and neither has ever been attached to a release.
 - macOS is excluded from the update manifest until signed and notarised builds exist, so until then a new version is a new download.
 
 ## [1.1.0] (2026-08-24)
