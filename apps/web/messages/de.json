@@ -1785,17 +1785,105 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Melde dich für die Synchronisierung an. Pro kommt demnächst für $5 pro Monat oder $50 pro Jahr.",
-    "comingSoonLead": "Melde dich an oder erstelle ein Konto zum Synchronisieren. OpenLimiter Pro kommt bald, und das vollständige lokale Produkt bleibt kostenlos.",
-    "configMissing": "Pro kommt demnächst.",
-    "emailLabel": "E Mail",
-    "emailPlaceholder": "du@example.com",
-    "sendLink": "Anmelden oder Konto erstellen",
-    "linkSent": "Prüfe deine E Mail für den Anmeldelink.",
-    "signedIn": "Du bist angemeldet.",
-    "working": "Wird ausgeführt",
+    "lead": "Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
+    "metaDescription": "Melde dich an, um deinen OpenLimiter Pro Plan, deine Abrechnung und die Geräte zu verwalten, die deine quota lesen.",
+    "loading": "Dein Konto wird gelesen.",
+    "working": "Läuft",
     "signOut": "Abmelden",
-    "privacy": "Anbieter Zugangsdaten gelangen nie auf diese Seite.",
-    "error": "Pro konnte diese Anfrage nicht abschließen. Versuche es erneut."
+    "configMissing": {
+      "title": "Pro ist in diesem Build nicht konfiguriert",
+      "body": "Dieses Deployment trägt keine gehostete Adresse, hier gibt es also nichts, wo du dich anmelden könntest. Alles Lokale läuft genau so weiter wie jetzt."
+    },
+    "signIn": {
+      "title": "Anmelden",
+      "body": "Die Anmeldung gibt es, damit deine Prozentwerte zwischen deinen eigenen Geräten wandern, deshalb ist die Synchronisierung ab dem ersten Moment aktiv. Sie trägt ausschließlich begrenzte Messwerte: nie einen Prompt, nie eine Datei, nie eine Zugangsinformation.",
+      "github": "Weiter mit GitHub",
+      "google": "Weiter mit Google",
+      "fallbackTitle": "Oder nutze einen Anmeldelink",
+      "fallbackBody": "Wenn dir keines von beiden passt, schicken wir stattdessen einen einmalig gültigen Link an deine E Mail Adresse.",
+      "emailLabel": "E Mail",
+      "emailPlaceholder": "du@beispiel.de",
+      "send": "Anmeldelink senden",
+      "sent": "Sieh in deinem Postfach nach dem Anmeldelink.",
+      "error": "Diese Anmeldung konnte nicht gestartet werden. Versuche es erneut.",
+      "privacy": "Zugangsdaten von Anbietern erreichen diese Seite nie."
+    },
+    "account": {
+      "signedInAs": "Angemeldet als",
+      "noEmail": "Dein Konto"
+    },
+    "accountError": {
+      "title": "Dein Plan konnte nicht gelesen werden",
+      "body": "Der gehostete Dienst hat nicht geantwortet. An deinem Konto hat sich nichts geändert, und nichts Lokales ist betroffen.",
+      "retry": "Erneut versuchen"
+    },
+    "actionError": {
+      "title": "Diese Anfrage ist nicht durchgegangen",
+      "body": "Der gehostete Dienst hat sie abgelehnt. Es wurde nichts berechnet und nichts geändert. Versuche es gleich noch einmal."
+    },
+    "plan": {
+      "none": {
+        "chip": "noch kein Plan",
+        "title": "Dein Plan wird noch eingerichtet",
+        "body": "Der Dienst öffnet die Testphase bei deiner ersten Anmeldung, deshalb hat diese Seite einen Moment lang nichts zu zeigen. Lade neu, wenn sie leer bleibt."
+      },
+      "trial": {
+        "chip": "Testphase",
+        "title": "Du bist in der kostenlosen Testphase",
+        "body": "Alle Pro Dienste sind aktiv: Alerts, neunzig Tage Verlauf mit Prognose, gehostetes Routing, Zugriff per Telefon über QR, zusätzliche Konten und Ausgabenverfolgung über die kostenlose Obergrenze von $100 pro Kalendermonat je Quelle hinaus. Es wurde keine Karte verlangt.",
+        "daysLeft": "Noch {count, plural, one {# Tag} other {# Tage}} Testphase.",
+        "ends": "Sie endet am {date}."
+      },
+      "active": {
+        "chip": "aktiv",
+        "title": "Pro ist aktiv",
+        "body": "Alerts, Verlauf, gehostetes Routing, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über der kostenlosen Obergrenze sind alle aktiv.",
+        "renewsOn": "Er verlängert sich am {date}.",
+        "endsOn": "Er endet am {date} und verlängert sich nicht."
+      },
+      "pastDue": {
+        "chip": "Zahlung offen",
+        "title": "Eine Zahlung ist nicht durchgegangen",
+        "body": "Pro läuft für eine kurze Kulanzfrist weiter. Aktualisiere die Karte in der Abrechnung, dann geht es ohne Lücke weiter."
+      },
+      "expired": {
+        "chip": "beendet",
+        "title": "Pro ist beendet",
+        "body": "Die gehosteten Dienste sind gestoppt, und lokal hat sich nichts geändert. Dein Verlauf bleibt dreißig Tage zum Export erhalten und wird danach gelöscht."
+      }
+    },
+    "upgrade": {
+      "title": "Pro nehmen",
+      "body": "Ein Preis, zwei Intervalle, und du kannst jederzeit selbst kündigen. Die Steuer wird beim Checkout berechnet.",
+      "monthly": "{price} im Monat",
+      "yearly": "{price} im Jahr",
+      "note": "Die Zahlung läuft über Stripe. Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung."
+    },
+    "billing": {
+      "title": "Abrechnung",
+      "body": "Deine Karte, deine Rechnungen und deine Rechnungsadresse liegen bei Stripe. Kündigen ist dort ein Klick und wirkt zum Ende des bereits bezahlten Zeitraums.",
+      "manage": "Abrechnung verwalten"
+    },
+    "devices": {
+      "title": "Geräte",
+      "body": "Jedes an diesem Konto angemeldete Gerät, auch ein per QR gekoppeltes Telefon. Ein Widerruf nimmt ihm den gehosteten Zugriff sofort.",
+      "count": "{count} von {cap}",
+      "empty": "Noch hat kein Gerät eine Freigabe. Melde dich in der Desktopanwendung an, oder koppele von dort ein Telefon.",
+      "current": "dieses",
+      "revoke": "Widerrufen",
+      "lastSeen": "Zuletzt gesehen am {date}",
+      "neverSeen": "Noch nicht gesehen"
+    },
+    "checkout": {
+      "success": {
+        "title": "Zahlung eingegangen",
+        "body": "Stripe hat die Zahlung bestätigt. Dein Plan aktualisiert sich hier, sobald der Dienst sie verbucht, meist innerhalb weniger Sekunden."
+      },
+      "cancel": {
+        "title": "Der Checkout wurde abgebrochen",
+        "body": "Es wurde nichts berechnet und nichts geändert. Die Testphase und jede lokale Funktion laufen genau wie vorher weiter."
+      },
+      "dismiss": "Schließen"
+    }
   }
 }

@@ -1785,17 +1785,105 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Sign in for sync. Pro is coming soon at $5 a month or $50 a year.",
-    "comingSoonLead": "Sign in or create an account to sync. OpenLimiter Pro is coming soon, and the complete local product remains free.",
-    "configMissing": "Pro is coming soon.",
-    "emailLabel": "Email",
-    "emailPlaceholder": "you@example.com",
-    "sendLink": "Sign in or create account",
-    "linkSent": "Check your email for the sign in link.",
-    "signedIn": "You are signed in.",
+    "lead": "Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above $100 are Pro.",
+    "metaDescription": "Sign in to manage your OpenLimiter Pro plan, your billing and the devices that read your quota.",
+    "loading": "Reading your account.",
     "working": "Working",
     "signOut": "Sign out",
-    "privacy": "Provider credentials never enter this page.",
-    "error": "Pro could not complete that request. Try again."
+    "configMissing": {
+      "title": "Pro is not configured in this build",
+      "body": "This deployment carries no hosted address, so there is nothing to sign in to here. Everything local keeps working exactly as it does now."
+    },
+    "signIn": {
+      "title": "Sign in",
+      "body": "Signing in exists to move your percentages between your own devices, so sync is on from the moment you arrive. It carries bounded readings only: never a prompt, never a file, never a credential.",
+      "github": "Continue with GitHub",
+      "google": "Continue with Google",
+      "fallbackTitle": "Or use a sign in link",
+      "fallbackBody": "If neither of those suits you, we send a single use link to your email address instead.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@example.com",
+      "send": "Send a sign in link",
+      "sent": "Check your email for the sign in link.",
+      "error": "That sign in could not be started. Try again.",
+      "privacy": "Provider credentials never enter this page."
+    },
+    "account": {
+      "signedInAs": "Signed in as",
+      "noEmail": "Your account"
+    },
+    "accountError": {
+      "title": "Your plan could not be read",
+      "body": "The hosted service did not answer. Nothing on your account changed, and nothing local is affected.",
+      "retry": "Try again"
+    },
+    "actionError": {
+      "title": "That request did not go through",
+      "body": "The hosted service refused it. Nothing was charged and nothing was changed. Try again in a moment."
+    },
+    "plan": {
+      "none": {
+        "chip": "no plan yet",
+        "title": "Your plan is still being set up",
+        "body": "The service opens the trial at your first sign in, so this page has nothing to show for a moment. Reload if it stays empty."
+      },
+      "trial": {
+        "chip": "trial",
+        "title": "You are on the free trial",
+        "body": "Every Pro service is on: alerts, ninety days of history with a forecast, hosted routing, phone access by QR, extra accounts, and spend tracking beyond the free ceiling of $100 a calendar month for each source. No card was asked for.",
+        "daysLeft": "{count, plural, one {# day left} other {# days left}} of the trial.",
+        "ends": "It ends on {date}."
+      },
+      "active": {
+        "chip": "active",
+        "title": "Pro is active",
+        "body": "Alerts, history, hosted routing, phone access, extra accounts and spend tracking above the free ceiling are all on.",
+        "renewsOn": "It renews on {date}.",
+        "endsOn": "It ends on {date} and does not renew."
+      },
+      "pastDue": {
+        "chip": "past due",
+        "title": "A payment did not go through",
+        "body": "Pro keeps working for a short grace period. Update the card in billing and it carries on with no gap."
+      },
+      "expired": {
+        "chip": "ended",
+        "title": "Pro has ended",
+        "body": "The hosted services stopped and nothing local changed. Your history is kept for thirty days so you can export it, then it is purged."
+      }
+    },
+    "upgrade": {
+      "title": "Take Pro",
+      "body": "One price, two intervals, and you can cancel yourself at any time. Tax is calculated at checkout.",
+      "monthly": "{price} a month",
+      "yearly": "{price} a year",
+      "note": "Payment runs on Stripe. A full refund is available on request within 14 days of any charge."
+    },
+    "billing": {
+      "title": "Billing",
+      "body": "Your card, your invoices and your billing address live on Stripe. Cancelling is one click there, and it takes effect at the end of the period you already paid for.",
+      "manage": "Manage billing"
+    },
+    "devices": {
+      "title": "Devices",
+      "body": "Every device signed in to this account, including a phone paired by QR. Revoking one takes its hosted access away immediately.",
+      "count": "{count} of {cap}",
+      "empty": "No device holds a grant yet. Sign in on the desktop application, or pair a phone from it.",
+      "current": "this one",
+      "revoke": "Revoke",
+      "lastSeen": "Last seen {date}",
+      "neverSeen": "Not seen yet"
+    },
+    "checkout": {
+      "success": {
+        "title": "Payment received",
+        "body": "Stripe confirmed the payment. Your plan updates here as soon as the service records it, which is usually a few seconds."
+      },
+      "cancel": {
+        "title": "Checkout was cancelled",
+        "body": "Nothing was charged and nothing changed. The trial and every local feature carry on exactly as before."
+      },
+      "dismiss": "Dismiss"
+    }
   }
 }

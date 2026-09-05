@@ -1785,17 +1785,105 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Entre para sincronizar. O Pro chega em breve por $5 ao mês ou $50 ao ano.",
-    "comingSoonLead": "Entre ou crie uma conta para sincronizar. O OpenLimiter Pro chega em breve, e o produto local completo continua grátis.",
-    "configMissing": "O Pro chega em breve.",
-    "emailLabel": "Email",
-    "emailPlaceholder": "voce@example.com",
-    "sendLink": "Entrar ou criar conta",
-    "linkSent": "Confira seu email para encontrar o link.",
-    "signedIn": "Você entrou.",
+    "lead": "Tudo o que você vê é gratuito. Alertas, histórico, acesso pelo celular, contas extras e acompanhamento de gasto acima de $100 fazem parte do Pro.",
+    "metaDescription": "Entre para gerenciar seu plano OpenLimiter Pro, sua cobrança e os dispositivos que leem sua quota.",
+    "loading": "Lendo sua conta.",
     "working": "Processando",
     "signOut": "Sair",
-    "privacy": "Credenciais de provedor nunca entram nesta página.",
-    "error": "O Pro não concluiu a solicitação. Tente novamente."
+    "configMissing": {
+      "title": "O Pro não está configurado nesta build",
+      "body": "Esta implantação não carrega endereço hospedado, então não há onde entrar aqui. Tudo o que é local continua funcionando exatamente como está."
+    },
+    "signIn": {
+      "title": "Entrar",
+      "body": "Entrar existe para levar suas porcentagens entre os seus próprios dispositivos, então a sincronização fica ligada desde o momento em que você chega. Ela carrega apenas leituras limitadas: nunca um prompt, nunca um arquivo, nunca uma credencial.",
+      "github": "Continuar com GitHub",
+      "google": "Continuar com Google",
+      "fallbackTitle": "Ou use um link de acesso",
+      "fallbackBody": "Se nenhum dos dois servir para você, enviamos um link de uso único para o seu email.",
+      "emailLabel": "Email",
+      "emailPlaceholder": "voce@exemplo.com",
+      "send": "Enviar link de acesso",
+      "sent": "Confira seu email para encontrar o link de acesso.",
+      "error": "Não foi possível iniciar esse acesso. Tente de novo.",
+      "privacy": "Credenciais de provedor nunca entram nesta página."
+    },
+    "account": {
+      "signedInAs": "Conectado como",
+      "noEmail": "Sua conta"
+    },
+    "accountError": {
+      "title": "Não foi possível ler seu plano",
+      "body": "O serviço hospedado não respondeu. Nada mudou na sua conta e nada local foi afetado.",
+      "retry": "Tentar de novo"
+    },
+    "actionError": {
+      "title": "Essa solicitação não foi concluída",
+      "body": "O serviço hospedado recusou. Nada foi cobrado e nada foi alterado. Tente de novo em instantes."
+    },
+    "plan": {
+      "none": {
+        "chip": "ainda sem plano",
+        "title": "Seu plano ainda está sendo preparado",
+        "body": "O serviço abre o teste no seu primeiro acesso, então esta página fica sem nada por um instante. Recarregue se continuar vazia."
+      },
+      "trial": {
+        "chip": "teste",
+        "title": "Você está no teste gratuito",
+        "body": "Todos os serviços Pro estão ligados: alertas, noventa dias de histórico com previsão, roteamento hospedado, acesso pelo celular por QR, contas extras e acompanhamento de gasto além do teto gratuito de $100 por mês civil para cada fonte. Nenhum cartão foi pedido.",
+        "daysLeft": "{count, plural, one {# dia restante} other {# dias restantes}} de teste.",
+        "ends": "Ele termina em {date}."
+      },
+      "active": {
+        "chip": "ativo",
+        "title": "O Pro está ativo",
+        "body": "Alertas, histórico, roteamento hospedado, acesso pelo celular, contas extras e acompanhamento de gasto acima do teto gratuito estão todos ligados.",
+        "renewsOn": "Ele renova em {date}.",
+        "endsOn": "Ele termina em {date} e não renova."
+      },
+      "pastDue": {
+        "chip": "pagamento pendente",
+        "title": "Um pagamento não foi concluído",
+        "body": "O Pro continua funcionando por um curto período de carência. Atualize o cartão na cobrança e ele segue sem interrupção."
+      },
+      "expired": {
+        "chip": "encerrado",
+        "title": "O Pro terminou",
+        "body": "Os serviços hospedados pararam e nada local mudou. Seu histórico fica guardado por trinta dias para você exportar, e depois é apagado."
+      }
+    },
+    "upgrade": {
+      "title": "Assinar o Pro",
+      "body": "Um preço, dois intervalos, e você pode cancelar sozinho quando quiser. O imposto é calculado no checkout.",
+      "monthly": "{price} por mês",
+      "yearly": "{price} por ano",
+      "note": "O pagamento roda na Stripe. Reembolso integral mediante pedido em até 14 dias de qualquer cobrança."
+    },
+    "billing": {
+      "title": "Cobrança",
+      "body": "Seu cartão, suas faturas e seu endereço de cobrança ficam na Stripe. Cancelar é um clique lá, e passa a valer no fim do período que você já pagou.",
+      "manage": "Gerenciar cobrança"
+    },
+    "devices": {
+      "title": "Dispositivos",
+      "body": "Todos os dispositivos conectados a esta conta, inclusive um celular pareado por QR. Revogar um remove o acesso hospedado dele na hora.",
+      "count": "{count} de {cap}",
+      "empty": "Nenhum dispositivo tem concessão ainda. Entre no aplicativo de desktop, ou pareie um celular a partir dele.",
+      "current": "este",
+      "revoke": "Revogar",
+      "lastSeen": "Visto por último em {date}",
+      "neverSeen": "Ainda não visto"
+    },
+    "checkout": {
+      "success": {
+        "title": "Pagamento recebido",
+        "body": "A Stripe confirmou o pagamento. Seu plano é atualizado aqui assim que o serviço registrar, o que costuma levar alguns segundos."
+      },
+      "cancel": {
+        "title": "O checkout foi cancelado",
+        "body": "Nada foi cobrado e nada mudou. O teste e todos os recursos locais continuam exatamente como antes."
+      },
+      "dismiss": "Fechar"
+    }
   }
 }

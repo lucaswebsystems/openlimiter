@@ -1785,17 +1785,105 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Inicia sesión para sincronizar. Pro estará disponible próximamente por $5 al mes o $50 al año.",
-    "comingSoonLead": "Inicia sesión o crea una cuenta para sincronizar. OpenLimiter Pro llegará próximamente y el producto local completo seguirá siendo gratis.",
-    "configMissing": "Pro estará disponible próximamente.",
-    "emailLabel": "Email",
-    "emailPlaceholder": "tu@example.com",
-    "sendLink": "Iniciar sesión o crear cuenta",
-    "linkSent": "Revisa tu email para encontrar el enlace.",
-    "signedIn": "Has iniciado sesión.",
+    "lead": "Todo lo que ves es gratis. Las alertas, el historial, el acceso desde el teléfono, las cuentas adicionales y el seguimiento de gasto por encima de $100 son Pro.",
+    "metaDescription": "Inicia sesión para gestionar tu plan OpenLimiter Pro, tu facturación y los dispositivos que leen tu quota.",
+    "loading": "Leyendo tu cuenta.",
     "working": "Procesando",
     "signOut": "Cerrar sesión",
-    "privacy": "Las credenciales del proveedor nunca entran en esta página.",
-    "error": "Pro no pudo completar la solicitud. Inténtalo de nuevo."
+    "configMissing": {
+      "title": "Pro no está configurado en esta compilación",
+      "body": "Este despliegue no lleva dirección alojada, así que aquí no hay dónde iniciar sesión. Todo lo local sigue funcionando exactamente igual."
+    },
+    "signIn": {
+      "title": "Iniciar sesión",
+      "body": "Iniciar sesión existe para llevar tus porcentajes entre tus propios dispositivos, así que la sincronización queda activa desde el momento en que llegas. Solo transporta lecturas acotadas: nunca un prompt, nunca un archivo, nunca una credencial.",
+      "github": "Continuar con GitHub",
+      "google": "Continuar con Google",
+      "fallbackTitle": "O usa un enlace de acceso",
+      "fallbackBody": "Si ninguno de los dos te sirve, enviamos un enlace de un solo uso a tu correo electrónico.",
+      "emailLabel": "Correo electrónico",
+      "emailPlaceholder": "tu@ejemplo.com",
+      "send": "Enviar enlace de acceso",
+      "sent": "Revisa tu correo para encontrar el enlace de acceso.",
+      "error": "No se pudo iniciar ese acceso. Inténtalo de nuevo.",
+      "privacy": "Las credenciales de proveedor nunca entran en esta página."
+    },
+    "account": {
+      "signedInAs": "Sesión iniciada como",
+      "noEmail": "Tu cuenta"
+    },
+    "accountError": {
+      "title": "No se pudo leer tu plan",
+      "body": "El servicio alojado no respondió. Nada cambió en tu cuenta y nada local se ve afectado.",
+      "retry": "Intentar de nuevo"
+    },
+    "actionError": {
+      "title": "Esa solicitud no se completó",
+      "body": "El servicio alojado la rechazó. No se cobró nada y no se cambió nada. Inténtalo de nuevo en un momento."
+    },
+    "plan": {
+      "none": {
+        "chip": "aún sin plan",
+        "title": "Tu plan todavía se está preparando",
+        "body": "El servicio abre la prueba en tu primer inicio de sesión, así que esta página se queda sin nada por un instante. Recarga si sigue vacía."
+      },
+      "trial": {
+        "chip": "prueba",
+        "title": "Estás en la prueba gratuita",
+        "body": "Todos los servicios Pro están activos: alertas, noventa días de historial con pronóstico, enrutamiento alojado, acceso desde el teléfono por QR, cuentas adicionales y seguimiento de gasto más allá del techo gratuito de $100 por mes natural para cada fuente. No se pidió ninguna tarjeta.",
+        "daysLeft": "Prueba: {count, plural, one {# día restante} other {# días restantes}}.",
+        "ends": "Termina el {date}."
+      },
+      "active": {
+        "chip": "activo",
+        "title": "Pro está activo",
+        "body": "Las alertas, el historial, el enrutamiento alojado, el acceso desde el teléfono, las cuentas adicionales y el seguimiento de gasto por encima del techo gratuito están todos activos.",
+        "renewsOn": "Se renueva el {date}.",
+        "endsOn": "Termina el {date} y no se renueva."
+      },
+      "pastDue": {
+        "chip": "pago pendiente",
+        "title": "Un pago no se completó",
+        "body": "Pro sigue funcionando durante un breve periodo de gracia. Actualiza la tarjeta en facturación y continúa sin interrupción."
+      },
+      "expired": {
+        "chip": "finalizado",
+        "title": "Pro ha terminado",
+        "body": "Los servicios alojados se detuvieron y nada local cambió. Tu historial se guarda treinta días para que puedas exportarlo, y después se elimina."
+      }
+    },
+    "upgrade": {
+      "title": "Contratar Pro",
+      "body": "Un precio, dos intervalos, y puedes cancelar tú mismo cuando quieras. El impuesto se calcula en el checkout.",
+      "monthly": "{price} al mes",
+      "yearly": "{price} al año",
+      "note": "El pago se procesa en Stripe. Reembolso completo a petición dentro de los 14 días siguientes a cualquier cargo."
+    },
+    "billing": {
+      "title": "Facturación",
+      "body": "Tu tarjeta, tus facturas y tu dirección de facturación viven en Stripe. Cancelar es un clic allí, y surte efecto al final del periodo que ya pagaste.",
+      "manage": "Gestionar facturación"
+    },
+    "devices": {
+      "title": "Dispositivos",
+      "body": "Todos los dispositivos con sesión en esta cuenta, incluido un teléfono emparejado por QR. Revocar uno le quita el acceso alojado de inmediato.",
+      "count": "{count} de {cap}",
+      "empty": "Todavía ningún dispositivo tiene concesión. Inicia sesión en la aplicación de escritorio, o empareja un teléfono desde ella.",
+      "current": "este",
+      "revoke": "Revocar",
+      "lastSeen": "Visto por última vez el {date}",
+      "neverSeen": "Aún no visto"
+    },
+    "checkout": {
+      "success": {
+        "title": "Pago recibido",
+        "body": "Stripe confirmó el pago. Tu plan se actualiza aquí en cuanto el servicio lo registra, lo que suele tardar unos segundos."
+      },
+      "cancel": {
+        "title": "El checkout se canceló",
+        "body": "No se cobró nada y nada cambió. La prueba y todas las funciones locales siguen exactamente igual."
+      },
+      "dismiss": "Cerrar"
+    }
   }
 }
