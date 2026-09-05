@@ -295,11 +295,57 @@ function devicesMarkup(devices, cap) {
 
 /* --------------------------------------------------------------- API spend */
 
-function sourceMarkup(source, sample) {
+/**
+ * The value line and the bar beneath it, for one source's current sample.
+ *
+ * `displayState` is the only place an amount can come from. A capped reading
+ * has no `amountUsd` field to read in the first place, structurally, so this
+ * function cannot leak one even by accident: there is nothing to reach for.
+ */
+function spendValueMarkup(source, sample) {
   const isBalance = source.metricKind === "balance";
-  const value = isBalance ? sample?.balanceUsd : sample?.spendUsd;
-  const band = isBalance ? null : budgetBand(value, source.budgetUsd);
+  const state = sample?.displayState ?? null;
+
+  if (state === null) {
+    return { valueText: "no reading", barMarkup: "" };
+  }
+
+  if (state.kind === "capped") {
+    return {
+      valueText: "100 plus",
+      barMarkup:
+        '<span class="spend-budget" data-band="capped">' +
+        '<span class="spend-budget-fill" data-band="capped"></span>' +
+        "</span>",
+    };
+  }
+
+  const amount = state.amountUsd;
+  const valueText =
+    "$" +
+    escapeText(amount) +
+    (isBalance || source.budgetUsd === null || source.budgetUsd === undefined
+      ? ""
+      : ' <span class="spend-key">of $' + escapeText(source.budgetUsd) + "</span>");
+  const band = isBalance ? null : budgetBand(amount, source.budgetUsd);
+  const barMarkup =
+    band === null
+      ? ""
+      : '<span class="spend-budget"><span class="spend-budget-fill" data-band="' +
+        band +
+        '" style="width:' +
+        String(Math.min(100, (Number(amount) / Number(source.budgetUsd)) * 100).toFixed(1)) +
+        '%"></span></span>';
+  return { valueText, barMarkup };
+}
+
+/** Exported for its own test: a capped payload must render "100 plus" and
+ * never the real amount, whatever field a future bug tried to carry it in. */
+export function sourceMarkup(source, sample) {
+  const isBalance = source.metricKind === "balance";
+  const capped = sample?.displayState?.kind === "capped";
   const incomplete = source.status === "incomplete" || sample?.completeness === "incomplete";
+  const { valueText, barMarkup } = spendValueMarkup(source, sample);
 
   return (
     '<article class="spend-source" data-provider="' +
@@ -320,20 +366,15 @@ function sourceMarkup(source, sample) {
     (source.lastFour ? " &middot; ends " + escapeText(source.lastFour) : "") +
     "</span>" +
     '<span class="spend-value">' +
-    (value === undefined || value === null ? "no reading" : "$" + escapeText(value)) +
-    (isBalance || source.budgetUsd === null || source.budgetUsd === undefined
-      ? ""
-      : ' <span class="spend-key">of $' + escapeText(source.budgetUsd) + "</span>") +
+    valueText +
     "</span>" +
-    (band === null
-      ? ""
-      : '<span class="spend-budget"><span class="spend-budget-fill" data-band="' +
-        band +
-        '" style="width:' +
-        String(
-          Math.min(100, (Number(value) / Number(source.budgetUsd)) * 100).toFixed(1)
-        ) +
-        '%"></span></span>') +
+    barMarkup +
+    (capped
+      ? '<p class="note tight">Pro keeps tracking.</p><div class="button-row">' +
+        '<button type="button" class="small primary" data-spend-upgrade="' +
+        escapeText(source.id) +
+        '">Upgrade</button></div>'
+      : "") +
     '<span class="account-detail">' +
     escapeText(
       "Observed " +
@@ -656,6 +697,18 @@ function wireSpend() {
     control.addEventListener("click", async () => {
       await apiSpendRemoveSource(control.getAttribute("data-spend-remove"), false);
       await renderSpend(state.mount);
+    });
+  }
+
+  /* Capped, so the checkout that actually lifts it is one click away. Monthly
+     is the lower commitment offer; the Plan tab still carries the yearly one. */
+  for (const control of document.querySelectorAll("[data-spend-upgrade]")) {
+    control.addEventListener("click", async () => {
+      const note = document.getElementById("spend-note");
+      const result = await proCheckoutUrl("monthly");
+      if (note !== null && !result.ok) {
+        note.textContent = result.message ?? "Checkout could not be opened.";
+      }
     });
   }
 }

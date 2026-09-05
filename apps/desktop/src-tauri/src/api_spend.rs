@@ -15,6 +15,7 @@ use url::Url;
 use zeroize::Zeroizing;
 
 use crate::credentials::{ApiSpendKeyringStore, CredentialError, SecretStore};
+use crate::pro;
 
 const STATE_VERSION: u8 = 1;
 const STATE_FILE_NAME: &str = "api-spend-v1.json";
@@ -31,6 +32,9 @@ const MAX_SECRET_BYTES: usize = 8_192;
 const MAX_TEAM_ID_BYTES: usize = 128;
 const MAX_KEY_LABEL_CHARS: usize = 80;
 const MAX_DECIMAL: &str = "1000000000000000";
+/// Founder decision 16, 2026-09-04: free tracking on a capped spend source
+/// stops at this many dollars, month to date, inclusive.
+const FREE_SPEND_CEILING_USD: &str = "100";
 
 const OPENAI_BASE: &str = "https://api.openai.com:443/v1/organization/costs";
 const ANTHROPIC_BASE: &str = "https://api.anthropic.com:443/v1/organizations/cost_report";
@@ -258,6 +262,30 @@ pub struct ApiSpendSample {
     pub created_at: String,
 }
 
+/// The one sample shape that crosses to the UI.
+///
+/// Everything here comes from `ApiSpendSample`, minus `spend_usd` and
+/// `balance_usd` themselves: `display_state` is the only place an amount can
+/// appear, and a capped source's variant has no field to carry one in. The
+/// disk document keeps the raw fields, because they are this module's own
+/// source of truth (Pro upgrading mid month must not need a re observation),
+/// but nothing built from `snapshot` ever repeats them.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiSpendSampleView {
+    pub id: String,
+    pub source_id: String,
+    pub provider: ApiSpendProvider,
+    pub key_label: String,
+    pub metric_kind: ApiSpendMetricKind,
+    pub month: String,
+    pub display_state: ApiSpendDisplayState,
+    pub observed_at: String,
+    pub source_period: String,
+    pub forecast_date: Option<String>,
+    pub completeness: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct ApiSpendDocument {
@@ -283,17 +311,156 @@ pub struct ApiSpendSnapshot {
     pub local_display_is_free: bool,
     pub disclosure: &'static str,
     pub sources: Vec<ApiSpendSourceView>,
-    pub samples: Vec<ApiSpendSample>,
+    pub samples: Vec<ApiSpendSampleView>,
 }
 
-fn snapshot(document: &ApiSpendDocument) -> ApiSpendSnapshot {
-    ApiSpendSnapshot {
+/// Whether a provider's own reading is the kind founder decision 16 caps.
+///
+/// Only the three admin or management key billing totals are named: OpenAI,
+/// Anthropic and xAI. OpenRouter's monthly figure is a derived delta over a
+/// lifetime counter shown as credits, and Moonshot's is a balance, so
+/// neither is the admin billing total the ceiling was written for. Excluding
+/// OpenRouter by provider rather than by `metric_kind` matters: it reports as
+/// `Spend`, not `Balance`, and a kind based rule would have capped it by
+/// accident.
+const fn provider_capped_when_free(provider: ApiSpendProvider) -> bool {
+    matches!(
+        provider,
+        ApiSpendProvider::Openai | ApiSpendProvider::Anthropic | ApiSpendProvider::Xai
+    )
+}
+
+/// What a spend source shows. Never what it measured.
+///
+/// A capped reading has no field the real amount could hide in, so wiring
+/// this in front of the wire is a structural guarantee, not a promise to
+/// remember to blank a field.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ApiSpendDisplayState {
+    /// The real reading, free under the ceiling or Pro past it.
+    /// `percent_of_budget` is absent when the source carries no budget.
+    Tracked {
+        amount_usd: String,
+        percent_of_budget: Option<String>,
+    },
+    /// A free machine crossed the ceiling on a capped provider.
+    Capped { ceiling_usd: &'static str },
+    /// A balance reading. Never capped, whatever entitlement says.
+    Balance { amount_usd: String },
+}
+
+/// Derives what a spend source should show, from a month to date amount,
+/// its currency, which provider it is, its own budget if any, whether this
+/// machine is entitled, and now.
+///
+/// Pure and total: the same six inputs always answer the same way, and
+/// nothing here reads a clock, a file or an entitlement store. `now` is
+/// validated the same way `month_bounds` validates it elsewhere in this
+/// file, rather than read and silently ignored: a caller that built
+/// `month_to_date_usd` from `month_bounds(now)`, which every refresh does,
+/// already guarantees the free ceiling clears the instant a new month's own
+/// reading replaces the old one, so this function only ever has to compare
+/// that reading against a constant.
+///
+/// Currency is refused, never converted, matching `parse_openai` and
+/// `parse_anthropic`, which already reject a non USD bucket before a value
+/// ever reaches a stored sample.
+fn spend_display_state(
+    provider: ApiSpendProvider,
+    month_to_date_usd: &str,
+    currency: &str,
+    budget_usd: Option<&str>,
+    entitled: bool,
+    now: i64,
+) -> Result<ApiSpendDisplayState, ApiSpendFailure> {
+    month_bounds(now)?;
+    if !currency.eq_ignore_ascii_case("usd") {
+        return Err(ApiSpendFailure::InvalidResponse);
+    }
+    let amount = decimal(month_to_date_usd)?;
+    if provider.metric_kind() == ApiSpendMetricKind::Balance {
+        return Ok(ApiSpendDisplayState::Balance {
+            amount_usd: decimal_text(amount),
+        });
+    }
+    if !entitled && provider_capped_when_free(provider) {
+        let ceiling = Decimal::from_str(FREE_SPEND_CEILING_USD).expect("constant decimal");
+        if amount > ceiling {
+            return Ok(ApiSpendDisplayState::Capped {
+                ceiling_usd: FREE_SPEND_CEILING_USD,
+            });
+        }
+    }
+    let percent_of_budget = budget_usd
+        .map(decimal)
+        .transpose()?
+        .filter(|budget| !budget.is_zero())
+        .map(|budget| decimal_text((amount / budget * Decimal::from(100)).round_dp(2)));
+    Ok(ApiSpendDisplayState::Tracked {
+        amount_usd: decimal_text(amount),
+        percent_of_budget,
+    })
+}
+
+/// Builds the one sample shape the UI ever sees. `source` is the source's
+/// CURRENT row when one still exists, so a budget edited after the last
+/// observation is reflected immediately, exactly as the existing bar already
+/// does; a sample whose source was removed with its history kept falls back
+/// to the budget the sample itself observed.
+fn sample_view(
+    sample: &ApiSpendSample,
+    source: Option<&ApiSpendSource>,
+    entitled: bool,
+    now: i64,
+) -> Result<ApiSpendSampleView, ApiSpendFailure> {
+    let amount = sample
+        .spend_usd
+        .as_deref()
+        .or(sample.balance_usd.as_deref())
+        .unwrap_or("0");
+    let budget = source
+        .map(|source| source.budget_usd.as_deref())
+        .unwrap_or_else(|| sample.budget_usd.as_deref());
+    let display_state = spend_display_state(sample.provider, amount, "usd", budget, entitled, now)?;
+    Ok(ApiSpendSampleView {
+        id: sample.id.clone(),
+        source_id: sample.source_id.clone(),
+        provider: sample.provider,
+        key_label: sample.key_label.clone(),
+        metric_kind: sample.metric_kind,
+        month: sample.month.clone(),
+        display_state,
+        observed_at: sample.observed_at.clone(),
+        source_period: sample.source_period.clone(),
+        forecast_date: sample.forecast_date.clone(),
+        completeness: sample.completeness.clone(),
+    })
+}
+
+fn snapshot(
+    document: &ApiSpendDocument,
+    entitled: bool,
+    now: i64,
+) -> Result<ApiSpendSnapshot, ApiSpendFailure> {
+    let samples = document
+        .samples
+        .iter()
+        .map(|sample| {
+            let source = document
+                .sources
+                .iter()
+                .find(|source| source.id == sample.source_id);
+            sample_view(sample, source, entitled, now)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ApiSpendSnapshot {
         version: STATE_VERSION,
         local_display_is_free: true,
         disclosure: "Best effort provider observation. Missing periods remain gaps. Moonshot is balance, not spend.",
         sources: document.sources.iter().map(ApiSpendSourceView::from).collect(),
-        samples: document.samples.clone(),
-    }
+        samples,
+    })
 }
 
 fn state_path() -> Result<PathBuf, ApiSpendFailure> {
@@ -520,7 +687,7 @@ fn save_source_core(
         let _ = store.delete_secret(&credential_id);
         return Err(error);
     }
-    Ok(snapshot(&document))
+    snapshot(&document, pro::api_spend_cap_lifted(), now)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1287,13 +1454,14 @@ async fn refresh_core(
         document.samples.drain(0..overflow);
     }
     save_at(path, &document)?;
-    Ok(snapshot(&document))
+    snapshot(&document, pro::api_spend_cap_lifted(), now)
 }
 
 fn remove_source_core(
     path: &Path,
     store: &dyn SecretStore,
     input: RemoveApiSpendSourceInput,
+    now: i64,
 ) -> Result<ApiSpendSnapshot, ApiSpendFailure> {
     if uuid::Uuid::parse_str(&input.source_id).is_err() {
         return Err(ApiSpendFailure::InvalidInput);
@@ -1325,7 +1493,7 @@ fn remove_source_core(
             .retain(|sample| sample.source_id != input.source_id);
     }
     save_at(path, &document)?;
-    Ok(snapshot(&document))
+    snapshot(&document, pro::api_spend_cap_lifted(), now)
 }
 
 fn set_budget_core(
@@ -1348,7 +1516,7 @@ fn set_budget_core(
     source.budget_usd = budget;
     source.updated_at = timestamp(now)?;
     save_at(path, &document)?;
-    Ok(snapshot(&document))
+    snapshot(&document, pro::api_spend_cap_lifted(), now)
 }
 
 fn due_source_ids(document: &ApiSpendDocument, now: i64) -> Vec<String> {
@@ -1420,7 +1588,8 @@ pub async fn api_spend_status(
     state: State<'_, ApiSpendState>,
 ) -> Result<ApiSpendSnapshot, ApiSpendFailure> {
     let _guard = state.gate.lock().await;
-    load_at(&state_path()?).map(|document| snapshot(&document))
+    let document = load_at(&state_path()?)?;
+    snapshot(&document, pro::api_spend_cap_lifted(), now_seconds()?)
 }
 
 #[tauri::command]
@@ -1450,7 +1619,7 @@ pub async fn api_spend_remove_source(
     keyring: State<'_, ApiSpendKeyringStore>,
 ) -> Result<ApiSpendSnapshot, ApiSpendFailure> {
     let _guard = state.gate.lock().await;
-    remove_source_core(&state_path()?, &*keyring, input)
+    remove_source_core(&state_path()?, &*keyring, input, now_seconds()?)
 }
 
 #[tauri::command]
@@ -1674,6 +1843,7 @@ mod tests {
                 source_id: id,
                 delete_samples: true,
             },
+            1_777_593_600,
         )
         .expect("revoke");
         assert_eq!(store.stored_count(), 0);
@@ -1755,6 +1925,258 @@ mod tests {
             let serialized = serde_json::to_string(&failure).expect("failure JSON");
             assert!(!serialized.contains("http"));
             assert!(!serialized.contains("secret"));
+        }
+    }
+
+    /* ------------------------------------------------- the free spend ceiling
+     *
+     * Founder decision 16, 2026-09-04. `spend_display_state` is pure: every
+     * test below hands it literals and reads back one of its three variants,
+     * with no clock, no store and no keyring anywhere in the loop.
+     */
+
+    #[test]
+    fn only_the_three_admin_billing_providers_are_subject_to_the_free_ceiling() {
+        for provider in [
+            ApiSpendProvider::Openai,
+            ApiSpendProvider::Anthropic,
+            ApiSpendProvider::Xai,
+        ] {
+            assert!(provider_capped_when_free(provider), "{provider:?}");
+        }
+        /* OpenRouter reports as Spend, not Balance, so a kind based rule would
+           have capped it by accident. It is excluded by name instead, same as
+           Moonshot, because neither is the admin billing total the ceiling
+           was written for. */
+        for provider in [ApiSpendProvider::Openrouter, ApiSpendProvider::Moonshot] {
+            assert!(!provider_capped_when_free(provider), "{provider:?}");
+        }
+    }
+
+    #[test]
+    fn a_free_machine_tracks_up_to_and_including_one_hundred_exactly() {
+        let now = 1_777_593_600;
+        for reading in ["99.99", "100.00"] {
+            let state =
+                spend_display_state(ApiSpendProvider::Openai, reading, "usd", None, false, now)
+                    .unwrap_or_else(|error| panic!("{reading} should track free: {error:?}"));
+            match state {
+                ApiSpendDisplayState::Tracked {
+                    amount_usd,
+                    percent_of_budget,
+                } => {
+                    assert_eq!(decimal(&amount_usd).unwrap(), decimal(reading).unwrap());
+                    assert_eq!(percent_of_budget, None);
+                }
+                other => panic!("{reading} should track free, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_free_machine_caps_the_instant_the_ceiling_is_crossed() {
+        let now = 1_777_593_600;
+        let state = spend_display_state(
+            ApiSpendProvider::Anthropic,
+            "100.01",
+            "usd",
+            None,
+            false,
+            now,
+        )
+        .expect("capped, not an error");
+        assert!(matches!(
+            state,
+            ApiSpendDisplayState::Capped {
+                ceiling_usd: "100"
+            }
+        ));
+    }
+
+    #[test]
+    fn an_entitled_machine_tracks_the_real_amount_past_the_ceiling() {
+        let now = 1_777_593_600;
+        let state = spend_display_state(
+            ApiSpendProvider::Anthropic,
+            "100.01",
+            "usd",
+            None,
+            true,
+            now,
+        )
+        .expect("tracked, not an error");
+        match state {
+            ApiSpendDisplayState::Tracked { amount_usd, .. } => {
+                assert_eq!(decimal(&amount_usd).unwrap(), decimal("100.01").unwrap());
+            }
+            other => panic!("entitled should track past the ceiling, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_balance_source_is_never_capped_free_or_entitled_and_openrouter_is_excluded_too() {
+        let now = 1_777_593_600;
+        for entitled in [false, true] {
+            let state = spend_display_state(
+                ApiSpendProvider::Moonshot,
+                "5000.00",
+                "usd",
+                None,
+                entitled,
+                now,
+            )
+            .expect("a balance is always Ok");
+            match state {
+                ApiSpendDisplayState::Balance { amount_usd } => {
+                    assert_eq!(decimal(&amount_usd).unwrap(), decimal("5000.00").unwrap());
+                }
+                other => panic!("balance should never cap, got {other:?}"),
+            }
+        }
+        let openrouter = spend_display_state(
+            ApiSpendProvider::Openrouter,
+            "5000.00",
+            "usd",
+            None,
+            false,
+            now,
+        )
+        .expect("OpenRouter tracks uncapped even on a free machine");
+        assert!(matches!(openrouter, ApiSpendDisplayState::Tracked { .. }));
+    }
+
+    #[test]
+    fn the_free_ceiling_clears_when_a_new_months_reading_replaces_the_old_one() {
+        let end_of_august = parse_timestamp("2026-08-31T23:00:00Z").expect("timestamp");
+        let capped = spend_display_state(
+            ApiSpendProvider::Openai,
+            "150.00",
+            "usd",
+            None,
+            false,
+            end_of_august,
+        )
+        .expect("capped in August");
+        assert!(matches!(capped, ApiSpendDisplayState::Capped { .. }));
+
+        /* The month rolled over. refresh_core always recomputes month to date
+           from month_bounds(now), never from what the prior month measured,
+           so a fresh September reading is small again and the ceiling clears
+           on its own, with no state carried inside this function. */
+        let start_of_september = parse_timestamp("2026-09-01T00:05:00Z").expect("timestamp");
+        let cleared = spend_display_state(
+            ApiSpendProvider::Openai,
+            "4.20",
+            "usd",
+            None,
+            false,
+            start_of_september,
+        )
+        .expect("tracked in September");
+        assert!(matches!(cleared, ApiSpendDisplayState::Tracked { .. }));
+    }
+
+    #[test]
+    fn non_usd_is_refused_not_converted_matching_parse_openai_and_parse_anthropic() {
+        let now = 1_777_593_600;
+        assert!(matches!(
+            spend_display_state(ApiSpendProvider::Openai, "50.00", "eur", None, false, now),
+            Err(ApiSpendFailure::InvalidResponse)
+        ));
+        /* Case only. parse_openai and parse_anthropic both compare with
+           eq_ignore_ascii_case, and this refuses the same way they do. */
+        assert!(matches!(
+            spend_display_state(ApiSpendProvider::Openai, "50.00", "USD", None, false, now),
+            Ok(ApiSpendDisplayState::Tracked { .. })
+        ));
+    }
+
+    fn spend_sample(provider: ApiSpendProvider, source_id: &str, reading: &str) -> ApiSpendSample {
+        let is_balance = provider.metric_kind() == ApiSpendMetricKind::Balance;
+        ApiSpendSample {
+            id: "20000000-0000-4000-8000-000000000001".to_string(),
+            source_id: source_id.to_string(),
+            event_id: "30000000-0000-4000-8000-000000000001".to_string(),
+            sequence: 1,
+            provider,
+            key_label: "billing admin".to_string(),
+            metric_kind: provider.metric_kind(),
+            month: "2026-09-01".to_string(),
+            spend_usd: (!is_balance).then(|| reading.to_string()),
+            balance_usd: is_balance.then(|| reading.to_string()),
+            budget_usd: None,
+            observed_at: "2026-09-01T12:00:00Z".to_string(),
+            source_period: "[2026-09-01T00:00:00Z, 2026-09-01T12:00:00Z)".to_string(),
+            forecast_date: None,
+            currency_source: "provider_usd".to_string(),
+            raw_unit_scale: "usd".to_string(),
+            completeness: "complete".to_string(),
+            created_at: "2026-09-01T12:00:00Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn a_capped_sample_carries_no_real_amount_anywhere_on_the_wire() {
+        let now = 1_777_593_600;
+        let spend_source = source(ApiSpendProvider::Openai);
+        let mut document = ApiSpendDocument::default();
+        document.sources.push(spend_source.clone());
+        document
+            .samples
+            .push(spend_sample(ApiSpendProvider::Openai, &spend_source.id, "473.22"));
+
+        let snap = snapshot(&document, false, now).expect("capped snapshot");
+        let wire = serde_json::to_string(&snap).expect("wire JSON");
+        assert!(!wire.contains("473.22"), "{wire}");
+        assert!(
+            matches!(
+                snap.samples[0].display_state,
+                ApiSpendDisplayState::Capped {
+                    ceiling_usd: "100"
+                }
+            ),
+            "{:?}",
+            snap.samples[0].display_state
+        );
+    }
+
+    #[test]
+    fn an_entitled_snapshot_carries_the_real_amount_past_the_ceiling() {
+        let now = 1_777_593_600;
+        let spend_source = source(ApiSpendProvider::Openai);
+        let mut document = ApiSpendDocument::default();
+        document.sources.push(spend_source.clone());
+        document
+            .samples
+            .push(spend_sample(ApiSpendProvider::Openai, &spend_source.id, "473.22"));
+
+        let snap = snapshot(&document, true, now).expect("entitled snapshot");
+        match &snap.samples[0].display_state {
+            ApiSpendDisplayState::Tracked { amount_usd, .. } => {
+                assert_eq!(decimal(amount_usd).unwrap(), decimal("473.22").unwrap());
+            }
+            other => panic!("entitled should track, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_balance_sample_in_a_snapshot_is_never_capped_either() {
+        let now = 1_777_593_600;
+        let balance_source = source(ApiSpendProvider::Moonshot);
+        let mut document = ApiSpendDocument::default();
+        document.sources.push(balance_source.clone());
+        document.samples.push(spend_sample(
+            ApiSpendProvider::Moonshot,
+            &balance_source.id,
+            "5000.00",
+        ));
+
+        let snap = snapshot(&document, false, now).expect("balance snapshot");
+        match &snap.samples[0].display_state {
+            ApiSpendDisplayState::Balance { amount_usd } => {
+                assert_eq!(decimal(amount_usd).unwrap(), decimal("5000.00").unwrap());
+            }
+            other => panic!("balance should never cap, got {other:?}"),
         }
     }
 }

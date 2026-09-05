@@ -943,6 +943,23 @@ pub(crate) fn multi_account_enabled(store: &dyn SecretStore) -> bool {
     current_status(store).multi_account
 }
 
+/// Whether this machine's entitlement lifts the free API spend ceiling.
+///
+/// Founder decision 16, 2026-09-04: the three admin or management key spend
+/// meters are free up to $100 a month and Pro past that. This follows the
+/// same honour policy `alerts_enabled` and `multi_account_enabled` already
+/// read above: a valid signed grace token lifts the ceiling, and malformed,
+/// expired, revoked or clock invalid state leaves it in place, never
+/// deleting a stored key or a local observation. It takes no Tauri state, so
+/// an API spend command can ask this without ever being handed the ordinary
+/// credential namespace itself, the same way `spawn_silent_refresh` reaches
+/// this store: `KeyringStore` carries no data of its own to inject.
+pub(crate) fn api_spend_cap_lifted() -> bool {
+    current_status(&KeyringStore)
+        .features
+        .contains(&EntitlementFeature::ApiSpendBeta)
+}
+
 fn endpoint(path: &str) -> Result<reqwest::Url, ProFailure> {
     let base = configured_service_url().trim_end_matches('/');
     if base.is_empty() || !path.starts_with('/') || path.contains("..") {
