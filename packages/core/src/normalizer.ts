@@ -113,7 +113,6 @@ function normalizeAmounts(raw: RawMeter): SnapshotAmounts | null {
   }
   if (!Number.isFinite(used) || !Number.isFinite(limit)) return null;
   if (used < 0 || limit < 0) return null;
-  if (used > limit) return null;
   if (used > MAX_SNAPSHOT_AMOUNT || limit > MAX_SNAPSHOT_AMOUNT) return null;
   return { usedAmount: used, limitAmount: limit, currency: currency as SnapshotCurrency };
 }

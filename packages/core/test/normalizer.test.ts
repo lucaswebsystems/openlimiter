@@ -61,6 +61,14 @@ describe("normalizer amounts", () => {
     expect(result?.currency).toBe("USD");
   });
 
+  it("keeps an overspent pair so a full bar still prints its money", () => {
+    const result = normalizeMeter(withAmounts({ usedAmount: 30, limitAmount: 20 }));
+    expect(result?.usedAmount).toBe(30);
+    expect(result?.limitAmount).toBe(20);
+    expect(result?.currency).toBe("USD");
+    expect(result?.value).toBe(snapshot({ provider: "OPENROUTER", meter: "CREDITS" }).value);
+  });
+
   it("keeps a reading that carries no amounts at all", () => {
     const result = normalizeMeter(snapshot());
     expect(result).not.toBeNull();
@@ -72,7 +80,6 @@ describe("normalizer amounts", () => {
   it.each([
     ["a negative spend", { usedAmount: -1 }],
     ["a negative limit", { limitAmount: -20 }],
-    ["a spend above the limit", { usedAmount: 30 }],
     ["an absurd spend", { usedAmount: 2_000_000, limitAmount: 3_000_000 }],
     ["an absurd limit", { limitAmount: 1_000_001 }],
     ["an infinite spend", { usedAmount: Number.POSITIVE_INFINITY }],

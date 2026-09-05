@@ -1066,9 +1066,10 @@ describe("claude: reads a bucket however the document states it", () => {
     expect(extra?.value).toBe(100);
   });
 
-  it("lets the normalizer drop money that cannot be believed, keeping the percent", () => {
-    /* Spend larger than its own ceiling is a pair this build will not print, so
-       all three money fields go together and the capped percentage stands. */
+  it("keeps overspent money beside the capped percent", () => {
+    /* Spend larger than its own ceiling is a real state: the bar reads full and
+       the money still prints, so nobody sees a full bar with no figure under it.
+       The Rust reader and the core normalizer keep the same rule. */
     const parsed = parseClaudePayload({
       extra_usage: { used_amount: 25, limit_amount: 20, currency: "USD" }
     }, FIXTURE_NOW);
@@ -1076,8 +1077,9 @@ describe("claude: reads a bucket however the document states it", () => {
     expect(normalized).toHaveLength(1);
     expect(normalized[0]?.meter).toBe("EXTRA_USAGE");
     expect(normalized[0]?.value).toBe(100);
-    expect(normalized[0]?.usedAmount).toBeUndefined();
-    expect(normalized[0]?.limitAmount).toBeUndefined();
+    expect(normalized[0]?.usedAmount).toBe(25);
+    expect(normalized[0]?.limitAmount).toBe(20);
+    expect(normalized[0]?.currency).toBe("USD");
   });
 
   it("still refuses an extra usage pool with no ceiling to spend against", () => {
