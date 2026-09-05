@@ -1,5 +1,5 @@
 import { createPublicKey } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
@@ -20,12 +20,24 @@ import { readSnapshotCache, writeSnapshotCache, type Snapshot } from "@openlimit
 import { afterEach, describe, expect, it } from "vitest";
 import { persistSnapshots, readStandardInputText, runCli } from "../src/index.js";
 
+/* The temp root in canonical form, which is the form the product compares
+   against. macOS keeps its temp directory behind a symbolic link (/var is
+   /private/var) and the GitHub Windows runner names its own with an 8.3 short
+   name; the product refuses both as a link in a protected path, so every
+   fixture starts from the canonical spelling and proves the same thing on
+   every operating system. */
+let canonicalTemp: string | undefined;
+async function scratchRoot(): Promise<string> {
+  canonicalTemp ??= await realpath(tmpdir());
+  return canonicalTemp;
+}
+
 const created: string[] = [];
 const HOSTED_FIXTURE_NOW = "2026-09-01T12:05:00.000Z";
 const HOSTED_FIXTURE_OWNER_SID = "S-1-5-21-1111111111-2222222222-3333333333-1001";
 
 async function temporaryDirectory(prefix: string): Promise<string> {
-  const directory = await mkdtemp(path.join(tmpdir(), prefix));
+  const directory = await mkdtemp(path.join(await scratchRoot(), prefix));
   created.push(directory);
   return directory;
 }

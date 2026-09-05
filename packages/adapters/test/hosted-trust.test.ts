@@ -9,6 +9,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   symlink,
   writeFile
@@ -33,6 +34,18 @@ import {
 } from "../src/index.js";
 
 const NOW = "2026-09-01T12:05:00.000Z";
+/* The temp root in canonical form, which is the form the product compares
+   against. macOS keeps its temp directory behind a symbolic link (/var is
+   /private/var) and the GitHub Windows runner names its own with an 8.3 short
+   name; the product refuses both as a link in a protected path, so every
+   fixture starts from the canonical spelling and proves the same thing on
+   every operating system. */
+let canonicalTemp: string | undefined;
+async function scratchRoot(): Promise<string> {
+  canonicalTemp ??= await realpath(tmpdir());
+  return canonicalTemp;
+}
+
 const created: string[] = [];
 
 /*
@@ -105,7 +118,7 @@ async function golden(): Promise<GoldenFixture> {
 }
 
 async function temporaryHome(): Promise<string> {
-  const home = await mkdtemp(path.join(tmpdir(), "openlimiter-hosted-trust-"));
+  const home = await mkdtemp(path.join(await scratchRoot(), "openlimiter-hosted-trust-"));
   created.push(home);
   return home;
 }
