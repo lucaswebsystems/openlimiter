@@ -1804,6 +1804,26 @@
       }
     }
   },
+  "signIn": {
+    "title": "Inicia sesión en OpenLimiter",
+    "lead": "Mira cada barra en tu teléfono y desbloquea Pro.",
+    "github": "Continuar con GitHub",
+    "google": "Continuar con Google",
+    "or": "o",
+    "useEmail": "Usar correo electrónico",
+    "emailLabel": "Correo electrónico",
+    "emailPlaceholder": "tu@ejemplo.com",
+    "send": "Enviarme un enlace de acceso",
+    "opening": "Abriendo {provider}.",
+    "sending": "Enviando el enlace.",
+    "sent": "Revisa {email} y abre el enlace en este dispositivo.",
+    "failed": "No se pudo iniciar ese acceso. Revisa tu conexión e inténtalo de nuevo.",
+    "githubOff": "El acceso con GitHub todavía no está activado. Usa Google o correo electrónico.",
+    "googleOff": "El acceso con Google todavía no está activado. Usa GitHub o correo electrónico.",
+    "emailOff": "El acceso por correo electrónico todavía no está activado. Usa GitHub o Google.",
+    "noAccount": "La aplicación de escritorio no necesita cuenta. Cada meter funciona en local y es gratis.",
+    "getDesktop": "Descargar la aplicación de escritorio"
+  },
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Todo lo que ves es gratis. Las alertas, el historial, el acceso desde el teléfono, las cuentas adicionales y el seguimiento de gasto por encima de $100 son Pro.",
@@ -1814,20 +1834,6 @@
     "configMissing": {
       "title": "Pro no está configurado en esta compilación",
       "body": "Este despliegue no lleva dirección alojada, así que aquí no hay dónde iniciar sesión. Todo lo local sigue funcionando exactamente igual."
-    },
-    "signIn": {
-      "title": "Iniciar sesión",
-      "body": "Iniciar sesión existe para llevar tus porcentajes entre tus propios dispositivos, así que la sincronización queda activa desde el momento en que llegas. Solo transporta lecturas acotadas: nunca un prompt, nunca un archivo, nunca una credencial.",
-      "github": "Continuar con GitHub",
-      "google": "Continuar con Google",
-      "fallbackTitle": "O usa un enlace de acceso",
-      "fallbackBody": "Si ninguno de los dos te sirve, enviamos un enlace de un solo uso a tu correo electrónico.",
-      "emailLabel": "Correo electrónico",
-      "emailPlaceholder": "tu@ejemplo.com",
-      "send": "Enviar enlace de acceso",
-      "sent": "Revisa tu correo para encontrar el enlace de acceso.",
-      "error": "No se pudo iniciar ese acceso. Inténtalo de nuevo.",
-      "privacy": "Las credenciales de proveedor nunca entran en esta página."
     },
     "account": {
       "signedInAs": "Sesión iniciada como",

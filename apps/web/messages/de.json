@@ -1804,6 +1804,26 @@
       }
     }
   },
+  "signIn": {
+    "title": "Bei OpenLimiter anmelden",
+    "lead": "Sieh jeden Balken auf deinem Telefon und schalte Pro frei.",
+    "github": "Weiter mit GitHub",
+    "google": "Weiter mit Google",
+    "or": "oder",
+    "useEmail": "Stattdessen E Mail verwenden",
+    "emailLabel": "E Mail",
+    "emailPlaceholder": "du@beispiel.de",
+    "send": "Anmeldelink per E Mail schicken",
+    "opening": "{provider} wird geöffnet.",
+    "sending": "Der Link wird gesendet.",
+    "sent": "Sieh in {email} nach und öffne den Link auf diesem Gerät.",
+    "failed": "Diese Anmeldung konnte nicht gestartet werden. Prüfe deine Verbindung und versuche es erneut.",
+    "githubOff": "Die Anmeldung mit GitHub ist noch nicht freigeschaltet. Nutze Google oder E Mail.",
+    "googleOff": "Die Anmeldung mit Google ist noch nicht freigeschaltet. Nutze GitHub oder E Mail.",
+    "emailOff": "Die Anmeldung per E Mail ist noch nicht freigeschaltet. Nutze GitHub oder Google.",
+    "noAccount": "Die Desktop App braucht kein Konto. Jeder Meter läuft lokal und kostenlos.",
+    "getDesktop": "Desktop App holen"
+  },
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
@@ -1814,20 +1834,6 @@
     "configMissing": {
       "title": "Pro ist in diesem Build nicht konfiguriert",
       "body": "Dieses Deployment trägt keine gehostete Adresse, hier gibt es also nichts, wo du dich anmelden könntest. Alles Lokale läuft genau so weiter wie jetzt."
-    },
-    "signIn": {
-      "title": "Anmelden",
-      "body": "Die Anmeldung gibt es, damit deine Prozentwerte zwischen deinen eigenen Geräten wandern, deshalb ist die Synchronisierung ab dem ersten Moment aktiv. Sie trägt ausschließlich begrenzte Messwerte: nie einen Prompt, nie eine Datei, nie eine Zugangsinformation.",
-      "github": "Weiter mit GitHub",
-      "google": "Weiter mit Google",
-      "fallbackTitle": "Oder nutze einen Anmeldelink",
-      "fallbackBody": "Wenn dir keines von beiden passt, schicken wir stattdessen einen einmalig gültigen Link an deine E Mail Adresse.",
-      "emailLabel": "E Mail",
-      "emailPlaceholder": "du@beispiel.de",
-      "send": "Anmeldelink senden",
-      "sent": "Sieh in deinem Postfach nach dem Anmeldelink.",
-      "error": "Diese Anmeldung konnte nicht gestartet werden. Versuche es erneut.",
-      "privacy": "Zugangsdaten von Anbietern erreichen diese Seite nie."
     },
     "account": {
       "signedInAs": "Angemeldet als",

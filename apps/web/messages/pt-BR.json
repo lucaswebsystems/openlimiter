@@ -1804,6 +1804,26 @@
       }
     }
   },
+  "signIn": {
+    "title": "Entrar no OpenLimiter",
+    "lead": "Veja cada barra no seu celular e libere o Pro.",
+    "github": "Continuar com GitHub",
+    "google": "Continuar com Google",
+    "or": "ou",
+    "useEmail": "Usar email",
+    "emailLabel": "Email",
+    "emailPlaceholder": "voce@exemplo.com",
+    "send": "Receber um link de acesso por email",
+    "opening": "Abrindo {provider}.",
+    "sending": "Enviando o link.",
+    "sent": "Confira {email} e abra o link neste dispositivo.",
+    "failed": "Não foi possível iniciar esse acesso. Confira sua conexão e tente de novo.",
+    "githubOff": "O acesso com GitHub ainda não está ativado. Use Google ou email.",
+    "googleOff": "O acesso com Google ainda não está ativado. Use GitHub ou email.",
+    "emailOff": "O acesso por email ainda não está ativado. Use GitHub ou Google.",
+    "noAccount": "O aplicativo de desktop não precisa de conta. Cada meter roda localmente, de graça.",
+    "getDesktop": "Baixar o aplicativo de desktop"
+  },
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Tudo o que você vê é gratuito. Alertas, histórico, acesso pelo celular, contas extras e acompanhamento de gasto acima de $100 fazem parte do Pro.",
@@ -1814,20 +1834,6 @@
     "configMissing": {
       "title": "O Pro não está configurado nesta build",
       "body": "Esta implantação não carrega endereço hospedado, então não há onde entrar aqui. Tudo o que é local continua funcionando exatamente como está."
-    },
-    "signIn": {
-      "title": "Entrar",
-      "body": "Entrar existe para levar suas porcentagens entre os seus próprios dispositivos, então a sincronização fica ligada desde o momento em que você chega. Ela carrega apenas leituras limitadas: nunca um prompt, nunca um arquivo, nunca uma credencial.",
-      "github": "Continuar com GitHub",
-      "google": "Continuar com Google",
-      "fallbackTitle": "Ou use um link de acesso",
-      "fallbackBody": "Se nenhum dos dois servir para você, enviamos um link de uso único para o seu email.",
-      "emailLabel": "Email",
-      "emailPlaceholder": "voce@exemplo.com",
-      "send": "Enviar link de acesso",
-      "sent": "Confira seu email para encontrar o link de acesso.",
-      "error": "Não foi possível iniciar esse acesso. Tente de novo.",
-      "privacy": "Credenciais de provedor nunca entram nesta página."
     },
     "account": {
       "signedInAs": "Conectado como",
