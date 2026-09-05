@@ -58,6 +58,12 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
+      /* Stripe returns a finished checkout to /app/billing, which is the
+         address the hosted functions were built with and is not a page here.
+         The portal is where every billing state is drawn, so the return lands
+         there instead, carrying its own `checkout` parameter with it: Next
+         forwards a query string whenever the destination declares none. */
+      { source: "/app/billing", destination: "/pro", permanent: false },
       { source: "/alternatives", destination: "/", permanent: true },
       { source: "/alternatives/:slug*", destination: "/", permanent: true },
       {

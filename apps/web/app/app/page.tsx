@@ -1,4 +1,4 @@
-import { Dashboard } from "./dashboard";
+import { AppSurface } from "./surface";
 import { BrandLockup } from "@/components/brand";
 
 /**
@@ -49,7 +49,7 @@ export default function AppPage() {
         id="main"
         className="ol-product-shell ol-shell mx-auto w-full max-w-7xl"
       >
-        <Dashboard
+        <AppSurface
           lockup={
             <div className="flex min-w-0 items-center gap-3">
               {/* One header for every context. The brand rule is the full

@@ -43,7 +43,15 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
 }
 
 /** The processors, in the order the table lists them. */
-const PROCESSOR_IDS = ["supabase", "vercel", "stripe", "resend"] as const;
+const PROCESSOR_IDS = [
+  "supabase",
+  "vercel",
+  "stripe",
+  "resend",
+  "github",
+  "google",
+  "push",
+] as const;
 
 /** The retention rows, in the order the table lists them. */
 const RETENTION_IDS = [

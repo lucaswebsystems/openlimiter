@@ -1,40 +1,60 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { failureForStatus, type ProFailure } from "./pro";
 
-export interface ProNotificationPreferences {
-  email_enabled: boolean;
-  push_enabled: boolean;
-  quiet_hours_enabled: boolean;
-  quiet_start: string;
-  quiet_end: string;
-  time_zone: string;
-  daily_digest_enabled: boolean;
-  daily_digest_time: string;
-  last_digest_local_date: string | null;
+/**
+ * Alert preferences, as the Pro server actually publishes them.
+ *
+ * Every alert OpenLimiter sends is a Pro alert: a desktop toast, an email or a
+ * phone push, at sixty, eighty and ninety percent of a window and when that
+ * window resets. Those four thresholds are the product's, not a setting, so
+ * nothing here writes one. What a person controls is which channel is on, when
+ * it is quiet, whether a digest is wanted, and whether an email may carry
+ * detail.
+ *
+ * THE HEADER THIS MODULE CANNOT INVENT
+ * ------------------------------------
+ * Every alert action on `pro-service` is authorised by a full scope device
+ * token in `x-openlimiter-entitlement`, which is minted for a registered
+ * device. A browser tab is not one, so a call made without a token is refused
+ * before it reaches the database. Rather than sending a request that can only
+ * fail, the functions below say `deviceRequired` and the surface renders the
+ * honest state: alerts are arranged on the device that holds the grant.
+ */
+
+/** The two remote channels the server stores a preference row for. */
+export type ProAlertChannel = "email" | "push";
+
+/** The thresholds every alert fires at. Fixed by the product, never edited. */
+export const PRO_ALERT_THRESHOLDS = [60, 80, 90] as const;
+
+export interface ProAlertPreference {
+  channel: ProAlertChannel;
+  enabled: boolean;
+  timeZone: string;
+  quietStart: string;
+  quietEnd: string;
+  snoozedUntil: string | null;
+  digestEnabled: boolean;
+  detailConsentVersion: number | null;
+  channelEpoch: number;
 }
 
-export interface ProAlertRule {
+export interface ProAlertEvent {
   id: string;
   provider: string;
   meter: string;
-  threshold_percent: number;
-  notify_reset: boolean;
-  enabled: boolean;
+  threshold: number | null;
+  eventKind: string;
+  observedAt: string | null;
+  createdAt: string | null;
 }
 
-export interface ProNotificationState {
-  preferences: ProNotificationPreferences;
-  rules: ProAlertRule[];
-  pushSubscribed: boolean;
-  emailReady: boolean;
-  pushReady: boolean;
-  vapidPublicKey: string;
-}
+/** Every reason a call here can fail, including the one only a browser meets. */
+export type ProAlertFailure = ProFailure | "deviceRequired" | "featureRequired";
 
-export type ProNotificationResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; reason: "entitlement" | "unavailable" };
+export type ProAlertResult<T> = { ok: true; value: T } | { ok: false; reason: ProAlertFailure };
 
-function errorStatus(error: unknown): number | null {
+function statusOf(error: unknown): number | null {
   if (error === null || typeof error !== "object") return null;
   const context = (error as Record<string, unknown>).context;
   if (context === null || typeof context !== "object") return null;
@@ -42,96 +62,153 @@ function errorStatus(error: unknown): number | null {
   return Number.isFinite(status) ? status : null;
 }
 
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 async function invoke<T>(
   client: SupabaseClient,
   body: Record<string, unknown>,
-): Promise<ProNotificationResult<T>> {
-  const response = await client.functions.invoke<T>("pro-service", { body });
-  if (response.error !== null || response.data === null) {
-    return { ok: false, reason: errorStatus(response.error) === 403 ? "entitlement" : "unavailable" };
+  deviceToken: string | null,
+): Promise<ProAlertResult<T>> {
+  if (deviceToken === null || deviceToken === "") return { ok: false, reason: "deviceRequired" };
+  try {
+    const response = await client.functions.invoke<T>("pro-service", {
+      body,
+      headers: { "x-openlimiter-entitlement": deviceToken },
+    });
+    if (response.error !== null || response.data === null || response.data === undefined) {
+      const status = statusOf(response.error);
+      if (status === 403) return { ok: false, reason: "featureRequired" };
+      return { ok: false, reason: failureForStatus(status) };
+    }
+    return { ok: true, value: response.data };
+  } catch {
+    return { ok: false, reason: "unavailable" };
   }
-  return { ok: true, value: response.data };
 }
 
-interface SettingsResponse {
-  preferences: ProNotificationPreferences;
-  push_subscribed: boolean;
-  email_ready: boolean;
-  push_ready: boolean;
-  vapid_public_key: string;
-}
-
-interface RulesResponse {
-  rules: ProAlertRule[];
-}
-
-export async function readProNotificationState(
-  client: SupabaseClient,
-): Promise<ProNotificationResult<ProNotificationState>> {
-  const [settings, rules] = await Promise.all([
-    invoke<SettingsResponse>(client, { action: "notification_settings" }),
-    invoke<RulesResponse>(client, { action: "list_alert_rules" }),
-  ]);
-  if (!settings.ok) return settings;
-  if (!rules.ok) return rules;
+export function preferenceOf(value: unknown): ProAlertPreference | null {
+  const row = record(value);
+  const channel = row?.channel;
+  if (row === null || (channel !== "email" && channel !== "push")) return null;
+  const consent = Number(row.detail_consent_version);
+  const epoch = Number(row.channel_epoch);
   return {
-    ok: true,
-    value: {
-      preferences: settings.value.preferences,
-      rules: rules.value.rules,
-      pushSubscribed: settings.value.push_subscribed,
-      emailReady: settings.value.email_ready,
-      pushReady: settings.value.push_ready,
-      vapidPublicKey: settings.value.vapid_public_key,
-    },
+    channel,
+    enabled: row.enabled === true,
+    timeZone: typeof row.time_zone === "string" ? row.time_zone : "UTC",
+    quietStart: typeof row.quiet_start === "string" ? row.quiet_start.slice(0, 5) : "22:00",
+    quietEnd: typeof row.quiet_end === "string" ? row.quiet_end.slice(0, 5) : "07:00",
+    snoozedUntil: typeof row.snoozed_until === "string" ? row.snoozed_until : null,
+    digestEnabled: row.digest_enabled === true,
+    detailConsentVersion: Number.isFinite(consent) ? consent : null,
+    channelEpoch: Number.isFinite(epoch) ? epoch : 0,
   };
 }
 
-export async function saveProNotificationPreferences(
+/** Every stored channel preference, keyed by channel. */
+export async function readProAlertPreferences(
   client: SupabaseClient,
-  preferences: ProNotificationPreferences,
-): Promise<ProNotificationResult<ProNotificationPreferences>> {
-  const result = await invoke<{ preferences: ProNotificationPreferences }>(client, {
-    action: "save_notification_preferences",
-    ...preferences,
-  });
-  return result.ok ? { ok: true, value: result.value.preferences } : result;
+  deviceToken: string | null,
+): Promise<ProAlertResult<ProAlertPreference[]>> {
+  const result = await invoke<Record<string, unknown>>(
+    client,
+    { action: "list_notification_preferences" },
+    deviceToken,
+  );
+  if (!result.ok) return result;
+  const rows = Array.isArray(result.value.preferences) ? result.value.preferences : [];
+  const preferences: ProAlertPreference[] = [];
+  for (const row of rows) {
+    const parsed = preferenceOf(row);
+    if (parsed !== null) preferences.push(parsed);
+  }
+  return { ok: true, value: preferences };
 }
 
-export async function saveProAlertRule(
-  client: SupabaseClient,
-  input: {
-    provider: string;
-    meter: string;
-    thresholdPercent: number;
-    notifyReset: boolean;
-  },
-): Promise<ProNotificationResult<ProAlertRule>> {
-  const result = await invoke<{ rule: ProAlertRule }>(client, {
-    action: "save_alert_rule",
-    provider: input.provider,
-    meter: input.meter,
-    threshold_percent: input.thresholdPercent,
-    notify_reset: input.notifyReset,
-    enabled: true,
-  });
-  return result.ok ? { ok: true, value: result.value.rule } : result;
+export interface ProAlertPreferenceInput {
+  channel: ProAlertChannel;
+  enabled: boolean;
+  timeZone: string;
+  quietStart: string;
+  quietEnd: string;
+  snoozedUntil: string | null;
+  digestEnabled: boolean;
+  detailConsent: boolean;
 }
 
-export async function deleteProAlertRule(
+/** Write one channel's preference. The server writes exactly one channel. */
+export async function saveProAlertPreference(
   client: SupabaseClient,
-  ruleId: string,
-): Promise<ProNotificationResult<boolean>> {
-  const result = await invoke<{ deleted: boolean }>(client, {
-    action: "delete_alert_rule",
-    rule_id: ruleId,
-  });
-  return result.ok ? { ok: true, value: result.value.deleted } : result;
+  input: ProAlertPreferenceInput,
+  deviceToken: string | null,
+): Promise<ProAlertResult<ProAlertPreference>> {
+  const result = await invoke<Record<string, unknown>>(
+    client,
+    {
+      action: "save_notification_preference",
+      channel: input.channel,
+      enabled: input.enabled,
+      time_zone: input.timeZone,
+      quiet_start: input.quietStart,
+      quiet_end: input.quietEnd,
+      snoozed_until: input.snoozedUntil,
+      digest_enabled: input.digestEnabled,
+      detail_consent: input.detailConsent,
+    },
+    deviceToken,
+  );
+  if (!result.ok) return result;
+  const preference = preferenceOf(result.value.preference);
+  return preference === null
+    ? { ok: false, reason: "unavailable" }
+    : { ok: true, value: preference };
 }
+
+export function alertEventOf(value: unknown): ProAlertEvent | null {
+  const row = record(value);
+  const id = row === null ? null : row.id;
+  if (typeof id !== "string" || id === "") return null;
+  const threshold = Number(row?.threshold);
+  return {
+    id,
+    provider: typeof row?.provider === "string" ? row.provider : "",
+    meter: typeof row?.meter === "string" ? row.meter : "",
+    threshold: Number.isFinite(threshold) ? threshold : null,
+    eventKind: typeof row?.event_kind === "string" ? row.event_kind : "",
+    observedAt: typeof row?.observed_at === "string" ? row.observed_at : null,
+    createdAt: typeof row?.created_at === "string" ? row.created_at : null,
+  };
+}
+
+/** What has already been sent, newest first. Read only. */
+export async function readProAlertHistory(
+  client: SupabaseClient,
+  deviceToken: string | null,
+): Promise<ProAlertResult<ProAlertEvent[]>> {
+  const result = await invoke<Record<string, unknown>>(
+    client,
+    { action: "alert_status" },
+    deviceToken,
+  );
+  if (!result.ok) return result;
+  const rows = Array.isArray(result.value.events) ? result.value.events : [];
+  const events: ProAlertEvent[] = [];
+  for (const row of rows) {
+    const parsed = alertEventOf(row);
+    if (parsed !== null) events.push(parsed);
+  }
+  return { ok: true, value: events };
+}
+
+/* ------------------------------------------------------------ browser push */
 
 function applicationServerKey(value: string): ArrayBuffer {
   const normalized = value.replace(/-/gu, "+").replace(/_/gu, "/");
-  const padding = "=".repeat((4 - normalized.length % 4) % 4);
+  const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
   const binary = window.atob(normalized + padding);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
@@ -142,8 +219,10 @@ function applicationServerKey(value: string): ArrayBuffer {
 
 export function pushCapability(): "ready" | "permission_denied" | "unsupported" {
   if (
-    typeof window === "undefined" || !window.isSecureContext ||
-    !("serviceWorker" in navigator) || !("PushManager" in window) ||
+    typeof window === "undefined" ||
+    !window.isSecureContext ||
+    !("serviceWorker" in navigator) ||
+    !("PushManager" in window) ||
     !("Notification" in window)
   ) {
     return "unsupported";
@@ -151,52 +230,43 @@ export function pushCapability(): "ready" | "permission_denied" | "unsupported" 
   return Notification.permission === "denied" ? "permission_denied" : "ready";
 }
 
-export async function enableProPush(
+/**
+ * Subscribe this browser to push and hand the subscription to the server.
+ *
+ * `deviceId` is the grant the subscription is filed under, so a revoked device
+ * takes its push subscription with it.
+ */
+export async function registerProPush(
   client: SupabaseClient,
-  vapidPublicKey: string,
-): Promise<ProNotificationResult<boolean>> {
-  if (pushCapability() !== "ready" || vapidPublicKey === "") {
+  input: { deviceId: string; vapidPublicKey: string },
+  deviceToken: string | null,
+): Promise<ProAlertResult<boolean>> {
+  if (pushCapability() !== "ready" || input.vapidPublicKey === "") {
     return { ok: false, reason: "unavailable" };
   }
-  const permission = Notification.permission === "granted"
-    ? "granted"
-    : await Notification.requestPermission();
+  const permission =
+    Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
   if (permission !== "granted") return { ok: false, reason: "unavailable" };
   const registration = await navigator.serviceWorker.ready;
   const existing = await registration.pushManager.getSubscription();
-  const subscription = existing ?? await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: applicationServerKey(vapidPublicKey),
-  });
+  const subscription =
+    existing ??
+    (await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: applicationServerKey(input.vapidPublicKey),
+    }));
   const value = subscription.toJSON();
-  const endpoint = value.endpoint ?? "";
-  const p256dh = value.keys?.p256dh ?? "";
-  const auth = value.keys?.auth ?? "";
-  const result = await invoke<{ subscribed: boolean }>(client, {
-    action: "save_push_subscription",
-    endpoint,
-    p256dh,
-    auth,
-    expires_at: value.expirationTime === null || value.expirationTime === undefined
-      ? null
-      : new Date(value.expirationTime).toISOString(),
-  });
+  const result = await invoke<Record<string, unknown>>(
+    client,
+    {
+      action: "register_push",
+      device_id: input.deviceId,
+      endpoint: value.endpoint ?? "",
+      p256dh: value.keys?.p256dh ?? "",
+      auth: value.keys?.auth ?? "",
+    },
+    deviceToken,
+  );
   if (!result.ok && existing === null) await subscription.unsubscribe();
-  return result.ok ? { ok: true, value: result.value.subscribed } : result;
-}
-
-export async function disableProPush(
-  client: SupabaseClient,
-): Promise<ProNotificationResult<boolean>> {
-  if (!("serviceWorker" in navigator)) return { ok: false, reason: "unavailable" };
-  const registration = await navigator.serviceWorker.ready;
-  const subscription = await registration.pushManager.getSubscription();
-  if (subscription === null) return { ok: true, value: false };
-  const result = await invoke<{ subscribed: boolean }>(client, {
-    action: "delete_push_subscription",
-    endpoint: subscription.endpoint,
-  });
-  if (!result.ok) return result;
-  await subscription.unsubscribe();
-  return { ok: true, value: false };
+  return result.ok ? { ok: true, value: result.value.registered === true } : result;
 }

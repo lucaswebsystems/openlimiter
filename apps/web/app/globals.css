@@ -76,6 +76,10 @@
   --color-announce: var(--ol-announce);
   --color-announce-fg: var(--ol-announce-fg);
 
+  --color-window-close: var(--ol-window-close);
+  --color-window-minimise: var(--ol-window-minimise);
+  --color-window-zoom: var(--ol-window-zoom);
+
   --font-sans: var(--ol-font-sans);
   --font-mono: var(--ol-font-mono);
 
@@ -102,6 +106,18 @@
 
 /* Site layout aliases. Visual values stay in the canonical token sheet. */
 :root {
+  /*
+    The three window control dots on the desktop mockup.
+
+    They are the platform's own traffic light colours rather than this
+    product's palette, which is exactly why they belong here: a component that
+    carries a literal is a component that can drift, and the whole point of a
+    borrowed colour is that it never does. Same value in both themes, because
+    the window chrome they imitate does not change with a theme either.
+  */
+  --ol-window-close: #ff5f57;
+  --ol-window-minimise: #febc2e;
+  --ol-window-zoom: #28c840;
   --ol-font-heading: var(--ol-font-baloo, "Baloo 2"), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --ol-font-sans: var(--ol-font-inter, "Inter"), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --ol-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

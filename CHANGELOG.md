@@ -37,11 +37,17 @@ The single public launch: every provider bar in one place, a free product that n
 - The free plan states its cap of one active account per provider, which Pro raises.
 - The website counts page views without cookies through Vercel Web Analytics. The application still sends nothing, and the two claims are now stated separately instead of as one.
 - Claims that no OpenLimiter server and no account exist are scoped to local mode, which is where they are true, now that a free account, sync and Pro exist.
-- `llms.txt` rewritten for 1.2.0: nine connectors, the account, the six Pro lines, checkout through Stripe, and the agent adapter states.
+- `llms.txt` rewritten for 1.2.0: nine connectors, the account, the six Pro features, checkout through Stripe, and the agent adapter states.
+- The site promise is now that everything you can see is free, and that alerts, history, phone access, extra accounts and spend tracking above 100 US dollars a calendar month for each source are Pro. Pro is six features, four hosted and two local, rather than six hosted services.
+- Sync is on from the moment you sign in, because moving your own percentages between your own devices is what signing in is for. Every public statement about the default now says so.
+- Moonshot is described as a balance with three components in the provider's own currency, never as spend, a forecast or a budget alert.
+- Hosted routing context is described as a signed envelope the release build verifies, which is the path that ships, rather than as the same advice on every device.
+- The privacy page names seven services rather than four, adding GitHub and Google for sign in and the browser and operating system push services that deliver an alert, and the retention introduction names its local, backup and legal billing exceptions.
 
 ### Distribution
 
 - Desktop builds for Windows, macOS and Linux. Windows and macOS are unsigned and each states its one time allow step.
+- macOS ships as one unsigned universal disk image, `OpenLimiter_1.2.0_universal.dmg`, which runs on Apple silicon and on Intel. The site used to advertise a separate Apple silicon image and an Intel image, and neither has ever been attached to a release.
 - macOS is excluded from the update manifest until signed and notarised builds exist, so until then a new version is a new download.
 
 ## [1.1.0] (2026-08-24)
