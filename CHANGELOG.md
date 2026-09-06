@@ -2,6 +2,15 @@
 
 All notable project changes appear in this file.
 
+## [1.2.2] (2026-09-06)
+
+### Fixed
+
+- Desktop sign in with GitHub or Google never returned to the window. The window sent an OAuth state of its own, the auth service forwarded that value to the provider unchanged and could not resolve it on the way back, so the browser landed on the website with "OAuth state not found or expired" while the window waited for a callback that never came. The service now mints and resolves its own state, and custody stays proven by the PKCE verifier, which never leaves the machine.
+- The web dashboard at /app reloaded itself about once a second. Its service worker registration URL was built from a hash of the page scripts, which Next extends as it prefetches routes, so every load looked like a new worker and each controller change reloaded the page. The key is now one constant per deploy, with a guard that refuses a second reload within thirty seconds.
+- Checkout no longer asks Stripe to calculate tax automatically, a setting Stripe does not offer for the seller's country, and the site no longer claims it does.
+- The Pro pricing card lists five features with one footnote linking to the full conditions, and the hosted routing context claim is gone from the site until a release pins its verification key.
+
 ## [1.2.1] (2026-09-05)
 
 The first public release of the 1.2 line. 1.2.0 was built as a draft and never published.
