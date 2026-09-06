@@ -27,11 +27,10 @@ Everything you can see is free. Alerts, history, phone access, extra accounts an
 
 Pro costs 5 US dollars a month or 50 US dollars a year, with the first 30 days free and no card required. OpenLimiter Pro is sold by Lucas Costa. Checkout runs through Stripe, which acts as the payment processor and calculates tax automatically. A full refund is available on request within 14 days of any charge, and cancellation is self service through the Stripe Customer Portal.
 
-Pro is six features. Four are hosted services and two are switches in the local application:
+Pro is five features. Three are hosted services and two are switches in the local application:
 
 - Every alert: a desktop notification, an email and a phone push at 60, 80 and 90 percent of a window, and when a window resets. Hosted.
 - Ninety days of history, with a forecast to the day a window runs out. Hosted.
-- Hosted routing context, signed by the service and verified by the release build before an agent reads it. A build without the pinned verification keys injects nothing rather than trusting an unverified envelope. Hosted.
 - API spend meters, shipped as a labelled beta. The free plan tracks up to 100 US dollars a calendar month for each source and Pro goes above it. It needs an organisation admin or management key and a project key will not work. Hosted.
 - More than one account per provider, unlocked in the local application. The free plan allows one active account per provider. Local.
 - One Pro accent or density preset, applied in the local application. Local.

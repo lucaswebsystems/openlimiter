@@ -63,11 +63,11 @@
       },
       "account": {
         "title": "Das Konto und Pro",
-        "body": "Ein Konto ist kostenlos, und alles, was du lokal siehst, bleibt mit oder ohne Konto kostenlos. Die Anmeldung schaltet die Synchronisierung ein, denn dafür gibt es sie: deine eigenen Prozentwerte zwischen deinen eigenen Geräten zu bewegen. Pro sind sechs Funktionen: jeder Alert, neunzig Tage gehosteter Verlauf mit Prognose, gehosteter Routing Kontext, mehr als ein Konto je Anbieter, eine Pro Anzeigevorgabe und das Ausgaben Beta über der kostenlosen Obergrenze. Vier sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung. Die kostenlose Grenze von einem Konto je Anbieter setzt die Desktopanwendung als Richtlinie in offenem Quelltext durch, nicht als Sicherheitsgrenze; das ist ein Versprechen über das Verhalten des Produkts und keine technische Sperre."
+        "body": "Ein Konto ist kostenlos, und alles, was du lokal siehst, bleibt mit oder ohne Konto kostenlos. Die Anmeldung schaltet die Synchronisierung ein, denn dafür gibt es sie: deine eigenen Prozentwerte zwischen deinen eigenen Geräten zu bewegen. Pro sind fünf Funktionen: jeder Alert, neunzig Tage gehosteter Verlauf mit Prognose, mehr als ein Konto je Anbieter, eine Pro Anzeigevorgabe und das Ausgaben Beta über der kostenlosen Obergrenze. Drei sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung. Die kostenlose Grenze von einem Konto je Anbieter setzt die Desktopanwendung als Richtlinie in offenem Quelltext durch, nicht als Sicherheitsgrenze; das ist ein Versprechen über das Verhalten des Produkts und keine technische Sperre."
       },
       "billing": {
         "title": "Abrechnung",
-        "body": "Pro kostet 5 US Dollar im Monat oder 50 US Dollar im Jahr, und die ersten 30 Tage sind kostenlos, ohne Karte. OpenLimiter Pro wird von Lucas Costa verkauft. Die Zahlungen nimmt Stripe entgegen, das als Zahlungsdienstleister auftritt und deine Kartendaten hält. Die Steuer wird beim Checkout automatisch berechnet und kann je nach deinem Ort zum genannten Preis hinzukommen, weshalb eine Rechnungsadresse erhoben wird. Ein Abonnement verlängert sich am Ende jedes Zeitraums automatisch, bis du kündigst."
+        "body": "Pro kostet 5 US Dollar im Monat oder 50 US Dollar im Jahr, und die ersten 30 Tage sind kostenlos, ohne Karte. OpenLimiter Pro wird von Lucas Costa verkauft. Die Zahlungen nimmt Stripe entgegen, das als Zahlungsdienstleister auftritt und deine Kartendaten hält. Eine Rechnungsadresse wird für die Rechnungsstellung erhoben. Ein Abonnement verlängert sich am Ende jedes Zeitraums automatisch, bis du kündigst."
       },
       "cancellation": {
         "title": "Kündigung",
@@ -187,7 +187,7 @@
       "body": "Pro wird von Lucas Costa verkauft und über Stripe bezahlt. Kartendaten werden bei Stripe eingegeben und erreichen OpenLimiter nie, das nur das Ergebnis und die Kennungen bekommt, die es braucht, um deinen Zugang mit deinem Abonnement in Einklang zu halten.",
       "bullets": {
         "stripe": "Stripe hält deine Zahlungsmethode, deine Rechnungsadresse und deine Rechnungen. OpenLimiter speichert die Kunden und Abonnementkennungen, den Tarif, den Status und die Zeitraumdaten.",
-        "tax": "Die Steuer wird beim Bezahlen automatisch berechnet, und deshalb wird eine Rechnungsadresse erhoben. Die Adresse dient der Steuer und der Rechnung und sonst nichts.",
+        "tax": "Eine Rechnungsadresse wird für die Rechnungsstellung erhoben. Die Adresse dient der Steuer und der Rechnung und sonst nichts.",
         "refund": "Eine vollständige Rückerstattung gibt es auf Anfrage innerhalb von vierzehn Tagen nach jeder Abbuchung. Eine bestätigte vollständige Rückerstattung beendet Pro sofort und lässt deine lokalen Daten unberührt.",
         "records": "Abrechnungs und Steuerunterlagen werden so lange aufbewahrt, wie das Steuerrecht es verlangt, was länger ist als die Produktfristen weiter unten. Die Kontolöschung pseudonymisiert die Verbindung zwischen dir und einem Datensatz, der bleiben muss."
       }
@@ -221,7 +221,7 @@
         },
         "stripe": {
           "who": "Stripe",
-          "what": "Zahlungsmethode, Rechnungsadresse, Rechnungen und Steuerberechnung. Es sieht deine Quota Daten nie."
+          "what": "Zahlungsmethode, Rechnungsadresse und Rechnungen. Es sieht deine Quota Daten nie."
         },
         "resend": {
           "who": "Resend",
@@ -245,7 +245,7 @@
       "title": "Wo das gilt und warum es erlaubt ist",
       "body": "OpenLimiter wird von Lucas Costa verkauft und weltweit angeboten und ist nach den europäischen und britischen Datenschutzregeln sowie der brasilianischen LGPD geschrieben, weil das die strengsten der bedienten Märkte sind. Wo du auch lebst, es gelten dieselben Gründe.",
       "bullets": {
-        "contract": "Zur Erfüllung des Vertrags mit dir: Konto, Synchronisierung, Pro Verlauf, Routing Kontext und Abrechnung. Ohne sie gibt es kein Produkt zu liefern.",
+        "contract": "Zur Erfüllung des Vertrags mit dir: Konto, Synchronisierung, Pro Verlauf und Abrechnung. Ohne sie gibt es kein Produkt zu liefern.",
         "consent": "Mit deiner Einwilligung: ausführliche Warn E Mails und Push Benachrichtigungen. Beide sind freiwillig, beide sind aus, bis du sie einschaltest, und beide lassen sich widerrufen, ohne sonst etwas zu verlieren.",
         "interests": "Aus berechtigtem Interesse: den Dienst sicher halten, Missbrauch der Anmeldung und der Synchronisierungsendpunkte verhindern und Seitenaufrufe auf dieser Website ohne Cookies zählen.",
         "legal": "Zur Erfüllung einer rechtlichen Pflicht: die Abrechnungs und Steuerunterlagen aufbewahren, die das Steuerrecht verlangt."
@@ -709,7 +709,7 @@
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro kostet $5 im Monat oder $50 im Jahr, die ersten 30 Tage sind kostenlos und ohne Karte. Es kommen sechs Dinge dazu: jeder Alert, als Meldung auf dem Desktop, als Mail und als Push aufs Telefon bei 60, 80 und 90 Prozent und beim Zurücksetzen; neunzig Tage gehosteter Verlauf mit Prognose; gehosteter Routing Kontext; mehr als ein Konto je Anbieter; ein Pro Akzent oder eine Dichtevorgabe; und Ausgabenzähler für APIs in einem gekennzeichneten Beta über der kostenlosen Obergrenze von $100 pro Kalendermonat je Quelle. Vier davon sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung. Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung."
+        "answer": "OpenLimiter Pro kostet $5 im Monat oder $50 im Jahr, die ersten 30 Tage sind kostenlos und ohne Karte. Es kommen fünf Dinge dazu: jeder Alert, als Meldung auf dem Desktop, als Mail und als Push aufs Telefon bei 60, 80 und 90 Prozent und beim Zurücksetzen; neunzig Tage gehosteter Verlauf mit Prognose; mehr als ein Konto je Anbieter; ein Pro Akzent oder eine Dichtevorgabe; und Ausgabenzähler für APIs in einem gekennzeichneten Beta über der kostenlosen Obergrenze von $100 pro Kalendermonat je Quelle. Drei davon sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung. Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung."
       },
       "alerts": {
         "question": "Bekomme ich Alerts, wenn ein Fenster voll wird?",
@@ -753,20 +753,18 @@
       "perYear": "pro Jahr",
       "trialChip": "30 Tage kostenlos",
       "priceNote": "Die ersten 30 Tage sind kostenlos, ohne Karte. Endet der Zugang, hören die Pro Funktionen auf: die gehosteten sofort, die lokalen fallen auf ein Konto je Anbieter und das Standardthema zurück. Alles, was du vor Pro sehen konntest, bleibt unverändert.",
-      "lead": "Sechs Pro Funktionen. Vier sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung.",
+      "lead": "Fünf Pro Funktionen. Drei sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung.",
       "footnote": "Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
       "lines": {
         "alerts": "Jeder Alert: eine Meldung auf dem Desktop, eine Mail und ein Push aufs Telefon bei 60, 80 und 90 Prozent eines Fensters und beim Zurücksetzen",
         "themes": "Ein Pro Akzent oder eine Dichtevorgabe, angewandt in der lokalen Anwendung",
         "multiSubscription": "Mehr als ein Konto je Anbieter, in der lokalen Anwendung freigeschaltet",
         "heavyApi": "Ausgabenzähler für APIs, im Beta. Kostenlos werden je Quelle bis zu $100 pro Kalendermonat erfasst, Pro geht darüber hinaus",
-        "history": "Neunzig Tage gehosteter Verlauf, mit einer Prognose bis zu dem Tag, an dem ein Fenster aufgebraucht ist",
-        "routing": "Gehosteter Routing Kontext, vom Dienst signiert und vom Release Build geprüft, bevor ein Agent ihn liest"
+        "history": "Neunzig Tage gehosteter Verlauf, mit einer Prognose bis zu dem Tag, an dem ein Fenster aufgebraucht ist"
       },
       "cta": "30 Tage kostenlos starten",
-      "eligibility": "Das Ausgaben Beta liest die Abrechnungsoberfläche des Anbieters selbst und braucht deshalb einen Organisations oder Verwaltungsschlüssel: einen OpenAI Organisationsadminschlüssel, einen Anthropic Admin API Schlüssel der Organisation, einen xAI Verwaltungsschlüssel oder einen OpenRouter Verwaltungsschlüssel. Ein Projektschlüssel funktioniert nicht. Moonshot wird als Guthaben gelesen und nicht als Ausgabe, in drei getrennten Werten, verfügbar, Gutschein und Bar, in der Währung, die der Anbieter nennt, und es wird nie in einen Monatswert, eine Prognose oder einen Budgetalert verwandelt.",
-      "refund": "Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung, monatlich wie jährlich. Kündige jederzeit selbst im Stripe Customer Portal.",
-      "seller": "OpenLimiter Pro wird von Lucas Costa verkauft. Stripe nimmt die Zahlung entgegen und berechnet die Steuer automatisch."
+      "conditions": "Ausgabenzähler benötigen einen Organisationsadminschlüssel. Volle Rückerstattung innerhalb von 14 Tagen, jederzeit kündbar im Stripe Portal. Verkauft von Lucas Costa, Zahlung über Stripe.",
+      "conditionsLink": "Alle Bedingungen"
     },
     "roadmapCta": "Was tatsächlich geplant ist",
     "sourceCta": "Quellcode lesen"
@@ -1857,14 +1855,14 @@
       "trial": {
         "chip": "Testphase",
         "title": "Du bist in der kostenlosen Testphase",
-        "body": "Alle Pro Dienste sind aktiv: Alerts, neunzig Tage Verlauf mit Prognose, gehostetes Routing, Zugriff per Telefon über QR, zusätzliche Konten und Ausgabenverfolgung über die kostenlose Obergrenze von $100 pro Kalendermonat je Quelle hinaus. Es wurde keine Karte verlangt.",
+        "body": "Alle Pro Dienste sind aktiv: Alerts, neunzig Tage Verlauf mit Prognose, Zugriff per Telefon über QR, zusätzliche Konten und Ausgabenverfolgung über die kostenlose Obergrenze von $100 pro Kalendermonat je Quelle hinaus. Es wurde keine Karte verlangt.",
         "daysLeft": "Noch {count, plural, one {# Tag} other {# Tage}} Testphase.",
         "ends": "Sie endet am {date}."
       },
       "active": {
         "chip": "aktiv",
         "title": "Pro ist aktiv",
-        "body": "Alerts, Verlauf, gehostetes Routing, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über der kostenlosen Obergrenze sind alle aktiv.",
+        "body": "Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über der kostenlosen Obergrenze sind alle aktiv.",
         "renewsOn": "Er verlängert sich am {date}.",
         "endsOn": "Er endet am {date} und verlängert sich nicht."
       },
@@ -1881,7 +1879,7 @@
     },
     "upgrade": {
       "title": "Pro nehmen",
-      "body": "Ein Preis, zwei Intervalle, und du kannst jederzeit selbst kündigen. Die Steuer wird beim Checkout berechnet.",
+      "body": "Ein Preis, zwei Intervalle, und du kannst jederzeit selbst kündigen. Stripe nimmt die Zahlung entgegen.",
       "monthly": "{price} im Monat",
       "yearly": "{price} im Jahr",
       "note": "Die Zahlung läuft über Stripe. Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung."

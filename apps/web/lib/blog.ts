@@ -93,7 +93,7 @@ export const posts: readonly Post[] = [
       },
       {
         kind: "p",
-        text: "The first release promised that no local feature would ever be withheld to create a paid tier. That promise is stated more precisely now, because two of the six Pro features are switches in the local application rather than servers, and pretending otherwise would be the comfortable sentence rather than the true one.",
+        text: "The first release promised that no local feature would ever be withheld to create a paid tier. That promise is stated more precisely now, because two of the five Pro features are switches in the local application rather than servers, and pretending otherwise would be the comfortable sentence rather than the true one.",
       },
       {
         kind: "quote",
@@ -104,7 +104,6 @@ export const posts: readonly Post[] = [
         items: [
           "Every alert. A desktop notification, an email and a phone push, at sixty, eighty and ninety percent of a window and again when that window resets. Those four moments are the product rather than a setting, and a push payload never carries usage detail, so a locked screen never shows one.",
           "Ninety days of hosted history, with a forecast to the day a window runs out. A gap stays a gap and is never interpolated.",
-          "Hosted routing context, signed by the service and verified by the release build before an agent reads it. A build without the pinned verification keys injects nothing rather than trusting an envelope it cannot check.",
           "API spend meters, in a labelled beta. The free plan tracks up to one hundred dollars a calendar month for each source and Pro goes above it.",
           "More than one account per provider, unlocked in the local application. The free plan allows one active account per provider.",
           "One Pro accent or density preset, applied in the local application.",

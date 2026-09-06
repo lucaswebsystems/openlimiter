@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import type { ReactNode } from "react";
 import { ButtonLink, Chip, SectionHeading } from "./ui";
+import { SiteLink } from "./site-link";
 import { reveal, revealGroup } from "@/lib/motion";
 import { LICENSE_URL, PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
 
@@ -45,7 +46,6 @@ const PRO_LINES: readonly { id: string }[] = [
   { id: "multiSubscription" },
   { id: "heavyApi" },
   { id: "history" },
-  { id: "routing" },
 ];
 
 function PlanList({
@@ -177,14 +177,20 @@ export async function Pricing() {
             lines={PRO_LINES}
             label={(id) => t(`pro.lines.${id}`)}
           />
-          {/* The two sentences a reader needs before they can judge the list:
-             which credential the API spend beta actually requires, and what
-             happens to the money if the plan is not what they hoped. Both use
-             the card's own muted body style rather than introducing a new one,
-             because this wave is copy and the styleboard gate is still open. */}
-          <p className="mt-6 text-sm leading-relaxed text-muted">{t("pro.eligibility")}</p>
-          <p className="mt-3 text-sm leading-relaxed text-muted">{t("pro.refund")}</p>
-          <p className="mt-3 text-sm leading-relaxed text-muted">{t("pro.seller")}</p>
+          {/* One short footnote covering the conditions a reader needs before
+             they judge the list, with a link to the full terms for the rest.
+             Uses the card's own muted body style rather than introducing a
+             new one, because this wave is copy and the styleboard gate is
+             still open. */}
+          <p className="mt-6 text-sm leading-relaxed text-muted">
+            {t("pro.conditions")}{" "}
+            <SiteLink
+              href="/terms"
+              className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+            >
+              {t("pro.conditionsLink")}
+            </SiteLink>
+          </p>
         </PlanCard>
       </div>
     </section>

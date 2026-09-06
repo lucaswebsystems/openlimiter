@@ -63,11 +63,11 @@
       },
       "account": {
         "title": "A conta e o Pro",
-        "body": "A conta é gratuita, e tudo o que você vê localmente continua gratuito com ela ou sem ela. Entrar liga a sincronização, porque levar as suas porcentagens entre os seus próprios dispositivos é para isso que entrar existe. O Pro são seis recursos: todos os alertas, noventa dias de histórico hospedado com previsão, contexto de roteamento hospedado, mais de uma conta por provedor, um preset de exibição Pro, e o beta de gasto de API acima do teto gratuito. Quatro são serviços hospedados e dois são chaves no aplicativo local. O limite gratuito de uma conta por provedor é aplicado pelo aplicativo de desktop como política em código aberto e não como fronteira de segurança, o que é uma promessa sobre como o produto se comporta e não uma restrição técnica."
+        "body": "A conta é gratuita, e tudo o que você vê localmente continua gratuito com ela ou sem ela. Entrar liga a sincronização, porque levar as suas porcentagens entre os seus próprios dispositivos é para isso que entrar existe. O Pro são cinco recursos: todos os alertas, noventa dias de histórico hospedado com previsão, mais de uma conta por provedor, um preset de exibição Pro, e o beta de gasto de API acima do teto gratuito. Três são serviços hospedados e dois são chaves no aplicativo local. O limite gratuito de uma conta por provedor é aplicado pelo aplicativo de desktop como política em código aberto e não como fronteira de segurança, o que é uma promessa sobre como o produto se comporta e não uma restrição técnica."
       },
       "billing": {
         "title": "Cobrança",
-        "body": "O Pro custa 5 dólares por mês ou 50 dólares por ano, e os primeiros 30 dias são gratuitos e sem cartão. O OpenLimiter Pro é vendido por Lucas Costa. Os pagamentos são recebidos pela Stripe, que atua como processadora de pagamento e guarda os dados do seu cartão. O imposto é calculado automaticamente no checkout e pode ser somado ao preço anunciado conforme o lugar onde você está, e é por isso que um endereço de cobrança é coletado. A assinatura renova automaticamente ao fim de cada período até você cancelar."
+        "body": "O Pro custa 5 dólares por mês ou 50 dólares por ano, e os primeiros 30 dias são gratuitos e sem cartão. O OpenLimiter Pro é vendido por Lucas Costa. Os pagamentos são recebidos pela Stripe, que atua como processadora de pagamento e guarda os dados do seu cartão. Um endereço de cobrança é coletado para emissão das faturas. A assinatura renova automaticamente ao fim de cada período até você cancelar."
       },
       "cancellation": {
         "title": "Cancelamento",
@@ -187,7 +187,7 @@
       "body": "O Pro é vendido por Lucas Costa e pago pela Stripe. Os dados do cartão são digitados na Stripe e nunca chegam ao OpenLimiter, que recebe apenas o resultado e os identificadores necessários para manter seu acesso em dia com a assinatura.",
       "bullets": {
         "stripe": "A Stripe guarda a sua forma de pagamento, o seu endereço de cobrança e as suas faturas. O OpenLimiter guarda os identificadores de cliente e de assinatura, o plano, o status e as datas do período.",
-        "tax": "O imposto é calculado automaticamente no checkout, e é por isso que um endereço de cobrança é pedido. O endereço serve para imposto e faturamento e para mais nada.",
+        "tax": "Um endereço de cobrança é pedido para emissão das faturas. O endereço serve para imposto e faturamento e para mais nada.",
         "refund": "Há reembolso integral mediante pedido dentro de quatorze dias de qualquer cobrança. Um reembolso integral confirmado encerra o Pro na hora e deixa os seus dados locais intactos.",
         "records": "Registros de cobrança e de imposto são guardados pelo prazo que a lei tributária exige, que é mais longo do que os prazos do produto abaixo. Apagar a conta pseudonimiza a ligação entre você e um registro que precisa permanecer."
       }
@@ -221,7 +221,7 @@
         },
         "stripe": {
           "who": "Stripe",
-          "what": "Forma de pagamento, endereço de cobrança, faturas e cálculo de imposto. Nunca vê os seus dados de quota."
+          "what": "Forma de pagamento, endereço de cobrança e faturas. Nunca vê os seus dados de quota."
         },
         "resend": {
           "who": "Resend",
@@ -245,7 +245,7 @@
       "title": "Onde isto se aplica e por que isto é permitido",
       "body": "O OpenLimiter é vendido por Lucas Costa e é oferecido no mundo todo, e está escrito conforme as regras europeias e do Reino Unido de proteção de dados e a LGPD brasileira, porque são as mais rígidas dos mercados que ele atende. Onde quer que você viva, valem as mesmas razões.",
       "bullets": {
-        "contract": "Para cumprir o acordo com você: a conta, a sincronização, o histórico Pro, o contexto de roteamento e a cobrança. Sem isso não há produto a entregar.",
+        "contract": "Para cumprir o acordo com você: a conta, a sincronização, o histórico Pro e a cobrança. Sem isso não há produto a entregar.",
         "consent": "Com o seu consentimento: emails de alerta detalhados e notificações push. Os dois são opcionais, os dois ficam desligados até você ligar cada um e os dois podem ser retirados sem perder mais nada.",
         "interests": "Por interesse legítimo: manter o serviço seguro, evitar abuso do login e dos endpoints de sincronização e contar visualizações neste site sem cookies.",
         "legal": "Para cumprir uma obrigação legal: guardar os registros de cobrança e de imposto que a lei tributária exige."
@@ -709,7 +709,7 @@
       },
       "pro": {
         "question": "O que é o OpenLimiter Pro?",
-        "answer": "O OpenLimiter Pro custa $5 por mês ou $50 por ano, com os primeiros 30 dias gratuitos e sem cartão. Ele acrescenta seis coisas: todos os alertas, como aviso no desktop, email e push no celular a 60, 80 e 90 por cento e no reinício; noventa dias de histórico hospedado com previsão; contexto de roteamento hospedado; mais de uma conta por provedor; um acento ou preset de densidade Pro; e medidores de gasto de API em beta rotulado acima do teto gratuito de $100 por mês civil para cada fonte. Quatro deles são serviços hospedados e dois são chaves no aplicativo local. Reembolso integral mediante pedido em até 14 dias de qualquer cobrança."
+        "answer": "O OpenLimiter Pro custa $5 por mês ou $50 por ano, com os primeiros 30 dias gratuitos e sem cartão. Ele acrescenta cinco coisas: todos os alertas, como aviso no desktop, email e push no celular a 60, 80 e 90 por cento e no reinício; noventa dias de histórico hospedado com previsão; mais de uma conta por provedor; um acento ou preset de densidade Pro; e medidores de gasto de API em beta rotulado acima do teto gratuito de $100 por mês civil para cada fonte. Três deles são serviços hospedados e dois são chaves no aplicativo local. Reembolso integral mediante pedido em até 14 dias de qualquer cobrança."
       },
       "alerts": {
         "question": "Recebo alertas quando uma janela enche?",
@@ -753,20 +753,18 @@
       "perYear": "por ano",
       "trialChip": "30 dias gratuitos",
       "priceNote": "Os primeiros 30 dias são gratuitos e sem cartão. Quando o acesso termina, os recursos do Pro param: os hospedados na hora, e os locais voltam a uma conta por provedor e ao tema padrão. Tudo o que você via antes do Pro continua igual.",
-      "lead": "Seis recursos do Pro. Quatro são serviços hospedados e dois são chaves no aplicativo local.",
+      "lead": "Cinco recursos do Pro. Três são serviços hospedados e dois são chaves no aplicativo local.",
       "footnote": "Tudo o que você vê é gratuito. Alertas, histórico, acesso pelo celular, contas extras e acompanhamento de gasto acima de $100 fazem parte do Pro.",
       "lines": {
         "alerts": "Todos os alertas: aviso no desktop, email e push no celular a 60, 80 e 90 por cento de uma janela, e quando ela reinicia",
         "themes": "Um acento ou preset de densidade Pro, aplicado no aplicativo local",
         "multiSubscription": "Mais de uma conta por provedor, liberada no aplicativo local",
         "heavyApi": "Medidores de gasto de API, em beta. O gratuito acompanha até $100 por mês civil para cada fonte e o Pro passa disso",
-        "history": "Noventa dias de histórico hospedado, com previsão até o dia em que uma janela se esgota",
-        "routing": "Contexto de roteamento hospedado, assinado pelo serviço e verificado pela build de release antes de um agente ler"
+        "history": "Noventa dias de histórico hospedado, com previsão até o dia em que uma janela se esgota"
       },
       "cta": "Começar 30 dias gratuitos",
-      "eligibility": "O beta de gasto de API lê a própria superfície de cobrança do provedor, então precisa de uma chave de administrador de organização ou de gerenciamento: uma chave de admin de organização da OpenAI, uma Admin API key de organização da Anthropic, uma chave de gerenciamento da xAI, ou uma chave de gerenciamento do OpenRouter. Uma chave de projeto não funciona. A Moonshot é lida como saldo e não como gasto, em três valores separados, disponível, voucher e caixa, na moeda que o provedor informa, e nunca é convertida em um valor mensal, uma previsão ou um alerta de orçamento.",
-      "refund": "Reembolso integral mediante pedido em até 14 dias de qualquer cobrança, mensal ou anual. Cancele você mesmo quando quiser no Stripe Customer Portal.",
-      "seller": "O OpenLimiter Pro é vendido por Lucas Costa. A Stripe recebe o pagamento e calcula o imposto automaticamente."
+      "conditions": "Os medidores de gasto exigem uma chave de administrador da organização. Reembolso integral em até 14 dias, cancele quando quiser no portal da Stripe. Vendido por Lucas Costa, pagamentos pela Stripe.",
+      "conditionsLink": "Condições completas"
     },
     "roadmapCta": "O que está realmente planejado",
     "sourceCta": "Ler o código fonte"
@@ -1857,14 +1855,14 @@
       "trial": {
         "chip": "teste",
         "title": "Você está no teste gratuito",
-        "body": "Todos os serviços Pro estão ligados: alertas, noventa dias de histórico com previsão, roteamento hospedado, acesso pelo celular por QR, contas extras e acompanhamento de gasto além do teto gratuito de $100 por mês civil para cada fonte. Nenhum cartão foi pedido.",
+        "body": "Todos os serviços Pro estão ligados: alertas, noventa dias de histórico com previsão, acesso pelo celular por QR, contas extras e acompanhamento de gasto além do teto gratuito de $100 por mês civil para cada fonte. Nenhum cartão foi pedido.",
         "daysLeft": "{count, plural, one {# dia restante} other {# dias restantes}} de teste.",
         "ends": "Ele termina em {date}."
       },
       "active": {
         "chip": "ativo",
         "title": "O Pro está ativo",
-        "body": "Alertas, histórico, roteamento hospedado, acesso pelo celular, contas extras e acompanhamento de gasto acima do teto gratuito estão todos ligados.",
+        "body": "Alertas, histórico, acesso pelo celular, contas extras e acompanhamento de gasto acima do teto gratuito estão todos ligados.",
         "renewsOn": "Ele renova em {date}.",
         "endsOn": "Ele termina em {date} e não renova."
       },
@@ -1881,7 +1879,7 @@
     },
     "upgrade": {
       "title": "Assinar o Pro",
-      "body": "Um preço, dois intervalos, e você pode cancelar sozinho quando quiser. O imposto é calculado no checkout.",
+      "body": "Um preço, dois intervalos, e você pode cancelar sozinho quando quiser. A Stripe recebe o pagamento.",
       "monthly": "{price} por mês",
       "yearly": "{price} por ano",
       "note": "O pagamento roda na Stripe. Reembolso integral mediante pedido em até 14 dias de qualquer cobrança."

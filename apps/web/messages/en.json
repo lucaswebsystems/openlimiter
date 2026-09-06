@@ -63,11 +63,11 @@
       },
       "account": {
         "title": "The account and Pro",
-        "body": "An account is free, and everything you can see locally stays free with or without one. Signing in turns sync on, because moving your own percentages between your own devices is what signing in is for. Pro is six features: every alert, ninety day hosted history and forecast, hosted routing context, more than one account per provider, one Pro display preset, and the API spend beta above the free ceiling. Four are hosted services and two are switches in the local application. The free limit of one account per provider is enforced by the desktop application as a policy in open source code rather than as a security boundary, which is a promise about how the product behaves and not a technical restriction."
+        "body": "An account is free, and everything you can see locally stays free with or without one. Signing in turns sync on, because moving your own percentages between your own devices is what signing in is for. Pro is five features: every alert, ninety day hosted history and forecast, more than one account per provider, one Pro display preset, and the API spend beta above the free ceiling. Three are hosted services and two are switches in the local application. The free limit of one account per provider is enforced by the desktop application as a policy in open source code rather than as a security boundary, which is a promise about how the product behaves and not a technical restriction."
       },
       "billing": {
         "title": "Billing",
-        "body": "Pro costs 5 US dollars a month or 50 US dollars a year, and the first 30 days are free with no card required. OpenLimiter Pro is sold by Lucas Costa. Payments are taken by Stripe, which acts as the payment processor and holds your card details. Tax is calculated automatically at checkout and may be added to the listed price depending on where you are, which is why a billing address is collected. A subscription renews automatically at the end of each period until you cancel it."
+        "body": "Pro costs 5 US dollars a month or 50 US dollars a year, and the first 30 days are free with no card required. OpenLimiter Pro is sold by Lucas Costa. Payments are taken by Stripe, which acts as the payment processor and holds your card details. A billing address is collected for invoicing. A subscription renews automatically at the end of each period until you cancel it."
       },
       "cancellation": {
         "title": "Cancellation",
@@ -187,7 +187,7 @@
       "body": "Pro is sold by Lucas Costa and paid through Stripe. Card details are entered on Stripe and never reach OpenLimiter, which receives only the outcome and the identifiers it needs to keep your access in step with your subscription.",
       "bullets": {
         "stripe": "Stripe holds your payment method, your billing address and your invoices. OpenLimiter stores the customer and subscription identifiers, the plan, the status and the period dates.",
-        "tax": "Tax is calculated automatically at checkout, which is why a billing address is collected. The address is used for tax and invoicing and for nothing else.",
+        "tax": "A billing address is collected for invoicing. The address is used for tax and invoicing and for nothing else.",
         "refund": "A full refund is available on request within fourteen days of any charge. A confirmed full refund ends Pro immediately and leaves your local data untouched.",
         "records": "Billing and tax records are kept as long as tax law requires, which is longer than the product windows below. Account deletion pseudonymises the link between you and a record that has to stay."
       }
@@ -221,7 +221,7 @@
         },
         "stripe": {
           "who": "Stripe",
-          "what": "Payment method, billing address, invoices and tax calculation. It never sees your quota data."
+          "what": "Payment method, billing address and invoices. It never sees your quota data."
         },
         "resend": {
           "who": "Resend",
@@ -245,7 +245,7 @@
       "title": "Where this applies and why we may do it",
       "body": "OpenLimiter is sold by Lucas Costa and is offered worldwide, and it is written to the European and United Kingdom data protection rules and to the Brazilian LGPD, because those are the strictest of the markets it serves. Wherever you live, the same reasons apply.",
       "bullets": {
-        "contract": "To perform the agreement with you: the account, sync, Pro history, routing context and billing. Without these there is no product to deliver.",
+        "contract": "To perform the agreement with you: the account, sync, Pro history and billing. Without these there is no product to deliver.",
         "consent": "With your consent: detailed alert emails and push notifications. Both are optional, both are off until you turn them on, and both can be withdrawn without losing anything else.",
         "interests": "For legitimate interests: keeping the service secure, preventing abuse of the sign in and the sync endpoints, and counting page views on this website without cookies.",
         "legal": "To meet a legal obligation: keeping the billing and tax records that tax law requires."
@@ -709,7 +709,7 @@
       },
       "pro": {
         "question": "What is OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro is $5 a month or $50 a year, with the first 30 days free and no card required. It adds six things: every alert, as a desktop toast, an email and a phone push at 60, 80 and 90 percent and on reset; ninety days of hosted history with a forecast; hosted routing context; more than one account per provider; one Pro accent or density preset; and API spend meters in a labelled beta above the free ceiling of $100 a calendar month for each source. Four of those are hosted services and two are switches in the local application. A full refund is available on request within 14 days of any charge."
+        "answer": "OpenLimiter Pro is $5 a month or $50 a year, with the first 30 days free and no card required. It adds five things: every alert, as a desktop toast, an email and a phone push at 60, 80 and 90 percent and on reset; ninety days of hosted history with a forecast; more than one account per provider; one Pro accent or density preset; and API spend meters in a labelled beta above the free ceiling of $100 a calendar month for each source. Three of those are hosted services and two are switches in the local application. A full refund is available on request within 14 days of any charge."
       },
       "alerts": {
         "question": "Do I get alerts when a window fills up?",
@@ -753,20 +753,18 @@
       "perYear": "a year",
       "trialChip": "30 days free",
       "priceNote": "The first 30 days are free with no card required. When access ends the Pro features stop: the hosted ones at once, and the local ones fall back to one account per provider and the standard theme. Everything you could see before Pro is unchanged.",
-      "lead": "Six Pro features. Four are hosted services and two are switches in the local application.",
+      "lead": "Five Pro features. Three are hosted services and two are switches in the local application.",
       "footnote": "Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above $100 are Pro.",
       "lines": {
         "alerts": "Every alert: a desktop toast, an email and a phone push at 60, 80 and 90 percent of a window, and when it resets",
         "themes": "One Pro accent or density preset, applied in the local application",
         "multiSubscription": "More than one account per provider, unlocked in the local application",
         "heavyApi": "API spend meters, in beta. Free tracks up to $100 a calendar month for each source and Pro goes above it",
-        "history": "Ninety days of hosted history, with a forecast to the day a window runs out",
-        "routing": "Hosted routing context, signed by the service and verified by the release build before an agent reads it"
+        "history": "Ninety days of hosted history, with a forecast to the day a window runs out"
       },
       "cta": "Start 30 days free",
-      "eligibility": "The API spend beta reads the provider's own billing surface, so it needs an organisation admin or management key: an OpenAI organisation admin key, an Anthropic organisation Admin API key, an xAI management key, or an OpenRouter management key. A project key will not work. Moonshot is read as a balance rather than as spend, in three separate figures, available, voucher and cash, in the currency the provider states, and it is never turned into a monthly figure, a forecast or a budget alert.",
-      "refund": "Full refund on request within 14 days of any charge, monthly or annual. Cancel yourself at any time in the Stripe Customer Portal.",
-      "seller": "OpenLimiter Pro is sold by Lucas Costa. Stripe takes the payment and calculates tax automatically."
+      "conditions": "Spend meters need an organisation admin key. Full refund within 14 days, cancel any time in the Stripe portal. Sold by Lucas Costa, payments by Stripe.",
+      "conditionsLink": "Full conditions"
     },
     "roadmapCta": "What is actually planned",
     "sourceCta": "Read the source"
@@ -1857,14 +1855,14 @@
       "trial": {
         "chip": "trial",
         "title": "You are on the free trial",
-        "body": "Every Pro service is on: alerts, ninety days of history with a forecast, hosted routing, phone access by QR, extra accounts, and spend tracking beyond the free ceiling of $100 a calendar month for each source. No card was asked for.",
+        "body": "Every Pro service is on: alerts, ninety days of history with a forecast, phone access by QR, extra accounts, and spend tracking beyond the free ceiling of $100 a calendar month for each source. No card was asked for.",
         "daysLeft": "{count, plural, one {# day left} other {# days left}} of the trial.",
         "ends": "It ends on {date}."
       },
       "active": {
         "chip": "active",
         "title": "Pro is active",
-        "body": "Alerts, history, hosted routing, phone access, extra accounts and spend tracking above the free ceiling are all on.",
+        "body": "Alerts, history, phone access, extra accounts and spend tracking above the free ceiling are all on.",
         "renewsOn": "It renews on {date}.",
         "endsOn": "It ends on {date} and does not renew."
       },
@@ -1881,7 +1879,7 @@
     },
     "upgrade": {
       "title": "Take Pro",
-      "body": "One price, two intervals, and you can cancel yourself at any time. Tax is calculated at checkout.",
+      "body": "One price, two intervals, and you can cancel yourself at any time. Stripe takes the payment.",
       "monthly": "{price} a month",
       "yearly": "{price} a year",
       "note": "Payment runs on Stripe. A full refund is available on request within 14 days of any charge."
