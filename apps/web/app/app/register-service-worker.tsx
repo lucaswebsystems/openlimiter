@@ -4,18 +4,29 @@ import { useEffect } from "react";
 
 const SERVICE_WORKER_PROTOCOL = "5";
 
+const RELOAD_MARK = "ol-sw-reload-at";
+const RELOAD_GUARD_MS = 30_000;
+
+/**
+ * The key changes once per deploy and never within one. It is inlined at
+ * build time from next.config.ts; the previous version hashed the page's
+ * script tags, which Next extends as it prefetches routes, so consecutive
+ * loads registered different worker URLs and reloaded each other forever.
+ */
 function buildKey(): string {
-  const assets = Array.from(document.scripts)
-    .map((script) => script.src)
-    .filter((source) => source.includes("/_next/static/"))
-    .sort()
-    .join("|");
-  let hash = 2_166_136_261;
-  for (let index = 0; index < assets.length; index += 1) {
-    hash ^= assets.charCodeAt(index);
-    hash = Math.imul(hash, 16_777_619);
+  const build = process.env.NEXT_PUBLIC_BUILD_KEY ?? "static";
+  return `${SERVICE_WORKER_PROTOCOL}-${build.replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 40)}`;
+}
+
+function reloadedRecently(): boolean {
+  try {
+    const last = Number(window.sessionStorage.getItem(RELOAD_MARK) ?? "0");
+    if (Date.now() - last < RELOAD_GUARD_MS) return true;
+    window.sessionStorage.setItem(RELOAD_MARK, String(Date.now()));
+  } catch {
+    /* Storage can be unavailable; a missing guard is not worth a crash. */
   }
-  return `${SERVICE_WORKER_PROTOCOL}-${(hash >>> 0).toString(36)}`;
+  return false;
 }
 
 /**
@@ -38,7 +49,7 @@ export function RegisterServiceWorker() {
       const hadController = navigator.serviceWorker.controller !== null;
       let reloading = false;
       const update = (): void => {
-        if (!hadController || reloading) return;
+        if (!hadController || reloading || reloadedRecently()) return;
         reloading = true;
         window.location.reload();
       };

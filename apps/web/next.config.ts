@@ -12,6 +12,14 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  /* One constant per deploy for the service worker registration URL. The
+     previous key was hashed from the page's script tags, which change as
+     Next prefetches routes, so every load looked like a new worker and the
+     controller change handler reloaded the page without end. */
+  env: {
+    NEXT_PUBLIC_BUILD_KEY: process.env.VERCEL_DEPLOYMENT_ID ??
+      process.env.VERCEL_GIT_COMMIT_SHA ?? String(Date.now()),
+  },
   /* The tracing root exists for the LOCAL monorepo, where sibling lockfiles
      make Next guess the workspace root. On Vercel the app IS the root, and
      pointing tracing above it doubles the output path (/vercel/path0 twice)
