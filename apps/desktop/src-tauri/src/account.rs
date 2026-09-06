@@ -615,7 +615,7 @@ fn oauth_request(listener: &TcpListener) -> Result<(String, String), AccountFail
                     .query_pairs()
                     .find(|(key, _)| key == "state")
                     .map(|(_, value)| value.into_owned())
-                    .ok_or(AccountFailure::OauthRejected)?;
+                    .unwrap_or_default();
                 let body = "OpenLimiter is signed in. You can close this tab.";
                 let response = format!(
                     "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -706,7 +706,6 @@ pub async fn account_oauth(
         uuid::Uuid::new_v4().simple()
     );
     let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
-    let state = uuid::Uuid::new_v4().simple().to_string();
     let mut authorize = Url::parse(&format!(
         "{}/auth/v1/authorize",
         configured_url().trim_end_matches('/')
@@ -717,13 +716,17 @@ pub async fn account_oauth(
         .append_pair("provider", input.provider.as_str())
         .append_pair("redirect_to", LOOPBACK_CALLBACK)
         .append_pair("code_challenge", &challenge)
-        .append_pair("code_challenge_method", "s256")
-        .append_pair("state", &state);
+        .append_pair("code_challenge_method", "s256");
+    /* No state of our own. The service forwards whatever state it is given
+       straight to the provider, and then cannot resolve it on the way back:
+       every sign in died with "OAuth state not found or expired" (2026-09-06).
+       Left alone, the service mints its own state and resolves it, and the
+       proof of custody stays the PKCE verifier, which never leaves here. */
     provider_switched_on(&authorize).await?;
     /* The address is kept for the length of this one attempt, so the window
        can open the browser to it again, and cleared however the attempt ends. */
     set_pending_authorize(Some(authorize.to_string()));
-    let outcome = complete_oauth(&app, store.inner(), authorize, listener, state, verifier).await;
+    let outcome = complete_oauth(&app, store.inner(), authorize, listener, verifier).await;
     set_pending_authorize(None);
     outcome
 }
@@ -733,19 +736,14 @@ async fn complete_oauth(
     store: &KeyringStore,
     authorize: Url,
     listener: TcpListener,
-    state: String,
     verifier: String,
 ) -> Result<AccountStatus, AccountFailure> {
     app.opener()
         .open_url(authorize.as_str(), None::<&str>)
         .map_err(|_| AccountFailure::OauthRejected)?;
-    let (code, returned_state) =
-        tauri::async_runtime::spawn_blocking(move || oauth_request(&listener))
-            .await
-            .map_err(|_| AccountFailure::OauthRejected)??;
-    if returned_state != state {
-        return Err(AccountFailure::OauthRejected);
-    }
+    let (code, _state) = tauri::async_runtime::spawn_blocking(move || oauth_request(&listener))
+        .await
+        .map_err(|_| AccountFailure::OauthRejected)??;
     let response = auth_post(
         "/auth/v1/token?grant_type=pkce",
         serde_json::json!({ "auth_code": code, "code_verifier": verifier }),
