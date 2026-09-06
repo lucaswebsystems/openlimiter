@@ -2,6 +2,16 @@
 
 All notable project changes appear in this file.
 
+## [1.2.1] (2026-09-05)
+
+The first public release of the 1.2 line. 1.2.0 was built as a draft and never published.
+
+### Changed
+
+- Sign in on the desktop and on the web is redrawn: official GitHub and Google marks, one centred composition, email as the quiet secondary path, an honest Not now because the free product needs no account, designed working, error and success states, and a plain sentence when a provider is not switched on yet.
+- A control boundary token gives secondary buttons a legible edge in both themes; the paying page keeps its chrome quiet so nothing covers the sign in card at phone width.
+- The workspace test suite passes on every CI runner, the updater manifest check accepts this repository's release asset host, and the npm publish steps read the registry credential from the repository configuration.
+
 ## [1.2.0] (2026-09-04)
 
 The single public launch: every provider bar in one place, a free product that needs no account, and a Pro layer that can be paid for.
