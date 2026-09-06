@@ -8,7 +8,7 @@
     "core/forecast.ts": "5155cb1a6fde4a0e",
     "core/freshness.ts": "ac39aeaff84f6eda",
     "core/merge.ts": "f76276beab46e36c",
-    "core/normalizer.ts": "724780fcb85022ae",
+    "core/normalizer.ts": "937ebec461a084d6",
     "core/policy.ts": "19e9302f94e60c47",
     "core/schedule.ts": "8c4afef8c2109573",
     "connectors/shared.ts": "999163f50865ac4f",
@@ -27,6 +27,6 @@
     "adapters/claude-code.ts": "d6d1183bd8093600",
     "ui/provider-connect.ts": "a4234d51317c28e3",
     "ui/provider-row.ts": "48f6c5c1480f0a03",
-    "ui/tokens.css": "beb1ccb0d0d22cb9"
+    "ui/tokens.css": "b7813d9ea6e941c5"
   }
 }

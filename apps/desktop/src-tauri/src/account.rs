@@ -45,6 +45,9 @@ pub enum AccountFailure {
     OauthBusy,
     OauthTimeout,
     OauthRejected,
+    /// The service has not switched this provider on. Answered before a
+    /// browser tab is opened, so the window can say so in its own words.
+    ProviderDisabled,
     EmailConfirmationRequired,
 }
 
@@ -632,6 +635,58 @@ fn oauth_request(listener: &TcpListener) -> Result<(String, String), AccountFail
     }
 }
 
+/// Whether an authorize answer is the service refusing a provider it has not
+/// switched on. Only that exact refusal counts: a 400 with the provider named
+/// as not enabled. Any other status, and any other 400, is not a claim about
+/// the provider and is left for the browser to meet as it always has.
+fn provider_refused(status: reqwest::StatusCode, body: &[u8]) -> bool {
+    if status != reqwest::StatusCode::BAD_REQUEST {
+        return false;
+    }
+    let text = String::from_utf8_lossy(body).to_ascii_lowercase();
+    text.contains("not enabled") || text.contains("unsupported provider")
+}
+
+/// Ask the service whether the provider is switched on before a browser tab
+/// is opened for it.
+///
+/// A provider the project has not enabled does not fail when the tab opens.
+/// The service answers the authorize address with a 400 and a JSON body, the
+/// person is left looking at that JSON in place of the product, and this
+/// window waits three minutes for a callback that can never come before it
+/// reports a timeout. So the address is asked once first, with redirects left
+/// unfollowed: a switched on provider answers with a redirect to itself, a
+/// switched off one answers with the refusal. Anything short of that exact
+/// refusal, including a probe that could not be made at all, lets the sign
+/// in proceed, so this can only ever fall back to the old behaviour and
+/// never invent a refusal of its own.
+async fn provider_switched_on(authorize: &Url) -> Result<(), AccountFailure> {
+    let Ok(mut response) = client()?
+        .get(authorize.clone())
+        .header("apikey", configured_key())
+        .header(ACCEPT, "application/json")
+        .send()
+        .await
+    else {
+        return Ok(());
+    };
+    let status = response.status();
+    if status != reqwest::StatusCode::BAD_REQUEST {
+        return Ok(());
+    }
+    let mut bytes = Vec::new();
+    while let Ok(Some(chunk)) = response.chunk().await {
+        if bytes.len() + chunk.len() > MAX_RESPONSE_BYTES {
+            break;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if provider_refused(status, &bytes) {
+        return Err(AccountFailure::ProviderDisabled);
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn account_oauth(
     input: OauthAccountInput,
@@ -664,6 +719,23 @@ pub async fn account_oauth(
         .append_pair("code_challenge", &challenge)
         .append_pair("code_challenge_method", "s256")
         .append_pair("state", &state);
+    provider_switched_on(&authorize).await?;
+    /* The address is kept for the length of this one attempt, so the window
+       can open the browser to it again, and cleared however the attempt ends. */
+    set_pending_authorize(Some(authorize.to_string()));
+    let outcome = complete_oauth(&app, store.inner(), authorize, listener, state, verifier).await;
+    set_pending_authorize(None);
+    outcome
+}
+
+async fn complete_oauth(
+    app: &AppHandle,
+    store: &KeyringStore,
+    authorize: Url,
+    listener: TcpListener,
+    state: String,
+    verifier: String,
+) -> Result<AccountStatus, AccountFailure> {
     app.opener()
         .open_url(authorize.as_str(), None::<&str>)
         .map_err(|_| AccountFailure::OauthRejected)?;
@@ -679,9 +751,43 @@ pub async fn account_oauth(
         serde_json::json!({ "auth_code": code, "code_verifier": verifier }),
     )
     .await?;
-    let previous = stored_session(store.inner()).ok();
-    save_session(store.inner(), response, previous.as_ref())?;
-    Ok(status_for(store.inner(), true))
+    let previous = stored_session(store).ok();
+    save_session(store, response, previous.as_ref())?;
+    Ok(status_for(store, true))
+}
+
+/// The authorize address of the sign in in flight, if there is one.
+///
+/// A browser tab can be closed or lost while this window waits on it, and the
+/// window offers to open the link again. The address is set for the length of
+/// one attempt and cleared with it, whichever way the attempt ends, so a
+/// reopen outside an attempt has nothing to open.
+fn pending_authorize() -> &'static std::sync::Mutex<Option<String>> {
+    static PENDING: OnceLock<std::sync::Mutex<Option<String>>> = OnceLock::new();
+    PENDING.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+fn set_pending_authorize(value: Option<String>) {
+    if let Ok(mut slot) = pending_authorize().lock() {
+        *slot = value;
+    }
+}
+
+fn pending_authorize_url() -> Option<String> {
+    pending_authorize().lock().ok().and_then(|slot| slot.clone())
+}
+
+/// Open the browser to the sign in already in flight, once more. Nothing in
+/// flight is an input error rather than a new attempt: a new attempt is what
+/// the provider buttons are for.
+#[tauri::command]
+pub fn account_oauth_reopen(app: AppHandle) -> Result<(), AccountFailure> {
+    let Some(url) = pending_authorize_url() else {
+        return Err(AccountFailure::InvalidInput);
+    };
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|_| AccountFailure::OauthRejected)
 }
 
 #[tauri::command]
@@ -838,6 +944,44 @@ mod tests {
                 .expect("email confirmation failure"),
             serde_json::json!({ "kind": "email_confirmation_required" })
         );
+    }
+
+    #[test]
+    fn a_switched_off_provider_has_a_closed_failure_kind() {
+        assert_eq!(
+            serde_json::to_value(AccountFailure::ProviderDisabled).expect("provider disabled failure"),
+            serde_json::json!({ "kind": "provider_disabled" })
+        );
+    }
+
+    #[test]
+    fn the_pending_link_is_kept_for_one_attempt_and_cleared_with_it() {
+        set_pending_authorize(Some(
+            "https://auth.example/authorize?provider=github".to_string(),
+        ));
+        assert_eq!(
+            pending_authorize_url().as_deref(),
+            Some("https://auth.example/authorize?provider=github")
+        );
+        set_pending_authorize(None);
+        assert_eq!(pending_authorize_url(), None);
+    }
+
+    #[test]
+    fn only_the_service_refusal_reads_as_a_switched_off_provider() {
+        assert!(provider_refused(
+            reqwest::StatusCode::BAD_REQUEST,
+            br#"{"code":400,"error_code":"validation_failed","msg":"Unsupported provider: provider is not enabled"}"#
+        ));
+        assert!(!provider_refused(
+            reqwest::StatusCode::BAD_REQUEST,
+            br#"{"code":400,"msg":"Bad redirect"}"#
+        ));
+        assert!(!provider_refused(reqwest::StatusCode::FOUND, b""));
+        assert!(!provider_refused(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            b"provider is not enabled"
+        ));
     }
 
     #[test]

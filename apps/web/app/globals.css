@@ -54,6 +54,7 @@
 
   --color-hairline: var(--ol-hairline);
   --color-hairline-strong: var(--ol-hairline-strong);
+  --color-control-border: var(--ol-control-border);
 
   --color-heading: var(--ol-heading);
   --color-body: var(--ol-body);
@@ -88,6 +89,16 @@
   --radius-lg: var(--ol-radius-md);
   --radius-xl: var(--ol-radius-lg);
   --radius-2xl: var(--ol-radius-xl);
+
+  /* The tall control, for the sign in and for anything a thumb has to hit. */
+  --spacing-control-touch: var(--ol-control-height-touch);
+
+  /* The two bands a status line is allowed to borrow: a refusal is red and a
+     success is green, in the same pair the meters use. */
+  --color-band-red-subtle: var(--ol-band-red-subtle);
+  --color-band-red-label: var(--ol-band-red-label);
+  --color-band-green-subtle: var(--ol-band-green-subtle);
+  --color-band-green-label: var(--ol-band-green-label);
 }
 
 @theme {
@@ -348,6 +359,24 @@ body:has(.ol-shell) {
 
 :root[data-announce="off"] .announce-bar,
 body:has(.ol-shell) .announce-bar {
+  display: none;
+}
+
+/*
+  A page carrying the sign in card keeps its chrome quiet.
+
+  At the phone width the announcement bar above and the locale toast below
+  both landed on the card's own controls: the toast over "Use email instead"
+  and the card's foot, the bar over the head. A route that renders the card
+  says so on its main element, server rendered, and neither the bar nor the
+  toast paints there at all. Same mechanism as the application shell above.
+*/
+body:has(main[data-quiet-chrome]) {
+  --ol-announce-h: 0px;
+}
+
+body:has(main[data-quiet-chrome]) .announce-bar,
+body:has(main[data-quiet-chrome]) .locale-offer {
   display: none;
 }
 

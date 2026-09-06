@@ -106,6 +106,7 @@ fn map_account_failure(error: crate::account::AccountFailure) -> ProFailure {
         crate::account::AccountFailure::InvalidInput
         | crate::account::AccountFailure::Authentication
         | crate::account::AccountFailure::OauthRejected
+        | crate::account::AccountFailure::ProviderDisabled
         | crate::account::AccountFailure::EmailConfirmationRequired => ProFailure::NoSession,
     }
 }

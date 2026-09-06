@@ -472,7 +472,6 @@ export function initFirstRun(options) {
 
   const setup = screen.querySelector("#first-run-setup");
   const account = screen.querySelector("#first-run-account");
-  const accountStatusLine = screen.querySelector("#first-run-account-status");
 
   document.documentElement.dataset.firstRun = "pending";
 
@@ -486,6 +485,7 @@ export function initFirstRun(options) {
     if (account !== null) account.hidden = true;
     setup.hidden = false;
     markStep(screen, "agents");
+    screen.dataset.step = "agents";
     if (providersRendered) return;
     providersRendered = true;
     const response = await options.detectProviders();
@@ -497,7 +497,10 @@ export function initFirstRun(options) {
   }
 
   /* Step two. Offered once, at the end, with "Not now" as a real answer and
-     not a smaller button beside a bigger one. */
+     not a smaller button beside a bigger one. The window owns the one sign in
+     body and lends it to this step, so the provider buttons and their marks
+     are right here rather than behind a second dialog, and there is still
+     exactly one password field in the document. */
   function showAccount() {
     screen.setAttribute("aria-labelledby", "first-run-account-title");
     setup.hidden = true;
@@ -508,10 +511,17 @@ export function initFirstRun(options) {
     }
     account.hidden = false;
     markStep(screen, "account");
-    screen.querySelector("#first-run-sign-in")?.focus();
+    /* The step wears the sign in's own centred head, so the panel's lockup
+       steps aside for it and the step marks sit on the centre line. */
+    screen.dataset.step = "account";
+    const mount = screen.querySelector("#first-run-sign-in-mount");
+    if (mount !== null) options.mountSignIn(mount);
   }
 
   function finish() {
+    /* The body goes back to the sheet before this screen is put away, so the
+       account menu can raise it again later exactly as it was. */
+    options.unmountSignIn();
     completeFirstRun(screen);
     options.onContinue();
   }
@@ -543,15 +553,10 @@ export function initFirstRun(options) {
   });
 
   screen.querySelector("#first-run-not-now")?.addEventListener("click", finish);
-  screen.querySelector("#first-run-sign-in")?.addEventListener("click", () => {
-    if (accountStatusLine !== null) {
-      accountStatusLine.textContent = "Opening sign in.";
-    }
-    options.onSignInRequested();
-  });
 
-  /* The window owns the sign in sheet, so it tells this screen when one
-     succeeded rather than this screen owning a second copy of the form. */
+  /* The window owns the sign in body, so it tells this screen when a session
+     arrived rather than this screen owning a second copy of the form. The
+     event is sent once the success state has had its moment on screen. */
   window.addEventListener("openlimiter:signed-in", () => {
     if (document.documentElement.dataset.firstRun !== "pending") return;
     finish();

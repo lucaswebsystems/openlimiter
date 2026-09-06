@@ -1804,6 +1804,26 @@
       }
     }
   },
+  "signIn": {
+    "title": "Sign in to OpenLimiter",
+    "lead": "See every bar on your phone and unlock Pro.",
+    "github": "Continue with GitHub",
+    "google": "Continue with Google",
+    "or": "or",
+    "useEmail": "Use email instead",
+    "emailLabel": "Email",
+    "emailPlaceholder": "you@example.com",
+    "send": "Email me a sign in link",
+    "opening": "Opening {provider}.",
+    "sending": "Sending the link.",
+    "sent": "Check {email} and open the link on this device.",
+    "failed": "That sign in could not be started. Check your connection and try again.",
+    "githubOff": "GitHub sign in is not switched on yet. Use Google or email.",
+    "googleOff": "Google sign in is not switched on yet. Use GitHub or email.",
+    "emailOff": "Email sign in is not switched on yet. Use GitHub or Google.",
+    "noAccount": "The desktop app needs no account. Every meter runs locally, free.",
+    "getDesktop": "Get the desktop app"
+  },
   "proPortal": {
     "title": "OpenLimiter Pro",
     "lead": "Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above $100 are Pro.",
@@ -1814,20 +1834,6 @@
     "configMissing": {
       "title": "Pro is not configured in this build",
       "body": "This deployment carries no hosted address, so there is nothing to sign in to here. Everything local keeps working exactly as it does now."
-    },
-    "signIn": {
-      "title": "Sign in",
-      "body": "Signing in exists to move your percentages between your own devices, so sync is on from the moment you arrive. It carries bounded readings only: never a prompt, never a file, never a credential.",
-      "github": "Continue with GitHub",
-      "google": "Continue with Google",
-      "fallbackTitle": "Or use a sign in link",
-      "fallbackBody": "If neither of those suits you, we send a single use link to your email address instead.",
-      "emailLabel": "Email",
-      "emailPlaceholder": "you@example.com",
-      "send": "Send a sign in link",
-      "sent": "Check your email for the sign in link.",
-      "error": "That sign in could not be started. Try again.",
-      "privacy": "Provider credentials never enter this page."
     },
     "account": {
       "signedInAs": "Signed in as",

@@ -89,7 +89,7 @@ export function LocaleOffer({ locale, copy }: { locale: Locale; copy: LocaleOffe
       /* `fixed` and `pointer-events-none` on the positioner, with the card
          itself taking pointer events back: the strip spans the viewport for
          centring and does not swallow clicks on the page underneath it. */
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+      className="locale-offer pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center p-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
       /* Not `role="dialog"`: it takes no focus and traps none. It is an aside a
          reader may ignore entirely, and announcing it as a dialogue would be a
          claim about focus that is not true. */

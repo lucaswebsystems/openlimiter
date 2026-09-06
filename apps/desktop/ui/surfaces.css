@@ -1143,6 +1143,375 @@ select.field:focus-visible {
   }
 }
 
+/* ------------------------------------------------------------ the sign in */
+
+/*
+ * One composition, three hosts.
+ *
+ * The site's card, the sheet and the first run account step draw the same
+ * thing: a centred head with the lockup, a title and one lead sentence, then
+ * the two provider buttons with their marks leading, GitHub filled and Google
+ * a ghost carrying its own four colours, a status row right under them, a
+ * rule reading "or", the email form kept behind a link, and a foot with a
+ * bordered "Not now" beside the sentence that makes it honest. Only the
+ * title's size changes from host to host.
+ *
+ * The sheet and the step share the very same body nodes: app.js moves them
+ * between the two, so there is exactly one password field in the document
+ * and one place for a sign in bug to live.
+ */
+.sign-in-panel {
+  gap: var(--ol-space-5);
+  padding: var(--ol-space-6) var(--ol-space-5) var(--ol-space-5);
+}
+
+.sign-in-head {
+  display: grid;
+  justify-items: center;
+  gap: var(--ol-space-3);
+  text-align: center;
+}
+
+/* The window's own lockup, at the size the window's header draws it. */
+.sign-in-lockup img {
+  width: auto;
+  height: 1.75rem;
+}
+
+.sign-in-head h1,
+.sign-in-head h2 {
+  margin: 0;
+}
+
+.sign-in-lead {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+/* The first run step wears the same head, so the panel's own lockup steps
+   aside for it and the step marks sit on the centre line. */
+.first-run[data-step="account"] .first-run-lockup {
+  display: none;
+}
+
+.first-run[data-step="account"] .first-run-steps {
+  justify-content: center;
+}
+
+.sign-in-body {
+  display: grid;
+  gap: var(--ol-space-3);
+}
+
+.sign-in-providers {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+/* The edge is the boundary token rather than the strong hairline: a ghost
+   button has nothing but its edge to be found by, and the hairline measured
+   under the 3:1 WCAG 1.4.11 asks of it. */
+button.sign-in-provider {
+  width: 100%;
+  min-height: var(--ol-control-height-touch);
+  gap: var(--ol-space-3);
+  padding-inline: var(--ol-space-4);
+  border-color: var(--ol-control-border);
+  font-size: var(--ol-text-label);
+}
+
+/* The one filled control in the body, GitHub and the form's own Sign in: the
+   site's monochrome primary, near white on the dark theme and near black on
+   the light one, which is also the one presentation GitHub asks for its mark,
+   black on white or white on black. The window's `.primary` is the soft
+   tinted button and is deliberately not this. */
+.sign-in-body button.filled {
+  border-color: var(--solid);
+  background: var(--solid);
+  color: var(--on-solid);
+}
+
+.sign-in-body button.filled:hover {
+  border-color: var(--solid-hover);
+  background: var(--solid-hover);
+}
+
+/* Both marks at the one size every provider mark in the product is drawn. */
+.sign-in-mark {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+
+.sign-in-divider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ol-space-3);
+  color: var(--muted);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sign-in-divider::before,
+.sign-in-divider::after {
+  content: "";
+  height: 1px;
+  background: var(--hairline);
+}
+
+/* A link shaped control: underlined on the strong hairline, no border, no
+   fill, and it does not lift. */
+button.sign-in-link {
+  justify-self: center;
+  min-height: var(--ol-control-height);
+  padding: var(--ol-space-1) var(--ol-space-3);
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-weight: var(--ol-weight-medium);
+  text-decoration: underline;
+  text-decoration-color: var(--hairline-strong);
+  text-underline-offset: 0.25em;
+}
+
+button.sign-in-link:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--heading);
+  text-decoration-color: currentColor;
+  transform: none;
+}
+
+/* The way past the whole thing: a bordered ghost, the window's own button
+   shape on the boundary token, so its edge is found on its own. */
+button.sign-in-ghost {
+  justify-self: center;
+  min-height: var(--ol-control-height);
+  padding-inline: var(--ol-space-4);
+  border-color: var(--ol-control-border);
+}
+
+.sign-in-email {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+.sign-in-field {
+  margin-top: var(--ol-space-1);
+  color: var(--soft);
+  font-size: var(--ol-text-caption);
+}
+
+/* An address and a password are words rather than code, so these two fields
+   take the window's sans face, at the tall control's height, with the same
+   boundary as the buttons beside them. */
+.sign-in-email .field {
+  min-height: var(--ol-control-height-touch);
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border-color: var(--ol-control-border);
+  font-family: var(--ol-font-sans);
+  font-size: var(--ol-text-label);
+}
+
+.sign-in-email-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ol-space-2);
+  margin-top: var(--ol-space-1);
+}
+
+.sign-in-email-actions button {
+  width: 100%;
+  min-height: var(--ol-control-height-touch);
+  border-color: var(--ol-control-border);
+}
+
+/*
+ * The status rows, one shape per tone. Working is neutral, a refusal is red,
+ * a session is green, and a link or a confirmation on its way is the accent:
+ * the same pairs the meters use, so nothing new has to be learned here. With
+ * no tone a row keeps its place in the accessibility tree and none on screen,
+ * the clip pattern, so a screen reader is already listening when the first
+ * sentence lands.
+ */
+.sign-in-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ol-space-2);
+  margin: 0;
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--ol-radius-sm);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.sign-in-status:not([data-tone]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The working row is the sentence alone: the spinner is in the pressed
+   control, and one moving part is enough. */
+.sign-in-status[data-tone="working"] {
+  grid-template-columns: minmax(0, 1fr);
+  border-color: var(--hairline);
+  background: var(--raised);
+  color: var(--soft);
+}
+
+.sign-in-status[data-tone="working"] .sign-in-status-mark {
+  display: none;
+}
+
+.sign-in-status[data-tone="error"] {
+  background: var(--ol-band-red-subtle);
+  color: var(--ol-band-red-label);
+}
+
+.sign-in-status[data-tone="success"] {
+  background: var(--ol-band-green-subtle);
+  color: var(--ol-band-green-label);
+}
+
+.sign-in-status[data-tone="sent"] {
+  background: var(--accent-subtle);
+  color: var(--ol-accent-hover);
+}
+
+.sign-in-status-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid currentColor;
+  border-radius: var(--ol-radius-pill);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1;
+}
+
+.sign-in-status[data-tone="error"] .sign-in-status-mark::before {
+  content: "!";
+}
+
+.sign-in-status[data-tone="success"] .sign-in-status-mark::before,
+.sign-in-status[data-tone="sent"] .sign-in-status-mark::before {
+  content: "✓";
+}
+
+/*
+ * In flight. The pressed control keeps its fill and carries the spinner, and
+ * everything else in the body steps back to seventy percent rather than
+ * greying out, so the eye stays on the one control that is doing something.
+ */
+.sign-in-body button[data-working="true"] {
+  opacity: 1;
+  cursor: progress;
+}
+
+.sign-in-body button[data-working="true"]::after {
+  content: "";
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--ol-radius-pill);
+  animation: sign-in-spin 0.8s linear infinite;
+}
+
+.sign-in-body[aria-busy="true"] button:disabled:not([data-working="true"]),
+.sign-in-body[aria-busy="true"] .field:disabled {
+  opacity: 0.7;
+}
+
+.sign-in-body[aria-busy="true"] {
+  cursor: progress;
+}
+
+@keyframes sign-in-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * The arrival. For a moment the body is one check and the address, with
+ * nothing live underneath it; the toneless status row stays in the tree so
+ * the sentence is announced from it.
+ */
+.sign-in-body[data-state="signed-in"] > :not(.sign-in-success):not(.sign-in-status) {
+  display: none;
+}
+
+.sign-in-success {
+  display: grid;
+  justify-items: center;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-5) 0;
+  text-align: center;
+}
+
+.sign-in-success-mark {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-band-green-subtle);
+  color: var(--ol-band-green-label);
+  font-size: var(--ol-text-title);
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1;
+}
+
+.sign-in-success p {
+  margin: 0;
+  color: var(--heading);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+/* The foot: the honest way past an optional account, a bordered ghost, with
+   the sentence that makes it honest right beside it, at the caption size. */
+.sign-in-foot {
+  display: grid;
+  justify-items: center;
+  gap: var(--ol-space-2);
+  text-align: center;
+}
+
+.sign-in-foot-note {
+  color: var(--muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sign-in-body button[data-working="true"]::after,
+  .sign-in-status[data-tone="working"] .sign-in-status-mark {
+    animation: none;
+    border-right-color: currentColor;
+    border-style: dotted;
+  }
+}
+
 /* -------------------------------------------------------- the focus ring */
 
 /*

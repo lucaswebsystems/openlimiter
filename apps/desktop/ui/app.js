@@ -54,6 +54,18 @@ import {
   renderDevices,
   setPairingAccountState,
 } from "./pairing.js";
+/* Every sentence the sign in can say, in a module that imports nothing. */
+import {
+  CREATING_ACCOUNT,
+  REOPEN_AFTER_MILLISECONDS,
+  REOPEN_FAILED,
+  SIGNED_IN_DWELL_MILLISECONDS,
+  SIGNING_IN,
+  openingSentence,
+  signInFailureSentence,
+  signInFailureTone,
+  signedInSentence,
+} from "./sign-in-states.js";
 /* Every word the Rust process hears from this file goes through the backend
    adapter, so a build without a given command degrades to an honest absence
    instead of a module level crash, and a static serve of these files renders
@@ -63,6 +75,7 @@ import {
   accountEmail,
   accountLogout,
   accountOauth,
+  accountOauthReopen,
   accountSetSync,
   accountStatus,
   accountSyncConfiguredSnapshot,
@@ -231,13 +244,22 @@ const elements = {
   notificationGate: document.getElementById("notification-gate"),
   notificationUpgrade: document.getElementById("notification-upgrade"),
   signIn: document.getElementById("sign-in"),
+  signInSlot: document.getElementById("sign-in-slot"),
+  signInBody: document.getElementById("sign-in-body"),
   signInClose: document.getElementById("sign-in-close"),
   signInStatus: document.getElementById("sign-in-status"),
+  signInStatusText: document.getElementById("sign-in-status-text"),
+  signInEmailStatus: document.getElementById("sign-in-email-status"),
+  signInEmailStatusText: document.getElementById("sign-in-email-status-text"),
+  signInReopen: document.getElementById("account-oauth-reopen"),
+  signInSuccess: document.querySelector("#sign-in-body .sign-in-success"),
+  signInSuccessText: document.getElementById("sign-in-success-text"),
+  signInToggle: document.getElementById("account-email-toggle"),
   signInEmail: document.getElementById("account-email"),
   signInPassword: document.getElementById("account-password"),
   signInForm: document.getElementById("account-email-form"),
+  signInSubmit: document.getElementById("account-email-sign-in"),
   signInCreate: document.getElementById("account-email-create"),
-  signInMagic: document.getElementById("account-magic-link"),
   signInGoogle: document.getElementById("account-google"),
   signInGithub: document.getElementById("account-github"),
   updateBanner: document.getElementById("update-banner"),
@@ -418,112 +440,270 @@ function applyAccountState(status) {
 /* ------------------------------------------------------------- signing in */
 
 /**
- * One sign in sheet, opened from two places.
+ * One sign in body, two hosts.
  *
- * The first run offer and the account menu both raise this, and a success is
- * announced on the window so first run can finish itself without owning a
- * second copy of the form.
+ * The body, the two provider buttons with their marks, the rule, the email
+ * form behind its quiet link and the status line, is one set of nodes. The
+ * sheet owns it; the first run account step borrows it for the length of
+ * that step and hands it back, so there is exactly one password field in the
+ * document and one place for a sign in bug to live.
+ *
+ * Every state the body can be in is drawn rather than printed: a browser tab
+ * opening, the service refusing a provider it has not switched on, a session
+ * arriving, an account waiting on its confirmation email. The sentences come
+ * from sign-in-states.js; this file only decides when each one is shown.
  */
-function openSignIn() {
-  if (elements.signIn === null) return;
-  closeHeaderPopovers();
-  elements.signIn.hidden = false;
-  if (elements.signInStatus !== null) elements.signInStatus.textContent = "";
-  elements.signInEmail?.focus();
+function signInControls() {
+  return [
+    elements.signInGithub,
+    elements.signInGoogle,
+    elements.signInToggle,
+    elements.signInEmail,
+    elements.signInPassword,
+    elements.signInSubmit,
+    elements.signInCreate,
+  ].filter((control) => control !== null);
 }
 
-function closeSignIn() {
-  if (elements.signIn === null) return;
-  elements.signIn.hidden = true;
+/** Whether a sign in is in flight. One at a time, whichever button started it. */
+let signInBusy = false;
+
+/** The control that started the attempt in flight. It carries the spinner. */
+let signInPressed = null;
+
+/** The timer that offers the browser link again once a tab has had its time. */
+let signInReopenTimer = null;
+
+/* Two status rows, one under the provider buttons and one under the email
+   form, so an answer lands right under the control that asked for it. A
+   provider's refusal never opens the form and never lands inside it. */
+function statusRegion(slot) {
+  return slot === "email"
+    ? { row: elements.signInEmailStatus, text: elements.signInEmailStatusText }
+    : { row: elements.signInStatus, text: elements.signInStatusText };
+}
+
+function clearSignInStatus(slot) {
+  const region = statusRegion(slot);
+  region.row?.removeAttribute("data-tone");
+  if (region.text !== null) region.text.textContent = "";
+}
+
+/** The status line: a tone and a sentence in one row, the other row cleared. */
+function setSignInStatus(tone, text, slot = "provider") {
+  clearSignInStatus(slot === "email" ? "provider" : "email");
+  if (tone === null) {
+    clearSignInStatus(slot);
+    return;
+  }
+  const region = statusRegion(slot);
+  if (region.row === null) return;
+  region.row.dataset.tone = tone;
+  if (region.text !== null) region.text.textContent = text;
+}
+
+/* While an attempt is in flight the pressed control keeps its fill and shows
+   the spinner, and everything else in the body steps back to seventy percent
+   rather than greying out. */
+function setSignInBusy(busy, pressed = null) {
+  signInBusy = busy;
+  signInPressed?.removeAttribute("data-working");
+  signInPressed = busy ? pressed : null;
+  signInPressed?.setAttribute("data-working", "true");
+  elements.signInBody?.setAttribute("aria-busy", busy ? "true" : "false");
+  for (const control of signInControls()) control.disabled = busy;
+}
+
+function offerReopen(show) {
+  if (elements.signInReopen !== null) elements.signInReopen.hidden = !show;
+}
+
+function stopReopenTimer() {
+  if (signInReopenTimer !== null) window.clearTimeout(signInReopenTimer);
+  signInReopenTimer = null;
+  offerReopen(false);
+}
+
+/* The email form is the quieter path. It waits behind its link and takes the
+   link's place when asked for, so the two never sit on screen together. It
+   opens from that link and from nowhere else: a failure elsewhere in the
+   body says its sentence where it is and leaves the form alone. */
+function showEmailForm(open) {
+  if (elements.signInForm !== null) elements.signInForm.hidden = !open;
+  if (elements.signInToggle !== null) {
+    elements.signInToggle.hidden = open;
+    elements.signInToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  if (open) elements.signInEmail?.focus();
+}
+
+/* The arrival. The body gives way to one check and the address, with nothing
+   live underneath it. The row under the providers has no tone now, so it has
+   no size on screen and keeps its place in the accessibility tree: the
+   sentence is announced from there while the check is what is seen. */
+function showSignedIn(sentence) {
+  if (elements.signInBody === null) return;
+  setSignInStatus(null, "");
+  elements.signInBody.dataset.state = "signed-in";
+  if (elements.signInSuccess !== null) elements.signInSuccess.hidden = false;
+  if (elements.signInSuccessText !== null) elements.signInSuccessText.textContent = sentence;
+  if (elements.signInStatusText !== null) elements.signInStatusText.textContent = sentence;
+}
+
+/** The body at rest: nothing said, the form put away, every control live. */
+function resetSignInBody() {
+  stopReopenTimer();
+  setSignInBusy(false);
+  setSignInStatus(null, "");
+  showEmailForm(false);
+  if (elements.signInBody !== null) delete elements.signInBody.dataset.state;
+  if (elements.signInSuccess !== null) elements.signInSuccess.hidden = true;
   if (elements.signInPassword instanceof HTMLInputElement) {
     elements.signInPassword.value = "";
   }
 }
 
-function signInFailed(result) {
-  if (elements.signInStatus === null) return;
-  elements.signInStatus.textContent =
-    result?.message ??
-    "Sign in could not be completed. Check your connection and try again.";
+function signInIsInSheet() {
+  return elements.signInBody?.parentElement === elements.signInSlot;
 }
 
-async function runSignIn(action) {
-  if (elements.signInStatus !== null) {
-    elements.signInStatus.textContent = "Opening secure sign in.";
+/** Lend the body to another host, the first run account step. */
+function mountSignIn(host) {
+  if (elements.signInBody === null || !(host instanceof HTMLElement)) return;
+  host.append(elements.signInBody);
+  resetSignInBody();
+  elements.signInGithub?.focus();
+}
+
+/** Take the body back into the sheet, wherever it was. */
+function unmountSignIn() {
+  if (elements.signInBody === null || elements.signInSlot === null) return;
+  if (!signInIsInSheet()) elements.signInSlot.append(elements.signInBody);
+  resetSignInBody();
+}
+
+function openSignIn() {
+  if (elements.signIn === null) return;
+  closeHeaderPopovers();
+  unmountSignIn();
+  elements.signIn.hidden = false;
+  elements.signInGithub?.focus();
+}
+
+function closeSignIn() {
+  if (elements.signIn === null) return;
+  elements.signIn.hidden = true;
+  resetSignInBody();
+}
+
+/**
+ * Run one sign in to its drawn end.
+ *
+ * `provider` is the OAuth provider the attempt is about, or null for the
+ * email form, and it is what lets a refusal be worded for the button that
+ * was pressed. A success has its moment on screen before the body is put
+ * away, and only then is the arrival announced to the window, so first run
+ * finishes on a drawn state rather than on a dialog that vanished mid
+ * sentence.
+ */
+async function runSignIn(action, provider, working, pressed) {
+  if (signInBusy) return;
+  const slot = provider === null ? "email" : "provider";
+  setSignInBusy(true, pressed);
+  setSignInStatus("working", working, slot);
+  if (provider !== null) {
+    /* A browser tab gets its time. After that the link is offered again, for
+       a tab that was closed or lost, and only while the attempt still waits. */
+    signInReopenTimer = window.setTimeout(() => {
+      signInReopenTimer = null;
+      if (signInBusy) offerReopen(true);
+    }, REOPEN_AFTER_MILLISECONDS);
   }
   const result = await action();
+  stopReopenTimer();
   if (!result.ok || result.value?.signedIn !== true) {
-    signInFailed(result);
+    setSignInBusy(false);
+    setSignInStatus(signInFailureTone(result), signInFailureSentence(result, provider), slot);
     return;
   }
   applyAccountState(result.value);
   if (result.value.syncEnabled !== false) {
     void accountSyncConfiguredSnapshot(readConfiguredProviders());
   }
-  closeSignIn();
-  window.dispatchEvent(new CustomEvent("openlimiter:signed-in"));
+  setSignInBusy(false);
+  showSignedIn(signedInSentence(result.value.email));
   void refresh();
+  window.setTimeout(() => {
+    if (signInIsInSheet()) closeSignIn();
+    window.dispatchEvent(new CustomEvent("openlimiter:signed-in"));
+  }, SIGNED_IN_DWELL_MILLISECONDS);
+}
+
+function continueWith(provider) {
+  const pressed = provider === "google" ? elements.signInGoogle : elements.signInGithub;
+  void runSignIn(() => accountOauth(provider), provider, openingSentence(provider), pressed);
+}
+
+function emailInput() {
+  return {
+    email: elements.signInEmail?.value ?? "",
+    password: elements.signInPassword?.value ?? "",
+  };
 }
 
 elements.signInClose?.addEventListener("click", closeSignIn);
 elements.menuSignInButton?.addEventListener("click", openSignIn);
 
+/* Not now, the backdrop and Escape all put the sheet away, mid flight too: a
+   provider sign in can sit for minutes on a browser tab and nobody is held
+   in a dialog for it. An attempt already talking to the service still lands;
+   a session that arrives late is applied to the window all the same, and a
+   second attempt started meanwhile is answered by the broker as busy. */
+elements.signIn?.addEventListener("click", (event) => {
+  if (event.target === elements.signIn) closeSignIn();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || elements.signIn === null || elements.signIn.hidden) return;
+  closeSignIn();
+});
+
+elements.signInToggle?.addEventListener("click", () => showEmailForm(true));
+
+/* The link again, for a tab that was closed or lost. The attempt in flight
+   keeps waiting either way; only the browser is asked to open once more. */
+elements.signInReopen?.addEventListener("click", () => {
+  void accountOauthReopen().then((result) => {
+    if (!result.ok) setSignInStatus("error", REOPEN_FAILED);
+  });
+});
+
 elements.signInForm?.addEventListener("submit", (event) => {
   event.preventDefault();
-  void runSignIn(() =>
-    accountEmail({
-      email: elements.signInEmail?.value ?? "",
-      password: elements.signInPassword?.value ?? "",
-      create: false,
-    }),
+  void runSignIn(
+    () => accountEmail({ ...emailInput(), create: false }),
+    null,
+    SIGNING_IN,
+    elements.signInSubmit,
   );
 });
 
 elements.signInCreate?.addEventListener("click", () => {
-  void runSignIn(() =>
-    accountEmail({
-      email: elements.signInEmail?.value ?? "",
-      password: elements.signInPassword?.value ?? "",
-      create: true,
-    }),
+  /* Create account is not the form's submit, so the form's own checks are
+     asked for by hand: the same address and password rules, the same
+     browser messages, before anything is sent. */
+  if (elements.signInForm instanceof HTMLFormElement && !elements.signInForm.reportValidity()) {
+    return;
+  }
+  void runSignIn(
+    () => accountEmail({ ...emailInput(), create: true }),
+    null,
+    CREATING_ACCOUNT,
+    elements.signInCreate,
   );
 });
 
-/*
- * The magic link, for a person with neither provider account, or who would
- * rather not type a password into a desktop window. It sends an empty password
- * with create off, which is what the broker reads as a link request, and it
- * never advances the sheet: the link is followed in a browser and this window
- * picks the session up when it comes back.
- */
-elements.signInMagic?.addEventListener("click", () => {
-  void (async () => {
-    const address = elements.signInEmail?.value ?? "";
-    if (address.trim() === "") {
-      if (elements.signInStatus !== null) {
-        elements.signInStatus.textContent =
-          "Enter the email address to send the link to.";
-      }
-      elements.signInEmail?.focus();
-      return;
-    }
-    if (elements.signInStatus !== null) {
-      elements.signInStatus.textContent = "Sending the link.";
-    }
-    const result = await accountEmail({ email: address, password: "", create: false });
-    if (elements.signInStatus === null) return;
-    elements.signInStatus.textContent = result.ok
-      ? "Check " + address + " and open the link on this device."
-      : (result.message ?? "The link could not be sent. Check your connection.");
-  })();
-});
-
-elements.signInGoogle?.addEventListener("click", () => {
-  void runSignIn(() => accountOauth("google"));
-});
-elements.signInGithub?.addEventListener("click", () => {
-  void runSignIn(() => accountOauth("github"));
-});
+elements.signInGithub?.addEventListener("click", () => continueWith("github"));
+elements.signInGoogle?.addEventListener("click", () => continueWith("google"));
 
 function eventSentence(event) {
   if (event.kind === "reset") {
@@ -1343,7 +1523,8 @@ initFirstRun({
   detectProviders: listDetectedProviders,
   markFor: (code) => MARKS[code] ?? "",
   isSignedIn: () => signedIn,
-  onSignInRequested: openSignIn,
+  mountSignIn,
+  unmountSignIn,
   onAccountState: (status) => {
     applyAccountState(status);
     if (status.syncEnabled !== false) {

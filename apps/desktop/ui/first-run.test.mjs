@@ -57,16 +57,19 @@ test("reaches the providers before it ever mentions an account", () => {
 test("offers the account once, with the promised copy and a plain not now", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
-  const step = html.slice(
-    html.indexOf('id="first-run-account"'),
-    html.indexOf('id="first-run-account-status"'),
-  );
+  const start = html.indexOf('id="first-run-account"');
+  const step = html.slice(start, html.indexOf("</section>", start));
 
   assert.match(step, /Sign in to see this on your phone and to unlock Pro/u);
   assert.match(step, /id="first-run-not-now"[^>]*>Not now</u);
-  assert.match(step, /id="first-run-sign-in"/u);
-  /* Not now finishes first run outright rather than looping back. */
+  /* The step hosts the window's one sign in body, so the provider buttons and
+     their marks are right here rather than behind a second dialog. */
+  assert.match(step, /id="first-run-sign-in-mount"/u);
+  assert.match(source, /options\.mountSignIn\(mount\)/u);
+  /* Not now finishes first run outright rather than looping back, and the
+     body goes back to the sheet on the way out. */
   assert.match(source, /#first-run-not-now"\)\?\.addEventListener\("click", finish\)/u);
+  assert.match(source, /function finish\(\) \{[\s\S]*?options\.unmountSignIn\(\);[\s\S]*?completeFirstRun\(screen\)/u);
 });
 
 test("keeps one sign in form, reachable from the header account menu", () => {
@@ -79,7 +82,8 @@ test("keeps one sign in form, reachable from the header account menu", () => {
   assert.equal((html.match(/id="account-email-form"/gu) ?? []).length, 1);
   assert.match(html, /id="menu-sign-in"/u);
   assert.match(app, /elements\.menuSignInButton\?\.addEventListener\("click", openSignIn\)/u);
-  assert.match(app, /onSignInRequested: openSignIn/u);
+  /* The first run step borrows the sheet's body rather than raising the sheet. */
+  assert.match(app, /mountSignIn,\s*unmountSignIn,/u);
   /* Signing in is announced, so first run can finish without owning a form. */
   assert.match(app, /openlimiter:signed-in/u);
 });
