@@ -1,5 +1,6 @@
 import { act, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
+import { expect } from "vitest";
 import messages from "../messages/en.json";
 
 /**
@@ -27,8 +28,16 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 export interface Mounted {
   container: HTMLElement;
-  /** Run something that changes state, then let React finish with it. */
-  run: (fn: () => void) => void;
+  /**
+   * Run something that changes state, then let React finish with it.
+   *
+   * A callback that settles a promise is an async act, and an async act has to
+   * be awaited by whoever called this: one that is not leaves React's act
+   * queue busy, and nothing mounted later in the same file flushes again, not
+   * even a fresh render. A sync callback still flushes before this returns, so
+   * a press followed by a look at the screen keeps working unawaited.
+   */
+  run: (fn: () => void | PromiseLike<void>) => void | PromiseLike<void>;
   unmount: () => void;
 }
 
@@ -55,9 +64,7 @@ export function render(node: ReactElement): Mounted {
   });
   return {
     container,
-    run: (fn) => {
-      act(fn);
-    },
+    run: (fn) => act(fn as () => Promise<void>) as void | PromiseLike<void>,
     unmount: () => {
       act(() => {
         root.unmount();
@@ -75,6 +82,29 @@ export function all<T extends Element>(container: HTMLElement, selector: string)
 /** The first element whose trimmed text is exactly this, or null. */
 export function byText(container: HTMLElement, selector: string, text: string): Element | null {
   return all(container, selector).find((node) => node.textContent?.trim() === text) ?? null;
+}
+
+/**
+ * Wait until the tree shows this sentence, flushing until it does.
+ *
+ * Some screens render nothing at all before their first effect: the install
+ * step stays hidden until the browser has said what it offers, and the pair
+ * page holds its first card until the fragment is consumed and the service has
+ * answered. Counting flushes by hand is a race lost slowly, so this turns
+ * until the sentence is there and reports the whole text when it never is.
+ *
+ * It waits on microtasks only, so fake timers cannot stall it.
+ */
+export async function findByText(
+  container: HTMLElement,
+  text: string,
+  turns = 20,
+): Promise<void> {
+  for (let turn = 0; turn < turns; turn += 1) {
+    if ((container.textContent ?? "").includes(text)) return;
+    await flush();
+  }
+  expect(container.textContent).toContain(text);
 }
 
 /** The catalog, for a test that wants to assert against the shipped sentence. */

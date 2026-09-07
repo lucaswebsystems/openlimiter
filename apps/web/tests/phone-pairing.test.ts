@@ -66,6 +66,18 @@ vi.mock("next/link", async () => {
   };
 });
 
+vi.mock("@/lib/pro", async (importActual) => {
+  const actual = await importActual<typeof import("@/lib/pro")>();
+  /* The transport in lib/pro-device.ts answers "unreachable" without these
+     and never touches fetch, so the pair page's scripted answers would sit
+     unread. Two invented values keep the real transport, headers and all. */
+  return {
+    ...actual,
+    SUPABASE_URL: "https://pro.openlimiter.test",
+    SUPABASE_ANON_KEY: "test-anon-key",
+  };
+});
+
 /* The meter drawing pulls in the generated engine, which the jsdom document
    can render; what it cannot do is matchMedia, which the install step needs
    either way, so one stub serves both. */
@@ -265,7 +277,7 @@ describe("the phone pair store and renewal", () => {
 
 /* ------------------------------------------------------------- the screens */
 
-const hub = messages.hub as unknown as Record<string, Record<string, string> | string>;
+const hub = messages.hub;
 
 let mounted: Mounted | null = null;
 
@@ -292,18 +304,20 @@ describe("the phone button panel", () => {
 
   it("opens on the sentence, the QR and the download link, nothing else", async () => {
     mounted = render(createElement(PhoneButton));
-    press(byText(mounted.container, "button", hub.phone as unknown as string && (hub.phone as Record<string, string>).button));
+    press(byText(mounted.container, "button", hub.phone.button));
     await flush();
 
     const panel = mounted.container.querySelector('[role="dialog"]');
     expect(panel).not.toBeNull();
-    const phone = hub.phone as Record<string, string>;
+    const phone = hub.phone;
     expect(panel?.textContent).toContain(phone.line);
     /* One SVG symbol, dark modules on a light field, named for a reader. */
     const svg = panel?.querySelector("svg[role='img']");
     expect(svg?.getAttribute("aria-label")).toBe(phone.qrAlt);
     expect(svg?.querySelector("rect")?.getAttribute("fill")).toBe("#ffffff");
-    expect(panel?.querySelector("a")?.getAttribute("href")).toBe("/en/download");
+    /* English is the unprefixed default: `as-needed` leaves `/download` bare,
+       and `/en/download` is a spelling the middleware bounces. */
+    expect(panel?.querySelector("a")?.getAttribute("href")).toBe("/download");
     expect(all(panel as HTMLElement, "button")).toHaveLength(0);
   });
 
@@ -433,7 +447,7 @@ describe("the pair page", () => {
     expect(seen[0]).toMatchObject({ fn: "pro-service", token: null });
     expect(seen[1]).toMatchObject({ fn: "pro-service", token: "read.two" });
     expect(readPhonePair()?.refreshCredential).toBe("credential.two");
-    expect(mounted.container.textContent).toContain((hub.pairPage as Record<string, unknown>).bars as unknown as string && ((hub.pairPage as Record<string, Record<string, string>>).bars).title);
+    expect(mounted.container.textContent).toContain(hub.pairPage.bars.title);
     vi.useRealTimers();
   });
 
@@ -446,7 +460,7 @@ describe("the pair page", () => {
     );
     mounted = render(createElement(PairFlow));
     await flush(6);
-    const revoked = (hub.pairPage as Record<string, Record<string, string>>).revoked;
+    const revoked = hub.pairPage.revoked;
     expect(mounted.container.textContent).toContain(revoked.title);
     expect(mounted.container.textContent).toContain(revoked.body);
     expect(readPhonePair()).toBeNull();
@@ -483,9 +497,7 @@ describe("the pair page", () => {
     );
     mounted = render(createElement(PairFlow));
     await flush(6);
-    const pairPage = hub.pairPage as Record<string, Record<string, string> | string>;
-    const bars = pairPage.bars as Record<string, string>;
-    expect(mounted.container.textContent).toContain(bars.title);
+    expect(mounted.container.textContent).toContain(hub.pairPage.bars.title);
     vi.useRealTimers();
   });
 });

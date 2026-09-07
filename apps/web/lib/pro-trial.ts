@@ -113,6 +113,19 @@ export async function startProTrial(
 }
 
 /**
+ * Accept only an https URL whose host is checkout.stripe.com before redirecting.
+ */
+export function isAllowedCheckoutUrl(url: unknown): boolean {
+  if (typeof url !== "string" || url === "") return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.host === "checkout.stripe.com";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * A Stripe Checkout session for the discounted first year. The caller redirects.
  *
  * The interval is not a parameter. This offer is annual by definition, the
@@ -126,7 +139,7 @@ export async function startOfferCheckout(client: SupabaseClient): Promise<TrialR
   });
   if (!result.ok) return { ok: false, reason: trialFailureForStatus(result.status) };
   const url = result.value.url;
-  return typeof url === "string" && url !== ""
+  return typeof url === "string" && isAllowedCheckoutUrl(url)
     ? { ok: true, value: url }
     : { ok: false, reason: "unavailable" };
 }

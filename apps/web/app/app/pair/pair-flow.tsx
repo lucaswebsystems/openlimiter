@@ -447,7 +447,7 @@ export function PairFlow() {
     window.location.assign("/app");
   }, [state.phase, state.session, state.phonePair]);
 
-  const paired = state.phase === "approved" && (state.phonePair ?? stored);
+  const paired = state.phase === "approved" ? (state.phonePair ?? stored) : null;
 
   if (paired !== null) {
     return <PairedPhone pair={paired} t={t} />;

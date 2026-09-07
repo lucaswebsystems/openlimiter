@@ -1,7 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BandHorizon } from "./horizon";
 import { Button } from "./pieces";
@@ -9,6 +9,7 @@ import { subscribeBrowserPush, type PushOutcome } from "@/lib/pro-notifications"
 import { proAccessState, startProCheckout, type ProAccessState, type ProEntitlement } from "@/lib/pro";
 import {
   TRIAL_ALERT_THRESHOLDS,
+  isAllowedCheckoutUrl,
   locksPro,
   offersTrial,
   startOfferCheckout,
@@ -16,7 +17,7 @@ import {
   type TrialFailure,
 } from "@/lib/pro-trial";
 import { useOfferCountdown } from "@/lib/use-offer-countdown";
-import { PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
+import { PRO_YEARLY_PRICE } from "@/lib/site";
 
 /**
  * The trial, the wizard that starts it, and the lock that follows it.
@@ -163,11 +164,11 @@ function LadderRow({
 const STEPS = ["alerts", "push", "done"] as const;
 type WizardStep = (typeof STEPS)[number];
 
-function formatDate(value: string | null): string | null {
+function formatDate(value: string | null, locale: string): string | null {
   if (value === null) return null;
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return null;
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(parsed);
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(parsed);
 }
 
 export function TrialWizard({
@@ -181,6 +182,7 @@ export function TrialWizard({
   onClose: () => void;
 }) {
   const t = useTranslations("hub.trial");
+  const locale = useLocale();
   const [step, setStep] = useState<WizardStep>("alerts");
   const [thresholds, setThresholds] = useState<number[]>([...TRIAL_ALERT_THRESHOLDS]);
   const [reset, setReset] = useState(true);
@@ -190,7 +192,7 @@ export function TrialWizard({
   const [failure, setFailure] = useState<TrialFailure | null>(null);
   const [endsAt, setEndsAt] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement | null>(null);
-  const arrived = useRef(false);
+  const lastStep = useRef<WizardStep>(step);
   /**
    * The in flight guard.
    *
@@ -204,10 +206,8 @@ export function TrialWizard({
   const index = STEPS.indexOf(step);
 
   useEffect(() => {
-    if (!arrived.current) {
-      arrived.current = true;
-      return;
-    }
+    if (lastStep.current === step) return;
+    lastStep.current = step;
     heading.current?.focus();
   }, [step]);
 
@@ -262,7 +262,7 @@ export function TrialWizard({
     );
   }, [client, onStarted, push, reset, thresholds]);
 
-  const ends = formatDate(endsAt);
+  const ends = formatDate(endsAt, locale);
 
   return (
     <section className="ol-onboarding" aria-label={t("label")}>
@@ -428,7 +428,7 @@ export function ProLockCard({
       const call = discounted ? startOfferCheckout(client) : startProCheckout(client, "year");
       void call.then(
         (result) => {
-          if (result.ok) {
+          if (result.ok && isAllowedCheckoutUrl(result.value)) {
             window.location.assign(result.value);
             return;
           }
@@ -504,7 +504,7 @@ export function ProLockCard({
         {locked && countdown === null && (
           <div className="ol-lock-offer">
             <p className="ol-lock-price">
-              {t("prices.line", { monthly: PRO_MONTHLY_PRICE, yearly: PRO_YEARLY_PRICE })}
+              {t("prices.line", { yearly: PRO_YEARLY_PRICE })}
             </p>
             <Button tone="primary" onClick={() => checkout(false)} disabled={busy}>
               {busy ? t("offer.working") : t("prices.take")}

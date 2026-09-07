@@ -34,6 +34,7 @@ function waiting(overrides: Partial<PairState> = {}): PairState {
     expiresAt: null,
     pollInterval: PAIRING_POLL_MILLISECONDS,
     session: null,
+    phonePair: null,
     ...overrides,
   };
 }

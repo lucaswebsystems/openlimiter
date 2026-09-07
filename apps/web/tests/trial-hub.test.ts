@@ -33,6 +33,7 @@ vi.mock("@/i18n/navigation", async () => {
 vi.mock("next-intl", async () => {
   const catalog = (await import("../messages/en.json")).default as Record<string, unknown>;
   return {
+    useLocale: () => "en",
     useTranslations: (namespace: string) => (key: string, values?: Record<string, unknown>) => {
       const path = `${namespace}.${key}`.split(".");
       let node: unknown = catalog;
@@ -69,6 +70,8 @@ const YESTERDAY = new Date(NOW - 86_400_000).toISOString();
 const OFFER_OPEN = new Date(NOW + 3 * 86_400_000).toISOString();
 
 let entitlementRow: Record<string, unknown> | null = null;
+let entitlementFails = false;
+let authCallback: ((event: string, session: unknown) => void) | null = null;
 let mounted: Mounted | null = null;
 
 /** The signed in account every test here opens with, first run already done. */
@@ -85,7 +88,10 @@ function fakeClient(): unknown {
   return {
     auth: {
       getSession: async () => ({ data: { session: SESSION } }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
+      onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
+        authCallback = cb;
+        return { data: { subscription: { unsubscribe: () => undefined } } };
+      },
       stopAutoRefresh: async () => undefined,
       startAutoRefresh: async () => undefined,
       updateUser: async () => ({ data: {}, error: null }),
@@ -94,6 +100,9 @@ function fakeClient(): unknown {
     functions: {
       invoke: async (fn: string) => {
         if (fn === "entitlement") {
+          if (entitlementFails) {
+            return { data: null, error: { context: { status: 500 } } };
+          }
           return { data: { entitlement: entitlementRow, devices: [] }, error: null };
         }
         return { data: null, error: { context: { status: 401 } } };
@@ -104,6 +113,8 @@ function fakeClient(): unknown {
 
 beforeEach(() => {
   entitlementRow = null;
+  entitlementFails = false;
+  authCallback = null;
   window.localStorage.clear();
   window.sessionStorage.clear();
   window.history.replaceState(null, "", "/app");
@@ -162,6 +173,26 @@ describe("the header", () => {
     view = await open();
     expect(starters(view).length).toBe(0);
   });
+
+  it("keeps the trialing entitlement and does not show the button if a refresh fails", async () => {
+    entitlementRow = { plan_state: "trialing", trial_ends_at: IN_TEN_DAYS };
+    const view = await open();
+    expect(view.container.querySelector(".ol-commandbar-actions")?.textContent).not.toContain(
+      trial.start,
+    );
+
+    /* A subsequent background refresh fails */
+    entitlementFails = true;
+    authCallback?.("TOKEN_REFRESHED", SESSION);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await flush(3);
+
+    /* The previous entitlement is kept on failure, so the button is still not shown */
+    expect(view.container.querySelector(".ol-commandbar-actions")?.textContent).not.toContain(
+      trial.start,
+    );
+    expect(starters(view).length).toBe(0);
+  });
 });
 
 describe("the locked Pro surfaces under the bars", () => {
@@ -196,7 +227,7 @@ describe("the locked Pro surfaces under the bars", () => {
     };
     const view = await open();
     expect(view.container.querySelector(".ol-lock-countdown")).toBeNull();
-    expect(view.container.textContent).toContain("$5 a month, or $50 a year.");
+    expect(view.container.textContent).toContain("$50 a year.");
     expect(byText(view.container, "button", pro.prices.take)).not.toBeNull();
   });
 

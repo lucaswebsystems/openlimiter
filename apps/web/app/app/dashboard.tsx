@@ -454,8 +454,10 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       return;
     }
     void readProAccount(syncClient).then(
-      (result) => setEntitlement(result.ok ? result.value.entitlement : null),
-      () => setEntitlement(null),
+      (result) => {
+        if (result.ok) setEntitlement(result.value.entitlement);
+      },
+      () => undefined,
     );
   }, [syncClient]);
 

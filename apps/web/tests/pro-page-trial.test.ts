@@ -28,6 +28,7 @@ vi.mock("@/i18n/navigation", async () => {
 vi.mock("next-intl", async () => {
   const catalog = (await import("../messages/en.json")).default as Record<string, unknown>;
   return {
+    useLocale: () => "en",
     useTranslations: (namespace: string) => (key: string, values?: Record<string, unknown>) => {
       const path = `${namespace}.${key}`.split(".");
       let node: unknown = catalog;
@@ -65,7 +66,7 @@ const YESTERDAY = new Date(NOW - 86_400_000).toISOString();
 const OFFER_OPEN = new Date(NOW + 4 * 86_400_000).toISOString();
 
 let entitlementRow: Record<string, unknown> | null = null;
-let checkoutUrl = "https://checkout.example/offer";
+let checkoutUrl = "https://checkout.stripe.com/offer";
 let invoked: { fn: string; body: unknown }[] = [];
 let mounted: Mounted | null = null;
 
@@ -96,7 +97,7 @@ function fakeClient(): unknown {
 beforeEach(() => {
   entitlementRow = null;
   invoked = [];
-  checkoutUrl = "https://checkout.example/offer";
+  checkoutUrl = "https://checkout.stripe.com/offer";
   window.localStorage.clear();
 });
 
@@ -183,7 +184,7 @@ describe("the offer on the Pro page", () => {
       interval: "year",
       offer: "trial_end_annual",
     });
-    expect(assign).toHaveBeenCalledWith("https://checkout.example/offer");
+    expect(assign).toHaveBeenCalledWith("https://checkout.stripe.com/offer");
   });
 
   it("falls back to the ordinary prices once the window has closed", async () => {

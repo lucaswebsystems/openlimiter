@@ -4,6 +4,7 @@ import { entitlementOf } from "@/lib/pro";
 import {
   TRIAL_ALERT_THRESHOLDS,
   TRIAL_END_OFFER,
+  isAllowedCheckoutUrl,
   locksPro,
   offerCountdown,
   offerOpen,
@@ -157,7 +158,7 @@ describe("starting the trial", () => {
 describe("the discounted year", () => {
   it("asks for the year interval and names the offer", async () => {
     const { client, invoke } = clientAnswering({
-      data: { url: "https://checkout.example/session" },
+      data: { url: "https://checkout.stripe.com/session" },
       error: null,
     });
     const result = await startOfferCheckout(client);
@@ -165,7 +166,7 @@ describe("the discounted year", () => {
     expect(invoke.mock.calls[0]?.[1]).toEqual({
       body: { interval: "year", offer: TRIAL_END_OFFER },
     });
-    expect(result).toEqual({ ok: true, value: "https://checkout.example/session" });
+    expect(result).toEqual({ ok: true, value: "https://checkout.stripe.com/session" });
   });
 
   it("has no url to follow when the window is closed", async () => {
@@ -180,6 +181,21 @@ describe("the discounted year", () => {
 
   it("refuses an answer with no address in it", async () => {
     const { client } = clientAnswering({ data: { url: "" }, error: null });
+    expect(await startOfferCheckout(client)).toEqual({ ok: false, reason: "unavailable" });
+  });
+
+  it("accepts only https URLs on checkout.stripe.com", async () => {
+    expect(isAllowedCheckoutUrl("https://checkout.stripe.com/c/pay/cs_test_123")).toBe(true);
+    expect(isAllowedCheckoutUrl("http://checkout.stripe.com/pay")).toBe(false);
+    expect(isAllowedCheckoutUrl("https://attacker.example/session")).toBe(false);
+    expect(isAllowedCheckoutUrl("javascript:alert(1)")).toBe(false);
+    expect(isAllowedCheckoutUrl("")).toBe(false);
+    expect(isAllowedCheckoutUrl(null)).toBe(false);
+
+    const { client } = clientAnswering({
+      data: { url: "javascript:alert(1)" },
+      error: null,
+    });
     expect(await startOfferCheckout(client)).toEqual({ ok: false, reason: "unavailable" });
   });
 });

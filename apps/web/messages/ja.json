@@ -2051,7 +2051,7 @@
         "working": "Opening checkout"
       },
       "prices": {
-        "line": "{monthly} a month, or {yearly} a year.",
+        "line": "{yearly} a year.",
         "take": "Take Pro"
       },
       "error": "That did not go through. Nothing was charged and nothing changed."

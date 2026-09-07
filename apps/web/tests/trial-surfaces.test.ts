@@ -19,9 +19,12 @@ import { all, byText, flush, messages, render, type Mounted } from "./render";
  * product and a missing key fails loudly instead of rendering a key path.
  */
 
+let currentLocale = "en";
+
 vi.mock("next-intl", async () => {
   const catalog = (await import("../messages/en.json")).default as Record<string, unknown>;
   return {
+    useLocale: () => currentLocale,
     useTranslations: (namespace: string) => (key: string, values?: Record<string, unknown>) => {
       const path = `${namespace}.${key}`.split(".");
       let node: unknown = catalog;
@@ -94,6 +97,7 @@ function switches(view: Mounted): HTMLElement[] {
 beforeEach(() => {
   answers = [];
   pushAnswer = { state: "unsupported" };
+  currentLocale = "en";
 });
 
 afterEach(() => {
@@ -126,11 +130,11 @@ describe("the wizard's first step", () => {
 
   it("draws every threshold as the band a window that deep is painted in", () => {
     const view = openWizard();
-    expect(switches(view).map((row) => row.dataset.band)).toEqual([
-      "yellow",
-      "orange",
-      "red",
-      "green",
+    expect(switches(view).map((row) => row.textContent?.trim())).toEqual([
+      trial.alerts.threshold.replace("{percent}", "60"),
+      trial.alerts.threshold.replace("{percent}", "80"),
+      trial.alerts.threshold.replace("{percent}", "90"),
+      trial.alerts.reset,
     ]);
   });
 
@@ -141,6 +145,12 @@ describe("the wizard's first step", () => {
     expect(switches(view)[2]?.getAttribute("aria-checked")).toBe("false");
     /* The bar is still on the row: the width is a CSS answer to this state. */
     expect(switches(view)[2]?.querySelector(".ol-ladder-fill")).not.toBeNull();
+  });
+
+  it("does not focus the heading on initial open", () => {
+    const view = openWizard();
+    const heading = view.container.querySelector("h2");
+    expect(document.activeElement).not.toBe(heading);
   });
 });
 
@@ -169,6 +179,14 @@ describe("the wizard's push step", () => {
     await flush();
     const body = invoke.mock.calls[0]?.[1] as { body: { preferences: Record<string, unknown> } };
     expect(body.body.preferences.push).toEqual({ endpoint: "https://push.example/1" });
+  });
+
+  it("focuses the heading when the step changes", async () => {
+    const view = openWizard();
+    press(byText(view.container, "button", trial.alerts.continue));
+    await flush();
+    const heading = view.container.querySelector("h2");
+    expect(document.activeElement).toBe(heading);
   });
 });
 
@@ -202,6 +220,25 @@ describe("finishing the wizard", () => {
     await flush(3);
     expect(view.container.textContent).toContain(trial.done.title);
     expect(view.container.textContent).toContain("Oct 7, 2026");
+  });
+
+  it("formats the done date with the active locale", async () => {
+    currentLocale = "pt-BR";
+    answers = [
+      {
+        data: { entitlement: { plan_state: "trialing", trial_ends_at: IN_THIRTY_DAYS } },
+        error: null,
+      },
+    ];
+    const view = openWizard();
+    press(byText(view.container, "button", trial.alerts.continue));
+    press(byText(view.container, "button", trial.push.start));
+    await flush(3);
+    expect(view.container.textContent).toContain(trial.done.title);
+    const expected = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(
+      Date.parse(IN_THIRTY_DAYS),
+    );
+    expect(view.container.textContent).toContain(expected);
   });
 
   it("says the account has had its trial when the server refuses it", async () => {
@@ -281,20 +318,22 @@ describe("the lock card", () => {
   it("falls back to the ordinary prices once the window has passed", () => {
     const view = lock(entitlement({ offerEndsAt: YESTERDAY }));
     expect(view.container.querySelector(".ol-lock-countdown")).toBeNull();
-    expect(view.container.textContent).toContain("$5 a month, or $50 a year.");
+    expect(view.container.textContent).toContain("$50 a year.");
     expect(byText(view.container, "button", pro.prices.take)).not.toBeNull();
   });
 
   it("hatches the horizon behind a plan that has ended", () => {
-    const tone = (view: Mounted) =>
-      view.container.querySelector(".ol-horizon")?.getAttribute("data-tone") ?? null;
-    expect(tone(lock(entitlement()))).toBe("locked");
+    const view = lock(entitlement());
+    expect(view.container.textContent).toContain(pro.expired.title);
+    expect(view.container.textContent).toContain(pro.expired.lead);
     mounted?.unmount();
-    expect(tone(lock(null))).toBe("bands");
+    const offering = lock(null);
+    expect(offering.container.textContent).toContain(pro.locked.title);
+    expect(offering.container.textContent).toContain(pro.locked.lead);
   });
 
   it("asks for the discounted session and follows it to Stripe", async () => {
-    answers = [{ data: { url: "https://checkout.example/discounted" }, error: null }];
+    answers = [{ data: { url: "https://checkout.stripe.com/discounted" }, error: null }];
     const assign = vi.fn();
     Object.defineProperty(window, "location", {
       configurable: true,
@@ -306,7 +345,45 @@ describe("the lock card", () => {
     expect(invoke.mock.calls[0]?.[1]).toEqual({
       body: { interval: "year", offer: "trial_end_annual" },
     });
-    expect(assign).toHaveBeenCalledWith("https://checkout.example/discounted");
+    expect(assign).toHaveBeenCalledWith("https://checkout.stripe.com/discounted");
+  });
+
+  it("refuses a checkout url that is not on checkout.stripe.com", async () => {
+    answers = [{ data: { url: "https://attacker.example/session" }, error: null }];
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { assign, href: "https://openlimiter.com/app", search: "" },
+    });
+    const view = lock(entitlement({ offerEndsAt: OFFER_OPEN }));
+    press(byText(view.container, "button", pro.offer.take));
+    await flush(3);
+    expect(assign).not.toHaveBeenCalled();
+    expect(view.container.textContent).toContain(pro.error);
+  });
+
+  it("resyncs the countdown on visibilitychange when the tab becomes visible", async () => {
+    const ends = new Date(Date.now() + 5000).toISOString();
+    const view = render(
+      createElement(ProLockCard, {
+        client: client(),
+        entitlement: entitlement({ offerEndsAt: ends }),
+        onStartTrial: () => undefined,
+      }),
+    );
+    mounted = view;
+    expect(view.container.querySelector(".ol-lock-countdown")).not.toBeNull();
+
+    const dateSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 10_000);
+    try {
+      await view.run(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(view.container.querySelector(".ol-lock-countdown")).toBeNull();
+      expect(view.container.textContent).toContain("$50 a year.");
+    } finally {
+      dateSpy.mockRestore();
+    }
   });
 });
 

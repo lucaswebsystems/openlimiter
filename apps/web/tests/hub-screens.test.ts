@@ -39,6 +39,7 @@ vi.mock("@/i18n/navigation", async () => {
 vi.mock("next-intl", async () => {
   const catalog = (await import("../messages/en.json")).default as Record<string, unknown>;
   return {
+    useLocale: () => "en",
     useTranslations: (namespace: string) => (key: string, values?: Record<string, unknown>) => {
       const path = `${namespace}.${key}`.split(".");
       let node: unknown = catalog;

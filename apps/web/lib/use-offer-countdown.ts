@@ -38,9 +38,14 @@ export function useOfferCountdown(
       setNow(Date.now());
       interval = window.setInterval(() => setNow(Date.now()), 60_000);
     }, drift);
+    const onVisibilityChange = () => {
+      setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.clearTimeout(start);
       if (interval !== null) window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [frozen]);
 
