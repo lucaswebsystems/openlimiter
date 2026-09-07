@@ -193,6 +193,13 @@ describe("apiSpendSamplesFromSnapshots", () => {
     expect(first[0]?.source_id).toBe(second[0]?.source_id);
   });
 
+  it("keeps a spend row only for the providers the hub accepts, so one extra pool never voids the envelope", () => {
+    const claudePool = spendSnapshot({ provider: "CLAUDE", accountId: "claude-max", accountLabel: "Claude Max" });
+    const rows = apiSpendSamplesFromSnapshots([spendSnapshot(), claudePool], NOW);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.provider).toBe("OPENROUTER");
+  });
+
   it("drops a spend row whose account id is present but not shaped like one", () => {
     const rows = apiSpendSamplesFromSnapshots([spendSnapshot({ accountId: "Not Valid!" })], NOW);
     expect(rows).toHaveLength(0);

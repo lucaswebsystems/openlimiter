@@ -190,12 +190,16 @@ function monthStartDate(observedAt: string): string {
  * (see `Snapshot` in the core package), which is what this reads as "the
  * cache has one".
  */
+/** The providers the hub accepts an API spend sample for (mirrors API_PROVIDERS in the server contract); every other provider's spend stays local, otherwise one row would void the whole envelope. */
+export const SYNC_API_SPEND_PROVIDERS: ReadonlySet<string> = new Set(["OPENAI", "ANTHROPIC", "XAI", "OPENROUTER"]);
+
 export function apiSpendSamplesFromSnapshots(
   snapshots: readonly Snapshot[],
   envelopeObservedAt: string
 ): ApiSpendSample[] {
   const rows: ApiSpendSample[] = [];
   for (const snapshot of snapshots) {
+    if (!SYNC_API_SPEND_PROVIDERS.has(snapshot.provider)) continue;
     if (
       snapshot.usedAmount === undefined ||
       snapshot.limitAmount === undefined ||
