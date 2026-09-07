@@ -25,6 +25,9 @@ import { BACKEND_ABSENT, readCache, readManual } from "./backend.js";
 
 const REFRESH_INTERVAL = 30_000;
 
+const TRIAL_URL = "https://openlimiter.com/app?trial=1";
+const PAIR_URL = "https://openlimiter.com/app/pair";
+
 const PROVIDER_NAMES = Object.freeze({
   CLAUDE: "Claude Code",
   CODEX: "Codex",
@@ -403,11 +406,13 @@ export {
   glanceResetText,
   leadRow,
   paceTickPercent,
+  PAIR_URL,
   percentText,
   PROVIDER_NAMES,
   providerName,
   resetCellText,
   sortRows,
+  TRIAL_URL,
   windowLabel,
   WINDOW_NAMES,
   WINDOW_RANK,

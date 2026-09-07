@@ -10,10 +10,12 @@ import {
   glanceResetText,
   leadRow,
   paceTickPercent,
+  PAIR_URL,
   percentText,
   PROVIDER_NAMES,
   resetCellText,
   sortRows,
+  TRIAL_URL,
   windowLabel,
   WINDOW_NAMES,
   WINDOW_RANK,
@@ -380,4 +382,9 @@ test("no dash reaches the popover's own document either", () => {
 
   assert.ok(text.includes("Open OpenLimiter"));
   assert.equal(dashes.test(text), false, text);
+});
+
+test("tray destinations pin trial and pairing URLs without locale prefixes", () => {
+  assert.equal(TRIAL_URL, "https://openlimiter.com/app?trial=1");
+  assert.equal(PAIR_URL, "https://openlimiter.com/app/pair");
 });

@@ -262,30 +262,92 @@ pub(crate) fn loopback_port(address: &str) -> Option<u16> {
 /// a package manager's bin directory is plausibly the vendor's, and one
 /// sitting in a downloads folder, a temporary directory or a shared drive is
 /// not something this process starts talking to.
-fn install_roots() -> Vec<PathBuf> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TargetPlatform {
+    Windows,
+    Macos,
+    Linux,
+}
+
+impl TargetPlatform {
+    pub(crate) fn current() -> Self {
+        if cfg!(windows) {
+            Self::Windows
+        } else if cfg!(target_os = "macos") {
+            Self::Macos
+        } else {
+            Self::Linux
+        }
+    }
+}
+
+pub(crate) fn roots_for_platform(
+    platform: TargetPlatform,
+    home: Option<&Path>,
+    local_app_data: Option<&Path>,
+    app_data: Option<&Path>,
+    program_files: &[Option<&Path>],
+) -> Vec<PathBuf> {
     let mut roots = Vec::new();
-    let mut push = |value: Option<PathBuf>| {
-        if let Some(path) = value {
-            roots.push(path);
+    match platform {
+        TargetPlatform::Windows => {
+            if let Some(lad) = local_app_data {
+                roots.push(lad.join("Programs"));
+                roots.push(lad.to_path_buf());
+            }
+            if let Some(ad) = app_data {
+                roots.push(ad.to_path_buf());
+            }
+            for pf in program_files.iter().flatten() {
+                roots.push(pf.to_path_buf());
+            }
+            if let Some(h) = home {
+                roots.push(h.join("bin"));
+                roots.push(h.join("Applications"));
+            }
         }
-    };
-    if cfg!(windows) {
-        push(crate::state::non_empty("LOCALAPPDATA"));
-        push(crate::state::non_empty("APPDATA"));
-        push(crate::state::non_empty("ProgramFiles"));
-        push(crate::state::non_empty("ProgramFiles(x86)"));
-        push(crate::state::non_empty("ProgramW6432"));
-    } else {
-        for fixed in ["/usr/bin", "/usr/local", "/opt", "/Applications", "/snap"] {
-            roots.push(PathBuf::from(fixed));
+        TargetPlatform::Macos => {
+            if let Some(h) = home {
+                roots.push(h.join("Applications"));
+                roots.push(h.join("bin"));
+                roots.push(h.join(".local"));
+                roots.push(h.join(".nvm"));
+            }
+            for fixed in ["/Applications", "/usr/bin", "/usr/local", "/opt"] {
+                roots.push(PathBuf::from(fixed));
+            }
         }
-        if let Some(home) = crate::state::home() {
-            roots.push(home.join(".local"));
-            roots.push(home.join(".nvm"));
-            roots.push(home.join("Applications"));
+        TargetPlatform::Linux => {
+            if let Some(h) = home {
+                roots.push(h.join(".local").join("bin"));
+                roots.push(h.join("bin"));
+                roots.push(h.join("Applications"));
+                roots.push(h.join(".local"));
+                roots.push(h.join(".nvm"));
+            }
+            for fixed in ["/opt", "/usr/local", "/usr/bin", "/snap"] {
+                roots.push(PathBuf::from(fixed));
+            }
         }
     }
     roots
+}
+
+fn install_roots() -> Vec<PathBuf> {
+    let home = crate::state::home();
+    let local_app_data = crate::state::non_empty("LOCALAPPDATA");
+    let app_data = crate::state::non_empty("APPDATA");
+    let pf1 = crate::state::non_empty("ProgramFiles");
+    let pf2 = crate::state::non_empty("ProgramFiles(x86)");
+    let pf3 = crate::state::non_empty("ProgramW6432");
+    let pfs = [pf1.as_deref(), pf2.as_deref(), pf3.as_deref()];
+    roots_for_platform(
+        TargetPlatform::current(),
+        home.as_deref(),
+        local_app_data.as_deref(),
+        app_data.as_deref(),
+        &pfs,
+    )
 }
 
 /// Whether this executable path may be talked to.
@@ -299,14 +361,18 @@ pub(crate) fn trusted_agy_executable(path: &Path, roots: &[PathBuf]) -> bool {
     let named = path
         .file_name()
         .and_then(|value| value.to_str())
-        .is_some_and(|value| value.eq_ignore_ascii_case(AGY_PROCESS_NAME));
+        .is_some_and(|value| {
+            value.eq_ignore_ascii_case("agy") || value.eq_ignore_ascii_case("agy.exe")
+        });
     if !named {
         return false;
     }
     /* A relative path is a path this build cannot reason about, and a path
     with a parent traversal in it is one somebody wrote to get past exactly
     this check. */
-    if !path.is_absolute() || path.components().any(|part| part.as_os_str() == "..") {
+    if !(path.is_absolute() || path.has_root())
+        || path.components().any(|part| part.as_os_str() == "..")
+    {
         return false;
     }
     roots.iter().any(|root| path.starts_with(root))
@@ -912,5 +978,64 @@ mod tests {
     fn the_sentence_names_the_one_action_that_fixes_it() {
         assert_eq!(NO_CLIENT_SENTENCE, "Open Antigravity once to refresh");
         assert!(!NO_CLIENT_SENTENCE.contains('-'));
+    }
+
+    #[test]
+    fn install_roots_accept_and_refuse_per_platform() {
+        // Windows: %LOCALAPPDATA%\Programs, user profile's bin and Applications
+        let win_roots = roots_for_platform(
+            TargetPlatform::Windows,
+            Some(Path::new(r"C:\Users\someone")),
+            Some(Path::new(r"C:\Users\someone\AppData\Local")),
+            Some(Path::new(r"C:\Users\someone\AppData\Roaming")),
+            &[Some(Path::new(r"C:\Program Files"))],
+        );
+        let win_accepted_programs =
+            Path::new(r"C:\Users\someone\AppData\Local\Programs\Antigravity\agy.exe");
+        let win_accepted_bin = Path::new(r"C:\Users\someone\bin\agy.exe");
+        let win_accepted_apps = Path::new(r"C:\Users\someone\Applications\agy.exe");
+        let win_refused = Path::new(r"C:\Users\someone\Downloads\agy.exe");
+        assert!(trusted_agy_executable(win_accepted_programs, &win_roots));
+        assert!(trusted_agy_executable(win_accepted_bin, &win_roots));
+        assert!(trusted_agy_executable(win_accepted_apps, &win_roots));
+        assert!(!trusted_agy_executable(win_refused, &win_roots));
+
+        // macOS: ~/Applications, ~/bin, /Applications
+        let mac_roots = roots_for_platform(
+            TargetPlatform::Macos,
+            Some(Path::new("/Users/someone")),
+            None,
+            None,
+            &[],
+        );
+        let mac_accepted_user_apps = Path::new("/Users/someone/Applications/Antigravity/agy");
+        let mac_accepted_bin = Path::new("/Users/someone/bin/agy");
+        let mac_accepted_sys_apps = Path::new("/Applications/Antigravity.app/Contents/MacOS/agy");
+        let mac_refused = Path::new("/Users/someone/Downloads/agy");
+        assert!(trusted_agy_executable(mac_accepted_user_apps, &mac_roots));
+        assert!(trusted_agy_executable(mac_accepted_bin, &mac_roots));
+        assert!(trusted_agy_executable(mac_accepted_sys_apps, &mac_roots));
+        assert!(!trusted_agy_executable(mac_refused, &mac_roots));
+
+        // Linux: ~/.local/bin, ~/bin, ~/Applications, /opt, /usr/local
+        let linux_roots = roots_for_platform(
+            TargetPlatform::Linux,
+            Some(Path::new("/home/someone")),
+            None,
+            None,
+            &[],
+        );
+        let linux_accepted_local_bin = Path::new("/home/someone/.local/bin/agy");
+        let linux_accepted_bin = Path::new("/home/someone/bin/agy");
+        let linux_accepted_apps = Path::new("/home/someone/Applications/agy");
+        let linux_accepted_opt = Path::new("/opt/antigravity/bin/agy");
+        let linux_accepted_usr_local = Path::new("/usr/local/bin/agy");
+        let linux_refused = Path::new("/home/someone/Downloads/agy");
+        assert!(trusted_agy_executable(linux_accepted_local_bin, &linux_roots));
+        assert!(trusted_agy_executable(linux_accepted_bin, &linux_roots));
+        assert!(trusted_agy_executable(linux_accepted_apps, &linux_roots));
+        assert!(trusted_agy_executable(linux_accepted_opt, &linux_roots));
+        assert!(trusted_agy_executable(linux_accepted_usr_local, &linux_roots));
+        assert!(!trusted_agy_executable(linux_refused, &linux_roots));
     }
 }

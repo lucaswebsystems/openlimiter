@@ -322,7 +322,7 @@ impl DeviceLoginSession {
         the alternative is the command that started it waiting on a child that
         will never speak. The three minute deadline is for the person at the
         other device, not for this. */
-        let startup = now + Duration::from_secs(START_TIMEOUT_SECONDS);
+        let startup = Instant::now() + Duration::from_secs(START_TIMEOUT_SECONDS);
         let mut code = None;
         let mut url = None;
         for _ in 0..MAX_SCANNED_LINES {
@@ -753,17 +753,62 @@ mod tests {
         assert_eq!(LOGIN_TIMEOUT_SECONDS, 180);
     }
 
-    /// A deadline already past is honoured before the first read, not after.
+    /// Spawning a child can be slow; the 20 second startup timer starts after
+    /// the child process has spawned, not before, so a slow spawn does not
+    /// eat into the client's startup budget.
     #[test]
-    fn a_startup_deadline_already_spent_reads_nothing_at_all() {
-        let stub = runner(&started_lines(), false);
-        let stopped = Arc::clone(&stub.stopped);
-        let long_ago = Instant::now() - Duration::from_secs(START_TIMEOUT_SECONDS + 1);
-        let error = DeviceLoginSession::start(&stub, &session_id(), long_ago)
-            .err()
-            .expect("a spent deadline is a failure");
-        assert_eq!(error, DeviceLoginFailure::NoCode);
-        assert!(stopped.load(Ordering::SeqCst));
+    fn a_slow_spawn_starts_the_startup_timer_after_the_child_has_spawned() {
+        struct SlowRunner {
+            inner: StubRunner,
+            observed_deadline: Arc<Mutex<Option<Instant>>>,
+            spawned_at: Arc<Mutex<Option<Instant>>>,
+        }
+        struct SlowChild {
+            inner: Box<dyn DeviceLoginChild>,
+            observed_deadline: Arc<Mutex<Option<Instant>>>,
+        }
+        impl DeviceLoginChild for SlowChild {
+            fn next_line(&mut self, deadline: Instant) -> Option<String> {
+                if let Ok(mut slot) = self.observed_deadline.lock() {
+                    *slot = Some(deadline);
+                }
+                self.inner.next_line(deadline)
+            }
+            fn finished(&mut self) -> bool {
+                self.inner.finished()
+            }
+            fn stop(&mut self) {
+                self.inner.stop();
+            }
+        }
+        impl DeviceLoginRunner for SlowRunner {
+            fn start(&self, home: &Path) -> Result<Box<dyn DeviceLoginChild>, DeviceLoginFailure> {
+                std::thread::sleep(Duration::from_millis(20));
+                if let Ok(mut slot) = self.spawned_at.lock() {
+                    *slot = Some(Instant::now());
+                }
+                let child = self.inner.start(home)?;
+                Ok(Box::new(SlowChild {
+                    inner: child,
+                    observed_deadline: Arc::clone(&self.observed_deadline),
+                }))
+            }
+        }
+
+        let observed_deadline = Arc::new(Mutex::new(None));
+        let spawned_at = Arc::new(Mutex::new(None));
+        let stub = SlowRunner {
+            inner: runner(&started_lines(), false),
+            observed_deadline: Arc::clone(&observed_deadline),
+            spawned_at: Arc::clone(&spawned_at),
+        };
+        let before_spawn = Instant::now() - Duration::from_secs(START_TIMEOUT_SECONDS + 5);
+        let (_session, start) = DeviceLoginSession::start(&stub, &session_id(), before_spawn)
+            .expect("a started login even when pre-spawn instant is old");
+        assert_eq!(start.user_code, "BDXK-9QTZ");
+        let spawned = spawned_at.lock().unwrap().expect("spawned time");
+        let deadline = observed_deadline.lock().unwrap().expect("observed deadline");
+        assert!(deadline >= spawned + Duration::from_secs(START_TIMEOUT_SECONDS));
     }
 
     /// Output this build cannot read is output it stops for.
