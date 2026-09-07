@@ -74,6 +74,19 @@ export function readDeviceSnapshots(deviceToken: string): Promise<HostedResponse
   return post("pro-service", { action: "read_snapshots" }, deviceToken);
 }
 
+/**
+ * Trade a refresh credential for the next read token.
+ *
+ * The credential is single use and travels only in the body of this call. The
+ * server answers a fresh pair even when the old read token has expired, and
+ * honours the credential this call replaces once more inside its grace, which
+ * is what makes a lost answer recoverable. A revoked epoch answers 401, the
+ * same shape as every other refusal here.
+ */
+export function renewPhoneCredential(refreshCredential: string): Promise<HostedResponse> {
+  return post("pro-service", { action: "phone_renew", refresh_credential: refreshCredential });
+}
+
 /** Rotate a device token before it expires. Retried with the same request id. */
 export function refreshDeviceToken(
   deviceToken: string,

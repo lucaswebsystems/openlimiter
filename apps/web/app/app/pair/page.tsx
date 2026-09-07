@@ -18,6 +18,13 @@ export const metadata: Metadata = {
     "Finish pairing this phone with the OpenLimiter desktop application. The code lives for two minutes and the desktop has to approve it.",
   alternates: { canonical: "/app/pair" },
   robots: { index: false, follow: false, noarchive: true, nosnippet: true },
+  /*
+   * Nothing that leaves this page may carry its address. The pairing code
+   * arrives in the fragment, which a referrer would not include anyway, but
+   * the rule is stated rather than assumed: no navigation, preload or asset
+   * this page touches sends a referrer header at all.
+   */
+  referrer: "no-referrer",
 };
 
 export default function PairPage() {

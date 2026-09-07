@@ -2055,6 +2055,41 @@
         "take": "Take Pro"
       },
       "error": "That did not go through. Nothing was charged and nothing changed."
+    },
+    "phone": {
+      "button": "Open on your phone",
+      "line": "Start pairing from the desktop app, then scan",
+      "download": "Get the desktop app",
+      "qrAlt": "QR code linking to the phone pairing page"
+    },
+    "phoneInstall": {
+      "add": "Add to home screen",
+      "iosOne": "Tap Share in the Safari toolbar.",
+      "iosTwo": "Scroll to Add to Home Screen.",
+      "iosThree": "Tap Add. The app opens full screen from your home screen."
+    },
+    "pairPage": {
+      "bars": {
+        "title": "Your quota"
+      },
+      "reading": {
+        "title": "Reading your quota",
+        "body": "One moment. This phone is asking for the readings your account already synced."
+      },
+      "renewing": {
+        "title": "Refreshing the pairing",
+        "body": "The read token on this phone is due for renewal. One moment."
+      },
+      "revoked": {
+        "title": "This phone was unpaired",
+        "body": "Scan again from the hub. The desktop application shows a fresh code and approves the phone again."
+      },
+      "offline": {
+        "title": "The service did not answer",
+        "body": "Nothing about the pairing changed. This phone will try again on its own.",
+        "staleMark": "Stale"
+      },
+      "openDashboard": "Open the dashboard"
     }
   }
 }

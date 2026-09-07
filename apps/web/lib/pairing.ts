@@ -1,4 +1,5 @@
 import { deviceSessionOf, type DeviceSession } from "./device-session";
+import { phonePairOf, type PhonePair } from "./phone-session";
 
 /**
  * Phone pairing, as a state machine with no side effects in it.
@@ -62,6 +63,12 @@ export interface PairState {
   pollInterval: number;
   /** Present only once the desktop approved and the delivery arrived. */
   session: DeviceSession | null;
+  /**
+   * The read token and refresh credential, present only when the approving
+   * poll carried the new credential pair shape. The page keeps the phone on
+   * this route when it arrives rather than handing over to /app.
+   */
+  phonePair: PhonePair | null;
 }
 
 function state(partial: Partial<PairState>, previous?: PairState): PairState {
@@ -72,6 +79,7 @@ function state(partial: Partial<PairState>, previous?: PairState): PairState {
     expiresAt: null,
     pollInterval: PAIRING_POLL_MILLISECONDS,
     session: null,
+    phonePair: null,
     ...previous,
     ...partial,
   };
@@ -162,6 +170,11 @@ export function pairStateAfterPoll(
   if (value === "denied") return state({ phase: "denied" }, previous);
   if (value === "expired" || value === "delivered") return state({ phase: "expired" }, previous);
   if (value === "approved") {
+    /* The new contract first: a read token and the one time refresh
+       credential beside it. The legacy delivery, a device session alone,
+       still counts, so a desktop and a server one version apart pair. */
+    const pair = phonePairOf(row);
+    if (pair !== null) return state({ phase: "approved", phonePair: pair }, previous);
     const session = deviceSessionOf(row);
     return session === null
       ? state({ phase: "error" }, previous)
