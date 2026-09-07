@@ -290,11 +290,20 @@ describe("CLI", () => {
         stateDirectory: directory,
         now: () => FIXTURE_NOW
       });
+      /* `statusline.style` defaults to `bar`, decision D6's reference grammar,
+         since this lane. Host defaults to `claude`, so the provider's own
+         windows (`5h`, `7d`) carry no tag and every other provider's window
+         is tagged with its short code. The 0.1.0 line this pinned before is
+         still reachable byte for byte through `statusline.bars false`, tested
+         below in "returns the 0.1.0 line byte for byte when bars are turned
+         off", and the pre D6 `cells` grammar through `statusline.style
+         cells`, tested in statusline.test.ts. */
       expect(statusline.stdout).toBe([
-        "OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN GEMINI_CLI  " +
-          "CLAUDE ###.. 64.0%  CODEX ####. 84.0%  ANTIGRAVITY #.... 28.0%",
-        "OPENCODE ####. 92.0%  GROK ##... 42.5%  KIMI ###.. 69.5%  " +
-          "MANUAL #.... 35.0%  OPENROUTER ###.. 62.3%"
+        "5h [████░░░░░░] 42% ·5h | 7d [██████░░░░] 64% ·7d | " +
+          "cx5h [████████░░] 84% ·5h | ag5h [██░░░░░░░░] 28% ·5h | " +
+          "oc5h [█████████░] 92% ·20h",
+        "gk7d [████░░░░░░] 42% ·7d | km5h [██████░░░░] 69% ·5h | " +
+          "mnmo [███░░░░░░░] 35% ·31d | or $62.35"
       ].join("\n"));
     });
   });
@@ -310,8 +319,12 @@ describe("CLI", () => {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
-    /* One demo fixture sits at 92 percent, which the engine calls NEAR_CAP. */
-    expect(statusline.stdout).toContain("OpenLimiter NEAR_CAP");
+    /* One demo fixture (OpenCode) sits at 92 percent, which the engine calls
+       NEAR_CAP. The bar grammar (decision D6, the default since this lane)
+       states pressure as a reading rather than as that reason word, so the
+       assertion looks for the reading itself. */
+    expect(statusline.stdout).toContain("oc5h");
+    expect(statusline.stdout).toContain("92%");
     const hook = await runCli(["hook"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -488,8 +501,9 @@ describe("CLI", () => {
       readStandardInput: async () => statuslinePayload()
     });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("OpenLimiter HEALTHY PREFER CLAUDE");
-    expect(result.stdout).toContain("CLAUDE ###.. 64.0%");
+    /* Host defaults to claude, so Claude's own windows carry no tag. */
+    expect(result.stdout).toContain("7d");
+    expect(result.stdout).toContain("64%");
     const cache = JSON.parse(
       await readFile(path.join(directory, CACHE_FILE_NAME), "utf8")
     ) as { snapshots: { meter: string }[] };
@@ -501,7 +515,8 @@ describe("CLI", () => {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
-    expect(rendered.stdout).toContain("CLAUDE ###.. 64.0%");
+    expect(rendered.stdout).toContain("7d");
+    expect(rendered.stdout).toContain("64%");
   });
 
   it("falls back to the cache when standard input carries nothing usable", async () => {
@@ -901,6 +916,15 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       payloads
     });
+    /* The `cells` style, kept byte for byte for anyone who set it, is the one
+       that states pressure without ever drawing money. The default `bar`
+       style is decision D6's reference line, which states an API key
+       provider's balance as a dollar figure on purpose; that is covered in
+       "pins the whole statusline" above. */
+    await runCli(["config", "set", "statusline.style", "cells"], {
+      stateDirectory: directory,
+      now: () => FIXTURE_NOW
+    });
     const statusline = await runCli(["statusline"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW,
@@ -994,6 +1018,7 @@ describe("CLI", () => {
       payloads
     });
     for (const [key, value] of [
+      ["statusline.style", "cells"],
       ["statusline.order", "openrouter"],
       ["statusline.meters", "all"],
       ["statusline.width", "400"],
@@ -1042,7 +1067,8 @@ describe("CLI", () => {
     });
     /* Every unusable key fell back to its default, so the default stacks. */
     expect(statusline.stdout.split("\n")).toHaveLength(2);
-    expect(statusline.stdout).toContain("OPENCODE ####. 92.0%");
+    expect(statusline.stdout).toContain("oc5h");
+    expect(statusline.stdout).toContain("92%");
   });
 
   it("keeps the agent context free of money and of failure text", async () => {
@@ -1076,7 +1102,10 @@ describe("CLI", () => {
       "statusline.width=140",
       "statusline.rows=2",
       "statusline.bars=true",
-      "statusline.color=auto"
+      "statusline.color=auto",
+      "statusline.style=bar",
+      "statusline.show=NONE",
+      "statusline.hosts=NONE"
     ]);
     await runCli(["init"], { stateDirectory: directory, now: () => FIXTURE_NOW });
     const after = await runCli(["config", "get", "statusline"], {
@@ -1113,9 +1142,15 @@ describe("CLI", () => {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
-    expect(read.stdout.split("\n")).toEqual(
-      written.map(([key, value]) => "statusline." + key + "=" + value)
-    );
+    /* config get with no key prints every statusline key, not only the ones
+       this test wrote; the three added since (style, show, hosts) trail
+       behind at their own defaults. */
+    expect(read.stdout.split("\n")).toEqual([
+      ...written.map(([key, value]) => "statusline." + key + "=" + value),
+      "statusline.style=bar",
+      "statusline.show=NONE",
+      "statusline.hosts=NONE"
+    ]);
     /* The file on disk carries the same values, and no others. */
     const stored = JSON.parse(
       await readFile(path.join(directory, CONFIG_FILE_NAME), "utf8")
@@ -1126,9 +1161,52 @@ describe("CLI", () => {
       width: 96,
       rows: 1,
       bars: false,
-      color: "always"
+      color: "always",
+      style: "bar",
+      show: [],
+      hosts: {}
     });
     expect(stored.connectors).toHaveLength(9);
+  });
+
+  it("reads back style, show and hosts, the three keys this lane added", async () => {
+    const directory = await temporaryDirectory();
+    const setStyle = await runCli(["config", "set", "statusline.style", "cells"], {
+      stateDirectory: directory,
+      now: () => FIXTURE_NOW
+    });
+    expect(setStyle.stdout).toBe("statusline.style=cells");
+
+    const setShow = await runCli(["config", "set", "statusline.show", "claude,grok"], {
+      stateDirectory: directory,
+      now: () => FIXTURE_NOW
+    });
+    expect(setShow.stdout).toBe("statusline.show=claude,grok");
+
+    const clearedShow = await runCli(["config", "set", "statusline.show", "NONE"], {
+      stateDirectory: directory,
+      now: () => FIXTURE_NOW
+    });
+    expect(clearedShow.stdout).toBe("statusline.show=NONE");
+
+    const setHosts = await runCli(["config", "set", "statusline.hosts", "claude:wired,grok:wired"], {
+      stateDirectory: directory,
+      now: () => FIXTURE_NOW
+    });
+    expect(setHosts.stdout).toBe("statusline.hosts=claude:wired,grok:wired");
+
+    const read = await runCli(["config", "get", "statusline.hosts"], {
+      stateDirectory: directory,
+      now: () => FIXTURE_NOW
+    });
+    expect(read.stdout).toBe("statusline.hosts=claude:wired,grok:wired");
+
+    const stored = JSON.parse(
+      await readFile(path.join(directory, CONFIG_FILE_NAME), "utf8")
+    ) as { statusline: Record<string, unknown> };
+    expect(stored.statusline["style"]).toBe("cells");
+    expect(stored.statusline["show"]).toEqual([]);
+    expect(stored.statusline["hosts"]).toEqual({ claude: "wired", grok: "wired" });
   });
 
   it("keeps a configured statusline when init runs a second time", async () => {
@@ -1161,7 +1239,8 @@ describe("CLI", () => {
       ["statusline.bars", "yes", "must be true or false"],
       ["statusline.color", "rainbow", "must be auto, always, or never"],
       ["statusline.order", "claude,nope", "comma separated list of provider ids"],
-      ["statusline.order", "claude,claude", "comma separated list of provider ids"]
+      ["statusline.order", "claude,claude", "comma separated list of provider ids"],
+      ["statusline.style", "cellular", "must be bar or cells"]
     ];
     for (const [key, value, expected] of rejections) {
       const result = await runCli(["config", "set", key, value], {

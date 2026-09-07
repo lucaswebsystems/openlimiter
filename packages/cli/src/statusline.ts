@@ -356,6 +356,295 @@ function paintRows(head: string, rows: readonly StatuslineCell[][]): string {
   return lines.join("\n");
 }
 
+export type StatuslineHost =
+  | "claude"
+  | "antigravity"
+  | "grok"
+  | "codex"
+  | "shell";
+
+export const STATUSLINE_HOSTS: readonly StatuslineHost[] = [
+  "claude",
+  "antigravity",
+  "grok",
+  "codex",
+  "shell"
+];
+
+export function isStatuslineHost(value: string): value is StatuslineHost {
+  return (STATUSLINE_HOSTS as readonly string[]).includes(value.toLowerCase());
+}
+
+export const PROVIDER_SHORT_TAGS: Readonly<Record<ProviderCode, string>> = {
+  CLAUDE: "cl",
+  CODEX: "cx",
+  ANTIGRAVITY: "ag",
+  GEMINI_CLI: "gm",
+  GROK: "gk",
+  KIMI: "km",
+  OPENCODE: "oc",
+  OPENROUTER: "or",
+  MANUAL: "mn"
+};
+
+export const HOST_PROVIDER: Readonly<Record<StatuslineHost, ProviderCode | null>> = {
+  claude: "CLAUDE",
+  antigravity: "ANTIGRAVITY",
+  grok: "GROK",
+  codex: "CODEX",
+  shell: null
+};
+
+export const BAR_CELL_SEPARATOR = " | ";
+export const TEN_BLOCK_FULL = "█";
+export const TEN_BLOCK_EMPTY = "░";
+
+export function windowCode(snapshot: Snapshot): string {
+  if (snapshot.unit === "CREDITS" || snapshot.window.kind === "lifetime") {
+    return "";
+  }
+  const duration = snapshot.window.durationSeconds;
+  const meterName = snapshot.meter.toUpperCase();
+  if (duration !== undefined) {
+    if (duration <= SIX_HOURS || meterName === "FIVE_HOUR" || meterName === "SESSION") return "5h";
+    if (duration <= ONE_DAY || meterName === "DAILY" || meterName === "DAY") return "1d";
+    if (duration <= SEVEN_DAYS || meterName === "WEEKLY" || meterName === "SEVEN_DAY") return "7d";
+    if (duration <= THIRTY_ONE_DAYS || meterName === "MONTHLY" || meterName === "MONTH") return "mo";
+    return "";
+  }
+  if (meterName === "FIVE_HOUR" || meterName === "SESSION") return "5h";
+  if (meterName === "DAILY" || meterName === "DAY") return "1d";
+  if (meterName === "WEEKLY" || meterName === "SEVEN_DAY") return "7d";
+  if (meterName === "MONTHLY" || meterName === "MONTH") return "mo";
+  return "";
+}
+
+export function tenBlockBar(value: number): string {
+  const clamped = Math.min(100, Math.max(0, value));
+  const filled = Math.min(10, Math.max(0, Math.floor(clamped / 10)));
+  const empty = 10 - filled;
+  return "[" + TEN_BLOCK_FULL.repeat(filled) + TEN_BLOCK_EMPTY.repeat(empty) + "]";
+}
+
+export function formatResetTime(resetAt: string | null | undefined, now: string): string {
+  if (!resetAt) return "";
+  const diffMs = new Date(resetAt).getTime() - new Date(now).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec <= 0) return "";
+  if (diffSec >= 86_400) {
+    const days = Math.floor(diffSec / 86_400);
+    const hours = Math.floor((diffSec % 86_400) / 3600);
+    return hours > 0 ? "·" + String(days) + "d" + String(hours) + "h" : "·" + String(days) + "d";
+  }
+  if (diffSec >= 3600) {
+    const hours = Math.floor(diffSec / 3600);
+    const mins = Math.floor((diffSec % 3600) / 60);
+    return mins > 0 ? "·" + String(hours) + "h" + String(mins) + "m" : "·" + String(hours) + "h";
+  }
+  if (diffSec >= 60) {
+    const mins = Math.floor(diffSec / 60);
+    return "·" + String(mins) + "m";
+  }
+  return "·" + String(diffSec) + "s";
+}
+
+export function paintBand(
+  text: string,
+  value: number,
+  state: "fresh" | "stale",
+  wide = false
+): string {
+  if (state === "stale") return "\x1b[90m" + text + "\x1b[0m";
+  if (value >= 90) return "\x1b[31m" + text + "\x1b[0m";
+  if (value >= 80) return wide ? "\x1b[38;5;208m" + text + "\x1b[0m" : "\x1b[33m" + text + "\x1b[0m";
+  if (value >= 60) return "\x1b[33m" + text + "\x1b[0m";
+  return "\x1b[32m" + text + "\x1b[0m";
+}
+
+export function barStyleCells(
+  snapshots: readonly Snapshot[],
+  now: string,
+  order: readonly ProviderCode[],
+  host: StatuslineHost,
+  show: readonly string[],
+  metersSetting: StatuslineConfig["meters"],
+  color: boolean,
+  wide?: boolean
+): readonly StatuslineCell[] {
+  const cells: StatuslineCell[] = [];
+  const hostProvider = HOST_PROVIDER[host];
+  const allowedProviders = show.length === 0
+    ? null
+    : new Set(show.map((s) => s.toLowerCase()));
+
+  for (const provider of order) {
+    const shortTag = PROVIDER_SHORT_TAGS[provider];
+    const isAllowed = allowedProviders === null ||
+      allowedProviders.has(provider.toLowerCase()) ||
+      allowedProviders.has(shortTag);
+
+    if (!isAllowed) continue;
+
+    const readings = readingsFor(snapshots, provider, now);
+    if (readings.length === 0) {
+      if (allowedProviders !== null || snapshots.some((s) => s.provider === provider)) {
+        const tag = provider === hostProvider ? "" : shortTag;
+        const displayTag = tag === "" ? provider.toLowerCase() : tag;
+        const plain = displayTag + " [?]";
+        const painted = color ? displayTag + " \x1b[31m[?]\x1b[0m" : plain;
+        cells.push({ plain, painted, percent: 0 });
+      }
+      continue;
+    }
+
+    let selectedReadings: Reading[] = [];
+    if (provider === hostProvider) {
+      selectedReadings = readings;
+    } else if (metersSetting === "all") {
+      selectedReadings = readings;
+    } else {
+      let worst = readings[0]!;
+      for (const r of readings.slice(1)) {
+        if (r.snapshot.value > worst.snapshot.value) worst = r;
+      }
+      selectedReadings = [worst];
+    }
+
+    for (const reading of selectedReadings) {
+      const { snapshot, state } = reading;
+      const providerTag = provider === hostProvider ? "" : shortTag;
+
+      if (snapshot.unit === "CREDITS" || snapshot.provider === "OPENROUTER") {
+        const tag = providerTag || shortTag;
+        const amount = snapshot.value.toFixed(2);
+        const plain = tag + " $" + amount;
+        cells.push({ plain, painted: plain, percent: snapshot.value });
+        continue;
+      }
+
+      const winTag = windowCode(snapshot);
+      /*
+       * A host's own window normally carries no tag at all, since the row it
+       * sits on already says whose bars these are. That omission only holds
+       * up while the window code says something: a fixed window with a meter
+       * name this build does not recognise (an on demand spend meter, a
+       * person's own manual entry) has no window code either, and the two
+       * blanks together would draw a bar with nothing in front of it. The
+       * cell falls back to the short provider tag rather than ever drawing
+       * one, which is the same promise the freshness marks make for a
+       * missing reading.
+       */
+      const combinedTag = providerTag + winTag;
+      const tag = combinedTag === "" ? shortTag : combinedTag;
+
+      const ageSeconds = Math.max(
+        0,
+        Math.floor((new Date(now).getTime() - new Date(snapshot.observedAt).getTime()) / 1000)
+      );
+
+      if (ageSeconds >= 900) {
+        const plain = tag + " [?]";
+        const painted = color ? tag + " \x1b[31m[?]\x1b[0m" : plain;
+        cells.push({ plain, painted, percent: snapshot.value });
+        continue;
+      }
+
+      const prefix = ageSeconds >= 180 ? "~" : "";
+      const bar = tenBlockBar(snapshot.value);
+      const percentStr = floorFixed(snapshot.value, 0) + "%";
+      const resetStr = formatResetTime(snapshot.resetAt, now);
+
+      const label = prefix + tag;
+      const plain = resetStr !== ""
+        ? label + " " + bar + " " + percentStr + " " + resetStr
+        : label + " " + bar + " " + percentStr;
+
+      let painted = plain;
+      if (color) {
+        const paintedBar = paintBand(bar, snapshot.value, state, wide);
+        const paintedPct = paintBand(percentStr, snapshot.value, state, wide);
+        painted = resetStr !== ""
+          ? label + " " + paintedBar + " " + paintedPct + " " + resetStr
+          : label + " " + paintedBar + " " + paintedPct;
+      }
+
+      cells.push({
+        plain,
+        painted,
+        percent: snapshot.value
+      });
+    }
+  }
+
+  return cells;
+}
+
+function packedBarRows(
+  cells: readonly StatuslineCell[],
+  width: number,
+  rows: number
+): StatuslineCell[][] {
+  const laid: StatuslineCell[][] = [];
+  let index = 0;
+  for (let row = 0; row < rows; row += 1) {
+    const current: StatuslineCell[] = [];
+    let used = 0;
+    while (index < cells.length) {
+      const cell = cells[index]!;
+      const needed = used === 0
+        ? cell.plain.length
+        : used + BAR_CELL_SEPARATOR.length + cell.plain.length;
+      if (needed > width) break;
+      used = needed;
+      current.push(cell);
+      index += 1;
+    }
+    laid.push(current);
+  }
+  return laid;
+}
+
+function paintBarRows(rows: readonly StatuslineCell[][]): string {
+  return rows
+    .map((row) => row.map((cell) => cell.painted).join(BAR_CELL_SEPARATOR))
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+function renderBarStatusline(input: StatuslineLayoutInput): string {
+  const { config } = input;
+  const host = input.host ?? "claude";
+  const cells = barStyleCells(
+    input.snapshots,
+    input.now,
+    resolveProviderOrder(config.order),
+    host,
+    config.show,
+    config.meters,
+    input.color,
+    input.wide
+  );
+  if (cells.length === 0) return STATUSLINE_UNKNOWN;
+
+  const whole = packedBarRows(cells, config.width, config.rows);
+  if (fittedCount(whole) === cells.length) return paintBarRows(whole);
+
+  for (let keep = fittedCount(whole); keep >= 0; keep -= 1) {
+    const dropped = cells.length - keep;
+    const tailText = "+" + String(dropped);
+    const tailCell: StatuslineCell = {
+      plain: tailText,
+      painted: tailText,
+      percent: Number.NEGATIVE_INFINITY
+    };
+    const shown = [...worstCells(cells, keep), tailCell];
+    const attempt = packedBarRows(shown, config.width, config.rows);
+    if (fittedCount(attempt) === shown.length) return paintBarRows(attempt);
+  }
+
+  return cells[0]?.painted ?? STATUSLINE_UNKNOWN;
+}
+
 export interface StatuslineLayoutInput {
   advice: Advice;
   snapshots: readonly Snapshot[];
@@ -370,6 +659,7 @@ export interface StatuslineLayoutInput {
    * caller that is a real terminal or a statusline host standing in for one.
    */
   wide?: boolean;
+  host?: StatuslineHost;
 }
 
 /** What the statusline says when it has nothing bounded to say. */
@@ -386,30 +676,29 @@ export const STATUSLINE_UNKNOWN = "OpenLimiter UNKNOWN";
 export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
   const { advice, config } = input;
   if (!advice.inject || advice.reason === "UNKNOWN") return STATUSLINE_UNKNOWN;
-  const cells = statuslineCells(
-    input.snapshots,
-    input.now,
-    resolveProviderOrder(config.order),
-    config.meters,
-    input.color,
-    input.wide
-  );
-  if (cells.length === 0) return STATUSLINE_UNKNOWN;
-  const head = statuslineHead(advice);
-  const whole = packed(head, cells, config.width, config.rows);
-  if (fittedCount(whole) === cells.length) return paintRows(head, whole);
-  /*
-   * Something has to go. Give up one cell at a time, worst kept first, until
-   * what is left plus the count of what was dropped fits inside the rows. The
-   * search starts at the number that already fitted, which is an upper bound,
-   * and it is bounded below by zero, which is the row with only a head on it.
-   */
-  for (let keep = fittedCount(whole); keep >= 0; keep -= 1) {
-    const shown = [...worstCells(cells, keep), moreCell(cells.length - keep)];
-    const attempt = packed(head, shown, config.width, config.rows);
-    if (fittedCount(attempt) === shown.length) return paintRows(head, attempt);
+
+  if (config.style === "cells") {
+    const cells = statuslineCells(
+      input.snapshots,
+      input.now,
+      resolveProviderOrder(config.order),
+      config.meters,
+      input.color,
+      input.wide
+    );
+    if (cells.length === 0) return STATUSLINE_UNKNOWN;
+    const head = statuslineHead(advice);
+    const whole = packed(head, cells, config.width, config.rows);
+    if (fittedCount(whole) === cells.length) return paintRows(head, whole);
+    for (let keep = fittedCount(whole); keep >= 0; keep -= 1) {
+      const shown = [...worstCells(cells, keep), moreCell(cells.length - keep)];
+      const attempt = packed(head, shown, config.width, config.rows);
+      if (fittedCount(attempt) === shown.length) return paintRows(head, attempt);
+    }
+    return head;
   }
-  return head;
+
+  return renderBarStatusline(input);
 }
 
 /**

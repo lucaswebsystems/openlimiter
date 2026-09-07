@@ -187,6 +187,28 @@ describe("hook configuration mutation", () => {
     });
   }
 
+  /*
+   * Grok Build discards its hook's standard output entirely (it has no
+   * context injection surface, only the built in status line items),
+   * so it has no hook configuration target and is excluded from the loop
+   * above on purpose. Widening `AgentId` through `changeAgentHookFixture`
+   * (this lane) must report that gracefully rather than crash on the
+   * null target the other agents never hit.
+   */
+  it("grok has no hook configuration target, and reports so rather than crashing", async () => {
+    const options = await fixtureOptions();
+    for (const action of ["install", "uninstall"] as const) {
+      const result = await changeAgentHookFixture("grok", action, options);
+      expect(result).toMatchObject({
+        agent: "grok",
+        action,
+        changed: false,
+        supported: false,
+        configPath: null
+      });
+    }
+  });
+
   it("keeps a user hook that only mentions the managed marker", async () => {
     const options = await fixtureOptions();
     const file = configPath("codex", options.homeDirectory);
@@ -370,6 +392,12 @@ describe("hook configuration mutation", () => {
     expect(agentVersionCompatibility("claude", "2.1.258")).toBe("newer");
     expect(agentVersionCompatibility("claude", "2.1.257-beta.1")).toBe("unsupported");
     expect(agentVersionCompatibility("kimi", "1.50.0")).toBe("unsupported");
+    expect(agentVersionCompatibility("antigravity", "1.1.26")).toBe("older");
+    expect(agentVersionCompatibility("antigravity", "1.1.27")).toBe("supported");
+    expect(agentVersionCompatibility("antigravity", "1.1.28")).toBe("newer");
+    expect(agentVersionCompatibility("grok", "1.0.3")).toBe("older");
+    expect(agentVersionCompatibility("grok", "1.0.4")).toBe("supported");
+    expect(agentVersionCompatibility("grok", "1.0.5")).toBe("newer");
   });
 
   it("fails closed when a Windows command shim cannot be executed without a shell", async () => {

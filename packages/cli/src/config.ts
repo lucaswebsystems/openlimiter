@@ -28,6 +28,8 @@ export type StatuslineMeters = "worst" | "all";
  */
 export type StatuslineColor = "auto" | "always" | "never";
 
+export type StatuslineStyle = "bar" | "cells";
+
 export interface StatuslineConfig {
   /**
    * Provider ids, in the order they should appear.
@@ -44,6 +46,9 @@ export interface StatuslineConfig {
   /** False restores the single plain line released in 0.1.0. */
   readonly bars: boolean;
   readonly color: StatuslineColor;
+  readonly style: StatuslineStyle;
+  readonly show: readonly string[];
+  readonly hosts: Readonly<Record<string, string>>;
 }
 
 export const STATUSLINE_KEYS = [
@@ -52,7 +57,10 @@ export const STATUSLINE_KEYS = [
   "width",
   "rows",
   "bars",
-  "color"
+  "color",
+  "style",
+  "show",
+  "hosts"
 ] as const;
 
 export type StatuslineKey = (typeof STATUSLINE_KEYS)[number];
@@ -74,7 +82,10 @@ export const DEFAULT_STATUSLINE: StatuslineConfig = {
   width: 140,
   rows: 2,
   bars: true,
-  color: "auto"
+  color: "auto",
+  style: "bar",
+  show: [],
+  hosts: {}
 };
 
 const connectorIds: readonly string[] = connectors.map((connector) => connector.id);
@@ -105,6 +116,26 @@ function normalizeWidth(value: unknown): number | null {
   return value;
 }
 
+function normalizeShow(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value)) return null;
+  const show: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string") return null;
+    const id = entry.toLowerCase().trim();
+    if (id !== "" && !show.includes(id)) show.push(id);
+  }
+  return show;
+}
+
+function normalizeHosts(value: unknown): Readonly<Record<string, string>> {
+  if (!isRecord(value)) return DEFAULT_STATUSLINE.hosts;
+  const hosts: Record<string, string> = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (typeof v === "string") hosts[k.toLowerCase()] = v;
+  }
+  return hosts;
+}
+
 /**
  * Read a stored statusline section, key by key, keeping what is usable.
  *
@@ -120,6 +151,7 @@ export function normalizeStatusline(value: unknown): StatuslineConfig {
   const rows = value["rows"];
   const bars = value["bars"];
   const color = value["color"];
+  const style = value["style"];
   return {
     order: normalizeOrder(value["order"]) ?? DEFAULT_STATUSLINE.order,
     meters: meters === "worst" || meters === "all" ? meters : DEFAULT_STATUSLINE.meters,
@@ -128,7 +160,10 @@ export function normalizeStatusline(value: unknown): StatuslineConfig {
     bars: typeof bars === "boolean" ? bars : DEFAULT_STATUSLINE.bars,
     color: color === "auto" || color === "always" || color === "never"
       ? color
-      : DEFAULT_STATUSLINE.color
+      : DEFAULT_STATUSLINE.color,
+    style: style === "bar" || style === "cells" ? style : DEFAULT_STATUSLINE.style,
+    show: normalizeShow(value["show"]) ?? DEFAULT_STATUSLINE.show,
+    hosts: normalizeHosts(value["hosts"])
   };
 }
 
@@ -144,7 +179,15 @@ export function statuslineValueText(
   if (key === "width") return String(statusline.width);
   if (key === "rows") return String(statusline.rows);
   if (key === "bars") return statusline.bars ? "true" : "false";
-  return statusline.color;
+  if (key === "color") return statusline.color;
+  if (key === "style") return statusline.style;
+  if (key === "show") {
+    return statusline.show.length === 0 ? "NONE" : statusline.show.join(",");
+  }
+  const entries = Object.entries(statusline.hosts);
+  return entries.length === 0
+    ? "NONE"
+    : entries.map(([h, s]) => h + ":" + s).join(",");
 }
 
 export function isStatuslineKey(key: string): key is StatuslineKey {
@@ -212,6 +255,36 @@ export function setStatuslineValue(
     return value === "true" || value === "false"
       ? { ok: true, statusline: { ...statusline, bars: value === "true" } }
       : { ok: false, message: "statusline.bars must be true or false." };
+  }
+  if (key === "style") {
+    return value === "bar" || value === "cells"
+      ? { ok: true, statusline: { ...statusline, style: value } }
+      : { ok: false, message: "statusline.style must be bar or cells." };
+  }
+  if (key === "show") {
+    if (value === "" || value === "NONE" || value === "none") {
+      return { ok: true, statusline: { ...statusline, show: [] } };
+    }
+    const show = normalizeShow(value.split(",").map((entry) => entry.trim()));
+    return show === null
+      ? {
+          ok: false,
+          message: "statusline.show must be a comma separated list of provider ids or NONE."
+        }
+      : { ok: true, statusline: { ...statusline, show } };
+  }
+  if (key === "hosts") {
+    if (value === "" || value === "NONE" || value === "none") {
+      return { ok: true, statusline: { ...statusline, hosts: {} } };
+    }
+    const hosts: Record<string, string> = {};
+    for (const pair of value.split(",")) {
+      const parts = pair.split(":");
+      if (parts.length === 2 && parts[0]?.trim() && parts[1]?.trim()) {
+        hosts[parts[0].trim().toLowerCase()] = parts[1].trim();
+      }
+    }
+    return { ok: true, statusline: { ...statusline, hosts } };
   }
   return value === "auto" || value === "always" || value === "never"
     ? { ok: true, statusline: { ...statusline, color: value } }

@@ -31,6 +31,9 @@ import {
   runAcquisition,
   spawnDetachedRefresh,
   writeAcquisitionSchedule,
+  probeAntigravity,
+  type AntigravityProbeOptions,
+  type AntigravityProbeResult,
   type AcquisitionProvider,
   type AcquisitionRow,
   type AcquisitionSchedule,
@@ -110,11 +113,15 @@ import {
 } from "./config.js";
 import {
   ACQUISITION_PROVENANCE,
+  ANTIGRAVITY_STATUSLINE_PROVENANCE,
+  GROK_STATUSLINE_PROVENANCE,
   INGEST_PROVENANCE,
   MANUAL_PROVENANCE,
   STATUSLINE_PROVENANCE,
   environmentWithLocalMarkers,
   STDIN_BYTE_LIMIT,
+  parseAntigravityStatuslinePayload,
+  parseGrokStatuslinePayload,
   parseJsonText,
   persistSnapshots,
   readManualDocument,
@@ -137,9 +144,20 @@ import {
   supportsColor
 } from "./render.js";
 import {
+  isStatuslineHost,
   renderStatuslineLayout,
-  statuslineColor
+  statuslineColor,
+  type StatuslineHost
 } from "./statusline.js";
+import {
+  TERMINAL_HOST_NAMES,
+  installHost,
+  terminalHide,
+  terminalShow,
+  terminalStatusTable,
+  uninstallHost,
+  type TerminalHostContext
+} from "./terminal.js";
 
 export interface CliDependencies {
   environment: Readonly<Record<string, string | undefined>>;
@@ -211,6 +229,17 @@ export interface CliDependencies {
    * fallback is the only path, which is what every other platform uses.
    */
   windowsCredentialRunner?: CredentialCommandRunner;
+  /**
+   * Probe running Antigravity instances on loopback ports.
+   *
+   * Reaches nothing by default in tests. The real executable injects the real
+   * loopback probe.
+   */
+  probeAntigravity?: (options?: AntigravityProbeOptions) => Promise<AntigravityProbeResult>;
+  /**
+   * Interactive prompt choice helper.
+   */
+  promptChoice?: (question: string) => Promise<string>;
 }
 
 export interface CliResult {
@@ -249,7 +278,9 @@ function defaults(): CliDependencies {
     acquisitionTransport: async () => {
       throw new Error("No acquisition transport was injected");
     },
-    spawnDetached: () => undefined
+    spawnDetached: () => undefined,
+    probeAntigravity: async () => ({ ok: false, reason: "not_running" }),
+    promptChoice: async () => ""
   };
 }
 
@@ -268,10 +299,11 @@ const NEWLINE = "\n";
  */
 export function runtimeDependencies(): Pick<
   CliDependencies,
-  "acquisitionTransport" | "spawnDetached" | "windowsCredentialRunner"
+  "acquisitionTransport" | "spawnDetached" | "windowsCredentialRunner" | "probeAntigravity"
 > {
   return {
     acquisitionTransport: createFetchTransport(),
+    probeAntigravity,
     spawnDetached: (executable, argumentsList, options) => {
       const child = spawn(executable, [...argumentsList], {
         detached: true,
@@ -725,7 +757,10 @@ async function refreshCommand(
       now,
       schedule,
       readCredential: credentialReader(dependencies),
-      stamp: acquisitionStamp
+      stamp: acquisitionStamp,
+      ...(dependencies.probeAntigravity === undefined
+        ? {}
+        : { probeAntigravity: dependencies.probeAntigravity })
     });
     /*
      * Ownership is checked before every write, not once at the start. A round
@@ -857,7 +892,13 @@ function doctorRows(
 const help = [
   "openlimiter init",
   "openlimiter snapshot [--refresh]",
-  "openlimiter statusline",
+  "openlimiter statusline [--host claude|antigravity|grok|codex|shell]",
+  "openlimiter terminal [--yes] [--host <id>]",
+  "openlimiter terminal status",
+  "openlimiter terminal install <host>",
+  "openlimiter terminal uninstall <host>",
+  "openlimiter terminal show <provider ...>",
+  "openlimiter terminal hide <provider ...>",
   "openlimiter refresh",
   "openlimiter hook [--dry-run]",
   "openlimiter hooks install <agent>",
@@ -877,6 +918,7 @@ const help = [
   "",
   "statusline keys: " + STATUSLINE_KEYS.join(", ") + ".",
   "providers keys: " + PROVIDER_KEYS.join(", ") + ".",
+  "terminal hosts: " + TERMINAL_HOST_NAMES.join(", ") + ".",
   "statusline and ingest read JSON from standard input when it is piped in.",
   "refresh reads the logins your provider tools already stored on this machine",
   "and asks each provider for its own usage, at most once every 15 minutes. It",
@@ -888,25 +930,41 @@ const help = [
 ].join("\n");
 
 /**
- * Parse a Claude Code statusline payload from standard input and cache it.
+ * Parse a status line host's payload from standard input and cache it.
  *
  * This is the path that gives the tool something to meter. It performs no
- * network access at all: it validates the JSON that Claude Code already wrote
- * to this process. Every failure returns null so the caller can fall back to
- * the cache instead of breaking the host tool.
+ * network access at all: it validates the JSON the host already wrote to this
+ * process. Every failure returns null so the caller can fall back to the
+ * cache instead of breaking the host tool.
+ *
+ * Which parser runs, and which provenance the reading is stamped with, are
+ * decided by the host. Codex names no scripting interface at all (its status
+ * line draws only its own built in items) and shell prompts read the cache
+ * only, so neither ever hands this anything to parse.
  */
 async function ingestStandardInput(
   dependencies: CliDependencies,
-  now: string
+  now: string,
+  host: StatuslineHost = "claude"
 ): Promise<Snapshot[] | null> {
+  if (host === "codex" || host === "shell") return null;
   try {
     const document = parseJsonText(await dependencies.readStandardInput());
     if (!document.ok) return null;
-    const meters = parseClaudePayload(document.value, now);
+    const meters = host === "antigravity"
+      ? parseAntigravityStatuslinePayload(document.value, now)
+      : host === "grok"
+        ? parseGrokStatuslinePayload(document.value, now)
+        : parseClaudePayload(document.value, now);
     if (meters === null) return null;
-    /* Claude Code wrote this to our standard input in this session. It is the
-       one live reading the product currently has, and it says so. */
-    const incoming = normalizeMeters(withProvenance(meters, STATUSLINE_PROVENANCE));
+    const provenance = host === "antigravity"
+      ? ANTIGRAVITY_STATUSLINE_PROVENANCE
+      : host === "grok"
+        ? GROK_STATUSLINE_PROVENANCE
+        : STATUSLINE_PROVENANCE;
+    /* The host wrote this to our standard input in this session. It is a live
+       reading, and it says so. */
+    const incoming = normalizeMeters(withProvenance(meters, provenance));
     if (incoming.length === 0) return null;
     try {
       return (await persistSnapshots(incoming, dependencies.stateDirectory, now)).merged;
@@ -1154,10 +1212,14 @@ async function ingestCommand(
 /**
  * Draw the statusline.
  *
- * Standard input first, so a Claude Code session payload is ingested and drawn
- * in the same call, then the cache. The layout comes from the configuration
- * file and the fallback is the layout's own default, so a machine with no
- * configuration still gets bars.
+ * Standard input first, so a host's session payload is ingested and drawn in
+ * the same call, then the cache. `--host` names which host is asking, which
+ * decides both how standard input is parsed and which grammar the bar style
+ * draws (a provider's own window carries no tag, every other window does).
+ * Absent or unrecognised falls back to `claude`, which is what every
+ * installation before this one already assumed. The layout comes from the
+ * configuration file and the fallback is the layout's own default, so a
+ * machine with no configuration still gets bars.
  *
  * `bars false` hands the whole job back to the adapter that produced the 0.1.0
  * line. That path is byte for byte what it always was, which is the point of
@@ -1165,9 +1227,14 @@ async function ingestCommand(
  */
 async function statuslineCommand(
   dependencies: CliDependencies,
+  argumentsList: readonly string[],
   now: string
 ): Promise<CliResult> {
-  const ingested = await ingestStandardInput(dependencies, now);
+  const hostFlag = flagValue(argumentsList, "--host");
+  const host: StatuslineHost = hostFlag !== undefined && isStatuslineHost(hostFlag)
+    ? (hostFlag.toLowerCase() as StatuslineHost)
+    : "claude";
+  const ingested = await ingestStandardInput(dependencies, now, host);
   const snapshots = ingested ?? await cachedSnapshots(dependencies.stateDirectory);
   /*
    * The refresh that keeps the other providers current starts here and is never
@@ -1196,7 +1263,8 @@ async function statuslineCommand(
       config.color,
       dependencies.environment,
       dependencies.colorOutput
-    )
+    ),
+    host
   }));
 }
 
@@ -1582,6 +1650,134 @@ async function configCommand(
   return succeed(configGet([target.key], update.statusline));
 }
 
+const terminalUsage = [
+  "openlimiter terminal [--yes] [--host <id>]",
+  "openlimiter terminal status",
+  "openlimiter terminal install <host>",
+  "openlimiter terminal uninstall <host>",
+  "openlimiter terminal show <provider ...>",
+  "openlimiter terminal hide <provider ...>",
+  "",
+  "hosts: " + TERMINAL_HOST_NAMES.join(", ") + "."
+].join("\n");
+
+/** The provider ids this machine has a login or a key for, right now. */
+async function detectedProviderIds(
+  dependencies: CliDependencies
+): Promise<readonly string[]> {
+  const environment = await environmentWithLocalMarkers(
+    dependencies.environment,
+    dependencies.stateDirectory
+  );
+  return connectors
+    .filter((connector) => connector.detect(environment))
+    .map((connector) => connector.id);
+}
+
+function terminalContext(
+  dependencies: CliDependencies,
+  detected: readonly string[]
+): TerminalHostContext {
+  return {
+    homeDirectory: dependencies.homeDirectory,
+    ...(dependencies.stateDirectory === undefined
+      ? {}
+      : { stateDirectory: dependencies.stateDirectory }),
+    platform: dependencies.platform,
+    detectedProviders: detected
+  };
+}
+
+/**
+ * Wire, unwire and report on a status line host, and choose what a terminal
+ * shows.
+ *
+ * A bare call is the checklist: every host this build knows, whether it is
+ * already wired, and the one line that wires the rest. It never opens an
+ * interactive prompt, because this command runs as often from a script as
+ * from a person at a keyboard and a prompt neither can answer would hang one
+ * of them. `--yes` is the unattended equivalent of answering yes to every
+ * host in the checklist; `--host <id>` wires exactly one.
+ */
+async function terminalCommand(
+  dependencies: CliDependencies,
+  argumentsList: readonly string[]
+): Promise<CliResult> {
+  const action = argumentsList[1];
+  const detected = await detectedProviderIds(dependencies);
+  const context = terminalContext(dependencies, detected);
+  const knownHost = (value: string | undefined): value is string =>
+    value !== undefined && TERMINAL_HOST_NAMES.includes(value.toLowerCase());
+
+  if (action === "status") {
+    return succeed(await terminalStatusTable(context));
+  }
+
+  if (action === "install" || action === "uninstall") {
+    const host = argumentsList[2];
+    if (!knownHost(host)) {
+      return fail(
+        EXIT_USAGE,
+        "openlimiter terminal: " + action + " needs a known host. hosts: " +
+          TERMINAL_HOST_NAMES.join(", ") + "."
+      );
+    }
+    const result = action === "install"
+      ? await installHost(host, context)
+      : await uninstallHost(host, context);
+    return result.ok ? succeed(result.message) : fail(EXIT_FAILURE, result.message);
+  }
+
+  if (action === "show" || action === "hide") {
+    const providerIds = argumentsList.slice(2);
+    if (providerIds.length === 0) {
+      return fail(
+        EXIT_USAGE,
+        "openlimiter terminal: " + action + " needs at least one provider id."
+      );
+    }
+    const result = action === "show"
+      ? await terminalShow(providerIds, context)
+      : await terminalHide(providerIds, context);
+    return result.ok ? succeed(result.message) : fail(EXIT_USAGE, result.message);
+  }
+
+  if (action === undefined || action === "--yes" || action === "--host") {
+    const hostFlag = flagValue(argumentsList, "--host");
+    if (argumentsList.includes("--host") && !knownHost(hostFlag)) {
+      return fail(
+        EXIT_USAGE,
+        "openlimiter terminal: --host needs a known host. hosts: " +
+          TERMINAL_HOST_NAMES.join(", ") + "."
+      );
+    }
+    if (knownHost(hostFlag)) {
+      const result = await installHost(hostFlag, context);
+      return result.ok ? succeed(result.message) : fail(EXIT_FAILURE, result.message);
+    }
+    if (argumentsList.includes("--yes")) {
+      const lines: string[] = [];
+      let allOk = true;
+      for (const host of TERMINAL_HOST_NAMES) {
+        const result = await installHost(host, context);
+        if (!result.ok) allOk = false;
+        lines.push(host + ": " + (result.message.split("\n")[0] ?? result.message));
+      }
+      return allOk ? succeed(lines.join("\n")) : fail(EXIT_FAILURE, lines.join("\n"));
+    }
+    const table = await terminalStatusTable(context);
+    return succeed([
+      table,
+      "",
+      "Wire one host: openlimiter terminal install <host>",
+      "Wire every host this build supports: openlimiter terminal --yes",
+      "hosts: " + TERMINAL_HOST_NAMES.join(", ") + "."
+    ].join("\n"));
+  }
+
+  return fail(EXIT_USAGE, terminalUsage);
+}
+
 /**
  * Publish the cached quota on the local network, read only.
  *
@@ -1644,7 +1840,10 @@ export async function runCli(
       return await snapshotCommand(dependencies, argumentsList, now);
     }
     if (command === "statusline") {
-      return await statuslineCommand(dependencies, now);
+      return await statuslineCommand(dependencies, argumentsList, now);
+    }
+    if (command === "terminal") {
+      return await terminalCommand(dependencies, argumentsList);
     }
     if (command === "config") {
       return await configCommand(dependencies, argumentsList);

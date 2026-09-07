@@ -679,7 +679,8 @@ const executableNames: Readonly<Partial<Record<AgentId, string>>> = {
   gemini: "gemini",
   antigravity: "agy",
   kimi: "kimi",
-  opencode: "opencode"
+  opencode: "opencode",
+  grok: "grok"
 };
 
 export interface AgentInstallation {
@@ -911,12 +912,15 @@ export async function changeAgentHook(
 
 /** Exercise an unapproved host fixture without weakening the production compatibility gate. */
 export async function changeAgentHookFixture(
-  agent: Exclude<AgentId, "grok">,
+  agent: AgentId,
   action: "install" | "uninstall",
   options: HookInstallOptions
 ): Promise<HookMutationResult> {
-  const target = targetFor(agent, options.homeDirectory)!;
+  const target = targetFor(agent, options.homeDirectory);
   const version = options.detectedVersion ?? "fixture";
+  if (target === null) {
+    return unsupported(agent, action, version, null, "This agent has no hook configuration target.");
+  }
   try {
     const result = await mutate(agent, action, version, options, target);
     return {

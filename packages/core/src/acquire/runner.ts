@@ -39,6 +39,12 @@ import {
   type AcquisitionRequest,
   type AcquisitionTransport
 } from "./transport.js";
+import {
+  AGY_NOT_RUNNING_SENTENCE,
+  type AntigravityProbeOptions,
+  type AntigravityProbeResult
+} from "./antigravity-probe.js";
+import { isSharedCodeAssist } from "./providers.js";
 
 export interface AcquisitionStepContext {
   readonly credential: AcquiredCredential;
@@ -154,6 +160,9 @@ export interface AcquisitionRunOptions {
     meters: readonly RawMeter[],
     credential: AcquiredCredential
   ) => readonly RawMeter[];
+  readonly probeAntigravity?: (
+    options?: AntigravityProbeOptions
+  ) => Promise<AntigravityProbeResult>;
 }
 
 /**
@@ -297,6 +306,108 @@ export async function runAcquisition(
         disclosure: spec.disclosure
       });
       return;
+    }
+    if (spec.provider === "ANTIGRAVITY" && options.probeAntigravity !== undefined) {
+      let probeResult: AntigravityProbeResult;
+      try {
+        probeResult = await options.probeAntigravity({
+          now: options.now,
+          ...(options.lookup !== undefined ? { lookup: options.lookup } : {})
+        });
+      } catch {
+        probeResult = { ok: false, reason: "unreachable" };
+      }
+      if (probeResult.ok && probeResult.meters.length > 0) {
+        const nextAttemptAt = nextAttemptInstant("ok", options.now);
+        schedule[spec.provider] = {
+          lastAttemptAt: options.now,
+          nextAttemptAt: nextAttemptAt ?? options.now,
+          outcome: "ok"
+        };
+        const snapshots = normalizeMeters(
+          stamp(probeResult.meters, {
+            secret: "",
+            accountId: null,
+            expiresAtMilliseconds: null,
+            origin: "vendor_store"
+          })
+        );
+        if (snapshots.length > 0) {
+          rows.push({
+            provider: spec.provider,
+            detected: true,
+            status: "read",
+            reason: null,
+            nextAttemptAt,
+            disclosure: spec.disclosure
+          });
+          reports.push({
+            ok: true,
+            provider: spec.provider,
+            observedAt: options.now,
+            snapshots
+          });
+          return;
+        }
+      }
+      if (!probeResult.ok && probeResult.reason === "not_running") {
+        const credential = await readCredential(spec.credentialProvider);
+        if (credential.ok && isSharedCodeAssist(credential.credential)) {
+          const fallbackResult = await attempt(spec, credential.credential, options);
+          if (fallbackResult.outcome === "ok" && fallbackResult.meters.length > 0) {
+            const accountId = spec.accountIdFor?.(credential.credential) ?? null;
+            const accountLabel = spec.accountLabelFor?.(credential.credential) ?? null;
+            const disclosure = spec.disclosureFor?.(credential.credential) ?? spec.disclosure;
+            const nextAttemptAt = nextAttemptInstant("ok", options.now);
+            schedule[spec.provider] = {
+              lastAttemptAt: options.now,
+              nextAttemptAt: nextAttemptAt ?? options.now,
+              outcome: "ok"
+            };
+            const snapshots = normalizeMeters(
+              stamp(fallbackResult.meters, credential.credential).map((entry) => ({
+                ...entry,
+                ...(accountId === null ? {} : { accountId }),
+                ...(accountLabel === null ? {} : { accountLabel })
+              }))
+            );
+            if (snapshots.length > 0) {
+              rows.push({
+                provider: spec.provider,
+                ...(accountId === null ? {} : { accountId }),
+                detected: true,
+                status: "read",
+                reason: null,
+                nextAttemptAt,
+                disclosure
+              });
+              reports.push({
+                ok: true,
+                provider: spec.provider,
+                ...(accountId === null ? {} : { accountId }),
+                observedAt: options.now,
+                snapshots
+              });
+              return;
+            }
+          }
+        }
+        const nextAttemptAt = nextAttemptInstant("ok", options.now);
+        schedule[spec.provider] = {
+          lastAttemptAt: options.now,
+          nextAttemptAt: nextAttemptAt ?? options.now,
+          outcome: "drift"
+        };
+        rows.push({
+          provider: spec.provider,
+          detected: true,
+          status: "stale",
+          reason: AGY_NOT_RUNNING_SENTENCE,
+          nextAttemptAt,
+          disclosure: spec.disclosure
+        });
+        return;
+      }
     }
     const credential = await readCredential(spec.credentialProvider);
     if (!credential.ok) {

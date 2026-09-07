@@ -1,7 +1,8 @@
 import path from "node:path";
 import {
   MANUAL_FILE_MARKER,
-  MANUAL_FILE_NAME
+  MANUAL_FILE_NAME,
+  parseGrokPayload
 } from "@openlimiter/connectors";
 import {
   mergeSnapshotCache,
@@ -151,6 +152,108 @@ export const STATUSLINE_PROVENANCE: SnapshotProvenance = {
   sourceKind: "statusline_payload",
   observedVia: "claude_code_statusline"
 };
+
+/** A live Antigravity CLI session payload, arriving on standard input. */
+export const ANTIGRAVITY_STATUSLINE_PROVENANCE: SnapshotProvenance = {
+  sourceKind: "statusline_payload",
+  observedVia: "local_command"
+};
+
+export function parseAntigravityStatuslinePayload(
+  payload: unknown,
+  now: string
+): RawMeter[] | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const root = payload as Record<string, unknown>;
+  const quota = root["quota"];
+  if (typeof quota !== "object" || quota === null) return null;
+
+  const meters: RawMeter[] = [];
+  for (const [bucketId, bucketVal] of Object.entries(quota as Record<string, unknown>)) {
+    if (typeof bucketVal !== "object" || bucketVal === null) continue;
+    const b = bucketVal as Record<string, unknown>;
+
+    const remaining = typeof b["remaining_fraction"] === "number"
+      ? b["remaining_fraction"]
+      : typeof b["remainingFraction"] === "number"
+        ? b["remainingFraction"]
+        : null;
+    if (remaining === null || Number.isNaN(remaining)) continue;
+    const fraction = Math.max(0, Math.min(1, remaining));
+    const value = Math.round(Math.max(0, Math.min(100, (1 - fraction) * 100)) * 10) / 10;
+
+    let meterCode: string;
+    let durationSeconds = 18_000;
+    const idLower = bucketId.toLowerCase();
+    if (idLower.includes("5h")) {
+      meterCode = "FIVE_HOUR";
+      durationSeconds = 18_000;
+    } else if (idLower.includes("weekly") || idLower.includes("7d")) {
+      meterCode = "SEVEN_DAY";
+      durationSeconds = 604_800;
+    } else {
+      meterCode = bucketId.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+      durationSeconds = 86_400;
+    }
+
+    const resetTime = typeof b["reset_time"] === "string"
+      ? b["reset_time"]
+      : typeof b["resetTime"] === "string"
+        ? b["resetTime"]
+        : null;
+    const resetAt = resetTime && !Number.isNaN(Date.parse(resetTime))
+      ? new Date(resetTime).toISOString()
+      : undefined;
+
+    const expiresAt = new Date(new Date(now).getTime() + 300_000).toISOString();
+
+    meters.push({
+      provider: "ANTIGRAVITY",
+      meter: meterCode,
+      value,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds },
+      resetAt,
+      source: "internal_payload",
+      precision: "estimated",
+      observedAt: now,
+      expiresAt,
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "internal-endpoint",
+        automationRisk: "high",
+        verification: "UNVERIFIED"
+      }
+    });
+  }
+
+  return meters.length > 0 ? meters : null;
+}
+
+/** A live Grok Build session payload, arriving on standard input. */
+export const GROK_STATUSLINE_PROVENANCE: SnapshotProvenance = {
+  sourceKind: "statusline_payload",
+  observedVia: "local_command"
+};
+
+/**
+ * Parse the JSON Grok Build hands its status line command on standard input.
+ *
+ * Grok Build documents no payload shape of its own for `[ui.status_line]`
+ * (host research, 2026-09-06): the config table only names a command, items
+ * and a refresh interval, and the field says "stdin JSON with session
+ * fields" with nothing more specific. The one Grok quota shape this codebase
+ * has already validated is the session cost payload the network connector
+ * reads (`config.currentPeriod`, `config.creditUsagePercent`), so this reuses
+ * that parser rather than inventing an unresearched one. Should Grok Build's
+ * own status line document turn out to differ, only this function changes.
+ */
+export function parseGrokStatuslinePayload(
+  payload: unknown,
+  now: string
+): RawMeter[] | null {
+  return parseGrokPayload(payload, now);
+}
 
 /** A payload a person handed us with `openlimiter ingest`. */
 export const INGEST_PROVENANCE: SnapshotProvenance = {

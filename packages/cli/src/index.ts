@@ -8,3 +8,4 @@ export * from "./serve.js";
 export * from "./smoke.js";
 export * from "./statusline.js";
 export * from "./statusline-wrapper.js";
+export * from "./terminal.js";

@@ -78,10 +78,10 @@ export const AGENT_COMPATIBILITY: Readonly<Record<AgentId, AgentCompatibilityGat
   claude: { minimumTestedVersion: "2.1.257", launchState: "included" },
   codex: { minimumTestedVersion: "0.152.0", launchState: "included" },
   gemini: { minimumTestedVersion: null, launchState: "gated" },
-  antigravity: { minimumTestedVersion: null, launchState: "excluded" },
+  antigravity: { minimumTestedVersion: "1.1.27", launchState: "excluded" },
   kimi: { minimumTestedVersion: null, launchState: "gated" },
   opencode: { minimumTestedVersion: "1.18.11", launchState: "experimental" },
-  grok: { minimumTestedVersion: null, launchState: "excluded" }
+  grok: { minimumTestedVersion: "1.0.4", launchState: "excluded" }
 };
 
 export type AgentVersionCompatibility =

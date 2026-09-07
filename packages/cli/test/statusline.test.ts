@@ -97,6 +97,14 @@ const everyProvider: readonly Snapshot[] = [
   })
 ];
 
+/*
+ * This whole suite predates the bar grammar (decision D6) and exercises the
+ * `cells` style deliberately: provider ordering, meter selection, stacking and
+ * band colour are shared machinery, and pinning them against the older, more
+ * verbose grammar is what keeps `style cells` byte for byte for anyone who set
+ * it, exactly as the config comment promises. The new default is covered by
+ * the bar style suite and its golden files, not here.
+ */
 function layout(
   snapshots: readonly Snapshot[],
   overrides: Partial<StatuslineConfig> = {},
@@ -107,7 +115,7 @@ function layout(
     advice: buildAdvice(snapshots, NOW),
     snapshots,
     now: NOW,
-    config: { ...DEFAULT_STATUSLINE, ...overrides },
+    config: { ...DEFAULT_STATUSLINE, style: "cells", ...overrides },
     color,
     /* Stated only where a colour is asserted, so no test asks the machine it
        happens to be running on which colours it has. */

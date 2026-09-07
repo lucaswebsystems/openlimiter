@@ -34,10 +34,10 @@ async function promptForSecret(): Promise<string> {
 const runtime = runtimeDependencies();
 
 const argumentsList = process.argv.slice(2);
-const wrapperRequested =
-  argumentsList[0] === "statusline" && argumentsList[1] === "--wrap";
+const wrapIndex = argumentsList.indexOf("--wrap");
+const wrapperRequested = argumentsList[0] === "statusline" && wrapIndex !== -1;
 const wrapped = wrapperRequested
-  ? decodeWrappedStatuslineCommand(argumentsList[2] ?? "")
+  ? decodeWrappedStatuslineCommand(argumentsList[wrapIndex + 1] ?? "")
   : null;
 
 if (wrapperRequested && wrapped === null) {
@@ -45,10 +45,14 @@ if (wrapperRequested && wrapped === null) {
      OpenLimiter renderer and replace the user's visible status line. */
   process.exitCode = 0;
 } else if (wrapped !== null) {
+  const hostIndex = argumentsList.indexOf("--host");
+  const hostArgs = hostIndex !== -1 && argumentsList[hostIndex + 1]
+    ? ["--host", argumentsList[hostIndex + 1]!]
+    : [];
   const payload = await readStandardInputBuffer();
   const result = await runStatuslineWrapper(payload, wrapped, {
     ingest: async (buffer) => {
-      await runCli(["statusline"], {
+      await runCli(["statusline", ...hostArgs], {
         ...runtime,
         readStandardInput: async () => buffer.toString("utf8")
       });

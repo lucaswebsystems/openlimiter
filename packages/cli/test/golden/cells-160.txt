@@ -1,0 +1,2 @@
+OpenLimiter NEAR_CAP PREFER ANTIGRAVITY  CLAUDE ###.. 64.0%  CODEX ##... 51.0%  ANTIGRAVITY #.... 28.0%  GEMINI_CLI ##... 45.0%  OPENCODE ####. 92.0%
+GROK ##... 42.5%  KIMI ###.. 69.5%  MANUAL #.... 35.0%  OPENROUTER ###.. 62.3%
