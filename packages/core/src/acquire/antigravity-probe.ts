@@ -348,18 +348,19 @@ export function getAgyInstallRoots(
   env: NodeJS.ProcessEnv = process.env
 ): readonly string[] {
   const roots: string[] = [];
+  const hostPath = platform === "win32" ? path.win32 : path.posix;
   if (platform === "win32") {
     const keys = ["LOCALAPPDATA", "APPDATA", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"];
     for (const key of keys) {
       const val = env[key];
       if (val && val.trim().length > 0) {
-        roots.push(path.normalize(val.trim()));
+        roots.push(hostPath.normalize(val.trim()));
       }
     }
     const userProfile = env["USERPROFILE"];
     if (userProfile && userProfile.trim().length > 0) {
-      roots.push(path.normalize(path.join(userProfile.trim(), "AppData", "Local", "Programs")));
-      roots.push(path.normalize(path.join(userProfile.trim(), ".local", "bin")));
+      roots.push(hostPath.normalize(hostPath.join(userProfile.trim(), "AppData", "Local", "Programs")));
+      roots.push(hostPath.normalize(hostPath.join(userProfile.trim(), ".local", "bin")));
     }
   } else {
     for (const fixed of ["/usr/bin", "/usr/local", "/opt", "/Applications", "/snap"]) {
