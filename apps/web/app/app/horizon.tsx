@@ -16,9 +16,20 @@
 /** The five bands, in the order the ramp runs. */
 const BANDS = ["green", "yellow", "orange", "red", "stale"] as const;
 
-export function BandHorizon() {
+/**
+ * The two moods this composition has.
+ *
+ * `bands` is the ramp as the product draws it. `locked` is the same
+ * composition with every bar hatched and the light pulled back, which is the
+ * hatch the meters already use for a window with no trustworthy reading: it is
+ * the shape of a screen somebody used to have. It is the same primitive
+ * either way, so the locked state cannot drift into a second picture.
+ */
+export type HorizonTone = "bands" | "locked";
+
+export function BandHorizon({ tone = "bands" }: { tone?: HorizonTone }) {
   return (
-    <div className="ol-horizon" aria-hidden="true">
+    <div className="ol-horizon" data-tone={tone} aria-hidden="true">
       <div className="ol-horizon-mesh" />
       <div className="ol-horizon-bars">
         {BANDS.map((band) => (

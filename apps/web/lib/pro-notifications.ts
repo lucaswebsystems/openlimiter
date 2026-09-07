@@ -206,7 +206,7 @@ export async function readProAlertHistory(
 
 /* ------------------------------------------------------------ browser push */
 
-function applicationServerKey(value: string): ArrayBuffer {
+export function applicationServerKey(value: string): ArrayBuffer {
   const normalized = value.replace(/-/gu, "+").replace(/_/gu, "/");
   const padding = "=".repeat((4 - (normalized.length % 4)) % 4);
   const binary = window.atob(normalized + padding);
@@ -228,6 +228,58 @@ export function pushCapability(): "ready" | "permission_denied" | "unsupported" 
     return "unsupported";
   }
   return Notification.permission === "denied" ? "permission_denied" : "ready";
+}
+
+/**
+ * The key this deployment publishes to browsers.
+ *
+ * The private half never leaves the Pro server; this is the public half, so it
+ * is inlined at build time like any other public value. A build that carries
+ * no key is not broken, it simply cannot offer push, and every surface that
+ * asks reads `unsupported` and says so instead of failing.
+ */
+export function pushPublicKey(): string {
+  return process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+}
+
+/** What a browser answered when it was asked for push. A refusal is a state. */
+export type PushOutcome =
+  | { state: "granted"; subscription: PushSubscriptionJSON }
+  | { state: "denied" }
+  | { state: "unsupported" };
+
+/**
+ * Ask this browser for push, and hand back the subscription without sending it.
+ *
+ * The wizard stages a subscription the same way it stages a threshold: nothing
+ * is written anywhere until the trial itself is started, so somebody who grants
+ * the permission and then closes the card has given the server nothing. That is
+ * why this is separate from `registerProPush`, which files a subscription
+ * against a device grant a browser tab does not hold.
+ *
+ * Refusal is never an error here. A browser with no push, an insecure origin,
+ * a permission already denied and a permission denied just now are all the same
+ * answer to the reader: push is off, and the trial starts anyway.
+ */
+export async function subscribeBrowserPush(): Promise<PushOutcome> {
+  const key = pushPublicKey();
+  if (pushCapability() !== "ready" || key === "") return { state: "unsupported" };
+  try {
+    const permission =
+      Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    if (permission !== "granted") return { state: "denied" };
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    const subscription =
+      existing ??
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey(key),
+      }));
+    return { state: "granted", subscription: subscription.toJSON() };
+  } catch {
+    return { state: "unsupported" };
+  }
 }
 
 /**

@@ -27,6 +27,13 @@ import {
   type ProCheckoutOutcome,
   type ProDevice,
 } from "@/lib/pro";
+import {
+  locksPro,
+  offersTrial,
+  startOfferCheckout,
+  type OfferCountdown,
+} from "@/lib/pro-trial";
+import { useOfferCountdown } from "@/lib/use-offer-countdown";
 import { PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
 import { SignInCard } from "./sign-in-card";
 import { Button, Chip, SectionPanel } from "./ui";
@@ -54,7 +61,21 @@ import { Button, Chip, SectionPanel } from "./ui";
  */
 
 type AccountState = "loading" | "ready" | "error";
-type Action = "none" | "month" | "year" | "billing";
+type Action = "none" | "month" | "year" | "billing" | "offer";
+
+/**
+ * Where the trial actually happens.
+ *
+ * This page offers it and the hub runs it. That is deliberate: there is one
+ * wizard, on the surface that has the bars it is about, and a second copy of it
+ * here would be a second place for the one call that starts a trial to be made
+ * from. The address carries the parameter the desktop tray uses, so the button
+ * on this page and the entry in the tray menu are the same door.
+ */
+const TRIAL_DEEP_LINK = "/app?trial=1";
+
+/** The four services the plan holds, in the order every surface names them. */
+const PRO_SURFACES = ["alerts", "history", "phone", "multiAccount"] as const;
 
 function formatDate(value: string | null, locale: string): string | null {
   if (value === null) return null;
@@ -87,6 +108,15 @@ export function ProPortal({ locale }: { locale: string }) {
   const [checkout, setCheckout] = useState<ProCheckoutOutcome>(null);
   /** The live auth listener, so a client being replaced takes its own with it. */
   const authListener = useRef<{ unsubscribe: () => void } | null>(null);
+  /**
+   * The offer's remaining time, read above every early return.
+   *
+   * It has to be here rather than inside the panel that draws it, because two
+   * decisions depend on it and they must not disagree: whether the discounted
+   * panel is on screen, and whether the ordinary prices are. A page left open
+   * across the closing instant redraws on the same minute tick and moves both.
+   */
+  const offerCountdown = useOfferCountdown(account?.entitlement?.offerEndsAt ?? null);
 
   /* The checkout return, read once and then cleaned out of the address bar so a
      refresh does not replay a state that has already been acknowledged. */
@@ -174,6 +204,19 @@ export function ProPortal({ locale }: { locale: string }) {
     setActionFailed(true);
   }
 
+  async function takeOffer() {
+    if (supabase === null || action !== "none") return;
+    setAction("offer");
+    setActionFailed(false);
+    const result = await startOfferCheckout(supabase);
+    if (result.ok) {
+      window.location.assign(result.value);
+      return;
+    }
+    setAction("none");
+    setActionFailed(true);
+  }
+
   async function manageBilling() {
     if (supabase === null) return;
     setAction("billing");
@@ -235,6 +278,14 @@ export function ProPortal({ locale }: { locale: string }) {
   const devices = (account?.devices ?? []).filter((device) => !device.revoked);
   const renews = formatDate(entitlement?.currentPeriodEnd ?? null, locale);
   const trialEnds = formatDate(entitlement?.trialEndsAt ?? null, locale);
+  /* Nothing here starts a trial. The button below is a link to the wizard, and
+     the wizard is the only caller of start_trial in this application. */
+  const canStartTrial = accountState === "ready" && offersTrial(state);
+  const locked = accountState === "ready" && locksPro(state);
+  /* One price on the screen at a time. While the discounted year is live it is
+     the only offer; the ordinary panel is what the closed window falls back
+     to, which is the same rule the hub's lock card holds. */
+  const offerLive = locked && offerCountdown !== null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -294,7 +345,32 @@ export function ProPortal({ locale }: { locale: string }) {
         )}
       </SectionPanel>
 
-      {accountState === "ready" && proCanUpgrade(state) && (
+      {canStartTrial && (
+        <SectionPanel className="border-accent-subtle">
+          <h2 className="text-lg font-medium text-heading">{t("trial.title")}</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">{t("trial.body")}</p>
+          <Button
+            tone="accent"
+            className="mt-5"
+            title={t("trial.free")}
+            onClick={() => window.location.assign(TRIAL_DEEP_LINK)}
+          >
+            {t("trial.start")}
+          </Button>
+          <p className="mt-3 text-sm text-muted">{t("trial.free")}</p>
+        </SectionPanel>
+      )}
+
+      {locked && (
+        <OfferPanel
+          countdown={offerCountdown}
+          working={action === "offer"}
+          disabled={action !== "none"}
+          onTake={() => void takeOffer()}
+        />
+      )}
+
+      {accountState === "ready" && proCanUpgrade(state) && !canStartTrial && !offerLive && (
         <SectionPanel>
           <h2 className="text-lg font-medium text-heading">{t("upgrade.title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">{t("upgrade.body")}</p>
@@ -391,6 +467,68 @@ export function ProPortal({ locale }: { locale: string }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * What a trial that has ended is offered, while the window is open.
+ *
+ * Four lines saying what stopped, a countdown, and one price. The countdown is
+ * the server's own `offer_ends_at` and nothing else: when it answers null the
+ * whole panel is gone and the ordinary upgrade panel below it is the offer, so
+ * the closed state is the absence of this rather than a second set of prices
+ * somebody has to remember to write.
+ */
+function OfferPanel({
+  countdown,
+  working,
+  disabled,
+  onTake,
+}: {
+  /** Null once the window has closed, which is what removes the price. */
+  countdown: OfferCountdown | null;
+  working: boolean;
+  disabled: boolean;
+  onTake: () => void;
+}) {
+  const t = useTranslations("proPortal");
+
+  return (
+    <SectionPanel className="border-accent-subtle">
+      <ul className="space-y-1">
+        {PRO_SURFACES.map((surface) => (
+          <li key={surface} className="text-sm leading-relaxed text-muted">
+            {t(`lost.${surface}`)}
+          </li>
+        ))}
+      </ul>
+
+      {countdown !== null && (
+        <>
+          <h2 className="mt-6 text-lg font-medium text-heading">{t("offer.title")}</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted">{t("offer.lead")}</p>
+          <p className="mt-5 text-xs uppercase tracking-wider text-soft">{t("offer.label")}</p>
+          <p
+            className="mt-1 font-mono text-3xl tabular-nums text-heading"
+            aria-label={t("offer.countdownLabel", {
+              days: countdown.days,
+              hours: countdown.hours,
+              minutes: countdown.minutes,
+            })}
+          >
+            {t("offer.countdown", {
+              days: countdown.days,
+              hours: countdown.hours,
+              minutes: countdown.minutes,
+            })}
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-body">{t("offer.price")}</p>
+          <Button tone="accent" className="mt-5" disabled={disabled} onClick={onTake}>
+            {working ? t("working") : t("offer.take")}
+          </Button>
+        </>
+      )}
+    </SectionPanel>
   );
 }
 

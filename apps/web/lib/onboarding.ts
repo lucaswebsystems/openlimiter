@@ -121,8 +121,28 @@ export function rememberOnboarded(userId: string, store: FlagStore | null): void
   }
 }
 
-/** The four things the hub can be showing. */
-export type HubView = "onboarding" | "bars" | "connect" | "configuration";
+/**
+ * The five things the hub can be showing.
+ *
+ * `trial` is a place rather than a dialog, drawn on the same card the first run
+ * uses, because it is the same kind of moment: a short flow with one way out
+ * that lands back on the bars. It is never where a visit opens; it is reached
+ * from a button, or from the deep link the desktop tray uses.
+ */
+export type HubView = "onboarding" | "bars" | "connect" | "configuration" | "trial";
+
+/** The address that opens the wizard straight away. The tray links to it. */
+export const TRIAL_DEEP_LINK_PARAM = "trial";
+
+/**
+ * Whether a location's query asks for the wizard.
+ *
+ * A pure read of one parameter, so the hub can be told from a test what the
+ * address bar said without one existing.
+ */
+export function wantsTrial(search: string): boolean {
+  return new URLSearchParams(search).get(TRIAL_DEEP_LINK_PARAM) === "1";
+}
 
 /**
  * What a signed in reader lands on.

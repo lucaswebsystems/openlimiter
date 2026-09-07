@@ -111,6 +111,11 @@ const buttonTone = {
      property apart from the ghost. */
   solid: "border-hairline-strong bg-surface text-heading hover:border-heading hover:bg-raised",
   quiet: "border-transparent text-muted hover:text-heading",
+  /* The one accent control. It is the trial and the offer, and nothing else:
+     the product's blue means "this is the thing to press" and stops meaning it
+     the moment two buttons on a page wear it. Same metrics as every tone here,
+     one property apart, so the rows still line up. */
+  accent: "border-transparent bg-accent-solid text-on-accent hover:bg-accent-solid-hover",
 } as const;
 
 export type ButtonTone = keyof typeof buttonTone;

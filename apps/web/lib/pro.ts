@@ -7,8 +7,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * with the exact request shape that server parses: `entitlement` for the plan
  * summary and the device list, `create-checkout` for a Stripe session,
  * `customer-portal` for billing management. Nothing in this module invents a
- * state, and nothing in it starts a trial: the server begins the trial at first
- * sign in and the client only reads what came back.
+ * state, and nothing in it starts a trial: a trial has exactly one door, the
+ * wizard in lib/pro-trial.ts, and everything here only reads what came back.
  *
  * The pure functions at the bottom carry every decision the portal makes about
  * what a plan means, so those decisions can be tested without a network.
@@ -59,6 +59,14 @@ export interface ProEntitlement {
   planState: ProPlanState;
   features: ProFeature[];
   trialEndsAt: string | null;
+  /**
+   * When the discounted annual offer closes, or null when there is no offer.
+   *
+   * It is the server's own clock and the only one the product trusts. The
+   * browser never computes it, never extends it, and never draws an offer
+   * without it.
+   */
+  offerEndsAt: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   pastDueUntil: string | null;
@@ -107,20 +115,38 @@ export function failureForStatus(status: number | null): ProFailure {
   return "unavailable";
 }
 
+/**
+ * One call to a hosted function, answered with the status rather than a verdict.
+ *
+ * The trial and the offer classify a refusal differently from the portal: a
+ * 409 is "you already had your trial" on one path and "you are already paying"
+ * on another, and a 503 is a kill switch rather than a broken service. So the
+ * transport hands back the number and each caller decides what it means,
+ * instead of two modules each holding their own copy of this function.
+ */
+export async function callProFunction<T>(
+  client: SupabaseClient,
+  fn: string,
+  body: Record<string, unknown>,
+): Promise<{ ok: true; value: T } | { ok: false; status: number | null }> {
+  try {
+    const response = await client.functions.invoke<T>(fn, { body });
+    if (response.error !== null || response.data === null || response.data === undefined) {
+      return { ok: false, status: statusOf(response.error) };
+    }
+    return { ok: true, value: response.data };
+  } catch {
+    return { ok: false, status: null };
+  }
+}
+
 async function call<T>(
   client: SupabaseClient,
   fn: string,
   body: Record<string, unknown>,
 ): Promise<ProResult<T>> {
-  try {
-    const response = await client.functions.invoke<T>(fn, { body });
-    if (response.error !== null || response.data === null || response.data === undefined) {
-      return { ok: false, reason: failureForStatus(statusOf(response.error)) };
-    }
-    return { ok: true, value: response.data };
-  } catch {
-    return { ok: false, reason: "unavailable" };
-  }
+  const result = await callProFunction<T>(client, fn, body);
+  return result.ok ? result : { ok: false, reason: failureForStatus(result.status) };
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -139,10 +165,27 @@ function planStateOf(value: unknown): ProPlanState | null {
     : null;
 }
 
+/**
+ * The plan the payload names, whichever of the two words it uses.
+ *
+ * The trial and offer contract spells this field `status` and the four values
+ * it can hold are `active`, `trialing`, `expired` and `none`; the entitlement
+ * table has always spelled it `plan_state` and carries five more. They are the
+ * same field, so both are read here and `none` is what it says it is: no row,
+ * which is exactly the state a fresh account is in before it starts a trial.
+ */
+function planStateFrom(row: Record<string, unknown>): ProPlanState | null {
+  const named = planStateOf(row.plan_state);
+  if (named !== null) return named;
+  if (row.status === "none") return null;
+  return planStateOf(row.status);
+}
+
 export function entitlementOf(value: unknown): ProEntitlement | null {
   const row = record(value);
-  const planState = planStateOf(row?.plan_state);
-  if (row === null || planState === null) return null;
+  if (row === null) return null;
+  const planState = planStateFrom(row);
+  if (planState === null) return null;
   const features = Array.isArray(row.features)
     ? row.features.filter((item): item is ProFeature =>
         typeof item === "string" && (PRO_FEATURES as readonly string[]).includes(item),
@@ -154,6 +197,7 @@ export function entitlementOf(value: unknown): ProEntitlement | null {
     planState,
     features,
     trialEndsAt: text(row.trial_ends_at),
+    offerEndsAt: text(row.offer_ends_at),
     currentPeriodEnd: text(row.current_period_end),
     cancelAtPeriodEnd: row.cancel_at_period_end === true,
     pastDueUntil: text(row.past_due_until),

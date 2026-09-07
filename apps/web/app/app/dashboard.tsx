@@ -29,6 +29,7 @@ import {
 } from "./pieces";
 import { BarsEmpty, ConnectList } from "./connect";
 import { Onboarding } from "./onboarding";
+import { ProLockCard, StartTrialButton, TrialWizard } from "./trial";
 import { SignInCard } from "@/components/sign-in-card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SectionPanel } from "@/components/ui";
@@ -44,13 +45,17 @@ import {
 } from "@/lib/account-client";
 import {
   ONBOARDED_METADATA_KEY,
+  TRIAL_DEEP_LINK_PARAM,
   hasOnboarded,
   openingView,
   rememberOnboarded,
+  wantsTrial,
   type AccountProfile,
   type FlagStore,
   type HubView,
 } from "@/lib/onboarding";
+import { proAccessState, readProAccount, type ProEntitlement } from "@/lib/pro";
+import { offersTrial } from "@/lib/pro-trial";
 import {
   readSyncedUsage,
   type SyncedProviderUsage,
@@ -351,6 +356,17 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<ProviderDirectoryRow | null>(null);
+  /**
+   * The plan, as the server last reported it.
+   *
+   * Undefined is "not asked yet" and null is "asked, and there is no row",
+   * which are two different screens: the first draws nothing, the second is a
+   * brand new account and is exactly who the trial is for. Nothing here starts
+   * a trial; the wizard is the one door. See lib/pro-trial.ts.
+   */
+  const [entitlement, setEntitlement] = useState<ProEntitlement | null | undefined>(undefined);
+  /** The deep link the desktop tray opens, consumed once and then forgotten. */
+  const [deepLinkTrial, setDeepLinkTrial] = useState(false);
   const busyTimer = useRef<number | null>(null);
   const t = useTranslations("hub");
   /**
@@ -380,6 +396,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       if (params.get("preview") === "1" || window.location.search.includes("preview=1")) {
         setIsDevPreview(true);
       }
+    }
+
+    /* The tray opens /app?trial=1. The parameter is read once and taken out of
+       the address bar straight away, so a reload is a reload rather than a
+       second wizard, and a shared link is just the hub. */
+    if (wantsTrial(window.location.search)) {
+      setDeepLinkTrial(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete(TRIAL_DEEP_LINK_PARAM);
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
 
     migrateLegacy();
@@ -416,6 +442,24 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   }, [syncClient, syncEnabled]);
 
   /**
+   * Read the plan.
+   *
+   * One call, on a signed in session and on nothing else. A refusal is an
+   * answer: the surfaces that depend on this draw nothing rather than
+   * inventing a state, which is the same rule the Pro portal holds.
+   */
+  const refreshEntitlement = useCallback(() => {
+    if (syncClient === null) {
+      setEntitlement(null);
+      return;
+    }
+    void readProAccount(syncClient).then(
+      (result) => setEntitlement(result.ok ? result.value.entitlement : null),
+      () => setEntitlement(null),
+    );
+  }, [syncClient]);
+
+  /**
    * Where a signed in reader lands, decided once per account.
    *
    * The auth client reports a session again on every token refresh, and a
@@ -448,10 +492,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         setSession(next);
         decideOpeningView(next);
         window.setTimeout(refreshSyncedUsage, 0);
+        if (next !== null) window.setTimeout(refreshEntitlement, 0);
       });
       authListener.current = data.subscription;
     },
-    [decideOpeningView, refreshSyncedUsage],
+    [decideOpeningView, refreshEntitlement, refreshSyncedUsage],
   );
 
   useEffect(() => {
@@ -466,6 +511,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       .then(({ data }) => {
         setSession(data.session);
         decideOpeningView(data.session);
+        if (data.session !== null) refreshEntitlement();
       })
       .catch(() => setSession(null));
     attachAuthListener(syncClient);
@@ -477,7 +523,21 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       authListener.current = null;
       window.removeEventListener("focus", refreshSyncedUsage);
     };
-  }, [attachAuthListener, decideOpeningView, refreshSyncedUsage, syncClient]);
+  }, [attachAuthListener, decideOpeningView, refreshEntitlement, refreshSyncedUsage, syncClient]);
+
+  /**
+   * The deep link, honoured once the reader is actually signed in.
+   *
+   * It waits for a session because the wizard has nothing to call without one,
+   * and it waits behind the opening view rather than racing it, so somebody
+   * arriving on this address lands in the wizard rather than in the wizard and
+   * then somewhere else a moment later.
+   */
+  useEffect(() => {
+    if (!deepLinkTrial || session === null || session === undefined) return;
+    setDeepLinkTrial(false);
+    setView("trial");
+  }, [deepLinkTrial, session]);
 
   /**
    * Move the session, then swap the client. In that order, and not otherwise.
@@ -635,6 +695,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     return [...scopes.values()];
   }, [shown]);
 
+  /**
+   * The plan, once, for every surface that gates on it.
+   *
+   * Null while the answer has not arrived, which is not the same as "no plan":
+   * a surface that offered a trial in that gap would flash a button at
+   * somebody who is already paying for one.
+   */
+  const planState = entitlement === undefined ? null : proAccessState(entitlement);
+  const canStartTrial = planState !== null && offersTrial(planState);
+
   const effectiveSession =
     isDevPreview && IS_DEV
       ? ({ user: { id: "preview", email: "preview@openlimiter.com" } } as unknown as Session)
@@ -701,13 +771,29 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             {/* The name is carried by the control rather than by its text,
                 because the text is dropped at the phone width and a button
                 whose only label is display:none has no accessible name. */}
+            {/* The one aggressive control on this surface, and the only place
+                the header carries an accent. It appears for an account that has
+                never had a trial and disappears the moment one exists, so it is
+                never a button that can only be refused. The promise rides on
+                its title, because a sentence in a toolbar is a sentence nobody
+                reads; every other placement writes it out in full. */}
+            {view === "bars" && canStartTrial && (
+              <StartTrialButton compact onStart={() => setView("trial")} />
+            )}
             {view === "bars" && (
               <Button tone="ghost" label={t("addAccount")} onClick={() => setView("connect")}>
                 <PlusGlyph />
                 <span className="hidden lg:inline">{t("addAccount")}</span>
               </Button>
             )}
-            {syncClient !== null && <NotificationBell client={syncClient} scopes={alertScopes} />}
+            {syncClient !== null && (
+              <NotificationBell
+                client={syncClient}
+                scopes={alertScopes}
+                trialOffered={canStartTrial}
+                onStartTrial={() => setView("trial")}
+              />
+            )}
             <InstallControl />
             <ThemeToggle className="h-9 w-9" />
             {/* Not offered during the first run. Reaching configuration from
@@ -760,7 +846,37 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         </div>
       )}
 
-      {view === "bars" && <div className="ol-panel">{barsPanel}</div>}
+      {view === "bars" && (
+        <div className="ol-panel ol-home-stack">
+          {barsPanel}
+          {/* Every locked Pro surface in one card: what is not here yet, or
+              what stopped. It draws nothing at all for a running trial or a
+              paid plan, and nothing while the plan is still being read. */}
+          {entitlement !== undefined && (
+            <ProLockCard
+              client={syncClient}
+              entitlement={entitlement}
+              onStartTrial={() => setView("trial")}
+            />
+          )}
+        </div>
+      )}
+
+      {view === "trial" && syncClient !== null && (
+        <div className="ol-panel">
+          <TrialWizard
+            client={syncClient}
+            onStarted={(next) => {
+              /* The hub redraws from what the call returned rather than from a
+                 reload, and asks again anyway so the device list and the
+                 features come from the server rather than from this branch. */
+              setEntitlement(next);
+              refreshEntitlement();
+            }}
+            onClose={() => setView("bars")}
+          />
+        </div>
+      )}
 
       {view === "connect" && (
         <div className="ol-panel">

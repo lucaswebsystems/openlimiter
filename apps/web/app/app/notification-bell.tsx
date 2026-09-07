@@ -3,6 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { StartTrialButton } from "./trial";
 import { readDeviceToken } from "@/lib/device-session";
 import {
   PRO_ALERT_THRESHOLDS,
@@ -75,9 +76,14 @@ function emptyPreference(channel: ProAlertChannel): ProAlertPreference {
 export function NotificationBell({
   client,
   scopes,
+  trialOffered = false,
+  onStartTrial,
 }: {
   client: SupabaseClient;
   scopes: readonly AlertScope[];
+  /** Whether this account has never had a trial, decided by the hub. */
+  trialOffered?: boolean;
+  onStartTrial?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>("idle");
@@ -184,6 +190,18 @@ export function NotificationBell({
             when that window resets. Alerts are part of Pro.
           </p>
           {watched > 0 && <p>{watched} windows are on this screen right now.</p>}
+
+          {/* Alerts are the surface people meet this gate on first, so the way
+              past it is here rather than a page away. It is the same control
+              the header and the lock card draw. */}
+          {trialOffered && onStartTrial !== undefined && (
+            <StartTrialButton
+              onStart={() => {
+                setOpen(false);
+                onStartTrial();
+              }}
+            />
+          )}
 
           {loadState === "loading" && <p>Reading your alert preferences.</p>}
           {loadState === "deviceRequired" && (

@@ -1856,7 +1856,7 @@
       "none": {
         "chip": "ainda sem plano",
         "title": "Seu plano ainda está sendo preparado",
-        "body": "O serviço abre o teste no seu primeiro acesso, então esta página fica sem nada por um instante. Recarregue se continuar vazia."
+        "body": "You have not started a trial yet. Thirty days of every Pro service are one button away, and no card is asked for."
       },
       "trial": {
         "chip": "teste",
@@ -1915,6 +1915,27 @@
         "body": "Nada foi cobrado e nada mudou. O teste e todos os recursos locais continuam exatamente como antes."
       },
       "dismiss": "Fechar"
+    },
+    "trial": {
+      "title": "Start your free trial",
+      "body": "Thirty days of every Pro service: alerts, history, phone access and extra accounts.",
+      "start": "Start free trial",
+      "free": "30 days free, no card"
+    },
+    "offer": {
+      "title": "Your annual offer",
+      "lead": "Your trial has ended, so the first year is discounted while this window is open.",
+      "label": "Your offer ends in",
+      "countdown": "{days}d {hours}h {minutes}m",
+      "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
+      "price": "USD 40 for the first year, then USD 50.",
+      "take": "Take the offer"
+    },
+    "lost": {
+      "alerts": "Your alerts stopped at 60, 80 and 90 percent.",
+      "history": "Your history is kept for thirty days, then purged.",
+      "phone": "Your paired phone stopped reading.",
+      "multiAccount": "Every provider is back to one account."
     }
   },
   "hub": {
@@ -1958,6 +1979,82 @@
         "lead": "One row for every window a provider reports.",
         "done": "Done"
       }
+    },
+    "trial": {
+      "start": "Start free trial",
+      "free": "30 days free, no card",
+      "label": "Start your free trial",
+      "progress": "Step {step} of {total}",
+      "back": "Back",
+      "cancel": "Not now",
+      "alerts": {
+        "title": "Turn your alerts on",
+        "lead": "Every window tells you before it runs out.",
+        "threshold": "At {percent} percent",
+        "reset": "When a window resets",
+        "continue": "Continue"
+      },
+      "push": {
+        "title": "Push to this browser",
+        "lead": "One line on your screen the moment a window turns. A push never carries usage detail, so a locked screen never shows one.",
+        "ask": "Allow push",
+        "granted": "Push is on for this browser.",
+        "denied": "Push is off in this browser. Everything else works, and you can allow it later.",
+        "unsupported": "This browser cannot take push. Everything else works.",
+        "start": "Start my trial",
+        "working": "Starting"
+      },
+      "done": {
+        "title": "Your trial is running",
+        "ends": "Your trial ends on {date}.",
+        "endsUnknown": "Your trial runs for 30 days.",
+        "lead": "Nothing was charged and no card was asked for.",
+        "bars": "See my bars"
+      },
+      "error": {
+        "alreadyUsed": "This account has already had its trial.",
+        "switchedOff": "Trials are not available right now. Try again in a while.",
+        "unauthenticated": "Sign in again to start your trial.",
+        "rateLimited": "Too many attempts. Try again in a moment.",
+        "unavailable": "That did not go through. Nothing was charged and nothing changed.",
+        "retry": "Try again"
+      }
+    },
+    "pro": {
+      "label": "Pro",
+      "locked": {
+        "title": "Alerts, history, phone and extra accounts",
+        "lead": "Your bars are free and stay free. These four are Pro."
+      },
+      "expired": {
+        "title": "Pro has ended",
+        "lead": "Your bars carry on exactly as they are. These four stopped."
+      },
+      "feature": {
+        "alerts": "Alerts at 60, 80 and 90 percent, and when a window resets.",
+        "history": "Ninety days of history, with a forecast.",
+        "phone": "Your bars on your phone, paired by a QR code.",
+        "multiAccount": "More than one account for every provider."
+      },
+      "lost": {
+        "alerts": "Your alerts stopped at 60, 80 and 90 percent.",
+        "history": "Your history is kept for thirty days, then purged.",
+        "phone": "Your paired phone stopped reading.",
+        "multiAccount": "Every provider is back to one account."
+      },
+      "offer": {
+        "label": "Your offer ends in",
+        "countdown": "{days}d {hours}h {minutes}m",
+        "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
+        "price": "USD 40 for the first year, then USD 50.",
+        "take": "Take the offer",
+        "working": "Opening checkout"
+      },
+      "prices": {
+        "line": "{monthly} a month, or {yearly} a year.",
+        "take": "Take Pro"
+      },
+      "error": "That did not go through. Nothing was charged and nothing changed."
     }
   }
 }
