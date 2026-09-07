@@ -333,3 +333,45 @@ describe("moving the session switch", () => {
     expect(view.container.textContent).toContain(messages.signIn.keepSignedInFailed);
   });
 });
+
+describe("the background poll", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("polls again after the idle interval, and not while the tab is hidden", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    currentRead = async () => {
+      calls += 1;
+      return { ok: true, providers: [] };
+    };
+    currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
+    const view = render(createElement(Dashboard, { lockup: null }));
+    mounted = view;
+    await view.run(async () => {
+      await flush(3);
+    });
+    const afterMount = calls;
+    expect(afterMount).toBeGreaterThan(0);
+
+    /* Hidden: the pending timer is cancelled outright, so five minutes of
+       fake time pass with no second call. */
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    await view.run(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(5 * 60_000 + 1_000);
+    });
+    expect(calls).toBe(afterMount);
+
+    /* Visible again: one immediate poll, which is what resumes the cadence. */
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    await view.run(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await view.run(async () => {
+      await flush(3);
+    });
+    expect(calls).toBeGreaterThan(afterMount);
+  });
+});

@@ -122,7 +122,18 @@ export default function AppLayout({ children }: Readonly<{ children: ReactNode }
      the download page and the privacy policy promise the web app sends
      nothing. See components/site-html.tsx. */
   return (
-    <SiteHtml locale={DEFAULT_LOCALE} localised={false} analytics={false}>
+    <SiteHtml
+      locale={DEFAULT_LOCALE}
+      localised={false}
+      analytics={false}
+      /* Neither `proPortal` (the /pro page's own namespace, nothing in this
+         tree reads it) nor `localeSwitcher` (only the language column Footer
+         drops when `localised` is off, and the offer banner this tree never
+         mounts, ever calls it from a hydrated component) does anything here;
+         `hub` is what every dashboard screen actually reads from, and it is
+         the one namespace the marketing default does not carry. */
+      namespaces={["common", "nav", "announce", "signIn", "hub"]}
+    >
       <RegisterServiceWorker />
       {children}
     </SiteHtml>

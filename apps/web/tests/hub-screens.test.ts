@@ -278,11 +278,22 @@ describe("the first visit", () => {
     expect(rows.length).toBeGreaterThanOrEqual(8);
     for (const row of rows) {
       /* One mark, one name, one line, and the line says where a connection is
-         actually made. Nothing on this screen claims the browser can do it. */
+         actually made. Nothing on this screen claims the browser can do it.
+         The terminal sentence is personalised with the tool's own name, so a
+         row's line is checked against its own name filled into the template
+         rather than the raw template string. */
       expect(row.querySelector(".ol-provider-mark")).not.toBeNull();
+      const toolName = row.querySelector(".ol-connect-name strong")?.textContent ?? "";
       const line = row.querySelector(".ol-connect-name span")?.textContent ?? "";
-      expect([hub.connect.terminal, hub.connect.key]).toContain(line);
+      const expectedTerminal = hub.connect.terminal.replace("{tool}", toolName);
+      expect([expectedTerminal, hub.connect.key]).toContain(line);
     }
+    /* Seven different tools each say their own name: no two subscription rows
+       repeat the exact same sentence. */
+    const terminalLines = rows
+      .map((row) => row.querySelector(".ol-connect-name span")?.textContent ?? "")
+      .filter((line) => line !== hub.connect.key);
+    expect(new Set(terminalLines).size).toBe(terminalLines.length);
 
     const rail = all(mounted.container, ".ol-onboarding-rail > span");
     expect(rail.map((node) => node.getAttribute("data-state"))).toEqual(["done", "here", null]);

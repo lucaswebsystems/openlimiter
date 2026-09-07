@@ -24,17 +24,17 @@ import {
   type PairState,
 } from "@/lib/pairing";
 import {
-  clearPhonePair,
+  endPhoneSession,
+  establishPhoneSession,
   phonePairNeedsRenewal,
-  readPhoneBars,
-  readPhonePair,
-  renewPhonePair,
-  writePhonePair,
-  type PhonePair,
+  readPhonePairMeta,
+  requestPhoneRead,
+  requestPhoneRenewal,
 } from "@/lib/phone-session";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
 import { PROVIDER_CODES, parseQuotaText } from "../engine";
 import { LiveMeter } from "../live-meter";
+import { DollarRow } from "../pieces";
 import { PairInstallStep } from "./pair-install";
 
 /**
@@ -182,16 +182,12 @@ function PhoneBars({ body, stale, locale, heading, staleLabel }: PhoneBarsProps)
 }
 
 function MoneyRow({ row, locale }: { row: MeterRow; locale: string }) {
-  const amount = formatAmount(row, locale);
   return (
-    <div className="ol-device-money-row">
-      <span className="ol-device-money-name">
-        {row.provider} {row.code}
-      </span>
-      <span className="ol-device-money-value" data-state={row.stale ? "stale" : "fresh"}>
-        {amount ?? "unknown"}
-      </span>
-    </div>
+    <DollarRow
+      name={`${row.provider} ${row.code}`}
+      amountText={formatAmount(row, locale) ?? "unknown"}
+      stale={row.stale}
+    />
   );
 }
 
@@ -201,60 +197,81 @@ type PairedPhase = "reading" | "renewing" | "ready" | "offline" | "revoked";
 
 interface PairedState {
   phase: PairedPhase;
-  pair: PhonePair;
   /** The body of the last good read, which an offline page keeps drawing. */
   bars: unknown;
+  /** Bumped to re-run the read effect after a renewal, with no secret in it. */
+  generation: number;
 }
 
 /**
- * The page after pairing: renew if the token is due, then read.
+ * The page after pairing: renew if the local marker says the token is due,
+ * then read. Neither step ever touches a token or a refresh credential
+ * directly; both are same-origin calls to the routes under
+ * app/app/pair/api, which hold the only copies that exist.
  *
  * Renewal happens on every open rather than on a failed read, because the
  * server answers phone_renew even for an expired token and waiting for a
- * refusal would cost the reader a broken screen first. The effect is driven
- * by the pair itself: a renewal that answers writes the fresh pair, the pair
- * changing re runs the effect, and the run that follows is the read.
+ * refusal would cost the reader a broken screen first. `requestPhoneRenewal`
+ * itself is what serialises this across tabs (a Web Lock, reread after
+ * acquiring it), so this effect does not have to know anything about other
+ * tabs to be safe from the race that used to overwrite a newer pair.
+ *
+ * The one answer that ends the pairing is the server's explicit revoked
+ * epoch signal, surfaced by a renewal or, defensively, by a read; a
+ * `no_pair` answer from a fresh mount instead calls `onUnpaired`, because
+ * the browser was never paired to begin with rather than having been kicked
+ * off one.
  */
-function PairedPhone({ pair, t }: { pair: PhonePair; t: (key: string) => string }) {
+function PairedPhone({
+  label,
+  t,
+  onUnpaired,
+  initialBars,
+}: {
+  label: string;
+  t: (key: string, values?: Record<string, string | number | Date>) => string;
+  onUnpaired: () => void;
+  initialBars: unknown;
+}) {
   const [state, setState] = useState<PairedState>({
-    phase: "reading",
-    pair,
-    bars: null,
+    phase: initialBars === null ? "reading" : "ready",
+    bars: initialBars,
+    generation: 0,
   });
   const locale = useRef("en");
+  const unpairedRef = useRef(onUnpaired);
+  unpairedRef.current = onUnpaired;
 
   useEffect(() => {
     locale.current = navigator.language || "en";
   }, []);
 
   useEffect(() => {
+    if (state.phase === "ready" && state.generation === 0) return;
     let live = true;
     void (async () => {
-      const current = state.pair;
-      /* Renew first when the token is within the renewal window. */
-      if (phonePairNeedsRenewal(current)) {
+      const meta = readPhonePairMeta();
+      if (meta !== null && phonePairNeedsRenewal(meta)) {
         setState((previous) => ({ ...previous, phase: "renewing" }));
-        const outcome = await renewPhonePair(current);
+        const outcome = await requestPhoneRenewal();
         if (!live) return;
         if (outcome.kind === "revoked") {
-          clearPhonePair();
           setState((previous) => ({ ...previous, phase: "revoked" }));
           return;
         }
-        if (outcome.kind === "renewed") {
-          writePhonePair(outcome.pair);
-          /* The fresh pair replaces the stale one, which re runs this effect:
-             the renewed token is what the read below then carries. */
-          setState((previous) => ({ ...previous, pair: outcome.pair, phase: "reading" }));
-          return;
-        }
-        /* Unavailable: keep the pair. It may still read. */
+        /* Renewed, skipped (another tab already did it) or unavailable all
+           fall through to the read below with whatever token is now current. */
       }
-      const answer = await readPhoneBars(current);
+      const answer = await requestPhoneRead();
       if (!live) return;
       if (answer.kind === "revoked") {
-        clearPhonePair();
+        await endPhoneSession();
         setState((previous) => ({ ...previous, phase: "revoked" }));
+        return;
+      }
+      if (answer.kind === "unpaired") {
+        await endPhoneSession();
+        unpairedRef.current();
         return;
       }
       if (answer.kind === "fresh") {
@@ -266,7 +283,8 @@ function PairedPhone({ pair, t }: { pair: PhonePair; t: (key: string) => string 
     return () => {
       live = false;
     };
-  }, [state.pair]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.generation]);
 
   if (state.phase === "revoked") {
     return (
@@ -307,6 +325,7 @@ function PairedPhone({ pair, t }: { pair: PhonePair; t: (key: string) => string 
 
   return (
     <div className="space-y-4">
+      <p className="text-center text-xs text-muted">{t("pairPage.pairedAs", { label })}</p>
       <PhoneBars
         body={state.bars}
         stale={state.phase === "offline"}
@@ -321,9 +340,19 @@ function PairedPhone({ pair, t }: { pair: PhonePair; t: (key: string) => string 
 
 /* ----------------------------------------------------------- the flow */
 
-export function PairFlow() {
-  const t = useTranslations("hub");
-  const [state, setState] = useState<PairState>({
+/**
+ * The very first state this page is in, computed before the first paint.
+ *
+ * `useState`'s lazy initializer runs synchronously during render, ahead of
+ * anything reaching the screen, which is what "render nothing until the
+ * fragment is read and replaced" actually requires: an effect runs after the
+ * first commit, which is one paint too late for a code sitting in the address
+ * bar. The fragment is stripped here whether it held a valid code, an invalid
+ * one, or nothing at all, so a stray `#code=` that failed to parse never
+ * lingers in the history entry either.
+ */
+function initialFragmentState(): PairState {
+  const empty: PairState = {
     phase: "reading",
     code: null,
     claimId: null,
@@ -331,41 +360,47 @@ export function PairFlow() {
     pollInterval: PAIRING_POLL_MILLISECONDS,
     session: null,
     phonePair: null,
-  });
+  };
+  if (typeof window === "undefined") return empty;
+  const next = initialPairState(window.location.hash);
+  if (window.location.hash !== "") {
+    window.history.replaceState(null, "", window.location.pathname);
+  }
+  return next;
+}
+
+export function PairFlow() {
+  const t = useTranslations("hub");
+  const [state, setState] = useState<PairState>(initialFragmentState);
   const [remaining, setRemaining] = useState<number | null>(null);
-  const [stored, setStored] = useState<PhonePair | null>(null);
-  const claimed = useRef(false);
+  /* Non-null means: show the paired screen under this label. Set either by a
+     fresh approval or by finding a still valid pairing on a returning visit;
+     never carries a token or a refresh credential, both of which live only
+     as HttpOnly cookies from the moment either path succeeds. */
+  const [pairedLabel, setPairedLabel] = useState<string | null>(null);
+  const [pairedBars, setPairedBars] = useState<unknown>(null);
+  const [checkingExisting, setCheckingExisting] = useState(() => state.phase !== "claiming");
+  const claimStarted = useRef(false);
+  const existingCheckStarted = useRef(false);
 
   /*
-   * The fragment is read and consumed before anything else on the page.
+   * The claim itself, for a freshly scanned code only.
    *
-   * A returning phone carries no code: the credential pair it stored on its
-   * first visit is its way in, and iOS would have dropped the fragment of an
-   * installed launch anyway. A fresh scan carries the code, which is claimed
-   * at once and stripped from the history entry.
+   * The fragment was already read and stripped by the initializer above; this
+   * effect only makes the network call, guarded so React's development mode
+   * double invocation cannot claim the same code twice.
    */
   useEffect(() => {
-    if (claimed.current) return;
-    claimed.current = true;
-    const next = initialPairState(window.location.hash);
-    if (next.phase !== "claiming" || next.code === null) {
-      const existing = readPhonePair();
-      if (existing !== null) {
-        setStored(existing);
-        setState({ ...next, phase: "approved", phonePair: existing });
-        return;
-      }
-      setState(next);
-      return;
-    }
-    setState(next);
-    window.history.replaceState(null, "", window.location.pathname);
+    if (state.phase !== "claiming" || state.code === null) return;
+    if (claimStarted.current) return;
+    claimStarted.current = true;
+    const code = state.code;
     let live = true;
     void (async () => {
       const meta = browserMeta();
       const device = pairDeviceMeta(meta);
       const hash = await pairUserAgentHash(navigator.userAgent);
-      const response = await claimPairingCode(next.code as string, {
+      const response = await claimPairingCode(code, {
         ...device,
         user_agent_hash: hash,
       });
@@ -376,7 +411,45 @@ export function PairFlow() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [state.phase, state.code]);
+
+  /*
+   * A returning visit, with no code in the fragment at all.
+   *
+   * The only honest way to know whether this browser is still paired is to
+   * ask: the secrets that would prove it live in cookies this component
+   * cannot read. The local marker is used only for its label and to decide
+   * whether an unreadable answer is worth showing as "offline" rather than
+   * "scan again": a marker from a previous pairing means this browser was
+   * paired before, so a transient failure reads as offline; no marker and no
+   * successful read means there is nothing to offer but a fresh scan.
+   */
+  useEffect(() => {
+    if (state.phase === "claiming") return;
+    if (existingCheckStarted.current) return;
+    existingCheckStarted.current = true;
+    let live = true;
+    void (async () => {
+      const meta = readPhonePairMeta();
+      const answer = await requestPhoneRead();
+      if (!live) return;
+      if (answer.kind === "fresh") {
+        setPairedBars(answer.body);
+        setPairedLabel(meta?.label ?? "This phone");
+        setCheckingExisting(false);
+        return;
+      }
+      if (answer.kind === "unpaired" || answer.kind === "revoked" || meta === null) {
+        setCheckingExisting(false);
+        return;
+      }
+      setPairedLabel(meta.label);
+      setCheckingExisting(false);
+    })();
+    return () => {
+      live = false;
+    };
+  }, [state.phase]);
 
   /*
     Ask the server whether the desktop has answered, until it has or time is up.
@@ -430,16 +503,27 @@ export function PairFlow() {
   /*
    * Approval, as a fork.
    *
-   * The new delivery carries the read token and the refresh credential: they
-   * are stored under one key and the phone stays on this page, which renders
-   * its bars here. The legacy delivery, a device session alone, keeps the old
-   * behaviour exactly: stored, then handed over to /app.
+   * The new delivery carries the read token and the refresh credential.
+   * Neither is ever stored by this component: they are handed once to the
+   * session route, which is the only thing that turns them into cookies, and
+   * the phone stays on this page under the label that route confirmed. The
+   * legacy delivery, a device session alone, keeps the old behaviour exactly:
+   * stored, then handed over to /app.
    */
+  const establishing = useRef(false);
   useEffect(() => {
     if (state.phase !== "approved") return;
     if (state.phonePair !== null) {
-      writePhonePair(state.phonePair);
-      setStored(state.phonePair);
+      if (establishing.current) return;
+      establishing.current = true;
+      const pair = state.phonePair;
+      const label = pairDeviceMeta(browserMeta()).name;
+      void establishPhoneSession(pair, label).then((ok) => {
+        if (ok) setPairedLabel(label);
+        /* A failed establish leaves nothing usable behind; the reader's only
+           path forward is to scan again, and no secret was ever kept here to
+           clean up. */
+      });
       return;
     }
     if (state.session === null) return;
@@ -447,13 +531,21 @@ export function PairFlow() {
     window.location.assign("/app");
   }, [state.phase, state.session, state.phonePair]);
 
-  const paired = state.phase === "approved" ? (state.phonePair ?? stored) : null;
-
-  if (paired !== null) {
-    return <PairedPhone pair={paired} t={t} />;
+  if (pairedLabel !== null) {
+    return (
+      <PairedPhone
+        label={pairedLabel}
+        t={t}
+        initialBars={pairedBars}
+        onUnpaired={() => {
+          setPairedLabel(null);
+          setPairedBars(null);
+        }}
+      />
+    );
   }
 
-  if (state.phase === "reading" || state.phase === "claiming") {
+  if (checkingExisting || state.phase === "reading" || state.phase === "claiming") {
     return (
       <Card title="Reading the code" tone="accent">
         <p>One moment. Nothing has been sent anywhere yet.</p>

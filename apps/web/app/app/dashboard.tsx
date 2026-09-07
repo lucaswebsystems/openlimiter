@@ -31,6 +31,7 @@ import {
 import { BarsEmpty, ConnectList } from "./connect";
 import { Onboarding } from "./onboarding";
 import { ProLockCard, StartTrialButton, TrialWizard } from "./trial";
+import PhoneButton from "./phone-button";
 import { SignInCard } from "@/components/sign-in-card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SectionPanel } from "@/components/ui";
@@ -45,18 +46,22 @@ import {
   writeKeepSignedIn,
 } from "@/lib/account-client";
 import {
+  CONFIGURATION_DEEP_LINK_PARAM,
   ONBOARDED_METADATA_KEY,
   TRIAL_DEEP_LINK_PARAM,
   hasOnboarded,
   openingView,
   rememberOnboarded,
+  wantsConfiguration,
   wantsTrial,
   type AccountProfile,
   type FlagStore,
   type HubView,
 } from "@/lib/onboarding";
+import { CloudMeterPanel, CloudSpendRows } from "./cloud-meter-panel";
 import { proAccessState, readProAccount, type ProEntitlement } from "@/lib/pro";
 import { offersTrial } from "@/lib/pro-trial";
+import { hubPollIntervalMilliseconds, mostRecentObservedAt } from "@/lib/hub-polling";
 import {
   readSyncedUsage,
   type SyncedProviderUsage,
@@ -368,6 +373,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [entitlement, setEntitlement] = useState<ProEntitlement | null | undefined>(undefined);
   /** The deep link the desktop tray opens, consumed once and then forgotten. */
   const [deepLinkTrial, setDeepLinkTrial] = useState(false);
+  /** The deep link the OpenRouter callback returns on, consumed the same way. */
+  const [deepLinkConfiguration, setDeepLinkConfiguration] = useState(false);
   const busyTimer = useRef<number | null>(null);
   const t = useTranslations("hub");
   /**
@@ -409,6 +416,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
 
+    /* The OpenRouter callback opens /app?configuration=1 once the key is
+       stored, so the reader lands back on Configuration rather than on
+       whichever screen the opening view would otherwise have chosen. */
+    if (wantsConfiguration(window.location.search)) {
+      setDeepLinkConfiguration(true);
+      const url = new URL(window.location.href);
+      url.searchParams.delete(CONFIGURATION_DEEP_LINK_PARAM);
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+
     migrateLegacy();
     const storedLive = loadStore(LIVE_KEY);
     const storedDemo = loadStore(DEMO_KEY);
@@ -430,17 +447,69 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     };
   }, [isDevPreview]);
 
-  const refreshSyncedUsage = useCallback(() => {
+  const refreshSyncedUsage = useCallback((): Promise<void> => {
     if (!syncEnabled) {
       setSyncedUsage({ ok: false, reason: "signed_out" });
-      return;
+      return Promise.resolve();
     }
     /* A rejection is an answer too. Without this the first read failing would
-       leave the working state on screen with nothing ever to replace it. */
-    void readSyncedUsage(syncClient).then(setSyncedUsage, () =>
+       leave the working state on screen with nothing ever to replace it. The
+       promise is returned (every existing call site already ignores it) so
+       the automatic poll below can tell when one call ends and the next may
+       start: see hubPollIntervalMilliseconds. */
+    return readSyncedUsage(syncClient).then(setSyncedUsage, () =>
       setSyncedUsage({ ok: false, reason: "unavailable" }),
     );
   }, [syncClient, syncEnabled]);
+
+  /**
+   * The background poll: 60 seconds while a device wrote inside the last
+   * fifteen minutes, five minutes otherwise, and nothing at all while the tab
+   * is hidden.
+   *
+   * The dependency on `syncedUsage` is what drives the loop rather than a
+   * `setInterval`: every call this effect makes ends in a `setSyncedUsage`,
+   * success or failure, which is a new object and therefore re-runs this
+   * effect with a freshly computed interval. That is also what keeps this to
+   * one request in flight: the next call cannot even be scheduled until the
+   * previous one has already produced the state change that reschedules it.
+   * A tab that goes hidden mid-wait has its pending timer cancelled outright;
+   * becoming visible again asks once immediately, and that answer's state
+   * change is what re-enters this effect and resumes the normal cadence.
+   */
+  useEffect(() => {
+    if (syncClient === null || !syncEnabled) return undefined;
+    let timer: number | null = null;
+    let cancelled = false;
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        if (timer !== null) {
+          window.clearTimeout(timer);
+          timer = null;
+        }
+        return;
+      }
+      if (timer === null && !cancelled) void refreshSyncedUsage();
+    };
+
+    if (typeof document === "undefined" || document.visibilityState === "visible") {
+      const interval = hubPollIntervalMilliseconds(
+        syncedUsage?.ok === true ? mostRecentObservedAt(syncedUsage.providers) : null,
+      );
+      timer = window.setTimeout(() => {
+        timer = null;
+        if (!cancelled) void refreshSyncedUsage();
+      }, interval);
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [syncClient, syncEnabled, syncedUsage, refreshSyncedUsage]);
 
   /**
    * Read the plan.
@@ -541,6 +610,12 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setDeepLinkTrial(false);
     setView("trial");
   }, [deepLinkTrial, session]);
+
+  useEffect(() => {
+    if (!deepLinkConfiguration || session === null || session === undefined) return;
+    setDeepLinkConfiguration(false);
+    setView("configuration");
+  }, [deepLinkConfiguration, session]);
 
   /**
    * Move the session, then swap the client. In that order, and not otherwise.
@@ -769,26 +844,31 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         lockup={lockup}
         busy={busy}
         onRefresh={refresh}
+        accent={
+          /* The one aggressive control on this surface, and the only place
+             the header carries an accent. It appears for an account that has
+             never had a trial and disappears the moment one exists, so it is
+             never a button that can only be refused. The promise rides on
+             its title, because a sentence in a toolbar is a sentence nobody
+             reads; every other placement writes it out in full. It sits on
+             the logo's own row so the icon group below it never has to make
+             room for it too. */
+          view === "bars" && canStartTrial ? (
+            <StartTrialButton compact onStart={() => setView("trial")} />
+          ) : null
+        }
         actions={
           <>
             {/* The name is carried by the control rather than by its text,
                 because the text is dropped at the phone width and a button
                 whose only label is display:none has no accessible name. */}
-            {/* The one aggressive control on this surface, and the only place
-                the header carries an accent. It appears for an account that has
-                never had a trial and disappears the moment one exists, so it is
-                never a button that can only be refused. The promise rides on
-                its title, because a sentence in a toolbar is a sentence nobody
-                reads; every other placement writes it out in full. */}
-            {view === "bars" && canStartTrial && (
-              <StartTrialButton compact onStart={() => setView("trial")} />
-            )}
             {view === "bars" && (
               <Button tone="ghost" label={t("addAccount")} onClick={() => setView("connect")}>
                 <PlusGlyph />
                 <span className="hidden lg:inline">{t("addAccount")}</span>
               </Button>
             )}
+            {view === "bars" && syncClient !== null && <PhoneButton />}
             {syncClient !== null && (
               <NotificationBell
                 client={syncClient}
@@ -852,6 +932,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       {view === "bars" && (
         <div className="ol-panel ol-home-stack">
           {barsPanel}
+          <CloudSpendRows client={syncClient} />
           {/* Every locked Pro surface in one card: what is not here yet, or
               what stopped. It draws nothing at all for a running trial or a
               paid plan, and nothing while the plan is still being read. */}
@@ -917,6 +998,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               </li>
             </ul>
           </Panel>
+          <CloudMeterPanel client={syncClient} onStartTrial={() => setView("trial")} />
           <Panel title="Providers" demo={demo}>
             <ProviderDirectory
               onConnect={setSelectedProvider}

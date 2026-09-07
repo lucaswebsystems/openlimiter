@@ -1953,8 +1953,8 @@
     "connect": {
       "title": "Connect your AI accounts",
       "lead": "The hub shows what your own devices read, so connect them where they run.",
-      "terminal": "Connect from the terminal or the desktop app",
-      "key": "Add the key in the desktop app, where it stays in your system credential store",
+      "terminal": "Use your {tool} login from the terminal or the desktop app",
+      "key": "Add the key here or in the desktop app",
       "noDesktop": "No desktop app yet?",
       "getDesktop": "Get the desktop app"
     },
@@ -2089,6 +2089,7 @@
         "body": "Nothing about the pairing changed. This phone will try again on its own.",
         "staleMark": "Stale"
       },
+      "pairedAs": "Paired as {label}",
       "openDashboard": "Open the dashboard"
     },
     "cli": {
@@ -2121,6 +2122,60 @@
       "openDashboard": "Open the dashboard",
       "loadingTitle": "Checking session",
       "loadingBody": "One moment. Checking your sign in state."
+    },
+    "cloud": {
+      "title": "Meter from the cloud",
+      "lead": "Spend meters the cloud polls on its own, so the hub and your phone read them with no device running.",
+      "needsPro": {
+        "title": "This is a Pro feature",
+        "body": "Start a free trial to meter spend from the cloud, no card needed for thirty days."
+      },
+      "disabled": "This is switched off right now. Try again later.",
+      "unavailable": "The service did not answer. Try again.",
+      "empty": "No keys are metered from the cloud yet.",
+      "pollNow": "Poll now",
+      "polling": "Polling",
+      "delete": "Delete",
+      "deleting": "Deleting",
+      "status": {
+        "ok": "Working",
+        "error": "Not answering",
+        "pending": "First poll pending",
+        "unknown": "Unknown"
+      },
+      "form": {
+        "providerLabel": "Provider",
+        "labelLabel": "Label",
+        "labelPlaceholder": "My production key",
+        "keyLabel": "Key",
+        "sentOnce": "Sent once over HTTPS and stored encrypted, never shown again.",
+        "submit": "Add",
+        "submitting": "Adding",
+        "error": "That key could not be added. Check it and try again."
+      },
+      "providerNames": {
+        "anthropic_admin": "Anthropic (Admin key)",
+        "openai_admin": "OpenAI (Admin key)",
+        "xai": "xAI (Management key)",
+        "moonshot": "Moonshot (Balance key)",
+        "openrouter": "OpenRouter"
+      },
+      "openRouter": {
+        "title": "Connect OpenRouter",
+        "body": "Sign in with OpenRouter's own login. The key it issues is stored encrypted and never shown again.",
+        "connect": "Connect",
+        "connecting": "Connecting",
+        "error": "OpenRouter did not answer. Try again."
+      },
+      "callback": {
+        "title": "Connecting OpenRouter",
+        "body": "One moment. Finishing the sign in and storing the key.",
+        "successTitle": "OpenRouter connected",
+        "successBody": "The key is stored encrypted. Spend reads through the cloud from now on.",
+        "errorTitle": "OpenRouter could not connect",
+        "errorBody": "Nothing was stored. Try connecting again from Configuration.",
+        "openDashboard": "Open the dashboard"
+      }
     }
   }
 }

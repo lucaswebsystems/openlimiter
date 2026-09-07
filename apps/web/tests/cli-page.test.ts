@@ -1,7 +1,7 @@
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import CliPage from "@/app/app/cli/page";
+import { CliPageView as CliPage } from "@/app/app/cli/cli-page-view";
 import { Dashboard } from "@/app/app/dashboard";
 import { ONBOARDED_METADATA_KEY, onboardedStorageKey } from "@/lib/onboarding";
 import {
@@ -379,6 +379,27 @@ describe("/app/cli approve page", () => {
     await flush();
 
     expect(mounted.container.textContent).toContain(hub.cliPage.errorDeviceCap);
+  });
+
+  it("shows the generic sentence when the service does not answer at all", async () => {
+    currentSession = fakeSession();
+    const client = fakeClient(async () => {
+      throw new Error("network down");
+    });
+
+    mounted = render(
+      createElement(CliPage, {
+        client,
+        session: currentSession,
+        initialCode: "23456789",
+      }),
+    );
+    await flush();
+
+    press(byText(mounted.container, "button", hub.cliPage.approve));
+    await flush();
+
+    expect(mounted.container.textContent).toContain(hub.cliPage.errorGeneric);
   });
 
   it("reuses the sign in card when signed out", async () => {

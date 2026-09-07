@@ -145,6 +145,19 @@ export function wantsTrial(search: string): boolean {
 }
 
 /**
+ * The same deep link, for the one other flow that leaves this domain and has
+ * to come back to a chosen screen rather than the opening one: the OpenRouter
+ * OAuth round trip. `/app/openrouter/callback` finishes by sending the reader
+ * to `/app?configuration=1` so they land back where they asked to connect
+ * something, not on the bars they left.
+ */
+export const CONFIGURATION_DEEP_LINK_PARAM = "configuration";
+
+export function wantsConfiguration(search: string): boolean {
+  return new URLSearchParams(search).get(CONFIGURATION_DEEP_LINK_PARAM) === "1";
+}
+
+/**
  * What a signed in reader lands on.
  *
  * First visit is the flow. Every later visit is the bars, whether or not

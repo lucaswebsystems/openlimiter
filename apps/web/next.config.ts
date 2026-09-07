@@ -50,12 +50,39 @@ const nextConfig: NextConfig = {
    */
   experimental: {
     globalNotFound: true,
-    /* The /app prerender crashes only when the server bundle is minified, a
-       terser interaction inside the mirrored engine that dev, tests, and the
-       unminified build all pass. Server minification stays off until the root
-       cause is found (follow-up recorded 2026-08-11); the cost is bundle size
-       on the server only, never a user facing byte. */
-    serverMinification: false,
+    /* Re-enabled 2026-09-07: the crash recorded against this flag on
+       2026-08-11 no longer reproduces. `next build` now completes and `/app`
+       prerenders as static content with this on (verified: 108/108 pages
+       generated, `/app` server bundle 302,015 bytes unminified versus 72,575
+       minified, a 76% cut). The terser interaction the follow-up named was
+       either fixed by an unrelated later change or was masked the whole time
+       by a separate, unrelated build failure (a page component's test only
+       props tripping Next's own route type check, fixed alongside this in
+       the same pass: see app/app/cli/cli-page-view.tsx). If `next build`
+       ever crashes again on this flag specifically, isolate the failing
+       module with `serverExternalPackages` or a dynamic import before
+       reaching for this switch again. */
+    serverMinification: true,
+  },
+
+  /**
+   * The pairing code lives in the URL fragment, which no request header
+   * carries anyway, but the pair route says so as a real HTTP header rather
+   * than trusting the page's own `metadata.referrer` alone: a `<meta>` tag is
+   * something every embedder and crawler has to choose to honour, and a header
+   * is the one guarantee that applies before any of that policy is even read.
+   */
+  async headers() {
+    return [
+      {
+        source: "/app/pair",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+      {
+        source: "/app/pair/api/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+    ];
   },
 
   /**

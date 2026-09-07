@@ -71,6 +71,40 @@ export function ProviderRows({ rows }: { rows: readonly ProviderAccountRowView[]
   );
 }
 
+/**
+ * One dollar reading, drawn the one way this product draws money.
+ *
+ * The paired phone's meters and the hub's cloud metered spend rows are the
+ * same fact in two places: a name, an amount, and whether the amount is
+ * still fresh. Both draw this component rather than keeping their own copy,
+ * so a dollar figure looks like the same dollar figure everywhere it appears.
+ * `icon` is optional because a phone's provider code needs none; the cloud
+ * rows carry one to say plainly where the reading came from.
+ */
+export function DollarRow({
+  icon,
+  name,
+  amountText,
+  stale,
+}: {
+  icon?: ReactNode;
+  name: ReactNode;
+  amountText: string;
+  stale: boolean;
+}) {
+  return (
+    <div className="ol-device-money-row">
+      <span className="ol-device-money-name">
+        {icon}
+        {name}
+      </span>
+      <span className="ol-device-money-value" data-state={stale ? "stale" : "fresh"}>
+        {amountText}
+      </span>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ header */
 
 /**
@@ -84,12 +118,24 @@ export function HeaderStrip({
   lockup,
   busy,
   onRefresh,
+  accent,
   actions,
   showRefresh = true,
 }: {
   lockup: ReactNode;
   busy: boolean;
   onRefresh: () => void;
+  /**
+   * The one accent control, kept beside the logo rather than lumped in with
+   * the icon group.
+   *
+   * Below 800 px the strip already breaks onto two rows; without a place of
+   * its own the accent button used to fall in with every icon after it, and
+   * at 375 px that whole row ran out of space and wrapped again, three rows
+   * instead of two. Giving it a fixed seat on the logo's own row is what
+   * keeps the icon group and Sync to the one row meant for them.
+   */
+  accent?: ReactNode;
   actions?: ReactNode;
   showRefresh?: boolean;
 }) {
@@ -99,7 +145,10 @@ export function HeaderStrip({
       className="ol-rise ol-commandbar"
     >
       <div className="ol-commandbar-main">
-        <div className="ol-commandbar-brand">{lockup}</div>
+        <div className="ol-commandbar-brand-row">
+          <div className="ol-commandbar-brand">{lockup}</div>
+          {accent}
+        </div>
         <div className="ol-commandbar-actions">
           {actions}
           {showRefresh && (
@@ -107,10 +156,11 @@ export function HeaderStrip({
               tone="ghost"
               onClick={onRefresh}
               disabled={busy}
+              label="Sync"
               title="Reads synced data again."
             >
               <RefreshGlyph spinning={busy} />
-              Sync
+              <span className="ol-sync-label">Sync</span>
             </Button>
           )}
         </div>
@@ -608,13 +658,18 @@ export function Button({
   className?: string;
   children: ReactNode;
 }) {
-  const naming = label === undefined ? {} : { "aria-label": label, title: label };
+  /* An explicit title always wins: it is a fuller sentence the label is not
+     meant to replace. Only when there is no title does the label double as
+     one, which keeps every call site that passes label alone unchanged. */
+  const naming: Record<string, string> = {};
+  if (label !== undefined) naming["aria-label"] = label;
+  if (title !== undefined) naming.title = title;
+  else if (label !== undefined) naming.title = label;
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      {...(title === undefined ? {} : { title })}
       {...naming}
       className={`${buttonBase} ${buttonTone[tone]} ${className}`}
     >

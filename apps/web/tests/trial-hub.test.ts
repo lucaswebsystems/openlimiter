@@ -150,7 +150,9 @@ describe("the header", () => {
   it("carries the button for an account that has never had a plan", async () => {
     const view = await open();
     expect(starters(view).length).toBeGreaterThan(0);
-    expect(view.container.querySelector(".ol-commandbar-actions")?.textContent).toContain(
+    /* Beside the logo, on its own row at phone width, not lumped in with the
+       icon group: see pieces.tsx HeaderStrip's `accent` prop. */
+    expect(view.container.querySelector(".ol-commandbar-brand-row")?.textContent).toContain(
       trial.start,
     );
   });

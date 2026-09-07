@@ -43,22 +43,31 @@ const inter = Inter({
  *
  * WHAT REACHES THE CLIENT
  * -----------------------
- * The provider is handed five namespaces rather than the whole catalog. The site
- * is server rendered almost everywhere, and the handful of components that do
- * hydrate need labels for a menu, a toggle, a dismiss button and a language
- * list. Serialising every documentation page's prose into the HTML so a theme
- * button can read two words would add weight to every page on the site for
- * nothing.
+ * The provider is handed a short list of namespaces rather than the whole
+ * catalog, and which list depends on which of the three trees is asking. The
+ * site is server rendered almost everywhere: the big namespaces, `docs`
+ * (59 KB) and `privacy` (15 KB) among them, are read by server components and
+ * never reach this provider at all, whichever tree renders them. What this
+ * split actually buys is smaller: the handful of components that do hydrate
+ * need labels for a menu, a toggle, a dismiss button and a language list, and
+ * `hub` (7.7 KB) is the one namespace among those that a marketing page or a
+ * blog post never hydrates a component that reads from, the same way
+ * `proPortal` (4.3 KB) is the one `/app` never does. Neither figure is large
+ * on its own; the marketing side of it is still a real cut repeated across
+ * every localised page the site serves. The `namespaces` prop is how each
+ * root layout says which of these it actually needs; the default,
+ * `MARKETING_CLIENT_NAMESPACES`, is what every localised page and the blog
+ * use unmodified, and `/app` passes its own shorter list from
+ * app/app/layout.tsx.
  */
 
-const CLIENT_NAMESPACES = [
+export const MARKETING_CLIENT_NAMESPACES = [
   "common",
   "nav",
   "announce",
   "localeSwitcher",
   "proPortal",
   "signIn",
-  "hub",
 ] as const;
 
 /**
@@ -108,17 +117,20 @@ export async function SiteHtml({
    * page describe it in one honest sentence.
    */
   analytics = true,
+  namespaces = MARKETING_CLIENT_NAMESPACES,
 }: Readonly<{
   locale: Locale;
   children: ReactNode;
   localised?: boolean;
   analytics?: boolean;
+  /** Which message namespaces this tree hydrates with. See the note above. */
+  namespaces?: readonly string[];
 }>) {
   const messages = await getMessages({ locale });
   const t = await getTranslations({ locale, namespace: "common" });
 
   const clientMessages = Object.fromEntries(
-    CLIENT_NAMESPACES.map((namespace) => [namespace, messages[namespace]])
+    namespaces.map((namespace) => [namespace, messages[namespace]])
   );
 
   const offer = localised ? await localeOfferCopy() : null;

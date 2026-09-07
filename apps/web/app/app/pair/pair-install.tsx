@@ -44,12 +44,35 @@ function runningInstalled(): boolean {
   return legacy === true;
 }
 
-/** True on an iPhone or an iPad, including an iPad that claims to be a Mac. */
-function isAppleTouch(): boolean {
+/**
+ * True only for actual Safari on an iPhone or an iPad.
+ *
+ * Every browser on iOS is required to embed WebKit, so Chrome, Firefox and
+ * Edge on an iPhone all carry "Safari" in their user agent string too; without
+ * ruling those out explicitly, the three line "tap Share, then Add to Home
+ * Screen" overlay would show inside a browser whose share sheet does not put
+ * that option where Safari's does, or does not offer it at all.
+ */
+function isIosSafari(): boolean {
   if (typeof window === "undefined") return false;
   const agent = window.navigator.userAgent;
-  if (/iphone|ipad|ipod/iu.test(agent)) return true;
-  return /macintosh/iu.test(agent) && window.navigator.maxTouchPoints > 1;
+  if (!/iphone|ipad/iu.test(agent)) return false;
+  if (!/safari/iu.test(agent)) return false;
+  return !/crios|fxios|edgios|opios|opt\//iu.test(agent);
+}
+
+/**
+ * True only when the platform itself is Android.
+ *
+ * `beforeinstallprompt` is a Chromium feature, not an Android one: desktop
+ * Chrome and Chrome OS fire it too, for the same reasons a desktop tab can be
+ * "installed" as an app window. Gating the Android button on the user agent as
+ * well as the event is what keeps a desktop visitor from seeing a button whose
+ * label and icon are drawn for a phone.
+ */
+function isAndroidUserAgent(): boolean {
+  if (typeof window === "undefined") return false;
+  return /android/iu.test(window.navigator.userAgent);
 }
 
 export function PairInstallStep() {
@@ -61,13 +84,16 @@ export function PairInstallStep() {
 
   useEffect(() => {
     if (runningInstalled()) return;
-    if (isAppleTouch()) {
+    if (isIosSafari()) {
       setKind("ios");
       return;
     }
-    /* Anything else waits on the one event that makes a button possible. */
+    /* Anything else waits on the one event that makes a button possible, and
+       only counts it on a platform the Android copy and icon actually fit. A
+       desktop Chromium browser firing the same event shows neither step. */
     const capture = (event: Event) => {
       event.preventDefault();
+      if (!isAndroidUserAgent()) return;
       setPrompt(event as InstallPromptEvent);
       setKind("android");
     };
@@ -99,7 +125,11 @@ export function PairInstallStep() {
 
   if (kind === "ios") {
     return (
-      <div className="rounded-2xl border border-hairline bg-surface p-5">
+      <div
+        role="status"
+        aria-live="polite"
+        className="rounded-2xl border border-hairline bg-surface p-5"
+      >
         <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-muted">
           <li>{t("phoneInstall.iosOne")}</li>
           <li>{t("phoneInstall.iosTwo")}</li>

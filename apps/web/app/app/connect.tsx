@@ -113,7 +113,20 @@ export function ConnectList() {
             </span>
             <span className="ol-connect-name">
               <strong>{row.displayName}</strong>
-              <span>{row.access === "key" ? t("connect.key") : t("connect.terminal")}</span>
+              {/*
+                One sentence, and only the one that is actually true for this
+                row. OpenRouter connects by its own OAuth rather than a
+                terminal login, so it reads with the key style sentence
+                (Configuration carries its real Connect button); every other
+                key provider does too; everything else is a subscription read
+                through the tool's own login, named so seven rows never say
+                the same unnamed sentence.
+              */}
+              <span>
+                {row.access === "key" || row.specId === "openrouter/api"
+                  ? t("connect.key")
+                  : t("connect.terminal", { tool: row.displayName })}
+              </span>
             </span>
           </li>
         ))}

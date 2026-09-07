@@ -1129,6 +1129,7 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   gap: var(--ol-space-4);
 }
 
+.ol-commandbar-brand-row,
 .ol-commandbar-brand,
 .ol-commandbar-actions {
   display: flex;
@@ -1136,9 +1137,25 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   align-items: center;
 }
 
+.ol-commandbar-brand-row {
+  gap: var(--ol-space-3);
+}
+
 .ol-commandbar-actions {
   justify-content: flex-end;
   gap: var(--ol-space-2);
+}
+
+/*
+  Sync keeps its word past phone width, and loses it below. The button is
+  still a real accessible control at every width: Button sets its aria-label
+  from the same word this span carries, so hiding the span only ever hides
+  text a sighted reader could read off the icon's own tooltip instead.
+*/
+@media (max-width: 479px) {
+  .ol-sync-label {
+    display: none;
+  }
 }
 
 .ol-notification-wrap {

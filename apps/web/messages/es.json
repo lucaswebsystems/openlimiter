@@ -1823,10 +1823,10 @@
     "emailOff": "El acceso por correo electrónico todavía no está activado. Usa GitHub o Google.",
     "noAccount": "La aplicación de escritorio no necesita cuenta. Cada meter funciona en local y es gratis.",
     "getDesktop": "Descargar la aplicación de escritorio",
-    "microsoft": "Continue with Microsoft",
-    "azureOff": "Microsoft sign in is not switched on yet. Use GitHub, Google or email.",
-    "keepSignedIn": "Keep me signed in",
-    "keepSignedInFailed": "This browser refused to move the session, so the switch stayed where it was."
+    "microsoft": "Continuar con Microsoft",
+    "azureOff": "El acceso con Microsoft todavía no está activado. Usa GitHub, Google o correo electrónico.",
+    "keepSignedIn": "Mantener la sesión iniciada",
+    "keepSignedInFailed": "Este navegador se negó a mover la sesión, así que el interruptor quedó como estaba."
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
@@ -1917,210 +1917,265 @@
       "dismiss": "Cerrar"
     },
     "trial": {
-      "title": "Start your free trial",
-      "body": "Thirty days of every Pro service: alerts, history, phone access and extra accounts.",
-      "start": "Start free trial",
-      "free": "30 days free, no card"
+      "title": "Comienza tu prueba gratuita",
+      "body": "Treinta días de todos los servicios Pro: alertas, historial, acceso desde el teléfono y cuentas adicionales.",
+      "start": "Comenzar prueba gratuita",
+      "free": "30 días gratis, sin tarjeta"
     },
     "offer": {
-      "title": "Your annual offer",
-      "lead": "Your trial has ended, so the first year is discounted while this window is open.",
-      "label": "Your offer ends in",
+      "title": "Tu oferta anual",
+      "lead": "Tu prueba terminó, así que el primer año tiene descuento mientras esta ventana esté abierta.",
+      "label": "Tu oferta termina en",
       "countdown": "{days}d {hours}h {minutes}m",
-      "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
-      "price": "USD 40 for the first year, then USD 50.",
-      "take": "Take the offer"
+      "countdownLabel": "Tiempo restante: {days} días, {hours} horas, {minutes} minutos.",
+      "price": "USD 40 el primer año, luego USD 50.",
+      "take": "Aprovechar la oferta"
     },
     "lost": {
-      "alerts": "Your alerts stopped at 60, 80 and 90 percent.",
-      "history": "Your history is kept for thirty days, then purged.",
-      "phone": "Your paired phone stopped reading.",
-      "multiAccount": "Every provider is back to one account."
+      "alerts": "Tus alertas en 60, 80 y 90 por ciento se detuvieron.",
+      "history": "Tu historial se guarda por treinta días y luego se elimina.",
+      "phone": "Tu teléfono emparejado dejó de leer los datos.",
+      "multiAccount": "Cada proveedor volvió a tener una sola cuenta."
     }
   },
   "hub": {
-    "addAccount": "Add account",
-    "configuration": "Configuration",
-    "backToBars": "Back to bars",
+    "addAccount": "Agregar cuenta",
+    "configuration": "Configuración",
+    "backToBars": "Volver a las barras",
     "command": {
-      "copy": "Copy",
-      "copied": "Copied",
-      "failed": "Copy failed, select the text instead."
+      "copy": "Copiar",
+      "copied": "Copiado",
+      "failed": "No se pudo copiar, selecciona el texto en su lugar."
     },
     "empty": {
-      "line": "Run this on any machine you code on, and your bars appear here."
+      "line": "Ejecuta esto en cualquier máquina donde programes, y tus barras aparecerán aquí."
     },
     "connect": {
-      "title": "Connect your AI accounts",
-      "lead": "The hub shows what your own devices read, so connect them where they run.",
-      "terminal": "Connect from the terminal or the desktop app",
-      "key": "Add the key in the desktop app, where it stays in your system credential store",
-      "noDesktop": "No desktop app yet?",
-      "getDesktop": "Get the desktop app"
+      "title": "Conecta tus cuentas de IA",
+      "lead": "El hub muestra lo que tus propios dispositivos leen, así que conéctalos donde funcionan.",
+      "terminal": "Usa tu inicio de sesión de {tool} desde la terminal o la aplicación de escritorio",
+      "key": "Agrega la clave aquí o en la aplicación de escritorio",
+      "noDesktop": "¿Todavía no tienes la aplicación de escritorio?",
+      "getDesktop": "Descargar la aplicación de escritorio"
     },
     "onboarding": {
-      "label": "Setting up your account",
-      "progress": "Step {step} of {total}",
+      "label": "Configurando tu cuenta",
+      "progress": "Paso {step} de {total}",
       "profile": {
-        "title": "Create your account",
-        "lead": "Your bars are free without one. An account is what syncs them between your devices.",
-        "name": "Name",
-        "email": "Email",
-        "emailFrom": "From your {provider} account",
-        "continue": "Continue",
-        "later": "Later"
+        "title": "Crea tu cuenta",
+        "lead": "Tus barras son gratis incluso sin cuenta. Una cuenta es lo que las sincroniza entre tus dispositivos.",
+        "name": "Nombre",
+        "email": "Correo electrónico",
+        "emailFrom": "De tu cuenta de {provider}",
+        "continue": "Continuar",
+        "later": "Más tarde"
       },
       "connect": {
-        "continue": "Continue",
-        "skip": "Skip"
+        "continue": "Continuar",
+        "skip": "Omitir"
       },
       "bars": {
-        "title": "Your bars",
-        "lead": "One row for every window a provider reports.",
-        "done": "Done"
+        "title": "Tus barras",
+        "lead": "Una fila por cada ventana que informa un proveedor.",
+        "done": "Listo"
       }
     },
     "trial": {
-      "start": "Start free trial",
-      "free": "30 days free, no card",
-      "label": "Start your free trial",
-      "progress": "Step {step} of {total}",
-      "back": "Back",
-      "cancel": "Not now",
+      "start": "Comenzar prueba gratuita",
+      "free": "30 días gratis, sin tarjeta",
+      "label": "Comienza tu prueba gratuita",
+      "progress": "Paso {step} de {total}",
+      "back": "Atrás",
+      "cancel": "Ahora no",
       "alerts": {
-        "title": "Turn your alerts on",
-        "lead": "Every window tells you before it runs out.",
-        "threshold": "At {percent} percent",
-        "reset": "When a window resets",
-        "continue": "Continue"
+        "title": "Activa tus alertas",
+        "lead": "Cada ventana te avisa antes de agotarse.",
+        "threshold": "Al {percent} por ciento",
+        "reset": "Cuando una ventana se reinicia",
+        "continue": "Continuar"
       },
       "push": {
-        "title": "Push to this browser",
-        "lead": "One line on your screen the moment a window turns. A push never carries usage detail, so a locked screen never shows one.",
-        "ask": "Allow push",
-        "granted": "Push is on for this browser.",
-        "denied": "Push is off in this browser. Everything else works, and you can allow it later.",
-        "unsupported": "This browser cannot take push. Everything else works.",
-        "start": "Start my trial",
-        "working": "Starting"
+        "title": "Notificaciones en este navegador",
+        "lead": "Una línea en tu pantalla en el momento en que cambia una ventana. Una notificación nunca lleva detalles de uso, así que una pantalla bloqueada nunca muestra ninguno.",
+        "ask": "Permitir notificaciones",
+        "granted": "Las notificaciones están activas en este navegador.",
+        "denied": "Las notificaciones están desactivadas en este navegador. Todo lo demás funciona, y puedes activarlas más tarde.",
+        "unsupported": "Este navegador no admite notificaciones. Todo lo demás funciona.",
+        "start": "Comenzar mi prueba",
+        "working": "Comenzando"
       },
       "done": {
-        "title": "Your trial is running",
-        "ends": "Your trial ends on {date}.",
-        "endsUnknown": "Your trial runs for 30 days.",
-        "lead": "Nothing was charged and no card was asked for.",
-        "bars": "See my bars"
+        "title": "Tu prueba está activa",
+        "ends": "Tu prueba termina el {date}.",
+        "endsUnknown": "Tu prueba dura 30 días.",
+        "lead": "No se cobró nada y no se pidió ninguna tarjeta.",
+        "bars": "Ver mis barras"
       },
       "error": {
-        "alreadyUsed": "This account has already had its trial.",
-        "switchedOff": "Trials are not available right now. Try again in a while.",
-        "unauthenticated": "Sign in again to start your trial.",
-        "rateLimited": "Too many attempts. Try again in a moment.",
-        "unavailable": "That did not go through. Nothing was charged and nothing changed.",
-        "retry": "Try again"
+        "alreadyUsed": "Esta cuenta ya usó su prueba gratuita.",
+        "switchedOff": "Las pruebas no están disponibles en este momento. Inténtalo de nuevo más tarde.",
+        "unauthenticated": "Inicia sesión de nuevo para comenzar tu prueba.",
+        "rateLimited": "Demasiados intentos. Inténtalo de nuevo en un momento.",
+        "unavailable": "Eso no se pudo completar. No se cobró nada y nada cambió.",
+        "retry": "Intentar de nuevo"
       }
     },
     "pro": {
       "label": "Pro",
       "locked": {
-        "title": "Alerts, history, phone and extra accounts",
-        "lead": "Your bars are free and stay free. These four are Pro."
+        "title": "Alertas, historial, teléfono y cuentas adicionales",
+        "lead": "Tus barras son gratis y siguen siendo gratis. Estos cuatro son Pro."
       },
       "expired": {
-        "title": "Pro has ended",
-        "lead": "Your bars carry on exactly as they are. These four stopped."
+        "title": "Pro ha terminado",
+        "lead": "Tus barras siguen exactamente como están. Estos cuatro se detuvieron."
       },
       "feature": {
-        "alerts": "Alerts at 60, 80 and 90 percent, and when a window resets.",
-        "history": "Ninety days of history, with a forecast.",
-        "phone": "Your bars on your phone, paired by a QR code.",
-        "multiAccount": "More than one account for every provider."
+        "alerts": "Alertas al 60, 80 y 90 por ciento, y cuando una ventana se reinicia.",
+        "history": "Noventa días de historial, con un pronóstico.",
+        "phone": "Tus barras en tu teléfono, emparejadas con un código QR.",
+        "multiAccount": "Más de una cuenta para cada proveedor."
       },
       "lost": {
-        "alerts": "Your alerts stopped at 60, 80 and 90 percent.",
-        "history": "Your history is kept for thirty days, then purged.",
-        "phone": "Your paired phone stopped reading.",
-        "multiAccount": "Every provider is back to one account."
+        "alerts": "Tus alertas en 60, 80 y 90 por ciento se detuvieron.",
+        "history": "Tu historial se guarda por treinta días y luego se elimina.",
+        "phone": "Tu teléfono emparejado dejó de leer los datos.",
+        "multiAccount": "Cada proveedor volvió a tener una sola cuenta."
       },
       "offer": {
-        "label": "Your offer ends in",
+        "label": "Tu oferta termina en",
         "countdown": "{days}d {hours}h {minutes}m",
-        "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
-        "price": "USD 40 for the first year, then USD 50.",
-        "take": "Take the offer",
-        "working": "Opening checkout"
+        "countdownLabel": "Tiempo restante: {days} días, {hours} horas, {minutes} minutos.",
+        "price": "USD 40 el primer año, luego USD 50.",
+        "take": "Aprovechar la oferta",
+        "working": "Abriendo el pago"
       },
       "prices": {
-        "line": "{yearly} a year.",
-        "take": "Take Pro"
+        "line": "{yearly} al año.",
+        "take": "Obtener Pro"
       },
-      "error": "That did not go through. Nothing was charged and nothing changed."
+      "error": "Eso no se pudo completar. No se cobró nada y nada cambió."
     },
     "phone": {
-      "button": "Open on your phone",
-      "line": "Start pairing from the desktop app, then scan",
-      "download": "Get the desktop app",
-      "qrAlt": "QR code linking to the phone pairing page"
+      "button": "Abrir en tu teléfono",
+      "line": "Comienza el emparejamiento desde la aplicación de escritorio y luego escanea",
+      "download": "Descargar la aplicación de escritorio",
+      "qrAlt": "Código QR que lleva a la página de emparejamiento del teléfono"
     },
     "phoneInstall": {
-      "add": "Add to home screen",
-      "iosOne": "Tap Share in the Safari toolbar.",
-      "iosTwo": "Scroll to Add to Home Screen.",
-      "iosThree": "Tap Add. The app opens full screen from your home screen."
+      "add": "Agregar a la pantalla de inicio",
+      "iosOne": "Toca Compartir en la barra de Safari.",
+      "iosTwo": "Desplázate hasta Agregar a Pantalla de Inicio.",
+      "iosThree": "Toca Agregar. La aplicación se abre a pantalla completa desde tu pantalla de inicio."
     },
     "pairPage": {
       "bars": {
-        "title": "Your quota"
+        "title": "Tu cuota"
       },
       "reading": {
-        "title": "Reading your quota",
-        "body": "One moment. This phone is asking for the readings your account already synced."
+        "title": "Leyendo tu cuota",
+        "body": "Un momento. Este teléfono está pidiendo las lecturas que tu cuenta ya sincronizó."
       },
       "renewing": {
-        "title": "Refreshing the pairing",
-        "body": "The read token on this phone is due for renewal. One moment."
+        "title": "Renovando el emparejamiento",
+        "body": "El token de lectura de este teléfono debe renovarse. Un momento."
       },
       "revoked": {
-        "title": "This phone was unpaired",
-        "body": "Scan again from the hub. The desktop application shows a fresh code and approves the phone again."
+        "title": "Este teléfono fue desemparejado",
+        "body": "Escanea de nuevo desde el hub. La aplicación de escritorio muestra un código nuevo y aprueba el teléfono otra vez."
       },
       "offline": {
-        "title": "The service did not answer",
-        "body": "Nothing about the pairing changed. This phone will try again on its own.",
-        "staleMark": "Stale"
+        "title": "El servicio no respondió",
+        "body": "Nada cambió en el emparejamiento. Este teléfono lo intentará de nuevo por su cuenta.",
+        "staleMark": "Desactualizado"
       },
-      "openDashboard": "Open the dashboard"
+      "pairedAs": "Emparejado como {label}",
+      "openDashboard": "Abrir el panel"
     },
     "cli": {
       "terminalTitle": "Terminal",
-      "signInTerminal": "Sign in a terminal",
-      "terminalLead": "Connect your terminal to this account"
+      "signInTerminal": "Iniciar sesión en una terminal",
+      "terminalLead": "Conecta tu terminal a esta cuenta"
     },
     "cliPage": {
-      "title": "Sign in a terminal",
-      "lead": "Enter the eight character code shown in your terminal.",
-      "codeLabel": "Terminal code",
+      "title": "Iniciar sesión en una terminal",
+      "lead": "Escribe el código de ocho caracteres que aparece en tu terminal.",
+      "codeLabel": "Código de la terminal",
       "codePlaceholder": "ABCDEFGH",
       "deviceLabel": "Terminal: {label}",
-      "validationInvalidChars": "The code can only use numbers and letters from the terminal code alphabet.",
-      "validationLength": "The code must be eight characters.",
-      "approve": "Approve",
-      "deny": "Deny",
-      "approving": "Approving",
-      "denying": "Denying",
-      "successTitle": "Terminal signed in",
-      "successBody": "Your terminal is signed in, go back to it",
-      "deniedTitle": "Sign in denied",
-      "deniedBody": "The terminal sign in was declined.",
-      "errorUnknownCode": "That code was not recognized. Check the code on your terminal and try again.",
-      "errorExpired": "That code has expired. Run the sign in command in your terminal to get a new code.",
-      "errorAlreadyUsed": "That code has already been used. Run the sign in command in your terminal to get a new code.",
-      "errorDeviceCap": "Device limit reached. Remove a device in your account settings or upgrade your plan.",
-      "errorGeneric": "The service did not answer. Check your connection and try again.",
-      "tryAgain": "Try another code",
-      "openDashboard": "Open the dashboard",
-      "loadingTitle": "Checking session",
-      "loadingBody": "One moment. Checking your sign in state."
+      "validationInvalidChars": "El código solo puede usar números y letras del alfabeto de código de la terminal.",
+      "validationLength": "El código debe tener ocho caracteres.",
+      "approve": "Aprobar",
+      "deny": "Rechazar",
+      "approving": "Aprobando",
+      "denying": "Rechazando",
+      "successTitle": "Terminal conectada",
+      "successBody": "Tu terminal está conectada, vuelve a ella",
+      "deniedTitle": "Acceso rechazado",
+      "deniedBody": "El acceso desde la terminal fue rechazado.",
+      "errorUnknownCode": "Ese código no fue reconocido. Revisa el código en tu terminal e inténtalo de nuevo.",
+      "errorExpired": "Ese código expiró. Ejecuta el comando de acceso en tu terminal para obtener un código nuevo.",
+      "errorAlreadyUsed": "Ese código ya fue usado. Ejecuta el comando de acceso en tu terminal para obtener un código nuevo.",
+      "errorDeviceCap": "Se alcanzó el límite de dispositivos. Elimina un dispositivo en la configuración de tu cuenta o mejora tu plan.",
+      "errorGeneric": "El servicio no respondió. Revisa tu conexión e inténtalo de nuevo.",
+      "tryAgain": "Probar otro código",
+      "openDashboard": "Abrir el panel",
+      "loadingTitle": "Verificando sesión",
+      "loadingBody": "Un momento. Verificando el estado de tu sesión."
+    },
+    "cloud": {
+      "title": "Medir desde la nube",
+      "lead": "Medidores de gasto que la nube consulta por su cuenta, así el hub y tu teléfono los leen sin ningún dispositivo encendido.",
+      "needsPro": {
+        "title": "Esta es una función Pro",
+        "body": "Comienza una prueba gratuita para medir el gasto desde la nube, sin tarjeta durante treinta días."
+      },
+      "disabled": "Esto está desactivado por ahora. Inténtalo de nuevo más tarde.",
+      "unavailable": "El servicio no respondió. Inténtalo de nuevo.",
+      "empty": "Todavía no hay claves medidas desde la nube.",
+      "pollNow": "Consultar ahora",
+      "polling": "Consultando",
+      "delete": "Eliminar",
+      "deleting": "Eliminando",
+      "status": {
+        "ok": "Funcionando",
+        "error": "Sin respuesta",
+        "pending": "Primera consulta pendiente",
+        "unknown": "Desconocido"
+      },
+      "form": {
+        "providerLabel": "Proveedor",
+        "labelLabel": "Etiqueta",
+        "labelPlaceholder": "Mi clave de producción",
+        "keyLabel": "Clave",
+        "sentOnce": "Enviada una vez por HTTPS y guardada cifrada, nunca se vuelve a mostrar.",
+        "submit": "Agregar",
+        "submitting": "Agregando",
+        "error": "No se pudo agregar esa clave. Revísala e inténtalo de nuevo."
+      },
+      "providerNames": {
+        "anthropic_admin": "Anthropic (clave de administrador)",
+        "openai_admin": "OpenAI (clave de administrador)",
+        "xai": "xAI (clave de gestión)",
+        "moonshot": "Moonshot (clave de saldo)",
+        "openrouter": "OpenRouter"
+      },
+      "openRouter": {
+        "title": "Conectar OpenRouter",
+        "body": "Inicia sesión con el propio acceso de OpenRouter. La clave que emite se guarda cifrada y nunca se vuelve a mostrar.",
+        "connect": "Conectar",
+        "connecting": "Conectando",
+        "error": "OpenRouter no respondió. Inténtalo de nuevo."
+      },
+      "callback": {
+        "title": "Conectando OpenRouter",
+        "body": "Un momento. Terminando el acceso y guardando la clave.",
+        "successTitle": "OpenRouter conectado",
+        "successBody": "La clave se guardó cifrada. El gasto se lee desde la nube a partir de ahora.",
+        "errorTitle": "No se pudo conectar OpenRouter",
+        "errorBody": "No se guardó nada. Intenta conectar de nuevo desde Configuración.",
+        "openDashboard": "Abrir el panel"
+      }
     }
   }
 }

@@ -80,11 +80,16 @@ function QrSvg({ matrix, label }: { matrix: QrMatrix; label: string }) {
   );
 }
 
+/** Elements a focus trap is willing to land on or cycle through. */
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export default function PhoneButton() {
   const t = useTranslations("hub");
   const [open, setOpen] = useState(false);
   const [matrix, setMatrix] = useState<QrMatrix | null>(null);
   const wrap = useRef<HTMLDivElement | null>(null);
+  const panel = useRef<HTMLDivElement | null>(null);
 
   /* The symbol is computed the first time the panel opens, not on every
      render and not before anyone has asked for it. */
@@ -97,13 +102,47 @@ export default function PhoneButton() {
     }
   }, [open, matrix]);
 
+  /*
+   * Focus moved in on open, trapped while open, and returned on close.
+   *
+   * The panel is a real modal: it covers the one thing behind it worth
+   * reading (the button that opened it) and Escape or an outside click both
+   * count as dismissal. `role="dialog"` alone tells a screen reader nothing
+   * about where focus should go, so this effect does the three things that
+   * make it behave like one: move focus onto the panel the moment it mounts,
+   * keep Tab and Shift+Tab cycling only through what is inside it, and hand
+   * focus back to the trigger the instant it closes, so a keyboard user is
+   * never left with focus on an element that just vanished.
+   */
   useEffect(() => {
     if (!open) return;
+    const node = panel.current;
+    const trigger = wrap.current;
+    node?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || node === null) return;
+      const focusable = [...node.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)];
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === node)) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first?.focus();
+      }
     };
     const onDown = (event: MouseEvent) => {
-      if (wrap.current !== null && !wrap.current.contains(event.target as Node)) {
+      if (trigger !== null && !trigger.contains(event.target as Node)) {
         setOpen(false);
       }
     };
@@ -112,6 +151,12 @@ export default function PhoneButton() {
     return () => {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("mousedown", onDown);
+      /* The trigger button is the one this wrapper renders outside the panel,
+         so it is found by element type rather than by a ref the shared Button
+         component does not forward. The wrapper node itself is snapshotted
+         above, not read again here, since a ref's `.current` can already
+         point elsewhere by the time this cleanup runs. */
+      trigger?.querySelector<HTMLButtonElement>(":scope > button")?.focus();
     };
   }, [open]);
 
@@ -130,9 +175,12 @@ export default function PhoneButton() {
 
       {open && (
         <div
+          ref={panel}
           role="dialog"
+          aria-modal="true"
           aria-label={t("phone.button")}
-          className="elev-2 absolute right-0 top-full z-40 mt-2 w-64 rounded-xl border border-hairline bg-surface p-4"
+          tabIndex={-1}
+          className="elev-2 absolute right-0 top-full z-40 mt-2 w-64 rounded-xl border border-hairline bg-surface p-4 focus:outline-none"
         >
           <p className="text-sm leading-relaxed text-muted">{t("phone.line")}</p>
           <div className="mt-3 overflow-hidden rounded-lg border border-hairline">

@@ -1823,10 +1823,10 @@
     "emailOff": "メールアドレスでのサインインはまだ有効になっていません。GitHub か Google をお使いください。",
     "noAccount": "デスクトップアプリにアカウントは不要です。すべての meter はローカルで無料で動きます。",
     "getDesktop": "デスクトップアプリを入手",
-    "microsoft": "Continue with Microsoft",
-    "azureOff": "Microsoft sign in is not switched on yet. Use GitHub, Google or email.",
-    "keepSignedIn": "Keep me signed in",
-    "keepSignedInFailed": "This browser refused to move the session, so the switch stayed where it was."
+    "microsoft": "Microsoft で続ける",
+    "azureOff": "Microsoft でのサインインはまだ有効になっていません。GitHub、Google、またはメールアドレスをお使いください。",
+    "keepSignedIn": "サインインしたままにする",
+    "keepSignedInFailed": "このブラウザはセッションの移動を拒否したため、スイッチは元のままになりました。"
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
@@ -1917,210 +1917,265 @@
       "dismiss": "閉じる"
     },
     "trial": {
-      "title": "Start your free trial",
-      "body": "Thirty days of every Pro service: alerts, history, phone access and extra accounts.",
-      "start": "Start free trial",
-      "free": "30 days free, no card"
+      "title": "無料トライアルを始める",
+      "body": "Pro のすべてのサービスを30日間: アラート、履歴、スマートフォンでのアクセス、追加アカウント。",
+      "start": "無料トライアルを始める",
+      "free": "30日間無料、カード不要"
     },
     "offer": {
-      "title": "Your annual offer",
-      "lead": "Your trial has ended, so the first year is discounted while this window is open.",
-      "label": "Your offer ends in",
-      "countdown": "{days}d {hours}h {minutes}m",
-      "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
-      "price": "USD 40 for the first year, then USD 50.",
-      "take": "Take the offer"
+      "title": "年間プランの特典",
+      "lead": "トライアルが終了したため、この期間中は初年度が割引になります。",
+      "label": "特典の終了まで",
+      "countdown": "{days}日{hours}時間{minutes}分",
+      "countdownLabel": "残り時間: {days}日 {hours}時間 {minutes}分。",
+      "price": "初年度は40米ドル、その後は50米ドルです。",
+      "take": "この特典を受け取る"
     },
     "lost": {
-      "alerts": "Your alerts stopped at 60, 80 and 90 percent.",
-      "history": "Your history is kept for thirty days, then purged.",
-      "phone": "Your paired phone stopped reading.",
-      "multiAccount": "Every provider is back to one account."
+      "alerts": "60、80、90パーセントでのアラートが止まりました。",
+      "history": "履歴は30日間保存された後、削除されます。",
+      "phone": "ペア設定していたスマートフォンが読み取れなくなりました。",
+      "multiAccount": "各プロバイダーは1アカウントに戻りました。"
     }
   },
   "hub": {
-    "addAccount": "Add account",
-    "configuration": "Configuration",
-    "backToBars": "Back to bars",
+    "addAccount": "アカウントを追加",
+    "configuration": "設定",
+    "backToBars": "バー表示に戻る",
     "command": {
-      "copy": "Copy",
-      "copied": "Copied",
-      "failed": "Copy failed, select the text instead."
+      "copy": "コピー",
+      "copied": "コピーしました",
+      "failed": "コピーに失敗しました。代わりにテキストを選択してください。"
     },
     "empty": {
-      "line": "Run this on any machine you code on, and your bars appear here."
+      "line": "コードを書くマシンでこれを実行すると、バーがここに表示されます。"
     },
     "connect": {
-      "title": "Connect your AI accounts",
-      "lead": "The hub shows what your own devices read, so connect them where they run.",
-      "terminal": "Connect from the terminal or the desktop app",
-      "key": "Add the key in the desktop app, where it stays in your system credential store",
-      "noDesktop": "No desktop app yet?",
-      "getDesktop": "Get the desktop app"
+      "title": "AI アカウントを接続",
+      "lead": "ハブはお使いの端末が読み取った情報を表示するので、実際に動かしている場所で接続してください。",
+      "terminal": "ターミナルまたはデスクトップアプリで {tool} のログインをお使いください",
+      "key": "ここまたはデスクトップアプリでキーを追加してください",
+      "noDesktop": "デスクトップアプリをまだお持ちでないですか。",
+      "getDesktop": "デスクトップアプリを入手"
     },
     "onboarding": {
-      "label": "Setting up your account",
-      "progress": "Step {step} of {total}",
+      "label": "アカウントを設定しています",
+      "progress": "ステップ {step}/{total}",
       "profile": {
-        "title": "Create your account",
-        "lead": "Your bars are free without one. An account is what syncs them between your devices.",
-        "name": "Name",
-        "email": "Email",
-        "emailFrom": "From your {provider} account",
-        "continue": "Continue",
-        "later": "Later"
+        "title": "アカウントを作成",
+        "lead": "バーはアカウントがなくても無料です。アカウントは端末間で同期するためのものです。",
+        "name": "名前",
+        "email": "メールアドレス",
+        "emailFrom": "{provider} アカウントより",
+        "continue": "続ける",
+        "later": "後で"
       },
       "connect": {
-        "continue": "Continue",
-        "skip": "Skip"
+        "continue": "続ける",
+        "skip": "スキップ"
       },
       "bars": {
-        "title": "Your bars",
-        "lead": "One row for every window a provider reports.",
-        "done": "Done"
+        "title": "バー表示",
+        "lead": "プロバイダーが報告する各ウィンドウにつき1行表示されます。",
+        "done": "完了"
       }
     },
     "trial": {
-      "start": "Start free trial",
-      "free": "30 days free, no card",
-      "label": "Start your free trial",
-      "progress": "Step {step} of {total}",
-      "back": "Back",
-      "cancel": "Not now",
+      "start": "無料トライアルを始める",
+      "free": "30日間無料、カード不要",
+      "label": "無料トライアルを始める",
+      "progress": "ステップ {step}/{total}",
+      "back": "戻る",
+      "cancel": "今はしない",
       "alerts": {
-        "title": "Turn your alerts on",
-        "lead": "Every window tells you before it runs out.",
-        "threshold": "At {percent} percent",
-        "reset": "When a window resets",
-        "continue": "Continue"
+        "title": "アラートをオンにする",
+        "lead": "各ウィンドウが使い切る前にお知らせします。",
+        "threshold": "{percent}パーセントで",
+        "reset": "ウィンドウがリセットされたとき",
+        "continue": "続ける"
       },
       "push": {
-        "title": "Push to this browser",
-        "lead": "One line on your screen the moment a window turns. A push never carries usage detail, so a locked screen never shows one.",
-        "ask": "Allow push",
-        "granted": "Push is on for this browser.",
-        "denied": "Push is off in this browser. Everything else works, and you can allow it later.",
-        "unsupported": "This browser cannot take push. Everything else works.",
-        "start": "Start my trial",
-        "working": "Starting"
+        "title": "このブラウザへのプッシュ通知",
+        "lead": "ウィンドウが変わった瞬間に画面に1行表示されます。プッシュ通知に利用状況の詳細が含まれることはないため、ロック画面にも表示されません。",
+        "ask": "プッシュ通知を許可",
+        "granted": "このブラウザでプッシュ通知がオンになっています。",
+        "denied": "このブラウザではプッシュ通知がオフです。それ以外はすべて機能し、後から許可できます。",
+        "unsupported": "このブラウザはプッシュ通知に対応していません。それ以外はすべて機能します。",
+        "start": "トライアルを始める",
+        "working": "開始しています"
       },
       "done": {
-        "title": "Your trial is running",
-        "ends": "Your trial ends on {date}.",
-        "endsUnknown": "Your trial runs for 30 days.",
-        "lead": "Nothing was charged and no card was asked for.",
-        "bars": "See my bars"
+        "title": "トライアルは進行中です",
+        "ends": "トライアルは{date}に終了します。",
+        "endsUnknown": "トライアルは30日間続きます。",
+        "lead": "請求は発生しておらず、カードの入力も求めていません。",
+        "bars": "バーを見る"
       },
       "error": {
-        "alreadyUsed": "This account has already had its trial.",
-        "switchedOff": "Trials are not available right now. Try again in a while.",
-        "unauthenticated": "Sign in again to start your trial.",
-        "rateLimited": "Too many attempts. Try again in a moment.",
-        "unavailable": "That did not go through. Nothing was charged and nothing changed.",
-        "retry": "Try again"
+        "alreadyUsed": "このアカウントは既にトライアルを利用済みです。",
+        "switchedOff": "トライアルは現在ご利用いただけません。しばらくしてからもう一度お試しください。",
+        "unauthenticated": "トライアルを始めるにはもう一度サインインしてください。",
+        "rateLimited": "試行回数が多すぎます。しばらくしてからもう一度お試しください。",
+        "unavailable": "処理が完了しませんでした。請求は発生しておらず、変更もありません。",
+        "retry": "もう一度試す"
       }
     },
     "pro": {
       "label": "Pro",
       "locked": {
-        "title": "Alerts, history, phone and extra accounts",
-        "lead": "Your bars are free and stay free. These four are Pro."
+        "title": "アラート、履歴、スマートフォン、追加アカウント",
+        "lead": "バーは無料で、これからも無料です。この4つが Pro の機能です。"
       },
       "expired": {
-        "title": "Pro has ended",
-        "lead": "Your bars carry on exactly as they are. These four stopped."
+        "title": "Pro が終了しました",
+        "lead": "バーは今のまま続きます。この4つは停止しました。"
       },
       "feature": {
-        "alerts": "Alerts at 60, 80 and 90 percent, and when a window resets.",
-        "history": "Ninety days of history, with a forecast.",
-        "phone": "Your bars on your phone, paired by a QR code.",
-        "multiAccount": "More than one account for every provider."
+        "alerts": "60、80、90パーセント、そしてウィンドウがリセットされたときのアラート。",
+        "history": "90日分の履歴と、予測。",
+        "phone": "QR コードでペア設定したスマートフォンでバーを確認。",
+        "multiAccount": "各プロバイダーで複数アカウント。"
       },
       "lost": {
-        "alerts": "Your alerts stopped at 60, 80 and 90 percent.",
-        "history": "Your history is kept for thirty days, then purged.",
-        "phone": "Your paired phone stopped reading.",
-        "multiAccount": "Every provider is back to one account."
+        "alerts": "60、80、90パーセントでのアラートが止まりました。",
+        "history": "履歴は30日間保存された後、削除されます。",
+        "phone": "ペア設定していたスマートフォンが読み取れなくなりました。",
+        "multiAccount": "各プロバイダーは1アカウントに戻りました。"
       },
       "offer": {
-        "label": "Your offer ends in",
-        "countdown": "{days}d {hours}h {minutes}m",
-        "countdownLabel": "Time left: {days} days, {hours} hours, {minutes} minutes.",
-        "price": "USD 40 for the first year, then USD 50.",
-        "take": "Take the offer",
-        "working": "Opening checkout"
+        "label": "特典の終了まで",
+        "countdown": "{days}日{hours}時間{minutes}分",
+        "countdownLabel": "残り時間: {days}日 {hours}時間 {minutes}分。",
+        "price": "初年度は40米ドル、その後は50米ドルです。",
+        "take": "この特典を受け取る",
+        "working": "決済画面を開いています"
       },
       "prices": {
-        "line": "{yearly} a year.",
-        "take": "Take Pro"
+        "line": "年間{yearly}。",
+        "take": "Pro を利用する"
       },
-      "error": "That did not go through. Nothing was charged and nothing changed."
+      "error": "処理が完了しませんでした。請求は発生しておらず、変更もありません。"
     },
     "phone": {
-      "button": "Open on your phone",
-      "line": "Start pairing from the desktop app, then scan",
-      "download": "Get the desktop app",
-      "qrAlt": "QR code linking to the phone pairing page"
+      "button": "スマートフォンで開く",
+      "line": "デスクトップアプリでペア設定を始めてから、スキャンしてください",
+      "download": "デスクトップアプリを入手",
+      "qrAlt": "スマートフォンのペア設定ページにつながる QR コード"
     },
     "phoneInstall": {
-      "add": "Add to home screen",
-      "iosOne": "Tap Share in the Safari toolbar.",
-      "iosTwo": "Scroll to Add to Home Screen.",
-      "iosThree": "Tap Add. The app opens full screen from your home screen."
+      "add": "ホーム画面に追加",
+      "iosOne": "Safari のツールバーで共有をタップしてください。",
+      "iosTwo": "スクロールしてホーム画面に追加を選んでください。",
+      "iosThree": "追加をタップしてください。アプリはホーム画面から全画面で開きます。"
     },
     "pairPage": {
       "bars": {
-        "title": "Your quota"
+        "title": "利用状況"
       },
       "reading": {
-        "title": "Reading your quota",
-        "body": "One moment. This phone is asking for the readings your account already synced."
+        "title": "利用状況を読み込んでいます",
+        "body": "少々お待ちください。このスマートフォンはアカウントが既に同期した情報を取得しています。"
       },
       "renewing": {
-        "title": "Refreshing the pairing",
-        "body": "The read token on this phone is due for renewal. One moment."
+        "title": "ペア設定を更新しています",
+        "body": "このスマートフォンの読み取りトークンは更新が必要です。少々お待ちください。"
       },
       "revoked": {
-        "title": "This phone was unpaired",
-        "body": "Scan again from the hub. The desktop application shows a fresh code and approves the phone again."
+        "title": "このスマートフォンのペア設定は解除されました",
+        "body": "ハブから再度スキャンしてください。デスクトップアプリが新しいコードを表示し、スマートフォンを再度承認します。"
       },
       "offline": {
-        "title": "The service did not answer",
-        "body": "Nothing about the pairing changed. This phone will try again on its own.",
-        "staleMark": "Stale"
+        "title": "サービスが応答しませんでした",
+        "body": "ペア設定に変更はありません。このスマートフォンは自動的に再試行します。",
+        "staleMark": "更新が必要"
       },
-      "openDashboard": "Open the dashboard"
+      "pairedAs": "{label} としてペア設定済み",
+      "openDashboard": "ダッシュボードを開く"
     },
     "cli": {
-      "terminalTitle": "Terminal",
-      "signInTerminal": "Sign in a terminal",
-      "terminalLead": "Connect your terminal to this account"
+      "terminalTitle": "ターミナル",
+      "signInTerminal": "ターミナルでサインイン",
+      "terminalLead": "ターミナルをこのアカウントに接続"
     },
     "cliPage": {
-      "title": "Sign in a terminal",
-      "lead": "Enter the eight character code shown in your terminal.",
-      "codeLabel": "Terminal code",
+      "title": "ターミナルでサインイン",
+      "lead": "ターミナルに表示されている8文字のコードを入力してください。",
+      "codeLabel": "ターミナルコード",
       "codePlaceholder": "ABCDEFGH",
-      "deviceLabel": "Terminal: {label}",
-      "validationInvalidChars": "The code can only use numbers and letters from the terminal code alphabet.",
-      "validationLength": "The code must be eight characters.",
-      "approve": "Approve",
-      "deny": "Deny",
-      "approving": "Approving",
-      "denying": "Denying",
-      "successTitle": "Terminal signed in",
-      "successBody": "Your terminal is signed in, go back to it",
-      "deniedTitle": "Sign in denied",
-      "deniedBody": "The terminal sign in was declined.",
-      "errorUnknownCode": "That code was not recognized. Check the code on your terminal and try again.",
-      "errorExpired": "That code has expired. Run the sign in command in your terminal to get a new code.",
-      "errorAlreadyUsed": "That code has already been used. Run the sign in command in your terminal to get a new code.",
-      "errorDeviceCap": "Device limit reached. Remove a device in your account settings or upgrade your plan.",
-      "errorGeneric": "The service did not answer. Check your connection and try again.",
-      "tryAgain": "Try another code",
-      "openDashboard": "Open the dashboard",
-      "loadingTitle": "Checking session",
-      "loadingBody": "One moment. Checking your sign in state."
+      "deviceLabel": "ターミナル: {label}",
+      "validationInvalidChars": "コードにはターミナルコードのアルファベットにある数字と文字だけを使用できます。",
+      "validationLength": "コードは8文字である必要があります。",
+      "approve": "承認",
+      "deny": "拒否",
+      "approving": "承認しています",
+      "denying": "拒否しています",
+      "successTitle": "ターミナルがサインインしました",
+      "successBody": "ターミナルはサインインしています。そちらの画面に戻ってください",
+      "deniedTitle": "サインインが拒否されました",
+      "deniedBody": "ターミナルのサインインは拒否されました。",
+      "errorUnknownCode": "そのコードは認識されませんでした。ターミナルのコードを確認してもう一度お試しください。",
+      "errorExpired": "そのコードは期限切れです。ターミナルでサインインコマンドを実行して新しいコードを取得してください。",
+      "errorAlreadyUsed": "そのコードは既に使用されています。ターミナルでサインインコマンドを実行して新しいコードを取得してください。",
+      "errorDeviceCap": "端末の上限に達しました。アカウント設定で端末を削除するか、プランをアップグレードしてください。",
+      "errorGeneric": "サービスが応答しませんでした。接続を確認してもう一度お試しください。",
+      "tryAgain": "別のコードを試す",
+      "openDashboard": "ダッシュボードを開く",
+      "loadingTitle": "セッションを確認しています",
+      "loadingBody": "少々お待ちください。サインイン状態を確認しています。"
+    },
+    "cloud": {
+      "title": "クラウドから測定",
+      "lead": "クラウドが自動で確認する支出メーターなので、端末を起動していなくてもハブとスマートフォンで読み取れます。",
+      "needsPro": {
+        "title": "これは Pro の機能です",
+        "body": "クラウドから支出を測定するには無料トライアルを始めてください。30日間カード不要です。"
+      },
+      "disabled": "現在この機能はオフになっています。しばらくしてからもう一度お試しください。",
+      "unavailable": "サービスが応答しませんでした。もう一度お試しください。",
+      "empty": "クラウドで測定しているキーはまだありません。",
+      "pollNow": "今すぐ確認",
+      "polling": "確認しています",
+      "delete": "削除",
+      "deleting": "削除しています",
+      "status": {
+        "ok": "正常に動作しています",
+        "error": "応答がありません",
+        "pending": "初回確認待ちです",
+        "unknown": "不明"
+      },
+      "form": {
+        "providerLabel": "プロバイダー",
+        "labelLabel": "ラベル",
+        "labelPlaceholder": "本番用のキー",
+        "keyLabel": "キー",
+        "sentOnce": "HTTPS で一度だけ送信され、暗号化して保存されます。二度と表示されません。",
+        "submit": "追加",
+        "submitting": "追加しています",
+        "error": "そのキーを追加できませんでした。確認してもう一度お試しください。"
+      },
+      "providerNames": {
+        "anthropic_admin": "Anthropic（管理者キー）",
+        "openai_admin": "OpenAI（管理者キー）",
+        "xai": "xAI（管理キー）",
+        "moonshot": "Moonshot（残高キー）",
+        "openrouter": "OpenRouter"
+      },
+      "openRouter": {
+        "title": "OpenRouter を接続",
+        "body": "OpenRouter 独自のログインでサインインしてください。発行されるキーは暗号化して保存され、二度と表示されません。",
+        "connect": "接続",
+        "connecting": "接続しています",
+        "error": "OpenRouter が応答しませんでした。もう一度お試しください。"
+      },
+      "callback": {
+        "title": "OpenRouter を接続しています",
+        "body": "少々お待ちください。サインインを完了し、キーを保存しています。",
+        "successTitle": "OpenRouter を接続しました",
+        "successBody": "キーは暗号化して保存されました。これ以降、支出はクラウド経由で読み取られます。",
+        "errorTitle": "OpenRouter を接続できませんでした",
+        "errorBody": "何も保存されませんでした。設定画面からもう一度接続をお試しください。",
+        "openDashboard": "ダッシュボードを開く"
+      }
     }
   }
 }

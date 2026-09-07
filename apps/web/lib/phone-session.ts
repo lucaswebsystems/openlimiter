@@ -1,48 +1,81 @@
 /**
  * The paired phone's credential pair, and the renewal that keeps it alive.
  *
- * A successful pairing hands the phone two things in one answer: a read token
- * with a 24 hour life, and a refresh credential shown exactly once. They are
- * stored together under one local storage key, because neither means anything
- * without the other: the token reads the meters, the credential mints the next
- * token through pro-service's `phone_renew` action.
+ * A successful pairing hands the phone two secrets in one answer: a read token
+ * with a 24 hour life, and a refresh credential shown exactly once. Neither
+ * secret is ever kept anywhere this browser's own JavaScript can read it
+ * again. The moment this module has them, on the approving poll's response,
+ * it hands them to the same-origin route handlers under app/app/pair/api,
+ * which set them as HttpOnly, Secure, SameSite=Strict cookies scoped to that
+ * one path. From then on this module, and every screen built on it, only ever
+ * asks those routes to renew or to read; it never sees the token or the
+ * credential again.
  *
- * RENEWAL, NOT REPAIR
- * -------------------
- * `phone_renew` answers even when the read token has already expired, so the
- * page renews on every open once the token is within an hour of its end
- * rather than waiting for a read to fail. The one case renewal cannot fix is
- * a revocation epoch bump on the server: that answers 401, and the only honest
- * thing left is to ask for a fresh scan from the hub.
+ * What stays in this browser's local storage is a small, non-secret pairing
+ * marker: a device label and the read token's own expiry. Neither one grants
+ * access to anything by itself. The expiry exists so the page can decide when
+ * a renewal is due without asking the server on every render, and the label
+ * exists so a paired screen can say something more useful than "this phone".
  *
- * A renewal answer can be lost between the server writing it and the phone
- * reading it: the previous credential is then already spent, and the server
- * accepts it exactly once more inside a five minute grace. `renewPhonePair`
- * takes that second shot itself, so a dropped response is invisible.
- *
- * Nothing here logs, stores or prints a credential anywhere but the one key.
+ * THE TWO HALVES OF THIS MODULE
+ * ------------------------------
+ * The wire parsing and the pure renew/read decisions (`phonePairOf`,
+ * `renewPhonePair`, `readPhoneBars`, `isRevokedEpochResponse`) run on the
+ * SERVER, inside the three route handlers, which are the only code that ever
+ * holds the actual secrets. The browser facing helpers at the bottom
+ * (`establishPhoneSession`, `requestPhoneRenewal`, `requestPhoneRead`,
+ * `endPhoneSession`) run in the tab and talk to those routes over fetch,
+ * carrying nothing but the local marker.
  */
 
 import { readDeviceSnapshots, renewPhoneCredential, type HostedResponse } from "./pro-device";
 
-/** The one local storage key the phone's credential pair lives under. */
-export const PHONE_PAIR_STORAGE_KEY = "openlimiter-phone-pair";
-
 /** Renew once the token is this close to its end, rather than at it. */
 export const PHONE_RENEW_WITHIN_SECONDS = 3_600;
 
-/** How long the server honours a spent credential, as a bound on the retry. */
+/**
+ * How long the server honours a spent refresh credential, as a bound on the
+ * one retry a lost renewal answer gets.
+ *
+ * This bounds wall clock time since the FIRST attempt started, not the number
+ * of retries: a renewal call that itself took most of five minutes to fail is
+ * not worth retrying, because the server's own grace for the credential it
+ * already rotated will have run out by the time a second attempt lands.
+ */
 export const PHONE_RENEW_GRACE_SECONDS = 300;
 
+/** Every cookie this feature sets lives only under this path. */
+export const PHONE_COOKIE_PATH = "/app/pair/api";
+
+/** The read token, HttpOnly, Secure, SameSite=Strict, path scoped. */
+export const PHONE_TOKEN_COOKIE = "ol-phone-token";
+
+/** The single use refresh credential, under the same protections. */
+export const PHONE_REFRESH_COOKIE = "ol-phone-refresh";
+
+/** The one local storage key for the non-secret pairing marker. */
+export const PHONE_PAIR_META_KEY = "openlimiter-phone-pair-meta";
+
 export interface PhonePair {
-  /** The read scoped token, audience phone. */
+  /** The read scoped token, audience phone. Never stored in this browser. */
   token: string;
   /** Unix seconds. The token is not accepted after this. */
   expiresAt: number;
-  /** The single use credential the next renewal carries. */
+  /** The single use credential the next renewal carries. Never stored either. */
   refreshCredential: string;
   /** Unix seconds. No renewal is possible after this. */
   refreshExpiresAt: number;
+}
+
+/**
+ * The non-secret marker this browser is allowed to keep: a label, and when
+ * the current read token expires. Neither reads a meter or proves anything to
+ * the server; both exist purely so this tab (and its siblings) know when to
+ * ask for a renewal without a round trip on every render.
+ */
+export interface PhonePairMeta {
+  label: string;
+  expiresAt: number;
 }
 
 /* ------------------------------------------------------------ wire shape */
@@ -65,7 +98,7 @@ function instantSeconds(value: unknown): number | null {
 }
 
 /**
- * A delivery or a renewal answer, as the pair this browser stores.
+ * A delivery or a renewal answer, as the pair a route handler carries forward.
  *
  * The approving poll and `phone_renew` both answer the same four fields, so
  * both go through this one parser. Null means the answer was not a credential
@@ -85,122 +118,162 @@ export function phonePairOf(value: unknown): PhonePair | null {
   return { token, expiresAt, refreshCredential, refreshExpiresAt };
 }
 
-/* --------------------------------------------------------------- storage */
+/* ---------------------------------------------------- the non-secret marker */
 
-/** The stored pair, or null when there is none or it cannot be trusted. */
-export function readPhonePair(): PhonePair | null {
+function metaRecord(value: unknown): PhonePairMeta | null {
+  const row = record(value);
+  if (row === null) return null;
+  const label = typeof row.label === "string" ? row.label : "";
+  const expiresAt = instantSeconds(row.expiresAt);
+  if (label === "" || expiresAt === null) return null;
+  return { label, expiresAt };
+}
+
+/** The stored marker, or null when there is none or it cannot be trusted. */
+export function readPhonePairMeta(): PhonePairMeta | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(PHONE_PAIR_STORAGE_KEY);
-    if (raw === null) return null;
-    const row = record(JSON.parse(raw));
-    if (row === null) return null;
-    return phonePairOf({
-      token: row.token,
-      refresh_credential: row.refreshCredential,
-      expires_at: row.expiresAt,
-      refresh_expires_at: row.refreshExpiresAt,
-    });
+    const raw = window.localStorage.getItem(PHONE_PAIR_META_KEY);
+    return raw === null ? null : metaRecord(JSON.parse(raw));
   } catch {
     return null;
   }
 }
 
-export function writePhonePair(pair: PhonePair): void {
+export function writePhonePairMeta(meta: PhonePairMeta): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(PHONE_PAIR_STORAGE_KEY, JSON.stringify(pair));
+    window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify(meta));
   } catch {
-    /* A browser with storage refused keeps the pair in memory only. */
+    /* A browser with storage refused keeps the marker in memory only. */
   }
 }
 
-export function clearPhonePair(): void {
+export function clearPhonePairMeta(): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(PHONE_PAIR_STORAGE_KEY);
+    window.localStorage.removeItem(PHONE_PAIR_META_KEY);
   } catch {
     /* Nothing to clear if storage was never available. */
   }
 }
 
+/** Whether the current token, per the local marker, should be renewed now. */
+export function phonePairNeedsRenewal(
+  entity: { expiresAt: number },
+  now: number = Date.now(),
+): boolean {
+  return entity.expiresAt * 1_000 - now <= PHONE_RENEW_WITHIN_SECONDS * 1_000;
+}
+
+/* --------------------------------------------------- the explicit signal */
+
 /**
- * Trade a refresh credential for the next read token, deciding what the answer
- * means.
+ * Whether a response carries the server's own, explicit "this pairing is
+ * revoked" signal, and nothing weaker than that.
  *
- * The credential is single use and travels only in the body of this call. The
- * server answers a fresh pair even when the old read token has expired, and
- * honours the credential this call replaces once more inside its grace, which
- * is what makes a lost answer recoverable. A revoked epoch answers 401 or 403,
- * the same shape as every other refusal here.
+ * `phone_renew` answers 403 with this exact message only when the RPC itself
+ * reports `epoch_revoked`, meaning the desktop bumped the revocation epoch and
+ * this phone's grant is gone for good. Every other failure the same call can
+ * produce, a dead refresh credential, a device that is no longer active, a
+ * grace window that has run out, still answers 401 with a different message,
+ * because none of those says the pairing itself ended. `read_snapshots` never
+ * distinguishes at all: an invalid token there is always the one word
+ * "unpaired", whether the reason is a stale token or a revoked epoch, so a
+ * read alone can never prove revocation either way. This is why the read path
+ * never revokes on its own: only a renewal can hear the server say so.
  */
+export function isRevokedEpochResponse(response: HostedResponse): boolean {
+  if (response.status !== 403) return false;
+  const body = record(response.body);
+  return typeof body?.error === "string" && body.error.toLowerCase().includes("revocation");
+}
+
+/* -------------------------------------------------------------- renewal */
+
 export type RenewOutcome =
-  | { kind: "kept"; pair: PhonePair }
   | { kind: "renewed"; pair: PhonePair }
   | { kind: "revoked" }
   | { kind: "unavailable" };
 
-/** Whether the stored pair should be renewed now rather than on its failure. */
-export function phonePairNeedsRenewal(
-  pair: PhonePair,
-  now: number = Date.now(),
-): boolean {
-  return pair.expiresAt * 1_000 - now <= PHONE_RENEW_WITHIN_SECONDS * 1_000;
-}
-
-/**
- * Renew through `phone_renew`, with the one grace retry built in.
- *
- * The first attempt carries the stored credential. An unreachable answer, or
- * one that cannot be parsed, is tried once more with the same credential: the
- * likely story is the response was lost after the server already rotated, and
- * the server honours the previous credential once inside the grace. A second
- * failure is reported as unavailable, and the stored pair is left untouched:
- * it may still read, and the next open tries again.
- */
-export async function renewPhonePair(
-  pair: PhonePair,
-  call: (refreshCredential: string) => Promise<HostedResponse> = renewPhoneCredential,
-): Promise<RenewOutcome> {
-  const attempted = await renewAttempt(pair, call);
-  if (attempted.kind === "renewed" || attempted.kind === "revoked") return attempted;
-  /* Only now does the retry make sense: the first answer never arrived or
-     never parsed, so the credential may already be rotated server side. */
-  return renewAttempt(pair, call);
+interface RenewAttempt {
+  /** True only when the call never reached the server: no response at all. */
+  transportLoss: boolean;
+  outcome: RenewOutcome;
 }
 
 async function renewAttempt(
   pair: PhonePair,
   call: (refreshCredential: string) => Promise<HostedResponse>,
-): Promise<RenewOutcome> {
+): Promise<RenewAttempt> {
   let response: HostedResponse;
   try {
     response = await call(pair.refreshCredential);
   } catch {
-    return { kind: "unavailable" };
+    return { transportLoss: true, outcome: { kind: "unavailable" } };
   }
-  if (response.status === 401 || response.status === 403) return { kind: "revoked" };
-  if (response.status !== 200) return { kind: "unavailable" };
+  /* lib/pro-device.ts answers status 0 for a fetch that never got a response:
+     a network error or a timeout, never a status the server actually sent. */
+  if (response.status === 0) {
+    return { transportLoss: true, outcome: { kind: "unavailable" } };
+  }
+  if (isRevokedEpochResponse(response)) {
+    return { transportLoss: false, outcome: { kind: "revoked" } };
+  }
+  if (response.status !== 200) {
+    return { transportLoss: false, outcome: { kind: "unavailable" } };
+  }
   const next = phonePairOf(response.body);
-  return next === null ? { kind: "unavailable" } : { kind: "renewed", pair: next };
+  return {
+    transportLoss: false,
+    outcome: next === null ? { kind: "unavailable" } : { kind: "renewed", pair: next },
+  };
+}
+
+/**
+ * Renew through `phone_renew`, with exactly one retry, and only when the
+ * first attempt never reached the server at all.
+ *
+ * A dropped response is recoverable: the server may already have rotated the
+ * credential, and it honours the previous one once more inside its own grace
+ * window, so trying again with the same credential is safe and worth doing.
+ * An HTTP error is not the same kind of failure. A 401 or a 403 the server
+ * actually sent is the server's answer, not a lost one, and retrying it
+ * changes nothing: the same credential produces the same refusal. Retrying
+ * only transport loss, and only while the server's grace window could still
+ * apply, is what keeps this from turning a real refusal into a second one.
+ */
+export async function renewPhonePair(
+  pair: PhonePair,
+  call: (refreshCredential: string) => Promise<HostedResponse> = renewPhoneCredential,
+  now: () => number = Date.now,
+): Promise<RenewOutcome> {
+  const startedAt = now();
+  const first = await renewAttempt(pair, call);
+  if (!first.transportLoss) return first.outcome;
+  if (now() - startedAt >= PHONE_RENEW_GRACE_SECONDS * 1_000) return { kind: "unavailable" };
+  const second = await renewAttempt(pair, call);
+  return second.outcome;
 }
 
 /* -------------------------------------------------------------- the read */
 
 export type PhoneRead =
   | { kind: "fresh"; body: unknown }
-  | { kind: "stale"; body: unknown }
   | { kind: "revoked" }
   | { kind: "empty" };
 
 /**
- * One read of the account's meters, as the pair page sees it.
+ * One read of the account's meters, as a route handler sees it.
  *
  * Every failure keeps the last good bars rather than clearing the screen:
  * being offline on a phone is ordinary, and the reader has no way to tell it
- * apart from a service hiccup. The one answer that ends the pairing is 401 or
- * 403 from the read itself, the revocation epoch bump, which is reported as
- * revoked and nothing else.
+ * apart from a service hiccup. `read_snapshots` never carries the explicit
+ * revoked epoch signal (see `isRevokedEpochResponse`), so in practice a read
+ * alone never ends a pairing; that only happens through a renewal that hears
+ * the server say so. The check stays here anyway, so a future contract change
+ * that does add the signal to this endpoint is honoured without another
+ * patch.
  */
 export async function readPhoneBars(
   pair: PhonePair,
@@ -212,12 +285,138 @@ export async function readPhoneBars(
   } catch {
     return { kind: "empty" };
   }
-  if (response.status === 401 || response.status === 403) return { kind: "revoked" };
+  if (isRevokedEpochResponse(response)) return { kind: "revoked" };
   if (response.status !== 200) return { kind: "empty" };
   return { kind: "fresh", body: response.body };
 }
 
-/** Fold a failed read into the state the bars stay in: the last good ones. */
-export function stalePhoneRead(body: unknown): PhoneRead {
-  return { kind: "stale", body };
+/* ======================================================================= */
+/* Browser facing helpers. Everything below runs in the tab and never holds
+   a secret; it only calls the same-origin routes that do.                  */
+/* ======================================================================= */
+
+async function postJson(path: string, body?: unknown): Promise<{ status: number; body: unknown }> {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: body === undefined ? {} : { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    const text = await response.text();
+    let parsed: unknown = null;
+    try {
+      parsed = text === "" ? null : JSON.parse(text);
+    } catch {
+      parsed = null;
+    }
+    return { status: response.status, body: parsed };
+  } catch {
+    return { status: 0, body: null };
+  }
+}
+
+/**
+ * Hand a freshly delivered pair to the session route, once.
+ *
+ * This is the only place a token or a refresh credential this browser ever
+ * received leaves memory for storage of any kind, and it goes straight to a
+ * same-origin route that stores it as an HttpOnly cookie. The non-secret
+ * marker (label, read token expiry) is written locally only after that route
+ * confirms the cookies are set.
+ */
+export async function establishPhoneSession(pair: PhonePair, label: string): Promise<boolean> {
+  const answer = await postJson("/app/pair/api/session", {
+    token: pair.token,
+    expires_at: pair.expiresAt,
+    refresh_credential: pair.refreshCredential,
+    refresh_expires_at: pair.refreshExpiresAt,
+  });
+  if (answer.status !== 200) return false;
+  writePhonePairMeta({ label, expiresAt: pair.expiresAt });
+  return true;
+}
+
+/** End the pairing: clear both cookies server side, then the local marker. */
+export async function endPhoneSession(): Promise<void> {
+  try {
+    await fetch("/app/pair/api/session", { method: "DELETE", credentials: "same-origin" });
+  } catch {
+    /* The marker is cleared either way; a phone that cannot reach the server
+       cannot be un-paired remotely, but it can still forget locally. */
+  }
+  clearPhonePairMeta();
+}
+
+export type RenewSessionOutcome =
+  | { kind: "renewed"; expiresAt: number }
+  | { kind: "revoked" }
+  | { kind: "unavailable" }
+  | { kind: "skipped"; expiresAt: number };
+
+/** The fixed name every tab requests the same Web Lock under. */
+const RENEW_LOCK_NAME = "openlimiter-phone-renew";
+
+async function renewOnce(): Promise<RenewSessionOutcome> {
+  const answer = await postJson("/app/pair/api/renew");
+  if (answer.status === 403) {
+    clearPhonePairMeta();
+    return { kind: "revoked" };
+  }
+  const body = record(answer.body);
+  const expiresAt = instantSeconds(body?.expires_at);
+  if (answer.status !== 200 || expiresAt === null) {
+    return { kind: "unavailable" };
+  }
+  const meta = readPhonePairMeta();
+  writePhonePairMeta({ label: meta?.label ?? "This phone", expiresAt });
+  return { kind: "renewed", expiresAt };
+}
+
+/**
+ * Ask for a renewal, serialised across every tab this account has open.
+ *
+ * Two tabs racing to renew is exactly the bug this fixes: without a lock, both
+ * see the same stale expiry, both call the renewal route, and the server's
+ * grace covers the double call but the LAST response to land in local storage
+ * wins, which is a coin flip on which tab's rotated credential survives.
+ *
+ * Holding a Web Lock while renewing serialises the calls themselves, and
+ * rereading the marker after the lock is acquired is what lets the second tab
+ * notice the first one already finished: if the marker now shows a token that
+ * is not due for renewal, this tab's own reason to renew is gone and it skips
+ * the call entirely rather than rotating a credential that was just rotated a
+ * moment ago.
+ */
+export async function requestPhoneRenewal(): Promise<RenewSessionOutcome> {
+  if (typeof navigator === "undefined" || !("locks" in navigator) || navigator.locks == null) {
+    return renewOnce();
+  }
+  return navigator.locks.request(RENEW_LOCK_NAME, async () => {
+    const meta = readPhonePairMeta();
+    if (meta !== null && !phonePairNeedsRenewal(meta)) {
+      return { kind: "skipped", expiresAt: meta.expiresAt };
+    }
+    return renewOnce();
+  });
+}
+
+export type PhoneReadOutcome =
+  | { kind: "fresh"; body: unknown }
+  | { kind: "revoked" }
+  | { kind: "unpaired" }
+  | { kind: "empty" };
+
+/** Read the account's meters through the same-origin route. */
+export async function requestPhoneRead(): Promise<PhoneReadOutcome> {
+  const answer = await postJson("/app/pair/api/read");
+  if (answer.status === 401) {
+    const body = record(answer.body);
+    return body?.error === "no_pair" ? { kind: "unpaired" } : { kind: "empty" };
+  }
+  if (answer.status === 403) return { kind: "revoked" };
+  if (answer.status !== 200) return { kind: "empty" };
+  const body = record(answer.body);
+  return { kind: "fresh", body: body?.body ?? null };
 }
