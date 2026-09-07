@@ -4,6 +4,7 @@ import {
   PROVIDER_CODES,
   SNAPSHOT_OBSERVED_VIA,
   SNAPSHOT_SOURCE_KINDS,
+  SNAPSHOT_WRITERS,
   UNKNOWN_PROVENANCE,
   type ConnectorLabels,
   type ProviderCode,
@@ -17,7 +18,8 @@ import {
   type SnapshotSource,
   type SnapshotSourceKind,
   type SnapshotUnit,
-  type SnapshotWindow
+  type SnapshotWindow,
+  type SnapshotWriter
 } from "./types.js";
 
 const units = new Set<SnapshotUnit>(["PERCENT", "CREDITS", "TOKENS", "REQUESTS"]);
@@ -33,6 +35,7 @@ const currencies = new Set<SnapshotCurrency>(["USD"]);
 const providerCodes = new Set<string>(PROVIDER_CODES);
 const sourceKinds = new Set<string>(SNAPSHOT_SOURCE_KINDS);
 const observedVia = new Set<string>(SNAPSHOT_OBSERVED_VIA);
+const writers = new Set<string>(SNAPSHOT_WRITERS);
 const safeMeter = /^[A-Z][A-Z0-9_]{0,31}$/u;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -132,6 +135,22 @@ function readAccountId(value: unknown): { ok: true; accountId: string | null } |
   return { ok: true, accountId: value };
 }
 
+/** Longest human account name a row may carry. */
+export const MAX_ACCOUNT_LABEL_CHARS = 64;
+
+/**
+ * Read the human name for an account.
+ *
+ * A label is text on a screen, so it is held to printable ASCII and a length,
+ * and a label that fails is dropped rather than taking the row with it: the
+ * reading is still true, and the surface falls back to the identifier.
+ */
+function readAccountLabel(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  if (value.length === 0 || value.length > MAX_ACCOUNT_LABEL_CHARS) return null;
+  return /^[\x20-\x7E]+$/u.test(value) ? value : null;
+}
+
 /**
  * Read how the observation arrived.
  *
@@ -152,6 +171,20 @@ function readProvenance(value: unknown): SnapshotProvenance | null {
     sourceKind: kind as SnapshotSourceKind,
     observedVia: via as SnapshotObservedVia
   };
+}
+
+/**
+ * Read which process wrote this row.
+ *
+ * Fails towards ABSENT rather than towards a value, and absent is read as
+ * unknown by every caller. A marker this build cannot believe must never let a
+ * reader conclude that some other process is keeping a provider fresh, because
+ * the consequence of that mistake is a bar that silently stops updating. The
+ * opposite mistake costs one extra request.
+ */
+function readWriter(value: unknown): SnapshotWriter | null {
+  if (typeof value !== "string" || !writers.has(value)) return null;
+  return value as SnapshotWriter;
 }
 
 export function normalizeMeter(raw: RawMeter): Snapshot | null {
@@ -179,6 +212,8 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
   const account = readAccountId(raw.accountId);
   if (!account.ok) return null;
   const provenance = readProvenance(raw.provenance);
+  const writer = readWriter(raw.writer);
+  const accountLabel = readAccountLabel(raw.accountLabel);
   const amounts = normalizeAmounts(raw);
   return {
     provider: raw.provider as Snapshot["provider"],
@@ -194,7 +229,11 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
     labels,
     ...(amounts === null ? {} : amounts),
     ...(account.accountId === null ? {} : { accountId: account.accountId }),
-    ...(provenance === null ? {} : { provenance })
+    ...(accountLabel === null || account.accountId === null
+      ? {}
+      : { accountLabel }),
+    ...(provenance === null ? {} : { provenance }),
+    ...(writer === null ? {} : { writer })
   };
 }
 

@@ -15,12 +15,13 @@ import path from "node:path";
 import {
   applyCollectionReport,
   readSuppressions,
+  snapshotBelongsTo,
   visibleSnapshots,
   type CacheState,
   type CacheSuppression,
   type CollectionReport
 } from "./collection.js";
-import { MAX_CACHE_ENTRIES, mergeSnapshots } from "./merge.js";
+import { MAX_CACHE_ENTRIES, mergeSnapshots, snapshotIdentity } from "./merge.js";
 import { canonicalJson, normalizeMeter, normalizeMeters } from "./normalizer.js";
 import type { RawMeter, Snapshot } from "./types.js";
 
@@ -555,6 +556,96 @@ export async function mergeSnapshotCache(
     rejectOutOfBounds(merged);
     await replaceCache(directory, merged, state.suppressions);
     return { merged, written: true };
+  });
+}
+
+/**
+ * Fold rows this machine just acquired into the cache, without ever losing a
+ * newer row somebody else wrote.
+ *
+ * The problem this exists for: two PROCESSES write this cache, the desktop tray
+ * and this command line tool, and a lock held by one of them means nothing to
+ * the other. A plain collection report replaces every row for its identity,
+ * which is correct when the writer owns the provider and destructive when a
+ * desktop wrote a fresher row for the same identity a moment ago.
+ *
+ * So the decision is made INSIDE the cache lock, which both processes do share,
+ * and it is made per row: the newer `observedAt` wins, and on a tie the row
+ * already in the cache wins. Ties go to the incumbent because the only way to
+ * get one is two writers reading the same instant, and in that case the row
+ * that is already visible should not flicker.
+ *
+ * When nothing was deferred this behaves exactly like a collection report, so a
+ * provider that stops reporting a window still loses that row. When something
+ * was deferred the write becomes a merge instead, because dropping the rows for
+ * an identity we did not fully win would delete the very rows we deferred to.
+ */
+export async function mergeAcquiredSnapshots(
+  report: Extract<CollectionReport, { ok: true }>,
+  directory = resolveStateDirectory()
+): Promise<{ written: boolean; taken: number; deferred: number }> {
+  rejectOutOfBounds(report.snapshots);
+  return await withCacheLock(directory, async () => {
+    const cached = await readCacheState(directory);
+    const before: CacheState = cached.ok
+      ? cached.state
+      : { snapshots: [], suppressions: [] };
+    const held = new Map(
+      before.snapshots.map((snapshot) => [snapshotIdentity(snapshot), snapshot])
+    );
+    const taken: Snapshot[] = [];
+    let deferred = 0;
+    for (const incoming of report.snapshots) {
+      const existing = held.get(snapshotIdentity(incoming));
+      const existingAt = existing === undefined
+        ? null
+        : Date.parse(existing.observedAt);
+      const incomingAt = Date.parse(incoming.observedAt);
+      const loses = existing !== undefined &&
+        Number.isFinite(existingAt) &&
+        Number.isFinite(incomingAt) &&
+        (existingAt as number) >= incomingAt;
+      if (loses) {
+        deferred += 1;
+        continue;
+      }
+      taken.push(incoming);
+    }
+    /*
+     * The authoritative replace drops every row for this identity before it
+     * merges, which is right when this process owns them all and destructive
+     * when it does not. A round that reports FEWER windows than last time would
+     * otherwise delete another writer's row for a window it simply did not
+     * report, which is how the desktop's five hour Codex row disappeared the
+     * first time this was written. So a row belonging to this identity that
+     * nobody in this round reported and that this tool did not write is enough
+     * on its own to make the write a merge.
+     */
+    const incomingIdentities = new Set(
+      report.snapshots.map((snapshot) => snapshotIdentity(snapshot))
+    );
+    const foreign = before.snapshots.filter(
+      (snapshot) =>
+        snapshotBelongsTo(snapshot, report.provider, report.accountId) &&
+        snapshot.writer !== "cli" &&
+        !incomingIdentities.has(snapshotIdentity(snapshot))
+    ).length;
+    if (deferred === 0 && foreign === 0) {
+      const after = applyCollectionReport(before, report);
+      if (canonicalJson(after) === canonicalJson(before)) {
+        return { written: false, taken: taken.length, deferred };
+      }
+      rejectOutOfBounds(after.snapshots);
+      await replaceCache(directory, after.snapshots, after.suppressions);
+      return { written: true, taken: taken.length, deferred };
+    }
+    const merged = mergeSnapshots(before.snapshots, taken);
+    if (canonicalJson(merged) === canonicalJson(before.snapshots)) {
+      return { written: false, taken: taken.length, deferred };
+    }
+    rejectOutOfBounds(merged);
+    await replaceCache(directory, merged, before.suppressions);
+    return { written: true, taken: taken.length, deferred };
   });
 }
 

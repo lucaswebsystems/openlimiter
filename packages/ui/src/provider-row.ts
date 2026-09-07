@@ -517,7 +517,7 @@ export function buildProviderAccountRows(
         provider,
         providerLabel: PROVIDER_NAMES[provider],
         accountId,
-        accountLabel: accountId ?? "Local account",
+        accountLabel: lead?.accountLabel ?? accountId ?? "Local account",
         showAccountLabel: groups.size > 1,
         sourceLabel: lead === undefined ? null : sourceLine(lead),
         windows: accountSnapshots.map((snapshot) =>

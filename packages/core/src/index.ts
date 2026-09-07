@@ -1,3 +1,4 @@
+export * from "./acquire/index.js";
 export * from "./cache.js";
 export * from "./collection.js";
 export * from "./connection-state.js";

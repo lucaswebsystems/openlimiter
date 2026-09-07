@@ -218,6 +218,73 @@ export function setStatuslineValue(
     : { ok: false, message: "statusline.color must be auto, always, or never." };
 }
 
+/* -------------------------------------------------------------- providers */
+
+/**
+ * Per provider switches, and the one that matters in this release.
+ *
+ * Claude's primary source is the status line payload Claude Code hands this
+ * command, which is a documented feature and costs nothing. The network poll
+ * below exists only for the hours Claude Code is closed, it reads the token
+ * Claude Code stored, and Anthropic has written that third parties may not
+ * intermediate its credentials. That is a decision a person makes for
+ * themselves, so it is OFF until they turn it on, the row says why the bar is
+ * older than the others while it is off, and turning it on is one command.
+ */
+export interface ProvidersConfig {
+  readonly claude: {
+    readonly poll: boolean;
+  };
+}
+
+export const DEFAULT_PROVIDERS: ProvidersConfig = { claude: { poll: false } };
+
+export const PROVIDER_KEYS = ["claude.poll"] as const;
+
+export type ProviderKey = (typeof PROVIDER_KEYS)[number];
+
+export function isProviderKey(key: string): key is ProviderKey {
+  return (PROVIDER_KEYS as readonly string[]).includes(key);
+}
+
+export function normalizeProviders(value: unknown): ProvidersConfig {
+  if (!isRecord(value)) return DEFAULT_PROVIDERS;
+  const claude = value["claude"];
+  const poll = isRecord(claude) ? claude["poll"] : undefined;
+  return {
+    claude: { poll: typeof poll === "boolean" ? poll : DEFAULT_PROVIDERS.claude.poll }
+  };
+}
+
+export function providerValueText(
+  providers: ProvidersConfig,
+  key: ProviderKey
+): string {
+  void key;
+  return providers.claude.poll ? "true" : "false";
+}
+
+export type ProvidersUpdate =
+  | { ok: true; providers: ProvidersConfig }
+  | { ok: false; message: string };
+
+export function setProviderValue(
+  providers: ProvidersConfig,
+  key: string,
+  value: string
+): ProvidersUpdate {
+  if (!isProviderKey(key)) {
+    return {
+      ok: false,
+      message: "unknown providers key. Known keys: " + PROVIDER_KEYS.join(", ") + "."
+    };
+  }
+  if (value !== "true" && value !== "false") {
+    return { ok: false, message: "providers.claude.poll must be true or false." };
+  }
+  return { ok: true, providers: { claude: { poll: value === "true" } } };
+}
+
 /* ------------------------------------------------------------------ file */
 
 export interface ConfigConnector {
@@ -230,6 +297,7 @@ export interface OpenLimiterConfig {
   version: 1;
   connectors: readonly ConfigConnector[];
   statusline: StatuslineConfig;
+  providers: ProvidersConfig;
 }
 
 async function rejectSymlink(target: string): Promise<void> {
@@ -303,7 +371,8 @@ export async function readConfig(
     config: {
       version: 1,
       connectors: normalizeConnectors(document.value["connectors"]),
-      statusline: normalizeStatusline(document.value["statusline"])
+      statusline: normalizeStatusline(document.value["statusline"]),
+      providers: normalizeProviders(document.value["providers"])
     }
   };
 }
@@ -345,7 +414,8 @@ export async function initialize(
   const config: OpenLimiterConfig = {
     version: 1,
     connectors: connectorRows(environment),
-    statusline: existing.ok ? existing.config.statusline : DEFAULT_STATUSLINE
+    statusline: existing.ok ? existing.config.statusline : DEFAULT_STATUSLINE,
+    providers: existing.ok ? existing.config.providers : DEFAULT_PROVIDERS
   };
   let credentialStored = false;
   const openrouter = config.connectors.find((connector) => connector.id === "openrouter");
@@ -380,6 +450,25 @@ export function defaultConfig(
   return {
     version: 1,
     connectors: connectorRows(environment),
-    statusline: DEFAULT_STATUSLINE
+    statusline: DEFAULT_STATUSLINE,
+    providers: DEFAULT_PROVIDERS
   };
+}
+
+/**
+ * The providers section, or the defaults, and never an exception.
+ *
+ * Read on the acquisition path, which runs detached and unattended, so a
+ * configuration file that cannot be read must leave the poll where it is
+ * safest: off.
+ */
+export async function readProvidersConfig(
+  directory?: string
+): Promise<ProvidersConfig> {
+  try {
+    const result = await readConfig(directory);
+    return result.ok ? result.config.providers : DEFAULT_PROVIDERS;
+  } catch {
+    return DEFAULT_PROVIDERS;
+  }
 }

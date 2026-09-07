@@ -165,6 +165,18 @@ export const MANUAL_PROVENANCE: SnapshotProvenance = {
 };
 
 /**
+ * A reading this command fetched itself, over the network, just now.
+ *
+ * The same stamp the desktop writes for the same act, so a row acquired by the
+ * terminal and a row acquired by the tray describe themselves identically and
+ * a surface never has to know which process was running.
+ */
+export const ACQUISITION_PROVENANCE: SnapshotProvenance = {
+  sourceKind: "remote_api",
+  observedVia: "remote_http"
+};
+
+/**
  * Stamp provenance onto meters a parser just produced.
  *
  * Applied at the boundary, before normalization, so the normalizer validates

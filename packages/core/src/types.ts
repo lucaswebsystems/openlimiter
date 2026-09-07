@@ -103,6 +103,24 @@ export interface SnapshotProvenance {
 }
 
 /**
+ * Which OpenLimiter process last wrote a row.
+ *
+ * The cache is shared by every surface on the machine, and two of them can
+ * poll: the desktop tray, which runs all day, and the command line tool, which
+ * wakes up when a status line asks it to. Without this field neither can tell
+ * whether the other is already keeping the rows fresh, so both poll and the
+ * provider sees twice the traffic it should.
+ *
+ * Absent is the honest answer for every row written before this field existed
+ * and for any row whose writer could not be believed, and absent means unknown
+ * rather than "nobody": a reader that finds no marker falls back to polling,
+ * which is the same behaviour the product always had.
+ */
+export const SNAPSHOT_WRITERS = ["desktop", "cli"] as const;
+
+export type SnapshotWriter = (typeof SNAPSHOT_WRITERS)[number];
+
+/**
  * What a reading's provenance becomes when the stated provenance cannot be
  * believed. The reading itself still stands: how a number arrived is a separate
  * question from whether the number is in range.
@@ -161,8 +179,26 @@ export interface Snapshot {
    * "default": a row without this field keeps the identity it always had.
    */
   accountId?: string;
+  /**
+   * A human name for the account this row belongs to.
+   *
+   * `accountId` is an identifier: lowercase, hyphenated, safe to key a cache
+   * on, and unreadable. A surface that prints it prints exactly that, which is
+   * fine for an account a person named and wrong for one this product had to
+   * invent, such as the Gemini CLI login borrowed for the shared Code Assist
+   * pool. Absent means the surface should fall back to the identifier, which is
+   * what every row written before this field did.
+   */
+  accountLabel?: string;
   /** How the reading arrived. Absent means it was never recorded. */
   provenance?: SnapshotProvenance;
+  /**
+   * Which process wrote this row, when the writer said so.
+   *
+   * Never part of the row's identity, so a row that gains or loses the marker
+   * merges exactly as it always did.
+   */
+  writer?: SnapshotWriter;
 }
 
 export interface RawMeter {
@@ -181,7 +217,9 @@ export interface RawMeter {
   limitAmount?: unknown;
   currency?: unknown;
   accountId?: unknown;
+  accountLabel?: unknown;
   provenance?: unknown;
+  writer?: unknown;
 }
 
 export interface ConnectorReadContext {

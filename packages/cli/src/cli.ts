@@ -1,15 +1,46 @@
 import {
+  ACQUISITION_OUTCOME_SENTENCE,
+  CREDENTIAL_FAILURE_SENTENCE,
   PROVIDER_CODES,
+  acquireRefreshLock,
+  clearRefreshSpawnFailure,
+  mergeAcquiredSnapshots,
+  createFetchTransport,
+  readRefreshSpawnFailure,
+  antigravitySpec,
   buildAdvice,
   canonicalJson,
+  claudeSpec,
+  codexSpec,
   dedupeFailures,
+  desktopHoldsCache,
   failureFromConnectorReason,
   freshness,
+  geminiCliSpec,
+  grokSpec,
+  isProviderDue,
+  kimiSpec,
   mergeSnapshots,
   normalizeMeters,
   normalizeMetersReport,
+  openrouterSpec,
+  readAcquisitionCredential,
+  readAcquisitionSchedule,
   readSnapshotCache,
+  readWindowsCredentialWith,
+  runAcquisition,
+  spawnDetachedRefresh,
+  writeAcquisitionSchedule,
+  type AcquisitionProvider,
+  type AcquisitionRow,
+  type AcquisitionSchedule,
+  type AcquisitionSpec,
+  type AcquisitionTransport,
+  type AcquiredCredential,
   type CacheReadResult,
+  type CredentialCommandRunner,
+  type CredentialResult,
+  type DetachedSpawn,
   type FailureCategory,
   type ProviderCode,
   type ProviderFailure,
@@ -26,9 +57,11 @@ import {
   manualFixture,
   opencodeFixture,
   openrouterFixture,
+  parseAntigravityCodeAssistPayload,
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
+  parseGeminiCliPayload,
   parseGrokPayload,
   parseKimiPayload,
   parseManualPayload,
@@ -53,21 +86,30 @@ import {
   loadHostedContextTrust,
   renderClaudeStatusline
 } from "@openlimiter/adapters";
+import { execFile, spawn } from "node:child_process";
 import { homedir } from "node:os";
 import {
+  PROVIDER_KEYS,
   STATUSLINE_KEYS,
   defaultConfig,
   initialize,
+  isProviderKey,
   isStatuslineKey,
+  providerValueText,
   readConfig,
+  readProvidersConfig,
   readStatuslineConfig,
+  setProviderValue,
   setStatuslineValue,
   statuslineValueText,
   writeConfig,
+  type ProviderKey,
+  type ProvidersConfig,
   type StatuslineConfig,
   type StatuslineKey
 } from "./config.js";
 import {
+  ACQUISITION_PROVENANCE,
   INGEST_PROVENANCE,
   MANUAL_PROVENANCE,
   STATUSLINE_PROVENANCE,
@@ -147,6 +189,28 @@ export interface CliDependencies {
    * a parent process uses to reach the handle and close it again.
    */
   onListening?: (handle: QuotaServerHandle) => void;
+  /**
+   * How acquisition requests leave this machine.
+   *
+   * Injected everywhere, so a test proves the whole path against recorded
+   * responses and never opens a socket. The library default is the runtime's
+   * own fetch behind the closed endpoint table in the core package.
+   */
+  acquisitionTransport: AcquisitionTransport;
+  /**
+   * How a refresh is started behind a render.
+   *
+   * The child outlives this process on purpose: a status line has to return in
+   * milliseconds and a round of provider requests does not fit in that.
+   */
+  spawnDetached: DetachedSpawn;
+  /**
+   * How the Windows Credential Manager is asked for one entry.
+   *
+   * Only Antigravity needs it, and only on Windows. Absent means the file
+   * fallback is the only path, which is what every other platform uses.
+   */
+  windowsCredentialRunner?: CredentialCommandRunner;
 }
 
 export interface CliResult {
@@ -174,7 +238,70 @@ function defaults(): CliDependencies {
     openLimiterScript: process.argv[1] ?? "",
     nodeExecutable: process.execPath,
     platform: process.platform,
-    detectedAgentInstallations: {}
+    detectedAgentInstallations: {},
+    /*
+     * The library defaults reach nothing outside this process, exactly as the
+     * standard input reader above does. The executable injects the real
+     * transport, the real spawner and the real credential helper, so a test or
+     * another tool that calls runCli in process opens no socket, starts no
+     * child and runs no shell unless it asked for one.
+     */
+    acquisitionTransport: async () => {
+      throw new Error("No acquisition transport was injected");
+    },
+    spawnDetached: () => undefined
+  };
+}
+
+/** The line separator every multi line report in this file joins on. */
+const NEWLINE = "\n";
+
+/**
+ * The dependencies that actually reach the world, built once for the executable.
+ *
+ * Exported rather than inlined in the executable because the executable has two
+ * entry paths, the ordinary one and the wrapped status line, and the wrapped one
+ * used to build its own smaller set. A wrapped status line therefore rendered
+ * bars forever and never started the refresh that keeps them true, which is the
+ * one configuration a person following the install instructions ends up with.
+ * One factory, both paths, and a test can assert what is in it.
+ */
+export function runtimeDependencies(): Pick<
+  CliDependencies,
+  "acquisitionTransport" | "spawnDetached" | "windowsCredentialRunner"
+> {
+  return {
+    acquisitionTransport: createFetchTransport(),
+    spawnDetached: (executable, argumentsList, options) => {
+      const child = spawn(executable, [...argumentsList], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: true
+      });
+      /*
+       * A detached spawn reports a missing executable asynchronously, long
+       * after this function returned and usually after the render has already
+       * been printed. Without this listener that arrives as an unhandled error
+       * event and takes the host process down with it, which for a status line
+       * means taking down somebody's terminal prompt.
+       */
+      child.once("error", () => {
+        options.onError?.();
+      });
+      /* Unreferenced so this process can exit while the refresh continues. */
+      child.unref();
+    },
+    windowsCredentialRunner: async (executable, helperArguments, timeoutMilliseconds) =>
+      await new Promise((resolve) => {
+        execFile(
+          executable,
+          [...helperArguments],
+          { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true },
+          (error, stdout) => {
+            resolve(error === null ? { ok: true, stdout } : { ok: false });
+          }
+        );
+      })
   };
 }
 
@@ -305,6 +432,381 @@ async function refresh(
   return { snapshots: persisted.merged, failures };
 }
 
+/* ---------------------------------------------------------- acquisition */
+
+/**
+ * How a terminal with no desktop app gets fresh bars.
+ *
+ * Everything below is wiring, and only wiring. Credential discovery, the closed
+ * endpoint table, the cadence, the backoff and the lock all live in the core
+ * package, and the parsers all live in the connector package; this is the one
+ * place that knows both exist. That separation is why a test can prove a whole
+ * round without a socket and without a real login.
+ */
+
+/**
+ * The specifications this machine will run, wired to the real parsers.
+ *
+ * Claude is here whatever the switch says, because a row that is off still owes
+ * a person the sentence explaining why its bar is older than the rest. Every
+ * other provider is unconditional: a provider with no local login simply
+ * reports that it has none.
+ */
+export function acquisitionSpecs(providers: ProvidersConfig): AcquisitionSpec[] {
+  return [
+    claudeSpec({ parse: parseClaudePayload, enabled: providers.claude.poll }),
+    codexSpec(parseCodexPayload),
+    geminiCliSpec(parseGeminiCliPayload),
+    antigravitySpec(parseAntigravityCodeAssistPayload),
+    grokSpec(parseGrokPayload),
+    kimiSpec(parseKimiPayload),
+    openrouterSpec(parseOpenrouterPayload)
+  ];
+}
+
+/**
+ * Where each provider's credential is read from.
+ *
+ * Six of them belong to a vendor's own client and are read off disk, unchanged,
+ * by the core. OpenRouter is the exception and always was: its key is one a
+ * person typed into this tool, so it lives in the operating system credential
+ * store under this product's own name and is read from there.
+ */
+function credentialReader(
+  dependencies: CliDependencies
+): (provider: AcquisitionProvider) => Promise<CredentialResult> {
+  const runner = dependencies.windowsCredentialRunner;
+  return async (provider) => {
+    if (provider === "OPENROUTER") {
+      let secret: string | null;
+      try {
+        secret = await dependencies.credentialStore.get("openlimiter", "openrouter");
+      } catch {
+        return { ok: false, reason: "unreadable" };
+      }
+      /*
+       * The environment is the second place, and today it is the only one that
+       * works in a published build: this package ships no credential store
+       * driver, so the store above always answers nothing until one is wired.
+       * A terminal person therefore has one documented way to supply the key,
+       * and it is the same variable a shell profile already knows how to keep.
+       */
+      secret ??= dependencies.environment["OPENLIMITER_OPENROUTER_KEY"] ?? null;
+      return secret === null || secret === ""
+        ? { ok: false, reason: "absent" }
+        : {
+            ok: true,
+            credential: {
+              secret,
+              accountId: null,
+              expiresAtMilliseconds: null,
+              origin: "user_key"
+            }
+          };
+    }
+    return await readAcquisitionCredential(provider, {
+      platform: dependencies.platform,
+      environment: dependencies.environment,
+      homeDirectory: dependencies.homeDirectory,
+      now: dependencies.now(),
+      ...(runner === undefined || dependencies.platform !== "win32"
+        ? {}
+        : {
+            readWindowsCredential: async (target) =>
+              await readWindowsCredentialWith(target, { runCommand: runner })
+          })
+    });
+  };
+}
+
+/**
+ * What is written onto every acquired reading before it is validated.
+ *
+ * Two facts, both about this process rather than about the provider: the
+ * reading arrived over the network just now, and this command is what wrote it.
+ * The second is what stops two refreshers on one machine from both polling.
+ */
+function acquisitionStamp(
+  meters: readonly RawMeter[],
+  credential: AcquiredCredential
+): RawMeter[] {
+  void credential;
+  return withProvenance(meters, ACQUISITION_PROVENANCE).map(
+    (meter) => ({ ...meter, writer: "cli" as const })
+  );
+}
+
+/**
+ * What doctor can say about one provider without asking the provider anything.
+ *
+ * Doctor never touches the network, so this reads three local things and stops:
+ * whether a credential exists, what the schedule says, and whether the cache
+ * already holds a fresh row for this provider. That is enough to tell apart the
+ * four states a person cares about, which are "not set up here", "waiting out a
+ * backoff", "set up and current" and "set up and something is wrong".
+ */
+async function acquisitionStatusRow(
+  spec: AcquisitionSpec,
+  schedule: AcquisitionSchedule,
+  readCredential: (provider: AcquisitionProvider) => Promise<CredentialResult>,
+  snapshots: readonly Snapshot[],
+  now: string
+): Promise<AcquisitionRow> {
+  const entry = schedule[spec.provider];
+  const nextAttemptAt = entry?.nextAttemptAt ?? null;
+  /* The same sentence the round itself printed. A provider that says something
+     better than the shared vocabulary must say it in both places, or doctor
+     quietly contradicts the command a person just ran. */
+  const sentence = (outcome: NonNullable<typeof entry>["outcome"]): string =>
+    spec.outcomeSentence?.[outcome] ?? ACQUISITION_OUTCOME_SENTENCE[outcome];
+  if (spec.enabled === false) {
+    return {
+      provider: spec.provider,
+      detected: false,
+      status: "off",
+      reason: spec.disabledReason ?? null,
+      nextAttemptAt: null,
+      disclosure: spec.disclosure
+    };
+  }
+  const credential = await readCredential(spec.credentialProvider);
+  if (!credential.ok) {
+    const absent = credential.reason === "absent";
+    return {
+      provider: spec.provider,
+      detected: !absent,
+      status: absent ? "not_detected" : "stale",
+      reason: CREDENTIAL_FAILURE_SENTENCE[credential.reason],
+      nextAttemptAt,
+      disclosure: spec.disclosure
+    };
+  }
+  const held = credential.credential;
+  const accountId = spec.accountIdFor?.(held) ?? null;
+  const disclosure = spec.disclosureFor?.(held) ?? spec.disclosure;
+  const identity = {
+    provider: spec.provider,
+    ...(accountId === null ? {} : { accountId }),
+    detected: true,
+    disclosure
+  };
+  if (!isProviderDue(entry, now)) {
+    return {
+      ...identity,
+      status: "waiting",
+      reason: entry === undefined ? null : sentence(entry.outcome),
+      nextAttemptAt
+    };
+  }
+  const fresh = snapshots.some(
+    (snapshot) => snapshot.provider === spec.provider &&
+      freshness(snapshot.observedAt, snapshot.expiresAt, now) === "fresh"
+  );
+  return {
+    ...identity,
+    status: fresh ? "read" : "stale",
+    reason: fresh
+      ? null
+      : entry === undefined
+        ? "this provider has not been read yet on this machine"
+        : sentence(entry.outcome),
+    nextAttemptAt
+  };
+}
+
+/** The acquisition block doctor prints under the connector block. */
+async function acquisitionDoctorRows(
+  dependencies: CliDependencies,
+  snapshots: readonly Snapshot[],
+  now: string
+): Promise<string> {
+  const providers = await readProvidersConfig(dependencies.stateDirectory);
+  const schedule = await readAcquisitionSchedule(dependencies.stateDirectory);
+  const readCredential = credentialReader(dependencies);
+  const rows: string[] = [];
+  for (const spec of acquisitionSpecs(providers)) {
+    rows.push(acquisitionLine(
+      await acquisitionStatusRow(spec, schedule, readCredential, snapshots, now),
+      snapshots
+    ));
+  }
+  const failedAt = await readRefreshSpawnFailure(dependencies.stateDirectory);
+  if (failedAt !== null) {
+    rows.push("REFRESH SPAWN FAILED " + failedAt +
+      " the background refresh could not be started on this machine");
+  }
+  return [ACQUISITION_HEADER, ...rows].join(NEWLINE);
+}
+
+/**
+ * Where a person can still see a reading this row could not take.
+ *
+ * Antigravity and Gemini CLI meter the same Google Code Assist pool. When
+ * Google withholds the reading from this client but another tool on the machine
+ * has already written one, the honest thing is to point at it rather than leave
+ * a bare refusal, so the person knows the number exists and where.
+ */
+function sharedQuotaNote(
+  row: AcquisitionRow,
+  snapshots: readonly Snapshot[]
+): string | null {
+  if (row.provider !== "ANTIGRAVITY") return null;
+  return snapshots.some((snapshot) => snapshot.provider === "GEMINI_CLI")
+    ? "the shared Code Assist quota is shown under gemini_cli"
+    : null;
+}
+
+/** One row of the refresh report, in the space separated grammar doctor uses. */
+function acquisitionLine(
+  row: AcquisitionRow,
+  snapshots: readonly Snapshot[] = []
+): string {
+  const shared = row.status === "read" ? null : sharedQuotaNote(row, snapshots);
+  const note = [row.reason ?? row.disclosure ?? "", shared ?? ""]
+    .filter((part) => part !== "")
+    .join(", ");
+  return [
+    row.provider.toLowerCase() + (row.accountId === undefined ? "" : "/" + row.accountId),
+    row.detected ? "yes" : "no",
+    row.status,
+    row.nextAttemptAt ?? "NONE",
+    note
+  ].join(" ").trimEnd();
+}
+
+const ACQUISITION_HEADER = "PROVIDER DETECTED STATUS NEXT NOTE";
+
+/**
+ * Run one round of acquisition and fold what it found into the cache.
+ *
+ * Three refusals come before any request. A desktop that wrote inside the last
+ * interval already owns this machine's refreshing, so this command stands down
+ * rather than doubling the traffic a provider sees. A refresh already running
+ * holds the lock, so this one exits instead of racing it on the same
+ * credentials. And a provider inside its own backoff is skipped by the runner
+ * without being asked anything.
+ *
+ * Only a successful read writes. A refusal, a rate limit or a shape this build
+ * did not understand leaves every cached row exactly where it was, to age out
+ * through the ordinary freshness rule.
+ */
+async function refreshCommand(
+  dependencies: CliDependencies,
+  now: string
+): Promise<CliResult> {
+  const lock = await acquireRefreshLock(dependencies.stateDirectory);
+  if (!lock.ok) {
+    return succeed([
+      ACQUISITION_HEADER,
+      "SKIPPED another refresh is already running on this machine"
+    ].join(NEWLINE));
+  }
+  try {
+    /*
+     * Desktop ownership is decided HERE, under the lock, and nowhere else.
+     * Checking it before taking the lock read a cache that a desktop could
+     * start writing a millisecond later, and this round would then poll every
+     * provider a second time for nothing. One check, on the only side of the
+     * lock where the answer cannot change underneath it.
+     */
+    const settled = await readSnapshotCache(dependencies.stateDirectory);
+    if (desktopHoldsCache(settled.ok ? settled.snapshots : [], now)) {
+      return succeed([
+        ACQUISITION_HEADER,
+        "SKIPPED the desktop app refreshed this cache inside the last interval"
+      ].join(NEWLINE));
+    }
+    /* A round that got this far is proof a refresh can start on this machine. */
+    await clearRefreshSpawnFailure(dependencies.stateDirectory);
+    const providers = await readProvidersConfig(dependencies.stateDirectory);
+    const schedule = await readAcquisitionSchedule(dependencies.stateDirectory);
+    const result = await runAcquisition(acquisitionSpecs(providers), {
+      transport: dependencies.acquisitionTransport,
+      now,
+      schedule,
+      readCredential: credentialReader(dependencies),
+      stamp: acquisitionStamp
+    });
+    /*
+     * Ownership is checked before every write, not once at the start. A round
+     * can outlive its lock if this machine was suspended mid refresh, and a
+     * round that lost its lock must not write over the round that took it.
+     *
+     * The refresh lock only coordinates other copies of THIS tool. The desktop
+     * tray is a separate process that knows nothing about it, so the write
+     * itself has to be safe against a desktop row that appeared since this
+     * round started reading. `mergeAcquiredSnapshots` decides that per row,
+     * inside the cache lock both processes do share, keeping whichever row is
+     * newer and leaving a tie with the row already there.
+     */
+    for (const report of result.reports) {
+      if (!(await lock.stillOwned())) {
+        return succeed([
+          ACQUISITION_HEADER,
+          "SKIPPED this refresh lost its lock before it could write"
+        ].join(NEWLINE));
+      }
+      if (!report.ok) continue;
+      try {
+        await mergeAcquiredSnapshots(report, dependencies.stateDirectory);
+      } catch {
+        /* One provider's write failing is that provider's problem. The rest of
+           the round still has readings worth keeping. */
+      }
+    }
+    if (!(await lock.stillOwned())) {
+      return succeed([
+        ACQUISITION_HEADER,
+        "SKIPPED this refresh lost its lock before it could write"
+      ].join(NEWLINE));
+    }
+    await writeAcquisitionSchedule(result.schedule, dependencies.stateDirectory);
+    const merged = await cachedSnapshots(dependencies.stateDirectory);
+    await writeAgentContextSnapshot(
+      merged,
+      dependencies.stateDirectory,
+      now,
+      PROVIDER_CODES
+    ).catch(() => undefined);
+    return succeed([
+      ACQUISITION_HEADER,
+      ...result.rows.map((row) => acquisitionLine(row, merged))
+    ].join(NEWLINE));
+  } catch {
+    return fail(EXIT_FAILURE, "openlimiter refresh: the refresh did not complete.");
+  } finally {
+    await lock.release();
+  }
+}
+
+/**
+ * Start a refresh behind a render, when one is worth starting.
+ *
+ * Every failure here is swallowed on purpose. This is called from a status line
+ * and from a snapshot, and neither of them may fail because a refresh could not
+ * be started: the bars this render already has are still true.
+ */
+async function startRefreshBehind(
+  dependencies: CliDependencies,
+  snapshots: readonly Snapshot[],
+  now: string
+): Promise<void> {
+  try {
+    await spawnDetachedRefresh({
+      snapshots,
+      now,
+      ...(dependencies.stateDirectory === undefined
+        ? {}
+        : { stateDirectory: dependencies.stateDirectory }),
+      nodeExecutable: dependencies.nodeExecutable,
+      openLimiterScript: dependencies.openLimiterScript,
+      spawn: dependencies.spawnDetached
+    });
+  } catch {
+    /* Nothing to report and nothing a person could do about it. */
+  }
+}
+
 function demoSnapshots(now: string): Snapshot[] {
   const raw = [
     ...(parseClaudePayload(claudeFixture(now), now) ?? []),
@@ -324,7 +826,14 @@ function doctorRows(
   environment: Readonly<Record<string, string | undefined>>,
   now: string
 ): string {
-  const lines = ["CONNECTOR DETECTED FRESHNESS DRIFT"];
+  /*
+   * PAYLOAD, not DETECTED. This column has always meant "a payload for this
+   * connector was pushed into this process", which is a different question from
+   * the acquisition table's "a login for this provider exists on this machine",
+   * and the two answered differently for the same provider under the same word.
+   * One of them had to be renamed and this is the one whose word was wrong.
+   */
+  const lines = ["CONNECTOR PAYLOAD FRESHNESS DRIFT"];
   for (const connector of connectors) {
     const provider = connector.id.toUpperCase() as ProviderCode;
     const states = snapshots
@@ -349,6 +858,7 @@ const help = [
   "openlimiter init",
   "openlimiter snapshot [--refresh]",
   "openlimiter statusline",
+  "openlimiter refresh",
   "openlimiter hook [--dry-run]",
   "openlimiter hooks install <agent>",
   "openlimiter hooks uninstall <agent>",
@@ -358,13 +868,20 @@ const help = [
   "openlimiter ingest [--provider <id>] [--payload <json>]",
   "openlimiter config get statusline[.<key>]",
   "openlimiter config set statusline.<key> <value>",
+  "openlimiter config get providers[.<key>]",
+  "openlimiter config set providers.<key> <value>",
   "openlimiter doctor",
   "openlimiter demo",
   "openlimiter export",
   "openlimiter serve [--port <n>] [--host <address>] [--no-qr]",
   "",
   "statusline keys: " + STATUSLINE_KEYS.join(", ") + ".",
+  "providers keys: " + PROVIDER_KEYS.join(", ") + ".",
   "statusline and ingest read JSON from standard input when it is piped in.",
+  "refresh reads the logins your provider tools already stored on this machine",
+  "and asks each provider for its own usage, at most once every 15 minutes. It",
+  "stands down while the desktop app is running. statusline and snapshot start",
+  "it in the background when the cache is older than a minute.",
   "serve publishes read only quota on your local network, behind a token that",
   "changes on every start. It is for a trusted network, not the internet.",
   "Exit codes: 0 success, 1 failure, 2 usage, 3 no bounded quota data."
@@ -450,6 +967,9 @@ async function snapshotCommand(
     return fail(EXIT_FAILURE, "openlimiter snapshot: quota state could not be read.");
   }
   const snapshots = cached.ok ? cached.snapshots : [];
+  if (argumentsList.includes("--refresh")) {
+    await startRefreshBehind(dependencies, snapshots, now);
+  }
   try {
     await writeAgentContextSnapshot(
       snapshots,
@@ -526,6 +1046,7 @@ async function doctorCommand(
   const dropped = cached.ok ? cached.dropped : 0;
   const lines = [
     doctorRows(snapshots, environment, now),
+    await acquisitionDoctorRows(dependencies, snapshots, now),
     "CACHE " + status + " DROPPED " + String(dropped)
   ];
   const category = cacheFailureCategory(cached);
@@ -648,6 +1169,13 @@ async function statuslineCommand(
 ): Promise<CliResult> {
   const ingested = await ingestStandardInput(dependencies, now);
   const snapshots = ingested ?? await cachedSnapshots(dependencies.stateDirectory);
+  /*
+   * The refresh that keeps the other providers current starts here and is never
+   * waited for. This render draws whatever the cache already holds, the child
+   * outlives this process, and the next render shows what it found. That is the
+   * whole reason a terminal person needs no background service.
+   */
+  await startRefreshBehind(dependencies, snapshots, now);
   if (ingested === null) {
     await writeAgentContextSnapshot(
       snapshots,
@@ -872,15 +1400,19 @@ async function explicitStatusCommand(
 
 /* --------------------------------------------------------------- config */
 
-/** The one section this command reads and writes. */
+/** The two sections this command reads and writes. */
 const CONFIG_SECTION = "statusline";
+const PROVIDERS_SECTION = "providers";
 
 const configUsage = [
   "openlimiter config: use one of",
   "  openlimiter config get statusline[.<key>]",
   "  openlimiter config set statusline.<key> <value>",
-  "Keys: " + STATUSLINE_KEYS.join(", ") + "."
-].join("\n");
+  "  openlimiter config get providers[.<key>]",
+  "  openlimiter config set providers.<key> <value>",
+  "Statusline keys: " + STATUSLINE_KEYS.join(", ") + ".",
+  "Providers keys: " + PROVIDER_KEYS.join(", ") + "."
+].join(NEWLINE);
 
 /**
  * Split `statusline.width` into its section and its key.
@@ -908,7 +1440,70 @@ function configGet(
 ): string {
   return keys
     .map((key) => CONFIG_SECTION + "." + key + "=" + statuslineValueText(statusline, key))
-    .join("\n");
+    .join(NEWLINE);
+}
+
+function providersGet(
+  keys: readonly ProviderKey[],
+  providers: ProvidersConfig
+): string {
+  return keys
+    .map((key) => PROVIDERS_SECTION + "." + key + "=" + providerValueText(providers, key))
+    .join(NEWLINE);
+}
+
+/**
+ * Read or change one provider switch.
+ *
+ * Split from the statusline path rather than folded into it because the two
+ * sections mean different things: a statusline key changes what a person sees,
+ * and a providers key changes what this machine asks a provider. Only the
+ * second one has a network consequence, and it deserves its own words.
+ */
+async function providersConfigCommand(
+  dependencies: CliDependencies,
+  action: "get" | "set",
+  key: string | null,
+  value: string | undefined
+): Promise<CliResult> {
+  if (key !== null && !isProviderKey(key)) {
+    return fail(
+      EXIT_USAGE,
+      "openlimiter config: unknown providers key. Known keys: " +
+        PROVIDER_KEYS.join(", ") + "."
+    );
+  }
+  const stored = await readConfig(dependencies.stateDirectory);
+  if (!stored.ok && stored.reason !== "missing") {
+    return fail(EXIT_FAILURE, "openlimiter config: configuration could not be read.");
+  }
+  const config = stored.ok ? stored.config : defaultConfig(dependencies.environment);
+  if (action === "get") {
+    return succeed(providersGet(
+      key === null ? PROVIDER_KEYS : [key],
+      config.providers
+    ));
+  }
+  if (key === null) {
+    return fail(
+      EXIT_USAGE,
+      "openlimiter config: set needs a key, as in providers.claude.poll."
+    );
+  }
+  if (value === undefined) {
+    return fail(EXIT_USAGE, "openlimiter config: set needs a value.");
+  }
+  const update = setProviderValue(config.providers, key, value);
+  if (!update.ok) return fail(EXIT_USAGE, "openlimiter config: " + update.message);
+  try {
+    await writeConfig(
+      { ...config, providers: update.providers },
+      dependencies.stateDirectory
+    );
+  } catch {
+    return fail(EXIT_FAILURE, "openlimiter config: configuration could not be written.");
+  }
+  return succeed(providersGet([key], update.providers));
 }
 
 /**
@@ -928,10 +1523,20 @@ async function configCommand(
     return fail(EXIT_USAGE, configUsage);
   }
   const target = parseConfigPath(argumentsList[2]);
-  if (target === null || target.section !== CONFIG_SECTION) {
+  if (target === null) return fail(EXIT_USAGE, configUsage);
+  if (target.section === PROVIDERS_SECTION) {
+    return await providersConfigCommand(
+      dependencies,
+      action,
+      target.key,
+      argumentsList[3]
+    );
+  }
+  if (target.section !== CONFIG_SECTION) {
     return fail(
       EXIT_USAGE,
-      "openlimiter config: only the statusline section can be read or written."
+      "openlimiter config: only the statusline and providers sections can be " +
+        "read or written."
     );
   }
   if (target.key !== null && !isStatuslineKey(target.key)) {
@@ -1051,6 +1656,7 @@ export async function runCli(
     if (command === "status") {
       return await explicitStatusCommand(dependencies, argumentsList, now);
     }
+    if (command === "refresh") return await refreshCommand(dependencies, now);
     if (command === "doctor") return await doctorCommand(dependencies, now);
     if (command === "demo") {
       return succeed(
@@ -1073,6 +1679,9 @@ export async function runCli(
      * failure with a redacted message so a script can react to it.
      */
     if (command === "hook") return { exitCode: EXIT_OK, stdout: "", stderr: "" };
+    /* A detached refresh writes to a discarded stream and has nobody to tell,
+       so it fails quietly rather than leaving an exit code nothing reads. */
+    if (command === "refresh") return { exitCode: EXIT_OK, stdout: "", stderr: "" };
     if (command === "statusline") {
       return { exitCode: EXIT_OK, stdout: "OpenLimiter UNKNOWN", stderr: "" };
     }

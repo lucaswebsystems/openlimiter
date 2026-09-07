@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline/promises";
 import { HOOK_INPUT_MAX_BYTES } from "@openlimiter/adapters";
-import { runCli } from "./cli.js";
+import { runCli, runtimeDependencies } from "./cli.js";
 import { readStandardInputBuffer, readStandardInputText } from "./ingest.js";
 import {
   decodeWrappedStatuslineCommand,
@@ -21,6 +21,18 @@ async function promptForSecret(): Promise<string> {
   }
 }
 
+/**
+ * Everything that reaches the world, built once and used by BOTH entry paths.
+ *
+ * The wrapped status line is the configuration most people end up with, because
+ * it is what the installer writes for anyone who already had a status line of
+ * their own. It used to call the command line tool with only a standard input
+ * reader, so it rendered bars from the cache and never started the refresh that
+ * keeps them true: the one path that most needed acquisition was the one path
+ * that had none.
+ */
+const runtime = runtimeDependencies();
+
 const argumentsList = process.argv.slice(2);
 const wrapperRequested =
   argumentsList[0] === "statusline" && argumentsList[1] === "--wrap";
@@ -37,6 +49,7 @@ if (wrapperRequested && wrapped === null) {
   const result = await runStatuslineWrapper(payload, wrapped, {
     ingest: async (buffer) => {
       await runCli(["statusline"], {
+        ...runtime,
         readStandardInput: async () => buffer.toString("utf8")
       });
     }
@@ -46,6 +59,7 @@ if (wrapperRequested && wrapped === null) {
   process.exitCode = result.exitCode;
 } else {
   const result = await runCli(argumentsList, {
+    ...runtime,
     promptForSecret,
     readStandardInput: (signal) => argumentsList[0] === "hook"
       ? readStandardInputText(process.stdin, HOOK_INPUT_MAX_BYTES, undefined, signal)

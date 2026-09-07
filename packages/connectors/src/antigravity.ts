@@ -6,6 +6,7 @@ import type {
   ConnectorResult,
   RawMeter
 } from "@openlimiter/core";
+import { parseGeminiCliPayload } from "./gemini-cli.js";
 import {
   boundedFraction,
   connectorConnection,
@@ -177,6 +178,37 @@ export function parseAntigravityPayload(
     precision: "estimated",
     observedAt: now,
     expiresAt,
+    labels: antigravityLabels
+  }));
+}
+
+/**
+ * The same Code Assist quota document, read under this provider's name.
+ *
+ * Antigravity and Gemini CLI sit on one Google Code Assist backend and answer
+ * the same per model quota shape, so `parseGeminiCliPayload` above already
+ * knows how to read it. What differs is WHOSE credential asked and therefore
+ * which row a person is looking at, and that is a provider code, not a parser.
+ *
+ * The rename is exact rather than approximate: the two label sets are field for
+ * field identical, so nothing about the reading's honesty changes when the
+ * provider does. Duplicating the bucket reader to achieve the same thing would
+ * mean two parsers to keep in step with one backend, which is how one of them
+ * ends up silently behind.
+ *
+ * This is the shape the network path reads. The group and bucket summary the
+ * `parseAntigravityPayload` reader above handles is a different document from
+ * the same family and stays exactly as it was.
+ */
+export function parseAntigravityCodeAssistPayload(
+  payload: unknown,
+  now: string
+): RawMeter[] | null {
+  const meters = parseGeminiCliPayload(payload, now);
+  if (meters === null) return null;
+  return meters.map((meter) => ({
+    ...meter,
+    provider: "ANTIGRAVITY",
     labels: antigravityLabels
   }));
 }
