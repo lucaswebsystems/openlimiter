@@ -805,6 +805,8 @@
       "openAnyway": "Esta build de macOS não é assinada. Abra uma vez, depois abra os Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Mesmo Assim. A imagem de disco é universal, então roda em Apple silicon e em Intel. As atualizações automáticas chegam com as builds assinadas.",
       "linuxNote": "Pacotes AppImage, deb e rpm disponíveis. Executa diretamente sem aviso de assinatura."
     },
+    "versionLine": "Versão {version}",
+    "releaseNotes": "Notas de lançamento",
     "states": {
       "available": "disponível",
       "inDevelopment": "em breve",

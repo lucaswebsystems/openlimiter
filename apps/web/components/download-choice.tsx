@@ -42,6 +42,9 @@ export function DownloadChoice({
   smartScreen,
   openAnyway,
   linuxNote,
+  versionLine,
+  releaseNotesLabel,
+  releaseNotesHref,
 }: {
   windowsHref: string;
   linuxHref: string;
@@ -61,6 +64,16 @@ export function DownloadChoice({
    */
   openAnyway: string;
   linuxNote: string;
+  /**
+   * "Version {version}", already rendered by the caller. It sits beside the
+   * button grid rather than under the whole component: the product preview
+   * below this card is tall enough that a line placed after it would sit
+   * below the fold, and a reader deciding what to download should not have
+   * to scroll to find out what they are about to get.
+   */
+  versionLine: string;
+  releaseNotesLabel: string;
+  releaseNotesHref: string;
 }) {
   const [platform, setPlatform] = useState<Platform>("windows");
   const [countdownSec, setCountdownSec] = useState(860); // 14m 20s
@@ -158,9 +171,21 @@ export function DownloadChoice({
         </div>
 
         <div className="mt-8 border-t border-hairline pt-5 w-full text-center">
+          <p className="text-xs leading-relaxed text-muted">
+            {versionLine}
+            <span className="legal-dot" aria-hidden="true" />
+            <a
+              href={releaseNotesHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="focus-ring rounded text-accent transition-colors hover:text-accent-hover"
+            >
+              {releaseNotesLabel}
+            </a>
+          </p>
           <a
             href={otherHref}
-            className="focus-ring inline-block rounded text-sm text-muted underline underline-offset-4 hover:text-heading"
+            className="focus-ring mt-3 inline-block rounded text-sm text-muted underline underline-offset-4 hover:text-heading"
           >
             {otherLabel}
           </a>

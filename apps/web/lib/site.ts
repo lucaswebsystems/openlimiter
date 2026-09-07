@@ -83,7 +83,13 @@ export const AUTHOR_LINKEDIN = "https://www.linkedin.com/in/lucas-costa-t/";
  */
 export const HERO_BACKDROP_ENABLED: boolean = true;
 
-/** The version this site describes. Kept in step with the root CHANGELOG. */
+/**
+ * The version this site describes. Kept in step with the root CHANGELOG.
+ *
+ * This one constant drives every download link on the site and the version
+ * line shown on the download page, so it must be bumped in the same commit
+ * that tags a desktop release, never after.
+ */
 export const CURRENT_VERSION = "1.2.2";
 
 /**

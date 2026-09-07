@@ -805,6 +805,8 @@
       "openAnyway": "This macOS build is unsigned. Open it once, then open System Settings, go to Privacy and Security, and choose Open Anyway. The disk image is universal, so it runs on Apple silicon and on Intel. Automatic updates arrive with signed builds.",
       "linuxNote": "AppImage, deb and rpm packages are available. Runs directly with no signing warning."
     },
+    "versionLine": "Version {version}",
+    "releaseNotes": "Release notes",
     "states": {
       "available": "available",
       "inDevelopment": "coming soon",

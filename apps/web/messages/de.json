@@ -805,6 +805,8 @@
       "openAnyway": "Dieser macOS Build ist unsigniert. Öffne ihn einmal, öffne dann die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle Trotzdem öffnen. Die Abbilddatei ist universell und läuft auf Apple silicon und auf Intel. Automatische Updates kommen mit signierten Builds.",
       "linuxNote": "AppImage, deb und rpm Pakete sind verfügbar. Startet direkt ohne Signaturwarnung."
     },
+    "versionLine": "Version {version}",
+    "releaseNotes": "Release Notes",
     "states": {
       "available": "verfügbar",
       "inDevelopment": "kommt bald",

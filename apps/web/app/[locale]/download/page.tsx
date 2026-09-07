@@ -29,6 +29,12 @@ export default async function DownloadPage({ params }: LocaleParams) {
   await pageLocale(params);
   const t = await getTranslations("download");
 
+  /* The other platforms link and the release notes link point at the same
+     tagged release page: one reason to visit is grabbing an asset this page
+     has no button for, the other is reading what changed, and GitHub answers
+     both from one URL. Computed once so the two props never drift apart. */
+  const releaseUrl = `${REPO_URL}/releases/tag/v${CURRENT_VERSION}`;
+
   return (
     <PageShell title={t("title")} lead={t("metaDescription")}>
       <div className="py-10 md:py-16">
@@ -36,7 +42,7 @@ export default async function DownloadPage({ params }: LocaleParams) {
           windowsHref={primaryAsset("windows")}
           linuxHref={primaryAsset("linux")}
           macosHref={primaryAsset("macos")}
-          otherHref={`${REPO_URL}/releases/tag/v${CURRENT_VERSION}`}
+          otherHref={releaseUrl}
           windowsLabel={t("choice.windows")}
           linuxLabel={t("choice.linux")}
           macosLabel={t("choice.macos")}
@@ -44,6 +50,9 @@ export default async function DownloadPage({ params }: LocaleParams) {
           smartScreen={t("choice.smartScreen")}
           openAnyway={t("choice.openAnyway")}
           linuxNote={t("choice.linuxNote")}
+          versionLine={t("versionLine", { version: CURRENT_VERSION })}
+          releaseNotesLabel={t("releaseNotes")}
+          releaseNotesHref={releaseUrl}
         />
       </div>
     </PageShell>

@@ -805,6 +805,8 @@
       "openAnyway": "Esta compilación de macOS no está firmada. Ábrela una vez, luego abre los Ajustes del Sistema, ve a Privacidad y Seguridad y elige Abrir de todos modos. La imagen de disco es universal, así que funciona en Apple silicon y en Intel. Las actualizaciones automáticas llegan con las compilaciones firmadas.",
       "linuxNote": "Paquetes AppImage, deb y rpm disponibles. Se ejecuta directamente sin advertencia de firma."
     },
+    "versionLine": "Versión {version}",
+    "releaseNotes": "Notas de la versión",
     "states": {
       "available": "disponible",
       "inDevelopment": "próximamente",

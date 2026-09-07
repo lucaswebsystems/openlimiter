@@ -805,6 +805,8 @@
       "openAnyway": "この macOS ビルドは署名されていません。一度開いたあと、システム設定を開き、プライバシーとセキュリティで、このまま開くを選びます。ディスクイメージはユニバーサルなので、Apple silicon と Intel の両方で動きます。自動更新は署名済みビルドとともに提供されます。",
       "linuxNote": "AppImage、deb、rpmパッケージを提供しています。署名警告なしで直接実行できます。"
     },
+    "versionLine": "バージョン {version}",
+    "releaseNotes": "リリースノート",
     "states": {
       "available": "利用可能",
       "inDevelopment": "近日公開",
