@@ -2090,6 +2090,37 @@
         "staleMark": "Stale"
       },
       "openDashboard": "Open the dashboard"
+    },
+    "cli": {
+      "terminalTitle": "Terminal",
+      "signInTerminal": "Sign in a terminal",
+      "terminalLead": "Connect your terminal to this account"
+    },
+    "cliPage": {
+      "title": "Sign in a terminal",
+      "lead": "Enter the eight character code shown in your terminal.",
+      "codeLabel": "Terminal code",
+      "codePlaceholder": "ABCDEFGH",
+      "deviceLabel": "Terminal: {label}",
+      "validationInvalidChars": "The code can only use numbers and letters from the terminal code alphabet.",
+      "validationLength": "The code must be eight characters.",
+      "approve": "Approve",
+      "deny": "Deny",
+      "approving": "Approving",
+      "denying": "Denying",
+      "successTitle": "Terminal signed in",
+      "successBody": "Your terminal is signed in, go back to it",
+      "deniedTitle": "Sign in denied",
+      "deniedBody": "The terminal sign in was declined.",
+      "errorUnknownCode": "That code was not recognized. Check the code on your terminal and try again.",
+      "errorExpired": "That code has expired. Run the sign in command in your terminal to get a new code.",
+      "errorAlreadyUsed": "That code has already been used. Run the sign in command in your terminal to get a new code.",
+      "errorDeviceCap": "Device limit reached. Remove a device in your account settings or upgrade your plan.",
+      "errorGeneric": "The service did not answer. Check your connection and try again.",
+      "tryAgain": "Try another code",
+      "openDashboard": "Open the dashboard",
+      "loadingTitle": "Checking session",
+      "loadingBody": "One moment. Checking your sign in state."
     }
   }
 }

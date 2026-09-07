@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -890,7 +891,32 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       )}
 
       {view === "configuration" && (
-        <div className="ol-panel">
+        <div className="ol-panel space-y-4">
+          <Panel title={t("cli.terminalTitle")} demo={demo}>
+            <ul className="ol-directory-list">
+              <li className="ol-directory-row">
+                <div className="ol-directory-identity">
+                  <span className="ol-directory-name">
+                    <Link
+                      href="/app/cli"
+                      className="focus-ring font-medium text-heading hover:underline"
+                    >
+                      <strong>{t("cli.signInTerminal")}</strong>
+                    </Link>
+                    <span>{t("cli.terminalLead")}</span>
+                  </span>
+                </div>
+                <div />
+                <div />
+                <Link
+                  href="/app/cli"
+                  className="ol-tap focus-ring inline-flex items-center justify-center rounded-lg border border-control-border bg-transparent px-4 py-2 text-sm font-medium text-heading hover:border-heading hover:bg-surface"
+                >
+                  {t("cli.signInTerminal")}
+                </Link>
+              </li>
+            </ul>
+          </Panel>
           <Panel title="Providers" demo={demo}>
             <ProviderDirectory
               onConnect={setSelectedProvider}
