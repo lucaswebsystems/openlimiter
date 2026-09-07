@@ -110,7 +110,7 @@ describe("Antigravity loopback probe", () => {
 
     const ports = await enumerateAgyListeningPorts({
       platform: "win32",
-      env: { LOCALAPPDATA: "C:\Users\lucas\AppData\Local", ProgramFiles: "C:\Program Files", USERPROFILE: "C:\Users\lucas" },
+      env: { LOCALAPPDATA: "C:\\Users\\lucas\\AppData\\Local", ProgramFiles: "C:\\Program Files", USERPROFILE: "C:\\Users\\lucas" },
       runCommand: mockRunner,
       resolveExecutablePath: async () => "C:\\Program Files\\Antigravity\\agy.exe"
     });
@@ -137,14 +137,14 @@ describe("Antigravity loopback probe", () => {
     /* No resolveExecutablePath at all: this build has nothing to check the
        bare name "agy.exe" against, so it trusts nothing rather than trusting
        it anyway. */
-    const withoutResolver = await enumerateAgyListeningPorts({ platform: "win32", env: { LOCALAPPDATA: "C:\Users\lucas\AppData\Local", ProgramFiles: "C:\Program Files" }, runCommand: mockRunner });
+    const withoutResolver = await enumerateAgyListeningPorts({ platform: "win32", env: { LOCALAPPDATA: "C:\\Users\\lucas\\AppData\\Local", ProgramFiles: "C:\\Program Files" }, runCommand: mockRunner });
     expect(withoutResolver).toEqual([]);
 
     /* A resolver that itself could not name the executable is the same
        answer: skipped, never trusted. */
     const withFailingResolver = await enumerateAgyListeningPorts({
       platform: "win32",
-      env: { LOCALAPPDATA: "C:\Users\lucas\AppData\Local", ProgramFiles: "C:\Program Files", USERPROFILE: "C:\Users\lucas" },
+      env: { LOCALAPPDATA: "C:\\Users\\lucas\\AppData\\Local", ProgramFiles: "C:\\Program Files", USERPROFILE: "C:\\Users\\lucas" },
       runCommand: mockRunner,
       resolveExecutablePath: async () => null
     });
@@ -159,7 +159,7 @@ describe("Antigravity loopback probe", () => {
 
     const ports = await enumerateAgyListeningPorts({
       platform: "win32",
-      env: { LOCALAPPDATA: "C:\Users\lucas\AppData\Local", ProgramFiles: "C:\Program Files", USERPROFILE: "C:\Users\lucas" },
+      env: { LOCALAPPDATA: "C:\\Users\\lucas\\AppData\\Local", ProgramFiles: "C:\\Program Files", USERPROFILE: "C:\\Users\\lucas" },
       runCommand: mockRunner
     });
     expect(ports).toEqual([]);
@@ -336,7 +336,6 @@ describe("Antigravity loopback probe", () => {
 
     const ports = await enumerateAgyListeningPorts({
       platform: "win32",
-      env: { LOCALAPPDATA: "C:\Users\lucas\AppData\Local", ProgramFiles: "C:\Program Files", USERPROFILE: "C:\Users\lucas" },
       runCommand: mockCimRunner,
       env: {
         USERPROFILE: "C:\\Users\\lucas"
@@ -355,7 +354,7 @@ describe("Antigravity loopback probe", () => {
     };
     const untrustedPorts = await enumerateAgyListeningPorts({
       platform: "win32",
-      env: { LOCALAPPDATA: "C:\Users\lucas\AppData\Local", ProgramFiles: "C:\Program Files", USERPROFILE: "C:\Users\lucas" },
+      env: { LOCALAPPDATA: "C:\\Users\\lucas\\AppData\\Local", ProgramFiles: "C:\\Program Files", USERPROFILE: "C:\\Users\\lucas" },
       runCommand: mockUntrustedRunner
     });
     expect(untrustedPorts).toEqual([]);
