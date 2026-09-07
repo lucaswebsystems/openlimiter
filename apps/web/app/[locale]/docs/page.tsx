@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { DocArticle } from "@/components/docs/doc-article";
-import { Bullets, Callout, Code, CodeBlock, DocLink, P, Steps, Sub } from "@/components/docs/prose";
+import { Bullets, Callout, Code, CodeBlock, DocLink, ExternalLink, P, Steps, Sub } from "@/components/docs/prose";
 import { docMetadata } from "@/lib/metadata";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
 
@@ -37,43 +37,61 @@ export default async function GettingStartedPage({ params }: LocaleParams) {
           ),
         },
         {
-          id: "install",
-          title: t("install.title"),
+          id: "terminal",
+          title: t("terminal.title"),
           body: (
             <>
-              <P>{t("install.intro")}</P>
-              <CodeBlock
-                label={t("install.terminalLabel")}
-                code={`npm install -g openlimiter
-openlimiter demo`}
-              />
+              <P>{t("terminal.intro")}</P>
+              <CodeBlock label={t("terminal.terminalLabel")} code={`npx openlimiter`} />
+              <P>{t.rich("terminal.steps", { code: (chunks) => <Code>{chunks}</Code> })}</P>
               <P>
-                {t.rich("install.demo", {
+                {t.rich("terminal.wiring", {
                   code: (chunks) => <Code>{chunks}</Code>,
+                  docs: (chunks) => <DocLink href="/docs/agent-context">{chunks}</DocLink>,
                 })}
               </P>
+              <P>{t.rich("terminal.install", { code: (chunks) => <Code>{chunks}</Code> })}</P>
             </>
           ),
         },
         {
-          id: "first-data",
-          title: t("first-data.title"),
+          id: "desktop",
+          title: t("desktop.title"),
+          body: <P>{t("desktop.body")}</P>,
+        },
+        {
+          id: "hub",
+          title: t("hub.title"),
+          body: (
+            <P>
+              {t.rich("hub.body", {
+                hub: (chunks) => (
+                  <ExternalLink href="https://openlimiter.com/app">{chunks}</ExternalLink>
+                ),
+              })}
+            </P>
+          ),
+        },
+        {
+          id: "free-and-pro",
+          title: t("free-and-pro.title"),
           body: (
             <>
-              <P>{t("first-data.parser")}</P>
-              <P>{t("first-data.statusline")}</P>
-              <CodeBlock
-                label={t("first-data.terminalLabel")}
-                code={`openlimiter statusline < session.json
-OpenLimiter NEAR_CAP NONE UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL  CLAUDE ####. 87.5%`}
+              <P>{t("free-and-pro.intro")}</P>
+              <Bullets
+                items={[
+                  t("free-and-pro.bullets.sync"),
+                  t("free-and-pro.bullets.pro"),
+                  t("free-and-pro.bullets.trial"),
+                ]}
               />
-              <P>
-                {t.rich("first-data.fallback", {
-                  docs: (chunks) => <DocLink href="/docs/ingestion">{chunks}</DocLink>,
-                })}
-              </P>
             </>
           ),
+        },
+        {
+          id: "phone",
+          title: t("phone.title"),
+          body: <P>{t("phone.body")}</P>,
         },
         {
           id: "claude-code",
@@ -90,7 +108,7 @@ OpenLimiter NEAR_CAP NONE UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL  
                 code={`{
   "statusLine": {
     "type": "command",
-    "command": "openlimiter statusline"
+    "command": "openlimiter statusline --host claude"
   },
   "hooks": {
     "UserPromptSubmit": [

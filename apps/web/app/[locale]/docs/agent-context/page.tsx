@@ -56,6 +56,40 @@ export default async function AgentContextPage({ params }: LocaleParams) {
       id="agent-context"
       sections={[
         {
+          id: "terminal",
+          title: t("terminal.title"),
+          body: (
+            <>
+              <P>{t("terminal.intro")}</P>
+              <Sub id="wiring">{t("terminal.wiring.title")}</Sub>
+              <P>{t.rich("terminal.wiring.body", { code })}</P>
+              <CodeBlock
+                label={t("terminal.wiring.terminalLabel")}
+                code={`openlimiter terminal
+openlimiter terminal install claude
+openlimiter terminal status
+openlimiter terminal uninstall claude`}
+              />
+              <Sub id="show-hide">{t("terminal.show-hide.title")}</Sub>
+              <P>{t.rich("terminal.show-hide.body", { code })}</P>
+              <Sub id="grammar">{t("terminal.grammar.title")}</Sub>
+              <P>{t("terminal.grammar.intro")}</P>
+              <CodeBlock
+                label={t("terminal.grammar.exampleLabel")}
+                code={`5h [██████░░░░] 62% ·3h12m | ~cx7d [########░░] 84% ·6d2h | ag7d [?] | or $12.40`}
+              />
+              <Sub id="freshness">{t("terminal.grammar.freshness.title")}</Sub>
+              <Bullets
+                items={[
+                  t("terminal.grammar.freshness.bullets.bare"),
+                  t.rich("terminal.grammar.freshness.bullets.tilde", { code }),
+                  t.rich("terminal.grammar.freshness.bullets.unknown", { code }),
+                ]}
+              />
+            </>
+          ),
+        },
+        {
           id: "statusline",
           title: t("statusline.title"),
           body: (
@@ -66,6 +100,9 @@ export default async function AgentContextPage({ params }: LocaleParams) {
                 code={`OpenLimiter NEAR_CAP NONE UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,OPENCODE,MANUAL  CLAUDE ####. 87.5%`}
               />
               <P>{t.rich("statusline.truncation", { code })}</P>
+              <Callout tone="note" title={t("statusline.legacyTitle")}>
+                {t.rich("statusline.legacyBody", { code })}
+              </Callout>
             </>
           ),
         },

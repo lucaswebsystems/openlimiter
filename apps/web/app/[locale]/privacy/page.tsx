@@ -50,6 +50,7 @@ const PROCESSOR_IDS = [
   "resend",
   "github",
   "google",
+  "microsoft",
   "push",
 ] as const;
 
@@ -169,6 +170,7 @@ export default async function PrivacyPage({ params }: LocaleParams) {
               t("spend.bullets.keyring"),
               t("spend.bullets.host"),
               t("spend.bullets.never"),
+              t("spend.bullets.cloud"),
               t("spend.bullets.revoke"),
             ]}
           />

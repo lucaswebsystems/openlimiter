@@ -17,8 +17,18 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
   return docMetadata("/docs/configuration", await pageLocale(params));
 }
 
-/** The six statusline keys, in the order the table lists them. */
-const STATUSLINE_KEYS = ["order", "meters", "width", "rows", "bars", "color"] as const;
+/** The nine statusline keys, in the order the table lists them. */
+const STATUSLINE_KEYS = [
+  "order",
+  "meters",
+  "width",
+  "rows",
+  "bars",
+  "color",
+  "style",
+  "show",
+  "hosts",
+] as const;
 
 export default async function ConfigurationPage({ params }: LocaleParams) {
   await pageLocale(params);

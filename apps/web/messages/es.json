@@ -117,7 +117,7 @@
         "local": "El modo local no recoge nada. Sin cuenta, sin servidor y nada sale de tu máquina.",
         "account": "La cuenta es opcional. Iniciar sesión existe para que tus propios porcentajes de quota lleguen a tus otros dispositivos, y para que Pro tenga a qué asociarse. La sincronización queda activa desde ese momento.",
         "sync": "Lo que se sincroniza es estado de cuota acotado: un proveedor, un medidor, una ventana, un porcentaje y marcas de tiempo. Nunca prompts, nunca código, nunca el contenido de un archivo.",
-        "keys": "Las credenciales de proveedor y las claves de API se quedan en el llavero del sistema operativo de tu propio dispositivo. Nunca se envían a OpenLimiter.",
+        "keys": "Las credenciales de proveedor y una clave guardada en el llavero del sistema operativo nunca salen de tu dispositivo. Una clave para la que activas la medición en la nube es la única excepción: viaja una vez por HTTPS al servicio alojado y se guarda ahí cifrada, y se borra en el momento en que apagas la medición en la nube o lo pides.",
         "website": "Este sitio cuenta vistas de página sin cookies. La aplicación no envía nada.",
         "sell": "Nada se vende, se alquila ni se entrega a un anunciante. Aquí no hay publicidad."
       }
@@ -136,7 +136,7 @@
       "title": "La cuenta",
       "body": "La cuenta solo hace falta para las partes alojadas: sincronizar tu cuota entre tus dispositivos y Pro. El inicio de sesión funciona sobre Supabase, que aloja la base de datos y la autenticación del servicio.",
       "bullets": {
-        "identity": "Puedes entrar con GitHub, con Google o con un enlace mágico enviado a tu correo. La elección es tuya y luego puedes vincular otra.",
+        "identity": "Puedes entrar con GitHub, con Google, con Microsoft o con un enlace mágico enviado a tu correo. La elección es tuya y luego puedes vincular otra.",
         "stored": "La cuenta guarda tu dirección de correo, el identificador que devuelve el proveedor de inicio de sesión, la hora en que creaste la cuenta y la hora de tu último acceso.",
         "password": "No hay contraseña, así que no hay contraseña que filtrar. GitHub y Google tampoco entregan tu contraseña, solo la confirmación de que eres tú.",
         "devices": "Cada dispositivo en el que inicias sesión recibe una etiqueta, una fecha de creación y una fecha de último uso, para que veas la lista y revoques cualquiera de ellos."
@@ -178,8 +178,9 @@
       "bullets": {
         "keyring": "La clave que le das se guarda en el llavero del sistema operativo, en un espacio propio. No hay relectura: después de guardarla, nada en la interfaz puede volver a mostrarte la clave.",
         "host": "La clave se envía solo al host HTTPS fijo del proveedor al que pertenece. Las redirecciones se rechazan, las peticiones y los errores se redactan, y el tamaño y la duración de cada llamada tienen tope.",
-        "never": "La clave nunca se envía a OpenLimiter, nunca se guarda en el servicio alojado y nunca aparece en un registro, en una propiedad de analítica, en un informe de fallo ni en un registro de soporte.",
-        "revoke": "Quitar una fuente borra su clave del llavero de inmediato y ofrece borrar las muestras que produjo."
+        "never": "Por defecto la clave se queda local: nunca se envía a OpenLimiter, nunca se guarda en el servicio alojado y nunca aparece en un registro, en una propiedad de analítica, en un informe de fallo ni en un registro de soporte.",
+        "revoke": "Quitar una fuente borra su clave del llavero de inmediato y ofrece borrar las muestras que produjo.",
+        "cloud": "La medición en la nube es la única excepción que aceptas. Al activarla, esa clave viaja una vez por HTTPS al servicio alojado, donde se guarda cifrada en su propia bóveda, solo la lee el trabajo de medición que la necesita, y se borra en el momento en que apagas la medición en la nube o lo pides."
       }
     },
     "payments": {
@@ -197,14 +198,14 @@
       "body": "El sitio y la aplicación son dos cosas distintas con dos respuestas distintas, y sería deshonesto dar una sola.",
       "bullets": {
         "counts": "El sitio cuenta vistas de página sin cookies. Es Vercel Web Analytics, y lo que produce es un recuento de cuántas personas abrieron qué página.",
-        "cookies": "No se pone ninguna cookie para rastrearte, no se construye ningún perfil y nada te sigue a otro sitio. Las únicas cookies aquí son la que recuerda el idioma que elegiste y la que recuerda que cerraste un aviso.",
+        "cookies": "No se pone ninguna cookie para rastrearte, no se construye ningún perfil y nada te sigue a otro sitio. Las cookies aquí son la que recuerda el idioma que elegiste, la que recuerda que cerraste un aviso y, en cuanto vinculas un teléfono, las dos que mantienen ese vínculo vivo, ol-phone-token y ol-phone-refresh. Las tres son estrictamente necesarias y ninguna te rastrea.",
         "app": "La aplicación no envía nada. No hay analítica de ningún tipo en la aplicación de escritorio, en la herramienta de línea de comandos ni en la aplicación web.",
         "language": "La cabecera de idioma de tu navegador se lee para ofrecerte una página traducida. La oferta es un aviso que puedes aceptar o cerrar, y nunca te saca de la página que pediste."
       }
     },
     "processors": {
       "title": "Quién más toca los datos",
-      "intro": "Siete servicios participan en las partes alojadas. Cada uno ve solo lo que su trabajo necesita, y cada uno se nombra aquí para que la lista pueda comprobarse en vez de creerse.",
+      "intro": "Ocho servicios participan en las partes alojadas. Cada uno ve solo lo que su trabajo necesita, y cada uno se nombra aquí para que la lista pueda comprobarse en vez de creerse.",
       "caption": "Los servicios que participan en las partes alojadas y qué guarda cada uno",
       "columns": {
         "who": "servicio",
@@ -238,6 +239,10 @@
         "push": {
           "who": "Servicios de push del navegador y del sistema operativo",
           "what": "Entrega de una alerta push al dispositivo donde la activaste, por el servicio que use ese navegador. Guarda el punto final de la suscripción y el mensaje, y una carga de push nunca lleva detalle de uso. Se borra cuando desactivas el push o revocas el dispositivo."
+        },
+        "microsoft": {
+          "who": "Microsoft",
+          "what": "Inicio de sesión, cuando lo eliges. Confirma quién eres y devuelve un identificador y tu correo. Nunca ve tus datos de quota, y se conserva mientras exista la cuenta."
         }
       }
     },
@@ -316,7 +321,7 @@
       "title": "Cambios y cómo hablar con una persona",
       "body": "Esta página cambia cuando cambia el producto. Cuando un cambio altera qué se recoge, adónde va o cuánto tiempo se guarda, la fecha de abajo se mueve y el cambio se describe en el changelog en lugar de hacerse en silencio.",
       "contact": "Las dudas, las solicitudes y las reclamaciones van a <mail>lucas@lucaswebsystems.com</mail>, y las lee una persona. Las reglas de uso del sitio están en los <terms>términos y condiciones</terms>.",
-      "updated": "Esta política entra en vigor con la versión 1.2.0. Última actualización el 4 de septiembre de 2026."
+      "updated": "Esta política entra en vigor con la versión 1.3.1. Última actualización el 7 de septiembre de 2026."
     }
   },
   "localeSwitcher": {
@@ -925,53 +930,69 @@
     },
     "pages": {
       "index": {
-        "title": "Primeros pasos",
-        "metaTitle": "Primeros pasos: instala y mide tu quota",
-        "description": "Instala el workspace, corre la demo y conecta OpenLimiter con Claude Code en unos minutos.",
-        "lead": "OpenLimiter es un meter de quota para las suscripciones de IA que ya pagas. Corre en tu máquina, lee lo que tus herramientas ya escribieron ahí y le entrega a tus agentes de programación una imagen acotada de qué presupuesto queda.",
+        "title": "Get started",
+        "metaTitle": "Get started: sign in, connect, see your bars",
+        "description": "Sign in, connect the AI accounts you already pay for, and see your bars. Bars stay free with no account at all.",
+        "lead": "OpenLimiter meters the AI subscriptions you already pay for. Bars render from your own machine with no account. Sign in and the same bars sync between your devices, and a free 30 day trial with no card unlocks the rest.",
         "sections": {
           "what-you-need": {
-            "title": "Qué necesitas",
+            "title": "What you need",
             "bullets": {
-              "node": "Node 24 o más nuevo.",
-              "npm": "npm, que viene con Node."
+              "node": "Node 24 or newer, for the terminal.",
+              "npm": "npm, which ships with Node."
             },
-            "local": "Todo corre localmente. No se crea ninguna cuenta, no se requiere ninguna clave para empezar, y ninguna solicitud sale de tu máquina durante ninguno de los pasos de abajo."
+            "local": "Nothing local is ever paywalled. The desktop app and the terminal both show bars with no account, and an account only adds sync on top of that."
           },
-          "install": {
-            "title": "Instala OpenLimiter",
-            "intro": "Instala la herramienta de línea de comandos de forma global y luego corre su demo sintética.",
+          "terminal": {
+            "title": "Terminal",
+            "intro": "Run the tool with nothing after it and it walks the same three steps everywhere: sign in, connect, then show bars in.",
             "terminalLabel": "terminal",
-            "demo": "<code>openlimiter demo</code> renderiza datos sintéticos. Demuestra que el binario funciona sin tocar ninguna cuenta real, y cada número que imprime está inventado."
+            "steps": "Sign in prints a short code and a link to <code>openlimiter.com/app/pair</code>, so the terminal never sees a password, and Enter to skip leaves the device signed out. Connect checks every agent CLI already on this machine and reports one of <code>use current login</code>, <code>sign in</code> or <code>install</code> for each row, and offers to run Codex's own sign in on the spot. Show bars in lists the terminal hosts this machine can draw bars into and wires whichever ones you keep.",
+            "wiring": "Run <code>openlimiter terminal</code> on its own to reopen that last step later, <code>openlimiter terminal show</code> and <code>openlimiter terminal hide</code> to pick which connected providers actually draw a bar, and <code>openlimiter terminal status</code> to see what is wired. See <docs>agent context</docs> for the hosts, the grammar and the freshness marks.",
+            "install": "A permanent install works the same way: <code>npm install -g openlimiter</code>, then run <code>openlimiter</code>."
           },
-          "first-data": {
-            "title": "Dale algo que medir",
-            "parser": "La herramienta de línea de comandos nunca contacta a un proveedor por su cuenta. Analiza datos que algo más ya puso frente a ella. Hasta que una de las rutas de ingesta corra, cada orden honestamente reporta unknown.",
-            "statusline": "La ruta que no necesita trabajo extra es el statusline de Claude Code. Claude Code corre tu comando de statusline en cada render y escribe un objeto JSON que describe la sesión actual en la entrada estándar de ese comando. Cuando ese objeto lleva un bloque de límite de tasa, OpenLimiter lo valida, lo guarda en caché y renderiza los números frescos en la misma llamada.",
-            "terminalLabel": "terminal",
-            "fallback": "No todas las versiones de Claude Code envían campos de límite de tasa. Si la tuya no lo hace, esta ruta se queda en silencio y las dos rutas manuales siguen funcionando. La <docs>página de ingesta</docs> cubre las tres."
+          "desktop": {
+            "title": "Desktop app",
+            "body": "The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect the providers it can reach directly, then bars in the tray. The tray and its bars never require that account."
+          },
+          "hub": {
+            "title": "Web hub",
+            "body": "<hub>openlimiter.com/app</hub> is account first: sign in with GitHub, Google or Microsoft, or a magic link, then connect, then bars. Open it once a terminal or the desktop app has signed you in somewhere, and it shows the same bars synced from there."
+          },
+          "free-and-pro": {
+            "title": "Free and Pro",
+            "intro": "Bars are free forever and need no account at all.",
+            "bullets": {
+              "sync": "An account adds sync: the current percentage on every window, kept current between every device you sign into.",
+              "pro": "Pro adds history, alerts, the phone, more than one account per provider, and cloud metering for API spend keys.",
+              "trial": "Every Pro surface opens a 30 day free trial, no card required."
+            }
+          },
+          "phone": {
+            "title": "Phone",
+            "body": "Open the hub, choose your phone, and scan the QR code it shows. Pairing needs nothing typed. Add it to your home screen from there: Android offers to install it, and on iOS use Share, then Add to Home Screen."
           },
           "claude-code": {
-            "title": "Conecta Claude Code",
-            "intro": "Agrega esto a tu <code>settings.json</code> de Claude Code. La instalación global hace disponible la orden <code>openlimiter</code> para Claude Code.",
-            "calloutTitle": "El hook no puede romper tu sesión",
-            "calloutBody": "El statusline es la única ruta que escribe. El hook lee la caché, no hace ninguna solicitud de red de ningún tipo, no inyecta nada cuando todos los proveedores están unknown y sale con 0 pase lo que pase."
+            "title": "Wire Claude Code by hand",
+            "intro": "<code>openlimiter terminal</code> does this for you. To see exactly what it writes, or to wire a machine without running it interactively, add this to Claude Code's <code>settings.json</code> yourself.",
+            "calloutTitle": "The hook cannot break your session",
+            "calloutBody": "The statusline is the only path that writes. The hook reads the cache, makes no network request of any kind, injects nothing when every provider is unknown, and exits 0 whatever happens."
           },
           "from-source": {
-            "title": "Contribuye desde el código fuente",
-            "intro": "Usa las herramientas del repositorio cuando quieras contribuir.",
+            "title": "Contribute from source",
+            "intro": "Use the repository toolchain when you want to contribute.",
             "terminalLabel": "terminal",
-            "buildOrder": "La compilación tiene que correr antes de la revisión de tipos, porque cada paquete resuelve a sus vecinos a través de los archivos de declaración que produce la compilación."
+            "buildOrder": "The build has to run before the type check, because each package resolves its neighbours through the declaration files the build produces."
           },
           "where-next": {
-            "title": "Qué sigue",
+            "title": "Where next",
             "reading-order": {
-              "title": "Un orden de lectura razonable",
+              "title": "A reasonable reading order",
               "steps": {
-                "why": "<docs>Por qué OpenLimiter</docs> para el problema que esto resuelve.",
-                "providers": "<docs>Proveedores compatibles</docs> para qué lee cada connector y qué tan frágil es.",
-                "agentContext": "<docs>Agent context</docs> para exactamente lo que llega a tu agente.",
-                "cli": "<docs>Referencia de la CLI</docs> para cada orden y código de salida."
+                "why": "<docs>Why OpenLimiter</docs> for the problem this solves.",
+                "providers": "<docs>Supported providers</docs> for exactly how each one connects, and what OpenLimiter never does.",
+                "agentContext": "<docs>Agent context</docs> for the terminal hosts, the bar grammar, and what reaches your coding agent.",
+                "cli": "<docs>CLI reference</docs> for every command and exit code."
               }
             }
           }
@@ -1028,97 +1049,104 @@
         }
       },
       "providers": {
-        "title": "Proveedores compatibles",
-        "description": "Los nueve conectores que existen hoy, qué lee cada uno y qué probabilidad tiene de romperse.",
-        "lead": "Hoy existen nueve conectores. Cada uno lleva sus propias etiquetas honestas que dicen de dónde vienen sus credenciales, cuán oficial es su interfaz de datos y qué probabilidad tiene de romperse.",
+        "title": "Supported providers",
+        "description": "The nine connectors that ship today: how you connect each one, what it reads, and how likely it is to break.",
+        "lead": "Nine connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
         "sections": {
           "the-nine": {
-            "title": "Los nueve conectores",
-            "caption": "Conectores que existen hoy, con lo que lee cada uno y su estabilidad",
+            "title": "The nine connectors",
+            "caption": "Connectors that ship today, how you connect each one, and what it reads",
             "columns": {
               "id": "id",
-              "reads": "lee",
-              "status": "estado de la interfaz"
+              "connect": "connect",
+              "reads": "reads"
             },
             "rows": {
               "claude": {
-                "reads": "El bloque de límite de tasa de la carga del statusline de Claude Code",
-                "status": "Carga nativa de una herramienta local. Riesgo de automatización bajo."
+                "connect": "Nothing to do: OpenLimiter reads what Claude Code already renders.",
+                "reads": "The Claude Code status line, automatically. An opt in poll of Anthropic's own usage endpoint, with your own token, covers the gap when Claude Code is closed. Off unless you turn it on."
               },
               "openrouter": {
-                "reads": "Una forma de respuesta de créditos de la API documentada de OpenRouter",
-                "status": "API documentada. Riesgo de automatización bajo."
+                "connect": "Real OAuth, started from the hub. A key you already hold still works.",
+                "reads": "OpenRouter's documented key and usage report."
               },
               "codex": {
-                "reads": "Una carga de uso que produce la herramienta de Codex",
-                "status": "Endpoint interno. Puede romperse sin aviso."
+                "connect": "Use the login already there, or sign in from inside OpenLimiter.",
+                "reads": "The login the Codex CLI stored. May break when OpenAI changes it."
               },
               "antigravity": {
-                "reads": "Una carga de quota que produce la herramienta de Antigravity",
-                "status": "Endpoint interno. Puede romperse sin aviso."
+                "connect": "Read only, from the credential already there.",
+                "reads": "The credential the Antigravity CLI stored. May break when Google changes it."
               },
               "opencode": {
-                "reads": "Una vista de uso detrás de una sesión en la que ya iniciaste sesión",
-                "status": "Página autenticada. Riesgo de automatización alto. Puede romperse."
+                "connect": "Import only: you supply the document yourself.",
+                "reads": "A usage view behind a session you already signed in to. May break without notice."
               },
               "manual": {
-                "reads": "Números que escribes tú mismo",
-                "status": "Manual entry. Nunca se rompe, nunca adivina."
+                "connect": "You write the numbers yourself.",
+                "reads": "Never breaks, never guesses."
               },
               "gemini_cli": {
-                "reads": "Los cubos de cuota que el Gemini CLI define para sus propios modelos",
-                "status": "Endpoint interno. Riesgo de automatización alto. Puede romperse sin aviso."
+                "connect": "Read only, from the login already there.",
+                "reads": "The login the Gemini CLI stored. May break when Google changes it."
               },
               "grok": {
-                "reads": "La respuesta de facturación detrás del Grok CLI, con su ventana semanal de créditos y el tope opcional bajo demanda",
-                "status": "Endpoint interno. Riesgo de automatización alto. Puede romperse sin aviso."
+                "connect": "Use the login already there. OpenLimiter cannot start Grok's own sign in yet.",
+                "reads": "The login the Grok CLI stored, without the client marker xAI's own tool sends."
               },
               "kimi": {
-                "reads": "La respuesta de uso que el Kimi CLI define, con su resumen semanal y su límite de cinco horas",
-                "status": "Endpoint interno. Riesgo de automatización alto. Puede romperse sin aviso."
+                "connect": "Use the login already there. OpenLimiter cannot start Kimi's own sign in yet.",
+                "reads": "The usage response the Kimi CLI defines. May break when Moonshot changes it."
               }
             },
-            "calloutTitle": "Cada connector se distribuye marcado UNVERIFIED",
-            "calloutBody": "<code>UNVERIFIED</code> es el valor por defecto honesto. Significa que ningún verificador explícito confirmó la forma contra una cuenta real, así que <code>openlimiter doctor</code> reporta la deriva como no verificada, en vez de afirmar que un connector es de fiar."
+            "calloutTitle": "Every connector ships marked UNVERIFIED",
+            "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good.",
+            "neverTitle": "What OpenLimiter never does",
+            "neverBody": "It never asks for a vendor password: every sign in happens on that vendor's own page, in your own browser. It never impersonates a vendor tool: every request identifies itself as OpenLimiter, never as Claude Code, Codex or any other client. And it never uploads a token: an account syncs the bounded percentages and reset times these readings produce, never the credential that produced them."
           },
           "how-data-arrives": {
-            "title": "Cómo llegan los datos en realidad",
-            "intro": "Esta es la parte que sorprende a la gente, así que vale la pena decirla con claridad. En la herramienta de línea de comandos, ningún connector realiza acceso de red por su cuenta. Cada uno de ellos es un parser, y algo más le tiene que entregar un documento.",
+            "title": "How data actually arrives",
+            "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
-              "claude": "<code>claude</code> se alimenta con la carga del statusline que llega por entrada estándar. Esa ruta es automática una vez que Claude Code está conectado.",
-              "manual": "<code>manual</code> se alimenta con un documento que colocas en el directorio de estado.",
-              "ingestOnly": "En la herramienta de línea de comandos, <code>codex</code>, <code>antigravity</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code>, <code>opencode</code> y <code>openrouter</code> no tienen lector propio; solo acepta datos mediante <code>openlimiter ingest --provider '<id>'</code>. La aplicación de escritorio lee Codex, Gemini CLI, Grok, Kimi y OpenRouter en vivo, y ofrece una vía manual y experimental de pegado para Antigravity y OpenCode."
+              "claude": "<code>claude</code> is fed by the Claude Code status line the moment it renders, and by an opt in poll of Anthropic's own usage endpoint when Claude Code is closed.",
+              "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> and <code>openrouter</code> read the login their own tool already stored, at most once every fifteen minutes, behind the desktop app's own refresher or the terminal's <code>openlimiter refresh</code>.",
+              "manual": "<code>manual</code> is fed by a document you place in the state directory.",
+              "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
             },
-            "exactShapes": "La <docs>página de ingesta</docs> documenta las tres rutas y las formas exactas que aceptan."
+            "exactShapes": "The <docs>ingestion page</docs> documents the manual and OpenCode shapes in full."
           },
           "labels": {
-            "title": "Cómo leer las etiquetas",
-            "intro": "Cada instantánea lleva cuatro etiquetas, así que una superficie siempre le puede decir a quien la lea cuánto confiar en un número.",
-            "caption": "Las cuatro etiquetas de connector y su significado",
+            "title": "Reading the labels",
+            "intro": "Every snapshot carries four labels, so a surface can always tell a reader how much to trust a number.",
+            "caption": "The four connector labels and their meaning",
             "columns": {
-              "label": "etiqueta",
-              "values": "valores que vas a ver"
+              "label": "label",
+              "values": "values you will see"
             },
             "rows": {
               "automationRisk": {
-                "values": "<code>low</code> o <code>high</code>"
+                "values": "<code>low</code> or <code>high</code>"
               }
             },
             "drift": {
-              "title": "Cómo se ve la deriva",
-              "body": "Las interfaces no oficiales cambian sin aviso. Cuando una forma se mueve, el análisis falla de forma segura: el proveedor afectado vuelve a unknown, los demás proveedores no se ven afectados, y nada inventa un número para llenar el vacío."
+              "title": "What drift looks like",
+              "body": "Unofficial interfaces change without notice. When a shape moves, parsing fails closed: the affected provider returns to unknown, the other providers are unaffected, and nothing invents a number to fill the gap."
             }
           },
           "openrouter-key": {
-            "title": "La credencial de OpenRouter",
-            "intro": "OpenRouter es el único connector que espera una clave propia. Esa clave pertenece al almacén de credenciales de tu sistema operativo y a ningún otro lado. Nunca debe aparecer en archivos del repositorio, archivos de caché, exportaciones, diagnósticos, fixtures ni registros.",
-            "calloutTitle": "Stub en este release",
-            "calloutBody": "El adaptador de la librería de credenciales está deliberadamente en stub, así que <code>openlimiter init</code> no puede guardar una clave hasta que le suministres un driver. Mientras tanto, alimenta OpenRouter a través de la orden ingest como cualquier otro proveedor.",
+            "title": "The OpenRouter credential",
+            "intro": "OpenRouter is the one connector with a real sign in of its own: OAuth, started from the hub, and the key it hands back is what gets read from then on. A key you already hold still works, fed the same way any other connector is.",
+            "calloutTitle": "The terminal's own store is stubbed",
+            "calloutBody": "The credential library adapter inside the command line tool is deliberately stubbed, so <code>openlimiter init</code> cannot yet keep a key across sessions on its own. Until then, the terminal reads it from the <code>OPENLIMITER_OPENROUTER_KEY</code> environment variable, or accepts it through <code>openlimiter ingest --provider openrouter</code> like any other connector.",
             "terminalLabel": "terminal"
           },
           "not-yet": {
-            "title": "Connectors que todavía no existen",
-            "body": "Solo los nueve de arriba son reales. Cualquier otra cosa que esperes no está construida, no está planificada y no debe darse por supuesta. Si una suscripción no tiene conector, la vía manual la cubre hoy con números que escribes tú."
+            "title": "Connectors that do not exist yet",
+            "body": "Only the nine above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
+          },
+          "api-spend-keys": {
+            "title": "API spend keys",
+            "body": "A key for an API spend meter is a separate thing from a subscription login. It lives in this device's operating system keyring by default. Cloud metering, an opt in Pro feature, stores that key encrypted on the server instead, so the hub and the phone can show spend with no device running."
           }
         }
       },
@@ -1139,7 +1167,7 @@
             },
             "rows": {
               "localCli": {
-                "meaning": "Una herramienta en esta máquina escribe la carga, y OpenLimiter lee lo que escribió."
+                "meaning": "A tool already on this machine holds the login, and OpenLimiter reads its own quota from that, or from what that tool already wrote."
               },
               "importOnly": {
                 "meaning": "Se analiza la forma de la carga. Aquí nada inicia sesión ni la busca, así que tú suministras el documento."
@@ -1253,7 +1281,7 @@
               "claude": {
                 "name": "Claude Code",
                 "reports": "Uso de la sesión de cinco horas y uso de siete días, con horas de reinicio.",
-                "source": "El inicio OAuth local de Claude Code y el endpoint de uso de Anthropic. Los datos de statusline de Claude Code siguen como alternativa."
+                "source": "The Claude Code status line, automatically, whenever Claude Code renders. An opt in poll of Anthropic's usage endpoint, with your own token, covers the gap when Claude Code is closed."
               },
               "codex": {
                 "name": "Codex",
@@ -1360,129 +1388,157 @@
       },
       "agent-context": {
         "title": "Agent context",
-        "description": "Qué inyectan la statusline y el hook de prompt, qué agentes lo reciben de verdad, y la frontera que deja fuera el texto del proveedor.",
-        "lead": "Dos superficies llegan a tu agente: una statusline de una línea para que la leas tú y un bloque de contexto acotado para el modelo. Esta página documenta exactamente qué contiene cada una, qué agentes lo reciben de verdad, y la frontera que deja fuera el texto del proveedor en ambas.",
+        "description": "What the statusline and the prompt hook inject, which agents actually receive it, and the boundary that keeps provider text out.",
+        "lead": "Two surfaces reach past your machine: bars across your terminal for you to read, and a bounded context block for the model. This page documents the terminal hosts and the bar grammar, then exactly what the context block contains, which agents actually receive it, and the boundary that keeps provider text out of both.",
         "sections": {
           "statusline": {
-            "title": "El statusline",
-            "intro": "Una línea, renderizada en cada llamada al statusline de Claude Code. Nombra el peor estado entre tus proveedores, lista los proveedores con una lectura usable, y nombra los que están unknown.",
-            "exampleLabel": "salida de ejemplo, valores sintéticos",
-            "truncation": "El uso se trunca, nunca se redondea hacia arriba, así que un meter en 99.99% se lee como 99.9%. Cuando no hay nada usable en caché, toda la línea se reduce a <code>OpenLimiter UNKNOWN</code>."
+            "title": "The statusline",
+            "intro": "One line, rendered on every Claude Code statusline call. It names the worst state across your providers, lists the providers with a usable reading, and names the ones that are unknown.",
+            "exampleLabel": "example output, synthetic values",
+            "truncation": "Usage is truncated, never rounded upward, so a meter at 99.99% reads as 99.9%. When nothing usable is cached the whole line reduces to <code>OpenLimiter UNKNOWN</code>.",
+            "legacyTitle": "This is the earlier cells style",
+            "legacyBody": "<code>openlimiter terminal</code> wires the newer bar style described above into your agent CLIs by default. This reason led, five block row is what <code>statusline.style cells</code> brings back, and <code>statusline.bars false</code> goes one step further to the single plain line from before bars existed."
           },
           "context-block": {
-            "title": "El bloque de contexto",
-            "intro": "El prompt hook emite un pequeño bloque en <code>UserPromptSubmit</code>. Es texto plano con un campo por línea, envuelto en un límite explícito de datos no confiables.",
-            "exampleLabel": "bloque de ejemplo, valores sintéticos",
+            "title": "The context block",
+            "intro": "The prompt hook emits a small block on <code>UserPromptSubmit</code>. It is plain text with one field per line, wrapped in an explicit untrusted data boundary.",
+            "exampleLabel": "example block, synthetic values",
             "fields": {
-              "title": "Cada campo que puede llevar",
-              "caption": "Campos del bloque de agent context",
+              "title": "Every field it can contain",
+              "caption": "Fields in the agent context block",
               "columns": {
-                "field": "campo",
-                "meaning": "significado"
+                "field": "field",
+                "meaning": "meaning"
               },
               "rows": {
                 "schema": {
-                  "meaning": "Versión de formato. Actualmente 2."
+                  "meaning": "Format version. Currently 2."
                 },
                 "recommendationCode": {
-                  "meaning": "<code>PREFER</code> cuando vale la pena enrutar hacia un proveedor, o <code>NONE</code> cuando nada usable destaca."
+                  "meaning": "<code>PREFER</code> when a provider is worth routing to, or <code>NONE</code> when nothing usable stands out."
                 },
                 "recommendationProvider": {
-                  "meaning": "El código de proveedor al que apuntan los consejos. Presente solo cuando el código es PREFER."
+                  "meaning": "The provider code the advice points at. Present only when the code is PREFER."
                 },
                 "recommendationReason": {
-                  "meaning": "Por qué ese proveedor: <code>LOWEST_USAGE</code> hoy. Un enum, nunca prosa."
+                  "meaning": "Why that provider: <code>LOWEST_USAGE</code> today. An enum, never prose."
                 },
                 "notice": {
-                  "meaning": "Una frase fija que le dice al modelo que trate el bloque como datos no confiables."
+                  "meaning": "A fixed sentence telling the model to treat the block as untrusted data."
                 },
                 "reason": {
-                  "meaning": "El peor estado entre proveedores: <code>HEALTHY</code>, <code>NEAR_CAP</code> en 80% o más, o <code>AT_CAP</code> en 100%."
+                  "meaning": "The worst state across providers: <code>HEALTHY</code>, <code>NEAR_CAP</code> at 80% or above, or <code>AT_CAP</code> at 100%."
                 },
                 "provider": {
-                  "meaning": "Una línea por proveedor con una lectura usable, que lleva <code>state</code> de <code>fresh</code> o <code>stale</code>, un <code>usage_percent</code> acotado, y un instante <code>reset_at</code> o <code>NONE</code>."
+                  "meaning": "One line per provider with a usable reading, carrying <code>state</code> of <code>fresh</code> or <code>stale</code>, a bounded <code>usage_percent</code>, and a <code>reset_at</code> instant or <code>NONE</code>."
                 },
                 "unknown": {
-                  "meaning": "Los proveedores sin lectura usable, o <code>NONE</code> cuando se leyó cada proveedor."
+                  "meaning": "The providers with no usable reading, or <code>NONE</code> when every provider was read."
                 }
               }
             }
           },
           "boundary": {
-            "title": "El límite de seguridad",
-            "calloutTitle": "El texto del proveedor nunca llega a tu agente",
-            "calloutBody": "Las respuestas del proveedor son datos no confiables. Los parsers de connector seleccionan campos numéricos conocidos y marcas de tiempo conocidas, y luego descartan etiquetas, mensajes, texto de cuenta, marcado y cualquier campo desconocido. El motor de consejos emite solo códigos enum de proveedor, códigos enum de motivo, porcentajes acotados, códigos enum de vigencia y marcas de tiempo. El adaptador de Claude Code vuelve a validar todo eso antes de escribir el bloque.",
-            "injectionSurface": "Esto importa porque un bloque inyectado en un prompt es una superficie de inyección. Si un proveedor pudiera poner texto arbitrario en el contexto de tu agente a través de un mensaje de facturación o un nombre de cuenta, ese texto llegaría con la autoridad de tu propia herramienta. Nada en este pipeline lo puede transportar.",
+            "title": "The safety boundary",
+            "calloutTitle": "Provider text never reaches your agent",
+            "calloutBody": "Provider responses are untrusted data. Connector parsers select known numeric fields and known timestamps, then discard labels, messages, account text, markup, and every unknown field. The advice engine emits only provider enum codes, reason enum codes, bounded percentages, freshness enum codes, and timestamps. The Claude Code adapter validates all of those again before writing the block.",
+            "injectionSurface": "This matters because a block injected into a prompt is an injection surface. If a provider could put arbitrary text into your agent's context through a billing message or an account name, that text would arrive with the authority of your own tooling. Nothing in this pipeline can carry it.",
             "silence": {
-              "title": "Cuándo no inyecta nada",
+              "title": "When it injects nothing",
               "bullets": {
-                "unknown": "Si todos los proveedores están unknown, el adaptador no inyecta nada.",
-                "validation": "Si los consejos fallan su propia validación, el adaptador no inyecta nada.",
-                "cache": "Si no se puede leer la caché, el hook devuelve un resultado vacío en vez de adivinar."
+                "unknown": "If every provider is unknown, the adapter injects nothing at all.",
+                "validation": "If the advice fails its own validation, the adapter injects nothing.",
+                "cache": "If the cache cannot be read, the hook returns an empty result rather than guessing."
               }
             }
           },
           "hook-behaviour": {
-            "title": "Cómo se comporta el hook",
+            "title": "How the hook behaves",
             "bullets": {
-              "readsOnly": "Solo lee la caché. No realiza ninguna solicitud de red de ningún tipo y no escribe nada.",
-              "exitsZero": "Sale con 0 pase lo que pase, incluso ante un fallo interno, así que no puede romper una sesión.",
-              "inspect": "Correr <code>openlimiter hook</code> en una terminal imprime exactamente lo que se inyectaría, una forma segura de inspeccionarlo antes de conectarlo a una sesión real."
+              "readsOnly": "It reads the cache only. It performs no network request of any kind and writes nothing.",
+              "exitsZero": "It exits 0 whatever happens, including on internal failure, so it cannot break a session.",
+              "inspect": "Running <code>openlimiter hook</code> in a terminal prints exactly what would be injected, which is a safe way to inspect it before wiring it into a real session."
             },
-            "writes": "El statusline es la única ruta que escribe. Consulta <config>configuración</config> para ver los ajustes exactos de Claude Code, y <cli>la referencia de la CLI</cli> para las órdenes."
+            "writes": "The statusline is the only path that writes. See <config>configuration</config> for the exact Claude Code settings, and <cli>the CLI reference</cli> for the commands."
           },
           "agents": {
-            "title": "Qué agentes reciben el bloque",
-            "intro": "Haber escrito un adaptador no es lo mismo que un agente reciba el bloque, así que los estados de abajo son lo que una prueba en vivo demostró en una máquina real el 1 de septiembre de 2026, no lo que esperaba una hoja de ruta. Dos agentes están soportados, dos están hechos pero bloqueados hasta que pase una prueba, uno es una opción experimental, y en uno no se puede inyectar nada.",
-            "caption": "Cada agente, el id que acepta el instalador, y si el bloque le llega",
+            "title": "Which agents receive the block",
+            "intro": "Having written an adapter is not the same as an agent receiving the block, so the states below are what a live fixture proved on a real machine on 1 September 2026, not what a roadmap hoped for. Two agents are supported, two are built and gated until a fixture passes, one is an experimental opt in, and one cannot be injected into at all.",
+            "caption": "Each agent, the id the installer takes, and whether the block reaches it",
             "columns": {
-              "agent": "agente",
+              "agent": "agent",
               "id": "id",
-              "state": "estado"
+              "state": "state"
             },
             "rows": {
               "claude": {
                 "name": "Claude Code",
-                "state": "Soportado desde 2.1.257. Una prueba en vivo demostró que el bloque llega. Una versión más nueva sigue habilitada y el estado imprime una línea de aviso, y una más antigua se rechaza."
+                "state": "Supported from 2.1.257. A live fixture proved the block arrives. A newer release stays enabled and status prints one warning line, and an older one is denied."
               },
               "codex": {
                 "name": "Codex CLI",
-                "state": "Soportado desde 0.152.0. Una prueba en vivo demostró que el bloque llega por el evento de envío de prompt."
+                "state": "Supported from 0.152.0. A live fixture proved the block arrives through the prompt submit event."
               },
               "gemini": {
                 "name": "Gemini CLI",
-                "state": "Hecho pero bloqueado. El adaptador apunta al evento previo al agente, pero aquí no había binario para demostrarlo, así que la instalación sigue cerrada hasta que pase una prueba."
+                "state": "Built and gated. The adapter targets the before agent event, but no binary was present to prove it here, so installation stays closed until a fixture passes."
               },
               "kimi": {
                 "name": "Kimi Code CLI",
-                "state": "Hecho pero bloqueado. En 1.50.0 el hook se ejecutó y el host descartó lo que imprimió, así que nada llegó al contexto y la instalación sigue cerrada."
+                "state": "Built and gated. On 1.50.0 the hook ran and the host discarded what it printed, so nothing reached the context and installation stays closed."
               },
               "antigravity": {
                 "name": "Antigravity CLI",
-                "state": "Excluido. La versión 1.1.23 no expone subcomando de hooks y no disparó ningún evento, así que no hay dónde instalar. La superficie del editor es aparte y no está implementada."
+                "state": "Excluded. Version 1.1.23 exposes no hooks subcommand and fired no event, so there is nothing to install into. The editor surface is separate and not implemented."
               },
               "opencode": {
                 "name": "OpenCode",
-                "state": "Experimental y desactivado por defecto. Fijado a 1.18.11 y requiere el interruptor descrito abajo. Queda fuera de lo que promete esta versión."
+                "state": "Experimental and off by default. Pinned to 1.18.11 and requires the switch described below. It sits outside what this release promises."
               },
               "grok": {
                 "name": "Grok Build",
-                "state": "Sin soporte de inyección. Grok descarta lo que imprime un hook correcto, así que no hay superficie de contexto. Usa el comando de abajo en su lugar."
+                "state": "Not supported for injection. Grok discards what a successful hook prints, so there is no context surface at all. Use the command below instead."
               }
             },
             "installing": {
-              "title": "Instalar un hook",
-              "body": "La instalación es de ámbito de usuario e idempotente. Conserva el resto de la configuración de tu agente, sustituye el archivo de forma atómica, deja un <code>.openlimiter.bak</code> recuperable, no hace ninguna petición de red y rechaza rutas inseguras o enlazadas. <code>status</code> informa de lo que está instalado y de si la versión detectada del host es conocida, <code>repair</code> reescribe la entrada después de que el ejecutable de OpenLimiter cambie de sitio, y <code>uninstall</code> la quita y deja todo lo demás donde estaba.",
+              "title": "Installing a hook",
+              "body": "Installation is user scoped and idempotent. It preserves the rest of your agent's configuration, replaces the file atomically, leaves one recoverable <code>.openlimiter.bak</code>, makes no network request, and refuses unsafe or linked paths. <code>status</code> reports what is installed and whether the detected host version is known, <code>repair</code> rewrites the entry after the OpenLimiter executable moves, and <code>uninstall</code> removes it and leaves everything around it where it was.",
               "terminalLabel": "terminal"
             },
             "opencode": {
-              "calloutTitle": "OpenCode es una elección explícita",
-              "calloutBody": "OpenCode no documenta ningún evento de inyección de prompt. El adaptador usa una transformación no documentada, está fijado a la versión exacta con la que se inspeccionó, y no hace absolutamente nada salvo que <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> esté puesto tanto al instalar como al ejecutar. Es experimental a propósito, puede dejar de funcionar en cualquier versión, y no forma parte de lo que promete esta versión."
+              "calloutTitle": "OpenCode is an explicit opt in",
+              "calloutBody": "OpenCode documents no prompt injection event. The adapter uses an undocumented transform, is pinned to the exact version it was inspected against, and does nothing at all unless <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> is set both when installing and when running. It is experimental on purpose, it can stop working at any release, and it is not part of what this version promises."
             },
             "grok": {
-              "title": "Grok Build, y por qué no hay hook",
-              "body": "Grok Build ejecuta un hook de envío de prompt y luego tira lo que el hook imprimió, y no documenta ningún equivalente de un campo de contexto adicional. Ningún trabajo de adaptador cambia eso, así que OpenLimiter no instala nada en Grok y lo dice aquí, en vez de entregar algo que en silencio no hace nada. Lo que ofrece a cambio es un comando que ejecutas tú, que imprime el mismo bloque para que lo leas o lo pegues.",
+              "title": "Grok Build, and why there is no hook",
+              "body": "Grok Build runs a prompt submit hook and then throws away what the hook printed, and it documents no equivalent of an additional context field. No amount of adapter work changes that, so OpenLimiter installs nothing into Grok and says so here rather than shipping something that silently does nothing. What it offers instead is a command you run yourself, which prints the same block for you to read or paste.",
               "terminalLabel": "terminal"
+            }
+          },
+          "terminal": {
+            "title": "Bars in your terminal",
+            "intro": "Every provider you connect can draw a bar somewhere you already look. Claude Code, Grok Build and the Antigravity CLI each render bars through their own status line. Codex draws its own built in items instead, because a command is the only surface it exposes. Gemini CLI, OpenCode, Kimi and any other terminal read a shell prompt segment, because none of them expose a status line at all.",
+            "wiring": {
+              "title": "Wiring a host",
+              "terminalLabel": "terminal",
+              "body": "<code>openlimiter terminal</code> lists every host this machine can draw a bar into and its wiring state, and <code>--yes</code> wires every one of them at once. <code>openlimiter terminal install claude</code> wires one host on its own, and <code>openlimiter terminal uninstall claude</code> restores whatever status line was there before, byte for byte."
+            },
+            "show-hide": {
+              "title": "Choosing what shows",
+              "body": "<code>openlimiter terminal show codex</code> and <code>openlimiter terminal hide codex</code> pick which connected providers actually draw a bar, on this machine only. A provider you have not connected has nothing to show."
+            },
+            "grammar": {
+              "title": "The grammar",
+              "intro": "One cell per window: an optional freshness mark, a tag, a ten block bar, the percentage, and the reset time. The provider whose own status line this is drops its own tag, since the host already says whose numbers these are; every other provider keeps a short tag ahead of its window code, and a credit balance shows its dollar figure instead of a bar.",
+              "exampleLabel": "example output, one host's row",
+              "freshness": {
+                "title": "The freshness marks",
+                "bullets": {
+                  "bare": "No mark: the reading is under three minutes old.",
+                  "tilde": "A leading <code>~</code>: the reading is three to fifteen minutes old.",
+                  "unknown": "<code>[?]</code> in place of the bar: the reading is fifteen minutes old or older, or nothing has been read yet. The cell never disappears, so a provider that cannot be read still shows as unknown rather than looking connected."
+                }
+              }
             }
           }
         }
@@ -1535,7 +1591,7 @@
           },
           "statusline": {
             "title": "El layout del statusline",
-            "intro": "El statusline dibuja una celda compacta por proveedor: un nombre, una barra de cinco bloques y el porcentaje, con el código de motivo general y la recomendación de enrutamiento al frente de la fila. Seis claves en el archivo de configuración deciden cómo se construye esa fila, y <code>openlimiter config</code> es cómo se leen y se cambian.",
+            "intro": "The default statusline draws bars for one connected host at a time, in the ten block grammar the <docs>agent context</docs> page documents. Nine keys in the configuration file decide how a row is built, and <code>openlimiter config</code> is how they are read and changed.",
             "capturedFixturesLabel": "capturado el {date}, datos sintéticos",
             "capturedLabel": "capturado el {date}",
             "statusline-keys": {
@@ -1570,6 +1626,18 @@
                 "color": {
                   "accepts": "<code>auto</code>, <code>always</code>, o <code>never</code>",
                   "meaning": "<code>auto</code> sigue a la terminal, que para un host de statusline normalmente significa sin color, porque el host captura la salida en vez de entregarle una terminal a la orden. <code>always</code> es la forma de decir que el host entiende los códigos de escape. Por defecto <code>auto</code>."
+                },
+                "style": {
+                  "accepts": "<code>bar</code> or <code>cells</code>",
+                  "meaning": "<code>bar</code> is the ten block grammar <code>openlimiter terminal</code> wires by default. <code>cells</code> restores the previous reason led row with a five block bar per provider. Default <code>bar</code>."
+                },
+                "show": {
+                  "accepts": "provider ids, comma separated, or <code>NONE</code>",
+                  "meaning": "Which connected providers actually draw a bar in <code>bar</code> style. <code>NONE</code>, the default, shows every connected provider. <code>openlimiter terminal show</code> and <code>terminal hide</code> are the commands that change it."
+                },
+                "hosts": {
+                  "accepts": "written by <code>openlimiter terminal</code>, not by hand",
+                  "meaning": "Which command each wired host was left running before OpenLimiter took the slot, kept so <code>terminal uninstall</code> can restore it byte for byte."
                 }
               }
             },
@@ -1612,83 +1680,99 @@
         }
       },
       "cli": {
-        "title": "Referencia de la CLI",
-        "metaTitle": "Referencia de la CLI: órdenes, opciones y códigos de salida",
-        "description": "Cada orden que acepta la CLI hoy, con sus opciones, su salida y sus códigos de salida.",
-        "lead": "Diez órdenes, un binario. Las herramientas de agentes y las personas usan la misma interfaz, y cada orden reporta un fallo genuino en vez de inventar un número.",
+        "title": "CLI reference",
+        "metaTitle": "CLI reference: commands, flags and exit codes",
+        "description": "Every command the CLI accepts today, with its flags, its output, and its exit codes.",
+        "lead": "Ten commands, one binary. Agent tools and people get the same interface, and every command reports a genuine failure rather than inventing a number.",
         "sections": {
           "overview": {
-            "title": "Resumen",
-            "install": "Instala la orden global con <code>npm install -g openlimiter</code>, y luego corre cada ejemplo exactamente como se muestra."
+            "title": "Overview",
+            "install": "Install the global command with <code>npm install -g openlimiter</code>, or run it once with <code>npx openlimiter</code>."
           },
           "commands": {
-            "title": "Las órdenes",
-            "capturedFixturesLabel": "capturado el {date}, datos sintéticos",
-            "capturedLabel": "capturado el {date}",
+            "title": "The commands",
+            "capturedFixturesLabel": "captured {date}, synthetic fixtures",
+            "capturedLabel": "captured {date}",
             "init": {
-              "body": "Escribe la configuración local en el directorio de estado, registrando cada connector y si fue detectado. Reporta la lista detectada, o ninguna."
+              "body": "Writes local configuration to the state directory, recording every connector and whether it was detected. It reports the detected list, or none."
             },
             "snapshot": {
-              "intro": "Imprime la quota en caché como tabla. Con <code>--refresh</code> primero le pide meters a cada connector, pliega lo que sobrevive la validación dentro de la caché, y luego imprime. Sale con 3 cuando no existen datos de quota acotados.",
-              "columns": "Ocho columnas, siempre ocho, separadas por un espacio, así que un script puede dividir una fila sin adivinar. <code>BAR</code> es un meter de diez bloques, dibujado a color cuando la terminal lo admite, y con <code>#</code> y <code>.</code> cuando no lo admite o cuando <code>NO_COLOR</code> está definida. <code>AMOUNT</code> lleva el dinero para un plan que tiene precio en vez de ración. <code>RESET</code> es el instante en que la ventana se reinicia, e <code>IN</code> es cuánto falta para eso desde ahora. Una columna sin nada que decir se lee <code>NONE</code> en vez de desaparecer.",
-              "syntheticLabel": "valores sintéticos",
-              "failures": "Un connector al que se le entregó una carga y no la pudo leer, o una lectura que el validador descartó, agrega una línea debajo de la tabla en rojo, nombrando al proveedor y una frase fija. Esa frase siempre es nuestra: ningún texto que envió un proveedor llega jamás a tu terminal."
+              "intro": "Prints the cached quota as a table. With <code>--refresh</code> it first asks every connector for meters, folds what survives validation into the cache, and then prints. Exits 3 when no bounded quota data exists.",
+              "columns": "Eight columns, always eight, separated by one space, so a script can split a row without guessing. <code>BAR</code> is a ten block meter, drawn in colour when the terminal supports it and in <code>#</code> and <code>.</code> when it does not or when <code>NO_COLOR</code> is set. <code>AMOUNT</code> carries the money for a plan that is priced rather than rationed. <code>RESET</code> is the instant the window turns over and <code>IN</code> is how long that is from now. A column with nothing to say reads <code>NONE</code> rather than disappearing.",
+              "syntheticLabel": "synthetic values",
+              "failures": "A connector that was handed a payload and could not read it, or a reading the validator threw out, adds one line under the table in red, naming the provider and one fixed sentence. That sentence is always one of ours: no text a provider sent ever reaches your terminal."
             },
             "statusline": {
-              "intro": "Renderiza la fila de estado para un host de statusline. Lee primero la entrada estándar, así que una carga de sesión de Claude Code se ingiere y se renderiza en la misma llamada, y luego recurre a la caché. Esta es la única orden que escribe como efecto secundario de mostrarse.",
-              "cells": "El código de motivo general va al frente, luego la recomendación de enrutamiento, luego una celda compacta por proveedor: un nombre, una barra de cinco bloques y el porcentaje. Cinco bloques en vez de los diez que dibuja la tabla, porque una fila de estado se comparte con un nombre de modelo, una rama y un directorio, y tiene que leerse de un vistazo. El porcentaje se trunca igual que en todos lados, así que una barra nunca enciende un bloque que la lectura no se ganó.",
-              "order": "Los proveedores de suscripción van primero, y los de crédito o API al final, así que una ventana que se recarga en un reloj nunca se lee junto a un saldo que no vuelve. Dentro de un proveedor, los meters se ordenan sesión, diario, semanal, mensual, créditos, y la celda muestra el meter más cercano a su límite. El conjunto completo está a un <code>openlimiter snapshot</code> de distancia, o define <code>statusline.meters all</code> para poner cada meter en la fila como su propia celda.",
-              "stacking": "Una fila más ancha que su presupuesto se apila en vez de truncarse. El salto cae entre dos celdas y nunca dentro de una, porque media barra se lee como una lectura y no lo es. Dos filas es el límite. Pasado eso, se conservan los proveedores más cercanos a su límite, y la última fila termina diciendo cuántos no pudo mostrar.",
-              "calloutTitle": "La línea antigua sigue a un solo ajuste de distancia",
-              "calloutBody": "<code>openlimiter config set statusline.bars false</code> devuelve la única línea plana que imprimía 0.1.0, byte por byte, para cualquier cosa que ya la esté analizando. Una prueba fija esa cadena exacta, así que esta salida de emergencia no se puede pudrir en silencio."
+              "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
+              "cells": "The default layout draws one cell per window for the host named by <code>--host</code>: a tag, a ten block bar, the percentage, and the reset time, with no header line at all. See <docs>agent context</docs> for the full grammar and the freshness marks.",
+              "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
+              "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
+              "calloutTitle": "The old line is still one setting away",
+              "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
             },
             "config": {
-              "body": "Lee y cambia el layout del statusline en el archivo de configuración. Cada clave se valida antes de escribirse, un valor rechazado sale con 2 y nombra lo que esperaba, y esta orden no puede cambiar nada fuera de la sección del statusline. Consulta <docs>configuración</docs> para ver qué acepta cada clave."
+              "body": "Reads and changes the statusline layout in the configuration file. Every key is validated before it is written, a rejected value exits 2 and names what it wanted, and nothing outside the statusline section can be changed by this command. See <docs>configuration</docs> for what each key accepts."
             },
             "hook": {
-              "body": "Emite el bloque de agent context desde la caché. No realiza ningún acceso de red, no escribe nada y no inyecta nada cuando todos los proveedores están unknown. Consulta <docs>agent context</docs> para ver el formato exacto."
+              "body": "Emits the agent context block from the cache. It performs no network access, writes nothing, and injects nothing when every provider is unknown. See <docs>agent context</docs> for the exact format."
             },
             "ingest": {
-              "body": "Acepta un documento de quota de cualquier script o agente, por entrada estándar o en línea con <code>--payload</code>. Sin <code>--provider</code>, el documento es un documento manual. Con eso, el documento va al parser de ese connector y conserva las etiquetas de ese connector."
+              "body": "Accepts a quota document from any script or agent, on standard input or inline with <code>--payload</code>. Without <code>--provider</code> the document is a manual document. With it, the document goes to that connector's parser and keeps that connector's labels."
             },
             "doctor": {
-              "body": "Reporta la detección de connectors, la vigencia, la deriva y la salud de la caché. La deriva se queda como <code>UNVERIFIED</code> hasta que exista un verificador explícito, y la salida está redactada por diseño."
+              "body": "Reports connector detection, freshness, drift, and cache health. Drift stays <code>UNVERIFIED</code> until an explicit verifier exists, and the output is redacted by design."
             },
             "demo": {
-              "body": "Renderiza datos sintéticos para que veas la forma de la salida sin ninguna cuenta real. Cada valor que imprime está inventado. El bloque de abajo es la salida real de esa orden, pegada sin editar."
+              "body": "Renders synthetic fixtures so you can see the output shape without any real account. Every value it prints is invented. The block below is the real output of that command, pasted in unedited."
             },
             "export": {
-              "body": "Imprime la caché como JSON canónico, apto para que lo analice un script. Sale con 3 cuando la caché no tiene datos de quota acotados."
+              "body": "Prints the cache as canonical JSON, suitable for a script to parse. Exits 3 when the cache holds no bounded quota data."
             },
-            "serve": {
-              "body": "Sirve una instantánea de solo lectura de tu quota en tu propia red local, así que un teléfono en la misma red la puede ver. Imprime la dirección y un código QR para escanear. Se genera un token nuevo cada vez que arranca la orden, y viaja en el fragmento de la URL después de <code>#t=</code>, que un servidor nunca recibe. La página mueve ese token al propio <code>sessionStorage</code> de la pestaña y limpia la barra de direcciones en la primera carga, así que ningún historial del navegador en ningún lado guarda esa capacidad. Cada nueva consulta después de eso envía el token como un encabezado <code>Authorization: Bearer</code> en vez de como parámetro de URL. Una dirección impresa por el release anterior, con el token como parámetro de consulta, sigue respondiendo para este mismo release, así que nada de lo ya escaneado o guardado se rompe.",
-              "calloutTitle": "Quien pueda ver la pantalla puede leer la quota",
-              "calloutBody": "La dirección y el código SON la clave: quien pueda ver esta pantalla, o una foto de ella, puede leer tu quota mientras la orden siga corriendo. Esto escucha en cada interfaz de la máquina, así que no reenvíes este puerto ni lo abras en un firewall. Está pensado para una red confiable de casa u oficina, nunca para internet abierto, y solo expone los campos acotados que lleva el agent context."
+            "login": {
+              "body": "Signs this terminal into your account by device code: a short code and a link to <code>openlimiter.com/app/cli</code> print at once, and the command waits for you to approve it there. <code>--open</code> also opens that link in a browser. Nothing here ever sees a password."
+            },
+            "logout": {
+              "body": "Forgets the session stored on this device. Nothing on the hub is asked to do anything."
+            },
+            "whoami": {
+              "body": "Prints the signed in account and this device's id, or says plainly that nobody is signed in."
+            },
+            "sync": {
+              "body": "Uploads one round of cached bars to the hub, renewing the session first when it is close to expiring. <code>refresh</code> already triggers this on its own after a successful round when a session exists, so running it by hand is for the moment you want to know it landed."
+            },
+            "refresh": {
+              "body": "Reads the logins your provider tools already stored on this machine and asks each provider for its own usage, at most once every fifteen minutes, then folds what survives validation into the cache. It stands down while the desktop app is running, and <code>statusline</code> and <code>snapshot</code> both start it in the background on their own whenever the cache is older than a minute."
+            },
+            "terminal": {
+              "body": "Lists every terminal host this machine can draw a bar into and its wiring state, and offers to wire one or all of them. <code>terminal install <host></code> and <code>terminal uninstall <host></code> wire or restore one host by name, <code>terminal status</code> prints the table on its own, and <code>terminal show</code> and <code>terminal hide</code> pick which connected providers actually draw a bar. See <docs>agent context</docs> for the hosts and the grammar."
+            },
+            "setup": {
+              "body": "Runs the same three steps <code>openlimiter</code> with no arguments runs: sign in, connect, show bars in, then prints the bars once. Any step you skip stays skipped; nothing here is required to see a bar."
             }
           },
           "exit-codes": {
-            "title": "Códigos de salida",
-            "caption": "Códigos de salida y qué significan",
+            "title": "Exit codes",
+            "caption": "Exit codes and what they mean",
             "columns": {
-              "code": "código",
-              "meaning": "significado"
+              "code": "code",
+              "meaning": "meaning"
             },
             "rows": {
-              "success": "Éxito.",
-              "failure": "Un fallo genuino.",
-              "usage": "Un error de uso, como un id de proveedor desconocido.",
-              "noData": "No hay datos de quota acotados disponibles."
+              "success": "Success.",
+              "failure": "A genuine failure.",
+              "usage": "A usage error, such as an unknown provider id.",
+              "noData": "No bounded quota data is available."
             },
-            "calloutTitle": "hook y statusline siempre salen con 0",
-            "calloutBody": "Ambos son invocados por otra herramienta, así que reportan unknown en vez de romper su host. Cualquier otra orden muestra un fallo en el error estándar, usando un conjunto fijo de cadenas que nunca lleva texto de proveedor, rutas tomadas de una carga, ni secretos."
+            "calloutTitle": "hook and statusline always exit 0",
+            "calloutBody": "Both are invoked by another tool, so they report unknown instead of breaking their host. Every other command surfaces a failure on standard error using a fixed set of strings that never carry provider text, paths taken from a payload, or secrets."
           },
           "notes": {
-            "title": "Comportamiento que vale la pena conocer",
+            "title": "Behaviour worth knowing",
             "bullets": {
-              "stdin": "La entrada estándar está acotada y tiene tiempo límite, así que una orden nunca espera a un flujo que no termina.",
-              "truncated": "Los porcentajes mostrados se truncan en vez de redondearse, así que ninguna superficie puede reportar un límite que no se alcanzó.",
-              "flags": "<code>--provider</code> y <code>--payload</code> necesitan cada una un valor. Pasar la opción sin uno es un error de uso.",
-              "noNetwork": "En este release ninguna orden llega a la red. Cada ruta es un parser sobre algo que ya está en tu máquina."
+              "stdin": "Standard input is bounded and time limited, so a command never waits on a stream that does not end.",
+              "truncated": "Displayed percentages are truncated rather than rounded, so no surface can report a cap that was not reached.",
+              "flags": "<code>--provider</code> and <code>--payload</code> each need a value. Passing the flag without one is a usage error.",
+              "noNetwork": "Only login, sync and refresh reach the network, and only to the hub or to a provider whose login is already on this machine. Every other command is a parser over something already local."
             }
           }
         }
@@ -1778,22 +1862,22 @@
             }
           },
           "mobile": {
-            "title": "Planeado: aplicaciones móviles nativas",
-            "intro": "Aplicaciones para iOS y Android, para que una ventana de larga duración se pueda revisar lejos del escritorio. La aplicación web ya se instala en la pantalla de inicio de un teléfono y funciona sin conexión, que es la parte de esto que existe.",
+            "title": "Shipped: the phone, planned: a native app",
+            "intro": "The phone pairs from the hub by QR code, with nothing typed, and installs to its home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen. That is available today, on Pro.",
             "bullets": {
-              "status": "Estado: planeado. Nada está enviado a ninguna tienda.",
-              "dependsOnSync": "Las aplicaciones móviles nativas siguen como trabajo futuro separado y no forman parte de OpenLimiter Pro. La aplicación web ya se instala en la pantalla de inicio y funciona sin conexión."
+              "status": "Status: phone pairing and the installable web app are shipped, on Pro.",
+              "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
             }
           },
           "sync": {
-            "title": "Planeado: OpenLimiter Pro",
+            "title": "Available: OpenLimiter Pro",
             "intro": "OpenLimiter Pro está disponible por $5 al mes o $50 al año, con los primeros 30 días gratis y sin tarjeta. Consulta <pricing>precios</pricing> para saber qué es realmente cada línea.",
             "bullets": {
               "status": "Estado: disponible. La sincronización queda activa desde el momento en que inicias sesión.",
               "alerts": "Alertas por email al cruzar un límite o reiniciar.",
               "history": "Noventa días de historial alojado con previsiones de consumo.",
-              "routing": "Contexto de presupuesto para la ruta del agente de código.",
-              "localFirst": "Todo lo que ves es gratis. La herramienta de línea de comandos y las funciones locales del escritorio funcionan sin cuenta Pro."
+              "localFirst": "Todo lo que ves es gratis. La herramienta de línea de comandos y las funciones locales del escritorio funcionan sin cuenta Pro.",
+              "phone": "Phone pairing by QR code, kept alive across the device closing for a day or more."
             }
           },
           "following": {

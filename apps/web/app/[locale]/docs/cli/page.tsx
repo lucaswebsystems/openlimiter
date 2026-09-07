@@ -38,20 +38,48 @@ export default async function CliPage({ params }: LocaleParams) {
             <>
               <CodeBlock
                 label="openlimiter help"
-                code={`openlimiter init
+                code={`openlimiter
+openlimiter setup
+openlimiter login [--open]
+openlimiter logout
+openlimiter whoami
+openlimiter sync
+openlimiter init
 openlimiter snapshot [--refresh]
-openlimiter statusline
+openlimiter statusline [--host claude|antigravity|grok|codex|shell]
+openlimiter terminal [--yes] [--host <id>]
+openlimiter terminal status
+openlimiter terminal install <host>
+openlimiter terminal uninstall <host>
+openlimiter terminal show <provider ...>
+openlimiter terminal hide <provider ...>
+openlimiter refresh
 openlimiter hook [--dry-run]
+openlimiter hooks install <agent>
+openlimiter hooks uninstall <agent>
+openlimiter hooks status <agent>
+openlimiter hooks repair <agent>
+openlimiter status --agent-context
 openlimiter ingest [--provider <id>] [--payload <json>]
 openlimiter config get statusline[.<key>]
 openlimiter config set statusline.<key> <value>
+openlimiter config get providers[.<key>]
+openlimiter config set providers.<key> <value>
 openlimiter doctor
 openlimiter demo
 openlimiter export
-openlimiter serve [--port <n>] [--host <address>] [--no-qr]
 
-statusline keys: order, meters, width, rows, bars, color.
+statusline keys: order, meters, width, rows, bars, color, style, show, hosts.
+providers keys: claude.poll.
+terminal hosts: claude, antigravity, grok, codex, shell.
 statusline and ingest read JSON from standard input when it is piped in.
+openlimiter with no arguments runs setup: sign in, connect, show bars in.
+login opens the device code sign in; sync uploads one round to the hub when
+a session exists, and refresh triggers it automatically after itself.
+refresh reads the logins your provider tools already stored on this machine
+and asks each provider for its own usage, at most once every 15 minutes. It
+stands down while the desktop app is running. statusline and snapshot start
+it in the background when the cache is older than a minute.
 Exit codes: 0 success, 1 failure, 2 usage, 3 no bounded quota data.`}
               />
               <P>{t.rich("overview.install", { code })}</P>
@@ -63,6 +91,21 @@ Exit codes: 0 success, 1 failure, 2 usage, 3 no bounded quota data.`}
           title: t("commands.title"),
           body: (
             <>
+              <Sub id="setup">setup</Sub>
+              <P>{t.rich("commands.setup.body", { code })}</P>
+
+              <Sub id="login">login</Sub>
+              <P>{t.rich("commands.login.body", { code })}</P>
+
+              <Sub id="logout">logout</Sub>
+              <P>{t("commands.logout.body")}</P>
+
+              <Sub id="whoami">whoami</Sub>
+              <P>{t("commands.whoami.body")}</P>
+
+              <Sub id="sync">sync</Sub>
+              <P>{t.rich("commands.sync.body", { code })}</P>
+
               <Sub id="init">init</Sub>
               <P>{t("commands.init.body")}</P>
               <CodeBlock code={`openlimiter init
@@ -108,6 +151,12 @@ OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE`}
                 code={`${statuslinePlainCapture.command}\n${statuslinePlainCapture.output}`}
               />
 
+              <Sub id="terminal">terminal</Sub>
+              <P>{t.rich("commands.terminal.body", { code, docs: (chunks) => <DocLink href="/docs/agent-context">{chunks}</DocLink> })}</P>
+
+              <Sub id="refresh">refresh</Sub>
+              <P>{t("commands.refresh.body")}</P>
+
               <Sub id="config">config</Sub>
               <P>
                 {t.rich("commands.config.body", {
@@ -123,7 +172,10 @@ OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE`}
 statusline.width=200
 
 openlimiter config set statusline.rows 3
-openlimiter config: statusline.rows must be 1 or 2.`}
+openlimiter config: statusline.rows must be 1 or 2.
+
+openlimiter config set providers.claude.poll true
+providers.claude.poll=true`}
               />
 
               <Sub id="hook">hook</Sub>
@@ -152,12 +204,6 @@ Ingested 1 bounded meters. Cached meters: 3.`}
 
               <Sub id="export">export</Sub>
               <P>{t("commands.export.body")}</P>
-
-              <Sub id="serve">serve</Sub>
-              <P>{t.rich("commands.serve.body", { code })}</P>
-              <Callout tone="key" title={t("commands.serve.calloutTitle")}>
-                {t("commands.serve.calloutBody")}
-              </Callout>
             </>
           ),
         },

@@ -117,7 +117,7 @@
         "local": "Local mode collects nothing. No account, no server, and nothing leaves your machine.",
         "account": "An account is optional. Signing in exists so your own quota percentages can reach your own other devices, and so Pro can be attached to something. Sync is on from that moment.",
         "sync": "What syncs is bounded quota state: a provider, a meter, a window, a percentage and timestamps. Never prompts, never code, never the contents of a file.",
-        "keys": "Provider credentials and API keys stay in your operating system keyring on your own device. They are never sent to OpenLimiter.",
+        "keys": "Provider credentials, and a key kept in your operating system keyring, never leave your device. A key you opt into cloud metering for is the one exception: it travels once over HTTPS to the hosted service and is stored there encrypted, deleted the moment you turn cloud metering off or ask.",
         "website": "This website counts page views without cookies. The app sends nothing.",
         "sell": "Nothing is sold, rented, or handed to an advertiser. There is no advertising here."
       }
@@ -136,7 +136,7 @@
       "title": "The account",
       "body": "An account is only needed for the hosted parts: syncing your quota between your devices, and Pro. Sign in runs on Supabase, which hosts the database and the authentication for the hosted service.",
       "bullets": {
-        "identity": "You can sign in with GitHub, with Google, or with a magic link sent to your email address. Which one you pick is your choice and you can link another later.",
+        "identity": "You can sign in with GitHub, with Google, with Microsoft, or with a magic link sent to your email address. Which one you pick is your choice and you can link another later.",
         "stored": "The account holds your email address, the identifier the sign in provider returns, the time you created the account and the time you last signed in.",
         "password": "There is no password, so there is no password to leak. GitHub and Google never hand over your password either, only a confirmation that you are you.",
         "devices": "Each device you sign in on gets a label, a creation time and a last seen time, so you can see the list and revoke any device from it."
@@ -178,8 +178,9 @@
       "bullets": {
         "keyring": "The key you give it is stored in your operating system keyring, in a namespace of its own. There is no readback: after you save it, nothing in the interface can show it to you again.",
         "host": "The key is sent only to the fixed HTTPS host of the provider it belongs to. Redirects are rejected, requests and errors are redacted, and the size and duration of every call are capped.",
-        "never": "The key is never sent to OpenLimiter, never stored on the hosted service, and never appears in a log, an analytics property, a crash report or a support record.",
-        "revoke": "Removing a source deletes its key from the keyring immediately and offers to delete the samples it produced."
+        "never": "By default the key stays local: it is never sent to OpenLimiter, never stored on the hosted service, and never appears in a log, an analytics property, a crash report or a support record.",
+        "revoke": "Removing a source deletes its key from the keyring immediately and offers to delete the samples it produced.",
+        "cloud": "Cloud metering is the one opt in exception. Turning it on sends that key once over HTTPS to the hosted service, where it is kept encrypted in its own vault, read only by the metering job that needs it, and deleted the moment you turn cloud metering off or ask."
       }
     },
     "payments": {
@@ -197,14 +198,14 @@
       "body": "The website and the app are two different things with two different answers, and it would be dishonest to give them one.",
       "bullets": {
         "counts": "The website counts page views without cookies. It is Vercel Web Analytics, and what it produces is a count of how many people opened which page.",
-        "cookies": "No cookie is set to track you, no profile is built, and nothing follows you to another site. The only cookies here are the one that remembers the language you chose and the one that remembers you closed a banner.",
+        "cookies": "No cookie is set to track you, no profile is built, and nothing follows you to another site. The cookies here are the one that remembers the language you chose, the one that remembers you closed a banner, and, once you pair a phone, the two that keep that pairing alive, ol-phone-token and ol-phone-refresh. All three are strictly necessary and none of them is used to track you.",
         "app": "The app sends nothing. There is no analytics of any kind in the desktop application, the command line tool or the web app.",
         "language": "Your browser's language header is read to offer you a translated page. The offer is a banner you can take or close, and it never moves you off the page you asked for."
       }
     },
     "processors": {
       "title": "Who else touches the data",
-      "intro": "Seven services are involved in the hosted parts. Each one sees only what its job needs, and each one is named here so the list can be checked rather than trusted.",
+      "intro": "Eight services are involved in the hosted parts. Each one sees only what its job needs, and each one is named here so the list can be checked rather than trusted.",
       "caption": "The services involved in the hosted parts and what each one holds",
       "columns": {
         "who": "service",
@@ -238,6 +239,10 @@
         "push": {
           "who": "Browser and operating system push services",
           "what": "Delivery of a push alert to the device you enabled it on, through whichever service that browser uses. It holds the subscription endpoint and the message, and a push payload never carries usage detail. It is deleted when you turn push off or revoke the device."
+        },
+        "microsoft": {
+          "who": "Microsoft",
+          "what": "Sign in, when you choose it. It confirms who you are and returns an identifier and your email address. It never sees your quota data, and it is kept for as long as the account exists."
         }
       }
     },
@@ -316,7 +321,7 @@
       "title": "Changes, and how to reach a person",
       "body": "This page changes when the product changes. When a change alters what is collected, where it goes, or how long it is kept, the date below moves and the change is described in the changelog rather than made quietly.",
       "contact": "Questions, requests and complaints go to <mail>lucas@lucaswebsystems.com</mail>, and a person reads them. The rules for using the site itself are in the <terms>terms and conditions</terms>.",
-      "updated": "This policy takes effect with version 1.2.0. Last updated on 4 September 2026."
+      "updated": "This policy takes effect with version 1.3.1. Last updated on 7 September 2026."
     }
   },
   "localeSwitcher": {
@@ -925,35 +930,51 @@
     },
     "pages": {
       "index": {
-        "title": "Getting started",
-        "metaTitle": "Getting started: install and meter your quota",
-        "description": "Install the workspace, run the demo, and wire OpenLimiter into Claude Code in a few minutes.",
-        "lead": "OpenLimiter is a quota meter for the AI subscriptions you already pay for. It runs on your machine, reads what your tools already wrote there, and hands your coding agents a bounded picture of what budget is left.",
+        "title": "Get started",
+        "metaTitle": "Get started: sign in, connect, see your bars",
+        "description": "Sign in, connect the AI accounts you already pay for, and see your bars. Bars stay free with no account at all.",
+        "lead": "OpenLimiter meters the AI subscriptions you already pay for. Bars render from your own machine with no account. Sign in and the same bars sync between your devices, and a free 30 day trial with no card unlocks the rest.",
         "sections": {
           "what-you-need": {
             "title": "What you need",
             "bullets": {
-              "node": "Node 24 or newer.",
+              "node": "Node 24 or newer, for the terminal.",
               "npm": "npm, which ships with Node."
             },
-            "local": "Everything runs locally. No account is created, no key is required to start, and no request leaves your machine during any of the steps below."
+            "local": "Nothing local is ever paywalled. The desktop app and the terminal both show bars with no account, and an account only adds sync on top of that."
           },
-          "install": {
-            "title": "Install OpenLimiter",
-            "intro": "Install the command line tool globally, then run its synthetic demo.",
+          "terminal": {
+            "title": "Terminal",
+            "intro": "Run the tool with nothing after it and it walks the same three steps everywhere: sign in, connect, then show bars in.",
             "terminalLabel": "terminal",
-            "demo": "<code>openlimiter demo</code> renders synthetic fixtures. It proves the binary works without touching any real account, and every number it prints is invented."
+            "steps": "Sign in prints a short code and a link to <code>openlimiter.com/app/pair</code>, so the terminal never sees a password, and Enter to skip leaves the device signed out. Connect checks every agent CLI already on this machine and reports one of <code>use current login</code>, <code>sign in</code> or <code>install</code> for each row, and offers to run Codex's own sign in on the spot. Show bars in lists the terminal hosts this machine can draw bars into and wires whichever ones you keep.",
+            "wiring": "Run <code>openlimiter terminal</code> on its own to reopen that last step later, <code>openlimiter terminal show</code> and <code>openlimiter terminal hide</code> to pick which connected providers actually draw a bar, and <code>openlimiter terminal status</code> to see what is wired. See <docs>agent context</docs> for the hosts, the grammar and the freshness marks.",
+            "install": "A permanent install works the same way: <code>npm install -g openlimiter</code>, then run <code>openlimiter</code>."
           },
-          "first-data": {
-            "title": "Give it something to meter",
-            "parser": "The command line tool never contacts a provider on its own. It parses data that something else already put in front of it. Until one of the ingestion paths runs, every command honestly reports unknown.",
-            "statusline": "The path that needs no extra work is the Claude Code statusline. Claude Code runs your statusline command on every render and writes a JSON object describing the current session to that command's standard input. When that object carries a rate limit block, OpenLimiter validates it, caches it, and renders the fresh numbers in the same call.",
-            "terminalLabel": "terminal",
-            "fallback": "Not every Claude Code version sends rate limit fields. If yours does not, this path stays quiet and the two manual paths still work. The <docs>ingestion page</docs> covers all three."
+          "desktop": {
+            "title": "Desktop app",
+            "body": "The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect the providers it can reach directly, then bars in the tray. The tray and its bars never require that account."
+          },
+          "hub": {
+            "title": "Web hub",
+            "body": "<hub>openlimiter.com/app</hub> is account first: sign in with GitHub, Google or Microsoft, or a magic link, then connect, then bars. Open it once a terminal or the desktop app has signed you in somewhere, and it shows the same bars synced from there."
+          },
+          "free-and-pro": {
+            "title": "Free and Pro",
+            "intro": "Bars are free forever and need no account at all.",
+            "bullets": {
+              "sync": "An account adds sync: the current percentage on every window, kept current between every device you sign into.",
+              "pro": "Pro adds history, alerts, the phone, more than one account per provider, and cloud metering for API spend keys.",
+              "trial": "Every Pro surface opens a 30 day free trial, no card required."
+            }
+          },
+          "phone": {
+            "title": "Phone",
+            "body": "Open the hub, choose your phone, and scan the QR code it shows. Pairing needs nothing typed. Add it to your home screen from there: Android offers to install it, and on iOS use Share, then Add to Home Screen."
           },
           "claude-code": {
-            "title": "Wire Claude Code",
-            "intro": "Add this to your Claude Code <code>settings.json</code>. The global install makes the <code>openlimiter</code> command available to Claude Code.",
+            "title": "Wire Claude Code by hand",
+            "intro": "<code>openlimiter terminal</code> does this for you. To see exactly what it writes, or to wire a machine without running it interactively, add this to Claude Code's <code>settings.json</code> yourself.",
             "calloutTitle": "The hook cannot break your session",
             "calloutBody": "The statusline is the only path that writes. The hook reads the cache, makes no network request of any kind, injects nothing when every provider is unknown, and exits 0 whatever happens."
           },
@@ -969,8 +990,8 @@
               "title": "A reasonable reading order",
               "steps": {
                 "why": "<docs>Why OpenLimiter</docs> for the problem this solves.",
-                "providers": "<docs>Supported providers</docs> for what each connector reads and how fragile it is.",
-                "agentContext": "<docs>Agent context</docs> for exactly what reaches your agent.",
+                "providers": "<docs>Supported providers</docs> for exactly how each one connects, and what OpenLimiter never does.",
+                "agentContext": "<docs>Agent context</docs> for the terminal hosts, the bar grammar, and what reaches your coding agent.",
                 "cli": "<docs>CLI reference</docs> for every command and exit code."
               }
             }
@@ -1029,67 +1050,70 @@
       },
       "providers": {
         "title": "Supported providers",
-        "description": "The nine connectors that ship today, what each one reads, and how likely it is to break.",
+        "description": "The nine connectors that ship today: how you connect each one, what it reads, and how likely it is to break.",
         "lead": "Nine connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
         "sections": {
           "the-nine": {
             "title": "The nine connectors",
-            "caption": "Connectors that ship today, with what each one reads and how stable it is",
+            "caption": "Connectors that ship today, how you connect each one, and what it reads",
             "columns": {
               "id": "id",
-              "reads": "reads",
-              "status": "interface status"
+              "connect": "connect",
+              "reads": "reads"
             },
             "rows": {
               "claude": {
-                "reads": "The rate limit block of the Claude Code statusline payload",
-                "status": "Native payload from a local tool. Low automation risk."
+                "connect": "Nothing to do: OpenLimiter reads what Claude Code already renders.",
+                "reads": "The Claude Code status line, automatically. An opt in poll of Anthropic's own usage endpoint, with your own token, covers the gap when Claude Code is closed. Off unless you turn it on."
               },
               "openrouter": {
-                "reads": "A credits response shape from OpenRouter's documented API",
-                "status": "Documented API. Low automation risk."
+                "connect": "Real OAuth, started from the hub. A key you already hold still works.",
+                "reads": "OpenRouter's documented key and usage report."
               },
               "codex": {
-                "reads": "A usage payload the Codex tooling produces",
-                "status": "Internal endpoint. May break without notice."
+                "connect": "Use the login already there, or sign in from inside OpenLimiter.",
+                "reads": "The login the Codex CLI stored. May break when OpenAI changes it."
               },
               "antigravity": {
-                "reads": "A quota payload the Antigravity tooling produces",
-                "status": "Internal endpoint. May break without notice."
+                "connect": "Read only, from the credential already there.",
+                "reads": "The credential the Antigravity CLI stored. May break when Google changes it."
               },
               "opencode": {
-                "reads": "A usage view behind a session you already signed in to",
-                "status": "Authenticated page. High automation risk. May break."
+                "connect": "Import only: you supply the document yourself.",
+                "reads": "A usage view behind a session you already signed in to. May break without notice."
               },
               "manual": {
-                "reads": "Numbers you write yourself",
-                "status": "Manual entry. Never breaks, never guesses."
+                "connect": "You write the numbers yourself.",
+                "reads": "Never breaks, never guesses."
               },
               "gemini_cli": {
-                "reads": "The quota buckets the Gemini CLI defines for its own models",
-                "status": "Internal endpoint. High automation risk. May break without notice."
+                "connect": "Read only, from the login already there.",
+                "reads": "The login the Gemini CLI stored. May break when Google changes it."
               },
               "grok": {
-                "reads": "The billing response behind the Grok CLI, with its weekly credit window and optional on demand cap",
-                "status": "Internal endpoint. High automation risk. May break without notice."
+                "connect": "Use the login already there. OpenLimiter cannot start Grok's own sign in yet.",
+                "reads": "The login the Grok CLI stored, without the client marker xAI's own tool sends."
               },
               "kimi": {
-                "reads": "The usage response the Kimi CLI defines, with its weekly summary and five hour limit",
-                "status": "Internal endpoint. High automation risk. May break without notice."
+                "connect": "Use the login already there. OpenLimiter cannot start Kimi's own sign in yet.",
+                "reads": "The usage response the Kimi CLI defines. May break when Moonshot changes it."
               }
             },
             "calloutTitle": "Every connector ships marked UNVERIFIED",
-            "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good."
+            "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good.",
+            "neverTitle": "What OpenLimiter never does",
+            "neverBody": "It never asks for a vendor password: every sign in happens on that vendor's own page, in your own browser. It never impersonates a vendor tool: every request identifies itself as OpenLimiter, never as Claude Code, Codex or any other client. And it never uploads a token: an account syncs the bounded percentages and reset times these readings produce, never the credential that produced them."
           },
           "how-data-arrives": {
             "title": "How data actually arrives",
-            "intro": "This is the part that surprises people, so it is worth stating plainly. In the command line tool, no connector performs network access on its own. Every one of them is a parser, and something else has to hand it a document.",
+            "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
-              "claude": "<code>claude</code> is fed by the statusline payload arriving on standard input. That path is automatic once Claude Code is wired up.",
+              "claude": "<code>claude</code> is fed by the Claude Code status line the moment it renders, and by an opt in poll of Anthropic's own usage endpoint when Claude Code is closed.",
+              "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> and <code>openrouter</code> read the login their own tool already stored, at most once every fifteen minutes, behind the desktop app's own refresher or the terminal's <code>openlimiter refresh</code>.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
-              "ingestOnly": "In the command line tool, <code>codex</code>, <code>antigravity</code>, <code>gemini_cli</code>, <code>grok</code>, <code>kimi</code>, <code>opencode</code> and <code>openrouter</code> have no reader of their own; it only accepts data through <code>openlimiter ingest --provider '<id>'</code>. The desktop application reads Codex, Gemini CLI, Grok, Kimi and OpenRouter live, and offers a manual, experimental paste path for Antigravity and OpenCode."
+              "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
             },
-            "exactShapes": "The <docs>ingestion page</docs> documents all three paths and the exact shapes they accept."
+            "exactShapes": "The <docs>ingestion page</docs> documents the manual and OpenCode shapes in full."
           },
           "labels": {
             "title": "Reading the labels",
@@ -1111,14 +1135,18 @@
           },
           "openrouter-key": {
             "title": "The OpenRouter credential",
-            "intro": "OpenRouter is the one connector that expects a key of your own. That key belongs in your operating system credential store and nowhere else. It must never appear in repository files, cache files, exports, diagnostics, fixtures, or logs.",
-            "calloutTitle": "Stubbed in this release",
-            "calloutBody": "The credential library adapter is deliberately stubbed, so <code>openlimiter init</code> cannot store a key until you supply a driver. Until then, feed OpenRouter through the ingest command like any other provider.",
+            "intro": "OpenRouter is the one connector with a real sign in of its own: OAuth, started from the hub, and the key it hands back is what gets read from then on. A key you already hold still works, fed the same way any other connector is.",
+            "calloutTitle": "The terminal's own store is stubbed",
+            "calloutBody": "The credential library adapter inside the command line tool is deliberately stubbed, so <code>openlimiter init</code> cannot yet keep a key across sessions on its own. Until then, the terminal reads it from the <code>OPENLIMITER_OPENROUTER_KEY</code> environment variable, or accepts it through <code>openlimiter ingest --provider openrouter</code> like any other connector.",
             "terminalLabel": "terminal"
           },
           "not-yet": {
             "title": "Connectors that do not exist yet",
             "body": "Only the nine above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
+          },
+          "api-spend-keys": {
+            "title": "API spend keys",
+            "body": "A key for an API spend meter is a separate thing from a subscription login. It lives in this device's operating system keyring by default. Cloud metering, an opt in Pro feature, stores that key encrypted on the server instead, so the hub and the phone can show spend with no device running."
           }
         }
       },
@@ -1139,7 +1167,7 @@
             },
             "rows": {
               "localCli": {
-                "meaning": "A tool on this machine writes the payload, and OpenLimiter reads what it wrote."
+                "meaning": "A tool already on this machine holds the login, and OpenLimiter reads its own quota from that, or from what that tool already wrote."
               },
               "importOnly": {
                 "meaning": "The payload shape is parsed. Nothing here signs in or fetches it, so you supply the document."
@@ -1253,7 +1281,7 @@
               "claude": {
                 "name": "Claude Code",
                 "reports": "Five hour session usage and seven day usage, with reset times.",
-                "source": "The local Claude Code OAuth login and Anthropic usage endpoint. Claude Code statusline data remains a fallback."
+                "source": "The Claude Code status line, automatically, whenever Claude Code renders. An opt in poll of Anthropic's usage endpoint, with your own token, covers the gap when Claude Code is closed."
               },
               "codex": {
                 "name": "Codex",
@@ -1361,13 +1389,15 @@
       "agent-context": {
         "title": "Agent context",
         "description": "What the statusline and the prompt hook inject, which agents actually receive it, and the boundary that keeps provider text out.",
-        "lead": "Two surfaces reach your agent: a one line statusline for you to read, and a bounded context block for the model. This page documents exactly what each one contains, which agents actually receive it, and the boundary that keeps provider text out of both.",
+        "lead": "Two surfaces reach past your machine: bars across your terminal for you to read, and a bounded context block for the model. This page documents the terminal hosts and the bar grammar, then exactly what the context block contains, which agents actually receive it, and the boundary that keeps provider text out of both.",
         "sections": {
           "statusline": {
             "title": "The statusline",
             "intro": "One line, rendered on every Claude Code statusline call. It names the worst state across your providers, lists the providers with a usable reading, and names the ones that are unknown.",
             "exampleLabel": "example output, synthetic values",
-            "truncation": "Usage is truncated, never rounded upward, so a meter at 99.99% reads as 99.9%. When nothing usable is cached the whole line reduces to <code>OpenLimiter UNKNOWN</code>."
+            "truncation": "Usage is truncated, never rounded upward, so a meter at 99.99% reads as 99.9%. When nothing usable is cached the whole line reduces to <code>OpenLimiter UNKNOWN</code>.",
+            "legacyTitle": "This is the earlier cells style",
+            "legacyBody": "<code>openlimiter terminal</code> wires the newer bar style described above into your agent CLIs by default. This reason led, five block row is what <code>statusline.style cells</code> brings back, and <code>statusline.bars false</code> goes one step further to the single plain line from before bars existed."
           },
           "context-block": {
             "title": "The context block",
@@ -1484,6 +1514,32 @@
               "body": "Grok Build runs a prompt submit hook and then throws away what the hook printed, and it documents no equivalent of an additional context field. No amount of adapter work changes that, so OpenLimiter installs nothing into Grok and says so here rather than shipping something that silently does nothing. What it offers instead is a command you run yourself, which prints the same block for you to read or paste.",
               "terminalLabel": "terminal"
             }
+          },
+          "terminal": {
+            "title": "Bars in your terminal",
+            "intro": "Every provider you connect can draw a bar somewhere you already look. Claude Code, Grok Build and the Antigravity CLI each render bars through their own status line. Codex draws its own built in items instead, because a command is the only surface it exposes. Gemini CLI, OpenCode, Kimi and any other terminal read a shell prompt segment, because none of them expose a status line at all.",
+            "wiring": {
+              "title": "Wiring a host",
+              "terminalLabel": "terminal",
+              "body": "<code>openlimiter terminal</code> lists every host this machine can draw a bar into and its wiring state, and <code>--yes</code> wires every one of them at once. <code>openlimiter terminal install claude</code> wires one host on its own, and <code>openlimiter terminal uninstall claude</code> restores whatever status line was there before, byte for byte."
+            },
+            "show-hide": {
+              "title": "Choosing what shows",
+              "body": "<code>openlimiter terminal show codex</code> and <code>openlimiter terminal hide codex</code> pick which connected providers actually draw a bar, on this machine only. A provider you have not connected has nothing to show."
+            },
+            "grammar": {
+              "title": "The grammar",
+              "intro": "One cell per window: an optional freshness mark, a tag, a ten block bar, the percentage, and the reset time. The provider whose own status line this is drops its own tag, since the host already says whose numbers these are; every other provider keeps a short tag ahead of its window code, and a credit balance shows its dollar figure instead of a bar.",
+              "exampleLabel": "example output, one host's row",
+              "freshness": {
+                "title": "The freshness marks",
+                "bullets": {
+                  "bare": "No mark: the reading is under three minutes old.",
+                  "tilde": "A leading <code>~</code>: the reading is three to fifteen minutes old.",
+                  "unknown": "<code>[?]</code> in place of the bar: the reading is fifteen minutes old or older, or nothing has been read yet. The cell never disappears, so a provider that cannot be read still shows as unknown rather than looking connected."
+                }
+              }
+            }
           }
         }
       },
@@ -1535,7 +1591,7 @@
           },
           "statusline": {
             "title": "The statusline layout",
-            "intro": "The statusline draws one compact cell per provider: a name, a five block bar, and the percentage, with the overall reason code and the routing recommendation leading the row. Six keys in the configuration file decide how that row is built, and <code>openlimiter config</code> is how they are read and changed.",
+            "intro": "The default statusline draws bars for one connected host at a time, in the ten block grammar the <docs>agent context</docs> page documents. Nine keys in the configuration file decide how a row is built, and <code>openlimiter config</code> is how they are read and changed.",
             "capturedFixturesLabel": "captured {date}, synthetic fixtures",
             "capturedLabel": "captured {date}",
             "statusline-keys": {
@@ -1570,6 +1626,18 @@
                 "color": {
                   "accepts": "<code>auto</code>, <code>always</code>, or <code>never</code>",
                   "meaning": "<code>auto</code> follows the terminal, which for a statusline host usually means no colour, because the host captures the output rather than handing the command a terminal. <code>always</code> is how you say the host understands escape codes. Default <code>auto</code>."
+                },
+                "style": {
+                  "accepts": "<code>bar</code> or <code>cells</code>",
+                  "meaning": "<code>bar</code> is the ten block grammar <code>openlimiter terminal</code> wires by default. <code>cells</code> restores the previous reason led row with a five block bar per provider. Default <code>bar</code>."
+                },
+                "show": {
+                  "accepts": "provider ids, comma separated, or <code>NONE</code>",
+                  "meaning": "Which connected providers actually draw a bar in <code>bar</code> style. <code>NONE</code>, the default, shows every connected provider. <code>openlimiter terminal show</code> and <code>terminal hide</code> are the commands that change it."
+                },
+                "hosts": {
+                  "accepts": "written by <code>openlimiter terminal</code>, not by hand",
+                  "meaning": "Which command each wired host was left running before OpenLimiter took the slot, kept so <code>terminal uninstall</code> can restore it byte for byte."
                 }
               }
             },
@@ -1619,7 +1687,7 @@
         "sections": {
           "overview": {
             "title": "Overview",
-            "install": "Install the global command with <code>npm install -g openlimiter</code>, then run each example exactly as shown."
+            "install": "Install the global command with <code>npm install -g openlimiter</code>, or run it once with <code>npx openlimiter</code>."
           },
           "commands": {
             "title": "The commands",
@@ -1636,8 +1704,8 @@
             },
             "statusline": {
               "intro": "Renders the status row for a statusline host. It reads standard input first, so a Claude Code session payload is ingested and rendered in the same call, then falls back to the cache. This is the only command that writes as a side effect of being displayed.",
-              "cells": "The overall reason code leads, then the routing recommendation, then one compact cell per provider: a name, a five block bar, and the percentage. Five blocks rather than the ten the table draws, because a status row is shared with a model name, a branch and a directory, and it has to read at a glance. The percentage is truncated like everywhere else, so a bar never lights a block the reading has not earned.",
-              "order": "Subscription providers come first and credit or API providers last, so a window that refills on a clock is never read next to a balance that does not come back. Within a provider the meters order session, daily, weekly, monthly, credits, and the cell shows the meter closest to its cap. The full set is one <code>openlimiter snapshot</code> away, or set <code>statusline.meters all</code> to put every meter in the row as its own cell.",
+              "cells": "The default layout draws one cell per window for the host named by <code>--host</code>: a tag, a ten block bar, the percentage, and the reset time, with no header line at all. See <docs>agent context</docs> for the full grammar and the freshness marks.",
+              "order": "<code>statusline.style cells</code> brings back the previous row instead: the overall reason code and the routing recommendation lead, then one compact cell per provider with a five block bar rather than the ten the new default draws.",
               "stacking": "A row wider than its budget stacks rather than truncating. The break lands between two cells and never inside one, because half a bar reads as a reading and is not one. Two rows is the ceiling. Past that the providers closest to their caps are kept, and the last row ends by saying how many it could not show.",
               "calloutTitle": "The old line is still one setting away",
               "calloutBody": "<code>openlimiter config set statusline.bars false</code> returns the single plain line that 0.1.0 printed, byte for byte, for anything already parsing it. A test pins that exact string, so the escape hatch cannot rot quietly."
@@ -1660,10 +1728,26 @@
             "export": {
               "body": "Prints the cache as canonical JSON, suitable for a script to parse. Exits 3 when the cache holds no bounded quota data."
             },
-            "serve": {
-              "body": "Serves a read only snapshot of your quota on your own local network, so a phone on the same network can see it. Prints the address and a QR code to scan. A fresh token is generated every time the command starts, and it rides in the URL fragment after <code>#t=</code>, which a server never receives. The page moves that token into the tab's own <code>sessionStorage</code> and cleans the address bar on first load, so no browser history anywhere keeps the capability. Every refetch after that sends the token as an <code>Authorization: Bearer</code> header instead of a URL parameter. An address printed by last release, with the token as a query parameter, still answers for this one release, so nothing already scanned or saved breaks.",
-              "calloutTitle": "Anyone who can see the screen can read the quota",
-              "calloutBody": "The address and the code ARE the key: anyone who can see this screen, or a photograph of it, can read your quota for as long as the command keeps running. This listens on every interface on the machine, so do not port forward this port and do not open it on a firewall. It is meant for a trusted home or office network, never for the open internet, and it exposes only the bounded fields the agent context carries."
+            "login": {
+              "body": "Signs this terminal into your account by device code: a short code and a link to <code>openlimiter.com/app/cli</code> print at once, and the command waits for you to approve it there. <code>--open</code> also opens that link in a browser. Nothing here ever sees a password."
+            },
+            "logout": {
+              "body": "Forgets the session stored on this device. Nothing on the hub is asked to do anything."
+            },
+            "whoami": {
+              "body": "Prints the signed in account and this device's id, or says plainly that nobody is signed in."
+            },
+            "sync": {
+              "body": "Uploads one round of cached bars to the hub, renewing the session first when it is close to expiring. <code>refresh</code> already triggers this on its own after a successful round when a session exists, so running it by hand is for the moment you want to know it landed."
+            },
+            "refresh": {
+              "body": "Reads the logins your provider tools already stored on this machine and asks each provider for its own usage, at most once every fifteen minutes, then folds what survives validation into the cache. It stands down while the desktop app is running, and <code>statusline</code> and <code>snapshot</code> both start it in the background on their own whenever the cache is older than a minute."
+            },
+            "terminal": {
+              "body": "Lists every terminal host this machine can draw a bar into and its wiring state, and offers to wire one or all of them. <code>terminal install <host></code> and <code>terminal uninstall <host></code> wire or restore one host by name, <code>terminal status</code> prints the table on its own, and <code>terminal show</code> and <code>terminal hide</code> pick which connected providers actually draw a bar. See <docs>agent context</docs> for the hosts and the grammar."
+            },
+            "setup": {
+              "body": "Runs the same three steps <code>openlimiter</code> with no arguments runs: sign in, connect, show bars in, then prints the bars once. Any step you skip stays skipped; nothing here is required to see a bar."
             }
           },
           "exit-codes": {
@@ -1688,7 +1772,7 @@
               "stdin": "Standard input is bounded and time limited, so a command never waits on a stream that does not end.",
               "truncated": "Displayed percentages are truncated rather than rounded, so no surface can report a cap that was not reached.",
               "flags": "<code>--provider</code> and <code>--payload</code> each need a value. Passing the flag without one is a usage error.",
-              "noNetwork": "In this release no command reaches the network. Every path is a parser over something already on your machine."
+              "noNetwork": "Only login, sync and refresh reach the network, and only to the hub or to a provider whose login is already on this machine. Every other command is a parser over something already local."
             }
           }
         }
@@ -1778,22 +1862,22 @@
             }
           },
           "mobile": {
-            "title": "Planned: native mobile applications",
-            "intro": "Applications for iOS and Android, so a long running window can be checked away from the desk. The web app already installs to a phone home screen and works offline, which is the part of this that exists.",
+            "title": "Shipped: the phone, planned: a native app",
+            "intro": "The phone pairs from the hub by QR code, with nothing typed, and installs to its home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen. That is available today, on Pro.",
             "bullets": {
-              "status": "Status: planned. Nothing is submitted to any store.",
-              "dependsOnSync": "Native mobile remains separate future work and is not part of OpenLimiter Pro. The web app already installs to a phone home screen and works offline."
+              "status": "Status: phone pairing and the installable web app are shipped, on Pro.",
+              "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
             }
           },
           "sync": {
-            "title": "Planned: OpenLimiter Pro",
+            "title": "Available: OpenLimiter Pro",
             "intro": "OpenLimiter Pro is available at $5 a month or $50 a year, with the first 30 days free and no card required. See <pricing>pricing</pricing> for what each line actually is.",
             "bullets": {
               "status": "Status: available. Sync is on from the moment you sign in.",
               "alerts": "Threshold and reset email alerts.",
               "history": "Ninety day hosted usage history with burn rate forecasts.",
-              "routing": "Live budget context for coding agent routing.",
-              "localFirst": "Everything you can see is free. The command line tool and the desktop local features work with no Pro account."
+              "localFirst": "Everything you can see is free. The command line tool and the desktop local features work with no Pro account.",
+              "phone": "Phone pairing by QR code, kept alive across the device closing for a day or more."
             }
           },
           "following": {

@@ -72,7 +72,7 @@ export default async function RoadmapPage({ params }: LocaleParams) {
                   t("sync.bullets.status"),
                   t("sync.bullets.alerts"),
                   t("sync.bullets.history"),
-                  t("sync.bullets.routing"),
+                  t("sync.bullets.phone"),
                   t("sync.bullets.localFirst"),
                 ]}
               />

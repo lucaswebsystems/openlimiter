@@ -24,11 +24,15 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
  * value there is what a diff against `sourceStateSentence` compares.
  */
 const SOURCE_CHIPS = [
-  { key: "localCli", chip: "Local CLI", providers: "Claude" },
+  {
+    key: "localCli",
+    chip: "Local CLI",
+    providers: "Claude, Codex, Gemini CLI, Antigravity, Grok, Kimi, OpenRouter",
+  },
   {
     key: "importOnly",
     chip: "Import only",
-    providers: "OpenRouter, Codex, Antigravity, OpenCode",
+    providers: "OpenCode",
   },
   /* Manual is the one row whose provider cell is a phrase rather than a list of
      product names, so that cell comes from the catalog like the meanings do. */

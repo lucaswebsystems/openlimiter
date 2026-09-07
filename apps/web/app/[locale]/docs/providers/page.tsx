@@ -50,19 +50,22 @@ export default async function ProvidersPage({ params }: LocaleParams) {
                 caption={t("the-nine.caption")}
                 columns={[
                   { key: "id", header: t("the-nine.columns.id") },
+                  { key: "connect", header: t("the-nine.columns.connect") },
                   { key: "reads", header: t("the-nine.columns.reads") },
-                  { key: "status", header: t("the-nine.columns.status") },
                 ]}
                 rows={CONNECTOR_IDS.map((id) => ({
                   id: <Code>{id}</Code>,
+                  connect: t(`the-nine.rows.${id}.connect`),
                   reads: t(`the-nine.rows.${id}.reads`),
-                  status: t(`the-nine.rows.${id}.status`),
                 }))}
               />
               <Callout tone="key" title={t("the-nine.calloutTitle")}>
                 {t.rich("the-nine.calloutBody", {
                   code: (chunks) => <Code>{chunks}</Code>,
                 })}
+              </Callout>
+              <Callout tone="note" title={t("the-nine.neverTitle")}>
+                {t("the-nine.neverBody")}
               </Callout>
             </>
           ),
@@ -76,6 +79,9 @@ export default async function ProvidersPage({ params }: LocaleParams) {
               <Bullets
                 items={[
                   t.rich("how-data-arrives.bullets.claude", {
+                    code: (chunks) => <Code>{chunks}</Code>,
+                  }),
+                  t.rich("how-data-arrives.bullets.live", {
                     code: (chunks) => <Code>{chunks}</Code>,
                   }),
                   t.rich("how-data-arrives.bullets.manual", {
@@ -164,6 +170,11 @@ export default async function ProvidersPage({ params }: LocaleParams) {
               />
             </>
           ),
+        },
+        {
+          id: "api-spend-keys",
+          title: t("api-spend-keys.title"),
+          body: <P>{t("api-spend-keys.body")}</P>,
         },
         {
           id: "not-yet",

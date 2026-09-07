@@ -2,93 +2,89 @@
 
 > OpenLimiter is a local first quota meter for AI coding subscriptions. It reads the quota your own machine already knows about, keeps every number bounded, and gives coding agents a budget context block they can act on.
 
-Version 1.2.0. Licence: Apache 2.0. Site: https://openlimiter.com
+Version 1.3.1. Licence: Apache 2.0. Site: https://openlimiter.com
 
-When you hold several AI coding subscriptions at once, the scarce resource stops being money and becomes quota. You have already paid. The question is which of the windows you paid for still has room in it, and OpenLimiter puts that answer in front of the agent that is spending it, as bounded state rather than prose.
+When you hold several AI coding subscriptions at once, the scarce resource stops being money and becomes quota. You have already paid. The question is which of the windows you paid for still has room in it, and OpenLimiter puts that answer in front of you and the agent that is spending it, as bounded state rather than prose.
 
-## What it is
+## Get started
 
-OpenLimiter reads quota data that already exists on your disk or is piped to it, normalises it, caches it locally, and exposes it three ways: to a person on a command line or a screen, and to an agent as a structured budget block injected into that agent's own context. The block carries enum codes, bounded percentages and timestamps only, and it declares itself as untrusted data in its own opening tag.
+Bars are free and need no account. `npx openlimiter`, or a permanent install with `npm install -g openlimiter` then `openlimiter`, walks the same three steps everywhere: sign in, connect, show bars in. Sign in prints a short code and a link to openlimiter.com/app/pair, so the terminal never sees a password, and any step can be skipped. The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect, then bars in the tray. The hub at https://openlimiter.com/app is account first: sign in with GitHub, Google, Microsoft, or a magic link, then connect, then bars.
 
-Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above 100 US dollars a calendar month for each source are Pro. A free account adds sync between your own devices, on from the moment you sign in, and a paid plan called Pro adds four hosted services and two local switches on top of that.
+An account only adds sync: the current percentage on every window, kept current between every device you sign into. Pro adds history, alerts, the phone, more than one account per provider, and cloud metering for API spend keys, opened by a 30 day free trial with no card required.
+
+## Terminal
+
+Claude Code, Grok Build and the Antigravity CLI each draw bars through their own status line. Codex draws its own built in items instead, because a command is the only surface it exposes. Gemini CLI, OpenCode, Kimi and any other terminal read a shell prompt segment. `openlimiter terminal` wires whichever hosts a machine supports and `--yes` wires every one of them at once; `openlimiter terminal install <host>` and `terminal uninstall <host>` wire or restore one host by name. `openlimiter terminal show <provider>` and `terminal hide <provider>` pick which connected providers actually draw a bar. Each cell reads as a tag, a ten block bar, the percentage, and the reset time, with a freshness mark: bare under three minutes old, a leading `~` from three to fifteen minutes, `[?]` at fifteen minutes or older, or when nothing has been read yet.
+
+## Connect
+
+Each provider is read from the login its own tool already stored on disk, at most once every fifteen minutes. Codex can also sign in from inside OpenLimiter, into an account it manages, never touching your own Codex configuration. Claude reads what Claude Code reports through its own status line automatically, with an opt in poll of Anthropic's own usage endpoint, off by default, for when Claude Code is closed. Gemini CLI and Antigravity are read only, each with a plain disclosure sentence in its row, because their vendors' terms bar a third party from proxying that login. OpenRouter signs in with real OAuth, started from the hub; a key you already hold still works. API spend keys, separate from a subscription login, live in this device's operating system keyring by default, or, with opt in cloud metering, encrypted on the server, so the hub and the phone can show spend with no device running.
+
+OpenLimiter never asks for a vendor password: every sign in happens on that vendor's own page, in your own browser. It never impersonates a vendor tool: every request identifies itself as OpenLimiter, never as Claude Code, Codex, or any other client. It never uploads a token: an account syncs the bounded percentages and reset times these readings produce, never the credential that produced them.
+
+## Terminal sign in
+
+`openlimiter login` signs a terminal into your account by device code, approved at openlimiter.com/app/cli; `--open` also opens that link in a browser. `openlimiter sync` uploads one round of cached bars to the hub, and `refresh` already triggers this on its own after a successful round when a session exists. `openlimiter whoami` prints the signed in account and this device's id. `openlimiter logout` forgets the session on this device.
 
 ## What ships today
 
-- Command line tool, published on npm as `openlimiter`. Install it with `npm install -g openlimiter`. Commands include init, snapshot, statusline, hook, hooks, ingest, doctor, demo, export, status and serve.
-- Desktop tray application for Windows, macOS and Linux, built on continuous integration and attached to the GitHub release. Windows and macOS ship unsigned. In SmartScreen, choose More info, then Run anyway. macOS ships as one unsigned universal disk image that runs on Apple silicon and on Intel: open the app once, then open System Settings, go to Privacy and Security, and choose Open Anyway. macOS is excluded from automatic updates until signed and notarised builds exist.
-- Web app at https://openlimiter.com/app. It runs the same engine inside a browser tab. Signed in, it shows the bounded percentages your own devices synced. A document you paste or drop is parsed in the tab and is never uploaded.
-- Progressive web app. The web app installs to a phone or desktop home screen from the browser and keeps working offline. There is no iOS or Android application, nothing is in a store, and there is no waiting list.
-- A free account, with sign in through GitHub, Google, or a magic link sent to your email address. Sync is on from the moment you sign in, because moving your own percentages between your own devices is what signing in is for. It syncs bounded quota readings and nothing else.
-- Phone access by QR pairing. The desktop application shows a code that lives for two minutes, the phone scans it, the desktop approves it, and the phone then holds a read only token. It can never change the account or upload anything, and revoking the device ends its access at once.
-- LAN serving with `openlimiter serve`, which publishes read only quota on your local network behind a token that is generated on every start and never written to disk. It is meant for a trusted home or office network, not for the internet.
+- Command line tool, published on npm as `openlimiter`. Install it with `npm install -g openlimiter`, or run it once with `npx openlimiter`. Commands include setup (the default), login, logout, whoami, sync, init, snapshot, statusline, terminal, refresh, hook, hooks, status, ingest, config, doctor, demo, and export.
+- Desktop tray application for Windows, macOS and Linux, built on continuous integration and attached to the GitHub release. All three ship unsigned for now. In SmartScreen, choose More info, then Run anyway. On macOS, open the app once, then System Settings, Privacy and Security, Open Anyway.
+- Web hub at https://openlimiter.com/app, account first: sign in, connect, bars. Signed in, it shows the bounded percentages your own devices synced.
+- Progressive web app. The hub installs to a phone or desktop home screen from the browser and keeps working offline.
+- An account, with sign in through GitHub, Google, Microsoft, or a magic link sent to your email address. Sync is on from the moment you sign in. It syncs bounded quota readings and nothing else.
+- Phone access by QR pairing from the hub, nothing typed. Add it to a home screen from there: Android offers to install it, iOS uses Share, then Add to Home Screen. A Pro surface.
 - Agent adapters that inject the bounded budget block, installed with `openlimiter hooks install <agent>`.
 
 ## Pro
 
-Pro costs 5 US dollars a month or 50 US dollars a year, with the first 30 days free and no card required. OpenLimiter Pro is sold by Lucas Costa. Checkout runs through Stripe, which acts as the payment processor and calculates tax automatically. A full refund is available on request within 14 days of any charge, and cancellation is self service through the Stripe Customer Portal.
+Pro costs 5 US dollars a month or 50 US dollars a year, with the first 30 days free and no card required. OpenLimiter Pro is sold by Lucas Costa. Checkout runs through Stripe, which acts as the payment processor. A full refund is available on request within 14 days of any charge, and cancellation is self service through the Stripe Customer Portal.
 
-Pro is five features. Three are hosted services and two are switches in the local application:
+Pro adds: every alert (desktop, email and push at 60, 80 and 90 percent of a window, and on reset); ninety days of history with a burn rate forecast; the phone; more than one account per provider; and cloud metering for API spend keys, which the free plan tracks up to 100 US dollars a calendar month for each source without.
 
-- Every alert: a desktop notification, an email and a phone push at 60, 80 and 90 percent of a window, and when a window resets. Hosted.
-- Ninety days of history, with a forecast to the day a window runs out. Hosted.
-- API spend meters, shipped as a labelled beta. The free plan tracks up to 100 US dollars a calendar month for each source and Pro goes above it. It needs an organisation admin or management key and a project key will not work. Hosted.
-- More than one account per provider, unlocked in the local application. The free plan allows one active account per provider. Local.
-- One Pro accent or density preset, applied in the local application. Local.
-
-Moonshot is read as a balance rather than as spend: three separate figures, available, voucher and cash, in the currency the provider states. A balance never becomes a monthly figure, a forecast or a budget alert.
+Moonshot is read as a balance rather than as spend: three separate figures, available, voucher and cash, in the currency the provider states. A balance never becomes a monthly figure, a forecast, or a budget alert.
 
 ## What it never does
 
-- No telemetry from the application. The desktop app, the command line tool and the web app send nothing.
+- No telemetry from the application. The desktop app, the command line tool and the web app send nothing beyond what connecting and syncing requires.
 - The website counts page views without cookies, through Vercel Web Analytics. No profile is built and nothing follows a reader to another site.
-- No collection, storage or forwarding of provider credentials or API keys. They stay in your operating system keyring and are sent only to the provider they belong to, never to OpenLimiter.
-- No writing to what it reads. Every parser opens what your installed tools already stored, read only, and never rewrites, repairs or migrates them.
-- No automatic routing. OpenLimiter produces advice. It does not switch a request, bypass a limit, or touch how an agent authenticates. The decision stays with the person.
-- No invented numbers. When a shape changes, parsing fails closed: that provider returns to unknown, the others are unaffected, and unknown never becomes zero. A gap in history stays a gap and is never interpolated.
+- No collection, storage or forwarding of provider credentials. They stay in your operating system keyring, or, only for an API spend key under opt in cloud metering, encrypted on the server, and are sent only to the provider or the hosted metering job that needs them.
+- No writing to what it reads. Every reader opens what your installed tools already stored, read only, and never rewrites, repairs or migrates it.
+- No automatic routing. OpenLimiter produces advice. It does not switch a request, bypass a limit, or touch how an agent authenticates.
+- No invented numbers. When a shape changes, reading fails closed: that provider returns to unknown, the others are unaffected, and unknown never becomes zero.
 
 ## Connectors
 
-Nine ship in 1.2.0. Every one is marked UNVERIFIED, which means no explicit verifier has confirmed its shape against a live account. In the command line tool no connector performs network access: each one is a parser, and something else has to hand it a document. The desktop application reads Codex, Gemini CLI, Grok, Kimi and OpenRouter live.
+Nine ship in 1.3.1. Every one is marked UNVERIFIED, which means no explicit verifier has confirmed its shape against a live account. `openlimiter refresh` reaches the network for the six connectors that read their own login; the rest are parsers over something already local.
 
-- `claude`: reads the rate limit block of the Claude Code statusline payload. Native payload from a local tool. Low automation risk.
-- `openrouter`: reads a credits response shape from OpenRouter's documented API. Documented API. Low automation risk.
-- `codex`: reads a usage payload the Codex tooling produces. Internal endpoint. May break without notice.
-- `antigravity`: reads a quota payload the Antigravity tooling produces. Internal endpoint. May break without notice.
-- `gemini_cli`: reads the quota buckets the Gemini CLI defines for its own models. Internal endpoint. High automation risk.
-- `grok`: reads the billing response behind the Grok CLI, with its weekly credit window. Internal endpoint. High automation risk.
-- `kimi`: reads the usage response the Kimi CLI defines, with its weekly summary and five hour limit. Internal endpoint. High automation risk.
-- `opencode`: reads a usage view behind a session you already signed in to. Authenticated page. High automation risk. May break.
+- `claude`: reads the Claude Code status line automatically, plus an opt in poll of Anthropic's usage endpoint. Native payload and documented API. Low automation risk.
+- `openrouter`: real OAuth from the hub, then a documented key and usage report. Low automation risk.
+- `codex`: reads the login the Codex CLI stored, or signs in from inside OpenLimiter. Internal endpoint. May break without notice.
+- `antigravity`: read only, from the credential the Antigravity CLI stored. Internal endpoint. May break without notice.
+- `gemini_cli`: read only, from the login the Gemini CLI stored. Internal endpoint. High automation risk.
+- `grok`: reads the login the Grok CLI stored, with its weekly credit window. Internal endpoint. High automation risk.
+- `kimi`: reads the login the Kimi CLI stored, with its weekly summary and five hour limit. Internal endpoint. High automation risk.
+- `opencode`: reads a usage view behind a session you already signed in to, imported through `openlimiter ingest --provider opencode`. Authenticated page. High automation risk. May break.
 - `manual`: reads numbers you write yourself. Manual entry. Never breaks, never guesses.
-
-## Agent adapters
-
-Support means a live fixture was observed delivering the block on a real machine, not that an adapter exists.
-
-- Claude Code: supported from 2.1.257. `openlimiter hooks install claude`.
-- Codex CLI: supported from 0.152.0. `openlimiter hooks install codex`.
-- Gemini CLI: adapter built, gated until a fixture passes.
-- Kimi Code CLI: adapter built, gated. Version 1.50.0 discards what the hook prints.
-- Antigravity CLI: excluded. The installed CLI exposes no hooks subcommand.
-- OpenCode: experimental and off by default, pinned to 1.18.11 and requiring `OPENLIMITER_EXPERIMENTAL_OPENCODE=1`.
-- Grok Build: not supported for injection, because Grok discards what a successful hook prints. Run `openlimiter status --agent-context` instead.
 
 ## Documentation
 
-- [Getting started](https://openlimiter.com/docs): install the tool, run the demo, and wire it into an agent.
+- [Getting started](https://openlimiter.com/docs): sign in, connect, and see your bars in a few minutes.
 - [Why OpenLimiter](https://openlimiter.com/docs/why-openlimiter): the problem it addresses, and why quota rather than cost.
-- [Supported providers](https://openlimiter.com/docs/providers): the nine connectors, what each reads, and how likely each is to break.
-- [Ingestion](https://openlimiter.com/docs/ingestion): the three offline paths that put quota data in front of the tool.
-- [Agent context](https://openlimiter.com/docs/agent-context): what the statusline and the prompt hook inject, which agents receive it, and the boundary that keeps provider text out.
+- [Supported providers](https://openlimiter.com/docs/providers): the nine connectors, how you connect each one, and what it reads.
+- [Connections](https://openlimiter.com/docs/connections): what each connection state and source chip actually means.
+- [Ingestion](https://openlimiter.com/docs/ingestion): the offline paths that put quota data in front of OpenLimiter.
+- [Agent context](https://openlimiter.com/docs/agent-context): the terminal hosts, the bar grammar, and what reaches a coding agent.
 - [Configuration](https://openlimiter.com/docs/configuration): the state directory, the configuration file, the cache, and the agent settings.
 - [CLI reference](https://openlimiter.com/docs/cli): every command, with its flags, its output and its exit codes.
 - [Security and privacy](https://openlimiter.com/docs/security): what is guaranteed, what is deliberately not done, and how to report a problem.
-- [Roadmap](https://openlimiter.com/docs/roadmap): what is planned and not yet built.
+- [Roadmap](https://openlimiter.com/docs/roadmap): what is shipped and what remains planned.
 
 ## Other pages
 
 - [Home](https://openlimiter.com): what the tool is, what it reads, and what reaches an agent.
 - [Pricing](https://openlimiter.com/pricing): what is free, what Pro costs, and what each paid line actually is.
-- [Web app](https://openlimiter.com/app): the browser dashboard, which runs entirely on your device.
+- [Web app](https://openlimiter.com/app): the account first hub, which shows the bars your signed in devices synced.
 - [Download](https://openlimiter.com/download): every way to get it, each row carrying its real state.
 - [Privacy](https://openlimiter.com/privacy): what is collected, where it goes, and how long each thing is kept.
 - [Terms](https://openlimiter.com/terms): the rules for the site and the software, and the billing, cancellation and refund terms.
