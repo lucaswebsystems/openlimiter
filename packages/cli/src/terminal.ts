@@ -1,4 +1,4 @@
-﻿import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { connectors } from "@openlimiter/connectors";
 import {
@@ -70,16 +70,173 @@ function powerShellProfilePath(home: string, platform: NodeJS.Platform): string 
   return path.join(home, ".config", "powershell", "Microsoft.PowerShell_profile.ps1");
 }
 
-async function readJsonFile(filePath: string): Promise<Record<string, unknown> | null> {
+export type TerminalConfigReadResult<T> =
+  | { kind: "missing" }
+  | { kind: "parse_error"; error: unknown }
+  | { kind: "ok"; data: T };
+
+export async function readJsonConfig(filePath: string): Promise<TerminalConfigReadResult<Record<string, unknown>>> {
   try {
     const text = await readFile(filePath, "utf8");
-    const parsed = JSON.parse(text);
-    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
+    try {
+      const parsed = JSON.parse(text);
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        return { kind: "ok", data: parsed as Record<string, unknown> };
+      }
+      return { kind: "parse_error", error: new Error("Not a JSON object") };
+    } catch (err) {
+      return { kind: "parse_error", error: err };
+    }
+  } catch (err: unknown) {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      (err as { code: unknown }).code === "ENOENT"
+    ) {
+      return { kind: "missing" };
+    }
+    return { kind: "parse_error", error: err };
   }
+}
+
+export function validateToml(text: string): boolean {
+  const lines = text.split(/\r?\n/);
+  let inSingleTriple = false;
+  let inDoubleTriple = false;
+  let bracketDepth = 0;
+  let braceDepth = 0;
+
+  for (const line of lines) {
+    let i = 0;
+    let inSingle = false;
+    let inDouble = false;
+    let cleanedLine = "";
+    const wasInsideGroup = bracketDepth > 0 || braceDepth > 0 || inSingleTriple || inDoubleTriple;
+
+    while (i < line.length) {
+      if (inDoubleTriple) {
+        if (line.slice(i, i + 3) === '"""') {
+          inDoubleTriple = false;
+          i += 3;
+          continue;
+        }
+        i++;
+        continue;
+      }
+      if (inSingleTriple) {
+        if (line.slice(i, i + 3) === "'''") {
+          inSingleTriple = false;
+          i += 3;
+          continue;
+        }
+        i++;
+        continue;
+      }
+
+      if (inDouble) {
+        if (line[i] === "\\" && i + 1 < line.length) {
+          i += 2;
+          continue;
+        }
+        if (line[i] === '"') {
+          inDouble = false;
+        }
+        i++;
+        continue;
+      }
+
+      if (inSingle) {
+        if (line[i] === "'") {
+          inSingle = false;
+        }
+        i++;
+        continue;
+      }
+
+      if (line.slice(i, i + 3) === '"""') {
+        inDoubleTriple = true;
+        i += 3;
+        continue;
+      }
+      if (line.slice(i, i + 3) === "'''") {
+        inSingleTriple = true;
+        i += 3;
+        continue;
+      }
+      if (line[i] === '"') {
+        inDouble = true;
+        i++;
+        continue;
+      }
+      if (line[i] === "'") {
+        inSingle = true;
+        i++;
+        continue;
+      }
+      if (line[i] === "#") {
+        break;
+      }
+
+      const ch = line[i];
+      cleanedLine += ch;
+      if (ch === "[") bracketDepth++;
+      else if (ch === "]") {
+        bracketDepth--;
+        if (bracketDepth < 0) return false;
+      } else if (ch === "{") braceDepth++;
+      else if (ch === "}") {
+        braceDepth--;
+        if (braceDepth < 0) return false;
+      }
+      i++;
+    }
+
+    if (inSingle || inDouble) {
+      return false;
+    }
+
+    if (!wasInsideGroup && !inSingleTriple && !inDoubleTriple && bracketDepth === 0 && braceDepth === 0) {
+      const trimmed = cleanedLine.trim();
+      if (trimmed.length > 0) {
+        if (!(trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+          if (!trimmed.includes("=")) {
+            return false;
+          }
+        }
+      }
+    }
+  }
+
+  if (inSingleTriple || inDoubleTriple) return false;
+  if (bracketDepth !== 0 || braceDepth !== 0) return false;
+
+  return true;
+}
+
+export async function readTomlConfig(filePath: string): Promise<TerminalConfigReadResult<string>> {
+  try {
+    const text = await readFile(filePath, "utf8");
+    if (!validateToml(text)) {
+      return { kind: "parse_error", error: new Error("Invalid TOML") };
+    }
+    return { kind: "ok", data: text };
+  } catch (err: unknown) {
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "code" in err &&
+      (err as { code: unknown }).code === "ENOENT"
+    ) {
+      return { kind: "missing" };
+    }
+    return { kind: "parse_error", error: err };
+  }
+}
+
+async function readJsonFile(filePath: string): Promise<Record<string, unknown> | null> {
+  const res = await readJsonConfig(filePath);
+  return res.kind === "ok" ? res.data : null;
 }
 
 async function writeJsonFile(
@@ -110,7 +267,11 @@ export async function installClaude(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
   const settingsFile = claudeSettingsPath(context.homeDirectory);
-  const existing = (await readJsonFile(settingsFile)) ?? {};
+  const readRes = await readJsonConfig(settingsFile);
+  if (readRes.kind === "parse_error") {
+    return { ok: false, message: `Could not read ${settingsFile}, fix it or move it aside` };
+  }
+  const existing = readRes.kind === "ok" ? readRes.data : {};
   const currentStatusLine = existing["statusLine"];
 
   let existingCommand: string | null = null;
@@ -134,6 +295,7 @@ export async function installClaude(
       : `openlimiter statusline --host claude --wrap ${encodeWrappedStatuslineCommand(existingCommand)}`;
   }
 
+  existing["openlimiter managed"] = true;
   existing["statusLine"] = {
     type: "command",
     command: commandToSet
@@ -151,11 +313,15 @@ export async function uninstallClaude(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
   const settingsFile = claudeSettingsPath(context.homeDirectory);
-  const existing = await readJsonFile(settingsFile);
-  if (!existing || !existing["statusLine"]) {
+  const readRes = await readJsonConfig(settingsFile);
+  if (readRes.kind === "parse_error") {
+    return { ok: false, message: `Could not read ${settingsFile}, fix it or move it aside` };
+  }
+  if (readRes.kind === "missing" || !readRes.data["statusLine"]) {
     return { ok: true, message: "Claude Code status line is not installed." };
   }
 
+  const existing = readRes.data;
   const current = existing["statusLine"];
   let cmd: string | null = null;
   if (typeof current === "object" && current !== null) {
@@ -173,12 +339,14 @@ export async function uninstallClaude(
         type: "command",
         command: restored
       };
+      delete existing["openlimiter managed"];
       await writeJsonFile(settingsFile, existing);
       return { ok: true, message: "Restored original Claude Code status line." };
     }
   }
 
   delete existing["statusLine"];
+  delete existing["openlimiter managed"];
   try {
     await writeJsonFile(settingsFile, existing);
     return { ok: true, message: "Uninstalled Claude Code status line." };
@@ -194,7 +362,11 @@ export async function installAntigravity(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
   const settingsFile = antigravitySettingsPath(context.homeDirectory);
-  const existing = (await readJsonFile(settingsFile)) ?? {};
+  const readRes = await readJsonConfig(settingsFile);
+  if (readRes.kind === "parse_error") {
+    return { ok: false, message: `Could not read ${settingsFile}, fix it or move it aside` };
+  }
+  const existing = readRes.kind === "ok" ? readRes.data : {};
   const current = existing["statusLine"];
 
   let existingCommand: string | null = null;
@@ -214,6 +386,7 @@ export async function installAntigravity(
       : `openlimiter statusline --host antigravity --wrap ${encodeWrappedStatuslineCommand(existingCommand)}`;
   }
 
+  existing["openlimiter managed"] = true;
   existing["statusLine"] = commandToSet;
 
   try {
@@ -228,11 +401,15 @@ export async function uninstallAntigravity(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
   const settingsFile = antigravitySettingsPath(context.homeDirectory);
-  const existing = await readJsonFile(settingsFile);
-  if (!existing || !existing["statusLine"]) {
+  const readRes = await readJsonConfig(settingsFile);
+  if (readRes.kind === "parse_error") {
+    return { ok: false, message: `Could not read ${settingsFile}, fix it or move it aside` };
+  }
+  if (readRes.kind === "missing" || !readRes.data["statusLine"]) {
     return { ok: true, message: "Antigravity status line is not installed." };
   }
 
+  const existing = readRes.data;
   const current = existing["statusLine"];
   let cmd: string | null = null;
   if (typeof current === "string") {
@@ -247,12 +424,14 @@ export async function uninstallAntigravity(
     const restored = match?.[1] ? decodeWrappedStatuslineCommand(match[1]) : null;
     if (restored !== null) {
       existing["statusLine"] = restored;
+      delete existing["openlimiter managed"];
       await writeJsonFile(settingsFile, existing);
       return { ok: true, message: "Restored original Antigravity status line." };
     }
   }
 
   delete existing["statusLine"];
+  delete existing["openlimiter managed"];
   try {
     await writeJsonFile(settingsFile, existing);
     return { ok: true, message: "Uninstalled Antigravity status line." };
@@ -268,12 +447,20 @@ export async function installGrok(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
   const configFile = grokConfigPath(context.homeDirectory);
-  const text = (await readTextFile(configFile)) ?? "";
+  const readRes = await readTomlConfig(configFile);
+  if (readRes.kind === "parse_error") {
+    return { ok: false, message: `Could not read ${configFile}, fix it or move it aside` };
+  }
+  const text = readRes.kind === "ok" ? readRes.data : "";
 
+  const sectionMatch = /(?:^|\n)(\[ui\.status_line\][\s\S]*?)(?=\n\[|$)/.exec(text);
   let existingCommand: string | null = null;
-  const match = /command\s*=\s*"([^"]+)"/.exec(text);
-  if (match && match[1]) {
-    existingCommand = match[1];
+  const rawSection = sectionMatch?.[1];
+  if (sectionMatch && rawSection !== undefined) {
+    const cmdMatch = /command\s*=\s*"([^"]+)"/.exec(rawSection);
+    if (cmdMatch && cmdMatch[1]) {
+      existingCommand = cmdMatch[1];
+    }
   }
 
   /* See installClaude: an already installed command, wrapped or not, is
@@ -285,23 +472,36 @@ export async function installGrok(
       : `openlimiter statusline --host grok --wrap ${encodeWrappedStatuslineCommand(existingCommand)}`;
   }
 
-  const statusLineSection = [
-    "[ui.status_line]",
-    'type = "command"',
-    `command = "${commandToSet}"`
-  ].join("\n");
-
   let updated: string;
-  if (text.includes("[ui.status_line]")) {
-    /*
-     * Matches up to the next top level table header (a "[" that starts its
-     * own line) or the end of the file, never up to the next "[" anywhere:
-     * Grok's own documented config carries an `items` array, and a value
-     * with a bracket in it is exactly the shape `[^\[]*` truncates on.
-     */
-    updated = text.replace(/\[ui\.status_line\][\s\S]*?(?=\n\[|$)/, statusLineSection + "\n");
+  if (sectionMatch && rawSection !== undefined) {
+    let section = rawSection
+      .replace(/[ \t]*# openlimiter managed\r?\n?/g, "")
+      .replace(/[ \t]*type\s*=\s*"[^"]*"\r?\n?/g, "")
+      .replace(/[ \t]*command\s*=\s*"[^"]*"\r?\n?/g, "");
+
+    const lines = section.split(/\r?\n/);
+    const header = lines[0] ?? "";
+    const rest = lines.slice(1).filter((l) => l.trim().length > 0);
+    const managedLines = [
+      "# openlimiter managed",
+      'type = "command"',
+      `command = "${commandToSet}"`
+    ];
+    const newSection = [header, ...managedLines, ...rest].join("\n");
+    const startIndex = sectionMatch.index + (text[sectionMatch.index] === "\n" ? 1 : 0);
+    updated = text.slice(0, startIndex) + newSection + text.slice(sectionMatch.index + sectionMatch[0].length);
   } else {
-    updated = text ? text.trimEnd() + "\n\n" + statusLineSection + "\n" : statusLineSection + "\n";
+    const managedSection = [
+      "[ui.status_line]",
+      "# openlimiter managed",
+      'type = "command"',
+      `command = "${commandToSet}"`
+    ].join("\n");
+    updated = text ? text.trimEnd() + "\n\n" + managedSection + "\n" : managedSection + "\n";
+  }
+
+  if (!updated.endsWith("\n")) {
+    updated += "\n";
   }
 
   try {
@@ -316,12 +516,62 @@ export async function uninstallGrok(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
   const configFile = grokConfigPath(context.homeDirectory);
-  const text = await readTextFile(configFile);
-  if (!text || !text.includes("[ui.status_line]")) {
+  const readRes = await readTomlConfig(configFile);
+  if (readRes.kind === "parse_error") {
+    return { ok: false, message: `Could not read ${configFile}, fix it or move it aside` };
+  }
+  if (readRes.kind === "missing") {
+    return { ok: true, message: "Grok status line is not installed." };
+  }
+  const text = readRes.data;
+  const sectionMatch = /(?:^|\n)(\[ui\.status_line\][\s\S]*?)(?=\n\[|$)/.exec(text);
+  if (!sectionMatch || sectionMatch[1] === undefined) {
     return { ok: true, message: "Grok status line is not installed." };
   }
 
-  const updated = text.replace(/\[ui\.status_line\][\s\S]*?(?=\n\[|$)/, "").trimEnd() + "\n";
+  const section = sectionMatch[1];
+  const cmdMatch = /command\s*=\s*"([^"]+)"/.exec(section);
+  const cmd = cmdMatch?.[1] ?? null;
+
+  const startIndex = sectionMatch.index + (text[sectionMatch.index] === "\n" ? 1 : 0);
+
+  if (cmd !== null && cmd.includes("--wrap")) {
+    const match = /--wrap\s+([A-Za-z0-9_-]+)/.exec(cmd);
+    const restored = match?.[1] ? decodeWrappedStatuslineCommand(match[1]) : null;
+    if (restored !== null) {
+      let updatedSection = section.replace(/[ \t]*# openlimiter managed\r?\n?/g, "");
+      updatedSection = updatedSection.replace(
+        /command\s*=\s*"[^"]*"/,
+        `command = "${restored}"`
+      );
+      const updated = text.slice(0, startIndex) + updatedSection + text.slice(sectionMatch.index + sectionMatch[0].length);
+      try {
+        await writeTextFile(configFile, updated);
+        return { ok: true, message: "Restored original Grok status line." };
+      } catch {
+        return { ok: false, message: "Could not update Grok config." };
+      }
+    }
+  }
+
+  let updatedSection = section
+    .replace(/[ \t]*# openlimiter managed\r?\n?/g, "")
+    .replace(/[ \t]*type\s*=\s*"[^"]*"\r?\n?/g, "")
+    .replace(/[ \t]*command\s*=\s*"[^"]*"\r?\n?/g, "");
+
+  const lines = updatedSection.split(/\r?\n/);
+  const rest = lines.slice(1).filter((l) => l.trim().length > 0);
+
+  let updated: string;
+  if (rest.length === 0) {
+    const before = text.slice(0, startIndex).trimEnd();
+    const after = text.slice(sectionMatch.index + sectionMatch[0].length).trimStart();
+    updated = before && after ? before + "\n\n" + after : (before || after ? (before || after) + "\n" : "");
+  } else {
+    const newSection = [lines[0] ?? "", ...rest].join("\n");
+    updated = text.slice(0, startIndex) + newSection + text.slice(sectionMatch.index + sectionMatch[0].length);
+  }
+
   try {
     await writeTextFile(configFile, updated);
     return { ok: true, message: "Uninstalled Grok status line." };
@@ -337,22 +587,40 @@ export async function installCodex(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
   const configFile = codexConfigPath(context.homeDirectory);
-  const text = (await readTextFile(configFile)) ?? "";
+  const readRes = await readTomlConfig(configFile);
+  if (readRes.kind === "parse_error") {
+    return { ok: false, message: `Could not read ${configFile}, fix it or move it aside` };
+  }
+  const text = readRes.kind === "ok" ? readRes.data : "";
 
-  const codexSection = [
-    "[tui]",
+  const codexManagedLines = [
+    "# openlimiter managed",
     'status_line = ["five-hour-limit", "weekly-limit", "context-used", "model-with-reasoning", "current-dir"]',
     "status_line_use_colors = true"
-  ].join("\n");
+  ];
 
+  const sectionMatch = /(?:^|\n)(\[tui\][\s\S]*?)(?=\n\[|$)/.exec(text);
   let updated: string;
-  if (text.includes("[tui]")) {
-    /* See installGrok: matches up to the next top level table header or the
-       end of the file, never up to the next "[" anywhere, because the
-       status_line array this build writes carries brackets of its own. */
-    updated = text.replace(/\[tui\][\s\S]*?(?=\n\[|$)/, codexSection + "\n");
+  const rawSection = sectionMatch?.[1];
+  if (sectionMatch && rawSection !== undefined) {
+    let section = rawSection
+      .replace(/[ \t]*# openlimiter managed\r?\n?/g, "")
+      .replace(/[ \t]*status_line\s*=[\s\S]*?\]\r?\n?/g, "")
+      .replace(/[ \t]*status_line_use_colors\s*=\s*(?:true|false)\r?\n?/g, "");
+
+    const lines = section.split(/\r?\n/);
+    const header = lines[0] ?? "";
+    const rest = lines.slice(1).filter((l) => l.trim().length > 0);
+    const newSection = [header, ...codexManagedLines, ...rest].join("\n");
+    const startIndex = sectionMatch.index + (text[sectionMatch.index] === "\n" ? 1 : 0);
+    updated = text.slice(0, startIndex) + newSection + text.slice(sectionMatch.index + sectionMatch[0].length);
   } else {
-    updated = text ? text.trimEnd() + "\n\n" + codexSection + "\n" : codexSection + "\n";
+    const newSection = ["[tui]", ...codexManagedLines].join("\n");
+    updated = text ? text.trimEnd() + "\n\n" + newSection + "\n" : newSection + "\n";
+  }
+
+  if (!updated.endsWith("\n")) {
+    updated += "\n";
   }
 
   try {
@@ -367,12 +635,39 @@ export async function uninstallCodex(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
   const configFile = codexConfigPath(context.homeDirectory);
-  const text = await readTextFile(configFile);
-  if (!text || !text.includes("[tui]")) {
+  const readRes = await readTomlConfig(configFile);
+  if (readRes.kind === "parse_error") {
+    return { ok: false, message: `Could not read ${configFile}, fix it or move it aside` };
+  }
+  if (readRes.kind === "missing") {
+    return { ok: true, message: "Codex status line is not installed." };
+  }
+  const text = readRes.data;
+  const sectionMatch = /(?:^|\n)(\[tui\][\s\S]*?)(?=\n\[|$)/.exec(text);
+  if (!sectionMatch || sectionMatch[1] === undefined) {
     return { ok: true, message: "Codex status line is not installed." };
   }
 
-  const updated = text.replace(/\[tui\][\s\S]*?(?=\n\[|$)/, "").trimEnd() + "\n";
+  let section = sectionMatch[1];
+  section = section
+    .replace(/[ \t]*# openlimiter managed\r?\n?/g, "")
+    .replace(/[ \t]*status_line\s*=[\s\S]*?\]\r?\n?/g, "")
+    .replace(/[ \t]*status_line_use_colors\s*=\s*(?:true|false)\r?\n?/g, "");
+
+  const lines = section.split(/\r?\n/);
+  const rest = lines.slice(1).filter((l) => l.trim().length > 0);
+
+  let updated: string;
+  const startIndex = sectionMatch.index + (text[sectionMatch.index] === "\n" ? 1 : 0);
+  if (rest.length === 0) {
+    const before = text.slice(0, startIndex).trimEnd();
+    const after = text.slice(sectionMatch.index + sectionMatch[0].length).trimStart();
+    updated = before && after ? before + "\n\n" + after : (before || after ? (before || after) + "\n" : "");
+  } else {
+    const newSection = [lines[0] ?? "", ...rest].join("\n");
+    updated = text.slice(0, startIndex) + newSection + text.slice(sectionMatch.index + sectionMatch[0].length);
+  }
+
   try {
     await writeTextFile(configFile, updated);
     return { ok: true, message: "Uninstalled Codex status line." };
@@ -680,6 +975,27 @@ export async function terminalHide(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
   const config = await loadTerminalConfig(context);
+
+  const detected = new Set(
+    (context.detectedProviders ?? config.connectors.filter((c) => c.detected).map((c) => c.id)).map((id) =>
+      id.toLowerCase()
+    )
+  );
+
+  const invalid: string[] = [];
+  for (const id of providerIds) {
+    const lower = id.toLowerCase();
+    if (!detected.has(lower)) {
+      invalid.push(lower);
+    }
+  }
+
+  if (invalid.length > 0) {
+    return {
+      ok: false,
+      message: CONNECT_FIRST_SENTENCE
+    };
+  }
 
   let currentShow: string[];
   if (config.statusline.show.length === 0) {

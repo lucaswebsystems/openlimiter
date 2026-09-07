@@ -185,15 +185,21 @@ export function parseAntigravityStatuslinePayload(
     let meterCode: string;
     let durationSeconds = 18_000;
     const idLower = bucketId.toLowerCase();
-    if (idLower.includes("5h")) {
+    if (idLower === "gemini-5h" || idLower === "3p-5h" || idLower.endsWith("-5h") || idLower.includes("5h")) {
       meterCode = "FIVE_HOUR";
       durationSeconds = 18_000;
-    } else if (idLower.includes("weekly") || idLower.includes("7d")) {
+    } else if (
+      idLower === "gemini-weekly" ||
+      idLower === "3p-weekly" ||
+      idLower.endsWith("-weekly") ||
+      idLower.includes("weekly") ||
+      idLower.includes("7d")
+    ) {
       meterCode = "SEVEN_DAY";
       durationSeconds = 604_800;
     } else {
-      meterCode = bucketId.toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-      durationSeconds = 86_400;
+      // Drop unknown bucket IDs; do not fabricate fake meters
+      continue;
     }
 
     const resetTime = typeof b["reset_time"] === "string"
@@ -201,9 +207,18 @@ export function parseAntigravityStatuslinePayload(
       : typeof b["resetTime"] === "string"
         ? b["resetTime"]
         : null;
-    const resetAt = resetTime && !Number.isNaN(Date.parse(resetTime))
-      ? new Date(resetTime).toISOString()
-      : undefined;
+    const resetInSeconds = typeof b["reset_in_seconds"] === "number"
+      ? b["reset_in_seconds"]
+      : typeof b["resetInSeconds"] === "number"
+        ? b["resetInSeconds"]
+        : null;
+
+    let resetAt: string | undefined = undefined;
+    if (resetTime && !Number.isNaN(Date.parse(resetTime))) {
+      resetAt = new Date(resetTime).toISOString();
+    } else if (resetInSeconds !== null && !Number.isNaN(resetInSeconds) && resetInSeconds >= 0) {
+      resetAt = new Date(new Date(now).getTime() + resetInSeconds * 1000).toISOString();
+    }
 
     const expiresAt = new Date(new Date(now).getTime() + 300_000).toISOString();
 

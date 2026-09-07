@@ -6,12 +6,14 @@ import {
   CELL_GAP,
   DEFAULT_PROVIDER_ORDER,
   STATUSLINE_UNKNOWN,
+  barStyleCells,
   meterClass,
   renderStatuslineLayout,
   resolveProviderOrder,
   statuslineCells,
   statuslineColor,
-  statuslineHead
+  statuslineHead,
+  windowCode
 } from "../src/statusline.js";
 
 /* The escape character, built from its code point so no control byte ever
@@ -448,5 +450,81 @@ describe("colour", () => {
       expect(statuslineColor(setting, { NO_COLOR: "" }, true)).toBe(false);
       expect(statuslineColor(setting, { NO_COLOR: "1" }, true)).toBe(false);
     }
+  });
+});
+
+describe("statusline bar rendering window codes and unknown cells", () => {
+  it("maps ON_DEMAND_MONTHLY and MONTH meters to mo", () => {
+    const onDemandSnapshot: Snapshot = {
+      provider: "GROK",
+      meter: "ON_DEMAND_MONTHLY",
+      value: 6,
+      unit: "PERCENT",
+      window: { kind: "rolling" },
+      resetAt: null,
+      source: "native_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: EXPIRES,
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "native-statusline-payload",
+        automationRisk: "low",
+        verification: "UNVERIFIED"
+      }
+    };
+    expect(windowCode(onDemandSnapshot)).toBe("mo");
+
+    const manualMonthSnapshot: Snapshot = {
+      ...onDemandSnapshot,
+      provider: "MANUAL",
+      meter: "MONTH"
+    };
+    expect(windowCode(manualMonthSnapshot)).toBe("mo");
+  });
+
+  it("renders explicit [?] cell when windowCode returns empty string", () => {
+    const unrecognisedWindowSnapshot: Snapshot = {
+      provider: "GROK",
+      meter: "UNRECOGNISED_CUSTOM_METER",
+      value: 50,
+      unit: "PERCENT",
+      window: { kind: "unknown" },
+      resetAt: null,
+      source: "native_payload",
+      precision: "exact",
+      observedAt: NOW,
+      expiresAt: EXPIRES,
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "native-statusline-payload",
+        automationRisk: "low",
+        verification: "UNVERIFIED"
+      }
+    };
+    expect(windowCode(unrecognisedWindowSnapshot)).toBe("");
+
+    const cells = barStyleCells(
+      [unrecognisedWindowSnapshot],
+      NOW,
+      ["GROK"],
+      "claude",
+      ["grok"],
+      "worst",
+      false
+    );
+    expect(cells).toHaveLength(1);
+    expect(cells[0]?.plain).toBe("gk [?]");
+
+    const paintedCells = barStyleCells(
+      [unrecognisedWindowSnapshot],
+      NOW,
+      ["GROK"],
+      "claude",
+      ["grok"],
+      "worst",
+      true
+    );
+    expect(paintedCells[0]?.painted).toContain("\x1b[31m[?]\x1b[0m");
   });
 });

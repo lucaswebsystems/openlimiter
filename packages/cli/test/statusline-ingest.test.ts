@@ -40,6 +40,7 @@ afterEach(async () => {
 interface CachedRow {
   provider: string;
   meter: string;
+  resetAt?: string;
   provenance?: { sourceKind: string; observedVia: string };
 }
 
@@ -63,13 +64,16 @@ function antigravityStatuslinePayload(now: string): Record<string, unknown> {
     quota: {
       "gemini-5h": {
         remaining_fraction: 0.73,
-        reset_time: new Date(new Date(now).getTime() + 5 * 3_600_000).toISOString(),
         reset_in_seconds: 18_000
       },
       "gemini-weekly": {
         remaining_fraction: 0.76,
         reset_time: new Date(new Date(now).getTime() + 7 * 86_400_000).toISOString(),
         reset_in_seconds: 604_800
+      },
+      "unknown-experimental-bucket": {
+        remaining_fraction: 0.5,
+        reset_in_seconds: 3_600
       }
     }
   };
@@ -104,7 +108,14 @@ describe("statusline ingestion by host", () => {
     });
     expect(result.exitCode).toBe(0);
     const rows = await cachedRows(directory);
+    // Unknown bucket was dropped; only recognized FIVE_HOUR and SEVEN_DAY kept
     expect(rows.map((row) => row.meter).sort()).toEqual(["FIVE_HOUR", "SEVEN_DAY"]);
+    const fiveHourRow = rows.find((r) => r.meter === "FIVE_HOUR");
+    expect(fiveHourRow).toBeDefined();
+    // resetAt derived from reset_in_seconds when reset_time is absent
+    const expectedReset = new Date(new Date(FIXTURE_NOW).getTime() + 18_000 * 1000).toISOString();
+    expect(fiveHourRow?.resetAt).toBe(expectedReset);
+
     for (const row of rows) {
       expect(row.provider).toBe("ANTIGRAVITY");
       expect(row.provenance).toEqual({

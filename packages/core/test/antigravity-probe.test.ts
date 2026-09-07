@@ -1,8 +1,13 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   AGY_NOT_RUNNING_SENTENCE,
+  MAX_AGY_RESPONSE_BYTES,
+  TOTAL_AGY_PROBE_DEADLINE_MS,
   enumerateAgyListeningPorts,
+  isTrustedAgyExecutable,
   parseAgyQuotaSummary,
+  parseLoopbackPort,
+  parseNetstatPorts,
   probeAntigravity
 } from "../src/acquire/antigravity-probe.js";
 import { runAcquisition } from "../src/acquire/runner.js";
@@ -123,10 +128,21 @@ describe("Antigravity loopback probe", () => {
   });
 
   it("enumerates ports on macOS/Linux via stubbed lsof", async () => {
-    const mockRunner = async () => ({
-      ok: true as const,
-      stdout: "agy  29012 user  4u  IPv4  0x1234  0t0  TCP 127.0.0.1:44321 (LISTEN)\n"
-    });
+    const mockRunner = async (executable: string) => {
+      if (executable === "lsof") {
+        return {
+          ok: true as const,
+          stdout: "agy  29012 user  4u  IPv4  0x1234  0t0  TCP 127.0.0.1:44321 (LISTEN)\n"
+        };
+      }
+      if (executable === "ps") {
+        return {
+          ok: true as const,
+          stdout: "/opt/agy\n"
+        };
+      }
+      return { ok: false as const };
+    };
 
     const ports = await enumerateAgyListeningPorts({
       platform: "darwin",
@@ -197,5 +213,116 @@ describe("Antigravity loopback probe", () => {
     expect(result.rows[0]?.status).toBe("stale");
     expect(result.rows[0]?.reason).toBe(AGY_NOT_RUNNING_SENTENCE);
     expect(result.reports).toHaveLength(0);
+  });
+
+  it("parses netstat output language-agnostically with wildcard peer check", () => {
+    const ptNetstat = [
+      "  TCP    127.0.0.1:45678        0.0.0.0:0              ESCUTANDO       1001",
+      "  TCP    [::1]:45679            [::]:0                 ESCUTANDO       1001",
+      "  TCP    127.0.0.1:8080         192.168.1.5:54321      ESTABELECIDA    1001",
+      "  TCP    127.0.0.1:9999         0.0.0.0:0              ESCUTANDO       9999"
+    ].join("\r\n");
+    expect(parseNetstatPorts(ptNetstat, ["1001"])).toEqual([45678, 45679]);
+
+    const deNetstat = [
+      "  TCP    127.0.0.1:33333        0.0.0.0:0              ABHÖREN         2002",
+      "  TCP    192.168.1.10:33333     0.0.0.0:0              ABHÖREN         2002"
+    ].join("\r\n");
+    expect(parseNetstatPorts(deNetstat, ["2002"])).toEqual([33333]);
+  });
+
+  it("validates trusted agy executable paths against install roots", () => {
+    const winRoots = [
+      "C:\\Users\\lucas\\AppData\\Local",
+      "C:\\Program Files",
+      "C:\\Users\\lucas\\AppData\\Local\\Programs"
+    ];
+    expect(
+      isTrustedAgyExecutable("C:\\Program Files\\Antigravity\\agy.exe", "win32", winRoots)
+    ).toBe(true);
+    expect(
+      isTrustedAgyExecutable("C:\\Users\\lucas\\AppData\\Local\\Programs\\agy.exe", "win32", winRoots)
+    ).toBe(true);
+
+    expect(isTrustedAgyExecutable("C:\\Downloads\\agy.exe", "win32", winRoots)).toBe(false);
+    expect(isTrustedAgyExecutable("C:\\Temp\\agy.exe", "win32", winRoots)).toBe(false);
+    expect(isTrustedAgyExecutable("agy.exe", "win32", winRoots)).toBe(false);
+    expect(
+      isTrustedAgyExecutable("C:\\Program Files\\..\\Downloads\\agy.exe", "win32", winRoots)
+    ).toBe(false);
+    expect(
+      isTrustedAgyExecutable("C:\\Program Files\\Antigravity\\other.exe", "win32", winRoots)
+    ).toBe(false);
+
+    const unixRoots = ["/usr/bin", "/opt", "/home/user/.local"];
+    expect(isTrustedAgyExecutable("/usr/bin/agy", "linux", unixRoots)).toBe(true);
+    expect(isTrustedAgyExecutable("/opt/google/agy", "linux", unixRoots)).toBe(true);
+    expect(isTrustedAgyExecutable("/tmp/agy", "linux", unixRoots)).toBe(false);
+  });
+
+  it("verifies PID and executable path through PowerShell CIM query", async () => {
+    const mockCimRunner = async (cmd: string) => {
+      if (cmd === "powershell.exe") {
+        return {
+          ok: true as const,
+          stdout: "31415|C:\\Users\\lucas\\AppData\\Local\\Programs\\Antigravity\\agy.exe\r\n"
+        };
+      }
+      if (cmd === "netstat.exe") {
+        return {
+          ok: true as const,
+          stdout: "  TCP    127.0.0.1:41414        0.0.0.0:0              LISTENING       31415\r\n"
+        };
+      }
+      return { ok: false as const };
+    };
+
+    const ports = await enumerateAgyListeningPorts({
+      platform: "win32",
+      runCommand: mockCimRunner,
+      env: {
+        USERPROFILE: "C:\\Users\\lucas"
+      }
+    });
+    expect(ports).toEqual([41414]);
+
+    const mockUntrustedRunner = async (cmd: string) => {
+      if (cmd === "powershell.exe") {
+        return {
+          ok: true as const,
+          stdout: "31415|C:\\Malicious\\agy.exe\r\n"
+        };
+      }
+      return { ok: false as const };
+    };
+    const untrustedPorts = await enumerateAgyListeningPorts({
+      platform: "win32",
+      runCommand: mockUntrustedRunner
+    });
+    expect(untrustedPorts).toEqual([]);
+  });
+
+  it("enforces 64 KB response size cap in probeAntigravity", async () => {
+    const result = await probeAntigravity({
+      now: NOW,
+      enumeratePorts: async () => [57737],
+      probePort: async () => null
+    });
+    expect(result).toEqual({ ok: false, reason: "unreachable" });
+    expect(MAX_AGY_RESPONSE_BYTES).toBe(64 * 1024);
+  });
+
+  it("enforces overall probe deadline across ports", async () => {
+    expect(TOTAL_AGY_PROBE_DEADLINE_MS).toBe(5_000);
+    const result = await probeAntigravity({
+      now: NOW,
+      totalDeadlineMs: 50,
+      enumeratePorts: async () => [11111, 22222],
+      probePort: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return SAMPLE_SUMMARY_PAYLOAD;
+      }
+    });
+    expect(result).toEqual({ ok: false, reason: "unreachable" });
   });
 });

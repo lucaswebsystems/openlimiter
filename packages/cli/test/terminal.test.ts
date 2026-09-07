@@ -14,6 +14,7 @@ import {
   terminalShow,
   terminalStatusTable,
   uninstallHost,
+  validateToml,
   type TerminalHostContext
 } from "../src/terminal.js";
 import { CONFIG_FILE_NAME, runCli } from "../src/index.js";
@@ -168,7 +169,8 @@ describe("terminal host installers", () => {
     await uninstallHost("grok", ctx);
     const restored = await readFile(configFile, "utf8");
     expect(restored).toContain("[some.other.table]");
-    expect(restored).not.toContain("[ui.status_line]");
+    expect(restored).toContain("[ui.status_line]");
+    expect(restored).toContain('command = "their-own-line"');
   });
 
   it("round trips Codex's built in [tui] status line items", async () => {
@@ -346,5 +348,171 @@ describe("openlimiter terminal (CLI dispatch)", () => {
       const result = await runCli(["terminal", action], { homeDirectory: home });
       expect(result.exitCode).toBe(2);
     }
+  });
+
+  it("hide rejects unrecognized or unconnected provider ids", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const stateDirectory = await temporaryDirectory("openlimiter-terminal-state-");
+    const ctx: TerminalHostContext = {
+      homeDirectory: home,
+      stateDirectory,
+      platform: "win32",
+      detectedProviders: ["claude"]
+    };
+
+    const direct = await terminalHide(["unknown-provider"], ctx);
+    expect(direct.ok).toBe(false);
+    expect(direct.message).toBe(CONNECT_FIRST_SENTENCE);
+
+    const cli = await runCli(["terminal", "hide", "unconnected"], {
+      homeDirectory: home,
+      stateDirectory,
+      environment: {}
+    });
+    expect(cli.exitCode).toBe(2);
+    expect(cli.stderr).toContain(CONNECT_FIRST_SENTENCE);
+  });
+});
+
+describe("terminal fail safely on malformed JSON/TOML and preserve user keys", () => {
+  it("validates TOML syntax checking brackets, braces, quotes, and missing equals", () => {
+    expect(validateToml('foo = "bar"\n[section]\nkey = 123')).toBe(true);
+    expect(validateToml('array = [\n  "one",\n  "two"\n]')).toBe(true);
+    expect(validateToml('inline = { a = 1, b = 2 }')).toBe(true);
+    expect(validateToml('# comment\n\nkey = "val"')).toBe(true);
+
+    expect(validateToml('foo = "bar')).toBe(false);
+    expect(validateToml('array = [1, 2')).toBe(false);
+    expect(validateToml('table = { a = 1')).toBe(false);
+    expect(validateToml('broken line without equals')).toBe(false);
+    expect(validateToml('[ui.status_line]\ninvalid_entry')).toBe(false);
+  });
+
+  it("refuses to install or uninstall when JSON is malformed", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const ctx = await context(home);
+    const claudeFile = path.join(home, ".claude", "settings.json");
+    await mkdir(path.dirname(claudeFile), { recursive: true });
+    await writeFile(claudeFile, "{ invalid json", "utf8");
+
+    const installResult = await installHost("claude", ctx);
+    expect(installResult.ok).toBe(false);
+    expect(installResult.message).toBe(`Could not read ${claudeFile}, fix it or move it aside`);
+
+    const uninstallResult = await uninstallHost("claude", ctx);
+    expect(uninstallResult.ok).toBe(false);
+    expect(uninstallResult.message).toBe(`Could not read ${claudeFile}, fix it or move it aside`);
+  });
+
+  it("refuses to install or uninstall when TOML is malformed", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const ctx = await context(home);
+    const grokFile = path.join(home, ".grok", "config.toml");
+    await mkdir(path.dirname(grokFile), { recursive: true });
+    await writeFile(grokFile, "[ui.status_line]\nmalformed line", "utf8");
+
+    const installResult = await installHost("grok", ctx);
+    expect(installResult.ok).toBe(false);
+    expect(installResult.message).toBe(`Could not read ${grokFile}, fix it or move it aside`);
+
+    const uninstallResult = await uninstallHost("grok", ctx);
+    expect(uninstallResult.ok).toBe(false);
+    expect(uninstallResult.message).toBe(`Could not read ${grokFile}, fix it or move it aside`);
+
+    const codexFile = path.join(home, ".codex", "config.toml");
+    await mkdir(path.dirname(codexFile), { recursive: true });
+    await writeFile(codexFile, 'unclosed = "string', "utf8");
+
+    const codexInstall = await installHost("codex", ctx);
+    expect(codexInstall.ok).toBe(false);
+    expect(codexInstall.message).toBe(`Could not read ${codexFile}, fix it or move it aside`);
+  });
+
+  it("preserves sibling user keys in Claude and Antigravity JSON settings", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const ctx = await context(home);
+    const claudeFile = path.join(home, ".claude", "settings.json");
+    await mkdir(path.dirname(claudeFile), { recursive: true });
+    await writeFile(claudeFile, JSON.stringify({ theme: "solarized", fontSize: 14 }), "utf8");
+
+    await installHost("claude", ctx);
+    const afterClaudeInstall = JSON.parse(await readFile(claudeFile, "utf8")) as Record<string, unknown>;
+    expect(afterClaudeInstall["theme"]).toBe("solarized");
+    expect(afterClaudeInstall["fontSize"]).toBe(14);
+    expect(afterClaudeInstall["openlimiter managed"]).toBe(true);
+
+    await uninstallHost("claude", ctx);
+    const afterClaudeUninstall = JSON.parse(await readFile(claudeFile, "utf8")) as Record<string, unknown>;
+    expect(afterClaudeUninstall["theme"]).toBe("solarized");
+    expect(afterClaudeUninstall["fontSize"]).toBe(14);
+    expect(afterClaudeUninstall["statusLine"]).toBeUndefined();
+    expect(afterClaudeUninstall["openlimiter managed"]).toBeUndefined();
+
+    const agyFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
+    await mkdir(path.dirname(agyFile), { recursive: true });
+    await writeFile(agyFile, JSON.stringify({ theme: "dark", autoUpdate: false }), "utf8");
+
+    await installHost("antigravity", ctx);
+    const afterAgyInstall = JSON.parse(await readFile(agyFile, "utf8")) as Record<string, unknown>;
+    expect(afterAgyInstall["theme"]).toBe("dark");
+    expect(afterAgyInstall["autoUpdate"]).toBe(false);
+    expect(afterAgyInstall["openlimiter managed"]).toBe(true);
+
+    await uninstallHost("antigravity", ctx);
+    const afterAgyUninstall = JSON.parse(await readFile(agyFile, "utf8")) as Record<string, unknown>;
+    expect(afterAgyUninstall["theme"]).toBe("dark");
+    expect(afterAgyUninstall["autoUpdate"]).toBe(false);
+    expect(afterAgyUninstall["statusLine"]).toBeUndefined();
+    expect(afterAgyUninstall["openlimiter managed"]).toBeUndefined();
+  });
+
+  it("preserves sibling user keys in Grok and Codex TOML configs", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const ctx = await context(home);
+    const grokFile = path.join(home, ".grok", "config.toml");
+    await mkdir(path.dirname(grokFile), { recursive: true });
+    await writeFile(
+      grokFile,
+      ['[ui.status_line]', 'refresh_rate = 10', 'show_icons = true'].join("\n"),
+      "utf8"
+    );
+
+    await installHost("grok", ctx);
+    const afterGrokInstall = await readFile(grokFile, "utf8");
+    expect(afterGrokInstall).toContain("refresh_rate = 10");
+    expect(afterGrokInstall).toContain("show_icons = true");
+    expect(afterGrokInstall).toContain("# openlimiter managed");
+    expect(afterGrokInstall).toContain('command = "openlimiter statusline --host grok"');
+
+    await uninstallHost("grok", ctx);
+    const afterGrokUninstall = await readFile(grokFile, "utf8");
+    expect(afterGrokUninstall).toContain("[ui.status_line]");
+    expect(afterGrokUninstall).toContain("refresh_rate = 10");
+    expect(afterGrokUninstall).toContain("show_icons = true");
+    expect(afterGrokUninstall).not.toContain("# openlimiter managed");
+    expect(afterGrokUninstall).not.toContain("openlimiter statusline");
+
+    const codexFile = path.join(home, ".codex", "config.toml");
+    await mkdir(path.dirname(codexFile), { recursive: true });
+    await writeFile(
+      codexFile,
+      ['[tui]', 'model = "gpt-4"', 'auto_scroll = false'].join("\n"),
+      "utf8"
+    );
+
+    await installHost("codex", ctx);
+    const afterCodexInstall = await readFile(codexFile, "utf8");
+    expect(afterCodexInstall).toContain('model = "gpt-4"');
+    expect(afterCodexInstall).toContain("auto_scroll = false");
+    expect(afterCodexInstall).toContain("# openlimiter managed");
+    expect(afterCodexInstall).toContain("status_line = [");
+
+    await uninstallHost("codex", ctx);
+    const afterCodexUninstall = await readFile(codexFile, "utf8");
+    expect(afterCodexUninstall).toContain("[tui]");
+    expect(afterCodexUninstall).toContain('model = "gpt-4"');
+    expect(afterCodexUninstall).toContain("auto_scroll = false");
+    expect(afterCodexUninstall).not.toContain("# openlimiter managed");
+    expect(afterCodexUninstall).not.toContain("status_line = [");
   });
 });

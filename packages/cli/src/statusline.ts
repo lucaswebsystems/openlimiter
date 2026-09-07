@@ -405,6 +405,7 @@ export function windowCode(snapshot: Snapshot): string {
   }
   const duration = snapshot.window.durationSeconds;
   const meterName = snapshot.meter.toUpperCase();
+  if (meterName.includes("MONTH") || meterName === "ON_DEMAND_MONTHLY") return "mo";
   if (duration !== undefined) {
     if (duration <= SIX_HOURS || meterName === "FIVE_HOUR" || meterName === "SESSION") return "5h";
     if (duration <= ONE_DAY || meterName === "DAILY" || meterName === "DAY") return "1d";
@@ -522,18 +523,15 @@ export function barStyleCells(
         continue;
       }
 
+      if (snapshot.window.kind === "unknown") {
+        const tag = providerTag || shortTag;
+        const plain = tag + " [?]";
+        const painted = color ? tag + " \x1b[31m[?]\x1b[0m" : plain;
+        cells.push({ plain, painted, percent: snapshot.value });
+        continue;
+      }
+
       const winTag = windowCode(snapshot);
-      /*
-       * A host's own window normally carries no tag at all, since the row it
-       * sits on already says whose bars these are. That omission only holds
-       * up while the window code says something: a fixed window with a meter
-       * name this build does not recognise (an on demand spend meter, a
-       * person's own manual entry) has no window code either, and the two
-       * blanks together would draw a bar with nothing in front of it. The
-       * cell falls back to the short provider tag rather than ever drawing
-       * one, which is the same promise the freshness marks make for a
-       * missing reading.
-       */
       const combinedTag = providerTag + winTag;
       const tag = combinedTag === "" ? shortTag : combinedTag;
 
