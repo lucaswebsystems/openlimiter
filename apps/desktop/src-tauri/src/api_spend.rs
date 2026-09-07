@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -589,6 +589,209 @@ fn validate_document(document: &ApiSpendDocument) -> Result<(), ApiSpendFailure>
     Ok(())
 }
 
+/// The dollar totals this device would sync, newest observation per source.
+///
+/// Decision D4 for 1.3: the keys stay in the device keyring and the totals
+/// travel. Nothing here reads a key, and a document that cannot be read at
+/// all is no totals rather than an error, because a spend meter that has
+/// never been set up must not stop the percentages from syncing.
+pub(crate) fn synced_spend_samples(limit: usize) -> Vec<crate::account::ApiSpendSample> {
+    let Ok(path) = state_path() else {
+        return Vec::new();
+    };
+    let Ok(document) = load_at(&path) else {
+        return Vec::new();
+    };
+    contract_spend_samples(&document, limit)
+}
+
+/// The newest spend observation of each source, in the hosted contract's
+/// shape, bounded by what is left of the envelope's row budget.
+///
+/// The server refuses a whole envelope that carries two rows with the same
+/// account and provider, so a label that slugs into one already taken is
+/// given the source identifier as a suffix rather than dropped.
+fn contract_spend_samples(
+    document: &ApiSpendDocument,
+    limit: usize,
+) -> Vec<crate::account::ApiSpendSample> {
+    let mut newest: HashMap<&str, &ApiSpendSample> = HashMap::new();
+    for sample in &document.samples {
+        if !matches!(sample.metric_kind, ApiSpendMetricKind::Spend) {
+            continue;
+        }
+        match newest.get(sample.source_id.as_str()) {
+            Some(current) if current.observed_at >= sample.observed_at => {}
+            _ => {
+                newest.insert(sample.source_id.as_str(), sample);
+            }
+        }
+    }
+    let mut chosen = newest.into_values().collect::<Vec<_>>();
+    chosen.sort_by(|left, right| {
+        right
+            .observed_at
+            .cmp(&left.observed_at)
+            .then_with(|| left.source_id.cmp(&right.source_id))
+    });
+    let mut rows = Vec::new();
+    let mut identities = HashSet::new();
+    for sample in chosen {
+        if rows.len() >= limit {
+            break;
+        }
+        let source = document
+            .sources
+            .iter()
+            .find(|candidate| candidate.id == sample.source_id);
+        let Some(mut row) = contract_spend_sample(source, sample) else {
+            continue;
+        };
+        if !identities.insert((row.account_id.clone(), row.provider.clone())) {
+            let suffix = sample.source_id.chars().take(8).collect::<String>();
+            row.account_id.truncate(70);
+            row.account_id = format!("{}-{suffix}", row.account_id.trim_end_matches('-'));
+            if !identities.insert((row.account_id.clone(), row.provider.clone())) {
+                continue;
+            }
+        }
+        rows.push(row);
+    }
+    rows
+}
+
+/// One stored observation in the hosted contract's own shape, field by
+/// field, because the two models were built for different jobs.
+///
+/// * `account_id` has no counterpart here. The contract wants a slug, so the
+///   key label becomes one, and the source identifier keeps two labels that
+///   slug alike apart.
+/// * `raw_unit_scale` is a unit name on this side and a number on that one:
+///   `usd_cents` is a hundred raw units to the dollar, every other unit this
+///   window reads is one.
+/// * `source_period` is stored as the Postgres range text it was written
+///   with and travels as the two instants inside it.
+/// * `period_complete` is the completeness word: only `complete` is a
+///   complete period, `period_incomplete` and `since_connected` are not.
+/// * `forecast_date` and `forecast_input` travel as nothing, because this
+///   window derives no forecast yet and the contract requires the date and
+///   the input to be present together or absent together. Both are nullable
+///   there, so the row is complete without them.
+/// * Moonshot is absent: it reports a balance rather than spend, and the
+///   contract carries balances in a list this envelope does not send.
+fn contract_spend_sample(
+    source: Option<&ApiSpendSource>,
+    sample: &ApiSpendSample,
+) -> Option<crate::account::ApiSpendSample> {
+    let provider = contract_provider(sample.provider)?;
+    let spend_usd = contract_amount(sample.spend_usd.as_deref()?)?;
+    let budget_usd = match source
+        .and_then(|value| value.budget_usd.as_deref())
+        .or(sample.budget_usd.as_deref())
+    {
+        Some(text) => Some(contract_amount(text)?),
+        None => None,
+    };
+    let key_label = source
+        .map(|value| value.key_label.as_str())
+        .unwrap_or(sample.key_label.as_str());
+    let labelled = key_label.chars().count();
+    let month_shaped = sample.month.len() == 10
+        && sample.month.ends_with("-01")
+        && sample
+            .month
+            .chars()
+            .all(|character| character.is_ascii_digit() || character == '-');
+    if labelled == 0
+        || labelled > 80
+        || !month_shaped
+        || uuid::Uuid::parse_str(&sample.source_id).is_err()
+    {
+        return None;
+    }
+    let currency_source = sample.currency_source.to_ascii_uppercase();
+    if currency_source.is_empty()
+        || currency_source.len() > 32
+        || !currency_source.chars().all(|character| {
+            character.is_ascii_uppercase() || character.is_ascii_digit() || character == '_'
+        })
+    {
+        return None;
+    }
+    Some(crate::account::ApiSpendSample {
+        source_id: sample.source_id.to_ascii_lowercase(),
+        account_id: account_slug(key_label, &sample.source_id),
+        provider: provider.to_string(),
+        key_label: key_label.to_string(),
+        month: sample.month.clone(),
+        spend_usd,
+        budget_usd,
+        source_period: contract_period(&sample.source_period)?,
+        currency_source,
+        raw_unit_scale: contract_unit_scale(&sample.raw_unit_scale)?,
+        forecast_date: None,
+        forecast_input: None,
+        period_complete: sample.completeness == "complete",
+    })
+}
+
+fn contract_provider(provider: ApiSpendProvider) -> Option<&'static str> {
+    match provider {
+        ApiSpendProvider::Openai => Some("OPENAI"),
+        ApiSpendProvider::Anthropic => Some("ANTHROPIC"),
+        ApiSpendProvider::Xai => Some("XAI"),
+        ApiSpendProvider::Openrouter => Some("OPENROUTER"),
+        ApiSpendProvider::Moonshot => None,
+    }
+}
+
+fn contract_amount(value: &str) -> Option<f64> {
+    let amount = decimal_text(decimal(value).ok()?).parse::<f64>().ok()?;
+    (0.0..100_000_000_000_000.0)
+        .contains(&amount)
+        .then_some(amount)
+}
+
+fn contract_unit_scale(raw: &str) -> Option<f64> {
+    match raw {
+        "usd" | "lifetime_usd" | "current_balance_usd" => Some(1.0),
+        "usd_cents" => Some(100.0),
+        _ => None,
+    }
+}
+
+fn contract_period(range: &str) -> Option<[String; 2]> {
+    let (start, end) = range
+        .strip_prefix('[')?
+        .strip_suffix(')')?
+        .split_once(", ")?;
+    let opened = time::OffsetDateTime::parse(start, &Rfc3339).ok()?;
+    let closed = time::OffsetDateTime::parse(end, &Rfc3339).ok()?;
+    (opened < closed).then(|| [start.to_string(), end.to_string()])
+}
+
+fn account_slug(label: &str, source_id: &str) -> String {
+    let mut slug = String::new();
+    let mut separated = false;
+    for character in label.chars().flat_map(char::to_lowercase) {
+        if character.is_ascii_alphanumeric() {
+            slug.push(character);
+            separated = false;
+        } else if !slug.is_empty() && !separated {
+            slug.push('-');
+            separated = true;
+        }
+    }
+    slug.truncate(70);
+    while slug.ends_with('-') {
+        slug.pop();
+    }
+    if slug.is_empty() {
+        return source_id.chars().take(8).collect();
+    }
+    slug
+}
+
 fn load_at(path: &Path) -> Result<ApiSpendDocument, ApiSpendFailure> {
     if !path.exists() {
         return Ok(ApiSpendDocument::default());
@@ -946,7 +1149,7 @@ async fn send_request(
     }
     .header(ACCEPT, "application/json")
     .header(ACCEPT_ENCODING, "identity")
-    .header("user-agent", "OpenLimiter/1.1.0 (+https://openlimiter.com)");
+    .header("user-agent", crate::net::OPENLIMITER_USER_AGENT);
     builder = if spec.auth_header == "x-api-key" {
         builder.header("x-api-key", secret.as_str())
     } else {
@@ -2178,5 +2381,112 @@ mod tests {
             }
             other => panic!("balance should never cap, got {other:?}"),
         }
+    }
+
+    /// The shared envelope the desktop, the server and the hub all test on.
+    const SYNC_FIXTURE: &str =
+        include_str!("../../../../packages/core/fixtures/sync-envelope-v2.json");
+
+    fn openrouter_document() -> ApiSpendDocument {
+        let mut document = ApiSpendDocument::default();
+        let mut spend_source = source(ApiSpendProvider::Openrouter);
+        spend_source.id = "b28c9d51-7f0a-4c3e-9d64-5a1b8e2f7c03".to_string();
+        spend_source.key_label = "OpenRouter key".to_string();
+        spend_source.budget_usd = Some("100".to_string());
+        let mut sample = spend_sample(ApiSpendProvider::Openrouter, &spend_source.id, "40.9");
+        sample.metric_kind = ApiSpendMetricKind::Spend;
+        sample.key_label = spend_source.key_label.clone();
+        sample.month = "2026-09-01".to_string();
+        sample.observed_at = "2026-09-07T12:00:00.000Z".to_string();
+        sample.created_at = sample.observed_at.clone();
+        sample.source_period = "[2026-09-01T00:00:00.000Z, 2026-09-07T12:00:00.000Z)".to_string();
+        sample.completeness = "period_incomplete".to_string();
+        document.sources.push(spend_source);
+        document.samples.push(sample);
+        document
+    }
+
+    #[test]
+    fn a_stored_observation_becomes_the_row_the_shared_fixture_carries() {
+        /* Decision D4: the totals sync and the keys never do. This is the
+        whole mapping in one assertion, against the same file the desktop's
+        envelope test and the server's contract test read. */
+        let fixture: serde_json::Value =
+            serde_json::from_str(SYNC_FIXTURE).expect("the shared fixture");
+        let expected: crate::account::ApiSpendSample =
+            serde_json::from_value(fixture["api_spend_samples"][0].clone())
+                .expect("the fixture row is this contract");
+
+        let rows = contract_spend_samples(&openrouter_document(), 8);
+        assert_eq!(rows, vec![expected]);
+        /* The label became the slug the contract wants, and no key, secret or
+        credential identifier travelled with it. */
+        assert_eq!(rows[0].account_id, "openrouter-key");
+        let wire = serde_json::to_string(&rows).expect("the wire form");
+        assert!(!wire.contains("credential"));
+        assert!(!wire.to_ascii_lowercase().contains("token"));
+    }
+
+    #[test]
+    fn the_mapping_refuses_what_it_cannot_carry_and_keeps_two_alike_labels_apart() {
+        /* A balance is not spend, and the contract carries balances in a list
+        this envelope does not send. */
+        let mut balances = ApiSpendDocument::default();
+        let balance_source = source(ApiSpendProvider::Moonshot);
+        balances.samples.push(spend_sample(
+            ApiSpendProvider::Moonshot,
+            &balance_source.id,
+            "5000.00",
+        ));
+        balances.sources.push(balance_source);
+        assert!(contract_spend_samples(&balances, 8).is_empty());
+        assert_eq!(contract_provider(ApiSpendProvider::Moonshot), None);
+
+        /* A unit name becomes the number of raw units to the dollar, and a
+        unit this window does not know is refused rather than guessed. */
+        assert_eq!(contract_unit_scale("usd"), Some(1.0));
+        assert_eq!(contract_unit_scale("usd_cents"), Some(100.0));
+        assert_eq!(contract_unit_scale("tokens"), None);
+
+        /* The range text becomes the two instants inside it, and a range that
+        runs backwards is not a period. */
+        assert_eq!(
+            contract_period("[2026-09-01T00:00:00Z, 2026-09-07T12:00:00Z)"),
+            Some([
+                "2026-09-01T00:00:00Z".to_string(),
+                "2026-09-07T12:00:00Z".to_string()
+            ])
+        );
+        assert_eq!(
+            contract_period("[2026-09-07T12:00:00Z, 2026-09-01T00:00:00Z)"),
+            None
+        );
+        assert_eq!(contract_period("2026-09-01, 2026-09-07"), None);
+
+        /* Anything that is not a letter or a digit becomes one separator, and
+        a label with nothing usable in it falls back to the source. */
+        assert_eq!(account_slug("Ola's Key!!", "b28c9d51-7f0a"), "ola-s-key");
+        assert_eq!(account_slug("!!!", "b28c9d51-7f0a"), "b28c9d51");
+
+        /* Two sources of one provider whose labels slug alike would be one
+        row to the server, which refuses the whole envelope for it, so the
+        second carries its source identifier. */
+        let mut document = openrouter_document();
+        let mut second = document.sources[0].clone();
+        second.id = "c39dae62-8f1b-4d4f-8e75-6b2c9f3a8d14".to_string();
+        second.credential_id = "d40ebf73-9f2c-4e5a-9f86-7c3daf4b9e25".to_string();
+        let mut sample = document.samples[0].clone();
+        sample.id = "21000000-0000-4000-8000-000000000002".to_string();
+        sample.source_id = second.id.clone();
+        sample.observed_at = "2026-09-07T11:00:00.000Z".to_string();
+        document.sources.push(second);
+        document.samples.push(sample);
+
+        let rows = contract_spend_samples(&document, 8);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].account_id, "openrouter-key");
+        assert_eq!(rows[1].account_id, "openrouter-key-c39dae62");
+        /* And the row budget the envelope has left is honoured. */
+        assert_eq!(contract_spend_samples(&document, 1).len(), 1);
     }
 }

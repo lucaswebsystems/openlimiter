@@ -2,14 +2,29 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/pro";
 
 const PROVIDER_PATTERN = /^[A-Z0-9_]{2,32}$/u;
-const ACCOUNT_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/u;
+const ACCOUNT_PATTERN = /^[a-z0-9][a-z0-9-]{0,79}$/u;
 const WINDOW_PATTERN = /^[A-Z0-9_]{2,48}$/u;
+const CURRENCY_PATTERN = /^[A-Z]{3}$/u;
+
+/**
+ * What the hub reads back, and where it reads it from.
+ *
+ * The current rows are not selectable by a signed in browser: the sync
+ * migration revoked `usage_current` and `usage_samples` from `authenticated`
+ * on purpose, so a table this file used to name is both renamed and closed.
+ * Everything here goes through the two owner scoped functions instead, which
+ * answer for the signed in account and nobody else.
+ */
+const USAGE_FUNCTION = "read_current_usage_v1";
+const API_SPEND_FUNCTION = "read_current_api_spend_v1";
 
 export interface SyncedUsageWindow {
   windowName: string;
   percentage: number;
   resetAt: string | null;
   observedAt: string;
+  /** The device said this reading was already past its own freshness window. */
+  stale: boolean;
 }
 
 export interface SyncedProviderUsage {
@@ -18,17 +33,32 @@ export interface SyncedProviderUsage {
   windows: SyncedUsageWindow[];
 }
 
+export interface SyncedApiSpend {
+  provider: string;
+  accountLabel: string;
+  currency: string;
+  amountMinor: number;
+  periodStart: string;
+  periodEnd: string;
+  observedAt: string;
+}
+
 export type SyncedUsageResult =
   | { ok: true; providers: SyncedProviderUsage[] }
   | { ok: false; reason: "unconfigured" | "signed_out" | "unavailable" };
 
-interface DatabaseRow {
+export type SyncedApiSpendResult =
+  | { ok: true; sources: SyncedApiSpend[] }
+  | { ok: false; reason: "unconfigured" | "signed_out" | "unavailable" };
+
+interface UsageRow {
   provider: string;
-  account_label: string;
-  window_name: string;
-  usage_percent: number | string;
-  reset_at: string | null;
+  account_id: string;
+  window_id: string;
+  used_percent: number;
+  resets_at: string | null;
   observed_at: string;
+  stale: boolean;
 }
 
 export function createSyncClient(): SupabaseClient | null {
@@ -38,39 +68,56 @@ export function createSyncClient(): SupabaseClient | null {
   });
 }
 
-function rowOf(value: unknown): DatabaseRow | null {
+function instantOf(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const milliseconds = Date.parse(value);
+  return Number.isFinite(milliseconds) ? new Date(milliseconds).toISOString() : null;
+}
+
+/**
+ * One usage row, or nothing.
+ *
+ * A row that fails a bound is dropped rather than repaired, exactly as the
+ * desktop drops a reading it cannot trust. `window_id` is the window's own
+ * name, which is what makes a model scoped window such as `SEVEN_DAY_FABLE` a
+ * row of its own beside the plain weekly one rather than a replacement for it.
+ */
+function rowOf(value: unknown): UsageRow | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   const provider = typeof row.provider === "string" ? row.provider : "";
-  const accountLabel = typeof row.account_label === "string" ? row.account_label : "";
-  const windowName = typeof row.window_name === "string" ? row.window_name : "";
-  const percentage = Number(row.usage_percent);
-  const resetAt = row.reset_at === null || typeof row.reset_at === "string" ? row.reset_at : null;
-  const observedAt = typeof row.observed_at === "string" ? row.observed_at : "";
+  const accountId = typeof row.account_id === "string" ? row.account_id : "";
+  const windowId = typeof row.window_id === "string" ? row.window_id : "";
+  const percentage = Number(row.used_percent);
+  const resetsAt = row.resets_at === null || row.resets_at === undefined
+    ? null
+    : instantOf(row.resets_at);
+  const observedAt = instantOf(row.observed_at);
   if (
-    !PROVIDER_PATTERN.test(provider) || !ACCOUNT_PATTERN.test(accountLabel) ||
-    !WINDOW_PATTERN.test(windowName) || !Number.isFinite(percentage) || percentage < 0 ||
-    percentage > 100 || !Number.isFinite(Date.parse(observedAt)) ||
-    (resetAt !== null && !Number.isFinite(Date.parse(resetAt)))
+    !PROVIDER_PATTERN.test(provider) || !ACCOUNT_PATTERN.test(accountId) ||
+    !WINDOW_PATTERN.test(windowId) || !Number.isFinite(percentage) || percentage < 0 ||
+    percentage > 100 || observedAt === null ||
+    (row.resets_at !== null && row.resets_at !== undefined && resetsAt === null)
   ) {
     return null;
   }
   return {
     provider,
-    account_label: accountLabel,
-    window_name: windowName,
-    usage_percent: percentage,
-    reset_at: resetAt === null ? null : new Date(Date.parse(resetAt)).toISOString(),
-    observed_at: new Date(Date.parse(observedAt)).toISOString(),
+    account_id: accountId,
+    window_id: windowId,
+    used_percent: percentage,
+    resets_at: resetsAt,
+    observed_at: observedAt,
+    stale: row.stale === true,
   };
 }
 
 export function groupLatestSyncedUsage(values: unknown[]): SyncedProviderUsage[] {
-  const latest = new Map<string, DatabaseRow>();
+  const latest = new Map<string, UsageRow>();
   for (const value of values) {
     const row = rowOf(value);
     if (row === null) continue;
-    const key = `${row.provider}\u001f${row.account_label}\u001f${row.window_name}`;
+    const key = `${row.provider}${row.account_id}${row.window_id}`;
     const previous = latest.get(key);
     if (previous === undefined || Date.parse(row.observed_at) > Date.parse(previous.observed_at)) {
       latest.set(key, row);
@@ -79,17 +126,18 @@ export function groupLatestSyncedUsage(values: unknown[]): SyncedProviderUsage[]
 
   const providers = new Map<string, SyncedProviderUsage>();
   for (const row of latest.values()) {
-    const key = `${row.provider}\u001f${row.account_label}`;
+    const key = `${row.provider}${row.account_id}`;
     const provider = providers.get(key) ?? {
       provider: row.provider,
-      accountLabel: row.account_label,
+      accountLabel: row.account_id,
       windows: [],
     };
     provider.windows.push({
-      windowName: row.window_name,
-      percentage: Number(row.usage_percent),
-      resetAt: row.reset_at,
+      windowName: row.window_id,
+      percentage: row.used_percent,
+      resetAt: row.resets_at,
       observedAt: row.observed_at,
+      stale: row.stale,
     });
     providers.set(key, provider);
   }
@@ -97,27 +145,94 @@ export function groupLatestSyncedUsage(values: unknown[]): SyncedProviderUsage[]
   return [...providers.values()]
     .map((provider) => ({
       ...provider,
-      windows: provider.windows.sort((left, right) => left.windowName.localeCompare(right.windowName)),
+      windows: provider.windows.sort((left, right) =>
+        left.windowName.localeCompare(right.windowName)
+      ),
     }))
     .sort((left, right) =>
-      left.provider.localeCompare(right.provider) || left.accountLabel.localeCompare(right.accountLabel)
+      left.provider.localeCompare(right.provider) ||
+      left.accountLabel.localeCompare(right.accountLabel)
     );
+}
+
+/**
+ * One spend row, or nothing.
+ *
+ * Money stays money. The amount arrives in the currency's minor unit as an
+ * integer, because a dollar figure that went through a float on the way to a
+ * screen is a dollar figure nobody can reconcile with an invoice.
+ */
+export function apiSpendOf(value: unknown): SyncedApiSpend | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const provider = typeof row.provider === "string" ? row.provider : "";
+  const accountId = typeof row.account_id === "string" ? row.account_id : "";
+  const currency = typeof row.currency === "string" ? row.currency : "";
+  const amountMinor = Number(row.amount_minor);
+  const periodStart = instantOf(row.period_start);
+  const periodEnd = instantOf(row.period_end);
+  const observedAt = instantOf(row.observed_at);
+  if (
+    !PROVIDER_PATTERN.test(provider) || !ACCOUNT_PATTERN.test(accountId) ||
+    !CURRENCY_PATTERN.test(currency) || !Number.isSafeInteger(amountMinor) || amountMinor < 0 ||
+    periodStart === null || periodEnd === null || observedAt === null ||
+    Date.parse(periodStart) >= Date.parse(periodEnd)
+  ) {
+    return null;
+  }
+  return {
+    provider,
+    accountLabel: accountId,
+    currency,
+    amountMinor,
+    periodStart,
+    periodEnd,
+    observedAt,
+  };
+}
+
+export function readableApiSpend(values: unknown[]): SyncedApiSpend[] {
+  return values
+    .map(apiSpendOf)
+    .filter((row): row is SyncedApiSpend => row !== null)
+    .sort((left, right) =>
+      left.provider.localeCompare(right.provider) ||
+      left.accountLabel.localeCompare(right.accountLabel)
+    );
+}
+
+async function signedIn(client: SupabaseClient): Promise<"yes" | "no" | "unknown"> {
+  const session = await client.auth.getSession();
+  if (session.error !== null) return "unknown";
+  return session.data.session === null ? "no" : "yes";
 }
 
 export async function readSyncedUsage(
   client: SupabaseClient | null,
 ): Promise<SyncedUsageResult> {
   if (client === null) return { ok: false, reason: "unconfigured" };
-  const session = await client.auth.getSession();
-  if (session.error !== null) return { ok: false, reason: "unavailable" };
-  if (session.data.session === null) return { ok: false, reason: "signed_out" };
+  const state = await signedIn(client);
+  if (state === "unknown") return { ok: false, reason: "unavailable" };
+  if (state === "no") return { ok: false, reason: "signed_out" };
 
-  const result = await client
-    .from("usage_snapshots_current")
-    .select("provider,account_label,window_name,usage_percent,reset_at,observed_at")
-    .order("provider", { ascending: true })
-    .order("account_label", { ascending: true })
-    .order("window_name", { ascending: true });
-  if (result.error !== null) return { ok: false, reason: "unavailable" };
+  const result = await client.rpc(USAGE_FUNCTION);
+  if (result.error !== null || !Array.isArray(result.data)) {
+    return { ok: false, reason: "unavailable" };
+  }
   return { ok: true, providers: groupLatestSyncedUsage(result.data) };
+}
+
+export async function readSyncedApiSpend(
+  client: SupabaseClient | null,
+): Promise<SyncedApiSpendResult> {
+  if (client === null) return { ok: false, reason: "unconfigured" };
+  const state = await signedIn(client);
+  if (state === "unknown") return { ok: false, reason: "unavailable" };
+  if (state === "no") return { ok: false, reason: "signed_out" };
+
+  const result = await client.rpc(API_SPEND_FUNCTION);
+  if (result.error !== null || !Array.isArray(result.data)) {
+    return { ok: false, reason: "unavailable" };
+  }
+  return { ok: true, sources: readableApiSpend(result.data) };
 }

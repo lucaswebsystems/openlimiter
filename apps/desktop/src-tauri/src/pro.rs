@@ -103,6 +103,7 @@ fn map_account_failure(error: crate::account::AccountFailure) -> ProFailure {
         | crate::account::AccountFailure::OauthBusy
         | crate::account::AccountFailure::OauthTimeout => ProFailure::Network,
         crate::account::AccountFailure::Storage => ProFailure::CredentialStore,
+        crate::account::AccountFailure::DeviceCapReached => ProFailure::DeviceCapReached,
         crate::account::AccountFailure::InvalidInput
         | crate::account::AccountFailure::Authentication
         | crate::account::AccountFailure::OauthRejected

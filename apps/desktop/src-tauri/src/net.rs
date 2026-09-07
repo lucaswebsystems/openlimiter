@@ -213,7 +213,16 @@ pub const GEMINI_CLI_LOAD_BODY: &str = r#"{"metadata":{"ideType":"IDE_UNSPECIFIE
 
 /// The default identity carried by provider requests that accept third party
 /// clients. Antigravity is the exception documented below.
-pub const OPENLIMITER_USER_AGENT: &str = "OpenLimiter/1.0.2 (+https://openlimiter.com)";
+///
+/// The version is the crate's own, taken at build time, so a release cannot
+/// ship a request that names a version this build is not. It was written by
+/// hand in two places and both had drifted: this said 1.0.2 and the spend
+/// meter said 1.1.0, against a crate that was neither.
+pub const OPENLIMITER_USER_AGENT: &str = concat!(
+    "OpenLimiter/",
+    env!("CARGO_PKG_VERSION"),
+    " (+https://openlimiter.com)"
+);
 
 /// The user agent the Codex usage endpoint is addressed with.
 pub const CODEX_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
@@ -1874,5 +1883,29 @@ mod tests {
         );
         assert_eq!(location_workspace(&headers), None);
         assert_eq!(location_workspace(&reqwest::header::HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn the_user_agent_names_this_build_and_is_written_in_one_place() {
+        /* Every provider request that accepts a third party client says who
+        it is, and it says so with the version this binary actually is. The
+        string used to be typed by hand in two modules and both had drifted,
+        to 1.0.2 here and to 1.1.0 in the spend meter, against a crate that
+        was neither. A version nobody can trace back to a build is worse than
+        no version at all, so there is one constant and it comes from Cargo. */
+        assert_eq!(
+            OPENLIMITER_USER_AGENT,
+            format!(
+                "OpenLimiter/{} (+https://openlimiter.com)",
+                env!("CARGO_PKG_VERSION")
+            )
+        );
+        assert_eq!(CODEX_USER_AGENT, OPENLIMITER_USER_AGENT);
+        assert_eq!(CLAUDE_OAUTH_USER_AGENT, OPENLIMITER_USER_AGENT);
+        assert_eq!(OPENCODE_USER_AGENT, OPENLIMITER_USER_AGENT);
+        let written_by_hand = concat!("\"OpenLimiter/", "1.");
+        for source in [include_str!("net.rs"), include_str!("api_spend.rs")] {
+            assert!(!source.contains(written_by_hand));
+        }
     }
 }

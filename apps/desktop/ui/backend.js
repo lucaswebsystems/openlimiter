@@ -119,7 +119,7 @@ const FAILURE_SENTENCES = {
   entitlement_required: "This hosted service needs an active Pro entitlement.",
   plan_cap: "Pro unlocks more accounts. Free reads one account per provider.",
   paused: "This connection is paused and cannot perform work.",
-  device_cap_reached: "This account already has five active device grants.",
+  device_cap_reached: "Device limit reached, remove one under Devices or in the hub.",
   updater_unconfigured: "Updates are not configured in this build.",
   update_check_failed: "The update check could not be completed.",
   no_pending_update: "No downloaded update is waiting to be installed.",
