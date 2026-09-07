@@ -4,7 +4,8 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CONNECT_FIRST_SENTENCE,
-  STATUS_NOT_INSTALLED,
+  STATUS_NOT_WIRED,
+  STATUS_OWN_LINE_FOUND,
   STATUS_WIRED,
   TERMINAL_HOST_NAMES,
   UNSUPPORTED_HOST_ALTERNATIVE,
@@ -65,7 +66,7 @@ describe("terminal host installers", () => {
   it("round trips Claude: install, install again, uninstall with no prior line", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const ctx = await context(home);
-    expect(await hostStatus("claude", ctx)).toBe(STATUS_NOT_INSTALLED);
+    expect(await hostStatus("claude", ctx)).toBe(STATUS_NOT_WIRED);
 
     const installed = await installHost("claude", ctx);
     expect(installed.ok).toBe(true);
@@ -86,7 +87,7 @@ describe("terminal host installers", () => {
 
     const uninstalled = await uninstallHost("claude", ctx);
     expect(uninstalled.ok).toBe(true);
-    expect(await hostStatus("claude", ctx)).toBe(STATUS_NOT_INSTALLED);
+    expect(await hostStatus("claude", ctx)).toBe(STATUS_NOT_WIRED);
     const afterUninstall = JSON.parse(await readFile(settingsFile, "utf8")) as Record<string, unknown>;
     expect(afterUninstall["statusLine"]).toBeUndefined();
   });
@@ -101,6 +102,7 @@ describe("terminal host installers", () => {
       JSON.stringify({ statusLine: { type: "command", command: "my-own-statusline --flag" } }),
       "utf8"
     );
+    expect(await hostStatus("claude", ctx)).toBe(STATUS_OWN_LINE_FOUND);
 
     await installHost("claude", ctx);
     const wrapped = JSON.parse(await readFile(settingsFile, "utf8")) as {
@@ -132,6 +134,7 @@ describe("terminal host installers", () => {
     const settingsFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
     await mkdir(path.dirname(settingsFile), { recursive: true });
     await writeFile(settingsFile, JSON.stringify({ statusLine: "their-own-line" }), "utf8");
+    expect(await hostStatus("antigravity", ctx)).toBe(STATUS_OWN_LINE_FOUND);
 
     await installHost("antigravity", ctx);
     const wrapped = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: string };
@@ -156,6 +159,7 @@ describe("terminal host installers", () => {
       ['[some.other.table]', 'value = 1', '', '[ui.status_line]', 'type = "command"', 'command = "their-own-line"'].join("\n"),
       "utf8"
     );
+    expect(await hostStatus("grok", ctx)).toBe(STATUS_OWN_LINE_FOUND);
 
     await installHost("grok", ctx);
     const wrapped = await readFile(configFile, "utf8");
@@ -177,7 +181,7 @@ describe("terminal host installers", () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const ctx = await context(home);
     const configFile = path.join(home, ".codex", "config.toml");
-    expect(await hostStatus("codex", ctx)).toBe(STATUS_NOT_INSTALLED);
+    expect(await hostStatus("codex", ctx)).toBe(STATUS_NOT_WIRED);
 
     await installHost("codex", ctx);
     expect(await hostStatus("codex", ctx)).toBe(STATUS_WIRED);
@@ -191,7 +195,32 @@ describe("terminal host installers", () => {
     expect(writtenAgain).toBe(written);
 
     await uninstallHost("codex", ctx);
-    expect(await hostStatus("codex", ctx)).toBe(STATUS_NOT_INSTALLED);
+    expect(await hostStatus("codex", ctx)).toBe(STATUS_NOT_WIRED);
+  });
+
+  it("tells apart a foreign Codex status line from no status line at all", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const ctx = await context(home);
+    const configFile = path.join(home, ".codex", "config.toml");
+    await mkdir(path.dirname(configFile), { recursive: true });
+
+    /* A [tui] section with nothing about a status line is still nothing
+       wired, not somebody else's. */
+    await writeFile(configFile, ['[tui]', 'model = "gpt-4"'].join("\n"), "utf8");
+    expect(await hostStatus("codex", ctx)).toBe(STATUS_NOT_WIRED);
+
+    /* A [tui] section that already names its own status_line items is
+       somebody else's, and install wraps around it rather than claiming
+       nothing was there. */
+    await writeFile(
+      configFile,
+      ['[tui]', 'status_line = ["their-item"]'].join("\n"),
+      "utf8"
+    );
+    expect(await hostStatus("codex", ctx)).toBe(STATUS_OWN_LINE_FOUND);
+
+    await installHost("codex", ctx);
+    expect(await hostStatus("codex", ctx)).toBe(STATUS_WIRED);
   });
 
   it("round trips the shell prompt snippet and prints every documented format", async () => {
@@ -210,7 +239,7 @@ describe("terminal host installers", () => {
 
     const uninstalled = await uninstallHost("shell", ctx);
     expect(uninstalled.ok).toBe(true);
-    expect(await hostStatus("shell", ctx)).toBe(STATUS_NOT_INSTALLED);
+    expect(await hostStatus("shell", ctx)).toBe(STATUS_NOT_WIRED);
   });
 
   it("lists every host in the status table, one row each", async () => {
@@ -219,7 +248,7 @@ describe("terminal host installers", () => {
     const table = await terminalStatusTable(ctx);
     const rows = table.split("\n");
     expect(rows).toHaveLength(8);
-    expect(rows).toContain("Claude: " + STATUS_NOT_INSTALLED);
+    expect(rows).toContain("Claude: " + STATUS_NOT_WIRED);
     expect(rows).toContain("Gemini: " + UNSUPPORTED_HOST_ALTERNATIVE);
   });
 });
@@ -274,7 +303,7 @@ describe("openlimiter terminal (CLI dispatch)", () => {
     const uninstalled = await runCli(["terminal", "uninstall", "claude"], { homeDirectory: home });
     expect(uninstalled.exitCode).toBe(0);
     const statusAfter = await runCli(["terminal", "status"], { homeDirectory: home });
-    expect(statusAfter.stdout).toContain("Claude: " + STATUS_NOT_INSTALLED);
+    expect(statusAfter.stdout).toContain("Claude: " + STATUS_NOT_WIRED);
   });
 
   it("refuses an unknown host with a usage exit code", async () => {
@@ -288,7 +317,7 @@ describe("openlimiter terminal (CLI dispatch)", () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const result = await runCli(["terminal"], { homeDirectory: home });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain(STATUS_NOT_INSTALLED);
+    expect(result.stdout).toContain(STATUS_NOT_WIRED);
     const status = await runCli(["terminal", "status"], { homeDirectory: home });
     expect(status.stdout).not.toContain(STATUS_WIRED);
   });
@@ -309,7 +338,7 @@ describe("openlimiter terminal (CLI dispatch)", () => {
     expect(result.exitCode).toBe(0);
     const status = await runCli(["terminal", "status"], { homeDirectory: home });
     expect(status.stdout).toContain("Grok: " + STATUS_WIRED);
-    expect(status.stdout).toContain("Claude: " + STATUS_NOT_INSTALLED);
+    expect(status.stdout).toContain("Claude: " + STATUS_NOT_WIRED);
   });
 
   it("show refuses an unconnected provider through the CLI, and succeeds once connected", async () => {

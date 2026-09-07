@@ -6,14 +6,12 @@ import {
   DEFAULT_STATUSLINE,
   readConfig,
   writeConfig,
-  type OpenLimiterConfig,
-  type StatuslineConfig
+  type OpenLimiterConfig
 } from "./config.js";
 import {
   decodeWrappedStatuslineCommand,
   encodeWrappedStatuslineCommand
 } from "./statusline-wrapper.js";
-import { isStatuslineHost, type StatuslineHost } from "./statusline.js";
 
 export const TERMINAL_HOST_NAMES: readonly string[] = [
   "claude",
@@ -24,10 +22,20 @@ export const TERMINAL_HOST_NAMES: readonly string[] = [
 ];
 
 export const UNSUPPORTED_HOST_ALTERNATIVE =
-  "No status line support with the shell alternative";
+  "No status line support, use the shell prompt";
 
 export const STATUS_WIRED = "Wired";
-export const STATUS_NOT_INSTALLED = "Not installed";
+/**
+ * The host already draws a status line, and it is not ours.
+ *
+ * Told apart from `STATUS_NOT_WIRED` on purpose: a host with somebody else's
+ * command already in the slot is not a host with nothing there, and install
+ * behaves differently in each case, wrapping the first and writing the second
+ * fresh. Saying "Not installed" for both, as this used to, told a person
+ * nothing about which one they were looking at.
+ */
+export const STATUS_OWN_LINE_FOUND = "Your own status line found, install wraps it";
+export const STATUS_NOT_WIRED = "Not wired";
 export const CONNECT_FIRST_SENTENCE = "Connect it first";
 
 export interface TerminalHostContext {
@@ -760,7 +768,65 @@ export async function uninstallShell(
 }
 
 /**
- * Check wiring status for a host
+ * The command a Claude Code or Antigravity style status line field carries,
+ * whichever of the two shapes it was written in.
+ *
+ * `null` means the field is absent, which is the only case that counts as
+ * nothing being wired at all.
+ */
+function claudeLikeStatusLineCommand(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null) {
+    const command = (value as Record<string, unknown>)["command"];
+    if (typeof command === "string") return command;
+  }
+  return null;
+}
+
+/** Wired, somebody else's, or nothing there, from the command alone. */
+function classifyCommand(command: string | null): string {
+  if (command === null) return STATUS_NOT_WIRED;
+  return command.includes("openlimiter statusline") ? STATUS_WIRED : STATUS_OWN_LINE_FOUND;
+}
+
+/** The command inside Grok's `[ui.status_line]` table, or nothing found. */
+function grokStatusLineCommand(text: string | null): string | null {
+  if (text === null) return null;
+  const sectionMatch = /(?:^|\n)(\[ui\.status_line\][\s\S]*?)(?=\n\[|$)/.exec(text);
+  const section = sectionMatch?.[1];
+  if (section === undefined) return null;
+  const commandMatch = /command\s*=\s*"([^"]+)"/.exec(section);
+  /* The table exists whether or not it carries a command line this build can
+     read, and an existing table with no readable command is still somebody
+     else's, not nothing. An empty string is never confused with absence. */
+  return commandMatch?.[1] ?? "";
+}
+
+/**
+ * Wired, somebody else's, or nothing there, for Codex's `[tui]` table.
+ *
+ * Codex has no free form command to inspect: the table names a fixed list of
+ * built in items instead. So this reads the comment install leaves behind
+ * rather than a command string, and falls back to the presence of the
+ * `status_line` key itself for a table this build did not write.
+ */
+function classifyCodexSection(text: string | null): string {
+  if (text === null) return STATUS_NOT_WIRED;
+  const sectionMatch = /(?:^|\n)(\[tui\][\s\S]*?)(?=\n\[|$)/.exec(text);
+  const section = sectionMatch?.[1];
+  if (section === undefined) return STATUS_NOT_WIRED;
+  if (section.includes("# openlimiter managed")) return STATUS_WIRED;
+  return /status_line\s*=/.test(section) ? STATUS_OWN_LINE_FOUND : STATUS_NOT_WIRED;
+}
+
+/**
+ * Check wiring status for a host.
+ *
+ * Three states for every host that can carry somebody else's status line:
+ * ours is wired, somebody else's is already there and install would wrap it
+ * rather than overwrite it, or nothing is there at all. The shell host has no
+ * wrap to offer, install only ever appends our own snippet, so it stays a
+ * plain wired or not.
  */
 export async function hostStatus(
   host: string,
@@ -773,43 +839,26 @@ export async function hostStatus(
 
   if (h === "claude") {
     const settings = await readJsonFile(claudeSettingsPath(context.homeDirectory));
-    if (settings && settings["statusLine"]) {
-      const sl = settings["statusLine"];
-      if (typeof sl === "object" && sl !== null) {
-        const cmd = (sl as Record<string, unknown>)["command"];
-        if (typeof cmd === "string" && cmd.includes("openlimiter statusline")) {
-          return STATUS_WIRED;
-        }
-      }
-    }
-    return STATUS_NOT_INSTALLED;
+    return classifyCommand(
+      settings ? claudeLikeStatusLineCommand(settings["statusLine"]) : null
+    );
   }
 
   if (h === "antigravity") {
     const settings = await readJsonFile(antigravitySettingsPath(context.homeDirectory));
-    if (settings && settings["statusLine"]) {
-      const sl = settings["statusLine"];
-      if (typeof sl === "string" && sl.includes("openlimiter statusline")) {
-        return STATUS_WIRED;
-      }
-    }
-    return STATUS_NOT_INSTALLED;
+    return classifyCommand(
+      settings ? claudeLikeStatusLineCommand(settings["statusLine"]) : null
+    );
   }
 
   if (h === "grok") {
     const text = await readTextFile(grokConfigPath(context.homeDirectory));
-    if (text && text.includes("openlimiter statusline")) {
-      return STATUS_WIRED;
-    }
-    return STATUS_NOT_INSTALLED;
+    return classifyCommand(grokStatusLineCommand(text));
   }
 
   if (h === "codex") {
     const text = await readTextFile(codexConfigPath(context.homeDirectory));
-    if (text && text.includes("[tui]") && text.includes("status_line")) {
-      return STATUS_WIRED;
-    }
-    return STATUS_NOT_INSTALLED;
+    return classifyCodexSection(text);
   }
 
   if (h === "shell") {
@@ -817,10 +866,10 @@ export async function hostStatus(
     if (text && text.includes("openlimiter statusline")) {
       return STATUS_WIRED;
     }
-    return STATUS_NOT_INSTALLED;
+    return STATUS_NOT_WIRED;
   }
 
-  return STATUS_NOT_INSTALLED;
+  return STATUS_NOT_WIRED;
 }
 
 /**

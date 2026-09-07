@@ -28,6 +28,7 @@ import {
   readAcquisitionSchedule,
   readSnapshotCache,
   readWindowsCredentialWith,
+  resolveStateDirectory,
   runAcquisition,
   spawnDetachedRefresh,
   writeAcquisitionSchedule,
@@ -90,6 +91,7 @@ import {
   renderClaudeStatusline
 } from "@openlimiter/adapters";
 import { execFile, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import {
   PROVIDER_KEYS,
@@ -132,12 +134,6 @@ import {
   type CredentialStore
 } from "./credentials.js";
 import {
-  DEFAULT_SERVE_PORT,
-  serveBanner,
-  startQuotaServer,
-  type QuotaServerHandle
-} from "./serve.js";
-import {
   failureLine,
   failureLines,
   renderTable,
@@ -158,6 +154,34 @@ import {
   uninstallHost,
   type TerminalHostContext
 } from "./terminal.js";
+import {
+  createFetchHubTransport,
+  hubConfigured,
+  type HubTransport
+} from "./hub.js";
+import {
+  REVOKED_SENTENCE,
+  ensureFreshSession,
+  isAborted,
+  runDeviceLogin
+} from "./hub-auth.js";
+import { runSync } from "./hub-sync.js";
+import {
+  deleteSession,
+  readSession,
+  writeSession,
+  type HubSession
+} from "./session.js";
+import {
+  DeviceLoginError,
+  LOGIN_TIMEOUT_MILLISECONDS,
+  SystemDeviceLoginRunner,
+  managedCodexHome,
+  startCodexDeviceLogin,
+  versionIsSupported as codexVersionIsSupported,
+  type DeviceLoginFailure,
+  type DeviceLoginRunner
+} from "./codex-device-login.js";
 
 export interface CliDependencies {
   environment: Readonly<Record<string, string | undefined>>;
@@ -177,11 +201,9 @@ export interface CliDependencies {
   /**
    * Whether output may carry terminal colour.
    *
-   * Two surfaces depend on it. The QR symbol the serve command prints has to
-   * state its own black and white, because a dark themed terminal would
-   * otherwise invert it and no camera would read it. The meter bars and the
-   * failure lines use it to choose between escape codes and plain ASCII, so a
-   * capture redirected into a file carries no control characters at all.
+   * The meter bars and the failure lines use it to choose between escape
+   * codes and plain ASCII, so a capture redirected into a file carries no
+   * control characters at all.
    */
   colorOutput: boolean;
   homeDirectory: string;
@@ -200,13 +222,6 @@ export interface CliDependencies {
    * the security of a real file.
    */
   hostedTrustWindowsSecurity?: HostedTrustLoadOptions["windowsSecurity"];
-  /**
-   * Called once the serve command is listening.
-   *
-   * The serve command never returns on its own, so this is the seam a test or
-   * a parent process uses to reach the handle and close it again.
-   */
-  onListening?: (handle: QuotaServerHandle) => void;
   /**
    * How acquisition requests leave this machine.
    *
@@ -240,6 +255,51 @@ export interface CliDependencies {
    * Interactive prompt choice helper.
    */
   promptChoice?: (question: string) => Promise<string>;
+  /**
+   * How a hub request leaves this machine.
+   *
+   * Injected everywhere, exactly like `acquisitionTransport`, so a test proves
+   * the whole sign in and sync path against recorded responses and never opens
+   * a socket. The library default throws, and the real executable injects the
+   * runtime's own fetch behind the closed endpoint table in `hub.ts`.
+   */
+  hubTransport: HubTransport;
+  /**
+   * Open a URL in the person's browser. Used only when `--open` is passed to
+   * `login`, since the code and address are always printed either way.
+   */
+  openBrowser: (url: string) => void;
+  /** An injectable delay, so a poll loop never makes a test wait in real time. */
+  sleep: (milliseconds: number) => Promise<void>;
+  /**
+   * Progress a long running command wants seen before it returns.
+   *
+   * `login`, `sync` and `setup` can run for minutes at a time, and a person
+   * watching a blank terminal for three minutes while a device code sits
+   * unprinted is the whole flow failing in a way no exit code explains. This
+   * is separate from the command's own `CliResult`, which still carries a
+   * final one line summary once the command actually finishes.
+   */
+  emit: (line: string) => void;
+  /** Set when Ctrl C should end a poll loop rather than the whole process. */
+  interruptSignal?: AbortSignal;
+  /**
+   * How an owner only ACL is applied to the session file on Windows.
+   *
+   * Best effort and independent of `windowsCredentialRunner`: this one writes
+   * an ACL rather than reading a credential, but the shape of "run this helper
+   * with these arguments" is the same, so the two share a type.
+   */
+  windowsAclRunner?: CredentialCommandRunner;
+  /**
+   * How the Codex device sign in child process is started, keyed by the
+   * executable this machine detected.
+   *
+   * The library default never spawns anything: it answers every login attempt
+   * with a closed `spawn` failure, so a test or another tool that calls
+   * `runCli` in process starts no child unless it asked for one.
+   */
+  codexDeviceLoginRunnerFactory: (executable: string) => DeviceLoginRunner;
 }
 
 export interface CliResult {
@@ -280,7 +340,18 @@ function defaults(): CliDependencies {
     },
     spawnDetached: () => undefined,
     probeAntigravity: async () => ({ ok: false, reason: "not_running" }),
-    promptChoice: async () => ""
+    promptChoice: async () => "",
+    hubTransport: async () => {
+      throw new Error("No hub transport was injected");
+    },
+    openBrowser: () => undefined,
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    emit: () => undefined,
+    codexDeviceLoginRunnerFactory: () => ({
+      start: async () => {
+        throw new DeviceLoginError("spawn");
+      }
+    })
   };
 }
 
@@ -297,9 +368,61 @@ const NEWLINE = "\n";
  * one configuration a person following the install instructions ends up with.
  * One factory, both paths, and a test can assert what is in it.
  */
+/**
+ * Run one helper executable with arguments and a timeout, and hand back its
+ * standard output or a plain failure.
+ *
+ * Shared by two dependencies that otherwise have nothing to do with each
+ * other: reading one Windows Credential Manager entry, and applying an owner
+ * only ACL to the session file. Both are "run this helper, get its stdout or
+ * nothing back", so both get the same runner rather than two copies of the
+ * same `execFile` wrapper.
+ */
+const execFileRunner: CredentialCommandRunner = async (
+  executable,
+  helperArguments,
+  timeoutMilliseconds
+) =>
+  await new Promise((resolve) => {
+    execFile(
+      executable,
+      [...helperArguments],
+      { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true },
+      (error, stdout) => {
+        resolve(error === null ? { ok: true, stdout } : { ok: false });
+      }
+    );
+  });
+
+/** Open a URL in the person's browser, best effort and never awaited. */
+function openBrowserPlatform(url: string, platform: NodeJS.Platform): void {
+  if (!/^https:\/\//u.test(url) || url.length > 2_048) return;
+  const [command, commandArguments] = platform === "win32"
+    ? ["cmd", ["/c", "start", "", url]]
+    : platform === "darwin"
+      ? ["open", [url]]
+      : ["xdg-open", [url]];
+  try {
+    const child = spawn(command, commandArguments, { stdio: "ignore", detached: true });
+    child.once("error", () => undefined);
+    child.unref();
+  } catch {
+    /* The code and the address are already printed, which is enough on its
+       own to sign in from. Opening a tab is a convenience, not the path. */
+  }
+}
+
 export function runtimeDependencies(): Pick<
   CliDependencies,
-  "acquisitionTransport" | "spawnDetached" | "windowsCredentialRunner" | "probeAntigravity"
+  | "acquisitionTransport"
+  | "spawnDetached"
+  | "windowsCredentialRunner"
+  | "probeAntigravity"
+  | "hubTransport"
+  | "openBrowser"
+  | "emit"
+  | "windowsAclRunner"
+  | "codexDeviceLoginRunnerFactory"
 > {
   return {
     acquisitionTransport: createFetchTransport(),
@@ -323,17 +446,14 @@ export function runtimeDependencies(): Pick<
       /* Unreferenced so this process can exit while the refresh continues. */
       child.unref();
     },
-    windowsCredentialRunner: async (executable, helperArguments, timeoutMilliseconds) =>
-      await new Promise((resolve) => {
-        execFile(
-          executable,
-          [...helperArguments],
-          { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true },
-          (error, stdout) => {
-            resolve(error === null ? { ok: true, stdout } : { ok: false });
-          }
-        );
-      })
+    windowsCredentialRunner: execFileRunner,
+    windowsAclRunner: execFileRunner,
+    hubTransport: createFetchHubTransport(),
+    openBrowser: (url) => openBrowserPlatform(url, process.platform),
+    emit: (line) => {
+      process.stdout.write(line + "\n");
+    },
+    codexDeviceLoginRunnerFactory: (executable) => new SystemDeviceLoginRunner(executable)
   };
 }
 
@@ -803,6 +923,12 @@ async function refreshCommand(
       now,
       PROVIDER_CODES
     ).catch(() => undefined);
+    /*
+     * A sync after a successful refresh, when a session exists. This round
+     * already runs off the status line's own path (`startRefreshBehind` spawns
+     * it detached and never waits), so nothing here can add to a render.
+     */
+    await triggerSyncAfterRefresh(dependencies, now);
     return succeed([
       ACQUISITION_HEADER,
       ...result.rows.map((row) => acquisitionLine(row, merged))
@@ -890,6 +1016,12 @@ function doctorRows(
 }
 
 const help = [
+  "openlimiter",
+  "openlimiter setup",
+  "openlimiter login [--open]",
+  "openlimiter logout",
+  "openlimiter whoami",
+  "openlimiter sync",
   "openlimiter init",
   "openlimiter snapshot [--refresh]",
   "openlimiter statusline [--host claude|antigravity|grok|codex|shell]",
@@ -914,18 +1046,18 @@ const help = [
   "openlimiter doctor",
   "openlimiter demo",
   "openlimiter export",
-  "openlimiter serve [--port <n>] [--host <address>] [--no-qr]",
   "",
   "statusline keys: " + STATUSLINE_KEYS.join(", ") + ".",
   "providers keys: " + PROVIDER_KEYS.join(", ") + ".",
   "terminal hosts: " + TERMINAL_HOST_NAMES.join(", ") + ".",
   "statusline and ingest read JSON from standard input when it is piped in.",
+  "openlimiter with no arguments runs setup: sign in, connect, show bars in.",
+  "login opens the device code sign in; sync uploads one round to the hub when",
+  "a session exists, and refresh triggers it automatically after itself.",
   "refresh reads the logins your provider tools already stored on this machine",
   "and asks each provider for its own usage, at most once every 15 minutes. It",
   "stands down while the desktop app is running. statusline and snapshot start",
   "it in the background when the cache is older than a minute.",
-  "serve publishes read only quota on your local network, behind a token that",
-  "changes on every start. It is for a trusted network, not the internet.",
   "Exit codes: 0 success, 1 failure, 2 usage, 3 no bounded quota data."
 ].join("\n");
 
@@ -1778,53 +1910,378 @@ async function terminalCommand(
   return fail(EXIT_USAGE, terminalUsage);
 }
 
+/* ------------------------------------------------------------------- hub */
+
 /**
- * Publish the cached quota on the local network, read only.
+ * Sign in to the hub through the device code flow.
  *
- * This is the one command that does not finish. It returns its banner as soon
- * as the socket is bound, and the listening socket is what keeps the process
- * alive afterwards, so the caller writes the banner exactly once and then gets
- * out of the way.
+ * The code and the address are shown the moment the hub hands them over,
+ * through `dependencies.emit`, because the poll that follows can take up to
+ * three minutes and a person watching a blank terminal for that long is the
+ * whole flow failing in a way no exit code explains. `--open` additionally
+ * opens a browser tab; the code and the address are printed either way.
  */
-async function serveCommand(
+async function loginCommand(
   dependencies: CliDependencies,
   argumentsList: readonly string[]
 ): Promise<CliResult> {
-  const portText = flagValue(argumentsList, "--port");
-  if (argumentsList.includes("--port") && portText === undefined) {
-    return fail(EXIT_USAGE, "openlimiter serve: the port flag needs a value.");
-  }
-  const port = portText === undefined ? DEFAULT_SERVE_PORT : Number(portText);
-  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
-    return fail(
-      EXIT_USAGE,
-      "openlimiter serve: the port must be a whole number from 0 to 65535."
-    );
-  }
-  const host = flagValue(argumentsList, "--host");
-  if (argumentsList.includes("--host") && host === undefined) {
-    return fail(EXIT_USAGE, "openlimiter serve: the host flag needs a value.");
-  }
-  try {
-    const handle = await startQuotaServer({
-      port,
-      ...(host === undefined ? {} : { host }),
-      stateDirectory: dependencies.stateDirectory,
-      now: dependencies.now
+  const outcome = await runDeviceLogin({
+    environment: dependencies.environment,
+    transport: dependencies.hubTransport,
+    sleep: dependencies.sleep,
+    emit: dependencies.emit,
+    ...(dependencies.interruptSignal === undefined ? {} : { interruptSignal: dependencies.interruptSignal }),
+    openBrowser: dependencies.openBrowser,
+    open: argumentsList.includes("--open")
+  });
+  if (outcome.kind === "signed_in") {
+    await writeSession(outcome.session, {
+      ...(dependencies.stateDirectory === undefined ? {} : { directory: dependencies.stateDirectory }),
+      platform: dependencies.platform,
+      ...(dependencies.windowsAclRunner === undefined ? {} : { windowsAclRunner: dependencies.windowsAclRunner })
     });
-    dependencies.onListening?.(handle);
+    return succeed("Signed in as " + outcome.session.accountLabel + ".");
+  }
+  if (outcome.kind === "cancelled") return fail(EXIT_FAILURE, "openlimiter login: cancelled.");
+  if (outcome.kind === "denied") return fail(EXIT_FAILURE, "openlimiter login: the sign in was denied.");
+  if (outcome.kind === "expired") {
+    return fail(EXIT_FAILURE, "openlimiter login: the code expired before it was approved.");
+  }
+  if (outcome.kind === "not_configured") {
+    return fail(EXIT_FAILURE, "openlimiter login: the hub is not configured on this build.");
+  }
+  return fail(EXIT_FAILURE, "openlimiter login: " + outcome.message + ".");
+}
+
+/** Forget the stored session. Nothing on the hub is asked to do anything. */
+async function logoutCommand(dependencies: CliDependencies): Promise<CliResult> {
+  await deleteSession(dependencies.stateDirectory);
+  return succeed("Signed out.");
+}
+
+/** Print who is signed in, or say plainly that nobody is. */
+async function whoamiCommand(dependencies: CliDependencies): Promise<CliResult> {
+  const session = await readSession(dependencies.stateDirectory);
+  if (session === null) return fail(EXIT_FAILURE, "openlimiter whoami: not signed in.");
+  return succeed(["Account: " + session.accountLabel, "Device: " + session.deviceId].join(NEWLINE));
+}
+
+/** Persist a session that renewal freshened, using the caller's own options. */
+async function persistRenewedSession(
+  dependencies: CliDependencies,
+  session: HubSession
+): Promise<void> {
+  await writeSession(session, {
+    ...(dependencies.stateDirectory === undefined ? {} : { directory: dependencies.stateDirectory }),
+    platform: dependencies.platform,
+    ...(dependencies.windowsAclRunner === undefined ? {} : { windowsAclRunner: dependencies.windowsAclRunner })
+  });
+}
+
+/**
+ * Build and upload one sync envelope, from the CLI's own explicit command.
+ *
+ * Renewal happens here, before anything is uploaded, exactly as the
+ * deliverable requires: a token within an hour of expiry or already expired
+ * is refreshed first, and a hub side revocation ends the session rather than
+ * being treated as an ordinary network failure.
+ */
+async function syncCommand(dependencies: CliDependencies, now: string): Promise<CliResult> {
+  const directory = dependencies.stateDirectory ?? resolveStateDirectory();
+  const session = await readSession(directory);
+  if (session === null) {
+    return fail(EXIT_FAILURE, "openlimiter sync: not signed in, run openlimiter login.");
+  }
+  const renewal = await ensureFreshSession(session, now, dependencies.environment, dependencies.hubTransport);
+  if (renewal.kind === "revoked") {
+    await deleteSession(directory);
+    return fail(EXIT_FAILURE, REVOKED_SENTENCE);
+  }
+  if (renewal.kind === "error") {
+    return fail(EXIT_FAILURE, "openlimiter sync: could not renew the session, try again.");
+  }
+  if (renewal.kind === "renewed") await persistRenewedSession(dependencies, renewal.session);
+  const active = renewal.session;
+  const snapshots = await cachedSnapshots(dependencies.stateDirectory);
+  const result = await runSync({
+    directory,
+    environment: dependencies.environment,
+    transport: dependencies.hubTransport,
+    now,
+    token: active.token,
+    deviceId: active.deviceId,
+    snapshots
+  });
+  if (result.kind === "accepted") {
     return succeed(
-      serveBanner(handle, {
-        color: dependencies.colorOutput,
-        withoutQr: argumentsList.includes("--no-qr")
-      })
-    );
-  } catch {
-    return fail(
-      EXIT_FAILURE,
-      "openlimiter serve: that address and port could not be opened."
+      "Synced: accepted, tier " + (result.tier ?? "free") + ", rows " + String(result.rows) + "."
     );
   }
+  if (result.kind === "nothing_to_sync") return succeed("openlimiter sync: nothing to sync yet.");
+  if (result.kind === "revoked") {
+    await deleteSession(directory);
+    return fail(EXIT_FAILURE, REVOKED_SENTENCE);
+  }
+  if (result.kind === "rejected") {
+    return fail(EXIT_FAILURE, "openlimiter sync: the hub rejected the upload.");
+  }
+  return fail(EXIT_FAILURE, "openlimiter sync: the hub could not be reached, try again.");
+}
+
+/**
+ * Renew and upload behind an acquisition round, when a session exists.
+ *
+ * Called only from `refreshCommand`, which already runs off the status line's
+ * own path (see `startRefreshBehind`): a round started from a status line
+ * spawns this whole command detached and never waits on it, so nothing here
+ * can add to the milliseconds a render takes. Every failure is swallowed: a
+ * refresh that could not sync still refreshed, and a hub that is unconfigured,
+ * unreachable or has revoked this device is not this command's business to
+ * report.
+ */
+async function triggerSyncAfterRefresh(
+  dependencies: CliDependencies,
+  now: string
+): Promise<void> {
+  try {
+    const directory = dependencies.stateDirectory ?? resolveStateDirectory();
+    const session = await readSession(directory);
+    if (session === null) return;
+    const renewal = await ensureFreshSession(session, now, dependencies.environment, dependencies.hubTransport);
+    if (renewal.kind === "revoked") {
+      await deleteSession(directory);
+      return;
+    }
+    if (renewal.kind === "error") return;
+    if (renewal.kind === "renewed") await persistRenewedSession(dependencies, renewal.session);
+    const active = renewal.session;
+    const snapshots = await cachedSnapshots(dependencies.stateDirectory);
+    const outcome = await runSync({
+      directory,
+      environment: dependencies.environment,
+      transport: dependencies.hubTransport,
+      now,
+      token: active.token,
+      deviceId: active.deviceId,
+      snapshots
+    });
+    if (outcome.kind === "revoked") await deleteSession(directory);
+  } catch {
+    /* A refresh that could not sync still refreshed. */
+  }
+}
+
+/* -------------------------------------------------------------- setup */
+
+const SETUP_SIGN_IN_PROMPT = "Sign in to sync your bars to the hub and your phone (free)";
+
+async function promptOrSkip(dependencies: CliDependencies, question: string): Promise<boolean> {
+  const answer = await dependencies.promptChoice?.(question) ?? "";
+  return !answer.trim().toLowerCase().startsWith("s");
+}
+
+/** Step one: sign in, or say plainly why this machine did not. */
+async function setupSignInStep(dependencies: CliDependencies): Promise<string[]> {
+  const lines: string[] = ["1. Sign in", SETUP_SIGN_IN_PROMPT];
+  const existing = await readSession(dependencies.stateDirectory);
+  if (existing !== null) {
+    lines.push("Already signed in as " + existing.accountLabel + ".");
+    return lines;
+  }
+  if (!hubConfigured(dependencies.environment)) {
+    lines.push("Skipped: the hub is not configured on this build.");
+    return lines;
+  }
+  const proceed = await promptOrSkip(dependencies, "Enter to sign in, S to skip: ");
+  if (!proceed) {
+    lines.push("Skipped.");
+    return lines;
+  }
+  const outcome = await runDeviceLogin({
+    environment: dependencies.environment,
+    transport: dependencies.hubTransport,
+    sleep: dependencies.sleep,
+    emit: dependencies.emit,
+    ...(dependencies.interruptSignal === undefined ? {} : { interruptSignal: dependencies.interruptSignal }),
+    openBrowser: dependencies.openBrowser,
+    open: false
+  });
+  if (outcome.kind === "signed_in") {
+    await writeSession(outcome.session, {
+      ...(dependencies.stateDirectory === undefined ? {} : { directory: dependencies.stateDirectory }),
+      platform: dependencies.platform,
+      ...(dependencies.windowsAclRunner === undefined ? {} : { windowsAclRunner: dependencies.windowsAclRunner })
+    });
+    lines.push("Signed in as " + outcome.session.accountLabel + ".");
+  } else if (outcome.kind === "cancelled") {
+    lines.push("Cancelled.");
+  } else {
+    lines.push("Could not sign in this time. Run openlimiter login later.");
+  }
+  return lines;
+}
+
+/** Which acquisition provider reads this agent's own login, when one exists. */
+const AGENT_CREDENTIAL_PROVIDER: Readonly<Partial<Record<AgentId, AcquisitionProvider>>> = {
+  claude: "CLAUDE",
+  codex: "CODEX",
+  gemini: "GEMINI_CLI",
+  antigravity: "ANTIGRAVITY",
+  grok: "GROK",
+  kimi: "KIMI"
+};
+
+/**
+ * Agents whose device style sign in is untested on this build (decision D5):
+ * shown as "verified on install" instead of a plain install nudge, and never
+ * offered an interactive sign in of their own.
+ */
+const UNVERIFIED_DEVICE_LOGIN_AGENTS: ReadonlySet<AgentId> = new Set(["grok", "kimi"]);
+
+type ConnectRowState = "use_current_login" | "sign_in" | "install" | "verified_on_install";
+
+const CONNECT_ROW_LABEL: Readonly<Record<ConnectRowState, string>> = {
+  use_current_login: "use current login",
+  sign_in: "sign in",
+  install: "install",
+  verified_on_install: "verified on install"
+};
+
+async function connectRowState(
+  agent: AgentId,
+  installed: AgentInstallation | null,
+  readCredential: (provider: AcquisitionProvider) => Promise<CredentialResult>
+): Promise<ConnectRowState> {
+  if (installed === null) {
+    return UNVERIFIED_DEVICE_LOGIN_AGENTS.has(agent) ? "verified_on_install" : "install";
+  }
+  const provider = AGENT_CREDENTIAL_PROVIDER[agent];
+  if (provider === undefined) return "sign_in";
+  const credential = await readCredential(provider);
+  return credential.ok ? "use_current_login" : "sign_in";
+}
+
+function codexFailureSentence(reason: DeviceLoginFailure): string {
+  if (reason === "not_installed") return "not installed";
+  if (reason === "too_old") return "this version is too old, upgrade Codex";
+  if (reason === "storage") return "could not prepare a folder for this sign in";
+  if (reason === "spawn") return "could not be started";
+  return "printed no code to sign in with";
+}
+
+/**
+ * Offer Codex's device sign in, watch it to an ending, and say which.
+ *
+ * `codex login --device-auth` runs with `CODEX_HOME` pointed at a folder this
+ * product owns under its own state directory, so the person's own Codex
+ * configuration is never touched. Ctrl C cancels the wait and kills the
+ * child; the built in 180 second timeout does the same when nobody finishes.
+ */
+async function runCodexDeviceSignIn(
+  dependencies: CliDependencies,
+  installed: AgentInstallation
+): Promise<string> {
+  if (!codexVersionIsSupported(installed.version)) {
+    return "Codex: " + codexFailureSentence("too_old") + ".";
+  }
+  const stateDirectory = dependencies.stateDirectory ?? resolveStateDirectory();
+  const sessionId = randomUUID().replace(/-/gu, "");
+  const home = managedCodexHome(stateDirectory, sessionId);
+  if (home === null) return "Codex: " + codexFailureSentence("storage") + ".";
+  const runner = dependencies.codexDeviceLoginRunnerFactory(installed.executable);
+  let started;
+  try {
+    started = await startCodexDeviceLogin(runner, home, Date.now());
+  } catch (error) {
+    const reason = error instanceof DeviceLoginError ? error.reason : "spawn";
+    return "Codex: " + codexFailureSentence(reason) + ".";
+  }
+  const { session, start } = started;
+  dependencies.emit("Codex code: " + start.userCode);
+  dependencies.emit("Codex at: " + start.verificationUrl);
+  const deadline = Date.now() + LOGIN_TIMEOUT_MILLISECONDS;
+  for (;;) {
+    if (isAborted(dependencies.interruptSignal)) {
+      session.cancel();
+      return "Codex: sign in cancelled.";
+    }
+    const state = await session.state(Date.now());
+    if (state.kind === "complete") return "Codex: signed in.";
+    if (state.kind === "cancelled") return "Codex: sign in cancelled.";
+    if (state.kind === "timed_out") return "Codex: sign in timed out.";
+    if (state.kind === "failed") {
+      return "Codex: " + codexFailureSentence(state.reason) + ".";
+    }
+    if (Date.now() >= deadline) {
+      session.cancel();
+      return "Codex: sign in timed out.";
+    }
+    await dependencies.sleep(1_000);
+  }
+}
+
+/** Step two: detect installed agent CLIs and their logins, one row each. */
+async function setupConnectStep(dependencies: CliDependencies): Promise<string[]> {
+  const lines: string[] = ["2. Connect"];
+  const environment = await environmentWithLocalMarkers(
+    dependencies.environment,
+    dependencies.stateDirectory
+  );
+  const readCredential = credentialReader(dependencies);
+  let codexInstalled: AgentInstallation | null = null;
+  let codexNeedsSignIn = false;
+  for (const agent of CONNECT_AGENT_IDS) {
+    const installed = await detectAgentInstallation(agent, {
+      environment,
+      platform: dependencies.platform
+    });
+    const state = await connectRowState(agent, installed, readCredential);
+    lines.push(agent + ": " + CONNECT_ROW_LABEL[state]);
+    if (agent === "codex") {
+      codexInstalled = installed;
+      codexNeedsSignIn = state === "sign_in";
+    }
+  }
+  if (codexNeedsSignIn && codexInstalled !== null) {
+    const proceed = await promptOrSkip(
+      dependencies,
+      "Codex has no login yet. Sign in now? Enter to start, S to skip: "
+    );
+    if (proceed) lines.push(await runCodexDeviceSignIn(dependencies, codexInstalled));
+  } else {
+    await promptOrSkip(dependencies, "Enter to accept: ");
+  }
+  return lines;
+}
+
+const CONNECT_AGENT_IDS: readonly AgentId[] = [
+  "claude",
+  "codex",
+  "gemini",
+  "antigravity",
+  "grok",
+  "kimi",
+  "opencode"
+];
+
+/** Step three: the existing terminal checklist, unchanged. */
+async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[]> {
+  const result = await terminalCommand(dependencies, ["terminal"]);
+  return ["3. Show bars in", result.stdout];
+}
+
+/**
+ * The three step first run: sign in, connect, show bars in, then the bars
+ * themselves, once.
+ */
+async function setupCommand(dependencies: CliDependencies, now: string): Promise<CliResult> {
+  const sections: string[] = [];
+  sections.push(...(await setupSignInStep(dependencies)));
+  sections.push(...(await setupConnectStep(dependencies)));
+  sections.push(...(await setupShowBarsStep(dependencies)));
+  const snapshots = await cachedSnapshots(dependencies.stateDirectory);
+  sections.push(renderTable(snapshots, now, dependencies.colorOutput));
+  return succeed(sections.join(NEWLINE));
 }
 
 export async function runCli(
@@ -1832,9 +2289,14 @@ export async function runCli(
   overrides: Partial<CliDependencies> = {}
 ): Promise<CliResult> {
   const dependencies = { ...defaults(), ...overrides };
-  const command = argumentsList[0] ?? "help";
+  const command = argumentsList[0] ?? "setup";
   const now = dependencies.now();
   try {
+    if (command === "setup") return await setupCommand(dependencies, now);
+    if (command === "login") return await loginCommand(dependencies, argumentsList);
+    if (command === "logout") return await logoutCommand(dependencies);
+    if (command === "whoami") return await whoamiCommand(dependencies);
+    if (command === "sync") return await syncCommand(dependencies, now);
     if (command === "init") return await initCommand(dependencies);
     if (command === "snapshot") {
       return await snapshotCommand(dependencies, argumentsList, now);
@@ -1866,7 +2328,6 @@ export async function runCli(
     if (command === "ingest") {
       return await ingestCommand(dependencies, argumentsList, now);
     }
-    if (command === "serve") return await serveCommand(dependencies, argumentsList);
     if (command === "help" || command === "--help" || command === "-h") {
       return succeed(help);
     }

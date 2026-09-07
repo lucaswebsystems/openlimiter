@@ -21,6 +21,19 @@ async function promptForSecret(): Promise<string> {
   }
 }
 
+async function promptChoice(question: string): Promise<string> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return "";
+  const interfaceHandle = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  try {
+    return await interfaceHandle.question(question);
+  } finally {
+    interfaceHandle.close();
+  }
+}
+
 /**
  * Everything that reaches the world, built once and used by BOTH entry paths.
  *
@@ -62,13 +75,28 @@ if (wrapperRequested && wrapped === null) {
   if (result.stderr.length > 0) process.stderr.write(result.stderr);
   process.exitCode = result.exitCode;
 } else {
+  /*
+   * Ctrl C is wired to an abort signal only for the commands that poll for
+   * somebody else's action: signing in, and the first run wizard's sign in
+   * step. Every other command keeps Node's ordinary SIGINT behaviour, which
+   * this listener would otherwise silently replace by existing at all.
+   */
+  const pollsForApproval = argumentsList[0] === "login" ||
+    argumentsList[0] === "setup" ||
+    argumentsList.length === 0;
+  const controller = pollsForApproval ? new AbortController() : null;
+  const onInterrupt = (): void => controller?.abort();
+  if (controller !== null) process.on("SIGINT", onInterrupt);
   const result = await runCli(argumentsList, {
     ...runtime,
     promptForSecret,
+    promptChoice,
+    ...(controller === null ? {} : { interruptSignal: controller.signal }),
     readStandardInput: (signal) => argumentsList[0] === "hook"
       ? readStandardInputText(process.stdin, HOOK_INPUT_MAX_BYTES, undefined, signal)
       : readStandardInputText()
   });
+  if (controller !== null) process.off("SIGINT", onInterrupt);
   if (result.stdout !== "") process.stdout.write(result.stdout + "\n");
   if (result.stderr !== "") process.stderr.write(result.stderr + "\n");
   process.exitCode = result.exitCode;
