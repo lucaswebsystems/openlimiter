@@ -82,12 +82,15 @@ describe("session file", () => {
       platform: "win32",
       windowsAclRunner: async (executable, args) => {
         calls.push({ executable, args });
-        return { ok: true, stdout: "" };
+        return executable === "whoami"
+          ? { ok: true, stdout: '"lucas\\lucas","S-1-5-21-1-2-3-1001"\r\n' }
+          : { ok: true, stdout: "" };
       }
     });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.executable).toBe("icacls");
-    expect(calls[0]?.args).toContain("/inheritance:r");
+    const grant = calls.find((call) => call.executable === "icacls");
+    expect(calls[0]?.executable).toBe("whoami");
+    expect(grant?.args).toContain("/inheritance:r");
+    expect(grant?.args.some((argument) => argument.startsWith("*S-1-5-21-") && argument.endsWith(":F"))).toBe(true);
   });
 
   it("never calls the Windows ACL runner off Windows", async () => {

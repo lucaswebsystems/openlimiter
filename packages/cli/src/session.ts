@@ -100,13 +100,47 @@ async function applyWindowsOwnerOnlyAcl(
   runner: CredentialCommandRunner | undefined
 ): Promise<void> {
   if (runner === undefined) return;
-  const username = userInfo().username;
-  if (username.length === 0 || username.length > 256) return;
+  const principal = await windowsPrincipal(runner);
+  if (principal === null) return;
   try {
-    await runner("icacls", [target, "/inheritance:r", "/grant:r", username + ":F"], 5_000);
+    await runner("icacls", [target, "/inheritance:r", "/grant:r", principal + ":F"], 5_000);
   } catch {
     /* Best effort, as documented on the file itself. */
+    return;
   }
+  /* The grant must leave the file readable by the account that just signed
+     in. A principal icacls resolved to something else (seen once: a bare user
+     name read as a domain prefix) locks the person out of their own session,
+     so the file is read back and the inheritance restored when that happens. */
+  const check = await readJsonFileSafely(target);
+  if (!check.ok) {
+    try {
+      await runner("icacls", [target, "/reset"], 5_000);
+    } catch {
+      /* Nothing more to do: the write itself succeeded. */
+    }
+  }
+}
+
+/**
+ * The principal to grant: the current user's SID when whoami answers, which
+ * icacls resolves unambiguously with a leading asterisk, otherwise the
+ * domain qualified user name, otherwise nothing.
+ */
+async function windowsPrincipal(runner: CredentialCommandRunner): Promise<string | null> {
+  try {
+    const answer = await runner("whoami", ["/user", "/fo", "csv", "/nh"], 5_000);
+    if (answer.ok) {
+      const match = /"(S-1-[0-9-]+)"/u.exec(answer.stdout);
+      if (match?.[1] !== undefined) return "*" + match[1];
+    }
+  } catch {
+    /* Fall through to the name. */
+  }
+  const username = userInfo().username;
+  if (username.length === 0 || username.length > 256) return null;
+  const domain = process.env["USERDOMAIN"];
+  return domain !== undefined && domain.length > 0 && domain.length <= 256 ? domain + "\\" + username : username;
 }
 
 export interface WriteSessionOptions {
