@@ -58,6 +58,7 @@ const CLIENT_NAMESPACES = [
   "localeSwitcher",
   "proPortal",
   "signIn",
+  "hub",
 ] as const;
 
 /**

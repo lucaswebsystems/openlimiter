@@ -4,10 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   OAUTH_PROVIDERS,
   PROBE_TIMEOUT_MILLISECONDS,
+  PROVIDER_SCOPES,
   emailSwitchedOff,
   otherProvider,
   probeAuthorize,
   providerName,
+  providerOffKey,
   providerSwitchedOff,
   startOAuth,
 } from "@/lib/sign-in";
@@ -130,7 +132,9 @@ describe("startOAuth", () => {
 
 describe("probeAuthorize", () => {
   it("reads an opaque redirect as the go ahead it is, without following it", async () => {
-    const fetchImpl = vi.fn(async () => ({ type: "opaqueredirect", status: 0 }) as Response);
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => ({ type: "opaqueredirect", status: 0 }) as Response,
+    );
     const answer = await probeAuthorize("https://auth.example/authorize", fetchImpl);
     expect(answer).toEqual({ status: 302, body: null });
     expect(fetchImpl).toHaveBeenCalledWith(
@@ -184,13 +188,29 @@ describe("probeAuthorize", () => {
   });
 });
 
-describe("the two providers", () => {
+describe("the three providers", () => {
   it("are offered GitHub first and named the way they spell themselves", () => {
-    expect([...OAUTH_PROVIDERS]).toEqual(["github", "google"]);
+    expect([...OAUTH_PROVIDERS]).toEqual(["github", "google", "azure"]);
     expect(providerName("github")).toBe("GitHub");
     expect(providerName("google")).toBe("Google");
+    /* The service knows Microsoft as azure. Nothing a reader sees does. */
+    expect(providerName("azure")).toBe("Microsoft");
     expect(otherProvider("github")).toBe("google");
     expect(otherProvider("google")).toBe("github");
+  });
+
+  it("asks Microsoft for the one scope a common tenant needs", () => {
+    expect(PROVIDER_SCOPES.azure).toBe("email");
+    expect(PROVIDER_SCOPES.github).toBeUndefined();
+    expect(PROVIDER_SCOPES.google).toBeUndefined();
+  });
+
+  it("names each provider's own refusal sentence", () => {
+    expect(providerOffKey("github")).toBe("githubOff");
+    expect(providerOffKey("google")).toBe("googleOff");
+    expect(providerOffKey("azure")).toBe("azureOff");
+    /* A refusal that named no provider still has a sentence to fall back on. */
+    expect(providerOffKey(undefined)).toBe("githubOff");
   });
 });
 

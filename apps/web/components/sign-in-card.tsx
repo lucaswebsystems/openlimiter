@@ -2,19 +2,44 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useTranslations } from "next-intl";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { authRedirectUrl } from "@/lib/pro";
 import {
+  OAUTH_PROVIDERS,
+  PROVIDER_SCOPES,
   emailSwitchedOff,
   probeAuthorize,
   providerName,
+  providerOffKey,
   startOAuth,
   type OAuthProvider,
   type SignInState,
 } from "@/lib/sign-in";
 import { BrandLockup } from "./brand";
 import { SiteLink } from "./site-link";
-import { Button, FIELD, GitHubMark, GoogleMark, SectionPanel } from "./ui";
+import {
+  Button,
+  FIELD,
+  GitHubMark,
+  GoogleMark,
+  MicrosoftMark,
+  SectionPanel,
+  Switch,
+} from "./ui";
+
+/** Each provider's own mark, drawn at 20 pixels, never recoloured. */
+const PROVIDER_MARKS: Record<OAuthProvider, (props: { className?: string }) => ReactNode> = {
+  github: GitHubMark,
+  google: GoogleMark,
+  azure: MicrosoftMark,
+};
+
+/** The message key holding each provider's button label. */
+const PROVIDER_LABEL_KEYS: Record<OAuthProvider, string> = {
+  github: "github",
+  google: "google",
+  azure: "microsoft",
+};
 
 /**
  * The sign in, drawn once.
@@ -28,6 +53,27 @@ import { Button, FIELD, GitHubMark, GoogleMark, SectionPanel } from "./ui";
  * host. Every state the card can be in has a shape: opening a provider, a
  * link on its way, a link sent, a provider the service has switched off, and
  * a plain failure.
+ *
+ * THE SWITCH IS NOT THE CARD'S TO KEEP
+ * ------------------------------------
+ * "Keep me signed in" decides which store the session lands in, and that is
+ * fixed when the auth client is constructed rather than when a button is
+ * pressed. So the card draws the switch and reports the answer, and the host
+ * holds it and rebuilds its client around it. A card that kept the state
+ * itself would be a control that looks like it works and changes nothing.
+ *
+ * The host answers whether the move happened, and a no is drawn rather than
+ * swallowed: a browser that refuses the write leaves the switch where it was
+ * and says so, because a control that snaps back with no explanation is worse
+ * than one that does not move.
+ *
+ * It is also locked while a sign in is in flight. Starting a provider sign in
+ * writes a code verifier into whichever store the client was built around, and
+ * the exchange after the redirect looks for it in that same store. Moving the
+ * store in between strands the verifier and the sign in fails on return with
+ * nothing on screen to explain it, so the switch is unavailable from the first
+ * press until the browser has left, and stays unavailable once a link is on
+ * its way to an address.
  *
  * The card never asks for a password. The web signs in with a provider or
  * with a single use link, and the privacy page says so.
@@ -45,10 +91,16 @@ import { Button, FIELD, GitHubMark, GoogleMark, SectionPanel } from "./ui";
 export function SignInCard({
   client,
   heading = "h1",
+  keepSignedIn,
+  onKeepSignedInChange,
 }: {
   client: SupabaseClient;
   /** The dashboard has no other heading, the portal already carries one. */
   heading?: "h1" | "h2";
+  /** On by default. The host owns it because the host builds the client. */
+  keepSignedIn: boolean;
+  /** Answers whether the move happened. A false leaves the switch where it was. */
+  onKeepSignedInChange: (next: boolean) => Promise<boolean>;
 }) {
   const t = useTranslations("signIn");
   const formId = useId();
@@ -57,7 +109,12 @@ export function SignInCard({
   const [state, setState] = useState<SignInState>({ kind: "idle" });
   const [emailOpen, setEmailOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [switching, setSwitching] = useState(false);
+  const [switchFailed, setSwitchFailed] = useState(false);
   const busy = state.kind === "working";
+  /* A verifier is in play from the first press until the browser has gone, and
+     from a sent link until it is opened. The switch may not move under it. */
+  const authInFlight = busy || state.kind === "sent";
   const Heading = heading;
 
   /* The field takes focus when it appears, and only then: a field that grabs
@@ -76,7 +133,11 @@ export function SignInCard({
       authorizeUrl: async () => {
         const { data, error } = await client.auth.signInWithOAuth({
           provider,
-          options: { redirectTo: authRedirectUrl(), skipBrowserRedirect: true },
+          options: {
+            redirectTo: authRedirectUrl(),
+            skipBrowserRedirect: true,
+            scopes: PROVIDER_SCOPES[provider],
+          },
         });
         return error === null ? data.url : null;
       },
@@ -113,25 +174,52 @@ export function SignInCard({
       </div>
 
       <div className="mt-6 grid gap-2">
-        <Button
-          tone="primary"
-          className="min-h-control-touch w-full"
-          disabled={busy}
-          onClick={() => void continueWith("github")}
-        >
-          <GitHubMark className="h-5 w-5" />
-          {t("github")}
-        </Button>
-        <Button
-          tone="ghost"
-          className="min-h-control-touch w-full"
-          disabled={busy}
-          onClick={() => void continueWith("google")}
-        >
-          <GoogleMark className="h-5 w-5" />
-          {t("google")}
-        </Button>
+        {OAUTH_PROVIDERS.map((provider) => {
+          const Mark = PROVIDER_MARKS[provider];
+          return (
+            <Button
+              key={provider}
+              tone={provider === "github" ? "primary" : "ghost"}
+              className="min-h-control-touch w-full"
+              disabled={busy}
+              onClick={() => void continueWith(provider)}
+            >
+              <Mark className="h-5 w-5" />
+              {t(PROVIDER_LABEL_KEYS[provider])}
+            </Button>
+          );
+        })}
       </div>
+
+      <Switch
+        className="mt-3"
+        checked={keepSignedIn}
+        disabled={authInFlight || switching}
+        onChange={(next) => {
+          setSwitchFailed(false);
+          setSwitching(true);
+          void onKeepSignedInChange(next).then(
+            (moved) => {
+              setSwitching(false);
+              setSwitchFailed(!moved);
+            },
+            () => {
+              setSwitching(false);
+              setSwitchFailed(true);
+            },
+          );
+        }}
+        label={t("keepSignedIn")}
+      />
+      {switchFailed && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="mt-1 rounded-lg border border-transparent bg-band-red-subtle px-3 py-2 text-sm leading-relaxed text-band-red-label"
+        >
+          {t("keepSignedInFailed")}
+        </p>
+      )}
 
       <div
         aria-hidden="true"
@@ -215,7 +303,7 @@ function StatusLine({ state }: { state: SignInState }) {
       : state.kind === "sent"
         ? t("sent", { email: state.email })
         : state.reason === "providerOff"
-          ? t(state.provider === "google" ? "googleOff" : "githubOff")
+          ? t(providerOffKey(state.provider))
           : state.reason === "emailOff"
             ? t("emailOff")
             : t("failed");

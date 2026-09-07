@@ -1818,11 +1818,15 @@
     "sending": "Sending the link.",
     "sent": "Check {email} and open the link on this device.",
     "failed": "That sign in could not be started. Check your connection and try again.",
-    "githubOff": "GitHub sign in is not switched on yet. Use Google or email.",
-    "googleOff": "Google sign in is not switched on yet. Use GitHub or email.",
-    "emailOff": "Email sign in is not switched on yet. Use GitHub or Google.",
+    "githubOff": "GitHub sign in is not switched on yet. Use Google, Microsoft or email.",
+    "googleOff": "Google sign in is not switched on yet. Use GitHub, Microsoft or email.",
+    "emailOff": "Email sign in is not switched on yet. Use GitHub, Google or Microsoft.",
     "noAccount": "The desktop app needs no account. Every meter runs locally, free.",
-    "getDesktop": "Get the desktop app"
+    "getDesktop": "Get the desktop app",
+    "microsoft": "Continue with Microsoft",
+    "azureOff": "Microsoft sign in is not switched on yet. Use GitHub, Google or email.",
+    "keepSignedIn": "Keep me signed in",
+    "keepSignedInFailed": "This browser refused to move the session, so the switch stayed where it was."
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
@@ -1911,6 +1915,49 @@
         "body": "Nothing was charged and nothing changed. The trial and every local feature carry on exactly as before."
       },
       "dismiss": "Dismiss"
+    }
+  },
+  "hub": {
+    "addAccount": "Add account",
+    "configuration": "Configuration",
+    "backToBars": "Back to bars",
+    "command": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "failed": "Copy failed, select the text instead."
+    },
+    "empty": {
+      "line": "Run this on any machine you code on, and your bars appear here."
+    },
+    "connect": {
+      "title": "Connect your AI accounts",
+      "lead": "The hub shows what your own devices read, so connect them where they run.",
+      "terminal": "Connect from the terminal or the desktop app",
+      "key": "Add the key in the desktop app, where it stays in your system credential store",
+      "noDesktop": "No desktop app yet?",
+      "getDesktop": "Get the desktop app"
+    },
+    "onboarding": {
+      "label": "Setting up your account",
+      "progress": "Step {step} of {total}",
+      "profile": {
+        "title": "Create your account",
+        "lead": "Your bars are free without one. An account is what syncs them between your devices.",
+        "name": "Name",
+        "email": "Email",
+        "emailFrom": "From your {provider} account",
+        "continue": "Continue",
+        "later": "Later"
+      },
+      "connect": {
+        "continue": "Continue",
+        "skip": "Skip"
+      },
+      "bars": {
+        "title": "Your bars",
+        "lead": "One row for every window a provider reports.",
+        "done": "Done"
+      }
     }
   }
 }

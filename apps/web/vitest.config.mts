@@ -15,6 +15,15 @@ import { defineConfig } from "vitest/config";
  * than a Response, which is exactly so these files never need a server.
  */
 export default defineConfig({
+  /*
+   * The automatic JSX runtime, which the application already uses.
+   *
+   * tsconfig.json leaves JSX alone for Next to compile, so the transform here
+   * has to be told which runtime to use; without this a component mounted in a
+   * test reaches for a React global that the source never imports. Nothing
+   * else about the build changes.
+   */
+  esbuild: { jsx: "automatic" },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./", import.meta.url)),

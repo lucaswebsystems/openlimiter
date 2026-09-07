@@ -2,7 +2,7 @@
   "id": "/app",
   "name": "OpenLimiter",
   "short_name": "OpenLimiter",
-  "description": "Read your AI subscription quota on your own device. Nothing is uploaded and there is no account.",
+  "description": "Read your AI subscription quota on your own device. The desktop app and the terminal need no account, and this hub shows the bars your own devices synced.",
   "start_url": "/app",
   "scope": "/app",
   "display": "standalone",

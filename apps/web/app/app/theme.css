@@ -2096,3 +2096,409 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
+
+/* ------------------------------------------------- the account first hub */
+
+/*
+  THE SIGNATURE MOMENT: THE BAND HORIZON
+  --------------------------------------
+  One thing on this product is worth remembering, and it is the thing the
+  product already is: a horizontal bar whose colour says how close a window is
+  to running out. So the moment is made of that and nothing else, rather than
+  of an effect borrowed from somewhere with no opinion about quota.
+
+  Two layers. Underneath, a mesh gradient mixed from the accent and three of
+  the bands, blurred past the point where any edge survives and drifting on a
+  slow alternate loop, so the surface behind an empty screen is lit rather than
+  flat. On top, five bare bars at five band widths, faint, unlabelled and
+  hidden from assistive technology, filling from the left when the screen
+  arrives. They carry no number, no provider and no percentage, because a
+  reading nobody took must never be drawable as one; what they carry is the
+  shape of the screen the reader is about to have.
+
+  Every colour is a band token mixed with transparency, so both themes follow
+  and neither is written here. Under a reduced motion preference the drift and
+  the fill both stop and the composition is simply still.
+*/
+
+.ol-horizon {
+  position: absolute;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: var(--ol-radius-xl);
+  inset: 0;
+  pointer-events: none;
+}
+
+.ol-horizon-mesh {
+  position: absolute;
+  inset: -30%;
+  background-image:
+    radial-gradient(
+      38% 46% at 18% 30%,
+      color-mix(in oklab, var(--ol-accent) 34%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      32% 40% at 76% 20%,
+      color-mix(in oklab, var(--ol-band-green-fill) 30%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      30% 38% at 64% 80%,
+      color-mix(in oklab, var(--ol-band-orange-fill) 26%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      34% 42% at 24% 84%,
+      color-mix(in oklab, var(--ol-band-yellow-fill) 22%, transparent),
+      transparent 70%
+    );
+  filter: blur(64px);
+  opacity: 0.5;
+  animation: ol-horizon-drift 42s var(--ol-ease-linear) infinite alternate;
+}
+
+:root[data-theme="light"] .ol-horizon-mesh {
+  opacity: 0.36;
+}
+
+.ol-horizon-bars {
+  position: absolute;
+  display: grid;
+  align-content: center;
+  gap: var(--ol-space-5);
+  padding: 0 var(--ol-space-6);
+  inset: 0;
+  opacity: 0.16;
+  /* The words come first. A bar that runs under a sentence costs the sentence
+     its contrast, so the layer is cut away where the reading happens and is
+     left whole out at the edges, which is where it was doing the work. The
+     mask is alpha only, so the two keywords here are not colours. */
+  mask-image: radial-gradient(
+    46% 58% at 50% 50%,
+    transparent 40%,
+    black 92%
+  );
+}
+
+.ol-horizon-bar {
+  overflow: hidden;
+  height: var(--ol-meter-height);
+  border-radius: var(--ol-meter-radius);
+  background: var(--ol-track);
+}
+
+.ol-horizon-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  animation: ol-horizon-fill 1100ms var(--ol-ease-out) both;
+  transform-origin: left center;
+}
+
+.ol-horizon-bar[data-band="green"] > span {
+  width: 34%;
+  background: var(--ol-band-green-fill);
+}
+
+.ol-horizon-bar[data-band="yellow"] > span {
+  width: 66%;
+  background: var(--ol-band-yellow-fill);
+  animation-delay: 90ms;
+}
+
+.ol-horizon-bar[data-band="orange"] > span {
+  width: 84%;
+  background: var(--ol-band-orange-fill);
+  animation-delay: 180ms;
+}
+
+.ol-horizon-bar[data-band="red"] > span {
+  width: 94%;
+  background: var(--ol-band-red-fill);
+  animation-delay: 270ms;
+}
+
+.ol-horizon-bar[data-band="stale"] > span {
+  width: 48%;
+  background: var(--ol-band-hatched-pattern);
+  animation-delay: 360ms;
+}
+
+@keyframes ol-horizon-drift {
+  from {
+    translate: -3% -2%;
+    scale: 1;
+  }
+
+  to {
+    translate: 3% 2%;
+    scale: 1.12;
+  }
+}
+
+@keyframes ol-horizon-fill {
+  from {
+    scale: 0 1;
+    opacity: 0;
+  }
+
+  to {
+    scale: 1 1;
+    opacity: 1;
+  }
+}
+
+/* ------------------------------------------------------------ onboarding */
+
+.ol-onboarding {
+  position: relative;
+  display: grid;
+  min-height: 28rem;
+  align-content: center;
+  justify-items: center;
+  padding: var(--ol-space-6) 0;
+}
+
+.ol-onboarding-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 34rem);
+  gap: var(--ol-space-5);
+  padding: var(--ol-space-6);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-lg);
+  background: color-mix(in srgb, var(--ol-surface) 94%, transparent);
+  box-shadow: var(--ol-elev-2);
+  backdrop-filter: blur(1.5rem);
+}
+
+.ol-onboarding-card[data-step="connect"],
+.ol-onboarding-card[data-step="bars"] {
+  width: min(100%, 44rem);
+}
+
+.ol-onboarding-rail {
+  display: flex;
+  gap: var(--ol-space-2);
+}
+
+.ol-onboarding-rail > span {
+  height: 0.1875rem;
+  flex: 1;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-track);
+  transition: background var(--ol-motion-base) var(--ol-ease-out);
+}
+
+.ol-onboarding-rail > span[data-state="done"],
+.ol-onboarding-rail > span[data-state="here"] {
+  background: var(--ol-accent-solid);
+}
+
+.ol-onboarding-head {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+.ol-onboarding-head h2 {
+  color: var(--ol-heading);
+  font-family: var(--ol-font-heading);
+  font-size: var(--ol-text-display);
+  font-weight: var(--ol-weight-bold);
+  letter-spacing: -0.01em;
+  line-height: var(--ol-leading-tight);
+}
+
+.ol-onboarding-head p {
+  color: var(--ol-muted);
+  font-size: var(--ol-text-label);
+  line-height: var(--ol-leading-body);
+}
+
+.ol-onboarding-fields {
+  display: grid;
+  gap: var(--ol-space-4);
+}
+
+.ol-onboarding-field {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+.ol-onboarding-field > label {
+  color: var(--ol-soft);
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-medium);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ol-onboarding-field input {
+  width: 100%;
+  min-height: var(--ol-control-height-touch);
+  padding: 0 var(--ol-space-4);
+  border: 1px solid var(--ol-control-border);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-canvas);
+  color: var(--ol-body);
+  font: inherit;
+  font-size: var(--ol-text-label);
+}
+
+.ol-onboarding-field input:read-only {
+  border-color: var(--ol-hairline);
+  background: var(--ol-raised);
+  color: var(--ol-muted);
+}
+
+.ol-onboarding-actions {
+  display: grid;
+  gap: var(--ol-space-3);
+  justify-items: center;
+}
+
+.ol-onboarding-actions .ol-control {
+  width: 100%;
+  min-height: var(--ol-control-height-touch);
+}
+
+.ol-onboarding-actions .ol-control-quiet {
+  width: auto;
+  min-height: var(--ol-control-height);
+}
+
+/* ---------------------------------------------------------- connect list */
+
+.ol-connect {
+  display: grid;
+  gap: var(--ol-space-4);
+}
+
+.ol-command-block {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+.ol-command-note {
+  color: var(--ol-band-red-label);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.ol-command {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-2) var(--ol-space-2) var(--ol-space-2) var(--ol-space-4);
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-code);
+}
+
+.ol-command code {
+  overflow: hidden;
+  min-width: 0;
+  user-select: all;
+  color: var(--ol-heading);
+  font-family: var(--ol-font-mono);
+  font-size: var(--ol-text-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ol-connect-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ol-connect-row {
+  display: grid;
+  align-items: center;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-3) 0;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.ol-connect-row + .ol-connect-row {
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.ol-connect-name {
+  display: grid;
+  min-width: 0;
+  gap: 0.125rem;
+}
+
+.ol-connect-name strong {
+  color: var(--ol-heading);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-medium);
+}
+
+.ol-connect-name span {
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+/* --------------------------------------------------------- the bars view */
+
+.ol-bars-empty {
+  position: relative;
+  display: grid;
+  min-height: 22rem;
+  align-content: center;
+  justify-items: center;
+  gap: var(--ol-space-4);
+  padding: var(--ol-space-6);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-xl);
+  background: var(--ol-surface);
+  text-align: center;
+}
+
+.ol-bars-empty > p,
+.ol-bars-empty > .ol-command-block {
+  position: relative;
+  z-index: 1;
+}
+
+.ol-bars-empty p {
+  max-width: 26rem;
+  color: var(--ol-body);
+  font-size: var(--ol-text-title);
+  line-height: var(--ol-leading-body);
+  text-wrap: balance;
+}
+
+.ol-bars-empty .ol-command-block {
+  width: min(100%, 22rem);
+}
+
+@media (max-width: 639px) {
+  .ol-onboarding-card {
+    padding: var(--ol-space-5) var(--ol-space-4);
+  }
+
+  .ol-onboarding-head h2 {
+    font-size: 1.75rem;
+  }
+
+  .ol-horizon-bars {
+    gap: var(--ol-space-4);
+    padding: 0 var(--ol-space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ol-horizon-mesh,
+  .ol-horizon-bar > span {
+    animation: none;
+  }
+}

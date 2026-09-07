@@ -108,6 +108,31 @@ export function getDevPreviewSnapshots(now: string): Snapshot[] {
       provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" },
     },
 
+    // 4b. Claude Code, the model scoped weekly window - Band 2: Watch Threshold.
+    // A provider is allowed more than one window and the row renderer draws
+    // every one of them, so the preview has to carry at least one account with
+    // two, or the multi window path is never seen before a release.
+    {
+      provider: "CLAUDE",
+      meter: "Weekly Fable",
+      value: 62,
+      unit: "PERCENT",
+      window: { kind: "rolling", durationSeconds: SEVEN_DAYS / 1000 },
+      resetAt: new Date(anchor + 4 * TWENTY_FOUR_HOURS + 6 * ONE_HOUR).toISOString(),
+      source: "documented_api",
+      precision: "exact",
+      observedAt: new Date(anchor - 30 * 1000).toISOString(),
+      expiresAt: new Date(anchor + 15 * 60 * 1000).toISOString(),
+      accountId: "anthropic-claude",
+      labels: {
+        credentialOrigin: "official-local-tool",
+        dataInterfaceStatus: "native-statusline-payload",
+        automationRisk: "low",
+        verification: "UNVERIFIED",
+      },
+      provenance: { sourceKind: "statusline_payload", observedVia: "claude_code_statusline" },
+    },
+
     // 5. OpenCode - Band 5: Stale / Disconnected (91%, expired 15m ago -> Hatched Stale Pattern!)
     {
       provider: "OPENCODE",

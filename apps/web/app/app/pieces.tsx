@@ -138,85 +138,92 @@ function RefreshGlyph({ spinning }: { spinning: boolean }) {
   );
 }
 
-/* -------------------------------------------------------------------- tabs */
-
-export interface TabDefinition {
-  id: string;
-  label: string;
-}
+/* ------------------------------------------------------------ icon controls */
 
 /**
- * The view switcher.
+ * A square control holding one glyph, at the header's own metrics.
  *
- * A real tab list: arrow keys move between the tabs, Home and End jump to the
- * ends, and only the selected tab is in the tab order, which is what a screen
- * reader user expects of a tablist and what a keyboard user gets for free.
+ * It always carries a name, because it never carries text: the gear beside the
+ * bars is the only way into configuration, and a control whose only label is a
+ * picture is invisible to anyone who cannot see the picture.
  */
-export function Tabs({
-  tabs,
-  active,
-  onSelect,
+export function IconButton({
+  label,
+  onClick,
+  pressed,
+  children,
 }: {
-  tabs: readonly TabDefinition[];
-  active: string;
-  onSelect: (id: string) => void;
+  label: string;
+  onClick: () => void;
+  /** For a control that toggles a view rather than performing an action. */
+  pressed?: boolean;
+  children: ReactNode;
 }) {
-  const container = useRef<HTMLDivElement | null>(null);
-
-  const move = (index: number) => {
-    const next = tabs[(index + tabs.length) % tabs.length];
-    if (next === undefined) return;
-    onSelect(next.id);
-    const node = container.current?.querySelectorAll("button")[
-      (index + tabs.length) % tabs.length
-    ];
-    node?.focus();
-  };
-
   return (
-    <div
-      ref={container}
-      role="tablist"
-      aria-label="Dashboard views"
-      className="ol-product-tabs"
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      {...(pressed === undefined ? {} : { "aria-pressed": pressed })}
+      onClick={onClick}
+      className="ol-icon-control ol-tap focus-ring"
     >
-      {tabs.map((tab, index) => {
-        const selected = tab.id === active;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            id={"tab-" + tab.id}
-            aria-selected={selected}
-            aria-controls={"panel-" + tab.id}
-            tabIndex={selected ? 0 : -1}
-            data-selected={selected ? "" : undefined}
-            onClick={() => {
-              onSelect(tab.id);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowRight") {
-                event.preventDefault();
-                move(index + 1);
-              } else if (event.key === "ArrowLeft") {
-                event.preventDefault();
-                move(index - 1);
-              } else if (event.key === "Home") {
-                event.preventDefault();
-                move(0);
-              } else if (event.key === "End") {
-                event.preventDefault();
-                move(tabs.length - 1);
-              }
-            }}
-            className="ol-product-tab ol-tap focus-ring-inset"
-          >
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
+      {children}
+    </button>
+  );
+}
+
+export function GearGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+export function PlusGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+export function BackGlyph() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M15 5l-7 7 7 7" />
+    </svg>
   );
 }
 
@@ -252,30 +259,9 @@ export function SkeletonRows({ count = 4 }: { count?: number }) {
   );
 }
 
-/* ------------------------------------------------------------- first launch */
-
-/**
- * What the page says before it has been given anything.
- *
- * It used to open on a full grid of Unknown cards, one per provider, each with
- * an empty bar in it. That is a parser debugging view: it reads as six broken
- * connections rather than as a tool nobody has set up yet, and an empty bar
- * beside a provider's name is the closest thing to a fabricated zero this
- * product can draw without inventing a number.
- *
- * So the first launch keeps one calm action above the honest fallback rows.
- */
-export function FirstRunState({ onConnect }: { onConnect: () => void }) {
-  return (
-    <button type="button" className="ol-rise ol-empty-line focus-ring" onClick={onConnect}>
-      No providers configured. Open Configuration.
-    </button>
-  );
-}
-
 /* ---------------------------------------------------------- provider directory */
 
-const BROWSER_PROVIDER_STATES = {
+export const BROWSER_PROVIDER_STATES = {
   claude: "IMPORT_ONLY",
   codex: "IMPORT_ONLY",
   openrouter: "IMPORT_ONLY",
@@ -286,7 +272,7 @@ const BROWSER_PROVIDER_STATES = {
   kimi: "IMPORT_ONLY",
 } as const;
 
-function providerMarkCode(row: ProviderDirectoryRow): string {
+export function providerMarkCode(row: ProviderDirectoryRow): string {
   return (row.connectorId ?? row.specId).toUpperCase().replaceAll("-", "_");
 }
 

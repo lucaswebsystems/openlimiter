@@ -1,8 +1,16 @@
 "use client";
 
-import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  applyKeepSignedIn,
+  createAccountClient,
+  readKeepSignedIn,
+  resumeAccountClient,
+  stopAccountClient,
+  writeKeepSignedIn,
+} from "@/lib/account-client";
 import {
   openProBilling,
   proAccessState,
@@ -14,8 +22,6 @@ import {
   readProAccount,
   revokeProDevice,
   startProCheckout,
-  SUPABASE_ANON_KEY,
-  SUPABASE_URL,
   type ProAccount,
   type ProBillingInterval,
   type ProCheckoutOutcome,
@@ -47,15 +53,6 @@ import { Button, Chip, SectionPanel } from "./ui";
  * state, the features and the device cap: all of them are read, none computed.
  */
 
-/* ------------------------------------------------------------------ client */
-
-function client(): SupabaseClient | null {
-  if (!proConfigurationReady) return null;
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-  });
-}
-
 type AccountState = "loading" | "ready" | "error";
 type Action = "none" | "month" | "year" | "billing";
 
@@ -71,7 +68,16 @@ const STATE_CHIP = "uppercase tracking-wider";
 
 export function ProPortal({ locale }: { locale: string }) {
   const t = useTranslations("proPortal");
-  const supabase = useMemo(client, []);
+  /* Read once, on the first render that has a browser to read from. The panel
+     on screen at that moment is the loading one, which says nothing about this
+     value, so there is no server rendered answer for it to disagree with. */
+  const [keepSignedIn, setKeepSignedIn] = useState(() => readKeepSignedIn());
+  /* Rebuilt when the switch moves, because the store a session lands in is
+     fixed at construction. See lib/account-client.ts. */
+  const supabase = useMemo(
+    () => (proConfigurationReady ? createAccountClient(keepSignedIn) : null),
+    [keepSignedIn],
+  );
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [account, setAccount] = useState<ProAccount | null>(null);
   const [accountState, setAccountState] = useState<AccountState>("loading");
@@ -79,6 +85,8 @@ export function ProPortal({ locale }: { locale: string }) {
   const [actionFailed, setActionFailed] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [checkout, setCheckout] = useState<ProCheckoutOutcome>(null);
+  /** The live auth listener, so a client being replaced takes its own with it. */
+  const authListener = useRef<{ unsubscribe: () => void } | null>(null);
 
   /* The checkout return, read once and then cleaned out of the address bar so a
      refresh does not replay a state that has already been acknowledged. */
@@ -91,6 +99,12 @@ export function ProPortal({ locale }: { locale: string }) {
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
   }, []);
 
+  /** Listen to one client, and be able to attach again after a failed move. */
+  const attachAuthListener = useCallback((client: SupabaseClient) => {
+    const { data } = client.auth.onAuthStateChange((_event, next) => setSession(next));
+    authListener.current = data.subscription;
+  }, []);
+
   useEffect(() => {
     if (supabase === null) {
       setSession(null);
@@ -100,12 +114,37 @@ export function ProPortal({ locale }: { locale: string }) {
     void supabase.auth.getSession().then(({ data }) => {
       if (live) setSession(data.session);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    attachAuthListener(supabase);
     return () => {
       live = false;
-      data.subscription.unsubscribe();
+      /* The switch may already have dropped it; unsubscribing twice is safe. */
+      authListener.current?.unsubscribe();
+      authListener.current = null;
     };
-  }, [supabase]);
+  }, [attachAuthListener, supabase]);
+
+  /**
+   * The same handover the dashboard makes, and for the same reason: two clients
+   * refreshing one refresh token is a race whose loser signs the reader out.
+   * See lib/account-client.ts.
+   */
+  const changeKeepSignedIn = useCallback(
+    async (next: boolean): Promise<boolean> => {
+      if (next === keepSignedIn) return true;
+      await stopAccountClient(supabase);
+      authListener.current?.unsubscribe();
+      authListener.current = null;
+      if (!applyKeepSignedIn(next)) {
+        await resumeAccountClient(supabase);
+        if (supabase !== null) attachAuthListener(supabase);
+        return false;
+      }
+      writeKeepSignedIn(next);
+      setKeepSignedIn(next);
+      return true;
+    },
+    [attachAuthListener, keepSignedIn, supabase],
+  );
 
   const loadAccount = useCallback(() => {
     if (supabase === null || session === null || session === undefined) return;
@@ -180,7 +219,12 @@ export function ProPortal({ locale }: { locale: string }) {
     return (
       <div className="mx-auto max-w-md space-y-4">
         {checkout !== null && <CheckoutNotice outcome={checkout} onDismiss={() => setCheckout(null)} />}
-        <SignInCard client={supabase} heading="h2" />
+        <SignInCard
+          client={supabase}
+          heading="h2"
+          keepSignedIn={keepSignedIn}
+          onKeepSignedInChange={changeKeepSignedIn}
+        />
       </div>
     );
   }

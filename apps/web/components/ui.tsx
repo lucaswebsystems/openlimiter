@@ -75,6 +75,26 @@ export function GoogleMark({ className = "h-4 w-4" }: { className?: string }) {
   return <img src="/marks/google-g.svg" alt="" aria-hidden="true" className={`${className} flex-none`} />;
 }
 
+/**
+ * Microsoft's four squares, reproduced unmodified.
+ *
+ * Drawn here rather than fetched, because four rectangles are smaller than the
+ * request that would carry them, and each one takes its colour from a token in
+ * app/globals.css rather than from a literal in this file. The mark is never
+ * recoloured, never rotated and never set below 16 pixels, which is the floor
+ * Microsoft's own guidance names; it is drawn at 20 on the sign in card.
+ */
+export function MicrosoftMark({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={`${className} flex-none`} viewBox="0 0 21 21" aria-hidden="true">
+      <path fill="var(--ol-provider-microsoft-red)" d="M0 0h10v10H0z" />
+      <path fill="var(--ol-provider-microsoft-green)" d="M11 0h10v10H11z" />
+      <path fill="var(--ol-provider-microsoft-blue)" d="M0 11h10v10H0z" />
+      <path fill="var(--ol-provider-microsoft-yellow)" d="M11 11h10v10H11z" />
+    </svg>
+  );
+}
+
 const buttonBase =
   "lift-sm focus-ring inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60";
 
@@ -109,6 +129,45 @@ export function Button({ tone = "ghost", className = "", type = "button", childr
   return (
     <button type={type} className={`${buttonBase} ${buttonTone[tone]} ${className}`} {...rest}>
       {children}
+    </button>
+  );
+}
+
+/**
+ * The one switch, for a state that applies the moment it moves.
+ *
+ * It is a button carrying the switch role rather than a checkbox, because a
+ * checkbox is a value inside a form waiting to be submitted and this is not
+ * one: nothing here has a Save. The label is part of the control, so the whole
+ * row is the target, which is what a thumb on a phone needs. Its shape lives
+ * in app/globals.css beside the other shared primitives.
+ */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  disabled = false,
+  className = "",
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`ol-switch focus-ring rounded-lg ${className}`}
+    >
+      <span>{label}</span>
+      <span aria-hidden="true" className="ol-switch-track">
+        <span className="ol-switch-thumb" />
+      </span>
     </button>
   );
 }

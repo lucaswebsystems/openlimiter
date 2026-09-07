@@ -1822,7 +1822,11 @@
     "googleOff": "El acceso con Google todavía no está activado. Usa GitHub o correo electrónico.",
     "emailOff": "El acceso por correo electrónico todavía no está activado. Usa GitHub o Google.",
     "noAccount": "La aplicación de escritorio no necesita cuenta. Cada meter funciona en local y es gratis.",
-    "getDesktop": "Descargar la aplicación de escritorio"
+    "getDesktop": "Descargar la aplicación de escritorio",
+    "microsoft": "Continue with Microsoft",
+    "azureOff": "Microsoft sign in is not switched on yet. Use GitHub, Google or email.",
+    "keepSignedIn": "Keep me signed in",
+    "keepSignedInFailed": "This browser refused to move the session, so the switch stayed where it was."
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
@@ -1911,6 +1915,49 @@
         "body": "No se cobró nada y nada cambió. La prueba y todas las funciones locales siguen exactamente igual."
       },
       "dismiss": "Cerrar"
+    }
+  },
+  "hub": {
+    "addAccount": "Add account",
+    "configuration": "Configuration",
+    "backToBars": "Back to bars",
+    "command": {
+      "copy": "Copy",
+      "copied": "Copied",
+      "failed": "Copy failed, select the text instead."
+    },
+    "empty": {
+      "line": "Run this on any machine you code on, and your bars appear here."
+    },
+    "connect": {
+      "title": "Connect your AI accounts",
+      "lead": "The hub shows what your own devices read, so connect them where they run.",
+      "terminal": "Connect from the terminal or the desktop app",
+      "key": "Add the key in the desktop app, where it stays in your system credential store",
+      "noDesktop": "No desktop app yet?",
+      "getDesktop": "Get the desktop app"
+    },
+    "onboarding": {
+      "label": "Setting up your account",
+      "progress": "Step {step} of {total}",
+      "profile": {
+        "title": "Create your account",
+        "lead": "Your bars are free without one. An account is what syncs them between your devices.",
+        "name": "Name",
+        "email": "Email",
+        "emailFrom": "From your {provider} account",
+        "continue": "Continue",
+        "later": "Later"
+      },
+      "connect": {
+        "continue": "Continue",
+        "skip": "Skip"
+      },
+      "bars": {
+        "title": "Your bars",
+        "lead": "One row for every window a provider reports.",
+        "done": "Done"
+      }
     }
   }
 }

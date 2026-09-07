@@ -129,6 +129,21 @@
   --ol-window-close: #ff5f57;
   --ol-window-minimise: #febc2e;
   --ol-window-zoom: #28c840;
+
+  /*
+    Microsoft's four squares, at the values Microsoft publishes.
+
+    Same reasoning as the window dots above, and the same reasoning the token
+    sheet gives for the provider marks it already carries: a borrowed mark is
+    reproduced unmodified, so its colours are facts rather than choices, and a
+    fact written inside a component is a fact that can drift. The Google mark
+    beside it is served as a file for the same reason. Identical in both
+    themes, because a brand mark does not follow a theme.
+  */
+  --ol-provider-microsoft-red: #f25022;
+  --ol-provider-microsoft-green: #7fba00;
+  --ol-provider-microsoft-blue: #00a4ef;
+  --ol-provider-microsoft-yellow: #ffb900;
   --ol-font-heading: var(--ol-font-baloo, "Baloo 2"), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --ol-font-sans: var(--ol-font-inter, "Inter"), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --ol-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -441,6 +456,74 @@ body:has(main[data-quiet-chrome]) .locale-offer {
     var(--ol-hairline-strong) 78%,
     transparent 100%
   );
+}
+
+/*
+  The one switch on the site.
+
+  A switch rather than a checkbox because the thing it controls is already in
+  effect: it is not a value waiting for a Save, it is a state that applies the
+  moment it moves. The track carries the state and the thumb never changes
+  colour, which is what keeps it readable in both themes without a second set
+  of rules: white on the accent when it is on, white on the neutral track with
+  the control boundary around it when it is off. Every value is a token, and
+  the travel is the base motion token, so it stops moving under a reduced
+  motion preference by itself rather than by a rule repeated here.
+*/
+.ol-switch {
+  display: flex;
+  width: 100%;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--ol-soft);
+  font: inherit;
+  font-size: var(--ol-text-label);
+  text-align: left;
+}
+
+.ol-switch:hover {
+  color: var(--ol-heading);
+}
+
+.ol-switch-track {
+  position: relative;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 1.25rem;
+  flex: none;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-track);
+  transition: background var(--ol-motion-base) var(--ol-ease-out);
+}
+
+.ol-switch[aria-checked="true"] .ol-switch-track {
+  background: var(--ol-accent-solid);
+}
+
+.ol-switch-thumb {
+  position: absolute;
+  left: 0.125rem;
+  display: block;
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 1px solid var(--ol-control-border);
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-on-accent);
+  transition:
+    translate var(--ol-motion-base) var(--ol-ease-out),
+    border-color var(--ol-motion-base) var(--ol-ease-out);
+}
+
+.ol-switch[aria-checked="true"] .ol-switch-thumb {
+  border-color: transparent;
+  translate: 0.9375rem 0;
 }
 
 .sr-only {

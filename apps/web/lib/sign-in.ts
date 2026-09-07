@@ -2,8 +2,8 @@
  * The decisions a sign in makes, kept away from the network.
  *
  * Two surfaces draw the sign in, the dashboard gate at /app and the Pro
- * portal, and both take the same three ways in: GitHub, Google, or a single
- * use link sent to an email address. What this module owns is everything
+ * portal, and both take the same four ways in: GitHub, Google, Microsoft, or
+ * a single use link sent to an email address. What this module owns is everything
  * about those three that can be decided from a status and a body rather than
  * from a live request, so it can be tested without a server and the card
  * itself stays a drawing.
@@ -24,14 +24,43 @@
  * the old behaviour, never invent a refusal.
  */
 
-export type OAuthProvider = "github" | "google";
+export type OAuthProvider = "github" | "google" | "azure";
 
-/** The two providers the card offers, in the order it draws them. */
-export const OAUTH_PROVIDERS: readonly OAuthProvider[] = ["github", "google"];
+/** The three providers the card offers, in the order it draws them. */
+export const OAUTH_PROVIDERS: readonly OAuthProvider[] = ["github", "google", "azure"];
 
-/** The provider's own name, spelled the way the provider spells it. */
+/**
+ * The provider's own name, spelled the way the provider spells it.
+ *
+ * `azure` is the identifier the auth service knows Microsoft by, and it is the
+ * only place that word appears: everything a reader sees says Microsoft, which
+ * is the name on the sign in page they land on.
+ */
 export function providerName(provider: OAuthProvider): string {
-  return provider === "github" ? "GitHub" : "Google";
+  if (provider === "github") return "GitHub";
+  if (provider === "google") return "Google";
+  return "Microsoft";
+}
+
+/**
+ * The extra scopes a provider needs asked for by name, or nothing.
+ *
+ * Only Microsoft has one. A tenant configured as `common` returns an identity
+ * with no address unless `email` is requested, and an account with no address
+ * is an account the product cannot write to, so the scope is not optional
+ * decoration here.
+ */
+export const PROVIDER_SCOPES: Readonly<Record<OAuthProvider, string | undefined>> = {
+  github: undefined,
+  google: undefined,
+  azure: "email",
+};
+
+/** The message key naming a provider the service has switched off. */
+export function providerOffKey(provider: OAuthProvider | undefined): string {
+  if (provider === "google") return "googleOff";
+  if (provider === "azure") return "azureOff";
+  return "githubOff";
 }
 
 /** The provider that is not this one, for a sentence pointing elsewhere. */

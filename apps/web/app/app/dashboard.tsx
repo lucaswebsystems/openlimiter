@@ -14,30 +14,50 @@ import {
 } from "./engine";
 import { InstallControl } from "./install";
 import {
+  BackGlyph,
   Button,
   DemoBanner,
-  FirstRunState,
+  GearGlyph,
   HeaderStrip,
+  IconButton,
   Panel,
+  PlusGlyph,
   ProviderDirectory,
   ProviderRows,
   SettingsMenu,
   SkeletonRows,
-  Tabs,
-  type TabDefinition,
 } from "./pieces";
+import { BarsEmpty, ConnectList } from "./connect";
+import { Onboarding } from "./onboarding";
 import { SignInCard } from "@/components/sign-in-card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SectionPanel } from "@/components/ui";
 import { LiveMeter } from "./live-meter";
 import { NotificationBell, type AlertScope } from "./notification-bell";
 import {
-  createSyncClient,
+  applyKeepSignedIn,
+  createAccountClient,
+  readKeepSignedIn,
+  resumeAccountClient,
+  stopAccountClient,
+  writeKeepSignedIn,
+} from "@/lib/account-client";
+import {
+  ONBOARDED_METADATA_KEY,
+  hasOnboarded,
+  openingView,
+  rememberOnboarded,
+  type AccountProfile,
+  type FlagStore,
+  type HubView,
+} from "@/lib/onboarding";
+import {
   readSyncedUsage,
   type SyncedProviderUsage,
   type SyncedUsageResult,
 } from "@/lib/synced-usage";
 import { getDevPreviewSnapshots } from "./dev-preview";
+import { useTranslations } from "next-intl";
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 
@@ -157,10 +177,21 @@ type Mode = "live" | "demo";
 /** One frozen empty list, so demo mode does not rebuild the view every tick. */
 const NO_FAILURES: readonly ProviderFailure[] = [];
 
-const TABS: readonly TabDefinition[] = [
-  { id: "home", label: "Home" },
-  { id: "connections", label: "Configuration" },
-];
+/**
+ * This browser's own record of which accounts have been through the first run.
+ *
+ * A plain store rather than the local storage global, so every reader of it in
+ * this file goes through the same guard and a browser with storage refused
+ * simply answers no.
+ */
+function flagStore(): FlagStore | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The gate a signed out browser meets.
@@ -170,7 +201,15 @@ const TABS: readonly TabDefinition[] = [
  * has nothing to sign in to, and says so in the same shape rather than
  * offering buttons that lead nowhere.
  */
-function AccountGate({ client }: { client: SupabaseClient | null }) {
+function AccountGate({
+  client,
+  keepSignedIn,
+  onKeepSignedInChange,
+}: {
+  client: SupabaseClient | null;
+  keepSignedIn: boolean;
+  onKeepSignedInChange: (next: boolean) => Promise<boolean>;
+}) {
   return (
     <section className="ol-account-gate" aria-label="Sign in">
       {client === null ? (
@@ -182,7 +221,12 @@ function AccountGate({ client }: { client: SupabaseClient | null }) {
           </p>
         </SectionPanel>
       ) : (
-        <SignInCard client={client} heading="h1" />
+        <SignInCard
+          client={client}
+          heading="h1"
+          keepSignedIn={keepSignedIn}
+          onKeepSignedInChange={onKeepSignedInChange}
+        />
       )}
     </section>
   );
@@ -260,6 +304,18 @@ function migrateLegacy(): void {
   }
 }
 
+/** The way back from a place, under the panel it belongs to. */
+function BackToBars({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <div className="mt-4 flex justify-center">
+      <Button tone="quiet" onClick={onClick}>
+        <BackGlyph />
+        {label}
+      </Button>
+    </div>
+  );
+}
+
 export function Dashboard({ lockup }: { lockup: ReactNode }) {
   /**
    * The two stores, side by side in memory exactly as they are on disk.
@@ -282,13 +338,35 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [failures] = useState<readonly ProviderFailure[]>([]);
   const [now, setNow] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<string>("connections");
+  /**
+   * Which of the hub's views is on screen.
+   *
+   * Bars, always, unless this account has never been here: the first visit
+   * opens the three step flow instead, and every visit after it lands on the
+   * meters. Configuration and the connect list are places somebody goes,
+   * reached from the header, rather than tabs sitting above the product.
+   */
+  const [view, setView] = useState<HubView>("bars");
   const [syncedUsage, setSyncedUsage] = useState<SyncedUsageResult | null>(null);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<ProviderDirectoryRow | null>(null);
   const busyTimer = useRef<number | null>(null);
-  const syncClient = useMemo(() => createSyncClient(), []);
+  const t = useTranslations("hub");
+  /**
+   * Read on the first render that has a browser to read from. The skeleton is
+   * what is on screen at that moment, and it says nothing about this value, so
+   * there is no server rendered answer for it to disagree with.
+   */
+  const [keepSignedIn, setKeepSignedIn] = useState(() => readKeepSignedIn());
+  /* Rebuilt when the switch moves: the store a session lands in is fixed when
+     the client is constructed. See lib/account-client.ts. */
+  const syncClient = useMemo(() => createAccountClient(keepSignedIn), [keepSignedIn]);
+  /** The account the opening view was decided for, so a token refresh cannot
+      throw somebody out of the screen they are reading. */
+  const decidedFor = useRef<string | null>(null);
+  /** The live auth listener, so a client being replaced takes its own with it. */
+  const authListener = useRef<{ unsubscribe: () => void } | null>(null);
 
   const demo = mode === "demo";
 
@@ -297,11 +375,9 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-    let devActive = false;
     if (IS_DEV && typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("preview") === "1" || window.location.search.includes("preview=1")) {
-        devActive = true;
         setIsDevPreview(true);
       }
     }
@@ -315,13 +391,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setMode(storedMode);
     setSyncEnabled(window.localStorage.getItem(WEB_SYNC_KEY) !== "false");
     setNow(new Date().toISOString());
-
-    const activeSnapshots = storedMode === "demo" ? storedDemo : storedLive;
-    if (devActive || activeSnapshots.length > 0) {
-      setTab("home");
-    } else {
-      setTab("connections");
-    }
 
     /* The launch splash waits on this and nothing else. */
     document.documentElement.setAttribute(READY_ATTR, "1");
@@ -339,11 +408,51 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       setSyncedUsage({ ok: false, reason: "signed_out" });
       return;
     }
-    void readSyncedUsage(syncClient).then((result) => {
-      setSyncedUsage(result);
-      if (result.ok && result.providers.length > 0) setTab("home");
-    });
+    /* A rejection is an answer too. Without this the first read failing would
+       leave the working state on screen with nothing ever to replace it. */
+    void readSyncedUsage(syncClient).then(setSyncedUsage, () =>
+      setSyncedUsage({ ok: false, reason: "unavailable" }),
+    );
   }, [syncClient, syncEnabled]);
+
+  /**
+   * Where a signed in reader lands, decided once per account.
+   *
+   * The auth client reports a session again on every token refresh, and a
+   * refresh is not a new visit, so the answer is remembered against the
+   * account it was given for. Without that, somebody reading the connect list
+   * would be moved back to the bars by a background refresh.
+   */
+  const decideOpeningView = useCallback((next: Session | null) => {
+    const user = next?.user ?? null;
+    if (user === null) {
+      decidedFor.current = null;
+      return;
+    }
+    if (decidedFor.current === user.id) return;
+    decidedFor.current = user.id;
+    setView(openingView(hasOnboarded(user as AccountProfile, flagStore())));
+  }, []);
+
+  /**
+   * Listen to one client, and be able to do it again.
+   *
+   * The switch detaches this before it touches storage, and a move that fails
+   * attaches it back to the same client, so a browser that refused the write
+   * is left with a client that is both refreshing and listening, exactly as it
+   * was a moment earlier.
+   */
+  const attachAuthListener = useCallback(
+    (client: SupabaseClient) => {
+      const { data } = client.auth.onAuthStateChange((_event, next) => {
+        setSession(next);
+        decideOpeningView(next);
+        window.setTimeout(refreshSyncedUsage, 0);
+      });
+      authListener.current = data.subscription;
+    },
+    [decideOpeningView, refreshSyncedUsage],
+  );
 
   useEffect(() => {
     refreshSyncedUsage();
@@ -354,18 +463,51 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setSession(null);
     void syncClient.auth
       .getSession()
-      .then(({ data }) => setSession(data.session))
+      .then(({ data }) => {
+        setSession(data.session);
+        decideOpeningView(data.session);
+      })
       .catch(() => setSession(null));
-    const { data } = syncClient.auth.onAuthStateChange((_event, next) => {
-      setSession(next);
-      window.setTimeout(refreshSyncedUsage, 0);
-    });
+    attachAuthListener(syncClient);
     window.addEventListener("focus", refreshSyncedUsage);
     return () => {
-      data.subscription.unsubscribe();
+      /* The switch may already have dropped it. Unsubscribing twice is safe;
+         leaving a listener attached to an abandoned client is not. */
+      authListener.current?.unsubscribe();
+      authListener.current = null;
       window.removeEventListener("focus", refreshSyncedUsage);
     };
-  }, [refreshSyncedUsage, syncClient]);
+  }, [attachAuthListener, decideOpeningView, refreshSyncedUsage, syncClient]);
+
+  /**
+   * Move the session, then swap the client. In that order, and not otherwise.
+   *
+   * The old client is silenced first, both halves of it: the refresh ticker,
+   * because two clients spending one refresh token is a race whose loser signs
+   * the reader out, and the listener, because a client mid handover reporting
+   * a session change would send this component off deciding views on behalf of
+   * a client that is about to be thrown away. Only then does the session move,
+   * and only a move that actually landed is allowed to change the answer: a
+   * store that refused gets the old client back, ticker and listener both, the
+   * old preference kept, and the card a sentence to draw.
+   */
+  const changeKeepSignedIn = useCallback(
+    async (next: boolean): Promise<boolean> => {
+      if (next === keepSignedIn) return true;
+      await stopAccountClient(syncClient);
+      authListener.current?.unsubscribe();
+      authListener.current = null;
+      if (!applyKeepSignedIn(next)) {
+        await resumeAccountClient(syncClient);
+        if (syncClient !== null) attachAuthListener(syncClient);
+        return false;
+      }
+      writeKeepSignedIn(next);
+      setKeepSignedIn(next);
+      return true;
+    },
+    [attachAuthListener, keepSignedIn, syncClient],
+  );
 
   /** Show the working state, then clear it no sooner than the floor above. */
   const work = useCallback((run: () => void) => {
@@ -389,7 +531,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     saveStore(DEMO_KEY, samples);
     setMode("demo");
     saveMode("demo");
-    setTab("home");
+    setView("bars");
   }, []);
 
   /**
@@ -413,25 +555,34 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   }, [mode, refreshSyncedUsage, work]);
 
   /**
-   * Forget whichever store is on screen, and only that one.
+   * Finish the first run, from any of its three exits.
    *
-   * THE MODE DECIDES THE KEY, AND IT HAS TO
-   * ---------------------------------------
-   * This used to name LIVE_KEY unconditionally. Clearing while demo mode was on
-   * therefore destroyed the real readings sitting behind the synthetic view: the
-   * screen did not change, because the screen was showing fixtures, so the one
-   * signal that something had been deleted was absent at exactly the moment it
-   * mattered. The banner overhead promises the live store is untouched, and a
-   * button in the same window quietly emptied it.
-   *
-   * So the key is chosen by the mode, the same way `refresh` and `shown` choose
-   * theirs, and the button in the settings panel says which store it is about to
-   * forget. Demo mode never names the live key and live mode never names the
-   * demo key, which is the same rule the rest of this file already keeps.
+   * Two writes, and the order is the point: this browser is told first, so the
+   * flow cannot reappear while the profile write is still in flight, and the
+   * account is told second, so a second machine never repeats it. A profile
+   * write that fails changes nothing here, which is why nothing waits on it.
    */
-  const openConnections = useCallback(() => {
-    setTab("connections");
-  }, []);
+  const finishOnboarding = useCallback(
+    (name?: string) => {
+      const user = session?.user ?? null;
+      if (user !== null) rememberOnboarded(user.id, flagStore());
+      const named = name === undefined || name === "" ? {} : { full_name: name };
+      void syncClient?.auth
+        .updateUser({ data: { ...named, [ONBOARDED_METADATA_KEY]: true } })
+        .catch(() => null);
+      setView("bars");
+    },
+    [session, syncClient],
+  );
+
+  /** The name from the first screen, saved on its own so Later loses nothing. */
+  const saveProfileName = useCallback(
+    (name: string) => {
+      if (name === "") return;
+      void syncClient?.auth.updateUser({ data: { full_name: name } }).catch(() => null);
+    },
+    [syncClient],
+  );
 
   const syncedSnapshots = useMemo(
     () => (syncedUsage?.ok === true ? snapshotsFromSync(syncedUsage.providers) : []),
@@ -486,8 +637,33 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
   const effectiveSession =
     isDevPreview && IS_DEV
-      ? ({ user: { email: "preview@openlimiter.com" } } as unknown as Session)
+      ? ({ user: { id: "preview", email: "preview@openlimiter.com" } } as unknown as Session)
       : session;
+
+  /**
+   * The bars themselves, drawn once and shown in two places.
+   *
+   * The last onboarding screen and the hub's own bars view are the same thing,
+   * so they are the same markup: what somebody is shown at the end of the flow
+   * is exactly what they land on afterwards, rather than a picture of it.
+   */
+  /* A read that has not answered yet is not an empty account. Until the first
+     one comes back the panel holds the skeleton, so nobody is told to run a
+     command a second before their own bars arrive. */
+  const awaitingFirstRead =
+    syncEnabled && !demo && !isDevPreview && syncedUsage === null;
+
+  const barsPanel =
+    busy || dash === null || awaitingFirstRead ? (
+      <SkeletonRows />
+    ) : hasReadings ? (
+      <div className="ol-home-stack">
+        <LiveMeter snapshots={shown} now={now} demo={demo} />
+        <ProviderRows rows={providerRows} />
+      </div>
+    ) : (
+      <BarsEmpty />
+    );
 
   if (!mounted || effectiveSession === undefined) {
     return <div className="ol-dashboard"><SkeletonRows /></div>;
@@ -503,7 +679,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           showRefresh={false}
           actions={<ThemeToggle className="h-9 w-9" />}
         />
-        <AccountGate client={syncClient} />
+        <AccountGate
+          client={syncClient}
+          keepSignedIn={keepSignedIn}
+          onKeepSignedInChange={changeKeepSignedIn}
+        />
       </div>
     );
   }
@@ -518,9 +698,31 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         onRefresh={refresh}
         actions={
           <>
+            {/* The name is carried by the control rather than by its text,
+                because the text is dropped at the phone width and a button
+                whose only label is display:none has no accessible name. */}
+            {view === "bars" && (
+              <Button tone="ghost" label={t("addAccount")} onClick={() => setView("connect")}>
+                <PlusGlyph />
+                <span className="hidden lg:inline">{t("addAccount")}</span>
+              </Button>
+            )}
             {syncClient !== null && <NotificationBell client={syncClient} scopes={alertScopes} />}
             <InstallControl />
-            <ThemeToggle className="mr-1 h-9 w-9" />
+            <ThemeToggle className="h-9 w-9" />
+            {/* Not offered during the first run. Reaching configuration from
+                there would leave the flow without finishing it, and an
+                unfinished flow opens again on the next visit. Later and Skip
+                are the ways out, and both record that it is done. */}
+            {view !== "onboarding" && (
+              <IconButton
+                label={t("configuration")}
+                pressed={view === "configuration"}
+                onClick={() => setView(view === "configuration" ? "bars" : "configuration")}
+              >
+                <GearGlyph />
+              </IconButton>
+            )}
             <SettingsMenu
               accountEmail={effectiveSession.user.email ?? "Signed in"}
               syncEnabled={syncEnabled}
@@ -543,40 +745,34 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         }
       />
 
-      <Tabs tabs={TABS} active={tab} onSelect={setTab} />
-
       <p role="status" aria-live="polite" className="sr-only">
         {busy ? "Reading." : "Ready."}
       </p>
 
-      {tab === "home" && (
-        <div
-          id="panel-home"
-          role="tabpanel"
-          aria-labelledby="tab-home"
-          tabIndex={-1}
-          className="ol-panel"
-        >
-          {busy || dash === null ? (
-            <SkeletonRows />
-          ) : (
-            <div className="ol-home-stack">
-              {!hasReadings && <FirstRunState onConnect={openConnections} />}
-              {hasReadings && <LiveMeter snapshots={shown} now={now} demo={demo} />}
-              <ProviderRows rows={providerRows} />
-            </div>
-          )}
+      {view === "onboarding" && (
+        <div className="ol-panel">
+          <Onboarding
+            profile={effectiveSession.user as AccountProfile}
+            bars={barsPanel}
+            onSaveName={saveProfileName}
+            onFinish={finishOnboarding}
+          />
         </div>
       )}
 
-      {tab === "connections" && (
-        <div
-          id="panel-connections"
-          role="tabpanel"
-          aria-labelledby="tab-connections"
-          tabIndex={-1}
-          className="ol-panel"
-        >
+      {view === "bars" && <div className="ol-panel">{barsPanel}</div>}
+
+      {view === "connect" && (
+        <div className="ol-panel">
+          <Panel title={t("connect.title")} description={t("connect.lead")} demo={demo}>
+            <ConnectList />
+          </Panel>
+          <BackToBars label={t("backToBars")} onClick={() => setView("bars")} />
+        </div>
+      )}
+
+      {view === "configuration" && (
+        <div className="ol-panel">
           <Panel title="Providers" demo={demo}>
             <ProviderDirectory
               onConnect={setSelectedProvider}
@@ -612,6 +808,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               </section>
             )}
           </Panel>
+          <BackToBars label={t("backToBars")} onClick={() => setView("bars")} />
         </div>
       )}
 
