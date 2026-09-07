@@ -353,6 +353,8 @@ fn snapshot(
         limit_amount: None,
         currency: None,
         account_id: Some(account_id.to_string()),
+        account_label: None,
+        writer: None,
         provenance: Some(serde_json::json!({
             "observedVia": "remote_http",
             "sourceKind": "remote_api"
@@ -845,6 +847,15 @@ pub async fn collect_account_guarded<T: Transport>(
 }
 
 pub async fn run_pass(app: &AppHandle, automatic_account_limit: usize) {
+    /* The status line is Claude's primary source and it needs no permission
+    from anybody. This is the other path: a request to Anthropic carrying the
+    person's own token, for the hours Claude Code is closed. It is the one read
+    in this product whose standing is genuinely unsettled, so it happens only
+    where somebody switched it on, and an absent or unreadable setting means
+    off. See `claude_poll_setting.rs`. */
+    if !app.state::<crate::claude_poll_setting::ClaudePollSetting>().enabled() {
+        return;
+    }
     let mut account_ids = app
         .state::<DetectionStore>()
         .account_ids(DetectedProviderId::Claude);

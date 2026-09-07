@@ -2736,3 +2736,142 @@ pre {
   font-size: var(--ol-text-micro);
   text-align: center;
 }
+
+/* --------------------------------------------- the three step first run */
+
+/* The way past a step, drawn quiet.
+   Later and Skip are not the point of their screens, so neither is given the
+   weight of a button beside sign in or beside the tools. They borrow the
+   sheet's own link shape and this only places them on the centre line. */
+.first-run-quiet {
+  display: grid;
+  justify-items: center;
+  margin-top: var(--ol-space-3);
+}
+
+/* The one line the Microsoft button can need. It has no size until it has
+   something to say, so it never pushes the Later link down for nothing. */
+.first-run-way-status {
+  margin: var(--ol-space-2) 0 0;
+  color: var(--ol-meter-critical-label);
+  font-size: var(--ol-text-micro);
+  text-align: center;
+}
+
+.first-run-way-status:empty {
+  display: none;
+}
+
+/* The action slot, and the reason it has a floor width.
+   A row that changes state changes the control in this slot, and a slot that
+   is only as wide as its contents drags the provider name sideways every time
+   that happens. The floor is wide enough for the longest of the three labels,
+   so nothing beside it moves when a row changes its mind. */
+.first-run-action {
+  display: flex;
+  min-width: 11rem;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ol-space-2);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+}
+
+/* What a row says when it has no honest control to offer. */
+.first-run-note {
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  text-align: right;
+}
+
+/* Everything a state needs to say that a button cannot hold. It spans both
+   columns and grows the row downward, so the identity column keeps its place
+   while an install line or a device code is on screen. */
+.first-run-disclosure {
+  display: grid;
+  gap: var(--ol-space-2);
+  grid-column: 1 / -1;
+  margin-top: var(--ol-space-2);
+}
+
+.first-run-hint {
+  margin: 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  line-height: var(--ol-leading-body);
+}
+
+.first-run-hint:empty {
+  display: none;
+}
+
+/* The line a person copies, drawn as the code it is: the darkest ground in
+   the sheet, one hairline, and it scrolls sideways rather than wrapping a
+   command in half. */
+.first-run-command {
+  overflow-x: auto;
+  margin: 0;
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-code);
+  color: var(--ol-body);
+  font-size: var(--ol-text-caption);
+  white-space: pre;
+}
+
+/* The device code, read off the screen and typed into a browser, so it is
+   given the size of something that has to be read across a desk. */
+.first-run-code {
+  margin: 0;
+  color: var(--ol-heading);
+  font-size: var(--ol-text-title);
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: 0.12em;
+}
+
+.first-run-device-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+}
+
+/* Cancel, and the copy controls. Present from the first frame of a device
+   flow and never styled as a mistake, because leaving is a real answer. */
+button.first-run-quiet-button {
+  min-height: var(--ol-control-height);
+  padding-inline: var(--ol-space-3);
+  border-color: var(--ol-control-border);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+}
+
+/* The Claude poll setting, under the Claude row and under no other, because
+   it is the only provider it can possibly mean. Off by default, and the
+   sentence under it says exactly what turning it on reads. */
+.first-run-poll {
+  display: grid;
+  gap: var(--ol-space-1);
+  grid-column: 1 / -1;
+  margin-top: var(--ol-space-3);
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-raised);
+}
+
+.first-run-poll-label {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-medium);
+}
+
+.first-run-poll-note {
+  margin: 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  line-height: var(--ol-leading-body);
+}

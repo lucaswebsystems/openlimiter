@@ -45,64 +45,166 @@ function browserPlatform() {
   return navigator.userAgentData?.platform ?? navigator.platform ?? navigator.userAgent ?? "";
 }
 
-const PROVIDERS = Object.freeze([
-  {
+/**
+ * The four ways into an account, and the one that is new.
+ *
+ * The window owns exactly one sign in body. Three of these ways are drawn by
+ * that body and this screen borrows it, so there is still one password field
+ * and one email form in the whole document. Microsoft is the only way the
+ * body does not already draw, so it is the only button this file makes, and
+ * it is placed inside the borrowed body's own provider column rather than in
+ * a second stack beside it.
+ *
+ * The wire value is the name the service knows a provider by, and it is not
+ * always the name a person knows. Microsoft is azure on the service side, so
+ * the label and the wire value are kept as two separate facts here rather
+ * than one string used for both, which is how a rename ends up sending a
+ * value no service has ever heard of.
+ */
+export const SIGN_IN_WAYS = Object.freeze([
+  Object.freeze({ id: "github", wire: "github", label: "GitHub", mounted: true }),
+  Object.freeze({ id: "google", wire: "google", label: "Google", mounted: true }),
+  Object.freeze({ id: "microsoft", wire: "azure", label: "Microsoft", mounted: false }),
+  Object.freeze({ id: "email", wire: "email", label: "Email", mounted: true }),
+]);
+
+export function signInWay(id) {
+  return SIGN_IN_WAYS.find((way) => way.id === id) ?? null;
+}
+
+/**
+ * Press one way in, through the window's own path.
+ *
+ * Nothing here knows what a session is. It hands the service the wire value
+ * and hands back whatever came, so the one place that owns sign in stays the
+ * one place that owns sign in.
+ */
+export async function pressSignInWay(options, id, pressed = null) {
+  const way = signInWay(id);
+  if (way === null) return { ok: false, reason: "unknown_way" };
+  return options.signInWithProvider(way.wire, pressed);
+}
+
+export function signInWayFailureSentence(result, label) {
+  const name = typeof label === "string" && label !== "" ? label : "That";
+  if (result?.reason === "unconfigured") {
+    return name + " sign in is not switched on in this build yet.";
+  }
+  return name + " sign in could not be completed. Try again.";
+}
+
+/*
+ * The Microsoft mark, drawn on currentColor.
+ *
+ * Every other mark in the product is the vendor's own file in the vendor's
+ * own colours. Microsoft's four squares are four brand colours, and there is
+ * no token for them; a literal hex in this file would be the one colour in
+ * the window that no theme and no token sheet can reach. So the geometry is
+ * the official four squares and the ink is the control's own, which is the
+ * presentation the button beside it already uses for GitHub.
+ */
+const MICROSOFT_MARK =
+  '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" ' +
+  'aria-hidden="true" focusable="false">' +
+  '<path d="M2 2h9.2v9.2H2Zm10.8 0H22v9.2h-9.2ZM2 12.8h9.2V22H2Zm10.8 0H22V22h-9.2Z"/></svg>';
+
+const USE_CURRENT_LOGIN = "Use my current login";
+const SIGN_IN = "Sign in";
+const INSTALL = "Install";
+const VERIFIED_ON_INSTALL = "Verified on install";
+const CONNECTED_REMOVE = "Remove";
+
+/*
+ * The one Gemini sentence, on both rows that depend on it.
+ *
+ * Antigravity reads the same stored Google login the Gemini CLI writes, so
+ * it inherits the same fragility and it says so in the same words. Two
+ * different sentences for one mechanism is how a person ends up believing
+ * one of the two rows is safer than the other.
+ */
+const GEMINI_DISCLOSURE =
+  "Reads the login the Gemini CLI stored, may break when Google changes it";
+
+const CLAUDE_POLL_LABEL = "Poll Anthropic when Claude Code is closed";
+const CLAUDE_POLL_NOTE =
+  "Off by default. When it is on, OpenLimiter reads your own Claude token to ask Anthropic for your percentage while Claude Code is not running.";
+
+/**
+ * The rows of step two, in the order they are drawn.
+ *
+ * Every row is one provider, one mark, one line of copy and one control. The
+ * control is the whole difference between the rows: a detected login is
+ * adopted, a Codex login can be created from inside this window, a missing
+ * command line tool is named with the line that installs it, and the two
+ * tools nobody here can verify say so rather than offering a button that has
+ * never been run against the real thing.
+ */
+export const CONNECT_PROVIDERS = Object.freeze([
+  Object.freeze({
     code: "CODEX",
     name: "Codex",
-    subtitle: "Local CLI",
-    action: "Connect",
-    fallback: "Not found",
-  },
-  {
+    line: "Reads the Codex login already on this machine.",
+    install: "npm install -g @openai/codex",
+    installHint: "Run this in your terminal.",
+    deviceSignIn: true,
+  }),
+  Object.freeze({
     code: "CLAUDE",
     name: "Claude Code",
-    subtitle: "Local CLI",
-    action: "Connect",
-    fallback: "Not found",
-  },
-  {
+    line: "Reads Claude Code on this machine, and never asks you to sign in.",
+    install: "npm install -g @anthropic-ai/claude-code",
+    installHint: "Run this in your terminal.",
+    neverSignIn: true,
+  }),
+  Object.freeze({
     code: "GEMINI_CLI",
     name: "Gemini CLI",
-    subtitle: "Local CLI",
-    action: null,
-    fallback: "Install Gemini CLI",
-  },
-  {
+    line: GEMINI_DISCLOSURE,
+    install: "npm install -g @google/gemini-cli",
+    installHint: "Run this in your terminal.",
+  }),
+  Object.freeze({
     code: "ANTIGRAVITY",
     name: "Antigravity",
-    subtitle: "Local session",
-    action: "Connect",
-    fallback: "Not found",
-  },
-  {
+    line: GEMINI_DISCLOSURE,
+    install: "https://antigravity.google/download",
+    installHint: "Open this in your browser.",
+  }),
+  Object.freeze({
     code: "GROK",
     name: "Grok (xAI)",
-    subtitle: "Local detection",
-    action: null,
-    fallback: "Not found",
-  },
-  {
+    line: "Reads the Grok Build login on this machine.",
+    verifiedOnInstall: true,
+  }),
+  Object.freeze({
     code: "KIMI",
     name: "Kimi",
-    subtitle: "Local detection",
-    action: null,
-    fallback: "Not found",
-  },
-  {
+    line: "Reads the Kimi CLI login on this machine.",
+    verifiedOnInstall: true,
+  }),
+  Object.freeze({
     code: "OPENCODE",
     name: "OpenCode",
-    subtitle: "Browser session",
-    action: "Connect",
-    fallback: "Not found",
-  },
-  {
+    line: "Reads the OpenCode session on this machine.",
+    install: "npm install -g opencode-ai",
+    installHint: "Run this in your terminal.",
+  }),
+  Object.freeze({
     code: "OPENROUTER",
     name: "OpenRouter",
-    subtitle: "API key",
-    action: "Connect",
-    fallback: "Key needed",
-  },
+    line: "Reads your spend from your own OpenRouter key.",
+    keyOnly: true,
+  }),
 ]);
+
+/** Every install line in the product, for the check that they stay technical. */
+export const INSTALL_LINES = Object.freeze(
+  CONNECT_PROVIDERS.map((provider) => provider.install).filter(
+    (line) => typeof line === "string",
+  ),
+);
+
+const PROVIDERS = CONNECT_PROVIDERS;
 
 const KNOWN_CODES_BY_COMPACT = new Map(
   PROVIDERS.map((provider) => [provider.code.replaceAll("_", ""), provider.code]),
@@ -173,6 +275,12 @@ function recoveryFor(entry, accounts, state) {
  *
  * The old Claude wiring booleans remain accepted until Lane 1 replaces the
  * command result, so the lanes can land independently without a false crash.
+ *
+ * Nothing was added to the shape this returns. The Claude status line facts
+ * the connect row needs are read straight off the payload by claudeSignals
+ * below, because widening every provider entry to carry three booleans that
+ * only one provider has ever had is how a normalizer stops being a boundary
+ * and starts being a second copy of the payload.
  */
 export function normalizeDetections(value) {
   const normalized = new Map(
@@ -231,6 +339,50 @@ export function normalizeDetections(value) {
   };
 }
 
+function readBoolean(source, keys) {
+  if (source === null || typeof source !== "object") return false;
+  for (const key of keys) {
+    if (typeof source[key] === "boolean") return source[key];
+  }
+  return false;
+}
+
+/**
+ * The three Claude facts the connect row is drawn from.
+ *
+ * Claude Code is read, never signed into, so the only thing its row can say
+ * is which of the three shapes the machine is actually in: the status line is
+ * already ours, somebody else's status line is in the way and can be wrapped,
+ * or neither has happened yet. All three already arrive on the detection
+ * payload, in either spelling the backend has used for them.
+ */
+export function claudeSignals(value) {
+  const entries = Array.isArray(value?.providers) ? value.providers : [];
+  const entry =
+    entries.find(
+      (item) => providerCode(item?.provider_id ?? item?.provider) === "CLAUDE",
+    ) ??
+    (value !== null && typeof value === "object" ? value : null);
+  return {
+    statuslineWired: readBoolean(entry, ["statusline_wired", "statuslineWired"]),
+    foreignStatusLine: readBoolean(entry, ["foreign_status_line", "foreignStatusLine"]),
+    wrappableStatusLine:
+      readBoolean(entry, ["wrappable_status_line", "wrappableStatusLine"]) ||
+      entry?.kind === "wrappable_status_line",
+  };
+}
+
+/** The one line the Claude row shows, chosen by those three facts. */
+export function claudeLine(signals) {
+  if (signals?.foreignStatusLine === true || signals?.wrappableStatusLine === true) {
+    return "Your own status line is already set, and OpenLimiter can wrap it.";
+  }
+  if (signals?.statuslineWired === true) {
+    return "Reading the status line Claude Code already writes.";
+  }
+  return "Reads Claude Code on this machine, and never asks you to sign in.";
+}
+
 /**
  * The three steps, and the one rule about them.
  *
@@ -238,13 +390,12 @@ export function normalizeDetections(value) {
  * complete because it was displayed is how a setup ends up claiming to have
  * done something it never did.
  *
- * Agents comes first now. It used to come second, behind a sign in wall, on a
- * product whose entire promise is reading what is already on your own machine.
- * Nothing local needs an account, so nothing local waits for one: detection
- * runs the moment the window opens and the bars are real within seconds. The
- * account is the last step and it has a plain way past it.
+ * The account comes first and it is a real offer, not a wall: the Later link
+ * under the buttons goes straight to the tools, and every bar in this window
+ * works with no account at all. Connect is where the machine is read. Bars is
+ * not a screen, it is the window itself.
  */
-export const FIRST_RUN_STEPS = ["agents", "account", "ready"];
+export const FIRST_RUN_STEPS = ["account", "connect", "bars"];
 
 export function markStep(root, current) {
   const list = root?.querySelector("#first-run-steps");
@@ -296,6 +447,232 @@ export function permissionSentence(outcome) {
   return "This build cannot show system alerts, so nothing was asked for. The meters are unaffected.";
 }
 
+/**
+ * The Codex device sign in, as a state machine with no window in it.
+ *
+ * The command line tool prints a code and waits. This window does the same
+ * thing without ever raising a console: the backend starts the flow, hands
+ * back a code and a page, and this loop asks the backend what happened until
+ * it has a terminal answer, the person cancels, or three minutes are gone.
+ * A flow that is abandoned is cancelled on the backend as well, so nothing
+ * is left waiting on a device code that no one is going to type.
+ *
+ * Every dependency is passed in. That is what lets the happy path, the
+ * cancel and the timeout be checked without a webview, a clock, or the
+ * compiled engine anywhere near it.
+ */
+export const CODEX_SIGN_IN_TIMEOUT_MILLISECONDS = 180_000;
+export const CODEX_SIGN_IN_POLL_MILLISECONDS = 2_000;
+
+export function codexSentence(kind) {
+  if (kind === "complete") return "Codex is connected.";
+  if (kind === "cancelled") return "Sign in cancelled, and nothing changed.";
+  if (kind === "timed_out") return "The sign in ran out of time, and nothing changed.";
+  return "The sign in did not complete, and nothing changed.";
+}
+
+async function cancelQuietly(cancel, sessionId) {
+  try {
+    await cancel(sessionId);
+  } catch (error) {
+    /* A backend that cannot be told is still a flow this window has left. */
+  }
+}
+
+export async function runCodexSignIn(deps) {
+  const wait =
+    deps.wait ??
+    ((milliseconds) =>
+      new Promise((resolve) => {
+        window.setTimeout(resolve, milliseconds);
+      }));
+  const now = deps.now ?? (() => Date.now());
+  const onStarted = deps.onStarted ?? (() => {});
+  const cancelled = deps.cancelled ?? (() => false);
+
+  const started = await deps.start();
+  if (started?.ok !== true) {
+    return { kind: "failed", sentence: codexSentence("failed") };
+  }
+
+  const value = started.value ?? {};
+  const sessionId = value.sessionId;
+  onStarted({
+    sessionId,
+    userCode: value.userCode ?? "",
+    verificationUrl: value.verificationUrl ?? "",
+  });
+
+  const began = now();
+  for (;;) {
+    if (cancelled()) {
+      await cancelQuietly(deps.cancel, sessionId);
+      return { kind: "cancelled", sentence: codexSentence("cancelled") };
+    }
+    if (now() - began >= CODEX_SIGN_IN_TIMEOUT_MILLISECONDS) {
+      await cancelQuietly(deps.cancel, sessionId);
+      return { kind: "timed_out", sentence: codexSentence("timed_out") };
+    }
+    const answer = await deps.poll(sessionId);
+    if (answer?.ok !== true) {
+      await cancelQuietly(deps.cancel, sessionId);
+      return { kind: "failed", sentence: codexSentence("failed") };
+    }
+    const kind = answer.value?.kind;
+    if (kind === "complete") return { kind, sentence: codexSentence(kind) };
+    if (kind === "cancelled" || kind === "timed_out" || kind === "failed") {
+      return { kind, sentence: codexSentence(kind) };
+    }
+    if (kind !== "pending") {
+      return { kind: "failed", sentence: codexSentence("failed") };
+    }
+    await wait(CODEX_SIGN_IN_POLL_MILLISECONDS);
+  }
+}
+
+/**
+ * Which control a connect row offers, and why that one.
+ *
+ * A detected login is the default everywhere, and it spawns nothing: the
+ * window already has what it needs and the press is only a person saying yes
+ * to it. Codex is the one tool this release can sign into from here, because
+ * it is the one whose device flow has been run against the real service.
+ * Grok and Kimi say what is true instead of offering an untested button:
+ * neither command line tool is on this machine to verify against. Claude is
+ * read and never signed into, so it never gets a sign in control at all.
+ */
+export function rowAction(provider, detection, signals) {
+  const state = detection?.state ?? "unavailable";
+  if (state === "present") {
+    return { kind: "current", label: USE_CURRENT_LOGIN };
+  }
+  if (provider.neverSignIn === true) {
+    if (state === "absent" && typeof provider.install === "string") {
+      return { kind: "install", label: INSTALL, command: provider.install, hint: provider.installHint };
+    }
+    return { kind: "note", note: claudeLine(signals) };
+  }
+  if (provider.verifiedOnInstall === true) {
+    return { kind: "note", note: VERIFIED_ON_INSTALL };
+  }
+  if (provider.keyOnly === true) {
+    return { kind: "note", note: "Add your OpenRouter key in Connections when you want this bar." };
+  }
+  if (state === "logged_out" && provider.deviceSignIn === true) {
+    return { kind: "signin", label: SIGN_IN };
+  }
+  if (state === "logged_out") {
+    return { kind: "note", note: "Sign in inside the CLI, then reopen OpenLimiter." };
+  }
+  if (typeof provider.install === "string") {
+    return { kind: "install", label: INSTALL, command: provider.install, hint: provider.installHint };
+  }
+  return { kind: "note", note: "Connect this one in Connections when you want its bar." };
+}
+
+/**
+ * Every string this module can put in front of a person.
+ *
+ * It exists so one test can walk the whole vocabulary and prove no dash of
+ * any kind reached it. Install lines and the page Antigravity is downloaded
+ * from are not prose, they are things a person copies verbatim into a
+ * terminal or a browser, so they are the one thing this list leaves out.
+ */
+export function firstRunCopyStrings() {
+  const strings = [
+    "Create your account",
+    "Later",
+    "Connect your tools",
+    "Show my bars",
+    "Skip",
+    "Checking local tools.",
+    "Scan complete.",
+    "Continue now. Detection can run later.",
+    "Detection could not run. Every bar can be connected later.",
+    USE_CURRENT_LOGIN,
+    SIGN_IN,
+    INSTALL,
+    VERIFIED_ON_INSTALL,
+    CONNECTED_REMOVE,
+    "Copied",
+    "Copy the line above.",
+    "Cancel",
+    "Open this page and enter the code.",
+    CLAUDE_POLL_LABEL,
+    CLAUDE_POLL_NOTE,
+    "Run this in your terminal.",
+    "Open this in your browser.",
+    "Add your OpenRouter key in Connections when you want this bar.",
+    "Sign in inside the CLI, then reopen OpenLimiter.",
+    "Connect this one in Connections when you want its bar.",
+  ];
+  strings.push("Use email instead");
+  for (const way of SIGN_IN_WAYS) {
+    strings.push(way.label);
+    if (way.id !== "email") strings.push("Continue with " + way.label);
+    strings.push(signInWayFailureSentence({ reason: "unconfigured" }, way.label));
+    strings.push(signInWayFailureSentence({ reason: "network" }, way.label));
+  }
+  for (const provider of CONNECT_PROVIDERS) {
+    strings.push(provider.name, provider.line);
+  }
+  for (const signals of [
+    { statuslineWired: true },
+    { foreignStatusLine: true },
+    { wrappableStatusLine: true },
+    {},
+  ]) {
+    strings.push(claudeLine(signals));
+  }
+  for (const kind of ["complete", "cancelled", "timed_out", "failed", "unknown"]) {
+    strings.push(codexSentence(kind));
+  }
+  for (const outcome of ["granted", "denied", "skipped", "unsupported"]) {
+    strings.push(permissionSentence(outcome));
+  }
+  for (const platform of ["Win32", "MacIntel", "Linux x86_64"]) {
+    const notice = launchNotice(platform);
+    if (notice !== null) strings.push(notice.title, notice.detail);
+  }
+  return strings;
+}
+
+/**
+ * A build with a function missing degrades rather than throws.
+ *
+ * Half of these are commands the Rust side is still landing. A window that
+ * throws on a missing command is a window with no first run at all, so every
+ * one of them has an answer here that is honest about not being wired.
+ */
+const DEFAULT_OPTIONS = Object.freeze({
+  accountStatus: async () => ({ ok: false, reason: "unconfigured" }),
+  detectProviders: async () => ({ ok: false, reason: "unconfigured" }),
+  markFor: () => "",
+  isSignedIn: () => false,
+  mountSignIn: () => {},
+  unmountSignIn: () => {},
+  onAccountState: () => {},
+  onContinue: () => {},
+  onInstall: () => {},
+  signInWithProvider: async () => ({ ok: false, reason: "unconfigured" }),
+  codexSignIn: async () => ({ ok: false, reason: "unconfigured" }),
+  codexSignInPoll: async () => ({ ok: false, reason: "unconfigured" }),
+  codexSignInCancel: async () => ({ ok: true }),
+  setClaudePoll: async () => ({ ok: false, reason: "unconfigured" }),
+  copyText: async (text) => {
+    await window.navigator.clipboard.writeText(text);
+    return { ok: true };
+  },
+});
+
+function withDefaults(input) {
+  const merged = { ...DEFAULT_OPTIONS };
+  for (const [key, value] of Object.entries(input ?? {})) {
+    if (value !== undefined && value !== null) merged[key] = value;
+  }
+  return merged;
+}
+
 function completeFirstRun(screen) {
   try {
     window.localStorage.setItem(FIRST_RUN_STORAGE_KEY, "complete");
@@ -305,151 +682,198 @@ function completeFirstRun(screen) {
   /* Step three is not a screen. It is the window a person lands in, already
      reading, which is why the last step is marked and then immediately gone
      rather than dwelt on with a congratulation nobody needs. */
-  markStep(screen, "ready");
+  markStep(screen, "bars");
   document.documentElement.dataset.firstRun = "complete";
   screen.hidden = true;
 }
 
-function statusText(provider, detection, available) {
-  if (!available || detection.state === "unavailable") {
-    return { state: "unavailable", label: "Check later", detail: "" };
-  }
-  if (detection.state === "present") {
-    return {
-      state: "present",
-      label: "Installed",
-      detail:
-        detection.accountCount > 1
-          ? String(detection.accountCount) + " accounts"
-          : "",
-    };
-  }
-  if (detection.state === "logged_out") {
-    return {
-      state: "logged_out",
-      label: "Installed",
-      detail: detection.recovery === "reopen_cli" ? "Reopen the CLI" : "Sign in again",
-    };
-  }
-  return { state: "absent", label: provider.fallback, detail: "" };
+function element(tag, className, text) {
+  const node = document.createElement(tag);
+  if (typeof className === "string") node.className = className;
+  if (typeof text === "string") node.textContent = text;
+  return node;
 }
 
-function providerRow(provider, detection, available, options, screen) {
-  const row = document.createElement("div");
-  row.className = "first-run-row";
-  row.dataset.state = detection.state;
+function quietButton(label) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "first-run-quiet-button";
+  button.textContent = label;
+  return button;
+}
+
+/*
+ * The action lives in the row's own right hand slot and the slot holds its
+ * width whatever is in it, so a row that changes state moves nothing beside
+ * it. Everything a state needs to say more than a button can hold goes in the
+ * disclosure under both columns, which grows the row downward instead.
+ */
+function connectRow(provider, detection, signals, options, redraw) {
+  const row = element("div", "first-run-row");
+  row.dataset.state = detection?.state ?? "unavailable";
   row.dataset.provider = provider.code;
 
-  const identity = document.createElement("div");
-  identity.className = "first-run-identity";
-  const mark = document.createElement("span");
-  mark.className = "first-run-mark";
+  const identity = element("div", "first-run-identity");
+  const mark = element("span", "first-run-mark");
   mark.setAttribute("aria-hidden", "true");
   mark.innerHTML = options.markFor(provider.code);
-  const words = document.createElement("span");
-  words.className = "first-run-identity-copy";
-  const name = document.createElement("strong");
-  name.className = "first-run-name";
-  name.textContent = provider.name;
-  const subtitle = document.createElement("span");
-  subtitle.className = "first-run-subtitle";
-  subtitle.textContent = provider.subtitle;
-  words.append(name, subtitle);
+  const words = element("span", "first-run-identity-copy");
+  const name = element("strong", "first-run-name", provider.name);
+  const line = element("span", "first-run-subtitle", provider.line);
+  words.append(name, line);
   identity.append(mark, words);
-  row.append(identity);
 
-  const status = statusText(provider, detection, available);
-  if (status.state === "present" || status.state === "logged_out") {
-    const fact = document.createElement("span");
-    fact.className = "first-run-fact";
-    const check = document.createElement("span");
-    check.className = "first-run-check";
-    check.setAttribute("aria-hidden", "true");
-    check.textContent = "✓";
-    const words = document.createElement("span");
-    words.textContent = status.label;
-    fact.append(check, words);
-    if (status.detail !== "") {
-      const detail = document.createElement("span");
-      detail.className = "first-run-detail";
-      detail.textContent = status.detail;
-      fact.append(detail);
+  const action = element("div", "first-run-action");
+  const disclosure = element("div", "first-run-disclosure");
+  disclosure.hidden = true;
+
+  const plan = rowAction(provider, detection, signals);
+  action.dataset.kind = plan.kind;
+  if (provider.code === "CLAUDE") line.textContent = claudeLine(signals);
+
+  if (plan.kind === "current") {
+    const configured = isProviderConfigured(provider.code);
+    if (configured) {
+      const check = element("span", "first-run-check", "✓");
+      check.setAttribute("aria-hidden", "true");
+      action.append(check);
     }
-    const add = document.createElement("button");
-    add.type = "button";
-    add.className = "first-run-install";
-    const reflect = () => {
-      const configured = isProviderConfigured(provider.code);
-      add.textContent = configured ? "Remove" : "Add";
-      add.setAttribute("aria-pressed", configured ? "true" : "false");
-    };
-    add.addEventListener("click", () => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "first-run-install";
+    button.textContent = configured ? CONNECTED_REMOVE : plan.label;
+    button.setAttribute("aria-pressed", configured ? "true" : "false");
+    button.setAttribute(
+      "aria-label",
+      (configured ? CONNECTED_REMOVE : plan.label) + " " + provider.name,
+    );
+    /* Nothing is spawned here. The login is already on the machine and this
+       press is only the person saying yes to reading it. */
+    button.addEventListener("click", () => {
       if (isProviderConfigured(provider.code)) unconfigureProvider(provider.code);
       else configureProvider(provider.code);
-      reflect();
+      redraw();
     });
-    reflect();
-    row.append(fact, add);
-  } else if (status.state === "absent" && provider.action !== null) {
-    const missing = document.createElement("span");
-    missing.className = "first-run-missing";
-    const caption = document.createElement("span");
-    caption.className = "first-run-caption";
-    caption.textContent = status.label;
-    const install = document.createElement("button");
-    install.type = "button";
-    install.className = "first-run-install";
-    install.textContent = provider.action;
-    install.setAttribute("aria-label", provider.action + " " + provider.name);
-    install.addEventListener("click", () => {
-      configureProvider(provider.code);
-      completeFirstRun(screen);
-      options.onInstall(provider.code);
+    action.append(button);
+  } else if (plan.kind === "signin") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "first-run-install";
+    button.textContent = plan.label;
+    button.setAttribute("aria-label", plan.label + " " + provider.name);
+    button.addEventListener("click", () => {
+      button.disabled = true;
+      void startCodexSignIn(provider, options, disclosure, button, redraw);
     });
-    missing.append(caption, install);
-    row.append(missing);
+    action.append(button);
+  } else if (plan.kind === "install") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "first-run-install";
+    button.textContent = plan.label;
+    button.setAttribute("aria-label", plan.label + " " + provider.name);
+    disclosure.hidden = false;
+    const hint = element("p", "first-run-hint", plan.hint ?? "");
+    const command = element("pre", "first-run-command", plan.command);
+    command.classList.add("mono");
+    const status = element("p", "first-run-hint", "");
+    status.setAttribute("role", "status");
+    disclosure.append(hint, command, status);
+    button.addEventListener("click", () => {
+      void (async () => {
+        const result = await options.copyText(plan.command).catch(() => ({ ok: false }));
+        status.textContent = result?.ok === false ? "Copy the line above." : "Copied";
+      })();
+    });
+    action.append(button);
   } else {
-    const caption = document.createElement("span");
-    caption.className = "first-run-caption";
-    caption.textContent = status.label;
-    row.append(caption);
+    action.append(element("span", "first-run-note", plan.note));
+  }
+
+  row.append(identity, action, disclosure);
+
+  /* The poll setting belongs to the Claude row and to no other, so it is
+     drawn under it rather than in a settings list a person has not met yet. */
+  if (provider.code === "CLAUDE" && (detection?.state ?? "") === "present") {
+    row.append(claudePollRow(options));
   }
   return row;
 }
 
-function renderProviders(screen, result, options) {
-  const list = screen.querySelector("#first-run-providers");
-  const note = screen.querySelector("#first-run-status");
-  if (list === null || note === null) return;
-  const hasDetectedCli = result.providers.some(
-    (provider) => provider.code !== "MANUAL" && provider.state !== "absent",
-  );
-  if (result.available && !hasDetectedCli) {
-    screen.dataset.empty = "true";
-    const title = screen.querySelector("#first-run-setup h1");
-    if (title !== null) title.textContent = "No supported AI CLIs found.";
-    list.textContent = "";
-    const actions = document.createElement("div");
-    actions.className = "first-run-empty-actions";
-    const downloads = document.createElement("a");
-    downloads.href = "https://openlimiter.com/en/docs/providers";
-    downloads.target = "_blank";
-    downloads.rel = "noopener noreferrer";
-    downloads.className = "first-run-empty-action primary";
-    downloads.textContent = "Download CLIs";
-    const configure = document.createElement("button");
-    configure.type = "button";
-    configure.className = "first-run-empty-action";
-    configure.textContent = "Configuration";
-    configure.addEventListener("click", () => {
-      completeFirstRun(screen);
-      options.onInstall("CODEX");
-    });
-    actions.append(downloads, configure);
-    list.append(actions);
-    downloads.focus();
+function claudePollRow(options) {
+  const wrapper = element("div", "first-run-poll");
+  const label = element("label", "first-run-poll-label");
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.id = "first-run-claude-poll";
+  input.checked = false;
+  const words = element("span", null, CLAUDE_POLL_LABEL);
+  label.append(input, words);
+  const note = element("p", "first-run-poll-note", CLAUDE_POLL_NOTE);
+  input.addEventListener("change", () => {
+    void options.setClaudePoll(input.checked === true);
+  });
+  wrapper.append(label, note);
+  return wrapper;
+}
+
+/*
+ * The Codex device flow, drawn inside this window.
+ *
+ * The code and the page are shown here rather than in a console, because a
+ * console window that appears behind the app is a code nobody ever sees. The
+ * Cancel control is present from the first frame and stays until the flow has
+ * a terminal answer, and every ending that is not a completed sign in puts
+ * the row back exactly as it was with one sentence saying what happened.
+ */
+async function startCodexSignIn(provider, options, disclosure, button, redraw) {
+  let cancelled = false;
+  disclosure.hidden = false;
+  disclosure.textContent = "";
+
+  const lead = element("p", "first-run-hint", "Open this page and enter the code.");
+  const url = element("p", "first-run-command", "");
+  url.classList.add("mono");
+  const code = element("p", "first-run-code", "");
+  code.classList.add("mono");
+  const status = element("p", "first-run-hint", "");
+  status.setAttribute("role", "status");
+  const actions = element("div", "first-run-device-actions");
+  const cancel = quietButton("Cancel");
+  cancel.addEventListener("click", () => {
+    cancelled = true;
+    cancel.disabled = true;
+  });
+  actions.append(cancel);
+  disclosure.append(lead, url, code, actions, status);
+
+  const outcome = await runCodexSignIn({
+    start: () => options.codexSignIn(),
+    poll: (sessionId) => options.codexSignInPoll(sessionId),
+    cancel: (sessionId) => options.codexSignInCancel(sessionId),
+    cancelled: () => cancelled,
+    onStarted: (started) => {
+      url.textContent = started.verificationUrl;
+      code.textContent = started.userCode;
+    },
+  });
+
+  if (outcome.kind === "complete") {
+    configureProvider(provider.code);
+    redraw();
     return;
   }
+  /* Back to where the row was, with one sentence and no dead controls. */
+  disclosure.textContent = "";
+  disclosure.hidden = false;
+  disclosure.append(element("p", "first-run-hint", outcome.sentence));
+  button.disabled = false;
+}
+
+function renderProviders(screen, result, signals, options, redraw) {
+  const list = screen.querySelector("#first-run-providers");
+  const note = screen.querySelector("#first-run-status");
+  if (list === null) return;
   const byCode = new Map(result.providers.map((provider) => [provider.code, provider]));
   list.textContent = "";
   for (const provider of PROVIDERS) {
@@ -459,14 +883,16 @@ function renderProviders(screen, result, options) {
       accountCount: 0,
       recovery: null,
     };
-    list.append(providerRow(provider, detection, result.available, options, screen));
+    list.append(connectRow(provider, detection, signals, options, redraw));
   }
+  if (note === null) return;
   note.textContent = result.available
     ? "Scan complete."
-    : "Continue now. Detection can run later.";
+    : "Detection could not run. Every bar can be connected later.";
 }
 
-export function initFirstRun(options) {
+export function initFirstRun(input) {
+  const options = withDefaults(input);
   const screen = document.getElementById("first-run");
   if (screen === null) return;
 
@@ -475,38 +901,37 @@ export function initFirstRun(options) {
 
   document.documentElement.dataset.firstRun = "pending";
 
-  let providersRendered = false;
+  let detection = null;
+  let microsoft = null;
 
-  /* Step one, and the first thing on screen. Detection starts before anything
-     is asked of a person, so the window they are looking at is already doing
-     the job they installed it for. */
-  async function showSetup() {
-    screen.setAttribute("aria-labelledby", "first-run-title");
-    if (account !== null) account.hidden = true;
-    setup.hidden = false;
-    markStep(screen, "agents");
-    screen.dataset.step = "agents";
-    if (providersRendered) return;
-    providersRendered = true;
-    const response = await options.detectProviders();
-    renderProviders(
-      screen,
-      normalizeDetections(response.ok ? response.value : null),
-      options,
-    );
+  /* Detection is started at load, behind nothing, so the connect step is
+     already populated the moment it opens rather than beginning its work
+     when a person arrives at it. */
+  function loadDetections() {
+    if (detection !== null) return detection;
+    detection = options
+      .detectProviders()
+      .then((response) => (response?.ok === true ? response.value : null))
+      .catch(() => null)
+      .then((payload) => ({
+        result: normalizeDetections(payload),
+        signals: claudeSignals(payload),
+      }));
+    return detection;
   }
 
-  /* Step two. Offered once, at the end, with "Not now" as a real answer and
-     not a smaller button beside a bigger one. The window owns the one sign in
-     body and lends it to this step, so the provider buttons and their marks
-     are right here rather than behind a second dialog, and there is still
-     exactly one password field in the document. */
+  /* Step one. Four ways in, and a plain way past all four.
+     The window owns the one sign in body and lends it to this step, so the
+     provider buttons and their marks are right here rather than behind a
+     second dialog, and there is still exactly one password field in the
+     document. Microsoft is the only button this file makes, and it goes into
+     the borrowed body's own provider column so the four ways read as one
+     stack rather than three and then a stray. */
   function showAccount() {
     screen.setAttribute("aria-labelledby", "first-run-account-title");
-    setup.hidden = true;
+    if (setup !== null) setup.hidden = true;
     if (account === null) {
-      completeFirstRun(screen);
-      options.onContinue();
+      finish();
       return;
     }
     account.hidden = false;
@@ -516,11 +941,85 @@ export function initFirstRun(options) {
     screen.dataset.step = "account";
     const mount = screen.querySelector("#first-run-sign-in-mount");
     if (mount !== null) options.mountSignIn(mount);
+    addMicrosoft(mount);
   }
 
+  function addMicrosoft(mount) {
+    if (mount === null) return;
+    const way = signInWay("microsoft");
+    if (way === null) return;
+    const column = mount.querySelector(".sign-in-providers") ?? mount;
+    if (microsoft === null) microsoft = buildMicrosoft(way);
+    column.append(microsoft);
+  }
+
+  function buildMicrosoft(way) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "first-run-microsoft";
+    button.className = "sign-in-provider";
+    button.classList.add("first-run-microsoft");
+    button.dataset.wire = way.wire;
+    const mark = element("span", "sign-in-mark");
+    mark.setAttribute("aria-hidden", "true");
+    mark.innerHTML = MICROSOFT_MARK;
+    const label = element("span", null, "Continue with " + way.label);
+    button.append(mark, label);
+    /*
+     * The same path the two mounted buttons take, and that is the whole point.
+     *
+     * This button is the only one this file makes, and an earlier version of
+     * it called the service directly. That worked and then stopped: the
+     * session arrived, and nothing applied it, nothing drew the arrival and
+     * nothing announced it, so a successful Microsoft sign in left first run
+     * sitting on step one forever. Every way in now goes through the window's
+     * one handler, which owns the account state, the drawn success and the
+     * event this screen finishes on.
+     *
+     * `displayed` is that handler saying it has already written the answer
+     * into the shared status line. Writing a second sentence here would put
+     * the same refusal on screen twice.
+     */
+    button.addEventListener("click", () => {
+      void (async () => {
+        button.disabled = true;
+        const result = await pressSignInWay(options, way.id, button).catch(() => ({ ok: false }));
+        if (result?.ok === true) return;
+        button.disabled = false;
+        if (result?.displayed === true) return;
+        const status = screen.querySelector("#first-run-way-status");
+        if (status !== null) status.textContent = signInWayFailureSentence(result, way.label);
+      })();
+    });
+    return button;
+  }
+
+  /* Step two. One row per provider, drawn from what the machine already
+     said, with the manual paths as row states rather than as the default. */
+  async function showConnect() {
+    screen.setAttribute("aria-labelledby", "first-run-title");
+    if (account !== null) account.hidden = true;
+    if (microsoft !== null) microsoft.remove();
+    options.unmountSignIn();
+    if (setup === null) {
+      finish();
+      return;
+    }
+    setup.hidden = false;
+    markStep(screen, "connect");
+    screen.dataset.step = "connect";
+    const loaded = await loadDetections();
+    const redraw = () => {
+      renderProviders(screen, loaded.result, loaded.signals, options, redraw);
+    };
+    redraw();
+  }
+
+  /* Step three. The bars, which are the window itself. */
   function finish() {
     /* The body goes back to the sheet before this screen is put away, so the
        account menu can raise it again later exactly as it was. */
+    if (microsoft !== null) microsoft.remove();
     options.unmountSignIn();
     completeFirstRun(screen);
     options.onContinue();
@@ -542,24 +1041,21 @@ export function initFirstRun(options) {
     noticeElement.hidden = false;
   }
 
-  const continueButton = screen.querySelector("#first-run-continue");
-  continueButton?.addEventListener("click", () => {
-    /* Somebody already signed in has nothing left to be asked. */
-    if (options.isSignedIn()) {
-      finish();
-      return;
-    }
-    showAccount();
+  screen.querySelector("#first-run-later")?.addEventListener("click", () => {
+    void showConnect();
   });
-
-  screen.querySelector("#first-run-not-now")?.addEventListener("click", finish);
+  screen.querySelector("#first-run-skip")?.addEventListener("click", finish);
+  screen.querySelector("#first-run-continue")?.addEventListener("click", finish);
 
   /* The window owns the sign in body, so it tells this screen when a session
      arrived rather than this screen owning a second copy of the form. The
-     event is sent once the success state has had its moment on screen. */
+     event is sent once the success state has had its moment on screen, and it
+     moves this screen on to the tools rather than ending it: an account is
+     step one now, not the last thing asked. */
   window.addEventListener("openlimiter:signed-in", () => {
     if (document.documentElement.dataset.firstRun !== "pending") return;
-    finish();
+    if (screen.dataset.step !== "account") return;
+    void showConnect();
   });
 
   void (async () => {
@@ -572,6 +1068,12 @@ export function initFirstRun(options) {
       completeFirstRun(screen);
       return;
     }
-    await showSetup();
+    loadDetections();
+    /* Somebody already signed in has nothing left to be asked. */
+    if (options.isSignedIn()) {
+      await showConnect();
+      return;
+    }
+    showAccount();
   })();
 }

@@ -108,6 +108,10 @@ test("a confirmation email is drawn as sent, everything else that fails as an er
 test("the working and success sentences say what is happening and to whom", () => {
   assert.equal(openingSentence("github"), "Opening GitHub in your browser.");
   assert.equal(openingSentence("google"), "Opening Google in your browser.");
+  /* Microsoft travels as azure and is spoken of as Microsoft, so the sentence
+     a person reads has to know both. Without this it read "Opening  in your
+     browser." with the name missing entirely. */
+  assert.equal(openingSentence("azure"), "Opening Microsoft in your browser.");
   assert.equal(SIGNING_IN, "Signing in.");
   assert.equal(CREATING_ACCOUNT, "Creating your account.");
   assert.equal(signedInSentence("person@example.com"), "Signed in as person@example.com.");
@@ -204,7 +208,11 @@ test("in flight, the pressed control keeps its fill and carries the spinner", ()
     /\.sign-in-body\[aria-busy="true"\] button:disabled:not\(\[data-working="true"\]\)[^{]*\{[^}]*opacity: 0\.7/u,
   );
   const source = app();
-  assert.match(source, /accountOauth\(provider\), provider, openingSentence\(provider\), pressed\)/u);
+  /* The pressed control is named `control` now, because it is no longer
+     always one of the two buttons in this body: the first run step draws its
+     own Microsoft button and hands it in, so the busy state lands on whatever
+     was actually pressed. */
+  assert.match(source, /accountOauth\(provider\), provider, openingSentence\(provider\), control\)/u);
   assert.match(source, /signInPressed\?\.setAttribute\("data-working", "true"\)/u);
   /* After ten seconds the link is offered again, only while the attempt waits. */
   assert.match(html(), /id="account-oauth-reopen"[^>]*hidden>Open the link again</u);
@@ -237,7 +245,12 @@ test("the foot is a bordered Not now beside the honest sentence, at caption size
   const markup = html();
   assert.match(markup, /id="sign-in-status"[^>]*role="status"[^>]*aria-live="polite"/u);
   assert.match(markup, /id="sign-in-close" class="sign-in-ghost">Not now</u);
-  assert.match(markup, /id="first-run-not-now" class="sign-in-ghost">Not now</u);
+  /* The first run's way past the account is a quiet Later link now, not a
+     second bordered button. The sheet keeps its bordered Not now, because the
+     sheet is a dialogue somebody opened and a dialogue needs a way out that
+     looks like one. The first run step is a step, and a step gets a link. */
+  assert.match(markup, /id="first-run-later" class="sign-in-link">Later</u);
+  assert.doesNotMatch(markup, /id="first-run-not-now"/u);
   assert.match(markup, /Every meter in this window keeps running without an account\./u);
   const sheet = css();
   assert.match(sheet, /button\.sign-in-ghost \{[^}]*border-color: var\(--ol-control-border\)/u);

@@ -116,11 +116,19 @@ pub struct OauthAccountInput {
     pub provider: OauthProvider,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
+/// The sign in providers the service has switched on.
+///
+/// These are wire values, not labels. `azure` is what the authentication
+/// service calls the Microsoft identity platform, and it is the string that
+/// has to travel, while every surface a person reads says Microsoft. The two
+/// disagreeing is not a mistake to tidy up: renaming the wire value would ask
+/// the service for a provider it does not have.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OauthProvider {
     Google,
     Github,
+    Azure,
 }
 
 impl OauthProvider {
@@ -128,8 +136,24 @@ impl OauthProvider {
         match self {
             Self::Google => "google",
             Self::Github => "github",
+            Self::Azure => "azure",
         }
     }
+
+    /// Extra authorization scopes this provider needs beyond the default.
+    ///
+    /// Microsoft returns no address unless one is asked for, and an account
+    /// with no email is an account that cannot receive an alert or be
+    /// recovered, so the scope is not optional.
+    fn scopes(self) -> Option<&'static str> {
+        match self {
+            Self::Google | Self::Github => None,
+            Self::Azure => Some("email"),
+        }
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub const ALL: [Self; 3] = [Self::Google, Self::Github, Self::Azure];
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1266,6 +1290,12 @@ pub async fn account_oauth(
         .append_pair("redirect_to", LOOPBACK_CALLBACK)
         .append_pair("code_challenge", &challenge)
         .append_pair("code_challenge_method", "s256");
+    /* Asked for only where the provider needs asking. A scope parameter sent
+    to a provider that already returns the address is one more thing on a
+    consent screen for nothing. */
+    if let Some(scopes) = input.provider.scopes() {
+        authorize.query_pairs_mut().append_pair("scopes", scopes);
+    }
     /* No state of our own. The service forwards whatever state it is given
        straight to the provider, and then cannot resolve it on the way back:
        every sign in died with "OAuth state not found or expired" (2026-09-06).
@@ -1490,6 +1520,34 @@ mod tests {
             serde_json::to_value(AccountFailure::EmailConfirmationRequired)
                 .expect("email confirmation failure"),
             serde_json::json!({ "kind": "email_confirmation_required" })
+        );
+    }
+
+    /// Microsoft travels as `azure` and asks for the one scope it needs.
+    ///
+    /// The wire value and the label disagreeing is deliberate: the service
+    /// calls the Microsoft identity platform `azure`, and asking it for a
+    /// provider called `microsoft` is asking for one it does not have. The
+    /// scope is not optional either, because Microsoft returns no address
+    /// without it and an account with no address cannot be alerted or
+    /// recovered.
+    #[test]
+    fn microsoft_travels_as_azure_and_asks_for_an_address() {
+        assert_eq!(OauthProvider::Azure.as_str(), "azure");
+        assert_eq!(OauthProvider::Azure.scopes(), Some("email"));
+        assert_eq!(OauthProvider::Google.scopes(), None);
+        assert_eq!(OauthProvider::Github.scopes(), None);
+        /* Every provider is a distinct wire value, and every one of them is
+        the lowercase name the service publishes. */
+        let mut wire: Vec<&str> = OauthProvider::ALL
+            .iter()
+            .map(|provider| provider.as_str())
+            .collect();
+        wire.sort_unstable();
+        assert_eq!(wire, vec!["azure", "github", "google"]);
+        assert_eq!(
+            serde_json::from_str::<OauthProvider>("\"azure\"").expect("a wire value"),
+            OauthProvider::Azure
         );
     }
 

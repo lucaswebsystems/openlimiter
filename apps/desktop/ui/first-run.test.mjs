@@ -2,7 +2,36 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { FIRST_RUN_STEPS, launchNotice, normalizeDetections } from "./first-run.js";
+import {
+  CODEX_SIGN_IN_TIMEOUT_MILLISECONDS,
+  CONNECT_PROVIDERS,
+  FIRST_RUN_STEPS,
+  INSTALL_LINES,
+  SIGN_IN_WAYS,
+  claudeLine,
+  claudeSignals,
+  codexSentence,
+  firstRunCopyStrings,
+  launchNotice,
+  normalizeDetections,
+  pressSignInWay,
+  rowAction,
+  runCodexSignIn,
+  signInWay,
+} from "./first-run.js";
+
+const read = (name) => readFileSync(new URL("./" + name, import.meta.url), "utf8");
+const firstRunSection = () => {
+  const markup = read("index.html");
+  const start = markup.indexOf('<section\n      id="first-run"');
+  return markup.slice(start, markup.indexOf("</section>", start));
+};
+const providerSpec = (code) =>
+  CONNECT_PROVIDERS.find((provider) => provider.code === code);
+
+/* Every dash a keyboard and a word processor can produce, because the rule is
+   about what a person reads and not about which key made it. */
+const DASH = /[-‐‑‒–—―−]/u;
 
 test("keeps an unconfigured Home to one line pointing at Configuration", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
@@ -21,55 +50,490 @@ test("keeps an unconfigured Home to one line pointing at Configuration", () => {
    * something the window can actually prove. A paragraph that ships visible
    * would be back to explaining an empty screen at someone.
    */
-  for (const paragraph of panel.matchAll(/<p[^>]*>/gu)) {
+  for (const paragraph of panel.matchAll(/<p[^>]*>/gu)) {
     const tag = paragraph[0];
     const container = panel.slice(0, paragraph.index);
     const openedBlock = container.lastIndexOf("<div");
     const openedHidden =
-      openedBlock >= 0 && /hidden/u.test(panel.slice(openedBlock, panel.indexOf(">", openedBlock)));
+      openedBlock >= 0 && /hidden/u.test(panel.slice(openedBlock, panel.indexOf(">", openedBlock)));
     assert.ok(
-      /hidden/u.test(tag) || openedHidden,
+      /hidden/u.test(tag) || openedHidden,
       "a Home paragraph ships visible: " + tag,
     );
   }
 });
 
-test("reaches the providers before it ever mentions an account", () => {
-  /* The wall is gone. It used to be the first thing a person met: no meter,
-     no detection, nothing at all until they signed in, on a product whose
-     whole promise is reading what is already on their own machine. Detection
-     runs first now and the account is the last step. */
-  const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
-  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+test("walks account, then connect, then bars, and says so on the screen", () => {
+  /* Three steps, in this order, and the step list a person reads has to be
+     the same three in the same order. A named list that drifts from the code
+     driving it is a progress indicator that lies. */
+  assert.deepEqual(FIRST_RUN_STEPS, ["account", "connect", "bars"]);
 
-  assert.deepEqual(FIRST_RUN_STEPS, ["agents", "account", "ready"]);
-  assert.equal(html.includes('id="account-gate"'), false);
-  assert.match(source, /await showSetup\(\)/u);
-  /* Nothing gates showSetup on a session: the load path runs it whatever the
-     account status came back as. */
+  const list = firstRunSection();
+  const labels = [...list.matchAll(/<li data-step="([a-z]+)"[^>]*>([^<]+)<\/li>/gu)].map(
+    (item) => [item[1], item[2]],
+  );
+  assert.deepEqual(labels, [
+    ["account", "Account"],
+    ["connect", "Connect"],
+    ["bars", "Bars"],
+  ]);
+
+  /* And the last step is not a screen: it marks itself and gets out of the
+     way, exactly as the window behind it comes up. */
+  const source = read("first-run.js");
   assert.match(
     source,
-    /const result = await options\.accountStatus\(\)[\s\S]*await showSetup\(\)/u,
+    /markStep\(screen, "bars"\);\s*document\.documentElement\.dataset\.firstRun = "complete";\s*screen\.hidden = true;/u,
   );
+  assert.match(source, /function finish\(\) \{[\s\S]*?completeFirstRun\(screen\);\s*options\.onContinue\(\);/u);
+});
+
+test("asks for nothing before the machine is read", () => {
+  /* The account is step one, and it is still not a wall. Detection is started
+     on load, behind no session and no press, so the connect step is populated
+     the moment it opens and the Later link reaches a full list rather than a
+     spinner. */
+  const source = read("first-run.js");
+  const html = read("index.html");
+
+  assert.equal(html.includes('id="account-gate"'), false);
+  assert.match(source, /const result = await options\.accountStatus\(\)[\s\S]*loadDetections\(\);/u);
+  assert.match(source, /loadDetections\(\);\s*\/\* Somebody already signed in[\s\S]*?await showConnect\(\);/u);
   assert.equal(/gate\.hidden = false/u.test(source), false);
 });
 
-test("offers the account once, with the promised copy and a plain not now", () => {
-  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
-  const start = html.indexOf('id="first-run-account"');
-  const step = html.slice(start, html.indexOf("</section>", start));
+test("step one says the bars are free and what the account is for", () => {
+  const step = firstRunSection();
+  const account = step.slice(step.indexOf('id="first-run-account"'));
 
-  assert.match(step, /Sign in to see this on your phone and to unlock Pro/u);
-  assert.match(step, /id="first-run-not-now"[^>]*>Not now</u);
-  /* The step hosts the window's one sign in body, so the provider buttons and
-     their marks are right here rather than behind a second dialog. */
-  assert.match(step, /id="first-run-sign-in-mount"/u);
-  assert.match(source, /options\.mountSignIn\(mount\)/u);
-  /* Not now finishes first run outright rather than looping back, and the
-     body goes back to the sheet on the way out. */
-  assert.match(source, /#first-run-not-now"\)\?\.addEventListener\("click", finish\)/u);
-  assert.match(source, /function finish\(\) \{[\s\S]*?options\.unmountSignIn\(\);[\s\S]*?completeFirstRun\(screen\)/u);
+  assert.match(account, /<h1 id="first-run-account-title">Create your account<\/h1>/u);
+  const lead = account.match(/class="sign-in-lead">([^<]+)</u)?.[1] ?? "";
+  assert.match(lead, /free with no account/u);
+  assert.match(lead, /sync, alerts, your phone, and more than one account per provider/u);
+  /* One sentence, one full stop, at the end of it. */
+  assert.equal((lead.match(/\./gu) ?? []).length, 1);
+  assert.match(lead, /\.$/u);
+});
+
+test("the way past sign in is a quiet Later link, not a second button", () => {
+  const step = firstRunSection();
+  const source = read("first-run.js");
+
+  assert.match(step, /id="first-run-later" class="sign-in-link">Later</u);
+  /* It is a link shaped control in its own quiet row, not a filled or
+     bordered button competing with the four ways in above it. */
+  assert.equal(/id="first-run-later"[^>]*class="[^"]*first-run-continue/u.test(step), false);
+  assert.equal(/id="first-run-later"[^>]*class="[^"]*sign-in-ghost/u.test(step), false);
+  /* And it moves to the tools rather than ending the setup, because a person
+     who declines an account still has eight bars waiting for them. */
+  assert.match(
+    source,
+    /#first-run-later"\)\?\.addEventListener\("click", \(\) => \{\s*void showConnect\(\);/u,
+  );
+});
+
+test("Microsoft is offered by name and sent as azure", async () => {
+  /* Supabase knows the provider as azure and a person knows it as Microsoft.
+     One string used for both is how a rename ends up sending a value no
+     service has ever heard of. */
+  const way = signInWay("microsoft");
+  assert.deepEqual(way, { id: "microsoft", wire: "azure", label: "Microsoft", mounted: false });
+
+  const sent = [];
+  const result = await pressSignInWay(
+    { signInWithProvider: async (wire) => { sent.push(wire); return { ok: true }; } },
+    "microsoft",
+  );
+  assert.deepEqual(sent, ["azure"]);
+  assert.equal(result.ok, true);
+
+  /* The other three ways in are the ones the window's own sign in body draws,
+     so this file makes exactly one button and borrows the rest. */
+  assert.deepEqual(
+    SIGN_IN_WAYS.filter((entry) => entry.mounted === false).map((entry) => entry.id),
+    ["microsoft"],
+  );
+  assert.deepEqual(SIGN_IN_WAYS.map((entry) => entry.id), [
+    "github",
+    "google",
+    "microsoft",
+    "email",
+  ]);
+  const source = read("first-run.js");
+  assert.match(source, /button\.dataset\.wire = way\.wire/u);
+  assert.match(source, /"Continue with " \+ way\.label/u);
+  /* It goes into the borrowed body's own provider column, so the four ways
+     read as one stack rather than three and then a stray. */
+  assert.match(source, /mount\.querySelector\("\.sign-in-providers"\) \?\? mount/u);
+});
+
+test("every way in finishes through the one handler that announces it", () => {
+  /*
+   * The defect this exists for: Microsoft is the only button this file draws,
+   * and it used to call the service directly. The session arrived, and then
+   * nothing applied the account state, nothing drew the arrival and nothing
+   * dispatched openlimiter:signed-in, so a successful Microsoft sign in left
+   * first run sitting on step one forever while the person was signed in.
+   *
+   * There is one handler and it is the thing that announces the arrival, so
+   * the guarantee is stated as: exactly one place dispatches that event, and
+   * every provider reaches it through the same function.
+   */
+  const app = read("app.js");
+  const dispatches = app.match(/dispatchEvent\(new CustomEvent\("openlimiter:signed-in"\)\)/gu);
+  assert.equal(dispatches?.length, 1, "the arrival is announced in more than one place");
+  /* That one dispatch is inside runSignIn, which is what applies the account
+     state and draws the success. */
+  assert.match(
+    app,
+    /async function runSignIn\([\s\S]*?applyAccountState\(result\.value\)[\s\S]*?openlimiter:signed-in/u,
+  );
+  /* The mounted buttons and the drawn one all arrive through continueWith,
+     which is the only caller of runSignIn for a provider. */
+  assert.match(app, /function continueWith\(provider, pressed = null\)[\s\S]*?return runSignIn\(/u);
+  assert.match(app, /signInGithub\?\.addEventListener\("click", \(\) => void continueWith\("github"\)\)/u);
+  assert.match(app, /signInGoogle\?\.addEventListener\("click", \(\) => void continueWith\("google"\)\)/u);
+  assert.match(app, /signInWithProvider: \(wire, pressed\) => continueWith\(wire, pressed\)/u);
+  /* Nothing calls the service behind that handler's back. */
+  assert.doesNotMatch(app, /signInWithProvider: \(wire\) => accountOauth\(wire\)/u);
+
+  /* And the wire value the drawn button sends is one the service knows. */
+  const backend = read("backend.js");
+  assert.match(backend, /OAUTH_PROVIDERS = Object\.freeze\(\["google", "github", "azure"\]\)/u);
+  const states = read("sign-in-states.js");
+  assert.match(states, /provider === "azure"\) return "Microsoft"/u);
+});
+
+test("the drawn button hands its own element to the shared handler", async () => {
+  /* The busy state has to land on the control somebody actually pressed, and
+     that control is not in the shared body, so it travels with the call. */
+  const seen = [];
+  const result = await pressSignInWay(
+    {
+      signInWithProvider: async (wire, pressed) => {
+        seen.push([wire, pressed]);
+        return { ok: true, displayed: true };
+      },
+    },
+    "microsoft",
+    "the-button",
+  );
+  assert.deepEqual(seen, [["azure", "the-button"]]);
+  assert.equal(result.ok, true);
+
+  /* A refusal the shared handler already wrote is not written twice. */
+  const source = read("first-run.js");
+  assert.match(source, /if \(result\?\.displayed === true\) return;/u);
+  assert.match(source, /pressSignInWay\(options, way\.id, button\)/u);
+});
+
+test("an unwired option degrades instead of throwing", async () => {
+  /* Half of these commands are still landing on the Rust side. A window that
+     throws on a missing command is a window with no first run at all. */
+  const source = read("first-run.js");
+  for (const name of [
+    "signInWithProvider",
+    "codexSignIn",
+    "codexSignInPoll",
+    "codexSignInCancel",
+    "setClaudePoll",
+    "copyText",
+    "mountSignIn",
+    "unmountSignIn",
+    "detectProviders",
+    "accountStatus",
+    "markFor",
+    "isSignedIn",
+    "onContinue",
+  ]) {
+    assert.match(
+      source,
+      new RegExp("const DEFAULT_OPTIONS = Object\\.freeze\\(\\{[\\s\\S]*?" + name + ":", "u"),
+      name + " has no safe default",
+    );
+  }
+  /* And an unwired provider sign in says so rather than failing silently. */
+  const result = await pressSignInWay({ signInWithProvider: async () => ({ ok: false, reason: "unconfigured" }) }, "microsoft");
+  assert.deepEqual(result, { ok: false, reason: "unconfigured" });
+});
+
+test("a detected login is the default and it spawns nothing", () => {
+  for (const code of ["CODEX", "GEMINI_CLI", "ANTIGRAVITY", "OPENCODE", "GROK", "KIMI"]) {
+    assert.deepEqual(rowAction(providerSpec(code), { state: "present" }, {}), {
+      kind: "current",
+      label: "Use my current login",
+    });
+  }
+  /* Nothing in that path opens a browser, a console or a device flow: it
+     configures what the machine already had and redraws. */
+  const source = read("first-run.js");
+  assert.match(
+    source,
+    /if \(isProviderConfigured\(provider\.code\)\) unconfigureProvider\(provider\.code\);\s*else configureProvider\(provider\.code\);\s*redraw\(\);/u,
+  );
+});
+
+test("Codex is the only sign in button in this release", () => {
+  assert.deepEqual(rowAction(providerSpec("CODEX"), { state: "logged_out" }, {}), {
+    kind: "signin",
+    label: "Sign in",
+  });
+  for (const code of ["CLAUDE", "GEMINI_CLI", "ANTIGRAVITY", "GROK", "KIMI", "OPENCODE", "OPENROUTER"]) {
+    for (const state of ["present", "logged_out", "absent", "unavailable"]) {
+      assert.notEqual(
+        rowAction(providerSpec(code), { state }, {}).kind,
+        "signin",
+        code + " offered a sign in button in " + state,
+      );
+    }
+  }
+  assert.equal(
+    CONNECT_PROVIDERS.filter((provider) => provider.deviceSignIn === true).length,
+    1,
+  );
+});
+
+test("a missing command line tool names the line that installs it", () => {
+  assert.deepEqual(rowAction(providerSpec("CODEX"), { state: "absent" }, {}), {
+    kind: "install",
+    label: "Install",
+    command: "npm install -g @openai/codex",
+    hint: "Run this in your terminal.",
+  });
+  assert.equal(
+    rowAction(providerSpec("GEMINI_CLI"), { state: "absent" }, {}).command,
+    "npm install -g @google/gemini-cli",
+  );
+  /* Antigravity is downloaded rather than installed from a terminal, so its
+     line is the page and the hint says which of the two to do with it. */
+  assert.deepEqual(rowAction(providerSpec("ANTIGRAVITY"), { state: "absent" }, {}), {
+    kind: "install",
+    label: "Install",
+    command: "https://antigravity.google/download",
+    hint: "Open this in your browser.",
+  });
+  /* And it is shown, ready to copy, rather than hidden behind the press. */
+  const source = read("first-run.js");
+  assert.match(source, /disclosure\.hidden = false;\s*const hint = element\("p", "first-run-hint"/u);
+});
+
+test("Grok and Kimi say what is true instead of offering an untested button", () => {
+  /* Neither command line tool exists on this machine, so neither flow has
+     ever been run against the real thing. A button that has never been run is
+     worse than a sentence saying it is checked at install time. */
+  for (const code of ["GROK", "KIMI"]) {
+    for (const state of ["logged_out", "absent", "unavailable"]) {
+      assert.deepEqual(rowAction(providerSpec(code), { state }, {}), {
+        kind: "note",
+        note: "Verified on install",
+      });
+    }
+  }
+});
+
+test("the Gemini sentence is the promised one, on both rows that share it", () => {
+  const sentence = "Reads the login the Gemini CLI stored, may break when Google changes it";
+  assert.equal(providerSpec("GEMINI_CLI").line, sentence);
+  assert.equal(providerSpec("ANTIGRAVITY").line, sentence);
+});
+
+test("Claude is read, never signed into, and its poll is off by default", () => {
+  const source = read("first-run.js");
+  assert.equal(providerSpec("CLAUDE").neverSignIn, true);
+
+  /* The three shapes the detection already reports, each with its own line. */
+  assert.equal(
+    claudeLine(claudeSignals({ providers: [{ provider_id: "claude", statusline_wired: true }] })),
+    "Reading the status line Claude Code already writes.",
+  );
+  assert.equal(
+    claudeLine(claudeSignals({ providers: [{ provider_id: "claude", foreign_status_line: true }] })),
+    "Your own status line is already set, and OpenLimiter can wrap it.",
+  );
+  assert.equal(
+    claudeLine(claudeSignals({ providers: [{ provider_id: "claude", wrappable_status_line: true }] })),
+    "Your own status line is already set, and OpenLimiter can wrap it.",
+  );
+  assert.equal(
+    claudeLine(claudeSignals(null)),
+    "Reads Claude Code on this machine, and never asks you to sign in.",
+  );
+
+  assert.match(source, /"Poll Anthropic when Claude Code is closed"/u);
+  assert.match(
+    source,
+    /"Off by default\. When it is on, OpenLimiter reads your own Claude token to ask Anthropic for your percentage while Claude Code is not running\."/u,
+  );
+  assert.match(source, /input\.checked = false;/u);
+  assert.match(source, /void options\.setClaudePoll\(input\.checked === true\)/u);
+});
+
+test("the Codex device flow finishes inside our own window", async () => {
+  const seen = [];
+  let started = null;
+  let polls = 0;
+  const outcome = await runCodexSignIn({
+    start: async () => {
+      seen.push("start");
+      return {
+        ok: true,
+        value: {
+          sessionId: "session one",
+          userCode: "ABCD1234",
+          verificationUrl: "https://auth.openai.com/device",
+        },
+      };
+    },
+    poll: async (sessionId) => {
+      seen.push("poll " + sessionId);
+      polls += 1;
+      return { ok: true, value: { kind: polls < 3 ? "pending" : "complete" } };
+    },
+    cancel: async (sessionId) => {
+      seen.push("cancel " + sessionId);
+      return { ok: true };
+    },
+    onStarted: (value) => {
+      started = value;
+    },
+    wait: async () => {},
+    now: () => 0,
+  });
+
+  assert.equal(outcome.kind, "complete");
+  assert.equal(outcome.sentence, "Codex is connected.");
+  /* The code and the page are handed to the window, never to a console. */
+  assert.equal(started.userCode, "ABCD1234");
+  assert.equal(started.verificationUrl, "https://auth.openai.com/device");
+  assert.equal(seen.filter((entry) => entry.startsWith("cancel")).length, 0);
+  assert.equal(polls, 3);
+
+  const source = read("first-run.js");
+  assert.match(source, /configureProvider\(provider\.code\);\s*redraw\(\);/u);
+});
+
+test("the Codex device flow can be cancelled, and the backend is told", async () => {
+  const cancelled = [];
+  let stop = false;
+  const outcome = await runCodexSignIn({
+    start: async () => ({ ok: true, value: { sessionId: "session one", userCode: "A", verificationUrl: "https://example.invalid" } }),
+    poll: async () => {
+      stop = true;
+      return { ok: true, value: { kind: "pending" } };
+    },
+    cancel: async (sessionId) => {
+      cancelled.push(sessionId);
+      return { ok: true };
+    },
+    cancelled: () => stop,
+    wait: async () => {},
+    now: () => 0,
+  });
+
+  assert.equal(outcome.kind, "cancelled");
+  assert.equal(outcome.sentence, "Sign in cancelled, and nothing changed.");
+  assert.deepEqual(cancelled, ["session one"]);
+  /* The control is there from the first frame, not after the first poll. */
+  const source = read("first-run.js");
+  assert.match(source, /const cancel = quietButton\("Cancel"\);[\s\S]*?disclosure\.append\(/u);
+});
+
+test("the Codex device flow stops at three minutes", async () => {
+  assert.equal(CODEX_SIGN_IN_TIMEOUT_MILLISECONDS, 180_000);
+  const cancelled = [];
+  let clock = 0;
+  const outcome = await runCodexSignIn({
+    start: async () => ({ ok: true, value: { sessionId: "session one", userCode: "A", verificationUrl: "https://example.invalid" } }),
+    poll: async () => {
+      clock += 60_000;
+      return { ok: true, value: { kind: "pending" } };
+    },
+    cancel: async (sessionId) => {
+      cancelled.push(sessionId);
+      return { ok: true };
+    },
+    wait: async () => {},
+    now: () => clock,
+  });
+
+  assert.equal(outcome.kind, "timed_out");
+  assert.equal(outcome.sentence, "The sign in ran out of time, and nothing changed.");
+  assert.deepEqual(cancelled, ["session one"]);
+});
+
+test("a flow that never starts leaves the row exactly as it was", async () => {
+  const cancelled = [];
+  const outcome = await runCodexSignIn({
+    start: async () => ({ ok: false, reason: "unconfigured" }),
+    poll: async () => ({ ok: true, value: { kind: "complete" } }),
+    cancel: async (sessionId) => {
+      cancelled.push(sessionId);
+      return { ok: true };
+    },
+    wait: async () => {},
+    now: () => 0,
+  });
+
+  assert.equal(outcome.kind, "failed");
+  assert.equal(outcome.sentence, "The sign in did not complete, and nothing changed.");
+  assert.deepEqual(cancelled, []);
+  /* Every ending that is not a completed sign in puts the button back. */
+  const source = read("first-run.js");
+  assert.match(source, /disclosure\.append\(element\("p", "first-run-hint", outcome\.sentence\)\);\s*button\.disabled = false;/u);
+});
+
+test("every terminal answer the backend can give has a sentence", () => {
+  for (const kind of ["complete", "cancelled", "timed_out", "failed"]) {
+    assert.notEqual(codexSentence(kind), "");
+  }
+});
+
+test("no string this screen shows a person contains a dash", () => {
+  for (const value of firstRunCopyStrings()) {
+    assert.equal(typeof value, "string");
+    assert.equal(
+      DASH.test(value),
+      false,
+      "a dash reached the screen: " + value,
+    );
+  }
+});
+
+test("no string literal in the module carries a dash into prose", () => {
+  /*
+   * The sweep, and the only three things it lets through. Prose has spaces
+   * and identifiers do not, so any literal with both a space and a dash is
+   * prose unless it is one of: a fragment of markup, a line a person copies
+   * verbatim into a terminal or a browser, or SVG path geometry. Everything
+   * else is a sentence and a sentence never gets a dash here.
+   */
+  let source = read("first-run.js").replace(/\/\*[\s\S]*?\*\//g, "");
+  const literals = [...source.matchAll(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/gu)].map(
+    (match) => match[0].slice(1, -1),
+  );
+  assert.ok(literals.length > 100);
+  const allowed = new Set(INSTALL_LINES);
+  for (const value of literals) {
+    if (!value.includes(" ") || !DASH.test(value)) continue;
+    const markup = value.includes("<") || value.includes(">");
+    const geometry = /^[MmLlHhVvCcSsQqTtAaZz0-9.,\s-]+$/u.test(value);
+    assert.ok(
+      markup || geometry || allowed.has(value) || value.startsWith("http"),
+      "a dash reached a string literal: " + value,
+    );
+  }
+});
+
+test("no dash reaches the first run markup either", () => {
+  const text = firstRunSection()
+    .replace(/<!--[\s\S]*?-->/gu, "")
+    .replace(/<[^>]*>/gu, " ");
+  assert.equal(DASH.test(text), false, "a dash reached the markup: " + text.trim());
+  /* And the words are actually in there, so a passing sweep cannot be a
+     sweep over an empty string. */
+  assert.match(text, /Create your account/u);
+  assert.match(text, /Connect your tools/u);
 });
 
 test("keeps one sign in form, reachable from the header account menu", () => {
@@ -86,6 +550,17 @@ test("keeps one sign in form, reachable from the header account menu", () => {
   assert.match(app, /mountSignIn,\s*unmountSignIn,/u);
   /* Signing in is announced, so first run can finish without owning a form. */
   assert.match(app, /openlimiter:signed-in/u);
+});
+
+test("a session arriving moves the setup on rather than ending it", () => {
+  /* The account is step one now. Somebody who signs in has two steps left,
+     so the arrival takes them to the tools instead of closing the screen on
+     a machine nothing has been read from yet. */
+  const source = read("first-run.js");
+  assert.match(
+    source,
+    /openlimiter:signed-in[\s\S]*?if \(screen\.dataset\.step !== "account"\) return;\s*void showConnect\(\);/u,
+  );
 });
 
 test("the account menu hides the switch and the log out while signed out", () => {
@@ -272,4 +747,18 @@ test("accepts the future detector aliases for Grok and Kimi", () => {
 
   assert.equal(result.providers.find((entry) => entry.code === "GROK")?.state, "present");
   assert.equal(result.providers.find((entry) => entry.code === "KIMI")?.state, "present");
+});
+
+test("colours and radii on the connect rows come from tokens", () => {
+  /* The one rule that keeps a window one window. A literal here is a colour
+     no theme and no token sheet can reach. */
+  const css = read("app.css");
+  const start = css.indexOf("/* --------------------------------------------- the three step first run */");
+  assert.ok(start > 0);
+  const block = css.slice(start);
+  assert.equal(/#[0-9a-fA-F]{3,8}\b/u.test(block), false);
+  assert.equal(/rgb\(|hsl\(/u.test(block), false);
+  for (const radius of block.matchAll(/border-radius: ([^;]+);/gu)) {
+    assert.match(radius[1], /var\(--ol-radius-/u);
+  }
 });

@@ -236,39 +236,29 @@ pub const CODEX_ACCOUNT_HEADER: &str = "chatgpt-account-id";
 /// The account identity the Grok billing service requires beside the token.
 pub const GROK_ACCOUNT_HEADER: &str = "x-userid";
 
-/// The fixed token authentication mode published by the official Grok CLI.
-pub const GROK_TOKEN_AUTH_HEADER: &str = "x-xai-token-auth";
-
-/// The fixed value paired with `GROK_TOKEN_AUTH_HEADER`.
-pub const GROK_TOKEN_AUTH_VALUE: &str = "xai-grok-cli";
-
-/// The client version header the Grok Build client states on this request.
-///
-/// FINDING F-204. The request was built without it, and without the mode
-/// header below, so the billing service was addressed by a client that named
-/// neither which client it was nor which mode it was asking in.
-///
-/// UNVERIFIED, and sent only sometimes. No captured Grok Build request exists
-/// in this repository, and `provider_specs/xai/grok-cli.yaml` documents the
-/// route, the credential and the meters but no value for either header, so
-/// there is nothing here to copy. The version therefore comes from the
-/// installed client itself, read off disk by provider detection, and when the
-/// machine states no version BOTH headers are omitted. A fabricated version
-/// would be worse than a missing one: a missing header says nothing, and an
-/// invented one is a claim about a product this is not.
-pub const GROK_CLIENT_VERSION_HEADER: &str = "x-grok-client-version";
-
-/// The mode header that names how the client is asking.
-///
-/// Only ever sent beside a real version, so the pair is either the installed
-/// client's own answer or absent. The value is the one piece of client
-/// vocabulary the spec does publish: the token authentication marker above
-/// says this route is reached by a command line client, so the mode says the
-/// same.
-pub const GROK_CLIENT_MODE_HEADER: &str = "x-grok-client-mode";
-
-/// The value sent for `GROK_CLIENT_MODE_HEADER`.
-pub const GROK_CLIENT_MODE_VALUE: &str = "cli";
+/* The three Grok client markers this request used to carry are gone.
+//
+// `x-xai-token-auth: xai-grok-cli`, `x-grok-client-version` and
+// `x-grok-client-mode: cli` were sent together, and all three make the same
+// claim: that this process is xAI's own command line client. The token auth
+// value names that product outright, and the version header stated a number
+// read off the installed Grok Build on the machine, which is a claim about a
+// build this is not. None of the three is a documented public protocol field:
+// `provider_specs/xai/grok-cli.yaml` publishes the route, the credential and
+// the meters and no header at all, and no captured Grok Build request exists
+// in this repository, so there was nothing to copy and the values were
+// reasoned into place instead.
+//
+// Decision D5 of 2026-09-07 settles it: we identify as OpenLimiter and accept
+// whatever that costs us. The Node acquisition lane reached the same answer on
+// the same day and asserts it (`packages/cli/test/refresh.test.ts` holds the
+// whole Grok request free of the string "grok-cli"), so desktop and terminal
+// now send the same bytes.
+//
+// The consequence is honestly unknown rather than assumed. No Grok login
+// exists on the machine this was written on, so whether the billing route
+// answers a request that does not claim to be the Grok CLI is verified on the
+// first install that has one, and the row says so until then. */
 
 /// The beta contract Claude Code sends when it asks for OAuth account usage.
 pub const CLAUDE_OAUTH_BETA_HEADER: &str = "anthropic-beta";
@@ -279,33 +269,26 @@ pub const CLAUDE_OAUTH_BETA_VALUE: &str = "oauth-2025-04-20";
 /// An honest product identity for the private usage request.
 pub const CLAUDE_OAUTH_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
 
-/// The client identity required by Antigravity's private metadata plane.
-///
-/// This is deliberately pinned to the agy release whose live request contract
-/// was verified. The endpoint returned an incomplete bootstrap to the same
-/// valid session when addressed as OpenLimiter, then returned the companion
-/// project and quota when addressed with agy's client identity.
-#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 windows/amd64";
-#[cfg(all(target_os = "windows", target_arch = "aarch64"))]
-pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 windows/arm64";
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 linux/amd64";
-#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 linux/arm64";
-#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 darwin/amd64";
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 darwin/arm64";
-#[cfg(not(any(
-    all(target_os = "windows", target_arch = "x86_64"),
-    all(target_os = "windows", target_arch = "aarch64"),
-    all(target_os = "linux", target_arch = "x86_64"),
-    all(target_os = "linux", target_arch = "aarch64"),
-    all(target_os = "macos", target_arch = "x86_64"),
-    all(target_os = "macos", target_arch = "aarch64")
-)))]
-pub const ANTIGRAVITY_USER_AGENT: &str = "antigravity/cli/1.1.15 unknown/unknown";
+/* The Antigravity client identity is gone too, and for the same reason.
+//
+// This used to pin `antigravity/cli/1.1.15 <os>/<arch>`, because Google's
+// metadata plane returned an incomplete bootstrap to a valid session that
+// identified as OpenLimiter and the companion project only to a session that
+// claimed to be Antigravity's own client. That is the exact trade decision D5
+// refuses: a reading bought with a false identity.
+//
+// Measured again on 2026-09-07 on this machine, read only: `loadCodeAssist`
+// answers 200 to an honest request and returns `allowedTiers` and
+// `ineligibleTiers` and no `cloudaicompanionProject`, so there is nothing to
+// scope a quota read to. That is not a malformed answer and it is not drift.
+// It is a provider serving a field only to its own tools, so it has its own
+// outcome, its own sentence and a full day of backoff rather than a retry
+// every ten minutes against an answer that cannot change until we change.
+//
+// What replaced it reads better anyway: `antigravity_local.rs` asks the
+// Antigravity client already running on the machine, over loopback, for the
+// summary it has already fetched and cached. See that file for why that is a
+// different act from this one. */
 
 /// The user agent the OpenCode workspace page is addressed with.
 pub const OPENCODE_USER_AGENT: &str = OPENLIMITER_USER_AGENT;
@@ -479,10 +462,6 @@ pub struct EndpointRequest<'a> {
     /// Present only when an endpoint requires an account header.
     pub provider_account_id: Option<&'a str>,
     pub body: Option<&'a str>,
-    /// The version of the local client this read borrows a contract from,
-    /// when detection found one on disk. `None` means the request says
-    /// nothing about a client version rather than guessing at one.
-    pub client_version: Option<&'a str>,
 }
 
 /// The one verb the subsystem needs from HTTP, behind a trait so tests inject
@@ -557,57 +536,15 @@ pub async fn fetch_endpoint<T: Transport>(
     secret: &str,
     provider_account_id: Option<&str>,
 ) -> Result<EndpointOutcome, NetError> {
-    fetch_endpoint_as(transport, endpoint, auth, secret, provider_account_id, None).await
+    fetch_endpoint_inner(transport, endpoint, auth, secret, provider_account_id).await
 }
 
-/// The Grok billing read, stating the installed client's version when the
-/// machine has one to state.
-///
-/// FINDING F-204 asked for the two client headers the Grok Build client sends.
-/// They are sent only when provider detection has read a version off the
-/// installed client, because the alternative is stating a version this build
-/// invented, and a fabricated client version is worse than a missing one: it
-/// is a claim about a product this is not. A version that does not look like
-/// one is dropped here rather than written into a header.
-pub async fn fetch_grok_usage<T: Transport>(
-    transport: &T,
-    secret: &str,
-    provider_account_id: Option<&str>,
-    client_version: Option<&str>,
-) -> Result<EndpointOutcome, NetError> {
-    fetch_endpoint_as(
-        transport,
-        ProviderEndpoint::GrokUsage,
-        AuthApplication::GrokSessionBearer,
-        secret,
-        provider_account_id,
-        client_version.filter(|value| valid_client_version(value)),
-    )
-    .await
-}
-
-/// Whether a string is shaped like a client version, and so may be written
-/// into a request header.
-///
-/// Bounded and closed, because the value is read off disk from a file this
-/// process does not own. Anything else is dropped, never sent and never an
-/// error: a strange version file is not a reason to stop reading a quota.
-pub fn valid_client_version(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 32
-        && value.bytes().next().is_some_and(|byte| byte.is_ascii_alphanumeric())
-        && value.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_' | b'+')
-        })
-}
-
-async fn fetch_endpoint_as<T: Transport>(
+async fn fetch_endpoint_inner<T: Transport>(
     transport: &T,
     endpoint: ProviderEndpoint,
     auth: AuthApplication,
     secret: &str,
     provider_account_id: Option<&str>,
-    client_version: Option<&str>,
 ) -> Result<EndpointOutcome, NetError> {
     if matches!(
         endpoint,
@@ -642,7 +579,6 @@ async fn fetch_endpoint_as<T: Transport>(
             auth,
             provider_account_id: Some(account_id),
             body: endpoint.body(),
-            client_version,
         };
         let reply = transport
             .send(&request, secret)
@@ -659,7 +595,6 @@ async fn fetch_endpoint_as<T: Transport>(
         auth,
         provider_account_id: None,
         body: endpoint.body(),
-        client_version: None,
     };
     let reply = transport
         .send(&request, secret)
@@ -686,7 +621,6 @@ async fn fetch_gemini_cli<T: Transport>(
         auth: AuthApplication::GeminiCliBearer,
         provider_account_id: None,
         body: Some(body),
-        client_version: None,
     };
     let reply = transport
         .send(&request, secret)
@@ -751,7 +685,6 @@ async fn fetch_through_workspace<T: Transport>(
         auth,
         provider_account_id: None,
         body: None,
-        client_version: None,
     };
     let found = transport
         .send(&discovery, secret)
@@ -777,7 +710,6 @@ async fn fetch_through_workspace<T: Transport>(
         auth,
         provider_account_id: None,
         body: None,
-        client_version: None,
     };
     let reply = transport
         .send(&request, secret)
@@ -965,22 +897,15 @@ fn authenticated_builder(
             let mut account_header = reqwest::header::HeaderValue::from_str(account_id)
                 .map_err(|_| TransportFailure::Protocol)?;
             account_header.set_sensitive(true);
-            let grok = builder
+            /* The account header is an identifier for the person's own account
+            and is the only thing sent beside the token. Every client marker
+            xAI's own tool sends is deliberately absent; see the note above
+            `GROK_ACCOUNT_HEADER` for why. */
+            builder
                 .header(reqwest::header::AUTHORIZATION, header_value)
                 .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
                 .header(reqwest::header::ACCEPT, "application/json")
                 .header(GROK_ACCOUNT_HEADER, account_header)
-                .header(GROK_TOKEN_AUTH_HEADER, GROK_TOKEN_AUTH_VALUE);
-            /* Both client headers or neither. The version is the installed
-            client's own, read off disk, and a machine that states none leaves
-            this request silent about a client version rather than inventing
-            one. The mode is only meaningful beside a version. */
-            match request.client_version.filter(|value| valid_client_version(value)) {
-                Some(version) => grok
-                    .header(GROK_CLIENT_VERSION_HEADER, version)
-                    .header(GROK_CLIENT_MODE_HEADER, GROK_CLIENT_MODE_VALUE),
-                None => grok,
-            }
         }
         AuthApplication::KimiSessionBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
@@ -989,7 +914,7 @@ fn authenticated_builder(
         AuthApplication::AntigravitySessionBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .header(reqwest::header::USER_AGENT, ANTIGRAVITY_USER_AGENT)
+            .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
             .header(reqwest::header::ACCEPT, "application/json"),
         AuthApplication::GeminiCliBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
@@ -1369,7 +1294,6 @@ mod tests {
             auth: AuthApplication::CodexSessionBearer,
             provider_account_id: Some("account-id-canary"),
             body: None,
-            client_version: None,
         };
         let built = authenticated_builder(&client, &request, "access-token-canary")
             .expect("headers")
@@ -1388,14 +1312,13 @@ mod tests {
         assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
     }
 
-    fn grok_request<'a>(client_version: Option<&'a str>) -> EndpointRequest<'a> {
+    fn grok_request<'a>() -> EndpointRequest<'a> {
         EndpointRequest {
             url: GROK_USAGE_URL,
             method: HttpMethod::Get,
             auth: AuthApplication::GrokSessionBearer,
             provider_account_id: Some("grok-user-canary"),
             body: None,
-            client_version,
         }
     }
 
@@ -1410,81 +1333,47 @@ mod tests {
             .clone()
     }
 
-    /// Finding F-204: the request named neither the client nor the mode.
+    /// Decision D5: no request may claim to be a vendor's own client.
     ///
-    /// The billing route is the Grok Build client's own, and that client tells
-    /// the service which client version is asking and in which mode. The
-    /// version is the INSTALLED client's, read off disk by provider detection,
-    /// never a number this build made up.
+    /// This replaces finding F-204, which asked for the two client headers the
+    /// Grok Build client sends and got them. All three markers are named here
+    /// as literal strings rather than as constants, so deleting a constant
+    /// cannot quietly delete the assertion that the header is absent.
     #[test]
-    fn the_grok_request_states_the_version_detection_read_and_the_mode() {
-        let headers = grok_headers(&grok_request(Some("1.4.2")));
+    fn the_grok_request_claims_to_be_no_vendor_client() {
+        let headers = grok_headers(&grok_request());
 
-        assert_eq!(headers[GROK_CLIENT_VERSION_HEADER], "1.4.2");
-        assert_eq!(headers[GROK_CLIENT_MODE_HEADER], GROK_CLIENT_MODE_VALUE);
-        /* Neither is a secret, and marking one sensitive would hide a header a
-        reviewer has to be able to read. */
-        assert!(!headers[GROK_CLIENT_VERSION_HEADER].is_sensitive());
-        assert!(!headers[GROK_CLIENT_MODE_HEADER].is_sensitive());
-        assert_eq!(headers[GROK_TOKEN_AUTH_HEADER], GROK_TOKEN_AUTH_VALUE);
-    }
-
-    /// A machine with no readable Grok Build version says nothing rather than
-    /// stating one this build invented. Both headers go together.
-    #[test]
-    fn the_grok_request_claims_no_client_when_no_version_was_read() {
-        let headers = grok_headers(&grok_request(None));
-
-        assert!(!headers.contains_key(GROK_CLIENT_VERSION_HEADER));
-        assert!(!headers.contains_key(GROK_CLIENT_MODE_HEADER));
-        /* The rest of the contract is untouched by the absence. */
-        assert_eq!(headers[GROK_ACCOUNT_HEADER], "grok-user-canary");
-        assert_eq!(headers[GROK_TOKEN_AUTH_HEADER], GROK_TOKEN_AUTH_VALUE);
-        assert_eq!(headers[reqwest::header::USER_AGENT], OPENLIMITER_USER_AGENT);
-    }
-
-    /// The version is read out of a file this process does not own, so a value
-    /// that is not shaped like a version is dropped rather than written into a
-    /// header, and dropping it takes the mode with it.
-    #[test]
-    fn a_string_that_is_not_a_version_never_reaches_a_header() {
-        for candidate in [
-            "1.4.2 (patched)",
-            "",
-            "-1.4.2",
-            "0123456789012345678901234567890123456789",
+        for marker in [
+            "x-xai-token-auth",
+            "x-grok-client-version",
+            "x-grok-client-mode",
         ] {
-            assert!(!valid_client_version(candidate));
-            let headers = grok_headers(&grok_request(Some(candidate)));
-            assert!(!headers.contains_key(GROK_CLIENT_VERSION_HEADER));
-            assert!(!headers.contains_key(GROK_CLIENT_MODE_HEADER));
+            assert!(
+                !headers.contains_key(marker),
+                "{marker} claims this process is xAI's own client"
+            );
         }
-        for candidate in ["1.4.2", "0.1.0-beta.3", "2026.09.04+build_7"] {
-            assert!(valid_client_version(candidate));
-        }
+        /* Nothing anywhere in the request may name the vendor's tool. */
+        let rendered = format!("{headers:?}");
+        assert!(!rendered.contains("grok-cli"));
     }
 
     #[test]
-    fn the_grok_request_carries_only_the_fixed_contract_and_resolved_identity() {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-        let client = reqwest::Client::new();
-        let request = EndpointRequest {
-            url: GROK_USAGE_URL,
-            method: HttpMethod::Get,
-            auth: AuthApplication::GrokSessionBearer,
-            provider_account_id: Some("grok-user-canary"),
-            body: None,
-            client_version: None,
-        };
-        let built = authenticated_builder(&client, &request, "grok-token-canary")
-            .expect("headers")
-            .build()
-            .expect("request");
-        let headers = built.headers();
+    fn the_grok_request_carries_only_the_token_and_the_account_identity() {
+        let headers = grok_headers(&grok_request());
+
         assert_eq!(headers[GROK_ACCOUNT_HEADER], "grok-user-canary");
-        assert_eq!(headers[GROK_TOKEN_AUTH_HEADER], GROK_TOKEN_AUTH_VALUE);
+        assert_eq!(
+            headers[reqwest::header::AUTHORIZATION],
+            "Bearer grok-token-canary"
+        );
         assert_eq!(headers[reqwest::header::USER_AGENT], OPENLIMITER_USER_AGENT);
+        assert_eq!(headers[reqwest::header::ACCEPT], "application/json");
         assert!(headers[GROK_ACCOUNT_HEADER].is_sensitive());
+        assert!(headers[reqwest::header::AUTHORIZATION].is_sensitive());
+        /* The account header and the token are the only two headers carrying
+        anything that is not a constant of this build. */
+        assert_eq!(headers.len(), 4);
     }
 
     #[test]
@@ -1497,7 +1386,6 @@ mod tests {
             auth: AuthApplication::ClaudeOauthBearer,
             provider_account_id: None,
             body: None,
-            client_version: None,
         };
         let built = authenticated_builder(&client, &request, "oauth-token-canary")
             .expect("headers")
@@ -1542,7 +1430,6 @@ mod tests {
                 auth,
                 provider_account_id: account,
                 body: None,
-                client_version: None,
             };
             let built = authenticated_builder(&client, &request, "credential-canary")
                 .expect("headers")
@@ -1556,8 +1443,17 @@ mod tests {
         }
     }
 
+    /// The Antigravity request identifies OpenLimiter, and the cost is known.
+    ///
+    /// This used to assert the opposite: that the request carried
+    /// `antigravity/cli/1.1.15`, because Google's metadata plane answers the
+    /// companion project only to its own client. Decision D5 forbids buying a
+    /// reading with a false identity, so the header is honest and the endpoint
+    /// is expected to withhold the project. `antigravity_oauth.rs` turns that
+    /// into the `IdentityRefused` outcome rather than into drift, and
+    /// `antigravity_local.rs` reads the running client instead.
     #[test]
-    fn antigravity_requests_use_the_verified_client_identity() {
+    fn the_antigravity_request_claims_to_be_no_vendor_client() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::new();
         let request = EndpointRequest {
@@ -1566,7 +1462,6 @@ mod tests {
             auth: AuthApplication::AntigravitySessionBearer,
             provider_account_id: None,
             body: Some(ANTIGRAVITY_QUOTA_BODY),
-            client_version: None,
         };
         let built = authenticated_builder(&client, &request, "credential-canary")
             .expect("headers")
@@ -1574,8 +1469,10 @@ mod tests {
             .expect("request");
         assert_eq!(
             built.headers()[reqwest::header::USER_AGENT],
-            ANTIGRAVITY_USER_AGENT
+            OPENLIMITER_USER_AGENT
         );
+        let rendered = format!("{:?}", built.headers());
+        assert!(!rendered.contains("antigravity/cli"));
         assert_eq!(
             built.headers()[reqwest::header::AUTHORIZATION],
             "Bearer credential-canary"

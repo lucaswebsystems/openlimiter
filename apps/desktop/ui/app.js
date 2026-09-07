@@ -76,6 +76,11 @@ import {
   accountLogout,
   accountOauth,
   accountOauthReopen,
+  claudePollEnabled,
+  codexDeviceLoginCancel,
+  codexDeviceLoginStart,
+  codexDeviceLoginStatus,
+  setClaudePollEnabled,
   accountSetSync,
   accountStatus,
   accountSyncConfiguredSnapshot,
@@ -317,9 +322,21 @@ async function paintTab(id) {
   }
 }
 
+/*
+ * Whether the tray should still be offering a trial.
+ *
+ * Held here because the entitlement is read here, and the tray menu is drawn
+ * by Rust from what this window tells it. It starts as offered, which is the
+ * honest answer before anything has been read, and the first plan read past
+ * this point settles it. A menu that keeps offering a trial to somebody
+ * already paying reads as an advertisement rather than as a control.
+ */
+let trialOffered = true;
+
 async function paintPlanBadge() {
   const result = await proStatus();
   const plan = result.ok ? (result.value?.plan_state ?? "free") : "free";
+  trialOffered = plan !== "active" && plan !== "trial";
   if (elements.planCapPlan === null) return;
   const names = {
     free: "Free",
@@ -607,7 +624,7 @@ function closeSignIn() {
  * sentence.
  */
 async function runSignIn(action, provider, working, pressed) {
-  if (signInBusy) return;
+  if (signInBusy) return { ok: false, kind: "oauth_busy", displayed: false };
   const slot = provider === null ? "email" : "provider";
   setSignInBusy(true, pressed);
   setSignInStatus("working", working, slot);
@@ -624,7 +641,9 @@ async function runSignIn(action, provider, working, pressed) {
   if (!result.ok || result.value?.signedIn !== true) {
     setSignInBusy(false);
     setSignInStatus(signInFailureTone(result), signInFailureSentence(result, provider), slot);
-    return;
+    /* `displayed` tells a caller that drew its own button that the refusal is
+       already on screen, so the same sentence does not land twice. */
+    return { ...result, ok: false, displayed: true };
   }
   applyAccountState(result.value);
   if (result.value.syncEnabled !== false) {
@@ -637,11 +656,22 @@ async function runSignIn(action, provider, working, pressed) {
     if (signInIsInSheet()) closeSignIn();
     window.dispatchEvent(new CustomEvent("openlimiter:signed-in"));
   }, SIGNED_IN_DWELL_MILLISECONDS);
+  return { ok: true, displayed: true };
 }
 
-function continueWith(provider) {
-  const pressed = provider === "google" ? elements.signInGoogle : elements.signInGithub;
-  void runSignIn(() => accountOauth(provider), provider, openingSentence(provider), pressed);
+/**
+ * One way in, whichever button was pressed and wherever it was drawn.
+ *
+ * GitHub and Google are buttons in the shared body; Microsoft is drawn by the
+ * first run step, which hands its own element in so the busy state lands on
+ * the control somebody actually pressed. All three reach `runSignIn`, which is
+ * what applies the account state, draws the arrival and announces it. A path
+ * that skips it signs somebody in and leaves the screen where it was.
+ */
+function continueWith(provider, pressed = null) {
+  const known = { google: elements.signInGoogle, github: elements.signInGithub };
+  const control = pressed ?? known[provider] ?? elements.signInGithub;
+  return runSignIn(() => accountOauth(provider), provider, openingSentence(provider), control);
 }
 
 function emailInput() {
@@ -702,8 +732,8 @@ elements.signInCreate?.addEventListener("click", () => {
   );
 });
 
-elements.signInGithub?.addEventListener("click", () => continueWith("github"));
-elements.signInGoogle?.addEventListener("click", () => continueWith("google"));
+elements.signInGithub?.addEventListener("click", () => void continueWith("github"));
+elements.signInGoogle?.addEventListener("click", () => void continueWith("google"));
 
 function eventSentence(event) {
   if (event.kind === "reset") {
@@ -1187,6 +1217,7 @@ async function refresh() {
 
     await setTrayStatus({
       providers: trayProviders(advice, configuredProviders),
+      trialOffered,
     });
     /* The Claude card's ready or collecting split reads the cache through
        the flag set above, so it is told the cache moved. */
@@ -1525,6 +1556,26 @@ initFirstRun({
   isSignedIn: () => signedIn,
   mountSignIn,
   unmountSignIn,
+  /* Step one hands the wire value straight through, so the one place that
+     owns sign in stays the one place that owns sign in. */
+  signInWithProvider: (wire, pressed) => continueWith(wire, pressed),
+  /* Step two's install rows show a command rather than running one. The
+     clipboard is the whole of the help this product offers there. */
+  copyText: async (text) => {
+    try {
+      await navigator.clipboard.writeText(String(text));
+      return { ok: true };
+    } catch (error) {
+      /* A webview with no clipboard permission is a fact, not a failure: the
+         line is on screen and can be selected by hand. */
+      return { ok: false };
+    }
+  },
+  claudePollEnabled,
+  setClaudePoll: (enabled) => setClaudePollEnabled(enabled),
+  codexSignIn: codexDeviceLoginStart,
+  codexSignInPoll: codexDeviceLoginStatus,
+  codexSignInCancel: codexDeviceLoginCancel,
   onAccountState: (status) => {
     applyAccountState(status);
     if (status.syncEnabled !== false) {

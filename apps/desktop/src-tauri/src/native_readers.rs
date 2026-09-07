@@ -57,6 +57,11 @@ fn base_snapshot(
         limit_amount: None,
         currency: None,
         account_id: Some(account_id.to_string()),
+        account_label: None,
+        /* The writer is stamped by the one fold every desktop write passes
+        through, so a parser never has to know which process it is running in.
+        See `native_snapshot::fold`. */
+        writer: None,
         provenance: provenance(),
     }
 }
@@ -210,45 +215,109 @@ fn pool_prefixes(buckets: &[Value]) -> Option<Vec<&str>> {
     Some(prefixes)
 }
 
-fn antigravity_windows(buckets: &[Value], now_ms: u64) -> Option<Vec<(String, f64, u64, String)>> {
+/// The meter code one pool's window earns.
+///
+/// The client states two pools today, Google's own models and the third party
+/// models it resells, and somebody paying for both needs to see both. The
+/// Google pool keeps the plain codes it has always had, because every row
+/// already on disk under `FIVE_HOUR` and `SEVEN_DAY` belongs to it and
+/// renaming them would orphan that history. Every other pool is named after
+/// itself, so a pool this build has never seen still renders under a code a
+/// reader can print rather than being silently dropped.
+fn antigravity_meter(pool: &str, window: &str) -> Option<String> {
+    let cadence = match window {
+        "5h" => "SESSION",
+        "weekly" => "WEEKLY",
+        _ => return None,
+    };
+    if pool == "gemini" {
+        return Some(
+            if cadence == "SESSION" {
+                "FIVE_HOUR"
+            } else {
+                "SEVEN_DAY"
+            }
+            .to_string(),
+        );
+    }
+    /* `3p` is the client's own name for the third party pool and it starts
+    with a digit, which no meter code may do, so the readable name is used
+    instead. Anything else is uppercased into a code shape, and a pool whose
+    name cannot become one is dropped rather than guessed at. */
+    let named = if pool == "3p" {
+        "THIRD_PARTY".to_string()
+    } else {
+        let upper: String = pool
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character.to_ascii_uppercase()
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        if !upper.starts_with(|character: char| character.is_ascii_uppercase()) {
+            return None;
+        }
+        upper
+    };
+    Some(format!("{named}_{cadence}"))
+}
+
+fn antigravity_windows(
+    pool: &str,
+    buckets: &[Value],
+    now_ms: u64,
+) -> Option<Vec<(String, f64, u64, String)>> {
     let mut windows = Vec::new();
     for entry in buckets {
         let bucket = entry.as_object()?;
         let fraction = number(bucket.get("remainingFraction"), 1.0)?;
-        let (meter, seconds) = match bucket
-            .get("window")?
-            .as_str()?
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "5h" => ("FIVE_HOUR", 18_000),
-            "weekly" => ("SEVEN_DAY", 604_800),
+        let window = bucket.get("window")?.as_str()?.to_ascii_lowercase();
+        let seconds = match window.as_str() {
+            "5h" => 18_000,
+            "weekly" => 604_800,
             _ => return None,
         };
+        let meter = antigravity_meter(pool, &window)?;
         let horizon = seconds * 2 + CLOCK_SKEW_SECONDS;
         let reset_at = future_rfc3339(bucket.get("resetTime")?.as_str()?, now_ms, horizon)?;
         let percent = ((1.0 - fraction).clamp(0.0, 1.0) * 1_000.0).round() / 10.0;
-        windows.push((meter.to_string(), percent, seconds, reset_at));
+        windows.push((meter, percent, seconds, reset_at));
     }
     (!windows.is_empty()).then_some(windows)
 }
 
+/// Every window the client states, from every pool it states them for.
+///
+/// This used to keep the Google pool and discard the rest, which was right
+/// while the reading came from Google's own metadata plane and is wrong now
+/// that it comes from the client on this machine, which shows a person all of
+/// their pools. A group whose buckets disagree about which pool they belong
+/// to, or a window this build does not understand, costs the whole response
+/// rather than half of one: a bar drawn from half a payload is a bar nobody
+/// can act on.
 fn parse_antigravity(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
     let groups = root.get("groups")?.as_array()?;
-    let mut tracked: Option<Vec<(String, f64, u64, String)>> = None;
+    let mut tracked: Vec<(String, f64, u64, String)> = Vec::new();
+    let mut pools: Vec<&str> = Vec::new();
     for entry in groups {
         let buckets = entry.as_object()?.get("buckets")?.as_array()?;
         let prefixes = pool_prefixes(buckets)?;
-        if !prefixes.contains(&"gemini") {
-            continue;
-        }
-        if tracked.is_some() {
+        let [pool] = prefixes[..] else {
+            return None;
+        };
+        if pools.contains(&pool) {
             return None;
         }
-        tracked = Some(antigravity_windows(buckets, now_ms)?);
+        pools.push(pool);
+        tracked.extend(antigravity_windows(pool, buckets, now_ms)?);
     }
-    let tracked = tracked?;
+    if tracked.is_empty() {
+        return None;
+    }
     let observed_at = iso_from_epoch_ms(now_ms)?;
     let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
     Some(
@@ -621,6 +690,70 @@ mod tests {
         assert!(rows
             .iter()
             .any(|row| row.meter == "SEVEN_DAY" && row.value == 60.0));
+    }
+
+    /// Both pools reach the cache, and the Google one keeps its old codes.
+    ///
+    /// The client shows a Google pool and a third party pool and somebody
+    /// paying for both needs to see both. The Google pool must keep
+    /// `FIVE_HOUR` and `SEVEN_DAY` or every row already on disk is orphaned.
+    #[test]
+    fn antigravity_renders_every_pool_the_client_states() {
+        let now_ms = now();
+        let five_hour_reset = iso_from_epoch_ms(now_ms + 18_000_000).expect("reset");
+        let weekly_reset = iso_from_epoch_ms(now_ms + 604_800_000).expect("reset");
+        let body = format!(
+            r#"{{"groups":[{{"displayName":"Gemini Models","buckets":[{{"bucketId":"gemini-5h","window":"5h","remainingFraction":0.75,"resetTime":"{five_hour_reset}"}},{{"bucketId":"gemini-weekly","window":"weekly","remainingFraction":0.4,"resetTime":"{weekly_reset}"}}]}},{{"displayName":"Claude and GPT models","buckets":[{{"bucketId":"3p-5h","window":"5h","remainingFraction":0.9,"resetTime":"{five_hour_reset}"}},{{"bucketId":"3p-weekly","window":"weekly","remainingFraction":0.5,"resetTime":"{weekly_reset}"}}]}}]}}"#
+        );
+        let rows =
+            parse_body(ReaderId::AntigravityQuota, &body, now_ms, ACCOUNT).expect("readable quota");
+        assert_eq!(rows.len(), 4);
+        for (meter, value) in [
+            ("FIVE_HOUR", 25.0),
+            ("SEVEN_DAY", 60.0),
+            ("THIRD_PARTY_SESSION", 10.0),
+            ("THIRD_PARTY_WEEKLY", 50.0),
+        ] {
+            assert!(
+                rows.iter()
+                    .any(|row| row.meter == meter && row.value == value),
+                "{meter} at {value} was not written"
+            );
+        }
+    }
+
+    /// A pool this build has never seen still renders, under its own name.
+    #[test]
+    fn an_unknown_pool_is_named_rather_than_dropped() {
+        let now_ms = now();
+        let weekly_reset = iso_from_epoch_ms(now_ms + 604_800_000).expect("reset");
+        let body = format!(
+            r#"{{"groups":[{{"buckets":[{{"bucketId":"vision-weekly","window":"weekly","remainingFraction":0.25,"resetTime":"{weekly_reset}"}}]}}]}}"#
+        );
+        let rows =
+            parse_body(ReaderId::AntigravityQuota, &body, now_ms, ACCOUNT).expect("readable quota");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].meter, "VISION_WEEKLY");
+        assert_eq!(rows[0].value, 75.0);
+    }
+
+    /// A pool named the same twice, and a group whose buckets disagree about
+    /// which pool they belong to, are both shapes this build does not
+    /// understand. Half a payload is worse than none.
+    #[test]
+    fn a_confused_pool_costs_the_whole_response() {
+        let now_ms = now();
+        let weekly_reset = iso_from_epoch_ms(now_ms + 604_800_000).expect("reset");
+        for body in [
+            format!(
+                r#"{{"groups":[{{"buckets":[{{"bucketId":"gemini-weekly","window":"weekly","remainingFraction":0.25,"resetTime":"{weekly_reset}"}}]}},{{"buckets":[{{"bucketId":"gemini-5h","window":"weekly","remainingFraction":0.25,"resetTime":"{weekly_reset}"}}]}}]}}"#
+            ),
+            format!(
+                r#"{{"groups":[{{"buckets":[{{"bucketId":"gemini-weekly","window":"weekly","remainingFraction":0.25,"resetTime":"{weekly_reset}"}},{{"bucketId":"3p-weekly","window":"weekly","remainingFraction":0.25,"resetTime":"{weekly_reset}"}}]}}]}}"#
+            ),
+        ] {
+            assert!(parse_body(ReaderId::AntigravityQuota, &body, now_ms, ACCOUNT).is_none());
+        }
     }
 
     #[test]

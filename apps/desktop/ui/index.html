@@ -41,7 +41,7 @@
       class="first-run"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="first-run-title"
+      aria-labelledby="first-run-account-title"
       aria-describedby="first-run-intro first-run-helper"
     >
       <div class="first-run-panel surface">
@@ -53,46 +53,26 @@
           Three steps, named before the first one starts. A person who can see
           where the setup ends is a person who will finish it, and there is
           nothing here worth hiding behind a progress bar with no labels.
+
+          The account comes first and Connect second, because the account is
+          the thing a person is asked for and asking is what deserves the
+          undivided screen. Bars is not a screen at all: it is the window.
         -->
         <ol class="first-run-steps" id="first-run-steps" hidden>
-          <li data-step="agents" aria-current="step">Agents</li>
-          <li data-step="account">Account</li>
-          <li data-step="ready">Ready</li>
+          <li data-step="account" aria-current="step">Account</li>
+          <li data-step="connect">Connect</li>
+          <li data-step="bars">Bars</li>
         </ol>
 
-        <div id="first-run-setup" hidden>
-          <h1 id="first-run-title">Choose local providers</h1>
-          <p class="first-run-intro">Only usage percentages sync. Keys and credentials stay on this device.</p>
-        <div id="first-run-launch-note" class="first-run-launch-note" role="note" hidden>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 3 20 6v5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-3Z" />
-            <path d="M12 8v4M12 16h.01" />
-          </svg>
-          <p>
-            <strong id="first-run-launch-title"></strong>
-            <span id="first-run-launch-detail"></span>
-          </p>
-        </div>
-          <div id="first-run-providers" class="first-run-providers" aria-live="polite"></div>
-          <p id="first-run-status" class="first-run-status" role="status">
-            Checking local tools.
-          </p>
-          <button type="button" id="first-run-continue" class="first-run-continue">
-            Continue
-          </button>
-          <p id="first-run-helper" class="first-run-helper">
-            Provider access stays local. Sync can be turned off at any time.
-          </p>
-        </div>
         <!--
-          The account, offered once, at the end, with a plain way past it.
+          Step one, the account, offered as a real choice.
 
-          It used to be a wall: no meter until you signed in, on a product
-          whose whole promise is that it reads what is already on your own
-          machine. Nothing about a local quota needs an account, so nothing
-          local waits for one. What an account adds is named here, once, the
-          window's one sign in body is placed here for the length of the
-          step, and "Not now" is a real answer rather than a smaller button.
+          It is not a wall. Every bar in this window runs with no account at
+          all, the lead sentence says so, and the quiet Later link under the
+          buttons goes straight to the tools. What an account adds is named
+          once, in one sentence, and then the window's own sign in body is
+          placed here for the length of the step so there is still exactly one
+          password field and one email form in the document.
         -->
         <div id="first-run-account" hidden>
           <div class="sign-in-head">
@@ -100,14 +80,48 @@
               <img class="brand-lockup-light" src="./brand/openlimiter-lockup-light.svg" alt="" />
               <img class="brand-lockup-dark" src="./brand/openlimiter-lockup-dark.svg" alt="" />
             </div>
-            <h1 id="first-run-account-title">Sign in to see this on your phone and to unlock Pro</h1>
-            <p class="sign-in-lead">Your meters are already running; an account carries their percentages to your phone and unlocks Pro.</p>
+            <h1 id="first-run-account-title">Create your account</h1>
+            <p class="sign-in-lead">Every bar in this window is free with no account, and an account is what carries them: sync, alerts, your phone, and more than one account per provider.</p>
           </div>
           <div id="first-run-sign-in-mount" class="first-run-account-mount"></div>
-          <div class="sign-in-foot">
-            <button type="button" id="first-run-not-now" class="sign-in-ghost">Not now</button>
-            <span class="sign-in-foot-note">Every meter here keeps working without an account.</span>
+          <p id="first-run-way-status" class="first-run-way-status" role="status"></p>
+          <div class="first-run-quiet">
+            <button type="button" id="first-run-later" class="sign-in-link">Later</button>
           </div>
+        </div>
+
+        <!--
+          Step two, Connect. A detection list that fills itself in: the scan
+          starts when the window opens, so this list is already populated when
+          a person arrives at it, and every manual path is a state one row can
+          be in rather than the thing the screen leads with.
+        -->
+        <div id="first-run-setup" hidden>
+          <h1 id="first-run-title">Connect your tools</h1>
+          <p id="first-run-intro" class="first-run-intro">Every login stays on this machine. Only percentages ever leave it.</p>
+          <div id="first-run-launch-note" class="first-run-launch-note" role="note" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3 20 6v5c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-3Z" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <p>
+              <strong id="first-run-launch-title"></strong>
+              <span id="first-run-launch-detail"></span>
+            </p>
+          </div>
+          <div id="first-run-providers" class="first-run-providers" aria-live="polite"></div>
+          <p id="first-run-status" class="first-run-status" role="status">
+            Checking local tools.
+          </p>
+          <button type="button" id="first-run-continue" class="first-run-continue">
+            Show my bars
+          </button>
+          <div class="first-run-quiet">
+            <button type="button" id="first-run-skip" class="sign-in-link">Skip</button>
+          </div>
+          <p id="first-run-helper" class="first-run-helper">
+            Provider access stays local. Sync can be turned off at any time.
+          </p>
         </div>
       </div>
     </section>

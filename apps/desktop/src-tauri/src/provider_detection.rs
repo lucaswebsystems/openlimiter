@@ -822,6 +822,28 @@ fn installed_client_version(
     None
 }
 
+/// Where a provider's installed client actually is, when it is installed.
+///
+/// The first entry on the search path that holds one, and only a regular file
+/// that is not a symbolic link, which is the same rule every other read in
+/// this module applies. A caller never supplies a path: an executable this
+/// product runs is one it found itself.
+fn installed_executable(
+    provider: DetectedProviderId,
+    context: &DiscoveryContext,
+) -> Option<PathBuf> {
+    let names = executable_names(provider, context.platform);
+    for directory in &context.path_entries {
+        for name in &names {
+            let candidate = directory.join(name);
+            if safe_path_present(&candidate) {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
 fn manifest_version(path: &Path) -> Option<String> {
     let raw = fsx::bounded_read(path)?;
     let version = serde_json::from_str::<Value>(&raw)
@@ -1433,12 +1455,20 @@ impl DetectionStore {
     /// The version of this provider's installed client, when the installation
     /// states one on disk.
     ///
-    /// A reader that borrows another client's request contract uses this to
-    /// say which build it is standing in for. Nothing is executed, and a
-    /// machine that states no version gets `None`, which the request layer
-    /// turns into a silent request rather than a guessed one.
+    /// This used to answer "which build am I standing in for", for a request
+    /// that copied another client's contract. Decision D5 ended that: no
+    /// request states a client version any more. What it answers now is
+    /// whether an action may be offered at all, because a subcommand that
+    /// arrived in a particular release cannot be offered to an older one.
+    /// Nothing is executed to find out, and a machine that states no version
+    /// gets `None`, which reads as too old rather than as new enough.
     pub fn client_version(&self, provider: DetectedProviderId) -> Option<String> {
         installed_client_version(provider, &self.context)
+    }
+
+    /// Where this provider's installed client is, when it is installed.
+    pub fn client_executable(&self, provider: DetectedProviderId) -> Option<PathBuf> {
+        installed_executable(provider, &self.context)
     }
 
     pub fn account_ids(&self, provider: DetectedProviderId) -> Vec<String> {

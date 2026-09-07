@@ -282,6 +282,8 @@ fn quota_snapshots(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
             limit_amount: None,
             currency: None,
             account_id: Some(account_id.to_string()),
+            account_label: None,
+            writer: None,
             provenance: Some(serde_json::json!({
                 "observedVia": "remote_http",
                 "sourceKind": "remote_api"
@@ -884,6 +886,8 @@ mod tests {
             limit_amount: None,
             currency: None,
             account_id: Some("codex-other-account".to_string()),
+            account_label: None,
+            writer: None,
             provenance: None,
         };
         write_report(

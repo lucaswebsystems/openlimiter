@@ -231,6 +231,8 @@ pub fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<S
                 limit_amount: None,
                 currency: None,
                 account_id: Some(account_id.to_string()),
+                account_label: None,
+                writer: None,
                 provenance: Some(serde_json::json!({
                     "observedVia": "remote_http",
                     "sourceKind": "remote_api"

@@ -326,6 +326,35 @@ body.tray {
     background-color var(--ol-motion-fast) var(--ol-ease-linear);
 }
 
+/*
+ * The pace tick.
+ *
+ * One thin mark on the track, at the point an even burn would have reached by
+ * now. The fill is the present and the tick is the projection, so a fill short
+ * of the tick is a window with room to spare and a fill past it is one running
+ * hot. The row answers that without a second line of text and without growing
+ * a pixel, because the mark lives inside the track it measures.
+ *
+ * It is drawn only when the snapshot states both a reset and a window length,
+ * which the renderer decides. Nothing here invents a position.
+ *
+ * The heading colour is the one value that stays legible against every band
+ * fill and against the bare track, in both themes, which is what a mark laid
+ * over a coloured bar has to be.
+ */
+.tray-pace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-heading);
+  transform: translateX(-50%);
+}
+
+/* A hatched track says the number beside it is old. The fill is cleared to
+   transparent rather than faded, because a faded colour quietly loses its
+   contrast while still looking like a live reading. */
 .tray-row[data-band="stale"] .tray-meter {
   background: var(--ol-band-hatched-pattern);
 }

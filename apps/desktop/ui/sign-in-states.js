@@ -29,14 +29,28 @@ export const REOPEN_LABEL = "Open the link again";
 export const REOPEN_FAILED =
   "The link could not be opened again. Finish in the tab that is already open.";
 
-/** The provider's own name, spelled the way the provider spells it. */
+/**
+ * The provider's own name, spelled the way the provider spells it.
+ *
+ * `azure` is the wire value the authentication service uses for the Microsoft
+ * identity platform, and Microsoft is the only name a person knows it by. The
+ * two disagreeing is deliberate: renaming the wire value would ask the service
+ * for a provider it does not have.
+ */
 export function providerName(provider) {
   if (provider === "github") return "GitHub";
   if (provider === "google") return "Google";
+  if (provider === "azure") return "Microsoft";
   return "";
 }
 
-/** The provider that is not this one, for a sentence pointing elsewhere. */
+/**
+ * The provider that is not this one, for a sentence pointing elsewhere.
+ *
+ * There are three ways in now, so "the other one" is a choice rather than a
+ * flip. GitHub is where this audience already is, so it is what a refusal
+ * points at, and GitHub itself points at Google.
+ */
 export function otherProvider(provider) {
   return provider === "github" ? "google" : "github";
 }

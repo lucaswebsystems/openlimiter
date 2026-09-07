@@ -52,9 +52,50 @@ pub struct Snapshot {
     pub currency: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
+    /// A human name for the account this row belongs to.
+    ///
+    /// `account_id` is an identifier, safe to key a cache on and unreadable.
+    /// A surface that prints it prints exactly that, which is right for an
+    /// account a person named and wrong for one this product had to invent,
+    /// such as the Gemini CLI login borrowed for the shared Code Assist pool.
+    /// Absent means the surface falls back to the identifier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_label: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provenance: Option<Value>,
+    /// Which OpenLimiter process last wrote this row.
+    ///
+    /// The cache is shared by every surface on the machine and two of them can
+    /// poll: this tray, which runs all day, and the command line tool, which
+    /// wakes up when a status line asks it to. Without this field neither can
+    /// tell whether the other is already keeping the rows fresh, so both poll
+    /// and the provider sees twice the traffic it should. The command line
+    /// tool stamps `cli` and stands down when a `desktop` row is inside its
+    /// freshness window; this build stamps `desktop` in `fold` so no reader
+    /// has to remember to.
+    ///
+    /// This field also has to survive a write it did not cause. Every desktop
+    /// write reads the whole document and writes it back, so a field this
+    /// struct did not know about used to be dropped on the floor: a row the
+    /// command line tool had stamped came back unstamped, and the two
+    /// processes went back to polling in step. Reading it is as load bearing
+    /// as writing it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub writer: Option<String>,
 }
+
+/// The one value this process may stamp on a row.
+///
+/// Named here rather than at the call sites, because a second literal is how a
+/// typo becomes a row nobody can attribute.
+pub const DESKTOP_WRITER: &str = "desktop";
+
+/// Every writer the shared cache format defines.
+///
+/// A row naming anything else is a row this build cannot believe, and an
+/// unbelievable marker is dropped while the reading itself stands: how a
+/// number arrived is a separate question from whether the number is in range.
+const KNOWN_WRITERS: [&str; 2] = [DESKTOP_WRITER, "cli"];
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -198,6 +239,25 @@ fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
         row.limit_amount = None;
         row.currency = None;
     }
+    /* A writer this build does not know is dropped rather than trusted, and
+    dropping it is the honest answer: absent means unknown, which sends every
+    reader back to polling, exactly as the product behaved before the field
+    existed. */
+    if !row
+        .writer
+        .as_deref()
+        .is_none_or(|value| KNOWN_WRITERS.contains(&value))
+    {
+        row.writer = None;
+    }
+    /* The label is printed beside a bar, so it is bounded and free of control
+    characters. A label that fails either is dropped and the surface falls back
+    to the identifier. */
+    if !row.account_label.as_deref().is_none_or(|value| {
+        !value.is_empty() && value.len() <= 128 && !value.chars().any(char::is_control)
+    }) {
+        row.account_label = None;
+    }
     if row.provenance.as_ref().is_some_and(|value| {
         let source_kind = value.get("sourceKind").and_then(Value::as_str);
         let observed_via = value.get("observedVia").and_then(Value::as_str);
@@ -312,9 +372,19 @@ fn fold(
     suppressions
         .retain(|entry| entry.provider != provider || !belongs(entry.account_id.as_deref()));
     match report {
-        CacheReport::Success(incoming) => {
-            rows.extend(incoming.iter().cloned().filter_map(normalize_snapshot))
-        }
+        /* Stamped here and nowhere else. Every row this process writes reaches
+        disk through this fold, so one line makes the whole desktop attributable
+        and no reader has to remember to set it. A row that arrives already
+        claiming another writer is corrected: this process is the one writing
+        it. */
+        CacheReport::Success(incoming) => rows.extend(incoming.iter().cloned().filter_map(
+            |row| {
+                normalize_snapshot(Snapshot {
+                    writer: Some(DESKTOP_WRITER.to_string()),
+                    ..row
+                })
+            },
+        )),
         CacheReport::Drift { observed_at } => suppressions.push(Suppression {
             provider: provider.to_string(),
             account_id: account_id.map(str::to_string),
@@ -360,6 +430,90 @@ fn fold(
     }
     document.insert("version".to_string(), Value::from(2));
     serde_json::to_string(&Value::Object(document)).map_err(|_| CacheWriteError::Io)
+}
+
+/// One provider's current rows, taken from a cache document.
+fn rows_for(text: Option<&str>, provider: &str) -> Vec<Snapshot> {
+    let Ok((rows, _)) = read_document(text) else {
+        return Vec::new();
+    };
+    rows.into_iter()
+        .filter(|row| row.provider == provider)
+        .collect()
+}
+
+/// Copy one provider's rows onto another provider, under a stated account.
+///
+/// Antigravity and Gemini CLI draw on one Google Code Assist pool, so a
+/// machine with a Gemini login already holds the numbers an Antigravity row
+/// wants. Mirroring them is the last thing tried, after the running client and
+/// after the provider's own endpoint, and it is filed under an account of its
+/// own so a reading borrowed from another login can never be mistaken on a
+/// bar, in the cache or in a sync for a login somebody made to Antigravity.
+///
+/// The whole thing happens inside one lock: the document is read, the mirror
+/// is built from what was read, and the result is committed against the same
+/// generation. Reading in one lock and writing in another is how a mirror ends
+/// up copying rows that were replaced in between.
+///
+/// `Ok(false)` means the source had nothing to mirror, which is a fact and not
+/// a failure.
+pub fn mirror_provider(
+    writer: &CacheWriter,
+    source: &str,
+    target: &str,
+    account_id: &str,
+    account_label: &str,
+) -> Result<bool, CacheWriteError> {
+    for round in 0..2 {
+        let begun = writer.begin()?;
+        let borrowed = rows_for(begun.text.as_deref(), source);
+        if borrowed.is_empty() {
+            writer.abort(begun.generation);
+            return Ok(false);
+        }
+        /* The freshness is the source's, unchanged. A mirror is the same
+        reading seen through another name, so restamping it with the instant it
+        was copied would make a two hour old number look like a new one, and
+        would let a reading that had already expired come back to life. Both
+        rows age out together, which is the truth. */
+        let mirrored: Vec<Snapshot> = borrowed
+            .into_iter()
+            .map(|row| Snapshot {
+                provider: target.to_string(),
+                account_id: Some(account_id.to_string()),
+                account_label: Some(account_label.to_string()),
+                ..row
+            })
+            .filter_map(normalize_snapshot)
+            .collect();
+        /* Nothing survived, so nothing is claimed. Without this a source whose
+        rows had already expired would report a mirror that wrote no row, and
+        the caller would tell somebody their bar was filled from the Gemini
+        login when it was not filled at all. */
+        if mirrored.is_empty() {
+            writer.abort(begun.generation);
+            return Ok(false);
+        }
+        let text = match fold(
+            begun.text.as_deref(),
+            target,
+            Some(account_id),
+            &CacheReport::Success(mirrored),
+        ) {
+            Ok(text) => text,
+            Err(error) => {
+                writer.abort(begun.generation);
+                return Err(error);
+            }
+        };
+        match writer.commit(&text, begun.generation) {
+            Ok(()) => return Ok(true),
+            Err(CacheWriteError::Busy | CacheWriteError::StaleGeneration) if round == 0 => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Err(CacheWriteError::Busy)
 }
 
 pub fn write_report(
@@ -426,6 +580,168 @@ mod tests {
         assert!(!drifted.contains("\"value\":0"));
     }
 
+    /// Every row this process writes says so, and one line does it.
+    ///
+    /// The command line tool reads this marker to decide whether the tray is
+    /// already keeping a provider fresh. A row that reaches disk unstamped
+    /// reads as "nobody", which sends the terminal back to polling a provider
+    /// this process polled ninety seconds ago.
+    #[test]
+    fn every_row_the_desktop_writes_is_stamped_desktop() {
+        let now = epoch_ms_from_rfc3339("2026-09-07T12:00:00.000Z").expect("fixture clock");
+        let rows = parse_body(
+            ReaderId::OpenrouterCredits,
+            r#"{"data":{"total_credits":20,"total_usage":5}}"#,
+            now,
+            "writer-marker",
+        )
+        .expect("readable fixture");
+        assert!(rows.iter().all(|row| row.writer.is_none()));
+        let committed = fold(
+            None,
+            "OPENROUTER",
+            Some("writer-marker"),
+            &CacheReport::Success(rows),
+        )
+        .expect("success fold");
+        let document: Value = serde_json::from_str(&committed).expect("cache document");
+        let written = document["snapshots"].as_array().expect("rows");
+        assert!(!written.is_empty());
+        for row in written {
+            assert_eq!(row["writer"].as_str(), Some("desktop"));
+        }
+    }
+
+    fn codex_body(now: u64) -> String {
+        serde_json::json!({
+            "rate_limit": {
+                "primary_window": {
+                    "used_percent": 40,
+                    "limit_window_seconds": 18_000,
+                    "reset_at": (now + 3_600_000) / 1_000
+                }
+            }
+        })
+        .to_string()
+    }
+
+    /// A marker this process did not write survives a write it did not cause.
+    ///
+    /// Every desktop write reads the whole document and writes it back, so a
+    /// field this struct does not know about is dropped on the floor. That is
+    /// how a row the command line tool had stamped came back unstamped and the
+    /// two processes went back to polling in step.
+    #[test]
+    fn another_writers_marker_survives_a_desktop_write() {
+        let now = epoch_ms_from_rfc3339("2026-09-07T12:00:00.000Z").expect("fixture clock");
+        let foreign = parse_body(ReaderId::CodexUsage, &codex_body(now), now, "codex-terminal")
+            .expect("readable codex fixture");
+        let existing = fold(
+            None,
+            "CODEX",
+            Some("codex-terminal"),
+            &CacheReport::Success(foreign),
+        )
+        .expect("codex fold");
+        let mut document: Value = serde_json::from_str(&existing).expect("cache document");
+        for row in document["snapshots"].as_array_mut().expect("rows") {
+            row["writer"] = Value::from("cli");
+        }
+        let foreign_document = document.to_string();
+
+        let after = fold(
+            Some(&foreign_document),
+            "OPENROUTER",
+            Some("openrouter-desktop"),
+            &CacheReport::Success(
+                parse_body(
+                    ReaderId::OpenrouterCredits,
+                    r#"{"data":{"total_credits":20,"total_usage":5}}"#,
+                    now,
+                    "openrouter-desktop",
+                )
+                .expect("readable fixture"),
+            ),
+        )
+        .expect("second fold");
+        let document: Value = serde_json::from_str(&after).expect("cache document");
+        let rows = document["snapshots"].as_array().expect("rows");
+        let codex: Vec<&Value> = rows
+            .iter()
+            .filter(|row| row["provider"].as_str() == Some("CODEX"))
+            .collect();
+        assert!(!codex.is_empty());
+        for row in codex {
+            assert_eq!(row["writer"], Value::from("cli"));
+        }
+        for row in rows
+            .iter()
+            .filter(|row| row["provider"].as_str() == Some("OPENROUTER"))
+        {
+            assert_eq!(row["writer"].as_str(), Some("desktop"));
+        }
+    }
+
+    /// A writer name this build does not know costs the marker, never the row.
+    #[test]
+    fn an_unknown_writer_is_dropped_and_the_reading_stands() {
+        let now = epoch_ms_from_rfc3339("2026-09-07T12:00:00.000Z").expect("fixture clock");
+        let mut rows = parse_body(
+            ReaderId::OpenrouterCredits,
+            r#"{"data":{"total_credits":20,"total_usage":5}}"#,
+            now,
+            "writer-unknown",
+        )
+        .expect("readable fixture");
+        rows[0].writer = Some("somebody-else".to_string());
+        let normalized = normalize_snapshot(rows[0].clone()).expect("the reading still stands");
+        assert_eq!(normalized.writer, None);
+        assert_eq!(normalized.value, 25.0);
+    }
+
+    /// One account, one row, whichever process wrote it.
+    ///
+    /// The command line tool files a provider it cannot name under no account
+    /// at all, and this build files the same provider under the account it
+    /// resolved, so the same subscription used to appear twice in one cache.
+    /// A desktop write for a named account takes the unnamed row of that
+    /// provider with it, which is what makes the two agree.
+    #[test]
+    fn a_named_desktop_write_absorbs_the_unnamed_row_of_the_same_provider() {
+        let now = epoch_ms_from_rfc3339("2026-09-07T12:00:00.000Z").expect("fixture clock");
+        let mut unnamed = parse_body(ReaderId::CodexUsage, &codex_body(now), now, "ignored")
+            .expect("readable codex fixture");
+        for row in &mut unnamed {
+            row.account_id = None;
+        }
+        let existing =
+            fold(None, "CODEX", None, &CacheReport::Success(unnamed)).expect("unnamed fold");
+
+        let named = parse_body(
+            ReaderId::CodexUsage,
+            &codex_body(now),
+            now + 1_000,
+            "codex-desktop",
+        )
+        .expect("readable codex fixture");
+        let after = fold(
+            Some(&existing),
+            "CODEX",
+            Some("codex-desktop"),
+            &CacheReport::Success(named),
+        )
+        .expect("named fold");
+        let document: Value = serde_json::from_str(&after).expect("cache document");
+        let rows = document["snapshots"].as_array().expect("rows");
+        assert!(!rows.is_empty());
+        assert!(rows
+            .iter()
+            .all(|row| row["accountId"].as_str() == Some("codex-desktop")));
+        assert!(rows
+            .iter()
+            .all(|row| row["writer"].as_str() == Some("desktop")));
+    }
+
     #[test]
     fn unavailable_removes_only_the_scoped_remote_rows() {
         let now = epoch_ms_from_rfc3339("2026-08-16T12:00:00.000Z").expect("fixture clock");
@@ -484,6 +800,8 @@ mod tests {
             limit_amount: Some(50.0),
             currency: Some("USD".to_string()),
             account_id: Some("claude-overspend".to_string()),
+            account_label: None,
+            writer: None,
             provenance: None,
         }
     }

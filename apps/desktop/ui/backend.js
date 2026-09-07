@@ -497,12 +497,64 @@ export async function accountEmail({ email, password, create }) {
   return call("account_email", { input: { email, password, create } });
 }
 
+/**
+ * The sign in providers the service has switched on.
+ *
+ * Wire values, not labels. `azure` is what the authentication service calls
+ * the Microsoft identity platform, and it is the string that has to travel
+ * while every surface a person reads says Microsoft. Renaming it would ask the
+ * service for a provider it does not have.
+ */
+export const OAUTH_PROVIDERS = Object.freeze(["google", "github", "azure"]);
+
 /** Open a provider OAuth flow whose callback is verified by the native shell. */
 export async function accountOauth(provider) {
-  if (provider !== "google" && provider !== "github") {
+  if (!OAUTH_PROVIDERS.includes(provider)) {
     return refusedInput("account_oauth");
   }
   return call("account_oauth", { input: { provider } });
+}
+
+/**
+ * Whether OpenLimiter may ask Anthropic for a percentage on its own.
+ *
+ * Off on a fresh machine and off whenever the answer cannot be read. Claude's
+ * own status line is the primary source and needs none of this.
+ */
+export async function claudePollEnabled() {
+  return call("claude_poll_enabled");
+}
+
+/** Set that switch, and remember it past this run. */
+export async function setClaudePollEnabled(enabled) {
+  return call("set_claude_poll_enabled", { enabled: enabled === true });
+}
+
+/**
+ * Start the Codex device login.
+ *
+ * The client prints a short code and an address and waits. Both are drawn
+ * inside our own window, never in a console, and the login ends on its own
+ * after three minutes if nobody finishes it.
+ */
+export async function codexDeviceLoginStart() {
+  return call("codex_device_login_start");
+}
+
+/** How the open Codex login is going. */
+export async function codexDeviceLoginStatus(sessionId) {
+  if (typeof sessionId !== "string" || sessionId === "") {
+    return refusedInput("codex_device_login_status");
+  }
+  return call("codex_device_login_status", { sessionId });
+}
+
+/** Stop the open Codex login. */
+export async function codexDeviceLoginCancel(sessionId) {
+  if (typeof sessionId !== "string" || sessionId === "") {
+    return refusedInput("codex_device_login_cancel");
+  }
+  return call("codex_device_login_cancel", { sessionId });
 }
 
 /** Open the browser to the provider sign in already in flight, once more. */

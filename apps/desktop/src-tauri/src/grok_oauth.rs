@@ -7,12 +7,12 @@ use tauri::{AppHandle, Manager};
 use crate::cache_write::CacheWriter;
 use crate::native_readers::parse_body;
 use crate::native_snapshot::{iso_from_epoch_ms, write_report, CacheReport};
-use crate::net::{fetch_grok_usage, NetError, ReqwestTransport, Transport};
+use crate::net::{fetch_endpoint, NetError, ProviderEndpoint, ReqwestTransport, Transport};
 use crate::poll_identity::PollIdentity;
 use crate::provider_detection::{
     DetectedCredentialError, DetectedProviderId, DetectedSecret, DetectionStore,
 };
-use crate::reader_registry::{ProviderId, ReaderId};
+use crate::reader_registry::{AuthApplication, ProviderId, ReaderId};
 use crate::request_policy::{GateRejection, RequestPolicy};
 
 pub const REFRESH_SECONDS: u64 = 300;
@@ -160,7 +160,6 @@ async fn collect_with_secret<T: Transport>(
     writer: Arc<CacheWriter>,
     account_id: &str,
     secret: &DetectedSecret,
-    client_version: Option<&str>,
     now_ms: u64,
 ) -> GrokOutcome {
     if let Err(retry_ms) = runtime.begin(account_id, now_ms) {
@@ -170,11 +169,15 @@ async fn collect_with_secret<T: Transport>(
                 .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
         };
     }
-    let response = match fetch_grok_usage(
+    /* The billing route is reached as OpenLimiter and with nothing else: no
+    client version, no mode, no token authentication marker. Decision D5, and
+    `net.rs` holds the note on what those three headers were claiming. */
+    let response = match fetch_endpoint(
         transport,
+        ProviderEndpoint::GrokUsage,
+        AuthApplication::GrokSessionBearer,
         &secret.access_token,
         secret.provider_account_id.as_deref(),
-        client_version,
     )
     .await
     {
@@ -260,17 +263,8 @@ pub async fn collect_account<T: Transport>(
             return credential_failure(&account_id, error);
         }
     };
-    let client_version = detection.client_version(DetectedProviderId::Grok);
-    let outcome = collect_with_secret(
-        runtime,
-        transport,
-        writer,
-        &account_id,
-        &secret,
-        client_version.as_deref(),
-        now_ms,
-    )
-    .await;
+    let outcome =
+        collect_with_secret(runtime, transport, writer, &account_id, &secret, now_ms).await;
     match &outcome {
         GrokOutcome::CacheCommitted { .. } => {
             detection.mark_ready(DetectedProviderId::Grok, &account_id)
@@ -461,7 +455,6 @@ mod tests {
             writer(&dir),
             "grok-account-one",
             &secret(TOKEN, "provider-user-one", "one"),
-            None,
             now(),
         )
         .await;
@@ -492,7 +485,6 @@ mod tests {
             writer(&dir),
             "grok-account-one",
             &secret(TOKEN, "provider-user-one", "one"),
-            None,
             now(),
         )
         .await;
@@ -506,7 +498,6 @@ mod tests {
                 "provider-user-one",
                 "two",
             ),
-            None,
             now() + 1_000,
         )
         .await;
@@ -525,7 +516,6 @@ mod tests {
             writer(&dir),
             "grok-account-one",
             &secret(TOKEN, "provider-user-one", "drift"),
-            None,
             now(),
         )
         .await;
@@ -557,7 +547,6 @@ mod tests {
             writer(&dir),
             "grok-account-one",
             &secret(TOKEN, "provider-user-one", "service-backoff"),
-            None,
             now(),
         )
         .await;

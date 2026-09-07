@@ -1,11 +1,14 @@
 mod account;
 mod antigravity_credential;
+mod antigravity_local;
 mod antigravity_oauth;
 mod api_spend;
 mod cache_write;
 mod claude_connect;
 mod claude_detect;
 mod claude_oauth;
+mod claude_poll_setting;
+mod codex_device_login;
 mod codex_oauth;
 mod collector;
 mod collector_runtime;
@@ -75,9 +78,27 @@ fn state_directory() -> Option<String> {
 /// The window sends one normalized percentage per provider. Rust derives the
 /// worst headroom, pressure icon, tooltip and native menu from that bounded
 /// input, so every shell surface moves together.
+///
+/// `trial_offered` comes from the window too, because the entitlement lives on
+/// the account and the window is the surface that already holds it. It
+/// defaults to offering the trial only where nothing has been read yet, which
+/// is the first paint, and an entitled account clears it on the first update.
 #[tauri::command]
-fn set_tray_status(app: AppHandle, providers: Vec<tray::ProviderStatus>) -> Result<(), String> {
-    tray::update(&app, providers)
+fn set_tray_status(
+    app: AppHandle,
+    providers: Vec<tray::ProviderStatus>,
+    trial_offered: Option<bool>,
+) -> Result<(), String> {
+    tray::update(&app, providers, trial_offered.unwrap_or(true))
+}
+
+/// Open one of the two hub destinations the tray menu names.
+///
+/// The addresses are constants in `tray.rs`, so a menu click can never carry
+/// one in from anywhere else.
+fn open_hub(app: &AppHandle, url: &str) {
+    use tauri_plugin_opener::OpenerExt as _;
+    let _ = app.opener().open_url(url, None::<&str>);
 }
 
 fn show_window(app: &AppHandle) {
@@ -92,6 +113,8 @@ fn show_window(app: &AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .manage(connections::ConnectionsStore::at_state_directory())
+        .manage(claude_poll_setting::ClaudePollSetting::default())
+        .manage(codex_device_login::OpenDeviceLogin::default())
         .manage(credentials::KeyringStore)
         .manage(credentials::ApiSpendKeyringStore)
         .manage(api_spend::ApiSpendState::default())
@@ -138,6 +161,11 @@ pub fn run() {
             commands::rescan_detected_providers,
             commands::refresh_detected_claude,
             commands::claude_connect_preflight,
+            claude_poll_setting::claude_poll_enabled,
+            claude_poll_setting::set_claude_poll_enabled,
+            codex_device_login::codex_device_login_start,
+            codex_device_login::codex_device_login_status,
+            codex_device_login::codex_device_login_cancel,
             account::account_status,
             account::account_email,
             account::account_oauth,
@@ -194,6 +222,8 @@ pub fn run() {
                     "refresh" => {
                         collector_runtime::refresh_all(app.clone());
                     }
+                    "trial" => open_hub(app, tray::TRIAL_URL),
+                    "phone" => open_hub(app, tray::PAIR_URL),
                     "quit" => app.exit(0),
                     _ => {}
                 })
