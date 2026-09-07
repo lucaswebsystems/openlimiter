@@ -13,11 +13,13 @@ import {
 } from "../src/hub.js";
 
 const CONFIGURED = { OPENLIMITER_SUPABASE_ANON_KEY: "sb_publishable_test_key" };
+const OFF = { OPENLIMITER_SUPABASE_ANON_KEY: "off" };
 
 describe("hub configuration", () => {
-  it("is unconfigured with no anon key, whatever the URL says", () => {
-    expect(hubConfigured({})).toBe(false);
-    expect(hubConfigured({ OPENLIMITER_SUPABASE_URL: "https://example.supabase.co" })).toBe(false);
+  it("is unconfigured when the key override is off, whatever the URL says", () => {
+    expect(hubConfigured(OFF)).toBe(false);
+    expect(hubConfigured({ ...OFF, OPENLIMITER_SUPABASE_URL: "https://example.supabase.co" })).toBe(false);
+    expect(hubConfigured({})).toBe(true);
   });
 
   it("is configured once an anon key is present", () => {
@@ -31,18 +33,19 @@ describe("hub configuration", () => {
     );
   });
 
-  it("reads the anon key from the environment and nowhere else", () => {
-    expect(hubAnonKey({})).toBe("");
+  it("reads the override, ships a default, and off disables the hub", () => {
+    expect(hubAnonKey({}).length).toBeGreaterThan(20);
+    expect(hubAnonKey(OFF)).toBe("");
     expect(hubAnonKey(CONFIGURED)).toBe("sb_publishable_test_key");
   });
 });
 
 describe("hub request builders", () => {
-  it("refuses every request when the hub is not configured", () => {
-    expect(cliLoginStartRequest({})).toBeNull();
-    expect(cliLoginPollRequest({}, "device-code-1234")).toBeNull();
-    expect(grantRenewRequest({}, "a".repeat(20))).toBeNull();
-    expect(syncSnapshotsRequest({}, "a".repeat(20), {})).toBeNull();
+  it("refuses every request when the hub is switched off", () => {
+    expect(cliLoginStartRequest(OFF)).toBeNull();
+    expect(cliLoginPollRequest(OFF, "device-code-1234")).toBeNull();
+    expect(grantRenewRequest(OFF, "a".repeat(20))).toBeNull();
+    expect(syncSnapshotsRequest(OFF, "a".repeat(20), {})).toBeNull();
   });
 
   it("builds the login start request against the closed cli-login endpoint", () => {

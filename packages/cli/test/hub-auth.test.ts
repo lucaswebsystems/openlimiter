@@ -201,9 +201,9 @@ describe("runDeviceLogin", () => {
     expect(outcome.kind).toBe("cancelled");
   });
 
-  it("reports not configured when the hub has no anon key", async () => {
+  it("reports not configured when the hub is switched off", async () => {
     const outcome = await runDeviceLogin({
-      environment: {},
+      environment: { OPENLIMITER_SUPABASE_ANON_KEY: "off" },
       transport: async () => ({ status: 200, body: "" }),
       sleep: noSleep(),
       emit: () => undefined,

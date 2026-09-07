@@ -248,13 +248,13 @@ describe("openlimiter setup, the three step first run", () => {
     expect(bare.stdout).toContain("3. Show bars in");
   });
 
-  it("skips signing in when the hub is not configured, and still shows the checklist", async () => {
+  it("skips signing in when the hub is switched off, and still shows the checklist", async () => {
     const stateDirectory = await temporaryDirectory("openlimiter-hub-");
     const homeDirectory = await temporaryDirectory("openlimiter-hub-home-");
     const result = await runCli([], {
       stateDirectory,
       homeDirectory,
-      environment: noAgentsInstalled(),
+      environment: { ...noAgentsInstalled(), OPENLIMITER_SUPABASE_ANON_KEY: "off" },
       platform: "linux",
       now: () => NOW
     });

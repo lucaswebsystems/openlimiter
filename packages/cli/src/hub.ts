@@ -46,9 +46,10 @@ export function hubBaseUrl(environment: Readonly<Record<string, string | undefin
   return configured === "" ? DEFAULT_HUB_URL : configured;
 }
 
-/** The publishable key: the environment override when set, otherwise the shipped default. */
+/** The publishable key: the environment override when set, the shipped default otherwise, and the literal off disables the hub. */
 export function hubAnonKey(environment: Readonly<Record<string, string | undefined>>): string {
   const configured = envValue(environment, "OPENLIMITER_SUPABASE_ANON_KEY");
+  if (configured === "off") return "";
   return configured === "" ? DEFAULT_HUB_PUBLISHABLE_KEY : configured;
 }
 
