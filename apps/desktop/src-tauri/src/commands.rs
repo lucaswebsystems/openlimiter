@@ -1082,6 +1082,20 @@ pub fn rescan_detected_providers(detection: State<'_, DetectionStore>) -> Detect
     detection.rescan()
 }
 
+/// Not registered with Tauri, and not called from the desktop's own
+/// interface either.
+///
+/// `collect_account_guarded` below is the Anthropic poll path: a request
+/// carrying the person's own token, which only ever leaves this machine where
+/// somebody has switched it on (`run_pass` in claude_oauth.rs checks
+/// `ClaudePollSetting` before it calls this for anyone, on the scheduled
+/// pass). This command called the same function directly, for whichever
+/// account the caller named, without ever asking that setting first, which
+/// would have let a webview poll Anthropic on a person's behalf with no
+/// consent gate in the way at all. Nothing in this build's interface ever
+/// called it, so it is kept out of `generate_handler!` in lib.rs rather than
+/// wired through a gate a future command could just as easily forget again.
+#[cfg_attr(not(test), allow(dead_code))]
 #[tauri::command]
 pub async fn refresh_detected_claude(
     input: RefreshDetectedClaudeInput,

@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { entitlementOf } from "@/lib/pro";
 import {
+  HUB_DEVICE_ID_KEY,
   TRIAL_ALERT_THRESHOLDS,
   TRIAL_END_OFFER,
+  browserDeviceId,
   isAllowedCheckoutUrl,
   locksPro,
   offerCountdown,
@@ -43,6 +45,10 @@ function clientAnswering(answer: unknown): {
 function refusal(status: number): unknown {
   return { data: null, error: { context: { status } } };
 }
+
+afterEach(() => {
+  window.localStorage.clear();
+});
 
 describe("the countdown", () => {
   it("breaks the remaining time into days, hours and minutes", () => {
@@ -112,22 +118,33 @@ describe("starting the trial", () => {
     expect(result.ok && result.value?.planState).toBe("trialing");
   });
 
-  it("carries a push subscription only when the browser granted one", async () => {
+  it("carries a push subscription with this browser's stable device id, only when the browser granted one", async () => {
     const withPush = clientAnswering({ data: { entitlement: null }, error: null });
     await startProTrial(withPush.client, {
       alerts: { thresholds: [...TRIAL_ALERT_THRESHOLDS], reset: false },
       push: { endpoint: "https://push.example/1" },
     });
     const body = withPush.invoke.mock.calls[0]?.[1] as { body: Record<string, unknown> };
-    expect(body.body.preferences).toEqual({
-      alerts: { thresholds: [60, 80, 90], reset: false },
-      push: { endpoint: "https://push.example/1" },
-    });
+    const preferences = body.body.preferences as { alerts: unknown; push: Record<string, unknown> };
+    expect(preferences.alerts).toEqual({ thresholds: [60, 80, 90], reset: false });
+    expect(preferences.push.endpoint).toBe("https://push.example/1");
+    expect(preferences.push.device_id).toBe(browserDeviceId());
 
     const withoutPush = clientAnswering({ data: { entitlement: null }, error: null });
     await startProTrial(withoutPush.client, { alerts: { thresholds: [60], reset: false } });
     const plain = withoutPush.invoke.mock.calls[0]?.[1] as { body: Record<string, unknown> };
     expect(Object.keys(plain.body.preferences as object)).toEqual(["alerts"]);
+  });
+
+  it("reads a 200 body carrying trial_already_used as the refusal it is, never a success", async () => {
+    const { client } = clientAnswering({
+      data: { error: "trial_already_used", entitlement: { plan_state: "trialing" } },
+      error: null,
+    });
+    expect(await startProTrial(client, { alerts: { thresholds: [60], reset: true } })).toEqual({
+      ok: false,
+      reason: "alreadyUsed",
+    });
   });
 
   it("reads a refused trial as already used rather than as a fault", async () => {
@@ -152,6 +169,24 @@ describe("starting the trial", () => {
       ok: true,
       value: null,
     });
+  });
+});
+
+describe("this browser's stable device id", () => {
+  it("generates one once and reads the same value back on every later call", () => {
+    window.localStorage.clear();
+    const first = browserDeviceId();
+    expect(first.length).toBeGreaterThan(0);
+    expect(browserDeviceId()).toBe(first);
+    expect(window.localStorage.getItem(HUB_DEVICE_ID_KEY)).toBe(first);
+  });
+
+  it("makes a fresh id once local storage no longer carries one", () => {
+    window.localStorage.clear();
+    const first = browserDeviceId();
+    window.localStorage.clear();
+    const second = browserDeviceId();
+    expect(second).not.toBe(first);
   });
 });
 

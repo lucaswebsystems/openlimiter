@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { BrandLockup } from "@/components/brand";
 import { createAccountClient, readKeepSignedIn } from "@/lib/account-client";
+import { stripQueryParam } from "@/lib/browser-history";
 import { storeCloudKey } from "@/lib/cloud-meter";
 import { CONFIGURATION_DEEP_LINK_PARAM } from "@/lib/onboarding";
 import {
@@ -88,6 +89,7 @@ export function OpenRouterCallbackView({
       const query = search ?? (typeof window === "undefined" ? "" : window.location.search);
       const { code, nonce } = openRouterCallbackParams(query);
       const verifier = nonce === null ? null : takeOpenRouterVerifier(nonce);
+      if (code !== null) stripQueryParam("code");
       if (code === null || verifier === null) {
         setPhase("error");
         return;

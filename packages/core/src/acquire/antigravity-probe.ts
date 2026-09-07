@@ -189,6 +189,58 @@ function execFilePromise(
 }
 
 /**
+ * Resolve a pid to the absolute path of the executable running it, the one
+ * piece of proof `isTrustedAgyExecutable` actually checks.
+ *
+ * Windows' own `tasklist` names a process but never its path, so a caller
+ * stuck on that fallback (CIM itself already carries a path, see
+ * `enumerateAgyListeningPorts`) has nothing to verify a candidate against but
+ * the bare string "agy.exe", which is exactly the name an impostor process
+ * picks for itself. This asks Windows the same question CIM already answers,
+ * for one pid at a time; POSIX reads `/proc/<pid>/exe`'s own symlink on
+ * Linux, where the kernel itself is the source of truth, and asks `ps` on
+ * every other POSIX platform. A pid whose executable cannot be read this way
+ * answers null, which every caller here treats as "cannot be trusted", never
+ * as "trust it anyway".
+ */
+export async function resolveAgyExecutablePath(
+  pid: string,
+  platform: NodeJS.Platform = process.platform,
+  runCommand: (
+    executable: string,
+    args: readonly string[],
+    timeout: number
+  ) => Promise<{ ok: true; stdout: string } | { ok: false }> = execFilePromise
+): Promise<string | null> {
+  if (!/^\d+$/u.test(pid)) return null;
+  if (platform === "win32") {
+    const script =
+      "$ErrorActionPreference='SilentlyContinue';" +
+      `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").ExecutablePath`;
+    const result = await runCommand(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      AGY_PROBE_TIMEOUT_MILLISECONDS
+    );
+    if (!result.ok) return null;
+    const trimmed = result.stdout.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (platform === "linux") {
+    try {
+      const fsPromises = await import("node:fs/promises");
+      return await fsPromises.readlink(`/proc/${pid}/exe`);
+    } catch {
+      return null;
+    }
+  }
+  const result = await runCommand("ps", ["-o", "comm=", "-p", pid], AGY_PROBE_TIMEOUT_MILLISECONDS);
+  if (!result.ok) return null;
+  const trimmed = result.stdout.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
  * Extract loopback port from an address string (e.g. "127.0.0.1:57737" or "[::1]:57737").
  */
 export function parseLoopbackPort(address: string): number | null {
@@ -424,8 +476,10 @@ export async function enumerateAgyListeningPorts(
               if (exePath && isTrustedAgyExecutable(exePath, "win32", roots)) {
                 trustedPids.add(pid);
               }
-            } else {
-              trustedPids.add(pid);
+              /* No resolver was able to name this pid's executable: it is
+                 skipped, the same as an untrusted path, rather than trusted on
+                 the strength of `tasklist` naming it "agy.exe", which is a
+                 string an impostor process gets to pick for itself. */
             }
           }
         }
@@ -482,7 +536,12 @@ export async function enumerateAgyListeningPorts(
         if (exePath !== null) {
           trusted = isTrustedAgyExecutable(exePath, platform, roots);
         } else {
-          trusted = true;
+          /* The executable this pid runs could not be read at all, on the
+             one platform this file resolves it without an injected
+             resolver. That is a reason to skip the port, not to trust it: a
+             `lsof` name match is exactly what an impostor process names
+             itself to get. */
+          trusted = false;
         }
       }
       verifiedPids.set(pid, trusted);

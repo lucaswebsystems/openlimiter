@@ -23,6 +23,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const answer = await readPhoneBars(placeholder, readDeviceSnapshots);
 
   if (answer.kind === "revoked") return NextResponse.json({ error: "revoked" }, { status: 403 });
+  /* The same shape the missing cookie branch above already answers: the
+     browser's requestPhoneRead reads this exact { error: "no_pair" } at 401
+     as `unpaired` and fires onUnpaired, which is the correct ending for a
+     token the upstream no longer accepts at all, not a retry. */
+  if (answer.kind === "unpaired") return NextResponse.json({ error: "no_pair" }, { status: 401 });
   if (answer.kind !== "fresh") return NextResponse.json({ error: "unavailable" }, { status: 503 });
   return NextResponse.json({ body: answer.body });
 }

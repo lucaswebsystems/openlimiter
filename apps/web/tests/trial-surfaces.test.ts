@@ -177,8 +177,14 @@ describe("the wizard's push step", () => {
 
     press(byText(view.container, "button", trial.push.start));
     await flush();
-    const body = invoke.mock.calls[0]?.[1] as { body: { preferences: Record<string, unknown> } };
-    expect(body.body.preferences.push).toEqual({ endpoint: "https://push.example/1" });
+    const body = invoke.mock.calls[0]?.[1] as {
+      body: { preferences: { push: Record<string, unknown> } };
+    };
+    expect(body.body.preferences.push.endpoint).toBe("https://push.example/1");
+    /* A stable id for this browser travels alongside the subscription; see
+       lib/pro-trial.ts's browserDeviceId. */
+    expect(typeof body.body.preferences.push.device_id).toBe("string");
+    expect((body.body.preferences.push.device_id as string).length).toBeGreaterThan(0);
   });
 
   it("focuses the heading when the step changes", async () => {
@@ -243,6 +249,21 @@ describe("finishing the wizard", () => {
 
   it("says the account has had its trial when the server refuses it", async () => {
     answers = [{ data: null, error: { context: { status: 409 } } }];
+    const view = openWizard();
+    press(byText(view.container, "button", trial.alerts.continue));
+    press(byText(view.container, "button", trial.push.start));
+    await flush(3);
+    expect(view.container.textContent).toContain(trial.error.alreadyUsed);
+    expect(view.container.textContent).not.toContain(trial.done.title);
+  });
+
+  it("says the same when the refusal arrives as a 200 body rather than a 409", async () => {
+    answers = [
+      {
+        data: { error: "trial_already_used", entitlement: { plan_state: "trialing" } },
+        error: null,
+      },
+    ];
     const view = openWizard();
     press(byText(view.container, "button", trial.alerts.continue));
     press(byText(view.container, "button", trial.push.start));

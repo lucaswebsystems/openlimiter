@@ -314,6 +314,25 @@ impl DeviceLoginSession {
         session_id: &str,
         now: Instant,
     ) -> Result<(Arc<Self>, DeviceLoginStart), DeviceLoginFailure> {
+        Self::start_with_timeout(
+            runner,
+            session_id,
+            now,
+            Duration::from_secs(LOGIN_TIMEOUT_SECONDS),
+        )
+    }
+
+    /// `start`, with the deadline itself an argument.
+    ///
+    /// Tests shrink it to observe, in milliseconds, the backend timer that
+    /// enforces it; the public `start` above always passes the real three
+    /// minutes.
+    fn start_with_timeout<R: DeviceLoginRunner>(
+        runner: &R,
+        session_id: &str,
+        now: Instant,
+        timeout: Duration,
+    ) -> Result<(Arc<Self>, DeviceLoginStart), DeviceLoginFailure> {
         let home = managed_home(session_id).ok_or(DeviceLoginFailure::Storage)?;
         prepare_managed_home(&home)?;
         let mut child = runner.start(&home)?;
@@ -345,15 +364,16 @@ impl DeviceLoginSession {
         let session = Arc::new(Self {
             home,
             child: Mutex::new(child),
-            deadline: now + Duration::from_secs(LOGIN_TIMEOUT_SECONDS),
+            deadline: now + timeout,
             cancelled: Mutex::new(false),
         });
+        arm_deadline_timer(&session, timeout);
         Ok((
             session,
             DeviceLoginStart {
                 user_code,
                 verification_url,
-                expires_in_seconds: LOGIN_TIMEOUT_SECONDS,
+                expires_in_seconds: timeout.as_secs(),
             },
         ))
     }
@@ -368,6 +388,7 @@ impl DeviceLoginSession {
             return DeviceLoginState::Cancelled;
         }
         if credential_written(&self.home) {
+            self.stop_child();
             return DeviceLoginState::Complete;
         }
         if now >= self.deadline {
@@ -384,6 +405,7 @@ impl DeviceLoginSession {
             because it writes the file and exits in that order and this can
             land between the two. */
             if credential_written(&self.home) {
+                self.stop_child();
                 return DeviceLoginState::Complete;
             }
             return DeviceLoginState::Failed {
@@ -398,6 +420,19 @@ impl DeviceLoginSession {
         if let Ok(mut cancelled) = self.cancelled.lock() {
             *cancelled = true;
         }
+        self.stop_child();
+    }
+
+    /// Stop the client without marking this login as somebody's own
+    /// cancellation.
+    ///
+    /// Called the moment the credential file is seen, because the client's
+    /// own job is done at that point and a process nobody is watching for
+    /// its own exit is a process that outlives its usefulness. `cancel`
+    /// above is a different ending: it also flips the flag a later poll reads
+    /// before it ever checks the credential file, and a completed login must
+    /// keep answering Complete on every poll after this one, not Cancelled.
+    fn stop_child(&self) {
         if let Ok(mut child) = self.child.lock() {
             child.stop();
         }
@@ -413,6 +448,27 @@ impl DeviceLoginSession {
     pub fn home(&self) -> &Path {
         &self.home
     }
+}
+
+/// End a login on its own once its deadline passes, whether or not the
+/// webview ever asks this session how it is going again.
+///
+/// The deadline used to fire only as a side effect of `codex_device_login_status`
+/// being polled: close the window, or lose the tab, and nothing was left
+/// checking the clock, so the client kept running past its own three minutes.
+/// One thread, parked for exactly as long as the deadline allows, holding
+/// only a weak reference so a login that already ended cannot be kept alive
+/// by its own timer. Calling `state` is enough: it already knows how to tell
+/// a credential that arrived in time from one that never did, and how to stop
+/// the client either way.
+fn arm_deadline_timer(session: &Arc<DeviceLoginSession>, timeout: Duration) {
+    let session = Arc::downgrade(session);
+    std::thread::spawn(move || {
+        std::thread::sleep(timeout);
+        if let Some(session) = session.upgrade() {
+            let _ = session.state(Instant::now());
+        }
+    });
 }
 
 /// The real runner.
@@ -443,6 +499,19 @@ fn forward_lines<R: std::io::Read>(stream: R, sender: &std::sync::mpsc::Sender<S
 struct SystemChild {
     child: Child,
     lines: std::sync::mpsc::Receiver<String>,
+}
+
+impl Drop for SystemChild {
+    /// `std::process::Child`'s own drop forgets the handle and nothing else:
+    /// it does not kill the process, which is exactly backwards for a child
+    /// this product spawned and nobody outside this file can reach. Every
+    /// path that ends a login already calls `stop`, but a session dropped
+    /// some other way, a panic unwinding through it included, must not leave
+    /// the client running in the background either.
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
 }
 
 impl DeviceLoginChild for SystemChild {
@@ -528,6 +597,22 @@ fn suppress_window(_command: &mut Command) {}
 #[derive(Default)]
 pub struct OpenDeviceLogin {
     open: Mutex<Option<(String, Arc<DeviceLoginSession>)>>,
+}
+
+impl OpenDeviceLogin {
+    /// Stop whatever login this process is holding, regardless of its id.
+    ///
+    /// Called from the application's own exit path (`RunEvent::ExitRequested`
+    /// in `lib.rs`), where there is no particular session id in scope, only
+    /// the fact that the app is going away and a spawned client must not
+    /// outlive it.
+    pub fn cancel_open(&self) {
+        if let Ok(mut held) = self.open.lock() {
+            if let Some((_, session)) = held.take() {
+                session.cancel();
+            }
+        }
+    }
 }
 
 /// Start a Codex device login and hand the window the code and the address.
@@ -928,6 +1013,7 @@ mod tests {
             ],
             true,
         );
+        let stopped = Arc::clone(&stub.stopped);
         let (session, start) = DeviceLoginSession::start(&stub, &session_id(), Instant::now())
             .expect("a started login");
         assert_eq!(start.user_code, "BDXK-9QTZ");
@@ -938,7 +1024,13 @@ mod tests {
         std::fs::write(session.home().join(CREDENTIAL_FILE), "{\"stub\":true}")
             .expect("stub credential");
         assert_eq!(session.state(Instant::now()), DeviceLoginState::Complete);
-        session.cancel();
+        /* Complete stops the client on its own: nobody had to cancel it for
+        that to happen. */
+        assert!(stopped.load(Ordering::SeqCst));
+        /* And a completed login stays completed on a later poll, rather than
+        reading as the person's own cancellation because stopping the client
+        happens to share code with `cancel`. */
+        assert_eq!(session.state(Instant::now()), DeviceLoginState::Complete);
     }
 
     #[test]
@@ -996,6 +1088,79 @@ mod tests {
             .expect("stub credential");
         let after = started + Duration::from_secs(LOGIN_TIMEOUT_SECONDS + 1);
         assert_eq!(session.state(after), DeviceLoginState::Complete);
+    }
+
+    /// The whole point of the backend timer: a login nobody polls again must
+    /// still end on its own, because closing the window is not a poll.
+    #[test]
+    fn the_backend_timer_ends_a_login_nobody_polls_again() {
+        let stub = runner(
+            &[
+                "Open https://auth.openai.com/device",
+                "Your code is BDXK-9QTZ",
+            ],
+            false,
+        );
+        let stopped = Arc::clone(&stub.stopped);
+        let (session, _) = DeviceLoginSession::start_with_timeout(
+            &stub,
+            &session_id(),
+            Instant::now(),
+            Duration::from_millis(20),
+        )
+        .expect("a started login");
+        /* Nothing here ever calls session.state() again: the timer is the
+        only thing watching the clock from here on. */
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(stopped.load(Ordering::SeqCst));
+        drop(session);
+    }
+
+    /// A credential that beat the timer to it is still a success: the timer
+    /// calls the same `state` a poll would, and `state` checks the file
+    /// before it ever checks the clock.
+    #[test]
+    fn the_backend_timer_leaves_a_completed_login_completed() {
+        let stub = runner(
+            &[
+                "Open https://auth.openai.com/device",
+                "Your code is BDXK-9QTZ",
+            ],
+            false,
+        );
+        let (session, _) = DeviceLoginSession::start_with_timeout(
+            &stub,
+            &session_id(),
+            Instant::now(),
+            Duration::from_millis(20),
+        )
+        .expect("a started login");
+        std::fs::write(session.home().join(CREDENTIAL_FILE), "{\"stub\":true}")
+            .expect("stub credential");
+        std::thread::sleep(Duration::from_millis(200));
+        assert_eq!(session.state(Instant::now()), DeviceLoginState::Complete);
+    }
+
+    #[test]
+    fn cancel_open_stops_whatever_is_open_with_no_session_id_in_hand() {
+        let stub = runner(
+            &[
+                "Open https://auth.openai.com/device",
+                "Your code is BDXK-9QTZ",
+            ],
+            false,
+        );
+        let stopped = Arc::clone(&stub.stopped);
+        let (session, _) = DeviceLoginSession::start(&stub, &session_id(), Instant::now())
+            .expect("a started login");
+        let open = OpenDeviceLogin {
+            open: Mutex::new(Some(("whatever-id".to_string(), session))),
+        };
+        /* The app's own exit path, which has no session id to pass, exactly
+        the case codex_device_login_cancel cannot serve on its own. */
+        open.cancel_open();
+        assert!(stopped.load(Ordering::SeqCst));
+        assert!(open.open.lock().unwrap().is_none());
     }
 
     #[test]

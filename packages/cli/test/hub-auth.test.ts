@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CODE_CONSUMED_SENTENCE,
   REVOKED_SENTENCE,
   ensureFreshSession,
   isAborted,
@@ -150,6 +151,26 @@ describe("runDeviceLogin", () => {
       open: false
     });
     expect(outcome.kind).toBe("expired");
+  });
+
+  it("ends as expired with the consumed sentence when the hub says the code was already used, and never keeps polling", async () => {
+    const { transport, sent } = scriptedTransport([
+      { status: 200, body: START_BODY },
+      { status: 200, body: JSON.stringify({ status: "consumed" }) }
+    ]);
+    const outcome = await runDeviceLogin({
+      environment: CONFIGURED,
+      transport,
+      sleep: noSleep(),
+      emit: () => undefined,
+      openBrowser: () => undefined,
+      open: false
+    });
+    expect(outcome.kind).toBe("expired");
+    if (outcome.kind === "expired") {
+      expect(outcome.message).toBe(CODE_CONSUMED_SENTENCE);
+    }
+    expect(sent).toHaveLength(2);
   });
 
   it("gives up once the safety ceiling on polls is reached, never spinning forever", async () => {

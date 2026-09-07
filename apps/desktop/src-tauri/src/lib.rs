@@ -159,7 +159,6 @@ pub fn run() {
             commands::detect_local_tools,
             commands::list_detected_providers,
             commands::rescan_detected_providers,
-            commands::refresh_detected_claude,
             commands::claude_connect_preflight,
             claude_poll_setting::claude_poll_enabled,
             claude_poll_setting::set_claude_poll_enabled,
@@ -249,6 +248,19 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("OpenLimiter could not start");
+        .build(tauri::generate_context!())
+        .expect("OpenLimiter could not start")
+        .run(|app_handle, event| {
+            /* A Codex device login this process spawned must not outlive the
+            app it belongs to. Every ordinary ending already stops it (Drop on
+            the child, a completed login, the login's own deadline timer), but
+            an app quitting mid login is a fourth ending none of those cover
+            on their own: the window is gone before the next poll could ever
+            ask. */
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(open) = app_handle.try_state::<codex_device_login::OpenDeviceLogin>() {
+                    open.cancel_open();
+                }
+            }
+        });
 }

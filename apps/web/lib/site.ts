@@ -90,7 +90,7 @@ export const HERO_BACKDROP_ENABLED: boolean = true;
  * line shown on the download page, so it must be bumped in the same commit
  * that tags a desktop release, never after.
  */
-export const CURRENT_VERSION = "1.2.2";
+export const CURRENT_VERSION = "1.3.1";
 
 /**
  * What actually ships today, in one place, so no surface can quietly promote a

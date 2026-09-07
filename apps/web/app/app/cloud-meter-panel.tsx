@@ -66,10 +66,31 @@ function CloudGlyph({ className = "h-4 w-4" }: { className?: string }) {
 
 /* ------------------------------------------------------------- one stored row */
 
+/**
+ * Which existing sentence a row's last poll status reads with.
+ *
+ * The hub's own vocabulary carries two states no key in this catalog's
+ * `cloud.status` group was ever written for: `rate_limited` and
+ * `unauthorized`. Rather than a copy change on the docs lane's side of this
+ * release, both reuse a sentence already shipped elsewhere in this same `hub`
+ * namespace: the trial wizard's own rate limit line, and the sentence a
+ * refused key already carries in this very form. `needs_attention` reads with
+ * the same "not answering" sentence `error` does, since both mean the same
+ * thing to somebody scanning this list: something here wants a look.
+ */
+const STATUS_MESSAGE_KEY: Record<CloudMeterKey["lastStatus"], string> = {
+  ok: "cloud.status.ok",
+  error: "cloud.status.error",
+  rate_limited: "trial.error.rateLimited",
+  unauthorized: "cloud.form.error",
+  needs_attention: "cloud.status.error",
+  unknown: "cloud.status.unknown",
+};
+
 function StatusChip({ status, t }: { status: CloudMeterKey["lastStatus"]; t: ReturnType<typeof useTranslations> }) {
   return (
     <span className="ol-directory-access" data-access={status === "ok" ? "automatic" : undefined}>
-      {t(`cloud.status.${status}`)}
+      {t(STATUS_MESSAGE_KEY[status])}
     </span>
   );
 }
@@ -146,7 +167,7 @@ function CloudKeyForm({
      one request that sends it. */
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<CloudMeterFailure | "invalid" | null>(null);
+  const [error, setError] = useState<CloudMeterFailure | null>(null);
 
   const submit = useCallback(() => {
     if (key.trim() === "" || label.trim() === "" || busy) return;
@@ -212,7 +233,7 @@ function CloudKeyForm({
             ? t("cloud.needsPro.body")
             : error === "disabled"
               ? t("cloud.disabled")
-              : error === "invalid"
+              : error === "invalidKey"
                 ? t("cloud.form.error")
                 : t("cloud.unavailable")}
         </p>
@@ -351,11 +372,15 @@ export function CloudMeterPanel({
  * Cloud metered spend, in the bars view: a small cloud glyph, the key's own
  * label, and the same dollar row every other reading in this product draws.
  *
- * A key that has never been polled has no amount yet and draws nothing here;
- * it is still listed in Configuration, which is where "has this connected"
- * belongs. This surface only ever shows a reading, never a promise of one.
+ * Every stored key draws a row here, polled or not: a key with no amount and
+ * currency yet reads "First poll pending" (reused from the same status this
+ * catalog already carries for Configuration) rather than being left out, so a
+ * key that was just added is never mistaken for one that does not exist. This
+ * surface still only ever shows a reading or the honest absence of one, never
+ * a number it made up.
  */
 export function CloudSpendRows({ client }: { client: SupabaseClient | null }) {
+  const t = useTranslations("hub");
   const [rows, setRows] = useState<CloudMeterKey[]>([]);
 
   useEffect(() => {
@@ -372,20 +397,21 @@ export function CloudSpendRows({ client }: { client: SupabaseClient | null }) {
     };
   }, [client]);
 
-  const priced = rows.filter((row): row is CloudMeterKey & { amount: number; currency: string } =>
-    row.amount !== null && row.currency !== null,
-  );
-  if (priced.length === 0) return null;
+  if (rows.length === 0) return null;
 
   return (
     <div className="ol-device-money">
-      {priced.map((row) => (
+      {rows.map((row) => (
         <DollarRow
           key={row.id}
           icon={<CloudGlyph className="h-3.5 w-3.5" />}
           name={row.label}
-          amountText={formatCloudAmount(row.amount, row.currency)}
-          stale={row.lastStatus !== "ok"}
+          amountText={
+            row.amount !== null && row.currency !== null
+              ? formatCloudAmount(row.amount, row.currency)
+              : t("cloud.status.pending")
+          }
+          stale={row.lastStatus !== "ok" || row.amount === null || row.currency === null}
         />
       ))}
     </div>

@@ -163,6 +163,13 @@ export interface AcquisitionRunOptions {
   readonly probeAntigravity?: (
     options?: AntigravityProbeOptions
   ) => Promise<AntigravityProbeResult>;
+  /**
+   * How the Antigravity probe turns a pid into the executable path it checks
+   * against the trusted install roots. Threaded through from here rather than
+   * left to the probe's own untrusted fallback, so a caller that wants a
+   * verified reading always gets one: see `resolveAgyExecutablePath`.
+   */
+  readonly resolveExecutablePath?: (pid: string) => Promise<string | null>;
 }
 
 /**
@@ -312,7 +319,10 @@ export async function runAcquisition(
       try {
         probeResult = await options.probeAntigravity({
           now: options.now,
-          ...(options.lookup !== undefined ? { lookup: options.lookup } : {})
+          ...(options.lookup !== undefined ? { lookup: options.lookup } : {}),
+          ...(options.resolveExecutablePath !== undefined
+            ? { resolveExecutablePath: options.resolveExecutablePath }
+            : {})
         });
       } catch {
         probeResult = { ok: false, reason: "unreachable" };

@@ -261,19 +261,27 @@ export async function renewPhonePair(
 export type PhoneRead =
   | { kind: "fresh"; body: unknown }
   | { kind: "revoked" }
+  | { kind: "unpaired" }
   | { kind: "empty" };
 
 /**
  * One read of the account's meters, as a route handler sees it.
  *
- * Every failure keeps the last good bars rather than clearing the screen:
- * being offline on a phone is ordinary, and the reader has no way to tell it
- * apart from a service hiccup. `read_snapshots` never carries the explicit
- * revoked epoch signal (see `isRevokedEpochResponse`), so in practice a read
- * alone never ends a pairing; that only happens through a renewal that hears
- * the server say so. The check stays here anyway, so a future contract change
- * that does add the signal to this endpoint is honoured without another
- * patch.
+ * A transport failure or an upstream error keeps the last good bars rather
+ * than clearing the screen: being offline on a phone is ordinary, and the
+ * reader has no way to tell it apart from a service hiccup. `read_snapshots`
+ * never carries the explicit revoked epoch signal (see
+ * `isRevokedEpochResponse`), so in practice a read alone never ends a
+ * pairing; that only happens through a renewal that hears the server say so.
+ * The check stays here anyway, so a future contract change that does add the
+ * signal to this endpoint is honoured without another patch.
+ *
+ * A 401 is read differently from every other failure: `read_snapshots`
+ * answers it, and only it, for a token this server no longer accepts at all,
+ * whether the cause is a stale token or a revoked epoch. That is not a
+ * service hiccup the phone should quietly retry through; it is the same
+ * "scan again" state a missing cookie already reports, so the route below
+ * forwards it as `unpaired` rather than folding it into `empty`.
  */
 export async function readPhoneBars(
   pair: PhonePair,
@@ -286,6 +294,7 @@ export async function readPhoneBars(
     return { kind: "empty" };
   }
   if (isRevokedEpochResponse(response)) return { kind: "revoked" };
+  if (response.status === 401) return { kind: "unpaired" };
   if (response.status !== 200) return { kind: "empty" };
   return { kind: "fresh", body: response.body };
 }

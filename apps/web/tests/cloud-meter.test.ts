@@ -122,12 +122,26 @@ describe("the wire shape", () => {
   it("reads every valid row out of a list answer and drops the rest", () => {
     const rows = cloudMeterKeysOf({
       rows: [
-        { id: "k1", provider: "moonshot", label: "Kimi key", last_status: "pending" },
+        { id: "k1", provider: "moonshot", label: "Kimi key", last_status: "needs_attention" },
         { id: "bad" },
         { id: "k2", provider: "openrouter", label: "OpenRouter", last_status: "ok" },
       ],
     });
     expect(rows.map((row) => row.id)).toEqual(["k1", "k2"]);
+  });
+
+  it("accepts every status the hub's own vocabulary carries, and nothing else", () => {
+    for (const status of ["ok", "error", "rate_limited", "unauthorized", "needs_attention"]) {
+      expect(cloudMeterKeyOf({ id: "k1", provider: "xai", label: "x", last_status: status })).toMatchObject({
+        lastStatus: status,
+      });
+    }
+    expect(
+      cloudMeterKeyOf({ id: "k1", provider: "xai", label: "x", last_status: "pending" }),
+    ).toMatchObject({ lastStatus: "unknown" });
+    expect(
+      cloudMeterKeyOf({ id: "k1", provider: "xai", label: "x", last_status: "made_up" }),
+    ).toMatchObject({ lastStatus: "unknown" });
   });
 });
 
@@ -145,17 +159,17 @@ describe("the four actions, against a scripted client", () => {
     let sentBody: unknown = null;
     const client = fakeClient(async (_fn, options) => {
       sentBody = (options as { body: unknown }).body;
-      return { data: { id: "k1", provider: "xai", label: "Prod", last_status: "pending" }, error: null };
+      return { data: { id: "k1", provider: "xai", label: "Prod", last_status: "needs_attention" }, error: null };
     });
     const result = await storeCloudKey(client, { provider: "xai", label: "Prod", key: "secret-value" });
     expect(sentBody).toEqual({ action: "store", provider: "xai", label: "Prod", key: "secret-value" });
     expect(result).toEqual({
       ok: true,
-      value: { id: "k1", provider: "xai", label: "Prod", lastStatus: "pending", amount: null, currency: null },
+      value: { id: "k1", provider: "xai", label: "Prod", lastStatus: "needs_attention", amount: null, currency: null },
     });
   });
 
-  it("answers needsPro on a 403 and disabled on a 503", async () => {
+  it("answers needsPro on a 403, disabled on a 503, and invalidKey on a 400 from store", async () => {
     const forbidden = fakeClient(async () => ({
       data: null,
       error: { context: { status: 403 } },
@@ -167,6 +181,12 @@ describe("the four actions, against a scripted client", () => {
 
     const off = fakeClient(async () => ({ data: null, error: { context: { status: 503 } } }));
     expect(await listCloudKeys(off)).toEqual({ ok: false, reason: "disabled" });
+
+    const invalid = fakeClient(async () => ({ data: null, error: { context: { status: 400 } } }));
+    expect(await storeCloudKey(invalid, { provider: "xai", label: "x", key: "k" })).toEqual({
+      ok: false,
+      reason: "invalidKey",
+    });
   });
 
   it("lists, polls and deletes by id", async () => {
@@ -303,7 +323,7 @@ describe("the Configuration panel", () => {
     const client = fakeClient(async (_fn, options) => {
       const body = (options as { body: { action: string } }).body;
       if (body.action === "list") return { data: { rows: [] }, error: null };
-      return { data: { id: "k1", provider: "xai", label: "New key", last_status: "pending" }, error: null };
+      return { data: { id: "k1", provider: "xai", label: "New key", last_status: "needs_attention" }, error: null };
     });
     mounted = render(createElement(CloudMeterPanel, { client, onStartTrial: () => undefined }));
     await flush(3);
@@ -349,6 +369,45 @@ describe("the Configuration panel", () => {
     expect(mounted.container.textContent).toContain("The service did not answer. Try again.");
     expect((mounted.container.querySelector("input[type='password']") as HTMLInputElement).value).toBe("");
   });
+
+  it("shows the invalid key sentence, never the outage sentence, on a 400 from store", async () => {
+    const client = fakeClient(async (_fn, options) => {
+      const body = (options as { body: { action: string } }).body;
+      if (body.action === "list") return { data: { rows: [] }, error: null };
+      return { data: null, error: { context: { status: 400 } } };
+    });
+    mounted = render(createElement(CloudMeterPanel, { client, onStartTrial: () => undefined }));
+    await flush(3);
+
+    typeInto(all(mounted.container, "input[type='text']")[0] ?? null, "Label");
+    typeInto(mounted.container.querySelector("input[type='password']"), "sk-secret");
+    await flush();
+    press(byText(mounted.container, "button", "Add"));
+    await flush(4);
+
+    expect(mounted.container.textContent).toContain("That key could not be added. Check it and try again.");
+    expect(mounted.container.textContent).not.toContain("The service did not answer. Try again.");
+  });
+
+  it("gives rate_limited and unauthorized rows their own sentence in the list", async () => {
+    const client = fakeClient(async (_fn, options) => {
+      const body = (options as { body: { action: string } }).body;
+      if (body.action !== "list") return { data: { ok: true }, error: null };
+      return {
+        data: {
+          rows: [
+            { id: "k1", provider: "xai", label: "Rate limited key", last_status: "rate_limited" },
+            { id: "k2", provider: "moonshot", label: "Unauthorized key", last_status: "unauthorized" },
+          ],
+        },
+        error: null,
+      };
+    });
+    mounted = render(createElement(CloudMeterPanel, { client, onStartTrial: () => undefined }));
+    await flush(3);
+    expect(mounted.container.textContent).toContain("Too many attempts. Try again in a moment.");
+    expect(mounted.container.textContent).toContain("That key could not be added. Check it and try again.");
+  });
 });
 
 describe("the bars view's cloud spend rows", () => {
@@ -357,7 +416,7 @@ describe("the bars view's cloud spend rows", () => {
       data: {
         rows: [
           { id: "k1", provider: "xai", label: "My xAI key", last_status: "ok", amount: 9.5, currency: "USD" },
-          { id: "k2", provider: "moonshot", label: "Unpolled key", last_status: "pending" },
+          { id: "k2", provider: "moonshot", label: "Unpolled key", last_status: "needs_attention" },
         ],
       },
       error: null,
@@ -365,13 +424,34 @@ describe("the bars view's cloud spend rows", () => {
     mounted = render(createElement(CloudSpendRows, { client }));
     await flush(3);
     expect(mounted.container.textContent).toContain("My xAI key");
-    expect(mounted.container.textContent).not.toContain("Unpolled key");
     expect(mounted.container.querySelector("svg")).not.toBeNull();
   });
 
-  it("draws nothing at all with no client or no priced rows", async () => {
+  it("never hides an unpolled key, and reads its unpolled sentence rather than nothing", async () => {
+    const client = fakeClient(async () => ({
+      data: {
+        rows: [{ id: "k2", provider: "moonshot", label: "Unpolled key", last_status: "needs_attention" }],
+      },
+      error: null,
+    }));
+    mounted = render(createElement(CloudSpendRows, { client }));
+    await flush(3);
+    expect(mounted.container.textContent).toContain("Unpolled key");
+    expect(mounted.container.textContent).toContain("First poll pending");
+    expect(
+      mounted.container.querySelector("[data-state='stale']"),
+    ).not.toBeNull();
+  });
+
+  it("draws nothing at all with no client or no rows", async () => {
     mounted = render(createElement(CloudSpendRows, { client: null }));
     await flush();
+    expect(mounted.container.textContent?.trim()).toBe("");
+
+    const empty = fakeClient(async () => ({ data: { rows: [] }, error: null }));
+    mounted.unmount();
+    mounted = render(createElement(CloudSpendRows, { client: empty }));
+    await flush(3);
     expect(mounted.container.textContent?.trim()).toBe("");
   });
 });
@@ -405,7 +485,7 @@ describe("the OpenRouter callback page", () => {
     let storedBody: unknown = null;
     const client = fakeClient(async (_fn, options) => {
       storedBody = (options as { body: unknown }).body;
-      return { data: { id: "k1", provider: "openrouter", label: "OpenRouter", last_status: "pending" }, error: null };
+      return { data: { id: "k1", provider: "openrouter", label: "OpenRouter", last_status: "needs_attention" }, error: null };
     });
 
     mounted = render(

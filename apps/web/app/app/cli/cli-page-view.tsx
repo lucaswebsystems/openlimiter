@@ -23,6 +23,7 @@ import {
   stopAccountClient,
   writeKeepSignedIn,
 } from "@/lib/account-client";
+import { stripQueryParam } from "@/lib/browser-history";
 import {
   callCliLogin,
   cleanCliCode,
@@ -150,7 +151,10 @@ export function CliPageView({
     }
     if (typeof window !== "undefined") {
       const param = new URLSearchParams(window.location.search).get("code");
-      if (param) setCode(cleanCliCode(param));
+      if (param) {
+        setCode(cleanCliCode(param));
+        stripQueryParam("code");
+      }
     }
   }, [initialCode]);
 

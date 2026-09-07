@@ -8,7 +8,8 @@ import {
   parseAgyQuotaSummary,
   parseLoopbackPort,
   parseNetstatPorts,
-  probeAntigravity
+  probeAntigravity,
+  resolveAgyExecutablePath
 } from "../src/acquire/antigravity-probe.js";
 import { runAcquisition } from "../src/acquire/runner.js";
 import { antigravitySpec } from "../src/acquire/providers.js";
@@ -88,7 +89,7 @@ describe("Antigravity loopback probe", () => {
     expect(parseAgyQuotaSummary({ response: { groups: [] } }, NOW)).toBeNull();
   });
 
-  it("enumerates listening ports on Windows via stubbed commands", async () => {
+  it("enumerates listening ports on Windows via stubbed commands, once a resolver verifies the pid", async () => {
     const mockRunner = async (executable: string) => {
       if (executable === "tasklist.exe") {
         return {
@@ -109,9 +110,43 @@ describe("Antigravity loopback probe", () => {
 
     const ports = await enumerateAgyListeningPorts({
       platform: "win32",
-      runCommand: mockRunner
+      runCommand: mockRunner,
+      resolveExecutablePath: async () => "C:\\Program Files\\Antigravity\\agy.exe"
     });
     expect(ports).toEqual([57737]);
+  });
+
+  it("fails closed on the Windows tasklist fallback: no resolver, no trust, no port", async () => {
+    const mockRunner = async (executable: string) => {
+      if (executable === "tasklist.exe") {
+        return {
+          ok: true as const,
+          stdout: '"agy.exe","29012","Console","1","58,984 K"\r\n'
+        };
+      }
+      if (executable === "netstat.exe") {
+        return {
+          ok: true as const,
+          stdout: "  TCP    127.0.0.1:57737        0.0.0.0:0              LISTENING       29012\r\n"
+        };
+      }
+      return { ok: false as const };
+    };
+
+    /* No resolveExecutablePath at all: this build has nothing to check the
+       bare name "agy.exe" against, so it trusts nothing rather than trusting
+       it anyway. */
+    const withoutResolver = await enumerateAgyListeningPorts({ platform: "win32", runCommand: mockRunner });
+    expect(withoutResolver).toEqual([]);
+
+    /* A resolver that itself could not name the executable is the same
+       answer: skipped, never trusted. */
+    const withFailingResolver = await enumerateAgyListeningPorts({
+      platform: "win32",
+      runCommand: mockRunner,
+      resolveExecutablePath: async () => null
+    });
+    expect(withFailingResolver).toEqual([]);
   });
 
   it("returns empty ports when agy is not running on Windows", async () => {
@@ -149,6 +184,25 @@ describe("Antigravity loopback probe", () => {
       runCommand: mockRunner
     });
     expect(ports).toEqual([44321]);
+  });
+
+  it("fails closed on macOS/Linux when the executable cannot be resolved, rather than trusting the port", async () => {
+    const mockRunner = async (executable: string) => {
+      if (executable === "lsof") {
+        return {
+          ok: true as const,
+          stdout: "agy  29012 user  4u  IPv4  0x1234  0t0  TCP 127.0.0.1:44321 (LISTEN)\n"
+        };
+      }
+      /* ps cannot name this pid's command: the process may already be gone. */
+      return { ok: false as const };
+    };
+
+    const ports = await enumerateAgyListeningPorts({
+      platform: "darwin",
+      runCommand: mockRunner
+    });
+    expect(ports).toEqual([]);
   });
 
   it("probe reports not_running when port list is empty", async () => {
@@ -300,6 +354,55 @@ describe("Antigravity loopback probe", () => {
       runCommand: mockUntrustedRunner
     });
     expect(untrustedPorts).toEqual([]);
+  });
+
+  it("resolveAgyExecutablePath asks Windows for the one pid's own record", async () => {
+    const runner = async (executable: string, args: readonly string[]) => {
+      expect(executable).toBe("powershell.exe");
+      expect(args.join(" ")).toContain("ProcessId=31415");
+      return { ok: true as const, stdout: "C:\\Program Files\\Antigravity\\agy.exe\r\n" };
+    };
+    expect(await resolveAgyExecutablePath("31415", "win32", runner)).toBe(
+      "C:\\Program Files\\Antigravity\\agy.exe"
+    );
+  });
+
+  it("resolveAgyExecutablePath asks ps on macOS", async () => {
+    const runner = async (executable: string, args: readonly string[]) => {
+      if (executable === "ps") {
+        expect(args).toContain("31415");
+        return { ok: true as const, stdout: "/opt/agy\n" };
+      }
+      return { ok: false as const };
+    };
+    expect(await resolveAgyExecutablePath("31415", "darwin", runner)).toBe("/opt/agy");
+  });
+
+  it("resolveAgyExecutablePath answers null rather than trusting a pid it could not resolve", async () => {
+    expect(await resolveAgyExecutablePath("not-a-pid", "win32", async () => ({ ok: false }))).toBeNull();
+    expect(await resolveAgyExecutablePath("31415", "win32", async () => ({ ok: false }))).toBeNull();
+    expect(await resolveAgyExecutablePath("31415", "darwin", async () => ({ ok: true, stdout: "" }))).toBeNull();
+  });
+
+  it("threads a resolver from runAcquisition all the way down to the probe", async () => {
+    const resolved: string[] = [];
+    const result = await runAcquisition([antigravitySpec(() => [])], {
+      transport: async () => ({ status: 200, body: "{}", retryAfterSeconds: null }),
+      now: NOW,
+      schedule: {},
+      readCredential: async () => ({ ok: false, reason: "absent" }),
+      resolveExecutablePath: async (pid) => {
+        resolved.push(pid);
+        return null;
+      },
+      probeAntigravity: async (options) => {
+        expect(options?.resolveExecutablePath).toBeDefined();
+        await options?.resolveExecutablePath?.("1234");
+        return { ok: false, reason: "not_running" };
+      }
+    });
+    expect(resolved).toEqual(["1234"]);
+    expect(result.rows[0]?.status).toBe("stale");
   });
 
   it("enforces 64 KB response size cap in probeAntigravity", async () => {

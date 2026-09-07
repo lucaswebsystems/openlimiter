@@ -22,6 +22,10 @@ const SYNC_DEVICE_CREDENTIAL_ID: &str = "openlimiter-sync-device-id";
 const SYNC_CURSOR_CREDENTIAL_ID: &str = "openlimiter-sync-cursor";
 const CONFIGURED_PROVIDERS_CREDENTIAL_ID: &str = "openlimiter-configured-providers";
 const LOOPBACK_CALLBACK: &str = "http://127.0.0.1:17391/auth/callback";
+/// `LOOPBACK_CALLBACK`'s own path, the one address `oauth_request` ever
+/// answers as a real callback. Named apart from the constant above so the two
+/// cannot drift without the mismatch being visible at the call site.
+const LOOPBACK_CALLBACK_PATH: &str = "/auth/callback";
 const MAX_RESPONSE_BYTES: usize = 131_072;
 const MAX_REQUEST_BYTES: usize = 8_192;
 const NETWORK_TIMEOUT_SECONDS: u64 = 15;
@@ -1179,6 +1183,19 @@ fn oauth_request(listener: &TcpListener) -> Result<(String, String), AccountFail
                     .ok_or(AccountFailure::OauthRejected)?;
                 let url = Url::parse(&format!("http://127.0.0.1:17391{target}"))
                     .map_err(|_| AccountFailure::OauthRejected)?;
+                /* Only the address this device actually told the provider to
+                come back to is ever treated as the callback. This loopback
+                port has no other reason to exist, so anything else that
+                reaches it, a stray probe, a browser tab's own background
+                request, another program guessing at the port, is answered
+                and ignored rather than read as this sign in's own code and
+                state: a request nobody here asked for is not proof of who
+                sent it. */
+                if url.path() != LOOPBACK_CALLBACK_PATH {
+                    let _ = stream
+                        .write_all(b"HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+                    continue;
+                }
                 let code = url
                     .query_pairs()
                     .find(|(key, _)| key == "code")
@@ -1456,6 +1473,46 @@ mod tests {
         .expect("status");
         assert!(!value.contains("token"));
         assert!(!value.contains("secret"));
+    }
+
+    #[test]
+    fn oauth_request_only_answers_the_configured_callback_path() {
+        use std::net::TcpStream;
+
+        let listener = TcpListener::bind("127.0.0.1:17391").expect("the loopback port");
+        listener.set_nonblocking(true).expect("nonblocking");
+        let handle = std::thread::spawn(move || oauth_request(&listener));
+
+        /* A path this device never told the provider to use: answered and
+        ignored, never read as this sign in's own code and state. */
+        {
+            let mut probe = TcpStream::connect("127.0.0.1:17391").expect("connect");
+            probe
+                .write_all(
+                    b"GET /not-the-callback?code=stolen&state=x HTTP/1.1\r\nHost: x\r\n\r\n",
+                )
+                .expect("write");
+            let mut buffer = [0_u8; 256];
+            let count = probe.read(&mut buffer).expect("read");
+            assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 404"));
+        }
+
+        /* The address this device actually asked for: the one answered as a
+        real, signed in callback. */
+        {
+            let mut real = TcpStream::connect("127.0.0.1:17391").expect("connect");
+            real.write_all(
+                b"GET /auth/callback?code=real-code&state=real-state HTTP/1.1\r\nHost: x\r\n\r\n",
+            )
+            .expect("write");
+            let mut buffer = [0_u8; 256];
+            let count = real.read(&mut buffer).expect("read");
+            assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 200"));
+        }
+
+        let (code, state) = handle.join().expect("thread joined").expect("oauth_request");
+        assert_eq!(code, "real-code");
+        assert_eq!(state, "real-state");
     }
 
     #[test]
@@ -1746,7 +1803,7 @@ mod tests {
                 event_id: "3f7a2b18-5c94-4a6d-9f21-6b0d5c8e4a72",
                 previous_sequence: 41,
                 observed_at: "2026-09-07T12:00:00.000Z",
-                client_version: "1.3.0",
+                client_version: "1.3.1",
             },
             vec![
                 UsageSample {

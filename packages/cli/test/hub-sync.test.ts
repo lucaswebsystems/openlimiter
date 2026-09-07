@@ -154,6 +154,26 @@ describe("usageSamplesFromSnapshots", () => {
     const rows = usageSamplesFromSnapshots([usageSnapshot({ value: 142 })], NOW);
     expect(rows).toHaveLength(0);
   });
+
+  it("never treats API_BUDGET_PERCENT as a usage window, even at PERCENT unit, whichever provider carries it", () => {
+    const openrouterBudget = usageSnapshot({ provider: "OPENROUTER", meter: "API_BUDGET_PERCENT", value: 40 });
+    /* Moonshot's own budget reading carries provider KIMI in this build's own
+       vocabulary (PROVIDER_CODES has no MOONSHOT at all), distinguished from
+       an ordinary Kimi Code usage window by this same meter name alone. */
+    const kimiBudget = usageSnapshot({ provider: "KIMI", meter: "API_BUDGET_PERCENT", value: 12 });
+    const kimiUsage = usageSnapshot({ provider: "KIMI", meter: "FIVE_HOUR", value: 30 });
+    const ordinary = usageSnapshot();
+    const rows = usageSamplesFromSnapshots([openrouterBudget, kimiBudget, kimiUsage, ordinary], NOW);
+    expect(rows.map((row) => row.provider).sort()).toEqual(["CLAUDE", "KIMI"]);
+  });
+
+  it("drops a row whose account id is present but not shaped like one, rather than defaulting it", () => {
+    const malformed = usageSnapshot({ accountId: "Not Valid!" });
+    const missing = usageSnapshot({ meter: "SEVEN_DAY" });
+    const rows = usageSamplesFromSnapshots([malformed, missing], NOW);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.account_id).toBe("default");
+  });
 });
 
 describe("apiSpendSamplesFromSnapshots", () => {
@@ -171,6 +191,25 @@ describe("apiSpendSamplesFromSnapshots", () => {
     const first = apiSpendSamplesFromSnapshots([spendSnapshot()], NOW);
     const second = apiSpendSamplesFromSnapshots([spendSnapshot()], NOW);
     expect(first[0]?.source_id).toBe(second[0]?.source_id);
+  });
+
+  it("drops a spend row whose account id is present but not shaped like one", () => {
+    const rows = apiSpendSamplesFromSnapshots([spendSnapshot({ accountId: "Not Valid!" })], NOW);
+    expect(rows).toHaveLength(0);
+  });
+});
+
+describe("a cache holding both a budget reading and a Kimi usage reading", () => {
+  it("uploads the usage window but never the budget reading, so the hub never sees a row it would reject", () => {
+    const cache = [
+      usageSnapshot({ provider: "OPENROUTER", meter: "API_BUDGET_PERCENT", value: 40 }),
+      usageSnapshot({ provider: "KIMI", meter: "API_BUDGET_PERCENT", value: 12 }),
+      usageSnapshot({ provider: "KIMI", meter: "FIVE_HOUR", value: 30 }),
+      usageSnapshot()
+    ];
+    const usage = usageSamplesFromSnapshots(cache, NOW);
+    expect(usage.map((row) => row.provider).sort()).toEqual(["CLAUDE", "KIMI"]);
+    expect(usage.some((row) => row.meter === "API_BUDGET_PERCENT")).toBe(false);
   });
 });
 

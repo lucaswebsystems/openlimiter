@@ -242,6 +242,60 @@ describe("terminal host installers", () => {
     expect(await hostStatus("shell", ctx)).toBe(STATUS_NOT_WIRED);
   });
 
+  it("resolves the shell profile by asking pwsh first, never a hardcoded Documents path", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const resolvedProfile = path.join(home, "asked-pwsh-profile.ps1");
+    const calls: string[] = [];
+    const ctx: TerminalHostContext = {
+      homeDirectory: home,
+      platform: "win32",
+      shellRunner: async (executable) => {
+        calls.push(executable);
+        if (executable === "pwsh.exe") return { ok: true, stdout: resolvedProfile + "\r\n" };
+        return { ok: false };
+      }
+    };
+    const installed = await installHost("shell", ctx);
+    expect(installed.ok).toBe(true);
+    expect(calls).toEqual(["pwsh.exe"]);
+    const written = await readFile(resolvedProfile, "utf8");
+    expect(written).toContain("openlimiter statusline");
+    expect(await hostStatus("shell", ctx)).toBe(STATUS_WIRED);
+  });
+
+  it("falls back to powershell.exe when pwsh cannot answer, and to the hardcoded guess when neither can", async () => {
+    const home = await temporaryDirectory("openlimiter-terminal-");
+    const resolvedProfile = path.join(home, "asked-powershell-profile.ps1");
+    const ctxWithPowershell: TerminalHostContext = {
+      homeDirectory: home,
+      platform: "win32",
+      shellRunner: async (executable) => {
+        if (executable === "powershell.exe") return { ok: true, stdout: resolvedProfile };
+        return { ok: false };
+      }
+    };
+    await installHost("shell", ctxWithPowershell);
+    expect(await readFile(resolvedProfile, "utf8")).toContain("openlimiter statusline");
+
+    const ctxWithNeither: TerminalHostContext = {
+      homeDirectory: home,
+      platform: "win32",
+      shellRunner: async () => ({ ok: false })
+    };
+    const installed = await installHost("shell", ctxWithNeither);
+    expect(installed.ok).toBe(true);
+    /* Neither shell answered: the same hardcoded default this build always
+       used, not an error. */
+    expect(await hostStatus("shell", ctxWithNeither)).toBe(STATUS_WIRED);
+    const fallbackPath = path.join(
+      home,
+      "Documents",
+      "WindowsPowerShell",
+      "Microsoft.PowerShell_profile.ps1"
+    );
+    expect(await readFile(fallbackPath, "utf8")).toContain("openlimiter statusline");
+  });
+
   it("lists every host in the status table, one row each", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const ctx = await context(home);

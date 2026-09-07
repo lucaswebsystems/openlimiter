@@ -40,10 +40,28 @@ function envValue(
   return value === undefined ? "" : value;
 }
 
-/** The hub's base address, overridable for a non production build or a test. */
+/**
+ * The hub's base address: the project host by default, or any address an
+ * override explicitly names, https only either way.
+ *
+ * An unset override is the project host, always https because the constant
+ * above is. A set override is honoured for whatever host it names, which is
+ * what a non production build or a test needs, but never over plain http: a
+ * device flow's code, a sync upload and a renewal's refresh credential all
+ * travel here, and an override that quietly downgraded any one of those to
+ * http would be a credential leak nobody asked for. An override that fails
+ * this bar, http or simply unreadable as a URL, is treated the same as one
+ * that was never set.
+ */
 export function hubBaseUrl(environment: Readonly<Record<string, string | undefined>>): string {
   const configured = envValue(environment, "OPENLIMITER_SUPABASE_URL");
-  return configured === "" ? DEFAULT_HUB_URL : configured;
+  if (configured === "") return DEFAULT_HUB_URL;
+  try {
+    if (new URL(configured).protocol !== "https:") return DEFAULT_HUB_URL;
+  } catch {
+    return DEFAULT_HUB_URL;
+  }
+  return configured;
 }
 
 /** The publishable key: the environment override when set, the shipped default otherwise, and the literal off disables the hub. */

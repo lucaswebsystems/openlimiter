@@ -285,18 +285,24 @@ pub(crate) fn roots_for_platform(
     platform: TargetPlatform,
     home: Option<&Path>,
     local_app_data: Option<&Path>,
-    app_data: Option<&Path>,
+    /* %APPDATA% itself is never a root: see the comment on the Windows arm
+    below. The parameter stays, unused, rather than reshaping every call site
+    (including `install_roots` and this file's own tests) around its removal. */
+    _app_data: Option<&Path>,
     program_files: &[Option<&Path>],
 ) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     match platform {
         TargetPlatform::Windows => {
+            /* The bare %LOCALAPPDATA% and %APPDATA% roots are refused on
+            purpose: both are where a browser download, an archive extraction
+            or an installer's own temp files land too, not only where software
+            legitimately lives. Their `Programs` subfolder is the actual
+            install location and stays; the two broad parents around it do
+            not, so an executable planted anywhere else under either one is
+            never mistaken for the real client. */
             if let Some(lad) = local_app_data {
                 roots.push(lad.join("Programs"));
-                roots.push(lad.to_path_buf());
-            }
-            if let Some(ad) = app_data {
-                roots.push(ad.to_path_buf());
             }
             for pf in program_files.iter().flatten() {
                 roots.push(pf.to_path_buf());
@@ -999,6 +1005,17 @@ mod tests {
         assert!(trusted_agy_executable(win_accepted_bin, &win_roots));
         assert!(trusted_agy_executable(win_accepted_apps, &win_roots));
         assert!(!trusted_agy_executable(win_refused, &win_roots));
+
+        /* The bare %LOCALAPPDATA% and %APPDATA% roots are refused: only their
+        Programs subfolder is where software legitimately lives, and the two
+        broad parents around it are exactly where a browser download or an
+        archive extraction lands too. */
+        let win_refused_bare_local =
+            Path::new(r"C:\Users\someone\AppData\Local\Temp\agy.exe");
+        let win_refused_bare_roaming =
+            Path::new(r"C:\Users\someone\AppData\Roaming\Downloads\agy.exe");
+        assert!(!trusted_agy_executable(win_refused_bare_local, &win_roots));
+        assert!(!trusted_agy_executable(win_refused_bare_roaming, &win_roots));
 
         // macOS: ~/Applications, ~/bin, /Applications
         let mac_roots = roots_for_platform(

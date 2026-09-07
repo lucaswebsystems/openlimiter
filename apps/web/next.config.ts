@@ -71,6 +71,15 @@ const nextConfig: NextConfig = {
    * than trusting the page's own `metadata.referrer` alone: a `<meta>` tag is
    * something every embedder and crawler has to choose to honour, and a header
    * is the one guarantee that applies before any of that policy is even read.
+   *
+   * `/app/cli` and `/app/openrouter/callback` carry the same shape of secret in
+   * their own query string, a terminal sign in code on the first and an OAuth
+   * authorization code on the second, both one time and both read out of the
+   * URL by the page itself, which is also stripped there (see
+   * lib/browser-history.ts). The header is the same belt this app already
+   * wears for the pairing code: neither page ever loads anything cross origin,
+   * so this costs nothing and closes the one path a stray Referer header would
+   * otherwise still be able to use.
    */
   async headers() {
     return [
@@ -80,6 +89,14 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/app/pair/api/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+      {
+        source: "/app/cli",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+      {
+        source: "/app/openrouter/callback",
         headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
       },
     ];

@@ -33,6 +33,7 @@ import {
   spawnDetachedRefresh,
   writeAcquisitionSchedule,
   probeAntigravity,
+  resolveAgyExecutablePath,
   type AntigravityProbeOptions,
   type AntigravityProbeResult,
   type AcquisitionProvider,
@@ -252,6 +253,15 @@ export interface CliDependencies {
    */
   probeAntigravity?: (options?: AntigravityProbeOptions) => Promise<AntigravityProbeResult>;
   /**
+   * Turn a pid the Antigravity probe found listening into the executable path
+   * it checks against the trusted install roots.
+   *
+   * Reaches nothing by default in tests, exactly like `probeAntigravity`
+   * above: an unresolved pid is a pid the probe skips, never one it trusts on
+   * a bare process name. The real executable injects `resolveAgyExecutablePath`.
+   */
+  resolveExecutablePath?: (pid: string) => Promise<string | null>;
+  /**
    * Interactive prompt choice helper.
    */
   promptChoice?: (question: string) => Promise<string>;
@@ -418,6 +428,7 @@ export function runtimeDependencies(): Pick<
   | "spawnDetached"
   | "windowsCredentialRunner"
   | "probeAntigravity"
+  | "resolveExecutablePath"
   | "hubTransport"
   | "openBrowser"
   | "emit"
@@ -427,6 +438,7 @@ export function runtimeDependencies(): Pick<
   return {
     acquisitionTransport: createFetchTransport(),
     probeAntigravity,
+    resolveExecutablePath: resolveAgyExecutablePath,
     spawnDetached: (executable, argumentsList, options) => {
       const child = spawn(executable, [...argumentsList], {
         detached: true,
@@ -880,7 +892,10 @@ async function refreshCommand(
       stamp: acquisitionStamp,
       ...(dependencies.probeAntigravity === undefined
         ? {}
-        : { probeAntigravity: dependencies.probeAntigravity })
+        : { probeAntigravity: dependencies.probeAntigravity }),
+      ...(dependencies.resolveExecutablePath === undefined
+        ? {}
+        : { resolveExecutablePath: dependencies.resolveExecutablePath })
     });
     /*
      * Ownership is checked before every write, not once at the start. A round
@@ -1816,7 +1831,10 @@ function terminalContext(
       ? {}
       : { stateDirectory: dependencies.stateDirectory }),
     platform: dependencies.platform,
-    detectedProviders: detected
+    detectedProviders: detected,
+    ...(dependencies.windowsCredentialRunner === undefined
+      ? {}
+      : { shellRunner: dependencies.windowsCredentialRunner })
   };
 }
 
@@ -1945,7 +1963,7 @@ async function loginCommand(
   if (outcome.kind === "cancelled") return fail(EXIT_FAILURE, "openlimiter login: cancelled.");
   if (outcome.kind === "denied") return fail(EXIT_FAILURE, "openlimiter login: the sign in was denied.");
   if (outcome.kind === "expired") {
-    return fail(EXIT_FAILURE, "openlimiter login: the code expired before it was approved.");
+    return fail(EXIT_FAILURE, outcome.message ?? "openlimiter login: the code expired before it was approved.");
   }
   if (outcome.kind === "not_configured") {
     return fail(EXIT_FAILURE, "openlimiter login: the hub is not configured on this build.");

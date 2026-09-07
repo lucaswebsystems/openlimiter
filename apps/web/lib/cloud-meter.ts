@@ -14,10 +14,11 @@ import { callProFunction } from "./pro";
  * A 403 means the account is not entitled (`{ error: "feature", feature:
  * "api_spend" }`, the same "buy the feature" shape every other Pro gate in
  * this app answers with); a 503 means the surface itself is switched off
- * server side. Both are told apart from an ordinary failure because the
+ * server side; a 400 from `store` means the key itself was rejected, never an
+ * outage. All three are told apart from an ordinary failure because the
  * Configuration panel draws a different card for each: a trial offer for the
- * first, "try again later" for the second, and a plain retry for anything
- * else.
+ * first, "try again later" for the second, "check the key" for the third, and
+ * a plain retry for anything else.
  */
 
 /** Every provider the cloud can hold a key for and poll on its own. */
@@ -31,8 +32,8 @@ export const CLOUD_METER_PROVIDERS = [
 
 export type CloudMeterProvider = (typeof CLOUD_METER_PROVIDERS)[number];
 
-/** The four states a stored key's last poll can report. */
-export type CloudMeterStatus = "ok" | "error" | "pending" | "unknown";
+/** Every state a stored key's last poll can report, per the hub contract. */
+export type CloudMeterStatus = "ok" | "error" | "rate_limited" | "unauthorized" | "needs_attention" | "unknown";
 
 export interface CloudMeterKey {
   id: string;
@@ -44,7 +45,7 @@ export interface CloudMeterKey {
   currency: string | null;
 }
 
-export type CloudMeterFailure = "needsPro" | "disabled" | "unavailable";
+export type CloudMeterFailure = "needsPro" | "disabled" | "invalidKey" | "unavailable";
 
 export type CloudMeterResult<T> =
   | { ok: true; value: T }
@@ -63,7 +64,13 @@ function providerOf(value: unknown): CloudMeterProvider | null {
 }
 
 function statusOf(value: unknown): CloudMeterStatus {
-  return value === "ok" || value === "error" || value === "pending" ? value : "unknown";
+  return value === "ok" ||
+    value === "error" ||
+    value === "rate_limited" ||
+    value === "unauthorized" ||
+    value === "needs_attention"
+    ? value
+    : "unknown";
 }
 
 function amount(value: unknown): number | null {
@@ -110,6 +117,7 @@ export function cloudMeterKeysOf(value: unknown): CloudMeterKey[] {
 function failureOf(status: number | null): CloudMeterFailure {
   if (status === 403) return "needsPro";
   if (status === 503) return "disabled";
+  if (status === 400) return "invalidKey";
   return "unavailable";
 }
 

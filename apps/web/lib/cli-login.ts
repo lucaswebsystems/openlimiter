@@ -92,6 +92,7 @@ export function parseCliLoginResponse(data: unknown, error: unknown): CliLoginOu
     if (status === 404) return { ok: false, error: "unknown_code", deviceLabel };
     if (status === 410) return { ok: false, error: "expired", deviceLabel };
     if (status === 409) return { ok: false, error: "already_used", deviceLabel };
+    if (status === 403) return { ok: false, error: "device_cap", deviceLabel };
     return { ok: false, error: "unavailable", deviceLabel };
   }
 

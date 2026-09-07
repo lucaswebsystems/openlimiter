@@ -82,6 +82,40 @@ export function trialFailureForStatus(status: number | null): TrialFailure {
   return "unavailable";
 }
 
+/** The one local storage key this browser's own hub device id lives under. */
+export const HUB_DEVICE_ID_KEY = "openlimiter-hub-device-id";
+
+function randomDeviceId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * A stable id for this browser, sent alongside a push subscription so the
+ * server can tell one browser's registration from another's.
+ *
+ * A browser tab starting a trial holds no device grant yet, so there is no
+ * registered device id to reuse the way `registerProPush` reuses one. What
+ * this reads back instead is whatever this same browser already generated for
+ * an earlier push or pairing attempt, kept under its own hub key; a browser
+ * with none gets one made once, stored under that key, and read back
+ * unchanged on every later call.
+ */
+export function browserDeviceId(): string {
+  if (typeof window === "undefined") return randomDeviceId();
+  try {
+    const existing = window.localStorage.getItem(HUB_DEVICE_ID_KEY);
+    if (existing !== null && existing !== "") return existing;
+    const generated = randomDeviceId();
+    window.localStorage.setItem(HUB_DEVICE_ID_KEY, generated);
+    return generated;
+  } catch {
+    return randomDeviceId();
+  }
+}
+
 function preferenceBody(preferences: TrialPreferences): Record<string, unknown> {
   const alerts = {
     thresholds: [...preferences.alerts.thresholds].sort((left, right) => left - right),
@@ -89,7 +123,7 @@ function preferenceBody(preferences: TrialPreferences): Record<string, unknown> 
   };
   return preferences.push === undefined
     ? { alerts }
-    : { alerts, push: preferences.push };
+    : { alerts, push: { ...preferences.push, device_id: browserDeviceId() } };
 }
 
 /**
@@ -109,6 +143,13 @@ export async function startProTrial(
     preferences: preferenceBody(preferences),
   });
   if (!result.ok) return { ok: false, reason: trialFailureForStatus(result.status) };
+  /* A 409 is the ordinary path (`result.ok` is false, above), but this guards
+     the same refusal delivered as a 200 body: `{ error: "trial_already_used",
+     entitlement }`. Either way this is never a success, and the wizard is
+     never allowed to read it as one. */
+  if (result.value.error === "trial_already_used") {
+    return { ok: false, reason: "alreadyUsed" };
+  }
   return { ok: true, value: entitlementOf(result.value.entitlement) };
 }
 

@@ -44,7 +44,7 @@ export const SYNC_SCHEMA_VERSION = 2;
  * inside a command a status line depends on. See `acquire/identity.ts` in the
  * core package for the same choice, made for the same reason.
  */
-export const SYNC_CLIENT_VERSION = "1.2.0";
+export const SYNC_CLIENT_VERSION = "1.3.1";
 
 /** Most rows one envelope may carry, usage and spend counted together. */
 export const SYNC_MAX_ROWS = 128;
@@ -100,10 +100,21 @@ export interface SyncEnvelope {
 
 const ACCOUNT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 
-function accountIdOf(snapshot: Snapshot): string {
-  return typeof snapshot.accountId === "string" && ACCOUNT_ID_PATTERN.test(snapshot.accountId)
-    ? snapshot.accountId
-    : "default";
+/** The meter a budget reading uses, PERCENT unit and all: never a usage window. */
+const EXCLUDED_USAGE_METER = "API_BUDGET_PERCENT";
+
+/**
+ * A row's account id, exactly as the desktop's own cache reader decides it.
+ *
+ * See `usage_samples_from_cache` in account.rs: absent is "default", the
+ * ordinary single account case, but present and not shaped like an account id
+ * is not quietly corrected to "default" either, because merging a malformed
+ * id into the shared default bucket is its own wrong reading. Null here means
+ * the row this id belongs to is dropped, not defaulted.
+ */
+function accountIdOf(snapshot: Snapshot): string | null {
+  if (snapshot.accountId === undefined) return "default";
+  return ACCOUNT_ID_PATTERN.test(snapshot.accountId) ? snapshot.accountId : null;
 }
 
 /**
@@ -111,9 +122,21 @@ function accountIdOf(snapshot: Snapshot): string {
  * for the terminal and the tray.
  *
  * Only `PERCENT` rows are usage: a credit or token count is not a usage
- * fraction and does not belong beside one. A row that fails a bound is
- * dropped rather than repaired, matching the same rule the desktop reads its
- * own cache by.
+ * fraction and does not belong beside one. `API_BUDGET_PERCENT` is excluded
+ * too, porting the same rule `usage_samples_from_cache` in account.rs reads
+ * its own cache by: it is a budget reading at PERCENT unit, not a usage
+ * window, and sending it is exactly what gets a whole envelope rejected
+ * rather than the one row dropped, since the hub does not recognise it as
+ * usage at all. The Rust reader excludes the Moonshot provider by name too,
+ * as a second, belt and suspenders check; nothing here reproduces that one,
+ * because it cannot fire on this side of the boundary. Moonshot's own budget
+ * reading already carries provider `KIMI` in this build's own vocabulary
+ * (`PROVIDER_CODES` in types.ts has no `MOONSHOT` at all, and
+ * `normalizeMeter` refuses the whole reading for any provider string outside
+ * that set before a `Snapshot` is ever built), so the meter check above is
+ * this side's whole answer, not half of one. A row that fails a bound,
+ * including an unreadable account id, is dropped rather than repaired,
+ * matching the same rule the desktop reads its own cache by.
  */
 export function usageSamplesFromSnapshots(
   snapshots: readonly Snapshot[],
@@ -122,9 +145,12 @@ export function usageSamplesFromSnapshots(
   const rows: UsageSample[] = [];
   for (const snapshot of snapshots) {
     if (snapshot.unit !== "PERCENT") continue;
+    if (snapshot.meter === EXCLUDED_USAGE_METER) continue;
     if (!Number.isFinite(snapshot.value) || snapshot.value < 0 || snapshot.value > 100) continue;
+    const accountId = accountIdOf(snapshot);
+    if (accountId === null) continue;
     rows.push({
-      account_id: accountIdOf(snapshot),
+      account_id: accountId,
       provider: snapshot.provider,
       meter: snapshot.meter,
       window_id: snapshot.meter,
@@ -180,6 +206,7 @@ export function apiSpendSamplesFromSnapshots(
     if (!Number.isFinite(snapshot.usedAmount) || snapshot.usedAmount < 0) continue;
     if (!Number.isFinite(snapshot.limitAmount) || snapshot.limitAmount < 0) continue;
     const accountId = accountIdOf(snapshot);
+    if (accountId === null) continue;
     rows.push({
       source_id: stableSourceId(snapshot.provider + ":" + accountId),
       account_id: accountId,

@@ -2,6 +2,36 @@
 
 All notable project changes appear in this file.
 
+## [1.3.1] (2026-09-07)
+
+### Added
+
+- Account first flow on the web hub: create your account with GitHub, Google or Microsoft (or a magic link), connect your AI accounts, see your bars. Bars stay free with no account; an account syncs them between devices and unlocks Pro.
+- Free sync of current percentages for every signed in device, and a hub that reads them through dedicated functions. History, alerts, the phone and multiple accounts per provider stay Pro.
+- Start free trial everywhere it matters (the hub header, the lock card, the alerts popover, the Pro page and a deep link), a three step wizard that turns alerts and push on, and an expiry lock card with a five day countdown and an annual offer of USD 40 for the first year when a trial ends with no purchase.
+- Phone: pair from the hub with a QR, keep the pairing alive through a rotating refresh credential held in secure cookies, and install the hub as an app (Android prompt, iOS instructions).
+- Terminal: bars inside Claude Code, Grok Build and the Antigravity CLI, Codex's own windows through its built in items, and a shell prompt segment for everything else, all wired by `openlimiter terminal`. The bar reads the way a status line should: short tag, window, ten blocks, percent, reset, and a freshness mark that never hides a bar. Choose which configured providers show with `openlimiter terminal show` and `hide`.
+- The CLI acquires quotas itself, so a terminal without the desktop app gets fresh bars: Codex, Gemini CLI, Antigravity, Grok, Kimi and OpenRouter read the login their own tool stored, Claude reads what Claude Code reports, with an opt in poll when Claude Code is closed.
+- `openlimiter login` signs a terminal into your account by device code (approve it at openlimiter.com/app/cli), `openlimiter logout` and `openlimiter whoami` end and report that session, `openlimiter sync` uploads its bars, and `openlimiter refresh` acquires fresh readings and syncs them in the same pass when a session is signed in. The CLI ships pointed at the hub with its own publishable key already built in, overridable by `OPENLIMITER_SUPABASE_URL` and `OPENLIMITER_SUPABASE_ANON_KEY`, with `OPENLIMITER_SUPABASE_ANON_KEY=off` switching the hub off entirely for a build that should never reach it.
+- Meter from the cloud (Pro): store an API spend key once, encrypted on the server, and the hub and the phone show spend with no device running; connect OpenRouter from the hub with its own sign in.
+- Desktop: first run is account, connect, bars; Codex signs in through its device code flow inside the window; every window a provider exposes is drawn, model scoped ones included, with a pace tick on each bar.
+
+### Changed
+
+- Every request to a provider now carries the OpenLimiter identity. The desktop no longer presents itself as the Antigravity CLI or as the Grok client; Antigravity's quota is read from the running Antigravity CLI on this machine, and when none runs the row says so instead of pretending.
+- The web hub loads only the strings a route needs and polls on a cadence tied to how fresh the newest reading is.
+
+### Removed
+
+- `openlimiter serve`, the CLI's own local web server, and the LAN QR view it drew a phone pairing code onto. The hub now pairs a phone directly and syncs bars from any signed in device, so a terminal never needs to open a port of its own on the local network.
+
+### Fixed
+
+- Sync never worked end to end: the desktop sent an old envelope the server refused, and the hub read a table that no longer existed. Both sides now share one fixture and one contract, with a per device sequence cursor and stable device ids.
+- A phone closed for a day could never renew its pairing.
+- A trial could start implicitly from two places; it now starts only from the wizard, once, and a cancelled or refunded subscription never restarts it.
+- A discounted checkout could reuse an older full price session; offers now carry their identity through the reservation and are redeemed in the same transaction as the entitlement.
+
 ## [1.2.2] (2026-09-06)
 
 ### Fixed

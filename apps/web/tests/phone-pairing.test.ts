@@ -541,12 +541,12 @@ describe("readPhoneBars: a read alone never proves revocation", () => {
     expect(answer).toEqual({ kind: "fresh", body: { rows: [] } });
   });
 
-  it("maps the ambiguous unpaired 401 to empty, not revoked", async () => {
+  it("maps the ambiguous unpaired 401 to unpaired, not revoked", async () => {
     const answer = await readPhoneBars(pair(), async () => ({
       status: 401,
       body: { error: "unpaired" },
     }));
-    expect(answer).toEqual({ kind: "empty" });
+    expect(answer).toEqual({ kind: "unpaired" });
   });
 
   it("still honours an explicit revoked epoch signal if one ever arrives", async () => {
@@ -713,10 +713,22 @@ describe("the read route: reads the token cookie, never a body", () => {
     expect(await response.json()).toEqual({ body: { rows: [{ percent: 41 }] } });
   });
 
-  it("answers unavailable rather than revoked on the ambiguous unpaired 401", async () => {
+  it("forwards the upstream unpaired 401 as this route's own no_pair 401, never revoked or unavailable", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ error: "unpaired" }), { status: 401 })),
+    );
+    const response = await readPost(
+      jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=read.token`),
+    );
+    expect(response.status).toBe(401);
+    expect((await response.json()).error).toBe("no_pair");
+  });
+
+  it("still answers unavailable for an upstream failure that is not the unpaired 401", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ error: "server error" }), { status: 500 })),
     );
     const response = await readPost(
       jsonRequest("https://openlimiter.com/app/pair/api/read", undefined, `${PHONE_TOKEN_COOKIE}=read.token`),

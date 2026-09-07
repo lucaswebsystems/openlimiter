@@ -26,6 +26,9 @@ import {
 /** The sentence a hub side revocation prints, word for word. */
 export const REVOKED_SENTENCE = "Signed out on the hub, run openlimiter login";
 
+/** The sentence a login code the hub already consumed prints, word for word. */
+export const CODE_CONSUMED_SENTENCE = "That code was already used, run openlimiter login again";
+
 /** Extra polls past the hub's own stated lifetime, before this build gives up. */
 export const LOGIN_SAFETY_MARGIN_POLLS = 5;
 
@@ -94,6 +97,7 @@ export type LoginPollOutcome =
   | { readonly status: "slow_down" }
   | { readonly status: "denied" }
   | { readonly status: "expired" }
+  | { readonly status: "consumed" }
   | {
       readonly status: "approved";
       readonly token: string;
@@ -108,7 +112,13 @@ export function parseLoginPoll(body: string): LoginPollOutcome | null {
   const parsed = parseHubJson(body);
   if (parsed === null) return null;
   const status = parsed["status"];
-  if (status === "pending" || status === "slow_down" || status === "denied" || status === "expired") {
+  if (
+    status === "pending" ||
+    status === "slow_down" ||
+    status === "denied" ||
+    status === "expired" ||
+    status === "consumed"
+  ) {
     return { status };
   }
   if (status !== "approved") return null;
@@ -210,7 +220,7 @@ export type DeviceLoginResult =
   | { readonly kind: "signed_in"; readonly session: HubSession }
   | { readonly kind: "cancelled" }
   | { readonly kind: "denied" }
-  | { readonly kind: "expired" }
+  | { readonly kind: "expired"; readonly message?: string }
   | { readonly kind: "not_configured" }
   | { readonly kind: "error"; readonly message: string };
 
@@ -268,6 +278,7 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
     }
     if (poll.status === "denied") return { kind: "denied" };
     if (poll.status === "expired") return { kind: "expired" };
+    if (poll.status === "consumed") return { kind: "expired", message: CODE_CONSUMED_SENTENCE };
     const session: HubSession = {
       version: 1,
       token: poll.token,

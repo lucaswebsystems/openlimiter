@@ -1,6 +1,7 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { connectors } from "@openlimiter/connectors";
+import { writeFileAtomically, type CredentialCommandRunner } from "@openlimiter/core";
 import {
   DEFAULT_PROVIDERS,
   DEFAULT_STATUSLINE,
@@ -43,6 +44,15 @@ export interface TerminalHostContext {
   stateDirectory?: string;
   platform: NodeJS.Platform;
   detectedProviders?: readonly string[];
+  /**
+   * Asks a shell where its own profile lives, rather than guessing the path.
+   *
+   * Absent in a context that never touches the shell host, and in every test
+   * that does not exercise this exact question: `powerShellProfilePath`'s
+   * hardcoded fallback below still answers, so nothing breaks, it is simply
+   * the guess this was always able to be wrong about.
+   */
+  shellRunner?: CredentialCommandRunner;
 }
 
 export interface TerminalOperationResult {
@@ -66,6 +76,7 @@ function codexConfigPath(home: string): string {
   return path.join(home, ".codex", "config.toml");
 }
 
+/** Used only once nothing could ask the shell itself where its profile lives. */
 function powerShellProfilePath(home: string, platform: NodeJS.Platform): string {
   if (platform === "win32") {
     return path.join(
@@ -76,6 +87,51 @@ function powerShellProfilePath(home: string, platform: NodeJS.Platform): string 
     );
   }
   return path.join(home, ".config", "powershell", "Microsoft.PowerShell_profile.ps1");
+}
+
+const POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS = 5_000;
+
+/**
+ * Ask a shell where `$PROFILE` actually is, rather than guessing.
+ *
+ * The hardcoded guess above is Windows PowerShell 5.1's own default, and only
+ * that: PowerShell 7 keeps its profile under a `PowerShell` folder, not
+ * `WindowsPowerShell`, and either one moves the moment Documents itself is
+ * redirected, which OneDrive's Known Folder Move does on its own with nobody
+ * asking. A profile snippet written to the wrong path is a snippet nobody's
+ * shell ever loads.
+ *
+ * `pwsh`, the PowerShell somebody installed on purpose and the one most
+ * people who have it actually run, is asked first, on every platform it ships
+ * for. `powershell.exe`, Windows only and present on every Windows machine by
+ * default, is the fallback there. Neither answering, including no runner
+ * being injected at all, falls back to the hardcoded guess: a feature that
+ * degrades to its old behaviour rather than one that breaks outright.
+ */
+async function resolvePowerShellProfilePath(
+  home: string,
+  platform: NodeJS.Platform,
+  runner: CredentialCommandRunner | undefined
+): Promise<string> {
+  const fallback = powerShellProfilePath(home, platform);
+  if (runner === undefined) return fallback;
+  const candidates = platform === "win32" ? ["pwsh.exe", "powershell.exe"] : ["pwsh"];
+  for (const executable of candidates) {
+    let result;
+    try {
+      result = await runner(
+        executable,
+        ["-NoProfile", "-NonInteractive", "-Command", "$PROFILE"],
+        POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS
+      );
+    } catch {
+      continue;
+    }
+    if (!result.ok) continue;
+    const trimmed = result.stdout.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return fallback;
 }
 
 export type TerminalConfigReadResult<T> =
@@ -252,7 +308,7 @@ async function writeJsonFile(
   data: Record<string, unknown>
 ): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, JSON.stringify(data, null, 2) + "\n", "utf8");
+  await writeFileAtomically(filePath, JSON.stringify(data, null, 2) + "\n");
 }
 
 async function readTextFile(filePath: string): Promise<string | null> {
@@ -265,7 +321,7 @@ async function readTextFile(filePath: string): Promise<string | null> {
 
 async function writeTextFile(filePath: string, text: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, text, "utf8");
+  await writeFileAtomically(filePath, text);
 }
 
 /**
@@ -721,7 +777,11 @@ export const SHELL_SNIPPETS = {
 export async function installShell(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
-  const profileFile = powerShellProfilePath(context.homeDirectory, context.platform);
+  const profileFile = await resolvePowerShellProfilePath(
+    context.homeDirectory,
+    context.platform,
+    context.shellRunner
+  );
   const existing = (await readTextFile(profileFile)) ?? "";
 
   if (!existing.includes("openlimiter statusline")) {
@@ -752,7 +812,11 @@ export async function installShell(
 export async function uninstallShell(
   context: TerminalHostContext
 ): Promise<TerminalOperationResult> {
-  const profileFile = powerShellProfilePath(context.homeDirectory, context.platform);
+  const profileFile = await resolvePowerShellProfilePath(
+    context.homeDirectory,
+    context.platform,
+    context.shellRunner
+  );
   const existing = await readTextFile(profileFile);
   if (existing && existing.includes("openlimiter statusline")) {
     const updated = existing
@@ -862,7 +926,12 @@ export async function hostStatus(
   }
 
   if (h === "shell") {
-    const text = await readTextFile(powerShellProfilePath(context.homeDirectory, context.platform));
+    const profileFile = await resolvePowerShellProfilePath(
+      context.homeDirectory,
+      context.platform,
+      context.shellRunner
+    );
+    const text = await readTextFile(profileFile);
     if (text && text.includes("openlimiter statusline")) {
       return STATUS_WIRED;
     }

@@ -33,6 +33,18 @@ describe("hub configuration", () => {
     );
   });
 
+  it("never accepts plain http, whatever host an override names", () => {
+    expect(hubBaseUrl({ OPENLIMITER_SUPABASE_URL: "http://other.supabase.co" })).toBe(DEFAULT_HUB_URL);
+    expect(hubBaseUrl({ OPENLIMITER_SUPABASE_URL: "http://" + DEFAULT_HUB_URL.replace(/^https:\/\//u, "") })).toBe(
+      DEFAULT_HUB_URL
+    );
+  });
+
+  it("falls back to the default project address for an override that is not a readable URL at all", () => {
+    expect(hubBaseUrl({ OPENLIMITER_SUPABASE_URL: "not a url" })).toBe(DEFAULT_HUB_URL);
+    expect(hubBaseUrl({ OPENLIMITER_SUPABASE_URL: "ftp://other.supabase.co" })).toBe(DEFAULT_HUB_URL);
+  });
+
   it("reads the override, ships a default, and off disables the hub", () => {
     expect(hubAnonKey({}).length).toBeGreaterThan(20);
     expect(hubAnonKey(OFF)).toBe("");
