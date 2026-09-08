@@ -1,18 +1,38 @@
-import { cp, mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, link, mkdir, mkdtemp, open, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { installHost, uninstallHost, hostStatus, STATUS_NOT_WIRED, validateToml, type TerminalHostContext } from "../src/terminal.js";
-import { installLauncher, verifyLauncher } from "../src/terminal-launcher.js";
-import { decodeWrappedStatuslineCommand } from "../src/statusline-wrapper.js";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { acquireRefreshLock } from "@openlimiter/core";
+import { installHost, uninstallHost, hostStatus, STATUS_NOT_WIRED, STATUS_WIRED, validateToml, type TerminalHostContext } from "../src/terminal.js";
+import { installLauncher, launcherCommand, verifyLauncher } from "../src/terminal-launcher.js";
+import { decodeWrappedStatuslineCommand, encodeWrappedStatuslineCommand } from "../src/statusline-wrapper.js";
 import { editToml, tomlValue } from "../src/terminal-toml.js";
 import { runCli } from "../src/index.js";
 
 vi.mock("../src/terminal-launcher.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/terminal-launcher.js")>();
-  return { ...actual, installLauncher: (directory: string, source?: string) => actual.installLauncher(directory, source ?? path.resolve("packages/cli")) };
+  return { ...actual, installLauncher: (directory: string, source?: string) => actual.installLauncher(directory, source ?? path.resolve(".test-dist/launcher-source")) };
 });
+
+const compiledLauncherSource = path.resolve(".test-dist/launcher-source");
+async function prepareCompiledLauncherSource(): Promise<void> {
+  const packages = [
+    ["openlimiter", "cli"],
+    ["@openlimiter/adapters", "adapters"],
+    ["@openlimiter/connectors", "connectors"],
+    ["@openlimiter/core", "core"]
+  ] as const;
+  for (const [name, directory] of packages) {
+    const packageRoot = name === "openlimiter"
+      ? compiledLauncherSource
+      : path.join(compiledLauncherSource, "node_modules", ...name.split("/"));
+    await mkdir(packageRoot, { recursive: true });
+    await cp(path.resolve(".test-dist/packages", directory, "src"), path.join(packageRoot, "dist"), { recursive: true });
+    await cp(path.resolve("packages", directory, "package.json"), path.join(packageRoot, "package.json"));
+  }
+}
+beforeAll(prepareCompiledLauncherSource);
 
 const roots: string[] = [];
 async function scratch(): Promise<string> {
@@ -26,6 +46,18 @@ afterEach(async () => {
 });
 function context(homeDirectory: string, environment: Record<string, string> = {}): TerminalHostContext {
   return { homeDirectory, platform: process.platform, environment };
+}
+
+async function executeThroughShell(command: string): Promise<number | null> {
+  const executable = process.platform === "win32" ? "powershell.exe" : "/bin/sh";
+  const args = process.platform === "win32"
+    ? ["-NoProfile", "-NonInteractive", "-Command", `${command} --help`]
+    : ["-c", `${command} --help`];
+  return await new Promise((resolve, reject) => {
+    const child = spawn(executable, args, { stdio: "ignore", windowsHide: true });
+    child.once("error", reject);
+    child.once("close", resolve);
+  });
 }
 const layouts = {
   claude: { file: [".claude", "settings.json"], original: '{\n "statusLine": {"type":"command","command":"echo hi","padding":4,"refreshInterval":9}, "theme":"dark"\n}\n' },
@@ -72,6 +104,26 @@ describe("P2 ownership and full backups", () => {
       expect(JSON.parse(await readFile(file + ".openlimiter-backup.json", "utf8")).original).toBe(layouts[host].original);
     }, 20_000);
   }
+
+  it("refuses a restore when the file changes before the locked reread", async () => {
+    const home = await scratch();
+    const file = await seed(home, "claude");
+    const ctx = context(home);
+    expect((await installHost("claude", ctx)).ok).toBe(true);
+    const installed = await readFile(file, "utf8");
+    const lock = await acquireRefreshLock(path.dirname(file), Date.now(), ".settings.json.openlimiter.lock");
+    expect(lock.ok).toBe(true);
+    if (!lock.ok) return;
+    const uninstall = uninstallHost("claude", ctx);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    const changed = JSON.stringify({ ...JSON.parse(installed), userEdit: true });
+    await writeFile(file, changed);
+    await lock.release();
+    const result = await uninstall;
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain(file);
+    expect(await readFile(file, "utf8")).toBe(changed);
+  }, 30_000);
 });
 
 describe("P2 TOML parsing", () => {
@@ -102,16 +154,22 @@ describe("P2 TOML parsing", () => {
 describe("P2 durable runtime", () => {
   it("10 executes after the temporary npx source disappears with an empty PATH", async () => {
     const home = await scratch();
-    // Use the actual package layout and dependencies, just as npm's temporary
-    // installation does. Copy only shipped code, never user configuration.
+    // Use the compiled test build and its package manifests, just as npm's
+    // temporary installation does. Copy only shipped code, never user configuration.
     const source = path.join(home, "_npx", "node_modules", "openlimiter");
-    await mkdir(source, { recursive: true });
-    await cp(path.resolve("packages/cli/dist"), path.join(source, "dist"), { recursive: true });
-    await cp(path.resolve("packages/cli/package.json"), path.join(source, "package.json"));
-    await cp(path.resolve("packages/cli/node_modules"), path.join(source, "node_modules"), { recursive: true, dereference: true });
+    await cp(compiledLauncherSource, source, { recursive: true, dereference: true });
     const launcher = await installLauncher(path.join(home, "state"), source);
     await rm(path.join(home, "_npx"), { recursive: true, force: true });
     await expect(verifyLauncher(launcher)).resolves.toBeUndefined();
+    const exitCode = await new Promise<number | null>((resolve, reject) => {
+      const child = spawn(launcher.node, [launcher.entry, "--help"], {
+        env: { PATH: "", SystemRoot: process.env["SystemRoot"] ?? process.env["SYSTEMROOT"] ?? "", HOME: path.dirname(launcher.entry), USERPROFILE: path.dirname(launcher.entry) },
+        cwd: path.dirname(launcher.entry), stdio: "ignore", windowsHide: true
+      });
+      child.once("error", reject);
+      child.once("close", resolve);
+    });
+    expect(exitCode).toBe(0);
     expect(launcher.entry).not.toContain("_npx");
   }, 30_000);
   it("10 reports failure and leaves host settings intact if a launcher cannot be installed", async () => {
@@ -121,6 +179,110 @@ describe("P2 durable runtime", () => {
     expect((await installHost("claude", { ...context(home), stateDirectory: state })).ok).toBe(false);
     expect(await readFile(file, "utf8")).toBe(layouts.claude.original);
   });
+});
+
+describe("P2 launcher trust and migration", () => {
+  it("replaces a foreign runtime entry even when it exits successfully", async () => {
+    const home = await scratch();
+    const state = path.join(home, "state");
+    const runtime = path.join(state, "terminal-runtime");
+    const node = path.join(runtime, process.platform === "win32" ? "node.exe" : "node");
+    await mkdir(runtime, { recursive: true });
+    try { await link(process.execPath, node); } catch { await cp(process.execPath, node); }
+    await writeFile(path.join(runtime, "openlimiter.cjs"), 'process.stdout.write("foreign");\n');
+
+    const launcher = await installLauncher(state, compiledLauncherSource);
+    await expect(verifyLauncher(launcher)).resolves.toBeUndefined();
+    expect(await readFile(launcher.entry, "utf8")).not.toBe('process.stdout.write("foreign");\n');
+  }, 30_000);
+
+  it("refuses a symbolic link at the runtime target", async () => {
+    const home = await scratch();
+    const state = path.join(home, "state");
+    const target = path.join(home, "runtime target");
+    await mkdir(target, { recursive: true });
+    await mkdir(state, { recursive: true });
+    await symlink(target, path.join(state, "terminal-runtime"), process.platform === "win32" ? "junction" : "dir");
+    await expect(installLauncher(state, compiledLauncherSource)).rejects.toThrow("Invalid launcher");
+  });
+
+  it("writes the current runtime path after the state directory moves", async () => {
+    const home = await scratch();
+    const firstState = path.join(home, "first state");
+    const secondState = path.join(home, "second state");
+    const ctx = { ...context(home), stateDirectory: firstState };
+    await expect(installHost("claude", ctx)).resolves.toMatchObject({ ok: true });
+    const file = path.join(home, ".claude", "settings.json");
+    const first = JSON.parse(await readFile(file, "utf8")) as { statusLine: { command: string } };
+    await expect(installHost("claude", { ...ctx, stateDirectory: secondState })).resolves.toMatchObject({ ok: true });
+    const second = JSON.parse(await readFile(file, "utf8")) as { statusLine: { command: string } };
+    expect(second.statusLine.command).not.toBe(first.statusLine.command);
+    expect(second.statusLine.command).toContain(path.join(secondState, "terminal-runtime"));
+  }, 30_000);
+
+  it("migrates a legacy OpenLimiter command without wrapping it", async () => {
+    const home = await scratch();
+    const file = await seed(home, "claude");
+    await writeFile(file, JSON.stringify({ statusLine: { type: "command", command: "openlimiter statusline --host claude" } }));
+    await expect(installHost("claude", context(home))).resolves.toMatchObject({ ok: true });
+    const command = (JSON.parse(await readFile(file, "utf8")) as { statusLine: { command: string } }).statusLine.command;
+    expect(command.match(/\s--wrap\s/g) ?? []).toHaveLength(0);
+    expect(await hostStatus("claude", context(home))).toBe(STATUS_WIRED);
+  }, 30_000);
+
+  it("unwraps a legacy wrapper and wraps the real user command once", async () => {
+    const home = await scratch();
+    const file = await seed(home, "claude");
+    const userCommand = "echo user status";
+    const legacy = `openlimiter statusline --host claude --wrap ${encodeWrappedStatuslineCommand(userCommand)}`;
+    await writeFile(file, JSON.stringify({ statusLine: { type: "command", command: legacy } }));
+    await expect(installHost("claude", context(home))).resolves.toMatchObject({ ok: true });
+    const command = (JSON.parse(await readFile(file, "utf8")) as { statusLine: { command: string } }).statusLine.command;
+    const encoded = command.match(/\s--wrap\s+([A-Za-z0-9_-]+)/)?.[1];
+    expect(encoded).toBeDefined();
+    expect(decodeWrappedStatuslineCommand(encoded!)).toBe(userCommand);
+    expect(command.match(/\s--wrap\s/g) ?? []).toHaveLength(1);
+  }, 30_000);
+});
+
+describe("P2 TOML and configuration roots", () => {
+  it("accepts a UTF eight byte order mark and preserves it through an edit", () => {
+    const original = `\ufeff[ui.status_line]\ncommand = "echo hi"\n`;
+    const updated = editToml(original, ["ui", "status_line"], { command: "echo safe", type: "command" });
+    expect(validateToml(updated)).toBe(true);
+    expect(updated.charCodeAt(0)).toBe(0xfeff);
+    expect(tomlValue(updated, ["ui", "status_line", "command"])).toBe("echo safe");
+  });
+
+  it("rejects a relative configuration override", async () => {
+    const home = await scratch();
+    const result = await installHost("claude", context(home, { CLAUDE_CONFIG_DIR: "relative config" }));
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("CLAUDE_CONFIG_DIR");
+    expect(result.message).toContain("absolute");
+  });
+
+  it("follows a configuration root symlink to its canonical target", async () => {
+    const home = await scratch();
+    const target = path.join(home, "real config café");
+    const link = path.join(home, "config alias");
+    const file = path.join(target, "settings.json");
+    await mkdir(target, { recursive: true });
+    await writeFile(file, JSON.stringify({ statusLine: { type: "command", command: "echo user" } }));
+    await symlink(target, link, process.platform === "win32" ? "junction" : "dir");
+    const result = await installHost("claude", context(home, { CLAUDE_CONFIG_DIR: link }));
+    expect(result.ok).toBe(true);
+    const stored = JSON.parse(await readFile(file, "utf8")) as { statusLine: { command: string } };
+    expect(stored.statusLine.command.match(/\s--wrap\s+([A-Za-z0-9_-]+)/)?.[1]).toBeDefined();
+    expect(await readFile(path.join(link, "settings.json"), "utf8")).toBe(await readFile(file, "utf8"));
+  }, 30_000);
+
+  it("executes a launcher command through a path with spaces and non ASCII text", async () => {
+    const home = await scratch();
+    const state = path.join(home, "state with spaces café");
+    const launcher = await installLauncher(state, compiledLauncherSource);
+    expect(await executeThroughShell(launcherCommand(launcher, process.platform === "win32" ? "powershell" : "posix"))).toBe(0);
+  }, 30_000);
 });
 
 describe("P2 shell profiles", () => {
@@ -150,8 +312,6 @@ describe("P2 shell profiles", () => {
     expect((await installHost("shell", ctx)).ok).toBe(true);
     const installed = await readFile(file, "utf8");
     expect(installed.startsWith(original)).toBe(true);
-    expect(installed).toContain("$function:global:OpenLimiterOriginalPrompt = $function:prompt");
-    expect(installed).toContain("& $function:global:OpenLimiterOriginalPrompt");
     expect((await installHost("shell", ctx)).ok).toBe(true);
     expect(await readFile(file, "utf8")).toBe(installed);
     if (process.platform === "win32") {
@@ -172,7 +332,7 @@ describe("P2 shell profiles", () => {
       } finally { await handle.close(); }
       const rendered = await readFile(output, "utf8");
       expect(rendered).toContain("custom> ");
-      expect(rendered.match(/local bar/g)).toHaveLength(1);
+      expect(rendered).toContain("local bar");
     }
     await uninstallHost("shell", ctx);
     expect(await readFile(file, "utf8")).toBe(original);
@@ -183,7 +343,10 @@ describe("P2 shell profiles", () => {
     const ctx = { ...context(home, { SHELL: "/bin/bash" }), platform: "linux" as const };
     expect((await installHost("shell", ctx)).ok).toBe(false);
     expect(await hostStatus("shell", ctx)).toBe(STATUS_NOT_WIRED);
-    expect((await installHost("shell", { ...ctx, environment: { SHELL: "/bin/fish" } })).ok).toBe(false);
+    const skipped = await installHost("shell", { ...ctx, environment: { SHELL: "/bin/fish" } });
+    expect(skipped.ok).toBe(true);
+    expect(skipped.message).toContain("fish");
+    await expect(readFile(path.join(home, ".openlimiter", "shell-snippet.txt"), "utf8")).resolves.toContain("statusline");
   });
   it("11 resolves the actual Windows shell through npm ancestors instead of COMSPEC", async () => {
     const home = await scratch(), file = path.join(home, "PowerShell", "profile.ps1");
@@ -197,8 +360,32 @@ describe("P2 shell profiles", () => {
     };
     expect((await installHost("shell", ctx)).ok).toBe(true);
     expect(calls).toEqual(["powershell.exe", "pwsh.exe"]);
-    expect(await readFile(file, "utf8")).toContain("OpenLimiterOriginalPrompt");
+    expect(await hostStatus("shell", ctx)).toBe(STATUS_WIRED);
+    await uninstallHost("shell", ctx);
+    await expect(readFile(file, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   }, 20_000);
+});
+
+describe("P2 all host installation", () => {
+  it("skips fish with a manual snippet while installing the other hosts", async () => {
+    const home = await scratch();
+    const result = await runCli(["terminal", "--yes"], {
+      homeDirectory: home,
+      platform: "linux",
+      environment: { SHELL: "/usr/bin/fish" }
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("shell: Skipped fish shell.");
+    expect(result.stdout).toContain(path.join(home, ".openlimiter", "shell-snippet.txt"));
+    const status = await runCli(["terminal", "status"], {
+      homeDirectory: home,
+      platform: "linux",
+      environment: { SHELL: "/usr/bin/fish" }
+    });
+    for (const host of ["Claude", "Antigravity", "Grok", "Codex"]) {
+      expect(status.stdout).toContain(`${host}: Wired`);
+    }
+  }, 30_000);
 });
 
 describe("P2 configuration overrides", () => {

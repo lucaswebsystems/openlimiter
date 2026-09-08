@@ -23,7 +23,7 @@ import { credentialDocuments, recordedResponses } from "./fixtures/acquisition.j
 
 vi.mock("../src/terminal-launcher.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/terminal-launcher.js")>();
-  return { ...actual, installLauncher: (directory: string) => actual.installLauncher(directory, path.resolve("packages/cli")) };
+  return { ...actual, installLauncher: async (directory: string) => ({ node: process.execPath, entry: path.join(directory, "test-launcher.cjs") }) };
 });
 
 const NOW = "2026-09-07T12:00:00.000Z";

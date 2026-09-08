@@ -143,6 +143,7 @@ class Parser {
   }
   parse(): this {
     if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(this.text) || /\r(?!\n)/.test(this.text)) this.fail();
+    if (this.text.charCodeAt(0) === 0xfeff) this.i = 1;
     let section: string[] = [], scope: string[] = [];
     const values: string[][] = [], tables = new Set<string>(), dotted = new Set<string>(), arrays = new Map<string, number>();
     while (this.i < this.text.length) {
@@ -213,7 +214,8 @@ export function editToml(text: string, table: string[], settings: Record<string,
   const existingTable = parsed.tables.find(t => same(t.keys, table));
   const insertion = existingTable?.insert ?? text.length;
   const content = existingTable ? added : [`[${table.join(".")}]`, ...added];
-  edits.push({ start: insertion, end: insertion, text: `\n# openlimiter managed\n${content.join("\n")}\n` });
+  const hasManagedMarker = text.split(/\r?\n/).some(line => line.trim() === "# openlimiter managed");
+  if (!hasManagedMarker) edits.push({ start: insertion, end: insertion, text: `\n# openlimiter managed\n${content.join("\n")}\n` });
   let result = text;
   for (const edit of edits.sort((a, b) => b.start - a.start)) result = result.slice(0, edit.start) + edit.text + result.slice(edit.end);
   parseToml(result);

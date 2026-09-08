@@ -1,13 +1,32 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { tomlValue } from "../src/terminal-toml.js";
 
 vi.mock("../src/terminal-launcher.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/terminal-launcher.js")>();
-  return { ...actual, installLauncher: (directory: string) => actual.installLauncher(directory, path.resolve("packages/cli")) };
+  return { ...actual, installLauncher: (directory: string, source?: string) => actual.installLauncher(directory, source ?? path.resolve(".test-dist/launcher-source")) };
 });
+
+const compiledLauncherSource = path.resolve(".test-dist/launcher-source");
+async function prepareCompiledLauncherSource(): Promise<void> {
+  const packages = [
+    ["openlimiter", "cli"],
+    ["@openlimiter/adapters", "adapters"],
+    ["@openlimiter/connectors", "connectors"],
+    ["@openlimiter/core", "core"]
+  ] as const;
+  for (const [name, directory] of packages) {
+    const packageRoot = name === "openlimiter"
+      ? compiledLauncherSource
+      : path.join(compiledLauncherSource, "node_modules", ...name.split("/"));
+    await mkdir(packageRoot, { recursive: true });
+    await cp(path.resolve(".test-dist/packages", directory, "src"), path.join(packageRoot, "dist"), { recursive: true });
+    await cp(path.resolve("packages", directory, "package.json"), path.join(packageRoot, "package.json"));
+  }
+}
+beforeAll(prepareCompiledLauncherSource);
 import {
   CONNECT_FIRST_SENTENCE,
   STATUS_NOT_WIRED,

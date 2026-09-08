@@ -1,7 +1,7 @@
-import { readFile, mkdir } from "node:fs/promises";
+import { lstat, readFile, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { connectors } from "@openlimiter/connectors";
-import { type CredentialCommandRunner } from "@openlimiter/core";
+import { type CredentialCommandRunner, writeFileAtomically } from "@openlimiter/core";
 import {
   DEFAULT_PROVIDERS,
   DEFAULT_STATUSLINE,
@@ -10,6 +10,7 @@ import {
   type OpenLimiterConfig
 } from "./config.js";
 import {
+  decodeWrappedStatuslineCommand,
   encodeWrappedStatuslineCommand
 } from "./statusline-wrapper.js";
 
@@ -57,8 +58,52 @@ export interface TerminalOperationResult {
   message: string;
 }
 
-function claudeSettingsPath(context: TerminalHostContext): string {
-  return path.join(context.environment?.["CLAUDE_CONFIG_DIR"] || path.join(context.homeDirectory, ".claude"), "settings.json");
+async function canonicalOverrideRoot(
+  value: string | undefined,
+  fallback: string,
+  variable: string
+): Promise<string> {
+  if (value === undefined || value === "") return fallback;
+  if (!path.isAbsolute(value)) throw new Error(`${variable} must be an absolute path.`);
+  let existing: Awaited<ReturnType<typeof lstat>> | null = null;
+  try {
+    existing = await lstat(value);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  if (existing?.isSymbolicLink()) return await realpath(value);
+  try { return await realpath(value); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    const parent = await realpath(path.dirname(value));
+    return path.join(parent, path.basename(value));
+  }
+}
+
+function isWithinDirectory(root: string, target: string): boolean {
+  const relative = path.relative(path.resolve(root), path.resolve(target));
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
+async function canonicalConfigFile(root: string, name: string, variable: string): Promise<string> {
+  const candidate = path.join(root, name);
+  try {
+    const target = await realpath(candidate);
+    if (!isWithinDirectory(root, target)) throw new Error(`${variable} must point to a file under its root.`);
+    return target;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    return candidate;
+  }
+}
+
+async function claudeSettingsPath(context: TerminalHostContext): Promise<string> {
+  const root = await canonicalOverrideRoot(
+    context.environment?.["CLAUDE_CONFIG_DIR"],
+    path.join(context.homeDirectory, ".claude"),
+    "CLAUDE_CONFIG_DIR"
+  );
+  return await canonicalConfigFile(root, "settings.json", "CLAUDE_CONFIG_DIR");
 }
 function antigravitySettingsPath(context: TerminalHostContext): string {
   return path.join(context.homeDirectory, ".gemini", "antigravity-cli", "settings.json");
@@ -66,8 +111,13 @@ function antigravitySettingsPath(context: TerminalHostContext): string {
 function grokConfigPath(context: TerminalHostContext): string {
   return path.join(context.homeDirectory, ".grok", "config.toml");
 }
-function codexConfigPath(context: TerminalHostContext): string {
-  return path.join(context.environment?.["CODEX_HOME"] || path.join(context.homeDirectory, ".codex"), "config.toml");
+async function codexConfigPath(context: TerminalHostContext): Promise<string> {
+  const root = await canonicalOverrideRoot(
+    context.environment?.["CODEX_HOME"],
+    path.join(context.homeDirectory, ".codex"),
+    "CODEX_HOME"
+  );
+  return await canonicalConfigFile(root, "config.toml", "CODEX_HOME");
 }
 
 const POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS = 5_000;
@@ -172,7 +222,15 @@ function ownedMarker(text: string, json: boolean): boolean {
 
 async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, install: boolean): Promise<TerminalOperationResult> {
   const spec = HOST_CONFIG[host];
-  const file = spec.path(context);
+  let file: string;
+  try {
+    file = await spec.path(context);
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : `Could not resolve ${spec.file}.`
+    };
+  }
   const read = spec.json ? await readJsonConfig(file) : await readTomlConfig(file);
   if (read.kind === "parse_error") return { ok: false, message: `Could not read ${file}, fix it or move it aside` };
   try {
@@ -181,23 +239,30 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
     const marker = ownedMarker(text, spec.json);
     if (!install) {
       const restored = original !== null && await restoreOwned(file, original, marker);
-      if (marker && !restored) return { ok: false, message: `Could not update ${spec.file}.` };
+      if (marker && !restored) return { ok: false, message: `Could not update ${file}.` };
       return { ok: true, message: restored ? `Uninstalled ${spec.label} status line.` : `${spec.label} status line is not installed.` };
     }
-    if (original !== null && await isOwned(file, original, marker)) {
-      if (host !== "codex") await durableCommand(context, context.platform === "win32" ? "cmd" : "posix");
-      return { ok: true, message: spec.wired };
-    }
-    if (marker) return { ok: false, message: `Could not write ${spec.file}.` };
-    // A marker alone never authorizes adoption of a configuration or replacement
-    // of its backup. Matching the complete saved result also protects later edits.
+    const previous: string | null = spec.json
+      ? claudeLikeStatusLineCommand((JSON.parse(text) as Record<string, unknown>)["statusLine"])
+      : host === "grok"
+        ? (() => {
+          const value = tomlValue(text, ["ui", "status_line", "command"]);
+          return typeof value === "string" ? value : null;
+        })()
+        : null;
+    const legacyOpenLimiter = previous !== null && isOpenLimiterStatuslineCommand(previous);
+    const owned = original !== null && await isOwned(file, original, marker);
+    if (marker && !owned && !legacyOpenLimiter) return { ok: false, message: `Could not write ${file}.` };
+
     let updated: string;
     if (spec.json) {
       const data = JSON.parse(text) as Record<string, unknown>;
-      const previous = claudeLikeStatusLineCommand(data["statusLine"]);
       const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix");
+      const userCommand = previous === null
+        ? null
+        : legacyOpenLimiter ? unwrapOpenLimiterStatuslineCommand(previous) : previous;
       const command = `${base} statusline --host ${host}` +
-        (previous === null ? "" : ` --wrap ${encodeWrappedStatuslineCommand(previous)}`);
+        (userCommand === null ? "" : ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}`);
       data["openlimiter managed"] = true;
       data["statusLine"] = host === "claude" ? { type: "command", command } : command;
       updated = JSON.stringify(data, null, 2) + "\n";
@@ -205,17 +270,20 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
     } else if (host === "codex") {
       updated = editToml(text, ["tui"], { status_line: CODEX_ITEMS, status_line_use_colors: true });
     } else {
-      const previous = tomlValue(text, ["ui", "status_line", "command"]);
       const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix");
+      const userCommand = previous === null
+        ? null
+        : legacyOpenLimiter ? unwrapOpenLimiterStatuslineCommand(previous) : previous;
       const command = `${base} statusline --host grok` +
-        (typeof previous === "string" ? ` --wrap ${encodeWrappedStatuslineCommand(previous)}` : "");
+        (typeof userCommand === "string" ? ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}` : "");
       updated = editToml(text, ["ui", "status_line"], { type: "command", command });
     }
+    if (owned && updated === text) return { ok: true, message: spec.wired };
     await mkdir(path.dirname(file), { recursive: true });
     await writeOwned(file, original, updated);
     return { ok: true, message: spec.wired };
   } catch {
-    return { ok: false, message: `Could not ${install ? "write" : "update"} ${spec.file}.` };
+    return { ok: false, message: `Could not ${install ? "write" : "update"} ${file}.` };
   }
 }
 
@@ -244,6 +312,10 @@ function shellSnippets(posixCommand: string, powerShellCommand: string): { stars
 }
 
 type ShellKind = "bash" | "zsh" | "powershell";
+class UnsupportedShellError extends Error {
+  constructor(readonly shell: string) { super("Unsupported shell"); }
+}
+
 async function shellTarget(context: TerminalHostContext): Promise<{ kind: ShellKind; file: string }> {
   const env = context.environment ?? process.env;
   let executable = env["SHELL"] || "";
@@ -268,36 +340,95 @@ async function shellTarget(context: TerminalHostContext): Promise<{ kind: ShellK
   if (name === "pwsh" || name === "pwsh.exe" || name === "powershell" || name === "powershell.exe") {
     return { kind: "powershell", file: await resolvePowerShellProfilePath(executable, context.shellRunner) };
   }
+  if (name !== "") throw new UnsupportedShellError(name);
   throw new Error("Unsupported shell");
 }
 
-function shellSnippet(kind: ShellKind, command: string): string {
+function escapedRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function userFunctionExists(text: string, name: string, powershell: boolean): boolean {
+  const escaped = escapedRegExp(name);
+  return powershell
+    ? new RegExp(`(?:^|\\r?\\n)\\s*function\\s+(?:global:)?${escaped}\\b`, "i").test(text)
+    : new RegExp(`(?:^|\\r?\\n)\\s*(?:function\\s+)?${escaped}\\s*(?:\\(\\s*\\))?\\s*\\{`).test(text);
+}
+
+function uniqueShellName(text: string, base: string, powershell: boolean): string {
+  for (let suffix = 0; ; suffix += 1) {
+    const candidate = suffix === 0 ? base : `${base}_${suffix + 1}`;
+    if (!userFunctionExists(text, candidate, powershell)) return candidate;
+  }
+}
+
+const MANAGED_SHELL_BLOCK = /(^|\r?\n)# openlimiter managed\r?\n[\s\S]*?\r?\n# end openlimiter managed/g;
+
+function hasManagedShellBlock(text: string): boolean {
+  return /(?:^|\r?\n)# openlimiter managed\r?\n[\s\S]*?\r?\n# end openlimiter managed/.test(text);
+}
+
+function withoutManagedShellBlock(text: string): string {
+  return text.replace(MANAGED_SHELL_BLOCK, "$1");
+}
+
+function replaceManagedShellBlock(text: string, snippet: string): string {
+  return text.replace(MANAGED_SHELL_BLOCK, `$1${snippet}`);
+}
+
+function shellSnippet(kind: ShellKind, command: string, source = ""): string {
   const begin = "# openlimiter managed";
   const end = "# end openlimiter managed";
+  const hook = uniqueShellName(source, kind === "powershell" ? "__openlimiter_prompt_hook" : "__openlimiter_statusline", kind === "powershell");
   if (kind === "bash") return [
     begin,
-    "_openlimiter_statusline() { " + command + " statusline --host shell; }",
+    `if ! declare -F ${hook} >/dev/null 2>&1; then`,
+    `  ${hook}() { ${command} statusline --host shell; }`,
+    "fi",
     'if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then',
-    '  [[ " ${PROMPT_COMMAND[*]} " == *" _openlimiter_statusline "* ]] || PROMPT_COMMAND+=(_openlimiter_statusline)',
-    'elif [[ ";${PROMPT_COMMAND};" != *";_openlimiter_statusline;"* ]]; then',
-    '  PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND};}_openlimiter_statusline"',
+    `  [[ " \${PROMPT_COMMAND[*]} " == *" ${hook} "* ]] || PROMPT_COMMAND+=(${hook})`,
+    `elif [[ ";\${PROMPT_COMMAND};" != *";${hook};"* ]]; then`,
+    `  PROMPT_COMMAND="\${PROMPT_COMMAND:+\${PROMPT_COMMAND};}${hook}"`,
     "fi", end
   ].join("\n");
   if (kind === "zsh") return [
-    begin, "_openlimiter_statusline() { " + command + " statusline --host shell; }",
-    "autoload -Uz add-zsh-hook", "add-zsh-hook precmd _openlimiter_statusline", end
+    begin,
+    `if (( ! $+functions[${hook}] )); then`,
+    `  ${hook}() { ${command} statusline --host shell; }`,
+    "fi",
+    "autoload -Uz add-zsh-hook",
+    `if (( \${precmd_functions[(I)${hook}]} == 0 )); then add-zsh-hook precmd ${hook}; fi`, end
   ].join("\n");
+  const originalPrompt = uniqueShellName(source, "__openlimiter_original_prompt", true);
+  const guard = uniqueShellName(source, "__openlimiter_prompt_guard", true);
   return [
     begin,
-    "if (-not (Test-Path Function:global:OpenLimiterOriginalPrompt)) {",
-    "  $function:global:OpenLimiterOriginalPrompt = $function:prompt",
+    `if (-not (Test-Path Function:global:${originalPrompt})) {`,
+    `  $function:global:${originalPrompt} = $function:prompt`,
+    "}",
+    `if (-not (Test-Path Function:global:${hook})) {`,
+    `  function global:${hook} {`,
+    `    $bar = ${command} statusline --host shell`,
+    "    if ($bar) { Write-Host $bar }",
+    `    & $function:global:${originalPrompt}`,
+    "  }",
+    "}",
+    `if (-not (Test-Path Function:global:${guard})) {`,
+    `  function global:${guard} { & $function:global:${hook} }`,
     "}",
     "function global:prompt {",
-    "  $bar = " + command + " statusline --host shell",
-    "  if ($bar) { Write-Host $bar }",
-    "  & $function:global:OpenLimiterOriginalPrompt",
+    `  & $function:global:${guard}`,
     "}", end
   ].join("\n");
+}
+
+async function manualShellSnippetPath(context: TerminalHostContext): Promise<string> {
+  const directory = context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter");
+  const file = path.join(directory, "shell-snippet.txt");
+  await mkdir(directory, { recursive: true }).then(
+    () => writeFileAtomically(file, "openlimiter statusline --host shell\n")
+  ).catch(() => undefined);
+  return file;
 }
 
 export async function installShell(context: TerminalHostContext): Promise<TerminalOperationResult> {
@@ -310,8 +441,18 @@ export async function installShell(context: TerminalHostContext): Promise<Termin
     const command = target.kind === "powershell" ? powerShellCommand : posixCommand;
     const snippets = shellSnippets(posixCommand, powerShellCommand);
     const alreadyOwned = original !== null && await isOwned(target.file, original, ownedMarker(original, false));
-    if (!alreadyOwned) {
-      const updated = (original ?? "") + "\n\n" + shellSnippet(target.kind, command) + "\n";
+    const source = withoutManagedShellBlock(original ?? "");
+    const snippet = shellSnippet(target.kind, command, source);
+    const marker = original !== null && ownedMarker(original, false);
+    if (alreadyOwned || (marker && hasManagedShellBlock(original ?? ""))) {
+      const updated = replaceManagedShellBlock(original!, snippet);
+      if (updated !== original) {
+        await writeOwned(target.file, original, updated);
+      }
+    } else if (marker) {
+      return { ok: false, message: `Could not write ${target.file}.` };
+    } else {
+      const updated = (original ?? "") + "\n\n" + snippet + "\n";
       await mkdir(path.dirname(target.file), { recursive: true });
       await writeOwned(target.file, original, updated);
     }
@@ -322,7 +463,11 @@ export async function installShell(context: TerminalHostContext): Promise<Termin
       "Oh My Posh segment:", snippets.ohMyPosh
     ].join("\n");
     return { ok: true, message };
-  } catch {
+  } catch (error) {
+    if (error instanceof UnsupportedShellError) {
+      const file = await manualShellSnippetPath(context);
+      return { ok: true, message: `Skipped ${error.shell} shell. See ${file} for the manual snippet.` };
+    }
     return { ok: false, message: "Could not write configuration." };
   }
 }
@@ -334,7 +479,7 @@ export async function uninstallShell(context: TerminalHostContext): Promise<Term
     if (original !== null) {
       const marker = ownedMarker(original, false);
       const restored = await restoreOwned(target.file, original, marker);
-      if (marker && !restored) return { ok: false, message: "Could not write configuration." };
+      if (marker && !restored) return { ok: false, message: `Could not update ${target.file}.` };
     }
     return { ok: true, message: "Uninstalled shell prompt integration." };
   } catch {
@@ -358,10 +503,21 @@ function claudeLikeStatusLineCommand(value: unknown): string | null {
   return null;
 }
 
+function isOpenLimiterStatuslineCommand(command: string): boolean {
+  return /(?:^|[\\/"'\s])openlimiter(?:\.cjs|\.cmd|\.exe)?(?=$|[\\/"'\s])/i.test(command) &&
+    /\bstatusline\s+--host\s+[A-Za-z0-9_-]+\b/i.test(command);
+}
+
+function unwrapOpenLimiterStatuslineCommand(command: string): string | null {
+  if (!isOpenLimiterStatuslineCommand(command)) return command;
+  const encoded = /\s--wrap\s+([A-Za-z0-9_-]+)/i.exec(command)?.[1];
+  return encoded === undefined ? null : decodeWrappedStatuslineCommand(encoded);
+}
+
 /** Wired, somebody else's, or nothing there, from the command alone. */
 function classifyCommand(command: string | null): string {
   if (command === null) return STATUS_NOT_WIRED;
-  return (command.includes("openlimiter statusline") || (command.includes("openlimiter.cjs") && command.includes(" statusline "))) ? STATUS_WIRED : STATUS_OWN_LINE_FOUND;
+  return isOpenLimiterStatuslineCommand(command) ? STATUS_WIRED : STATUS_OWN_LINE_FOUND;
 }
 
 /** The command inside Grok's `[ui.status_line]` table, or nothing found. */
@@ -410,7 +566,10 @@ export async function hostStatus(
   }
 
   if (h === "claude") {
-    const settings = await readJsonFile(claudeSettingsPath(context));
+    let settingsPath: string;
+    try { settingsPath = await claudeSettingsPath(context); }
+    catch { return STATUS_NOT_WIRED; }
+    const settings = await readJsonFile(settingsPath);
     return classifyCommand(
       settings ? claudeLikeStatusLineCommand(settings["statusLine"]) : null
     );
@@ -429,7 +588,10 @@ export async function hostStatus(
   }
 
   if (h === "codex") {
-    const text = await readTextFile(codexConfigPath(context));
+    let configPath: string;
+    try { configPath = await codexConfigPath(context); }
+    catch { return STATUS_NOT_WIRED; }
+    const text = await readTextFile(configPath);
     return classifyCodexSection(text);
   }
 
