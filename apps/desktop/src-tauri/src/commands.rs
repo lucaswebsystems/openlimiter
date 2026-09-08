@@ -8,9 +8,6 @@ use zeroize::Zeroizing;
 use crate::cache_write::{CacheWriteBegin, CacheWriteError, CacheWriter, MAX_JSON_FILE_BYTES};
 use crate::claude_connect::{self, ClaudeConnectInput, ClaudePreflightVerdict};
 use crate::claude_detect::{self, LocalToolDetection};
-use crate::claude_oauth::{
-    self, ClaudeOauthOutcome, ClaudeOauthRuntime, RefreshDetectedClaudeInput,
-};
 use crate::connections::{
     now_epoch_ms, valid_alias, validate_record, ConnectionRecord, ConnectionsStore, StoreError,
     MAX_ATTEMPT_GENERATION, MAX_CONSECUTIVE_FAILURES, MAX_ID_CHARS,
@@ -1080,42 +1077,6 @@ pub fn list_detected_providers(detection: State<'_, DetectionStore>) -> Detectio
 #[tauri::command]
 pub fn rescan_detected_providers(detection: State<'_, DetectionStore>) -> DetectionReport {
     detection.rescan()
-}
-
-/// Not registered with Tauri, and not called from the desktop's own
-/// interface either.
-///
-/// `collect_account_guarded` below is the Anthropic poll path: a request
-/// carrying the person's own token, which only ever leaves this machine where
-/// somebody has switched it on (`run_pass` in claude_oauth.rs checks
-/// `ClaudePollSetting` before it calls this for anyone, on the scheduled
-/// pass). This command called the same function directly, for whichever
-/// account the caller named, without ever asking that setting first, which
-/// would have let a webview poll Anthropic on a person's behalf with no
-/// consent gate in the way at all. Nothing in this build's interface ever
-/// called it, so it is kept out of `generate_handler!` in lib.rs rather than
-/// wired through a gate a future command could just as easily forget again.
-#[cfg_attr(not(test), allow(dead_code))]
-#[tauri::command]
-pub async fn refresh_detected_claude(
-    input: RefreshDetectedClaudeInput,
-    detection: State<'_, DetectionStore>,
-    runtime: State<'_, ClaudeOauthRuntime>,
-    policy: State<'_, crate::request_policy::RequestPolicy>,
-    transport: State<'_, ReqwestTransport>,
-    writer: State<'_, Arc<CacheWriter>>,
-) -> Result<ClaudeOauthOutcome, CommandFailure> {
-    Ok(claude_oauth::collect_account_guarded(
-        &detection,
-        &runtime,
-        &policy,
-        &*transport,
-        Arc::clone(&writer),
-        input.account_id,
-        now_epoch_ms(),
-    )
-    .await
-    .0)
 }
 
 #[tauri::command]

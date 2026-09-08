@@ -281,7 +281,7 @@ pub async fn collect_account<T: Transport>(
     outcome
 }
 
-async fn collect_account_guarded<T: Transport>(
+pub(crate) async fn collect_account_guarded<T: Transport>(
     detection: &DetectionStore,
     runtime: &CodexOauthRuntime,
     policy: &RequestPolicy,

@@ -40,6 +40,13 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
+use tauri::State;
+
+use crate::cache_write::CacheWriter;
+use crate::codex_oauth::CodexOauthRuntime;
+use crate::net::ReqwestTransport;
+use crate::provider_detection::DetectionStore;
+use crate::request_policy::RequestPolicy;
 
 /// The client release that first carried `--device-auth`.
 ///
@@ -482,6 +489,29 @@ impl SystemDeviceLoginRunner {
     }
 }
 
+fn device_login_command(executable: &Path) -> Command {
+    #[cfg(windows)]
+    if executable.extension().is_some_and(|extension| {
+        matches!(
+            extension.to_string_lossy().to_ascii_lowercase().as_str(),
+            "cmd" | "bat"
+        )
+    }) {
+        /* npm exposes Windows command shims as `.cmd` or `.bat` files. They
+           are not direct executables, so route them through cmd.exe while
+           keeping the discovered launcher and its arguments bounded. */
+        let mut command = Command::new("cmd.exe");
+        command
+            .args(["/d", "/s", "/c"])
+            .arg(format!("\"{}\" login --device-auth", executable.display()));
+        return command;
+    }
+
+    let mut command = Command::new(executable);
+    command.args(["login", "--device-auth"]);
+    command
+}
+
 /// Send one stream's lines until it ends or nobody is listening.
 ///
 /// Bounded on both counts: a line longer than the bound is truncated rather
@@ -532,10 +562,8 @@ impl DeviceLoginChild for SystemChild {
 
 impl DeviceLoginRunner for SystemDeviceLoginRunner {
     fn start(&self, home: &Path) -> Result<Box<dyn DeviceLoginChild>, DeviceLoginFailure> {
-        let mut command = Command::new(&self.executable);
+        let mut command = device_login_command(&self.executable);
         command
-            .arg("login")
-            .arg("--device-auth")
             /* The client's own configuration variable, pointed at a folder
             this product owns. The person's own Codex home is never named and
             never touched. */
@@ -651,19 +679,42 @@ pub fn codex_device_login_start(
 
 /// How the open login is going.
 #[tauri::command]
-pub fn codex_device_login_status(
+pub async fn codex_device_login_status(
     session_id: String,
-    open: tauri::State<'_, OpenDeviceLogin>,
-) -> DeviceLoginState {
+    detection: State<'_, DetectionStore>,
+    open: State<'_, OpenDeviceLogin>,
+    runtime: State<'_, CodexOauthRuntime>,
+    policy: State<'_, RequestPolicy>,
+    transport: State<'_, ReqwestTransport>,
+    writer: State<'_, Arc<CacheWriter>>,
+) -> Result<DeviceLoginState, DeviceLoginFailure> {
     let held = open
         .open
         .lock()
         .ok()
         .and_then(|held| held.as_ref().filter(|(id, _)| *id == session_id).cloned());
     match held {
-        Some((_, session)) => session.state(Instant::now()),
+        Some((_, session)) => {
+            let state = session.state(Instant::now());
+            if state == DeviceLoginState::Complete {
+                let account_id = detection
+                    .register_managed_account(session.home())
+                    .ok_or(DeviceLoginFailure::Storage)?;
+                let _ = crate::codex_oauth::collect_account_guarded(
+                    &detection,
+                    &runtime,
+                    &policy,
+                    &*transport,
+                    Arc::clone(&writer),
+                    account_id,
+                    crate::connections::now_epoch_ms(),
+                )
+                .await;
+            }
+            Ok(state)
+        }
         /* A login this process is not holding is one that already ended. */
-        None => DeviceLoginState::Cancelled,
+        None => Ok(DeviceLoginState::Cancelled),
     }
 }
 

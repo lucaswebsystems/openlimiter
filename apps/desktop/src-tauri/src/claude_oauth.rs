@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Manager};
 
@@ -109,12 +109,6 @@ impl ClaudeOauthOutcome {
             message: "Reopen Claude Code to refresh this login.".to_string(),
         }
     }
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct RefreshDetectedClaudeInput {
-    pub account_id: String,
 }
 
 #[derive(Default)]

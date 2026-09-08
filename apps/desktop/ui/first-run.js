@@ -414,40 +414,6 @@ export function markStep(root, current) {
 }
 
 /**
- * Ask the operating system, once, and never pretend to have asked.
- *
- * A browser with no Notification API and a webview whose shell has not wired
- * one both report "unsupported" rather than "denied", because they are
- * different facts: one is a build that cannot ask and the other is a person
- * who said no.
- */
-export async function requestAlertPermission(notification = globalThis.Notification) {
-  if (notification === undefined || typeof notification.requestPermission !== "function") {
-    return "unsupported";
-  }
-  if (notification.permission === "granted") return "granted";
-  if (notification.permission === "denied") return "denied";
-  try {
-    return await notification.requestPermission();
-  } catch (error) {
-    return "unsupported";
-  }
-}
-
-export function permissionSentence(outcome) {
-  if (outcome === "granted") {
-    return "Alerts are on. You can change the thresholds or set quiet hours in Settings.";
-  }
-  if (outcome === "denied") {
-    return "The operating system is holding alerts. Every meter still works, and the system settings can undo this later.";
-  }
-  if (outcome === "skipped") {
-    return "Skipped. Alerts can be turned on in Settings whenever you want them.";
-  }
-  return "This build cannot show system alerts, so nothing was asked for. The meters are unaffected.";
-}
-
-/**
  * The Codex device sign in, as a state machine with no window in it.
  *
  * The command line tool prints a code and waits. This window does the same
@@ -627,9 +593,6 @@ export function firstRunCopyStrings() {
   for (const kind of ["complete", "cancelled", "timed_out", "failed", "unknown"]) {
     strings.push(codexSentence(kind));
   }
-  for (const outcome of ["granted", "denied", "skipped", "unsupported"]) {
-    strings.push(permissionSentence(outcome));
-  }
   for (const platform of ["Win32", "MacIntel", "Linux x86_64"]) {
     const notice = launchNotice(platform);
     if (notice !== null) strings.push(notice.title, notice.detail);
@@ -658,6 +621,7 @@ const DEFAULT_OPTIONS = Object.freeze({
   codexSignIn: async () => ({ ok: false, reason: "unconfigured" }),
   codexSignInPoll: async () => ({ ok: false, reason: "unconfigured" }),
   codexSignInCancel: async () => ({ ok: true }),
+  claudePollEnabled: async () => ({ ok: false, reason: "unconfigured" }),
   setClaudePoll: async () => ({ ok: false, reason: "unconfigured" }),
   copyText: async (text) => {
     await window.navigator.clipboard.writeText(text);
@@ -702,13 +666,19 @@ function quietButton(label) {
   return button;
 }
 
+/** Keep the old displayed value until the backend confirms the new one. */
+export function persistedToggleValue(previous, requested, result) {
+  const saved = result === true || (result?.ok === true && result.value === requested);
+  return saved ? requested : previous;
+}
+
 /*
  * The action lives in the row's own right hand slot and the slot holds its
  * width whatever is in it, so a row that changes state moves nothing beside
  * it. Everything a state needs to say more than a button can hold goes in the
  * disclosure under both columns, which grows the row downward instead.
  */
-function connectRow(provider, detection, signals, options, redraw) {
+function connectRow(provider, detection, signals, options, redraw, pollEnabled) {
   const row = element("div", "first-run-row");
   row.dataset.state = detection?.state ?? "unavailable";
   row.dataset.provider = provider.code;
@@ -795,23 +765,33 @@ function connectRow(provider, detection, signals, options, redraw) {
   /* The poll setting belongs to the Claude row and to no other, so it is
      drawn under it rather than in a settings list a person has not met yet. */
   if (provider.code === "CLAUDE" && (detection?.state ?? "") === "present") {
-    row.append(claudePollRow(options));
+    row.append(claudePollRow(options, pollEnabled));
   }
   return row;
 }
 
-function claudePollRow(options) {
+function claudePollRow(options, enabled) {
   const wrapper = element("div", "first-run-poll");
   const label = element("label", "first-run-poll-label");
   const input = document.createElement("input");
   input.type = "checkbox";
   input.id = "first-run-claude-poll";
-  input.checked = false;
+  input.checked = enabled === true;
   const words = element("span", null, CLAUDE_POLL_LABEL);
   label.append(input, words);
   const note = element("p", "first-run-poll-note", CLAUDE_POLL_NOTE);
   input.addEventListener("change", () => {
-    void options.setClaudePoll(input.checked === true);
+    const requested = input.checked === true;
+    const previous = !requested;
+    input.checked = previous;
+    input.disabled = true;
+    void options
+      .setClaudePoll(requested)
+      .catch(() => ({ ok: false }))
+      .then((result) => {
+        input.checked = persistedToggleValue(previous, requested, result);
+        input.disabled = false;
+      });
   });
   wrapper.append(label, note);
   return wrapper;
@@ -860,7 +840,7 @@ async function startCodexSignIn(provider, options, disclosure, button, redraw) {
 
   if (outcome.kind === "complete") {
     configureProvider(provider.code);
-    redraw();
+    void redraw();
     return;
   }
   /* Back to where the row was, with one sentence and no dead controls. */
@@ -870,7 +850,7 @@ async function startCodexSignIn(provider, options, disclosure, button, redraw) {
   button.disabled = false;
 }
 
-function renderProviders(screen, result, signals, options, redraw) {
+function renderProviders(screen, result, signals, options, redraw, pollEnabled) {
   const list = screen.querySelector("#first-run-providers");
   const note = screen.querySelector("#first-run-status");
   if (list === null) return;
@@ -883,7 +863,7 @@ function renderProviders(screen, result, signals, options, redraw) {
       accountCount: 0,
       recovery: null,
     };
-    list.append(connectRow(provider, detection, signals, options, redraw));
+    list.append(connectRow(provider, detection, signals, options, redraw, pollEnabled));
   }
   if (note === null) return;
   note.textContent = result.available
@@ -903,12 +883,14 @@ export function initFirstRun(input) {
 
   let detection = null;
   let microsoft = null;
+  let claudePollEnabled = false;
+  let claudePollPromise = null;
 
   /* Detection is started at load, behind nothing, so the connect step is
      already populated the moment it opens rather than beginning its work
      when a person arrives at it. */
-  function loadDetections() {
-    if (detection !== null) return detection;
+  function loadDetections(force = false) {
+    if (!force && detection !== null) return detection;
     detection = options
       .detectProviders()
       .then((response) => (response?.ok === true ? response.value : null))
@@ -918,6 +900,21 @@ export function initFirstRun(input) {
         signals: claudeSignals(payload),
       }));
     return detection;
+  }
+
+  function loadClaudePollSetting() {
+    if (claudePollPromise !== null) return claudePollPromise;
+    claudePollPromise = Promise.resolve()
+      .then(async () => {
+        const value = typeof options.claudePollEnabled === "function"
+          ? await options.claudePollEnabled()
+          : options.claudePollEnabled;
+        claudePollEnabled = value?.ok === true ? value.value === true : value === true;
+      })
+      .catch(() => {
+        claudePollEnabled = false;
+      });
+    return claudePollPromise;
   }
 
   /* Step one. Four ways in, and a plain way past all four.
@@ -1008,11 +1005,28 @@ export function initFirstRun(input) {
     setup.hidden = false;
     markStep(screen, "connect");
     screen.dataset.step = "connect";
-    const loaded = await loadDetections();
-    const redraw = () => {
-      renderProviders(screen, loaded.result, loaded.signals, options, redraw);
+    const heading = setup.querySelector("#first-run-title");
+    heading?.focus({ preventScroll: true });
+    const [loaded] = await Promise.all([loadDetections(), loadClaudePollSetting()]);
+    const redraw = async () => {
+      const latest = await loadDetections(true);
+      renderProviders(
+        screen,
+        latest.result,
+        latest.signals,
+        options,
+        redraw,
+        claudePollEnabled,
+      );
     };
-    redraw();
+    renderProviders(
+      screen,
+      loaded.result,
+      loaded.signals,
+      options,
+      redraw,
+      claudePollEnabled,
+    );
   }
 
   /* Step three. The bars, which are the window itself. */

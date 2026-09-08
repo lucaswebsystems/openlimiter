@@ -1164,25 +1164,68 @@ pub async fn account_email(
     Ok(status_for(store.inner(), true))
 }
 
-fn oauth_request(listener: &TcpListener) -> Result<(String, String), AccountFailure> {
-    let deadline = std::time::Instant::now() + Duration::from_secs(OAUTH_TIMEOUT_SECONDS);
+fn request_head(stream: &mut std::net::TcpStream, deadline: std::time::Instant) -> Option<String> {
+    let mut request = Vec::with_capacity(1_024);
+    let mut buffer = [0_u8; 1_024];
     loop {
+        if request
+            .windows(4)
+            .any(|window| window == b"\r\n\r\n")
+        {
+            break;
+        }
+        let remaining = deadline.checked_duration_since(std::time::Instant::now())?;
+        stream.set_read_timeout(Some(remaining)).ok()?;
+        let count = match stream.read(&mut buffer) {
+            Ok(0) => return None,
+            Ok(count) => count,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                ) => return None,
+            Err(_) => return None,
+        };
+        if request.len().saturating_add(count) > MAX_REQUEST_BYTES {
+            return None;
+        }
+        request.extend_from_slice(&buffer[..count]);
+    }
+    let end = request
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")?
+        .saturating_add(4);
+    std::str::from_utf8(&request[..end]).ok().map(str::to_string)
+}
+
+fn oauth_request_with_timeout(
+    listener: &TcpListener,
+    timeout: Duration,
+) -> Result<(String, String), AccountFailure> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if std::time::Instant::now() >= deadline {
+            return Err(AccountFailure::OauthTimeout);
+        }
         match listener.accept() {
             Ok((mut stream, _)) => {
-                let mut request = [0_u8; MAX_REQUEST_BYTES];
-                let count = stream
-                    .read(&mut request)
-                    .map_err(|_| AccountFailure::OauthRejected)?;
-                let head = std::str::from_utf8(&request[..count])
-                    .map_err(|_| AccountFailure::OauthRejected)?;
-                let target = head
+                if stream.set_nonblocking(false).is_err() {
+                    continue;
+                }
+                let Some(head) = request_head(&mut stream, deadline) else {
+                    continue;
+                };
+                let Some(target) = head
                     .lines()
                     .next()
                     .and_then(|line| line.strip_prefix("GET "))
                     .and_then(|line| line.split_once(' ').map(|pair| pair.0))
-                    .ok_or(AccountFailure::OauthRejected)?;
-                let url = Url::parse(&format!("http://127.0.0.1:17391{target}"))
-                    .map_err(|_| AccountFailure::OauthRejected)?;
+                else {
+                    continue;
+                };
+                let Ok(url) = Url::parse(&format!("http://127.0.0.1{target}")) else {
+                    continue;
+                };
                 /* Only the address this device actually told the provider to
                 come back to is ever treated as the callback. This loopback
                 port has no other reason to exist, so anything else that
@@ -1196,11 +1239,13 @@ fn oauth_request(listener: &TcpListener) -> Result<(String, String), AccountFail
                         .write_all(b"HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
                     continue;
                 }
-                let code = url
+                let Some(code) = url
                     .query_pairs()
                     .find(|(key, _)| key == "code")
                     .map(|(_, value)| value.into_owned())
-                    .ok_or(AccountFailure::OauthRejected)?;
+                else {
+                    continue;
+                };
                 let state = url
                     .query_pairs()
                     .find(|(key, _)| key == "state")
@@ -1223,6 +1268,10 @@ fn oauth_request(listener: &TcpListener) -> Result<(String, String), AccountFail
             Err(_) => return Err(AccountFailure::OauthRejected),
         }
     }
+}
+
+fn oauth_request(listener: &TcpListener) -> Result<(String, String), AccountFailure> {
+    oauth_request_with_timeout(listener, Duration::from_secs(OAUTH_TIMEOUT_SECONDS))
 }
 
 /// Whether an authorize answer is the service refusing a provider it has not
@@ -1479,14 +1528,15 @@ mod tests {
     fn oauth_request_only_answers_the_configured_callback_path() {
         use std::net::TcpStream;
 
-        let listener = TcpListener::bind("127.0.0.1:17391").expect("the loopback port");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("the loopback port");
+        let address = listener.local_addr().expect("the listener address");
         listener.set_nonblocking(true).expect("nonblocking");
         let handle = std::thread::spawn(move || oauth_request(&listener));
 
         /* A path this device never told the provider to use: answered and
         ignored, never read as this sign in's own code and state. */
         {
-            let mut probe = TcpStream::connect("127.0.0.1:17391").expect("connect");
+            let mut probe = TcpStream::connect(address).expect("connect");
             probe
                 .write_all(
                     b"GET /not-the-callback?code=stolen&state=x HTTP/1.1\r\nHost: x\r\n\r\n",
@@ -1497,10 +1547,17 @@ mod tests {
             assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 404"));
         }
 
+        /* A complete but malformed request is unrelated too, and must not
+           end the listener before the real callback arrives. */
+        {
+            let mut malformed = TcpStream::connect(address).expect("connect");
+            malformed.write_all(b"not an HTTP request\r\n\r\n").expect("write");
+        }
+
         /* The address this device actually asked for: the one answered as a
         real, signed in callback. */
         {
-            let mut real = TcpStream::connect("127.0.0.1:17391").expect("connect");
+            let mut real = TcpStream::connect(address).expect("connect");
             real.write_all(
                 b"GET /auth/callback?code=real-code&state=real-state HTTP/1.1\r\nHost: x\r\n\r\n",
             )
@@ -1513,6 +1570,49 @@ mod tests {
         let (code, state) = handle.join().expect("thread joined").expect("oauth_request");
         assert_eq!(code, "real-code");
         assert_eq!(state, "real-state");
+    }
+
+    #[test]
+    fn oauth_request_abandons_a_silent_connection_at_the_absolute_deadline() {
+        use std::net::TcpStream;
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("the loopback port");
+        let address = listener.local_addr().expect("the listener address");
+        listener.set_nonblocking(true).expect("nonblocking");
+        let handle = std::thread::spawn(move || {
+            oauth_request_with_timeout(&listener, Duration::from_millis(120))
+        });
+        let silent = TcpStream::connect(address).expect("connect");
+        let answer = handle.join().expect("thread joined");
+        assert!(matches!(answer, Err(AccountFailure::OauthTimeout)));
+        drop(silent);
+    }
+
+    #[test]
+    fn oauth_request_buffers_a_fragmented_callback_until_the_headers_finish() {
+        use std::net::TcpStream;
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("the loopback port");
+        let address = listener.local_addr().expect("the listener address");
+        listener.set_nonblocking(true).expect("nonblocking");
+        let handle = std::thread::spawn(move || {
+            oauth_request_with_timeout(&listener, Duration::from_secs(1))
+        });
+        let mut callback = TcpStream::connect(address).expect("connect");
+        callback
+            .write_all(b"GET /auth/callback?code=fragmented-code")
+            .expect("first fragment");
+        std::thread::sleep(Duration::from_millis(10));
+        callback
+            .write_all(b"&state=fragmented-state HTTP/1.1\r\nHost: x\r\n\r\n")
+            .expect("second fragment");
+        let mut buffer = [0_u8; 256];
+        let count = callback.read(&mut buffer).expect("response");
+        assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 200"));
+
+        let (code, state) = handle.join().expect("thread joined").expect("callback");
+        assert_eq!(code, "fragmented-code");
+        assert_eq!(state, "fragmented-state");
     }
 
     #[test]

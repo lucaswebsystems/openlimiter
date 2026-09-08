@@ -97,7 +97,7 @@
           be in rather than the thing the screen leads with.
         -->
         <div id="first-run-setup" hidden>
-          <h1 id="first-run-title">Connect your tools</h1>
+          <h1 id="first-run-title" tabindex="-1">Connect your tools</h1>
           <p id="first-run-intro" class="first-run-intro">Every login stays on this machine. Only percentages ever leave it.</p>
           <div id="first-run-launch-note" class="first-run-launch-note" role="note" hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -110,7 +110,7 @@
             </p>
           </div>
           <div id="first-run-providers" class="first-run-providers" aria-live="polite"></div>
-          <p id="first-run-status" class="first-run-status" role="status">
+          <p id="first-run-status" class="first-run-status" role="status" aria-live="polite" aria-atomic="true">
             Checking local tools.
           </p>
           <button type="button" id="first-run-continue" class="first-run-continue">

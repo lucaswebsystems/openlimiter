@@ -14,6 +14,7 @@ import {
   firstRunCopyStrings,
   launchNotice,
   normalizeDetections,
+  persistedToggleValue,
   pressSignInWay,
   rowAction,
   runCodexSignIn,
@@ -237,6 +238,7 @@ test("an unwired option degrades instead of throwing", async () => {
     "codexSignIn",
     "codexSignInPoll",
     "codexSignInCancel",
+    "claudePollEnabled",
     "setClaudePoll",
     "copyText",
     "mountSignIn",
@@ -365,8 +367,24 @@ test("Claude is read, never signed into, and its poll is off by default", () => 
     source,
     /"Off by default\. When it is on, OpenLimiter reads your own Claude token to ask Anthropic for your percentage while Claude Code is not running\."/u,
   );
-  assert.match(source, /input\.checked = false;/u);
-  assert.match(source, /void options\.setClaudePoll\(input\.checked === true\)/u);
+  assert.match(source, /input\.checked = enabled === true;/u);
+  assert.match(source, /input\.checked = previous;[\s\S]*?setClaudePoll\(requested\)/u);
+  assert.equal(persistedToggleValue(true, false, { ok: false }), true);
+  assert.equal(persistedToggleValue(true, false, { ok: true, value: false }), false);
+});
+
+test("entering Connect moves focus and announces the completed scan", () => {
+  const source = read("first-run.js");
+  const html = read("index.html");
+  assert.match(
+    source,
+    /setup\.hidden = false;[\s\S]*?const heading = setup\.querySelector\("#first-run-title"\);\s*heading\?\.focus\(\{ preventScroll: true \}\);/u,
+  );
+  assert.match(html, /id="first-run-title" tabindex="-1"/u);
+  assert.match(
+    html,
+    /id="first-run-status" class="first-run-status" role="status" aria-live="polite" aria-atomic="true"/u,
+  );
 });
 
 test("the Codex device flow finishes inside our own window", async () => {
@@ -410,7 +428,8 @@ test("the Codex device flow finishes inside our own window", async () => {
   assert.equal(polls, 3);
 
   const source = read("first-run.js");
-  assert.match(source, /configureProvider\(provider\.code\);\s*redraw\(\);/u);
+  assert.match(source, /configureProvider\(provider\.code\);\s*void redraw\(\);/u);
+  assert.match(source, /const redraw = async \(\) => \{\s*const latest = await loadDetections\(true\);/u);
 });
 
 test("the Codex device flow can be cancelled, and the backend is told", async () => {
@@ -599,12 +618,13 @@ test("names the Gatekeeper gesture for the unsigned macOS release", () => {
 });
 
 test("no longer claims a macOS release is coming", () => {
-  /* The unsigned universal app and dmg exist. A first run screen telling a
-     person on macOS that there is no download, while they are running the
-     download, is the one sentence on this screen that cannot be true. */
-  const source = readFileSync(new URL("./first-run.js", import.meta.url), "utf8");
-  assert.equal(source.includes("coming soon"), false);
-  assert.equal(source.includes("No public download"), false);
+  /* The unsigned universal app and dmg exist, so the journey names the
+     Gatekeeper action rather than a download that does not exist. */
+  assert.deepEqual(launchNotice("MacIntel"), {
+    title: "Unsigned macOS build",
+    detail:
+      "Gatekeeper: control click OpenLimiter in Applications, choose Open, then Open again.",
+  });
 });
 
 test("does not add a launch warning on Linux", () => {

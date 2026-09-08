@@ -114,11 +114,7 @@ import {
   noteMetersRefreshed,
   openProviderConnection,
 } from "./connections.js";
-import {
-  initFirstRun,
-  permissionSentence,
-  requestAlertPermission,
-} from "./first-run.js";
+import { initFirstRun } from "./first-run.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
@@ -792,6 +788,32 @@ async function runUpdateCheck(silent) {
    raises no toast at all, so asking the operating system for permission to
    raise one would be asking for something nothing would ever use. */
 let permissionAsked = false;
+
+async function requestAlertPermission(notification = globalThis.Notification) {
+  if (notification === undefined || typeof notification.requestPermission !== "function") {
+    return "unsupported";
+  }
+  if (notification.permission === "granted") return "granted";
+  if (notification.permission === "denied") return "denied";
+  try {
+    return await notification.requestPermission();
+  } catch (error) {
+    return "unsupported";
+  }
+}
+
+function permissionSentence(outcome) {
+  if (outcome === "granted") {
+    return "Alerts are on. You can change the thresholds or set quiet hours in Settings.";
+  }
+  if (outcome === "denied") {
+    return "The operating system is holding alerts. Every meter still works, and the system settings can undo this later.";
+  }
+  if (outcome === "skipped") {
+    return "Skipped. Alerts can be turned on in Settings whenever you want them.";
+  }
+  return "This build cannot show system alerts, so nothing was asked for. The meters are unaffected.";
+}
 
 async function paintAlertGate() {
   if (elements.notificationGate === null) return;

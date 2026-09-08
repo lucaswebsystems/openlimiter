@@ -621,9 +621,16 @@ impl SystemLoopbackProbe {
             secure: reqwest::Client::builder()
                 .timeout(timeout)
                 .danger_accept_invalid_certs(true)
+                .redirect(reqwest::redirect::Policy::none())
+                .no_proxy()
                 .build()
                 .ok(),
-            plain: reqwest::Client::builder().timeout(timeout).build().ok(),
+            plain: reqwest::Client::builder()
+                .timeout(timeout)
+                .redirect(reqwest::redirect::Policy::none())
+                .no_proxy()
+                .build()
+                .ok(),
         }
     }
 
@@ -638,6 +645,9 @@ impl SystemLoopbackProbe {
             .send()
             .await
             .ok()?;
+        if !same_loopback_destination(response.url(), url) {
+            return None;
+        }
         if !response.status().is_success() {
             return None;
         }
@@ -647,6 +657,21 @@ impl SystemLoopbackProbe {
         }
         String::from_utf8(bytes.to_vec()).ok()
     }
+}
+
+/// Even with redirect policy disabled, keep the final destination check beside
+/// the response handling. A future client builder change must not turn this
+/// local probe into a request to a different host.
+fn same_loopback_destination(actual: &reqwest::Url, expected: &str) -> bool {
+    let Ok(expected) = reqwest::Url::parse(expected) else {
+        return false;
+    };
+    actual.scheme() == expected.scheme()
+        && actual.host_str() == Some("127.0.0.1")
+        && actual.host_str() == expected.host_str()
+        && actual.port() == expected.port()
+        && actual.path() == expected.path()
+        && actual.query() == expected.query()
 }
 
 impl LoopbackProbe for SystemLoopbackProbe {
@@ -978,6 +1003,28 @@ mod tests {
         /* Nothing in the request names a vendor client, and nothing in it is a
         credential. Both are the whole argument for reading this way. */
         assert!(!QUOTA_SUMMARY_BODY.contains("antigravity/cli"));
+    }
+
+    #[test]
+    fn a_loopback_probe_rejects_a_redirected_or_non_loopback_destination() {
+        let expected = "https://127.0.0.1:52123/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary";
+        assert!(same_loopback_destination(
+            &reqwest::Url::parse(expected).expect("expected url"),
+            expected
+        ));
+        for hostile in [
+            "https://127.0.0.1:52124/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary",
+            "https://192.0.2.1:52123/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary",
+            "http://127.0.0.1:52123/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary",
+        ] {
+            assert!(
+                !same_loopback_destination(
+                    &reqwest::Url::parse(hostile).expect("hostile url"),
+                    expected
+                ),
+                "{hostile} was accepted"
+            );
+        }
     }
 
     #[test]

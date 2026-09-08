@@ -13,6 +13,7 @@ use crate::fsx;
 use crate::native_snapshot::{epoch_ms_from_rfc3339, iso_from_epoch_ms};
 
 const MAX_PROFILE_DIRECTORIES: usize = 32;
+const MAX_MANAGED_CODEX_ACCOUNTS: usize = 32;
 const MAX_ACCOUNTS_PER_FILE: usize = 16;
 const MAX_TOKEN_BYTES: usize = 4_096;
 const MAX_IDENTITY_BYTES: usize = 512;
@@ -254,6 +255,7 @@ struct DiscoveryContext {
     xdg_config: Option<PathBuf>,
     xdg_data: Option<PathBuf>,
     codex_home: Option<PathBuf>,
+    managed_codex_root: Option<PathBuf>,
     grok_home: Option<PathBuf>,
     kimi_code_home: Option<PathBuf>,
     kimi_share_dir: Option<PathBuf>,
@@ -284,6 +286,8 @@ impl DiscoveryContext {
         let path_entries = env::var_os("PATH")
             .map(|value| env::split_paths(&value).collect())
             .unwrap_or_default();
+        let managed_codex_root = crate::state::state_directory()
+            .map(|value| value.join("accounts").join("codex"));
         Self {
             platform,
             read_native_credentials: true,
@@ -294,6 +298,7 @@ impl DiscoveryContext {
             xdg_config,
             xdg_data,
             codex_home: non_empty_path("CODEX_HOME"),
+            managed_codex_root,
             grok_home: non_empty_path("GROK_HOME"),
             kimi_code_home: non_empty_path("KIMI_CODE_HOME"),
             kimi_share_dir: non_empty_path("KIMI_SHARE_DIR"),
@@ -382,6 +387,9 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 &["codex", "auth.json"],
                 Credential,
             );
+            paths.extend(managed_codex_candidates(
+                context.managed_codex_root.as_deref(),
+            ));
         }
         DetectedProviderId::Antigravity => {
             push_candidate(
@@ -627,6 +635,57 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
     paths
 }
 
+/// Managed device logins use `CODEX_HOME` itself as the configuration folder,
+/// so their credential is directly under `accounts/codex/<session>`. Keep the
+/// registration bounded and accept only a real child directory of the managed
+/// root. A package or a symlink planted beside it must not become an account.
+fn managed_codex_candidates(root: Option<&Path>) -> Vec<CandidatePath> {
+    let Some(root) = root else {
+        return Vec::new();
+    };
+    let Ok(resolved_root) = fs::canonicalize(root) else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    for entry in entries.flatten().take(MAX_MANAGED_CODEX_ACCOUNTS * 2) {
+        if found.len() >= MAX_MANAGED_CODEX_ACCOUNTS {
+            break;
+        }
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.is_empty()
+            || name.len() > 64
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        {
+            continue;
+        }
+        let path = entry.path();
+        let Ok(metadata) = fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            continue;
+        }
+        let Ok(resolved) = fs::canonicalize(&path) else {
+            continue;
+        };
+        if resolved.parent() != Some(resolved_root.as_path()) {
+            continue;
+        }
+        found.push(CandidatePath {
+            path: path.join("auth.json"),
+            kind: CandidateKind::Credential,
+        });
+    }
+    found.sort_by(|left, right| left.path.cmp(&right.path));
+    found
+}
+
 fn profile_prefix(provider: DetectedProviderId) -> Option<(&'static str, &'static str)> {
     match provider {
         DetectedProviderId::Claude => Some((".claude", ".credentials.json")),
@@ -682,6 +741,22 @@ fn profile_candidates(provider: DetectedProviderId, home: Option<&Path>) -> Vec<
 
 fn safe_path_present(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|metadata| !metadata.file_type().is_symlink())
+}
+
+/// Resolve an executable launcher before accepting it. POSIX package managers
+/// conventionally put a symbolic link in `bin/`; rejecting that link makes a
+/// normal npm install look absent. The returned path is still the launcher,
+/// while the target is checked as a regular file before it is trusted.
+fn validated_launcher(path: &Path) -> Option<PathBuf> {
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if metadata.file_type().is_symlink() {
+        let resolved = fs::canonicalize(path).ok()?;
+        return fs::metadata(&resolved)
+            .ok()
+            .filter(|metadata| metadata.is_file())
+            .map(|_| path.to_path_buf());
+    }
+    metadata.is_file().then(|| path.to_path_buf())
 }
 
 fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -> Vec<String> {
@@ -771,7 +846,7 @@ fn executable_present(provider: DetectedProviderId, context: &DiscoveryContext) 
     context.path_entries.iter().any(|directory| {
         names
             .iter()
-            .any(|name| safe_path_present(&directory.join(name)))
+            .any(|name| validated_launcher(&directory.join(name)).is_some())
             && (corroborated || inside_kimi_code_installation(directory))
     })
 }
@@ -803,17 +878,13 @@ fn installed_client_version(
 ) -> Option<String> {
     let names = executable_names(provider, context.platform);
     for directory in &context.path_entries {
-        if !names
+        let launcher = names
             .iter()
-            .any(|name| safe_path_present(&directory.join(name)))
-        {
+            .find_map(|name| validated_launcher(&directory.join(name)));
+        let Some(launcher) = launcher else {
             continue;
-        }
-        for relative in CLIENT_MANIFEST_PATHS {
-            let mut manifest = directory.clone();
-            for part in relative {
-                manifest.push(part);
-            }
+        };
+        for manifest in client_manifest_candidates(provider, directory, &launcher) {
             if let Some(version) = manifest_version(&manifest) {
                 return Some(version);
             }
@@ -836,12 +907,79 @@ fn installed_executable(
     for directory in &context.path_entries {
         for name in &names {
             let candidate = directory.join(name);
-            if safe_path_present(&candidate) {
+            if validated_launcher(&candidate).is_some() {
                 return Some(candidate);
             }
         }
     }
     None
+}
+
+fn package_name(provider: DetectedProviderId) -> Option<&'static str> {
+    match provider {
+        DetectedProviderId::Claude => Some("@anthropic-ai/claude-code"),
+        DetectedProviderId::Codex => Some("@openai/codex"),
+        DetectedProviderId::GeminiCli => Some("@google/gemini-cli"),
+        DetectedProviderId::Opencode => Some("opencode-ai"),
+        DetectedProviderId::Grok | DetectedProviderId::Kimi => None,
+        DetectedProviderId::Antigravity | DetectedProviderId::Openrouter => None,
+    }
+}
+
+/// Find the package manifest for both common npm layouts. The resolved POSIX
+/// target lets the search walk up from a package's `bin` directory, while the
+/// explicit `node_modules` candidates cover Windows command shims whose text
+/// launcher does not expose a filesystem target to Rust.
+fn client_manifest_candidates(
+    provider: DetectedProviderId,
+    directory: &Path,
+    launcher: &Path,
+) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    for relative in CLIENT_MANIFEST_PATHS {
+        let mut manifest = directory.to_path_buf();
+        for part in relative {
+            manifest.push(part);
+        }
+        candidates.push(manifest);
+    }
+
+    let mut roots = vec![directory.to_path_buf()];
+    if let Some(parent) = launcher.parent() {
+        if !roots.iter().any(|root| root == parent) {
+            roots.push(parent.to_path_buf());
+        }
+    }
+    if let Some(parent) = launcher
+        .canonicalize()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+    {
+        if !roots.iter().any(|root| root == &parent) {
+            roots.push(parent);
+        }
+    }
+
+    let package = package_name(provider);
+    for mut root in roots {
+        for _ in 0..=6 {
+            if let Some(package) = package {
+                candidates.push(root.join("node_modules").join(package).join("package.json"));
+            }
+            candidates.push(root.join("package.json"));
+            let Some(parent) = root.parent() else {
+                break;
+            };
+            if parent == root {
+                break;
+            }
+            root = parent.to_path_buf();
+        }
+    }
+
+    let mut unique = BTreeSet::new();
+    candidates.retain(|path| unique.insert(path.clone()));
+    candidates
 }
 
 fn manifest_version(path: &Path) -> Option<String> {
@@ -1452,6 +1590,41 @@ impl DetectionStore {
         report
     }
 
+    /// Validate one device login home, rescan the owned account root, and
+    /// return the opaque account id that the automatic Codex collector uses.
+    /// The home must be a direct child of the state directory this process
+    /// owns, and the vendor file must contain exactly one readable account.
+    pub fn register_managed_account(&self, home: &Path) -> Option<String> {
+        let root = self.context.managed_codex_root.as_deref()?;
+        let resolved_root = fs::canonicalize(root).ok()?;
+        let resolved_home = fs::canonicalize(home).ok()?;
+        if resolved_home.parent() != Some(resolved_root.as_path()) {
+            return None;
+        }
+        let name = resolved_home.file_name()?.to_string_lossy();
+        if name.is_empty()
+            || name.len() > 64
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        {
+            return None;
+        }
+        let mut parsed = parse_credential_file(DetectedProviderId::Codex, &home.join("auth.json"));
+        if parsed.len() != 1 {
+            return None;
+        }
+        let account_id = opaque_account_id(DetectedProviderId::Codex, &parsed[0].identity_material);
+        drop(parsed.pop());
+        let report = self.rescan();
+        report
+            .providers
+            .iter()
+            .find(|provider| provider.provider_id == DetectedProviderId::Codex)
+            .is_some_and(|provider| provider.accounts.iter().any(|account| account.account_id == account_id))
+            .then_some(account_id)
+    }
+
     /// The version of this provider's installed client, when the installation
     /// states one on disk.
     ///
@@ -1610,6 +1783,7 @@ impl DetectionStore {
             xdg_config: Some(home.join(".config")),
             xdg_data: Some(home.join(".local").join("share")),
             codex_home: None,
+            managed_codex_root: Some(home.join("accounts").join("codex")),
             grok_home: None,
             kimi_code_home: None,
             kimi_share_dir: None,
@@ -1639,6 +1813,7 @@ mod tests {
             xdg_config: Some(home.join("config")),
             xdg_data: Some(home.join("data")),
             codex_home: Some(home.join("codex-home")),
+            managed_codex_root: Some(home.join("managed-codex")),
             grok_home: Some(home.join("grok-home")),
             kimi_code_home: Some(home.join("kimi-code-home")),
             kimi_share_dir: Some(home.join("kimi-share")),
@@ -2075,6 +2250,70 @@ mod tests {
         assert_eq!(kimi.recovery, Some(RecoveryAction::SignInToCli));
     }
 
+    #[test]
+    fn a_managed_codex_device_login_is_discovered_from_its_owned_home() {
+        let dir = TempDir::new();
+        let root = dir.path().join("managed-codex");
+        let session = root.join("abc123");
+        let token = jwt(r#"{"account_id":"managed-account","exp":1900000000}"#);
+        write(
+            &session.join("auth.json"),
+            &format!(r#"{{"tokens":{{"access_token":"{token}"}}}}"#),
+        );
+        let mut discovery = context(DiscoveryPlatform::Linux, dir.path());
+        discovery.managed_codex_root = Some(root);
+        let inventory = scan_inventory(&discovery, 1_800_000_000_000);
+        let codex = provider(&inventory.report, DetectedProviderId::Codex);
+        assert_eq!(codex.state, ProviderPresence::Present);
+        assert_eq!(codex.accounts.len(), 1);
+        assert!(inventory
+            .credentials
+            .contains_key(&(DetectedProviderId::Codex, codex.accounts[0].account_id.clone())));
+    }
+
+    #[test]
+    fn registering_a_managed_home_validates_then_rescans_it() {
+        let dir = TempDir::new();
+        let detection = DetectionStore::for_test_home(dir.path(), 1_800_000_000_000);
+        let session = dir.path().join("accounts").join("codex").join("abc123");
+        let token = jwt(r#"{"account_id":"managed-account","exp":1900000000}"#);
+        write(
+            &session.join("auth.json"),
+            &format!(r#"{{"tokens":{{"access_token":"{token}"}}}}"#),
+        );
+        let account_id = detection
+            .register_managed_account(&session)
+            .expect("managed account");
+        assert!(detection.account_ids(DetectedProviderId::Codex).contains(&account_id));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_posix_package_launcher_symlink_is_resolved_and_accepted() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new();
+        let bin = dir.path().join("bin");
+        let package_bin = dir.path().join("node_modules").join("grok").join("bin");
+        write(&package_bin.join("grok.js"), "javascript marker");
+        fs::create_dir_all(&bin).expect("bin directory");
+        symlink(package_bin.join("grok.js"), bin.join("grok")).expect("launcher symlink");
+        let mut discovery = context(DiscoveryPlatform::Linux, dir.path());
+        discovery.path_entries = vec![bin.clone()];
+        assert_eq!(
+            installed_executable(DetectedProviderId::Grok, &discovery),
+            Some(bin.join("grok"))
+        );
+        assert_eq!(
+            provider(
+                &scan_inventory(&discovery, 1_800_000_000_000).report,
+                DetectedProviderId::Grok
+            )
+            .state,
+            ProviderPresence::InstalledLoggedOut
+        );
+    }
+
     /// A reader that borrows another client's request contract may state that
     /// client's version, and only a version the installation published itself.
     #[test]
@@ -2090,6 +2329,25 @@ mod tests {
         assert_eq!(
             installed_client_version(DetectedProviderId::Grok, &discovery),
             None
+        );
+
+        /* A Windows npm shim lives beside the prefix, while its scoped
+        package manifest lives below the prefix's node_modules directory. */
+        let npm_bin = dir.path().join("npm-bin");
+        write(&npm_bin.join("codex.cmd"), "@echo off");
+        write(
+            &npm_bin
+                .join("node_modules")
+                .join("@openai")
+                .join("codex")
+                .join("package.json"),
+            r#"{"name":"@openai/codex","version":"0.153.3"}"#,
+        );
+        let mut windows = context(DiscoveryPlatform::Windows, dir.path());
+        windows.path_entries = vec![npm_bin];
+        assert_eq!(
+            installed_client_version(DetectedProviderId::Codex, &windows),
+            Some("0.153.3".to_string())
         );
 
         /* The npm layout: a shim in bin/, the manifest one level up. */
