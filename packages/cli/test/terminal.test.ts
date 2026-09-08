@@ -1,7 +1,13 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { tomlValue } from "../src/terminal-toml.js";
+
+vi.mock("../src/terminal-launcher.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/terminal-launcher.js")>();
+  return { ...actual, installLauncher: (directory: string) => actual.installLauncher(directory, path.resolve("packages/cli")) };
+});
 import {
   CONNECT_FIRST_SENTENCE,
   STATUS_NOT_WIRED,
@@ -19,6 +25,10 @@ import {
   type TerminalHostContext
 } from "../src/terminal.js";
 import { CONFIG_FILE_NAME, runCli } from "../src/index.js";
+
+// Install journeys now copy and execute a real shipped runtime. Allow slow
+// Windows filesystem and antivirus scans to finish before fixture cleanup.
+vi.setConfig({ testTimeout: 20_000, hookTimeout: 20_000 });
 
 /* The temp root in canonical form, matching the pattern every other suite in
    this package uses so a symlinked or short-named OS temp directory never
@@ -39,14 +49,16 @@ async function temporaryDirectory(prefix: string): Promise<string> {
 
 afterEach(async () => {
   for (const directory of created.splice(0)) {
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 3 });
   }
 });
 
 async function context(homeDirectory: string): Promise<TerminalHostContext> {
   return {
     homeDirectory,
-    platform: "win32"
+    platform: "win32",
+    environment: { SHELL: "powershell.exe" },
+    shellRunner: async () => ({ ok: true, stdout: path.join(homeDirectory, "profile.ps1") })
   };
 }
 
@@ -75,7 +87,7 @@ describe("terminal host installers", () => {
     const afterInstall = JSON.parse(await readFile(settingsFile, "utf8")) as {
       statusLine: { command: string };
     };
-    expect(afterInstall.statusLine.command).toBe("openlimiter statusline --host claude");
+    expect(afterInstall.statusLine.command).toContain('openlimiter.cjs" statusline --host claude');
 
     /* Installing a second time must not wrap its own command around itself. */
     const installedAgain = await installHost("claude", ctx);
@@ -83,13 +95,12 @@ describe("terminal host installers", () => {
     const afterSecondInstall = JSON.parse(await readFile(settingsFile, "utf8")) as {
       statusLine: { command: string };
     };
-    expect(afterSecondInstall.statusLine.command).toBe("openlimiter statusline --host claude");
+    expect(afterSecondInstall.statusLine.command).toBe(afterInstall.statusLine.command);
 
     const uninstalled = await uninstallHost("claude", ctx);
     expect(uninstalled.ok).toBe(true);
     expect(await hostStatus("claude", ctx)).toBe(STATUS_NOT_WIRED);
-    const afterUninstall = JSON.parse(await readFile(settingsFile, "utf8")) as Record<string, unknown>;
-    expect(afterUninstall["statusLine"]).toBeUndefined();
+    await expect(readFile(settingsFile, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("wraps and restores an existing Claude status line through --wrap", async () => {
@@ -108,7 +119,7 @@ describe("terminal host installers", () => {
     const wrapped = JSON.parse(await readFile(settingsFile, "utf8")) as {
       statusLine: { command: string };
     };
-    expect(wrapped.statusLine.command).toContain("openlimiter statusline --host claude --wrap ");
+    expect(wrapped.statusLine.command).toContain('openlimiter.cjs" statusline --host claude --wrap ');
     expect(wrapped.statusLine.command).not.toContain("my-own-statusline");
 
     /* Installing again must not wrap the already wrapped command a second
@@ -138,7 +149,7 @@ describe("terminal host installers", () => {
 
     await installHost("antigravity", ctx);
     const wrapped = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: string };
-    expect(wrapped.statusLine).toContain("openlimiter statusline --host antigravity --wrap ");
+    expect(wrapped.statusLine).toContain('openlimiter.cjs" statusline --host antigravity --wrap ');
 
     await installHost("antigravity", ctx);
     const wrappedAgain = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: string };
@@ -163,7 +174,7 @@ describe("terminal host installers", () => {
 
     await installHost("grok", ctx);
     const wrapped = await readFile(configFile, "utf8");
-    expect(wrapped).toContain('command = "openlimiter statusline --host grok --wrap ');
+    expect(tomlValue(wrapped, ["ui", "status_line", "command"])).toContain('openlimiter.cjs" statusline --host grok --wrap ');
     expect(wrapped).toContain("[some.other.table]");
 
     await installHost("grok", ctx);
@@ -231,7 +242,7 @@ describe("terminal host installers", () => {
     expect(installed.message).toContain("Starship snippet");
     expect(installed.message).toContain("tmux snippet");
     expect(installed.message).toContain("Oh My Posh segment");
-    expect(installed.message).toContain("openlimiter statusline --host shell");
+    expect(installed.message).toContain("statusline --host shell");
     expect(await hostStatus("shell", ctx)).toBe(STATUS_WIRED);
 
     const installedAgain = await installHost("shell", ctx);
@@ -249,6 +260,7 @@ describe("terminal host installers", () => {
     const ctx: TerminalHostContext = {
       homeDirectory: home,
       platform: "win32",
+      environment: { SHELL: "pwsh.exe" },
       shellRunner: async (executable) => {
         calls.push(executable);
         if (executable === "pwsh.exe") return { ok: true, stdout: resolvedProfile + "\r\n" };
@@ -259,41 +271,41 @@ describe("terminal host installers", () => {
     expect(installed.ok).toBe(true);
     expect(calls).toEqual(["pwsh.exe"]);
     const written = await readFile(resolvedProfile, "utf8");
-    expect(written).toContain("openlimiter statusline");
+    expect(written).toContain("statusline --host shell");
     expect(await hostStatus("shell", ctx)).toBe(STATUS_WIRED);
   });
 
-  it("falls back to powershell.exe when pwsh cannot answer, and to the hardcoded guess when neither can", async () => {
+  it("asks the selected PowerShell and refuses installation when its profile cannot be resolved", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const resolvedProfile = path.join(home, "asked-powershell-profile.ps1");
     const ctxWithPowershell: TerminalHostContext = {
       homeDirectory: home,
       platform: "win32",
+      environment: { SHELL: "powershell.exe" },
       shellRunner: async (executable) => {
         if (executable === "powershell.exe") return { ok: true, stdout: resolvedProfile };
         return { ok: false };
       }
     };
     await installHost("shell", ctxWithPowershell);
-    expect(await readFile(resolvedProfile, "utf8")).toContain("openlimiter statusline");
+    expect(await readFile(resolvedProfile, "utf8")).toContain("statusline --host shell");
 
     const ctxWithNeither: TerminalHostContext = {
       homeDirectory: home,
       platform: "win32",
+      environment: { SHELL: "powershell.exe" },
       shellRunner: async () => ({ ok: false })
     };
     const installed = await installHost("shell", ctxWithNeither);
-    expect(installed.ok).toBe(true);
-    /* Neither shell answered: the same hardcoded default this build always
-       used, not an error. */
-    expect(await hostStatus("shell", ctxWithNeither)).toBe(STATUS_WIRED);
+    expect(installed.ok).toBe(false);
+    expect(await hostStatus("shell", ctxWithNeither)).toBe(STATUS_NOT_WIRED);
     const fallbackPath = path.join(
       home,
       "Documents",
       "WindowsPowerShell",
       "Microsoft.PowerShell_profile.ps1"
     );
-    expect(await readFile(fallbackPath, "utf8")).toContain("openlimiter statusline");
+    await expect(readFile(fallbackPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("lists every host in the status table, one row each", async () => {
@@ -378,9 +390,15 @@ describe("openlimiter terminal (CLI dispatch)", () => {
 
   it("--yes wires every host at once, unattended", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
-    const result = await runCli(["terminal", "--yes"], { homeDirectory: home });
+    const dependencies = {
+      homeDirectory: home,
+      platform: "win32" as const,
+      environment: { SHELL: "powershell.exe" },
+      windowsCredentialRunner: async () => ({ ok: true as const, stdout: path.join(home, "profile.ps1") })
+    };
+    const result = await runCli(["terminal", "--yes"], dependencies);
     expect(result.exitCode).toBe(0);
-    const status = await runCli(["terminal", "status"], { homeDirectory: home });
+    const status = await runCli(["terminal", "status"], dependencies);
     for (const host of ["Claude", "Antigravity", "Grok", "Codex", "Shell"]) {
       expect(status.stdout).toContain(host + ": " + STATUS_WIRED);
     }
@@ -565,7 +583,7 @@ describe("terminal fail safely on malformed JSON/TOML and preserve user keys", (
     expect(afterGrokInstall).toContain("refresh_rate = 10");
     expect(afterGrokInstall).toContain("show_icons = true");
     expect(afterGrokInstall).toContain("# openlimiter managed");
-    expect(afterGrokInstall).toContain('command = "openlimiter statusline --host grok"');
+    expect(tomlValue(afterGrokInstall, ["ui", "status_line", "command"])).toContain('openlimiter.cjs" statusline --host grok');
 
     await uninstallHost("grok", ctx);
     const afterGrokUninstall = await readFile(grokFile, "utf8");

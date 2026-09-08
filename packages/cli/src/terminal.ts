@@ -1,7 +1,7 @@
 import { readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { connectors } from "@openlimiter/connectors";
-import { writeFileAtomically, type CredentialCommandRunner } from "@openlimiter/core";
+import { type CredentialCommandRunner } from "@openlimiter/core";
 import {
   DEFAULT_PROVIDERS,
   DEFAULT_STATUSLINE,
@@ -10,9 +10,12 @@ import {
   type OpenLimiterConfig
 } from "./config.js";
 import {
-  decodeWrappedStatuslineCommand,
   encodeWrappedStatuslineCommand
 } from "./statusline-wrapper.js";
+
+import { parseToml, editToml, tomlValue } from "./terminal-toml.js";
+import { installLauncher, launcherCommand } from "./terminal-launcher.js";
+import { isOwned, readOptional, restoreOwned, writeOwned } from "./terminal-backup.js";
 
 export const TERMINAL_HOST_NAMES: readonly string[] = [
   "claude",
@@ -41,17 +44,11 @@ export const CONNECT_FIRST_SENTENCE = "Connect it first";
 
 export interface TerminalHostContext {
   homeDirectory: string;
+  environment?: Readonly<Record<string, string | undefined>>;
   stateDirectory?: string;
   platform: NodeJS.Platform;
   detectedProviders?: readonly string[];
-  /**
-   * Asks a shell where its own profile lives, rather than guessing the path.
-   *
-   * Absent in a context that never touches the shell host, and in every test
-   * that does not exercise this exact question: `powerShellProfilePath`'s
-   * hardcoded fallback below still answers, so nothing breaks, it is simply
-   * the guess this was always able to be wrong about.
-   */
+  /** Required to identify the Windows shell and resolve its active profile. */
   shellRunner?: CredentialCommandRunner;
 }
 
@@ -60,78 +57,31 @@ export interface TerminalOperationResult {
   message: string;
 }
 
-function claudeSettingsPath(home: string): string {
-  return path.join(home, ".claude", "settings.json");
+function claudeSettingsPath(context: TerminalHostContext): string {
+  return path.join(context.environment?.["CLAUDE_CONFIG_DIR"] || path.join(context.homeDirectory, ".claude"), "settings.json");
 }
-
-function antigravitySettingsPath(home: string): string {
-  return path.join(home, ".gemini", "antigravity-cli", "settings.json");
+function antigravitySettingsPath(context: TerminalHostContext): string {
+  return path.join(context.homeDirectory, ".gemini", "antigravity-cli", "settings.json");
 }
-
-function grokConfigPath(home: string): string {
-  return path.join(home, ".grok", "config.toml");
+function grokConfigPath(context: TerminalHostContext): string {
+  return path.join(context.homeDirectory, ".grok", "config.toml");
 }
-
-function codexConfigPath(home: string): string {
-  return path.join(home, ".codex", "config.toml");
-}
-
-/** Used only once nothing could ask the shell itself where its profile lives. */
-function powerShellProfilePath(home: string, platform: NodeJS.Platform): string {
-  if (platform === "win32") {
-    return path.join(
-      home,
-      "Documents",
-      "WindowsPowerShell",
-      "Microsoft.PowerShell_profile.ps1"
-    );
-  }
-  return path.join(home, ".config", "powershell", "Microsoft.PowerShell_profile.ps1");
+function codexConfigPath(context: TerminalHostContext): string {
+  return path.join(context.environment?.["CODEX_HOME"] || path.join(context.homeDirectory, ".codex"), "config.toml");
 }
 
 const POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS = 5_000;
 
-/**
- * Ask a shell where `$PROFILE` actually is, rather than guessing.
- *
- * The hardcoded guess above is Windows PowerShell 5.1's own default, and only
- * that: PowerShell 7 keeps its profile under a `PowerShell` folder, not
- * `WindowsPowerShell`, and either one moves the moment Documents itself is
- * redirected, which OneDrive's Known Folder Move does on its own with nobody
- * asking. A profile snippet written to the wrong path is a snippet nobody's
- * shell ever loads.
- *
- * `pwsh`, the PowerShell somebody installed on purpose and the one most
- * people who have it actually run, is asked first, on every platform it ships
- * for. `powershell.exe`, Windows only and present on every Windows machine by
- * default, is the fallback there. Neither answering, including no runner
- * being injected at all, falls back to the hardcoded guess: a feature that
- * degrades to its old behaviour rather than one that breaks outright.
- */
+/** Ask the selected PowerShell, including redirected Documents and PS 7 layouts.
+ * A shell that cannot identify its active profile is not a verified target. */
 async function resolvePowerShellProfilePath(
-  home: string,
-  platform: NodeJS.Platform,
+  executable: string,
   runner: CredentialCommandRunner | undefined
 ): Promise<string> {
-  const fallback = powerShellProfilePath(home, platform);
-  if (runner === undefined) return fallback;
-  const candidates = platform === "win32" ? ["pwsh.exe", "powershell.exe"] : ["pwsh"];
-  for (const executable of candidates) {
-    let result;
-    try {
-      result = await runner(
-        executable,
-        ["-NoProfile", "-NonInteractive", "-Command", "$PROFILE"],
-        POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS
-      );
-    } catch {
-      continue;
-    }
-    if (!result.ok) continue;
-    const trimmed = result.stdout.trim();
-    if (trimmed.length > 0) return trimmed;
-  }
-  return fallback;
+  if (!runner) throw new Error("Unsupported shell");
+  const result = await runner(executable, ["-NoProfile", "-NonInteractive", "-Command", "$PROFILE"], POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS);
+  if (!result.ok || !path.isAbsolute(result.stdout.trim())) throw new Error("Unsupported shell");
+  return result.stdout.trim();
 }
 
 export type TerminalConfigReadResult<T> =
@@ -165,117 +115,7 @@ export async function readJsonConfig(filePath: string): Promise<TerminalConfigRe
 }
 
 export function validateToml(text: string): boolean {
-  const lines = text.split(/\r?\n/);
-  let inSingleTriple = false;
-  let inDoubleTriple = false;
-  let bracketDepth = 0;
-  let braceDepth = 0;
-
-  for (const line of lines) {
-    let i = 0;
-    let inSingle = false;
-    let inDouble = false;
-    let cleanedLine = "";
-    const wasInsideGroup = bracketDepth > 0 || braceDepth > 0 || inSingleTriple || inDoubleTriple;
-
-    while (i < line.length) {
-      if (inDoubleTriple) {
-        if (line.slice(i, i + 3) === '"""') {
-          inDoubleTriple = false;
-          i += 3;
-          continue;
-        }
-        i++;
-        continue;
-      }
-      if (inSingleTriple) {
-        if (line.slice(i, i + 3) === "'''") {
-          inSingleTriple = false;
-          i += 3;
-          continue;
-        }
-        i++;
-        continue;
-      }
-
-      if (inDouble) {
-        if (line[i] === "\\" && i + 1 < line.length) {
-          i += 2;
-          continue;
-        }
-        if (line[i] === '"') {
-          inDouble = false;
-        }
-        i++;
-        continue;
-      }
-
-      if (inSingle) {
-        if (line[i] === "'") {
-          inSingle = false;
-        }
-        i++;
-        continue;
-      }
-
-      if (line.slice(i, i + 3) === '"""') {
-        inDoubleTriple = true;
-        i += 3;
-        continue;
-      }
-      if (line.slice(i, i + 3) === "'''") {
-        inSingleTriple = true;
-        i += 3;
-        continue;
-      }
-      if (line[i] === '"') {
-        inDouble = true;
-        i++;
-        continue;
-      }
-      if (line[i] === "'") {
-        inSingle = true;
-        i++;
-        continue;
-      }
-      if (line[i] === "#") {
-        break;
-      }
-
-      const ch = line[i];
-      cleanedLine += ch;
-      if (ch === "[") bracketDepth++;
-      else if (ch === "]") {
-        bracketDepth--;
-        if (bracketDepth < 0) return false;
-      } else if (ch === "{") braceDepth++;
-      else if (ch === "}") {
-        braceDepth--;
-        if (braceDepth < 0) return false;
-      }
-      i++;
-    }
-
-    if (inSingle || inDouble) {
-      return false;
-    }
-
-    if (!wasInsideGroup && !inSingleTriple && !inDoubleTriple && bracketDepth === 0 && braceDepth === 0) {
-      const trimmed = cleanedLine.trim();
-      if (trimmed.length > 0) {
-        if (!(trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-          if (!trimmed.includes("=")) {
-            return false;
-          }
-        }
-      }
-    }
-  }
-
-  if (inSingleTriple || inDoubleTriple) return false;
-  if (bracketDepth !== 0 || braceDepth !== 0) return false;
-
-  return true;
+  try { parseToml(text); return true; } catch { return false; }
 }
 
 export async function readTomlConfig(filePath: string): Promise<TerminalConfigReadResult<string>> {
@@ -303,14 +143,6 @@ async function readJsonFile(filePath: string): Promise<Record<string, unknown> |
   return res.kind === "ok" ? res.data : null;
 }
 
-async function writeJsonFile(
-  filePath: string,
-  data: Record<string, unknown>
-): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFileAtomically(filePath, JSON.stringify(data, null, 2) + "\n");
-}
-
 async function readTextFile(filePath: string): Promise<string | null> {
   try {
     return await readFile(filePath, "utf8");
@@ -319,516 +151,195 @@ async function readTextFile(filePath: string): Promise<string | null> {
   }
 }
 
-async function writeTextFile(filePath: string, text: string): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFileAtomically(filePath, text);
-}
-
-/**
- * Install status line into Claude Code ~/.claude/settings.json
- */
-export async function installClaude(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const settingsFile = claudeSettingsPath(context.homeDirectory);
-  const readRes = await readJsonConfig(settingsFile);
-  if (readRes.kind === "parse_error") {
-    return { ok: false, message: `Could not read ${settingsFile}, fix it or move it aside` };
-  }
-  const existing = readRes.kind === "ok" ? readRes.data : {};
-  const currentStatusLine = existing["statusLine"];
-
-  let existingCommand: string | null = null;
-  if (typeof currentStatusLine === "object" && currentStatusLine !== null) {
-    const cmd = (currentStatusLine as Record<string, unknown>)["command"];
-    if (typeof cmd === "string") existingCommand = cmd;
-  } else if (typeof currentStatusLine === "string") {
-    existingCommand = currentStatusLine;
-  }
-
-  /*
-   * A command that already runs us, wrapped or not, is left exactly as it
-   * is: re-running install must never re-wrap an already wrapped command,
-   * and must never fall back to the bare default and silently drop the
-   * user's original status line the wrap exists to protect.
-   */
-  let commandToSet = "openlimiter statusline --host claude";
-  if (existingCommand !== null) {
-    commandToSet = existingCommand.includes("openlimiter statusline")
-      ? existingCommand
-      : `openlimiter statusline --host claude --wrap ${encodeWrappedStatuslineCommand(existingCommand)}`;
-  }
-
-  existing["openlimiter managed"] = true;
-  existing["statusLine"] = {
-    type: "command",
-    command: commandToSet
-  };
-
-  try {
-    await writeJsonFile(settingsFile, existing);
-    return { ok: true, message: "Wired Claude Code status line." };
-  } catch {
-    return { ok: false, message: "Could not write Claude Code settings." };
-  }
-}
-
-export async function uninstallClaude(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const settingsFile = claudeSettingsPath(context.homeDirectory);
-  const readRes = await readJsonConfig(settingsFile);
-  if (readRes.kind === "parse_error") {
-    return { ok: false, message: `Could not read ${settingsFile}, fix it or move it aside` };
-  }
-  if (readRes.kind === "missing" || !readRes.data["statusLine"]) {
-    return { ok: true, message: "Claude Code status line is not installed." };
-  }
-
-  const existing = readRes.data;
-  const current = existing["statusLine"];
-  let cmd: string | null = null;
-  if (typeof current === "object" && current !== null) {
-    const c = (current as Record<string, unknown>)["command"];
-    if (typeof c === "string") cmd = c;
-  } else if (typeof current === "string") {
-    cmd = current;
-  }
-
-  if (cmd !== null && cmd.includes("--wrap")) {
-    const match = /--wrap\s+([A-Za-z0-9_-]+)/.exec(cmd);
-    const restored = match?.[1] ? decodeWrappedStatuslineCommand(match[1]) : null;
-    if (restored !== null) {
-      existing["statusLine"] = {
-        type: "command",
-        command: restored
-      };
-      delete existing["openlimiter managed"];
-      await writeJsonFile(settingsFile, existing);
-      return { ok: true, message: "Restored original Claude Code status line." };
-    }
-  }
-
-  delete existing["statusLine"];
-  delete existing["openlimiter managed"];
-  try {
-    await writeJsonFile(settingsFile, existing);
-    return { ok: true, message: "Uninstalled Claude Code status line." };
-  } catch {
-    return { ok: false, message: "Could not update Claude Code settings." };
-  }
-}
-
-/**
- * Install status line into Antigravity ~/.gemini/antigravity-cli/settings.json
- */
-export async function installAntigravity(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const settingsFile = antigravitySettingsPath(context.homeDirectory);
-  const readRes = await readJsonConfig(settingsFile);
-  if (readRes.kind === "parse_error") {
-    return { ok: false, message: `Could not read ${settingsFile}, fix it or move it aside` };
-  }
-  const existing = readRes.kind === "ok" ? readRes.data : {};
-  const current = existing["statusLine"];
-
-  let existingCommand: string | null = null;
-  if (typeof current === "string") {
-    existingCommand = current;
-  } else if (typeof current === "object" && current !== null) {
-    const cmd = (current as Record<string, unknown>)["command"];
-    if (typeof cmd === "string") existingCommand = cmd;
-  }
-
-  /* See installClaude: an already installed command, wrapped or not, is
-     left exactly as it is on a second install. */
-  let commandToSet = "openlimiter statusline --host antigravity";
-  if (existingCommand !== null) {
-    commandToSet = existingCommand.includes("openlimiter statusline")
-      ? existingCommand
-      : `openlimiter statusline --host antigravity --wrap ${encodeWrappedStatuslineCommand(existingCommand)}`;
-  }
-
-  existing["openlimiter managed"] = true;
-  existing["statusLine"] = commandToSet;
-
-  try {
-    await writeJsonFile(settingsFile, existing);
-    return { ok: true, message: "Wired Antigravity CLI status line." };
-  } catch {
-    return { ok: false, message: "Could not write Antigravity settings." };
-  }
-}
-
-export async function uninstallAntigravity(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const settingsFile = antigravitySettingsPath(context.homeDirectory);
-  const readRes = await readJsonConfig(settingsFile);
-  if (readRes.kind === "parse_error") {
-    return { ok: false, message: `Could not read ${settingsFile}, fix it or move it aside` };
-  }
-  if (readRes.kind === "missing" || !readRes.data["statusLine"]) {
-    return { ok: true, message: "Antigravity status line is not installed." };
-  }
-
-  const existing = readRes.data;
-  const current = existing["statusLine"];
-  let cmd: string | null = null;
-  if (typeof current === "string") {
-    cmd = current;
-  } else if (typeof current === "object" && current !== null) {
-    const c = (current as Record<string, unknown>)["command"];
-    if (typeof c === "string") cmd = c;
-  }
-
-  if (cmd !== null && cmd.includes("--wrap")) {
-    const match = /--wrap\s+([A-Za-z0-9_-]+)/.exec(cmd);
-    const restored = match?.[1] ? decodeWrappedStatuslineCommand(match[1]) : null;
-    if (restored !== null) {
-      existing["statusLine"] = restored;
-      delete existing["openlimiter managed"];
-      await writeJsonFile(settingsFile, existing);
-      return { ok: true, message: "Restored original Antigravity status line." };
-    }
-  }
-
-  delete existing["statusLine"];
-  delete existing["openlimiter managed"];
-  try {
-    await writeJsonFile(settingsFile, existing);
-    return { ok: true, message: "Uninstalled Antigravity status line." };
-  } catch {
-    return { ok: false, message: "Could not update Antigravity settings." };
-  }
-}
-
-/**
- * Install status line into Grok Build ~/.grok/config.toml
- */
-export async function installGrok(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const configFile = grokConfigPath(context.homeDirectory);
-  const readRes = await readTomlConfig(configFile);
-  if (readRes.kind === "parse_error") {
-    return { ok: false, message: `Could not read ${configFile}, fix it or move it aside` };
-  }
-  const text = readRes.kind === "ok" ? readRes.data : "";
-
-  const sectionMatch = /(?:^|\n)(\[ui\.status_line\][\s\S]*?)(?=\n\[|$)/.exec(text);
-  let existingCommand: string | null = null;
-  const rawSection = sectionMatch?.[1];
-  if (sectionMatch && rawSection !== undefined) {
-    const cmdMatch = /command\s*=\s*"([^"]+)"/.exec(rawSection);
-    if (cmdMatch && cmdMatch[1]) {
-      existingCommand = cmdMatch[1];
-    }
-  }
-
-  /* See installClaude: an already installed command, wrapped or not, is
-     left exactly as it is on a second install. */
-  let commandToSet = "openlimiter statusline --host grok";
-  if (existingCommand !== null) {
-    commandToSet = existingCommand.includes("openlimiter statusline")
-      ? existingCommand
-      : `openlimiter statusline --host grok --wrap ${encodeWrappedStatuslineCommand(existingCommand)}`;
-  }
-
-  let updated: string;
-  if (sectionMatch && rawSection !== undefined) {
-    let section = rawSection
-      .replace(/[ \t]*# openlimiter managed\r?\n?/g, "")
-      .replace(/[ \t]*type\s*=\s*"[^"]*"\r?\n?/g, "")
-      .replace(/[ \t]*command\s*=\s*"[^"]*"\r?\n?/g, "");
-
-    const lines = section.split(/\r?\n/);
-    const header = lines[0] ?? "";
-    const rest = lines.slice(1).filter((l) => l.trim().length > 0);
-    const managedLines = [
-      "# openlimiter managed",
-      'type = "command"',
-      `command = "${commandToSet}"`
-    ];
-    const newSection = [header, ...managedLines, ...rest].join("\n");
-    const startIndex = sectionMatch.index + (text[sectionMatch.index] === "\n" ? 1 : 0);
-    updated = text.slice(0, startIndex) + newSection + text.slice(sectionMatch.index + sectionMatch[0].length);
-  } else {
-    const managedSection = [
-      "[ui.status_line]",
-      "# openlimiter managed",
-      'type = "command"',
-      `command = "${commandToSet}"`
-    ].join("\n");
-    updated = text ? text.trimEnd() + "\n\n" + managedSection + "\n" : managedSection + "\n";
-  }
-
-  if (!updated.endsWith("\n")) {
-    updated += "\n";
-  }
-
-  try {
-    await writeTextFile(configFile, updated);
-    return { ok: true, message: "Wired Grok Build status line." };
-  } catch {
-    return { ok: false, message: "Could not write Grok config." };
-  }
-}
-
-export async function uninstallGrok(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const configFile = grokConfigPath(context.homeDirectory);
-  const readRes = await readTomlConfig(configFile);
-  if (readRes.kind === "parse_error") {
-    return { ok: false, message: `Could not read ${configFile}, fix it or move it aside` };
-  }
-  if (readRes.kind === "missing") {
-    return { ok: true, message: "Grok status line is not installed." };
-  }
-  const text = readRes.data;
-  const sectionMatch = /(?:^|\n)(\[ui\.status_line\][\s\S]*?)(?=\n\[|$)/.exec(text);
-  if (!sectionMatch || sectionMatch[1] === undefined) {
-    return { ok: true, message: "Grok status line is not installed." };
-  }
-
-  const section = sectionMatch[1];
-  const cmdMatch = /command\s*=\s*"([^"]+)"/.exec(section);
-  const cmd = cmdMatch?.[1] ?? null;
-
-  const startIndex = sectionMatch.index + (text[sectionMatch.index] === "\n" ? 1 : 0);
-
-  if (cmd !== null && cmd.includes("--wrap")) {
-    const match = /--wrap\s+([A-Za-z0-9_-]+)/.exec(cmd);
-    const restored = match?.[1] ? decodeWrappedStatuslineCommand(match[1]) : null;
-    if (restored !== null) {
-      let updatedSection = section.replace(/[ \t]*# openlimiter managed\r?\n?/g, "");
-      updatedSection = updatedSection.replace(
-        /command\s*=\s*"[^"]*"/,
-        `command = "${restored}"`
-      );
-      const updated = text.slice(0, startIndex) + updatedSection + text.slice(sectionMatch.index + sectionMatch[0].length);
-      try {
-        await writeTextFile(configFile, updated);
-        return { ok: true, message: "Restored original Grok status line." };
-      } catch {
-        return { ok: false, message: "Could not update Grok config." };
-      }
-    }
-  }
-
-  let updatedSection = section
-    .replace(/[ \t]*# openlimiter managed\r?\n?/g, "")
-    .replace(/[ \t]*type\s*=\s*"[^"]*"\r?\n?/g, "")
-    .replace(/[ \t]*command\s*=\s*"[^"]*"\r?\n?/g, "");
-
-  const lines = updatedSection.split(/\r?\n/);
-  const rest = lines.slice(1).filter((l) => l.trim().length > 0);
-
-  let updated: string;
-  if (rest.length === 0) {
-    const before = text.slice(0, startIndex).trimEnd();
-    const after = text.slice(sectionMatch.index + sectionMatch[0].length).trimStart();
-    updated = before && after ? before + "\n\n" + after : (before || after ? (before || after) + "\n" : "");
-  } else {
-    const newSection = [lines[0] ?? "", ...rest].join("\n");
-    updated = text.slice(0, startIndex) + newSection + text.slice(sectionMatch.index + sectionMatch[0].length);
-  }
-
-  try {
-    await writeTextFile(configFile, updated);
-    return { ok: true, message: "Uninstalled Grok status line." };
-  } catch {
-    return { ok: false, message: "Could not update Grok config." };
-  }
-}
-
-/**
- * Install built in status line items into Codex ~/.codex/config.toml
- */
-export async function installCodex(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const configFile = codexConfigPath(context.homeDirectory);
-  const readRes = await readTomlConfig(configFile);
-  if (readRes.kind === "parse_error") {
-    return { ok: false, message: `Could not read ${configFile}, fix it or move it aside` };
-  }
-  const text = readRes.kind === "ok" ? readRes.data : "";
-
-  const codexManagedLines = [
-    "# openlimiter managed",
-    'status_line = ["five-hour-limit", "weekly-limit", "context-used", "model-with-reasoning", "current-dir"]',
-    "status_line_use_colors = true"
-  ];
-
-  const sectionMatch = /(?:^|\n)(\[tui\][\s\S]*?)(?=\n\[|$)/.exec(text);
-  let updated: string;
-  const rawSection = sectionMatch?.[1];
-  if (sectionMatch && rawSection !== undefined) {
-    let section = rawSection
-      .replace(/[ \t]*# openlimiter managed\r?\n?/g, "")
-      .replace(/[ \t]*status_line\s*=[\s\S]*?\]\r?\n?/g, "")
-      .replace(/[ \t]*status_line_use_colors\s*=\s*(?:true|false)\r?\n?/g, "");
-
-    const lines = section.split(/\r?\n/);
-    const header = lines[0] ?? "";
-    const rest = lines.slice(1).filter((l) => l.trim().length > 0);
-    const newSection = [header, ...codexManagedLines, ...rest].join("\n");
-    const startIndex = sectionMatch.index + (text[sectionMatch.index] === "\n" ? 1 : 0);
-    updated = text.slice(0, startIndex) + newSection + text.slice(sectionMatch.index + sectionMatch[0].length);
-  } else {
-    const newSection = ["[tui]", ...codexManagedLines].join("\n");
-    updated = text ? text.trimEnd() + "\n\n" + newSection + "\n" : newSection + "\n";
-  }
-
-  if (!updated.endsWith("\n")) {
-    updated += "\n";
-  }
-
-  try {
-    await writeTextFile(configFile, updated);
-    return { ok: true, message: "Wired Codex status line." };
-  } catch {
-    return { ok: false, message: "Could not write Codex config." };
-  }
-}
-
-export async function uninstallCodex(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const configFile = codexConfigPath(context.homeDirectory);
-  const readRes = await readTomlConfig(configFile);
-  if (readRes.kind === "parse_error") {
-    return { ok: false, message: `Could not read ${configFile}, fix it or move it aside` };
-  }
-  if (readRes.kind === "missing") {
-    return { ok: true, message: "Codex status line is not installed." };
-  }
-  const text = readRes.data;
-  const sectionMatch = /(?:^|\n)(\[tui\][\s\S]*?)(?=\n\[|$)/.exec(text);
-  if (!sectionMatch || sectionMatch[1] === undefined) {
-    return { ok: true, message: "Codex status line is not installed." };
-  }
-
-  let section = sectionMatch[1];
-  section = section
-    .replace(/[ \t]*# openlimiter managed\r?\n?/g, "")
-    .replace(/[ \t]*status_line\s*=[\s\S]*?\]\r?\n?/g, "")
-    .replace(/[ \t]*status_line_use_colors\s*=\s*(?:true|false)\r?\n?/g, "");
-
-  const lines = section.split(/\r?\n/);
-  const rest = lines.slice(1).filter((l) => l.trim().length > 0);
-
-  let updated: string;
-  const startIndex = sectionMatch.index + (text[sectionMatch.index] === "\n" ? 1 : 0);
-  if (rest.length === 0) {
-    const before = text.slice(0, startIndex).trimEnd();
-    const after = text.slice(sectionMatch.index + sectionMatch[0].length).trimStart();
-    updated = before && after ? before + "\n\n" + after : (before || after ? (before || after) + "\n" : "");
-  } else {
-    const newSection = [lines[0] ?? "", ...rest].join("\n");
-    updated = text.slice(0, startIndex) + newSection + text.slice(sectionMatch.index + sectionMatch[0].length);
-  }
-
-  try {
-    await writeTextFile(configFile, updated);
-    return { ok: true, message: "Uninstalled Codex status line." };
-  } catch {
-    return { ok: false, message: "Could not update Codex config." };
-  }
-}
-
-export const SHELL_SNIPPETS = {
-  starship: [
-    "[custom.openlimiter]",
-    'command = "openlimiter statusline --host shell"',
-    'when = "true"',
-    'shell = ["bash", "--noprofile", "--norc"]',
-    'format = "[$output]($style) "'
-  ].join("\n"),
-
-  ohMyPosh: [
-    "{",
-    '  "type": "command",',
-    '  "properties": {',
-    '    "command": "openlimiter statusline --host shell",',
-    '    "cache": { "duration": "60s" }',
-    "  }",
-    "}"
-  ].join("\n"),
-
-  tmux: "set -g status-right '#(openlimiter statusline --host shell)'\nset -g status-interval 60",
-
-  powerShell: [
-    "# OpenLimiter status line snippet",
-    "function prompt {",
-    "  $bar = openlimiter statusline --host shell",
-    "  if ($bar) { Write-Host $bar }",
-    "  \"PS $($executionContext.SessionState.Path.CurrentLocation)$('>' * ($nestedPromptLevel + 1)) \"",
-    "}"
-  ].join("\n")
+type ConfigHost = "claude" | "antigravity" | "grok" | "codex";
+const HOST_CONFIG = {
+  claude: { path: claudeSettingsPath, label: "Claude Code", file: "Claude Code settings", json: true, wired: "Wired Claude Code status line." },
+  antigravity: { path: antigravitySettingsPath, label: "Antigravity", file: "Antigravity settings", json: true, wired: "Wired Antigravity CLI status line." },
+  grok: { path: grokConfigPath, label: "Grok", file: "Grok config", json: false, wired: "Wired Grok Build status line." },
+  codex: { path: codexConfigPath, label: "Codex", file: "Codex config", json: false, wired: "Wired Codex status line." }
 };
+const CODEX_ITEMS = ["five-hour-limit", "weekly-limit", "context-used", "model-with-reasoning", "current-dir"];
 
-/**
- * Install shell prompt integration
- */
-export async function installShell(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const profileFile = await resolvePowerShellProfilePath(
-    context.homeDirectory,
-    context.platform,
-    context.shellRunner
-  );
-  const existing = (await readTextFile(profileFile)) ?? "";
-
-  if (!existing.includes("openlimiter statusline")) {
-    const toAppend = "\n\n" + SHELL_SNIPPETS.powerShell + "\n";
-    try {
-      await writeTextFile(profileFile, existing + toAppend);
-    } catch {
-      // Writing profile is optional, snippets are still printed
-    }
-  }
-
-  const message = [
-    "Wired shell prompt integration.",
-    "",
-    "Starship snippet (~/.config/starship.toml):",
-    SHELL_SNIPPETS.starship,
-    "",
-    "tmux snippet (~/.tmux.conf):",
-    SHELL_SNIPPETS.tmux,
-    "",
-    "Oh My Posh segment:",
-    SHELL_SNIPPETS.ohMyPosh
-  ].join("\n");
-
-  return { ok: true, message };
+async function durableCommand(context: TerminalHostContext, shell: "posix" | "cmd" | "powershell"): Promise<string> {
+  const runtime = await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
+  return launcherCommand(runtime, shell);
 }
 
-export async function uninstallShell(
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const profileFile = await resolvePowerShellProfilePath(
-    context.homeDirectory,
-    context.platform,
-    context.shellRunner
-  );
-  const existing = await readTextFile(profileFile);
-  if (existing && existing.includes("openlimiter statusline")) {
-    const updated = existing
-      .replace(/# OpenLimiter status line snippet[\s\S]*?^}/m, "")
-      .trimEnd() + "\n";
-    try {
-      await writeTextFile(profileFile, updated);
-    } catch {
-      // Ignored
+function ownedMarker(text: string, json: boolean): boolean {
+  return json ? JSON.parse(text)["openlimiter managed"] === true
+    : text.split(/\r?\n/).some(line => line.trim() === "# openlimiter managed");
+}
+
+async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, install: boolean): Promise<TerminalOperationResult> {
+  const spec = HOST_CONFIG[host];
+  const file = spec.path(context);
+  const read = spec.json ? await readJsonConfig(file) : await readTomlConfig(file);
+  if (read.kind === "parse_error") return { ok: false, message: `Could not read ${file}, fix it or move it aside` };
+  try {
+    const original = await readOptional(file);
+    const text = original ?? (spec.json ? "{}" : "");
+    const marker = ownedMarker(text, spec.json);
+    if (!install) {
+      const restored = original !== null && await restoreOwned(file, original, marker);
+      if (marker && !restored) return { ok: false, message: `Could not update ${spec.file}.` };
+      return { ok: true, message: restored ? `Uninstalled ${spec.label} status line.` : `${spec.label} status line is not installed.` };
     }
+    if (original !== null && await isOwned(file, original, marker)) {
+      if (host !== "codex") await durableCommand(context, context.platform === "win32" ? "cmd" : "posix");
+      return { ok: true, message: spec.wired };
+    }
+    if (marker) return { ok: false, message: `Could not write ${spec.file}.` };
+    // A marker alone never authorizes adoption of a configuration or replacement
+    // of its backup. Matching the complete saved result also protects later edits.
+    let updated: string;
+    if (spec.json) {
+      const data = JSON.parse(text) as Record<string, unknown>;
+      const previous = claudeLikeStatusLineCommand(data["statusLine"]);
+      const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix");
+      const command = `${base} statusline --host ${host}` +
+        (previous === null ? "" : ` --wrap ${encodeWrappedStatuslineCommand(previous)}`);
+      data["openlimiter managed"] = true;
+      data["statusLine"] = host === "claude" ? { type: "command", command } : command;
+      updated = JSON.stringify(data, null, 2) + "\n";
+      JSON.parse(updated);
+    } else if (host === "codex") {
+      updated = editToml(text, ["tui"], { status_line: CODEX_ITEMS, status_line_use_colors: true });
+    } else {
+      const previous = tomlValue(text, ["ui", "status_line", "command"]);
+      const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix");
+      const command = `${base} statusline --host grok` +
+        (typeof previous === "string" ? ` --wrap ${encodeWrappedStatuslineCommand(previous)}` : "");
+      updated = editToml(text, ["ui", "status_line"], { type: "command", command });
+    }
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeOwned(file, original, updated);
+    return { ok: true, message: spec.wired };
+  } catch {
+    return { ok: false, message: `Could not ${install ? "write" : "update"} ${spec.file}.` };
   }
-  return { ok: true, message: "Uninstalled shell prompt integration." };
+}
+
+export const installClaude = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("claude", context, true);
+export const uninstallClaude = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("claude", context, false);
+export const installAntigravity = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("antigravity", context, true);
+export const uninstallAntigravity = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("antigravity", context, false);
+export const installGrok = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("grok", context, true);
+export const uninstallGrok = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("grok", context, false);
+export const installCodex = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("codex", context, true);
+export const uninstallCodex = (context: TerminalHostContext): Promise<TerminalOperationResult> => changeConfigHost("codex", context, false);
+
+function shellSnippets(posixCommand: string, powerShellCommand: string): { starship: string; tmux: string; ohMyPosh: string } {
+  const command = posixCommand + " statusline --host shell";
+  return {
+    starship: [
+      "[custom.openlimiter]", "command = " + JSON.stringify(command),
+      'when = "true"', 'shell = ["bash", "--noprofile", "--norc"]',
+      'format = "[$output]($style) "'
+    ].join("\n"),
+    tmux: "set -g status-right " + JSON.stringify("#(" + command + ")") + "\nset -g status-interval 60",
+    ohMyPosh: JSON.stringify({ type: "command", properties: {
+      command: powerShellCommand + " statusline --host shell", shell: "powershell", cache: { duration: "60s" }
+    } }, null, 2)
+  };
+}
+
+type ShellKind = "bash" | "zsh" | "powershell";
+async function shellTarget(context: TerminalHostContext): Promise<{ kind: ShellKind; file: string }> {
+  const env = context.environment ?? process.env;
+  let executable = env["SHELL"] || "";
+  if (!executable && context.platform === "win32" && context.shellRunner) {
+    // npm can sit between Node and the interactive shell. Walk ancestors until
+    // the actual PowerShell or Unix shell is found, rather than trusting COMSPEC
+    // (which remains cmd.exe even inside PowerShell).
+    const query = "$ancestorId = " + process.ppid + "; for ($n = 0; $n -lt 12 -and $ancestorId; $n++) { " +
+      "$p = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $ancestorId); " +
+      "if ($p.Name -match '^(pwsh|powershell|bash|zsh)(\\.exe)?$') { $p.ExecutablePath; break }; " +
+      "$ancestorId = $p.ParentProcessId }";
+    const found = await context.shellRunner("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", query], POWERSHELL_PROFILE_TIMEOUT_MILLISECONDS);
+    if (found.ok) executable = found.stdout.trim();
+  }
+  const name = path.basename(executable).toLowerCase();
+  if (name === "bash" || name === "bash.exe") {
+    return { kind: "bash", file: path.join(context.homeDirectory, ".bashrc") };
+  }
+  if (name === "zsh") {
+    return { kind: "zsh", file: path.join(env["ZDOTDIR"] || context.homeDirectory, ".zshrc") };
+  }
+  if (name === "pwsh" || name === "pwsh.exe" || name === "powershell" || name === "powershell.exe") {
+    return { kind: "powershell", file: await resolvePowerShellProfilePath(executable, context.shellRunner) };
+  }
+  throw new Error("Unsupported shell");
+}
+
+function shellSnippet(kind: ShellKind, command: string): string {
+  const begin = "# openlimiter managed";
+  const end = "# end openlimiter managed";
+  if (kind === "bash") return [
+    begin,
+    "_openlimiter_statusline() { " + command + " statusline --host shell; }",
+    'if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == "declare -a"* ]]; then',
+    '  [[ " ${PROMPT_COMMAND[*]} " == *" _openlimiter_statusline "* ]] || PROMPT_COMMAND+=(_openlimiter_statusline)',
+    'elif [[ ";${PROMPT_COMMAND};" != *";_openlimiter_statusline;"* ]]; then',
+    '  PROMPT_COMMAND="${PROMPT_COMMAND:+${PROMPT_COMMAND};}_openlimiter_statusline"',
+    "fi", end
+  ].join("\n");
+  if (kind === "zsh") return [
+    begin, "_openlimiter_statusline() { " + command + " statusline --host shell; }",
+    "autoload -Uz add-zsh-hook", "add-zsh-hook precmd _openlimiter_statusline", end
+  ].join("\n");
+  return [
+    begin,
+    "if (-not (Test-Path Function:global:OpenLimiterOriginalPrompt)) {",
+    "  $function:global:OpenLimiterOriginalPrompt = $function:prompt",
+    "}",
+    "function global:prompt {",
+    "  $bar = " + command + " statusline --host shell",
+    "  if ($bar) { Write-Host $bar }",
+    "  & $function:global:OpenLimiterOriginalPrompt",
+    "}", end
+  ].join("\n");
+}
+
+export async function installShell(context: TerminalHostContext): Promise<TerminalOperationResult> {
+  try {
+    const target = await shellTarget(context);
+    const original = await readOptional(target.file);
+    const runtime = await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
+    const posixCommand = launcherCommand(runtime, "posix");
+    const powerShellCommand = launcherCommand(runtime, "powershell");
+    const command = target.kind === "powershell" ? powerShellCommand : posixCommand;
+    const snippets = shellSnippets(posixCommand, powerShellCommand);
+    const alreadyOwned = original !== null && await isOwned(target.file, original, ownedMarker(original, false));
+    if (!alreadyOwned) {
+      const updated = (original ?? "") + "\n\n" + shellSnippet(target.kind, command) + "\n";
+      await mkdir(path.dirname(target.file), { recursive: true });
+      await writeOwned(target.file, original, updated);
+    }
+    const message = [
+      "Wired shell prompt integration.", "",
+      "Starship snippet (~/.config/starship.toml):", snippets.starship, "",
+      "tmux snippet (~/.tmux.conf):", snippets.tmux, "",
+      "Oh My Posh segment:", snippets.ohMyPosh
+    ].join("\n");
+    return { ok: true, message };
+  } catch {
+    return { ok: false, message: "Could not write configuration." };
+  }
+}
+
+export async function uninstallShell(context: TerminalHostContext): Promise<TerminalOperationResult> {
+  try {
+    const target = await shellTarget(context);
+    const original = await readOptional(target.file);
+    if (original !== null) {
+      const marker = ownedMarker(original, false);
+      const restored = await restoreOwned(target.file, original, marker);
+      if (marker && !restored) return { ok: false, message: "Could not write configuration." };
+    }
+    return { ok: true, message: "Uninstalled shell prompt integration." };
+  } catch {
+    return { ok: false, message: "Could not write configuration." };
+  }
 }
 
 /**
@@ -850,20 +361,18 @@ function claudeLikeStatusLineCommand(value: unknown): string | null {
 /** Wired, somebody else's, or nothing there, from the command alone. */
 function classifyCommand(command: string | null): string {
   if (command === null) return STATUS_NOT_WIRED;
-  return command.includes("openlimiter statusline") ? STATUS_WIRED : STATUS_OWN_LINE_FOUND;
+  return (command.includes("openlimiter statusline") || (command.includes("openlimiter.cjs") && command.includes(" statusline "))) ? STATUS_WIRED : STATUS_OWN_LINE_FOUND;
 }
 
 /** The command inside Grok's `[ui.status_line]` table, or nothing found. */
 function grokStatusLineCommand(text: string | null): string | null {
   if (text === null) return null;
-  const sectionMatch = /(?:^|\n)(\[ui\.status_line\][\s\S]*?)(?=\n\[|$)/.exec(text);
-  const section = sectionMatch?.[1];
-  if (section === undefined) return null;
-  const commandMatch = /command\s*=\s*"([^"]+)"/.exec(section);
-  /* The table exists whether or not it carries a command line this build can
-     read, and an existing table with no readable command is still somebody
-     else's, not nothing. An empty string is never confused with absence. */
-  return commandMatch?.[1] ?? "";
+  try {
+    const parsed = parseToml(text);
+    const command = tomlValue(text, ["ui", "status_line", "command"]);
+    return typeof command === "string" ? command
+      : parsed.tables.some(t => JSON.stringify(t.keys) === '["ui","status_line"]') ? "" : null;
+  } catch { return null; }
 }
 
 /**
@@ -876,11 +385,10 @@ function grokStatusLineCommand(text: string | null): string | null {
  */
 function classifyCodexSection(text: string | null): string {
   if (text === null) return STATUS_NOT_WIRED;
-  const sectionMatch = /(?:^|\n)(\[tui\][\s\S]*?)(?=\n\[|$)/.exec(text);
-  const section = sectionMatch?.[1];
-  if (section === undefined) return STATUS_NOT_WIRED;
-  if (section.includes("# openlimiter managed")) return STATUS_WIRED;
-  return /status_line\s*=/.test(section) ? STATUS_OWN_LINE_FOUND : STATUS_NOT_WIRED;
+  try {
+    if (tomlValue(text, ["tui", "status_line"]) === undefined) return STATUS_NOT_WIRED;
+    return ownedMarker(text, false) ? STATUS_WIRED : STATUS_OWN_LINE_FOUND;
+  } catch { return STATUS_NOT_WIRED; }
 }
 
 /**
@@ -902,40 +410,35 @@ export async function hostStatus(
   }
 
   if (h === "claude") {
-    const settings = await readJsonFile(claudeSettingsPath(context.homeDirectory));
+    const settings = await readJsonFile(claudeSettingsPath(context));
     return classifyCommand(
       settings ? claudeLikeStatusLineCommand(settings["statusLine"]) : null
     );
   }
 
   if (h === "antigravity") {
-    const settings = await readJsonFile(antigravitySettingsPath(context.homeDirectory));
+    const settings = await readJsonFile(antigravitySettingsPath(context));
     return classifyCommand(
       settings ? claudeLikeStatusLineCommand(settings["statusLine"]) : null
     );
   }
 
   if (h === "grok") {
-    const text = await readTextFile(grokConfigPath(context.homeDirectory));
+    const text = await readTextFile(grokConfigPath(context));
     return classifyCommand(grokStatusLineCommand(text));
   }
 
   if (h === "codex") {
-    const text = await readTextFile(codexConfigPath(context.homeDirectory));
+    const text = await readTextFile(codexConfigPath(context));
     return classifyCodexSection(text);
   }
 
   if (h === "shell") {
-    const profileFile = await resolvePowerShellProfilePath(
-      context.homeDirectory,
-      context.platform,
-      context.shellRunner
-    );
-    const text = await readTextFile(profileFile);
-    if (text && text.includes("openlimiter statusline")) {
-      return STATUS_WIRED;
-    }
-    return STATUS_NOT_WIRED;
+    try {
+      const target = await shellTarget(context);
+      const text = await readOptional(target.file);
+      return text !== null && await isOwned(target.file, text, ownedMarker(text, false)) ? STATUS_WIRED : STATUS_NOT_WIRED;
+    } catch { return STATUS_NOT_WIRED; }
   }
 
   return STATUS_NOT_WIRED;

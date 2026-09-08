@@ -1843,6 +1843,7 @@ function terminalContext(
 ): TerminalHostContext {
   return {
     homeDirectory: dependencies.homeDirectory,
+    environment: dependencies.environment,
     ...(dependencies.stateDirectory === undefined
       ? {}
       : { stateDirectory: dependencies.stateDirectory }),

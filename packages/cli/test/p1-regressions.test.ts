@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   acquireRefreshLock, buildAdvice, codexUsageRequest, createFetchTransport,
   getAgyInstallRoots, isTrustedAgyExecutable, enumerateAgyListeningPorts,
@@ -20,6 +20,11 @@ import { cliLoginStartRequest, createFetchHubTransport } from "../src/hub.js";
 import { apiSpendSamplesFromSnapshots, SYNC_CURSOR_FILE_NAME } from "../src/hub-sync.js";
 import { barStyleCells, renderStatuslineLayout, STATUSLINE_HOSTS } from "../src/statusline.js";
 import { credentialDocuments, recordedResponses } from "./fixtures/acquisition.js";
+
+vi.mock("../src/terminal-launcher.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/terminal-launcher.js")>();
+  return { ...actual, installLauncher: (directory: string) => actual.installLauncher(directory, path.resolve("packages/cli")) };
+});
 
 const NOW = "2026-09-07T12:00:00.000Z";
 const ENV = { PATH: "", Path: "", OPENLIMITER_SUPABASE_ANON_KEY: "sb_publishable_test_key" };
@@ -146,7 +151,7 @@ describe("P1 audit regressions", () => {
     expect(result.stdout).toContain("CODEX");
     const cache = await readSnapshotCache(d.stateDirectory);
     expect(cache.ok && cache.snapshots.length > 0).toBe(true);
-  });
+  }, 20_000);
 
   it("09 selects a provider from the same credential inventory as refresh without payload markers", async () => {
     const d = await deps();
