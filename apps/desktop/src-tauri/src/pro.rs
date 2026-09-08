@@ -1983,8 +1983,9 @@ mod tests {
     #[test]
     fn a_read_scoped_phone_token_is_refused_and_unlocks_nothing() {
         let now = 1_800_000_000;
-        let phone: EntitlementClaims = strict_json(claims_json(now, Some("read"), "phone").as_bytes())
-            .expect("a phone token parses as JSON");
+        let phone: EntitlementClaims =
+            strict_json(claims_json(now, Some("read"), "phone").as_bytes())
+                .expect("a phone token parses as JSON");
         assert!(!phone.is_desktop());
         assert_eq!(
             validate_claim_shape(&phone),

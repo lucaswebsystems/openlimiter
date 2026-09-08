@@ -585,8 +585,7 @@ impl AgyPorts for SystemAgyPorts {
         let mut ports = Vec::new();
         for (pid, port) in lsof_pid_ports(&report) {
             let trusted = *verified.entry(pid).or_insert_with(|| {
-                executable_of(pid)
-                    .is_some_and(|path| trusted_agy_executable(&path, &roots))
+                executable_of(pid).is_some_and(|path| trusted_agy_executable(&path, &roots))
             });
             if trusted {
                 ports.push(port);
@@ -639,7 +638,10 @@ impl SystemLoopbackProbe {
             .post(url)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
             .header(CONNECT_PROTOCOL_HEADER, CONNECT_PROTOCOL_VERSION)
-            .header(reqwest::header::USER_AGENT, crate::net::OPENLIMITER_USER_AGENT)
+            .header(
+                reqwest::header::USER_AGENT,
+                crate::net::OPENLIMITER_USER_AGENT,
+            )
             .header(reqwest::header::ACCEPT, "application/json")
             .body(QUOTA_SUMMARY_BODY)
             .send()
@@ -1057,12 +1059,14 @@ mod tests {
         Programs subfolder is where software legitimately lives, and the two
         broad parents around it are exactly where a browser download or an
         archive extraction lands too. */
-        let win_refused_bare_local =
-            Path::new(r"C:\Users\someone\AppData\Local\Temp\agy.exe");
+        let win_refused_bare_local = Path::new(r"C:\Users\someone\AppData\Local\Temp\agy.exe");
         let win_refused_bare_roaming =
             Path::new(r"C:\Users\someone\AppData\Roaming\Downloads\agy.exe");
         assert!(!trusted_agy_executable(win_refused_bare_local, &win_roots));
-        assert!(!trusted_agy_executable(win_refused_bare_roaming, &win_roots));
+        assert!(!trusted_agy_executable(
+            win_refused_bare_roaming,
+            &win_roots
+        ));
 
         // macOS: ~/Applications, ~/bin, /Applications
         let mac_roots = roots_for_platform(
@@ -1095,11 +1099,17 @@ mod tests {
         let linux_accepted_opt = Path::new("/opt/antigravity/bin/agy");
         let linux_accepted_usr_local = Path::new("/usr/local/bin/agy");
         let linux_refused = Path::new("/home/someone/Downloads/agy");
-        assert!(trusted_agy_executable(linux_accepted_local_bin, &linux_roots));
+        assert!(trusted_agy_executable(
+            linux_accepted_local_bin,
+            &linux_roots
+        ));
         assert!(trusted_agy_executable(linux_accepted_bin, &linux_roots));
         assert!(trusted_agy_executable(linux_accepted_apps, &linux_roots));
         assert!(trusted_agy_executable(linux_accepted_opt, &linux_roots));
-        assert!(trusted_agy_executable(linux_accepted_usr_local, &linux_roots));
+        assert!(trusted_agy_executable(
+            linux_accepted_usr_local,
+            &linux_roots
+        ));
         assert!(!trusted_agy_executable(linux_refused, &linux_roots));
     }
 }

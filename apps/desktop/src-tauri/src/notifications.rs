@@ -379,12 +379,7 @@ fn threshold_enabled(settings: &NotificationSettings, threshold: u32) -> bool {
 /// band switches are even consulted. The event is still recorded, because the
 /// history a person sees in the bell is a local fact about their own meters
 /// and nothing about it is sold. What Pro pays for is the interruption.
-fn popup_allowed(
-    settings: &NotificationSettings,
-    kind: &str,
-    now: i64,
-    entitled: bool,
-) -> bool {
+fn popup_allowed(settings: &NotificationSettings, kind: &str, now: i64, entitled: bool) -> bool {
     if !entitled {
         return false;
     }
@@ -989,14 +984,9 @@ mod tests {
             let mut reading = sample(value, observed);
             reading.window_is_authoritative = false;
             reading.window_id = "weekly".to_string();
-            let result = evaluate_document_for_plan(
-                &mut document,
-                vec![reading],
-                "UTC",
-                now,
-                false,
-            )
-            .unwrap();
+            let result =
+                evaluate_document_for_plan(&mut document, vec![reading], "UTC", now, false)
+                    .unwrap();
             assert!(result.popups.is_empty());
         }
         assert!(document

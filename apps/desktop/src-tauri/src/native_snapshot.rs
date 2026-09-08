@@ -377,14 +377,12 @@ fn fold(
         and no reader has to remember to set it. A row that arrives already
         claiming another writer is corrected: this process is the one writing
         it. */
-        CacheReport::Success(incoming) => rows.extend(incoming.iter().cloned().filter_map(
-            |row| {
-                normalize_snapshot(Snapshot {
-                    writer: Some(DESKTOP_WRITER.to_string()),
-                    ..row
-                })
-            },
-        )),
+        CacheReport::Success(incoming) => rows.extend(incoming.iter().cloned().filter_map(|row| {
+            normalize_snapshot(Snapshot {
+                writer: Some(DESKTOP_WRITER.to_string()),
+                ..row
+            })
+        })),
         CacheReport::Drift { observed_at } => suppressions.push(Suppression {
             provider: provider.to_string(),
             account_id: account_id.map(str::to_string),
@@ -634,8 +632,13 @@ mod tests {
     #[test]
     fn another_writers_marker_survives_a_desktop_write() {
         let now = epoch_ms_from_rfc3339("2026-09-07T12:00:00.000Z").expect("fixture clock");
-        let foreign = parse_body(ReaderId::CodexUsage, &codex_body(now), now, "codex-terminal")
-            .expect("readable codex fixture");
+        let foreign = parse_body(
+            ReaderId::CodexUsage,
+            &codex_body(now),
+            now,
+            "codex-terminal",
+        )
+        .expect("readable codex fixture");
         let existing = fold(
             None,
             "CODEX",

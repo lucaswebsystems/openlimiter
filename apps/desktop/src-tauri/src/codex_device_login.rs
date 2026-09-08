@@ -41,6 +41,7 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::State;
+use url::Url;
 
 use crate::cache_write::CacheWriter;
 use crate::codex_oauth::CodexOauthRuntime;
@@ -66,6 +67,12 @@ pub const LOGIN_TIMEOUT_SECONDS: u64 = 180;
 /// only means the command that started it waits longer.
 pub const START_TIMEOUT_SECONDS: u64 = 20;
 
+/// Codex 0.153.3 prints this device login origin and path. Keep the accepted
+/// destination pinned to the CLI's documented output shape, because the
+/// child's text is untrusted and must not choose a browser destination.
+const CODEX_DEVICE_LOGIN_ORIGIN: &str = "https://auth.openai.com";
+const CODEX_DEVICE_LOGIN_PATH_PREFIX: &str = "/device";
+
 /// The file the client writes when the login succeeded.
 const CREDENTIAL_FILE: &str = "auth.json";
 
@@ -81,7 +88,7 @@ const MAX_LINE_BYTES: usize = 512;
 /// What went wrong, in closed kinds a window can render.
 ///
 /// No variant carries a path, a command line or a line of the child's output.
-/// A person who cannot sign in needs to know which of these five things
+/// A person who cannot sign in needs to know which of these six things
 /// happened, and nothing from inside another product's stderr helps them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -96,6 +103,17 @@ pub enum DeviceLoginFailure {
     Spawn,
     /// The client started and never printed a code.
     NoCode,
+    /// The client printed a URL outside Codex's device login destination.
+    UntrustedUrl,
+}
+
+/// The result of the first quota read after a device login.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DeviceLoginQuotaState {
+    Ready,
+    Pending { reason: String },
+    Failed { reason: String },
 }
 
 /// How a login ended.
@@ -105,7 +123,10 @@ pub enum DeviceLoginState {
     /// Still waiting for somebody to finish at the address.
     Pending,
     /// The client wrote its credential into the managed folder.
-    Complete,
+    Complete {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        quota: Option<DeviceLoginQuotaState>,
+    },
     /// Somebody pressed cancel.
     Cancelled,
     /// Nobody finished inside the deadline.
@@ -134,10 +155,7 @@ pub struct DeviceLoginStart {
 /// offering an action that fails in a way nobody can read.
 pub fn version_is_supported(value: &str) -> bool {
     let trimmed = value.trim().trim_start_matches('v');
-    let head = trimmed
-        .split(['-', '+', ' '])
-        .next()
-        .unwrap_or_default();
+    let head = trimmed.split(['-', '+', ' ']).next().unwrap_or_default();
     let mut parts = head.split('.');
     let Some(Ok(major)) = parts.next().map(str::parse::<u64>) else {
         return false;
@@ -162,19 +180,49 @@ pub fn version_is_supported(value: &str) -> bool {
 /// plain HTTP is refused outright, because a device code typed into an
 /// unencrypted page is a device code somebody else can read.
 pub fn scan_line(line: &str, code: &mut Option<String>, url: &mut Option<String>) {
+    let mut untrusted_url = false;
+    scan_line_with_url_guard(line, code, url, &mut untrusted_url);
+}
+
+fn scan_line_with_url_guard(
+    line: &str,
+    code: &mut Option<String>,
+    url: &mut Option<String>,
+    untrusted_url: &mut bool,
+) {
     let line = line.get(..MAX_LINE_BYTES).unwrap_or(line);
     for token in line.split_whitespace() {
         let token = token.trim_matches(|character: char| {
             matches!(character, '"' | '\'' | ',' | '.' | ')' | '(' | ':')
         });
         if url.is_none() && token.starts_with("https://") && token.len() <= 256 {
-            *url = Some(token.to_string());
+            if expected_device_url(token) {
+                *url = Some(token.to_string());
+            } else {
+                *untrusted_url = true;
+            }
             continue;
         }
         if code.is_none() && is_user_code(token) {
             *code = Some(token.to_string());
         }
     }
+}
+
+fn expected_device_url(value: &str) -> bool {
+    let Ok(url) = Url::parse(value) else {
+        return false;
+    };
+    url.scheme() == "https"
+        && url.host_str() == Some(CODEX_DEVICE_LOGIN_ORIGIN.strip_prefix("https://").unwrap())
+        && url.port().is_none()
+        && url.username().is_empty()
+        && url.password().is_none()
+        && (url.path() == CODEX_DEVICE_LOGIN_PATH_PREFIX
+            || url
+                .path()
+                .strip_prefix(CODEX_DEVICE_LOGIN_PATH_PREFIX)
+                .is_some_and(|suffix| suffix.starts_with('/')))
 }
 
 /// Whether a token looks like a device user code.
@@ -222,9 +270,8 @@ pub fn managed_home(session_id: &str) -> Option<PathBuf> {
 
 /// Whether the client has written its credential into this folder yet.
 fn credential_written(home: &Path) -> bool {
-    home.join(CREDENTIAL_FILE)
-        .metadata()
-        .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+    crate::fsx::bounded_read(&home.join(CREDENTIAL_FILE))
+        .is_some_and(|content| !content.trim().is_empty())
 }
 
 /// Where every managed login lives, and the boundary none may leave.
@@ -264,21 +311,77 @@ fn is_reparse_point(_path: &Path) -> bool {
 /// like. The real path is resolved after creation and required to sit inside
 /// the accounts root, which catches a redirection planted higher up the tree
 /// as well as one planted here.
-fn prepare_managed_home(home: &Path) -> Result<(), DeviceLoginFailure> {
+fn validate_directory_components(path: &Path) -> Result<PathBuf, DeviceLoginFailure> {
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        if matches!(component, std::path::Component::ParentDir) {
+            return Err(DeviceLoginFailure::Storage);
+        }
+        current.push(component.as_os_str());
+        if matches!(component, std::path::Component::Normal(_)) {
+            let metadata =
+                std::fs::symlink_metadata(&current).map_err(|_| DeviceLoginFailure::Storage)?;
+            if metadata.file_type().is_symlink() || is_reparse_point(&current) || !metadata.is_dir()
+            {
+                return Err(DeviceLoginFailure::Storage);
+            }
+        }
+    }
+    let resolved = std::fs::canonicalize(path).map_err(|_| DeviceLoginFailure::Storage)?;
+    if is_reparse_point(&resolved) || !std::fs::metadata(&resolved).is_ok_and(|m| m.is_dir()) {
+        return Err(DeviceLoginFailure::Storage);
+    }
+    Ok(resolved)
+}
+
+fn validate_existing_directory_prefix(path: &Path) -> Result<(), DeviceLoginFailure> {
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        if matches!(component, std::path::Component::ParentDir) {
+            return Err(DeviceLoginFailure::Storage);
+        }
+        current.push(component.as_os_str());
+        if !matches!(component, std::path::Component::Normal(_)) {
+            continue;
+        }
+        match std::fs::symlink_metadata(&current) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink()
+                    || is_reparse_point(&current)
+                    || !metadata.is_dir()
+                {
+                    return Err(DeviceLoginFailure::Storage);
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(_) => return Err(DeviceLoginFailure::Storage),
+        }
+    }
+    Ok(())
+}
+
+fn prepare_managed_home(home: &Path) -> Result<PathBuf, DeviceLoginFailure> {
     let root = accounts_root().ok_or(DeviceLoginFailure::Storage)?;
-    if is_reparse_point(home) {
+    if home.parent() != Some(root.as_path()) {
         return Err(DeviceLoginFailure::Storage);
     }
-    crate::fsx::ensure_private_dir(home).map_err(|_| DeviceLoginFailure::Storage)?;
-    if is_reparse_point(home) {
-        return Err(DeviceLoginFailure::Storage);
-    }
-    let resolved = std::fs::canonicalize(home).map_err(|_| DeviceLoginFailure::Storage)?;
-    let resolved_root = std::fs::canonicalize(&root).map_err(|_| DeviceLoginFailure::Storage)?;
+    validate_existing_directory_prefix(&root)?;
+    crate::fsx::ensure_private_dir(&root).map_err(|_| DeviceLoginFailure::Storage)?;
+    let resolved_root = validate_directory_components(&root)?;
+    validate_existing_directory_prefix(home)?;
+    let home_name = home.file_name().ok_or(DeviceLoginFailure::Storage)?;
+    let canonical_home = resolved_root.join(home_name);
+    crate::fsx::ensure_private_dir(&canonical_home).map_err(|_| DeviceLoginFailure::Storage)?;
+    let resolved = validate_directory_components(&canonical_home)?;
     if !resolved.starts_with(&resolved_root) {
         return Err(DeviceLoginFailure::Storage);
     }
-    Ok(())
+    /* Open the directory once after validation. All later paths are derived
+    from the canonical location returned here, never from the caller's
+    original path string. */
+    std::fs::read_dir(&resolved)
+        .map_err(|_| DeviceLoginFailure::Storage)
+        .map(|_| resolved)
 }
 
 /// How the child process is started, behind a trait so no test spawns one.
@@ -340,22 +443,39 @@ impl DeviceLoginSession {
         now: Instant,
         timeout: Duration,
     ) -> Result<(Arc<Self>, DeviceLoginStart), DeviceLoginFailure> {
-        let home = managed_home(session_id).ok_or(DeviceLoginFailure::Storage)?;
-        prepare_managed_home(&home)?;
+        Self::start_with_timeouts(
+            runner,
+            session_id,
+            now,
+            timeout,
+            Duration::from_secs(START_TIMEOUT_SECONDS),
+        )
+    }
+
+    fn start_with_timeouts<R: DeviceLoginRunner>(
+        runner: &R,
+        session_id: &str,
+        now: Instant,
+        timeout: Duration,
+        startup_timeout: Duration,
+    ) -> Result<(Arc<Self>, DeviceLoginStart), DeviceLoginFailure> {
+        let requested_home = managed_home(session_id).ok_or(DeviceLoginFailure::Storage)?;
+        let home = prepare_managed_home(&requested_home)?;
         let mut child = runner.start(&home)?;
         /* A separate, much shorter deadline than the login's own. The client
         prints its code within a second of starting, so twenty is generous, and
         the alternative is the command that started it waiting on a child that
         will never speak. The three minute deadline is for the person at the
         other device, not for this. */
-        let startup = Instant::now() + Duration::from_secs(START_TIMEOUT_SECONDS);
+        let startup = Instant::now() + startup_timeout;
         let mut code = None;
         let mut url = None;
+        let mut untrusted_url = false;
         for _ in 0..MAX_SCANNED_LINES {
             let Some(line) = child.next_line(startup) else {
                 break;
             };
-            scan_line(&line, &mut code, &mut url);
+            scan_line_with_url_guard(&line, &mut code, &mut url, &mut untrusted_url);
             if code.is_some() && url.is_some() {
                 break;
             }
@@ -366,7 +486,11 @@ impl DeviceLoginSession {
         with nothing watching it is a process nobody knows about. */
         let (Some(user_code), Some(verification_url)) = (code, url) else {
             child.stop();
-            return Err(DeviceLoginFailure::NoCode);
+            return Err(if untrusted_url {
+                DeviceLoginFailure::UntrustedUrl
+            } else {
+                DeviceLoginFailure::NoCode
+            });
         };
         let session = Arc::new(Self {
             home,
@@ -396,7 +520,7 @@ impl DeviceLoginSession {
         }
         if credential_written(&self.home) {
             self.stop_child();
-            return DeviceLoginState::Complete;
+            return DeviceLoginState::Complete { quota: None };
         }
         if now >= self.deadline {
             self.cancel();
@@ -413,7 +537,7 @@ impl DeviceLoginSession {
             land between the two. */
             if credential_written(&self.home) {
                 self.stop_child();
-                return DeviceLoginState::Complete;
+                return DeviceLoginState::Complete { quota: None };
             }
             return DeviceLoginState::Failed {
                 reason: DeviceLoginFailure::NoCode,
@@ -454,6 +578,45 @@ impl DeviceLoginSession {
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn home(&self) -> &Path {
         &self.home
+    }
+}
+
+async fn start_on_blocking_thread<R: DeviceLoginRunner>(
+    runner: R,
+    session_id: String,
+    now: Instant,
+    timeout: Duration,
+    startup_timeout: Duration,
+) -> Result<(Arc<DeviceLoginSession>, DeviceLoginStart), DeviceLoginFailure> {
+    tauri::async_runtime::spawn_blocking(move || {
+        DeviceLoginSession::start_with_timeouts(&runner, &session_id, now, timeout, startup_timeout)
+    })
+    .await
+    .map_err(|_| DeviceLoginFailure::Spawn)?
+}
+
+fn quota_state(outcome: &crate::codex_oauth::CodexOutcome) -> DeviceLoginQuotaState {
+    use crate::codex_oauth::{CodexFailure, CodexOutcome};
+    match outcome {
+        CodexOutcome::CacheCommitted { .. } => DeviceLoginQuotaState::Ready,
+        CodexOutcome::Cached { .. } => DeviceLoginQuotaState::Pending {
+            reason: "Quota collection is pending. OpenLimiter will try again soon.".to_string(),
+        },
+        CodexOutcome::ReopenCli { .. } => DeviceLoginQuotaState::Failed {
+            reason: "Reopen Codex before quota can be collected.".to_string(),
+        },
+        CodexOutcome::Fallback { reason, .. } | CodexOutcome::Failed { reason, .. } => {
+            if matches!(*reason, CodexFailure::RateLimited) {
+                DeviceLoginQuotaState::Pending {
+                    reason: "Quota collection is pending because Codex asked OpenLimiter to wait."
+                        .to_string(),
+                }
+            } else {
+                DeviceLoginQuotaState::Failed {
+                    reason: "Quota collection failed. OpenLimiter will try again soon.".to_string(),
+                }
+            }
+        }
     }
 }
 
@@ -498,8 +661,8 @@ fn device_login_command(executable: &Path) -> Command {
         )
     }) {
         /* npm exposes Windows command shims as `.cmd` or `.bat` files. They
-           are not direct executables, so route them through cmd.exe while
-           keeping the discovered launcher and its arguments bounded. */
+        are not direct executables, so route them through cmd.exe while
+        keeping the discovered launcher and its arguments bounded. */
         let mut command = Command::new("cmd.exe");
         command
             .args(["/d", "/s", "/c"])
@@ -645,7 +808,7 @@ impl OpenDeviceLogin {
 
 /// Start a Codex device login and hand the window the code and the address.
 #[tauri::command]
-pub fn codex_device_login_start(
+pub async fn codex_device_login_start(
     detection: tauri::State<'_, crate::provider_detection::DetectionStore>,
     open: tauri::State<'_, OpenDeviceLogin>,
 ) -> Result<serde_json::Value, DeviceLoginFailure> {
@@ -663,7 +826,14 @@ pub fn codex_device_login_start(
     }
     let session_id = uuid::Uuid::new_v4().simple().to_string();
     let runner = SystemDeviceLoginRunner::new(executable);
-    let (session, start) = DeviceLoginSession::start(&runner, &session_id, Instant::now())?;
+    let (session, start) = start_on_blocking_thread(
+        runner,
+        session_id.clone(),
+        Instant::now(),
+        Duration::from_secs(LOGIN_TIMEOUT_SECONDS),
+        Duration::from_secs(START_TIMEOUT_SECONDS),
+    )
+    .await?;
     if let Ok(mut held) = open.open.lock() {
         if let Some((_, previous)) = held.take() {
             previous.cancel();
@@ -696,11 +866,11 @@ pub async fn codex_device_login_status(
     match held {
         Some((_, session)) => {
             let state = session.state(Instant::now());
-            if state == DeviceLoginState::Complete {
+            if matches!(&state, DeviceLoginState::Complete { .. }) {
                 let account_id = detection
                     .register_managed_account(session.home())
                     .ok_or(DeviceLoginFailure::Storage)?;
-                let _ = crate::codex_oauth::collect_account_guarded(
+                let (outcome, _) = crate::codex_oauth::collect_account_guarded(
                     &detection,
                     &runtime,
                     &policy,
@@ -710,6 +880,9 @@ pub async fn codex_device_login_status(
                     crate::connections::now_epoch_ms(),
                 )
                 .await;
+                return Ok(DeviceLoginState::Complete {
+                    quota: Some(quota_state(&outcome)),
+                });
             }
             Ok(state)
         }
@@ -812,6 +985,67 @@ mod tests {
         }
     }
 
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_silent_child_does_not_block_a_second_command() {
+        struct NeverWritesChild {
+            stopped: Arc<AtomicBool>,
+        }
+
+        impl DeviceLoginChild for NeverWritesChild {
+            fn next_line(&mut self, deadline: Instant) -> Option<String> {
+                while Instant::now() < deadline && !self.stopped.load(Ordering::SeqCst) {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                None
+            }
+
+            fn finished(&mut self) -> bool {
+                false
+            }
+
+            fn stop(&mut self) {
+                self.stopped.store(true, Ordering::SeqCst);
+            }
+        }
+
+        struct NeverWritesRunner {
+            stopped: Arc<AtomicBool>,
+        }
+
+        impl DeviceLoginRunner for NeverWritesRunner {
+            fn start(&self, _home: &Path) -> Result<Box<dyn DeviceLoginChild>, DeviceLoginFailure> {
+                Ok(Box::new(NeverWritesChild {
+                    stopped: Arc::clone(&self.stopped),
+                }))
+            }
+        }
+
+        let silent = NeverWritesRunner {
+            stopped: Arc::new(AtomicBool::new(false)),
+        };
+        let login = start_on_blocking_thread(
+            silent,
+            session_id(),
+            Instant::now(),
+            Duration::from_secs(1),
+            Duration::from_millis(300),
+        );
+        let second = start_on_blocking_thread(
+            runner(&started_lines(), false),
+            session_id(),
+            Instant::now(),
+            Duration::from_secs(1),
+            Duration::from_millis(40),
+        );
+        tokio::pin!(login);
+        tokio::pin!(second);
+        let second_result = tokio::time::timeout(Duration::from_millis(100), &mut second)
+            .await
+            .expect("the second command was not blocked");
+        assert!(second_result.is_ok());
+        assert_eq!(login.await.err(), Some(DeviceLoginFailure::NoCode));
+    }
+
     fn started_lines() -> [&'static str; 2] {
         [
             "Open https://auth.openai.com/device",
@@ -829,7 +1063,13 @@ mod tests {
             assert!(version_is_supported(supported), "{supported} was refused");
         }
         for refused in [
-            "0.153.2", "0.152.9", "0.1.0", "", "0.153", "not a version", "0.153.3.1",
+            "0.153.2",
+            "0.152.9",
+            "0.1.0",
+            "",
+            "0.153",
+            "not a version",
+            "0.153.3.1",
         ] {
             assert!(!version_is_supported(refused), "{refused} was accepted");
         }
@@ -839,7 +1079,11 @@ mod tests {
     fn the_code_and_the_address_are_the_only_things_taken_from_the_output() {
         let mut code = None;
         let mut url = None;
-        scan_line("Open https://auth.openai.com/device and enter", &mut code, &mut url);
+        scan_line(
+            "Open https://auth.openai.com/device and enter",
+            &mut code,
+            &mut url,
+        );
         scan_line("Your code is BDXK-9QTZ", &mut code, &mut url);
         assert_eq!(url.as_deref(), Some("https://auth.openai.com/device"));
         assert_eq!(code.as_deref(), Some("BDXK-9QTZ"));
@@ -859,6 +1103,54 @@ mod tests {
     }
 
     #[test]
+    fn a_foreign_https_device_url_is_refused() {
+        let mut code = None;
+        let mut url = None;
+        scan_line(
+            "Open https://example.com/device and enter BDXK-9QTZ",
+            &mut code,
+            &mut url,
+        );
+        assert_eq!(url, None);
+        assert_eq!(code.as_deref(), Some("BDXK-9QTZ"));
+
+        let stub = runner(
+            &["Open https://example.com/device", "Your code is BDXK-9QTZ"],
+            false,
+        );
+        assert_eq!(
+            DeviceLoginSession::start(&stub, &session_id(), Instant::now()).err(),
+            Some(DeviceLoginFailure::UntrustedUrl)
+        );
+    }
+
+    #[test]
+    fn quota_collection_state_is_returned_instead_of_discarded() {
+        use crate::codex_oauth::{CodexFailure, CodexOutcome};
+
+        assert_eq!(
+            quota_state(&CodexOutcome::CacheCommitted {
+                account_id: "account".to_string(),
+            }),
+            DeviceLoginQuotaState::Ready
+        );
+        assert!(matches!(
+            quota_state(&CodexOutcome::Cached {
+                account_id: "account".to_string(),
+                retry_at: "later".to_string(),
+            }),
+            DeviceLoginQuotaState::Pending { .. }
+        ));
+        assert!(matches!(
+            quota_state(&CodexOutcome::Failed {
+                account_id: "account".to_string(),
+                reason: CodexFailure::Connect,
+            }),
+            DeviceLoginQuotaState::Failed { .. }
+        ));
+    }
+
+    #[test]
     fn a_managed_home_is_never_the_persons_own_codex_folder() {
         let id = session_id();
         let home = managed_home(&id).expect("a managed home");
@@ -872,9 +1164,9 @@ mod tests {
     /// A client that starts and says nothing must not hold the caller.
     ///
     /// The startup deadline is separate from the login's own three minutes,
-    /// and it exists because the command that starts a login is synchronous:
-    /// waiting on a silent child there hangs the window, and the three minute
-    /// deadline never fires because nothing is checking it.
+    /// and it exists because the command that starts a login delegates its
+    /// blocking child work to a worker: waiting on a silent child must not
+    /// hold the window dispatcher, and the deadline must still end the child.
     #[test]
     fn a_client_that_never_speaks_is_given_up_on_and_killed() {
         let stub = silent_runner();
@@ -943,7 +1235,10 @@ mod tests {
             .expect("a started login even when pre-spawn instant is old");
         assert_eq!(start.user_code, "BDXK-9QTZ");
         let spawned = spawned_at.lock().unwrap().expect("spawned time");
-        let deadline = observed_deadline.lock().unwrap().expect("observed deadline");
+        let deadline = observed_deadline
+            .lock()
+            .unwrap()
+            .expect("observed deadline");
         assert!(deadline >= spawned + Duration::from_secs(START_TIMEOUT_SECONDS));
     }
 
@@ -1005,6 +1300,22 @@ mod tests {
         let _ = std::fs::remove_dir(&home);
     }
 
+    #[test]
+    fn a_managed_home_with_a_redirected_parent_is_refused() {
+        let dir = TempDir::new();
+        let target = dir.path().join("target");
+        let parent = dir.path().join("accounts");
+        let requested = parent.join("codex").join("session");
+        std::fs::create_dir_all(target.join("codex").join("session")).expect("target tree");
+        if !link_dir(&target, &parent) {
+            return;
+        }
+        assert_eq!(
+            validate_directory_components(&requested).err(),
+            Some(DeviceLoginFailure::Storage)
+        );
+    }
+
     /// Create a directory link, and say whether this machine allowed it.
     #[cfg(windows)]
     fn link_dir(target: &Path, link: &Path) -> bool {
@@ -1038,7 +1349,10 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt as _;
-            let mode = std::fs::metadata(&home).expect("metadata").permissions().mode();
+            let mode = std::fs::metadata(&home)
+                .expect("metadata")
+                .permissions()
+                .mode();
             assert_eq!(mode & 0o777, 0o700);
         }
         let _ = std::fs::remove_dir_all(&home);
@@ -1074,14 +1388,20 @@ mod tests {
         assert_eq!(session.state(Instant::now()), DeviceLoginState::Pending);
         std::fs::write(session.home().join(CREDENTIAL_FILE), "{\"stub\":true}")
             .expect("stub credential");
-        assert_eq!(session.state(Instant::now()), DeviceLoginState::Complete);
+        assert!(matches!(
+            session.state(Instant::now()),
+            DeviceLoginState::Complete { .. }
+        ));
         /* Complete stops the client on its own: nobody had to cancel it for
         that to happen. */
         assert!(stopped.load(Ordering::SeqCst));
         /* And a completed login stays completed on a later poll, rather than
         reading as the person's own cancellation because stopping the client
         happens to share code with `cancel`. */
-        assert_eq!(session.state(Instant::now()), DeviceLoginState::Complete);
+        assert!(matches!(
+            session.state(Instant::now()),
+            DeviceLoginState::Complete { .. }
+        ));
     }
 
     #[test]
@@ -1138,7 +1458,10 @@ mod tests {
         std::fs::write(session.home().join(CREDENTIAL_FILE), "{\"stub\":true}")
             .expect("stub credential");
         let after = started + Duration::from_secs(LOGIN_TIMEOUT_SECONDS + 1);
-        assert_eq!(session.state(after), DeviceLoginState::Complete);
+        assert!(matches!(
+            session.state(after),
+            DeviceLoginState::Complete { .. }
+        ));
     }
 
     /// The whole point of the backend timer: a login nobody polls again must
@@ -1189,7 +1512,10 @@ mod tests {
         std::fs::write(session.home().join(CREDENTIAL_FILE), "{\"stub\":true}")
             .expect("stub credential");
         std::thread::sleep(Duration::from_millis(200));
-        assert_eq!(session.state(Instant::now()), DeviceLoginState::Complete);
+        assert!(matches!(
+            session.state(Instant::now()),
+            DeviceLoginState::Complete { .. }
+        ));
     }
 
     #[test]
@@ -1223,6 +1549,7 @@ mod tests {
             DeviceLoginFailure::Storage,
             DeviceLoginFailure::Spawn,
             DeviceLoginFailure::NoCode,
+            DeviceLoginFailure::UntrustedUrl,
         ] {
             let rendered = serde_json::to_string(&failure).expect("a closed kind");
             assert!(!rendered.contains('/'), "{rendered} carries a path");

@@ -2148,9 +2148,9 @@ mod tests {
             assert!(provider_capped_when_free(provider), "{provider:?}");
         }
         /* OpenRouter reports as Spend, not Balance, so a kind based rule would
-           have capped it by accident. It is excluded by name instead, same as
-           Moonshot, because neither is the admin billing total the ceiling
-           was written for. */
+        have capped it by accident. It is excluded by name instead, same as
+        Moonshot, because neither is the admin billing total the ceiling
+        was written for. */
         for provider in [ApiSpendProvider::Openrouter, ApiSpendProvider::Moonshot] {
             assert!(!provider_capped_when_free(provider), "{provider:?}");
         }
@@ -2190,9 +2190,7 @@ mod tests {
         .expect("capped, not an error");
         assert!(matches!(
             state,
-            ApiSpendDisplayState::Capped {
-                ceiling_usd: "100"
-            }
+            ApiSpendDisplayState::Capped { ceiling_usd: "100" }
         ));
     }
 
@@ -2263,9 +2261,9 @@ mod tests {
         assert!(matches!(capped, ApiSpendDisplayState::Capped { .. }));
 
         /* The month rolled over. refresh_core always recomputes month to date
-           from month_bounds(now), never from what the prior month measured,
-           so a fresh September reading is small again and the ceiling clears
-           on its own, with no state carried inside this function. */
+        from month_bounds(now), never from what the prior month measured,
+        so a fresh September reading is small again and the ceiling clears
+        on its own, with no state carried inside this function. */
         let start_of_september = parse_timestamp("2026-09-01T00:05:00Z").expect("timestamp");
         let cleared = spend_display_state(
             ApiSpendProvider::Openai,
@@ -2287,7 +2285,7 @@ mod tests {
             Err(ApiSpendFailure::InvalidResponse)
         ));
         /* Case only. parse_openai and parse_anthropic both compare with
-           eq_ignore_ascii_case, and this refuses the same way they do. */
+        eq_ignore_ascii_case, and this refuses the same way they do. */
         assert!(matches!(
             spend_display_state(ApiSpendProvider::Openai, "50.00", "USD", None, false, now),
             Ok(ApiSpendDisplayState::Tracked { .. })
@@ -2324,9 +2322,11 @@ mod tests {
         let spend_source = source(ApiSpendProvider::Openai);
         let mut document = ApiSpendDocument::default();
         document.sources.push(spend_source.clone());
-        document
-            .samples
-            .push(spend_sample(ApiSpendProvider::Openai, &spend_source.id, "473.22"));
+        document.samples.push(spend_sample(
+            ApiSpendProvider::Openai,
+            &spend_source.id,
+            "473.22",
+        ));
 
         let snap = snapshot(&document, false, now).expect("capped snapshot");
         let wire = serde_json::to_string(&snap).expect("wire JSON");
@@ -2334,9 +2334,7 @@ mod tests {
         assert!(
             matches!(
                 snap.samples[0].display_state,
-                ApiSpendDisplayState::Capped {
-                    ceiling_usd: "100"
-                }
+                ApiSpendDisplayState::Capped { ceiling_usd: "100" }
             ),
             "{:?}",
             snap.samples[0].display_state
@@ -2349,9 +2347,11 @@ mod tests {
         let spend_source = source(ApiSpendProvider::Openai);
         let mut document = ApiSpendDocument::default();
         document.sources.push(spend_source.clone());
-        document
-            .samples
-            .push(spend_sample(ApiSpendProvider::Openai, &spend_source.id, "473.22"));
+        document.samples.push(spend_sample(
+            ApiSpendProvider::Openai,
+            &spend_source.id,
+            "473.22",
+        ));
 
         let snap = snapshot(&document, true, now).expect("entitled snapshot");
         match &snap.samples[0].display_state {

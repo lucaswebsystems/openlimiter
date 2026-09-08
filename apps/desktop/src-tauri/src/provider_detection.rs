@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,71 @@ const MAX_MANAGED_CODEX_ACCOUNTS: usize = 32;
 const MAX_ACCOUNTS_PER_FILE: usize = 16;
 const MAX_TOKEN_BYTES: usize = 4_096;
 const MAX_IDENTITY_BYTES: usize = 512;
+
+/* Windows: the Antigravity probe's application roots plus the npm global bin
+below the roaming profile are the only user install locations accepted for
+these command line clients. */
+const CODEX_INSTALL_ROOTS_WINDOWS: &[&str] = &[
+    "home/bin",
+    "home/Applications",
+    "roaming/npm",
+    "local/Programs",
+];
+const CLAUDE_INSTALL_ROOTS_WINDOWS: &[&str] = CODEX_INSTALL_ROOTS_WINDOWS;
+const GEMINI_INSTALL_ROOTS_WINDOWS: &[&str] = CODEX_INSTALL_ROOTS_WINDOWS;
+const GROK_INSTALL_ROOTS_WINDOWS: &[&str] = CODEX_INSTALL_ROOTS_WINDOWS;
+const KIMI_INSTALL_ROOTS_WINDOWS: &[&str] = &[
+    "home/bin",
+    "home/Applications",
+    "roaming/npm",
+    "local/Programs",
+    "home/kimi-code",
+    "home/kimi_code",
+    "home/kimicode",
+    "home/kimi-cli",
+];
+
+/* macOS: npm and standalone installs are bounded by the same home and system
+roots the Antigravity probe trusts. */
+const CODEX_INSTALL_ROOTS_MACOS: &[&str] =
+    &["home/Applications", "home/bin", "home/.local", "home/.nvm"];
+const CLAUDE_INSTALL_ROOTS_MACOS: &[&str] = CODEX_INSTALL_ROOTS_MACOS;
+const GEMINI_INSTALL_ROOTS_MACOS: &[&str] = CODEX_INSTALL_ROOTS_MACOS;
+const GROK_INSTALL_ROOTS_MACOS: &[&str] = CODEX_INSTALL_ROOTS_MACOS;
+const KIMI_INSTALL_ROOTS_MACOS: &[&str] = &[
+    "home/Applications",
+    "home/bin",
+    "home/.local",
+    "home/.nvm",
+    "home/kimi-code",
+    "home/kimi_code",
+    "home/kimicode",
+    "home/kimi-cli",
+];
+
+/* Linux: the probe's local bin, home bin, application and package manager
+roots are shared, with named Kimi install folders added explicitly. */
+const CODEX_INSTALL_ROOTS_LINUX: &[&str] = &[
+    "home/.local/bin",
+    "home/bin",
+    "home/Applications",
+    "home/.local",
+    "home/.nvm",
+];
+const CLAUDE_INSTALL_ROOTS_LINUX: &[&str] = CODEX_INSTALL_ROOTS_LINUX;
+const GEMINI_INSTALL_ROOTS_LINUX: &[&str] = CODEX_INSTALL_ROOTS_LINUX;
+const GROK_INSTALL_ROOTS_LINUX: &[&str] = CODEX_INSTALL_ROOTS_LINUX;
+const KIMI_INSTALL_ROOTS_LINUX: &[&str] = &[
+    "home/.local/bin",
+    "home/bin",
+    "home/Applications",
+    "home/.local",
+    "home/.nvm",
+    "home/kimi-code",
+    "home/kimi_code",
+    "home/kimicode",
+    "home/kimi-cli",
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -259,6 +324,7 @@ struct DiscoveryContext {
     grok_home: Option<PathBuf>,
     kimi_code_home: Option<PathBuf>,
     kimi_share_dir: Option<PathBuf>,
+    program_files: Vec<PathBuf>,
     path_entries: Vec<PathBuf>,
 }
 
@@ -286,8 +352,12 @@ impl DiscoveryContext {
         let path_entries = env::var_os("PATH")
             .map(|value| env::split_paths(&value).collect())
             .unwrap_or_default();
-        let managed_codex_root = crate::state::state_directory()
-            .map(|value| value.join("accounts").join("codex"));
+        let program_files = ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"]
+            .into_iter()
+            .filter_map(non_empty_path)
+            .collect();
+        let managed_codex_root =
+            crate::state::state_directory().map(|value| value.join("accounts").join("codex"));
         Self {
             platform,
             read_native_credentials: true,
@@ -302,6 +372,7 @@ impl DiscoveryContext {
             grok_home: non_empty_path("GROK_HOME"),
             kimi_code_home: non_empty_path("KIMI_CODE_HOME"),
             kimi_share_dir: non_empty_path("KIMI_SHARE_DIR"),
+            program_files,
             path_entries,
         }
     }
@@ -743,20 +814,157 @@ fn safe_path_present(path: &Path) -> bool {
     fs::symlink_metadata(path).is_ok_and(|metadata| !metadata.file_type().is_symlink())
 }
 
-/// Resolve an executable launcher before accepting it. POSIX package managers
-/// conventionally put a symbolic link in `bin/`; rejecting that link makes a
-/// normal npm install look absent. The returned path is still the launcher,
-/// while the target is checked as a regular file before it is trusted.
-fn validated_launcher(path: &Path) -> Option<PathBuf> {
-    let metadata = fs::symlink_metadata(path).ok()?;
-    if metadata.file_type().is_symlink() {
-        let resolved = fs::canonicalize(path).ok()?;
-        return fs::metadata(&resolved)
-            .ok()
-            .filter(|metadata| metadata.is_file())
-            .map(|_| path.to_path_buf());
+fn install_root_specs(
+    provider: DetectedProviderId,
+    platform: DiscoveryPlatform,
+) -> &'static [&'static str] {
+    match provider {
+        DetectedProviderId::Codex => match platform {
+            DiscoveryPlatform::Windows => CODEX_INSTALL_ROOTS_WINDOWS,
+            DiscoveryPlatform::Macos => CODEX_INSTALL_ROOTS_MACOS,
+            DiscoveryPlatform::Linux => CODEX_INSTALL_ROOTS_LINUX,
+        },
+        DetectedProviderId::Claude => match platform {
+            DiscoveryPlatform::Windows => CLAUDE_INSTALL_ROOTS_WINDOWS,
+            DiscoveryPlatform::Macos => CLAUDE_INSTALL_ROOTS_MACOS,
+            DiscoveryPlatform::Linux => CLAUDE_INSTALL_ROOTS_LINUX,
+        },
+        DetectedProviderId::GeminiCli => match platform {
+            DiscoveryPlatform::Windows => GEMINI_INSTALL_ROOTS_WINDOWS,
+            DiscoveryPlatform::Macos => GEMINI_INSTALL_ROOTS_MACOS,
+            DiscoveryPlatform::Linux => GEMINI_INSTALL_ROOTS_LINUX,
+        },
+        DetectedProviderId::Grok => match platform {
+            DiscoveryPlatform::Windows => GROK_INSTALL_ROOTS_WINDOWS,
+            DiscoveryPlatform::Macos => GROK_INSTALL_ROOTS_MACOS,
+            DiscoveryPlatform::Linux => GROK_INSTALL_ROOTS_LINUX,
+        },
+        DetectedProviderId::Kimi => match platform {
+            DiscoveryPlatform::Windows => KIMI_INSTALL_ROOTS_WINDOWS,
+            DiscoveryPlatform::Macos => KIMI_INSTALL_ROOTS_MACOS,
+            DiscoveryPlatform::Linux => KIMI_INSTALL_ROOTS_LINUX,
+        },
+        DetectedProviderId::Antigravity
+        | DetectedProviderId::Opencode
+        | DetectedProviderId::Openrouter => &[],
     }
-    metadata.is_file().then(|| path.to_path_buf())
+}
+
+fn antigravity_roots(context: &DiscoveryContext) -> Vec<PathBuf> {
+    let platform = match context.platform {
+        DiscoveryPlatform::Windows => crate::antigravity_local::TargetPlatform::Windows,
+        DiscoveryPlatform::Macos => crate::antigravity_local::TargetPlatform::Macos,
+        DiscoveryPlatform::Linux => crate::antigravity_local::TargetPlatform::Linux,
+    };
+    let program_files = context
+        .program_files
+        .iter()
+        .map(PathBuf::as_path)
+        .map(Some)
+        .collect::<Vec<_>>();
+    crate::antigravity_local::roots_for_platform(
+        platform,
+        context.home.as_deref(),
+        context.local.as_deref(),
+        context.roaming.as_deref(),
+        &program_files,
+    )
+}
+
+fn provider_install_roots(
+    provider: DetectedProviderId,
+    context: &DiscoveryContext,
+) -> Vec<PathBuf> {
+    let mut roots = antigravity_roots(context);
+    for spec in install_root_specs(provider, context.platform) {
+        let (base, relative) = spec.split_once('/').unwrap_or((spec, ""));
+        let Some(base_path) = (match base {
+            "home" => context.home.as_deref(),
+            "roaming" => context.roaming.as_deref(),
+            "local" => context.local.as_deref(),
+            _ => None,
+        }) else {
+            continue;
+        };
+        let mut root = base_path.to_path_buf();
+        for component in Path::new(relative).components() {
+            if let Component::Normal(value) = component {
+                root.push(value);
+            }
+        }
+        roots.push(root);
+    }
+    roots
+}
+
+#[cfg(windows)]
+fn is_reparse_point(path: &Path) -> bool {
+    use std::os::windows::fs::MetadataExt as _;
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    fs::symlink_metadata(path)
+        .is_ok_and(|metadata| metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0)
+}
+
+#[cfg(not(windows))]
+fn is_reparse_point(_path: &Path) -> bool {
+    false
+}
+
+fn path_components_are_real_directory(path: &Path) -> bool {
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        if matches!(component, Component::ParentDir) {
+            return false;
+        }
+        current.push(component.as_os_str());
+        if matches!(component, Component::Normal(_)) {
+            let Ok(metadata) = fs::symlink_metadata(&current) else {
+                return false;
+            };
+            if metadata.file_type().is_symlink() || is_reparse_point(&current) || !metadata.is_dir()
+            {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Resolve an executable launcher before accepting it. POSIX package managers
+/// conventionally put a symbolic link in `bin/`; its target is accepted only
+/// when canonicalization keeps it inside a trusted vendor install root. The
+/// canonical target is returned, so a later process start does not follow the
+/// launcher path again. A launcher outside those roots is never run and never
+/// used for metadata.
+fn validated_launcher(
+    provider: DetectedProviderId,
+    context: &DiscoveryContext,
+    path: &Path,
+) -> Option<PathBuf> {
+    if !(path.is_absolute() || path.has_root())
+        || path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+    {
+        return None;
+    }
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if is_reparse_point(path) {
+        return None;
+    }
+    if !metadata.is_file() && !metadata.file_type().is_symlink() {
+        return None;
+    }
+    let resolved = fs::canonicalize(path).ok()?;
+    if !fs::metadata(&resolved).is_ok_and(|metadata| metadata.is_file()) {
+        return None;
+    }
+    provider_install_roots(provider, context)
+        .into_iter()
+        .filter(|root| path_components_are_real_directory(root))
+        .filter_map(|root| fs::canonicalize(root).ok())
+        .any(|root| resolved.starts_with(root))
+        .then_some(resolved)
 }
 
 fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -> Vec<String> {
@@ -841,12 +1049,11 @@ fn kimi_code_profile_present(context: &DiscoveryContext) -> bool {
 /// rule, which their own names have not collided under.
 fn executable_present(provider: DetectedProviderId, context: &DiscoveryContext) -> bool {
     let names = executable_names(provider, context.platform);
-    let corroborated =
-        provider != DetectedProviderId::Kimi || kimi_code_profile_present(context);
+    let corroborated = provider != DetectedProviderId::Kimi || kimi_code_profile_present(context);
     context.path_entries.iter().any(|directory| {
         names
             .iter()
-            .any(|name| validated_launcher(&directory.join(name)).is_some())
+            .any(|name| validated_launcher(provider, context, &directory.join(name)).is_some())
             && (corroborated || inside_kimi_code_installation(directory))
     })
 }
@@ -880,12 +1087,12 @@ fn installed_client_version(
     for directory in &context.path_entries {
         let launcher = names
             .iter()
-            .find_map(|name| validated_launcher(&directory.join(name)));
+            .find_map(|name| validated_launcher(provider, context, &directory.join(name)));
         let Some(launcher) = launcher else {
             continue;
         };
         for manifest in client_manifest_candidates(provider, directory, &launcher) {
-            if let Some(version) = manifest_version(&manifest) {
+            if let Some(version) = manifest_version(provider, &manifest) {
                 return Some(version);
             }
         }
@@ -895,10 +1102,10 @@ fn installed_client_version(
 
 /// Where a provider's installed client actually is, when it is installed.
 ///
-/// The first entry on the search path that holds one, and only a regular file
-/// that is not a symbolic link, which is the same rule every other read in
-/// this module applies. A caller never supplies a path: an executable this
-/// product runs is one it found itself.
+/// The first entry on the search path that holds one. A symbolic launcher is
+/// returned as its canonical regular target, which is the same rule every
+/// other read in this module applies. A caller never supplies a path: an
+/// executable this product runs is one it found itself.
 fn installed_executable(
     provider: DetectedProviderId,
     context: &DiscoveryContext,
@@ -907,7 +1114,7 @@ fn installed_executable(
     for directory in &context.path_entries {
         for name in &names {
             let candidate = directory.join(name);
-            if validated_launcher(&candidate).is_some() {
+            if validated_launcher(provider, context, &candidate).is_some() {
                 return Some(candidate);
             }
         }
@@ -921,7 +1128,8 @@ fn package_name(provider: DetectedProviderId) -> Option<&'static str> {
         DetectedProviderId::Codex => Some("@openai/codex"),
         DetectedProviderId::GeminiCli => Some("@google/gemini-cli"),
         DetectedProviderId::Opencode => Some("opencode-ai"),
-        DetectedProviderId::Grok | DetectedProviderId::Kimi => None,
+        DetectedProviderId::Grok => Some("@xai-official/grok"),
+        DetectedProviderId::Kimi => Some("@moonshot-ai/kimi-code"),
         DetectedProviderId::Antigravity | DetectedProviderId::Openrouter => None,
     }
 }
@@ -982,14 +1190,14 @@ fn client_manifest_candidates(
     candidates
 }
 
-fn manifest_version(path: &Path) -> Option<String> {
+fn manifest_version(provider: DetectedProviderId, path: &Path) -> Option<String> {
     let raw = fsx::bounded_read(path)?;
-    let version = serde_json::from_str::<Value>(&raw)
-        .ok()?
-        .get("version")?
-        .as_str()?
-        .trim()
-        .to_string();
+    let manifest = serde_json::from_str::<Value>(&raw).ok()?;
+    let package = package_name(provider)?;
+    if manifest.get("name")?.as_str()? != package {
+        return None;
+    }
+    let version = manifest.get("version")?.as_str()?.trim().to_string();
     let shaped = !version.is_empty()
         && version.len() <= MAX_CLIENT_VERSION_BYTES
         && version
@@ -1596,11 +1804,15 @@ impl DetectionStore {
     /// owns, and the vendor file must contain exactly one readable account.
     pub fn register_managed_account(&self, home: &Path) -> Option<String> {
         let root = self.context.managed_codex_root.as_deref()?;
+        if !path_components_are_real_directory(root) || !path_components_are_real_directory(home) {
+            return None;
+        }
         let resolved_root = fs::canonicalize(root).ok()?;
         let resolved_home = fs::canonicalize(home).ok()?;
         if resolved_home.parent() != Some(resolved_root.as_path()) {
             return None;
         }
+        let _opened_home = fs::read_dir(&resolved_home).ok()?;
         let name = resolved_home.file_name()?.to_string_lossy();
         if name.is_empty()
             || name.len() > 64
@@ -1610,18 +1822,34 @@ impl DetectionStore {
         {
             return None;
         }
-        let mut parsed = parse_credential_file(DetectedProviderId::Codex, &home.join("auth.json"));
+        let mut parsed =
+            parse_credential_file(DetectedProviderId::Codex, &resolved_home.join("auth.json"));
         if parsed.len() != 1 {
             return None;
         }
         let account_id = opaque_account_id(DetectedProviderId::Codex, &parsed[0].identity_material);
         drop(parsed.pop());
-        let report = self.rescan();
+        /* Keep the whole registration pass on the canonical root captured
+        above. A later scan through the original path could observe a
+        parent replacement and read a different account tree. */
+        let mut context = self.context.clone();
+        context.managed_codex_root = Some(resolved_root);
+        let next = scan_inventory(&context, crate::connections::now_epoch_ms());
+        let report = next.report.clone();
+        match self.inventory.write() {
+            Ok(mut inventory) => *inventory = next,
+            Err(poisoned) => *poisoned.into_inner() = next,
+        }
         report
             .providers
             .iter()
             .find(|provider| provider.provider_id == DetectedProviderId::Codex)
-            .is_some_and(|provider| provider.accounts.iter().any(|account| account.account_id == account_id))
+            .is_some_and(|provider| {
+                provider
+                    .accounts
+                    .iter()
+                    .any(|account| account.account_id == account_id)
+            })
             .then_some(account_id)
     }
 
@@ -1787,6 +2015,7 @@ impl DetectionStore {
             grok_home: None,
             kimi_code_home: None,
             kimi_share_dir: None,
+            program_files: Vec::new(),
             path_entries: vec![home.join("bin")],
         };
         let inventory = scan_inventory(&context, now_ms);
@@ -1817,6 +2046,7 @@ mod tests {
             grok_home: Some(home.join("grok-home")),
             kimi_code_home: Some(home.join("kimi-code-home")),
             kimi_share_dir: Some(home.join("kimi-share")),
+            program_files: Vec::new(),
             path_entries: vec![home.join("bin")],
         }
     }
@@ -2266,9 +2496,10 @@ mod tests {
         let codex = provider(&inventory.report, DetectedProviderId::Codex);
         assert_eq!(codex.state, ProviderPresence::Present);
         assert_eq!(codex.accounts.len(), 1);
-        assert!(inventory
-            .credentials
-            .contains_key(&(DetectedProviderId::Codex, codex.accounts[0].account_id.clone())));
+        assert!(inventory.credentials.contains_key(&(
+            DetectedProviderId::Codex,
+            codex.accounts[0].account_id.clone()
+        )));
     }
 
     #[test]
@@ -2284,7 +2515,9 @@ mod tests {
         let account_id = detection
             .register_managed_account(&session)
             .expect("managed account");
-        assert!(detection.account_ids(DetectedProviderId::Codex).contains(&account_id));
+        assert!(detection
+            .account_ids(DetectedProviderId::Codex)
+            .contains(&account_id));
     }
 
     #[cfg(unix)]
@@ -2294,7 +2527,12 @@ mod tests {
 
         let dir = TempDir::new();
         let bin = dir.path().join("bin");
-        let package_bin = dir.path().join("node_modules").join("grok").join("bin");
+        let package_bin = dir
+            .path()
+            .join(".nvm")
+            .join("node_modules")
+            .join("grok")
+            .join("bin");
         write(&package_bin.join("grok.js"), "javascript marker");
         fs::create_dir_all(&bin).expect("bin directory");
         symlink(package_bin.join("grok.js"), bin.join("grok")).expect("launcher symlink");
@@ -2302,7 +2540,7 @@ mod tests {
         discovery.path_entries = vec![bin.clone()];
         assert_eq!(
             installed_executable(DetectedProviderId::Grok, &discovery),
-            Some(bin.join("grok"))
+            Some(package_bin.join("grok.js"))
         );
         assert_eq!(
             provider(
@@ -2311,6 +2549,33 @@ mod tests {
             )
             .state,
             ProviderPresence::InstalledLoggedOut
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_launcher_linked_outside_the_vendor_root_is_refused() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new();
+        let outside = TempDir::new();
+        let bin = dir.path().join("bin");
+        write(&outside.path().join("grok"), "untrusted binary");
+        fs::create_dir_all(&bin).expect("bin directory");
+        symlink(outside.path().join("grok"), bin.join("grok")).expect("launcher symlink");
+        let mut discovery = context(DiscoveryPlatform::Linux, dir.path());
+        discovery.path_entries = vec![bin];
+        assert_eq!(
+            installed_executable(DetectedProviderId::Grok, &discovery),
+            None
+        );
+        assert_eq!(
+            provider(
+                &scan_inventory(&discovery, 1_800_000_000_000).report,
+                DetectedProviderId::Grok
+            )
+            .state,
+            ProviderPresence::Absent
         );
     }
 
@@ -2333,7 +2598,7 @@ mod tests {
 
         /* A Windows npm shim lives beside the prefix, while its scoped
         package manifest lives below the prefix's node_modules directory. */
-        let npm_bin = dir.path().join("npm-bin");
+        let npm_bin = dir.path().join("bin");
         write(&npm_bin.join("codex.cmd"), "@echo off");
         write(
             &npm_bin
@@ -2351,24 +2616,23 @@ mod tests {
         );
 
         /* The npm layout: a shim in bin/, the manifest one level up. */
+        /* A manifest for another package is not evidence about this binary,
+        even when it carries a well shaped version. */
         write(
             &dir.path().join("package.json"),
             r#"{"name":"grok-build","version":"1.4.2"}"#,
         );
         assert_eq!(
             installed_client_version(DetectedProviderId::Grok, &discovery),
-            Some("1.4.2".to_string())
+            None
         );
-
-        /* A manifest that states something which is not a version states no
-        version: it is a file this process does not own. */
         write(
             &dir.path().join("package.json"),
-            r#"{"name":"grok-build","version":"1.4.2 (patched by hand)"}"#,
+            r#"{"name":"@xai-official/grok","version":"1.4.2"}"#,
         );
         assert_eq!(
             installed_client_version(DetectedProviderId::Grok, &discovery),
-            None
+            Some("1.4.2".to_string())
         );
     }
 

@@ -16,6 +16,8 @@ If every provider is unknown, the adapter injects nothing.
 
 Provider authentication artifacts are read only. OpenLimiter never rewrites, backs up, repairs, or migrates them.
 
+The managed Codex connector is an exception to read only: the vendor's own CLI writes `auth.json` there by design. This is required because Sign in with Codex means running the vendor's CLI, and OpenLimiter never moves or rewrites that file. The containing directory is owner only mode 0700 on POSIX; this crate has no verified Windows ACL helper, so Windows uses the directory permissions created by the operating system.
+
 OpenRouter credentials belong only in the operating system credential store. Repository files, cache files, exports, diagnostics, fixtures, and logs must never contain the key.
 
 API spend management keys use the separate operating system keyring service `com.openlimiter.desktop.api-spend.v1`. A source document contains only a random UUID, provider, display label, safe suffix, eligibility class, local policy, and normalized observations. There is no key readback command. A failed keyring write creates no source, and revocation deletes the key before removing the source reference.

@@ -1682,15 +1682,19 @@ mod tests {
         let mut also_legacy = record("legacy-two");
         also_legacy.created_at = 1_770_000_000_100;
         let migrated = migrate_cap_document(vec![legacy, also_legacy]).expect("the one time flag");
-        store.save_document(&migrated).expect("the migrated document");
+        store
+            .save_document(&migrated)
+            .expect("the migrated document");
 
         store.apply_plan(false, &[]).expect("the downgrade");
         assert!(store.get("legacy-one").expect("legacy one").is_active());
         assert!(store.get("legacy-two").expect("legacy two").is_active());
-        assert!(store
-            .get("legacy-two")
-            .expect("legacy two")
-            .legacy_grandfathered);
+        assert!(
+            store
+                .get("legacy-two")
+                .expect("legacy two")
+                .legacy_grandfathered
+        );
 
         /* Grandfathering covers what was already there, never a new account.
         A third one on the same provider is refused like any other second. */

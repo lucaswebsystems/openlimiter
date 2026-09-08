@@ -1057,7 +1057,11 @@ mod tests {
         )
         .await;
 
-        let AntigravityOutcome::Mirrored { account_id, message } = outcome else {
+        let AntigravityOutcome::Mirrored {
+            account_id,
+            message,
+        } = outcome
+        else {
             panic!("a borrowed reading is its own outcome");
         };
         assert_eq!(account_id, SHARED_CODE_ASSIST_ACCOUNT);
@@ -1120,7 +1124,11 @@ mod tests {
         let a_quarter_hour_later = NOW + (REFRESH_SECONDS + 60) * 1_000;
         assert!(
             matches!(
-                restarted.begin(DetectedProviderId::Antigravity, ACCOUNT, a_quarter_hour_later),
+                restarted.begin(
+                    DetectedProviderId::Antigravity,
+                    ACCOUNT,
+                    a_quarter_hour_later
+                ),
                 Err(GateRejection::Deferred { .. })
             ),
             "the day of quiet did not survive the restart"

@@ -85,7 +85,10 @@ impl PairingPhase {
 
     /// Whether anything more can happen to this pairing.
     fn settled(self) -> bool {
-        matches!(self, Self::Approved | Self::Denied | Self::Delivered | Self::Expired)
+        matches!(
+            self,
+            Self::Approved | Self::Denied | Self::Delivered | Self::Expired
+        )
     }
 
     /// Whether a status poll would tell this window anything.
@@ -195,7 +198,9 @@ impl PairingRuntime {
 
 fn valid_code(value: &str) -> bool {
     value.chars().count() == PAIRING_CODE_LENGTH
-        && value.chars().all(|letter| PAIRING_ALPHABET.contains(letter))
+        && value
+            .chars()
+            .all(|letter| PAIRING_ALPHABET.contains(letter))
 }
 
 fn bounded_text(value: Option<&Value>, maximum: usize) -> Option<String> {
@@ -274,7 +279,10 @@ pub(crate) fn parse_status(
         .and_then(Value::as_i64)
         .unwrap_or(session.expires_at);
     let device = response.get("device");
-    let device_name = bounded_text(device.and_then(|value| value.get("name")), MAX_DEVICE_NAME_CHARS);
+    let device_name = bounded_text(
+        device.and_then(|value| value.get("name")),
+        MAX_DEVICE_NAME_CHARS,
+    );
     let device_platform = bounded_text(
         device.and_then(|value| value.get("platform")),
         MAX_DEVICE_PLATFORM_CHARS,
@@ -433,7 +441,13 @@ pub async fn pairing_approve(
     store: State<'_, KeyringStore>,
     runtime: State<'_, PairingRuntime>,
 ) -> Result<PairingSession, ProFailure> {
-    decide(store.inner(), runtime.inner(), "approve", PairingPhase::Approved).await
+    decide(
+        store.inner(),
+        runtime.inner(),
+        "approve",
+        PairingPhase::Approved,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -546,7 +560,9 @@ mod tests {
 
     #[test]
     fn an_ambiguous_alphabet_never_reaches_the_screen() {
-        for code in ["AB23CDE0", "AB23CDEO", "AB23CDE1", "AB23CDEI", "AB23CDE", "ab23cdef"] {
+        for code in [
+            "AB23CDE0", "AB23CDEO", "AB23CDE1", "AB23CDEI", "AB23CDE", "ab23cdef",
+        ] {
             let mut wrong = created();
             wrong["code"] = Value::String(code.to_string());
             wrong["url"] = Value::String(format!("{PAIRING_URL_PREFIX}{code}"));
@@ -781,7 +797,10 @@ mod tests {
         );
         /* And the runtime says so out loud rather than still reading claimed. */
         assert_eq!(
-            runtime.read().expect("the held pairing").map(|value| value.phase),
+            runtime
+                .read()
+                .expect("the held pairing")
+                .map(|value| value.phase),
             Some(PairingPhase::Deciding)
         );
     }
@@ -793,7 +812,9 @@ mod tests {
         handed a second press a pairing that looked decidable again. */
         let runtime = PairingRuntime::default();
         runtime.write(Some(claimed())).expect("a claimed pairing");
-        runtime.begin_decision(NOW + 6).expect("the decision starts");
+        runtime
+            .begin_decision(NOW + 6)
+            .expect("the decision starts");
         let held = runtime
             .read()
             .expect("the held pairing")
@@ -808,10 +829,17 @@ mod tests {
     fn a_decision_that_could_not_be_sent_puts_the_pairing_back() {
         let runtime = PairingRuntime::default();
         runtime.write(Some(claimed())).expect("a claimed pairing");
-        let held = runtime.begin_decision(NOW + 6).expect("the decision starts");
-        runtime.abandon_decision(&held).expect("the decision is abandoned");
+        let held = runtime
+            .begin_decision(NOW + 6)
+            .expect("the decision starts");
+        runtime
+            .abandon_decision(&held)
+            .expect("the decision is abandoned");
         assert_eq!(
-            runtime.read().expect("the held pairing").map(|value| value.phase),
+            runtime
+                .read()
+                .expect("the held pairing")
+                .map(|value| value.phase),
             Some(PairingPhase::Claimed)
         );
         runtime
@@ -826,7 +854,9 @@ mod tests {
         with a QR code for a code nobody was holding any more. */
         let runtime = PairingRuntime::default();
         runtime.write(Some(claimed())).expect("a claimed pairing");
-        let held = runtime.begin_decision(NOW + 6).expect("the decision starts");
+        let held = runtime
+            .begin_decision(NOW + 6)
+            .expect("the decision starts");
         runtime.write(None).expect("the panel is closed");
 
         let decided = parse_decision(
@@ -837,7 +867,9 @@ mod tests {
         )
         .expect("the approval still parses");
         assert_eq!(
-            runtime.settle(&decided).expect("the write back is attempted"),
+            runtime
+                .settle(&decided)
+                .expect("the write back is attempted"),
             false
         );
         assert_eq!(runtime.read().expect("the runtime"), None);
@@ -847,13 +879,17 @@ mod tests {
     fn a_decision_never_lands_on_the_pairing_that_replaced_it() {
         let runtime = PairingRuntime::default();
         runtime.write(Some(claimed())).expect("a claimed pairing");
-        let held = runtime.begin_decision(NOW + 6).expect("the decision starts");
+        let held = runtime
+            .begin_decision(NOW + 6)
+            .expect("the decision starts");
 
         let mut replacement = created();
         replacement["code"] = Value::String("ZZ23ZZZZ".to_string());
         replacement["url"] = Value::String(format!("{PAIRING_URL_PREFIX}ZZ23ZZZZ"));
         let newer = parse_create(&replacement, NOW + 7).expect("a second pairing");
-        runtime.write(Some(newer)).expect("the second pairing is held");
+        runtime
+            .write(Some(newer))
+            .expect("the second pairing is held");
 
         let decided = parse_decision(
             &json!({ "status": "approved" }),
@@ -863,7 +899,9 @@ mod tests {
         )
         .expect("the approval still parses");
         assert_eq!(
-            runtime.settle(&decided).expect("the write back is attempted"),
+            runtime
+                .settle(&decided)
+                .expect("the write back is attempted"),
             false
         );
         assert_eq!(
@@ -878,7 +916,10 @@ mod tests {
         assert_eq!(runtime.read().expect("an empty runtime"), None);
         runtime.write(Some(pending())).expect("a stored pairing");
         assert_eq!(
-            runtime.read().expect("the stored pairing").map(|value| value.code),
+            runtime
+                .read()
+                .expect("the stored pairing")
+                .map(|value| value.code),
             Some(CODE.to_string())
         );
         runtime.write(None).expect("a cleared pairing");

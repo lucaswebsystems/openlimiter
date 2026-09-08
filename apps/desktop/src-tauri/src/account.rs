@@ -15,6 +15,7 @@ use url::Url;
 use zeroize::Zeroizing;
 
 use crate::credentials::{CredentialError, KeyringStore, SecretStore};
+use crate::net::OPENLIMITER_USER_AGENT;
 
 const ACCOUNT_CREDENTIAL_ID: &str = "openlimiter-account-session";
 const SYNC_SETTING_CREDENTIAL_ID: &str = "openlimiter-sync-enabled";
@@ -361,6 +362,7 @@ fn client() -> Result<reqwest::Client, AccountFailure> {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(NETWORK_TIMEOUT_SECONDS))
         .redirect(reqwest::redirect::Policy::none())
+        .user_agent(OPENLIMITER_USER_AGENT)
         .build()
         .map_err(|_| AccountFailure::Network)
 }
@@ -1168,10 +1170,7 @@ fn request_head(stream: &mut std::net::TcpStream, deadline: std::time::Instant) 
     let mut request = Vec::with_capacity(1_024);
     let mut buffer = [0_u8; 1_024];
     loop {
-        if request
-            .windows(4)
-            .any(|window| window == b"\r\n\r\n")
-        {
+        if request.windows(4).any(|window| window == b"\r\n\r\n") {
             break;
         }
         let remaining = deadline.checked_duration_since(std::time::Instant::now())?;
@@ -1183,7 +1182,10 @@ fn request_head(stream: &mut std::net::TcpStream, deadline: std::time::Instant) 
                 if matches!(
                     error.kind(),
                     std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
-                ) => return None,
+                ) =>
+            {
+                return None
+            }
             Err(_) => return None,
         };
         if request.len().saturating_add(count) > MAX_REQUEST_BYTES {
@@ -1195,7 +1197,9 @@ fn request_head(stream: &mut std::net::TcpStream, deadline: std::time::Instant) 
         .windows(4)
         .position(|window| window == b"\r\n\r\n")?
         .saturating_add(4);
-    std::str::from_utf8(&request[..end]).ok().map(str::to_string)
+    std::str::from_utf8(&request[..end])
+        .ok()
+        .map(str::to_string)
 }
 
 fn oauth_request_with_timeout(
@@ -1235,8 +1239,8 @@ fn oauth_request_with_timeout(
                 state: a request nobody here asked for is not proof of who
                 sent it. */
                 if url.path() != LOOPBACK_CALLBACK_PATH {
-                    let _ = stream
-                        .write_all(b"HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+                    let _ =
+                        stream.write_all(b"HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
                     continue;
                 }
                 let Some(code) = url
@@ -1363,13 +1367,13 @@ pub async fn account_oauth(
         authorize.query_pairs_mut().append_pair("scopes", scopes);
     }
     /* No state of our own. The service forwards whatever state it is given
-       straight to the provider, and then cannot resolve it on the way back:
-       every sign in died with "OAuth state not found or expired" (2026-09-06).
-       Left alone, the service mints its own state and resolves it, and the
-       proof of custody stays the PKCE verifier, which never leaves here. */
+    straight to the provider, and then cannot resolve it on the way back:
+    every sign in died with "OAuth state not found or expired" (2026-09-06).
+    Left alone, the service mints its own state and resolves it, and the
+    proof of custody stays the PKCE verifier, which never leaves here. */
     provider_switched_on(&authorize).await?;
     /* The address is kept for the length of this one attempt, so the window
-       can open the browser to it again, and cleared however the attempt ends. */
+    can open the browser to it again, and cleared however the attempt ends. */
     set_pending_authorize(Some(authorize.to_string()));
     let outcome = complete_oauth(&app, store.inner(), authorize, listener, verifier).await;
     set_pending_authorize(None);
@@ -1417,7 +1421,10 @@ fn set_pending_authorize(value: Option<String>) {
 }
 
 fn pending_authorize_url() -> Option<String> {
-    pending_authorize().lock().ok().and_then(|slot| slot.clone())
+    pending_authorize()
+        .lock()
+        .ok()
+        .and_then(|slot| slot.clone())
 }
 
 /// Open the browser to the sign in already in flight, once more. Nothing in
@@ -1510,6 +1517,48 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn account_requests_use_the_openlimiter_user_agent() {
+        /* The client sets its User-Agent as a default header, which reqwest
+        applies when the request is sent, so the assertion reads the bytes
+        a local listener receives rather than an unsent request. */
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("listener");
+        let port = listener.local_addr().expect("address").port();
+        let captured = std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let (mut stream, _) = listener.accept().expect("connection");
+            let mut received = Vec::new();
+            let mut chunk = [0u8; 1024];
+            while !received.windows(4).any(|window| window == b"\r\n\r\n") {
+                let read = stream.read(&mut chunk).expect("read");
+                if read == 0 {
+                    break;
+                }
+                received.extend_from_slice(&chunk[..read]);
+            }
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .expect("response");
+            String::from_utf8_lossy(&received).to_ascii_lowercase()
+        });
+        let response = client()
+            .expect("account client")
+            .get(format!("http://127.0.0.1:{port}/"))
+            .send()
+            .await
+            .expect("response");
+        assert_eq!(response.status(), 200);
+        let request = captured.join().expect("captured request");
+        assert!(
+            request.contains(&format!(
+                "user-agent: {}",
+                OPENLIMITER_USER_AGENT.to_ascii_lowercase()
+            )),
+            "request carried no OpenLimiter User-Agent"
+        );
+    }
+
     #[test]
     fn account_status_never_contains_tokens() {
         let value = serde_json::to_string(&AccountStatus {
@@ -1538,9 +1587,7 @@ mod tests {
         {
             let mut probe = TcpStream::connect(address).expect("connect");
             probe
-                .write_all(
-                    b"GET /not-the-callback?code=stolen&state=x HTTP/1.1\r\nHost: x\r\n\r\n",
-                )
+                .write_all(b"GET /not-the-callback?code=stolen&state=x HTTP/1.1\r\nHost: x\r\n\r\n")
                 .expect("write");
             let mut buffer = [0_u8; 256];
             let count = probe.read(&mut buffer).expect("read");
@@ -1548,10 +1595,12 @@ mod tests {
         }
 
         /* A complete but malformed request is unrelated too, and must not
-           end the listener before the real callback arrives. */
+        end the listener before the real callback arrives. */
         {
             let mut malformed = TcpStream::connect(address).expect("connect");
-            malformed.write_all(b"not an HTTP request\r\n\r\n").expect("write");
+            malformed
+                .write_all(b"not an HTTP request\r\n\r\n")
+                .expect("write");
         }
 
         /* The address this device actually asked for: the one answered as a
@@ -1567,7 +1616,10 @@ mod tests {
             assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 200"));
         }
 
-        let (code, state) = handle.join().expect("thread joined").expect("oauth_request");
+        let (code, state) = handle
+            .join()
+            .expect("thread joined")
+            .expect("oauth_request");
         assert_eq!(code, "real-code");
         assert_eq!(state, "real-state");
     }
@@ -1711,7 +1763,8 @@ mod tests {
     #[test]
     fn a_switched_off_provider_has_a_closed_failure_kind() {
         assert_eq!(
-            serde_json::to_value(AccountFailure::ProviderDisabled).expect("provider disabled failure"),
+            serde_json::to_value(AccountFailure::ProviderDisabled)
+                .expect("provider disabled failure"),
             serde_json::json!({ "kind": "provider_disabled" })
         );
     }

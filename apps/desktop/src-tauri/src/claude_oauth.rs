@@ -245,9 +245,7 @@ impl BucketWindow {
 
     fn maximum_ahead(self) -> u64 {
         match self.duration_seconds {
-            Some(seconds) => seconds
-                .saturating_mul(2)
-                .saturating_add(CLOCK_SKEW_SECONDS),
+            Some(seconds) => seconds.saturating_mul(2).saturating_add(CLOCK_SKEW_SECONDS),
             None => UNKNOWN_WINDOW_MAX_AHEAD_SECONDS,
         }
     }
@@ -847,7 +845,10 @@ pub async fn run_pass(app: &AppHandle, automatic_account_limit: usize) {
     in this product whose standing is genuinely unsettled, so it happens only
     where somebody switched it on, and an absent or unreadable setting means
     off. See `claude_poll_setting.rs`. */
-    if !app.state::<crate::claude_poll_setting::ClaudePollSetting>().enabled() {
+    if !app
+        .state::<crate::claude_poll_setting::ClaudePollSetting>()
+        .enabled()
+    {
         return;
     }
     let mut account_ids = app
@@ -1422,11 +1423,7 @@ mod tests {
     #[tokio::test]
     async fn every_new_meter_survives_the_write_and_reaches_the_cache() {
         let dir = TempDir::new();
-        let transport = RecordingTransport::replying(
-            200,
-            full_contract_body().into_bytes(),
-            None,
-        );
+        let transport = RecordingTransport::replying(200, full_contract_body().into_bytes(), None);
         let outcome = collect_with_secret(
             &ClaudeOauthRuntime::default(),
             &transport,

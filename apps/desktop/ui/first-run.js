@@ -339,6 +339,64 @@ export function normalizeDetections(value) {
   };
 }
 
+/**
+ * Serialize detection work and commit only the newest requested generation.
+ * A forced scan can arrive while an earlier scan is still reading the machine;
+ * it waits in the queue, and an earlier answer can never become committed
+ * state after a newer generation has been requested.
+ */
+export function createDetectionLoader(detectProviders) {
+  let generation = 0;
+  let committed = null;
+  let active = null;
+  let queue = Promise.resolve();
+
+  function load(force = false) {
+    if (!force && active !== null) return active;
+    if (!force && committed !== null) {
+      return Promise.resolve({ ...committed, generation });
+    }
+
+    const requested = ++generation;
+    const task = queue.then(async () => {
+      let payload = null;
+      try {
+        const response = await detectProviders();
+        payload = response?.ok === true ? response.value : null;
+      } catch {
+        payload = null;
+      }
+      const value = {
+        result: normalizeDetections(payload),
+        signals: claudeSignals(payload),
+        generation: requested,
+      };
+      if (requested === generation) {
+        committed = { result: value.result, signals: value.signals };
+      }
+      return value;
+    });
+    queue = task.catch(() => null);
+    active = task;
+    task.then(
+      () => {
+        if (active === task) active = null;
+      },
+      () => {
+        if (active === task) active = null;
+      },
+    );
+    return task;
+  }
+
+  return Object.freeze({
+    load,
+    currentGeneration: () => generation,
+    isCurrent: (value) => value?.generation === generation,
+    committed: () => committed,
+  });
+}
+
 function readBoolean(source, keys) {
   if (source === null || typeof source !== "object") return false;
   for (const key of keys) {
@@ -429,9 +487,12 @@ export function markStep(root, current) {
  */
 export const CODEX_SIGN_IN_TIMEOUT_MILLISECONDS = 180_000;
 export const CODEX_SIGN_IN_POLL_MILLISECONDS = 2_000;
+export const CODEX_DEVICE_LINK_FALLBACK =
+  "Open the link Codex printed in the terminal";
 
 export function codexSentence(kind) {
   if (kind === "complete") return "Codex is connected.";
+  if (kind === "untrusted_url") return CODEX_DEVICE_LINK_FALLBACK;
   if (kind === "cancelled") return "Sign in cancelled, and nothing changed.";
   if (kind === "timed_out") return "The sign in ran out of time, and nothing changed.";
   return "The sign in did not complete, and nothing changed.";
@@ -458,7 +519,8 @@ export async function runCodexSignIn(deps) {
 
   const started = await deps.start();
   if (started?.ok !== true) {
-    return { kind: "failed", sentence: codexSentence("failed") };
+    const kind = started?.kind === "untrusted_url" ? "untrusted_url" : "failed";
+    return { kind: "failed", sentence: codexSentence(kind) };
   }
 
   const value = started.value ?? {};
@@ -485,7 +547,13 @@ export async function runCodexSignIn(deps) {
       return { kind: "failed", sentence: codexSentence("failed") };
     }
     const kind = answer.value?.kind;
-    if (kind === "complete") return { kind, sentence: codexSentence(kind) };
+    if (kind === "complete") {
+      return {
+        kind,
+        quota: answer.value?.quota ?? null,
+        sentence: codexSentence(kind),
+      };
+    }
     if (kind === "cancelled" || kind === "timed_out" || kind === "failed") {
       return { kind, sentence: codexSentence(kind) };
     }
@@ -507,8 +575,17 @@ export async function runCodexSignIn(deps) {
  * neither command line tool is on this machine to verify against. Claude is
  * read and never signed into, so it never gets a sign in control at all.
  */
-export function rowAction(provider, detection, signals) {
+export function rowAction(provider, detection, signals, quota = null) {
   const state = detection?.state ?? "unavailable";
+  if (
+    provider.code === "CODEX" &&
+    state === "present" &&
+    (quota?.kind === "pending" || quota?.kind === "failed") &&
+    typeof quota.reason === "string" &&
+    quota.reason !== ""
+  ) {
+    return { kind: "note", note: quota.reason };
+  }
   if (state === "present") {
     return { kind: "current", label: USE_CURRENT_LOGIN };
   }
@@ -573,6 +650,7 @@ export function firstRunCopyStrings() {
     "Connect this one in Connections when you want its bar.",
   ];
   strings.push("Use email instead");
+  strings.push(CODEX_DEVICE_LINK_FALLBACK);
   for (const way of SIGN_IN_WAYS) {
     strings.push(way.label);
     if (way.id !== "email") strings.push("Continue with " + way.label);
@@ -678,7 +756,7 @@ export function persistedToggleValue(previous, requested, result) {
  * it. Everything a state needs to say more than a button can hold goes in the
  * disclosure under both columns, which grows the row downward instead.
  */
-function connectRow(provider, detection, signals, options, redraw, pollEnabled) {
+function connectRow(provider, detection, signals, options, redraw, pollEnabled, quota) {
   const row = element("div", "first-run-row");
   row.dataset.state = detection?.state ?? "unavailable";
   row.dataset.provider = provider.code;
@@ -697,7 +775,7 @@ function connectRow(provider, detection, signals, options, redraw, pollEnabled) 
   const disclosure = element("div", "first-run-disclosure");
   disclosure.hidden = true;
 
-  const plan = rowAction(provider, detection, signals);
+  const plan = rowAction(provider, detection, signals, quota);
   action.dataset.kind = plan.kind;
   if (provider.code === "CLAUDE") line.textContent = claudeLine(signals);
 
@@ -840,7 +918,7 @@ async function startCodexSignIn(provider, options, disclosure, button, redraw) {
 
   if (outcome.kind === "complete") {
     configureProvider(provider.code);
-    void redraw();
+    await redraw(outcome.quota);
     return;
   }
   /* Back to where the row was, with one sentence and no dead controls. */
@@ -850,7 +928,7 @@ async function startCodexSignIn(provider, options, disclosure, button, redraw) {
   button.disabled = false;
 }
 
-function renderProviders(screen, result, signals, options, redraw, pollEnabled) {
+function renderProviders(screen, result, signals, options, redraw, pollEnabled, quota) {
   const list = screen.querySelector("#first-run-providers");
   const note = screen.querySelector("#first-run-status");
   if (list === null) return;
@@ -863,7 +941,9 @@ function renderProviders(screen, result, signals, options, redraw, pollEnabled) 
       accountCount: 0,
       recovery: null,
     };
-    list.append(connectRow(provider, detection, signals, options, redraw, pollEnabled));
+    list.append(
+      connectRow(provider, detection, signals, options, redraw, pollEnabled, quota),
+    );
   }
   if (note === null) return;
   note.textContent = result.available
@@ -881,26 +961,10 @@ export function initFirstRun(input) {
 
   document.documentElement.dataset.firstRun = "pending";
 
-  let detection = null;
   let microsoft = null;
   let claudePollEnabled = false;
   let claudePollPromise = null;
-
-  /* Detection is started at load, behind nothing, so the connect step is
-     already populated the moment it opens rather than beginning its work
-     when a person arrives at it. */
-  function loadDetections(force = false) {
-    if (!force && detection !== null) return detection;
-    detection = options
-      .detectProviders()
-      .then((response) => (response?.ok === true ? response.value : null))
-      .catch(() => null)
-      .then((payload) => ({
-        result: normalizeDetections(payload),
-        signals: claudeSignals(payload),
-      }));
-    return detection;
-  }
+  const detections = createDetectionLoader(options.detectProviders);
 
   function loadClaudePollSetting() {
     if (claudePollPromise !== null) return claudePollPromise;
@@ -1007,9 +1071,12 @@ export function initFirstRun(input) {
     screen.dataset.step = "connect";
     const heading = setup.querySelector("#first-run-title");
     heading?.focus({ preventScroll: true });
-    const [loaded] = await Promise.all([loadDetections(), loadClaudePollSetting()]);
-    const redraw = async () => {
-      const latest = await loadDetections(true);
+    const [loaded] = await Promise.all([detections.load(), loadClaudePollSetting()]);
+    let codexQuota = null;
+    const redraw = async (quota = codexQuota) => {
+      const latest = await detections.load(true);
+      if (!detections.isCurrent(latest)) return;
+      codexQuota = quota;
       renderProviders(
         screen,
         latest.result,
@@ -1017,15 +1084,20 @@ export function initFirstRun(input) {
         options,
         redraw,
         claudePollEnabled,
+        codexQuota,
       );
     };
+    const initial = detections.isCurrent(loaded)
+      ? loaded
+      : await detections.load();
     renderProviders(
       screen,
-      loaded.result,
-      loaded.signals,
+      initial.result,
+      initial.signals,
       options,
       redraw,
       claudePollEnabled,
+      codexQuota,
     );
   }
 
@@ -1082,7 +1154,7 @@ export function initFirstRun(input) {
       completeFirstRun(screen);
       return;
     }
-    loadDetections();
+    void detections.load();
     /* Somebody already signed in has nothing left to be asked. */
     if (options.isSignedIn()) {
       await showConnect();

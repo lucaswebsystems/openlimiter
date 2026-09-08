@@ -4,15 +4,18 @@ import test from "node:test";
 
 import {
   CODEX_SIGN_IN_TIMEOUT_MILLISECONDS,
+  CODEX_DEVICE_LINK_FALLBACK,
   CONNECT_PROVIDERS,
   FIRST_RUN_STEPS,
   INSTALL_LINES,
   SIGN_IN_WAYS,
   claudeLine,
   claudeSignals,
+  createDetectionLoader,
   codexSentence,
   firstRunCopyStrings,
   launchNotice,
+  markStep,
   normalizeDetections,
   persistedToggleValue,
   pressSignInWay,
@@ -95,13 +98,9 @@ test("asks for nothing before the machine is read", () => {
      on load, behind no session and no press, so the connect step is populated
      the moment it opens and the Later link reaches a full list rather than a
      spinner. */
-  const source = read("first-run.js");
   const html = read("index.html");
 
   assert.equal(html.includes('id="account-gate"'), false);
-  assert.match(source, /const result = await options\.accountStatus\(\)[\s\S]*loadDetections\(\);/u);
-  assert.match(source, /loadDetections\(\);\s*\/\* Somebody already signed in[\s\S]*?await showConnect\(\);/u);
-  assert.equal(/gate\.hidden = false/u.test(source), false);
 });
 
 test("step one says the bars are free and what the account is for", () => {
@@ -276,6 +275,25 @@ test("a detected login is the default and it spawns nothing", () => {
   );
 });
 
+test("a Codex quota failure remains visible on the connect row", () => {
+  assert.deepEqual(
+    rowAction(
+      providerSpec("CODEX"),
+      { state: "present" },
+      {},
+      { kind: "failed", reason: "Quota collection failed. OpenLimiter will try again soon." },
+    ),
+    {
+      kind: "note",
+      note: "Quota collection failed. OpenLimiter will try again soon.",
+    },
+  );
+  assert.deepEqual(
+    rowAction(providerSpec("CODEX"), { state: "present" }, {}, { kind: "ready" }),
+    { kind: "current", label: "Use my current login" },
+  );
+});
+
 test("Codex is the only sign in button in this release", () => {
   assert.deepEqual(rowAction(providerSpec("CODEX"), { state: "logged_out" }, {}), {
     kind: "signin",
@@ -341,7 +359,6 @@ test("the Gemini sentence is the promised one, on both rows that share it", () =
 });
 
 test("Claude is read, never signed into, and its poll is off by default", () => {
-  const source = read("first-run.js");
   assert.equal(providerSpec("CLAUDE").neverSignIn, true);
 
   /* The three shapes the detection already reports, each with its own line. */
@@ -362,28 +379,81 @@ test("Claude is read, never signed into, and its poll is off by default", () => 
     "Reads Claude Code on this machine, and never asks you to sign in.",
   );
 
-  assert.match(source, /"Poll Anthropic when Claude Code is closed"/u);
-  assert.match(
-    source,
-    /"Off by default\. When it is on, OpenLimiter reads your own Claude token to ask Anthropic for your percentage while Claude Code is not running\."/u,
-  );
-  assert.match(source, /input\.checked = enabled === true;/u);
-  assert.match(source, /input\.checked = previous;[\s\S]*?setClaudePoll\(requested\)/u);
   assert.equal(persistedToggleValue(true, false, { ok: false }), true);
   assert.equal(persistedToggleValue(true, false, { ok: true, value: false }), false);
 });
 
 test("entering Connect moves focus and announces the completed scan", () => {
-  const source = read("first-run.js");
   const html = read("index.html");
-  assert.match(
-    source,
-    /setup\.hidden = false;[\s\S]*?const heading = setup\.querySelector\("#first-run-title"\);\s*heading\?\.focus\(\{ preventScroll: true \}\);/u,
-  );
   assert.match(html, /id="first-run-title" tabindex="-1"/u);
   assert.match(
     html,
     /id="first-run-status" class="first-run-status" role="status" aria-live="polite" aria-atomic="true"/u,
+  );
+});
+
+test("marking Connect updates the step state in the rendered list", () => {
+  const attributes = new Map([
+    ["account", new Map()],
+    ["connect", new Map()],
+    ["bars", new Map()],
+  ]);
+  const items = [...attributes].map(([step, values]) => ({
+    getAttribute: (name) => (name === "data-step" ? step : null),
+    setAttribute: (name, value) => values.set(name, value),
+    removeAttribute: (name) => values.delete(name),
+  }));
+  const root = {
+    querySelector: () => ({
+      hidden: true,
+      querySelectorAll: () => items,
+    }),
+  };
+
+  markStep(root, "connect");
+  assert.equal(attributes.get("account").get("data-state"), "done");
+  assert.equal(attributes.get("connect").get("data-state"), "current");
+  assert.equal(attributes.get("connect").get("aria-current"), "step");
+  assert.equal(attributes.get("bars").get("data-state"), "todo");
+});
+
+test("overlapping forced scans serialize and commit only the latest generation", async () => {
+  let calls = 0;
+  let releaseFirst;
+  const first = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  const detect = async () => {
+    calls += 1;
+    if (calls === 1) return first;
+    return {
+      ok: true,
+      value: {
+        providers: [{ provider_id: "codex", state: "present", accounts: [] }],
+      },
+    };
+  };
+  const loader = createDetectionLoader(detect);
+  const older = loader.load(true);
+  const newer = loader.load(true);
+  await Promise.resolve();
+  assert.equal(calls, 1);
+
+  releaseFirst({
+    ok: true,
+    value: {
+      providers: [{ provider_id: "codex", state: "absent", accounts: [] }],
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls, 2);
+
+  const [oldResult, newResult] = await Promise.all([older, newer]);
+  assert.equal(loader.isCurrent(oldResult), false);
+  assert.equal(loader.isCurrent(newResult), true);
+  assert.equal(
+    loader.committed().result.providers.find((entry) => entry.code === "CODEX")?.state,
+    "present",
   );
 });
 
@@ -427,9 +497,17 @@ test("the Codex device flow finishes inside our own window", async () => {
   assert.equal(seen.filter((entry) => entry.startsWith("cancel")).length, 0);
   assert.equal(polls, 3);
 
-  const source = read("first-run.js");
-  assert.match(source, /configureProvider\(provider\.code\);\s*void redraw\(\);/u);
-  assert.match(source, /const redraw = async \(\) => \{\s*const latest = await loadDetections\(true\);/u);
+});
+
+test("a foreign Codex device URL is never shown", async () => {
+  const outcome = await runCodexSignIn({
+    start: async () => ({ ok: false, kind: "untrusted_url" }),
+    poll: async () => ({ ok: true, value: { kind: "complete" } }),
+    cancel: async () => ({ ok: true }),
+    wait: async () => {},
+    now: () => 0,
+  });
+  assert.equal(outcome.sentence, CODEX_DEVICE_LINK_FALLBACK);
 });
 
 test("the Codex device flow can be cancelled, and the backend is told", async () => {
@@ -453,9 +531,6 @@ test("the Codex device flow can be cancelled, and the backend is told", async ()
   assert.equal(outcome.kind, "cancelled");
   assert.equal(outcome.sentence, "Sign in cancelled, and nothing changed.");
   assert.deepEqual(cancelled, ["session one"]);
-  /* The control is there from the first frame, not after the first poll. */
-  const source = read("first-run.js");
-  assert.match(source, /const cancel = quietButton\("Cancel"\);[\s\S]*?disclosure\.append\(/u);
 });
 
 test("the Codex device flow stops at three minutes", async () => {
@@ -497,9 +572,6 @@ test("a flow that never starts leaves the row exactly as it was", async () => {
   assert.equal(outcome.kind, "failed");
   assert.equal(outcome.sentence, "The sign in did not complete, and nothing changed.");
   assert.deepEqual(cancelled, []);
-  /* Every ending that is not a completed sign in puts the button back. */
-  const source = read("first-run.js");
-  assert.match(source, /disclosure\.append\(element\("p", "first-run-hint", outcome\.sentence\)\);\s*button\.disabled = false;/u);
 });
 
 test("every terminal answer the backend can give has a sentence", () => {

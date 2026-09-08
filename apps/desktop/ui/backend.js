@@ -110,6 +110,7 @@ const FAILURE_SENTENCES = {
   too_soon: "That was too soon after the last one. Trying again shortly may succeed.",
   not_json: "The text was not valid JSON.",
   codex_login_required: "Codex needs a current login. Run codex login.",
+  untrusted_url: "Open the link Codex printed in the terminal.",
   unconfigured: "The Pro service is not configured in this build.",
   no_session: "No Pro session is stored on this machine.",
   invalid_entitlement: "The stored Pro entitlement could not be verified.",
