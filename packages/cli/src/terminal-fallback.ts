@@ -55,7 +55,7 @@ run() {
   [ "$result" -eq 0 ]
 }
 if run ${posixQuote(runtime.node)} ${posixQuote(runtime.entry)} "$@"; then
-  /bin/cat "$output"
+  emit "$output"
 ${original === null ? "" : `else
   run /bin/sh -c ${posixQuote(original)}
   emit "$output"`}
@@ -114,7 +114,7 @@ try {
     $result = Invoke-Bar "$env:SystemRoot\\System32\\cmd.exe" ${psQuote('/d /s /c "' + original + '"')}
   }`}
   $offset = 0
-  if ($fallback -and $result.bytes.Length -ge 3 -and $result.bytes[0] -eq 0xef -and $result.bytes[1] -eq 0xbb -and $result.bytes[2] -eq 0xbf) {
+  if ($result.bytes.Length -ge 3 -and $result.bytes[0] -eq 0xef -and $result.bytes[1] -eq 0xbb -and $result.bytes[2] -eq 0xbf) {
     $offset = 3
   }
   [Console]::OpenStandardOutput().Write($result.bytes, $offset, $result.bytes.Length - $offset)

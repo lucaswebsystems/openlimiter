@@ -70,6 +70,27 @@ describe("D18 native launcher fallback", () => {
     : ["posix"];
   for (const shell of shells) {
     const shellTest = shell === "posix" && !posixAvailable ? it.skip : it;
+    for (const outcome of ["success", "fallback"] as const) {
+      shellTest(`${shell} removes only one leading byte order mark on ${outcome}`, async () => {
+        const { runtime, original } = await fixture();
+        const normalizedRuntime = shell === "posix"
+          ? { ...runtime, node: runtime.node.replaceAll("\\", "/"), entry: runtime.entry.replaceAll("\\", "/") } : runtime;
+        const normalizedOriginal = shell === "posix" ? original.replaceAll("\\", "/") : original;
+        const command = await fallbackLauncherCommand(normalizedRuntime, shell, normalizedOriginal);
+        if (outcome === "success") {
+          await writeFile(runtime.entry, 'process.stdin.on("data", b => process.stdout.write(b));');
+        }
+        // Raw Node streams force both encoding cases regardless of shell defaults.
+        const content = Buffer.concat([Buffer.from('  \u001b[32mmy bars\u001b[0m\r\n\u00e9\n\n'), UTF8_BOM, Buffer.from("no trailing newline")]);
+        for (const leadingMarks of [0, 1, 2]) {
+          const payload = Buffer.concat([...Array<Buffer>(leadingMarks).fill(UTF8_BOM), content]);
+          const originalOutput = await execute(normalizedOriginal, shell === "posix" ? "posix" : "cmd", payload);
+          const result = await execute(command, shell, payload);
+          expect(result).toEqual({ code: 0, stdout: withoutOneLeadingBom(originalOutput.stdout), stderr: Buffer.alloc(0) });
+          expect(result.stdout).toEqual(leadingMarks === 2 ? Buffer.concat([UTF8_BOM, content]) : content);
+        }
+      }, 15_000);
+    }
     for (const failure of ["package missing", "binary missing", "runtime throws", "nonzero", "timeout"] as const) {
       shellTest(`${shell} restores exact original output when ${failure}`, async () => {
         const { root, runtime, original } = await fixture();
