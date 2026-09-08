@@ -15,7 +15,7 @@ import { runCli, runtimeDependencies, type CliDependencies } from "../src/cli.js
 import { DEFAULT_STATUSLINE, readStatuslineConfig } from "../src/config.js";
 import { parseAntigravityStatuslinePayload, readStandardInputBuffer, readStandardInputText, STDIN_BYTE_LIMIT } from "../src/ingest.js";
 import { readSession, writeSession, SESSION_FILE_NAME, SESSION_LOCK_NAME, type HubSession } from "../src/session.js";
-import { runDeviceLogin, CODE_CONSUMED_SENTENCE } from "../src/hub-auth.js";
+import { DELIVERY_UNCONFIRMED_SENTENCE, runDeviceLogin, CODE_CONSUMED_SENTENCE } from "../src/hub-auth.js";
 import { cliLoginStartRequest, createFetchHubTransport } from "../src/hub.js";
 import { apiSpendSamplesFromSnapshots, SYNC_CURSOR_FILE_NAME } from "../src/hub-sync.js";
 import { barStyleCells, renderStatuslineLayout, STATUSLINE_HOSTS } from "../src/statusline.js";
@@ -211,11 +211,49 @@ describe("P1 audit regressions", () => {
   it.each([403, 404, 409, 410])("22 stops on terminal poll status %i after one poll", async (status) => {
     let calls = 0;
     const result = await runDeviceLogin({ environment: ENV, sleep: async () => undefined, emit: () => undefined, open: false,
-      transport: async () => ++calls === 1 ? { status: 200, body: JSON.stringify({ user_code: "ABCD1234", device_code: "device-code-0001", verification_url: "https://openlimiter.com/device", interval: 1, expires_in: 30 }) } : { status, body: "{}" }
+      transport: async () => ++calls === 1 ? { status: 200, body: JSON.stringify({ user_code: "ABCD1234", device_code: "device-code-0001", verification_url: "https://openlimiter.com/device", interval: 1, expires_in: 30 }) } : { status, body: status === 403 ? JSON.stringify({ message: "the server rejected this proof" }) : "{}" }
     });
     expect(calls).toBe(2);
     expect(result.kind).toBe(status === 403 ? "denied" : "expired");
     if (status === 409) expect(result).toEqual({ kind: "expired", message: CODE_CONSUMED_SENTENCE });
+    if (status === 403) expect(result).toEqual({ kind: "denied", message: "the server rejected this proof" });
+  });
+
+  it("writes the session before the single successful acknowledgement", async () => {
+    const d = await deps();
+    const actions: string[] = [];
+    d.hubTransport = async (request) => {
+      const body = JSON.parse(request.body) as Record<string, string>;
+      actions.push(body["action"] ?? "");
+      if (body["action"] === "start") {
+        return { status: 200, body: JSON.stringify({ user_code: "ABCD1234", device_code: "device-code-0001", verification_url: "https://openlimiter.com/device", interval: 1, expires_in: 30 }) };
+      }
+      if (body["action"] === "poll") {
+        return { status: 200, body: JSON.stringify({ status: "approved", token: "n".repeat(32), expires_at: "2026-09-07T20:00:00.000Z", refresh_credential: "z".repeat(32), refresh_expires_at: "2026-10-07T12:00:00.000Z", device_id: "test-device" }) };
+      }
+      expect(await readSession(d.stateDirectory)).not.toBeNull();
+      expect(body["device_code"]).toBe("device-code-0001");
+      expect(body["token"]).toBe("n".repeat(32));
+      expect(body["client_proof"]).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+      return { status: 200, body: JSON.stringify({ status: "consumed" }) };
+    };
+    const result = await runCli(["login"], d);
+    expect(result.exitCode).toBe(0);
+    expect(actions).toEqual(["start", "poll", "ack"]);
+  });
+
+  it("keeps the stored session usable when acknowledgement returns gone", async () => {
+    const d = await deps();
+    d.hubTransport = async (request) => {
+      const action = (JSON.parse(request.body) as { action: string }).action;
+      if (action === "start") return { status: 200, body: JSON.stringify({ user_code: "ABCD1234", device_code: "device-code-0001", verification_url: "https://openlimiter.com/device", interval: 1, expires_in: 30 }) };
+      if (action === "poll") return { status: 200, body: JSON.stringify({ status: "approved", token: "n".repeat(32), expires_at: "2026-09-07T20:00:00.000Z", refresh_credential: "z".repeat(32), refresh_expires_at: "2026-10-07T12:00:00.000Z", device_id: "test-device" }) };
+      return { status: 410, body: "" };
+    };
+    const result = await runCli(["login"], d);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe(DELIVERY_UNCONFIRMED_SENTENCE);
+    expect(await readSession(d.stateDirectory)).not.toBeNull();
   });
 
   it("23 serializes explicit and background renewal and preserves the replacement session and cursor", async () => {

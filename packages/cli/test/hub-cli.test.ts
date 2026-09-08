@@ -62,6 +62,8 @@ function scriptedTransport(script: readonly HubReply[]): { transport: HubTranspo
     sent,
     transport: async (request) => {
       sent.push(request);
+      const action = (JSON.parse(request.body) as { action?: string }).action;
+      if (action === "ack") return { status: 200, body: JSON.stringify({ status: "consumed" }) };
       const reply = script[Math.min(index, script.length - 1)];
       index += 1;
       if (reply === undefined) throw new Error("no scripted reply");

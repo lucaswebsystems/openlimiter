@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_HUB_URL,
   MAX_HUB_REQUEST_BYTES,
+  cliLoginAckRequest,
   cliLoginPollRequest,
   cliLoginStartRequest,
   grantRenewRequest,
@@ -78,6 +79,29 @@ describe("hub request builders", () => {
     });
     expect(cliLoginPollRequest(CONFIGURED, "")).toBeNull();
     expect(cliLoginPollRequest(CONFIGURED, "has a space")).toBeNull();
+  });
+
+  it("builds proof bound start, poll, and acknowledgement requests", () => {
+    const proof = "p".repeat(43);
+    const hash = "h".repeat(43);
+    expect(JSON.parse(cliLoginStartRequest(CONFIGURED, hash)?.body ?? "{}")).toEqual({
+      action: "start",
+      client_proof_hash: hash
+    });
+    expect(JSON.parse(cliLoginPollRequest(CONFIGURED, "abc123device", proof)?.body ?? "{}")).toEqual({
+      action: "poll",
+      device_code: "abc123device",
+      client_proof: proof
+    });
+    expect(JSON.parse(cliLoginAckRequest(CONFIGURED, "abc123device", "t".repeat(32), proof)?.body ?? "{}")).toEqual({
+      action: "ack",
+      device_code: "abc123device",
+      token: "t".repeat(32),
+      client_proof: proof
+    });
+    expect(cliLoginStartRequest(CONFIGURED, "short")).toBeNull();
+    expect(cliLoginPollRequest(CONFIGURED, "abc123device", "short")).toBeNull();
+    expect(cliLoginAckRequest(CONFIGURED, "abc123device", "t".repeat(32), "short")).toBeNull();
   });
 
   it("builds the renewal request against pro-service", () => {

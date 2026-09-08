@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   CODE_CONSUMED_SENTENCE,
@@ -24,6 +25,7 @@ const START_BODY = JSON.stringify({
   interval: 1,
   expires_in: 30
 });
+const CONSUMED_BODY = JSON.stringify({ status: "consumed" });
 
 function approvedBody(overrides: Partial<Record<string, unknown>> = {}): string {
   return JSON.stringify({
@@ -44,6 +46,8 @@ function scriptedTransport(script: readonly HubReply[]): { transport: HubTranspo
     sent,
     transport: async (request) => {
       sent.push(request);
+      const action = (JSON.parse(request.body) as { action?: string }).action;
+      if (action === "ack") return { status: 200, body: CONSUMED_BODY };
       const reply = script[Math.min(index, script.length - 1)];
       index += 1;
       if (reply === undefined) throw new Error("no scripted reply");
@@ -80,8 +84,75 @@ describe("runDeviceLogin", () => {
     }
     expect(emitted).toContain("Enter this code: ABCD-1234");
     expect(emitted).toContain("At: https://openlimiter.com/device");
-    expect(sent).toHaveLength(3);
+    expect(sent).toHaveLength(4);
     expect(sent[0]?.endpoint).toBe("cli_login");
+  });
+
+  it("binds the proof to start and poll, stores before ack, and acknowledges once", async () => {
+    const sent: HubRequest[] = [];
+    let stored = false;
+    let acknowledgements = 0;
+    const transport: HubTransport = async (request) => {
+      sent.push(request);
+      const body = JSON.parse(request.body) as Record<string, string>;
+      if (body["action"] === "start") return { status: 200, body: START_BODY };
+      if (body["action"] === "poll") return { status: 200, body: approvedBody() };
+      if (body["action"] === "ack") {
+        acknowledgements += 1;
+        expect(stored).toBe(true);
+        return { status: 200, body: CONSUMED_BODY };
+      }
+      throw new Error("unexpected action");
+    };
+    const outcome = await runDeviceLogin({
+      environment: CONFIGURED,
+      transport,
+      sleep: noSleep(),
+      emit: () => undefined,
+      openBrowser: () => undefined,
+      open: false,
+      storeSession: async () => { stored = true; }
+    });
+    expect(outcome.kind).toBe("signed_in");
+    expect(acknowledgements).toBe(1);
+    const start = JSON.parse(sent[0]?.body ?? "{}") as { client_proof_hash?: string };
+    const poll = JSON.parse(sent[1]?.body ?? "{}") as { client_proof?: string };
+    const ack = JSON.parse(sent[2]?.body ?? "{}") as Record<string, string>;
+    expect(start.client_proof_hash).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect(poll.client_proof).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+    expect(createHash("sha256").update(poll.client_proof ?? "", "utf8").digest("base64url")).toBe(start.client_proof_hash);
+    expect(JSON.parse(approvedBody())["token"]).toBe(ack["token"]);
+    expect(ack).toEqual({
+      action: "ack",
+      device_code: "device-code-0001",
+      token: ack["token"],
+      client_proof: poll.client_proof
+    });
+  });
+
+  it("retries a transient ack with the poll backoff and then succeeds", async () => {
+    let ackCalls = 0;
+    const transport: HubTransport = async (request) => {
+      const action = (JSON.parse(request.body) as { action?: string }).action;
+      if (action === "start") return { status: 200, body: START_BODY };
+      if (action === "poll") return { status: 200, body: approvedBody() };
+      ackCalls += 1;
+      return ackCalls === 1
+        ? { status: 503, body: "" }
+        : { status: 200, body: CONSUMED_BODY };
+    };
+    const sleeps: number[] = [];
+    const outcome = await runDeviceLogin({
+      environment: CONFIGURED,
+      transport,
+      sleep: async (milliseconds) => { sleeps.push(milliseconds); },
+      emit: () => undefined,
+      openBrowser: () => undefined,
+      open: false
+    });
+    expect(outcome.kind).toBe("signed_in");
+    expect(ackCalls).toBe(2);
+    expect(sleeps).toEqual([1_000, 2_000]);
   });
 
   it("opens the browser only when --open was passed", async () => {
@@ -118,7 +189,7 @@ describe("runDeviceLogin", () => {
       open: false
     });
     expect(outcome.kind).toBe("signed_in");
-    expect(sent).toHaveLength(3);
+    expect(sent).toHaveLength(4);
   });
 
   it("ends as denied when the hub says denied", async () => {
@@ -237,14 +308,15 @@ describe("runDeviceLogin", () => {
   it("survives one lost poll and tries again next interval", async () => {
     let attempts = 0;
     const transport: HubTransport = async (request) => {
-      if (request.endpoint === "cli_login") {
-        const parsed = JSON.parse(request.body) as { action: string };
-        if (parsed.action === "start") return { status: 200, body: START_BODY };
+      const parsed = JSON.parse(request.body) as { action: string };
+      if (parsed.action === "start") return { status: 200, body: START_BODY };
+      if (parsed.action === "poll") {
         attempts += 1;
         if (attempts === 1) throw new Error("network blip");
         return { status: 200, body: approvedBody() };
       }
-      throw new Error("unexpected endpoint");
+      if (parsed.action === "ack") return { status: 200, body: CONSUMED_BODY };
+      throw new Error("unexpected action");
     };
     const outcome = await runDeviceLogin({
       environment: CONFIGURED,

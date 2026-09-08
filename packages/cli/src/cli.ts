@@ -163,6 +163,7 @@ import {
   type HubTransport
 } from "./hub.js";
 import {
+  DELIVERY_UNCONFIRMED_SENTENCE,
   REVOKED_SENTENCE,
   ensureFreshSession,
   isAborted,
@@ -1947,6 +1948,15 @@ async function terminalCommand(
 
 /* ------------------------------------------------------------------- hub */
 
+async function persistLoginSession(dependencies: CliDependencies, session: HubSession): Promise<void> {
+  const directory = dependencies.stateDirectory ?? resolveStateDirectory();
+  await withSessionLock(directory, async () => await writeSession(session, {
+    directory,
+    platform: dependencies.platform,
+    ...(dependencies.windowsAclRunner === undefined ? {} : { windowsAclRunner: dependencies.windowsAclRunner })
+  }));
+}
+
 /**
  * Sign in to the hub through the device code flow.
  *
@@ -1967,19 +1977,19 @@ async function loginCommand(
     emit: dependencies.emit,
     ...(dependencies.interruptSignal === undefined ? {} : { interruptSignal: dependencies.interruptSignal }),
     openBrowser: dependencies.openBrowser,
-    open: argumentsList.includes("--open")
+    open: argumentsList.includes("--open"),
+    storeSession: async (session) => await persistLoginSession(dependencies, session)
   });
   if (outcome.kind === "signed_in") {
-    const directory = dependencies.stateDirectory ?? resolveStateDirectory();
-    await withSessionLock(directory, async () => await writeSession(outcome.session, {
-      directory,
-      platform: dependencies.platform,
-      ...(dependencies.windowsAclRunner === undefined ? {} : { windowsAclRunner: dependencies.windowsAclRunner })
-    }));
+    if (!outcome.deliveryConfirmed) return succeed(DELIVERY_UNCONFIRMED_SENTENCE);
     return succeed("Signed in as " + outcome.session.accountLabel + ".");
   }
   if (outcome.kind === "cancelled") return fail(EXIT_FAILURE, "openlimiter login: cancelled.");
-  if (outcome.kind === "denied") return fail(EXIT_FAILURE, "openlimiter login: the sign in was denied.");
+  if (outcome.kind === "denied") {
+    return fail(EXIT_FAILURE, outcome.message === undefined
+      ? "openlimiter login: the sign in was denied."
+      : "openlimiter login: " + outcome.message);
+  }
   if (outcome.kind === "expired") {
     return fail(EXIT_FAILURE, outcome.message ?? "openlimiter login: the code expired before it was approved.");
   }
@@ -2135,16 +2145,13 @@ async function setupSignInStep(dependencies: CliDependencies): Promise<string[]>
     emit: dependencies.emit,
     ...(dependencies.interruptSignal === undefined ? {} : { interruptSignal: dependencies.interruptSignal }),
     openBrowser: dependencies.openBrowser,
-    open: false
+    open: false,
+    storeSession: async (session) => await persistLoginSession(dependencies, session)
   });
   if (outcome.kind === "signed_in") {
-    const directory = dependencies.stateDirectory ?? resolveStateDirectory();
-    await withSessionLock(directory, async () => await writeSession(outcome.session, {
-      directory,
-      platform: dependencies.platform,
-      ...(dependencies.windowsAclRunner === undefined ? {} : { windowsAclRunner: dependencies.windowsAclRunner })
-    }));
-    add("Signed in as " + outcome.session.accountLabel + ".");
+    add(outcome.deliveryConfirmed
+      ? "Signed in as " + outcome.session.accountLabel + "."
+      : DELIVERY_UNCONFIRMED_SENTENCE);
   } else if (outcome.kind === "cancelled") {
     add("Cancelled.");
   } else {

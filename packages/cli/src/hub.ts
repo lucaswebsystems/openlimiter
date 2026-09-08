@@ -131,21 +131,39 @@ function buildRequest(
 
 /** The device flow's first call: mint a user code and a device code. */
 export function cliLoginStartRequest(
-  environment: Readonly<Record<string, string | undefined>>
+  environment: Readonly<Record<string, string | undefined>>,
+  clientProofHash?: string
 ): HubRequest | null {
-  return buildRequest(environment, "cli_login", { action: "start" });
+  if (clientProofHash !== undefined && !CLIENT_PROOF_PATTERN.test(clientProofHash)) return null;
+  return buildRequest(
+    environment,
+    "cli_login",
+    clientProofHash === undefined
+      ? { action: "start" }
+      : { action: "start", client_proof_hash: clientProofHash }
+  );
 }
 
 /** Shape of a device code this build will still poll with. */
 const DEVICE_CODE_PATTERN = /^[A-Za-z0-9_.-]{8,256}$/u;
+const CLIENT_PROOF_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
 /** The device flow's poll: ask whether somebody has approved the code yet. */
 export function cliLoginPollRequest(
   environment: Readonly<Record<string, string | undefined>>,
-  deviceCode: string
+  deviceCode: string,
+  clientProof?: string
 ): HubRequest | null {
-  if (!DEVICE_CODE_PATTERN.test(deviceCode)) return null;
-  return buildRequest(environment, "cli_login", { action: "poll", device_code: deviceCode });
+  if (!DEVICE_CODE_PATTERN.test(deviceCode) || (clientProof !== undefined && !CLIENT_PROOF_PATTERN.test(clientProof))) {
+    return null;
+  }
+  return buildRequest(
+    environment,
+    "cli_login",
+    clientProof === undefined
+      ? { action: "poll", device_code: deviceCode }
+      : { action: "poll", device_code: deviceCode, client_proof: clientProof }
+  );
 }
 
 /** Shape of a refresh credential this build will still spend. */
@@ -165,6 +183,28 @@ export function grantRenewRequest(
 
 /** Shape of a bearer token this build will still send. */
 const BEARER_TOKEN_PATTERN = /^[\x21-\x7E]{16,32768}$/u;
+
+/** Acknowledge delivery of an approved grant without sending a bearer header. */
+export function cliLoginAckRequest(
+  environment: Readonly<Record<string, string | undefined>>,
+  deviceCode: string,
+  token: string,
+  clientProof: string
+): HubRequest | null {
+  if (
+    !DEVICE_CODE_PATTERN.test(deviceCode) ||
+    !BEARER_TOKEN_PATTERN.test(token) ||
+    !CLIENT_PROOF_PATTERN.test(clientProof)
+  ) {
+    return null;
+  }
+  return buildRequest(environment, "cli_login", {
+    action: "ack",
+    device_code: deviceCode,
+    token,
+    client_proof: clientProof
+  });
+}
 
 /** Upload one sync envelope under the signed in account. */
 export function syncSnapshotsRequest(

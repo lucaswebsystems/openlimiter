@@ -11,6 +11,11 @@
  * forever.
  */
 import {
+  createHash,
+  randomBytes
+} from "node:crypto";
+import {
+  cliLoginAckRequest,
   cliLoginPollRequest,
   cliLoginStartRequest,
   grantRenewRequest,
@@ -28,6 +33,7 @@ export const REVOKED_SENTENCE = "Signed out on the hub, run openlimiter login";
 
 /** The sentence a login code the hub already consumed prints, word for word. */
 export const CODE_CONSUMED_SENTENCE = "That code was already used, run openlimiter login again";
+export const DELIVERY_UNCONFIRMED_SENTENCE = "The server could not confirm delivery, but the session is usable.";
 
 /** Extra polls past the hub's own stated lifetime, before this build gives up. */
 export const LOGIN_SAFETY_MARGIN_POLLS = 5;
@@ -44,6 +50,33 @@ function isBoundedString(value: unknown, minimum: number, maximum: number): valu
 
 function isInstant(value: unknown): value is string {
   return isBoundedString(value, 1, 64) && Number.isFinite(Date.parse(value));
+}
+
+function serverMessage(body: string, secrets: readonly string[] = []): string | null {
+  const parsed = parseHubJson(body);
+  if (parsed === null) return null;
+  for (const field of ["message", "error", "detail"]) {
+    const value = parsed[field];
+    if (
+      isBoundedString(value, 1, 512) &&
+      secrets.every((secret) => secret.length === 0 || !value.includes(secret))
+    ) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function nextBackoffInterval(intervalSeconds: number, retryAfterSeconds: number | null | undefined): number {
+  return Math.min(
+    MAX_RETRY_INTERVAL_SECONDS,
+    Math.max(
+      intervalSeconds * 2,
+      typeof retryAfterSeconds === "number" && Number.isFinite(retryAfterSeconds)
+        ? retryAfterSeconds
+        : 0
+    )
+  );
 }
 
 /**
@@ -216,15 +249,70 @@ export interface DeviceLoginOptions {
   readonly interruptSignal?: AbortSignal;
   readonly openBrowser?: (url: string) => void;
   readonly open: boolean;
+  /** Persist an approved session before the hub is told that delivery succeeded. */
+  readonly storeSession?: (session: HubSession) => Promise<void>;
 }
 
 export type DeviceLoginResult =
-  | { readonly kind: "signed_in"; readonly session: HubSession }
+  | { readonly kind: "signed_in"; readonly session: HubSession; readonly deliveryConfirmed: boolean }
   | { readonly kind: "cancelled" }
-  | { readonly kind: "denied" }
+  | { readonly kind: "denied"; readonly message?: string }
   | { readonly kind: "expired"; readonly message?: string }
   | { readonly kind: "not_configured" }
   | { readonly kind: "error"; readonly message: string };
+
+type DeliveryAcknowledgement =
+  | { readonly kind: "confirmed" }
+  | { readonly kind: "unconfirmed" }
+  | { readonly kind: "error"; readonly message: string };
+
+async function acknowledgeDelivery(
+  options: DeviceLoginOptions,
+  start: LoginStart,
+  deviceCode: string,
+  token: string,
+  clientProof: string,
+  initialIntervalSeconds: number
+): Promise<DeliveryAcknowledgement> {
+  let intervalSeconds = initialIntervalSeconds;
+  const deadline = Date.now() + start.expiresInSeconds * 1_000;
+  const maxAttempts = Math.ceil(start.expiresInSeconds / initialIntervalSeconds) + LOGIN_SAFETY_MARGIN_POLLS;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const request = cliLoginAckRequest(options.environment, deviceCode, token, clientProof);
+    if (request === null) return { kind: "error", message: "the delivery acknowledgement could not be sent" };
+    let reply;
+    try {
+      reply = await options.transport(request);
+    } catch {
+      if (attempt + 1 >= maxAttempts || Date.now() >= deadline) return { kind: "unconfirmed" };
+      await options.sleep(Math.min(intervalSeconds * 1_000, Math.max(0, deadline - Date.now())));
+      if (Date.now() >= deadline) return { kind: "unconfirmed" };
+      intervalSeconds = Math.min(MAX_RETRY_INTERVAL_SECONDS, intervalSeconds * 2);
+      continue;
+    }
+    if (reply.status === 403 || reply.status === 404 || reply.status === 410) {
+      return { kind: "unconfirmed" };
+    }
+    if (reply.status >= 200 && reply.status < 300) {
+      const parsed = parseHubJson(reply.body);
+      return parsed?.["status"] === "consumed"
+        ? { kind: "confirmed" }
+        : { kind: "unconfirmed" };
+    }
+    if (reply.status === 429 || reply.status === 503 || (reply.status >= 500 && reply.status <= 599)) {
+      if (attempt + 1 >= maxAttempts || Date.now() >= deadline) return { kind: "unconfirmed" };
+      intervalSeconds = nextBackoffInterval(intervalSeconds, reply.retryAfterSeconds);
+      await options.sleep(Math.min(intervalSeconds * 1_000, Math.max(0, deadline - Date.now())));
+      if (Date.now() >= deadline) return { kind: "unconfirmed" };
+      continue;
+    }
+    return {
+      kind: "error",
+      message: "the hub returned status " + reply.status + " while confirming sign in"
+    };
+  }
+  return { kind: "unconfirmed" };
+}
 
 /**
  * Run the whole device flow: start, show the code, poll until an ending.
@@ -238,7 +326,9 @@ export type DeviceLoginResult =
  */
 export async function runDeviceLogin(options: DeviceLoginOptions): Promise<DeviceLoginResult> {
   if (!hubConfigured(options.environment)) return { kind: "not_configured" };
-  const startRequest = cliLoginStartRequest(options.environment);
+  const clientProof = randomBytes(32).toString("base64url");
+  const clientProofHash = createHash("sha256").update(clientProof, "utf8").digest("base64url");
+  const startRequest = cliLoginStartRequest(options.environment, clientProofHash);
   if (startRequest === null) return { kind: "not_configured" };
   let startReply;
   try {
@@ -263,7 +353,7 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
     if (isAborted(options.interruptSignal)) return { kind: "cancelled" };
     await options.sleep(intervalSeconds * 1_000);
     if (isAborted(options.interruptSignal)) return { kind: "cancelled" };
-    const pollRequest = cliLoginPollRequest(options.environment, start.deviceCode);
+    const pollRequest = cliLoginPollRequest(options.environment, start.deviceCode, clientProof);
     if (pollRequest === null) return { kind: "error", message: "the device code could not be sent" };
     let pollReply;
     try {
@@ -271,20 +361,15 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
     } catch {
       continue;
     }
-    if (pollReply.status === 403) return { kind: "denied" };
+    if (pollReply.status === 403) {
+      const message = serverMessage(pollReply.body, [clientProof]);
+      return message === null ? { kind: "denied" } : { kind: "denied", message };
+    }
     if (pollReply.status === 409) return { kind: "expired", message: CODE_CONSUMED_SENTENCE };
     if (pollReply.status === 404 || pollReply.status === 410) return { kind: "expired" };
     if (pollReply.status === 429 || pollReply.status === 503) {
       const retryAfter = pollReply.retryAfterSeconds;
-      intervalSeconds = Math.min(
-        MAX_RETRY_INTERVAL_SECONDS,
-        Math.max(
-          intervalSeconds * 2,
-          typeof retryAfter === "number" && Number.isFinite(retryAfter)
-            ? retryAfter
-            : 0
-        )
-      );
+      intervalSeconds = nextBackoffInterval(intervalSeconds, retryAfter);
       continue;
     }
     if (pollReply.status >= 500 && pollReply.status <= 599) {
@@ -324,7 +409,21 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
       deviceId: poll.deviceId,
       accountLabel: accountLabelFromToken(poll.token, poll.deviceId)
     };
-    return { kind: "signed_in", session };
+    try {
+      await options.storeSession?.(session);
+    } catch {
+      return { kind: "error", message: "could not save the signed in session" };
+    }
+    const acknowledgement = await acknowledgeDelivery(
+      options,
+      start,
+      start.deviceCode,
+      session.token,
+      clientProof,
+      intervalSeconds
+    );
+    if (acknowledgement.kind === "error") return acknowledgement;
+    return { kind: "signed_in", session, deliveryConfirmed: acknowledgement.kind === "confirmed" };
   }
   return { kind: "expired" };
 }
