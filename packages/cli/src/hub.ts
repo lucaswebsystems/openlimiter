@@ -95,6 +95,7 @@ export interface HubRequest {
 export interface HubReply {
   readonly status: number;
   readonly body: string;
+  readonly retryAfterSeconds?: number | null;
 }
 
 export type HubTransport = (request: HubRequest) => Promise<HubReply>;
@@ -196,18 +197,26 @@ export function createFetchHubTransport(
         signal: controller.signal,
         body: request.body
       });
+      const retryAfter = parseRetryAfterSeconds(response.headers.get("retry-after"));
       const buffer = await readBoundedResponse(response, MAX_HUB_RESPONSE_BYTES, controller);
       if (buffer === null) {
-        return { status: response.status, body: "" };
+        return { status: response.status, body: "", retryAfterSeconds: retryAfter };
       }
       return {
         status: response.status,
-        body: new TextDecoder("utf-8", { fatal: false }).decode(buffer)
+        body: new TextDecoder("utf-8", { fatal: false }).decode(buffer),
+        retryAfterSeconds: retryAfter
       };
     } finally {
       clearTimeout(timer);
     }
   };
+}
+
+function parseRetryAfterSeconds(value: string | null): number | null {
+  if (value === null) return null;
+  const seconds = Number(value.trim());
+  return Number.isFinite(seconds) && seconds >= 0 && seconds <= 86_400 ? seconds : null;
 }
 
 /** Parse a hub response body as JSON, or hand back nothing readable. */

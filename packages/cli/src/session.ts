@@ -8,7 +8,7 @@
  * platform that has file modes. On Windows the containing directory receives
  * a verified, protected owner only ACL before any credential bytes are written.
  */
-import { unlink } from "node:fs/promises";
+import { lstat, unlink } from "node:fs/promises";
 import path from "node:path";
 import {
   canonicalJson,
@@ -21,6 +21,8 @@ import {
 import type { CredentialCommandRunner } from "@openlimiter/core";
 
 export const SESSION_FILE_NAME = "openlimiter-session.json";
+export const SESSION_LOCK_NAME = "openlimiter-session.lock";
+export const SESSION_LOCK_WAIT_MILLISECONDS = 10_000;
 
 function windowsSystemTool(...segments: string[]): string {
   return path.win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", ...segments);
@@ -98,12 +100,16 @@ async function applyWindowsOwnerOnlyAcl(
   target: string,
   runner: CredentialCommandRunner | undefined
 ): Promise<void> {
+  const repairFailure = (detail: string): Error => new Error(
+    "Private session storage is unavailable at " + target + ". " +
+    "Restore access with icacls " + target + " /reset from your own account. " + detail
+  );
   if (runner === undefined) {
-    throw new Error("Private session storage is unavailable: no Windows ACL command runner");
+    throw repairFailure("The Windows ACL helper is unavailable");
   }
   const principal = await windowsPrincipal(runner);
   if (principal === null) {
-    throw new Error("Private session storage is unavailable: current Windows user identity is unavailable");
+    throw repairFailure("The current Windows user identity is unavailable");
   }
   /* Verify first and repair only when the rule set is wrong. The repair goes
      through the .NET SetAccessControl call rather than Set-Acl: Set-Acl on a
@@ -139,15 +145,15 @@ async function applyWindowsOwnerOnlyAcl(
     "Write-Output 'PRIVATE'";
   let result;
   try {
-    result = await runner(windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe"), ["-NoProfile", "-NonInteractive", "-Command", script], 5_000);
+    result = await runner(windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe"), ["-NoProfile", "-NonInteractive", "-Command", script], 15_000);
   } catch {
-    throw new Error("Private session storage is unavailable: PowerShell ACL helper is unavailable");
+    throw repairFailure("The PowerShell ACL helper is unavailable");
   }
   if (!result.ok) {
-    throw new Error("Private session storage is unavailable: PowerShell ACL helper failed");
+    throw repairFailure("The PowerShell ACL helper failed");
   }
   if (result.stdout.trim() !== "PRIVATE") {
-    throw new Error("Private session storage is unavailable: PowerShell ACL verification rejected the ACL");
+    throw repairFailure("The PowerShell ACL verification rejected the ACL");
   }
 }
 
@@ -156,7 +162,7 @@ async function applyWindowsOwnerOnlyAcl(
  */
 async function windowsPrincipal(runner: CredentialCommandRunner): Promise<string | null> {
   try {
-    const answer = await runner(windowsSystemTool("whoami.exe"), ["/user", "/fo", "csv", "/nh"], 5_000);
+    const answer = await runner(windowsSystemTool("whoami.exe"), ["/user", "/fo", "csv", "/nh"], 15_000);
     if (answer.ok) {
       const match = /"(S-1-[0-9-]+)"/u.exec(answer.stdout);
       if (match?.[1] !== undefined) return match[1];
@@ -165,6 +171,13 @@ async function windowsPrincipal(runner: CredentialCommandRunner): Promise<string
     /* A helper failure cannot establish a private owner. */
   }
   return null;
+}
+
+async function rejectStateReparsePoint(directory: string): Promise<void> {
+  const info = await lstat(directory);
+  if (info.isSymbolicLink()) {
+    throw new Error("Private session storage refused a symbolic link at " + directory);
+  }
 }
 
 export interface WriteSessionOptions {
@@ -185,6 +198,7 @@ export async function writeSession(
   await prepareStateDirectory(directory);
   if (options.platform === "win32") {
     await applyWindowsOwnerOnlyAcl(directory, options.windowsAclRunner);
+    await rejectStateReparsePoint(directory);
   }
   const documented = {
     security: options.platform === "win32"
@@ -197,11 +211,22 @@ export async function writeSession(
 
 /** One cross process transaction for renewal, revocation and sync cursors. */
 export async function withSessionLock<T>(directory: string, action: () => Promise<T>): Promise<T> {
+  const startedAt = Date.now();
+  const lockPath = path.join(directory, SESSION_LOCK_NAME);
   for (;;) {
-    const lock = await acquireRefreshLock(directory, Date.now(), "openlimiter-session.lock");
+    const lock = await acquireRefreshLock(directory, Date.now(), SESSION_LOCK_NAME);
     if (!lock.ok) {
       if (lock.reason === "unavailable") throw new Error("Private session storage is unavailable");
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      const elapsed = Date.now() - startedAt;
+      if (elapsed >= SESSION_LOCK_WAIT_MILLISECONDS) {
+        throw new Error(
+          "another OpenLimiter command holds the session lock at " + lockPath
+        );
+      }
+      await new Promise((resolve) => setTimeout(
+        resolve,
+        Math.min(25, SESSION_LOCK_WAIT_MILLISECONDS - elapsed)
+      ));
       continue;
     }
     try {

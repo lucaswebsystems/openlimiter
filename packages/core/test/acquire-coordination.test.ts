@@ -409,10 +409,16 @@ describe("starting a refresh behind a render", () => {
     expect(await readRefreshSpawnFailure(directory)).toBeNull();
     expect(report).toBeTypeOf("function");
     report?.();
-    await new Promise((resolve) => {
-      setTimeout(resolve, 20);
-    });
-    expect(await readRefreshSpawnFailure(directory)).toBe(NOW);
+    /* The record is written asynchronously after the report; wait for it
+       rather than for a fixed number of milliseconds. */
+    let recorded = await readRefreshSpawnFailure(directory);
+    for (let attempt = 0; attempt < 200 && recorded === null; attempt++) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 10);
+      });
+      recorded = await readRefreshSpawnFailure(directory);
+    }
+    expect(recorded).toBe(NOW);
     await clearRefreshSpawnFailure(directory);
     expect(await readRefreshSpawnFailure(directory)).toBeNull();
   });

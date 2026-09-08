@@ -1,10 +1,13 @@
-import { mkdtemp, readFile, realpath, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { acquireRefreshLock } from "@openlimiter/core";
 import {
   RENEWAL_WINDOW_MILLISECONDS,
   SESSION_FILE_NAME,
+  SESSION_LOCK_NAME,
+  SESSION_LOCK_WAIT_MILLISECONDS,
   deleteSession,
   readSession,
   sessionIsFresh,
@@ -76,22 +79,19 @@ describe("session file", () => {
 
   it("verifies owner only inherited file permissions before writing on Windows", async () => {
     const directory = await temporaryDirectory("openlimiter-session-");
-    const calls: Array<{ executable: string; args: readonly string[] }> = [];
+    const calls: Array<{ executable: string; timeout: number }> = [];
     await writeSession(session(), {
       directory,
       platform: "win32",
-      windowsAclRunner: async (executable, args) => {
-        calls.push({ executable, args });
+      windowsAclRunner: async (executable, _args, timeout) => {
+        calls.push({ executable, timeout });
         return executable.endsWith("whoami.exe")
           ? { ok: true, stdout: '"lucas\\lucas","S-1-5-21-1-2-3-1001"\r\n' }
-          : { ok: true, stdout: "PRIVATE" };
+          : timeout >= 15_000 ? { ok: true, stdout: "PRIVATE" } : { ok: false };
       }
     });
-    const grant = calls.find((call) => call.executable.endsWith("powershell.exe"));
-    expect(calls[0]?.executable.endsWith("whoami.exe")).toBe(true);
-    expect(grant?.args.join(" ")).toContain("SetAccessRuleProtection($true,$false)");
-    expect(grant?.args.join(" ")).toContain("GetAccessRules");
-    expect(grant?.args.join(" ")).toContain("ContainerInherit,ObjectInherit");
+    expect(await readSession(directory)).toEqual(session());
+    expect(calls.some((call) => call.executable.endsWith("powershell.exe") && call.timeout >= 15_000)).toBe(true);
   });
 
   it("never calls the Windows ACL runner off Windows", async () => {
@@ -118,8 +118,34 @@ describe("session file", () => {
           throw new Error("icacls exploded");
         }
       })
-    ).rejects.toThrow();
+    ).rejects.toThrow("icacls " + directory + " /reset");
+    await expect(
+      writeSession(session(), {
+        directory,
+        platform: "win32",
+        windowsAclRunner: async () => ({ ok: false, stdout: "" })
+      })
+    ).rejects.toThrow(directory);
     expect(await readSession(directory)).toBeNull();
+  });
+
+  it("refuses a reparse point state directory before the credential write", async (context) => {
+    const target = await temporaryDirectory("openlimiter-session-target-");
+    const link = path.join(await scratchRoot(), "openlimiter-session-link-");
+    try {
+      await symlink(target, link, process.platform === "win32" ? "junction" : "dir");
+    } catch {
+      return context.skip();
+    }
+    created.push(link);
+    await expect(writeSession(session(), {
+      directory: link,
+      platform: "win32",
+      windowsAclRunner: async (executable) => executable.endsWith("whoami.exe")
+        ? { ok: true, stdout: '"lucas\\lucas","S-1-5-21-1-2-3-1001"' }
+        : { ok: true, stdout: "PRIVATE" }
+    })).rejects.toThrow();
+    expect(await readSession(target)).toBeNull();
   });
 
   it("reads no session from an empty directory", async () => {
@@ -176,5 +202,26 @@ describe("sessionIsFresh", () => {
   it("is not fresh once expired", () => {
     const value = session({ expiresAt });
     expect(sessionIsFresh(value, "2026-09-08T00:00:00.000Z")).toBe(false);
+  });
+});
+
+describe("session lock", () => {
+  it("times out with the lock path when another command keeps the lock", async () => {
+    const directory = await temporaryDirectory("openlimiter-session-lock-");
+    const held = await acquireRefreshLock(directory, Date.now(), SESSION_LOCK_NAME);
+    expect(held.ok).toBe(true);
+    vi.useFakeTimers();
+    try {
+      const waiting = import("../src/session.js").then(({ withSessionLock }) =>
+        withSessionLock(directory, async () => "unreachable")
+      );
+      await vi.advanceTimersByTimeAsync(SESSION_LOCK_WAIT_MILLISECONDS + 25);
+      await expect(waiting).rejects.toThrow(
+        "another OpenLimiter command holds the session lock at " + path.join(directory, SESSION_LOCK_NAME)
+      );
+    } finally {
+      vi.useRealTimers();
+      if (held.ok) await held.release();
+    }
   });
 });

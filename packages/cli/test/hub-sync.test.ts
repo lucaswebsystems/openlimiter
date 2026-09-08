@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Snapshot } from "@openlimiter/core";
 import type { HubReply, HubRequest, HubTransport } from "../src/hub.js";
 import {
+  OPENROUTER_BASELINE_FILE_NAME,
   SYNC_CURSOR_FILE_NAME,
   apiSpendSamplesFromSnapshots,
   runSync,
@@ -81,6 +82,15 @@ function spendSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
   });
 }
 
+function lifetimeSpendSnapshot(usedAmount: number, observedAt = NOW): Snapshot {
+  return spendSnapshot({
+    usedAmount,
+    observedAt,
+    window: { kind: "lifetime" },
+    resetAt: null
+  });
+}
+
 async function readCursor(directory: string): Promise<Record<string, unknown>> {
   const raw = await readFile(path.join(directory, SYNC_CURSOR_FILE_NAME), "utf8");
   return JSON.parse(raw) as Record<string, unknown>;
@@ -129,7 +139,7 @@ describe("envelope shape against the version 2 fixture", () => {
       api_spend_samples: Array<Record<string, unknown>>;
     };
     const usage = usageSamplesFromSnapshots([usageSnapshot()], NOW);
-    const spend = apiSpendSamplesFromSnapshots([spendSnapshot()], NOW);
+    const spend = await apiSpendSamplesFromSnapshots([spendSnapshot()], NOW);
     expect(Object.keys(usage[0] ?? {}).sort()).toEqual(Object.keys(fixture.usage_samples[0] ?? {}).sort());
     expect(Object.keys(spend[0] ?? {}).sort()).toEqual(
       Object.keys(fixture.api_spend_samples[0] ?? {}).sort()
@@ -179,32 +189,69 @@ describe("usageSamplesFromSnapshots", () => {
 });
 
 describe("apiSpendSamplesFromSnapshots", () => {
-  it("builds a row only when the amount, limit and currency all travel together", () => {
+  it("builds a row only when the amount, limit and currency all travel together", async () => {
     const complete = spendSnapshot();
     const partial = usageSnapshot({ provider: "CLAUDE", usedAmount: 5 });
-    const rows = apiSpendSamplesFromSnapshots([complete, partial], NOW);
+    const rows = await apiSpendSamplesFromSnapshots([complete, partial], NOW);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.spend_usd).toBe(40.9);
     expect(rows[0]?.budget_usd).toBe(100);
     expect(rows[0]?.currency_source).toBe("PROVIDER_USD");
   });
 
-  it("derives a stable source id across two builds of the same row", () => {
-    const first = apiSpendSamplesFromSnapshots([spendSnapshot()], NOW);
-    const second = apiSpendSamplesFromSnapshots([spendSnapshot()], NOW);
+  it("derives a stable source id across two builds of the same row", async () => {
+    const first = await apiSpendSamplesFromSnapshots([spendSnapshot()], NOW);
+    const second = await apiSpendSamplesFromSnapshots([spendSnapshot()], NOW);
     expect(first[0]?.source_id).toBe(second[0]?.source_id);
   });
 
-  it("keeps a spend row only for the providers the hub accepts, so one extra pool never voids the envelope", () => {
+  it("keeps a spend row only for the providers the hub accepts, so one extra pool never voids the envelope", async () => {
     const claudePool = spendSnapshot({ provider: "CLAUDE", accountId: "claude-max", accountLabel: "Claude Max" });
-    const rows = apiSpendSamplesFromSnapshots([spendSnapshot(), claudePool], NOW);
+    const rows = await apiSpendSamplesFromSnapshots([spendSnapshot(), claudePool], NOW);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.provider).toBe("OPENROUTER");
   });
 
-  it("drops a spend row whose account id is present but not shaped like one", () => {
-    const rows = apiSpendSamplesFromSnapshots([spendSnapshot({ accountId: "Not Valid!" })], NOW);
+  it("drops a spend row whose account id is present but not shaped like one", async () => {
+    const rows = await apiSpendSamplesFromSnapshots([spendSnapshot({ accountId: "Not Valid!" })], NOW);
     expect(rows).toHaveLength(0);
+  });
+
+  it("stores the first OpenRouter lifetime reading and uploads no row", async () => {
+    const directory = await temporaryDirectory("openlimiter-openrouter-");
+    expect(await apiSpendSamplesFromSnapshots([lifetimeSpendSnapshot(5)], NOW, directory)).toEqual([]);
+    const baseline = JSON.parse(await readFile(path.join(directory, OPENROUTER_BASELINE_FILE_NAME), "utf8")) as {
+      accounts: Record<string, { totalUsage: number; month: string }>;
+    };
+    expect(baseline.accounts["openrouter-key"]).toEqual({
+      totalUsage: 5,
+      month: "2026-09",
+      observedAt: NOW
+    });
+  });
+
+  it("uploads only the lifetime delta since the account baseline", async () => {
+    const directory = await temporaryDirectory("openlimiter-openrouter-");
+    await apiSpendSamplesFromSnapshots([lifetimeSpendSnapshot(5)], NOW, directory);
+    const observedAt = "2026-09-07T13:00:00.000Z";
+    const rows = await apiSpendSamplesFromSnapshots(
+      [lifetimeSpendSnapshot(8, observedAt)],
+      observedAt,
+      directory
+    );
+    expect(rows[0]?.spend_usd).toBe(3);
+    expect(rows[0]?.source_period).toEqual([NOW, observedAt]);
+    expect(rows[0]?.period_complete).toBe(false);
+  });
+
+  it("resets the baseline at a UTC month rollover and after a lifetime reset", async () => {
+    const directory = await temporaryDirectory("openlimiter-openrouter-");
+    await apiSpendSamplesFromSnapshots([lifetimeSpendSnapshot(5)], NOW, directory);
+    const nextMonth = "2026-10-01T00:00:00.000Z";
+    expect(await apiSpendSamplesFromSnapshots([lifetimeSpendSnapshot(2, nextMonth)], nextMonth, directory)).toEqual([]);
+    expect((await apiSpendSamplesFromSnapshots([lifetimeSpendSnapshot(4, "2026-10-02T00:00:00.000Z")], nextMonth, directory))[0]?.spend_usd).toBe(2);
+    expect(await apiSpendSamplesFromSnapshots([lifetimeSpendSnapshot(1, "2026-10-03T00:00:00.000Z")], nextMonth, directory)).toEqual([]);
+    expect((await apiSpendSamplesFromSnapshots([lifetimeSpendSnapshot(3, "2026-10-04T00:00:00.000Z")], nextMonth, directory))[0]?.spend_usd).toBe(2);
   });
 });
 
@@ -253,6 +300,52 @@ describe("runSync", () => {
     const envelope = JSON.parse(sent[0]?.body ?? "{}") as { previous_sequence: number; sequence: number };
     expect(envelope.previous_sequence).toBe(0);
     expect(envelope.sequence).toBe(1);
+    expect((await readCursor(directory))["sequence"]).toBe(1);
+  });
+
+  it.each([0, 1.5, Number.MAX_SAFE_INTEGER + 1, "1"])(
+    "rejects an accepted reply sequence that is not the safe envelope sequence: %s",
+    async (replySequence) => {
+      const directory = await temporaryDirectory("openlimiter-sync-");
+      const { transport } = recordingTransport(() => ({
+        status: 200,
+        body: JSON.stringify({ accepted: true, sequence: replySequence })
+      }));
+      const result = await runSync({
+        directory,
+        environment: CONFIGURED,
+        transport,
+        now: NOW,
+        token: TOKEN,
+        deviceId: DEVICE_ID,
+        snapshots: [usageSnapshot()]
+      });
+      expect(result).toEqual({ kind: "sequence_mismatch" });
+      expect((await readCursor(directory))["sequence"]).toBe(0);
+    }
+  );
+
+  it("rejects a conflict sequence below the stored cursor without regressing it", async () => {
+    const directory = await temporaryDirectory("openlimiter-sync-");
+    await runSync({
+      directory,
+      environment: CONFIGURED,
+      transport: async () => accepted(1),
+      now: NOW,
+      token: TOKEN,
+      deviceId: DEVICE_ID,
+      snapshots: [usageSnapshot()]
+    });
+    const result = await runSync({
+      directory,
+      environment: CONFIGURED,
+      transport: async () => ({ status: 409, body: JSON.stringify({ current_sequence: 0 }) }),
+      now: NOW,
+      token: TOKEN,
+      deviceId: DEVICE_ID,
+      snapshots: [usageSnapshot({ value: 55 })]
+    });
+    expect(result).toEqual({ kind: "sequence_mismatch" });
     expect((await readCursor(directory))["sequence"]).toBe(1);
   });
 

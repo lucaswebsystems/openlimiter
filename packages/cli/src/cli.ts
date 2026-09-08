@@ -1970,11 +1970,12 @@ async function loginCommand(
     open: argumentsList.includes("--open")
   });
   if (outcome.kind === "signed_in") {
-    await writeSession(outcome.session, {
-      ...(dependencies.stateDirectory === undefined ? {} : { directory: dependencies.stateDirectory }),
+    const directory = dependencies.stateDirectory ?? resolveStateDirectory();
+    await withSessionLock(directory, async () => await writeSession(outcome.session, {
+      directory,
       platform: dependencies.platform,
       ...(dependencies.windowsAclRunner === undefined ? {} : { windowsAclRunner: dependencies.windowsAclRunner })
-    });
+    }));
     return succeed("Signed in as " + outcome.session.accountLabel + ".");
   }
   if (outcome.kind === "cancelled") return fail(EXIT_FAILURE, "openlimiter login: cancelled.");
@@ -1990,7 +1991,8 @@ async function loginCommand(
 
 /** Forget the stored session. Nothing on the hub is asked to do anything. */
 async function logoutCommand(dependencies: CliDependencies): Promise<CliResult> {
-  await deleteSession(dependencies.stateDirectory);
+  const directory = dependencies.stateDirectory ?? resolveStateDirectory();
+  await withSessionLock(directory, async () => await deleteSession(directory));
   return succeed("Signed out.");
 }
 
@@ -2051,7 +2053,8 @@ async function syncCommandLocked(dependencies: CliDependencies, now: string): Pr
     now,
     token: active.token,
     deviceId: active.deviceId,
-    snapshots
+    snapshots,
+    sessionLockHeld: true
   });
   if (result.kind === "accepted") {
     return succeed(
@@ -2065,6 +2068,9 @@ async function syncCommandLocked(dependencies: CliDependencies, now: string): Pr
   }
   if (result.kind === "rejected") {
     return fail(EXIT_FAILURE, "openlimiter sync: the hub rejected the upload.");
+  }
+  if (result.kind === "sequence_mismatch") {
+    return fail(EXIT_FAILURE, "openlimiter sync: the hub returned a sequence mismatch.");
   }
   return fail(EXIT_FAILURE, "openlimiter sync: the hub could not be reached, try again.");
 }
@@ -2104,18 +2110,22 @@ async function promptOrSkip(dependencies: CliDependencies, question: string): Pr
 async function setupSignInStep(dependencies: CliDependencies): Promise<string[]> {
   const lines: string[] = ["1. Sign in", SETUP_SIGN_IN_PROMPT];
   lines.forEach(dependencies.emit);
+  const add = (line: string): void => {
+    lines.push(line);
+    dependencies.emit(line);
+  };
   const existing = await readSession(dependencies.stateDirectory);
   if (existing !== null) {
-    lines.push("Already signed in as " + existing.accountLabel + ".");
+    add("Already signed in as " + existing.accountLabel + ".");
     return lines;
   }
   if (!hubConfigured(dependencies.environment)) {
-    lines.push("Skipped: the hub is not configured on this build.");
+    add("Skipped: the hub is not configured on this build.");
     return lines;
   }
   const proceed = await promptOrSkip(dependencies, "Enter to sign in, S to skip: ");
   if (!proceed) {
-    lines.push("Skipped.");
+    add("Skipped.");
     return lines;
   }
   const outcome = await runDeviceLogin({
@@ -2128,16 +2138,17 @@ async function setupSignInStep(dependencies: CliDependencies): Promise<string[]>
     open: false
   });
   if (outcome.kind === "signed_in") {
-    await writeSession(outcome.session, {
-      ...(dependencies.stateDirectory === undefined ? {} : { directory: dependencies.stateDirectory }),
+    const directory = dependencies.stateDirectory ?? resolveStateDirectory();
+    await withSessionLock(directory, async () => await writeSession(outcome.session, {
+      directory,
       platform: dependencies.platform,
       ...(dependencies.windowsAclRunner === undefined ? {} : { windowsAclRunner: dependencies.windowsAclRunner })
-    });
-    lines.push("Signed in as " + outcome.session.accountLabel + ".");
+    }));
+    add("Signed in as " + outcome.session.accountLabel + ".");
   } else if (outcome.kind === "cancelled") {
-    lines.push("Cancelled.");
+    add("Cancelled.");
   } else {
-    lines.push("Could not sign in this time. Run openlimiter login later.");
+    add("Could not sign in this time. Run openlimiter login later.");
   }
   return lines;
 }
@@ -2232,7 +2243,6 @@ async function runCodexDeviceSignIn(
           !(await credentialReader(dependencies)("CODEX")).ok) {
         return "Codex: " + codexFailureSentence("storage") + ".";
       }
-      await refreshCommand(dependencies, dependencies.now());
       return "Codex: signed in.";
     }
     if (state.kind === "cancelled") return "Codex: sign in cancelled.";
@@ -2252,6 +2262,10 @@ async function runCodexDeviceSignIn(
 async function setupConnectStep(dependencies: CliDependencies): Promise<string[]> {
   const lines: string[] = ["2. Connect"];
   dependencies.emit(lines[0]!);
+  const add = (line: string): void => {
+    lines.push(line);
+    dependencies.emit(line);
+  };
   const environment = await environmentWithLocalMarkers(
     dependencies.environment,
     dependencies.stateDirectory
@@ -2267,8 +2281,7 @@ async function setupConnectStep(dependencies: CliDependencies): Promise<string[]
         platform: dependencies.platform
       });
     const state = await connectRowState(agent, installed, readCredential);
-    lines.push(agent + ": " + CONNECT_ROW_LABEL[state]);
-    dependencies.emit(lines[lines.length - 1]!);
+    add(agent + ": " + CONNECT_ROW_LABEL[state]);
     if (agent === "codex") {
       codexInstalled = installed;
       codexNeedsSignIn = state === "sign_in";
@@ -2279,7 +2292,7 @@ async function setupConnectStep(dependencies: CliDependencies): Promise<string[]
       dependencies,
       "Codex has no login yet. Sign in now? Enter to start, S to skip: "
     );
-    if (proceed) lines.push(await runCodexDeviceSignIn(dependencies, codexInstalled));
+    if (proceed) add(await runCodexDeviceSignIn(dependencies, codexInstalled));
   } else {
     await promptOrSkip(dependencies, "Enter to accept: ");
   }
@@ -2316,26 +2329,35 @@ async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[
  * themselves, once.
  */
 async function setupCommand(dependencies: CliDependencies, now: string): Promise<CliResult> {
-  const sections: string[] = [];
-  sections.push(...(await setupSignInStep(dependencies)));
-  sections.push(...(await setupConnectStep(dependencies)));
-  sections.push(...(await setupShowBarsStep(dependencies)));
+  await setupSignInStep(dependencies);
+  await setupConnectStep(dependencies);
   const collected = await refreshCommand(dependencies, now);
-  if (collected.exitCode !== 0) sections.push(collected.stderr);
+  if (collected.exitCode !== 0 && collected.stderr !== "") dependencies.emit(collected.stderr);
+  await setupShowBarsStep(dependencies);
   const snapshots = await cachedSnapshots(dependencies.stateDirectory);
-  sections.push(renderTable(snapshots, now, dependencies.colorOutput));
-  return succeed(sections.join(NEWLINE));
+  dependencies.emit(renderTable(snapshots, now, dependencies.colorOutput));
+  return succeed("");
 }
 
 export async function runCli(
   argumentsList: readonly string[],
   overrides: Partial<CliDependencies> = {}
 ): Promise<CliResult> {
-  const dependencies = { ...defaults(), ...overrides };
+  const setupOutput: string[] = [];
+  const hasOutputSink = overrides.emit !== undefined;
+  const dependencies = {
+    ...defaults(),
+    ...overrides,
+    ...(hasOutputSink ? {} : { emit: (line: string) => setupOutput.push(line) })
+  };
   const command = argumentsList[0] ?? "setup";
   const now = dependencies.now();
   try {
-    if (command === "setup") return await setupCommand(dependencies, now);
+    if (command === "setup") {
+      const result = await setupCommand(dependencies, now);
+      if (hasOutputSink || setupOutput.length === 0) return result;
+      return { ...result, stdout: [setupOutput.join(NEWLINE), result.stdout].filter(Boolean).join(NEWLINE) };
+    }
     if (command === "login") return await loginCommand(dependencies, argumentsList);
     if (command === "logout") return await logoutCommand(dependencies);
     if (command === "whoami") return await whoamiCommand(dependencies);

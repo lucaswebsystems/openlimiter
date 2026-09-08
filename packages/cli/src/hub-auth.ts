@@ -31,6 +31,8 @@ export const CODE_CONSUMED_SENTENCE = "That code was already used, run openlimit
 
 /** Extra polls past the hub's own stated lifetime, before this build gives up. */
 export const LOGIN_SAFETY_MARGIN_POLLS = 5;
+export const MAX_SERVER_ERROR_RETRIES = 3;
+const MAX_RETRY_INTERVAL_SECONDS = 30;
 
 function isFiniteInRange(value: unknown, minimum: number, maximum: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= minimum && value <= maximum;
@@ -255,6 +257,7 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
   options.emit("At: " + start.verificationUrl);
   if (options.open) options.openBrowser?.(start.verificationUrl);
   let intervalSeconds = start.intervalSeconds;
+  let serverErrorRetries = 0;
   const maxAttempts = Math.ceil(start.expiresInSeconds / intervalSeconds) + LOGIN_SAFETY_MARGIN_POLLS;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     if (isAborted(options.interruptSignal)) return { kind: "cancelled" };
@@ -271,7 +274,37 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
     if (pollReply.status === 403) return { kind: "denied" };
     if (pollReply.status === 409) return { kind: "expired", message: CODE_CONSUMED_SENTENCE };
     if (pollReply.status === 404 || pollReply.status === 410) return { kind: "expired" };
-    if (pollReply.status < 200 || pollReply.status >= 300) continue;
+    if (pollReply.status === 429 || pollReply.status === 503) {
+      const retryAfter = pollReply.retryAfterSeconds;
+      intervalSeconds = Math.min(
+        MAX_RETRY_INTERVAL_SECONDS,
+        Math.max(
+          intervalSeconds * 2,
+          typeof retryAfter === "number" && Number.isFinite(retryAfter)
+            ? retryAfter
+            : 0
+        )
+      );
+      continue;
+    }
+    if (pollReply.status >= 500 && pollReply.status <= 599) {
+      serverErrorRetries += 1;
+      if (serverErrorRetries > MAX_SERVER_ERROR_RETRIES) {
+        return {
+          kind: "error",
+          message: "the hub returned status " + pollReply.status + " while checking sign in"
+        };
+      }
+      intervalSeconds = Math.min(MAX_RETRY_INTERVAL_SECONDS, intervalSeconds * 2);
+      continue;
+    }
+    if (pollReply.status === 202) continue;
+    if (pollReply.status !== 200) {
+      return {
+        kind: "error",
+        message: "the hub returned status " + pollReply.status + " while checking sign in"
+      };
+    }
     const poll = parseLoginPoll(pollReply.body);
     if (poll === null) continue;
     if (poll.status === "pending") continue;

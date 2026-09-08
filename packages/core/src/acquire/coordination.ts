@@ -60,6 +60,12 @@ export const REFRESH_LOCK_HEARTBEAT_MILLISECONDS = 10_000;
  */
 export const REFRESH_LOCK_STALE_MILLISECONDS = 60_000;
 
+const REFRESH_LOCK_RECLAIM_BACKOFF_MILLISECONDS = 10;
+
+async function backoff(milliseconds: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
 function errorCode(error: unknown): string | undefined {
   return (error as NodeJS.ErrnoException).code;
 }
@@ -276,7 +282,18 @@ export async function acquireRefreshLock(
       if (await refreshLockHeld(directory, nowMilliseconds, name)) {
         return { ok: false, reason: "held" };
       }
+      /* A live holder can touch the file between the stale check and reclaim.
+         Recheck after a short backoff both before and after unlinking, so a
+         utimes race cannot make this process remove a lock that became live. */
+      await backoff(REFRESH_LOCK_RECLAIM_BACKOFF_MILLISECONDS);
+      if (await refreshLockHeld(directory, nowMilliseconds, name)) {
+        return { ok: false, reason: "held" };
+      }
       await unlink(target).catch(() => undefined);
+      await backoff(REFRESH_LOCK_RECLAIM_BACKOFF_MILLISECONDS);
+      if (await refreshLockHeld(directory, nowMilliseconds, name)) {
+        return { ok: false, reason: "held" };
+      }
     }
   }
   return { ok: false, reason: "held" };

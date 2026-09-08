@@ -13,6 +13,7 @@
  */
 
 import { execFile } from "node:child_process";
+import { realpath, stat } from "node:fs/promises";
 import https from "node:https";
 import http from "node:http";
 import path from "node:path";
@@ -88,6 +89,7 @@ export interface EnumerateAgyPortsOptions {
   readonly platform?: NodeJS.Platform;
   readonly runCommand?: CredentialCommandRunner;
   readonly resolveExecutablePath?: (pid: string) => Promise<string | null>;
+  readonly resolveExecutableOwner?: (executablePath: string) => Promise<number | null>;
   readonly env?: NodeJS.ProcessEnv;
 }
 
@@ -207,7 +209,9 @@ export async function resolveAgyExecutablePath(
     executable: string,
     args: readonly string[],
     timeout: number
-  ) => Promise<{ ok: true; stdout: string } | { ok: false }> = execFilePromise
+  ) => Promise<{ ok: true; stdout: string } | { ok: false }> = execFilePromise,
+  env: NodeJS.ProcessEnv = process.env,
+  resolvePath: (candidate: string) => Promise<string> = realpath
 ): Promise<string | null> {
   if (!/^\d+$/u.test(pid)) return null;
   if (platform === "win32") {
@@ -225,8 +229,7 @@ export async function resolveAgyExecutablePath(
   }
   if (platform === "linux") {
     try {
-      const fsPromises = await import("node:fs/promises");
-      return await fsPromises.readlink(`/proc/${pid}/exe`);
+      return await resolvePath(`/proc/${pid}/exe`);
     } catch {
       return null;
     }
@@ -234,7 +237,34 @@ export async function resolveAgyExecutablePath(
   const result = await runCommand("ps", ["-o", "comm=", "-p", pid], AGY_PROBE_TIMEOUT_MILLISECONDS);
   if (!result.ok) return null;
   const trimmed = result.stdout.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  if (trimmed.length === 0) return null;
+  if (path.posix.isAbsolute(trimmed)) {
+    try {
+      return await resolvePath(trimmed);
+    } catch {
+      return null;
+    }
+  }
+  const args = await runCommand("ps", ["-o", "args=", "-p", pid], AGY_PROBE_TIMEOUT_MILLISECONDS);
+  if (!args.ok) return null;
+  const firstToken = args.stdout.trim().split(/\s+/u)[0];
+  if (firstToken === undefined || firstToken.length === 0) return null;
+  if (path.posix.isAbsolute(firstToken)) {
+    try {
+      return await resolvePath(firstToken);
+    } catch {
+      return null;
+    }
+  }
+  for (const directory of (env["PATH"] ?? "").split(":")) {
+    if (directory.length === 0) continue;
+    try {
+      return await resolvePath(path.posix.join(directory, firstToken));
+    } catch {
+      /* Try the next PATH entry. */
+    }
+  }
+  return null;
 }
 
 /**
@@ -407,8 +437,12 @@ export function isTrustedAgyExecutable(
 
   const normPath = platform === "win32" ? normalized.toLowerCase() : normalized;
   return roots.some((root) => {
-    const normRoot = platform === "win32" ? root.toLowerCase() : root;
-    return normPath === p.join(normRoot, expectedName);
+    const normRoot = platform === "win32" ? p.normalize(root).toLowerCase() : p.normalize(root);
+    const relative = p.relative(normRoot, normPath);
+    return relative.length > 0 &&
+      !relative.startsWith(".." + p.sep) &&
+      relative !== ".." &&
+      !p.isAbsolute(relative);
   });
 }
 
@@ -498,24 +532,28 @@ export async function enumerateAgyListeningPorts(
       }
       if (options?.resolveExecutablePath) {
         const exePath = await options.resolveExecutablePath(pid);
-        trusted = exePath !== null && isTrustedAgyExecutable(exePath, platform, roots);
+        const ownerUid = exePath === null
+          ? null
+          : await (options.resolveExecutableOwner ?? (async (candidate: string) => {
+            try {
+              return (await stat(candidate)).uid ?? null;
+            } catch {
+              return null;
+            }
+          }))(exePath);
+        trusted = exePath !== null && ownerUid === currentUid &&
+          isTrustedAgyExecutable(exePath, platform, roots);
       } else {
-        let exePath: string | null = null;
-        if (platform === "linux") {
-          try {
-            const fsPromises = await import("node:fs/promises");
-            exePath = await fsPromises.readlink(`/proc/${pid}/exe`);
-          } catch {
-            exePath = null;
-          }
-        } else {
-          const psRes = await runner("ps", ["-o", "comm=", "-p", pid], AGY_PROBE_TIMEOUT_MILLISECONDS);
-          if (psRes.ok && psRes.stdout.trim().length > 0) {
-            exePath = psRes.stdout.trim();
-          }
-        }
+        const exePath = await resolveAgyExecutablePath(pid, platform, runner, options?.env ?? process.env);
         if (exePath !== null) {
-          trusted = isTrustedAgyExecutable(exePath, platform, roots);
+          const ownerUid = await (options?.resolveExecutableOwner ?? (async (candidate: string) => {
+            try {
+              return (await stat(candidate)).uid ?? null;
+            } catch {
+              return null;
+            }
+          }))(exePath);
+          trusted = ownerUid === currentUid && isTrustedAgyExecutable(exePath, platform, roots);
         } else {
           /* The executable this pid runs could not be read at all, on the
              one platform this file resolves it without an injected

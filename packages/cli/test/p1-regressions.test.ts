@@ -14,7 +14,7 @@ import { claudeFixture, parseOpenrouterPayload } from "@openlimiter/connectors";
 import { runCli, runtimeDependencies, type CliDependencies } from "../src/cli.js";
 import { DEFAULT_STATUSLINE, readStatuslineConfig } from "../src/config.js";
 import { parseAntigravityStatuslinePayload, readStandardInputBuffer, readStandardInputText, STDIN_BYTE_LIMIT } from "../src/ingest.js";
-import { readSession, writeSession, SESSION_FILE_NAME, type HubSession } from "../src/session.js";
+import { readSession, writeSession, SESSION_FILE_NAME, SESSION_LOCK_NAME, type HubSession } from "../src/session.js";
 import { runDeviceLogin, CODE_CONSUMED_SENTENCE } from "../src/hub-auth.js";
 import { cliLoginStartRequest, createFetchHubTransport } from "../src/hub.js";
 import { apiSpendSamplesFromSnapshots, SYNC_CURSOR_FILE_NAME } from "../src/hub-sync.js";
@@ -102,7 +102,7 @@ describe("P1 audit regressions", () => {
         return { nextLine: async () => "ABCD1234 https://auth.openai.com/device", finished: () => true, stop: () => undefined };
       } })
     });
-    expect(result.stdout).toContain("Codex: signed in.");
+    expect(emitted).toContain("Codex: signed in.");
     expect(managed).not.toBe("");
     const found = await readAcquisitionCredential("CODEX", { stateDirectory: d.stateDirectory!, homeDirectory: d.homeDirectory, environment: {}, platform: "linux", now: NOW });
     expect(found.ok).toBe(true);
@@ -131,14 +131,21 @@ describe("P1 audit regressions", () => {
     expect(calls).toHaveLength(1);
   });
 
-  it("08 emits connection rows before acceptance, installs the selected host and collects before final bars", async () => {
+  it("08 renders each setup section once and acquires before host prompts", async () => {
     const d = await deps();
     await mkdir(path.join(d.homeDirectory, ".codex"), { recursive: true });
     await writeFile(path.join(d.homeDirectory, ".codex", "auth.json"), JSON.stringify(credentialDocuments.codex));
     const emitted: string[] = [];
+    const timeline: string[] = [];
+    d.acquisitionTransport = async (request) => {
+      timeline.push("acquire:" + request.endpoint);
+      const body = recordedResponses(NOW)[request.endpoint];
+      return { status: body === undefined ? 404 : 200, body: JSON.stringify(body ?? {}), retryAfterSeconds: null };
+    };
     let accepted = false;
     const result = await runCli(["setup"], { ...d, emit: (line) => emitted.push(line),
       promptChoice: async (question) => {
+        timeline.push("prompt:" + question);
         if (question === "Enter to accept: ") {
           expect(emitted.some((line) => line.startsWith("codex:"))).toBe(true);
           accepted = true;
@@ -148,7 +155,17 @@ describe("P1 audit regressions", () => {
     });
     expect(accepted).toBe(true);
     expect(await readFile(path.join(d.homeDirectory, ".claude", "settings.json"), "utf8")).toContain("openlimiter");
-    expect(result.stdout).toContain("CODEX");
+    const output = [...emitted, result.stdout].filter(Boolean).join("\n");
+    expect(output.match(/^1\. Sign in$/gm)?.length).toBe(1);
+    expect(output.match(/^2\. Connect$/gm)?.length).toBe(1);
+    expect(output.match(/^3\. Show bars in$/gm)?.length).toBe(1);
+    expect(output.match(/^CODEX/gm)?.length).toBe(1);
+    expect(timeline.findIndex((entry) => entry === "acquire:codex_usage")).toBeGreaterThan(
+      timeline.findIndex((entry) => entry === "prompt:Enter to accept: ")
+    );
+    expect(timeline.findIndex((entry) => entry.startsWith("prompt:claude: Enter to install"))).toBeGreaterThan(
+      timeline.findIndex((entry) => entry === "acquire:codex_usage")
+    );
     const cache = await readSnapshotCache(d.stateDirectory);
     expect(cache.ok && cache.snapshots.length > 0).toBe(true);
   }, 20_000);
@@ -184,11 +201,11 @@ describe("P1 audit regressions", () => {
     expect(normalizeMeters(ingest ?? [])).toHaveLength(4);
   });
 
-  it("21 keeps lifetime OpenRouter amounts local and never uploads them as monthly spending", () => {
+  it("21 establishes an OpenRouter lifetime baseline before monthly spend appears", async () => {
     const snapshots = normalizeMeters(parseOpenrouterPayload({ data: { total_credits: 20, total_usage: 6.4 } }, NOW) ?? []);
     expect(snapshots[0]?.usedAmount).toBe(6.4);
     expect(snapshots[0]?.window.kind).toBe("lifetime");
-    expect(apiSpendSamplesFromSnapshots(snapshots, NOW)).toEqual([]);
+    expect(await apiSpendSamplesFromSnapshots(snapshots, NOW, (await deps()).stateDirectory)).toEqual([]);
   });
 
   it.each([403, 404, 409, 410])("22 stops on terminal poll status %i after one poll", async (status) => {
@@ -224,6 +241,31 @@ describe("P1 audit regressions", () => {
     expect(await readSession(d.stateDirectory)).not.toBeNull();
     expect(sequence).toBe(2);
     expect(JSON.parse(await readFile(path.join(d.stateDirectory!, SYNC_CURSOR_FILE_NAME), "utf8")).sequence).toBe(2);
+  });
+
+  it("serializes login and logout mutations behind the session lock", async () => {
+    const d = await deps();
+    const held = await acquireRefreshLock(d.stateDirectory!, Date.now(), SESSION_LOCK_NAME);
+    expect(held.ok).toBe(true);
+    d.hubTransport = async (request) => request.body.includes('"action":"start"')
+      ? { status: 200, body: JSON.stringify({ user_code: "ABCD1234", device_code: "device-code-0001", verification_url: "https://openlimiter.com/device", interval: 1, expires_in: 30 }) }
+      : { status: 200, body: JSON.stringify({ status: "approved", token: "n".repeat(32), expires_at: "2026-09-07T20:00:00.000Z", refresh_credential: "z".repeat(32), refresh_expires_at: "2026-10-07T12:00:00.000Z", device_id: "test-device" }) };
+    const login = runCli(["login"], d);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await readSession(d.stateDirectory)).toBeNull();
+    if (held.ok) await held.release();
+    await expect(login).resolves.toMatchObject({ exitCode: 0 });
+    expect(await readSession(d.stateDirectory)).not.toBeNull();
+
+    await writeSession(session(), { directory: d.stateDirectory!, platform: "linux" });
+    const second = await acquireRefreshLock(d.stateDirectory!, Date.now(), SESSION_LOCK_NAME);
+    expect(second.ok).toBe(true);
+    const logout = runCli(["logout"], d);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await readSession(d.stateDirectory)).not.toBeNull();
+    if (second.ok) await second.release();
+    await expect(logout).resolves.toMatchObject({ exitCode: 0 });
+    expect(await readSession(d.stateDirectory)).toBeNull();
   });
 
   it.each(["failed", "unverified", "missing"])("24 never writes credentials after %s Windows ACL protection", async (mode) => {
@@ -272,6 +314,7 @@ describe("P1 audit regressions", () => {
     expect(isTrustedAgyExecutable("C:\\Users\\test\\AppData\\Local\\Programs\\Antigravity\\agy.exe", "win32", roots)).toBe(true);
     const ports = await enumerateAgyListeningPorts({ platform: "darwin", currentUserId: 1000,
       resolveExecutablePath: async () => "/usr/bin/agy",
+      resolveExecutableOwner: async () => 2000,
       runCommand: async (exe) => ({ ok: true, stdout: exe === "lsof" ? "p123\nn127.0.0.1:12345\n" : "2000" })
     });
     expect(ports).toEqual([]);
@@ -279,15 +322,29 @@ describe("P1 audit regressions", () => {
 
   it("35 cancels overflowing HTTP producers without buffering their entire response", async () => {
     for (const kind of ["hub", "acquisition"] as const) {
-      let cancelled = false;
-      let pulls = 0;
-      const body = new ReadableStream<Uint8Array>({ pull(controller) { pulls++; controller.enqueue(new Uint8Array(65536)); }, cancel() { cancelled = true; } });
+      let cancellationStarted = false;
+      let releaseCancellation: () => void = () => undefined;
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) { controller.enqueue(new Uint8Array(65536)); },
+        cancel() {
+          cancellationStarted = true;
+          return new Promise<void>((resolve) => { releaseCancellation = resolve; });
+        }
+      });
       const fakeFetch: typeof fetch = async () => new Response(body, { status: 200 });
-      const reply = kind === "hub" ? await createFetchHubTransport(fakeFetch)(cliLoginStartRequest(ENV)!) :
-        await createFetchTransport(fakeFetch)(codexUsageRequest("synthetic-access-token-0000", "synthetic-account")!);
+      let returned = false;
+      const pending = (kind === "hub" ? createFetchHubTransport(fakeFetch)(cliLoginStartRequest(ENV)!) :
+        createFetchTransport(fakeFetch)(codexUsageRequest("synthetic-access-token-0000", "synthetic-account")!)).then((reply) => {
+        returned = true;
+        return reply;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(cancellationStarted).toBe(true);
+      expect(returned).toBe(false);
+      releaseCancellation();
+      const reply = await pending;
       expect(reply.body).toBe("");
-      expect(cancelled).toBe(true);
-      expect(pulls).toBeLessThanOrEqual(18);
+      expect(returned).toBe(true);
     }
   });
 

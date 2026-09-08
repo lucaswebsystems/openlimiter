@@ -185,6 +185,8 @@ describe("Antigravity loopback probe", () => {
     const ports = await enumerateAgyListeningPorts({
       platform: "darwin",
       currentUserId: 1000,
+      resolveExecutablePath: async () => "/opt/google/agy",
+      resolveExecutableOwner: async () => 1000,
       runCommand: mockRunner
     });
     expect(ports).toEqual([44321]);
@@ -371,15 +373,54 @@ describe("Antigravity loopback probe", () => {
     );
   });
 
-  it("resolveAgyExecutablePath asks ps on macOS", async () => {
+  it("resolves a bare macOS command from PATH and trusts only the vendor root", async () => {
+    const vendor = "/Applications/Antigravity.app/Contents/MacOS";
+    const elsewhere = "/tmp";
     const runner = async (executable: string, args: readonly string[]) => {
-      if (executable === "ps") {
-        expect(args).toContain("31415");
-        return { ok: true as const, stdout: "/opt/agy\n" };
-      }
-      return { ok: false as const };
+      if (executable !== "ps") return { ok: false as const };
+      if (args.includes("comm=")) return { ok: true as const, stdout: "agy\n" };
+      return { ok: true as const, stdout: "agy --port 12345\n" };
     };
-    expect(await resolveAgyExecutablePath("31415", "darwin", runner)).toBe("/opt/agy");
+    const identity = async (candidate: string): Promise<string> => candidate;
+    const resolvedVendor = await resolveAgyExecutablePath("31415", "darwin", runner, { PATH: vendor }, identity);
+    const resolvedOther = await resolveAgyExecutablePath("31415", "darwin", runner, { PATH: elsewhere }, identity);
+    expect(resolvedVendor).toBe(vendor + "/agy");
+    expect(isTrustedAgyExecutable(resolvedVendor ?? "", "darwin", [vendor])).toBe(true);
+    expect(isTrustedAgyExecutable(resolvedOther ?? "", "darwin", [vendor])).toBe(false);
+  });
+
+  it("resolves Linux through the process executable link rather than a command name", async () => {
+    const seen: string[] = [];
+    const resolved = await resolveAgyExecutablePath("31415", "linux", undefined, undefined, async (candidate) => {
+      seen.push(candidate);
+      return "/opt/google/agy";
+    });
+    expect(seen).toEqual(["/proc/31415/exe"]);
+    expect(resolved).toBe("/opt/google/agy");
+  });
+
+  it("requires current user ownership as well as a trusted executable path", async () => {
+    const runner = async (executable: string, args: readonly string[]) => {
+      if (executable === "lsof") return { ok: true as const, stdout: "p31415\nn127.0.0.1:44321\n" };
+      if (args.includes("uid=")) return { ok: true as const, stdout: "1000" };
+      return { ok: true as const, stdout: "1000" };
+    };
+    const trusted = await enumerateAgyListeningPorts({
+      platform: "darwin",
+      currentUserId: 1000,
+      runCommand: runner,
+      resolveExecutablePath: async () => "/opt/google/agy",
+      resolveExecutableOwner: async () => 1000
+    });
+    const unowned = await enumerateAgyListeningPorts({
+      platform: "darwin",
+      currentUserId: 1000,
+      runCommand: runner,
+      resolveExecutablePath: async () => "/opt/google/agy",
+      resolveExecutableOwner: async () => 2000
+    });
+    expect(trusted).toEqual([44321]);
+    expect(unowned).toEqual([]);
   });
 
   it("resolveAgyExecutablePath answers null rather than trusting a pid it could not resolve", async () => {

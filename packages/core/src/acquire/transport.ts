@@ -460,7 +460,7 @@ export function createFetchTransport(
       });
       const retryAfter = retryAfterSeconds(response.headers.get("retry-after"));
       if (response.status < 200 || response.status >= 300) {
-        void response.body?.cancel().catch(() => undefined);
+        await response.body?.cancel().catch(() => undefined);
         /* The body of a refusal is never read. It cannot help, and reading it
            is how a provider's prose reaches a log. */
         return { status: response.status, body: "", retryAfterSeconds: retryAfter };

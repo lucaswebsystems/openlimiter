@@ -257,6 +257,69 @@ describe("runDeviceLogin", () => {
     expect(outcome.kind).toBe("signed_in");
     expect(attempts).toBe(2);
   });
+
+  it.each([400, 408])("fails immediately on terminal poll status %i", async (status) => {
+    const { transport, sent } = scriptedTransport([
+      { status: 200, body: START_BODY },
+      { status, body: "" }
+    ]);
+    const outcome = await runDeviceLogin({
+      environment: CONFIGURED,
+      transport,
+      sleep: noSleep(),
+      emit: () => undefined,
+      openBrowser: () => undefined,
+      open: false
+    });
+    expect(outcome).toEqual({
+      kind: "error",
+      message: "the hub returned status " + status + " while checking sign in"
+    });
+    expect(sent).toHaveLength(2);
+  });
+
+  it("backs off on rate limiting and service unavailability, honoring Retry After", async () => {
+    const sleeps: number[] = [];
+    const { transport } = scriptedTransport([
+      { status: 200, body: START_BODY },
+      { status: 429, body: "", retryAfterSeconds: 7 },
+      { status: 503, body: "" },
+      { status: 200, body: approvedBody() }
+    ]);
+    const outcome = await runDeviceLogin({
+      environment: CONFIGURED,
+      transport,
+      sleep: async (milliseconds) => { sleeps.push(milliseconds); },
+      emit: () => undefined,
+      openBrowser: () => undefined,
+      open: false
+    });
+    expect(outcome.kind).toBe("signed_in");
+    expect(sleeps).toEqual([1_000, 7_000, 14_000]);
+  });
+
+  it("fails after three retries for another server error", async () => {
+    const { transport, sent } = scriptedTransport([
+      { status: 200, body: START_BODY },
+      { status: 500, body: "" },
+      { status: 500, body: "" },
+      { status: 500, body: "" },
+      { status: 500, body: "" }
+    ]);
+    const outcome = await runDeviceLogin({
+      environment: CONFIGURED,
+      transport,
+      sleep: noSleep(),
+      emit: () => undefined,
+      openBrowser: () => undefined,
+      open: false
+    });
+    expect(outcome).toEqual({
+      kind: "error",
+      message: "the hub returned status 500 while checking sign in"
+    });
+    expect(sent).toHaveLength(5);
+  });
 });
 
 describe("isAborted", () => {

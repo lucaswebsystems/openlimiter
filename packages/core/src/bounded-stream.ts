@@ -14,7 +14,7 @@ export async function readBoundedResponse(
       if (next.done) break;
       if (next.value.byteLength > limit - size) {
         controller.abort();
-        void reader.cancel().catch(() => undefined);
+        await reader.cancel().catch(() => undefined);
         return null;
       }
       bytes.set(next.value, size);

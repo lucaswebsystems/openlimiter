@@ -24,14 +24,17 @@ import path from "node:path";
 import {
   canonicalJson,
   freshness,
+  prepareStateDirectory,
   readJsonFileSafely,
   resolveStateDirectory,
   writeFileAtomically,
   type Snapshot
 } from "@openlimiter/core";
 import { parseHubJson, syncSnapshotsRequest, type HubTransport } from "./hub.js";
+import { withSessionLock } from "./session.js";
 
 export const SYNC_CURSOR_FILE_NAME = "openlimiter-sync-cursor.json";
+export const OPENROUTER_BASELINE_FILE_NAME = "openlimiter-openrouter-baseline.json";
 const SYNC_ATTEMPT_FILE_NAME = "openlimiter-sync-attempt.json";
 
 export async function syncIsDue(directory: string, now: string): Promise<boolean> {
@@ -190,12 +193,70 @@ function monthStartDate(observedAt: string): string {
     .slice(0, 10);
 }
 
+function utcMonth(observedAt: string): string | null {
+  const parsed = new Date(observedAt);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 7);
+}
+
+interface OpenrouterBaseline {
+  readonly totalUsage: number;
+  readonly month: string;
+  readonly observedAt: string;
+}
+
+interface OpenrouterBaselineDocument {
+  readonly version: 1;
+  readonly accounts: Readonly<Record<string, OpenrouterBaseline>>;
+}
+
+function isSafeUsage(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1_000_000_000_000;
+}
+
+function readOpenrouterBaselines(value: unknown): Map<string, OpenrouterBaseline> {
+  if (!isRecord(value) || value["version"] !== 1 || !isRecord(value["accounts"])) {
+    return new Map();
+  }
+  const result = new Map<string, OpenrouterBaseline>();
+  for (const [accountId, raw] of Object.entries(value["accounts"])) {
+    if (!ACCOUNT_ID_PATTERN.test(accountId) || !isRecord(raw)) continue;
+    const totalUsage = raw["totalUsage"];
+    const month = raw["month"];
+    const observedAt = raw["observedAt"];
+    if (!isSafeUsage(totalUsage) || typeof month !== "string" || !/^\d{4}-\d{2}$/u.test(month) ||
+        typeof observedAt !== "string" || !Number.isFinite(Date.parse(observedAt))) continue;
+    result.set(accountId, { totalUsage, month, observedAt });
+  }
+  return result;
+}
+
+async function loadOpenrouterBaselines(directory: string): Promise<Map<string, OpenrouterBaseline>> {
+  const result = await readJsonFileSafely(path.join(directory, OPENROUTER_BASELINE_FILE_NAME));
+  return readOpenrouterBaselines(result.ok ? result.value : null);
+}
+
+async function saveOpenrouterBaselines(
+  directory: string,
+  baselines: ReadonlyMap<string, OpenrouterBaseline>
+): Promise<void> {
+  const accounts: Record<string, OpenrouterBaseline> = {};
+  for (const [accountId, baseline] of baselines) accounts[accountId] = baseline;
+  await prepareStateDirectory(directory);
+  await writeFileAtomically(
+    path.join(directory, OPENROUTER_BASELINE_FILE_NAME),
+    canonicalJson({ version: 1, accounts } satisfies OpenrouterBaselineDocument)
+  );
+}
+
 /**
  * Every spend row the cache has enough to build.
  *
- * Only a fixed window spanning the observation's complete calendar month
- * establishes monthly spending. Lifetime credits and rolling windows stay
- * local. The source period ends at the observation, never at the upload.
+ * Fixed windows spanning the observation's complete calendar month establish
+ * monthly spending directly. OpenRouter lifetime readings use a local per
+ * account baseline and contribute only the delta since that reading. Other
+ * lifetime credits and rolling windows stay local. The source period ends at
+ * the observation, never at the upload.
  * `usedAmount`, `limitAmount` and `currency` travel together or not at all
  * (see `Snapshot` in the core package), which is what this reads as "the
  * cache has one".
@@ -203,15 +264,60 @@ function monthStartDate(observedAt: string): string {
 /** The providers the hub accepts an API spend sample for (mirrors API_PROVIDERS in the server contract); every other provider's spend stays local, otherwise one row would void the whole envelope. */
 export const SYNC_API_SPEND_PROVIDERS: ReadonlySet<string> = new Set(["OPENAI", "ANTHROPIC", "XAI", "OPENROUTER"]);
 
-export function apiSpendSamplesFromSnapshots(
+export async function apiSpendSamplesFromSnapshots(
   snapshots: readonly Snapshot[],
-  _envelopeObservedAt: string
-): ApiSpendSample[] {
+  _envelopeObservedAt: string,
+  directory = resolveStateDirectory()
+): Promise<ApiSpendSample[]> {
   const rows: ApiSpendSample[] = [];
+  let baselines: Map<string, OpenrouterBaseline> | null = null;
+  let baselinesChanged = false;
   for (const snapshot of snapshots) {
     if (!SYNC_API_SPEND_PROVIDERS.has(snapshot.provider)) continue;
-    // No current source establishes a calendar month period. Lifetime balance
-    // observations must never be relabelled as monthly spending.
+    const isOpenrouterLifetime = snapshot.provider === "OPENROUTER" && snapshot.window.kind === "lifetime";
+    if (isOpenrouterLifetime) {
+      if (
+        snapshot.usedAmount === undefined ||
+        snapshot.limitAmount === undefined ||
+        snapshot.currency === undefined ||
+        !isSafeUsage(snapshot.usedAmount) ||
+        !isSafeUsage(snapshot.limitAmount) ||
+        snapshot.currency !== "USD"
+      ) continue;
+      const accountId = accountIdOf(snapshot);
+      const month = utcMonth(snapshot.observedAt);
+      if (accountId === null || month === null) continue;
+      baselines ??= await loadOpenrouterBaselines(directory);
+      const previous = baselines.get(accountId);
+      if (previous === undefined || previous.month !== month || snapshot.usedAmount < previous.totalUsage) {
+        baselines.set(accountId, {
+          totalUsage: snapshot.usedAmount,
+          month,
+          observedAt: snapshot.observedAt
+        });
+        baselinesChanged = true;
+        /* The server contract has no note field. The first observation is
+           stored locally and the first upload starts its source period at that
+           reading, with period_complete false to mean since first reading. */
+        continue;
+      }
+      rows.push({
+        source_id: stableSourceId(snapshot.provider + ":" + accountId),
+        account_id: accountId,
+        provider: snapshot.provider,
+        key_label: snapshot.accountLabel ?? accountId,
+        month: monthStartDate(snapshot.observedAt),
+        spend_usd: snapshot.usedAmount - previous.totalUsage,
+        budget_usd: snapshot.limitAmount,
+        source_period: [previous.observedAt, snapshot.observedAt],
+        currency_source: "PROVIDER_USD",
+        raw_unit_scale: 1,
+        forecast_date: null,
+        forecast_input: null,
+        period_complete: false
+      });
+      continue;
+    }
     if (snapshot.window.kind !== "fixed" || snapshot.resetAt === null) continue;
     const monthStart = monthStartDate(snapshot.observedAt) + "T00:00:00.000Z";
     const nextMonth = new Date(monthStart);
@@ -245,6 +351,7 @@ export function apiSpendSamplesFromSnapshots(
       period_complete: false
     });
   }
+  if (baselines !== null && baselinesChanged) await saveOpenrouterBaselines(directory, baselines);
   return rows.slice(0, SYNC_MAX_ROWS);
 }
 
@@ -301,6 +408,10 @@ interface SyncCursor {
   readonly pendingDigest?: string;
 }
 
+function isSafeSequence(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -310,14 +421,14 @@ function normalizeCursor(value: unknown, deviceId: string): SyncCursor {
   if (!isRecord(value)) return empty;
   if (value["version"] !== 1 || value["deviceId"] !== deviceId) return empty;
   const sequence = value["sequence"];
-  if (typeof sequence !== "number" || !Number.isInteger(sequence) || sequence < 0) return empty;
+  if (!isSafeSequence(sequence)) return empty;
   const pendingEventId = value["pendingEventId"];
   const pendingSequence = value["pendingSequence"];
   const pendingObservedAt = value["pendingObservedAt"];
   const pendingDigest = value["pendingDigest"];
   const pendingComplete =
     typeof pendingEventId === "string" &&
-    typeof pendingSequence === "number" &&
+    isSafeSequence(pendingSequence) &&
     typeof pendingObservedAt === "string" &&
     typeof pendingDigest === "string";
   if (!pendingComplete) return { version: 1, deviceId, sequence };
@@ -400,24 +511,28 @@ function resumableEnvelope(
 type SyncReplyOutcome =
   | { readonly kind: "accepted"; readonly sequence: number; readonly tier: string | null }
   | { readonly kind: "reconcile"; readonly sequence: number }
+  | { readonly kind: "sequence_mismatch" }
   | { readonly kind: "rejected" }
   | { readonly kind: "unavailable" };
 
 function classifySyncReply(
   status: number,
   body: Record<string, unknown>,
-  sentSequence: number
+  sentSequence: number,
+  storedSequence: number
 ): SyncReplyOutcome {
   if (status === 200 && body["accepted"] === true) {
-    const sequence = typeof body["sequence"] === "number" ? body["sequence"] : sentSequence;
+    const rawSequence = body["sequence"];
+    const sequence = rawSequence === undefined ? sentSequence : rawSequence;
+    if (!isSafeSequence(sequence) || sequence !== sentSequence) return { kind: "sequence_mismatch" };
     const tier = typeof body["tier"] === "string" ? body["tier"] : null;
     return { kind: "accepted", sequence, tier };
   }
   if (status === 409) {
     const currentSequence = body["current_sequence"];
-    return typeof currentSequence === "number"
+    return isSafeSequence(currentSequence) && currentSequence >= storedSequence
       ? { kind: "reconcile", sequence: currentSequence }
-      : { kind: "rejected" };
+      : { kind: "sequence_mismatch" };
   }
   if (status >= 400 && status < 500) return { kind: "rejected" };
   return { kind: "unavailable" };
@@ -431,6 +546,8 @@ export interface RunSyncOptions {
   readonly token: string;
   readonly deviceId: string;
   readonly snapshots: readonly Snapshot[];
+  /** Set only when the caller already owns the session lock. */
+  readonly sessionLockHeld?: boolean;
 }
 
 export type SyncResult =
@@ -438,6 +555,7 @@ export type SyncResult =
   | { readonly kind: "accepted"; readonly rows: number; readonly tier: string | null }
   | { readonly kind: "revoked" }
   | { readonly kind: "rejected" }
+  | { readonly kind: "sequence_mismatch" }
   | { readonly kind: "unavailable" };
 
 /**
@@ -446,10 +564,14 @@ export type SyncResult =
  * never arrived leaves the same upload pending for the next run, and a
  * conflict names the hub's own sequence and is retried once.
  */
-export async function runSync(options: RunSyncOptions): Promise<SyncResult> {
+async function runSyncLocked(options: RunSyncOptions): Promise<SyncResult> {
   const usageSamples = usageSamplesFromSnapshots(options.snapshots, options.now);
   const room = Math.max(0, SYNC_MAX_ROWS - usageSamples.length);
-  const apiSpendSamples = apiSpendSamplesFromSnapshots(options.snapshots, options.now).slice(0, room);
+  const apiSpendSamples = (await apiSpendSamplesFromSnapshots(
+    options.snapshots,
+    options.now,
+    options.directory
+  )).slice(0, room);
   if (usageSamples.length === 0 && apiSpendSamples.length === 0) {
     return { kind: "nothing_to_sync" };
   }
@@ -484,7 +606,16 @@ export async function runSync(options: RunSyncOptions): Promise<SyncResult> {
       }
     }
     if (reply.status === 401) return { kind: "revoked" };
-    const outcome = classifySyncReply(reply.status, parseHubJson(reply.body) ?? {}, envelope.sequence);
+    const outcome = classifySyncReply(
+      reply.status,
+      parseHubJson(reply.body) ?? {},
+      envelope.sequence,
+      cursor.sequence
+    );
+    if (outcome.kind === "sequence_mismatch") {
+      await saveCursor(options.directory, cursorSettled(cursor, cursor.sequence));
+      return { kind: "sequence_mismatch" };
+    }
     if (outcome.kind === "accepted") {
       cursor = cursorSettled(cursor, outcome.sequence);
       await saveCursor(options.directory, cursor);
@@ -506,6 +637,11 @@ export async function runSync(options: RunSyncOptions): Promise<SyncResult> {
     return { kind: "unavailable" };
   }
   return { kind: "unavailable" };
+}
+
+export async function runSync(options: RunSyncOptions): Promise<SyncResult> {
+  if (options.sessionLockHeld === true) return await runSyncLocked(options);
+  return await withSessionLock(options.directory, async () => await runSyncLocked(options));
 }
 
 /** The state directory's default, exported so a caller need not repeat it. */
