@@ -1103,9 +1103,11 @@ mod tests {
         let win_accepted_bin = Path::new(r"C:\Users\someone\bin\agy.exe");
         let win_accepted_apps = Path::new(r"C:\Users\someone\Applications\agy.exe");
         let win_refused = Path::new(r"C:\Users\someone\Downloads\agy.exe");
-        assert!(trusted_agy_executable(win_accepted_programs, &win_roots));
-        assert!(trusted_agy_executable(win_accepted_bin, &win_roots));
-        assert!(trusted_agy_executable(win_accepted_apps, &win_roots));
+        // Windows drive letters and backslashes are not absolute paths on
+        // POSIX. Each host must apply its own path grammar to this fixture.
+        for accepted in [win_accepted_programs, win_accepted_bin, win_accepted_apps] {
+            assert_eq!(trusted_agy_executable(accepted, &win_roots), cfg!(windows));
+        }
         assert!(!trusted_agy_executable(win_refused, &win_roots));
 
         /* The bare %LOCALAPPDATA% and %APPDATA% roots are refused: only their

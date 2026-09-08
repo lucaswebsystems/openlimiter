@@ -1116,8 +1116,8 @@ fn installed_executable(
     for directory in &context.path_entries {
         for name in &names {
             let candidate = directory.join(name);
-            if validated_launcher(provider, context, &candidate).is_some() {
-                return Some(candidate);
+            if let Some(resolved) = validated_launcher(provider, context, &candidate) {
+                return Some(resolved);
             }
         }
     }
@@ -2529,9 +2529,11 @@ mod tests {
         use std::os::unix::fs::symlink;
 
         let dir = TempDir::new();
-        let bin = dir.path().join("bin");
-        let package_bin = dir
-            .path()
+        // Use a real home root even when the OS temp directory is an alias,
+        // as /var is on macOS. The launcher itself is the link under test.
+        let home = fs::canonicalize(dir.path()).expect("canonical home");
+        let bin = home.join("bin");
+        let package_bin = home
             .join(".nvm")
             .join("node_modules")
             .join("grok")
@@ -2539,11 +2541,11 @@ mod tests {
         write(&package_bin.join("grok.js"), "javascript marker");
         fs::create_dir_all(&bin).expect("bin directory");
         symlink(package_bin.join("grok.js"), bin.join("grok")).expect("launcher symlink");
-        let mut discovery = context(DiscoveryPlatform::Linux, dir.path());
+        let mut discovery = context(DiscoveryPlatform::Linux, &home);
         discovery.path_entries = vec![bin.clone()];
         assert_eq!(
             installed_executable(DetectedProviderId::Grok, &discovery),
-            Some(package_bin.join("grok.js"))
+            Some(fs::canonicalize(package_bin.join("grok.js")).expect("canonical target"))
         );
         assert_eq!(
             provider(
@@ -2562,11 +2564,12 @@ mod tests {
 
         let dir = TempDir::new();
         let outside = TempDir::new();
-        let bin = dir.path().join("bin");
+        let home = fs::canonicalize(dir.path()).expect("canonical home");
+        let bin = home.join("bin");
         write(&outside.path().join("grok"), "untrusted binary");
         fs::create_dir_all(&bin).expect("bin directory");
         symlink(outside.path().join("grok"), bin.join("grok")).expect("launcher symlink");
-        let mut discovery = context(DiscoveryPlatform::Linux, dir.path());
+        let mut discovery = context(DiscoveryPlatform::Linux, &home);
         discovery.path_entries = vec![bin];
         assert_eq!(
             installed_executable(DetectedProviderId::Grok, &discovery),

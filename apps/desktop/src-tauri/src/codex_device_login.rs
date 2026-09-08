@@ -1285,7 +1285,12 @@ mod tests {
             checks are still exercised by the tests above and below. */
             return;
         }
-        assert!(is_reparse_point(&home));
+        assert_eq!(is_reparse_point(&home), cfg!(windows));
+        #[cfg(unix)]
+        assert!(std::fs::symlink_metadata(&home)
+            .expect("linked home metadata")
+            .file_type()
+            .is_symlink());
         assert_eq!(
             prepare_managed_home(&home).err(),
             Some(DeviceLoginFailure::Storage)
@@ -1300,7 +1305,10 @@ mod tests {
             !stub.stopped.load(Ordering::SeqCst),
             "the client was started before the path was checked"
         );
-        let _ = std::fs::remove_dir(&home);
+        #[cfg(windows)]
+        std::fs::remove_dir(&home).expect("remove directory link");
+        #[cfg(unix)]
+        std::fs::remove_file(&home).expect("remove directory link");
     }
 
     #[test]

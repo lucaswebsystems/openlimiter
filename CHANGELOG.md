@@ -2,6 +2,13 @@
 
 All notable project changes appear in this file.
 
+## [1.3.4] (2026-09-08)
+
+### Fixed
+
+- Terminal installers on macOS and Linux: a home directory reached through a symbolic link (the usual shape on macOS) made the installer refuse its own paths, so Claude and Codex could be left unwired and a backup could not be restored. Paths are canonicalised before the escape check, which still refuses a path outside the state directory.
+- Desktop on Linux: vendor root, managed home and package launcher checks now use native semantics, and a launcher reached through a symbolic link resolves to its trusted target.
+
 ## [1.3.3] (2026-09-08)
 
 Packages 1.3.3 on npm, desktop v1.3.2, and the site with the matching web fixes.

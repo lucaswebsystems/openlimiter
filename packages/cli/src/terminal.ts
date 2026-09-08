@@ -63,20 +63,24 @@ async function canonicalOverrideRoot(
   fallback: string,
   variable: string
 ): Promise<string> {
-  if (value === undefined || value === "") return fallback;
-  if (!path.isAbsolute(value)) throw new Error(`${variable} must be an absolute path.`);
+  const root = value === undefined || value === "" ? fallback : value;
+  if (!path.isAbsolute(root)) throw new Error(`${variable} must be an absolute path.`);
   let existing: Awaited<ReturnType<typeof lstat>> | null = null;
   try {
-    existing = await lstat(value);
+    existing = await lstat(root);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  if (existing?.isSymbolicLink()) return await realpath(value);
-  try { return await realpath(value); }
+  if (existing?.isSymbolicLink()) return await realpath(root);
+  try { return await realpath(root); }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    const parent = await realpath(path.dirname(value));
-    return path.join(parent, path.basename(value));
+    // Default roots need the same canonical identity as overrides. Resolve the
+    // nearest existing ancestor when a first install has not created them yet.
+    const parentPath = path.dirname(root);
+    if (parentPath === root) throw error;
+    const parent = await canonicalOverrideRoot(parentPath, parentPath, variable);
+    return path.join(parent, path.basename(root));
   }
 }
 

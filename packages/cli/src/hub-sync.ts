@@ -59,7 +59,7 @@ export const SYNC_SCHEMA_VERSION = 2;
  * inside a command a status line depends on. See `acquire/identity.ts` in the
  * core package for the same choice, made for the same reason.
  */
-export const SYNC_CLIENT_VERSION = "1.3.3";
+export const SYNC_CLIENT_VERSION = "1.3.4";
 
 /** Most rows one envelope may carry, usage and spend counted together. */
 export const SYNC_MAX_ROWS = 128;

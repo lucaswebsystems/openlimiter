@@ -281,6 +281,53 @@ describe("P2 launcher trust and migration", () => {
 });
 
 describe("P2 TOML and configuration roots", () => {
+  it.each(["claude", "codex"] as const)("uses the canonical default %s root through a home alias", async host => {
+    const home = await scratch();
+    const target = path.join(home, "real home");
+    const alias = path.join(home, "home alias");
+    await mkdir(target);
+    await symlink(target, alias, process.platform === "win32" ? "junction" : "dir");
+    const file = await seed(target, host);
+    const ctx = context(alias);
+    expect((await uninstallHost(host, ctx)).ok).toBe(true);
+    expect(await readFile(file, "utf8")).toBe(layouts[host].original);
+    expect((await installHost(host, ctx)).ok).toBe(true);
+    expect(await hostStatus(host, ctx)).toBe(STATUS_WIRED);
+    expect((await uninstallHost(host, ctx)).ok).toBe(true);
+    expect(await readFile(file, "utf8")).toBe(layouts[host].original);
+  }, 30_000);
+
+  it.each(["claude", "codex"] as const)("installs a missing default %s root through a home alias", async host => {
+    const home = await scratch();
+    const target = path.join(home, "real home");
+    const alias = path.join(home, "home alias");
+    await mkdir(target);
+    await symlink(target, alias, process.platform === "win32" ? "junction" : "dir");
+    const ctx = context(alias);
+    expect((await installHost(host, ctx)).ok).toBe(true);
+    expect(await hostStatus(host, ctx)).toBe(STATUS_WIRED);
+    expect((await uninstallHost(host, ctx)).ok).toBe(true);
+    await expect(readFile(path.join(target, ...layouts[host].file))).rejects.toMatchObject({ code: "ENOENT" });
+  }, 30_000);
+
+  it.each(["claude", "codex"] as const)("refuses a %s configuration link that escapes the canonical root", async host => {
+    const home = await scratch();
+    const outside = path.join(home, "outside");
+    const file = await seed(home, host);
+    const protectedFile = process.platform === "win32" ? path.join(outside, "original") : outside;
+    if (process.platform === "win32") await mkdir(outside);
+    await writeFile(protectedFile, layouts[host].original);
+    await rm(file);
+    // Junctions exercise Windows redirection without requiring Developer Mode.
+    // POSIX uses a file symlink. Both must fail the root boundary check before IO.
+    await symlink(outside, file, process.platform === "win32" ? "junction" : "file");
+    const variable = host === "claude" ? "CLAUDE_CONFIG_DIR" : "CODEX_HOME";
+    const refusal = { ok: false, message: `${variable} must point to a file under its root.` };
+    expect(await installHost(host, context(home))).toEqual(refusal);
+    expect(await uninstallHost(host, context(home))).toEqual(refusal);
+    expect(await readFile(protectedFile, "utf8")).toBe(layouts[host].original);
+  });
+
   it.each([
     "tui.status_line = [\"model-name\"]\n",
     "tui = { status_line = [\"model-name\"], other = \"keep\" }\n",
