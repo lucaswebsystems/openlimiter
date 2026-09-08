@@ -624,7 +624,7 @@ export function rowAction(provider, detection, signals, quota = null) {
 export function firstRunCopyStrings() {
   const strings = [
     "Create your account",
-    "Later",
+    "Create account later",
     "Connect your tools",
     "Show my bars",
     "Skip",

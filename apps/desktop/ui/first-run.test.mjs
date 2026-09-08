@@ -120,11 +120,13 @@ test("the way past sign in is a quiet Later link, not a second button", () => {
   const step = firstRunSection();
   const source = read("first-run.js");
 
-  assert.match(step, /id="first-run-later" class="sign-in-link">Later</u);
-  /* It is a link shaped control in its own quiet row, not a filled or
-     bordered button competing with the four ways in above it. */
+  assert.match(step, /id="first-run-later" class="sign-in-ghost">Create account later</u);
+  /* It says what it does rather than when, and it is a bordered button in its
+     own quiet row: a person who does not want an account has to find this
+     control, so it has an edge of its own without taking the fill the four
+     ways in above it carry. */
   assert.equal(/id="first-run-later"[^>]*class="[^"]*first-run-continue/u.test(step), false);
-  assert.equal(/id="first-run-later"[^>]*class="[^"]*sign-in-ghost/u.test(step), false);
+  assert.equal(/id="first-run-later"[^>]*>Later</u.test(step), false);
   /* And it moves to the tools rather than ending the setup, because a person
      who declines an account still has eight bars waiting for them. */
   assert.match(

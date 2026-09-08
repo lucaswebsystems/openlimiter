@@ -249,7 +249,7 @@ test("the foot is a bordered Not now beside the honest sentence, at caption size
      second bordered button. The sheet keeps its bordered Not now, because the
      sheet is a dialogue somebody opened and a dialogue needs a way out that
      looks like one. The first run step is a step, and a step gets a link. */
-  assert.match(markup, /id="first-run-later" class="sign-in-link">Later</u);
+  assert.match(markup, /id="first-run-later" class="sign-in-ghost">Create account later</u);
   assert.doesNotMatch(markup, /id="first-run-not-now"/u);
   assert.match(markup, /Every meter in this window keeps running without an account\./u);
   const sheet = css();
