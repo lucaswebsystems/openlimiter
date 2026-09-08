@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -343,7 +343,7 @@ describe("P1 audit regressions", () => {
     });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("Private session storage at");
-    expect(result.stderr).toContain("icacls \"" + d.stateDirectory + "\" /reset");
+    expect(result.stderr).toContain("icacls \"" + await realpath(d.stateDirectory!) + "\" /reset");
     expect(result.stderr).not.toContain("n".repeat(32));
   });
 
@@ -358,6 +358,20 @@ describe("P1 audit regressions", () => {
     await expect(readFile(path.join(directory, SESSION_FILE_NAME))).rejects.toThrow();
   });
 
+  it("names the real state directory in ACL diagnostics through an ancestor alias", async () => {
+    const root = await scratch();
+    const real = path.join(root, "real");
+    const alias = path.join(root, "alias");
+    await mkdir(real);
+    await symlink(real, alias, process.platform === "win32" ? "junction" : "dir");
+    const directory = path.join(alias, "state");
+    await mkdir(directory);
+    await expect(writeSession(session(), {
+      directory, platform: "win32", windowsAclRunner: async () => ({ ok: false as const })
+    })).rejects.toThrow(await realpath(directory));
+    await expect(readFile(path.join(directory, SESSION_FILE_NAME))).rejects.toThrow();
+  });
+
   it.skipIf(process.platform !== "win32")("24 verifies the actual Windows ACL before both initial and replacement writes", async (context) => {
     const directory = path.join(await scratch(), "state");
     const runner = runtimeDependencies().windowsAclRunner;
@@ -365,10 +379,18 @@ describe("P1 audit regressions", () => {
     const tool = path.win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "whoami.exe");
     const capability = await runner(tool, ["/user", "/fo", "csv", "/nh"], 5000).catch(() => ({ ok: false as const }));
     if (!capability.ok) return context.skip();
-    await writeSession(session(), { directory, platform: "win32", windowsAclRunner: runner });
-    await writeSession(session(), { directory, platform: "win32", windowsAclRunner: runner });
+    await mkdir(directory);
+    const powershell = path.win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    const shortPath = await runner(powershell, ["-NoProfile", "-NonInteractive", "-Command",
+      "$ErrorActionPreference='Stop';$fs=New-Object -ComObject Scripting.FileSystemObject;" +
+      "$fs.GetFolder('" + directory.replace(/'/gu, "''") + "').ShortPath"], 5000);
+    if (!shortPath.ok) throw new Error("Could not resolve the Windows short path");
+    const alias = shortPath.stdout.trim();
+    expect(await realpath(alias)).toBe(await realpath(directory));
+    await writeSession(session(), { directory: alias, platform: "win32", windowsAclRunner: runner });
+    await writeSession(session(), { directory: alias, platform: "win32", windowsAclRunner: runner });
     expect(await readSession(directory)).not.toBeNull();
-  });
+  }, 30_000);
 
   it("27 keeps hiding the last provider empty in both renderers, while automatic selection still works", async () => {
     const d = await deps();

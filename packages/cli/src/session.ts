@@ -8,7 +8,7 @@
  * platform that has file modes. On Windows the containing directory receives
  * a verified, protected owner only ACL before any credential bytes are written.
  */
-import { lstat, unlink } from "node:fs/promises";
+import { lstat, realpath, unlink } from "node:fs/promises";
 import path from "node:path";
 import {
   canonicalJson,
@@ -231,9 +231,12 @@ export async function writeSession(
   session: HubSession,
   options: WriteSessionOptions
 ): Promise<void> {
-  const directory = options.directory ?? resolveStateDirectory();
+  const requestedDirectory = options.directory ?? resolveStateDirectory();
+  await prepareStateDirectory(requestedDirectory);
+  // Give the ACL helper and its diagnostics the same real directory spelling,
+  // including when Windows TEMP uses an 8.3 alias.
+  const directory = await realpath(requestedDirectory);
   const target = path.join(directory, SESSION_FILE_NAME);
-  await prepareStateDirectory(directory);
   if (options.platform === "win32") {
     await applyWindowsOwnerOnlyAcl(directory, options.windowsAclRunner);
     await rejectStateReparsePoint(directory);

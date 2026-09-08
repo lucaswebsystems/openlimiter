@@ -1,4 +1,4 @@
-import { cp, link, mkdir, mkdtemp, open, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { cp, link, mkdir, mkdtemp, open, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -121,7 +121,7 @@ describe("P2 ownership and full backups", () => {
     await lock.release();
     const result = await uninstall;
     expect(result.ok).toBe(false);
-    expect(result.message).toContain(file);
+    expect(result.message).toContain(await realpath(file));
     expect(await readFile(file, "utf8")).toBe(changed);
   }, 30_000);
 });

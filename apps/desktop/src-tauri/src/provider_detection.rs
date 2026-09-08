@@ -963,8 +963,8 @@ fn validated_launcher(
     }
     provider_install_roots(provider, context)
         .into_iter()
-        .filter(|root| path_components_are_real_directory(root))
         .filter_map(|root| fs::canonicalize(root).ok())
+        .filter(|root| path_components_are_real_directory(root))
         .any(|root| resolved.starts_with(root))
         .then_some(resolved)
 }
@@ -1807,11 +1807,16 @@ impl DetectionStore {
     /// owns, and the vendor file must contain exactly one readable account.
     pub fn register_managed_account(&self, home: &Path) -> Option<String> {
         let root = self.context.managed_codex_root.as_deref()?;
-        if !path_components_are_real_directory(root) || !path_components_are_real_directory(home) {
+        if fs::symlink_metadata(home).ok()?.file_type().is_symlink() || is_reparse_point(home) {
             return None;
         }
         let resolved_root = fs::canonicalize(root).ok()?;
         let resolved_home = fs::canonicalize(home).ok()?;
+        if !path_components_are_real_directory(&resolved_root)
+            || !path_components_are_real_directory(&resolved_home)
+        {
+            return None;
+        }
         if resolved_home.parent() != Some(resolved_root.as_path()) {
             return None;
         }
@@ -2521,6 +2526,47 @@ mod tests {
         assert!(detection
             .account_ids(DetectedProviderId::Codex)
             .contains(&account_id));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::symlink;
+
+            let alias_dir = TempDir::new();
+            let alias = alias_dir.path().join("home");
+            symlink(dir.path(), &alias).expect("home alias");
+            let aliased_detection = DetectionStore::for_test_home(&alias, 1_800_000_000_000);
+            assert_eq!(
+                aliased_detection.register_managed_account(&alias.join("accounts/codex/abc123")),
+                Some(account_id)
+            );
+            let escape = alias.join("accounts/codex/escape");
+            symlink(alias_dir.path(), &escape).expect("escaping account");
+            assert_eq!(aliased_detection.register_managed_account(&escape), None);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn aliased_ancestors_accept_vendor_files_but_refuse_escapes() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new();
+        let real_home = dir.path().join("real");
+        let home = dir.path().join("alias");
+        let outside = dir.path().join("outside");
+        write(&real_home.join("bin").join("grok"), "binary marker");
+        write(&outside.join("grok"), "outside marker");
+        symlink(&real_home, &home).expect("home alias");
+        let discovery = context(DiscoveryPlatform::Linux, &home);
+        assert_eq!(
+            validated_launcher(DetectedProviderId::Grok, &discovery, &home.join("bin/grok")),
+            Some(fs::canonicalize(real_home.join("bin/grok")).expect("real launcher"))
+        );
+        fs::remove_file(real_home.join("bin/grok")).expect("remove launcher");
+        symlink(outside.join("grok"), real_home.join("bin/grok")).expect("escaping launcher");
+        assert_eq!(
+            validated_launcher(DetectedProviderId::Grok, &discovery, &home.join("bin/grok")),
+            None
+        );
     }
 
     #[cfg(unix)]
