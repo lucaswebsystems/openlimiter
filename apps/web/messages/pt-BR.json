@@ -930,18 +930,18 @@
     },
     "pages": {
       "index": {
-        "title": "Get started",
-        "metaTitle": "Get started: sign in, connect, see your bars",
-        "description": "Sign in, connect the AI accounts you already pay for, and see your bars. Bars stay free with no account at all.",
-        "lead": "OpenLimiter meters the AI subscriptions you already pay for. Bars render from your own machine with no account. Sign in and the same bars sync between your devices, and a free 30 day trial with no card unlocks the rest.",
+        "title": "Comece aqui",
+        "metaTitle": "Comece aqui: entre, conecte e veja suas barras",
+        "description": "Entre, conecte as contas de IA que você já paga e veja suas barras. As barras são gratuitas sem nenhuma conta.",
+        "lead": "O OpenLimiter mede as assinaturas de IA que você já paga. As barras aparecem no seu próprio computador sem conta. Entre para sincronizar as mesmas barras entre seus dispositivos. Um teste gratuito de 30 dias sem cartão libera o restante.",
         "sections": {
           "what-you-need": {
-            "title": "What you need",
+            "title": "O que você precisa",
             "bullets": {
-              "node": "Node 24 or newer, for the terminal.",
-              "npm": "npm, which ships with Node."
+              "node": "Node 24 ou mais recente para o terminal.",
+              "npm": "npm, que vem com o Node."
             },
-            "local": "Nothing local is ever paywalled. The desktop app and the terminal both show bars with no account, and an account only adds sync on top of that."
+            "local": "Nada local fica atrás de pagamento. O aplicativo para computador e o terminal mostram barras sem conta. Uma conta só acrescenta sincronização."
           },
           "terminal": {
             "title": "Terminal",
@@ -973,26 +973,26 @@
             "body": "Abra a central, escolha seu celular e escaneie o código QR exibido. O pareamento não exige digitação. Adicione à tela inicial: o Android oferece instalar; no iOS, use Compartilhar e depois Adicionar à Tela de Início."
           },
           "claude-code": {
-            "title": "Wire Claude Code by hand",
-            "intro": "<code>openlimiter terminal</code> does this for you. To see exactly what it writes, or to wire a machine without running it interactively, add this to Claude Code's <code>settings.json</code> yourself.",
-            "calloutTitle": "The hook cannot break your session",
-            "calloutBody": "The statusline is the only path that writes. The hook reads the cache, makes no network request of any kind, injects nothing when every provider is unknown, and exits 0 whatever happens."
+            "title": "Conecte o Claude Code manualmente",
+            "intro": "O <code>openlimiter terminal</code> faz isso por você. Para ver exatamente o que ele escreve, ou para conectar um computador sem executar o processo de forma interativa, adicione isto ao <code>settings.json</code> do Claude Code.",
+            "calloutTitle": "O hook não pode interromper sua sessão",
+            "calloutBody": "A linha de status é o único caminho que escreve. O hook lê o cache, não faz nenhuma solicitação de rede, não injeta nada quando todos os provedores são desconhecidos e sempre termina com 0."
           },
           "from-source": {
-            "title": "Contribute from source",
-            "intro": "Use the repository toolchain when you want to contribute.",
+            "title": "Contribua a partir do código fonte",
+            "intro": "Use as ferramentas do repositório quando quiser contribuir.",
             "terminalLabel": "terminal",
-            "buildOrder": "The build has to run before the type check, because each package resolves its neighbours through the declaration files the build produces."
+            "buildOrder": "O build precisa rodar antes da verificação de tipos, porque cada pacote resolve seus vizinhos pelos arquivos de declaração produzidos pelo build."
           },
           "where-next": {
-            "title": "Where next",
+            "title": "Para onde ir agora",
             "reading-order": {
-              "title": "A reasonable reading order",
+              "title": "Uma ordem de leitura razoável",
               "steps": {
-                "why": "<docs>Why OpenLimiter</docs> for the problem this solves.",
-                "providers": "<docs>Supported providers</docs> for exactly how each one connects, and what OpenLimiter never does.",
-                "agentContext": "<docs>Agent context</docs> for the terminal hosts, the bar grammar, and what reaches your coding agent.",
-                "cli": "<docs>CLI reference</docs> for every command and exit code."
+                "why": "<docs>Por que usar o OpenLimiter</docs> para entender o problema que ele resolve.",
+                "providers": "<docs>Provedores compatíveis</docs> para saber como cada um se conecta e o que o OpenLimiter nunca faz.",
+                "agentContext": "<docs>Contexto do agente</docs> para conhecer os terminais, o formato das barras e o que chega ao seu agente de programação.",
+                "cli": "<docs>Referência da CLI</docs> para cada comando e código de saída."
               }
             }
           }
@@ -2175,6 +2175,35 @@
         "title": "O serviço não respondeu",
         "body": "Nada mudou no pareamento. Este celular vai tentar de novo sozinho.",
         "staleMark": "Desatualizado"
+      },
+      "setup": {
+        "reading": {
+          "title": "Lendo o código",
+          "body": "Um momento. Nada foi enviado ainda."
+        },
+        "noCode": {
+          "title": "Este link não tem código de pareamento",
+          "body": "O aplicativo de desktop gera um código de pareamento que dura dois minutos. Abra o OpenLimiter no computador, vá até Dispositivos, escolha Parear um celular e escaneie o código exibido."
+        },
+        "waiting": {
+          "title": "Aguardando aprovação",
+          "computer": "Seu computador está perguntando se deve confiar neste celular. Aprove no computador e esta página avançará sozinha.",
+          "check": "Confira se o desktop mostra os mesmos oito caracteres.",
+          "expires": "Este código expira em {seconds} segundos.",
+          "access": "O celular recebe apenas acesso de leitura. Ele nunca pode mudar sua conta nem enviar nada."
+        },
+        "denied": {
+          "title": "O desktop recusou",
+          "body": "O pareamento foi recusado no computador, então este celular não recebeu nada. Se não foi você, comece de novo pelo desktop e confira o código antes de aprovar."
+        },
+        "expired": {
+          "title": "Este código expirou",
+          "body": "Um código de pareamento dura dois minutos e pode ser usado uma vez. Gere um código novo no desktop e escaneie de novo."
+        },
+        "error": {
+          "title": "Não foi possível concluir o pareamento",
+          "body": "O serviço não respondeu, então nada foi pareado e nada mudou. Gere um código novo no desktop e escaneie de novo."
+        }
       },
       "pairedAs": "Pareado como {label}",
       "openDashboard": "Abrir o painel"

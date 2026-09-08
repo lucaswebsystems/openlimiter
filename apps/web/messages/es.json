@@ -930,18 +930,18 @@
     },
     "pages": {
       "index": {
-        "title": "Get started",
-        "metaTitle": "Get started: sign in, connect, see your bars",
-        "description": "Sign in, connect the AI accounts you already pay for, and see your bars. Bars stay free with no account at all.",
-        "lead": "OpenLimiter meters the AI subscriptions you already pay for. Bars render from your own machine with no account. Sign in and the same bars sync between your devices, and a free 30 day trial with no card unlocks the rest.",
+        "title": "Primeros pasos",
+        "metaTitle": "Primeros pasos: inicia sesión, conecta y mira tus barras",
+        "description": "Inicia sesión, conecta las cuentas de IA que ya pagas y mira tus barras. Las barras son gratuitas sin ninguna cuenta.",
+        "lead": "OpenLimiter mide las suscripciones de IA que ya pagas. Las barras aparecen desde tu propio equipo sin cuenta. Inicia sesión y las mismas barras se sincronizarán entre tus dispositivos. Una prueba gratuita de 30 días sin tarjeta desbloquea lo demás.",
         "sections": {
           "what-you-need": {
-            "title": "What you need",
+            "title": "Lo que necesitas",
             "bullets": {
-              "node": "Node 24 or newer, for the terminal.",
-              "npm": "npm, which ships with Node."
+              "node": "Node 24 o posterior para el terminal.",
+              "npm": "npm viene incluido con Node."
             },
-            "local": "Nothing local is ever paywalled. The desktop app and the terminal both show bars with no account, and an account only adds sync on top of that."
+            "local": "Nada local queda nunca detrás de un pago. La aplicación de escritorio y el terminal muestran barras sin cuenta. Una cuenta solo añade sincronización."
           },
           "terminal": {
             "title": "Terminal",
@@ -973,26 +973,26 @@
             "body": "Abre el centro, elige tu teléfono y escanea el código QR que aparece. No hay que escribir nada para vincularlo. Añádelo a la pantalla de inicio: Android ofrece instalarlo; en iOS, usa Compartir y después Añadir a pantalla de inicio."
           },
           "claude-code": {
-            "title": "Wire Claude Code by hand",
-            "intro": "<code>openlimiter terminal</code> does this for you. To see exactly what it writes, or to wire a machine without running it interactively, add this to Claude Code's <code>settings.json</code> yourself.",
-            "calloutTitle": "The hook cannot break your session",
-            "calloutBody": "The statusline is the only path that writes. The hook reads the cache, makes no network request of any kind, injects nothing when every provider is unknown, and exits 0 whatever happens."
+            "title": "Conecta Claude Code manualmente",
+            "intro": "<code>openlimiter terminal</code> lo hace por ti. Para ver exactamente qué escribe, o para conectar un equipo sin ejecutarlo de forma interactiva, añade esto a <code>settings.json</code> de Claude Code.",
+            "calloutTitle": "El hook no puede interrumpir tu sesión",
+            "calloutBody": "La línea de estado es la única vía que escribe. El hook lee la caché, no hace ninguna petición de red, no inyecta nada cuando todos los proveedores son desconocidos y siempre termina con 0."
           },
           "from-source": {
-            "title": "Contribute from source",
-            "intro": "Use the repository toolchain when you want to contribute.",
+            "title": "Contribuye desde el código fuente",
+            "intro": "Usa las herramientas del repositorio cuando quieras contribuir.",
             "terminalLabel": "terminal",
-            "buildOrder": "The build has to run before the type check, because each package resolves its neighbours through the declaration files the build produces."
+            "buildOrder": "La compilación debe ejecutarse antes de la comprobación de tipos, porque cada paquete resuelve sus dependencias mediante las declaraciones que produce la compilación."
           },
           "where-next": {
-            "title": "Where next",
+            "title": "Qué sigue",
             "reading-order": {
-              "title": "A reasonable reading order",
+              "title": "Un orden de lectura razonable",
               "steps": {
-                "why": "<docs>Why OpenLimiter</docs> for the problem this solves.",
-                "providers": "<docs>Supported providers</docs> for exactly how each one connects, and what OpenLimiter never does.",
-                "agentContext": "<docs>Agent context</docs> for the terminal hosts, the bar grammar, and what reaches your coding agent.",
-                "cli": "<docs>CLI reference</docs> for every command and exit code."
+                "why": "<docs>Por qué OpenLimiter</docs> para conocer el problema que resuelve.",
+                "providers": "<docs>Proveedores compatibles</docs> para saber cómo se conecta cada uno y qué nunca hace OpenLimiter.",
+                "agentContext": "<docs>Contexto del agente</docs> para los terminales, el formato de las barras y lo que llega a tu agente de programación.",
+                "cli": "<docs>Referencia de la CLI</docs> para cada comando y código de salida."
               }
             }
           }
@@ -2175,6 +2175,35 @@
         "title": "El servicio no respondió",
         "body": "Nada cambió en el emparejamiento. Este teléfono lo intentará de nuevo por su cuenta.",
         "staleMark": "Desactualizado"
+      },
+      "setup": {
+        "reading": {
+          "title": "Leyendo el código",
+          "body": "Un momento. Todavía no se ha enviado nada."
+        },
+        "noCode": {
+          "title": "Este enlace no tiene código de emparejamiento",
+          "body": "La aplicación de escritorio genera un código de emparejamiento que dura dos minutos. Abre OpenLimiter en tu computadora, ve a Dispositivos, elige Emparejar un teléfono y escanea el código que aparece."
+        },
+        "waiting": {
+          "title": "Esperando aprobación",
+          "computer": "Tu computadora pregunta si debe confiar en este teléfono. Apruébalo allí y esta página avanzará sola.",
+          "check": "Comprueba que el escritorio muestra los mismos ocho caracteres.",
+          "expires": "Este código caduca en {seconds} segundos.",
+          "access": "El teléfono solo obtiene acceso de lectura. Nunca puede cambiar tu cuenta ni subir nada."
+        },
+        "denied": {
+          "title": "El escritorio rechazó la solicitud",
+          "body": "El emparejamiento fue rechazado en tu computadora, así que este teléfono no recibió nada. Si no fuiste tú, empieza de nuevo desde el escritorio y comprueba el código antes de aprobarlo."
+        },
+        "expired": {
+          "title": "Ese código ha caducado",
+          "body": "Un código de emparejamiento dura dos minutos y solo se puede usar una vez. Genera un código nuevo en el escritorio y escanéalo otra vez."
+        },
+        "error": {
+          "title": "No se pudo completar el emparejamiento",
+          "body": "El servicio no respondió, así que no se emparejó nada ni se cambió nada. Genera un código nuevo en el escritorio y escanéalo otra vez."
+        }
       },
       "pairedAs": "Emparejado como {label}",
       "openDashboard": "Abrir el panel"

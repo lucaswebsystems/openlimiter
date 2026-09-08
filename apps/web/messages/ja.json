@@ -930,18 +930,18 @@
     },
     "pages": {
       "index": {
-        "title": "Get started",
-        "metaTitle": "Get started: sign in, connect, see your bars",
-        "description": "Sign in, connect the AI accounts you already pay for, and see your bars. Bars stay free with no account at all.",
-        "lead": "OpenLimiter meters the AI subscriptions you already pay for. Bars render from your own machine with no account. Sign in and the same bars sync between your devices, and a free 30 day trial with no card unlocks the rest.",
+        "title": "始める",
+        "metaTitle": "始める：ログイン、接続、バーの確認",
+        "description": "ログインして、すでに料金を払っているAIアカウントを接続し、バーを確認できます。バーはアカウントなしでも無料です。",
+        "lead": "OpenLimiterは、すでに料金を払っているAIサブスクリプションを計測します。バーはアカウントなしで自分のコンピューターから表示できます。ログインすると同じバーがデバイス間で同期され、カード不要の30日間無料体験で残りの機能が使えます。",
         "sections": {
           "what-you-need": {
-            "title": "What you need",
+            "title": "必要なもの",
             "bullets": {
-              "node": "Node 24 or newer, for the terminal.",
-              "npm": "npm, which ships with Node."
+              "node": "ターミナル用のNode 24以降。",
+              "npm": "Nodeに付属するnpm。"
             },
-            "local": "Nothing local is ever paywalled. The desktop app and the terminal both show bars with no account, and an account only adds sync on top of that."
+            "local": "ローカルの機能が有料になることはありません。デスクトップアプリとターミナルはアカウントなしでバーを表示します。アカウントを作ると同期だけが加わります。"
           },
           "terminal": {
             "title": "Terminal",
@@ -973,26 +973,26 @@
             "body": "ハブを開いてスマートフォンを選び、表示されたQRコードを読み取ります。ペアリングに文字入力は不要です。そのままホーム画面に追加できます。Androidではインストールの案内を使い、iOSでは共有から「ホーム画面に追加」を選びます。"
           },
           "claude-code": {
-            "title": "Wire Claude Code by hand",
-            "intro": "<code>openlimiter terminal</code> does this for you. To see exactly what it writes, or to wire a machine without running it interactively, add this to Claude Code's <code>settings.json</code> yourself.",
-            "calloutTitle": "The hook cannot break your session",
-            "calloutBody": "The statusline is the only path that writes. The hook reads the cache, makes no network request of any kind, injects nothing when every provider is unknown, and exits 0 whatever happens."
+            "title": "Claude Codeを手動で接続する",
+            "intro": "<code>openlimiter terminal</code>が代わりに実行します。書き込まれる内容を正確に確認したい場合や、対話的に実行せずにコンピューターを接続したい場合は、これをClaude Codeの<code>settings.json</code>に自分で追加してください。",
+            "calloutTitle": "フックがセッションを壊すことはありません",
+            "calloutBody": "書き込みを行うのはステータスラインだけです。フックはキャッシュを読み取り、ネットワーク通信を行わず、すべてのプロバイダーが不明な場合は何も挿入せず、どのような場合も0で終了します。"
           },
           "from-source": {
-            "title": "Contribute from source",
-            "intro": "Use the repository toolchain when you want to contribute.",
+            "title": "ソースから貢献する",
+            "intro": "貢献するときはリポジトリのツールチェーンを使ってください。",
             "terminalLabel": "terminal",
-            "buildOrder": "The build has to run before the type check, because each package resolves its neighbours through the declaration files the build produces."
+            "buildOrder": "型チェックの前にビルドを実行する必要があります。各パッケージはビルドが生成した宣言ファイルを使って依存先を解決するためです。"
           },
           "where-next": {
-            "title": "Where next",
+            "title": "次に読むもの",
             "reading-order": {
-              "title": "A reasonable reading order",
+              "title": "おすすめの読む順番",
               "steps": {
-                "why": "<docs>Why OpenLimiter</docs> for the problem this solves.",
-                "providers": "<docs>Supported providers</docs> for exactly how each one connects, and what OpenLimiter never does.",
-                "agentContext": "<docs>Agent context</docs> for the terminal hosts, the bar grammar, and what reaches your coding agent.",
-                "cli": "<docs>CLI reference</docs> for every command and exit code."
+                "why": "<docs>OpenLimiterを使う理由</docs>で解決する問題を確認します。",
+                "providers": "<docs>対応プロバイダー</docs>で各接続方法とOpenLimiterが決して行わないことを確認します。",
+                "agentContext": "<docs>エージェントコンテキスト</docs>でターミナル、バーの形式、コーディングエージェントに届く情報を確認します。",
+                "cli": "<docs>CLIリファレンス</docs>ですべてのコマンドと終了コードを確認します。"
               }
             }
           }
@@ -2175,6 +2175,35 @@
         "title": "サービスが応答しませんでした",
         "body": "ペア設定に変更はありません。このスマートフォンは自動的に再試行します。",
         "staleMark": "更新が必要"
+      },
+      "setup": {
+        "reading": {
+          "title": "コードを読み込んでいます",
+          "body": "少々お待ちください。まだ何も送信されていません。"
+        },
+        "noCode": {
+          "title": "このリンクにはペア設定コードがありません",
+          "body": "ペア設定コードはデスクトップアプリで生成され、2分間有効です。コンピューターでOpenLimiterを開き、デバイスで「スマートフォンをペア設定」を選び、表示されたコードをスキャンしてください。"
+        },
+        "waiting": {
+          "title": "承認を待っています",
+          "computer": "コンピューターがこのスマートフォンを信頼するか確認しています。そこで承認すると、このページは自動的に進みます。",
+          "check": "デスクトップに同じ8文字が表示されていることを確認してください。",
+          "expires": "このコードはあと{seconds}秒で期限切れになります。",
+          "access": "スマートフォンは読み取り専用です。アカウントを変更したり、何かをアップロードしたりすることはできません。"
+        },
+        "denied": {
+          "title": "デスクトップで拒否されました",
+          "body": "コンピューターでペア設定が拒否されたため、このスマートフォンには何も渡されませんでした。身に覚えがなければ、デスクトップからやり直し、承認する前にコードを確認してください。"
+        },
+        "expired": {
+          "title": "コードの期限が切れました",
+          "body": "ペア設定コードは2分間有効で、一度だけ使えます。デスクトップで新しいコードを生成して、もう一度スキャンしてください。"
+        },
+        "error": {
+          "title": "ペア設定を完了できませんでした",
+          "body": "サービスが応答しなかったため、ペア設定も変更も行われませんでした。デスクトップで新しいコードを生成して、もう一度スキャンしてください。"
+        }
       },
       "pairedAs": "{label} としてペア設定済み",
       "openDashboard": "ダッシュボードを開く"

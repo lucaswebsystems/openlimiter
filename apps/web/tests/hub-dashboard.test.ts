@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Dashboard } from "@/app/app/dashboard";
 import { ONBOARDED_METADATA_KEY, onboardedStorageKey } from "@/lib/onboarding";
+import { pendingIntent, rememberIntent } from "@/lib/pending-intent";
 import { all, byText, flush, messages, render, type Mounted } from "./render";
 import * as cloudMeter from "@/lib/cloud-meter";
 
@@ -90,6 +91,7 @@ interface FakeClient {
   unsubscribes: number;
   updates: Record<string, unknown>[];
   auth: Record<string, unknown>;
+  functions: Record<string, unknown>;
 }
 
 let built: FakeClient[] = [];
@@ -99,6 +101,9 @@ let currentSession: unknown = null;
 let updateUserFails = false;
 let currentRead: () => Promise<unknown> = async () => ({ ok: false, reason: "signed_out" });
 let currentSpend: () => Promise<unknown> = async () => ({ ok: true, sources: [] });
+let currentEntitlement: unknown = null;
+let entitlementFails = false;
+let authCallback: ((event: string, session: unknown) => void) | null = null;
 
 /** A declaration rather than an expression: the module mock above calls it. */
 function makeClient(keep: boolean): unknown {
@@ -110,10 +115,12 @@ function makeClient(keep: boolean): unknown {
     unsubscribes: 0,
     updates: [],
     auth: {},
+    functions: {},
   };
   client.auth = {
     getSession: async () => ({ data: { session: currentSession } }),
-    onAuthStateChange: () => {
+    onAuthStateChange: (callback: (event: string, session: unknown) => void) => {
+      authCallback = callback;
       client.listens += 1;
       return {
         data: {
@@ -143,14 +150,24 @@ function makeClient(keep: boolean): unknown {
     signInWithOAuth: async () => ({ data: { url: null }, error: null }),
     signInWithOtp: async () => ({ data: {}, error: null }),
   };
+  client.functions = {
+    invoke: async (name: string) => {
+      if (name === "entitlement") {
+        return entitlementFails
+          ? { data: null, error: { context: { status: 500 } } }
+          : { data: { entitlement: currentEntitlement, devices: [] }, error: null };
+      }
+      return { data: { rows: [] }, error: null };
+    },
+  };
   built.push(client);
   return client;
 }
 
-function signedIn(metadata: Record<string, unknown> = {}): unknown {
+function signedIn(metadata: Record<string, unknown> = {}, id = "user-1"): unknown {
   return {
     user: {
-      id: "user-1",
+      id,
       email: "person@example.com",
       user_metadata: { full_name: "Ada Lovelace", ...metadata },
       app_metadata: { provider: "github" },
@@ -169,6 +186,9 @@ beforeEach(() => {
   updateUserFails = false;
   currentRead = async () => ({ ok: false, reason: "signed_out" });
   currentSpend = async () => ({ ok: true, sources: [] });
+  currentEntitlement = null;
+  entitlementFails = false;
+  authCallback = null;
   window.localStorage.clear();
   window.sessionStorage.clear();
 });
@@ -340,6 +360,99 @@ describe("a read that has not answered yet", () => {
     });
     await flush();
     expect(view.container.textContent).toContain(hub.empty.line);
+  });
+});
+
+describe("account bound reads", () => {
+  it("keeps an intent through initial session discovery, then clears it on sign out or account change", async () => {
+    window.history.replaceState(null, "", "/app?trial=1");
+    currentSession = null;
+    const view = await open();
+
+    await view.run(async () => {
+      authCallback?.("INITIAL_SESSION", null);
+      await flush();
+    });
+    expect(pendingIntent()).toEqual({ kind: "trial" });
+
+    await view.run(async () => {
+      authCallback?.("SIGNED_OUT", null);
+      await flush();
+    });
+    expect(pendingIntent()).toBeNull();
+
+    rememberIntent({ kind: "trial" });
+    await view.run(async () => {
+      authCallback?.("INITIAL_SESSION", signedIn({}, "user-1"));
+      authCallback?.("SIGNED_IN", signedIn({}, "user-2"));
+      await flush();
+    });
+    expect(pendingIntent()).toBeNull();
+    expect(view.container.textContent).not.toContain(hub.trial.alerts.title);
+  });
+
+  it("drops a late response from the previous account", async () => {
+    currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true }, "user-1");
+    let readCalls = 0;
+    let resolveA: ((value: unknown) => void) | null = null;
+    let resolveB: ((value: unknown) => void) | null = null;
+    let spendLabel = "account A";
+    currentRead = () => {
+      readCalls += 1;
+      if (readCalls === 1) return Promise.resolve({ ok: false, reason: "signed_out" });
+      return new Promise((resolve) => {
+        if (resolveA === null) resolveA = resolve;
+        else resolveB = resolve;
+      });
+    };
+    currentSpend = async () => ({
+      ok: true,
+      sources: [{
+        provider: "OPENROUTER",
+        accountLabel: spendLabel,
+        currency: "USD",
+        amountMinor: 100,
+        periodStart: "2026-09-01T00:00:00Z",
+        periodEnd: "2026-10-01T00:00:00Z",
+        observedAt: "2026-09-08T12:00:00Z",
+      }],
+    });
+    const view = await open();
+    expect(resolveA).not.toBeNull();
+
+    spendLabel = "account B";
+    await view.run(async () => {
+      authCallback?.("SIGNED_IN", signedIn({ [ONBOARDED_METADATA_KEY]: true }, "user-2"));
+      await flush(3);
+    });
+    expect(resolveB).not.toBeNull();
+
+    await view.run(async () => {
+      resolveA?.({ ok: true, providers: [] });
+      await flush(2);
+    });
+    expect(view.container.textContent).not.toContain("account A");
+
+    await view.run(async () => {
+      resolveB?.({ ok: true, providers: [] });
+      await flush(3);
+    });
+    expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, account B");
+  });
+
+  it("removes the previous plan when the new account plan read fails", async () => {
+    currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true }, "user-1");
+    currentEntitlement = null;
+    const view = await open();
+    expect(view.container.textContent).toContain(hub.trial.start);
+
+    entitlementFails = true;
+    await view.run(async () => {
+      authCallback?.("SIGNED_IN", signedIn({ [ONBOARDED_METADATA_KEY]: true }, "user-2"));
+      await flush(5);
+    });
+
+    expect(view.container.textContent).not.toContain(hub.trial.start);
   });
 });
 

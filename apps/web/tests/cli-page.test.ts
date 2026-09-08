@@ -61,6 +61,7 @@ vi.mock("@/lib/synced-usage", () => ({
 }));
 
 let currentSession: Session | null = null;
+let authCallback: ((event: string, session: Session | null) => void) | null = null;
 const currentInvoke: (name: string, options: unknown) => Promise<unknown> = async () => ({
   data: { ok: true, status: "approved" },
   error: null,
@@ -73,9 +74,12 @@ vi.mock("@/lib/account-client", async (importOriginal) => {
     createAccountClient: () => ({
       auth: {
         getSession: vi.fn(async () => ({ data: { session: currentSession }, error: null })),
-        onAuthStateChange: vi.fn(() => ({
-          data: { subscription: { unsubscribe: vi.fn() } },
-        })),
+        onAuthStateChange: vi.fn((callback: (event: string, session: Session | null) => void) => {
+          authCallback = callback;
+          return {
+            data: { subscription: { unsubscribe: vi.fn() } },
+          };
+        }),
         stopAutoRefresh: vi.fn(async () => {}),
         startAutoRefresh: vi.fn(async () => {}),
         signOut: vi.fn(async () => {}),
@@ -95,6 +99,7 @@ afterEach(() => {
   mounted = null;
   window.history.replaceState(null, "", "/app/cli");
   currentSession = null;
+  authCallback = null;
   window.sessionStorage.clear();
   window.localStorage.clear();
   vi.restoreAllMocks();
@@ -153,6 +158,28 @@ describe("06: pending authentication intent", () => {
     mounted = render(createElement(CliPage));
     await flush(4);
     expect(mounted.container.querySelector<HTMLInputElement>("input:not([type=checkbox])")?.value).toBe("ABCD2345");
+    expect(pendingIntent()).toBeNull();
+  });
+
+  it("keeps an intent through initial session discovery, clears on sign out, and clears on an account change", async () => {
+    window.history.replaceState(null, "", "/app/cli?code=ABCD2345");
+    mounted = render(createElement(CliPage));
+    await flush(4);
+
+    await mounted.run(async () => {
+      authCallback?.("INITIAL_SESSION", null);
+      await flush();
+    });
+    expect(pendingIntent()).toEqual({ kind: "cli", code: "ABCD2345" });
+
+    mounted.run(() => authCallback?.("SIGNED_OUT", null));
+    expect(pendingIntent()).toBeNull();
+
+    rememberIntent({ kind: "cli", code: "ABCD2345" });
+    mounted.run(() => {
+      authCallback?.("INITIAL_SESSION", fakeSession());
+      authCallback?.("SIGNED_IN", { ...fakeSession(), user: { ...fakeSession().user, id: "user-2" } });
+    });
     expect(pendingIntent()).toBeNull();
   });
 

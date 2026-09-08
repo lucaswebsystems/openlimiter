@@ -369,8 +369,15 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [spendFailed, setSpendFailed] = useState(false);
   const [cloudFailed, setCloudFailed] = useState(false);
   const readInFlight = useRef<Promise<void> | null>(null);
-  const readEpoch = useRef(0);
+  const accountGeneration = useRef(0);
+  const syncedRequestGeneration = useRef(0);
+  const entitlementRequestGeneration = useRef(0);
+  const authRequestGeneration = useRef(0);
+  const authStateGeneration = useRef(0);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const accountIdentity = session?.user.id ?? null;
+  const accountIdentityRef = useRef<string | null>(accountIdentity);
+  accountIdentityRef.current = accountIdentity;
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<ProviderDirectoryRow | null>(null);
   /**
@@ -402,6 +409,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const decidedFor = useRef<string | null>(null);
   /** The live auth listener, so a client being replaced takes its own with it. */
   const authListener = useRef<{ unsubscribe: () => void } | null>(null);
+  const authenticatedUserId = useRef<string | null>(null);
 
   const demo = mode === "demo";
 
@@ -465,12 +473,22 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   }, [deepLinkTrial, mounted, session]);
 
   useEffect(() => {
-    readEpoch.current += 1;
+    accountGeneration.current += 1;
+    syncedRequestGeneration.current += 1;
+    entitlementRequestGeneration.current += 1;
     readInFlight.current = null;
+    setSyncedUsage(null);
     setSyncedSpend([]);
     setCloudRows([]);
-    return () => { readEpoch.current += 1; };
-  }, [syncClient, syncEnabled, session?.user.id]);
+    setSpendFailed(false);
+    setCloudFailed(false);
+    setEntitlement(undefined);
+    return () => {
+      accountGeneration.current += 1;
+      syncedRequestGeneration.current += 1;
+      entitlementRequestGeneration.current += 1;
+    };
+  }, [syncClient, syncEnabled, accountIdentity]);
 
   const refreshSyncedUsage = useCallback((): Promise<void> => {
     if (!syncEnabled) {
@@ -483,13 +501,19 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
        the automatic poll below can tell when one call ends and the next may
        start: see hubPollIntervalMilliseconds. */
     if (readInFlight.current) return readInFlight.current;
-    const epoch = readEpoch.current;
+    const identityAtStart = accountIdentityRef.current;
+    const accountGenerationAtStart = accountGeneration.current;
+    const requestGenerationAtStart = ++syncedRequestGeneration.current;
     const request = Promise.allSettled([
       readSyncedUsage(syncClient),
       readSyncedApiSpend(syncClient),
       syncClient === null ? Promise.resolve(null) : listCloudKeys(syncClient),
     ]).then(([usage, spend, cloud]) => {
-      if (epoch !== readEpoch.current) return;
+      if (
+        accountGenerationAtStart !== accountGeneration.current ||
+        requestGenerationAtStart !== syncedRequestGeneration.current ||
+        identityAtStart !== accountIdentityRef.current
+      ) return;
       if (spend.status === "fulfilled" && spend.value.ok) {
         setSyncedSpend(spend.value.sources);
         setSpendFailed(false);
@@ -571,11 +595,21 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       setEntitlement(null);
       return;
     }
+    const identityAtStart = accountIdentityRef.current;
+    const accountGenerationAtStart = accountGeneration.current;
+    const requestGenerationAtStart = ++entitlementRequestGeneration.current;
+    const stillCurrent = () =>
+      accountGenerationAtStart === accountGeneration.current &&
+      requestGenerationAtStart === entitlementRequestGeneration.current &&
+      identityAtStart === accountIdentityRef.current;
     void readProAccount(syncClient).then(
       (result) => {
-        if (result.ok) setEntitlement(result.value.entitlement);
+        if (!stillCurrent()) return;
+        setEntitlement(result.ok ? result.value.entitlement : undefined);
       },
-      () => undefined,
+      () => {
+        if (stillCurrent()) setEntitlement(undefined);
+      },
     );
   }, [syncClient]);
 
@@ -607,14 +641,21 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    * was a moment earlier.
    */
   const attachAuthListener = useCallback(
-    (client: SupabaseClient) => {
-      const { data } = client.auth.onAuthStateChange((_event, next) => {
+    (client: SupabaseClient, requestGenerationAtStart: number) => {
+      const { data } = client.auth.onAuthStateChange((event, next) => {
+        if (requestGenerationAtStart !== authRequestGeneration.current) return;
+        authStateGeneration.current += 1;
+        const previousUserId = authenticatedUserId.current;
+        const nextUserId = next?.user.id ?? null;
+        const authenticatedAccountChanged =
+          previousUserId !== null && nextUserId !== null && previousUserId !== nextUserId;
+        authenticatedUserId.current = nextUserId;
         setSession(next);
         decideOpeningView(next);
         window.setTimeout(refreshSyncedUsage, 0);
         if (next !== null) window.setTimeout(refreshEntitlement, 0);
-        if (next === null) clearIntent();
-        else pendingIntent(next.user.id);
+        if (event === "SIGNED_OUT" || authenticatedAccountChanged) clearIntent();
+        else if (next !== null) pendingIntent(next.user.id);
       });
       authListener.current = data.subscription;
     },
@@ -625,27 +666,46 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     refreshSyncedUsage();
     if (syncClient === null) {
       setSession(null);
-      return;
+      return () => {
+        authRequestGeneration.current += 1;
+      };
     }
+    const requestGenerationAtStart = ++authRequestGeneration.current;
+    const authStateGenerationAtStart = authStateGeneration.current;
     setSession(null);
     void syncClient.auth
       .getSession()
       .then(({ data }) => {
+        if (
+          requestGenerationAtStart !== authRequestGeneration.current ||
+          authStateGenerationAtStart !== authStateGeneration.current
+        ) return;
+        authenticatedUserId.current = data.session?.user.id ?? null;
         setSession(data.session);
         decideOpeningView(data.session);
-        if (data.session !== null) refreshEntitlement();
       })
-      .catch(() => setSession(null));
-    attachAuthListener(syncClient);
+      .catch(() => {
+        if (
+          requestGenerationAtStart === authRequestGeneration.current &&
+          authStateGenerationAtStart === authStateGeneration.current
+        ) setSession(null);
+      });
+    attachAuthListener(syncClient, requestGenerationAtStart);
     window.addEventListener("focus", refreshSyncedUsage);
     return () => {
       /* The switch may already have dropped it. Unsubscribing twice is safe;
          leaving a listener attached to an abandoned client is not. */
       authListener.current?.unsubscribe();
       authListener.current = null;
+      authRequestGeneration.current += 1;
       window.removeEventListener("focus", refreshSyncedUsage);
     };
   }, [attachAuthListener, decideOpeningView, refreshEntitlement, refreshSyncedUsage, syncClient]);
+
+  useEffect(() => {
+    if (session?.user.id === undefined) return;
+    refreshEntitlement();
+  }, [refreshEntitlement, session?.user.id]);
 
   /**
    * The deep link, honoured once the reader is actually signed in.
@@ -657,6 +717,10 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    */
   useEffect(() => {
     if (!deepLinkTrial || session === null || session === undefined) return;
+    if (pendingIntent(session.user.id)?.kind !== "trial") {
+      setDeepLinkTrial(false);
+      return;
+    }
     setDeepLinkTrial(false);
     clearIntent();
     const url = new URL(window.location.href);
@@ -689,9 +753,10 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       await stopAccountClient(syncClient);
       authListener.current?.unsubscribe();
       authListener.current = null;
+      authRequestGeneration.current += 1;
       if (!applyKeepSignedIn(next)) {
         await resumeAccountClient(syncClient);
-        if (syncClient !== null) attachAuthListener(syncClient);
+        if (syncClient !== null) attachAuthListener(syncClient, authRequestGeneration.current);
         return false;
       }
       writeKeepSignedIn(next);

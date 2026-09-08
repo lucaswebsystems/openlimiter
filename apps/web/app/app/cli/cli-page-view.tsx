@@ -114,6 +114,7 @@ export function CliPageView({
   const [phase, setPhase] = useState<"idle" | "approved" | "denied">("idle");
   const [error, setError] = useState<CliLoginErrorCode | "unavailable" | null>(null);
   const pendingCode = useRef<string | null>(null);
+  const authenticatedUserId = useRef<string | null>(null);
 
   useEffect(() => {
     if (propSession !== undefined) {
@@ -130,6 +131,7 @@ export function CliPageView({
       .then(({ data }) => {
         if (live) {
           setSession(data.session);
+          authenticatedUserId.current = data.session?.user.id ?? null;
           if (data.session !== null) pendingIntent(data.session.user.id);
         }
       })
@@ -137,11 +139,16 @@ export function CliPageView({
         if (live) setSession(null);
       });
 
-    const { data } = syncClient.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = syncClient.auth.onAuthStateChange((event, nextSession) => {
       if (live) {
+        const previousUserId = authenticatedUserId.current;
+        const nextUserId = nextSession?.user.id ?? null;
+        const authenticatedAccountChanged =
+          previousUserId !== null && nextUserId !== null && previousUserId !== nextUserId;
+        authenticatedUserId.current = nextUserId;
         setSession(nextSession);
-        if (nextSession === null) clearIntent();
-        else pendingIntent(nextSession.user.id);
+        if (event === "SIGNED_OUT" || authenticatedAccountChanged) clearIntent();
+        else if (nextSession !== null) pendingIntent(nextSession.user.id);
       }
     });
     authListener.current = data.subscription;

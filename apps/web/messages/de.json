@@ -930,18 +930,18 @@
     },
     "pages": {
       "index": {
-        "title": "Get started",
-        "metaTitle": "Get started: sign in, connect, see your bars",
-        "description": "Sign in, connect the AI accounts you already pay for, and see your bars. Bars stay free with no account at all.",
-        "lead": "OpenLimiter meters the AI subscriptions you already pay for. Bars render from your own machine with no account. Sign in and the same bars sync between your devices, and a free 30 day trial with no card unlocks the rest.",
+        "title": "Loslegen",
+        "metaTitle": "Loslegen: anmelden, verbinden, Balken sehen",
+        "description": "Melden Sie sich an, verbinden Sie die KI Konten, für die Sie bereits bezahlen, und sehen Sie Ihre Balken. Balken bleiben ohne Konto kostenlos.",
+        "lead": "OpenLimiter misst die KI Abonnements, für die Sie bereits bezahlen. Balken werden ohne Konto auf Ihrem eigenen Computer angezeigt. Nach der Anmeldung werden dieselben Balken zwischen Ihren Geräten synchronisiert. Eine kostenlose Testphase von 30 Tagen ohne Kreditkarte schaltet die übrigen Funktionen frei.",
         "sections": {
           "what-you-need": {
-            "title": "What you need",
+            "title": "Was Sie brauchen",
             "bullets": {
-              "node": "Node 24 or newer, for the terminal.",
-              "npm": "npm, which ships with Node."
+              "node": "Node 24 oder neuer für das Terminal.",
+              "npm": "npm wird mit Node geliefert."
             },
-            "local": "Nothing local is ever paywalled. The desktop app and the terminal both show bars with no account, and an account only adds sync on top of that."
+            "local": "Nichts Lokales ist jemals kostenpflichtig. Die Desktopanwendung und das Terminal zeigen Balken ohne Konto. Ein Konto ergänzt nur die Synchronisierung."
           },
           "terminal": {
             "title": "Terminal",
@@ -973,26 +973,26 @@
             "body": "Öffnen Sie die Zentrale, wählen Sie Ihr Telefon und scannen Sie den angezeigten QR Code. Die Kopplung benötigt keine Eingabe. Fügen Sie die Seite zum Startbildschirm hinzu: Android bietet eine Installation an. Unter iOS wählen Sie Teilen und dann Zum Home Bildschirm."
           },
           "claude-code": {
-            "title": "Wire Claude Code by hand",
-            "intro": "<code>openlimiter terminal</code> does this for you. To see exactly what it writes, or to wire a machine without running it interactively, add this to Claude Code's <code>settings.json</code> yourself.",
-            "calloutTitle": "The hook cannot break your session",
-            "calloutBody": "The statusline is the only path that writes. The hook reads the cache, makes no network request of any kind, injects nothing when every provider is unknown, and exits 0 whatever happens."
+            "title": "Claude Code manuell verbinden",
+            "intro": "<code>openlimiter terminal</code> erledigt das für Sie. Um genau zu sehen, was geschrieben wird, oder einen Computer ohne interaktive Ausführung zu verbinden, fügen Sie dies selbst zu <code>settings.json</code> von Claude Code hinzu.",
+            "calloutTitle": "Der Hook kann Ihre Sitzung nicht unterbrechen",
+            "calloutBody": "Nur die Statuszeile schreibt. Der Hook liest den Cache, stellt keinerlei Netzwerkanfrage, fügt nichts ein, wenn alle Anbieter unbekannt sind, und beendet sich immer mit 0."
           },
           "from-source": {
-            "title": "Contribute from source",
-            "intro": "Use the repository toolchain when you want to contribute.",
+            "title": "Aus dem Quellcode beitragen",
+            "intro": "Verwenden Sie die Werkzeuge des Repositorys, wenn Sie beitragen möchten.",
             "terminalLabel": "terminal",
-            "buildOrder": "The build has to run before the type check, because each package resolves its neighbours through the declaration files the build produces."
+            "buildOrder": "Der Build muss vor der Typprüfung laufen, weil jedes Paket seine Nachbarn über die erzeugten Deklarationsdateien auflöst."
           },
           "where-next": {
-            "title": "Where next",
+            "title": "Wie es weitergeht",
             "reading-order": {
-              "title": "A reasonable reading order",
+              "title": "Eine sinnvolle Reihenfolge",
               "steps": {
-                "why": "<docs>Why OpenLimiter</docs> for the problem this solves.",
-                "providers": "<docs>Supported providers</docs> for exactly how each one connects, and what OpenLimiter never does.",
-                "agentContext": "<docs>Agent context</docs> for the terminal hosts, the bar grammar, and what reaches your coding agent.",
-                "cli": "<docs>CLI reference</docs> for every command and exit code."
+                "why": "<docs>Warum OpenLimiter</docs> für das Problem, das es löst.",
+                "providers": "<docs>Unterstützte Anbieter</docs> für die genaue Verbindung und dafür, was OpenLimiter niemals tut.",
+                "agentContext": "<docs>Agentenkontext</docs> für Terminalprogramme, Balkenformat und das, was Ihren Coding Agenten erreicht.",
+                "cli": "<docs>CLI Referenz</docs> für jeden Befehl und jeden Exit Code."
               }
             }
           }
@@ -2175,6 +2175,35 @@
         "title": "Der Dienst hat nicht geantwortet",
         "body": "An der Kopplung hat sich nichts geändert. Dieses Telefon versucht es von selbst erneut.",
         "staleMark": "Veraltet"
+      },
+      "setup": {
+        "reading": {
+          "title": "Code wird gelesen",
+          "body": "Einen Moment. Bisher wurde nichts gesendet."
+        },
+        "noCode": {
+          "title": "Dieser Link enthält keinen Kopplungscode",
+          "body": "Die Desktop Anwendung erzeugt einen Kopplungscode, der zwei Minuten gültig ist. Öffnen Sie OpenLimiter auf Ihrem Computer, gehen Sie zu Geräte, wählen Sie Telefon koppeln und scannen Sie den angezeigten Code."
+        },
+        "waiting": {
+          "title": "Warten auf Bestätigung",
+          "computer": "Ihr Computer fragt, ob dieses Telefon vertrauenswürdig ist. Bestätigen Sie dort, dann geht diese Seite automatisch weiter.",
+          "check": "Prüfen Sie, ob der Desktop dieselben acht Zeichen anzeigt.",
+          "expires": "Dieser Code läuft in {seconds} Sekunden ab.",
+          "access": "Das Telefon erhält nur Lesezugriff. Es kann Ihr Konto niemals ändern oder etwas hochladen."
+        },
+        "denied": {
+          "title": "Der Desktop hat abgelehnt",
+          "body": "Die Kopplung wurde auf Ihrem Computer abgelehnt. Dieses Telefon hat daher nichts erhalten. Wenn Sie das nicht waren, starten Sie den Vorgang am Desktop neu und prüfen Sie den Code vor der Bestätigung."
+        },
+        "expired": {
+          "title": "Dieser Code ist abgelaufen",
+          "body": "Ein Kopplungscode ist zwei Minuten gültig und kann einmal verwendet werden. Erzeugen Sie am Desktop einen neuen Code und scannen Sie ihn erneut."
+        },
+        "error": {
+          "title": "Die Kopplung konnte nicht abgeschlossen werden",
+          "body": "Der Dienst hat nicht geantwortet. Daher wurde nichts gekoppelt und nichts geändert. Erzeugen Sie am Desktop einen neuen Code und scannen Sie ihn erneut."
+        }
       },
       "pairedAs": "Gekoppelt als {label}",
       "openDashboard": "Dashboard öffnen"

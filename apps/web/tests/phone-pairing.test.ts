@@ -1118,27 +1118,111 @@ describe("the pair page", () => {
     expect(mounted.container.textContent).toContain(hub.pairPage.bars.title);
   });
 
-  it("goes from approval straight to cookies, never through local storage", async () => {
+  it("claims, receives approval, and establishes cookies without retaining credentials", async () => {
     window.history.replaceState(null, "", "/app/pair#code=ABCD2345");
-    const seen: string[] = [];
+    const seen: unknown[] = [];
+    let sessionEstablished = false;
+    let pollCalls = 0;
     vi.stubGlobal(
       "fetch",
       fetchRoutedTo({
+        "/functions/v1/pair-device": (init) => {
+          const body = JSON.parse(String(init.body)) as { action: string };
+          if (body.action === "claim") {
+            return new Response(
+              JSON.stringify({ claim_id: "8f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f", expires_at: NOW / 1_000 + 120 }),
+              { status: 200 },
+            );
+          }
+          pollCalls += 1;
+          return new Response(
+            JSON.stringify({
+              status: "approved",
+              token: "read.token",
+              expires_at: NOW / 1_000 + 86_400,
+              refresh_credential: "credential.one",
+              refresh_expires_at: NOW / 1_000 + 2_592_000,
+            }),
+            { status: 200 },
+          );
+        },
         "/app/pair/api/session": (init) => {
-          seen.push(String(init.body));
+          if (init.method === "POST") {
+            seen.push(JSON.parse(String(init.body)));
+            sessionEstablished = true;
+          }
           return new Response(JSON.stringify({ ok: true }), { status: 200 });
         },
+        "/app/pair/api/read": () => sessionEstablished
+          ? new Response(JSON.stringify({ body: { rows: [] } }), { status: 200 })
+          : new Response(JSON.stringify({ error: "no_pair" }), { status: 401 }),
       }),
     );
-    /* The claim call goes to pro-service directly (unchanged), so this test
-       drives the poll answer through the pure state machine instead of a
-       second fetch route, keeping the fetch stub focused on the session
-       route this test is actually about. */
     mounted = render(createElement(PairFlow));
-    await flush(4);
-    /* Nothing under this key exists: the secrets never reach local storage. */
+    await flush(10);
+
+    expect(pollCalls).toBe(1);
+    expect(seen).toEqual([{
+      token: "read.token",
+      expires_at: NOW / 1_000 + 86_400,
+      refresh_credential: "credential.one",
+      refresh_expires_at: NOW / 1_000 + 2_592_000,
+    }]);
+    expect(readPhonePairMeta()).not.toBeNull();
     expect(window.localStorage.getItem("openlimiter-phone-pair")).toBeNull();
-    expect(window.localStorage.getItem(PHONE_PAIR_META_KEY)).toBeNull();
+    const stored = Object.keys(window.localStorage)
+      .map((key) => window.localStorage.getItem(key) ?? "")
+      .join("\n");
+    expect(stored).not.toContain("read.token");
+    expect(stored).not.toContain("credential.one");
+  });
+
+  it("clears the delivered credentials when cookie establishment fails", async () => {
+    window.history.replaceState(null, "", "/app/pair#code=ABCD2345");
+    const seen: unknown[] = [];
+    let pollCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      fetchRoutedTo({
+        "/functions/v1/pair-device": (init) => {
+          const body = JSON.parse(String(init.body)) as { action: string };
+          if (body.action === "claim") {
+            return new Response(
+              JSON.stringify({ claim_id: "8f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f", expires_at: NOW / 1_000 + 120 }),
+              { status: 200 },
+            );
+          }
+          pollCalls += 1;
+          return new Response(
+            JSON.stringify({
+              status: "approved",
+              token: "read.token",
+              expires_at: NOW / 1_000 + 86_400,
+              refresh_credential: "credential.one",
+              refresh_expires_at: NOW / 1_000 + 2_592_000,
+            }),
+            { status: 200 },
+          );
+        },
+        "/app/pair/api/session": (init) => {
+          if (init.method === "POST") seen.push(JSON.parse(String(init.body)));
+          return new Response(JSON.stringify({ error: "unavailable" }), { status: 503 });
+        },
+        "/app/pair/api/read": () => new Response(JSON.stringify({ error: "no_pair" }), { status: 401 }),
+      }),
+    );
+    mounted = render(createElement(PairFlow));
+    await flush(10);
+
+    expect(pollCalls).toBe(1);
+    expect(seen).toHaveLength(1);
+    expect(readPhonePairMeta()).toBeNull();
+    expect(mounted.container.textContent).toContain(hub.pairPage.setup.error.title);
+    const stored = Object.keys(window.localStorage)
+      .map((key) => window.localStorage.getItem(key) ?? "")
+      .join("\n");
+    expect(stored).not.toContain("read.token");
+    expect(stored).not.toContain("credential.one");
   });
 
   it("keeps the last bars with the stale mark when a renewed read fails", async () => {

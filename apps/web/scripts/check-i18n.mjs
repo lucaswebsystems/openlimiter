@@ -194,6 +194,8 @@ for (const [path, value] of sourceLeaves) {
     fail(`${SOURCE}: ${path} is ${Array.isArray(value) ? "an array" : typeof value}, not a string`);
   } else if (value.trim() === "") {
     fail(`${SOURCE}: ${path} is empty`);
+  } else if (!isTechnicalKey(path) && hasForbiddenProseDash(value)) {
+    fail(`${SOURCE}: ${path} contains a forbidden dash`);
   }
 }
 
@@ -231,7 +233,7 @@ for (const file of locales) {
     }
 
     if (value === expected) same += 1;
-    if (!isTechnicalKey(path) && /\s/u.test(value.trim()) && hasForbiddenProseDash(value)) {
+    if (!isTechnicalKey(path) && hasForbiddenProseDash(value)) {
       fail(`${file}: ${path} contains a forbidden dash`);
     }
     if (untranslatedProse(file.replace(/\.json$/, ""), path, expected, value, LEGACY_PROSE)) {

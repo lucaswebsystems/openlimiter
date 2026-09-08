@@ -34,7 +34,6 @@ function waiting(overrides: Partial<PairState> = {}): PairState {
     expiresAt: null,
     pollInterval: PAIRING_POLL_MILLISECONDS,
     session: null,
-    phonePair: null,
     ...overrides,
   };
 }
@@ -174,6 +173,7 @@ describe("pairStateAfterPoll", () => {
   it("stores the session on the one delivery", () => {
     const next = pairStateAfterPoll(waiting(), DELIVERY, 200);
     expect(next.phase).toBe("approved");
+    expect("phonePair" in next).toBe(false);
     expect(next.session).toMatchObject({
       token: "signed.phone.token",
       refreshAfter: 1_800,
