@@ -221,6 +221,7 @@ const WINDOW_FILES = [
   "theme.css",
   "app.css",
   "app.js",
+  "home-state.js",
   "backend.js",
   "configured-providers.js",
   "connections.js",

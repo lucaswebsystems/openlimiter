@@ -105,6 +105,7 @@ import {
   testProvider,
 } from "./backend.js";
 import { readConfiguredProviders } from "./configured-providers.js";
+import { homeSnapshots, homeProviders, homeCard } from "./home-state.js";
 /* Every value on a failure card came off a file this window did not write, so
    the card is built out of nodes and text rather than out of a markup string. */
 import { buildFailureRow } from "./failure-rows.js";
@@ -114,7 +115,7 @@ import {
   noteMetersRefreshed,
   openProviderConnection,
 } from "./connections.js";
-import { initFirstRun } from "./first-run.js";
+import { initFirstRun, claudePollRow } from "./first-run.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
@@ -848,13 +849,23 @@ elements.bell?.addEventListener("click", () => {
   }
 });
 
+function positionPhonePopover() {
+  const bottom = elements.phoneButton?.getBoundingClientRect().bottom ?? 64;
+  elements.phonePopover?.style.setProperty("--phone-popover-top", `${Math.max(8, Math.min(bottom + 8, window.innerHeight - 96))}px`);
+}
+window.addEventListener("resize", positionPhonePopover);
+window.addEventListener("scroll", positionPhonePopover, true);
+
 elements.phoneButton?.addEventListener("click", () => {
   if (elements.phonePopover === null) return;
   const opening = elements.phonePopover.hidden;
   closeHeaderPopovers();
   elements.phonePopover.hidden = !opening;
   elements.phoneButton.setAttribute("aria-expanded", opening ? "true" : "false");
-  if (opening) pairingPanelOpened();
+  if (opening) {
+    positionPhonePopover();
+    pairingPanelOpened();
+  }
 });
 
 elements.menuButton?.addEventListener("click", () => {
@@ -868,6 +879,7 @@ elements.menuButton?.addEventListener("click", () => {
 document.addEventListener("click", (event) => {
   if (
     event.target instanceof Node &&
+    !elements.phonePopover?.contains(event.target) &&
     !event.target.parentElement?.closest(".strip")
   ) {
     closeHeaderPopovers();
@@ -1160,8 +1172,22 @@ async function refresh() {
   refreshing = true;
   try {
     const now = new Date().toISOString();
-    const { snapshots, failures } = await collect(now);
-    const configuredProviders = readConfiguredProviders();
+    const [collected, detectionResult, connectionResult, pollResult] = await Promise.all([
+      collect(now), listDetectedProviders(), listConnections(), claudePollEnabled(),
+    ]);
+    const snapshots = homeSnapshots(collected.snapshots);
+    const { failures } = collected;
+    const detections = detectionResult.ok ? detectionResult.value : null;
+    const connections = connectionResult.ok ? normalizeConnectionList(connectionResult.value) : [];
+    const configuredProviders = homeProviders(readConfiguredProviders(), detections, connections, snapshots);
+    const pollEnabled = pollResult.ok ? pollResult.value === true : null;
+    const pollMount = document.getElementById("claude-poll-control");
+    if (pollMount && !pollMount.querySelector("input:disabled")) {
+      pollMount.replaceChildren(claudePollRow(
+        { setClaudePoll: setClaudePollEnabled }, pollEnabled,
+        () => void refresh(), "connection-claude-poll",
+      ));
+    }
     const visible = snapshots.filter((snapshot) =>
       configuredProviders.includes(snapshot.provider)
     );
@@ -1203,9 +1229,15 @@ async function refresh() {
       now,
       visibleFailures,
       { providers: configuredProviders }
-    ).filter((row) => row.windows.length > 0);
+    );
     for (const row of providerRows) {
-      elements.rows.append(createProviderRowElement(row));
+      elements.rows.append(homeCard(row, {
+        detections, connections, pollEnabled, createRow: createProviderRowElement,
+        openConnection: (provider) => {
+          selectTab(TAB_CONNECTIONS, true);
+          openProviderConnection(provider);
+        },
+      }));
     }
 
     if (elements.loading !== null) elements.loading.hidden = true;

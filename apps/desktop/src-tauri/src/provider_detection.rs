@@ -288,6 +288,8 @@ pub struct DetectionReport {
     pub version: u8,
     pub scanned_at: String,
     pub providers: Vec<ProviderDetection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub antigravity_running: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1744,6 +1746,7 @@ fn scan_inventory(context: &DiscoveryContext, now_ms: u64) -> Inventory {
     }
     Inventory {
         report: DetectionReport {
+            antigravity_running: None,
             version: 1,
             scanned_at,
             providers,

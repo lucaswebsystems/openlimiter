@@ -578,7 +578,7 @@ pub fn parse_body(
     now_ms: u64,
     account_id: &str,
 ) -> Option<Vec<Snapshot>> {
-    match reader {
+    let mut rows = match reader {
         ReaderId::OpenrouterKey | ReaderId::OpenrouterCredits => {
             parse_openrouter(body, now_ms, account_id)
         }
@@ -587,7 +587,16 @@ pub fn parse_body(
         ReaderId::OpencodeUsage => parse_opencode(body, now_ms, account_id),
         ReaderId::GrokUsage => parse_grok(body, now_ms, account_id),
         ReaderId::KimiUsage => parse_kimi(body, now_ms, account_id),
+    }?;
+    // A reading remains live for its provider cadence, not a one minute
+    // repaint budget. Explicit only readers retain their existing expiry.
+    if reader.base_seconds() > 0 {
+        let expires = iso_from_epoch_ms(now_ms.saturating_add(reader.base_seconds() * 1_000))?;
+        for row in &mut rows {
+            row.expires_at = expires.clone();
+        }
     }
+    Some(rows)
 }
 
 #[cfg(test)]
@@ -637,6 +646,10 @@ mod tests {
         for (reader, body, provider) in cases {
             let rows = parse_body(reader, &body, now(), ACCOUNT).expect("readable fixture");
             assert!(!rows.is_empty());
+            assert!(rows.iter().all(|row| {
+                epoch_ms_from_rfc3339(&row.expires_at)
+                    == Some(now() + reader.base_seconds() * 1_000)
+            }));
             assert!(rows.iter().all(|row| {
                 row.provider == provider
                     && row.account_id.as_deref() == Some(ACCOUNT)

@@ -1642,7 +1642,7 @@ body > .tabs {
     gap: var(--ol-space-4);
   }
 
-  .provider-rows > openlimiter-provider-row {
+  .provider-rows > .home-provider-card {
     grid-column: span 6;
     /* The element is the card, so the height has to reach the row it is in
        and then through the shadow boundary to the card inside it. */

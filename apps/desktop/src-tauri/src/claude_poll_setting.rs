@@ -20,6 +20,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 
 /// Where the answer lives, beside the product's other state.
 const SETTING_FILE_NAME: &str = "claude-poll.json";
@@ -78,7 +79,8 @@ impl ClaudePollSetting {
     /// and the next launch would read the file that still says off and have no
     /// idea it had ever happened. A switch that turns on when its own storage
     /// failed is a switch nobody consented to.
-    pub fn set(&self, enabled: bool) -> Result<(), String> {
+    pub fn set(&self, enabled: bool) -> Result<bool, String> {
+        let mut held = self.enabled.lock().map_err(|_| storage_error())?;
         let path = self.file.as_ref().ok_or_else(storage_error)?;
         let parent = path.parent().ok_or_else(storage_error)?;
         crate::fsx::ensure_private_dir(parent).map_err(|_| storage_error())?;
@@ -88,8 +90,15 @@ impl ClaudePollSetting {
         })
         .map_err(|_| storage_error())?;
         crate::fsx::atomic_write(path, &encoded).map_err(|_| storage_error())?;
-        let mut held = self.enabled.lock().map_err(|_| storage_error())?;
+        let newly_enabled = enabled && !*held;
         *held = enabled;
+        Ok(newly_enabled)
+    }
+
+    fn set_and_poll(&self, enabled: bool, poll: impl FnOnce()) -> Result<(), String> {
+        if self.set(enabled)? {
+            poll();
+        }
         Ok(())
     }
 }
@@ -109,8 +118,18 @@ pub fn claude_poll_enabled(setting: tauri::State<'_, ClaudePollSetting>) -> bool
 pub fn set_claude_poll_enabled(
     enabled: bool,
     setting: tauri::State<'_, ClaudePollSetting>,
+    app: tauri::AppHandle,
 ) -> Result<bool, String> {
-    setting.set(enabled)?;
+    setting.set_and_poll(enabled, || {
+        tauri::async_runtime::spawn(async move {
+            let multi_account = crate::pro::multi_account_enabled(
+                &*app.state::<crate::credentials::KeyringStore>(),
+            );
+            crate::claude_oauth::run_pass(&app, if multi_account { usize::MAX } else { 1 }).await;
+            use tauri::Emitter;
+            let _ = app.emit(crate::collector_runtime::COLLECTOR_UPDATED_EVENT, ());
+        });
+    })?;
     Ok(setting.enabled())
 }
 
@@ -118,6 +137,25 @@ pub fn set_claude_poll_enabled(
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
+
+    #[test]
+    fn enabling_polls_immediately_once_and_only_after_persistence() {
+        let dir = TempDir::new();
+        let setting = ClaudePollSetting::at(Some(dir.path().to_path_buf()));
+        let polls = std::cell::Cell::new(0);
+        for enabled in [false, true, true, false] {
+            setting
+                .set_and_poll(enabled, || {
+                    assert!(ClaudePollSetting::at(Some(dir.path().to_path_buf())).enabled());
+                    polls.set(polls.get() + 1);
+                })
+                .unwrap();
+        }
+        assert_eq!(polls.get(), 1);
+        let unavailable = ClaudePollSetting::at(None);
+        assert!(unavailable.set_and_poll(true, || polls.set(99)).is_err());
+        assert_eq!(polls.get(), 1);
+    }
 
     #[test]
     fn a_fresh_machine_does_not_poll_anthropic() {

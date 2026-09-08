@@ -118,6 +118,21 @@ const ENUMERATION_BUDGET_SECONDS: u64 = 8;
 pub trait AgyPorts: Clone + Send + Sync + 'static {
     /// Ports a verified `agy` is listening on, on the loopback address.
     fn listening(&self) -> Vec<u16>;
+
+    /// Process presence is separate from whether the quota listener answered.
+    /// An unavailable inventory must not claim that the application is closed.
+    fn running(&self) -> Option<bool> {
+        None
+    }
+}
+
+pub async fn running_state<P: AgyPorts>(ports: &P) -> Option<bool> {
+    let owned = ports.clone();
+    let task = tauri::async_runtime::spawn_blocking(move || owned.running());
+    tokio::time::timeout(Duration::from_secs(ENUMERATION_BUDGET_SECONDS), task)
+        .await
+        .ok()?
+        .ok()?
 }
 
 /// The enumeration, off the async runtime and under a deadline.
@@ -504,6 +519,24 @@ pub(crate) fn owned_agy_pids(report: &str, roots: &[PathBuf]) -> Vec<u32> {
 
 #[cfg(windows)]
 impl AgyPorts for SystemAgyPorts {
+    fn running(&self) -> Option<bool> {
+        let query = concat!(
+            "$ErrorActionPreference='Stop'; try {",
+            "$items=@(Get-CimInstance Win32_Process -Filter \"Name='agy.exe'\");",
+            "if ($items.Count -gt 0) {'running'} else {'stopped'}",
+            "} catch {'unavailable'}"
+        );
+        let report = bounded_output(
+            "powershell",
+            &["-NoProfile", "-NonInteractive", "-Command", query],
+        )?;
+        match report.trim() {
+            "running" => Some(true),
+            "stopped" => Some(false),
+            _ => None,
+        }
+    }
+
     fn listening(&self) -> Vec<u16> {
         /*
          * The processes worth talking to, and only those.
@@ -697,6 +730,26 @@ mod tests {
 
     #[derive(Clone)]
     struct StubPorts(Vec<u16>);
+
+    #[derive(Clone)]
+    struct Presence(Option<bool>);
+
+    impl AgyPorts for Presence {
+        fn listening(&self) -> Vec<u16> {
+            panic!("process presence must not depend on a quota listener")
+        }
+
+        fn running(&self) -> Option<bool> {
+            self.0
+        }
+    }
+
+    #[tokio::test]
+    async fn process_presence_distinguishes_closed_from_an_unavailable_inventory() {
+        for presence in [Some(true), Some(false), None] {
+            assert_eq!(running_state(&Presence(presence)).await, presence);
+        }
+    }
 
     impl AgyPorts for StubPorts {
         fn listening(&self) -> Vec<u16> {

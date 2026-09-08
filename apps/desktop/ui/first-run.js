@@ -848,12 +848,12 @@ function connectRow(provider, detection, signals, options, redraw, pollEnabled, 
   return row;
 }
 
-function claudePollRow(options, enabled) {
+export function claudePollRow(options, enabled, onPersisted, id = "first-run-claude-poll") {
   const wrapper = element("div", "first-run-poll");
   const label = element("label", "first-run-poll-label");
   const input = document.createElement("input");
   input.type = "checkbox";
-  input.id = "first-run-claude-poll";
+  input.id = id;
   input.checked = enabled === true;
   const words = element("span", null, CLAUDE_POLL_LABEL);
   label.append(input, words);

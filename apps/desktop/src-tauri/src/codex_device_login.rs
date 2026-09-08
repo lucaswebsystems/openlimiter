@@ -631,14 +631,17 @@ fn quota_state(outcome: &crate::codex_oauth::CodexOutcome) -> DeviceLoginQuotaSt
 /// by its own timer. Calling `state` is enough: it already knows how to tell
 /// a credential that arrived in time from one that never did, and how to stop
 /// the client either way.
-fn arm_deadline_timer(session: &Arc<DeviceLoginSession>, timeout: Duration) {
+fn arm_deadline_timer(
+    session: &Arc<DeviceLoginSession>,
+    timeout: Duration,
+) -> std::thread::JoinHandle<()> {
     let session = Arc::downgrade(session);
     std::thread::spawn(move || {
         std::thread::sleep(timeout);
         if let Some(session) = session.upgrade() {
             let _ = session.state(Instant::now());
         }
-    });
+    })
 }
 
 /// The real runner.
@@ -1495,6 +1498,7 @@ mod tests {
     /// before it ever checks the clock.
     #[test]
     fn the_backend_timer_leaves_a_completed_login_completed() {
+        let dir = TempDir::new();
         let stub = runner(
             &[
                 "Open https://auth.openai.com/device",
@@ -1502,16 +1506,23 @@ mod tests {
             ],
             false,
         );
-        let (session, _) = DeviceLoginSession::start_with_timeout(
-            &stub,
-            &session_id(),
-            Instant::now(),
-            Duration::from_millis(20),
-        )
-        .expect("a started login");
+        let session = Arc::new(DeviceLoginSession {
+            home: dir.path().to_path_buf(),
+            child: Mutex::new(stub.start(dir.path()).expect("a started client")),
+            deadline: Instant::now(),
+            cancelled: Mutex::new(false),
+        });
+        // Establish completion before arming the timer. Writing a fixture
+        // after starting a 20 ms timer races the filesystem and scheduler.
         std::fs::write(session.home().join(CREDENTIAL_FILE), "{\"stub\":true}")
             .expect("stub credential");
-        std::thread::sleep(Duration::from_millis(200));
+        assert!(matches!(
+            session.state(Instant::now()),
+            DeviceLoginState::Complete { .. }
+        ));
+        arm_deadline_timer(&session, Duration::ZERO)
+            .join()
+            .expect("the backend timer completed");
         assert!(matches!(
             session.state(Instant::now()),
             DeviceLoginState::Complete { .. }

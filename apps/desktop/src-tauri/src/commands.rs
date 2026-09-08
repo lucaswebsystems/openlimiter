@@ -1070,8 +1070,12 @@ pub fn detect_local_tools() -> LocalToolDetection {
 }
 
 #[tauri::command]
-pub fn list_detected_providers(detection: State<'_, DetectionStore>) -> DetectionReport {
-    detection.report()
+pub async fn list_detected_providers(app: tauri::AppHandle) -> DetectionReport {
+    use tauri::Manager;
+    let mut report = app.state::<DetectionStore>().report();
+    report.antigravity_running =
+        crate::antigravity_local::running_state(&crate::antigravity_local::SystemAgyPorts).await;
+    report
 }
 
 #[tauri::command]

@@ -283,9 +283,6 @@
         </div>
         <div id="notification-events" class="notification-events"><p>No recent notifications.</p></div>
       </div>
-      <div id="phone-popover" class="header-popover" hidden>
-        <div id="phone-panel-body" class="phone-panel"></div>
-      </div>
       <div id="app-menu" class="header-popover app-menu" hidden>
         <div class="menu-account">
           <strong id="menu-account-email">Signed out</strong>
@@ -488,6 +485,7 @@
           </p>
           <p id="claude-detail" class="conn-detail"></p>
           <div id="claude-body"></div>
+          <div id="claude-poll-control"></div>
           <p id="claude-note" class="conn-note" role="status"></p>
           <details class="conn-why-needed">
             <summary>Details</summary>
@@ -754,6 +752,9 @@
       </footer>
     </main>
 
+    <div id="phone-popover" class="header-popover phone-popover-portal" hidden>
+      <div id="phone-panel-body" class="phone-panel"></div>
+    </div>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
