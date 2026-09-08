@@ -2,6 +2,19 @@
 
 All notable project changes appear in this file.
 
+## [1.3.3] (2026-09-08)
+
+CLI and packages only; the desktop stays at 1.3.1 and the site ships the matching web fixes.
+
+### Fixed
+
+- Sign in: the device code login proves and acknowledges its grant delivery (a proof kept in memory, its hash sent at start, the proof on every poll and on the acknowledgement), stores the session first, retries the acknowledgement while the code lives, and keeps working against servers that do not know the proof.
+- Sign in on Windows: the session directory receives a verified owner only ACL through a verify then repair helper; the previous helper failed on every renewal.
+- Sync: the hub cursor is validated (a safe integer, equal to the envelope, never below the stored one); explicit and background renewals, login and logout share one bounded lock; OpenRouter spend uploads a monthly delta over a persisted baseline instead of the lifetime total.
+- Terminal installers: Grok and Codex configuration files are edited through a TOML parser with validation, backups are owned and restored under a lock, the launcher is trusted by its bytes and survives an empty PATH, an older OpenLimiter status command is migrated instead of wrapped, byte order marks survive, shell hooks use guarded names, fish and nushell are reported as skipped with the manual snippet.
+- Readings: the Antigravity probe trusts only the vendor executable resolved through its real path on every platform; Antigravity pools stay distinct; Claude status line ingestion no longer makes every provider look fresh; OpenRouter renders real amounts; terminal login stops on every non pending status; streamed responses are bounded and cancelled.
+- Setup prints each section once and acquires readings before the host prompts; an empty terminal selection is explicit.
+
 ## [1.3.1] (2026-09-07)
 
 ### Added
