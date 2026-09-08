@@ -217,6 +217,7 @@ export interface CliDependencies {
   nodeExecutable: string;
   platform: NodeJS.Platform;
   detectedAgentInstallations: Readonly<Partial<Record<AgentId, AgentInstallation | null>>>;
+  launcherTimeoutMilliseconds?: number;
   hostedContextTrust?: HostedContextTrust;
   hostedContextPublicKeys?: HostedTrustLoadOptions["pinnedPublicKeys"];
   hostedTrustConfigRoot?: string;
@@ -1851,6 +1852,9 @@ function terminalContext(
       : { stateDirectory: dependencies.stateDirectory }),
     platform: dependencies.platform,
     detectedProviders: detected,
+    ...(dependencies.launcherTimeoutMilliseconds === undefined
+      ? {}
+      : { launcherTimeoutMilliseconds: dependencies.launcherTimeoutMilliseconds }),
     ...(dependencies.windowsCredentialRunner === undefined
       ? {}
       : { shellRunner: dependencies.windowsCredentialRunner })

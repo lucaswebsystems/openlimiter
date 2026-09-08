@@ -4,6 +4,9 @@ import path from "node:path";
 import { type Launcher } from "./terminal-launcher.js";
 
 export const LAUNCHER_TIMEOUT_MILLISECONDS = 5_000;
+export interface FallbackLauncherOptions {
+  timeoutMilliseconds?: number;
+}
 const posixQuote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
 const psQuote = (value: string): string => `'${value.replaceAll("'", "''")}'`;
 
@@ -19,23 +22,43 @@ work=$(/usr/bin/mktemp -d "\${TMPDIR:-/tmp}/openlimiter.XXXXXXXX") || exit 0
 trap '/bin/rm -rf "$work"' EXIT
 trap 'exit 0' HUP INT TERM
 if [ -t 0 ]; then : > "$work/input"; else /bin/cat > "$work/input"; fi
+emit() {
+  prefix=$(LC_ALL=C /bin/dd if="$1" bs=1 count=3 2>/dev/null)
+  if [ "$prefix" = "$(printf '\\357\\273\\277')" ]; then
+    /bin/dd if="$1" bs=1 skip=3 2>/dev/null
+  else
+    /bin/cat "$1"
+  fi
+}
+run_number=0
 run() {
-  "$@" < "$work/input" > "$work/output" 2>/dev/null &
+  run_number=$((run_number + 1))
+  run_work="$work/$run_number"
+  /bin/mkdir "$run_work" || return 1
+  output="$run_work/output"
+  "$@" < "$work/input" > "$output" 2>/dev/null &
   child=$!
-  (/bin/sleep ${timeout / 1000}; : > "$work/timeout"; kill -9 "$child" 2>/dev/null) </dev/null >/dev/null 2>&1 &
+  (/bin/sleep ${timeout / 1000}; [ ! -d "$run_work" ] || : > "$run_work/timeout") </dev/null >/dev/null 2>&1 &
   timer=$!
+  while kill -0 "$child" 2>/dev/null && [ ! -f "$run_work/timeout" ]; do
+    /bin/sleep 0.02
+  done
+  kill "$timer" 2>/dev/null
+  if [ -f "$run_work/timeout" ]; then
+    kill -9 -- "-$child" 2>/dev/null
+    kill -9 "$child" 2>/dev/null
+    return 1
+  fi
+  # Only reap a child that has already exited. Termination can fail on Git Bash.
   wait "$child" 2>/dev/null
   result=$?
-  kill "$timer" 2>/dev/null
-  wait "$timer" 2>/dev/null
-  [ ! -f "$work/timeout" ] && [ "$result" -eq 0 ]
+  [ "$result" -eq 0 ]
 }
 if run ${posixQuote(runtime.node)} ${posixQuote(runtime.entry)} "$@"; then
-  /bin/cat "$work/output"
+  /bin/cat "$output"
 ${original === null ? "" : `else
-  /bin/rm -f "$work/timeout"
   run /bin/sh -c ${posixQuote(original)}
-  /bin/cat "$work/output"`}
+  emit "$output"`}
 fi
 exit 0
 `;
@@ -86,10 +109,15 @@ try {
     return @{ ok = $ok; bytes = $outputBytes.ToArray() }
   }
   $result = Invoke-Bar ${psQuote(runtime.node)} (${psQuote('"' + runtime.entry + '" ')} + ($args -join ' '))
-  ${original === null ? "if (!$result.ok) { exit 0 }" : `if (!$result.ok) {
+  $fallback = !$result.ok
+  ${original === null ? "if ($fallback) { exit 0 }" : `if ($fallback) {
     $result = Invoke-Bar "$env:SystemRoot\\System32\\cmd.exe" ${psQuote('/d /s /c "' + original + '"')}
   }`}
-  [Console]::OpenStandardOutput().Write($result.bytes, 0, $result.bytes.Length)
+  $offset = 0
+  if ($fallback -and $result.bytes.Length -ge 3 -and $result.bytes[0] -eq 0xef -and $result.bytes[1] -eq 0xbb -and $result.bytes[2] -eq 0xbf) {
+    $offset = 3
+  }
+  [Console]::OpenStandardOutput().Write($result.bytes, $offset, $result.bytes.Length - $offset)
 } catch { }
 exit 0
 `;
@@ -99,8 +127,9 @@ export async function fallbackLauncherCommand(
   runtime: Launcher,
   shell: "posix" | "cmd" | "powershell",
   original: string | null,
-  timeout = LAUNCHER_TIMEOUT_MILLISECONDS
+  options: FallbackLauncherOptions = {}
 ): Promise<string> {
+  const timeout = options.timeoutMilliseconds ?? LAUNCHER_TIMEOUT_MILLISECONDS;
   const script = shell === "posix" ? posixScript(runtime, original, timeout) : powershellScript(runtime, original, timeout);
   const id = createHash("sha256").update(script).digest("hex");
   const directory = path.join(path.dirname(path.dirname(runtime.entry)), "terminal-launchers", id);

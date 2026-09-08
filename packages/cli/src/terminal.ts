@@ -16,7 +16,7 @@ import {
 
 import { parseToml, editToml, tomlValue } from "./terminal-toml.js";
 import { installLauncher } from "./terminal-launcher.js";
-import { fallbackLauncherCommand } from "./terminal-fallback.js";
+import { fallbackLauncherCommand, type FallbackLauncherOptions } from "./terminal-fallback.js";
 import { isOwned, originalConfiguration, readOptional, restoreOwned, writeOwned } from "./terminal-backup.js";
 
 export const TERMINAL_HOST_NAMES: readonly string[] = [
@@ -50,6 +50,7 @@ export interface TerminalHostContext {
   stateDirectory?: string;
   platform: NodeJS.Platform;
   detectedProviders?: readonly string[];
+  launcherTimeoutMilliseconds?: number;
   /** Required to identify the Windows shell and resolve its active profile. */
   shellRunner?: CredentialCommandRunner;
   /** Keep the saved command alongside OpenLimiter only when explicitly chosen. */
@@ -217,9 +218,15 @@ const HOST_CONFIG = {
 };
 const CODEX_ITEMS = ["five-hour-limit", "weekly-limit", "context-used", "model-with-reasoning", "current-dir"];
 
+function fallbackLauncherOptions(context: TerminalHostContext): FallbackLauncherOptions {
+  return context.launcherTimeoutMilliseconds === undefined
+    ? {}
+    : { timeoutMilliseconds: context.launcherTimeoutMilliseconds };
+}
+
 async function durableCommand(context: TerminalHostContext, shell: "posix" | "cmd" | "powershell", original: string | null): Promise<string> {
   const runtime = await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
-  return await fallbackLauncherCommand(runtime, shell, original);
+  return await fallbackLauncherCommand(runtime, shell, original, fallbackLauncherOptions(context));
 }
 
 function ownedMarker(text: string, json: boolean): boolean {
@@ -447,8 +454,9 @@ export async function installShell(context: TerminalHostContext): Promise<Termin
     const target = await shellTarget(context);
     const original = await readOptional(target.file);
     const runtime = await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
-    const posixCommand = await fallbackLauncherCommand(runtime, "posix", null);
-    const powerShellCommand = await fallbackLauncherCommand(runtime, "powershell", null);
+    const options = fallbackLauncherOptions(context);
+    const posixCommand = await fallbackLauncherCommand(runtime, "posix", null, options);
+    const powerShellCommand = await fallbackLauncherCommand(runtime, "powershell", null, options);
     const command = target.kind === "powershell" ? powerShellCommand : posixCommand;
     const snippets = shellSnippets(posixCommand, powerShellCommand);
     const alreadyOwned = original !== null && await isOwned(target.file, original, ownedMarker(original, false));
