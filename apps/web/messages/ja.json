@@ -2027,14 +2027,48 @@
     "addAccount": "アカウントを追加",
     "configuration": "設定",
     "backToBars": "バー表示に戻る",
-    "command": {
-      "copy": "コピー",
-      "copied": "コピーしました",
-      "failed": "コピーに失敗しました。代わりにテキストを選択してください。"
+  "command": {
+    "copy": "コマンドをコピー",
+    "copied": "コマンドをコピーしました",
+    "failed": "コピーに失敗しました。代わりにコマンドを選択してください。"
+  },
+  "empty": {
+    "desktop": {
+      "title": "デスクトップアプリならワンクリック",
+      "description": "アプリがサインインし、このマシンにすでにあるツールを見つけると、ここにバーが表示されます。",
+      "download": {
+        "windows": "Windows 版 OpenLimiter をダウンロード",
+        "macos": "macOS 版 OpenLimiter をダウンロード",
+        "linux": "Linux 版 OpenLimiter をダウンロード"
+      },
+      "platforms": {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux"
+      },
+      "systemLabel": "オペレーティングシステムを選択",
+      "detected": "検出したシステム: {system}",
+      "selected": "選択したシステム: {system}",
+      "choose": "手順を見るにはオペレーティングシステムを選択してください。"
     },
-    "empty": {
-      "line": "コードを書くマシンでこれを実行すると、バーがここに表示されます。"
-    },
+    "terminal": {
+      "title": "またはターミナルを使う",
+      "guidance": {
+        "windows": "PowerShell を開き、Windows キーを押して PowerShell と入力し、Enter を押し、コマンドを貼り付けてから Enter を押します。",
+        "macos": "Terminal を開き、Command と Space を押し、Terminal と入力して Enter を押し、コマンドを貼り付けてから Enter を押します。",
+        "linux": "ターミナルを開き、コマンドを貼り付けてから Enter を押します。"
+      },
+      "requirementBefore": "Node 18 以上が必要です。Node がない場合は",
+      "nodeLink": "nodejs.org",
+      "requirementAfter": "から入手してください。",
+      "nextTitle": "この後の流れ",
+      "steps": {
+        "code": "コマンドが短いコードを表示します。",
+        "approve": "このサイトでコードを承認します。",
+        "bars": "ここにバーが表示されます。"
+      }
+    }
+  },
     "connect": {
       "title": "AI アカウントを接続",
       "lead": "ハブはお使いの端末が読み取った情報を表示するので、実際に動かしている場所で接続してください。",

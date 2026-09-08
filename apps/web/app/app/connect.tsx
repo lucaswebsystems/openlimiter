@@ -8,7 +8,40 @@ import { BandHorizon } from "./horizon";
 import { ProviderMark } from "./marks";
 import { BROWSER_PROVIDER_STATES, Button, providerMarkCode } from "./pieces";
 import registry from "../../lib/provider-specs.generated.json";
+import { primaryDownloadHref, type DesktopPlatform } from "@/lib/downloads";
 import { CONNECT_COMMAND } from "@/lib/onboarding";
+
+type DetectedPlatform = DesktopPlatform | "unknown";
+
+interface UserAgentData {
+  mobile?: boolean;
+  platform?: string;
+}
+
+const DESKTOP_PLATFORMS: readonly DesktopPlatform[] = ["windows", "macos", "linux"];
+
+function platformFromText(value: string): DetectedPlatform {
+  const text = value.toLowerCase();
+  if (/(android|iphone|ipad|ipod|mobile|windows phone)/u.test(text)) return "unknown";
+  if (text.includes("windows")) return "windows";
+  if (text.includes("macintosh") || text.includes("mac os") || text.includes("darwin")) {
+    return "macos";
+  }
+  if (text.includes("linux") || text.includes("x11")) return "linux";
+  return "unknown";
+}
+
+/** Detect a desktop system without guessing from a mobile browser. */
+export function detectDesktopPlatform(): DetectedPlatform {
+  if (typeof navigator === "undefined") return "unknown";
+  const data = (navigator as Navigator & { userAgentData?: UserAgentData }).userAgentData;
+  if (data?.mobile === true) return "unknown";
+  if (navigator.maxTouchPoints > 1 && /macintosh/iu.test(navigator.userAgent)) return "unknown";
+  const reportedPlatform = platformFromText(data?.platform ?? "");
+  return reportedPlatform === "unknown"
+    ? platformFromText(navigator.userAgent)
+    : reportedPlatform;
+}
 
 /**
  * Connecting an account, as the browser can honestly offer it.
@@ -148,21 +181,124 @@ export function ConnectList() {
   );
 }
 
-/**
- * What the bars view says before a device has synced anything.
- *
- * One sentence and one command, over the horizon. There is deliberately no
- * button here and no list of providers: the sentence says what to run, the
- * block runs it, and everything else on this screen would be a second thing to
- * decide at the moment somebody has nothing to look at.
- */
+/** The empty bars view, with the desktop path first and the terminal path second. */
 export function BarsEmpty() {
   const t = useTranslations("hub");
+  const [detectedPlatform, setDetectedPlatform] = useState<DetectedPlatform>("unknown");
+  const [selectedPlatform, setSelectedPlatform] = useState<DesktopPlatform | null>(null);
+
+  useEffect(() => {
+    const detected = detectDesktopPlatform();
+    setDetectedPlatform(detected);
+    setSelectedPlatform(detected === "unknown" ? null : detected);
+  }, []);
+
+  const platformName = (platform: DesktopPlatform): string => t(`empty.desktop.platforms.${platform}`);
+  const downloads = DESKTOP_PLATFORMS.map((platform) => ({
+    platform,
+    href: primaryDownloadHref(platform),
+    label: t(`empty.desktop.download.${platform}`),
+  }));
+  const selectedDownload = selectedPlatform === null
+    ? null
+    : downloads.find((download) => download.platform === selectedPlatform) ?? downloads[0]!;
+  const status = selectedPlatform === null
+    ? t("empty.desktop.choose")
+    : detectedPlatform === selectedPlatform
+      ? t("empty.desktop.detected", { system: platformName(selectedPlatform) })
+      : t("empty.desktop.selected", { system: platformName(selectedPlatform) });
+
   return (
     <section className="ol-bars-empty ol-rise">
       <BandHorizon />
-      <p>{t("empty.line")}</p>
-      <CopyCommand command={CONNECT_COMMAND} />
+      <div className="ol-empty-content">
+        <section className="ol-empty-desktop" aria-labelledby="empty-desktop-title">
+          <h2 id="empty-desktop-title">{t("empty.desktop.title")}</h2>
+          <p className="ol-empty-status" role="status" aria-live="polite" aria-atomic="true">
+            {status}
+          </p>
+          {selectedDownload === null ? (
+            <div className="ol-empty-download-grid">
+              {downloads.map((download) => (
+                <a
+                  key={download.platform}
+                  href={download.href}
+                  className="ol-control ol-control-primary ol-empty-download focus-ring"
+                  data-platform={download.platform}
+                >
+                  {download.label}
+                </a>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="ol-empty-download-switch" role="group" aria-label={t("empty.desktop.systemLabel")}>
+                {DESKTOP_PLATFORMS.map((platform) => (
+                  <button
+                    key={platform}
+                    type="button"
+                    className={`ol-empty-os-option focus-ring${selectedPlatform === platform ? " is-selected" : ""}`}
+                    aria-pressed={selectedPlatform === platform}
+                    onClick={() => setSelectedPlatform(platform)}
+                  >
+                    {platformName(platform)}
+                  </button>
+                ))}
+              </div>
+              <a
+                href={selectedDownload.href}
+                className="ol-control ol-control-primary ol-empty-download ol-empty-download-single focus-ring"
+                data-platform={selectedDownload.platform}
+              >
+                {selectedDownload.label}
+              </a>
+            </>
+          )}
+          <p>{t("empty.desktop.description")}</p>
+        </section>
+
+        <section className="ol-empty-terminal" aria-labelledby="empty-terminal-title">
+          <h3 id="empty-terminal-title">{t("empty.terminal.title")}</h3>
+          <div className="ol-empty-terminal-switch" role="group" aria-label={t("empty.desktop.systemLabel")}>
+            {DESKTOP_PLATFORMS.map((platform) => (
+              <button
+                key={platform}
+                type="button"
+                className={`ol-empty-os-option focus-ring${selectedPlatform === platform ? " is-selected" : ""}`}
+                aria-pressed={selectedPlatform === platform}
+                onClick={() => setSelectedPlatform(platform)}
+              >
+                {platformName(platform)}
+              </button>
+            ))}
+          </div>
+          <div className="ol-empty-terminal-body">
+            <div className="ol-empty-terminal-instructions">
+              {selectedPlatform === null ? (
+                <p>{t("empty.desktop.choose")}</p>
+              ) : (
+                <p>{t(`empty.terminal.guidance.${selectedPlatform}`)}</p>
+              )}
+              {selectedPlatform !== null && (
+                <p>
+                  {t("empty.terminal.requirementBefore")} {" "}
+                  <a href="https://nodejs.org/" target="_blank" rel="noreferrer">
+                    {t("empty.terminal.nodeLink")}
+                  </a>
+                  {t("empty.terminal.requirementAfter")}
+                </p>
+              )}
+              <h4>{t("empty.terminal.nextTitle")}</h4>
+              <ol>
+                <li>{t("empty.terminal.steps.code")}</li>
+                <li>{t("empty.terminal.steps.approve")}</li>
+                <li>{t("empty.terminal.steps.bars")}</li>
+              </ol>
+            </div>
+            <CopyCommand command={CONNECT_COMMAND} />
+          </div>
+        </section>
+      </div>
     </section>
   );
 }

@@ -2485,33 +2485,172 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 .ol-bars-empty {
   position: relative;
   display: grid;
-  min-height: 22rem;
-  align-content: center;
-  justify-items: center;
-  gap: var(--ol-space-4);
+  min-height: 0;
+  align-content: initial;
+  justify-items: stretch;
+  gap: 0;
   padding: var(--ol-space-6);
   border: 1px solid var(--ol-hairline);
   border-radius: var(--ol-radius-xl);
   background: var(--ol-surface);
+  text-align: left;
+}
+
+.ol-empty-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 54rem);
+  margin: 0 auto;
+  gap: var(--ol-space-6);
+}
+
+.ol-empty-desktop,
+.ol-empty-terminal {
+  display: grid;
+  gap: var(--ol-space-3);
+}
+
+.ol-empty-desktop h2,
+.ol-empty-terminal h3,
+.ol-empty-terminal h4 {
+  margin: 0;
+  color: var(--ol-heading);
+  font-weight: var(--ol-weight-medium);
+}
+
+.ol-empty-desktop h2 {
+  font-size: var(--ol-text-title);
+  line-height: var(--ol-leading-tight);
+}
+
+.ol-empty-terminal h3 {
+  font-size: var(--ol-text-heading);
+  line-height: var(--ol-leading-tight);
+}
+
+.ol-empty-terminal h4 {
+  font-size: var(--ol-text-label);
+}
+
+.ol-empty-desktop > p,
+.ol-empty-terminal-instructions p {
+  max-width: 46rem;
+  margin: 0;
+  color: var(--ol-body);
+  font-size: var(--ol-text-body);
+  line-height: var(--ol-leading-body);
+}
+
+.ol-empty-status {
+  color: var(--ol-muted) !important;
+  font-size: var(--ol-text-caption) !important;
+}
+
+.ol-empty-download-grid,
+.ol-empty-download-switch,
+.ol-empty-terminal-switch {
+  display: grid;
+  gap: var(--ol-space-2);
+}
+
+.ol-empty-download-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ol-empty-download-switch,
+.ol-empty-terminal-switch {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: min(100%, 30rem);
+}
+
+.ol-empty-os-option {
+  cursor: pointer;
+  min-height: var(--ol-control-height);
+  padding: var(--ol-space-2) var(--ol-space-3);
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-sm);
+  background: transparent;
+  color: var(--ol-heading);
+  font-family: var(--ol-font-sans);
+  font-size: var(--ol-text-caption);
+  transition: border-color var(--ol-motion-fast) var(--ol-ease-out),
+    background-color var(--ol-motion-fast) var(--ol-ease-out),
+    color var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+.ol-empty-os-option:hover,
+.ol-empty-os-option.is-selected {
+  border-color: var(--ol-accent-solid);
+  background: var(--ol-accent-subtle);
+  color: var(--ol-heading);
+}
+
+.ol-empty-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--ol-control-height-touch);
   text-align: center;
 }
 
-.ol-bars-empty > p,
-.ol-bars-empty > .ol-command-block {
-  position: relative;
-  z-index: 1;
+.ol-empty-download-single {
+  width: min(100%, 30rem);
 }
 
-.ol-bars-empty p {
-  max-width: 26rem;
+.ol-empty-terminal {
+  padding-top: var(--ol-space-6);
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.ol-empty-terminal-body {
+  display: grid;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+  gap: var(--ol-space-5);
+}
+
+.ol-empty-terminal-instructions {
+  display: grid;
+  gap: var(--ol-space-3);
+}
+
+.ol-empty-terminal-instructions a {
+  color: var(--ol-heading);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.ol-empty-terminal-instructions ol {
+  display: grid;
+  gap: var(--ol-space-2);
+  margin: 0;
+  padding-left: 1.25rem;
   color: var(--ol-body);
-  font-size: var(--ol-text-title);
+  font-size: var(--ol-text-caption);
   line-height: var(--ol-leading-body);
-  text-wrap: balance;
 }
 
-.ol-bars-empty .ol-command-block {
-  width: min(100%, 22rem);
+.ol-empty-terminal-body .ol-command-block {
+  width: 100%;
+}
+
+@media (max-width: 639px) {
+  .ol-bars-empty {
+    padding: var(--ol-space-5) var(--ol-space-4);
+  }
+
+  .ol-empty-download-grid,
+  .ol-empty-download-switch,
+  .ol-empty-terminal-switch,
+  .ol-empty-terminal-body {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .ol-empty-download-single {
+    width: 100%;
+  }
 }
 
 /* ---------------------------------------------------- the trial and the lock */

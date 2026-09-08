@@ -2027,14 +2027,48 @@
     "addAccount": "Agregar cuenta",
     "configuration": "Configuración",
     "backToBars": "Volver a las barras",
-    "command": {
-      "copy": "Copiar",
-      "copied": "Copiado",
-      "failed": "No se pudo copiar, selecciona el texto en su lugar."
+  "command": {
+    "copy": "Copiar el comando",
+    "copied": "Comando copiado",
+    "failed": "No se pudo copiar, selecciona el comando en su lugar."
+  },
+  "empty": {
+    "desktop": {
+      "title": "Un clic con la aplicación de escritorio",
+      "description": "La aplicación inicia tu sesión, encuentra las herramientas que ya están en este equipo y tus barras aparecen aquí.",
+      "download": {
+        "windows": "Descargar OpenLimiter para Windows",
+        "macos": "Descargar OpenLimiter para macOS",
+        "linux": "Descargar OpenLimiter para Linux"
+      },
+      "platforms": {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux"
+      },
+      "systemLabel": "Elegir sistema operativo",
+      "detected": "Sistema detectado: {system}",
+      "selected": "Sistema elegido: {system}",
+      "choose": "Elige tu sistema operativo para ver los pasos."
     },
-    "empty": {
-      "line": "Ejecuta esto en cualquier máquina donde programes, y tus barras aparecerán aquí."
-    },
+    "terminal": {
+      "title": "O usa la terminal",
+      "guidance": {
+        "windows": "Abre PowerShell, pulsa la tecla Windows, escribe PowerShell, pulsa Enter, pega el comando y pulsa Enter.",
+        "macos": "Abre Terminal, pulsa Command y Espacio, escribe Terminal, pulsa Enter, pega el comando y pulsa Enter.",
+        "linux": "Abre tu terminal, pega el comando y pulsa Enter."
+      },
+      "requirementBefore": "Se necesita Node 18 o una versión posterior. Si no lo tienes, consíguelo en",
+      "nodeLink": "nodejs.org",
+      "requirementAfter": ".",
+      "nextTitle": "Qué ocurre después",
+      "steps": {
+        "code": "El comando muestra un código corto.",
+        "approve": "Aprueba el código en este sitio.",
+        "bars": "Tus barras aparecen aquí."
+      }
+    }
+  },
     "connect": {
       "title": "Conecta tus cuentas de IA",
       "lead": "El hub muestra lo que tus propios dispositivos leen, así que conéctalos donde funcionan.",

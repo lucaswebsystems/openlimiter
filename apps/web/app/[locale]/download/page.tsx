@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { DownloadChoice } from "@/components/download-choice";
 import { PageShell } from "@/components/page-shell";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
-import { downloadTargets } from "@/lib/downloads";
+import { primaryDownloadHref } from "@/lib/downloads";
 import { pageMetadata } from "@/lib/metadata";
 import { CURRENT_VERSION, REPO_URL } from "@/lib/site";
 
@@ -16,13 +16,6 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
     route: "/download",
     locale,
   });
-}
-
-function primaryAsset(platform: "windows" | "linux" | "macos"): string {
-  const target = downloadTargets.find((entry) => entry.id === platform);
-  const asset = target?.assets?.find((entry) => entry.primary === true);
-  if (asset === undefined) throw new Error(`Missing ${platform} download asset.`);
-  return asset.href;
 }
 
 export default async function DownloadPage({ params }: LocaleParams) {
@@ -39,9 +32,9 @@ export default async function DownloadPage({ params }: LocaleParams) {
     <PageShell title={t("title")} lead={t("metaDescription")}>
       <div className="py-10 md:py-16">
         <DownloadChoice
-          windowsHref={primaryAsset("windows")}
-          linuxHref={primaryAsset("linux")}
-          macosHref={primaryAsset("macos")}
+          windowsHref={primaryDownloadHref("windows")}
+          linuxHref={primaryDownloadHref("linux")}
+          macosHref={primaryDownloadHref("macos")}
           otherHref={releaseUrl}
           windowsLabel={t("choice.windows")}
           linuxLabel={t("choice.linux")}

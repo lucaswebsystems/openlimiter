@@ -2027,14 +2027,48 @@
     "addAccount": "Konto hinzufügen",
     "configuration": "Konfiguration",
     "backToBars": "Zurück zu den Balken",
-    "command": {
-      "copy": "Kopieren",
-      "copied": "Kopiert",
-      "failed": "Kopieren fehlgeschlagen, wählen Sie stattdessen den Text aus."
+  "command": {
+    "copy": "Befehl kopieren",
+    "copied": "Befehl kopiert",
+    "failed": "Kopieren fehlgeschlagen, wählen Sie stattdessen den Befehl aus."
+  },
+  "empty": {
+    "desktop": {
+      "title": "Mit der Desktop App mit einem Klick",
+      "description": "Die App meldet Sie an, findet die bereits auf diesem Rechner vorhandenen Tools und Ihre Balken erscheinen hier.",
+      "download": {
+        "windows": "OpenLimiter für Windows herunterladen",
+        "macos": "OpenLimiter für macOS herunterladen",
+        "linux": "OpenLimiter für Linux herunterladen"
+      },
+      "platforms": {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux"
+      },
+      "systemLabel": "Betriebssystem auswählen",
+      "detected": "Erkanntes System: {system}",
+      "selected": "Ausgewähltes System: {system}",
+      "choose": "Wählen Sie Ihr Betriebssystem, um die Schritte zu sehen."
     },
-    "empty": {
-      "line": "Führen Sie das auf jedem Rechner aus, auf dem Sie programmieren, und Ihre Balken erscheinen hier."
-    },
+    "terminal": {
+      "title": "Oder nutzen Sie das Terminal",
+      "guidance": {
+        "windows": "Öffnen Sie PowerShell, drücken Sie die Windows Taste, geben Sie PowerShell ein, drücken Sie Enter, fügen Sie den Befehl ein und drücken Sie Enter.",
+        "macos": "Öffnen Sie Terminal, drücken Sie Command und die Leertaste, geben Sie Terminal ein, drücken Sie Enter, fügen Sie den Befehl ein und drücken Sie Enter.",
+        "linux": "Öffnen Sie Ihr Terminal, fügen Sie den Befehl ein und drücken Sie Enter."
+      },
+      "requirementBefore": "Node 18 oder neuer ist erforderlich. Wenn Sie Node nicht haben, laden Sie es von",
+      "nodeLink": "nodejs.org",
+      "requirementAfter": ".",
+      "nextTitle": "Was passiert danach",
+      "steps": {
+        "code": "Der Befehl gibt einen kurzen Code aus.",
+        "approve": "Genehmigen Sie den Code auf dieser Website.",
+        "bars": "Ihre Balken erscheinen hier."
+      }
+    }
+  },
     "connect": {
       "title": "Verbinden Sie Ihre KI Konten",
       "lead": "Der Hub zeigt, was Ihre eigenen Geräte lesen, also verbinden Sie sie dort, wo sie laufen.",

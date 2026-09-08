@@ -2027,14 +2027,48 @@
     "addAccount": "Adicionar conta",
     "configuration": "Configuração",
     "backToBars": "Voltar para as barras",
-    "command": {
-      "copy": "Copiar",
-      "copied": "Copiado",
-      "failed": "A cópia falhou, selecione o texto manualmente."
+  "command": {
+    "copy": "Copiar o comando",
+    "copied": "Comando copiado",
+    "failed": "A cópia falhou, selecione o comando manualmente."
+  },
+  "empty": {
+    "desktop": {
+      "title": "Um clique com o aplicativo de desktop",
+      "description": "O aplicativo entra na sua conta, encontra as ferramentas que já estão nesta máquina e suas barras aparecem aqui.",
+      "download": {
+        "windows": "Baixar o OpenLimiter para Windows",
+        "macos": "Baixar o OpenLimiter para macOS",
+        "linux": "Baixar o OpenLimiter para Linux"
+      },
+      "platforms": {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux"
+      },
+      "systemLabel": "Escolha seu sistema operacional",
+      "detected": "Sistema detectado: {system}",
+      "selected": "Sistema escolhido: {system}",
+      "choose": "Escolha seu sistema operacional para ver as etapas."
     },
-    "empty": {
-      "line": "Rode isso em qualquer máquina onde você programa, e suas barras aparecem aqui."
-    },
+    "terminal": {
+      "title": "Ou use o terminal",
+      "guidance": {
+        "windows": "Abra o PowerShell, pressione a tecla Windows, digite PowerShell, pressione Enter, cole o comando e pressione Enter.",
+        "macos": "Abra o Terminal, pressione Command e Espaço, digite Terminal, pressione Enter, cole o comando e pressione Enter.",
+        "linux": "Abra seu terminal, cole o comando e pressione Enter."
+      },
+      "requirementBefore": "Node 18 ou mais recente é necessário. Se você não tiver Node, obtenha pelo",
+      "nodeLink": "nodejs.org",
+      "requirementAfter": ".",
+      "nextTitle": "O que acontece depois",
+      "steps": {
+        "code": "O comando mostra um código curto.",
+        "approve": "Aprove o código neste site.",
+        "bars": "Suas barras aparecem aqui."
+      }
+    }
+  },
     "connect": {
       "title": "Conecte suas contas de IA",
       "lead": "O hub mostra o que seus próprios dispositivos leem, então conecte onde eles rodam.",

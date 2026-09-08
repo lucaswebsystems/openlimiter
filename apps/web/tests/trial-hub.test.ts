@@ -269,7 +269,7 @@ describe("the deep link the tray opens", () => {
   it("opens the ordinary hub without it", async () => {
     const view = await open();
     expect(view.container.textContent).not.toContain(trial.alerts.title);
-    expect(view.container.textContent).toContain(hub.empty.line);
+    expect(view.container.textContent).toContain(hub.empty.desktop.title);
   });
 
   it("reaches the wizard from the header button as well", async () => {

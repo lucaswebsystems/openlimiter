@@ -5,6 +5,10 @@ import { BarsEmpty } from "@/app/app/connect";
 import { Onboarding } from "@/app/app/onboarding";
 import { SignInCard } from "@/components/sign-in-card";
 import { CONNECT_COMMAND, type AccountProfile } from "@/lib/onboarding";
+import de from "../messages/de.json";
+import es from "../messages/es.json";
+import ja from "../messages/ja.json";
+import ptBR from "../messages/pt-BR.json";
 import { all, byText, flush, messages, render, type Mounted } from "./render";
 
 /**
@@ -60,8 +64,8 @@ vi.mock("next-intl", async () => {
  * These are the four surfaces this wave added or changed, and what is asserted
  * about each is what a reader would check by looking: which ways in the card
  * offers, whether the switch starts on, that the flow runs its three screens
- * and that both of its exits leave, and that the empty state is one sentence
- * and one command rather than a screen full of instructions.
+ * and that both of its exits leave, and that the empty state ranks the desktop
+ * path, keeps the terminal path reachable, and gives each path its action.
  *
  * Every sentence is compared against the English catalog rather than against a
  * copy of it written here, so a wording change moves the test with the product
@@ -336,18 +340,94 @@ describe("the first visit", () => {
 });
 
 describe("the empty bars view", () => {
-  it("is one sentence, one command and nothing else", () => {
+  it("puts the desktop path first and the terminal path second", async () => {
     mounted = render(createElement(BarsEmpty));
+    await flush();
 
-    const paragraphs = all(mounted.container, "p");
-    expect(paragraphs).toHaveLength(1);
-    expect(paragraphs[0]?.textContent).toBe(hub.empty.line);
-
+    expect(mounted.container.querySelector("h2")?.textContent).toBe(hub.empty.desktop.title);
+    expect(mounted.container.querySelector("h3")?.textContent).toBe(hub.empty.terminal.title);
     expect(mounted.container.querySelector(".ol-command code")?.textContent).toBe(CONNECT_COMMAND);
-    /* The copy control is the only thing here that can be pressed. */
-    const buttons = all(mounted.container, "button");
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0]?.textContent?.trim()).toBe(hub.command.copy);
+    expect(mounted.container.querySelector("[role=\"status\"]")?.textContent).toContain(
+      hub.empty.desktop.choose,
+    );
+  });
+
+  it("shows the Windows download and PowerShell steps for a Windows browser", async () => {
+    const previous = Object.getOwnPropertyDescriptor(window.navigator, "userAgentData");
+    Object.defineProperty(window.navigator, "userAgentData", {
+      configurable: true,
+      value: { platform: "Windows", mobile: false },
+    });
+
+    mounted = render(createElement(BarsEmpty));
+    await flush();
+
+    expect(mounted.container.querySelectorAll("a[data-platform]")).toHaveLength(1);
+    expect(mounted.container.querySelector("a[data-platform=\"windows\"]")?.textContent).toBe(
+      hub.empty.desktop.download.windows,
+    );
+    expect(mounted.container.textContent).toContain(hub.empty.terminal.guidance.windows);
+    expect(mounted.container.textContent).toContain(
+      hub.empty.desktop.detected.replace("{system}", hub.empty.desktop.platforms.windows),
+    );
+
+    if (previous === undefined) Reflect.deleteProperty(window.navigator, "userAgentData");
+    else Object.defineProperty(window.navigator, "userAgentData", previous);
+  });
+
+  it("shows all three downloads when the browser reports no desktop system", async () => {
+    const previous = Object.getOwnPropertyDescriptor(window.navigator, "userAgentData");
+    Object.defineProperty(window.navigator, "userAgentData", {
+      configurable: true,
+      value: { platform: "Unknown", mobile: false },
+    });
+
+    mounted = render(createElement(BarsEmpty));
+    await flush();
+
+    expect(mounted.container.querySelectorAll("a[data-platform]")).toHaveLength(3);
+    for (const platform of ["windows", "macos", "linux"] as const) {
+      expect(mounted.container.querySelector(`a[data-platform=\"${platform}\"]`)?.textContent).toBe(
+        hub.empty.desktop.download[platform],
+      );
+    }
+
+    if (previous === undefined) Reflect.deleteProperty(window.navigator, "userAgentData");
+    else Object.defineProperty(window.navigator, "userAgentData", previous);
+  });
+
+  it("copies the command and says what it copied", async () => {
+    const previous = Object.getOwnPropertyDescriptor(window.navigator, "clipboard");
+    let copied = "";
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (text: string) => { copied = text; } },
+    });
+
+    mounted = render(createElement(BarsEmpty));
+    press(byText(mounted.container, "button", hub.command.copy));
+    await flush();
+
+    expect(copied).toBe(CONNECT_COMMAND);
+    expect(byText(mounted.container, "button", hub.command.copied)).not.toBeNull();
+
+    if (previous === undefined) Reflect.deleteProperty(window.navigator, "clipboard");
+    else Object.defineProperty(window.navigator, "clipboard", previous);
+  });
+
+  it("keeps every hub catalog string free of dash punctuation", () => {
+    const catalogs = [messages, de, es, ja, ptBR];
+    const strings = (value: unknown): string[] => {
+      if (typeof value === "string") return [value];
+      if (value === null || typeof value !== "object") return [];
+      return Object.values(value).flatMap(strings);
+    };
+
+    for (const catalog of catalogs) {
+      for (const value of strings(catalog.hub)) {
+        expect(value).not.toMatch(/[-\u2010-\u2015]/u);
+      }
+    }
   });
 
   it("says what happened when the clipboard refuses, and keeps the text", async () => {

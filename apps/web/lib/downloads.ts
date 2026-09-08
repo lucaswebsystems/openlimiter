@@ -184,3 +184,13 @@ export const downloadTargets: readonly DownloadTarget[] = [
     state: "planned",
   },
 ];
+
+export type DesktopPlatform = "windows" | "macos" | "linux";
+
+/** Return the same primary release asset shown on the download page. */
+export function primaryDownloadHref(platform: DesktopPlatform): string {
+  const target = downloadTargets.find((entry) => entry.id === platform);
+  const asset = target?.assets?.find((entry) => entry.primary === true);
+  if (asset === undefined) throw new Error(`Missing ${platform} download asset.`);
+  return asset.href;
+}

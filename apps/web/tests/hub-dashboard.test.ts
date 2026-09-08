@@ -277,7 +277,7 @@ describe("which view a session lands on", () => {
   it("opens the bars for an account whose profile says the run is done", async () => {
     currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
     const view = await open();
-    expect(view.container.textContent).toContain(hub.empty.line);
+    expect(view.container.textContent).toContain(hub.empty.desktop.title);
     expect(heading(view)).not.toBe(hub.onboarding.profile.title);
   });
 
@@ -285,7 +285,7 @@ describe("which view a session lands on", () => {
     window.localStorage.setItem(onboardedStorageKey("user-1"), "true");
     currentSession = signedIn();
     const view = await open();
-    expect(view.container.textContent).toContain(hub.empty.line);
+    expect(view.container.textContent).toContain(hub.empty.desktop.title);
   });
 
   it("offers no way into configuration until the first run is over", async () => {
@@ -311,7 +311,7 @@ describe("what the first run writes when it ends", () => {
     expect(built[0]?.updates.at(-1)).toMatchObject({
       data: { [ONBOARDED_METADATA_KEY]: true },
     });
-    expect(view.container.textContent).toContain(hub.empty.line);
+    expect(view.container.textContent).toContain(hub.empty.desktop.title);
   });
 
   it("still finishes when the profile write fails, and does not run again", async () => {
@@ -325,7 +325,7 @@ describe("what the first run writes when it ends", () => {
     /* The account write is the durable half and it lost. The browser half is
        what stops the flow reappearing in front of the same person. */
     expect(window.localStorage.getItem(onboardedStorageKey("user-1"))).toBe("true");
-    expect(view.container.textContent).toContain(hub.empty.line);
+    expect(view.container.textContent).toContain(hub.empty.desktop.title);
   });
 });
 
@@ -338,7 +338,7 @@ describe("a read that never answers", () => {
     /* A read that threw is still an answer. Without one the skeleton would be
        the last thing this account ever sees. */
     expect(view.container.querySelector(".ol-row-skeleton")).toBeNull();
-    expect(view.container.textContent).toContain(hub.empty.line);
+    expect(view.container.textContent).toContain(hub.empty.desktop.title);
   });
 });
 
@@ -352,14 +352,14 @@ describe("a read that has not answered yet", () => {
     currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
     const view = await open();
 
-    expect(view.container.textContent).not.toContain(hub.empty.line);
+    expect(view.container.textContent).not.toContain(hub.empty.desktop.title);
     expect(view.container.querySelector(".ol-row-skeleton")).not.toBeNull();
 
     view.run(() => {
       answer({ ok: false, reason: "signed_out" });
     });
     await flush();
-    expect(view.container.textContent).toContain(hub.empty.line);
+    expect(view.container.textContent).toContain(hub.empty.desktop.title);
   });
 });
 

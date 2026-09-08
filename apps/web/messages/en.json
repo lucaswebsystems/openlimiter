@@ -2027,14 +2027,48 @@
     "addAccount": "Add account",
     "configuration": "Configuration",
     "backToBars": "Back to bars",
-    "command": {
-      "copy": "Copy",
-      "copied": "Copied",
-      "failed": "Copy failed, select the text instead."
+  "command": {
+    "copy": "Copy command",
+    "copied": "Command copied",
+    "failed": "Copy failed, select the command instead."
+  },
+  "empty": {
+    "desktop": {
+      "title": "One click with the desktop app",
+      "description": "The app signs you in, finds the tools already on this machine, and your bars appear here.",
+      "download": {
+        "windows": "Download OpenLimiter for Windows",
+        "macos": "Download OpenLimiter for macOS",
+        "linux": "Download OpenLimiter for Linux"
+      },
+      "platforms": {
+        "windows": "Windows",
+        "macos": "macOS",
+        "linux": "Linux"
+      },
+      "systemLabel": "Choose your operating system",
+      "detected": "Detected system: {system}",
+      "selected": "Selected system: {system}",
+      "choose": "Choose your operating system to see the steps."
     },
-    "empty": {
-      "line": "Run this on any machine you code on, and your bars appear here."
-    },
+    "terminal": {
+      "title": "Or use the terminal",
+      "guidance": {
+        "windows": "Open PowerShell, press the Windows key, type PowerShell, press Enter, paste the command, then press Enter.",
+        "macos": "Open Terminal, press Command and Space, type Terminal, press Enter, paste the command, then press Enter.",
+        "linux": "Open your terminal, paste the command, then press Enter."
+      },
+      "requirementBefore": "Node 18 or newer is required. If you do not have it, get it from",
+      "nodeLink": "nodejs.org",
+      "requirementAfter": ".",
+      "nextTitle": "What happens next",
+      "steps": {
+        "code": "The command prints a short code.",
+        "approve": "Approve the code on this site.",
+        "bars": "Your bars appear here."
+      }
+    }
+  },
     "connect": {
       "title": "Connect your AI accounts",
       "lead": "The hub shows what your own devices read, so connect them where they run.",
