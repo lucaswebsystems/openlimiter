@@ -1053,10 +1053,10 @@ const help = [
   "openlimiter init",
   "openlimiter snapshot [--refresh]",
   "openlimiter statusline [--host claude|antigravity|grok|codex|shell]",
-  "openlimiter terminal [--yes] [--host <id>]",
+  "openlimiter terminal [--yes] [--host <id>] [--wrap]",
   "openlimiter terminal status",
-  "openlimiter terminal install <host>",
-  "openlimiter terminal uninstall <host>",
+  "openlimiter terminal install <host> [--wrap]",
+  "openlimiter terminal uninstall <host|all>",
   "openlimiter terminal show <provider ...>",
   "openlimiter terminal hide <provider ...>",
   "openlimiter refresh",
@@ -1811,10 +1811,10 @@ async function configCommand(
 }
 
 const terminalUsage = [
-  "openlimiter terminal [--yes] [--host <id>]",
+  "openlimiter terminal [--yes] [--host <id>] [--wrap]",
   "openlimiter terminal status",
-  "openlimiter terminal install <host>",
-  "openlimiter terminal uninstall <host>",
+  "openlimiter terminal install <host> [--wrap]",
+  "openlimiter terminal uninstall <host|all>",
   "openlimiter terminal show <provider ...>",
   "openlimiter terminal hide <provider ...>",
   "",
@@ -1874,7 +1874,7 @@ async function terminalCommand(
 ): Promise<CliResult> {
   const action = argumentsList[1];
   const detected = await detectedProviderIds(dependencies);
-  const context = terminalContext(dependencies, detected);
+  const context = { ...terminalContext(dependencies, detected), wrap: argumentsList.includes("--wrap") };
   const knownHost = (value: string | undefined): value is string =>
     value !== undefined && TERMINAL_HOST_NAMES.includes(value.toLowerCase());
 
@@ -1884,6 +1884,15 @@ async function terminalCommand(
 
   if (action === "install" || action === "uninstall") {
     const host = argumentsList[2];
+    if (action === "uninstall" && (host === "all" || host === "--yes")) {
+      const results = [];
+      for (const target of TERMINAL_HOST_NAMES) {
+        const result = await uninstallHost(target, context);
+        results.push({ ...result, message: `${target}: ${result.message}` });
+      }
+      const message = results.map(result => result.message).join("\n");
+      return results.every(result => result.ok) ? succeed(message) : fail(EXIT_FAILURE, message);
+    }
     if (!knownHost(host)) {
       return fail(
         EXIT_USAGE,
@@ -1911,7 +1920,7 @@ async function terminalCommand(
     return result.ok ? succeed(result.message) : fail(EXIT_USAGE, result.message);
   }
 
-  if (action === undefined || action === "--yes" || action === "--host") {
+  if (action === undefined || action === "--yes" || action === "--host" || action === "--wrap") {
     const hostFlag = flagValue(argumentsList, "--host");
     if (argumentsList.includes("--host") && !knownHost(hostFlag)) {
       return fail(

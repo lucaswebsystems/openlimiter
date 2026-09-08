@@ -126,12 +126,93 @@ describe("P2 ownership and full backups", () => {
   }, 30_000);
 });
 
+describe("D18 borrowed status lines", () => {
+  it.each(["claude", "antigravity", "grok"] as const)("runs the original from the installed %s launcher after its entire runtime disappears", async host => {
+    const home = await scratch(), file = await seed(home, host);
+    const ctx = context(home);
+    expect((await installHost(host, ctx)).ok).toBe(true);
+    const installed = await readFile(file, "utf8");
+    const data = host === "grok" ? null : JSON.parse(installed);
+    const command = host === "grok" ? tomlValue(installed, ["ui", "status_line", "command"]) as string
+      : host === "claude" ? data.statusLine.command as string : data.statusLine as string;
+    await rm(path.join(home, ".openlimiter", "terminal-runtime"), { recursive: true, force: true });
+    const output = await open(path.join(home, "stdout"), "w");
+    const error = await open(path.join(home, "stderr"), "w");
+    try {
+      const code = await new Promise<number | null>((resolve, reject) => {
+        const child = process.platform === "win32"
+          ? spawn("cmd.exe", ["/d", "/s", "/c", `"${command}"`], { stdio: ["ignore", output.fd, error.fd], windowsHide: true, windowsVerbatimArguments: true })
+          : spawn("/bin/sh", ["-c", command], { stdio: ["ignore", output.fd, error.fd] });
+        child.once("error", reject); child.once("close", resolve);
+      });
+      expect(code).toBe(0);
+    } finally { await output.close(); await error.close(); }
+    expect(await readFile(path.join(home, "stdout"), "utf8")).toBe(process.platform === "win32" ? "hi\r\n" : "hi\n");
+    expect(await readFile(path.join(home, "stderr"), "utf8")).toBe("");
+  }, 30_000);
+
+  it.each(["claude", "antigravity", "grok"] as const)("overrides %s by default, keeps the first command through mode changes and restores its exact bytes", async host => {
+    const home = await scratch(), file = await seed(home, host);
+    const ctx = context(home);
+    const first = await installHost(host, ctx);
+    expect(first.ok).toBe(true);
+    expect(first.message).toContain(`openlimiter terminal uninstall ${host} restores it`);
+    expect(first.message).toContain("previous");
+    const installed = await readFile(file, "utf8");
+    expect(installed).not.toContain(" --wrap ");
+    expect(installed).not.toContain("echo hi");
+    expect(JSON.parse(await readFile(file + ".openlimiter-backup.json", "utf8")).original).toBe(layouts[host].original);
+    expect((await installHost(host, ctx)).message).not.toContain("previous");
+    expect((await installHost(host, { ...ctx, wrap: true })).ok).toBe(true);
+    const wrapped = await readFile(file, "utf8");
+    expect(wrapped).toContain(` --wrap ${encodeWrappedStatuslineCommand("echo hi")}`);
+    expect((await installHost(host, ctx)).ok).toBe(true);
+    expect(await readFile(file, "utf8")).toBe(installed);
+    expect((await uninstallHost(host, ctx)).ok).toBe(true);
+    expect(await readFile(file)).toEqual(Buffer.from(layouts[host].original));
+  }, 30_000);
+
+  it.each(Object.keys(layouts) as (keyof typeof layouts)[])("refuses changed %s settings even when the marker was removed", async host => {
+    const home = await scratch(), file = await seed(home, host);
+    expect((await installHost(host, context(home))).ok).toBe(true);
+    await writeFile(file, layouts[host].original);
+    const result = await uninstallHost(host, context(home));
+    expect(result.ok).toBe(false);
+    expect(result.message.split("\n")).toHaveLength(1);
+    expect(await readFile(file, "utf8")).toBe(layouts[host].original);
+  }, 30_000);
+
+  it.each(["all", "--yes"])("passes the explicit wrap flag through install and restores all hosts through dispatch with %s", async all => {
+    const home = await scratch();
+    for (const host of Object.keys(layouts) as (keyof typeof layouts)[]) await seed(home, host);
+    const profile = path.join(home, "profile.ps1");
+    const original = 'function prompt { "my bars> " }\r\n# keep final bytes';
+    await writeFile(profile, original);
+    const deps = {
+      homeDirectory: home, platform: "win32" as const,
+      environment: { SHELL: "powershell.exe" },
+      windowsCredentialRunner: async () => ({ ok: true as const, stdout: profile })
+    };
+    expect((await runCli(["terminal", "--yes", "--wrap"], deps)).exitCode).toBe(0);
+    expect(await readFile(path.join(home, ...layouts.claude.file), "utf8")).toContain(" --wrap ");
+    expect((await runCli(["terminal", "install", "claude"], deps)).exitCode).toBe(0);
+    expect(await readFile(path.join(home, ...layouts.claude.file), "utf8")).not.toContain(" --wrap ");
+    expect((await runCli(["terminal", "install", "claude", "--wrap"], deps)).exitCode).toBe(0);
+    expect(await readFile(path.join(home, ...layouts.claude.file), "utf8")).toContain(" --wrap ");
+    expect((await runCli(["terminal", "uninstall", all], deps)).exitCode).toBe(0);
+    for (const host of Object.keys(layouts) as (keyof typeof layouts)[]) {
+      expect(await readFile(path.join(home, ...layouts[host].file))).toEqual(Buffer.from(layouts[host].original));
+    }
+    expect(await readFile(profile)).toEqual(Buffer.from(original));
+  }, 30_000);
+});
+
 describe("P2 TOML parsing", () => {
   it("02 wraps escaped quotes without truncation and restores exact original bytes", async () => {
     const home = await scratch(), file = await seed(home, "grok");
     const original = '# keep this comment\n[ui.status_line]\ncommand = "echo \\"hi\\""\ntype = "command"\n[other]\nvalues = ["a", "b"]\n';
     await writeFile(file, original);
-    expect((await installHost("grok", context(home))).ok).toBe(true);
+    expect((await installHost("grok", { ...context(home), wrap: true })).ok).toBe(true);
     const updated = await readFile(file, "utf8");
     expect(validateToml(updated)).toBe(true);
     const command = tomlValue(updated, ["ui", "status_line", "command"]) as string;
@@ -252,7 +333,7 @@ describe("P2 launcher trust and migration", () => {
     await expect(installHost("claude", { ...ctx, stateDirectory: secondState })).resolves.toMatchObject({ ok: true });
     const second = JSON.parse(await readFile(file, "utf8")) as { statusLine: { command: string } };
     expect(second.statusLine.command).not.toBe(first.statusLine.command);
-    expect(second.statusLine.command).toContain(path.join(secondState, "terminal-runtime"));
+    expect(second.statusLine.command).toContain(path.join(secondState, "terminal-launchers"));
   }, 30_000);
 
   it("migrates a legacy OpenLimiter command without wrapping it", async () => {
@@ -271,7 +352,7 @@ describe("P2 launcher trust and migration", () => {
     const userCommand = "echo user status";
     const legacy = `openlimiter statusline --host claude --wrap ${encodeWrappedStatuslineCommand(userCommand)}`;
     await writeFile(file, JSON.stringify({ statusLine: { type: "command", command: legacy } }));
-    await expect(installHost("claude", context(home))).resolves.toMatchObject({ ok: true });
+    await expect(installHost("claude", { ...context(home), wrap: true })).resolves.toMatchObject({ ok: true });
     const command = (JSON.parse(await readFile(file, "utf8")) as { statusLine: { command: string } }).statusLine.command;
     const encoded = command.match(/\s--wrap\s+([A-Za-z0-9_-]+)/)?.[1];
     expect(encoded).toBeDefined();
@@ -367,7 +448,7 @@ describe("P2 TOML and configuration roots", () => {
     const result = await installHost("claude", context(home, { CLAUDE_CONFIG_DIR: link }));
     expect(result.ok).toBe(true);
     const stored = JSON.parse(await readFile(file, "utf8")) as { statusLine: { command: string } };
-    expect(stored.statusLine.command.match(/\s--wrap\s+([A-Za-z0-9_-]+)/)?.[1]).toBeDefined();
+    expect(stored.statusLine.command).not.toContain(" --wrap ");
     expect(await readFile(path.join(link, "settings.json"), "utf8")).toBe(await readFile(file, "utf8"));
   }, 30_000);
 

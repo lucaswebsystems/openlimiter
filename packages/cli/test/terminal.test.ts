@@ -106,7 +106,7 @@ describe("terminal host installers", () => {
     const afterInstall = JSON.parse(await readFile(settingsFile, "utf8")) as {
       statusLine: { command: string };
     };
-    expect(afterInstall.statusLine.command).toContain('openlimiter.cjs" statusline --host claude');
+    expect(afterInstall.statusLine.command).toContain('openlimiter.ps1" statusline --host claude');
 
     /* Installing a second time must not wrap its own command around itself. */
     const installedAgain = await installHost("claude", ctx);
@@ -125,6 +125,7 @@ describe("terminal host installers", () => {
   it("wraps and restores an existing Claude status line through --wrap", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const ctx = await context(home);
+    ctx.wrap = true;
     const settingsFile = path.join(home, ".claude", "settings.json");
     await mkdir(path.dirname(settingsFile), { recursive: true });
     await writeFile(
@@ -138,7 +139,7 @@ describe("terminal host installers", () => {
     const wrapped = JSON.parse(await readFile(settingsFile, "utf8")) as {
       statusLine: { command: string };
     };
-    expect(wrapped.statusLine.command).toContain('openlimiter.cjs" statusline --host claude --wrap ');
+    expect(wrapped.statusLine.command).toContain('openlimiter.ps1" statusline --host claude --wrap ');
     expect(wrapped.statusLine.command).not.toContain("my-own-statusline");
 
     /* Installing again must not wrap the already wrapped command a second
@@ -161,6 +162,7 @@ describe("terminal host installers", () => {
   it("round trips Antigravity, including wrap and restore", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const ctx = await context(home);
+    ctx.wrap = true;
     const settingsFile = path.join(home, ".gemini", "antigravity-cli", "settings.json");
     await mkdir(path.dirname(settingsFile), { recursive: true });
     await writeFile(settingsFile, JSON.stringify({ statusLine: "their-own-line" }), "utf8");
@@ -168,7 +170,7 @@ describe("terminal host installers", () => {
 
     await installHost("antigravity", ctx);
     const wrapped = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: string };
-    expect(wrapped.statusLine).toContain('openlimiter.cjs" statusline --host antigravity --wrap ');
+    expect(wrapped.statusLine).toContain('openlimiter.ps1" statusline --host antigravity --wrap ');
 
     await installHost("antigravity", ctx);
     const wrappedAgain = JSON.parse(await readFile(settingsFile, "utf8")) as { statusLine: string };
@@ -182,6 +184,7 @@ describe("terminal host installers", () => {
   it("round trips Grok's [ui.status_line] table, including wrap and restore", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const ctx = await context(home);
+    ctx.wrap = true;
     const configFile = path.join(home, ".grok", "config.toml");
     await mkdir(path.dirname(configFile), { recursive: true });
     await writeFile(
@@ -193,7 +196,7 @@ describe("terminal host installers", () => {
 
     await installHost("grok", ctx);
     const wrapped = await readFile(configFile, "utf8");
-    expect(tomlValue(wrapped, ["ui", "status_line", "command"])).toContain('openlimiter.cjs" statusline --host grok --wrap ');
+    expect(tomlValue(wrapped, ["ui", "status_line", "command"])).toContain('openlimiter.ps1" statusline --host grok --wrap ');
     expect(wrapped).toContain("[some.other.table]");
 
     await installHost("grok", ctx);
@@ -240,7 +243,7 @@ describe("terminal host installers", () => {
     expect(await hostStatus("codex", ctx)).toBe(STATUS_NOT_WIRED);
 
     /* A [tui] section that already names its own status_line items is
-       somebody else's, and install wraps around it rather than claiming
+       somebody else's, and install saves it rather than claiming
        nothing was there. */
     await writeFile(
       configFile,
@@ -602,7 +605,7 @@ describe("terminal fail safely on malformed JSON/TOML and preserve user keys", (
     expect(afterGrokInstall).toContain("refresh_rate = 10");
     expect(afterGrokInstall).toContain("show_icons = true");
     expect(afterGrokInstall).toContain("# openlimiter managed");
-    expect(tomlValue(afterGrokInstall, ["ui", "status_line", "command"])).toContain('openlimiter.cjs" statusline --host grok');
+    expect(tomlValue(afterGrokInstall, ["ui", "status_line", "command"])).toContain('openlimiter.ps1" statusline --host grok');
 
     await uninstallHost("grok", ctx);
     const afterGrokUninstall = await readFile(grokFile, "utf8");

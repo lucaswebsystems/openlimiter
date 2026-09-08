@@ -15,8 +15,9 @@ import {
 } from "./statusline-wrapper.js";
 
 import { parseToml, editToml, tomlValue } from "./terminal-toml.js";
-import { installLauncher, launcherCommand } from "./terminal-launcher.js";
-import { isOwned, readOptional, restoreOwned, writeOwned } from "./terminal-backup.js";
+import { installLauncher } from "./terminal-launcher.js";
+import { fallbackLauncherCommand } from "./terminal-fallback.js";
+import { isOwned, originalConfiguration, readOptional, restoreOwned, writeOwned } from "./terminal-backup.js";
 
 export const TERMINAL_HOST_NAMES: readonly string[] = [
   "claude",
@@ -35,11 +36,11 @@ export const STATUS_WIRED = "Wired";
  *
  * Told apart from `STATUS_NOT_WIRED` on purpose: a host with somebody else's
  * command already in the slot is not a host with nothing there, and install
- * behaves differently in each case, wrapping the first and writing the second
+ * behaves differently in each case, saving the first and writing the second
  * fresh. Saying "Not installed" for both, as this used to, told a person
  * nothing about which one they were looking at.
  */
-export const STATUS_OWN_LINE_FOUND = "Your own status line found, install wraps it";
+export const STATUS_OWN_LINE_FOUND = "Your own status line found, install saves it";
 export const STATUS_NOT_WIRED = "Not wired";
 export const CONNECT_FIRST_SENTENCE = "Connect it first";
 
@@ -51,6 +52,8 @@ export interface TerminalHostContext {
   detectedProviders?: readonly string[];
   /** Required to identify the Windows shell and resolve its active profile. */
   shellRunner?: CredentialCommandRunner;
+  /** Keep the saved command alongside OpenLimiter only when explicitly chosen. */
+  wrap?: boolean;
 }
 
 export interface TerminalOperationResult {
@@ -214,9 +217,9 @@ const HOST_CONFIG = {
 };
 const CODEX_ITEMS = ["five-hour-limit", "weekly-limit", "context-used", "model-with-reasoning", "current-dir"];
 
-async function durableCommand(context: TerminalHostContext, shell: "posix" | "cmd" | "powershell"): Promise<string> {
+async function durableCommand(context: TerminalHostContext, shell: "posix" | "cmd" | "powershell", original: string | null): Promise<string> {
   const runtime = await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
-  return launcherCommand(runtime, shell);
+  return await fallbackLauncherCommand(runtime, shell, original);
 }
 
 function ownedMarker(text: string, json: boolean): boolean {
@@ -239,6 +242,7 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
   if (read.kind === "parse_error") return { ok: false, message: `Could not read ${file}, fix it or move it aside` };
   try {
     const original = await readOptional(file);
+    const firstConfiguration = await originalConfiguration(file, original);
     const text = original ?? (spec.json ? "{}" : "");
     const marker = ownedMarker(text, spec.json);
     if (!install) {
@@ -258,15 +262,21 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
     const owned = original !== null && await isOwned(file, original, marker);
     if (marker && !owned && !legacyOpenLimiter) return { ok: false, message: `Could not write ${file}.` };
 
+    const savedText = firstConfiguration ?? (spec.json ? "{}" : "");
+    const savedCommand = spec.json
+      ? claudeLikeStatusLineCommand((JSON.parse(savedText) as Record<string, unknown>)["statusLine"])
+      : host === "grok" ? grokStatusLineCommand(savedText) : null;
+    const userCommand = savedCommand === null ? null : unwrapOpenLimiterStatuslineCommand(savedCommand);
+    const replaced = !owned && (userCommand !== null || (host === "codex" && tomlValue(savedText, ["tui", "status_line"]) !== undefined));
+    const message = replaced
+      ? `Your previous ${spec.label} status line is stored, and openlimiter terminal uninstall ${host} restores it.`
+      : spec.wired;
     let updated: string;
     if (spec.json) {
       const data = JSON.parse(text) as Record<string, unknown>;
-      const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix");
-      const userCommand = previous === null
-        ? null
-        : legacyOpenLimiter ? unwrapOpenLimiterStatuslineCommand(previous) : previous;
+      const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix", userCommand);
       const command = `${base} statusline --host ${host}` +
-        (userCommand === null ? "" : ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}`);
+        (!context.wrap || userCommand === null ? "" : ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}`);
       data["openlimiter managed"] = true;
       data["statusLine"] = host === "claude" ? { type: "command", command } : command;
       updated = JSON.stringify(data, null, 2) + "\n";
@@ -274,18 +284,15 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
     } else if (host === "codex") {
       updated = editToml(text, ["tui"], { status_line: CODEX_ITEMS, status_line_use_colors: true });
     } else {
-      const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix");
-      const userCommand = previous === null
-        ? null
-        : legacyOpenLimiter ? unwrapOpenLimiterStatuslineCommand(previous) : previous;
+      const base = await durableCommand(context, context.platform === "win32" ? "cmd" : "posix", userCommand);
       const command = `${base} statusline --host grok` +
-        (typeof userCommand === "string" ? ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}` : "");
+        (context.wrap && typeof userCommand === "string" ? ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}` : "");
       updated = editToml(text, ["ui", "status_line"], { type: "command", command });
     }
     if (owned && updated === text) return { ok: true, message: spec.wired };
     await mkdir(path.dirname(file), { recursive: true });
     await writeOwned(file, original, updated);
-    return { ok: true, message: spec.wired };
+    return { ok: true, message };
   } catch {
     return { ok: false, message: `Could not ${install ? "write" : "update"} ${file}.` };
   }
@@ -440,8 +447,8 @@ export async function installShell(context: TerminalHostContext): Promise<Termin
     const target = await shellTarget(context);
     const original = await readOptional(target.file);
     const runtime = await installLauncher(context.stateDirectory ?? path.join(context.homeDirectory, ".openlimiter"));
-    const posixCommand = launcherCommand(runtime, "posix");
-    const powerShellCommand = launcherCommand(runtime, "powershell");
+    const posixCommand = await fallbackLauncherCommand(runtime, "posix", null);
+    const powerShellCommand = await fallbackLauncherCommand(runtime, "powershell", null);
     const command = target.kind === "powershell" ? powerShellCommand : posixCommand;
     const snippets = shellSnippets(posixCommand, powerShellCommand);
     const alreadyOwned = original !== null && await isOwned(target.file, original, ownedMarker(original, false));
@@ -480,6 +487,7 @@ export async function uninstallShell(context: TerminalHostContext): Promise<Term
   try {
     const target = await shellTarget(context);
     const original = await readOptional(target.file);
+    await originalConfiguration(target.file, original);
     if (original !== null) {
       const marker = ownedMarker(original, false);
       const restored = await restoreOwned(target.file, original, marker);
@@ -508,7 +516,7 @@ function claudeLikeStatusLineCommand(value: unknown): string | null {
 }
 
 function isOpenLimiterStatuslineCommand(command: string): boolean {
-  return /(?:^|[\\/"'\s])openlimiter(?:\.cjs|\.cmd|\.exe)?(?=$|[\\/"'\s])/i.test(command) &&
+  return /(?:^|[\\/"'\s])openlimiter(?:\.cjs|\.cmd|\.exe|\.sh|\.ps1)?(?=$|[\\/"'\s])/i.test(command) &&
     /\bstatusline\s+--host\s+[A-Za-z0-9_-]+\b/i.test(command);
 }
 
@@ -555,7 +563,7 @@ function classifyCodexSection(text: string | null): string {
  * Check wiring status for a host.
  *
  * Three states for every host that can carry somebody else's status line:
- * ours is wired, somebody else's is already there and install would wrap it
+ * ours is wired, somebody else's is already there and install would save it
  * rather than overwrite it, or nothing is there at all. The shell host has no
  * wrap to offer, install only ever appends our own snippet, so it stays a
  * plain wired or not.

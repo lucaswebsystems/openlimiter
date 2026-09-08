@@ -18,6 +18,13 @@ async function backup(file: string): Promise<Backup | null> {
   return value;
 }
 
+/** Recover the first configuration, including across reinstalls and state moves. */
+export async function originalConfiguration(file: string, current: string | null): Promise<string | null> {
+  const saved = await backup(file);
+  if (saved !== null && saved.installed !== current) throw new Error("Configuration changed");
+  return saved === null ? current : saved.original;
+}
+
 async function withFileLock<Result>(file: string, action: () => Promise<Result>): Promise<Result> {
   const directory = path.dirname(file);
   const lockName = `.${path.basename(file)}.openlimiter.lock`;
@@ -63,7 +70,8 @@ export async function restoreOwned(file: string, current: string, marker: boolea
     const latest = await readOptional(file);
     if (latest !== current) return false;
     const saved = await backup(file);
-    if (!(marker && saved !== null && saved.installed === latest)) return false;
+    if (saved !== null && (!marker || saved.installed !== latest)) throw new Error("Configuration changed");
+    if (!(marker && saved !== null)) return false;
     if (saved.original === null) await rm(file);
     else await writeFileAtomically(file, saved.original);
     if (await readOptional(file) !== saved.original) throw new Error("Configuration changed");
