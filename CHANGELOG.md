@@ -4,7 +4,7 @@ All notable project changes appear in this file.
 
 ## [1.3.3] (2026-09-08)
 
-CLI and packages only; the desktop stays at 1.3.1 and the site ships the matching web fixes.
+Packages 1.3.3 on npm, desktop v1.3.2, and the site with the matching web fixes.
 
 ### Fixed
 
@@ -14,6 +14,8 @@ CLI and packages only; the desktop stays at 1.3.1 and the site ships the matchin
 - Terminal installers: Grok and Codex configuration files are edited through a TOML parser with validation, backups are owned and restored under a lock, the launcher is trusted by its bytes and survives an empty PATH, an older OpenLimiter status command is migrated instead of wrapped, byte order marks survive, shell hooks use guarded names, fish and nushell are reported as skipped with the manual snippet.
 - Readings: the Antigravity probe trusts only the vendor executable resolved through its real path on every platform; Antigravity pools stay distinct; Claude status line ingestion no longer makes every provider look fresh; OpenRouter renders real amounts; terminal login stops on every non pending status; streamed responses are bounded and cancelled.
 - Setup prints each section once and acquires readings before the host prompts; an empty terminal selection is explicit.
+- Desktop: provider discovery trusts only canonical vendor install roots with the exact package identity; the managed Codex home refuses symlinked components; the Codex device login runs off the dispatcher thread, shows only the vendor sign in link, reports quota pending or failed, and rescans commit only their latest result; account requests carry the OpenLimiter User-Agent; the Claude refresh command is gone and Claude polling is opt in; the loopback listener checks its destination; macOS first run explains Gatekeeper.
+- Web hub: same origin sign in redirects, account bound pending intents, serial visibility aware pairing polls, phone renewal that distinguishes a lost pairing from a transient failure, an OpenRouter callback that scrubs its parameters and verifier, cloud spend with observation age, provider prefixed currencies, half open periods, an i18n gate that refuses dashes in translated prose, accessible stale state.
 
 ## [1.3.1] (2026-09-07)
 
