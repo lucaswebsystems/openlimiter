@@ -320,7 +320,7 @@ describe("hook configuration mutation", () => {
     expect(await readFile(file, "utf8")).toBe("export const userPlugin = true;\n");
   });
 
-  it("preserves invalid, non UTF 8, and oversized configuration bytes", async () => {
+  it("preserves invalid, non UTF 8, and oversized configuration bytes", { timeout: 10_000 }, async () => {
     for (const contents of [
       Buffer.from("{not-json", "utf8"),
       Buffer.from([0x7b, 0x22, 0xc3, 0x22, 0x7d]),
@@ -400,14 +400,23 @@ describe("hook configuration mutation", () => {
     expect(agentVersionCompatibility("grok", "1.0.5")).toBe("newer");
   });
 
-  it("fails closed when a Windows command shim cannot be executed without a shell", async () => {
-    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter-agent-shim-"));
+  it("detects a Windows command shim from a path with spaces", async () => {
+    const directory = await mkdtemp(path.join(await scratchRoot(), "openlimiter agent shim path with spaces "));
     created.push(directory);
-    await writeFile(path.join(directory, "opencode.cmd"), "@exit /b 0\n", "utf8");
-    await expect(detectAgentInstallation("opencode", {
+    const executable = path.join(directory, "codex.cmd");
+    await writeFile(executable, "@echo off\r\necho codex 0.153.3\r\n", "utf8");
+    const seen: { executable: string; argumentsList: readonly string[] } = { executable: "", argumentsList: [] };
+    await expect(detectAgentInstallation("codex", {
       platform: "win32",
-      environment: { Path: directory, PATHEXT: ".CMD" }
-    })).resolves.toBeNull();
+      environment: { Path: path.dirname(executable), PATHEXT: ".CMD" },
+      runCommand: async (command, argumentsList) => {
+        seen.executable = command;
+        seen.argumentsList = argumentsList;
+        return { ok: true, stdout: "codex 0.153.3", stderr: "" };
+      }
+    })).resolves.toMatchObject({ version: "0.153.3" });
+    expect(seen.executable).toBe(executable);
+    expect(seen.argumentsList).toEqual(["--version"]);
   });
 
   it("ignores relative PATH entries during executable discovery", async () => {

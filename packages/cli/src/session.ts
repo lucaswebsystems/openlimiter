@@ -34,6 +34,40 @@ export const SESSION_SECURITY_NOTE_POSIX =
 export const SESSION_SECURITY_NOTE_WINDOWS =
   "This file holds a hub sign in. An owner only ACL is verified before credentials are written.";
 
+export type StorageDiagnosticKind = "acl_failure" | "lock_timeout" | "storage_unavailable";
+
+export interface StorageDiagnostic {
+  readonly kind: StorageDiagnosticKind;
+  readonly directory: string;
+  readonly action: string;
+}
+
+function sanitiseStorageText(value: string): string {
+  return value.replace(/[\u0000-\u001f\u007f]/gu, "?").slice(0, 4_096);
+}
+
+function quoteStoragePath(value: string): string {
+  return `"${sanitiseStorageText(value).replaceAll("\"", "\"\"")}"`;
+}
+
+export class StorageDiagnosticError extends Error {
+  public readonly diagnostic: StorageDiagnostic;
+
+  constructor(
+    diagnostic: StorageDiagnostic,
+    detail: string
+  ) {
+    const directory = sanitiseStorageText(diagnostic.directory);
+    const action = sanitiseStorageText(diagnostic.action);
+    super(
+      "Private session storage at " + quoteStoragePath(directory) +
+      " needs action: " + action + ". " + sanitiseStorageText(detail)
+    );
+    this.diagnostic = { ...diagnostic, directory, action };
+    this.name = "StorageDiagnosticError";
+  }
+}
+
 export interface HubSession {
   readonly version: 1;
   readonly token: string;
@@ -100,9 +134,13 @@ async function applyWindowsOwnerOnlyAcl(
   target: string,
   runner: CredentialCommandRunner | undefined
 ): Promise<void> {
-  const repairFailure = (detail: string): Error => new Error(
-    "Private session storage is unavailable at " + target + ". " +
-    "Restore access with icacls " + target + " /reset from your own account. " + detail
+  const repairFailure = (detail: string): StorageDiagnosticError => new StorageDiagnosticError(
+    {
+      kind: "acl_failure",
+      directory: target,
+      action: "run icacls " + quoteStoragePath(target) + " /reset from your own account"
+    },
+    detail
   );
   if (runner === undefined) {
     throw repairFailure("The Windows ACL helper is unavailable");
@@ -216,11 +254,25 @@ export async function withSessionLock<T>(directory: string, action: () => Promis
   for (;;) {
     const lock = await acquireRefreshLock(directory, Date.now(), SESSION_LOCK_NAME);
     if (!lock.ok) {
-      if (lock.reason === "unavailable") throw new Error("Private session storage is unavailable");
+      if (lock.reason === "unavailable") {
+        throw new StorageDiagnosticError(
+          {
+            kind: "storage_unavailable",
+            directory,
+            action: "check that the directory is writable"
+          },
+          "The session lock could not be created"
+        );
+      }
       const elapsed = Date.now() - startedAt;
       if (elapsed >= SESSION_LOCK_WAIT_MILLISECONDS) {
-        throw new Error(
-          "another OpenLimiter command holds the session lock at " + lockPath
+        throw new StorageDiagnosticError(
+          {
+            kind: "lock_timeout",
+            directory,
+            action: "wait for the session lock at " + quoteStoragePath(lockPath) + " to clear, then try again"
+          },
+          "Another OpenLimiter command still holds the lock"
         );
       }
       await new Promise((resolve) => setTimeout(

@@ -90,6 +90,7 @@ export interface EnumerateAgyPortsOptions {
   readonly runCommand?: CredentialCommandRunner;
   readonly resolveExecutablePath?: (pid: string) => Promise<string | null>;
   readonly resolveExecutableOwner?: (executablePath: string) => Promise<number | null>;
+  readonly resolveExecutableMode?: (executablePath: string) => Promise<number | null>;
   readonly env?: NodeJS.ProcessEnv;
 }
 
@@ -541,7 +542,18 @@ export async function enumerateAgyListeningPorts(
               return null;
             }
           }))(exePath);
-        trusted = exePath !== null && ownerUid === currentUid &&
+        const mode = exePath === null
+          ? null
+          : await (options.resolveExecutableMode ?? (async (candidate: string) => {
+            try {
+              return (await stat(candidate)).mode ?? null;
+            } catch {
+              return null;
+            }
+          }))(exePath);
+        trusted = exePath !== null &&
+          (ownerUid === currentUid || ownerUid === 0) &&
+          (mode === null || (mode & 0o002) === 0) &&
           isTrustedAgyExecutable(exePath, platform, roots);
       } else {
         const exePath = await resolveAgyExecutablePath(pid, platform, runner, options?.env ?? process.env);
@@ -553,7 +565,16 @@ export async function enumerateAgyListeningPorts(
               return null;
             }
           }))(exePath);
-          trusted = ownerUid === currentUid && isTrustedAgyExecutable(exePath, platform, roots);
+          const mode = await (options?.resolveExecutableMode ?? (async (candidate: string) => {
+            try {
+              return (await stat(candidate)).mode ?? null;
+            } catch {
+              return null;
+            }
+          }))(exePath);
+          trusted = (ownerUid === currentUid || ownerUid === 0) &&
+            (mode === null || (mode & 0o002) === 0) &&
+            isTrustedAgyExecutable(exePath, platform, roots);
         } else {
           /* The executable this pid runs could not be read at all, on the
              one platform this file resolves it without an injected

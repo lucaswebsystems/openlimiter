@@ -173,6 +173,7 @@ import { runSync, syncIsDue, recordSyncAttempt } from "./hub-sync.js";
 import {
   deleteSession,
   readSession,
+  StorageDiagnosticError,
   writeSession,
   withSessionLock,
   type HubSession
@@ -284,7 +285,7 @@ export interface CliDependencies {
    */
   openBrowser: (url: string) => void;
   /** An injectable delay, so a poll loop never makes a test wait in real time. */
-  sleep: (milliseconds: number) => Promise<void>;
+  sleep: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
   /**
    * Progress a long running command wants seen before it returns.
    *
@@ -469,7 +470,7 @@ export function runtimeDependencies(): Pick<
     emit: (line) => {
       process.stdout.write(line + "\n");
     },
-    codexDeviceLoginRunnerFactory: (executable) => new SystemDeviceLoginRunner(executable)
+    codexDeviceLoginRunnerFactory: (executable) => new SystemDeviceLoginRunner(executable, process.platform)
   };
 }
 
@@ -1996,6 +1997,9 @@ async function loginCommand(
   if (outcome.kind === "not_configured") {
     return fail(EXIT_FAILURE, "openlimiter login: the hub is not configured on this build.");
   }
+  if (outcome.kind === "storage_error") {
+    return fail(EXIT_FAILURE, "openlimiter login: " + outcome.message);
+  }
   return fail(EXIT_FAILURE, "openlimiter login: " + outcome.message + ".");
 }
 
@@ -2154,6 +2158,8 @@ async function setupSignInStep(dependencies: CliDependencies): Promise<string[]>
       : DELIVERY_UNCONFIRMED_SENTENCE);
   } else if (outcome.kind === "cancelled") {
     add("Cancelled.");
+  } else if (outcome.kind === "storage_error") {
+    add(outcome.message);
   } else {
     add("Could not sign in this time. Run openlimiter login later.");
   }
@@ -2404,7 +2410,7 @@ export async function runCli(
       return succeed(help);
     }
     return fail(EXIT_USAGE, "openlimiter: unknown command.", help);
-  } catch {
+  } catch (error) {
     /*
      * The hook and statusline paths are invoked by another tool. They report
      * nothing rather than breaking their host. Every other command surfaces the
@@ -2416,6 +2422,9 @@ export async function runCli(
     if (command === "refresh") return { exitCode: EXIT_OK, stdout: "", stderr: "" };
     if (command === "statusline") {
       return { exitCode: EXIT_OK, stdout: "OpenLimiter UNKNOWN", stderr: "" };
+    }
+    if (error instanceof StorageDiagnosticError) {
+      return fail(EXIT_FAILURE, error.message);
     }
     return fail(EXIT_FAILURE, "openlimiter: the command did not complete.");
   }

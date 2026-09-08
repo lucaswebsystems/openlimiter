@@ -25,7 +25,9 @@ import {
 } from "./hub.js";
 import {
   sessionIsFresh,
-  type HubSession
+  StorageDiagnosticError,
+  type HubSession,
+  type StorageDiagnostic
 } from "./session.js";
 
 /** The sentence a hub side revocation prints, word for word. */
@@ -243,7 +245,7 @@ export function accountLabelFromToken(token: string, fallback: string): string {
 export interface DeviceLoginOptions {
   readonly environment: Readonly<Record<string, string | undefined>>;
   readonly transport: HubTransport;
-  readonly sleep: (milliseconds: number) => Promise<void>;
+  readonly sleep: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
   /** Progress this process wants seen before the command itself returns. */
   readonly emit: (line: string) => void;
   readonly interruptSignal?: AbortSignal;
@@ -259,6 +261,7 @@ export type DeviceLoginResult =
   | { readonly kind: "denied"; readonly message?: string }
   | { readonly kind: "expired"; readonly message?: string }
   | { readonly kind: "not_configured" }
+  | { readonly kind: "storage_error"; readonly message: string; readonly diagnostic: StorageDiagnostic }
   | { readonly kind: "error"; readonly message: string };
 
 type DeliveryAcknowledgement =
@@ -272,24 +275,28 @@ async function acknowledgeDelivery(
   deviceCode: string,
   token: string,
   clientProof: string,
-  initialIntervalSeconds: number
+  initialIntervalSeconds: number,
+  deadline: number,
+  signal: AbortSignal
 ): Promise<DeliveryAcknowledgement> {
   let intervalSeconds = initialIntervalSeconds;
-  const deadline = Date.now() + start.expiresInSeconds * 1_000;
   const maxAttempts = Math.ceil(start.expiresInSeconds / initialIntervalSeconds) + LOGIN_SAFETY_MARGIN_POLLS;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (isAborted(signal) || Date.now() >= deadline) return { kind: "unconfirmed" };
     const request = cliLoginAckRequest(options.environment, deviceCode, token, clientProof);
     if (request === null) return { kind: "error", message: "the delivery acknowledgement could not be sent" };
     let reply;
     try {
-      reply = await options.transport(request);
+      reply = await awaitWithSignal(options.transport(request, signal), signal);
     } catch {
       if (attempt + 1 >= maxAttempts || Date.now() >= deadline) return { kind: "unconfirmed" };
-      await options.sleep(Math.min(intervalSeconds * 1_000, Math.max(0, deadline - Date.now())));
-      if (Date.now() >= deadline) return { kind: "unconfirmed" };
+      if (!(await sleepWithSignal(options, Math.min(intervalSeconds * 1_000, Math.max(0, deadline - Date.now())), signal))) {
+        return { kind: "unconfirmed" };
+      }
       intervalSeconds = Math.min(MAX_RETRY_INTERVAL_SECONDS, intervalSeconds * 2);
       continue;
     }
+    if (isAborted(signal) || Date.now() >= deadline) return { kind: "unconfirmed" };
     if (reply.status === 403 || reply.status === 404 || reply.status === 410) {
       return { kind: "unconfirmed" };
     }
@@ -302,8 +309,9 @@ async function acknowledgeDelivery(
     if (reply.status === 429 || reply.status === 503 || (reply.status >= 500 && reply.status <= 599)) {
       if (attempt + 1 >= maxAttempts || Date.now() >= deadline) return { kind: "unconfirmed" };
       intervalSeconds = nextBackoffInterval(intervalSeconds, reply.retryAfterSeconds);
-      await options.sleep(Math.min(intervalSeconds * 1_000, Math.max(0, deadline - Date.now())));
-      if (Date.now() >= deadline) return { kind: "unconfirmed" };
+      if (!(await sleepWithSignal(options, Math.min(intervalSeconds * 1_000, Math.max(0, deadline - Date.now())), signal))) {
+        return { kind: "unconfirmed" };
+      }
       continue;
     }
     return {
@@ -312,6 +320,48 @@ async function acknowledgeDelivery(
     };
   }
   return { kind: "unconfirmed" };
+}
+
+function awaitWithSignal<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(new Error("aborted"));
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const onAbort = (): void => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("aborted"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      }
+    );
+  });
+}
+
+async function sleepWithSignal(
+  options: DeviceLoginOptions,
+  milliseconds: number,
+  signal: AbortSignal
+): Promise<boolean> {
+  if (milliseconds <= 0 || isAborted(signal)) return false;
+  try {
+    await awaitWithSignal(options.sleep(milliseconds, signal), signal);
+  } catch (error) {
+    if (isAborted(signal)) return false;
+    throw error;
+  }
+  return !isAborted(signal);
 }
 
 /**
@@ -330,37 +380,55 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
   const clientProofHash = createHash("sha256").update(clientProof, "utf8").digest("base64url");
   const startRequest = cliLoginStartRequest(options.environment, clientProofHash);
   if (startRequest === null) return { kind: "not_configured" };
+  const loginController = new AbortController();
+  const signal = loginController.signal;
+  const forwardAbort = (): void => loginController.abort();
+  if (options.interruptSignal?.aborted) loginController.abort();
+  else options.interruptSignal?.addEventListener("abort", forwardAbort, { once: true });
   let startReply;
   try {
-    startReply = await options.transport(startRequest);
+    startReply = await awaitWithSignal(options.transport(startRequest, signal), signal);
   } catch {
+    options.interruptSignal?.removeEventListener("abort", forwardAbort);
+    if (isAborted(signal)) return { kind: "cancelled" };
     return { kind: "error", message: "could not reach the hub" };
   }
   if (startReply.status < 200 || startReply.status >= 300) {
+    options.interruptSignal?.removeEventListener("abort", forwardAbort);
     return { kind: "error", message: "the hub refused the sign in request" };
   }
   const start = parseLoginStart(startReply.body);
   if (start === null) {
+    options.interruptSignal?.removeEventListener("abort", forwardAbort);
     return { kind: "error", message: "the hub answered with something this build could not read" };
   }
+  const deadline = Date.now() + start.expiresInSeconds * 1_000;
   options.emit("Enter this code: " + start.userCode);
   options.emit("At: " + start.verificationUrl);
   if (options.open) options.openBrowser?.(start.verificationUrl);
+  const deadlineTimer = setTimeout(() => loginController.abort(), Math.max(0, deadline - Date.now()));
   let intervalSeconds = start.intervalSeconds;
   let serverErrorRetries = 0;
   const maxAttempts = Math.ceil(start.expiresInSeconds / intervalSeconds) + LOGIN_SAFETY_MARGIN_POLLS;
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    if (isAborted(options.interruptSignal)) return { kind: "cancelled" };
-    await options.sleep(intervalSeconds * 1_000);
-    if (isAborted(options.interruptSignal)) return { kind: "cancelled" };
-    const pollRequest = cliLoginPollRequest(options.environment, start.deviceCode, clientProof);
-    if (pollRequest === null) return { kind: "error", message: "the device code could not be sent" };
-    let pollReply;
-    try {
-      pollReply = await options.transport(pollRequest);
-    } catch {
-      continue;
-    }
+  try {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (isAborted(signal)) return { kind: Date.now() >= deadline ? "expired" : "cancelled" };
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return { kind: "expired" };
+      if (!(await sleepWithSignal(options, Math.min(intervalSeconds * 1_000, remaining), signal))) {
+        return { kind: Date.now() >= deadline ? "expired" : "cancelled" };
+      }
+      if (isAborted(signal) || Date.now() >= deadline) return { kind: "expired" };
+      const pollRequest = cliLoginPollRequest(options.environment, start.deviceCode, clientProof);
+      if (pollRequest === null) return { kind: "error", message: "the device code could not be sent" };
+      let pollReply;
+      try {
+        pollReply = await awaitWithSignal(options.transport(pollRequest, signal), signal);
+      } catch {
+        if (isAborted(signal)) return { kind: Date.now() >= deadline ? "expired" : "cancelled" };
+        continue;
+      }
+      if (isAborted(signal)) return { kind: Date.now() >= deadline ? "expired" : "cancelled" };
     if (pollReply.status === 403) {
       const message = serverMessage(pollReply.body, [clientProof]);
       return message === null ? { kind: "denied" } : { kind: "denied", message };
@@ -411,7 +479,10 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
     };
     try {
       await options.storeSession?.(session);
-    } catch {
+    } catch (error) {
+      if (error instanceof StorageDiagnosticError) {
+        return { kind: "storage_error", message: error.message, diagnostic: error.diagnostic };
+      }
       return { kind: "error", message: "could not save the signed in session" };
     }
     const acknowledgement = await acknowledgeDelivery(
@@ -420,12 +491,18 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
       start.deviceCode,
       session.token,
       clientProof,
-      intervalSeconds
+      intervalSeconds,
+      deadline,
+      signal
     );
     if (acknowledgement.kind === "error") return acknowledgement;
     return { kind: "signed_in", session, deliveryConfirmed: acknowledgement.kind === "confirmed" };
+    }
+    return { kind: "expired" };
+  } finally {
+    clearTimeout(deadlineTimer);
+    options.interruptSignal?.removeEventListener("abort", forwardAbort);
   }
-  return { kind: "expired" };
 }
 
 export type RenewOutcome =

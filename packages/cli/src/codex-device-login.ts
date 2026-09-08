@@ -15,8 +15,9 @@
  * Nothing here reads, copies or rewrites a credential file. The only thing
  * this module ever asks is whether one appeared.
  */
-import { spawn } from "node:child_process";
+import { spawnWithWindowsCommandShim } from "@openlimiter/core";
 import { createInterface } from "node:readline";
+import type { ChildProcess } from "node:child_process";
 import { lstat, mkdir } from "node:fs/promises";
 import path from "node:path";
 
@@ -168,7 +169,7 @@ class RealDeviceLoginChild implements DeviceLoginChild {
   private waiting: ((line: string | null) => void) | null = null;
   private closed = false;
 
-  constructor(private readonly child: ReturnType<typeof spawn>) {
+  constructor(private readonly child: ChildProcess) {
     const onLine = (line: string): void => this.deliver(line.slice(0, MAX_LINE_BYTES));
     if (child.stdout !== null) createInterface({ input: child.stdout }).on("line", onLine);
     if (child.stderr !== null) createInterface({ input: child.stderr }).on("line", onLine);
@@ -225,16 +226,19 @@ class RealDeviceLoginChild implements DeviceLoginChild {
 
 /** The real runner: `codex login --device-auth` with a managed `CODEX_HOME`. */
 export class SystemDeviceLoginRunner implements DeviceLoginRunner {
-  constructor(private readonly executable: string) {}
+  constructor(
+    private readonly executable: string,
+    private readonly platform: NodeJS.Platform = process.platform
+  ) {}
 
   async start(home: string): Promise<DeviceLoginChild> {
     let child;
     try {
-      child = spawn(this.executable, ["login", "--device-auth"], {
+      child = spawnWithWindowsCommandShim(this.executable, ["login", "--device-auth"], {
         env: { ...process.env, CODEX_HOME: home },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true
-      });
+      }, this.platform);
     } catch {
       throw new DeviceLoginError("spawn");
     }

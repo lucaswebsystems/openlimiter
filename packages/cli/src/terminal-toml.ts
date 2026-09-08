@@ -196,7 +196,49 @@ class Parser {
 
 export function parseToml(text: string): Parser { return new Parser(text).parse(); }
 export function tomlValue(text: string, keys: string[]): Value | undefined {
-  return parseToml(text).entries.find(e => same(e.keys, keys))?.value;
+  const parsed = parseToml(text);
+  const direct = parsed.entries.find(e => same(e.keys, keys));
+  if (direct !== undefined) return direct.value;
+  for (const entry of parsed.entries) {
+    if (entry.keys.length >= keys.length || !same(entry.keys, keys.slice(0, entry.keys.length))) continue;
+    let value: Value | undefined = entry.value;
+    for (const key of keys.slice(entry.keys.length)) {
+      const table = inlineTable(value);
+      value = table?.[JSON.stringify([key])];
+      if (value === undefined) break;
+    }
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+function inlineTable(value: Value | undefined): { [key: string]: Value } | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  return Object.keys(value).every(key => {
+    try {
+      const decoded: unknown = JSON.parse(key);
+      return Array.isArray(decoded) && decoded.every(part => typeof part === "string");
+    } catch {
+      return false;
+    }
+  }) ? value : null;
+}
+
+function tomlKey(key: string): string {
+  return /^[A-Za-z0-9_-]+$/u.test(key) ? key : JSON.stringify(key);
+}
+
+function serializeTomlValue(value: Value): string {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number") return Number.isFinite(value) ? String(value) : "nan";
+  if (typeof value === "boolean") return String(value);
+  if (value === null) return "nan";
+  if (Array.isArray(value)) return `[${value.map(serializeTomlValue).join(", ")}]`;
+  const entries = Object.entries(value).map(([encoded, child]) => {
+    const decoded = JSON.parse(encoded) as string[];
+    return `${decoded.map(tomlKey).join(".")} = ${serializeTomlValue(child)}`;
+  });
+  return `{${entries.join(", ")}}`;
 }
 
 /** Serialize only changed scalar values, then parse the entire candidate. */
@@ -205,15 +247,34 @@ export function editToml(text: string, table: string[], settings: Record<string,
   if (parsed.tables.some(t => t.array && same(t.keys.slice(0, table.length), table))) throw new Error("Invalid TOML");
   const edits: { start: number; end: number; text: string }[] = [];
   const added: string[] = [];
+  const inlineParent = parsed.entries.find(e => same(e.keys, table) && inlineTable(e.value) !== null);
+  if (inlineParent !== undefined) {
+    const updated = { ...(inlineTable(inlineParent.value) ?? {}) };
+    for (const [key, value] of Object.entries(settings)) updated[JSON.stringify([key])] = value;
+    edits.push({ start: inlineParent.start, end: inlineParent.end, text: serializeTomlValue(updated) });
+    if (!text.split(/\r?\n/).some(line => line.trim() === "# openlimiter managed")) {
+      edits.push({ start: text.length, end: text.length, text: `${text.endsWith("\n") ? "" : "\n"}# openlimiter managed\n` });
+    }
+    let result = text;
+    for (const edit of edits.sort((a, b) => b.start - a.start)) result = result.slice(0, edit.start) + edit.text + result.slice(edit.end);
+    parseToml(result);
+    return result;
+  }
   for (const [key, value] of Object.entries(settings)) {
     const entry = parsed.entries.find(e => same(e.keys, [...table, key]));
-    const serialized = JSON.stringify(value);
+    const serialized = serializeTomlValue(value);
     if (entry) edits.push({ start: entry.start, end: entry.end, text: serialized });
     else added.push(`${key} = ${serialized}`);
   }
   const existingTable = parsed.tables.find(t => same(t.keys, table));
+  const dottedRepresentation = existingTable === undefined && parsed.entries.some(
+    entry => entry.keys.length > table.length && same(entry.keys.slice(0, table.length), table)
+  );
+  const addedContent = dottedRepresentation
+    ? added.map(line => `${table.join(".")}.${line}`)
+    : added;
   const insertion = existingTable?.insert ?? text.length;
-  const content = existingTable ? added : [`[${table.join(".")}]`, ...added];
+  const content = existingTable ? added : dottedRepresentation ? addedContent : [`[${table.join(".")}]`, ...added];
   const hasManagedMarker = text.split(/\r?\n/).some(line => line.trim() === "# openlimiter managed");
   if (!hasManagedMarker) edits.push({ start: insertion, end: insertion, text: `\n# openlimiter managed\n${content.join("\n")}\n` });
   let result = text;

@@ -117,6 +117,15 @@ function stubRunner(options: StubOptions): { runner: DeviceLoginRunner; stopped:
 const STARTED_LINES = ["Open https://auth.openai.com/device", "Your code is BDXK-9QTZ"];
 
 describe("startCodexDeviceLogin", () => {
+  it("starts a managed login for a codex.cmd installation", async () => {
+    const stateDirectory = await temporaryDirectory("openlimiter codex runner path ");
+    const { runner } = stubRunner({ lines: STARTED_LINES, writesCredential: true });
+    const home = managedCodexHome(stateDirectory, "sessionshim");
+    const { session } = await startCodexDeviceLogin(runner, home ?? "", Date.now());
+    await writeFile(path.join(home ?? "", "auth.json"), "stored", "utf8");
+    expect((await session.state(Date.now())).kind).toBe("complete");
+  });
+
   it("starts, reads the code and the address, and reports pending until the credential appears", async () => {
     const stateDirectory = await temporaryDirectory("openlimiter-codex-");
     const { runner } = stubRunner({ lines: STARTED_LINES, writesCredential: false });

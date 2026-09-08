@@ -118,14 +118,14 @@ describe("session file", () => {
           throw new Error("icacls exploded");
         }
       })
-    ).rejects.toThrow("icacls " + directory + " /reset");
+    ).rejects.toThrow("icacls \"" + directory + "\" /reset");
     await expect(
       writeSession(session(), {
         directory,
         platform: "win32",
         windowsAclRunner: async () => ({ ok: false, stdout: "" })
       })
-    ).rejects.toThrow(directory);
+    ).rejects.toThrow("Private session storage at \"" + directory + "\"");
     expect(await readSession(directory)).toBeNull();
   });
 
@@ -217,8 +217,9 @@ describe("session lock", () => {
       );
       await vi.advanceTimersByTimeAsync(SESSION_LOCK_WAIT_MILLISECONDS + 25);
       await expect(waiting).rejects.toThrow(
-        "another OpenLimiter command holds the session lock at " + path.join(directory, SESSION_LOCK_NAME)
+        "Another OpenLimiter command still holds the lock"
       );
+      await expect(waiting).rejects.toThrow('"' + path.join(directory, SESSION_LOCK_NAME) + '"');
     } finally {
       vi.useRealTimers();
       if (held.ok) await held.release();

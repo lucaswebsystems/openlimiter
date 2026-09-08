@@ -423,6 +423,25 @@ describe("Antigravity loopback probe", () => {
     expect(unowned).toEqual([]);
   });
 
+  it("accepts a root owned vendor executable only when it is not world writable", async () => {
+    const enumerate = async (executablePath: string, owner: number, mode: number) => await enumerateAgyListeningPorts({
+      platform: "linux",
+      currentUserId: 1000,
+      runCommand: async (executable, args) => {
+        if (executable === "lsof") return { ok: true as const, stdout: "p31415\nn127.0.0.1:44321\n" };
+        if (args.includes("uid=")) return { ok: true as const, stdout: "1000" };
+        return { ok: true as const, stdout: "1000" };
+      },
+      resolveExecutablePath: async () => executablePath,
+      resolveExecutableOwner: async () => owner,
+      resolveExecutableMode: async () => mode
+    });
+
+    expect(await enumerate("/opt/google/agy", 0, 0o755)).toEqual([44321]);
+    expect(await enumerate("/opt/google/agy", 0, 0o777)).toEqual([]);
+    expect(await enumerate("/tmp/agy", 0, 0o755)).toEqual([]);
+  });
+
   it("resolveAgyExecutablePath answers null rather than trusting a pid it could not resolve", async () => {
     expect(await resolveAgyExecutablePath("not-a-pid", "win32", async () => ({ ok: false }))).toBeNull();
     expect(await resolveAgyExecutablePath("31415", "win32", async () => ({ ok: false }))).toBeNull();

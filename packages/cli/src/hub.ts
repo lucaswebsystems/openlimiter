@@ -98,7 +98,7 @@ export interface HubReply {
   readonly retryAfterSeconds?: number | null;
 }
 
-export type HubTransport = (request: HubRequest) => Promise<HubReply>;
+export type HubTransport = (request: HubRequest, signal?: AbortSignal) => Promise<HubReply>;
 
 function baseHeaders(anonKey: string): Record<string, string> {
   return {
@@ -226,9 +226,12 @@ export function syncSnapshotsRequest(
 export function createFetchHubTransport(
   fetchImplementation: typeof globalThis.fetch = globalThis.fetch
 ): HubTransport {
-  return async (request) => {
+  return async (request, signal) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), HUB_TIMEOUT_MILLISECONDS);
+    const forwardAbort = (): void => controller.abort();
+    if (signal?.aborted) controller.abort();
+    else signal?.addEventListener("abort", forwardAbort, { once: true });
     try {
       const response = await fetchImplementation(request.url, {
         method: request.method,
@@ -249,6 +252,7 @@ export function createFetchHubTransport(
       };
     } finally {
       clearTimeout(timer);
+      signal?.removeEventListener("abort", forwardAbort);
     }
   };
 }

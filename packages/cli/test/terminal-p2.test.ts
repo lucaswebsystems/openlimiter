@@ -1,11 +1,11 @@
-import { cp, link, mkdir, mkdtemp, open, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, link, mkdir, mkdtemp, open, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { acquireRefreshLock } from "@openlimiter/core";
 import { installHost, uninstallHost, hostStatus, STATUS_NOT_WIRED, STATUS_WIRED, validateToml, type TerminalHostContext } from "../src/terminal.js";
-import { installLauncher, launcherCommand, verifyLauncher } from "../src/terminal-launcher.js";
+import { installLauncher, launcherCommand, RUNTIME_STAMP_FILE_NAME, verifyLauncher } from "../src/terminal-launcher.js";
 import { decodeWrappedStatuslineCommand, encodeWrappedStatuslineCommand } from "../src/statusline-wrapper.js";
 import { editToml, tomlValue } from "../src/terminal-toml.js";
 import { runCli } from "../src/index.js";
@@ -182,6 +182,41 @@ describe("P2 durable runtime", () => {
 });
 
 describe("P2 launcher trust and migration", () => {
+  it("replaces a runtime with an old version stamp", async () => {
+    const home = await scratch();
+    const state = path.join(home, "state");
+    const launcher = await installLauncher(state, compiledLauncherSource);
+    await writeFile(path.join(state, "terminal-runtime", RUNTIME_STAMP_FILE_NAME), JSON.stringify({ version: "0.0.0", files: {} }));
+    await installLauncher(state, compiledLauncherSource);
+    const stamp = JSON.parse(await readFile(path.join(state, "terminal-runtime", RUNTIME_STAMP_FILE_NAME), "utf8")) as { version: string };
+    const source = JSON.parse(await readFile(path.join(compiledLauncherSource, "package.json"), "utf8")) as { version: string };
+    expect(stamp.version).toBe(source.version);
+    await expect(verifyLauncher(launcher)).resolves.toBeUndefined();
+  }, 30_000);
+
+  it("restores a missing shipped runtime file", async () => {
+    const home = await scratch();
+    const state = path.join(home, "state");
+    const launcher = await installLauncher(state, compiledLauncherSource);
+    const missing = path.join(state, "terminal-runtime", "node_modules", "openlimiter", "dist", "bin.js");
+    await rm(missing);
+    await installLauncher(state, compiledLauncherSource);
+    await expect(readFile(missing, "utf8")).resolves.toContain("runCli");
+    await expect(verifyLauncher(launcher)).resolves.toBeUndefined();
+  }, 30_000);
+
+  it("leaves a runtime with a matching stamp in place", async () => {
+    const home = await scratch();
+    const state = path.join(home, "state");
+    await installLauncher(state, compiledLauncherSource);
+    const runtime = path.join(state, "terminal-runtime");
+    const before = await stat(runtime);
+    const stampBefore = await readFile(path.join(runtime, RUNTIME_STAMP_FILE_NAME), "utf8");
+    await installLauncher(state, compiledLauncherSource);
+    expect((await stat(runtime)).mtimeMs).toBe(before.mtimeMs);
+    expect(await readFile(path.join(runtime, RUNTIME_STAMP_FILE_NAME), "utf8")).toBe(stampBefore);
+  }, 30_000);
+
   it("replaces a foreign runtime entry even when it exits successfully", async () => {
     const home = await scratch();
     const state = path.join(home, "state");
@@ -246,6 +281,18 @@ describe("P2 launcher trust and migration", () => {
 });
 
 describe("P2 TOML and configuration roots", () => {
+  it.each([
+    "tui.status_line = [\"model-name\"]\n",
+    "tui = { status_line = [\"model-name\"], other = \"keep\" }\n",
+    "[tui]\nstatus_line = [\"model-name\"]\n"
+  ])("edits an existing Codex tui representation without a duplicate table: %s", original => {
+    const updated = editToml(original, ["tui"], { status_line: ["openlimiter"], status_line_use_colors: true });
+    expect(validateToml(updated)).toBe(true);
+    expect(tomlValue(updated, ["tui", "status_line"])).toEqual(["openlimiter"]);
+    expect(tomlValue(updated, ["tui", "status_line_use_colors"])).toBe(true);
+    expect((updated.match(/^\[tui\]$/gmu) ?? [])).toHaveLength(original.startsWith("[tui]") ? 1 : 0);
+  });
+
   it("accepts a UTF eight byte order mark and preserves it through an edit", () => {
     const original = `\ufeff[ui.status_line]\ncommand = "echo hi"\n`;
     const updated = editToml(original, ["ui", "status_line"], { command: "echo safe", type: "command" });

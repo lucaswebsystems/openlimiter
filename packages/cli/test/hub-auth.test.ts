@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   CODE_CONSUMED_SENTENCE,
   REVOKED_SENTENCE,
@@ -368,6 +368,53 @@ describe("runDeviceLogin", () => {
     });
     expect(outcome.kind).toBe("signed_in");
     expect(sleeps).toEqual([1_000, 7_000, 14_000]);
+  });
+
+  it("expires at the single absolute deadline despite endless service errors", async () => {
+    let clock = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    try {
+      const outcome = await runDeviceLogin({
+        environment: CONFIGURED,
+        transport: async (request) => request.endpoint === "cli_login" && JSON.parse(request.body).action === "start"
+          ? { status: 200, body: START_BODY }
+          : { status: 503, body: "" },
+        sleep: async (milliseconds) => { clock += milliseconds; },
+        emit: () => undefined,
+        openBrowser: () => undefined,
+        open: false
+      });
+      expect(outcome).toEqual({ kind: "expired" });
+      expect(clock).toBe(30_000);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("keeps a stored session usable when cancellation arrives during acknowledgement", async () => {
+    const controller = new AbortController();
+    let stored = false;
+    let acknowledgementSignal: AbortSignal | undefined;
+    const outcome = await runDeviceLogin({
+      environment: CONFIGURED,
+      transport: async (request, signal) => {
+        const action = (JSON.parse(request.body) as { action: string }).action;
+        if (action === "start") return { status: 200, body: START_BODY };
+        if (action === "poll") return { status: 200, body: approvedBody() };
+        acknowledgementSignal = signal;
+        controller.abort();
+        return await new Promise<never>(() => undefined);
+      },
+      sleep: noSleep(),
+      emit: () => undefined,
+      openBrowser: () => undefined,
+      open: false,
+      interruptSignal: controller.signal,
+      storeSession: async () => { stored = true; }
+    });
+    expect(stored).toBe(true);
+    expect(acknowledgementSignal?.aborted).toBe(true);
+    expect(outcome).toEqual({ kind: "signed_in", session: expect.any(Object), deliveryConfirmed: false });
   });
 
   it("fails after three retries for another server error", async () => {

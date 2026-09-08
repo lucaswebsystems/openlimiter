@@ -1,7 +1,11 @@
-import { execFile } from "node:child_process";
+import {
+  canonicalJson,
+  runCommandWithWindowsShim,
+  writeFileAtomically,
+  type CommandRunResult
+} from "@openlimiter/core";
 import { lstat, mkdir, open, unlink, type FileHandle } from "node:fs/promises";
 import path from "node:path";
-import { canonicalJson, writeFileAtomically } from "@openlimiter/core";
 import {
   AGENT_COMPATIBILITY,
   agentVersionCompatibility,
@@ -728,26 +732,14 @@ async function resolvedAgentExecutable(
   return null;
 }
 
-async function executableVersion(executable: string): Promise<string | null> {
-  return await new Promise<string | null>((resolve) => {
-    try {
-      execFile(
-        executable,
-        ["--version"],
-        { windowsHide: true, timeout: 1_000, shell: false, maxBuffer: 16_384 },
-        (error, stdout, stderr) => {
-          if (error !== null) {
-            resolve(null);
-            return;
-          }
-          const match = /(?:^|\s)v?(\d+\.\d+\.\d+)(?:\s|$)/u.exec(stdout + " " + stderr);
-          resolve(match?.[1] ?? null);
-        }
-      );
-    } catch {
-      resolve(null);
-    }
-  });
+async function executableVersion(
+  executable: string,
+  runCommand: (executable: string, argumentsList: readonly string[], timeoutMilliseconds: number) => Promise<CommandRunResult>
+): Promise<string | null> {
+  const result = await runCommand(executable, ["--version"], 1_000);
+  if (!result.ok) return null;
+  const match = /(?:^|\s)v?(\d+\.\d+\.\d+)(?:\s|$)/u.exec(result.stdout + " " + result.stderr);
+  return match?.[1] ?? null;
 }
 
 export async function detectAgentInstallation(
@@ -755,6 +747,7 @@ export async function detectAgentInstallation(
   options: {
     environment?: Readonly<Record<string, string | undefined>>;
     platform?: NodeJS.Platform;
+    runCommand?: (executable: string, argumentsList: readonly string[], timeoutMilliseconds: number) => Promise<CommandRunResult>;
   } = {}
 ): Promise<AgentInstallation | null> {
   const platform = options.platform ?? process.platform;
@@ -764,7 +757,16 @@ export async function detectAgentInstallation(
     platform
   );
   if (executable === null) return null;
-  const version = await executableVersion(executable);
+  const version = await executableVersion(
+    executable,
+    options.runCommand ?? ((command, argumentsList, timeoutMilliseconds) => runCommandWithWindowsShim(
+      command,
+      argumentsList,
+      { windowsHide: true, timeout: timeoutMilliseconds, shell: false, maxBuffer: 16_384 },
+      platform,
+      options.environment ?? process.env
+    ))
+  );
   if (version === null) return null;
   try {
     const stat = await lstat(executable);

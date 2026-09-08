@@ -14,7 +14,7 @@ import { claudeFixture, parseOpenrouterPayload } from "@openlimiter/connectors";
 import { runCli, runtimeDependencies, type CliDependencies } from "../src/cli.js";
 import { DEFAULT_STATUSLINE, readStatuslineConfig } from "../src/config.js";
 import { parseAntigravityStatuslinePayload, readStandardInputBuffer, readStandardInputText, STDIN_BYTE_LIMIT } from "../src/ingest.js";
-import { readSession, writeSession, SESSION_FILE_NAME, SESSION_LOCK_NAME, type HubSession } from "../src/session.js";
+import { readSession, writeSession, SESSION_FILE_NAME, SESSION_LOCK_NAME, SESSION_LOCK_WAIT_MILLISECONDS, type HubSession } from "../src/session.js";
 import { DELIVERY_UNCONFIRMED_SENTENCE, runDeviceLogin, CODE_CONSUMED_SENTENCE } from "../src/hub-auth.js";
 import { cliLoginStartRequest, createFetchHubTransport } from "../src/hub.js";
 import { apiSpendSamplesFromSnapshots, SYNC_CURSOR_FILE_NAME } from "../src/hub-sync.js";
@@ -304,6 +304,47 @@ describe("P1 audit regressions", () => {
     if (second.ok) await second.release();
     await expect(logout).resolves.toMatchObject({ exitCode: 0 });
     expect(await readSession(d.stateDirectory)).toBeNull();
+  });
+
+  it("returns the session lock diagnostic through the logout command", async () => {
+    const d = await deps();
+    const held = await acquireRefreshLock(d.stateDirectory!, Date.now(), SESSION_LOCK_NAME);
+    expect(held.ok).toBe(true);
+    if (!held.ok) return;
+    vi.useFakeTimers();
+    try {
+      const pending = runCli(["logout"], d);
+      await vi.advanceTimersByTimeAsync(SESSION_LOCK_WAIT_MILLISECONDS + 25);
+      const result = await pending;
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Private session storage at");
+      expect(result.stderr).toContain("\"" + path.join(d.stateDirectory!, SESSION_LOCK_NAME) + "\"");
+      expect(result.stderr).toContain("wait for the session lock");
+    } finally {
+      vi.useRealTimers();
+      await held.release();
+    }
+  });
+
+  it("returns the ACL repair diagnostic through the login command", async () => {
+    const d = await deps();
+    const result = await runCli(["login"], {
+      ...d,
+      platform: "win32",
+      hubTransport: async (request) => {
+        const action = (JSON.parse(request.body) as { action: string }).action;
+        if (action === "start") return { status: 200, body: JSON.stringify({ user_code: "ABCD1234", device_code: "device-code-0001", verification_url: "https://openlimiter.com/device", interval: 1, expires_in: 30 }) };
+        if (action === "poll") return { status: 200, body: JSON.stringify({ status: "approved", token: "n".repeat(32), expires_at: "2026-09-07T20:00:00.000Z", refresh_credential: "z".repeat(32), refresh_expires_at: "2026-10-07T12:00:00.000Z", device_id: "test-device" }) };
+        return { status: 200, body: JSON.stringify({ status: "consumed" }) };
+      },
+      windowsAclRunner: async (executable) => executable.endsWith("whoami.exe")
+        ? { ok: true as const, stdout: '"test","S-1-5-21-1-2-3-1001"' }
+        : { ok: false as const, stdout: "" }
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Private session storage at");
+    expect(result.stderr).toContain("icacls \"" + d.stateDirectory + "\" /reset");
+    expect(result.stderr).not.toContain("n".repeat(32));
   });
 
   it.each(["failed", "unverified", "missing"])("24 never writes credentials after %s Windows ACL protection", async (mode) => {
