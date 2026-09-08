@@ -262,14 +262,39 @@ fn synchronize_schedule(
     }
 }
 
-async fn run_pass(app: &AppHandle) {
+#[derive(Debug, Serialize)]
+pub struct HomeRefreshOutcome {
+    pub succeeded: bool,
+    pub failed_providers: Vec<DetectedProviderId>,
+}
+
+fn requested_provider(
+    selected: Option<&[DetectedProviderId]>,
+    provider: DetectedProviderId,
+) -> bool {
+    selected.is_none_or(|providers| providers.contains(&provider))
+}
+
+pub async fn run_pass(
+    app: &AppHandle,
+    selected: Option<&[DetectedProviderId]>,
+) -> HomeRefreshOutcome {
     let connections = app.state::<ConnectionsStore>();
     let secrets = app.state::<KeyringStore>();
     let multi_account = crate::pro::multi_account_enabled(&*secrets);
     let _ = connections.apply_plan(multi_account, &[]);
-    let records = connections
-        .list()
-        .map(|records| collection_plan(records, &*secrets, now_epoch_ms()));
+    let records = connections.list().map(|mut records| {
+        if selected.is_some() {
+            records.retain(|record| {
+                requested_provider(selected, detected_provider(record.provider_id))
+            });
+            for record in &mut records {
+                record.next_refresh_at = None;
+            }
+        }
+        collection_plan(records, &*secrets, now_epoch_ms())
+    });
+    let mut failed_providers = Vec::new();
     let mut last_failure = None;
     let mut attempted = false;
     let mut stopped_providers = HashSet::new();
@@ -303,9 +328,13 @@ async fn run_pass(app: &AppHandle) {
                         }
                         if outcome.failure().is_some() {
                             last_failure = outcome.failure();
+                            failed_providers.push(provider);
                         }
                     }
-                    Err(_) => last_failure = Some(CollectorFailure::Internal),
+                    Err(_) => {
+                        last_failure = Some(CollectorFailure::Internal);
+                        failed_providers.push(provider);
+                    }
                 }
             }
 
@@ -314,64 +343,88 @@ async fn run_pass(app: &AppHandle) {
                 .map(|records| collection_plan(records, &*secrets, now_epoch_ms()));
             match coverage {
                 Ok(coverage) => {
-                    crate::codex_oauth::run_pass(
-                        app,
-                        &coverage.covered,
-                        automatic_account_limit(
-                            multi_account,
-                            &coverage.known_providers,
-                            DetectedProviderId::Codex,
-                        ),
-                    )
-                    .await;
-                    crate::antigravity_oauth::run_pass(
-                        app,
-                        &coverage.covered,
-                        automatic_account_limit(
-                            multi_account,
-                            &coverage.known_providers,
-                            DetectedProviderId::Antigravity,
-                        ),
-                    )
-                    .await;
-                    crate::grok_oauth::run_pass(
-                        app,
-                        &coverage.covered,
-                        automatic_account_limit(
-                            multi_account,
-                            &coverage.known_providers,
-                            DetectedProviderId::Grok,
-                        ),
-                    )
-                    .await;
-                    crate::kimi_oauth::run_pass(
-                        app,
-                        &coverage.covered,
-                        automatic_account_limit(
-                            multi_account,
-                            &coverage.known_providers,
-                            DetectedProviderId::Kimi,
-                        ),
-                    )
-                    .await;
-                    crate::claude_oauth::run_pass(
-                        app,
-                        automatic_account_limit(
-                            multi_account,
-                            &coverage.known_providers,
-                            DetectedProviderId::Claude,
-                        ),
-                    )
-                    .await;
-                    crate::gemini_cli_oauth::run_pass(
-                        app,
-                        automatic_account_limit(
-                            multi_account,
-                            &coverage.known_providers,
-                            DetectedProviderId::GeminiCli,
-                        ),
-                    )
-                    .await;
+                    if requested_provider(selected, DetectedProviderId::Codex)
+                        && !crate::codex_oauth::run_pass(
+                            app,
+                            &coverage.covered,
+                            automatic_account_limit(
+                                multi_account,
+                                &coverage.known_providers,
+                                DetectedProviderId::Codex,
+                            ),
+                        )
+                        .await
+                    {
+                        failed_providers.push(DetectedProviderId::Codex);
+                    }
+                    if requested_provider(selected, DetectedProviderId::Antigravity)
+                        && !crate::antigravity_oauth::run_pass(
+                            app,
+                            &coverage.covered,
+                            automatic_account_limit(
+                                multi_account,
+                                &coverage.known_providers,
+                                DetectedProviderId::Antigravity,
+                            ),
+                        )
+                        .await
+                    {
+                        failed_providers.push(DetectedProviderId::Antigravity);
+                    }
+                    if requested_provider(selected, DetectedProviderId::Grok)
+                        && !crate::grok_oauth::run_pass(
+                            app,
+                            &coverage.covered,
+                            automatic_account_limit(
+                                multi_account,
+                                &coverage.known_providers,
+                                DetectedProviderId::Grok,
+                            ),
+                        )
+                        .await
+                    {
+                        failed_providers.push(DetectedProviderId::Grok);
+                    }
+                    if requested_provider(selected, DetectedProviderId::Kimi)
+                        && !crate::kimi_oauth::run_pass(
+                            app,
+                            &coverage.covered,
+                            automatic_account_limit(
+                                multi_account,
+                                &coverage.known_providers,
+                                DetectedProviderId::Kimi,
+                            ),
+                        )
+                        .await
+                    {
+                        failed_providers.push(DetectedProviderId::Kimi);
+                    }
+                    if requested_provider(selected, DetectedProviderId::Claude)
+                        && !crate::claude_oauth::run_pass(
+                            app,
+                            automatic_account_limit(
+                                multi_account,
+                                &coverage.known_providers,
+                                DetectedProviderId::Claude,
+                            ),
+                        )
+                        .await
+                    {
+                        failed_providers.push(DetectedProviderId::Claude);
+                    }
+                    if requested_provider(selected, DetectedProviderId::GeminiCli)
+                        && !crate::gemini_cli_oauth::run_pass(
+                            app,
+                            automatic_account_limit(
+                                multi_account,
+                                &coverage.known_providers,
+                                DetectedProviderId::GeminiCli,
+                            ),
+                        )
+                        .await
+                    {
+                        failed_providers.push(DetectedProviderId::GeminiCli);
+                    }
                 }
                 Err(_) => last_failure = Some(CollectorFailure::Internal),
             }
@@ -381,6 +434,10 @@ async fn run_pass(app: &AppHandle) {
     let runtime = app.state::<CollectorRuntime>();
     runtime.record_pass(last_failure, attempted);
     let _ = app.emit(COLLECTOR_UPDATED_EVENT, runtime.status());
+    HomeRefreshOutcome {
+        succeeded: last_failure.is_none() && failed_providers.is_empty(),
+        failed_providers,
+    }
 }
 
 pub fn spawn_collector(app: AppHandle) {
@@ -389,20 +446,40 @@ pub fn spawn_collector(app: AppHandle) {
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             interval.tick().await;
-            run_pass(&app).await;
+            run_pass(&app, None).await;
         }
     });
 }
 
 pub fn refresh_all(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        run_pass(&app).await;
+        run_pass(&app, None).await;
     });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn home_refresh_selects_added_providers_and_leaves_removed_providers_out() {
+        let selected = [DetectedProviderId::Codex, DetectedProviderId::Claude];
+        assert!(requested_provider(
+            Some(&selected),
+            DetectedProviderId::Codex
+        ));
+        assert!(requested_provider(
+            Some(&selected),
+            DetectedProviderId::Claude
+        ));
+        assert!(!requested_provider(
+            Some(&selected),
+            DetectedProviderId::Antigravity
+        ));
+        assert!(!requested_provider(Some(&[]), DetectedProviderId::Codex));
+        assert!(requested_provider(None, DetectedProviderId::Antigravity));
+    }
+
     use crate::credentials::{SecretStore, MASK_DOTS};
     use crate::reader_registry::{CredentialKind, ProviderId, ReaderId};
     use crate::test_support::InMemorySecrets;

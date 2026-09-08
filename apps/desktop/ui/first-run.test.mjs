@@ -54,8 +54,12 @@ test("keeps an unconfigured Home to one line pointing at Configuration", () => {
    * something the window can actually prove. A paragraph that ships visible
    * would be back to explaining an empty screen at someone.
    */
-  for (const paragraph of panel.matchAll(/<p[^>]*>/gu)) {
+  for (const paragraph of panel.matchAll(/<p\b[^>]*>/gu)) {
     const tag = paragraph[0];
+    if (tag.includes('id="home-refresh-status"')) {
+      assert.match(panel, /id="home-refresh-status"[^>]*><\/p>/u);
+      continue;
+    }
     const container = panel.slice(0, paragraph.index);
     const openedBlock = container.lastIndexOf("<div");
     const openedHidden =

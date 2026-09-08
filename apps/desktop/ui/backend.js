@@ -1,3 +1,4 @@
+import { adoptDetectedProviders } from "./configured-providers.js";
 /**
  * The one boundary between this window and the Rust process.
  *
@@ -330,6 +331,10 @@ export async function refreshProvider({ connectionId }) {
   });
 }
 
+export async function refreshHome(providers) {
+  return call("refresh_home", { providers: providers.map((provider) => provider.toLowerCase()) });
+}
+
 /** The native collector heartbeat and its last closed failure, if any. */
 export async function collectorStatus() {
   return call("collector_status");
@@ -368,7 +373,9 @@ export async function detectLocalTools() {
 
 /** The provider and account presence report owned by the native detector. */
 export async function listDetectedProviders() {
-  return call("list_detected_providers");
+  const result = await call("list_detected_providers");
+  if (result.ok) adoptDetectedProviders(result.value);
+  return result;
 }
 
 /** Check the real CLI and Claude Code settings without changing either. */

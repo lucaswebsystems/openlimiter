@@ -35,7 +35,7 @@ import {
 } from "./engine/core/index.js";
 import { buildProviderDirectory } from "./engine/ui/provider-connect.js";
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
-import { configureProvider } from "./configured-providers.js";
+import { configureProvider, unconfigureProvider, isProviderConfigured, readRemovedProviders, homeSelectionControl } from "./configured-providers.js";
 import { normalizeDetections } from "./first-run.js";
 import * as backend from "./backend.js";
 
@@ -617,6 +617,7 @@ function renderAccountRow(record, now) {
           )
         ) {
           session.liveRefreshOk.delete(record.provider);
+          unconfigureProvider(record.provider);
         }
       } else {
         keepCardNote(
@@ -1035,6 +1036,12 @@ function renderCatalogue() {
         ? connectionNextAction[directoryRow.state]
         : directoryRow.action,
     };
+    const selected = isProviderConfigured(rowData.connectorId);
+    const removed = readRemovedProviders().includes(String(rowData.connectorId).toUpperCase().replaceAll("-", "_"));
+    if (rowData.access === "automatic" && !records[rowData.connectorId] && (selected || removed)) {
+      rowData.stateLabel = selected ? "Added to Home" : "Removed from Home";
+      rowData.actionLabel = null;
+    }
     if (rowData.availability !== group) {
       group = rowData.availability;
       const groupHead = element("div", "catalogue-group");
@@ -1081,6 +1088,13 @@ function renderCatalogue() {
     const access = element("span", "catalogue-access", rowData.accessLabel);
     access.dataset.access = rowData.access;
     rowEl.append(access, directoryState(rowData));
+
+    if (rowData.connectorId && (selected || removed)) {
+      rowEl.append(homeSelectionControl(rowData.connectorId, () => {
+        options.onMetersChanged();
+        render();
+      }));
+    }
 
     if (rowData.actionLabel !== null) {
       const actionEl = element("div", "catalogue-action");

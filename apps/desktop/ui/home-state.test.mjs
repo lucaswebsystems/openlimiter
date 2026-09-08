@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildProviderAccountRows, providerRowMarkup } from "../../../packages/ui/dist/provider-row.js";
-import { homeSnapshots, homeProviders, homeCard, needsClaudeHelp, REFRESH_SECONDS } from "./home-state.js";
+import { homeSnapshots, homeProviders, homeCard, pendingReading, needsClaudeHelp, REFRESH_SECONDS } from "./home-state.js";
 import { claudePollRow } from "./first-run.js";
 
 const now = "2026-09-08T06:32:00.000Z";
@@ -52,7 +52,7 @@ test("each automated provider becomes hatched only beyond its own interval", () 
 });
 
 test("live 25 and 85 percent rows use the shared green and orange token bands", () => {
-  for (const [value, band] of [[25, "green"], [65, "yellow"], [85, "orange"], [95, "red"]]) {
+  for (const [value, band] of [[0, "green"], [59, "green"], [60, "yellow"], [79, "yellow"], [80, "orange"], [89, "orange"], [90, "red"], [100, "red"]]) {
     const markup = providerRowMarkup(rows([snapshot("CODEX", value, "2026-09-08T06:28:00.000Z")], ["CODEX"])[0]);
     assert.match(markup, new RegExp(`data-state="fresh" data-band="${band}"`));
     assert.doesNotMatch(markup, /data-band="stale"/u);
@@ -71,31 +71,63 @@ test("Home adopts every detected provider and persisted connection with no readi
   assert.equal(result.length, 5);
   for (const row of result) {
     const card = homeCard(row, cardOptions({ detections, connections: [{ provider: "OPENROUTER" }] }), doc);
-    assert.equal(card.children[1].textContent, "Signed in, first reading pending");
+    assert.equal(card.children[1].textContent, "No reading yet.");
+    assert.equal(card.children[2].textContent, pendingReading(row.provider, detections, [], false));
     assert.doesNotMatch(card.children[0].markup, /role="progressbar"/u);
   }
 });
 
-test("Home distinguishes a stopped Antigravity process from a CLI without a login", () => {
+test("unavailable providers always name one action and never show an empty card", () => {
   for (const [provider, state, expected] of [
-    ["antigravity", "present", "Antigravity is not running"],
-    ["gemini_cli", "installed_logged_out", "Not signed in with the CLI"],
-    ["grok", "installed_logged_out", "Not signed in with the CLI"],
-    ["kimi", "installed_logged_out", "Not signed in with the CLI"],
+    ["ANTIGRAVITY", "present", "Start Antigravity once and this bar refreshes itself."],
+    ["GEMINI_CLI", "installed_logged_out", "Sign in with Gemini CLI to refresh this bar."],
+    ["GROK", "installed_logged_out", "Sign in with Grok to refresh this bar."],
+    ["KIMI", "installed_logged_out", "Sign in with Kimi to refresh this bar."],
   ]) {
-    const detections = { antigravity_running: false, providers: [{ provider_id: provider, state }] };
-    const providers = homeProviders([], detections, [], []);
-    const card = homeCard(rows([], providers)[0], cardOptions({ detections }), doc);
-    assert.equal(card.children[1].textContent, expected);
+    const detections = { antigravity_running: false, providers: [{ provider_id: provider.toLowerCase(), state }] };
+    const card = homeCard(rows([], [provider])[0], cardOptions({ detections }), doc);
+    assert.equal(card.children[1].textContent, "No reading yet.");
+    assert.equal(card.children[2].textContent, expected);
+    assert.doesNotMatch(expected, /[-\u2010-\u2015]/u);
   }
 });
 
-test("a running Antigravity or an unavailable process inventory never claims it is stopped", () => {
-  for (const antigravity_running of [true, undefined]) {
-    const detections = { antigravity_running, providers: [{ provider_id: "antigravity", state: "present" }] };
-    const card = homeCard(rows([], ["ANTIGRAVITY"])[0], cardOptions({ detections }), doc);
-    assert.equal(card.children[1].textContent, "Signed in, first reading pending");
+test("a stopped provider hatches its last reading, keeps its number and says its age", () => {
+  const detections = { antigravity_running: false };
+  const snapshots = [snapshot("ANTIGRAVITY", 85, "2026-09-08T06:28:00.000Z")];
+  const adjusted = homeSnapshots(snapshots, { detections, now });
+  const row = buildProviderAccountRows(adjusted, now, [], { providers: ["ANTIGRAVITY"] })[0];
+  const card = homeCard(row, cardOptions({ detections, snapshots, now }), doc);
+  assert.match(card.children[0].markup, /data-band="stale"/u);
+  assert.match(card.children[0].markup, /85/u);
+  assert.equal(card.children[1].textContent, "Last seen 4 minutes ago.");
+  assert.equal(card.children[2].textContent, "Start Antigravity once and this bar refreshes itself.");
+  const live = homeSnapshots(snapshots, { detections: { antigravity_running: true }, now });
+  assert.equal(buildProviderAccountRows(live, now, [], { providers: ["ANTIGRAVITY"] })[0].windows[0].state, "fresh");
+});
+
+test("a failed native read hatches a recent cached value for every provider", () => {
+  for (const provider of Object.keys(REFRESH_SECONDS)) {
+    const snapshots = homeSnapshots([snapshot(provider, 60, "2026-09-08T06:28:00Z")], { now, failedProviders: [provider] });
+    assert.equal(buildProviderAccountRows(snapshots, now, [], { providers: [provider] })[0].windows[0].state, "stale");
   }
+});
+
+test("a later background observation restores the live bar after a failed refresh", () => {
+  const input = [snapshot("CODEX", 25, "2026-09-08T06:31:00Z")];
+  const refreshed = homeSnapshots(input, { now, failedProviders: ["CODEX"], failedAt: "2026-09-08T06:30:00Z" });
+  assert.equal(buildProviderAccountRows(refreshed, now, [], { providers: ["CODEX"] })[0].windows[0].state, "fresh");
+});
+
+test("the pending reading and its action live inside the provider card border", () => {
+  const article = new Element("article");
+  const styles = [];
+  const rendered = { shadowRoot: { querySelector: () => article, append: (style) => styles.push(style) } };
+  const card = homeCard(rows([], ["ANTIGRAVITY"])[0], cardOptions({ createRow: () => rendered }), doc);
+  assert.deepEqual(card.children, [rendered]);
+  assert.equal(article.children[0].textContent, "No reading yet.");
+  assert.equal(article.children[1].textContent, "Start Antigravity once and this bar refreshes itself.");
+  assert.match(styles[0].textContent, /\.column-label, \.windows \{ display: none; \}/u);
 });
 
 test("a provider with a reading keeps its bar and the Home card layout", () => {
@@ -111,9 +143,8 @@ test("stale Claude with polling off explains both sources and opens its connecti
   const row = rows([snapshot("CLAUDE", 20, "2026-09-07T01:59:00Z")], ["CLAUDE"])[0];
   const opened = [];
   const card = homeCard(row, cardOptions({ openConnection: (provider) => opened.push(provider) }), doc);
-  const help = card.children[1];
-  assert.equal(help.children[0].textContent, "Claude readings arrive from Claude Code's status line or from the poll.");
-  help.children[1].listeners.click();
+  assert.equal(card.children[2].textContent, "Open Claude connection to set up its status line and refresh this bar.");
+  card.children[3].listeners.click();
   assert.deepEqual(opened, ["claude"]);
   assert.equal(needsClaudeHelp(row, true), false);
   assert.equal(needsClaudeHelp(row, null), false);
@@ -148,11 +179,10 @@ test("the connection poll switch persists before showing on and restores off on 
   } finally { delete globalThis.document; }
 });
 
-test("phone popover is a body portal above cards and keeps inside clicks open", () => {
-  const html = read("./index.html");
-  assert.match(html, /<\/main>\s*<div id="phone-popover" class="header-popover phone-popover-portal" hidden>/u);
-  assert.match(html, /id="phone-panel-body"[^]*?<\/div>\s*<\/div>\s*<script[^]*?<\/body>/u);
-  const css = read("./app.css");
-  assert.match(css, /\.phone-popover-portal\s*\{[^}]*position: fixed;[^}]*z-index: 100;[^}]*max-height:[^}]*overflow-y: auto;/u);
-  assert.match(read("./app.js"), /!elements\.phonePopover\?\.contains\(event\.target\)/u);
+test("Home has exactly provider window bars with no featured meter", () => {
+  assert.doesNotMatch(read("./index.html"), /Closest to its limit|hero-meter|class="hero"/u);
+  assert.doesNotMatch(read("./app.js"), /heroWindow|paintHero|heroObserved|resetInstants|live-meter/u);
+  assert.doesNotMatch(read("./surfaces.css"), /\.hero[ {.-]/u);
+  const row = rows([snapshot("CODEX", 25, "2026-09-08T06:28:00Z")], ["CODEX"])[0];
+  assert.equal((homeCard(row, cardOptions(), doc).children[0].markup.match(/role="progressbar"/gu) ?? []).length, 1);
 });

@@ -34,14 +34,12 @@ import {
 import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import {
-  bandForPercent,
   buildProviderAccountRows,
   createProviderRowElement,
 } from "./engine/ui/provider-row.js";
 /* The four screens the connection and entitlement contract asks for. Each one
    owns its own tab and reads the backend itself, so a failure in one leaves
    the other three drawing what they can prove. */
-import { defineLiveMeter } from "./live-meter.js";
 import { renderPlanCap } from "./plan-cap.js";
 import { renderSettings } from "./settings.js";
 import { renderPro, renderSpend } from "./pro.js";
@@ -95,6 +93,7 @@ import {
   normalizeConnectionList,
   proStatus,
   readCache,
+  refreshHome,
   readManual,
   notificationEvents,
   notificationGate,
@@ -104,7 +103,9 @@ import {
   setTrayStatus,
   testProvider,
 } from "./backend.js";
-import { readConfiguredProviders } from "./configured-providers.js";
+import { readConfiguredProviders, readRemovedProviders, adoptDetectedProviders } from "./configured-providers.js";
+import { bindHomeRefresh, paintObserved } from "./home-refresh.js";
+import { headerPopovers } from "./header-popovers.js";
 import { homeSnapshots, homeProviders, homeCard } from "./home-state.js";
 /* Every value on a failure card came off a file this window did not write, so
    the card is built out of nodes and text rather than out of a markup string. */
@@ -268,9 +269,7 @@ const elements = {
   offlineBanner: document.getElementById("offline-banner"),
   addAccount: document.getElementById("add-account"),
   emptyConnect: document.getElementById("empty-connect"),
-  hero: document.getElementById("hero"),
-  heroMeter: document.getElementById("hero-meter"),
-  heroObserved: document.getElementById("hero-observed"),
+  observed: document.getElementById("home-observed"),
   staleStrip: document.getElementById("stale-strip"),
   staleStripText: document.getElementById("stale-strip-text"),
   failures: document.getElementById("failures"),
@@ -294,7 +293,6 @@ const elements = {
   ],
 };
 
-defineLiveMeter();
 
 /* The first paint of a tab is deferred until it is opened. A window that
    builds four screens before showing one is a window that opens slowly. */
@@ -418,15 +416,7 @@ elements.emptyConnect?.addEventListener("click", beginAddAccount);
 /* ------------------------------------------------ account, menu and alerts */
 
 function closeHeaderPopovers() {
-  elements.notificationPopover.hidden = true;
-  elements.menu.hidden = true;
-  if (elements.phonePopover !== null && !elements.phonePopover.hidden) {
-    elements.phonePopover.hidden = true;
-    pairingPanelClosed();
-  }
-  elements.bell.setAttribute("aria-expanded", "false");
-  elements.menuButton.setAttribute("aria-expanded", "false");
-  elements.phoneButton?.setAttribute("aria-expanded", "false");
+  popovers.close();
 }
 
 /** Whether a session exists right now. The sign in card and the phone panel
@@ -838,53 +828,17 @@ elements.notificationUpgrade?.addEventListener("click", () => {
   void openCheckout("monthly");
 });
 
-elements.bell?.addEventListener("click", () => {
-  const opening = elements.notificationPopover.hidden;
-  closeHeaderPopovers();
-  elements.notificationPopover.hidden = !opening;
-  elements.bell.setAttribute("aria-expanded", opening ? "true" : "false");
-  if (opening) {
+const popovers = headerPopovers([
+  { panel: elements.notificationPopover, button: elements.bell, onOpen() {
     void renderNotificationEvents();
     void paintAlertGate();
-  }
-});
-
-function positionPhonePopover() {
-  const bottom = elements.phoneButton?.getBoundingClientRect().bottom ?? 64;
-  elements.phonePopover?.style.setProperty("--phone-popover-top", `${Math.max(8, Math.min(bottom + 8, window.innerHeight - 96))}px`);
-}
-window.addEventListener("resize", positionPhonePopover);
-window.addEventListener("scroll", positionPhonePopover, true);
-
-elements.phoneButton?.addEventListener("click", () => {
-  if (elements.phonePopover === null) return;
-  const opening = elements.phonePopover.hidden;
-  closeHeaderPopovers();
-  elements.phonePopover.hidden = !opening;
-  elements.phoneButton.setAttribute("aria-expanded", opening ? "true" : "false");
-  if (opening) {
-    positionPhonePopover();
-    pairingPanelOpened();
-  }
-});
-
-elements.menuButton?.addEventListener("click", () => {
-  const opening = elements.menu.hidden;
-  closeHeaderPopovers();
-  elements.menu.hidden = !opening;
-  elements.menuButton.setAttribute("aria-expanded", opening ? "true" : "false");
-  if (opening && signedIn) void renderDevices();
-});
-
-document.addEventListener("click", (event) => {
-  if (
-    event.target instanceof Node &&
-    !elements.phonePopover?.contains(event.target) &&
-    !event.target.parentElement?.closest(".strip")
-  ) {
-    closeHeaderPopovers();
-  }
-});
+  } },
+  { panel: elements.phonePopover, button: elements.phoneButton,
+    onOpen: pairingPanelOpened, onClose: pairingPanelClosed },
+  { panel: elements.menu, button: elements.menuButton, onOpen() {
+    if (signedIn) void renderDevices();
+  } },
+]);
 
 elements.menuSync?.addEventListener("change", () => {
   const requested = elements.menuSync.checked;
@@ -983,6 +937,9 @@ async function collect(now) {
      and claims nothing instead of crashing. Absence is not a failure: this
      window is often opened before anything has written a cache at all. */
   const cacheRead = await readCache();
+  if (!cacheRead.ok && cacheRead.reason !== BACKEND_ABSENT) {
+    throw new Error("The cached readings could not be read.");
+  }
   const cacheText = cacheRead.ok ? cacheRead.value : null;
   const cached = parseJson(cacheText);
   let fromCache = [];
@@ -1047,7 +1004,10 @@ function trayProviders(advice, configuredProviders) {
   }));
 }
 
-let refreshing = false;
+let refreshing = null;
+let selectedHomeProviders = [];
+let failedHomeProviders = [];
+let failedHomeAt = null;
 
 /**
  * Whether a fresh Claude reading that arrived through the local statusline is
@@ -1056,69 +1016,6 @@ let refreshing = false;
  * payload actually flowing is another, and only the cache knows the second.
  */
 let freshLocalClaude = false;
-
-/**
- * The one window that most deserves the instrument.
- *
- * "Most pressed" is the highest live percentage, and a stale reading never
- * wins it. An old ninety is not more urgent than a current eighty, it is only
- * louder, and putting it in the hero would be the window shouting a number it
- * has already stopped believing.
- */
-function heroWindow(rows) {
-  let best = null;
-  for (const row of rows) {
-    for (const window of row.windows) {
-      if (window.usedPercent === null) continue;
-      if (window.state !== "fresh") continue;
-      if (best === null || window.usedPercent > best.window.usedPercent) {
-        best = { row, window };
-      }
-    }
-  }
-  return best;
-}
-
-function paintHero(rows, now) {
-  if (elements.hero === null || elements.heroMeter === null) return;
-  const best = heroWindow(rows);
-  if (best === null) {
-    elements.hero.hidden = true;
-    return;
-  }
-  elements.hero.hidden = false;
-  elements.heroMeter.meter = {
-    windowName: best.window.label,
-    accountLabel: best.row.showAccountLabel ? best.row.accountLabel : best.row.providerLabel,
-    usedPercent: best.window.usedPercent,
-    band: bandForPercent(best.window.usedPercent),
-    live: true,
-    resetAt: bestResetAt(best.row, best.window),
-  };
-  if (elements.heroObserved !== null) {
-    elements.heroObserved.textContent = new Date(now).toLocaleTimeString();
-  }
-}
-
-/* The view carries a rendered countdown but not the instant behind it, and the
-   instrument needs the instant so it can tick. It is read back off the
-   snapshot the row was built from. */
-let resetInstants = new Map();
-
-function bestResetAt(row, window) {
-  return resetInstants.get(row.provider + "::" + (row.accountId ?? "") + "::" + window.key) ?? null;
-}
-
-function rememberResets(snapshots) {
-  resetInstants = new Map();
-  for (const snapshot of snapshots) {
-    if (typeof snapshot.resetAt !== "string") continue;
-    resetInstants.set(
-      snapshot.provider + "::" + (snapshot.accountId ?? "") + "::" + snapshot.meter,
-      snapshot.resetAt
-    );
-  }
-}
 
 /**
  * The stale strip, which exists so a screen full of hatched bars is explained
@@ -1161,25 +1058,31 @@ function paintFailures(failures) {
   );
 }
 
-async function refresh() {
-  if (refreshing) return;
+function refresh() {
+  if (refreshing) return refreshing;
+  refreshing = repaintHome().finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+async function repaintHome() {
   /* Shown until the first collect answers, then never again: a second wait is
      a repaint of numbers already on screen and must not blank them. */
   if (elements.loading !== null && !painted.has("first")) {
     elements.loading.hidden = false;
     painted.add("first");
   }
-  refreshing = true;
   try {
     const now = new Date().toISOString();
     const [collected, detectionResult, connectionResult, pollResult] = await Promise.all([
       collect(now), listDetectedProviders(), listConnections(), claudePollEnabled(),
     ]);
-    const snapshots = homeSnapshots(collected.snapshots);
     const { failures } = collected;
     const detections = detectionResult.ok ? detectionResult.value : null;
     const connections = connectionResult.ok ? normalizeConnectionList(connectionResult.value) : [];
-    const configuredProviders = homeProviders(readConfiguredProviders(), detections, connections, snapshots);
+    adoptDetectedProviders(detections);
+    const snapshots = homeSnapshots(collected.snapshots, { detections, connections, now, failedProviders: failedHomeProviders, failedAt: failedHomeAt });
+    const configuredProviders = homeProviders(readConfiguredProviders(), detections, connections, snapshots, readRemovedProviders());
+    selectedHomeProviders = configuredProviders;
     const pollEnabled = pollResult.ok ? pollResult.value === true : null;
     const pollMount = document.getElementById("claude-poll-control");
     if (pollMount && !pollMount.querySelector("input:disabled")) {
@@ -1223,7 +1126,6 @@ async function refresh() {
     }
 
     elements.rows.textContent = "";
-    rememberResets(visible);
     const providerRows = buildProviderAccountRows(
       visible,
       now,
@@ -1232,7 +1134,7 @@ async function refresh() {
     );
     for (const row of providerRows) {
       elements.rows.append(homeCard(row, {
-        detections, connections, pollEnabled, createRow: createProviderRowElement,
+        detections, connections, pollEnabled, snapshots: visible, now, createRow: createProviderRowElement,
         openConnection: (provider) => {
           selectTab(TAB_CONNECTIONS, true);
           openProviderConnection(provider);
@@ -1243,7 +1145,7 @@ async function refresh() {
     if (elements.loading !== null) elements.loading.hidden = true;
     elements.empty.hidden = providerRows.length > 0;
     elements.rows.hidden = providerRows.length === 0;
-    paintHero(providerRows, now);
+    paintObserved(elements.observed, visible);
     paintStaleStrip(providerRows);
     paintFailures(visibleFailures);
 
@@ -1276,6 +1178,7 @@ async function refresh() {
     /* The Claude card's ready or collecting split reads the cache through
        the flag set above, so it is told the cache moved. */
     noteMetersRefreshed();
+    return true;
   } catch (error) {
     /* A failed refresh leaves the last valid provider rows untouched, which
        is the right behaviour and was also, for a while, a place a real bug
@@ -1283,10 +1186,25 @@ async function refresh() {
        why it stopped updating is one nobody can debug from a screenshot. */
     if (elements.loading !== null) elements.loading.hidden = true;
     paintFailures([{ provider: "MANUAL", category: "PAYLOAD_UNREADABLE" }]);
-  } finally {
-    refreshing = false;
+    return false;
   }
 }
+
+bindHomeRefresh({
+  button: document.getElementById("home-refresh"),
+  status: document.getElementById("home-refresh-status"),
+  readNow: async () => {
+    await refresh();
+    const result = await refreshHome(selectedHomeProviders);
+    failedHomeAt = new Date().toISOString();
+    failedHomeProviders = result.ok ? (result.value?.failed_providers ?? []).map((provider) => provider.toUpperCase()) : selectedHomeProviders;
+    return result;
+  },
+  repaint: async () => {
+    if (refreshing) await refreshing;
+    return refresh();
+  },
+});
 
 /*
  * The theme, and the only thing this window persists.

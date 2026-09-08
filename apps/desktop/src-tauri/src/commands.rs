@@ -998,6 +998,14 @@ pub async fn refresh_provider(
 }
 
 #[tauri::command]
+pub async fn refresh_home(
+    app: tauri::AppHandle,
+    providers: Vec<crate::provider_detection::DetectedProviderId>,
+) -> crate::collector_runtime::HomeRefreshOutcome {
+    crate::collector_runtime::run_pass(&app, Some(&providers)).await
+}
+
+#[tauri::command]
 pub fn collector_status(
     runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
 ) -> crate::collector_runtime::CollectorStatus {

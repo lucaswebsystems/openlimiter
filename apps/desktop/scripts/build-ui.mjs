@@ -232,7 +232,8 @@ const WINDOW_FILES = [
   /* The signature meter, the four screens built on the connection and
      entitlement contract, and the tray popover, which is its own document
      because Rust gives it its own window. */
-  "live-meter.js",
+  "home-refresh.js",
+  "header-popovers.js",
   "surfaces.css",
   "plan-cap.js",
   "settings.js",

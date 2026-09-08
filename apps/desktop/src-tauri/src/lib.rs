@@ -150,6 +150,7 @@ pub fn run() {
             commands::connect_provider,
             commands::test_provider,
             commands::refresh_provider,
+            commands::refresh_home,
             commands::collector_status,
             commands::disconnect_provider,
             commands::list_connections,

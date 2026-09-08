@@ -606,11 +606,20 @@ fn uncovered_account_ids(
         .collect()
 }
 
+fn pass_read_succeeded(outcome: &AntigravityOutcome) -> bool {
+    matches!(
+        outcome,
+        AntigravityOutcome::CacheCommitted { .. }
+            | AntigravityOutcome::Cached { .. }
+            | AntigravityOutcome::Mirrored { .. }
+    )
+}
+
 pub async fn run_pass(
     app: &AppHandle,
     covered: &HashSet<PollIdentity>,
     automatic_account_limit: usize,
-) {
+) -> bool {
     let detected_account_ids = app
         .state::<DetectionStore>()
         .account_ids(DetectedProviderId::Antigravity);
@@ -632,13 +641,14 @@ pub async fn run_pass(
     account_ids.truncate(automatic_account_limit);
     let ports = SystemAgyPorts;
     let probe = SystemLoopbackProbe::new();
+    let mut succeeded = true;
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<AntigravityOauthRuntime>();
         let policy = app.state::<RequestPolicy>();
         let transport = app.state::<ReqwestTransport>();
         let writer = app.state::<Arc<CacheWriter>>();
-        let (_, abort_provider) = collect_account_guarded(
+        let (outcome, abort_provider) = collect_account_guarded(
             &detection,
             &runtime,
             &policy,
@@ -650,15 +660,33 @@ pub async fn run_pass(
             crate::connections::now_epoch_ms(),
         )
         .await;
+        succeeded &= pass_read_succeeded(&outcome);
         if abort_provider {
             break;
         }
     }
+    succeeded
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn home_refresh_reports_a_committed_read_and_a_login_failure() {
+        assert!(pass_read_succeeded(&AntigravityOutcome::CacheCommitted {
+            account_id: "fixture".into()
+        }));
+        assert!(pass_read_succeeded(&AntigravityOutcome::Cached {
+            account_id: "fixture".into(),
+            retry_at: "2026-09-08T12:00:00Z".into()
+        }));
+        assert!(!pass_read_succeeded(&AntigravityOutcome::ReopenCli {
+            account_id: "fixture".into(),
+            message: "Open the CLI once.".into()
+        }));
+    }
+
     use std::fs;
 
     use crate::cache_write::CACHE_FILE_NAME;

@@ -566,18 +566,26 @@ async fn collect_account_guarded<T: Transport>(
     (outcome, abort_provider)
 }
 
-pub async fn run_pass(app: &AppHandle, automatic_account_limit: usize) {
+fn pass_read_succeeded(outcome: &GeminiCliOutcome) -> bool {
+    matches!(
+        outcome,
+        GeminiCliOutcome::CacheCommitted { .. } | GeminiCliOutcome::Cached { .. }
+    )
+}
+
+pub async fn run_pass(app: &AppHandle, automatic_account_limit: usize) -> bool {
     let mut account_ids = app
         .state::<DetectionStore>()
         .account_ids(DetectedProviderId::GeminiCli);
     account_ids.truncate(automatic_account_limit);
+    let mut succeeded = true;
     for account_id in account_ids {
         let detection = app.state::<DetectionStore>();
         let runtime = app.state::<GeminiCliOauthRuntime>();
         let policy = app.state::<RequestPolicy>();
         let transport = app.state::<ReqwestTransport>();
         let writer = app.state::<Arc<CacheWriter>>();
-        let (_, abort_provider) = collect_account_guarded(
+        let (outcome, abort_provider) = collect_account_guarded(
             &detection,
             &runtime,
             &policy,
@@ -587,15 +595,33 @@ pub async fn run_pass(app: &AppHandle, automatic_account_limit: usize) {
             crate::connections::now_epoch_ms(),
         )
         .await;
+        succeeded &= pass_read_succeeded(&outcome);
         if abort_provider {
             break;
         }
     }
+    succeeded
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn home_refresh_reports_a_committed_read_and_a_login_failure() {
+        assert!(pass_read_succeeded(&GeminiCliOutcome::CacheCommitted {
+            account_id: "fixture".into()
+        }));
+        assert!(pass_read_succeeded(&GeminiCliOutcome::Cached {
+            account_id: "fixture".into(),
+            retry_at: "2026-09-08T12:00:00Z".into()
+        }));
+        assert!(!pass_read_succeeded(&GeminiCliOutcome::ReopenCli {
+            account_id: "fixture".into(),
+            message: "Open the CLI once.".into()
+        }));
+    }
+
     use std::collections::VecDeque;
     use std::fs;
     use std::future::Future;

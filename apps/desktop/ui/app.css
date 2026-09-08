@@ -1903,10 +1903,12 @@ button.first-run-continue {
 }
 
 .header-popover {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + var(--ol-space-2));
-  right: 0;
+  position: fixed;
+  z-index: 100;
+  top: var(--header-popover-top, 5rem);
+  right: var(--ol-space-4);
+  max-height: calc(100dvh - var(--header-popover-top, 5rem) - var(--ol-space-4));
+  overflow-y: auto;
   display: grid;
   width: min(20rem, calc(100vw - (2 * var(--ol-space-4))));
   gap: var(--ol-space-3);
@@ -1919,20 +1921,6 @@ button.first-run-continue {
 
 .header-popover[hidden] {
   display: none;
-}
-
-.phone-popover-portal {
-  position: fixed;
-  z-index: 100;
-  top: var(--phone-popover-top, 5rem);
-  right: var(--ol-space-4);
-  max-height: calc(100dvh - var(--phone-popover-top, 5rem) - var(--ol-space-4));
-  overflow-y: auto;
-}
-
-.claude-reading-help,
-.home-reading-state {
-  padding: var(--ol-space-3) var(--ol-space-4);
 }
 
 .strip {

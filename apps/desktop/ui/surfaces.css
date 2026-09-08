@@ -182,30 +182,17 @@ button.danger:hover {
   color: var(--ol-band-red-label);
 }
 
-/* --------------------------------------------------------- the live meter */
-
-.hero {
-  display: grid;
-  gap: var(--ol-space-3);
-  margin-bottom: var(--ol-space-4);
-}
-
-.hero-caption {
+.home-observation, .home-clock {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  gap: var(--ol-space-2);
+}
+.home-observation {
   justify-content: space-between;
-  gap: var(--ol-space-3);
-  color: var(--muted);
+  color: var(--ol-muted);
   font-size: var(--ol-text-micro);
-  font-weight: var(--ol-weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
-
-.hero-caption .mono {
-  letter-spacing: 0;
-  text-transform: none;
-}
+#home-refresh-status:empty { display: none; }
 
 /* ------------------------------------------------------------- the states */
 
@@ -1628,10 +1615,6 @@ body > .tabs {
 
   #panel-meters > * {
     grid-column: 1 / -1;
-  }
-
-  #panel-meters .hero {
-    margin-bottom: 0;
   }
 
   .provider-rows {
