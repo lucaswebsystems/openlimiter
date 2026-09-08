@@ -14,7 +14,7 @@ import { claudeFixture, parseOpenrouterPayload } from "@openlimiter/connectors";
 import { runCli, runtimeDependencies, type CliDependencies } from "../src/cli.js";
 import { DEFAULT_STATUSLINE, readStatuslineConfig } from "../src/config.js";
 import { parseAntigravityStatuslinePayload, readStandardInputBuffer, readStandardInputText, STDIN_BYTE_LIMIT } from "../src/ingest.js";
-import { readSession, writeSession, SESSION_FILE_NAME, SESSION_LOCK_NAME, SESSION_LOCK_WAIT_MILLISECONDS, type HubSession } from "../src/session.js";
+import { readSession, writeSession, StorageDiagnosticError, SESSION_FILE_NAME, SESSION_LOCK_NAME, SESSION_LOCK_WAIT_MILLISECONDS, type HubSession } from "../src/session.js";
 import { DELIVERY_UNCONFIRMED_SENTENCE, runDeviceLogin, CODE_CONSUMED_SENTENCE } from "../src/hub-auth.js";
 import { cliLoginStartRequest, createFetchHubTransport } from "../src/hub.js";
 import { apiSpendSamplesFromSnapshots, SYNC_CURSOR_FILE_NAME } from "../src/hub-sync.js";
@@ -379,6 +379,16 @@ describe("P1 audit regressions", () => {
     const tool = path.win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "whoami.exe");
     const capability = await runner(tool, ["/user", "/fo", "csv", "/nh"], 5000).catch(() => ({ ok: false as const }));
     if (!capability.ok) return context.skip();
+    try {
+      await writeSession(session(), {
+        directory: path.join(await scratch(), "probe"), platform: "win32", windowsAclRunner: runner
+      });
+    } catch (error) {
+      if (error instanceof StorageDiagnosticError && error.diagnostic.kind === "acl_failure") {
+        return context.skip("The environment cannot establish and verify an owner only Windows ACL for private session storage");
+      }
+      throw error;
+    }
     await mkdir(directory);
     const powershell = path.win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
     const shortPath = await runner(powershell, ["-NoProfile", "-NonInteractive", "-Command",
