@@ -1,20 +1,35 @@
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import { type Launcher } from "./terminal-launcher.js";
 
 export const LAUNCHER_TIMEOUT_MILLISECONDS = 5_000;
 export interface FallbackLauncherOptions {
   timeoutMilliseconds?: number;
+  /** Omit to detect at build time; null selects the portable polling supervisor. */
+  posixTimeoutCommand?: string | null;
 }
 const posixQuote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
 const psQuote = (value: string): string => `'${value.replaceAll("'", "''")}'`;
+
+async function detectPosixTimeout(): Promise<string | null> {
+  try {
+    const { stdout } = await promisify(execFile)(process.platform === "win32" ? "bash" : "/bin/sh", [
+      "-c", 'if [ -x /usr/bin/timeout ]; then printf /usr/bin/timeout; else command -v timeout; fi'
+    ], { windowsHide: true, timeout: 5_000 });
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 /** Native supervisors deliberately live outside the replaceable Node runtime.
  * The original belongs to this immutable launcher, never to host settings.
  * Buffer stdout until success so a failing renderer cannot leak partial bars.
  */
-function posixScript(runtime: Launcher, original: string | null, timeout: number): string {
+function posixScript(runtime: Launcher, original: string | null, timeout: number, timeoutCommand: string | null): string {
   return `#!/bin/sh
 exec 2>/dev/null
 umask 077
@@ -36,11 +51,16 @@ run() {
   run_work="$work/$run_number"
   /bin/mkdir "$run_work" || return 1
   output="$run_work/output"
-  "$@" < "$work/input" > "$output" 2>/dev/null &
+${timeoutCommand === null ? `  # Supervisor: polling
+  (
+    "$@"
+    printf '%s\\n' "$?" > "$run_work/status"
+  ) < "$work/input" > "$output" 2>/dev/null &
   child=$!
   (/bin/sleep ${timeout / 1000}; [ ! -d "$run_work" ] || : > "$run_work/timeout") </dev/null >/dev/null 2>&1 &
   timer=$!
-  while kill -0 "$child" 2>/dev/null && [ ! -f "$run_work/timeout" ]; do
+  # A complete status line is authoritative even if Git Bash reaps the job.
+  while ! IFS= read -r result < "$run_work/status" && [ ! -f "$run_work/timeout" ]; do
     /bin/sleep 0.02
   done
   kill "$timer" 2>/dev/null
@@ -49,10 +69,9 @@ run() {
     kill -9 "$child" 2>/dev/null
     return 1
   fi
-  # Only reap a child that has already exited. Termination can fail on Git Bash.
-  wait "$child" 2>/dev/null
-  result=$?
-  [ "$result" -eq 0 ]
+  # Never wait here: termination can fail and must not hold the prompt open.
+  [ "$result" = 0 ]` : `  # Supervisor: timeout
+  ${posixQuote(timeoutCommand)} ${timeout / 1000} "$@" < "$work/input" > "$output" 2>/dev/null`}
 }
 if run ${posixQuote(runtime.node)} ${posixQuote(runtime.entry)} "$@"; then
   emit "$output"
@@ -130,7 +149,10 @@ export async function fallbackLauncherCommand(
   options: FallbackLauncherOptions = {}
 ): Promise<string> {
   const timeout = options.timeoutMilliseconds ?? LAUNCHER_TIMEOUT_MILLISECONDS;
-  const script = shell === "posix" ? posixScript(runtime, original, timeout) : powershellScript(runtime, original, timeout);
+  const timeoutCommand = shell === "posix"
+    ? options.posixTimeoutCommand === undefined ? await detectPosixTimeout() : options.posixTimeoutCommand
+    : null;
+  const script = shell === "posix" ? posixScript(runtime, original, timeout, timeoutCommand) : powershellScript(runtime, original, timeout);
   const id = createHash("sha256").update(script).digest("hex");
   const directory = path.join(path.dirname(path.dirname(runtime.entry)), "terminal-launchers", id);
   await mkdir(directory, { recursive: true, mode: 0o700 });
