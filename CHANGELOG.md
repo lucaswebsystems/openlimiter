@@ -2,6 +2,24 @@
 
 All notable project changes appear in this file.
 
+## [1.3.5] (2026-09-08)
+
+Packages 1.3.5 on npm, desktop v1.3.3, and the site.
+
+### Changed
+
+- The Home tab shows one bar per provider window and no featured card, so no number appears twice. The observed clock keeps its place with an icon and a Refresh button that reads every connected provider on demand.
+- A provider whose vendor CLI already holds a login is connected and shown without a separate step. Removing one is a switch on its row, and a provider switched off is neither shown nor read again.
+- A provider that cannot be read right now shows its last reading hatched with its age and one sentence naming the action that refreshes it, instead of an empty card.
+- Installing a status line takes over the host and stores the previous command verbatim, with wrapping available for a line that shows unrelated things. Uninstalling restores the original byte for byte and refuses when the file changed underneath. The launcher runs the stored original whenever OpenLimiter cannot, so removing the package without uninstalling leaves a person with their own bars rather than an empty prompt.
+- The trial is offered as Start Pro free for 30 days with No credit card needed beside it, and starting it turns on alerts at 60, 80 and 90 and on reset, history, the phone, multiple accounts and hosted context, with nothing left to configure. Push stays one optional ask, and cloud metering still needs a key only its owner has. When a trial ends the preferences are kept, so the lock card names what stopped in real numbers and subscribing restores it.
+- The empty hub leads with a download for the system the browser reports and keeps the terminal command underneath with the steps to run it on each system.
+- Header popovers float above the cards and close on an outside click or Escape. The trademark notice moved from the Home tab into Settings under About.
+
+### Fixed
+
+- The launcher takes its deadline from the timeout utility where one exists, so a status line that cannot be killed can no longer hold a prompt open, and one leading byte order mark is removed on every shell and both paths.
+
 ## [1.3.4] (2026-09-08)
 
 ### Fixed
