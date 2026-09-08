@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cleanCliCode, validateCliCode } from "./cli-login";
 
 /**
  * The Pro account layer, as the website talks to it.
@@ -287,7 +288,15 @@ export async function revokeProDevice(
  * link that can steer where a completed sign in lands.
  */
 export function authRedirectUrl(): string {
-  return `${window.location.origin}${window.location.pathname}`;
+  const url = new URL(window.location.pathname, window.location.origin);
+  const params = new URLSearchParams(window.location.search);
+  const rawCode = params.get("code");
+  const code = rawCode !== null && rawCode.length <= 64 ? cleanCliCode(rawCode) : "";
+  if (url.pathname === "/app/cli" && validateCliCode(code).valid) {
+    url.searchParams.set("code", code);
+  }
+  if (url.pathname === "/app" && params.get("trial") === "1") url.searchParams.set("trial", "1");
+  return url.href;
 }
 
 /* ------------------------------------------------------------ pure decisions */

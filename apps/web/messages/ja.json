@@ -945,32 +945,32 @@
           },
           "terminal": {
             "title": "Terminal",
-            "intro": "Run the tool with nothing after it and it walks the same three steps everywhere: sign in, connect, then show bars in.",
+            "intro": "引数を付けずにツールを実行すると、どこでも同じ3つの手順に進みます。ログイン、接続、バーの表示先の選択です。",
             "terminalLabel": "terminal",
-            "steps": "Sign in prints a short code and a link to <code>openlimiter.com/app/pair</code>, so the terminal never sees a password, and Enter to skip leaves the device signed out. Connect checks every agent CLI already on this machine and reports one of <code>use current login</code>, <code>sign in</code> or <code>install</code> for each row, and offers to run Codex's own sign in on the spot. Show bars in lists the terminal hosts this machine can draw bars into and wires whichever ones you keep.",
-            "wiring": "Run <code>openlimiter terminal</code> on its own to reopen that last step later, <code>openlimiter terminal show</code> and <code>openlimiter terminal hide</code> to pick which connected providers actually draw a bar, and <code>openlimiter terminal status</code> to see what is wired. See <docs>agent context</docs> for the hosts, the grammar and the freshness marks.",
-            "install": "A permanent install works the same way: <code>npm install -g openlimiter</code>, then run <code>openlimiter</code>."
+            "steps": "ログインすると短いコードと <code>openlimiter.com/app/cli</code> へのリンクが表示されるため、ターミナルがパスワードを見ることはありません。Enterでスキップすると未ログインのままになります。接続ではインストール済みの各エージェントCLIを確認し、各行に <code>use current login</code>、<code>sign in</code>、<code>install</code> のいずれかを表示します。その場でCodex自身のログインを開始することもできます。最後に対応ターミナルを一覧表示し、選択した表示先を設定します。",
+            "wiring": "<code>openlimiter terminal</code> で最後の手順を開き直せます。<code>openlimiter terminal show</code> と <code>openlimiter terminal hide</code> でバーを表示する接続済みプロバイダーを選び、<code>openlimiter terminal status</code> で設定状況を確認します。対応ターミナル、表示形式、鮮度マークは <docs>エージェントコンテキスト</docs> を参照してください。",
+            "install": "常設インストールでも同じです。<code>npm install -g openlimiter</code> の後に <code>openlimiter</code> を実行します。"
           },
           "desktop": {
-            "title": "Desktop app",
-            "body": "The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect the providers it can reach directly, then bars in the tray. The tray and its bars never require that account."
+            "title": "デスクトップアプリ",
+            "body": "デスクトップアプリの初回起動でも同じ3つの手順が表示されます。アカウント作成またはスキップ、直接アクセスできるプロバイダーへの接続、トレイでのバー表示です。トレイとそのバーにアカウントは不要です。"
           },
           "hub": {
-            "title": "Web hub",
-            "body": "<hub>openlimiter.com/app</hub> is account first: sign in with GitHub, Google or Microsoft, or a magic link, then connect, then bars. Open it once a terminal or the desktop app has signed you in somewhere, and it shows the same bars synced from there."
+            "title": "ウェブハブ",
+            "body": "<hub>openlimiter.com/app</hub> では最初にアカウントにログインします。GitHub、Google、Microsoft、またはメールのリンクを使い、接続してバーを表示します。ターミナルやデスクトップアプリでログインした後に開くと、そこから同期された同じバーが表示されます。"
           },
           "free-and-pro": {
-            "title": "Free and Pro",
-            "intro": "Bars are free forever and need no account at all.",
+            "title": "無料機能とPro",
+            "intro": "バーはずっと無料で、アカウントも必要ありません。",
             "bullets": {
-              "sync": "An account adds sync: the current percentage on every window, kept current between every device you sign into.",
-              "pro": "Pro adds history, alerts, the phone, more than one account per provider, and cloud metering for API spend keys.",
-              "trial": "Every Pro surface opens a 30 day free trial, no card required."
+              "sync": "アカウントを作ると同期が加わります。各期間の現在の使用率が、ログインしたすべてのデバイスで最新に保たれます。",
+              "pro": "Proでは履歴、アラート、スマートフォン、プロバイダーごとの複数アカウント、API支出のクラウド計測を利用できます。",
+              "trial": "すべてのPro機能から、カード不要の30日間無料体験を始められます。"
             }
           },
           "phone": {
             "title": "Phone",
-            "body": "Open the hub, choose your phone, and scan the QR code it shows. Pairing needs nothing typed. Add it to your home screen from there: Android offers to install it, and on iOS use Share, then Add to Home Screen."
+            "body": "ハブを開いてスマートフォンを選び、表示されたQRコードを読み取ります。ペアリングに文字入力は不要です。そのままホーム画面に追加できます。Androidではインストールの案内を使い、iOSでは共有から「ホーム画面に追加」を選びます。"
           },
           "claude-code": {
             "title": "Wire Claude Code by hand",
@@ -1063,53 +1063,53 @@
             },
             "rows": {
               "claude": {
-                "connect": "Nothing to do: OpenLimiter reads what Claude Code already renders.",
+                "connect": "設定は不要です。OpenLimiterはClaude Codeがすでに表示している情報を読み取ります。",
                 "reads": "The Claude Code status line, automatically. An opt in poll of Anthropic's own usage endpoint, with your own token, covers the gap when Claude Code is closed. Off unless you turn it on."
               },
               "openrouter": {
-                "connect": "Real OAuth, started from the hub. A key you already hold still works.",
+                "connect": "ハブから開始する正式なOAuthです。すでに持っているキーも引き続き使えます。",
                 "reads": "OpenRouter's documented key and usage report."
               },
               "codex": {
-                "connect": "Use the login already there, or sign in from inside OpenLimiter.",
+                "connect": "既存のログインを使うか、OpenLimiter内からログインします。",
                 "reads": "The login the Codex CLI stored. May break when OpenAI changes it."
               },
               "antigravity": {
-                "connect": "Read only, from the credential already there.",
+                "connect": "既存の認証情報を使った読み取り専用の接続です。",
                 "reads": "The credential the Antigravity CLI stored. May break when Google changes it."
               },
               "opencode": {
-                "connect": "Import only: you supply the document yourself.",
+                "connect": "インポート専用です。ドキュメントは自分で用意します。",
                 "reads": "A usage view behind a session you already signed in to. May break without notice."
               },
               "manual": {
-                "connect": "You write the numbers yourself.",
+                "connect": "数値は自分で入力します。",
                 "reads": "Never breaks, never guesses."
               },
               "gemini_cli": {
-                "connect": "Read only, from the login already there.",
+                "connect": "既存のログインを使った読み取り専用の接続です。",
                 "reads": "The login the Gemini CLI stored. May break when Google changes it."
               },
               "grok": {
-                "connect": "Use the login already there. OpenLimiter cannot start Grok's own sign in yet.",
+                "connect": "既存のログインを使います。OpenLimiterからGrok自身のログインを開始することはまだできません。",
                 "reads": "The login the Grok CLI stored, without the client marker xAI's own tool sends."
               },
               "kimi": {
-                "connect": "Use the login already there. OpenLimiter cannot start Kimi's own sign in yet.",
+                "connect": "既存のログインを使います。OpenLimiterからKimi自身のログインを開始することはまだできません。",
                 "reads": "The usage response the Kimi CLI defines. May break when Moonshot changes it."
               }
             },
             "calloutTitle": "Every connector ships marked UNVERIFIED",
             "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good.",
-            "neverTitle": "What OpenLimiter never does",
-            "neverBody": "It never asks for a vendor password: every sign in happens on that vendor's own page, in your own browser. It never impersonates a vendor tool: every request identifies itself as OpenLimiter, never as Claude Code, Codex or any other client. And it never uploads a token: an account syncs the bounded percentages and reset times these readings produce, never the credential that produced them."
+            "neverTitle": "OpenLimiterが決してしないこと",
+            "neverBody": "プロバイダーのパスワードを求めることはありません。ログインは自分のブラウザーで、そのプロバイダーのページ上で行います。別のツールを装うこともありません。すべてのリクエストはOpenLimiterと名乗り、Claude CodeやCodexなどを名乗りません。トークンもアップロードしません。アカウントが同期するのは検証済みの使用率とリセット時刻であり、読み取りに使った認証情報ではありません。"
           },
           "how-data-arrives": {
             "title": "How data actually arrives",
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
               "claude": "<code>claude</code> is fed by the Claude Code status line the moment it renders, and by an opt in poll of Anthropic's own usage endpoint when Claude Code is closed.",
-              "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> and <code>openrouter</code> read the login their own tool already stored, at most once every fifteen minutes, behind the desktop app's own refresher or the terminal's <code>openlimiter refresh</code>.",
+              "live": "<code>codex</code>、<code>gemini_cli</code>、<code>antigravity</code>、<code>grok</code>、<code>kimi</code>、<code>openrouter</code> は、それぞれのツールが保存したログインを最大15分に1回読み取ります。デスクトップアプリの更新処理、またはターミナルの <code>openlimiter refresh</code> が実行します。",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
             },
@@ -1145,8 +1145,8 @@
             "body": "Only the nine above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
           },
           "api-spend-keys": {
-            "title": "API spend keys",
-            "body": "A key for an API spend meter is a separate thing from a subscription login. It lives in this device's operating system keyring by default. Cloud metering, an opt in Pro feature, stores that key encrypted on the server instead, so the hub and the phone can show spend with no device running."
+            "title": "API支出用のキー",
+            "body": "API支出の計測キーは、サブスクリプションのログインとは別のものです。通常はこのデバイスのOSのキーリングに保存されます。任意のPro機能であるクラウド計測では、代わりにサーバーへ暗号化して保存します。これにより、デバイスが起動していなくてもハブやスマートフォンで支出を表示できます。"
           }
         }
       },
@@ -1396,8 +1396,8 @@
             "intro": "One line, rendered on every Claude Code statusline call. It names the worst state across your providers, lists the providers with a usable reading, and names the ones that are unknown.",
             "exampleLabel": "example output, synthetic values",
             "truncation": "Usage is truncated, never rounded upward, so a meter at 99.99% reads as 99.9%. When nothing usable is cached the whole line reduces to <code>OpenLimiter UNKNOWN</code>.",
-            "legacyTitle": "This is the earlier cells style",
-            "legacyBody": "<code>openlimiter terminal</code> wires the newer bar style described above into your agent CLIs by default. This reason led, five block row is what <code>statusline.style cells</code> brings back, and <code>statusline.bars false</code> goes one step further to the single plain line from before bars existed."
+            "legacyTitle": "これは以前のセル形式です",
+            "legacyBody": "<code>openlimiter terminal</code> は、上で説明した新しいバー形式をエージェントCLIに標準で設定します。<code>statusline.style cells</code> で判断理由を先頭に置く5ブロックの以前の行に戻せます。<code>statusline.bars false</code> は、バーが導入される前の単純な1行テキストに戻します。"
           },
           "context-block": {
             "title": "The context block",
@@ -1516,27 +1516,27 @@
             }
           },
           "terminal": {
-            "title": "Bars in your terminal",
-            "intro": "Every provider you connect can draw a bar somewhere you already look. Claude Code, Grok Build and the Antigravity CLI each render bars through their own status line. Codex draws its own built in items instead, because a command is the only surface it exposes. Gemini CLI, OpenCode, Kimi and any other terminal read a shell prompt segment, because none of them expose a status line at all.",
+            "title": "ターミナルのバー",
+            "intro": "接続した各プロバイダーのバーを、普段見る場所に表示できます。Claude Code、Grok Build、Antigravity CLIはそれぞれのステータス行を使います。Codexはコマンドのインターフェースのみを公開しているため、内蔵の項目を表示します。Gemini CLI、OpenCode、Kimiなどはステータス行を公開していないため、シェルプロンプトの一部を使います。",
             "wiring": {
-              "title": "Wiring a host",
+              "title": "表示先の設定",
               "terminalLabel": "terminal",
-              "body": "<code>openlimiter terminal</code> lists every host this machine can draw a bar into and its wiring state, and <code>--yes</code> wires every one of them at once. <code>openlimiter terminal install claude</code> wires one host on its own, and <code>openlimiter terminal uninstall claude</code> restores whatever status line was there before, byte for byte."
+              "body": "<code>openlimiter terminal</code> は対応する表示先と設定状態を一覧表示します。<code>--yes</code> はすべてを一度に設定します。<code>openlimiter terminal install claude</code> は1つだけを設定し、<code>openlimiter terminal uninstall claude</code> は以前のステータス行を完全に復元します。"
             },
             "show-hide": {
-              "title": "Choosing what shows",
-              "body": "<code>openlimiter terminal show codex</code> and <code>openlimiter terminal hide codex</code> pick which connected providers actually draw a bar, on this machine only. A provider you have not connected has nothing to show."
+              "title": "表示内容の選択",
+              "body": "<code>openlimiter terminal show codex</code> と <code>openlimiter terminal hide codex</code> は、このマシンだけで、バーを表示する接続済みプロバイダーを選びます。未接続のプロバイダーには表示する情報がありません。"
             },
             "grammar": {
-              "title": "The grammar",
-              "intro": "One cell per window: an optional freshness mark, a tag, a ten block bar, the percentage, and the reset time. The provider whose own status line this is drops its own tag, since the host already says whose numbers these are; every other provider keeps a short tag ahead of its window code, and a credit balance shows its dollar figure instead of a bar.",
-              "exampleLabel": "example output, one host's row",
+              "title": "表示形式",
+              "intro": "期間ごとに1つのセルを表示します。任意の鮮度マーク、タグ、10ブロックのバー、使用率、リセット時刻の順です。ステータス行を所有するプロバイダーは、表示先から出所が分かるため自分のタグを省きます。他のプロバイダーは期間コードの前に短いタグを付け、クレジット残高はバーの代わりにドル額を表示します。",
+              "exampleLabel": "出力例、ある表示先の1行",
               "freshness": {
-                "title": "The freshness marks",
+                "title": "鮮度マーク",
                 "bullets": {
-                  "bare": "No mark: the reading is under three minutes old.",
-                  "tilde": "A leading <code>~</code>: the reading is three to fifteen minutes old.",
-                  "unknown": "<code>[?]</code> in place of the bar: the reading is fifteen minutes old or older, or nothing has been read yet. The cell never disappears, so a provider that cannot be read still shows as unknown rather than looking connected."
+                  "bare": "マークなし：読み取りから3分未満です。",
+                  "tilde": "先頭に <code>~</code>：読み取りから3分以上15分未満です。",
+                  "unknown": "バーの代わりに <code>[?]</code>：読み取りから15分以上経過したか、まだ読み取りがありません。セルは消えません。読み取れないプロバイダーは接続済みに見せることなく、不明として表示され続けます。"
                 }
               }
             }
@@ -1628,16 +1628,16 @@
                   "meaning": "<code>auto</code>はターミナルに従います。statuslineのホストの場合、通常は無色を意味します。ホストがターミナルを渡す代わりに出力をキャプチャするためです。<code>always</code>は、ホストがエスケープコードを理解することをあなたが宣言する方法です。デフォルトは<code>auto</code>。"
                 },
                 "style": {
-                  "accepts": "<code>bar</code> or <code>cells</code>",
-                  "meaning": "<code>bar</code> is the ten block grammar <code>openlimiter terminal</code> wires by default. <code>cells</code> restores the previous reason led row with a five block bar per provider. Default <code>bar</code>."
+                  "accepts": "<code>bar</code> または <code>cells</code>",
+                  "meaning": "<code>bar</code> は <code>openlimiter terminal</code> が標準で設定する10ブロックの形式です。<code>cells</code> は判断理由を先頭に置き、プロバイダーごとに5ブロックを表示する以前の行に戻します。既定値は <code>bar</code> です。"
                 },
                 "show": {
-                  "accepts": "provider ids, comma separated, or <code>NONE</code>",
-                  "meaning": "Which connected providers actually draw a bar in <code>bar</code> style. <code>NONE</code>, the default, shows every connected provider. <code>openlimiter terminal show</code> and <code>terminal hide</code> are the commands that change it."
+                  "accepts": "カンマ区切りのプロバイダーID、または <code>NONE</code>",
+                  "meaning": "<code>bar</code> 形式でバーを表示する接続済みプロバイダーを指定します。既定値の <code>NONE</code> はすべてを表示します。<code>openlimiter terminal show</code> と <code>terminal hide</code> で変更できます。"
                 },
                 "hosts": {
-                  "accepts": "written by <code>openlimiter terminal</code>, not by hand",
-                  "meaning": "Which command each wired host was left running before OpenLimiter took the slot, kept so <code>terminal uninstall</code> can restore it byte for byte."
+                  "accepts": "手動ではなく <code>openlimiter terminal</code> が書き込みます",
+                  "meaning": "OpenLimiterが表示枠を使う前に各表示先で実行されていたコマンドを保存します。<code>terminal uninstall</code> はこれを使って元の内容を完全に復元します。"
                 }
               }
             },
@@ -1729,25 +1729,25 @@
               "body": "Prints the cache as canonical JSON, suitable for a script to parse. Exits 3 when the cache holds no bounded quota data."
             },
             "login": {
-              "body": "Signs this terminal into your account by device code: a short code and a link to <code>openlimiter.com/app/cli</code> print at once, and the command waits for you to approve it there. <code>--open</code> also opens that link in a browser. Nothing here ever sees a password."
+              "body": "デバイスコードでこのターミナルをアカウントにログインさせます。短いコードと <code>openlimiter.com/app/cli</code> へのリンクがすぐに表示され、そこでの承認を待ちます。<code>--open</code> を付けるとブラウザーでリンクも開きます。ターミナルがパスワードを見ることはありません。"
             },
             "logout": {
-              "body": "Forgets the session stored on this device. Nothing on the hub is asked to do anything."
+              "body": "このデバイスに保存されたセッションを削除します。ハブへの操作要求は行いません。"
             },
             "whoami": {
-              "body": "Prints the signed in account and this device's id, or says plainly that nobody is signed in."
+              "body": "ログイン中のアカウントとデバイスIDを表示します。未ログインの場合はそのことを明示します。"
             },
             "sync": {
-              "body": "Uploads one round of cached bars to the hub, renewing the session first when it is close to expiring. <code>refresh</code> already triggers this on its own after a successful round when a session exists, so running it by hand is for the moment you want to know it landed."
+              "body": "キャッシュしたバーをハブへ1回アップロードします。セッションの期限が近い場合は先に更新します。セッションがあれば、<code>refresh</code> は取得成功後にすでにこれを自動実行します。手動実行は送信の到着を確認したいときに使います。"
             },
             "refresh": {
-              "body": "Reads the logins your provider tools already stored on this machine and asks each provider for its own usage, at most once every fifteen minutes, then folds what survives validation into the cache. It stands down while the desktop app is running, and <code>statusline</code> and <code>snapshot</code> both start it in the background on their own whenever the cache is older than a minute."
+              "body": "各ツールが保存したログインを読み、各プロバイダーへ最大15分に1回使用量を問い合わせます。検証に通った読み取りをキャッシュに取り込みます。デスクトップアプリが動作中なら停止します。キャッシュが1分を超えると、<code>statusline</code> と <code>snapshot</code> が自動でバックグラウンド起動します。"
             },
             "terminal": {
-              "body": "Lists every terminal host this machine can draw a bar into and its wiring state, and offers to wire one or all of them. <code>terminal install <host></code> and <code>terminal uninstall <host></code> wire or restore one host by name, <code>terminal status</code> prints the table on its own, and <code>terminal show</code> and <code>terminal hide</code> pick which connected providers actually draw a bar. See <docs>agent context</docs> for the hosts and the grammar."
+              "body": "対応する表示先と設定状態を一覧表示し、1つまたはすべての設定を提案します。<code>terminal install <host></code> と <code>terminal uninstall <host></code> は指定先を設定または復元します。<code>terminal status</code> は一覧だけを表示し、<code>terminal show</code> と <code>terminal hide</code> は表示するプロバイダーを選びます。対応先と形式は <docs>エージェントコンテキスト</docs> を参照してください。"
             },
             "setup": {
-              "body": "Runs the same three steps <code>openlimiter</code> with no arguments runs: sign in, connect, show bars in, then prints the bars once. Any step you skip stays skipped; nothing here is required to see a bar."
+              "body": "引数なしの <code>openlimiter</code> と同じ3つの手順を実行します。ログイン、接続、表示先の選択後に、バーを1回表示します。スキップした手順はそのままです。バーの表示に必須の手順はありません。"
             }
           },
           "exit-codes": {
@@ -1877,7 +1877,7 @@
               "alerts": "上限またはリセットのメールアラート。",
               "history": "90日間のホスト型使用履歴と消費予測。",
               "localFirst": "画面に見えるものはすべて無料です。コマンドラインツールとデスクトップのローカル機能は Pro アカウントなしで動きます。",
-              "phone": "Phone pairing by QR code, kept alive across the device closing for a day or more."
+              "phone": "QRコードでスマートフォンをペアリングし、デバイスを1日以上閉じても接続を維持します。"
             }
           },
           "following": {
@@ -2023,6 +2023,7 @@
     }
   },
   "hub": {
+    "syncedSpend": { "source": "デスクトップから同期：{provider}、{account}、{start} から {end}" },
     "addAccount": "アカウントを追加",
     "configuration": "設定",
     "backToBars": "バー表示に戻る",
@@ -2153,6 +2154,8 @@
       "iosThree": "追加をタップしてください。アプリはホーム画面から全画面で開きます。"
     },
     "pairPage": {
+      "retry": "読み取りを更新",
+      "defaultLabel": "このスマートフォン",
       "bars": {
         "title": "利用状況"
       },
@@ -2208,6 +2211,7 @@
       "loadingBody": "少々お待ちください。サインイン状態を確認しています。"
     },
     "cloud": {
+      "observed": "観測日時 {time}",
       "title": "クラウドから測定",
       "lead": "クラウドが自動で確認する支出メーターなので、端末を起動していなくてもハブとスマートフォンで読み取れます。",
       "needsPro": {
@@ -2252,6 +2256,8 @@
         "error": "OpenRouter が応答しませんでした。もう一度お試しください。"
       },
       "callback": {
+        "authTitle": "ログインして続行",
+        "authBody": "アカウントのセッションが終了しました。ハブにログインしてから、OpenRouterをもう一度接続してください。",
         "title": "OpenRouter を接続しています",
         "body": "少々お待ちください。サインインを完了し、キーを保存しています。",
         "successTitle": "OpenRouter を接続しました",

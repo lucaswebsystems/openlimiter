@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CliPageView as CliPage } from "@/app/app/cli/cli-page-view";
 import { Dashboard } from "@/app/app/dashboard";
 import { ONBOARDED_METADATA_KEY, onboardedStorageKey } from "@/lib/onboarding";
+import { INTENT_TTL_MS, pendingIntent, rememberIntent } from "@/lib/pending-intent";
+import { authRedirectUrl } from "@/lib/pro";
 import {
   cleanCliCode,
   validateCliCode,
@@ -54,6 +56,7 @@ vi.mock("next/link", async () => {
 vi.mock("@/app/app/notification-bell", () => ({ NotificationBell: () => null }));
 vi.mock("@/app/app/install", () => ({ InstallControl: () => null }));
 vi.mock("@/lib/synced-usage", () => ({
+  readSyncedApiSpend: async () => ({ ok: true, sources: [] }),
   readSyncedUsage: async () => ({ ok: false, reason: "signed_out" }),
 }));
 
@@ -92,6 +95,8 @@ afterEach(() => {
   mounted = null;
   window.history.replaceState(null, "", "/app/cli");
   currentSession = null;
+  window.sessionStorage.clear();
+  window.localStorage.clear();
   vi.restoreAllMocks();
 });
 
@@ -111,6 +116,56 @@ function fakeSession(extraUserMetadata: Record<string, unknown> = {}): Session {
     },
   };
 }
+
+describe("06: pending authentication intent", () => {
+  it("bounds the authentication return URL when browser storage is refused", async () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("refused"); });
+    window.history.replaceState(null, "", "/app/cli?code=abcd2345&returnTo=https://untrusted.test#fragment");
+    mounted = render(createElement(CliPage));
+    await flush(4);
+    expect(new URL(authRedirectUrl()).search).toBe("?code=ABCD2345");
+    expect(new URL(authRedirectUrl()).hash).toBe("");
+    window.history.replaceState(null, "", "/app?trial=1&returnTo=https://untrusted.test");
+    expect(new URL(authRedirectUrl()).search).toBe("?trial=1");
+    window.history.replaceState(null, "", "/app/cli?code=invalid");
+    expect(new URL(authRedirectUrl()).search).toBe("");
+  });
+  it("prefills the CLI code after a signed out page is destroyed and authentication returns", async () => {
+    window.history.replaceState(null, "", "/app/cli?code=ABCD2345");
+    mounted = render(createElement(CliPage));
+    await flush(4);
+    expect(window.location.search).toBe("");
+    expect(pendingIntent()).toEqual({ kind: "cli", code: "ABCD2345" });
+    mounted.unmount();
+    window.sessionStorage.clear(); // A magic link may return in a new tab.
+    currentSession = fakeSession();
+    mounted = render(createElement(CliPage));
+    await flush(4);
+    expect(mounted.container.querySelector<HTMLInputElement>("input:not([type=checkbox])")?.value).toBe("ABCD2345");
+    expect(pendingIntent()).toBeNull();
+  });
+
+  it("restores the trial after authentication and consumes it", async () => {
+    window.history.replaceState(null, "", "/app?trial=1");
+    mounted = render(createElement(Dashboard, { lockup: null }));
+    await flush(4);
+    expect(pendingIntent()).toEqual({ kind: "trial" });
+    mounted.unmount();
+    currentSession = fakeSession({ [ONBOARDED_METADATA_KEY]: true });
+    mounted = render(createElement(Dashboard, { lockup: null }));
+    await flush(6);
+    expect(mounted.container.textContent).toContain(messages.hub.trial.alerts.title);
+    expect(pendingIntent()).toBeNull();
+  });
+
+  it("expires abandoned intent after ten minutes", () => {
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now);
+    rememberIntent({ kind: "cli", code: "ABCD2345" });
+    vi.mocked(Date.now).mockReturnValue(now + INTENT_TTL_MS);
+    expect(pendingIntent()).toBeNull();
+  });
+});
 
 function fakeClient(invokeHandler: (name: string, options: unknown) => Promise<unknown>): SupabaseClient {
   return {

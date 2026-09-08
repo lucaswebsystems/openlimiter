@@ -168,6 +168,8 @@ export function apiSpendOf(value: unknown): SyncedApiSpend | null {
   const provider = typeof row.provider === "string" ? row.provider : "";
   const accountId = typeof row.account_id === "string" ? row.account_id : "";
   const currency = typeof row.currency === "string" ? row.currency : "";
+  if ((typeof row.amount_minor !== "number" && typeof row.amount_minor !== "string") ||
+      (typeof row.amount_minor === "string" && row.amount_minor.trim() === "")) return null;
   const amountMinor = Number(row.amount_minor);
   const periodStart = instantOf(row.period_start);
   const periodEnd = instantOf(row.period_end);

@@ -102,11 +102,24 @@ function CloudKeyRow({
   t,
 }: {
   row: CloudMeterKey;
-  onPollNow: (id: string) => void;
-  onDelete: (id: string) => void;
+  onPollNow: (id: string) => Promise<boolean>;
+  onDelete: (id: string) => Promise<boolean>;
   t: ReturnType<typeof useTranslations>;
 }) {
   const [busy, setBusy] = useState<"poll" | "delete" | null>(null);
+  const [error, setError] = useState(false);
+  const operate = async (action: "poll" | "delete") => {
+    if (busy !== null) return;
+    setBusy(action);
+    setError(false);
+    try {
+      setError(!await (action === "poll" ? onPollNow(row.id) : onDelete(row.id)));
+    } catch {
+      setError(true);
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
     <li className="ol-directory-row">
       <div className="ol-directory-identity">
@@ -119,26 +132,19 @@ function CloudKeyRow({
         </span>
       </div>
       <StatusChip status={row.lastStatus} t={t} />
-      <div />
+      <div>{error && <p role="alert">{t("cloud.unavailable")}</p>}</div>
       <div className="flex items-center justify-end gap-2">
         <Button
           tone="ghost"
           disabled={busy !== null}
-          onClick={() => {
-            setBusy("poll");
-            onPollNow(row.id);
-            setBusy(null);
-          }}
+          onClick={() => { void operate("poll"); }}
         >
           {busy === "poll" ? t("cloud.polling") : t("cloud.pollNow")}
         </Button>
         <Button
           tone="ghost"
           disabled={busy !== null}
-          onClick={() => {
-            setBusy("delete");
-            onDelete(row.id);
-          }}
+          onClick={() => { void operate("delete"); }}
         >
           {busy === "delete" ? t("cloud.deleting") : t("cloud.delete")}
         </Button>
@@ -345,13 +351,15 @@ export function CloudMeterPanel({
                   row={row}
                   t={t}
                   onPollNow={(id) => {
-                    void pollCloudKeyNow(client, id).then((result) => {
+                    return pollCloudKeyNow(client, id).then((result) => {
                       if (result.ok) refresh();
+                      return result.ok;
                     });
                   }}
                   onDelete={(id) => {
-                    void deleteCloudKey(client, id).then((result) => {
+                    return deleteCloudKey(client, id).then((result) => {
                       if (result.ok) refresh();
+                      return result.ok;
                     });
                   }}
                 />
@@ -379,23 +387,8 @@ export function CloudMeterPanel({
  * surface still only ever shows a reading or the honest absence of one, never
  * a number it made up.
  */
-export function CloudSpendRows({ client }: { client: SupabaseClient | null }) {
+export function CloudSpendRows({ rows, now, failed = false }: { rows: CloudMeterKey[]; now: string; failed?: boolean }) {
   const t = useTranslations("hub");
-  const [rows, setRows] = useState<CloudMeterKey[]>([]);
-
-  useEffect(() => {
-    if (client === null) {
-      setRows([]);
-      return;
-    }
-    let live = true;
-    void listCloudKeys(client).then((result) => {
-      if (live && result.ok) setRows(result.value);
-    });
-    return () => {
-      live = false;
-    };
-  }, [client]);
 
   if (rows.length === 0) return null;
 
@@ -405,13 +398,13 @@ export function CloudSpendRows({ client }: { client: SupabaseClient | null }) {
         <DollarRow
           key={row.id}
           icon={<CloudGlyph className="h-3.5 w-3.5" />}
-          name={row.label}
+          name={row.observedAt === null ? row.label : `${row.label} (${t("cloud.observed", { time: new Date(row.observedAt).toLocaleString() })})`}
           amountText={
             row.amount !== null && row.currency !== null
               ? formatCloudAmount(row.amount, row.currency)
               : t("cloud.status.pending")
           }
-          stale={row.lastStatus !== "ok" || row.amount === null || row.currency === null}
+          stale={failed || row.lastStatus !== "ok" || row.amount === null || row.currency === null || row.observedAt === null || Date.parse(now) - Date.parse(row.observedAt) > 5 * 60_000}
         />
       ))}
     </div>
@@ -429,4 +422,3 @@ function formatCloudAmount(amount: number, currency: string): string {
     return `${amount.toFixed(2)} ${currency}`;
   }
 }
-

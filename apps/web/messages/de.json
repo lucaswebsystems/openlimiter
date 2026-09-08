@@ -945,32 +945,32 @@
           },
           "terminal": {
             "title": "Terminal",
-            "intro": "Run the tool with nothing after it and it walks the same three steps everywhere: sign in, connect, then show bars in.",
+            "intro": "Führen Sie das Tool ohne Argumente aus. Es führt überall durch dieselben drei Schritte: anmelden, verbinden und auswählen, wo Balken erscheinen.",
             "terminalLabel": "terminal",
-            "steps": "Sign in prints a short code and a link to <code>openlimiter.com/app/pair</code>, so the terminal never sees a password, and Enter to skip leaves the device signed out. Connect checks every agent CLI already on this machine and reports one of <code>use current login</code>, <code>sign in</code> or <code>install</code> for each row, and offers to run Codex's own sign in on the spot. Show bars in lists the terminal hosts this machine can draw bars into and wires whichever ones you keep.",
-            "wiring": "Run <code>openlimiter terminal</code> on its own to reopen that last step later, <code>openlimiter terminal show</code> and <code>openlimiter terminal hide</code> to pick which connected providers actually draw a bar, and <code>openlimiter terminal status</code> to see what is wired. See <docs>agent context</docs> for the hosts, the grammar and the freshness marks.",
-            "install": "A permanent install works the same way: <code>npm install -g openlimiter</code>, then run <code>openlimiter</code>."
+            "steps": "Bei der Anmeldung erscheinen ein kurzer Code und ein Link zu <code>openlimiter.com/app/cli</code>. Das Terminal sieht nie ein Passwort. Mit der Eingabetaste können Sie überspringen und bleiben abgemeldet. Beim Verbinden werden alle vorhandenen Agenten geprüft. Jede Zeile zeigt <code>use current login</code>, <code>sign in</code> oder <code>install</code>. Die Anmeldung von Codex kann direkt gestartet werden. Anschließend werden die unterstützten Terminalprogramme aufgelistet und die ausgewählten eingerichtet.",
+            "wiring": "Mit <code>openlimiter terminal</code> öffnen Sie den letzten Schritt erneut. <code>openlimiter terminal show</code> und <code>openlimiter terminal hide</code> bestimmen, welche verbundenen Anbieter Balken zeigen. <code>openlimiter terminal status</code> zeigt die Einrichtung. Programme, Format und Aktualitätszeichen erklärt der <docs>Agentenkontext</docs>.",
+            "install": "Eine dauerhafte Installation funktioniert genauso: <code>npm install -g openlimiter</code>, danach <code>openlimiter</code> ausführen."
           },
           "desktop": {
-            "title": "Desktop app",
-            "body": "The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect the providers it can reach directly, then bars in the tray. The tray and its bars never require that account."
+            "title": "Desktopanwendung",
+            "body": "Beim ersten Start zeigt die Desktopanwendung dieselben drei Schritte: Konto erstellen oder überspringen, direkt erreichbare Anbieter verbinden und Balken im Infobereich anzeigen. Der Infobereich und seine Balken benötigen kein Konto."
           },
           "hub": {
-            "title": "Web hub",
-            "body": "<hub>openlimiter.com/app</hub> is account first: sign in with GitHub, Google or Microsoft, or a magic link, then connect, then bars. Open it once a terminal or the desktop app has signed you in somewhere, and it shows the same bars synced from there."
+            "title": "Webzentrale",
+            "body": "<hub>openlimiter.com/app</hub> beginnt mit der Anmeldung über GitHub, Google, Microsoft oder einen Link per E Mail. Danach folgen Verbinden und Balken. Nach der Anmeldung im Terminal oder in der Desktopanwendung zeigt die Zentrale dieselben von dort synchronisierten Balken."
           },
           "free-and-pro": {
-            "title": "Free and Pro",
-            "intro": "Bars are free forever and need no account at all.",
+            "title": "Kostenlos und Pro",
+            "intro": "Balken bleiben dauerhaft kostenlos und benötigen kein Konto.",
             "bullets": {
-              "sync": "An account adds sync: the current percentage on every window, kept current between every device you sign into.",
-              "pro": "Pro adds history, alerts, the phone, more than one account per provider, and cloud metering for API spend keys.",
-              "trial": "Every Pro surface opens a 30 day free trial, no card required."
+              "sync": "Ein Konto ergänzt die Synchronisierung: Der aktuelle Prozentsatz jedes Zeitfensters bleibt auf allen angemeldeten Geräten aktuell.",
+              "pro": "Pro ergänzt Verlauf, Benachrichtigungen, das Telefon, mehrere Konten pro Anbieter und die Messung von API Ausgaben in der Cloud.",
+              "trial": "Jede Pro Funktion bietet eine kostenlose Testphase von 30 Tagen ohne Kreditkarte."
             }
           },
           "phone": {
             "title": "Phone",
-            "body": "Open the hub, choose your phone, and scan the QR code it shows. Pairing needs nothing typed. Add it to your home screen from there: Android offers to install it, and on iOS use Share, then Add to Home Screen."
+            "body": "Öffnen Sie die Zentrale, wählen Sie Ihr Telefon und scannen Sie den angezeigten QR Code. Die Kopplung benötigt keine Eingabe. Fügen Sie die Seite zum Startbildschirm hinzu: Android bietet eine Installation an. Unter iOS wählen Sie Teilen und dann Zum Home Bildschirm."
           },
           "claude-code": {
             "title": "Wire Claude Code by hand",
@@ -1063,53 +1063,53 @@
             },
             "rows": {
               "claude": {
-                "connect": "Nothing to do: OpenLimiter reads what Claude Code already renders.",
+                "connect": "Nichts einzurichten: OpenLimiter liest die bereits von Claude Code angezeigten Daten.",
                 "reads": "The Claude Code status line, automatically. An opt in poll of Anthropic's own usage endpoint, with your own token, covers the gap when Claude Code is closed. Off unless you turn it on."
               },
               "openrouter": {
-                "connect": "Real OAuth, started from the hub. A key you already hold still works.",
+                "connect": "Echtes OAuth, gestartet in der Zentrale. Ein bereits vorhandener Schlüssel funktioniert weiterhin.",
                 "reads": "OpenRouter's documented key and usage report."
               },
               "codex": {
-                "connect": "Use the login already there, or sign in from inside OpenLimiter.",
+                "connect": "Vorhandene Anmeldung verwenden oder direkt in OpenLimiter anmelden.",
                 "reads": "The login the Codex CLI stored. May break when OpenAI changes it."
               },
               "antigravity": {
-                "connect": "Read only, from the credential already there.",
+                "connect": "Nur lesender Zugriff mit den bereits vorhandenen Zugangsdaten.",
                 "reads": "The credential the Antigravity CLI stored. May break when Google changes it."
               },
               "opencode": {
-                "connect": "Import only: you supply the document yourself.",
+                "connect": "Nur Import: Sie stellen das Dokument selbst bereit.",
                 "reads": "A usage view behind a session you already signed in to. May break without notice."
               },
               "manual": {
-                "connect": "You write the numbers yourself.",
+                "connect": "Sie tragen die Zahlen selbst ein.",
                 "reads": "Never breaks, never guesses."
               },
               "gemini_cli": {
-                "connect": "Read only, from the login already there.",
+                "connect": "Nur lesender Zugriff mit der bereits vorhandenen Anmeldung.",
                 "reads": "The login the Gemini CLI stored. May break when Google changes it."
               },
               "grok": {
-                "connect": "Use the login already there. OpenLimiter cannot start Grok's own sign in yet.",
+                "connect": "Vorhandene Anmeldung verwenden. OpenLimiter kann die Anmeldung von Grok noch nicht starten.",
                 "reads": "The login the Grok CLI stored, without the client marker xAI's own tool sends."
               },
               "kimi": {
-                "connect": "Use the login already there. OpenLimiter cannot start Kimi's own sign in yet.",
+                "connect": "Vorhandene Anmeldung verwenden. OpenLimiter kann die Anmeldung von Kimi noch nicht starten.",
                 "reads": "The usage response the Kimi CLI defines. May break when Moonshot changes it."
               }
             },
             "calloutTitle": "Every connector ships marked UNVERIFIED",
             "calloutBody": "<code>UNVERIFIED</code> is the honest default. It means no explicit verifier has confirmed the shape against a live account, so <code>openlimiter doctor</code> reports drift as unverified rather than claiming a connector is known good.",
-            "neverTitle": "What OpenLimiter never does",
-            "neverBody": "It never asks for a vendor password: every sign in happens on that vendor's own page, in your own browser. It never impersonates a vendor tool: every request identifies itself as OpenLimiter, never as Claude Code, Codex or any other client. And it never uploads a token: an account syncs the bounded percentages and reset times these readings produce, never the credential that produced them."
+            "neverTitle": "Was OpenLimiter niemals tut",
+            "neverBody": "Es fragt nie nach einem Anbieterpasswort: Jede Anmeldung erfolgt auf der Seite des Anbieters in Ihrem Browser. Es gibt sich nie als anderes Tool aus: Jede Anfrage nennt OpenLimiter, niemals Claude Code, Codex oder einen anderen Client. Es lädt nie ein Token hoch: Ein Konto synchronisiert die begrenzten Prozentwerte und Rücksetzzeiten der Messungen, niemals die dafür verwendeten Zugangsdaten."
           },
           "how-data-arrives": {
             "title": "How data actually arrives",
             "intro": "Most connectors read for themselves now. Two still do not, and this is the part worth stating plainly.",
             "bullets": {
               "claude": "<code>claude</code> is fed by the Claude Code status line the moment it renders, and by an opt in poll of Anthropic's own usage endpoint when Claude Code is closed.",
-              "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> and <code>openrouter</code> read the login their own tool already stored, at most once every fifteen minutes, behind the desktop app's own refresher or the terminal's <code>openlimiter refresh</code>.",
+              "live": "<code>codex</code>, <code>gemini_cli</code>, <code>antigravity</code>, <code>grok</code>, <code>kimi</code> und <code>openrouter</code> lesen die vom jeweiligen Tool gespeicherte Anmeldung höchstens alle fünfzehn Minuten. Dies übernimmt die Aktualisierung der Desktopanwendung oder <code>openlimiter refresh</code> im Terminal.",
               "manual": "<code>manual</code> is fed by a document you place in the state directory.",
               "ingestOnly": "<code>opencode</code> is the one connector left with no reader of its own: it only accepts data through <code>openlimiter ingest --provider opencode</code>, because it reads an authenticated page rather than a login file."
             },
@@ -1145,8 +1145,8 @@
             "body": "Only the nine above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
           },
           "api-spend-keys": {
-            "title": "API spend keys",
-            "body": "A key for an API spend meter is a separate thing from a subscription login. It lives in this device's operating system keyring by default. Cloud metering, an opt in Pro feature, stores that key encrypted on the server instead, so the hub and the phone can show spend with no device running."
+            "title": "Schlüssel für API Ausgaben",
+            "body": "Ein Schlüssel zur Messung von API Ausgaben ist von einer Abonnementanmeldung getrennt. Standardmäßig liegt er im Schlüsselbund des Betriebssystems dieses Geräts. Die optionale Cloudmessung von Pro speichert ihn stattdessen verschlüsselt auf dem Server. So können Zentrale und Telefon Ausgaben anzeigen, ohne dass ein Gerät läuft."
           }
         }
       },
@@ -1396,8 +1396,8 @@
             "intro": "One line, rendered on every Claude Code statusline call. It names the worst state across your providers, lists the providers with a usable reading, and names the ones that are unknown.",
             "exampleLabel": "example output, synthetic values",
             "truncation": "Usage is truncated, never rounded upward, so a meter at 99.99% reads as 99.9%. When nothing usable is cached the whole line reduces to <code>OpenLimiter UNKNOWN</code>.",
-            "legacyTitle": "This is the earlier cells style",
-            "legacyBody": "<code>openlimiter terminal</code> wires the newer bar style described above into your agent CLIs by default. This reason led, five block row is what <code>statusline.style cells</code> brings back, and <code>statusline.bars false</code> goes one step further to the single plain line from before bars existed."
+            "legacyTitle": "Dies ist der frühere Zellenstil",
+            "legacyBody": "<code>openlimiter terminal</code> richtet standardmäßig den oben beschriebenen neuen Balkenstil in Ihren Agenten ein. <code>statusline.style cells</code> stellt die frühere Zeile mit Entscheidungsgrund und fünf Blöcken wieder her. <code>statusline.bars false</code> kehrt zur einfachen Textzeile aus der Zeit vor den Balken zurück."
           },
           "context-block": {
             "title": "The context block",
@@ -1516,27 +1516,27 @@
             }
           },
           "terminal": {
-            "title": "Bars in your terminal",
-            "intro": "Every provider you connect can draw a bar somewhere you already look. Claude Code, Grok Build and the Antigravity CLI each render bars through their own status line. Codex draws its own built in items instead, because a command is the only surface it exposes. Gemini CLI, OpenCode, Kimi and any other terminal read a shell prompt segment, because none of them expose a status line at all.",
+            "title": "Balken in Ihrem Terminal",
+            "intro": "Jeder verbundene Anbieter kann dort einen Balken anzeigen, wo Sie bereits hinsehen. Claude Code, Grok Build und Antigravity CLI nutzen ihre eigene Statuszeile. Codex zeigt stattdessen seine eingebauten Elemente, da es nur eine Befehlsschnittstelle bereitstellt. Gemini CLI, OpenCode, Kimi und andere Terminals nutzen einen Abschnitt der Shell Eingabeaufforderung, da sie keine Statuszeile bereitstellen.",
             "wiring": {
-              "title": "Wiring a host",
+              "title": "Ein Programm einrichten",
               "terminalLabel": "terminal",
-              "body": "<code>openlimiter terminal</code> lists every host this machine can draw a bar into and its wiring state, and <code>--yes</code> wires every one of them at once. <code>openlimiter terminal install claude</code> wires one host on its own, and <code>openlimiter terminal uninstall claude</code> restores whatever status line was there before, byte for byte."
+              "body": "<code>openlimiter terminal</code> listet alle unterstützten Programme und ihren Einrichtungszustand auf. <code>--yes</code> richtet alle zugleich ein. <code>openlimiter terminal install claude</code> richtet ein einzelnes Programm ein. <code>openlimiter terminal uninstall claude</code> stellt die vorherige Statuszeile unverändert wieder her."
             },
             "show-hide": {
-              "title": "Choosing what shows",
-              "body": "<code>openlimiter terminal show codex</code> and <code>openlimiter terminal hide codex</code> pick which connected providers actually draw a bar, on this machine only. A provider you have not connected has nothing to show."
+              "title": "Angezeigte Anbieter auswählen",
+              "body": "<code>openlimiter terminal show codex</code> und <code>openlimiter terminal hide codex</code> bestimmen nur auf diesem Rechner, welche verbundenen Anbieter einen Balken anzeigen. Nicht verbundene Anbieter haben nichts anzuzeigen."
             },
             "grammar": {
-              "title": "The grammar",
-              "intro": "One cell per window: an optional freshness mark, a tag, a ten block bar, the percentage, and the reset time. The provider whose own status line this is drops its own tag, since the host already says whose numbers these are; every other provider keeps a short tag ahead of its window code, and a credit balance shows its dollar figure instead of a bar.",
-              "exampleLabel": "example output, one host's row",
+              "title": "Das Format",
+              "intro": "Eine Zelle pro Zeitfenster: optionales Aktualitätszeichen, Kürzel, Balken mit zehn Blöcken, Prozentsatz und Rücksetzzeit. Der Anbieter der jeweiligen Statuszeile lässt sein eigenes Kürzel weg, da das Programm bereits die Herkunft nennt. Alle anderen behalten ein kurzes Kürzel vor dem Fenstercode. Ein Guthaben zeigt seinen Dollarbetrag statt eines Balkens.",
+              "exampleLabel": "Beispielausgabe, Zeile eines Programms",
               "freshness": {
-                "title": "The freshness marks",
+                "title": "Die Aktualitätszeichen",
                 "bullets": {
-                  "bare": "No mark: the reading is under three minutes old.",
-                  "tilde": "A leading <code>~</code>: the reading is three to fifteen minutes old.",
-                  "unknown": "<code>[?]</code> in place of the bar: the reading is fifteen minutes old or older, or nothing has been read yet. The cell never disappears, so a provider that cannot be read still shows as unknown rather than looking connected."
+                  "bare": "Kein Zeichen: Die Messung ist jünger als drei Minuten.",
+                  "tilde": "Vorangestelltes <code>~</code>: Die Messung ist drei bis fünfzehn Minuten alt.",
+                  "unknown": "<code>[?]</code> statt des Balkens: Die Messung ist mindestens fünfzehn Minuten alt oder wurde noch nie gelesen. Die Zelle verschwindet nie. Ein nicht lesbarer Anbieter bleibt dadurch als unbekannt sichtbar, statt verbunden zu wirken."
                 }
               }
             }
@@ -1628,16 +1628,16 @@
                   "meaning": "<code>auto</code> folgt dem Terminal, was für einen Statusline Host meist keine Farbe bedeutet, weil der Host die Ausgabe abfängt, statt dem Befehl ein Terminal zu geben. <code>always</code> ist die Art zu sagen, dass der Host Escape Codes versteht. Standard <code>auto</code>."
                 },
                 "style": {
-                  "accepts": "<code>bar</code> or <code>cells</code>",
-                  "meaning": "<code>bar</code> is the ten block grammar <code>openlimiter terminal</code> wires by default. <code>cells</code> restores the previous reason led row with a five block bar per provider. Default <code>bar</code>."
+                  "accepts": "<code>bar</code> oder <code>cells</code>",
+                  "meaning": "<code>bar</code> ist das Format mit zehn Blöcken, das <code>openlimiter terminal</code> standardmäßig einrichtet. <code>cells</code> stellt die frühere Zeile mit Entscheidungsgrund und fünf Blöcken pro Anbieter wieder her. Standard: <code>bar</code>."
                 },
                 "show": {
-                  "accepts": "provider ids, comma separated, or <code>NONE</code>",
-                  "meaning": "Which connected providers actually draw a bar in <code>bar</code> style. <code>NONE</code>, the default, shows every connected provider. <code>openlimiter terminal show</code> and <code>terminal hide</code> are the commands that change it."
+                  "accepts": "Anbieterkennungen, durch Kommas getrennt, oder <code>NONE</code>",
+                  "meaning": "Legt fest, welche verbundenen Anbieter im Stil <code>bar</code> einen Balken anzeigen. Der Standard <code>NONE</code> zeigt alle verbundenen Anbieter. <code>openlimiter terminal show</code> und <code>terminal hide</code> ändern diese Auswahl."
                 },
                 "hosts": {
-                  "accepts": "written by <code>openlimiter terminal</code>, not by hand",
-                  "meaning": "Which command each wired host was left running before OpenLimiter took the slot, kept so <code>terminal uninstall</code> can restore it byte for byte."
+                  "accepts": "Geschrieben von <code>openlimiter terminal</code>, nicht von Hand",
+                  "meaning": "Speichert den zuvor eingerichteten Befehl jedes Programms, damit <code>terminal uninstall</code> ihn unverändert wiederherstellen kann."
                 }
               }
             },
@@ -1729,25 +1729,25 @@
               "body": "Prints the cache as canonical JSON, suitable for a script to parse. Exits 3 when the cache holds no bounded quota data."
             },
             "login": {
-              "body": "Signs this terminal into your account by device code: a short code and a link to <code>openlimiter.com/app/cli</code> print at once, and the command waits for you to approve it there. <code>--open</code> also opens that link in a browser. Nothing here ever sees a password."
+              "body": "Meldet dieses Terminal per Gerätecode an: Ein kurzer Code und der Link <code>openlimiter.com/app/cli</code> erscheinen sofort. Der Befehl wartet dort auf Ihre Zustimmung. <code>--open</code> öffnet den Link zusätzlich im Browser. Das Terminal sieht nie ein Passwort."
             },
             "logout": {
-              "body": "Forgets the session stored on this device. Nothing on the hub is asked to do anything."
+              "body": "Vergisst die auf diesem Gerät gespeicherte Sitzung. Die Zentrale wird dabei zu keiner Aktion aufgefordert."
             },
             "whoami": {
-              "body": "Prints the signed in account and this device's id, or says plainly that nobody is signed in."
+              "body": "Zeigt das angemeldete Konto und die Gerätekennung an oder sagt ausdrücklich, dass niemand angemeldet ist."
             },
             "sync": {
-              "body": "Uploads one round of cached bars to the hub, renewing the session first when it is close to expiring. <code>refresh</code> already triggers this on its own after a successful round when a session exists, so running it by hand is for the moment you want to know it landed."
+              "body": "Lädt die zwischengespeicherten Balken einmal in die Zentrale hoch und erneuert zuvor eine bald ablaufende Sitzung. Nach erfolgreicher Aktualisierung löst <code>refresh</code> dies bei vorhandener Sitzung bereits automatisch aus. Der manuelle Aufruf bestätigt, dass die Übertragung angekommen ist."
             },
             "refresh": {
-              "body": "Reads the logins your provider tools already stored on this machine and asks each provider for its own usage, at most once every fifteen minutes, then folds what survives validation into the cache. It stands down while the desktop app is running, and <code>statusline</code> and <code>snapshot</code> both start it in the background on their own whenever the cache is older than a minute."
+              "body": "Liest die von Ihren Anbietertools gespeicherten Anmeldungen und fragt jeden Anbieter höchstens alle fünfzehn Minuten nach seiner Nutzung. Gültige Messungen werden im Cache gespeichert. Während die Desktopanwendung läuft, pausiert der Befehl. <code>statusline</code> und <code>snapshot</code> starten ihn automatisch im Hintergrund, sobald der Cache älter als eine Minute ist."
             },
             "terminal": {
-              "body": "Lists every terminal host this machine can draw a bar into and its wiring state, and offers to wire one or all of them. <code>terminal install <host></code> and <code>terminal uninstall <host></code> wire or restore one host by name, <code>terminal status</code> prints the table on its own, and <code>terminal show</code> and <code>terminal hide</code> pick which connected providers actually draw a bar. See <docs>agent context</docs> for the hosts and the grammar."
+              "body": "Listet alle unterstützten Terminalprogramme mit ihrem Einrichtungszustand auf und bietet die Einrichtung einzelner oder aller Programme an. <code>terminal install <host></code> und <code>terminal uninstall <host></code> richten ein Programm ein oder stellen es wieder her. <code>terminal status</code> zeigt die Tabelle. <code>terminal show</code> und <code>terminal hide</code> bestimmen die angezeigten Anbieter. Programme und Format erklärt der <docs>Agentenkontext</docs>."
             },
             "setup": {
-              "body": "Runs the same three steps <code>openlimiter</code> with no arguments runs: sign in, connect, show bars in, then prints the bars once. Any step you skip stays skipped; nothing here is required to see a bar."
+              "body": "Führt dieselben drei Schritte wie <code>openlimiter</code> ohne Argumente aus: anmelden, verbinden, Anzeigeort wählen. Danach erscheinen die Balken einmal. Übersprungene Schritte bleiben übersprungen. Keiner ist zum Anzeigen eines Balkens erforderlich."
             }
           },
           "exit-codes": {
@@ -1877,7 +1877,7 @@
               "alerts": "E Mail Warnungen bei Schwellenwert und Rücksetzung.",
               "history": "Neunzig Tage gehosteter Nutzungsverlauf mit Verbrauchsprognosen.",
               "localFirst": "Alles, was du siehst, ist kostenlos. Das Kommandozeilenwerkzeug und die lokalen Desktopfunktionen laufen ohne Pro Konto.",
-              "phone": "Phone pairing by QR code, kept alive across the device closing for a day or more."
+              "phone": "Kopplung des Telefons per QR Code, die auch nach einem oder mehreren Tagen mit geschlossenem Gerät bestehen bleibt."
             }
           },
           "following": {
@@ -2023,6 +2023,7 @@
     }
   },
   "hub": {
+    "syncedSpend": { "source": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}" },
     "addAccount": "Konto hinzufügen",
     "configuration": "Konfiguration",
     "backToBars": "Zurück zu den Balken",
@@ -2153,6 +2154,8 @@
       "iosThree": "Tippen Sie auf Hinzufügen. Die App öffnet sich im Vollbild von Ihrem Startbildschirm aus."
     },
     "pairPage": {
+      "retry": "Messungen aktualisieren",
+      "defaultLabel": "Dieses Telefon",
       "bars": {
         "title": "Ihr Kontingent"
       },
@@ -2208,6 +2211,7 @@
       "loadingBody": "Einen Moment. Ihr Anmeldestatus wird geprüft."
     },
     "cloud": {
+      "observed": "Beobachtet {time}",
       "title": "Über die Cloud messen",
       "lead": "Ausgabenzähler, die die Cloud von selbst abfragt, sodass der Hub und Ihr Telefon sie lesen, ohne dass ein Gerät läuft.",
       "needsPro": {
@@ -2252,6 +2256,8 @@
         "error": "OpenRouter hat nicht geantwortet. Versuchen Sie es erneut."
       },
       "callback": {
+        "authTitle": "Zum Fortfahren anmelden",
+        "authBody": "Ihre Sitzung ist abgelaufen. Melden Sie sich in der Zentrale an und verbinden Sie OpenRouter erneut.",
         "title": "OpenRouter wird verbunden",
         "body": "Einen Moment. Anmeldung wird abgeschlossen und der Schlüssel gespeichert.",
         "successTitle": "OpenRouter verbunden",

@@ -947,7 +947,7 @@
             "title": "Terminal",
             "intro": "Run the tool with nothing after it and it walks the same three steps everywhere: sign in, connect, then show bars in.",
             "terminalLabel": "terminal",
-            "steps": "Sign in prints a short code and a link to <code>openlimiter.com/app/pair</code>, so the terminal never sees a password, and Enter to skip leaves the device signed out. Connect checks every agent CLI already on this machine and reports one of <code>use current login</code>, <code>sign in</code> or <code>install</code> for each row, and offers to run Codex's own sign in on the spot. Show bars in lists the terminal hosts this machine can draw bars into and wires whichever ones you keep.",
+            "steps": "Sign in prints a short code and a link to <code>openlimiter.com/app/cli</code>, so the terminal never sees a password, and Enter to skip leaves the device signed out. Connect checks every agent CLI already on this machine and reports one of <code>use current login</code>, <code>sign in</code> or <code>install</code> for each row, and offers to run Codex's own sign in on the spot. Show bars in lists the terminal hosts this machine can draw bars into and wires whichever ones you keep.",
             "wiring": "Run <code>openlimiter terminal</code> on its own to reopen that last step later, <code>openlimiter terminal show</code> and <code>openlimiter terminal hide</code> to pick which connected providers actually draw a bar, and <code>openlimiter terminal status</code> to see what is wired. See <docs>agent context</docs> for the hosts, the grammar and the freshness marks.",
             "install": "A permanent install works the same way: <code>npm install -g openlimiter</code>, then run <code>openlimiter</code>."
           },
@@ -2023,6 +2023,7 @@
     }
   },
   "hub": {
+    "syncedSpend": { "source": "Desktop sync: {provider}, {account}, {start} to {end}" },
     "addAccount": "Add account",
     "configuration": "Configuration",
     "backToBars": "Back to bars",
@@ -2153,6 +2154,8 @@
       "iosThree": "Tap Add. The app opens full screen from your home screen."
     },
     "pairPage": {
+      "retry": "Refresh readings",
+      "defaultLabel": "This phone",
       "bars": {
         "title": "Your quota"
       },
@@ -2208,6 +2211,7 @@
       "loadingBody": "One moment. Checking your sign in state."
     },
     "cloud": {
+      "observed": "Observed {time}",
       "title": "Meter from the cloud",
       "lead": "Spend meters the cloud polls on its own, so the hub and your phone read them with no device running.",
       "needsPro": {
@@ -2252,6 +2256,8 @@
         "error": "OpenRouter did not answer. Try again."
       },
       "callback": {
+        "authTitle": "Sign in to continue",
+        "authBody": "Your account session ended. Sign in to the dashboard, then connect OpenRouter again.",
         "title": "Connecting OpenRouter",
         "body": "One moment. Finishing the sign in and storing the key.",
         "successTitle": "OpenRouter connected",

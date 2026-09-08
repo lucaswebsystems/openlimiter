@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { BrandLockup } from "@/components/brand";
-import { createAccountClient, readKeepSignedIn } from "@/lib/account-client";
+import { createAccountClient, readKeepSignedIn, resumeAccountClient, stopAccountClient } from "@/lib/account-client";
 import { stripQueryParam } from "@/lib/browser-history";
 import { storeCloudKey } from "@/lib/cloud-meter";
 import { CONFIGURATION_DEEP_LINK_PARAM } from "@/lib/onboarding";
@@ -58,10 +58,16 @@ export function OpenRouterCallbackView({
   search,
 }: OpenRouterCallbackProps) {
   const t = useTranslations("hub.cloud.callback");
-  const syncClient = propClient !== undefined ? propClient : createAccountClient(readKeepSignedIn());
+  const syncClient = useMemo(() => propClient !== undefined ? propClient : createAccountClient(readKeepSignedIn()), [propClient]);
   const [session, setSession] = useState<Session | null | undefined>(propSession);
   const [phase, setPhase] = useState<Phase>("exchanging");
   const started = useRef(false);
+
+  useEffect(() => {
+    if (propClient !== undefined) return;
+    void resumeAccountClient(syncClient);
+    return () => { void stopAccountClient(syncClient); };
+  }, [propClient, syncClient]);
 
   useEffect(() => {
     if (propSession !== undefined) {
@@ -73,9 +79,9 @@ export function OpenRouterCallbackView({
       return undefined;
     }
     let live = true;
-    void syncClient.auth.getSession().then(({ data }) => {
-      if (live) setSession(data.session);
-    });
+    void syncClient.auth.getSession().then(({ data, error }) => {
+      if (live) setSession(error ? null : data.session);
+    }, () => { if (live) setSession(null); });
     return () => {
       live = false;
     };
@@ -121,7 +127,12 @@ export function OpenRouterCallbackView({
       <div className="mb-8 flex items-center gap-3">
         <BrandLockup markClassName="h-7 w-7 flex-none text-brand" wordClassName="ol-product-wordmark text-lg" />
       </div>
-      {phase === "exchanging" && <Card title={t("title")}>{t("body")}</Card>}
+      {session === null ? (
+        <Card title={t("authTitle")}>
+          <p>{t("authBody")}</p>
+          <Link href="/app?configuration=1">{t("openDashboard")}</Link>
+        </Card>
+      ) : phase === "exchanging" && <Card title={t("title")}>{t("body")}</Card>}
       {phase === "success" && <Card title={t("successTitle")}>{t("successBody")}</Card>}
       {phase === "error" && (
         <Card title={t("errorTitle")}>

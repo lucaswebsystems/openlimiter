@@ -53,6 +53,7 @@ vi.mock("next-intl", async () => {
 
 vi.mock("@/app/app/install", () => ({ InstallControl: () => null }));
 vi.mock("@/lib/synced-usage", () => ({
+  readSyncedApiSpend: async () => ({ ok: true, sources: [] }),
   readSyncedUsage: async () => ({ ok: false, reason: "signed_out" }),
 }));
 vi.mock("@/lib/account-client", async (importOriginal) => {
@@ -185,8 +186,10 @@ describe("the header", () => {
 
     /* A subsequent background refresh fails */
     entitlementFails = true;
-    authCallback?.("TOKEN_REFRESHED", SESSION);
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await view.run(async () => {
+      authCallback?.("TOKEN_REFRESHED", SESSION);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
     await flush(3);
 
     /* The previous entitlement is kept on failure, so the button is still not shown */

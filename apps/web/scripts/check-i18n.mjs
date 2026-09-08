@@ -28,10 +28,10 @@
  *
  * WHAT IT ONLY REPORTS
  * --------------------
- * How many values are still identical to English. That is not a failure: a
- * placeholder catalog is exactly what an untranslated locale should be, and a
- * word like OpenLimiter is meant to be identical in all five. It is printed so
- * the translation lane can see its own progress at a glance.
+ * Identical values are counted for visibility. New untranslated prose fails
+ * unless it is explicit terminology. Older debt is frozen by locale, key and
+ * exact source digest in i18n-legacy-prose.json. That baseline may shrink, but
+ * must never be regenerated to admit a new untranslated sentence.
  *
  * Run it from apps/web: `node scripts/check-i18n.mjs`.
  */
@@ -39,10 +39,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { untranslatedProse } from "./i18n-prose.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MESSAGES = resolve(HERE, "..", "messages");
 const SOURCE = "en.json";
+const LEGACY_PROSE = JSON.parse(readFileSync(join(HERE, "i18n-legacy-prose.json"), "utf8"));
 
 /**
  * The locales the site publishes, mirroring `LOCALES` in i18n/locales.ts.
@@ -173,6 +175,9 @@ for (const file of locales) {
     }
 
     if (value === expected) same += 1;
+    if (untranslatedProse(file.replace(/\.json$/, ""), path, expected, value, LEGACY_PROSE)) {
+      fail(`${file}: ${path} contains untranslated prose`);
+    }
   }
 
   for (const path of leaves.keys()) {

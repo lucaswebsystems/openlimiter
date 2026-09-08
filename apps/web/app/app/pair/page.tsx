@@ -13,6 +13,7 @@ import { BrandLockup } from "@/components/brand";
  */
 
 export const metadata: Metadata = {
+  manifest: "/pair.webmanifest",
   title: "Pair this phone",
   description:
     "Finish pairing this phone with the OpenLimiter desktop application. The code lives for two minutes and the desktop has to approve it.",

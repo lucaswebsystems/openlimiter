@@ -8,7 +8,7 @@ When you hold several AI coding subscriptions at once, the scarce resource stops
 
 ## Get started
 
-Bars are free and need no account. `npx openlimiter`, or a permanent install with `npm install -g openlimiter` then `openlimiter`, walks the same three steps everywhere: sign in, connect, show bars in. Sign in prints a short code and a link to openlimiter.com/app/pair, so the terminal never sees a password, and any step can be skipped. The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect, then bars in the tray. The hub at https://openlimiter.com/app is account first: sign in with GitHub, Google, Microsoft, or a magic link, then connect, then bars.
+Bars are free and need no account. `npx openlimiter`, or a permanent install with `npm install -g openlimiter` then `openlimiter`, walks the same three steps everywhere: sign in, connect, show bars in. Sign in prints a short code and a link to openlimiter.com/app/cli, so the terminal never sees a password, and any step can be skipped. The desktop app's first run draws the same three steps in its own window: create an account or skip it, connect, then bars in the tray. The hub at https://openlimiter.com/app is account first: sign in with GitHub, Google, Microsoft, or a magic link, then connect, then bars.
 
 An account only adds sync: the current percentage on every window, kept current between every device you sign into. Pro adds history, alerts, the phone, more than one account per provider, and cloud metering for API spend keys, opened by a 30 day free trial with no card required.
 

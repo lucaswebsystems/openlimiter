@@ -43,6 +43,7 @@ export interface CloudMeterKey {
   /** The most recent spend the cloud poll observed, when it has polled at least once. */
   amount: number | null;
   currency: string | null;
+  observedAt: string | null;
 }
 
 export type CloudMeterFailure = "needsPro" | "disabled" | "invalidKey" | "unavailable";
@@ -74,6 +75,7 @@ function statusOf(value: unknown): CloudMeterStatus {
 }
 
 function amount(value: unknown): number | null {
+  if ((typeof value !== "number" && typeof value !== "string") || (typeof value === "string" && value.trim() === "")) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
@@ -95,6 +97,8 @@ export function cloudMeterKeyOf(value: unknown): CloudMeterKey | null {
     lastStatus: statusOf(row.last_status),
     amount: currency === null ? null : parsedAmount,
     currency: parsedAmount === null ? null : currency,
+    observedAt: typeof row.observed_at === "string" && Number.isFinite(Date.parse(row.observed_at))
+      ? new Date(row.observed_at).toISOString() : null,
   };
 }
 

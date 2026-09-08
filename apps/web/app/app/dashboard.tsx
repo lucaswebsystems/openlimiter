@@ -59,11 +59,16 @@ import {
   type HubView,
 } from "@/lib/onboarding";
 import { CloudMeterPanel, CloudSpendRows } from "./cloud-meter-panel";
+import { listCloudKeys, type CloudMeterKey } from "@/lib/cloud-meter";
+import { SyncedSpendRows } from "./synced-spend-rows";
+import { clearIntent, pendingIntent, rememberIntent } from "@/lib/pending-intent";
 import { proAccessState, readProAccount, type ProEntitlement } from "@/lib/pro";
 import { offersTrial } from "@/lib/pro-trial";
 import { hubPollIntervalMilliseconds, mostRecentObservedAt } from "@/lib/hub-polling";
 import {
   readSyncedUsage,
+  readSyncedApiSpend,
+  type SyncedApiSpend,
   type SyncedProviderUsage,
   type SyncedUsageResult,
 } from "@/lib/synced-usage";
@@ -359,6 +364,12 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    */
   const [view, setView] = useState<HubView>("bars");
   const [syncedUsage, setSyncedUsage] = useState<SyncedUsageResult | null>(null);
+  const [syncedSpend, setSyncedSpend] = useState<SyncedApiSpend[]>([]);
+  const [cloudRows, setCloudRows] = useState<CloudMeterKey[]>([]);
+  const [spendFailed, setSpendFailed] = useState(false);
+  const [cloudFailed, setCloudFailed] = useState(false);
+  const readInFlight = useRef<Promise<void> | null>(null);
+  const readEpoch = useRef(0);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<ProviderDirectoryRow | null>(null);
@@ -409,11 +420,12 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     /* The tray opens /app?trial=1. The parameter is read once and taken out of
        the address bar straight away, so a reload is a reload rather than a
        second wizard, and a shared link is just the hub. */
-    if (wantsTrial(window.location.search)) {
+    if (wantsTrial(window.location.search) || pendingIntent()?.kind === "trial") {
       setDeepLinkTrial(true);
+      const remembered = wantsTrial(window.location.search) ? rememberIntent({ kind: "trial" }) : true;
       const url = new URL(window.location.href);
       url.searchParams.delete(TRIAL_DEEP_LINK_PARAM);
-      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      if (remembered) window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
 
     /* The OpenRouter callback opens /app?configuration=1 once the key is
@@ -447,6 +459,14 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     };
   }, [isDevPreview]);
 
+  useEffect(() => {
+    readEpoch.current += 1;
+    readInFlight.current = null;
+    setSyncedSpend([]);
+    setCloudRows([]);
+    return () => { readEpoch.current += 1; };
+  }, [syncClient, syncEnabled, session?.user.id]);
+
   const refreshSyncedUsage = useCallback((): Promise<void> => {
     if (!syncEnabled) {
       setSyncedUsage({ ok: false, reason: "signed_out" });
@@ -457,10 +477,33 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
        promise is returned (every existing call site already ignores it) so
        the automatic poll below can tell when one call ends and the next may
        start: see hubPollIntervalMilliseconds. */
-    return readSyncedUsage(syncClient).then(setSyncedUsage, () =>
-      setSyncedUsage({ ok: false, reason: "unavailable" }),
-    );
+    if (readInFlight.current) return readInFlight.current;
+    const epoch = readEpoch.current;
+    const request = Promise.allSettled([
+      readSyncedUsage(syncClient),
+      readSyncedApiSpend(syncClient),
+      syncClient === null ? Promise.resolve(null) : listCloudKeys(syncClient),
+    ]).then(([usage, spend, cloud]) => {
+      if (epoch !== readEpoch.current) return;
+      if (spend.status === "fulfilled" && spend.value.ok) {
+        setSyncedSpend(spend.value.sources);
+        setSpendFailed(false);
+      } else setSpendFailed(true);
+      if (cloud.status === "fulfilled" && cloud.value?.ok) {
+        setCloudRows(cloud.value.value);
+        setCloudFailed(false);
+      } else setCloudFailed(true);
+      setSyncedUsage(usage.status === "fulfilled" ? usage.value : { ok: false, reason: "unavailable" });
+    }).finally(() => {
+      if (readInFlight.current === request) readInFlight.current = null;
+    });
+    readInFlight.current = request;
+    return request;
   }, [syncClient, syncEnabled]);
+
+  useEffect(() => {
+    if (session) void refreshSyncedUsage();
+  }, [session, refreshSyncedUsage]);
 
   /**
    * The background poll: 60 seconds while a device wrote inside the last
@@ -608,6 +651,10 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   useEffect(() => {
     if (!deepLinkTrial || session === null || session === undefined) return;
     setDeepLinkTrial(false);
+    clearIntent();
+    const url = new URL(window.location.href);
+    url.searchParams.delete(TRIAL_DEEP_LINK_PARAM);
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     setView("trial");
   }, [deepLinkTrial, session]);
 
@@ -932,7 +979,10 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       {view === "bars" && (
         <div className="ol-panel ol-home-stack">
           {barsPanel}
-          <CloudSpendRows client={syncClient} />
+          {!demo && syncEnabled && <>
+            <CloudSpendRows rows={cloudRows} now={now ?? new Date().toISOString()} failed={cloudFailed} />
+            <SyncedSpendRows sources={syncedSpend} now={now ?? new Date().toISOString()} failed={spendFailed} />
+          </>}
           {/* Every locked Pro surface in one card: what is not here yet, or
               what stopped. It draws nothing at all for a running trial or a
               paid plan, and nothing while the plan is still being read. */}

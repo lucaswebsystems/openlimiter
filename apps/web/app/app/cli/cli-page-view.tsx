@@ -24,6 +24,7 @@ import {
   writeKeepSignedIn,
 } from "@/lib/account-client";
 import { stripQueryParam } from "@/lib/browser-history";
+import { clearIntent, pendingIntent, rememberIntent } from "@/lib/pending-intent";
 import {
   callCliLogin,
   cleanCliCode,
@@ -153,10 +154,22 @@ export function CliPageView({
       const param = new URLSearchParams(window.location.search).get("code");
       if (param) {
         setCode(cleanCliCode(param));
-        stripQueryParam("code");
+        if (validateCliCode(cleanCliCode(param)).valid && rememberIntent({ kind: "cli", code: cleanCliCode(param) })) {
+          stripQueryParam("code");
+        }
+      } else {
+        const pending = pendingIntent();
+        if (pending?.kind === "cli") setCode(pending.code);
       }
     }
   }, [initialCode]);
+
+  useEffect(() => {
+    if (session && code) {
+      if (pendingIntent()?.kind === "cli") clearIntent();
+      stripQueryParam("code");
+    }
+  }, [session, code]);
 
   const changeKeepSignedIn = useCallback(
     async (next: boolean): Promise<boolean> => {

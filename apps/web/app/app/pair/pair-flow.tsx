@@ -26,11 +26,10 @@ import {
 import {
   endPhoneSession,
   establishPhoneSession,
-  phonePairNeedsRenewal,
+  readCurrentPhoneBars,
   readPhonePairMeta,
-  requestPhoneRead,
-  requestPhoneRenewal,
 } from "@/lib/phone-session";
+import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
 import { PROVIDER_CODES, parseQuotaText } from "../engine";
 import { LiveMeter } from "../live-meter";
@@ -129,6 +128,7 @@ interface PhoneBarsProps {
   locale: string;
   heading: string;
   staleLabel: string;
+  now: string;
 }
 
 /**
@@ -136,7 +136,7 @@ interface PhoneBarsProps {
  * browser dashboard draw, so one reading cannot look like two different
  * readings on two screens.
  */
-function PhoneBars({ body, stale, locale, heading, staleLabel }: PhoneBarsProps) {
+function PhoneBars({ body, stale, locale, heading, staleLabel, now }: PhoneBarsProps) {
   const rows = useMemo(() => meterRowsOf(body), [body]);
   const snapshots = useMemo(() => {
     const raw = rows.map(snapshotFromMeterRow).filter((row) => row !== null);
@@ -164,12 +164,12 @@ function PhoneBars({ body, stale, locale, heading, staleLabel }: PhoneBarsProps)
       </h1>
       <div className="mt-3 space-y-3">
         {snapshots.length > 0 && (
-          <LiveMeter snapshots={snapshots} now={new Date().toISOString()} demo={false} />
+          <LiveMeter snapshots={snapshots} now={now} demo={false} />
         )}
         {money.length > 0 && (
           <div className="ol-device-money">
             {money.map((row) => (
-              <MoneyRow key={`${row.provider}:${row.accountId}:${row.code}`} row={row} locale={locale} />
+              <MoneyRow key={`${row.provider}:${row.accountId}:${row.code}`} row={row} locale={locale} now={now} offline={stale} />
             ))}
           </div>
         )}
@@ -181,12 +181,12 @@ function PhoneBars({ body, stale, locale, heading, staleLabel }: PhoneBarsProps)
   );
 }
 
-function MoneyRow({ row, locale }: { row: MeterRow; locale: string }) {
+function MoneyRow({ row, locale, now, offline }: { row: MeterRow; locale: string; now: string; offline: boolean }) {
   return (
     <DollarRow
       name={`${row.provider} ${row.code}`}
       amountText={formatAmount(row, locale) ?? "unknown"}
-      stale={row.stale}
+      stale={offline || row.stale || Date.parse(now) - Date.parse(row.observedAt) > 5 * 60_000}
     />
   );
 }
@@ -239,6 +239,8 @@ function PairedPhone({
     generation: 0,
   });
   const locale = useRef("en");
+  const [now, setNow] = useState(() => new Date().toISOString());
+  const retry = useRef<(() => Promise<void>) | null>(null);
   const unpairedRef = useRef(onUnpaired);
   unpairedRef.current = onUnpaired;
 
@@ -247,44 +249,36 @@ function PairedPhone({
   }, []);
 
   useEffect(() => {
-    if (state.phase === "ready" && state.generation === 0) return;
     let live = true;
-    void (async () => {
-      const meta = readPhonePairMeta();
-      if (meta !== null && phonePairNeedsRenewal(meta)) {
-        setState((previous) => ({ ...previous, phase: "renewing" }));
-        const outcome = await requestPhoneRenewal();
-        if (!live) return;
-        if (outcome.kind === "revoked") {
-          setState((previous) => ({ ...previous, phase: "revoked" }));
-          return;
-        }
-        /* Renewed, skipped (another tab already did it) or unavailable all
-           fall through to the read below with whatever token is now current. */
-      }
-      const answer = await requestPhoneRead();
+    const poll = serialPoll(async () => {
+      const answer = await readCurrentPhoneBars();
       if (!live) return;
       if (answer.kind === "revoked") {
         await endPhoneSession();
         setState((previous) => ({ ...previous, phase: "revoked" }));
+        poll.stop();
         return;
       }
       if (answer.kind === "unpaired") {
-        await endPhoneSession();
         unpairedRef.current();
+        poll.stop();
         return;
       }
       if (answer.kind === "fresh") {
-        setState((previous) => ({ ...previous, bars: answer.body, phase: "ready" }));
+        setState((previous) => ({ ...previous, bars: answer.body, phase: "ready", generation: previous.generation + 1 }));
         return;
       }
       setState((previous) => ({ ...previous, phase: "offline" }));
-    })();
+    }, 60_000);
+    retry.current = poll.refresh;
+    const clock = window.setInterval(() => setNow(new Date().toISOString()), 10_000);
     return () => {
       live = false;
+      poll.stop();
+      window.clearInterval(clock);
+      retry.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.generation]);
+  }, []);
 
   if (state.phase === "revoked") {
     return (
@@ -319,6 +313,7 @@ function PairedPhone({
     return (
       <Card title={t("pairPage.offline.title")}>
         <p>{t("pairPage.offline.body")}</p>
+        <button className={BUTTON_GHOST} onClick={() => { void retry.current?.(); }}>{t("pairPage.retry")}</button>
       </Card>
     );
   }
@@ -332,7 +327,9 @@ function PairedPhone({
         locale={locale.current}
         heading={t("pairPage.bars.title")}
         staleLabel={t("pairPage.offline.staleMark")}
+        now={now}
       />
+      <button className={BUTTON_GHOST} onClick={() => { void retry.current?.(); }}>{t("pairPage.retry")}</button>
       <PairInstallStep />
     </div>
   );
@@ -371,6 +368,7 @@ function initialFragmentState(): PairState {
 
 export function PairFlow() {
   const t = useTranslations("hub");
+  const defaultLabel = t("pairPage.defaultLabel");
   const [state, setState] = useState<PairState>(initialFragmentState);
   const [remaining, setRemaining] = useState<number | null>(null);
   /* Non-null means: show the paired screen under this label. Set either by a
@@ -381,7 +379,6 @@ export function PairFlow() {
   const [pairedBars, setPairedBars] = useState<unknown>(null);
   const [checkingExisting, setCheckingExisting] = useState(() => state.phase !== "claiming");
   const claimStarted = useRef(false);
-  const existingCheckStarted = useRef(false);
 
   /*
    * The claim itself, for a freshly scanned code only.
@@ -426,30 +423,28 @@ export function PairFlow() {
    */
   useEffect(() => {
     if (state.phase === "claiming") return;
-    if (existingCheckStarted.current) return;
-    existingCheckStarted.current = true;
     let live = true;
     void (async () => {
       const meta = readPhonePairMeta();
-      const answer = await requestPhoneRead();
+      if (meta !== null) {
+        setPairedLabel(meta.label);
+        setCheckingExisting(false);
+        return;
+      }
+      const answer = await readCurrentPhoneBars();
       if (!live) return;
       if (answer.kind === "fresh") {
         setPairedBars(answer.body);
-        setPairedLabel(meta?.label ?? "This phone");
+        setPairedLabel(defaultLabel);
         setCheckingExisting(false);
         return;
       }
-      if (answer.kind === "unpaired" || answer.kind === "revoked" || meta === null) {
-        setCheckingExisting(false);
-        return;
-      }
-      setPairedLabel(meta.label);
       setCheckingExisting(false);
     })();
     return () => {
       live = false;
     };
-  }, [state.phase]);
+  }, [state.phase, defaultLabel]);
 
   /*
     Ask the server whether the desktop has answered, until it has or time is up.

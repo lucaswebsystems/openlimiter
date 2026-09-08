@@ -21,6 +21,7 @@ import {
   takeOpenRouterVerifier,
 } from "@/lib/openrouter-oauth";
 import { all, byText, flush, render, type Mounted } from "./render";
+import * as accountClient from "@/lib/account-client";
 
 /**
  * Cloud metering and OpenRouter sign in: the pure contract parsing, the
@@ -91,6 +92,18 @@ function typeInto(input: Element | null, value: string): void {
 /* ------------------------------------------------------------- the contract */
 
 describe("the wire shape", () => {
+  it.each([null, true, false, "", "   "])("28: does not turn missing money %s into zero", (amount) => {
+    expect(cloudMeterKeyOf({ id: "k1", provider: "xai", label: "Usage", amount, currency: "USD" }))
+      .toMatchObject({ amount: null, currency: null });
+  });
+
+  it("19: preserves the observation time and ages an old successful amount", () => {
+    const row = cloudMeterKeyOf({ id: "k1", provider: "xai", label: "Usage", amount: 10, currency: "USD", last_status: "ok", observed_at: "2026-09-08T12:00:00Z" });
+    expect(row?.observedAt).toBe("2026-09-08T12:00:00.000Z");
+    mounted = render(createElement(CloudSpendRows, { rows: [row!], now: "2026-09-08T12:06:00Z" }));
+    expect(mounted.container.querySelector("[data-state=stale]")).not.toBeNull();
+    expect(mounted.container.textContent).toContain("Observed");
+  });
   it("parses a stored row and rejects one missing a required field", () => {
     const row = cloudMeterKeyOf({
       id: "k1",
@@ -105,6 +118,7 @@ describe("the wire shape", () => {
       lastStatus: "ok",
       amount: null,
       currency: null,
+      observedAt: null,
     });
     expect(cloudMeterKeyOf({ id: "k1", provider: "not_a_provider", label: "x" })).toBeNull();
     expect(cloudMeterKeyOf({ id: "", provider: "xai", label: "x" })).toBeNull();
@@ -165,7 +179,7 @@ describe("the four actions, against a scripted client", () => {
     expect(sentBody).toEqual({ action: "store", provider: "xai", label: "Prod", key: "secret-value" });
     expect(result).toEqual({
       ok: true,
-      value: { id: "k1", provider: "xai", label: "Prod", lastStatus: "needs_attention", amount: null, currency: null },
+      value: { id: "k1", provider: "xai", label: "Prod", lastStatus: "needs_attention", amount: null, currency: null, observedAt: null },
     });
   });
 
@@ -411,6 +425,26 @@ describe("the Configuration panel", () => {
 });
 
 describe("the bars view's cloud spend rows", () => {
+  it.each(["poll_now", "delete"])("29: awaits %s, reports failure and releases both buttons", async (action) => {
+    let finish: (answer: unknown) => void = () => undefined;
+    const client = fakeClient(async (_name, options) => {
+      if ((options as { body: { action: string } }).body.action === "list") {
+        return { data: { rows: [{ id: "k1", provider: "xai", label: "Usage", last_status: "ok" }] }, error: null };
+      }
+      return new Promise((resolve) => { finish = resolve; });
+    });
+    mounted = render(createElement(CloudMeterPanel, { client, onStartTrial: () => undefined }));
+    await flush(4);
+    const row = mounted.container.querySelector(".ol-directory-row")!;
+    const buttons = [...row.querySelectorAll("button")];
+    press(buttons[action === "poll_now" ? 0 : 1]);
+    await flush();
+    expect(buttons.every((button) => button.disabled)).toBe(true);
+    await mounted.run(async () => { finish({ data: null, error: { context: { status: 503 } } }); });
+    await flush(3);
+    expect(buttons.every((button) => !button.disabled)).toBe(true);
+    expect(row.querySelector("[role=alert]")?.textContent).toContain("not");
+  });
   it("draws a row per priced key, with the cloud glyph and its own label", async () => {
     const client = fakeClient(async () => ({
       data: {
@@ -421,7 +455,8 @@ describe("the bars view's cloud spend rows", () => {
       },
       error: null,
     }));
-    mounted = render(createElement(CloudSpendRows, { client }));
+    const result = await listCloudKeys(client);
+    mounted = render(createElement(CloudSpendRows, { rows: result.ok ? result.value : [], now: new Date().toISOString() }));
     await flush(3);
     expect(mounted.container.textContent).toContain("My xAI key");
     expect(mounted.container.querySelector("svg")).not.toBeNull();
@@ -434,7 +469,8 @@ describe("the bars view's cloud spend rows", () => {
       },
       error: null,
     }));
-    mounted = render(createElement(CloudSpendRows, { client }));
+    const result = await listCloudKeys(client);
+    mounted = render(createElement(CloudSpendRows, { rows: result.ok ? result.value : [], now: new Date().toISOString() }));
     await flush(3);
     expect(mounted.container.textContent).toContain("Unpolled key");
     expect(mounted.container.textContent).toContain("First poll pending");
@@ -444,13 +480,14 @@ describe("the bars view's cloud spend rows", () => {
   });
 
   it("draws nothing at all with no client or no rows", async () => {
-    mounted = render(createElement(CloudSpendRows, { client: null }));
+    mounted = render(createElement(CloudSpendRows, { rows: [], now: new Date().toISOString() }));
     await flush();
     expect(mounted.container.textContent?.trim()).toBe("");
 
     const empty = fakeClient(async () => ({ data: { rows: [] }, error: null }));
     mounted.unmount();
-    mounted = render(createElement(CloudSpendRows, { client: empty }));
+    const result = await listCloudKeys(empty);
+    mounted = render(createElement(CloudSpendRows, { rows: result.ok ? result.value : [], now: new Date().toISOString() }));
     await flush(3);
     expect(mounted.container.textContent?.trim()).toBe("");
   });
@@ -476,6 +513,28 @@ function fakeSession(): Session {
 }
 
 describe("the OpenRouter callback page", () => {
+  it("18: creates one owned client and recovers from a missing session", async () => {
+    const client = fakeClient(async () => ({ data: null, error: null }));
+    const make = vi.spyOn(accountClient, "createAccountClient").mockReturnValue(client);
+    const stop = vi.spyOn(accountClient, "stopAccountClient").mockResolvedValue();
+    mounted = render(createElement(OpenRouterCallbackPage));
+    await flush(9);
+    expect(make).toHaveBeenCalledTimes(1);
+    expect(client.auth.getSession).toHaveBeenCalledTimes(1);
+    expect(mounted.container.textContent).toContain("Sign in to continue");
+    expect(mounted.container.querySelector("a")?.getAttribute("href")).toBe("/app?configuration=1");
+    mounted.unmount();
+    mounted = null;
+    expect(stop).toHaveBeenCalledWith(client);
+  });
+
+  it("18: recovers when session lookup rejects", async () => {
+    const client = fakeClient(async () => ({ data: null, error: null }));
+    vi.mocked(client.auth.getSession).mockRejectedValue(new Error("offline"));
+    mounted = render(createElement(OpenRouterCallbackPage, { client }));
+    await flush(4);
+    expect(mounted.container.textContent).toContain("Sign in to continue");
+  });
   it("exchanges the code, stores the key, and removes the verifier", async () => {
     storeOpenRouterVerifier("nonce-1", "verifier-1");
     vi.stubGlobal(

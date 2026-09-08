@@ -207,6 +207,9 @@ describe("the read path", () => {
 });
 
 describe("the spend read path", () => {
+  it.each([null, true, false, "", "   "])("28: rejects missing minor units %s", (amount_minor) => {
+    expect(apiSpendOf({ ...SPEND_ROWS[0], amount_minor })).toBeNull();
+  });
   it("keeps money in its minor unit and its own currency", async () => {
     const result = await readSyncedApiSpend(clientWith({ spend: SPEND_ROWS }));
     expect(result).toEqual({

@@ -312,6 +312,7 @@ async function postJson(path: string, body?: unknown): Promise<{ status: number;
       body: body === undefined ? undefined : JSON.stringify(body),
       credentials: "same-origin",
       cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
     });
     const text = await response.text();
     let parsed: unknown = null;
@@ -398,13 +399,13 @@ async function renewOnce(): Promise<RenewSessionOutcome> {
  * the call entirely rather than rotating a credential that was just rotated a
  * moment ago.
  */
-export async function requestPhoneRenewal(): Promise<RenewSessionOutcome> {
+export async function requestPhoneRenewal(force = false): Promise<RenewSessionOutcome> {
   if (typeof navigator === "undefined" || !("locks" in navigator) || navigator.locks == null) {
     return renewOnce();
   }
   return navigator.locks.request(RENEW_LOCK_NAME, async () => {
     const meta = readPhonePairMeta();
-    if (meta !== null && !phonePairNeedsRenewal(meta)) {
+    if (!force && meta !== null && !phonePairNeedsRenewal(meta)) {
       return { kind: "skipped", expiresAt: meta.expiresAt };
     }
     return renewOnce();
@@ -428,4 +429,21 @@ export async function requestPhoneRead(): Promise<PhoneReadOutcome> {
   if (answer.status !== 200) return { kind: "empty" };
   const body = record(answer.body);
   return { kind: "fresh", body: body?.body ?? null };
+}
+
+/** Renew before reading, and recover a missing access cookie without deleting the refresh cookie. */
+export async function readCurrentPhoneBars(): Promise<PhoneReadOutcome> {
+  const meta = readPhonePairMeta();
+  if (meta !== null && phonePairNeedsRenewal(meta)) {
+    const renewal = await requestPhoneRenewal();
+    if (renewal.kind === "revoked") return renewal;
+    if (renewal.kind === "unavailable") return { kind: "empty" };
+  }
+  const answer = await requestPhoneRead();
+  if (answer.kind !== "unpaired") return answer;
+  const renewal = await requestPhoneRenewal(true);
+  if (renewal.kind === "revoked") return renewal;
+  if (renewal.kind === "unavailable") return { kind: meta === null ? "unpaired" : "empty" };
+  const retried = await requestPhoneRead();
+  return retried.kind === "unpaired" ? { kind: "empty" } : retried;
 }

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Dashboard } from "@/app/app/dashboard";
 import { ONBOARDED_METADATA_KEY, onboardedStorageKey } from "@/lib/onboarding";
 import { all, byText, flush, messages, render, type Mounted } from "./render";
+import * as cloudMeter from "@/lib/cloud-meter";
 
 /**
  * The hub itself, mounted whole.
@@ -58,6 +59,7 @@ vi.mock("@/app/app/notification-bell", () => ({ NotificationBell: () => null }))
 vi.mock("@/app/app/install", () => ({ InstallControl: () => null }));
 
 vi.mock("@/lib/synced-usage", () => ({
+  readSyncedApiSpend: () => currentSpend(),
   readSyncedUsage: () => currentRead(),
 }));
 
@@ -92,6 +94,7 @@ let moveSucceeds = true;
 let currentSession: unknown = null;
 let updateUserFails = false;
 let currentRead: () => Promise<unknown> = async () => ({ ok: false, reason: "signed_out" });
+let currentSpend: () => Promise<unknown> = async () => ({ ok: true, sources: [] });
 
 /** A declaration rather than an expression: the module mock above calls it. */
 function makeClient(keep: boolean): unknown {
@@ -161,6 +164,7 @@ beforeEach(() => {
   currentSession = null;
   updateUserFails = false;
   currentRead = async () => ({ ok: false, reason: "signed_out" });
+  currentSpend = async () => ({ ok: true, sources: [] });
   window.localStorage.clear();
   window.sessionStorage.clear();
 });
@@ -168,6 +172,7 @@ beforeEach(() => {
 afterEach(() => {
   mounted?.unmount();
   mounted = null;
+  vi.useRealTimers();
 });
 
 async function open(): Promise<Mounted> {
@@ -191,6 +196,54 @@ function press(node: Element | null): void {
 }
 
 describe("which view a session lands on", () => {
+  it("20: renders desktop spend with provider, account, currency and UTC reporting period", async () => {
+    currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
+    currentRead = async () => ({ ok: true, providers: [] });
+    const spend = vi.fn(async () => ({ ok: true, sources: [{ provider: "OPENROUTER", accountLabel: "personal", currency: "JPY", amountMinor: 1250, periodStart: "2026-09-01T00:00:00Z", periodEnd: "2026-10-01T00:00:00Z", observedAt: new Date().toISOString() }] }));
+    currentSpend = spend;
+    const view = await open();
+    await flush(4);
+    expect(spend).toHaveBeenCalled();
+    expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, personal");
+    expect(view.container.textContent).toContain(new Intl.NumberFormat(undefined, { style: "currency", currency: "JPY" }).format(1250));
+    expect(view.container.textContent).toContain(new Date("2026-09-01T00:00:00Z").toLocaleDateString(undefined, { timeZone: "UTC" }));
+    expect(view.container.textContent).toContain(new Date("2026-10-01T00:00:00Z").toLocaleDateString(undefined, { timeZone: "UTC" }));
+  });
+  it("19 and 20: loads both spend sources with quota on initial read, polling, focus and manual sync", async () => {
+    vi.useFakeTimers({ now: Date.parse("2026-09-08T12:00:00Z") });
+    currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
+    const quota = vi.fn(async () => ({ ok: true, providers: [] }));
+    currentRead = quota;
+    let minor = 1234;
+    const spend = vi.fn(async () => ({ ok: true, sources: [{ provider: "OPENROUTER", accountLabel: "work", currency: "USD", amountMinor: minor, periodStart: "2026-09-01T00:00:00Z", periodEnd: "2026-10-01T00:00:00Z", observedAt: "2026-09-08T12:00:00Z" }] }));
+    currentSpend = spend;
+    const cloud = vi.spyOn(cloudMeter, "listCloudKeys").mockImplementation(async () => ({ ok: true, value: [{ id: "cloud", provider: "xai", label: "Cloud account", lastStatus: "ok", amount: minor / 100, currency: "USD", observedAt: "2026-09-08T12:00:00Z" }] }));
+    const view = await open();
+    await flush(6);
+    expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, work");
+    expect(view.container.textContent).toContain(new Date("2026-09-01T00:00:00Z").toLocaleDateString(undefined, { timeZone: "UTC" }));
+    expect(view.container.textContent).toContain(new Date("2026-10-01T00:00:00Z").toLocaleDateString(undefined, { timeZone: "UTC" }));
+    expect(view.container.textContent).toContain("Cloud account");
+    const currency = (value: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(value);
+    expect(view.container.textContent).toContain(currency(12.34));
+    const count = quota.mock.calls.length;
+    minor = 4567;
+    await view.run(async () => { await vi.advanceTimersByTimeAsync(300_000); });
+    await flush(4);
+    expect(quota.mock.calls.length).toBeGreaterThan(count);
+    expect(spend.mock.calls.length).toBe(quota.mock.calls.length);
+    expect(cloud.mock.calls.length).toBe(quota.mock.calls.length);
+    expect(view.container.textContent).toContain(currency(45.67));
+    minor = 8901;
+    await view.run(async () => { window.dispatchEvent(new Event("focus")); });
+    await flush(4);
+    expect(view.container.textContent).toContain(currency(89.01));
+    minor = 2345;
+    press(view.container.querySelector('button[aria-label="Sync"]'));
+    await view.run(async () => { await vi.advanceTimersByTimeAsync(250); });
+    await flush(4);
+    expect(view.container.textContent).toContain(currency(23.45));
+  });
   it("opens the first run for an account that has never been here", async () => {
     currentSession = signedIn();
     const view = await open();

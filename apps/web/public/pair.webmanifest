@@ -1,0 +1,15 @@
+{
+  "id": "/app/pair",
+  "name": "OpenLimiter",
+  "short_name": "OpenLimiter",
+  "start_url": "/app/pair",
+  "scope": "/app/pair",
+  "display": "standalone",
+  "background_color": "#0d0d0f",
+  "theme_color": "#0d0d0f",
+  "icons": [
+    { "src": "/icons/openlimiter-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/openlimiter-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/openlimiter-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

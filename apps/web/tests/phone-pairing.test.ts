@@ -18,6 +18,7 @@ import {
   phonePairOf,
   readPhoneBars,
   readPhonePairMeta,
+  readCurrentPhoneBars,
   renewPhonePair,
   type PhonePair,
 } from "@/lib/phone-session";
@@ -747,6 +748,7 @@ afterEach(() => {
   mounted?.unmount();
   mounted = null;
   window.localStorage.clear();
+  vi.useRealTimers();
   window.history.replaceState(null, "", "/app/pair");
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -895,6 +897,98 @@ function fetchRoutedTo(
 }
 
 describe("the pair page", () => {
+  it("16: recovers a missing access cookie even when the local expiry still looks valid", async () => {
+    window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: Date.now() / 1000 + 80_000 }));
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", fetchRoutedTo({
+      "/app/pair/api/read": () => {
+        calls.push("read");
+        return calls.length === 1 ? new Response(JSON.stringify({ error: "no_pair" }), { status: 401 }) : new Response(JSON.stringify({ body: { rows: [] } }), { status: 200 });
+      },
+      "/app/pair/api/renew": () => {
+        calls.push("renew");
+        return new Response(JSON.stringify({ expires_at: Date.now() / 1000 + 80_000 }), { status: 200 });
+      },
+    }));
+    expect((await readCurrentPhoneBars()).kind).toBe("fresh");
+    expect(calls).toEqual(["read", "renew", "read"]);
+    expect(readPhonePairMeta()).not.toBeNull();
+  });
+  it("15: polls serially, refreshes in foreground, retries and advances freshness", async () => {
+    vi.useFakeTimers({ now: NOW });
+    window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: NOW / 1000 + 80_000 }));
+    let reads = 0;
+    let finish: (() => void) | null = null;
+    let fail = false;
+    const answer = () => new Response(JSON.stringify({ body: { rows: [{ account_id: "work", provider: "OPENROUTER", code: "CREDITS", amount: 12, currency: "USD", percent: null, observed_at: new Date(NOW).toISOString(), stale: false }] } }), { status: 200 });
+    vi.stubGlobal("fetch", fetchRoutedTo({
+      "/app/pair/api/read": () => {
+        reads++;
+        if (reads === 2) return new Promise<Response>((resolve) => { finish = () => resolve(answer()); });
+        return fail ? new Response("{}", { status: 503 }) : answer();
+      },
+    }));
+    mounted = render(createElement(PairFlow));
+    await flush(6);
+    expect(reads).toBe(1);
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(reads).toBe(2);
+    await mounted.run(async () => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(reads).toBe(2);
+    await mounted.run(async () => { (finish as (() => void) | null)?.(); });
+    await flush(4);
+    await mounted.run(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(reads).toBe(3);
+    await mounted.run(async () => { document.dispatchEvent(new Event("visibilitychange")); });
+    expect(reads).toBe(4);
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(190_000); });
+    expect(mounted.container.querySelector("[data-state=stale]")).not.toBeNull();
+    fail = true;
+    await mounted.run(async () => { window.dispatchEvent(new Event("focus")); });
+    await flush(4);
+    expect(mounted.container.querySelector("[data-stale-mark]")).not.toBeNull();
+    fail = false;
+    press(byText(mounted.container, "button", hub.pairPage.retry));
+    await flush(4);
+    expect(mounted.container.querySelector("[data-stale-mark]")).toBeNull();
+    const before = reads;
+    mounted.unmount();
+    mounted = null;
+    await vi.advanceTimersByTimeAsync(120_000);
+    window.dispatchEvent(new Event("focus"));
+    expect(reads).toBe(before);
+  });
+
+  it.each([-60, 30 * 60])("16: renews before reading with %s seconds left and retains the pairing on failure", async (seconds) => {
+    vi.useFakeTimers({ now: NOW });
+    window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: NOW / 1000 + seconds }));
+    const calls: string[] = [];
+    let unavailable = true;
+    vi.stubGlobal("fetch", fetchRoutedTo({
+      "/app/pair/api/renew": () => {
+        calls.push("renew");
+        return unavailable ? new Response("{}", { status: 503 }) : new Response(JSON.stringify({ expires_at: NOW / 1000 + 80_000 }), { status: 200 });
+      },
+      "/app/pair/api/read": () => {
+        calls.push("read");
+        return new Response(JSON.stringify({ body: { rows: [] } }), { status: 200 });
+      },
+    }));
+    mounted = render(createElement(PairFlow));
+    await flush(6);
+    expect(calls).toEqual(["renew"]);
+    expect(readPhonePairMeta()).not.toBeNull();
+    expect(mounted.container.textContent).toContain(hub.pairPage.offline.title);
+    unavailable = false;
+    press(byText(mounted.container, "button", hub.pairPage.retry));
+    await flush(6);
+    expect(calls).toEqual(["renew", "renew", "read"]);
+    expect(mounted.container.textContent).toContain(hub.pairPage.bars.title);
+  });
   beforeEach(() => {
     stubMatchMedia(true);
     stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) Safari/604.1");
