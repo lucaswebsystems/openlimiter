@@ -4,7 +4,7 @@ export function serialPoll(run: () => Promise<void>, interval: number) {
   let pending = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const refresh = async () => {
-    if (stopped || pending || document.visibilityState === "hidden") return;
+    if (stopped || pending || document.hidden || document.visibilityState === "hidden") return;
     clearTimeout(timer);
     pending = true;
     try { await run(); } finally {

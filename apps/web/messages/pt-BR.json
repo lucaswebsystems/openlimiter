@@ -2023,7 +2023,7 @@
     }
   },
   "hub": {
-    "syncedSpend": { "source": "Sincronizado do computador: {provider}, {account}, de {start} a {end}" },
+    "syncedSpend": { "sourceThrough": "Sincronização do computador: {provider}, {account}, de {start} até {end}", "sourceUpTo": "Sincronização do computador: {provider}, {account}, de {start} até {end}" },
     "addAccount": "Adicionar conta",
     "configuration": "Configuração",
     "backToBars": "Voltar para as barras",
@@ -2212,6 +2212,11 @@
     },
     "cloud": {
       "observed": "Observado em {time}",
+      "fresh": "Atual",
+      "stale": "Desatualizado",
+      "observationAge": "Observado há {minutes} minutos",
+      "observationUnknown": "Idade da observação desconhecida",
+      "stateAnnouncement": "A leitura está {state}",
       "title": "Medir pela nuvem",
       "lead": "Medidores de gasto que a nuvem consulta sozinha, então o hub e seu celular leem sem nenhum dispositivo rodando.",
       "needsPro": {

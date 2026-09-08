@@ -90,6 +90,10 @@ export function cloudMeterKeyOf(value: unknown): CloudMeterKey | null {
   if (id === "" || provider === null || label === "") return null;
   const currency = typeof row.currency === "string" ? row.currency : null;
   const parsedAmount = amount(row.amount);
+  const observed = row.last_polled_at ?? row.observed_at;
+  const observedAt = typeof observed === "string" && Number.isFinite(Date.parse(observed))
+    ? new Date(observed).toISOString()
+    : null;
   return {
     id,
     provider,
@@ -97,8 +101,7 @@ export function cloudMeterKeyOf(value: unknown): CloudMeterKey | null {
     lastStatus: statusOf(row.last_status),
     amount: currency === null ? null : parsedAmount,
     currency: parsedAmount === null ? null : currency,
-    observedAt: typeof row.observed_at === "string" && Number.isFinite(Date.parse(row.observed_at))
-      ? new Date(row.observed_at).toISOString() : null,
+    observedAt,
   };
 }
 

@@ -113,6 +113,7 @@ export function CliPageView({
   const [busy, setBusy] = useState<"approve" | "deny" | null>(null);
   const [phase, setPhase] = useState<"idle" | "approved" | "denied">("idle");
   const [error, setError] = useState<CliLoginErrorCode | "unavailable" | null>(null);
+  const pendingCode = useRef<string | null>(null);
 
   useEffect(() => {
     if (propSession !== undefined) {
@@ -127,14 +128,21 @@ export function CliPageView({
     void syncClient.auth
       .getSession()
       .then(({ data }) => {
-        if (live) setSession(data.session);
+        if (live) {
+          setSession(data.session);
+          if (data.session !== null) pendingIntent(data.session.user.id);
+        }
       })
       .catch(() => {
         if (live) setSession(null);
       });
 
     const { data } = syncClient.auth.onAuthStateChange((_event, nextSession) => {
-      if (live) setSession(nextSession);
+      if (live) {
+        setSession(nextSession);
+        if (nextSession === null) clearIntent();
+        else pendingIntent(nextSession.user.id);
+      }
     });
     authListener.current = data.subscription;
 
@@ -154,19 +162,29 @@ export function CliPageView({
       const param = new URLSearchParams(window.location.search).get("code");
       if (param) {
         setCode(cleanCliCode(param));
-        if (validateCliCode(cleanCliCode(param)).valid && rememberIntent({ kind: "cli", code: cleanCliCode(param) })) {
+        if (validateCliCode(cleanCliCode(param)).valid && rememberIntent({ kind: "cli", code: cleanCliCode(param) }, session?.user.id ?? null)) {
           stripQueryParam("code");
         }
       } else {
-        const pending = pendingIntent();
-        if (pending?.kind === "cli") setCode(pending.code);
+        if (session === undefined) return;
+        const pending = pendingIntent(session?.user.id ?? null);
+        if (pending?.kind === "cli") {
+          pendingCode.current = pending.code;
+          setCode(pending.code);
+        } else if (pendingCode.current !== null) {
+          pendingCode.current = null;
+          setCode("");
+        }
       }
     }
-  }, [initialCode]);
+  }, [initialCode, session]);
 
   useEffect(() => {
     if (session && code) {
-      if (pendingIntent()?.kind === "cli") clearIntent();
+      if (pendingIntent(session.user.id)?.kind === "cli") {
+        clearIntent();
+        pendingCode.current = null;
+      }
       stripQueryParam("code");
     }
   }, [session, code]);

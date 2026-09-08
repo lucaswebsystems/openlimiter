@@ -194,6 +194,7 @@ export function isRevokedEpochResponse(response: HostedResponse): boolean {
 export type RenewOutcome =
   | { kind: "renewed"; pair: PhonePair }
   | { kind: "revoked" }
+  | { kind: "unpaired" }
   | { kind: "unavailable" };
 
 interface RenewAttempt {
@@ -219,6 +220,10 @@ async function renewAttempt(
   }
   if (isRevokedEpochResponse(response)) {
     return { transportLoss: false, outcome: { kind: "revoked" } };
+  }
+  const responseError = record(response.body)?.error;
+  if (response.status === 401 && (responseError === "no_pair" || responseError === "unpaired")) {
+    return { transportLoss: false, outcome: { kind: "unpaired" } };
   }
   if (response.status !== 200) {
     return { transportLoss: false, outcome: { kind: "unavailable" } };
@@ -362,6 +367,7 @@ export async function endPhoneSession(): Promise<void> {
 export type RenewSessionOutcome =
   | { kind: "renewed"; expiresAt: number }
   | { kind: "revoked" }
+  | { kind: "unpaired" }
   | { kind: "unavailable" }
   | { kind: "skipped"; expiresAt: number };
 
@@ -373,6 +379,11 @@ async function renewOnce(): Promise<RenewSessionOutcome> {
   if (answer.status === 403) {
     clearPhonePairMeta();
     return { kind: "revoked" };
+  }
+  const answerBody = record(answer.body);
+  if (answer.status === 401 && answerBody?.error === "no_pair") {
+    clearPhonePairMeta();
+    return { kind: "unpaired" };
   }
   const body = record(answer.body);
   const expiresAt = instantSeconds(body?.expires_at);
@@ -437,12 +448,14 @@ export async function readCurrentPhoneBars(): Promise<PhoneReadOutcome> {
   if (meta !== null && phonePairNeedsRenewal(meta)) {
     const renewal = await requestPhoneRenewal();
     if (renewal.kind === "revoked") return renewal;
+    if (renewal.kind === "unpaired") return renewal;
     if (renewal.kind === "unavailable") return { kind: "empty" };
   }
   const answer = await requestPhoneRead();
   if (answer.kind !== "unpaired") return answer;
   const renewal = await requestPhoneRenewal(true);
   if (renewal.kind === "revoked") return renewal;
+  if (renewal.kind === "unpaired") return renewal;
   if (renewal.kind === "unavailable") return { kind: meta === null ? "unpaired" : "empty" };
   const retried = await requestPhoneRead();
   return retried.kind === "unpaired" ? { kind: "empty" } : retried;

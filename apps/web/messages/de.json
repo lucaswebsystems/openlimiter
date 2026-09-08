@@ -2023,7 +2023,7 @@
     }
   },
   "hub": {
-    "syncedSpend": { "source": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}" },
+    "syncedSpend": { "sourceThrough": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}", "sourceUpTo": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}" },
     "addAccount": "Konto hinzufügen",
     "configuration": "Konfiguration",
     "backToBars": "Zurück zu den Balken",
@@ -2212,6 +2212,11 @@
     },
     "cloud": {
       "observed": "Beobachtet {time}",
+      "fresh": "Aktuell",
+      "stale": "Veraltet",
+      "observationAge": "Vor {minutes} Minuten beobachtet",
+      "observationUnknown": "Alter der Beobachtung unbekannt",
+      "stateAnnouncement": "Messung ist {state}",
       "title": "Über die Cloud messen",
       "lead": "Ausgabenzähler, die die Cloud von selbst abfragt, sodass der Hub und Ihr Telefon sie lesen, ohne dass ein Gerät läuft.",
       "needsPro": {

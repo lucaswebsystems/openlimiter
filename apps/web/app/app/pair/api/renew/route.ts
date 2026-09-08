@@ -39,13 +39,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const placeholder = { token: "", expiresAt: 0, refreshCredential, refreshExpiresAt: 0 };
-  const outcome = await renewPhonePair(placeholder, renewPhoneCredential);
+  const outcome = await renewPhonePair(placeholder, async (credential) => {
+    const response = await renewPhoneCredential(credential);
+    /* The hosted service uses 401 for an expired refresh credential. Turn that
+       server answer into the route's explicit permanent no_pair reason while
+       leaving the pure renewal helper's generic 401 contract intact. */
+    return response.status === 401 ? { ...response, body: { error: "no_pair" } } : response;
+  });
 
   if (outcome.kind === "revoked") {
     const response = NextResponse.json({ error: "revoked" }, { status: 403 });
     response.cookies.set(PHONE_TOKEN_COOKIE, "", cookieOptions(0));
     response.cookies.set(PHONE_REFRESH_COOKIE, "", cookieOptions(0));
     return response;
+  }
+  if (outcome.kind === "unpaired") {
+    return NextResponse.json({ error: "no_pair" }, { status: 401 });
   }
   if (outcome.kind !== "renewed") {
     return NextResponse.json({ error: "unavailable" }, { status: 503 });

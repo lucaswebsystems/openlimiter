@@ -2023,7 +2023,7 @@
     }
   },
   "hub": {
-    "syncedSpend": { "source": "Sincronizado del escritorio: {provider}, {account}, del {start} al {end}" },
+    "syncedSpend": { "sourceThrough": "Sincronización del escritorio: {provider}, {account}, de {start} a {end}", "sourceUpTo": "Sincronización del escritorio: {provider}, {account}, de {start} hasta {end}" },
     "addAccount": "Agregar cuenta",
     "configuration": "Configuración",
     "backToBars": "Volver a las barras",
@@ -2212,6 +2212,11 @@
     },
     "cloud": {
       "observed": "Observado {time}",
+      "fresh": "Actual",
+      "stale": "Antiguo",
+      "observationAge": "Observado hace {minutes} minutos",
+      "observationUnknown": "Antigüedad de la observación desconocida",
+      "stateAnnouncement": "La lectura está {state}",
       "title": "Medir desde la nube",
       "lead": "Medidores de gasto que la nube consulta por su cuenta, así el hub y tu teléfono los leen sin ningún dispositivo encendido.",
       "needsPro": {

@@ -6,7 +6,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { BrandLockup } from "@/components/brand";
 import { createAccountClient, readKeepSignedIn, resumeAccountClient, stopAccountClient } from "@/lib/account-client";
-import { stripQueryParam } from "@/lib/browser-history";
+import { stripQueryParams } from "@/lib/browser-history";
 import { storeCloudKey } from "@/lib/cloud-meter";
 import { CONFIGURATION_DEEP_LINK_PARAM } from "@/lib/onboarding";
 import {
@@ -62,6 +62,15 @@ export function OpenRouterCallbackView({
   const [session, setSession] = useState<Session | null | undefined>(propSession);
   const [phase, setPhase] = useState<Phase>("exchanging");
   const started = useRef(false);
+  const callbackSearch = useMemo(
+    () => search ?? (typeof window === "undefined" ? "" : window.location.search),
+    [search],
+  );
+  const callback = useMemo(() => openRouterCallbackParams(callbackSearch), [callbackSearch]);
+
+  useEffect(() => {
+    stripQueryParams(["code", "n"]);
+  }, []);
 
   useEffect(() => {
     if (propClient !== undefined) return;
@@ -89,13 +98,24 @@ export function OpenRouterCallbackView({
 
   useEffect(() => {
     if (started.current) return;
-    if (syncClient === null || session === null || session === undefined) return;
+    if (session === undefined) return;
+    if (syncClient === null) {
+      if (session === null) {
+        started.current = true;
+        if (callback.nonce !== null) takeOpenRouterVerifier(callback.nonce);
+        setPhase("error");
+      }
+      return;
+    }
     started.current = true;
     void (async () => {
-      const query = search ?? (typeof window === "undefined" ? "" : window.location.search);
-      const { code, nonce } = openRouterCallbackParams(query);
+      const { code, nonce } = callback;
+      if (session === null) {
+        if (nonce !== null) takeOpenRouterVerifier(nonce);
+        setPhase("error");
+        return;
+      }
       const verifier = nonce === null ? null : takeOpenRouterVerifier(nonce);
-      if (code !== null) stripQueryParam("code");
       if (code === null || verifier === null) {
         setPhase("error");
         return;
@@ -112,7 +132,7 @@ export function OpenRouterCallbackView({
       });
       setPhase(stored.ok ? "success" : "error");
     })();
-  }, [search, session, syncClient]);
+  }, [callback, session, syncClient]);
 
   useEffect(() => {
     if (phase !== "success") return;

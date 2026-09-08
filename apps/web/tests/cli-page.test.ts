@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CliPageView as CliPage } from "@/app/app/cli/cli-page-view";
 import { Dashboard } from "@/app/app/dashboard";
 import { ONBOARDED_METADATA_KEY, onboardedStorageKey } from "@/lib/onboarding";
-import { INTENT_TTL_MS, pendingIntent, rememberIntent } from "@/lib/pending-intent";
+import { clearIntent, INTENT_TTL_MS, pendingIntent, rememberIntent } from "@/lib/pending-intent";
 import { authRedirectUrl } from "@/lib/pro";
 import {
   cleanCliCode,
@@ -62,7 +62,7 @@ vi.mock("@/lib/synced-usage", () => ({
 
 let currentSession: Session | null = null;
 const currentInvoke: (name: string, options: unknown) => Promise<unknown> = async () => ({
-  data: { ok: true },
+  data: { ok: true, status: "approved" },
   error: null,
 });
 
@@ -129,6 +129,17 @@ describe("06: pending authentication intent", () => {
     expect(new URL(authRedirectUrl()).search).toBe("?trial=1");
     window.history.replaceState(null, "", "/app/cli?code=invalid");
     expect(new URL(authRedirectUrl()).search).toBe("");
+    expect(authRedirectUrl("//evil.example")).toBe(`${window.location.origin}/app`);
+    expect(authRedirectUrl("/\\evil")).toBe(`${window.location.origin}/app`);
+    expect(authRedirectUrl("https://evil.example")).toBe(`${window.location.origin}/app`);
+  });
+
+  it("normalises padded codes before applying the length bound", () => {
+    window.history.replaceState(null, "", "/app/cli");
+    const paddedRedirect = new URL(authRedirectUrl("/app/cli", "?code=ABCD-2345"));
+    expect(paddedRedirect.search).toBe("?code=ABCD2345");
+    expect(cleanCliCode("ABCD-1234")).toBe("ABCD1234");
+    expect(cleanCliCode("abcd 1234")).toBe("ABCD1234");
   });
   it("prefills the CLI code after a signed out page is destroyed and authentication returns", async () => {
     window.history.replaceState(null, "", "/app/cli?code=ABCD2345");
@@ -164,6 +175,14 @@ describe("06: pending authentication intent", () => {
     rememberIntent({ kind: "cli", code: "ABCD2345" });
     vi.mocked(Date.now).mockReturnValue(now + INTENT_TTL_MS);
     expect(pendingIntent()).toBeNull();
+  });
+
+  it("binds an intent to one account and clears it on sign out", () => {
+    rememberIntent({ kind: "cli", code: "ABCD2345" }, "user-a");
+    expect(pendingIntent("user-b")).toBeNull();
+    rememberIntent({ kind: "cli", code: "ABCD2345" }, "user-a");
+    clearIntent();
+    expect(pendingIntent("user-a")).toBeNull();
   });
 });
 
@@ -239,7 +258,7 @@ describe("/app/cli approve page", () => {
   it("prefills code from the query string and strips spaces and hyphens", async () => {
     window.history.replaceState(null, "", "/app/cli?code=abcd-2345");
     currentSession = fakeSession();
-    const client = fakeClient(async () => ({ data: { ok: true }, error: null }));
+    const client = fakeClient(async () => ({ data: { ok: true, status: "approved" }, error: null }));
     mounted = render(createElement(CliPage, { client, session: currentSession }));
     await flush();
 
@@ -253,7 +272,7 @@ describe("/app/cli approve page", () => {
 
   it("performs live alphabet and length validation as the user types", async () => {
     currentSession = fakeSession();
-    const client = fakeClient(async () => ({ data: { ok: true }, error: null }));
+    const client = fakeClient(async () => ({ data: { ok: true, status: "approved" }, error: null }));
     mounted = render(createElement(CliPage, { client, session: currentSession }));
     await flush();
 
@@ -296,7 +315,7 @@ describe("/app/cli approve page", () => {
     currentSession = fakeSession();
     const client = fakeClient(async (_fn, options) => {
       calledOptions = options;
-      return { data: { ok: true, device_label: "MacBook Pro" }, error: null };
+      return { data: { ok: true, status: "approved" }, error: null };
     });
 
     mounted = render(
@@ -317,7 +336,6 @@ describe("/app/cli approve page", () => {
 
     expect(mounted.container.textContent).toContain(hub.cliPage.successTitle);
     expect(mounted.container.textContent).toContain(hub.cliPage.successBody);
-    expect(mounted.container.textContent).toContain("MacBook Pro");
   });
 
   it("denies terminal sign in and shows denied state", async () => {
@@ -325,7 +343,7 @@ describe("/app/cli approve page", () => {
     currentSession = fakeSession();
     const client = fakeClient(async (_fn, options) => {
       calledOptions = options;
-      return { data: { ok: true }, error: null };
+      return { data: { ok: true, status: "denied" }, error: null };
     });
 
     mounted = render(

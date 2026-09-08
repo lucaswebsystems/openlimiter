@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { proseDigest, untranslatedProse } from "../scripts/i18n-prose.mjs";
+import { hasForbiddenProseDash, isTechnicalKey, proseDigest, untranslatedProse } from "../scripts/i18n-prose.mjs";
 
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 const locales = ["de", "es", "ja", "pt-BR"];
@@ -23,6 +23,16 @@ describe("published audit surfaces", () => {
     expect(manifest.start_url).toBe("/app/pair");
     expect(manifest.id).toBe("/app/pair");
     expect(manifest.start_url.startsWith(manifest.scope)).toBe(true);
+  });
+
+  it("rejects prose dashes and only exempts catalog listed technical prose", () => {
+    expect(hasForbiddenProseDash("alpha-beta is not a translated sentence")).toBe(true);
+    expect(hasForbiddenProseDash("alpha–beta is not a translated sentence")).toBe(true);
+    expect(hasForbiddenProseDash("alpha—beta is not a translated sentence")).toBe(true);
+    expect(hasForbiddenProseDash("alpha beta is a translated sentence")).toBe(false);
+    expect(isTechnicalKey("privacy.website.bullets.cookies")).toBe(true);
+    expect(untranslatedProse("de", "privacy.website.bullets.cookies", "Technical detail here", "Technical detail here", {})).toBe(false);
+    expect(isTechnicalKey("new.body")).toBe(false);
   });
 
   it("32: rejects new and edited untranslated prose while allowing explicit product terminology", () => {

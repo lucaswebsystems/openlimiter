@@ -11,11 +11,20 @@
  * moment later, a copied link, or a screen share does not hand it out again.
  */
 export function stripQueryParam(name: string): void {
+  stripQueryParams([name]);
+}
+
+export function stripQueryParams(names: readonly string[]): void {
   if (typeof window === "undefined") return;
   try {
     const url = new URL(window.location.href);
-    if (!url.searchParams.has(name)) return;
-    url.searchParams.delete(name);
+    let changed = false;
+    for (const name of names) {
+      if (!url.searchParams.has(name)) continue;
+      url.searchParams.delete(name);
+      changed = true;
+    }
+    if (!changed) return;
     const query = url.searchParams.toString();
     window.history.replaceState(
       window.history.state as unknown,

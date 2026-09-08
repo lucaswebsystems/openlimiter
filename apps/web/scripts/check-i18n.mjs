@@ -39,7 +39,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { untranslatedProse } from "./i18n-prose.mjs";
+import { hasForbiddenProseDash, isTechnicalKey, untranslatedProse } from "./i18n-prose.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MESSAGES = resolve(HERE, "..", "messages");
@@ -59,6 +59,7 @@ const EXPECTED = ["en", "pt-BR", "es", "de", "ja"];
 
 /** Keys whose value is deliberately not a message. */
 const RESERVED = new Set(["_status"]);
+const CODE_ROOTS = [resolve(HERE, "..", "app"), resolve(HERE, "..", "components")];
 
 function read(name) {
   const raw = readFileSync(join(MESSAGES, name), "utf8");
@@ -114,6 +115,51 @@ function icuArguments(value) {
   return [...names].sort();
 }
 
+function codeFiles(directory) {
+  const files = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...codeFiles(path));
+    else if (/\.(?:ts|tsx)$/u.test(entry.name)) files.push(path);
+  }
+  return files;
+}
+
+function extractCodeUsage() {
+  const exact = new Map();
+  const wildcards = new Set();
+  const namespacePattern = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\(\s*["']([^"']+)["']\s*\)/gu;
+  const objectNamespacePattern = /\b(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*await\s+getTranslations\(\s*\{[^}]*?\bnamespace\s*:\s*["']([^"']+)["'][^}]*\}\s*\)/gu;
+  const callPattern = /\b([A-Za-z_$][\w$]*)(?:\.[A-Za-z_$][\w$]*)?\(\s*(?:"([^"]+)"|'([^']+)'|`([^`]*)`)/gu;
+  const bindingsFor = (bindings, name, position) => bindings
+    .filter((binding) => binding.name === name && binding.index < position)
+    .sort((left, right) => left.index - right.index)
+    .at(-1) ?? bindings.find((binding) => binding.name === name);
+  for (const file of CODE_ROOTS.flatMap(codeFiles)) {
+    const source = readFileSync(file, "utf8");
+    const bindings = [];
+    for (const pattern of [namespacePattern, objectNamespacePattern]) {
+      for (const match of source.matchAll(pattern)) bindings.push({ name: match[1], namespace: match[2], index: match.index ?? 0 });
+    }
+    bindings.sort((left, right) => left.index - right.index);
+    for (const match of source.matchAll(callPattern)) {
+      const binding = bindingsFor(bindings, match[1], match.index ?? 0);
+      if (!binding) continue;
+      const key = match[2] ?? match[3] ?? match[4] ?? "";
+      if (match[4] !== undefined && match[4].includes("${")) {
+        wildcards.add(`${binding.namespace}.${key.slice(0, key.indexOf("${"))}`);
+      } else {
+        exact.set(`${binding.namespace}.${key}`, file);
+      }
+    }
+    for (const binding of bindings) {
+      const dynamicCall = new RegExp("\\b" + binding.name + "(?:\\.[A-Za-z_$][\\w$]*)?\\(\\s*(?![\"'`])", "u").test(source);
+      if (dynamicCall) wildcards.add(`${binding.namespace}.`);
+    }
+  }
+  return { exact, wildcards };
+}
+
 const files = readdirSync(MESSAGES).filter((name) => name.endsWith(".json"));
 if (!files.includes(SOURCE)) {
   console.error(`check-i18n: ${SOURCE} is missing from messages/`);
@@ -131,6 +177,16 @@ for (const file of files) {
 
 const source = read(SOURCE);
 const sourceLeaves = flatten(source, "", new Map());
+const usage = extractCodeUsage();
+
+for (const [path, file] of usage.exact) {
+  if (!sourceLeaves.has(path)) fail(`${file}: code uses missing key ${path}`);
+}
+for (const prefix of usage.wildcards) {
+  if (![...sourceLeaves.keys()].some((path) => path.startsWith(prefix))) {
+    fail(`code uses missing translation namespace ${prefix.slice(0, -1)}`);
+  }
+}
 
 /* The source's own health, checked before anything is compared against it. */
 for (const [path, value] of sourceLeaves) {
@@ -175,6 +231,9 @@ for (const file of locales) {
     }
 
     if (value === expected) same += 1;
+    if (!isTechnicalKey(path) && /\s/u.test(value.trim()) && hasForbiddenProseDash(value)) {
+      fail(`${file}: ${path} contains a forbidden dash`);
+    }
     if (untranslatedProse(file.replace(/\.json$/, ""), path, expected, value, LEGACY_PROSE)) {
       fail(`${file}: ${path} contains untranslated prose`);
     }
@@ -187,6 +246,13 @@ for (const file of locales) {
   identical.set(file, same);
 }
 
+const unused = [];
+for (const [path] of sourceLeaves) {
+  if (![...usage.exact.keys()].includes(path) && ![...usage.wildcards].some((prefix) => path.startsWith(prefix))) {
+    unused.push(path);
+  }
+}
+
 const total = sourceLeaves.size;
 console.log(`check-i18n: ${total} messages in ${SOURCE}, ${locales.length} translations`);
 for (const file of locales) {
@@ -194,6 +260,12 @@ for (const file of locales) {
   const translated = total - same;
   const percent = total === 0 ? 0 : Math.round((translated / total) * 100);
   console.log(`  ${file.padEnd(12)} ${translated}/${total} translated (${percent}%)`);
+}
+
+if (unused.length > 0) {
+  console.warn(`check-i18n: ${unused.length} unused catalog keys`);
+  for (const path of unused.slice(0, 60)) console.warn(`  ${SOURCE}: unused key ${path}`);
+  if (unused.length > 60) console.warn(`  ... and ${unused.length - 60} more`);
 }
 
 if (problems.length > 0) {

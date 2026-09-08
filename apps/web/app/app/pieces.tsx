@@ -71,6 +71,14 @@ export function ProviderRows({ rows }: { rows: readonly ProviderAccountRowView[]
   );
 }
 
+export function observationAgeMinutes(observedAt: string | null, now: string | number = Date.now()): number | null {
+  if (observedAt === null) return null;
+  const observed = Date.parse(observedAt);
+  const current = typeof now === "number" ? now : Date.parse(now);
+  if (!Number.isFinite(observed) || !Number.isFinite(current) || observed > current) return null;
+  return Math.floor((current - observed) / 60_000);
+}
+
 /**
  * One dollar reading, drawn the one way this product draws money.
  *
@@ -86,12 +94,28 @@ export function DollarRow({
   name,
   amountText,
   stale,
+  freshLabel,
+  staleLabel,
+  observationLabel,
+  stateAnnouncement,
 }: {
   icon?: ReactNode;
   name: ReactNode;
   amountText: string;
   stale: boolean;
+  freshLabel: string;
+  staleLabel: string;
+  observationLabel: string;
+  stateAnnouncement: string;
 }) {
+  const stateLabel = stale ? staleLabel : freshLabel;
+  const previousState = useRef(stale);
+  const [announcement, setAnnouncement] = useState("");
+  useEffect(() => {
+    if (previousState.current === stale) return;
+    previousState.current = stale;
+    setAnnouncement(stateAnnouncement);
+  }, [stale, stateAnnouncement]);
   return (
     <div className="ol-device-money-row">
       <span className="ol-device-money-name">
@@ -101,6 +125,8 @@ export function DollarRow({
       <span className="ol-device-money-value" data-state={stale ? "stale" : "fresh"}>
         {amountText}
       </span>
+      <span className="sr-only">{stateLabel}. {observationLabel}</span>
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
     </div>
   );
 }

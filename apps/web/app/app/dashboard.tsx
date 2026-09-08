@@ -420,9 +420,9 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     /* The tray opens /app?trial=1. The parameter is read once and taken out of
        the address bar straight away, so a reload is a reload rather than a
        second wizard, and a shared link is just the hub. */
-    if (wantsTrial(window.location.search) || pendingIntent()?.kind === "trial") {
+    if (wantsTrial(window.location.search)) {
       setDeepLinkTrial(true);
-      const remembered = wantsTrial(window.location.search) ? rememberIntent({ kind: "trial" }) : true;
+      const remembered = rememberIntent({ kind: "trial" });
       const url = new URL(window.location.href);
       url.searchParams.delete(TRIAL_DEEP_LINK_PARAM);
       if (remembered) window.history.replaceState(null, "", url.pathname + url.search + url.hash);
@@ -458,6 +458,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       if (busyTimer.current !== null) window.clearTimeout(busyTimer.current);
     };
   }, [isDevPreview]);
+
+  useEffect(() => {
+    if (!mounted || session === undefined || session === null || deepLinkTrial) return;
+    if (pendingIntent(session.user.id)?.kind === "trial") setDeepLinkTrial(true);
+  }, [deepLinkTrial, mounted, session]);
 
   useEffect(() => {
     readEpoch.current += 1;
@@ -608,6 +613,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         decideOpeningView(next);
         window.setTimeout(refreshSyncedUsage, 0);
         if (next !== null) window.setTimeout(refreshEntitlement, 0);
+        if (next === null) clearIntent();
+        else pendingIntent(next.user.id);
       });
       authListener.current = data.subscription;
     },
@@ -954,6 +961,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                 });
               }}
               onLogout={() => {
+                clearIntent();
                 void syncClient?.auth.signOut();
               }}
             />

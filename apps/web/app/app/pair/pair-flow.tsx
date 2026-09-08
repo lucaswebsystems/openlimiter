@@ -33,7 +33,7 @@ import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
 import { PROVIDER_CODES, parseQuotaText } from "../engine";
 import { LiveMeter } from "../live-meter";
-import { DollarRow } from "../pieces";
+import { DollarRow, observationAgeMinutes } from "../pieces";
 import { PairInstallStep } from "./pair-install";
 
 /**
@@ -129,6 +129,11 @@ interface PhoneBarsProps {
   heading: string;
   staleLabel: string;
   now: string;
+  freshLabel: string;
+  staleStateLabel: string;
+  unknownAgeLabel: string;
+  ageLabel: (minutes: number) => string;
+  stateAnnouncement: (state: string) => string;
 }
 
 /**
@@ -136,7 +141,7 @@ interface PhoneBarsProps {
  * browser dashboard draw, so one reading cannot look like two different
  * readings on two screens.
  */
-function PhoneBars({ body, stale, locale, heading, staleLabel, now }: PhoneBarsProps) {
+function PhoneBars({ body, stale, locale, heading, staleLabel, now, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement }: PhoneBarsProps) {
   const rows = useMemo(() => meterRowsOf(body), [body]);
   const snapshots = useMemo(() => {
     const raw = rows.map(snapshotFromMeterRow).filter((row) => row !== null);
@@ -169,7 +174,7 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now }: PhoneBarsP
         {money.length > 0 && (
           <div className="ol-device-money">
             {money.map((row) => (
-              <MoneyRow key={`${row.provider}:${row.accountId}:${row.code}`} row={row} locale={locale} now={now} offline={stale} />
+              <MoneyRow key={`${row.provider}:${row.accountId}:${row.code}`} row={row} locale={locale} now={now} offline={stale} freshLabel={freshLabel} staleStateLabel={staleStateLabel} unknownAgeLabel={unknownAgeLabel} ageLabel={ageLabel} stateAnnouncement={stateAnnouncement} />
             ))}
           </div>
         )}
@@ -181,12 +186,18 @@ function PhoneBars({ body, stale, locale, heading, staleLabel, now }: PhoneBarsP
   );
 }
 
-function MoneyRow({ row, locale, now, offline }: { row: MeterRow; locale: string; now: string; offline: boolean }) {
+function MoneyRow({ row, locale, now, offline, freshLabel, staleStateLabel, unknownAgeLabel, ageLabel, stateAnnouncement }: { row: MeterRow; locale: string; now: string; offline: boolean; freshLabel: string; staleStateLabel: string; unknownAgeLabel: string; ageLabel: (minutes: number) => string; stateAnnouncement: (state: string) => string }) {
+  const age = observationAgeMinutes(row.observedAt, now);
+  const stale = offline || row.stale || age === null || age > 5;
   return (
     <DollarRow
       name={`${row.provider} ${row.code}`}
       amountText={formatAmount(row, locale) ?? "unknown"}
-      stale={offline || row.stale || Date.parse(now) - Date.parse(row.observedAt) > 5 * 60_000}
+      stale={stale}
+      freshLabel={freshLabel}
+      staleLabel={staleStateLabel}
+      observationLabel={age === null ? unknownAgeLabel : ageLabel(age)}
+      stateAnnouncement={stateAnnouncement(stale ? staleStateLabel : freshLabel)}
     />
   );
 }
@@ -271,11 +282,17 @@ function PairedPhone({
       setState((previous) => ({ ...previous, phase: "offline" }));
     }, 60_000);
     retry.current = poll.refresh;
-    const clock = window.setInterval(() => setNow(new Date().toISOString()), 10_000);
+    const refreshClock = () => {
+      if (document.visibilityState !== "hidden") setNow(new Date().toISOString());
+    };
+    const onVisibilityChange = () => refreshClock();
+    const clock = window.setInterval(refreshClock, 10_000);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       live = false;
       poll.stop();
       window.clearInterval(clock);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       retry.current = null;
     };
   }, []);
@@ -328,6 +345,11 @@ function PairedPhone({
         heading={t("pairPage.bars.title")}
         staleLabel={t("pairPage.offline.staleMark")}
         now={now}
+        freshLabel={t("cloud.fresh")}
+        staleStateLabel={t("cloud.stale")}
+        unknownAgeLabel={t("cloud.observationUnknown")}
+        ageLabel={(minutes) => t("cloud.observationAge", { minutes })}
+        stateAnnouncement={(state) => t("cloud.stateAnnouncement", { state })}
       />
       <button className={BUTTON_GHOST} onClick={() => { void retry.current?.(); }}>{t("pairPage.retry")}</button>
       <PairInstallStep />
@@ -370,6 +392,8 @@ export function PairFlow() {
   const t = useTranslations("hub");
   const defaultLabel = t("pairPage.defaultLabel");
   const [state, setState] = useState<PairState>(initialFragmentState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const [remaining, setRemaining] = useState<number | null>(null);
   /* Non-null means: show the paired screen under this label. Set either by a
      fresh approval or by finding a still valid pairing on a returning visit;
@@ -459,22 +483,20 @@ export function PairFlow() {
     if (state.phase !== "waiting" || state.claimId === null) return;
     const claimId = state.claimId;
     let live = true;
-    const timer = window.setInterval(() => {
-      if (!pairShouldPoll(state)) {
+    const poll = serialPoll(async () => {
+      if (!live) return;
+      if (!pairShouldPoll(stateRef.current)) {
         setState(pairStateAfterTimeout);
         return;
       }
-      void pollPairingClaim(claimId).then((response) => {
-        if (live) {
-          setState((current) => pairStateAfterPoll(current, response.body, response.status));
-        }
-      });
+      const response = await pollPairingClaim(claimId);
+      if (live) setState((current) => pairStateAfterPoll(current, response.body, response.status));
     }, state.pollInterval);
     return () => {
       live = false;
-      window.clearInterval(timer);
+      poll.stop();
     };
-  }, [state]);
+  }, [state.phase, state.claimId, state.pollInterval, state.expiresAt]);
 
   /* The countdown under the code, so waiting has a visible end. */
   useEffect(() => {

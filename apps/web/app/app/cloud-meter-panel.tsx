@@ -17,7 +17,7 @@ import {
   type CloudMeterKey,
   type CloudMeterProvider,
 } from "@/lib/cloud-meter";
-import { Button, DollarRow, Panel } from "./pieces";
+import { Button, DollarRow, Panel, observationAgeMinutes } from "./pieces";
 import { ProviderMark } from "./marks";
 import { StartTrialButton } from "./trial";
 
@@ -45,6 +45,33 @@ const MARK_CODE: Record<CloudMeterProvider, string> = {
   moonshot: "KIMI",
   openrouter: "OPENROUTER",
 };
+
+function CloudSpendRow({ row, now, failed, t }: {
+  row: CloudMeterKey;
+  now: string;
+  failed: boolean;
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const age = observationAgeMinutes(row.observedAt, now);
+  const stale = failed || row.lastStatus !== "ok" || row.amount === null || row.currency === null || age === null || age > 5;
+  return (
+    <DollarRow
+      key={row.id}
+      icon={<CloudGlyph className="h-3.5 w-3.5" />}
+      name={row.observedAt === null ? row.label : `${row.label} (${t("cloud.observed", { time: new Date(row.observedAt).toLocaleString() })})`}
+      amountText={
+        row.amount !== null && row.currency !== null
+          ? formatCloudAmount(row.amount, row.currency)
+          : t("cloud.status.pending")
+      }
+      stale={stale}
+      freshLabel={t("cloud.fresh")}
+      staleLabel={t("cloud.stale")}
+      observationLabel={age === null ? t("cloud.observationUnknown") : t("cloud.observationAge", { minutes: age })}
+      stateAnnouncement={t("cloud.stateAnnouncement", { state: stale ? t("cloud.stale") : t("cloud.fresh") })}
+    />
+  );
+}
 
 function CloudGlyph({ className = "h-4 w-4" }: { className?: string }) {
   return (
@@ -394,19 +421,7 @@ export function CloudSpendRows({ rows, now, failed = false }: { rows: CloudMeter
 
   return (
     <div className="ol-device-money">
-      {rows.map((row) => (
-        <DollarRow
-          key={row.id}
-          icon={<CloudGlyph className="h-3.5 w-3.5" />}
-          name={row.observedAt === null ? row.label : `${row.label} (${t("cloud.observed", { time: new Date(row.observedAt).toLocaleString() })})`}
-          amountText={
-            row.amount !== null && row.currency !== null
-              ? formatCloudAmount(row.amount, row.currency)
-              : t("cloud.status.pending")
-          }
-          stale={failed || row.lastStatus !== "ok" || row.amount === null || row.currency === null || row.observedAt === null || Date.parse(now) - Date.parse(row.observedAt) > 5 * 60_000}
-        />
-      ))}
+      {rows.map((row) => <CloudSpendRow key={row.id} row={row} now={now} failed={failed} t={t} />)}
     </div>
   );
 }

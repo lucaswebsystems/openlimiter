@@ -23,6 +23,7 @@ import {
   type PhonePair,
 } from "@/lib/phone-session";
 import { errorCorrectionCodewords, encodeQr, qrSize, MAX_QR_VERSION } from "@/lib/qr";
+import { serialPoll } from "@/lib/serial-poll";
 import { all, byText, flush, messages, render, type Mounted } from "./render";
 
 /**
@@ -508,12 +509,12 @@ describe("renewPhonePair: retry only transport loss, revoke only the explicit si
     expect(calls).toBe(1);
   });
 
-  it("keeps the pairing on a bare 401, unlike the old blanket rule", async () => {
+  it("treats an explicit no_pair renewal failure as permanently unpaired", async () => {
     const outcome = await renewPhonePair(pair(), async () => ({
       status: 401,
-      body: { error: "unpaired" },
+      body: { error: "no_pair" },
     }));
-    expect(outcome).toEqual({ kind: "unavailable" });
+    expect(outcome).toEqual({ kind: "unpaired" });
   });
 
   it("does not retry transport loss once the grace window has passed", async () => {
@@ -625,6 +626,7 @@ describe("the renew route: reads the refresh cookie, never a body", () => {
   it("answers no_pair with no refresh cookie", async () => {
     const response = await renewPost(jsonRequest("https://openlimiter.com/app/pair/api/renew"));
     expect(response.status).toBe(401);
+    expect((await response.json()).error).toBe("no_pair");
   });
 
   it("rotates both cookies and answers only the new expiry", async () => {
@@ -676,7 +678,7 @@ describe("the renew route: reads the refresh cookie, never a body", () => {
     expect(response.cookies.get(PHONE_REFRESH_COOKIE)?.value).toBe("");
   });
 
-  it("keeps the cookies untouched on a bare 401", async () => {
+  it("answers no_pair for an expired refresh credential", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -690,7 +692,8 @@ describe("the renew route: reads the refresh cookie, never a body", () => {
         `${PHONE_REFRESH_COOKIE}=credential.one`,
       ),
     );
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(401);
+    expect((await response.json()).error).toBe("no_pair");
     expect(response.cookies.get(PHONE_TOKEN_COOKIE)).toBeUndefined();
   });
 });
@@ -897,6 +900,45 @@ function fetchRoutedTo(
 }
 
 describe("the pair page", () => {
+  it("serialises approval polling, pauses while hidden, and polls immediately on return", async () => {
+    vi.useFakeTimers({ now: NOW });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    let calls = 0;
+    let active = 0;
+    let maximumActive = 0;
+    let release: () => void = () => {};
+    const poll = serialPoll(async () => {
+      calls += 1;
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      if (calls === 1) await new Promise<void>((resolve) => { release = resolve; });
+      active -= 1;
+    }, 2_000);
+    await flush(3);
+    expect(calls).toBe(1);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(calls).toBe(1);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(calls).toBe(1);
+    release();
+    await flush(3);
+    expect(maximumActive).toBe(1);
+    poll.stop();
+
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    let foregroundCalls = 0;
+    const foregroundPoll = serialPoll(async () => { foregroundCalls += 1; }, 60_000);
+    await flush(2);
+    expect(foregroundCalls).toBe(0);
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await flush(3);
+    expect(foregroundCalls).toBe(1);
+    foregroundPoll.stop();
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  });
+
   it("16: recovers a missing access cookie even when the local expiry still looks valid", async () => {
     window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: Date.now() / 1000 + 80_000 }));
     const calls: string[] = [];
@@ -945,7 +987,7 @@ describe("the pair page", () => {
     expect(reads).toBe(3);
     await mounted.run(async () => { document.dispatchEvent(new Event("visibilitychange")); });
     expect(reads).toBe(4);
-    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(190_000); });
+    await mounted.run(async () => { await vi.advanceTimersByTimeAsync(320_000); });
     expect(mounted.container.querySelector("[data-state=stale]")).not.toBeNull();
     fail = true;
     await mounted.run(async () => { window.dispatchEvent(new Event("focus")); });
@@ -988,6 +1030,18 @@ describe("the pair page", () => {
     await flush(6);
     expect(calls).toEqual(["renew", "renew", "read"]);
     expect(mounted.container.textContent).toContain(hub.pairPage.bars.title);
+  });
+
+  it("clears the local pairing marker when renewal reports no_pair", async () => {
+    vi.useFakeTimers({ now: NOW });
+    window.localStorage.setItem(PHONE_PAIR_META_KEY, JSON.stringify({ label: "Test phone", expiresAt: NOW / 1_000 - 1 }));
+    vi.stubGlobal("fetch", fetchRoutedTo({
+      "/app/pair/api/renew": () => new Response(JSON.stringify({ error: "no_pair" }), { status: 401 }),
+    }));
+    mounted = render(createElement(PairFlow));
+    await flush(8);
+    expect(readPhonePairMeta()).toBeNull();
+    expect(mounted.container.textContent).toContain("This link has no pairing code");
   });
   beforeEach(() => {
     stubMatchMedia(true);

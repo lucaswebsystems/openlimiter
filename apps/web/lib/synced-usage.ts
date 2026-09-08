@@ -74,6 +74,35 @@ function instantOf(value: unknown): string | null {
   return Number.isFinite(milliseconds) ? new Date(milliseconds).toISOString() : null;
 }
 
+function currencyOf(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  if (CURRENCY_PATTERN.test(value)) return value;
+  const suffix = value.match(/_([A-Z]{3})$/u)?.[1] ?? null;
+  return suffix !== null && CURRENCY_PATTERN.test(suffix) ? suffix : null;
+}
+
+function utcDate(value: Date): string {
+  return [value.getUTCFullYear(), String(value.getUTCMonth() + 1).padStart(2, "0"), String(value.getUTCDate()).padStart(2, "0")].join("-");
+}
+
+export function syncedPeriodOf(periodStart: string, periodEnd: string): {
+  start: string;
+  end: string;
+  mode: "through" | "upTo";
+} {
+  const start = new Date(periodStart);
+  const end = new Date(periodEnd);
+  const midnight = end.getUTCHours() === 0 && end.getUTCMinutes() === 0 && end.getUTCSeconds() === 0 && end.getUTCMilliseconds() === 0;
+  if (midnight) {
+    end.setUTCDate(end.getUTCDate() - 1);
+  }
+  return {
+    start: utcDate(start),
+    end: utcDate(end),
+    mode: midnight ? "through" : "upTo",
+  };
+}
+
 /**
  * One usage row, or nothing.
  *
@@ -167,7 +196,7 @@ export function apiSpendOf(value: unknown): SyncedApiSpend | null {
   const row = value as Record<string, unknown>;
   const provider = typeof row.provider === "string" ? row.provider : "";
   const accountId = typeof row.account_id === "string" ? row.account_id : "";
-  const currency = typeof row.currency === "string" ? row.currency : "";
+  const currency = currencyOf(row.currency);
   if ((typeof row.amount_minor !== "number" && typeof row.amount_minor !== "string") ||
       (typeof row.amount_minor === "string" && row.amount_minor.trim() === "")) return null;
   const amountMinor = Number(row.amount_minor);
@@ -176,7 +205,7 @@ export function apiSpendOf(value: unknown): SyncedApiSpend | null {
   const observedAt = instantOf(row.observed_at);
   if (
     !PROVIDER_PATTERN.test(provider) || !ACCOUNT_PATTERN.test(accountId) ||
-    !CURRENCY_PATTERN.test(currency) || !Number.isSafeInteger(amountMinor) || amountMinor < 0 ||
+    currency === null || !Number.isSafeInteger(amountMinor) || amountMinor < 0 ||
     periodStart === null || periodEnd === null || observedAt === null ||
     Date.parse(periodStart) >= Date.parse(periodEnd)
   ) {

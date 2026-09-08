@@ -287,13 +287,32 @@ export async function revokeProDevice(
  * entirely. There is no query to strip, no fragment to forget, and no crafted
  * link that can steer where a completed sign in lands.
  */
-export function authRedirectUrl(): string {
-  const url = new URL(window.location.pathname, window.location.origin);
-  const params = new URLSearchParams(window.location.search);
+function safeRedirectPath(pathname: string): string {
+  if (
+    !pathname.startsWith("/") ||
+    pathname.startsWith("//") ||
+    pathname.includes("\\") ||
+    /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(pathname)
+  ) {
+    return "/app";
+  }
+  return pathname;
+}
+
+export function authRedirectUrl(
+  pathname: string = window.location.pathname,
+  search: string = window.location.search,
+): string {
+  const origin = window.location.origin;
+  const url = new URL(origin);
+  url.pathname = safeRedirectPath(pathname);
+  if (url.origin !== origin) return `${origin}/app`;
+  const params = new URLSearchParams(search);
   const rawCode = params.get("code");
-  const code = rawCode !== null && rawCode.length <= 64 ? cleanCliCode(rawCode) : "";
-  if (url.pathname === "/app/cli" && validateCliCode(code).valid) {
-    url.searchParams.set("code", code);
+  const code = rawCode === null ? "" : cleanCliCode(rawCode);
+  const boundedCode = code.length <= 64 ? code : "";
+  if (url.pathname === "/app/cli" && validateCliCode(boundedCode).valid) {
+    url.searchParams.set("code", boundedCode);
   }
   if (url.pathname === "/app" && params.get("trial") === "1") url.searchParams.set("trial", "1");
   return url.href;

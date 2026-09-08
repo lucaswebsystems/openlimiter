@@ -7,6 +7,7 @@ import {
   groupLatestSyncedUsage,
   readSyncedApiSpend,
   readSyncedUsage,
+  syncedPeriodOf,
 } from "@/lib/synced-usage";
 
 /**
@@ -59,7 +60,7 @@ const SPEND_ROWS = [
     device_id: "9c1d4f60-2e83-4b17-8a5c-71e0d3f95b46",
     provider: "OPENROUTER",
     account_id: "openrouter-personal",
-    currency: "USD",
+    currency: "PROVIDER_USD",
     amount_minor: 4090,
     period_start: "2026-09-01T00:00:00.000Z",
     period_end: "2026-09-07T12:00:00.000Z",
@@ -225,6 +226,25 @@ describe("the spend read path", () => {
           observedAt: "2026-09-07T12:00:00.000Z",
         },
       ],
+    });
+  });
+
+  it("canonicalises provider currency sources and keeps plain ISO currencies", () => {
+    expect(apiSpendOf({ ...SPEND_ROWS[0], currency: "PROVIDER_USD" })?.currency).toBe("USD");
+    expect(apiSpendOf({ ...SPEND_ROWS[0], currency: "USD" })?.currency).toBe("USD");
+    expect(apiSpendOf({ ...SPEND_ROWS[0], currency: "PROVIDER_DOLLARS" })).toBeNull();
+  });
+
+  it("renders half open periods with an exclusive end", () => {
+    expect(syncedPeriodOf("2026-09-01T00:00:00.000Z", "2026-09-08T00:00:00.000Z")).toEqual({
+      start: "2026-09-01",
+      end: "2026-09-07",
+      mode: "through",
+    });
+    expect(syncedPeriodOf("2026-09-01T00:00:00.000Z", "2026-09-07T12:00:00.000Z")).toEqual({
+      start: "2026-09-01",
+      end: "2026-09-07",
+      mode: "upTo",
     });
   });
 

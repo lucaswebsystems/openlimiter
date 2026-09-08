@@ -11,6 +11,7 @@ import {
   stopAccountClient,
   writeKeepSignedIn,
 } from "@/lib/account-client";
+import { clearIntent } from "@/lib/pending-intent";
 import {
   openProBilling,
   proAccessState,
@@ -131,7 +132,10 @@ export function ProPortal({ locale }: { locale: string }) {
 
   /** Listen to one client, and be able to attach again after a failed move. */
   const attachAuthListener = useCallback((client: SupabaseClient) => {
-    const { data } = client.auth.onAuthStateChange((_event, next) => setSession(next));
+    const { data } = client.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+      if (next === null) clearIntent();
+    });
     authListener.current = data.subscription;
   }, []);
 
@@ -462,7 +466,7 @@ export function ProPortal({ locale }: { locale: string }) {
       )}
 
       <div className="flex justify-end">
-        <Button tone="quiet" onClick={() => void supabase.auth.signOut()}>
+        <Button tone="quiet" onClick={() => { clearIntent(); void supabase.auth.signOut(); }}>
           {t("signOut")}
         </Button>
       </div>

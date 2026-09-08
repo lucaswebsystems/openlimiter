@@ -2023,7 +2023,7 @@
     }
   },
   "hub": {
-    "syncedSpend": { "source": "Desktop sync: {provider}, {account}, {start} to {end}" },
+    "syncedSpend": { "sourceThrough": "Desktop sync: {provider}, {account}, {start} through {end}", "sourceUpTo": "Desktop sync: {provider}, {account}, {start} up to {end}" },
     "addAccount": "Add account",
     "configuration": "Configuration",
     "backToBars": "Back to bars",
@@ -2212,6 +2212,11 @@
     },
     "cloud": {
       "observed": "Observed {time}",
+      "fresh": "Fresh",
+      "stale": "Stale",
+      "observationAge": "Observed {minutes} minutes ago",
+      "observationUnknown": "Observation age unknown",
+      "stateAnnouncement": "Reading is {state}",
       "title": "Meter from the cloud",
       "lead": "Spend meters the cloud polls on its own, so the hub and your phone read them with no device running.",
       "needsPro": {

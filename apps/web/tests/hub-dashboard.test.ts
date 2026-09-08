@@ -58,10 +58,14 @@ vi.mock("next-intl", async () => {
 vi.mock("@/app/app/notification-bell", () => ({ NotificationBell: () => null }));
 vi.mock("@/app/app/install", () => ({ InstallControl: () => null }));
 
-vi.mock("@/lib/synced-usage", () => ({
-  readSyncedApiSpend: () => currentSpend(),
-  readSyncedUsage: () => currentRead(),
-}));
+vi.mock("@/lib/synced-usage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/synced-usage")>();
+  return {
+    ...actual,
+    readSyncedApiSpend: () => currentSpend(),
+    readSyncedUsage: () => currentRead(),
+  };
+});
 
 vi.mock("@/lib/account-client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/account-client")>();
@@ -206,8 +210,8 @@ describe("which view a session lands on", () => {
     expect(spend).toHaveBeenCalled();
     expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, personal");
     expect(view.container.textContent).toContain(new Intl.NumberFormat(undefined, { style: "currency", currency: "JPY" }).format(1250));
-    expect(view.container.textContent).toContain(new Date("2026-09-01T00:00:00Z").toLocaleDateString(undefined, { timeZone: "UTC" }));
-    expect(view.container.textContent).toContain(new Date("2026-10-01T00:00:00Z").toLocaleDateString(undefined, { timeZone: "UTC" }));
+    expect(view.container.textContent).toContain("2026-09-01");
+    expect(view.container.textContent).toContain("2026-09-30");
   });
   it("19 and 20: loads both spend sources with quota on initial read, polling, focus and manual sync", async () => {
     vi.useFakeTimers({ now: Date.parse("2026-09-08T12:00:00Z") });
@@ -221,8 +225,8 @@ describe("which view a session lands on", () => {
     const view = await open();
     await flush(6);
     expect(view.container.textContent).toContain("Desktop sync: OPENROUTER, work");
-    expect(view.container.textContent).toContain(new Date("2026-09-01T00:00:00Z").toLocaleDateString(undefined, { timeZone: "UTC" }));
-    expect(view.container.textContent).toContain(new Date("2026-10-01T00:00:00Z").toLocaleDateString(undefined, { timeZone: "UTC" }));
+    expect(view.container.textContent).toContain("2026-09-01");
+    expect(view.container.textContent).toContain("2026-09-30");
     expect(view.container.textContent).toContain("Cloud account");
     const currency = (value: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(value);
     expect(view.container.textContent).toContain(currency(12.34));

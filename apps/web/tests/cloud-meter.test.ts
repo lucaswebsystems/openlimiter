@@ -97,12 +97,22 @@ describe("the wire shape", () => {
       .toMatchObject({ amount: null, currency: null });
   });
 
-  it("19: preserves the observation time and ages an old successful amount", () => {
-    const row = cloudMeterKeyOf({ id: "k1", provider: "xai", label: "Usage", amount: 10, currency: "USD", last_status: "ok", observed_at: "2026-09-08T12:00:00Z" });
+  it("19: reads the real poll field and ages an old successful amount", () => {
+    const row = cloudMeterKeyOf({ id: "k1", provider: "xai", label: "Usage", amount: 10, currency: "USD", last_status: "ok", last_polled_at: "2026-09-08T12:00:00Z" });
     expect(row?.observedAt).toBe("2026-09-08T12:00:00.000Z");
     mounted = render(createElement(CloudSpendRows, { rows: [row!], now: "2026-09-08T12:06:00Z" }));
     expect(mounted.container.querySelector("[data-state=stale]")).not.toBeNull();
     expect(mounted.container.textContent).toContain("Observed");
+    expect(mounted.container.textContent).toContain("Stale");
+  });
+
+  it("treats a future poll as stale with an unknown age", () => {
+    const row = cloudMeterKeyOf({ id: "k1", provider: "xai", label: "Usage", amount: 10, currency: "USD", last_status: "ok", last_polled_at: "2026-09-08T12:01:00Z" });
+    expect(row?.observedAt).toBe("2026-09-08T12:01:00.000Z");
+    mounted = render(createElement(CloudSpendRows, { rows: [row!], now: "2026-09-08T12:00:00Z" }));
+    expect(mounted.container.querySelector("[data-state=stale]")).not.toBeNull();
+    expect(mounted.container.textContent).toContain("Observation age unknown");
+    expect(mounted.container.querySelector(".sr-only")?.textContent).toContain("Stale");
   });
   it("parses a stored row and rejects one missing a required field", () => {
     const row = cloudMeterKeyOf({
@@ -449,7 +459,7 @@ describe("the bars view's cloud spend rows", () => {
     const client = fakeClient(async () => ({
       data: {
         rows: [
-          { id: "k1", provider: "xai", label: "My xAI key", last_status: "ok", amount: 9.5, currency: "USD" },
+          { id: "k1", provider: "xai", label: "My xAI key", last_status: "ok", amount: 9.5, currency: "USD", last_polled_at: "2026-09-08T12:00:00.000Z" },
           { id: "k2", provider: "moonshot", label: "Unpolled key", last_status: "needs_attention" },
         ],
       },
@@ -526,6 +536,20 @@ describe("the OpenRouter callback page", () => {
     mounted.unmount();
     mounted = null;
     expect(stop).toHaveBeenCalledWith(client);
+  });
+
+  it("scrubs the callback and consumes the verifier when the session is lost", async () => {
+    storeOpenRouterVerifier("lost-session", "verifier-lost");
+    window.history.replaceState(null, "", "/app/openrouter/callback?code=abc123&n=lost-session");
+    const client = fakeClient(async () => ({ data: null, error: null }));
+    mounted = render(createElement(OpenRouterCallbackPage, {
+      client,
+      session: null,
+      search: "?code=abc123&n=lost-session",
+    }));
+    await flush(5);
+    expect(window.location.search).toBe("");
+    expect(takeOpenRouterVerifier("lost-session")).toBeNull();
   });
 
   it("18: recovers when session lookup rejects", async () => {

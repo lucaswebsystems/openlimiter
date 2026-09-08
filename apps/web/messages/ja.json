@@ -2023,7 +2023,7 @@
     }
   },
   "hub": {
-    "syncedSpend": { "source": "デスクトップから同期：{provider}、{account}、{start} から {end}" },
+    "syncedSpend": { "sourceThrough": "デスクトップから同期：{provider}、{account}、{start}から{end}まで", "sourceUpTo": "デスクトップから同期：{provider}、{account}、{start}から{end}まで" },
     "addAccount": "アカウントを追加",
     "configuration": "設定",
     "backToBars": "バー表示に戻る",
@@ -2212,6 +2212,11 @@
     },
     "cloud": {
       "observed": "観測日時 {time}",
+      "fresh": "最新",
+      "stale": "古い",
+      "observationAge": "{minutes}分前に観測",
+      "observationUnknown": "観測時刻は不明",
+      "stateAnnouncement": "読み取り状態: {state}",
       "title": "クラウドから測定",
       "lead": "クラウドが自動で確認する支出メーターなので、端末を起動していなくてもハブとスマートフォンで読み取れます。",
       "needsPro": {
