@@ -867,8 +867,13 @@ export function claudePollRow(options, enabled, onPersisted, id = "first-run-cla
       .setClaudePoll(requested)
       .catch(() => ({ ok: false }))
       .then((result) => {
-        input.checked = persistedToggleValue(previous, requested, result);
+        const settled = persistedToggleValue(previous, requested, result);
+        input.checked = settled;
         input.disabled = false;
+        /* The caller keeps its own copy of the setting, so a row rebuilt
+           after this point draws what was actually stored, not the value
+           the page started with. */
+        if (settled === requested && typeof onPersisted === "function") onPersisted(settled);
       });
   });
   wrapper.append(label, note);
