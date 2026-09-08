@@ -1,5 +1,6 @@
 export * from "./acquire/index.js";
 export * from "./cache.js";
+export * from "./bounded-stream.js";
 export * from "./collection.js";
 export * from "./connection-state.js";
 export * from "./failures.js";

@@ -7,3 +7,4 @@ export * from "./runner.js";
 export * from "./transport.js";
 export * from "./windows-credential.js";
 export * from "./antigravity-probe.js";
+export * from "./antigravity-meters.js";

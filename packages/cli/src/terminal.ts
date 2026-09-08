@@ -1070,7 +1070,8 @@ export async function terminalShow(
     ...config,
     statusline: {
       ...config.statusline,
-      show: currentShow
+      show: currentShow,
+      showMode: "explicit" as const
     }
   };
 
@@ -1116,7 +1117,7 @@ export async function terminalHide(
   }
 
   let currentShow: string[];
-  if (config.statusline.show.length === 0) {
+  if (config.statusline.show.length === 0 && config.statusline.showMode !== "explicit") {
     const allProviders = connectors.map((c) => c.id);
     currentShow = allProviders.filter(
       (id) => !providerIds.map((p) => p.toLowerCase()).includes(id.toLowerCase())
@@ -1131,7 +1132,8 @@ export async function terminalHide(
     ...config,
     statusline: {
       ...config.statusline,
-      show: currentShow
+      show: currentShow,
+      showMode: "explicit" as const
     }
   };
 

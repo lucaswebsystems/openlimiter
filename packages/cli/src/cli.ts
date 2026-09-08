@@ -1,5 +1,7 @@
 import {
   ACQUISITION_OUTCOME_SENTENCE,
+  ACQUISITION_PROVIDERS,
+  registerManagedCodexAccount,
   CREDENTIAL_FAILURE_SENTENCE,
   PROVIDER_CODES,
   acquireRefreshLock,
@@ -166,11 +168,12 @@ import {
   isAborted,
   runDeviceLogin
 } from "./hub-auth.js";
-import { runSync } from "./hub-sync.js";
+import { runSync, syncIsDue, recordSyncAttempt } from "./hub-sync.js";
 import {
   deleteSession,
   readSession,
   writeSession,
+  withSessionLock,
   type HubSession
 } from "./session.js";
 import {
@@ -669,6 +672,7 @@ function credentialReader(
           };
     }
     return await readAcquisitionCredential(provider, {
+      ...(dependencies.stateDirectory === undefined ? {} : { stateDirectory: dependencies.stateDirectory }),
       platform: dependencies.platform,
       environment: dependencies.environment,
       homeDirectory: dependencies.homeDirectory,
@@ -860,6 +864,7 @@ async function refreshCommand(
 ): Promise<CliResult> {
   const lock = await acquireRefreshLock(dependencies.stateDirectory);
   if (!lock.ok) {
+    if (lock.reason === "unavailable") return fail(EXIT_FAILURE, "openlimiter refresh: the refresh did not complete.");
     return succeed([
       ACQUISITION_HEADER,
       "SKIPPED another refresh is already running on this machine"
@@ -874,7 +879,12 @@ async function refreshCommand(
      * lock where the answer cannot change underneath it.
      */
     const settled = await readSnapshotCache(dependencies.stateDirectory);
-    if (desktopHoldsCache(settled.ok ? settled.snapshots : [], now)) {
+    const providers = await readProvidersConfig(dependencies.stateDirectory);
+    const specs = acquisitionSpecs(providers).filter((spec) => !desktopHoldsCache(
+      settled.ok ? settled.snapshots.filter((row) => row.provider === spec.provider) : [], now
+    ));
+    if (specs.length === 0) {
+      await triggerSyncAfterRefresh(dependencies, now);
       return succeed([
         ACQUISITION_HEADER,
         "SKIPPED the desktop app refreshed this cache inside the last interval"
@@ -882,9 +892,8 @@ async function refreshCommand(
     }
     /* A round that got this far is proof a refresh can start on this machine. */
     await clearRefreshSpawnFailure(dependencies.stateDirectory);
-    const providers = await readProvidersConfig(dependencies.stateDirectory);
     const schedule = await readAcquisitionSchedule(dependencies.stateDirectory);
-    const result = await runAcquisition(acquisitionSpecs(providers), {
+    const result = await runAcquisition(specs, {
       transport: dependencies.acquisitionTransport,
       now,
       schedule,
@@ -968,8 +977,10 @@ async function startRefreshBehind(
   now: string
 ): Promise<void> {
   try {
+    const directory = dependencies.stateDirectory ?? resolveStateDirectory();
+    const syncDue = await readSession(directory) !== null && await syncIsDue(directory, now);
     await spawnDetachedRefresh({
-      snapshots,
+      snapshots: syncDue ? [] : snapshots,
       now,
       ...(dependencies.stateDirectory === undefined
         ? {}
@@ -1816,9 +1827,14 @@ async function detectedProviderIds(
     dependencies.environment,
     dependencies.stateDirectory
   );
-  return connectors
+  const detected = new Set<string>(connectors
     .filter((connector) => connector.detect(environment))
-    .map((connector) => connector.id);
+    .map((connector) => connector.id));
+  const reader = credentialReader(dependencies);
+  for (const provider of ACQUISITION_PROVIDERS) {
+    if ((await reader(provider)).ok) detected.add(provider.toLowerCase());
+  }
+  return [...detected];
 }
 
 function terminalContext(
@@ -2005,11 +2021,17 @@ async function persistRenewedSession(
  * being treated as an ordinary network failure.
  */
 async function syncCommand(dependencies: CliDependencies, now: string): Promise<CliResult> {
+  return await withSessionLock(dependencies.stateDirectory ?? resolveStateDirectory(),
+    async () => await syncCommandLocked(dependencies, now));
+}
+
+async function syncCommandLocked(dependencies: CliDependencies, now: string): Promise<CliResult> {
   const directory = dependencies.stateDirectory ?? resolveStateDirectory();
   const session = await readSession(directory);
   if (session === null) {
     return fail(EXIT_FAILURE, "openlimiter sync: not signed in, run openlimiter login.");
   }
+  await recordSyncAttempt(directory, now);
   const renewal = await ensureFreshSession(session, now, dependencies.environment, dependencies.hubTransport);
   if (renewal.kind === "revoked") {
     await deleteSession(directory);
@@ -2062,28 +2084,7 @@ async function triggerSyncAfterRefresh(
   now: string
 ): Promise<void> {
   try {
-    const directory = dependencies.stateDirectory ?? resolveStateDirectory();
-    const session = await readSession(directory);
-    if (session === null) return;
-    const renewal = await ensureFreshSession(session, now, dependencies.environment, dependencies.hubTransport);
-    if (renewal.kind === "revoked") {
-      await deleteSession(directory);
-      return;
-    }
-    if (renewal.kind === "error") return;
-    if (renewal.kind === "renewed") await persistRenewedSession(dependencies, renewal.session);
-    const active = renewal.session;
-    const snapshots = await cachedSnapshots(dependencies.stateDirectory);
-    const outcome = await runSync({
-      directory,
-      environment: dependencies.environment,
-      transport: dependencies.hubTransport,
-      now,
-      token: active.token,
-      deviceId: active.deviceId,
-      snapshots
-    });
-    if (outcome.kind === "revoked") await deleteSession(directory);
+    await syncCommand(dependencies, now);
   } catch {
     /* A refresh that could not sync still refreshed. */
   }
@@ -2101,6 +2102,7 @@ async function promptOrSkip(dependencies: CliDependencies, question: string): Pr
 /** Step one: sign in, or say plainly why this machine did not. */
 async function setupSignInStep(dependencies: CliDependencies): Promise<string[]> {
   const lines: string[] = ["1. Sign in", SETUP_SIGN_IN_PROMPT];
+  lines.forEach(dependencies.emit);
   const existing = await readSession(dependencies.stateDirectory);
   if (existing !== null) {
     lines.push("Already signed in as " + existing.accountLabel + ".");
@@ -2224,7 +2226,14 @@ async function runCodexDeviceSignIn(
       return "Codex: sign in cancelled.";
     }
     const state = await session.state(Date.now());
-    if (state.kind === "complete") return "Codex: signed in.";
+    if (state.kind === "complete") {
+      if (!(await registerManagedCodexAccount(stateDirectory, sessionId, dependencies.now())) ||
+          !(await credentialReader(dependencies)("CODEX")).ok) {
+        return "Codex: " + codexFailureSentence("storage") + ".";
+      }
+      await refreshCommand(dependencies, dependencies.now());
+      return "Codex: signed in.";
+    }
     if (state.kind === "cancelled") return "Codex: sign in cancelled.";
     if (state.kind === "timed_out") return "Codex: sign in timed out.";
     if (state.kind === "failed") {
@@ -2241,6 +2250,7 @@ async function runCodexDeviceSignIn(
 /** Step two: detect installed agent CLIs and their logins, one row each. */
 async function setupConnectStep(dependencies: CliDependencies): Promise<string[]> {
   const lines: string[] = ["2. Connect"];
+  dependencies.emit(lines[0]!);
   const environment = await environmentWithLocalMarkers(
     dependencies.environment,
     dependencies.stateDirectory
@@ -2249,12 +2259,15 @@ async function setupConnectStep(dependencies: CliDependencies): Promise<string[]
   let codexInstalled: AgentInstallation | null = null;
   let codexNeedsSignIn = false;
   for (const agent of CONNECT_AGENT_IDS) {
-    const installed = await detectAgentInstallation(agent, {
-      environment,
-      platform: dependencies.platform
-    });
+    const installed = Object.prototype.hasOwnProperty.call(dependencies.detectedAgentInstallations, agent)
+      ? dependencies.detectedAgentInstallations[agent] ?? null
+      : await detectAgentInstallation(agent, {
+        environment,
+        platform: dependencies.platform
+      });
     const state = await connectRowState(agent, installed, readCredential);
     lines.push(agent + ": " + CONNECT_ROW_LABEL[state]);
+    dependencies.emit(lines[lines.length - 1]!);
     if (agent === "codex") {
       codexInstalled = installed;
       codexNeedsSignIn = state === "sign_in";
@@ -2282,10 +2295,19 @@ const CONNECT_AGENT_IDS: readonly AgentId[] = [
   "opencode"
 ];
 
-/** Step three: the existing terminal checklist, unchanged. */
+/** Step three: show the checklist and install each host the person selects. */
 async function setupShowBarsStep(dependencies: CliDependencies): Promise<string[]> {
   const result = await terminalCommand(dependencies, ["terminal"]);
-  return ["3. Show bars in", result.stdout];
+  const lines = ["3. Show bars in", result.stdout];
+  lines.forEach(dependencies.emit);
+  for (const host of TERMINAL_HOST_NAMES) {
+    if (await promptOrSkip(dependencies, host + ": Enter to install, S to skip: ")) {
+      const installed = await terminalCommand(dependencies, ["terminal", "install", host]);
+      lines.push(installed.stdout || installed.stderr);
+      dependencies.emit(lines[lines.length - 1]!);
+    }
+  }
+  return lines;
 }
 
 /**
@@ -2297,6 +2319,8 @@ async function setupCommand(dependencies: CliDependencies, now: string): Promise
   sections.push(...(await setupSignInStep(dependencies)));
   sections.push(...(await setupConnectStep(dependencies)));
   sections.push(...(await setupShowBarsStep(dependencies)));
+  const collected = await refreshCommand(dependencies, now);
+  if (collected.exitCode !== 0) sections.push(collected.stderr);
   const snapshots = await cachedSnapshots(dependencies.stateDirectory);
   sections.push(renderTable(snapshots, now, dependencies.colorOutput));
   return succeed(sections.join(NEWLINE));

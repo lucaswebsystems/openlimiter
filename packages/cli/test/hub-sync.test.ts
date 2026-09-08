@@ -75,6 +75,8 @@ function spendSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
     currency: "USD",
     accountId: "openrouter-key",
     accountLabel: "OpenRouter key",
+    window: { kind: "fixed", durationSeconds: 30 * 86400 },
+    resetAt: "2026-10-01T00:00:00.000Z",
     ...overrides
   });
 }

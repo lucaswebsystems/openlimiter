@@ -6,6 +6,7 @@ import {
 } from "@openlimiter/connectors";
 import {
   mergeSnapshotCache,
+  antigravityMeter,
   readJsonFileSafely,
   resolveStateDirectory,
   type CacheMergeResult,
@@ -35,6 +36,7 @@ export async function readStandardInputBuffer(
   if (stream.isTTY === true) return Buffer.alloc(0);
   return await new Promise<Buffer>((resolve) => {
     const chunks: Buffer[] = [];
+    let total = 0;
     let settled = false;
     const finish = (): void => {
       if (settled) return;
@@ -47,6 +49,14 @@ export async function readStandardInputBuffer(
       resolve(Buffer.concat(chunks));
     };
     const onData = (chunk: Buffer | string): void => {
+      const length = typeof chunk === "string" ? Buffer.byteLength(chunk) : chunk.length;
+      if (length > STDIN_BYTE_LIMIT - total) {
+        chunks.length = 0;
+        finish();
+        stream.destroy();
+        return;
+      }
+      total += length;
       chunks.push(Buffer.from(chunk));
     };
     const onEnd = (): void => finish();
@@ -110,6 +120,7 @@ export async function readStandardInputText(
       total += chunk.length;
       if (total > byteLimit) {
         finish(null);
+        stream.destroy();
         return;
       }
       chunks.push(chunk);
@@ -182,25 +193,9 @@ export function parseAntigravityStatuslinePayload(
     const fraction = Math.max(0, Math.min(1, remaining));
     const value = Math.round(Math.max(0, Math.min(100, (1 - fraction) * 100)) * 10) / 10;
 
-    let meterCode: string;
-    let durationSeconds = 18_000;
-    const idLower = bucketId.toLowerCase();
-    if (idLower === "gemini-5h" || idLower === "3p-5h" || idLower.endsWith("-5h") || idLower.includes("5h")) {
-      meterCode = "FIVE_HOUR";
-      durationSeconds = 18_000;
-    } else if (
-      idLower === "gemini-weekly" ||
-      idLower === "3p-weekly" ||
-      idLower.endsWith("-weekly") ||
-      idLower.includes("weekly") ||
-      idLower.includes("7d")
-    ) {
-      meterCode = "SEVEN_DAY";
-      durationSeconds = 604_800;
-    } else {
-      // Drop unknown bucket IDs; do not fabricate fake meters
-      continue;
-    }
+    const mapped = antigravityMeter(bucketId.toLowerCase());
+    if (mapped === null) continue;
+    const { meter: meterCode, durationSeconds } = mapped;
 
     const resetTime = typeof b["reset_time"] === "string"
       ? b["reset_time"]
@@ -211,9 +206,9 @@ export function parseAntigravityStatuslinePayload(
       ? b["reset_in_seconds"]
       : typeof b["resetInSeconds"] === "number"
         ? b["resetInSeconds"]
-        : null;
+        : typeof b["resetsInSeconds"] === "number" ? b["resetsInSeconds"] : null;
 
-    let resetAt: string | undefined = undefined;
+    let resetAt: string | null = null;
     if (resetTime && !Number.isNaN(Date.parse(resetTime))) {
       resetAt = new Date(resetTime).toISOString();
     } else if (resetInSeconds !== null && !Number.isNaN(resetInSeconds) && resetInSeconds >= 0) {

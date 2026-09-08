@@ -470,11 +470,12 @@ export function barStyleCells(
   show: readonly string[],
   metersSetting: StatuslineConfig["meters"],
   color: boolean,
-  wide?: boolean
+  wide?: boolean,
+  explicitSelection = false
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
   const hostProvider = HOST_PROVIDER[host];
-  const allowedProviders = show.length === 0
+  const allowedProviders = show.length === 0 && !explicitSelection
     ? null
     : new Set(show.map((s) => s.toLowerCase()));
 
@@ -515,11 +516,12 @@ export function barStyleCells(
       const { snapshot, state } = reading;
       const providerTag = provider === hostProvider ? "" : shortTag;
 
-      if (snapshot.unit === "CREDITS" || snapshot.provider === "OPENROUTER") {
+      if (snapshot.usedAmount !== undefined && snapshot.currency === "USD") {
+        const age = (Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000;
         const tag = providerTag || shortTag;
-        const amount = snapshot.value.toFixed(2);
-        const plain = tag + " $" + amount;
-        cells.push({ plain, painted: plain, percent: snapshot.value });
+        const plain = age >= 900 ? tag + " [?]" :
+          (state === "stale" || age >= 180 ? "~" : "") + tag + " spend $" + snapshot.usedAmount.toFixed(2);
+        cells.push({ plain, painted: color && (state === "stale" || age >= 180) ? "\x1b[90m" + plain + "\x1b[0m" : plain, percent: snapshot.value });
         continue;
       }
 
@@ -620,7 +622,8 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
     config.show,
     config.meters,
     input.color,
-    input.wide
+    input.wide,
+    config.showMode === "explicit"
   );
   if (cells.length === 0) return STATUSLINE_UNKNOWN;
 
@@ -679,7 +682,9 @@ export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
     const cells = statuslineCells(
       input.snapshots,
       input.now,
-      resolveProviderOrder(config.order),
+      resolveProviderOrder(config.order).filter((provider) =>
+        config.show.length === 0 && config.showMode !== "explicit" ||
+        config.show.includes(provider.toLowerCase()) || config.show.includes(PROVIDER_SHORT_TAGS[provider])),
       config.meters,
       input.color,
       input.wide

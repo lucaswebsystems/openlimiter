@@ -244,7 +244,7 @@ describe("openlimiter refresh", () => {
     expect(await cachedProviders(state)).toEqual([]);
   });
 
-  it("stands down while the desktop app is refreshing this cache", async () => {
+  it("leaves the desktop owned provider alone while acquiring the other providers", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
     const desktopRow: Snapshot = {
@@ -272,8 +272,9 @@ describe("openlimiter refresh", () => {
       ["refresh"],
       dependencies(state, home, recorder.transport)
     );
-    expect(recorder.sent).toHaveLength(0);
-    expect(result.stdout).toContain("SKIPPED the desktop app");
+    expect(recorder.sent.some((request) => request.endpoint === "codex_usage")).toBe(false);
+    expect(recorder.sent.length).toBeGreaterThan(0);
+    expect(result.exitCode).toBe(0);
   });
 
   it("keeps a desktop row that appeared between its read and its write", async () => {

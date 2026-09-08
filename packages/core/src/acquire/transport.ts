@@ -13,6 +13,7 @@
  * response outside the success range has its body dropped unread.
  */
 import { OPENLIMITER_USER_AGENT } from "./identity.js";
+import { readBoundedResponse } from "../bounded-stream.js";
 
 /** One request's total budget, connect to last body byte. */
 export const ACQUISITION_TIMEOUT_MILLISECONDS = 15_000;
@@ -459,12 +460,13 @@ export function createFetchTransport(
       });
       const retryAfter = retryAfterSeconds(response.headers.get("retry-after"));
       if (response.status < 200 || response.status >= 300) {
+        void response.body?.cancel().catch(() => undefined);
         /* The body of a refusal is never read. It cannot help, and reading it
            is how a provider's prose reaches a log. */
         return { status: response.status, body: "", retryAfterSeconds: retryAfter };
       }
-      const buffer = await response.arrayBuffer();
-      if (buffer.byteLength > MAX_ACQUISITION_RESPONSE_BYTES) {
+      const buffer = await readBoundedResponse(response, MAX_ACQUISITION_RESPONSE_BYTES, controller);
+      if (buffer === null) {
         /* Status zero is this layer's way of saying the answer was refused
            before it was read, which the runner reads as too large. */
         return { status: 0, body: "", retryAfterSeconds: retryAfter };

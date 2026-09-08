@@ -17,6 +17,7 @@ import { randomUUID } from "node:crypto";
 import { lstat, open, readFile, unlink, utimes } from "node:fs/promises";
 import path from "node:path";
 import {
+  prepareStateDirectory,
   readJsonFileSafely,
   resolveStateDirectory,
   writeFileAtomically
@@ -151,19 +152,22 @@ export function shouldStartRefresh(
   now: string,
   staleSeconds = CACHE_REFRESH_STALE_SECONDS
 ): RefreshDecision {
-  if (desktopHoldsCache(snapshots, now)) {
+  const providers = [...new Set(snapshots.map((row) => row.provider))];
+  if (providers.length === 0) return { refresh: true };
+  const decisions = providers.map((provider) => {
+    const rows = snapshots.filter((row) => row.provider === provider);
+    if (desktopHoldsCache(rows, now)) return "desktop_running";
+    const age = cacheAgeSeconds(rows, now);
+    return age !== null && age >= 0 && age <= staleSeconds ? "fresh" : "due";
+  });
+  if (decisions.includes("due")) return { refresh: true };
+  if (decisions.every((decision) => decision === "desktop_running")) {
     return { refresh: false, reason: "desktop_running" };
   }
-  const age = cacheAgeSeconds(snapshots, now);
-  if (age !== null && age <= staleSeconds) return { refresh: false, reason: "fresh" };
-  return { refresh: true };
+  return { refresh: false, reason: "fresh" };
 }
 
 /* ------------------------------------------------------------------ lock */
-
-function lockPath(directory: string): string {
-  return path.join(directory, REFRESH_LOCK_NAME);
-}
 
 /**
  * Whether a refresh is running right now.
@@ -175,10 +179,11 @@ function lockPath(directory: string): string {
  */
 export async function refreshLockHeld(
   directory = resolveStateDirectory(),
-  nowMilliseconds = Date.now()
+  nowMilliseconds = Date.now(),
+  name = REFRESH_LOCK_NAME
 ): Promise<boolean> {
   try {
-    const observed = await lstat(lockPath(directory));
+    const observed = await lstat(path.join(directory, name));
     if (!Number.isFinite(observed.mtimeMs)) return true;
     return nowMilliseconds - observed.mtimeMs < REFRESH_LOCK_STALE_MILLISECONDS;
   } catch (error) {
@@ -217,9 +222,15 @@ export type RefreshLockResult =
  */
 export async function acquireRefreshLock(
   directory = resolveStateDirectory(),
-  nowMilliseconds = Date.now()
+  nowMilliseconds = Date.now(),
+  name = REFRESH_LOCK_NAME
 ): Promise<RefreshLockResult> {
-  const target = lockPath(directory);
+  try {
+    await prepareStateDirectory(directory);
+  } catch {
+    return { ok: false, reason: "unavailable" };
+  }
+  const target = path.join(directory, name);
   const token = JSON.stringify({ at: nowMilliseconds, id: randomUUID(), pid: process.pid });
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
@@ -260,11 +271,9 @@ export async function acquireRefreshLock(
       };
     } catch (error) {
       const code = errorCode(error);
-      if (code !== "EEXIST" && code !== "EPERM" && code !== "EACCES") {
-        return { ok: false, reason: "unavailable" };
-      }
+      if (code !== "EEXIST") return { ok: false, reason: "unavailable" };
       if (attempt > 0) return { ok: false, reason: "held" };
-      if (await refreshLockHeld(directory, nowMilliseconds)) {
+      if (await refreshLockHeld(directory, nowMilliseconds, name)) {
         return { ok: false, reason: "held" };
       }
       await unlink(target).catch(() => undefined);

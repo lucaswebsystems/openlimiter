@@ -16,6 +16,7 @@ import { execFile } from "node:child_process";
 import https from "node:https";
 import http from "node:http";
 import path from "node:path";
+import { antigravityMeter } from "./antigravity-meters.js";
 import type { ConnectorLabels, RawMeter } from "../types.js";
 import { OPENLIMITER_USER_AGENT } from "./identity.js";
 import type { CredentialCommandRunner } from "./windows-credential.js";
@@ -83,6 +84,7 @@ export interface AntigravityProbeOptions {
 }
 
 export interface EnumerateAgyPortsOptions {
+  readonly currentUserId?: number;
   readonly platform?: NodeJS.Platform;
   readonly runCommand?: CredentialCommandRunner;
   readonly resolveExecutablePath?: (pid: string) => Promise<string | null>;
@@ -92,7 +94,7 @@ export interface EnumerateAgyPortsOptions {
 /**
  * Parse the Connect protocol RetrieveUserQuotaSummary response.
  *
- * Maps gemini-5h to FIVE_HOUR (18,000s) and gemini-weekly to SEVEN_DAY (604,800s).
+ * Preserves Gemini and third party identities through the shared desktop mapping.
  * Percentage is rounded to 1 decimal place: (1 - remainingFraction) * 100.
  */
 export function parseAgyQuotaSummary(
@@ -117,21 +119,14 @@ export function parseAgyQuotaSummary(
     for (const item of buckets) {
       if (typeof item !== "object" || item === null) continue;
       const b = item as Record<string, unknown>;
-      const bucketId = typeof b["bucketId"] === "string" ? b["bucketId"] : "";
-      if (!bucketId.startsWith("gemini")) continue;
+      const bucketId = typeof b["bucketId"] === "string" ? b["bucketId"] :
+        typeof b["poolPrefix"] === "string" ? b["poolPrefix"] : "";
 
       const windowName =
         typeof b["window"] === "string" ? b["window"].toLowerCase() : "";
-      let meterCode: "FIVE_HOUR" | "SEVEN_DAY" | null = null;
-      let durationSeconds = 0;
-      if (windowName === "5h") {
-        meterCode = "FIVE_HOUR";
-        durationSeconds = 18_000;
-      } else if (windowName === "weekly") {
-        meterCode = "SEVEN_DAY";
-        durationSeconds = 604_800;
-      }
-      if (meterCode === null) continue;
+      const mapped = antigravityMeter(bucketId, windowName);
+      if (mapped === null) continue;
+      const { meter: meterCode, durationSeconds } = mapped;
 
       const remaining =
         typeof b["remainingFraction"] === "number" ? b["remainingFraction"] : null;
@@ -141,10 +136,12 @@ export function parseAgyQuotaSummary(
         Math.round(Math.max(0, Math.min(100, (1 - fraction) * 100)) * 10) / 10;
 
       const resetTime = typeof b["resetTime"] === "string" ? b["resetTime"] : null;
+      const resetSeconds = b["resetsInSeconds"];
       const resetAt =
         resetTime !== null && !Number.isNaN(Date.parse(resetTime))
           ? new Date(resetTime).toISOString()
-          : undefined;
+          : typeof resetSeconds === "number" && Number.isFinite(resetSeconds) && resetSeconds >= 0 && resetSeconds <= 604800
+            ? new Date(Date.parse(now) + resetSeconds * 1000).toISOString() : undefined;
 
       const expiresAt = new Date(new Date(now).getTime() + 300_000).toISOString();
 
@@ -341,7 +338,7 @@ export function parseLsofOutput(output: string): Array<{ pid: string; port: numb
 }
 
 /**
- * Valid install roots where legitimate software binaries are located.
+ * Canonical install directories, never broad download or application data roots.
  */
 export function getAgyInstallRoots(
   platform: NodeJS.Platform = process.platform,
@@ -350,27 +347,27 @@ export function getAgyInstallRoots(
   const roots: string[] = [];
   const hostPath = platform === "win32" ? path.win32 : path.posix;
   if (platform === "win32") {
-    const keys = ["LOCALAPPDATA", "APPDATA", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"];
+    const keys = ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"];
     for (const key of keys) {
       const val = env[key];
       if (val && val.trim().length > 0) {
-        roots.push(hostPath.normalize(val.trim()));
+        roots.push(hostPath.join(val.trim(), "Antigravity"));
       }
     }
+    const local = env["LOCALAPPDATA"];
+    if (local) roots.push(hostPath.join(local, "Programs", "Antigravity"));
     const userProfile = env["USERPROFILE"];
     if (userProfile && userProfile.trim().length > 0) {
-      roots.push(hostPath.normalize(hostPath.join(userProfile.trim(), "AppData", "Local", "Programs")));
-      roots.push(hostPath.normalize(hostPath.join(userProfile.trim(), ".local", "bin")));
+      roots.push(hostPath.join(userProfile.trim(), "AppData", "Local", "Programs", "Antigravity"));
     }
   } else {
-    for (const fixed of ["/usr/bin", "/usr/local", "/opt", "/Applications", "/snap"]) {
+    for (const fixed of ["/usr/bin", "/usr/local/bin", "/opt/google", "/Applications/Antigravity.app/Contents/MacOS"]) {
       roots.push(fixed);
     }
     const home = env["HOME"];
     if (home && home.trim().length > 0) {
-      roots.push(path.join(home.trim(), ".local"));
-      roots.push(path.join(home.trim(), ".nvm"));
-      roots.push(path.join(home.trim(), "Applications"));
+      roots.push(path.join(home.trim(), ".local", "bin"));
+      roots.push(path.join(home.trim(), "Applications", "Antigravity.app", "Contents", "MacOS"));
     }
   }
   return roots;
@@ -380,7 +377,7 @@ export function getAgyInstallRoots(
  * Validate that an executable path is trusted:
  * 1. Absolute path, no parent traversal ("..")
  * 2. Named agy.exe (Windows) or agy (non-Windows)
- * 3. Resides under one of the legitimate install roots
+ * 3. Matches the executable directly inside a canonical install directory
  */
 export function isTrustedAgyExecutable(
   executablePath: string,
@@ -411,10 +408,7 @@ export function isTrustedAgyExecutable(
   const normPath = platform === "win32" ? normalized.toLowerCase() : normalized;
   return roots.some((root) => {
     const normRoot = platform === "win32" ? root.toLowerCase() : root;
-    return (
-      normPath.startsWith(normRoot.endsWith(p.sep) ? normRoot : normRoot + p.sep) ||
-      normPath === normRoot
-    );
+    return normPath === p.join(normRoot, expectedName);
   });
 }
 
@@ -461,30 +455,9 @@ export async function enumerateAgyListeningPorts(
         }
       }
     } else {
-      // Fallback to tasklist if CIM is unavailable
-      const tasklistRes = await runner(
-        "tasklist.exe",
-        ["/FI", "IMAGENAME eq agy.exe", "/FO", "CSV", "/NH"],
-        AGY_PROBE_TIMEOUT_MILLISECONDS
-      );
-      if (tasklistRes.ok) {
-        for (const line of tasklistRes.stdout.split(/\r?\n/)) {
-          const match = /^"agy\.exe","(\d+)"/i.exec(line.trim());
-          if (match && match[1]) {
-            const pid = match[1];
-            if (options?.resolveExecutablePath) {
-              const exePath = await options.resolveExecutablePath(pid);
-              if (exePath && isTrustedAgyExecutable(exePath, "win32", roots)) {
-                trustedPids.add(pid);
-              }
-              /* No resolver was able to name this pid's executable: it is
-                 skipped, the same as an untrusted path, rather than trusted on
-                 the strength of `tasklist` naming it "agy.exe", which is a
-                 string an impostor process gets to pick for itself. */
-            }
-          }
-        }
-      }
+      // A name and executable resolver cannot establish a process owner.
+      // Fail closed if the owner filtered enumeration is unavailable.
+      return [];
     }
 
     if (trustedPids.size === 0) return [];
@@ -516,6 +489,13 @@ export async function enumerateAgyListeningPorts(
   for (const { pid, port } of pidPorts) {
     let trusted = verifiedPids.get(pid);
     if (trusted === undefined) {
+      if (!/^\d+$/u.test(pid)) continue;
+      const owner = await runner("ps", ["-o", "uid=", "-p", pid], AGY_PROBE_TIMEOUT_MILLISECONDS);
+      const currentUid = options?.currentUserId ?? process.getuid?.();
+      if (!owner.ok || currentUid === undefined || owner.stdout.trim() !== String(currentUid)) {
+        verifiedPids.set(pid, false);
+        continue;
+      }
       if (options?.resolveExecutablePath) {
         const exePath = await options.resolveExecutablePath(pid);
         trusted = exePath !== null && isTrustedAgyExecutable(exePath, platform, roots);
@@ -756,4 +736,3 @@ export async function probeAntigravity(
     clearTimeout(timeoutId);
   }
 }
-

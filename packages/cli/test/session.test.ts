@@ -74,7 +74,7 @@ describe("session file", () => {
     expect((raw["security"] as string).length).toBeGreaterThan(0);
   });
 
-  it("applies a best effort owner only ACL on Windows through the injected runner", async () => {
+  it("verifies owner only inherited file permissions before writing on Windows", async () => {
     const directory = await temporaryDirectory("openlimiter-session-");
     const calls: Array<{ executable: string; args: readonly string[] }> = [];
     await writeSession(session(), {
@@ -82,15 +82,16 @@ describe("session file", () => {
       platform: "win32",
       windowsAclRunner: async (executable, args) => {
         calls.push({ executable, args });
-        return executable === "whoami"
+        return executable.endsWith("whoami.exe")
           ? { ok: true, stdout: '"lucas\\lucas","S-1-5-21-1-2-3-1001"\r\n' }
-          : { ok: true, stdout: "" };
+          : { ok: true, stdout: "PRIVATE" };
       }
     });
-    const grant = calls.find((call) => call.executable === "icacls");
-    expect(calls[0]?.executable).toBe("whoami");
-    expect(grant?.args).toContain("/inheritance:r");
-    expect(grant?.args.some((argument) => argument.startsWith("*S-1-5-21-") && argument.endsWith(":F"))).toBe(true);
+    const grant = calls.find((call) => call.executable.endsWith("powershell.exe"));
+    expect(calls[0]?.executable.endsWith("whoami.exe")).toBe(true);
+    expect(grant?.args.join(" ")).toContain("SetAccessRuleProtection($true,$false)");
+    expect(grant?.args.join(" ")).toContain("GetAccessRules");
+    expect(grant?.args.join(" ")).toContain("ContainerInherit,ObjectInherit");
   });
 
   it("never calls the Windows ACL runner off Windows", async () => {
@@ -107,7 +108,7 @@ describe("session file", () => {
     expect(called).toBe(false);
   });
 
-  it("does not fail the write when the ACL runner itself fails", async () => {
+  it("fails closed before writing when the ACL runner itself fails", async () => {
     const directory = await temporaryDirectory("openlimiter-session-");
     await expect(
       writeSession(session(), {
@@ -117,8 +118,8 @@ describe("session file", () => {
           throw new Error("icacls exploded");
         }
       })
-    ).resolves.toBeUndefined();
-    expect(await readSession(directory)).toEqual(session());
+    ).rejects.toThrow();
+    expect(await readSession(directory)).toBeNull();
   });
 
   it("reads no session from an empty directory", async () => {

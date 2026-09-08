@@ -15,7 +15,7 @@
  * configured answers every hub command with "not configured" rather than
  * sending a request with an empty credential.
  */
-import { OPENLIMITER_USER_AGENT } from "@openlimiter/core";
+import { OPENLIMITER_USER_AGENT, readBoundedResponse } from "@openlimiter/core";
 
 /** The project this build talks to, absent a build time override. */
 export const DEFAULT_HUB_URL = "https://dsaonzonizvxtxgclwud.supabase.co";
@@ -196,8 +196,8 @@ export function createFetchHubTransport(
         signal: controller.signal,
         body: request.body
       });
-      const buffer = await response.arrayBuffer();
-      if (buffer.byteLength > MAX_HUB_RESPONSE_BYTES) {
+      const buffer = await readBoundedResponse(response, MAX_HUB_RESPONSE_BYTES, controller);
+      if (buffer === null) {
         return { status: response.status, body: "" };
       }
       return {

@@ -32,6 +32,18 @@ import {
 import { parseHubJson, syncSnapshotsRequest, type HubTransport } from "./hub.js";
 
 export const SYNC_CURSOR_FILE_NAME = "openlimiter-sync-cursor.json";
+const SYNC_ATTEMPT_FILE_NAME = "openlimiter-sync-attempt.json";
+
+export async function syncIsDue(directory: string, now: string): Promise<boolean> {
+  const result = await readJsonFileSafely(path.join(directory, SYNC_ATTEMPT_FILE_NAME));
+  const at = result.ok && isRecord(result.value) ? result.value["at"] : undefined;
+  const age = typeof at === "string" ? Date.parse(now) - Date.parse(at) : NaN;
+  return !Number.isFinite(age) || age < 0 || age >= 60_000;
+}
+
+export async function recordSyncAttempt(directory: string, now: string): Promise<void> {
+  await writeFileAtomically(path.join(directory, SYNC_ATTEMPT_FILE_NAME), canonicalJson({ at: now }));
+}
 
 /** The contract version this build speaks, and nothing else. */
 export const SYNC_SCHEMA_VERSION = 2;
@@ -181,11 +193,9 @@ function monthStartDate(observedAt: string): string {
 /**
  * Every spend row the cache has enough to build.
  *
- * This build tracks a point in time reading, not a month to date total with a
- * forecast: those live in the desktop's dedicated spend engine, which this
- * package does not have. So every row this function builds states its period
- * honestly as "the start of this month through the moment of this upload"
- * and never claims a forecast or a completed period it did not compute.
+ * Only a fixed window spanning the observation's complete calendar month
+ * establishes monthly spending. Lifetime credits and rolling windows stay
+ * local. The source period ends at the observation, never at the upload.
  * `usedAmount`, `limitAmount` and `currency` travel together or not at all
  * (see `Snapshot` in the core package), which is what this reads as "the
  * cache has one".
@@ -195,11 +205,19 @@ export const SYNC_API_SPEND_PROVIDERS: ReadonlySet<string> = new Set(["OPENAI", 
 
 export function apiSpendSamplesFromSnapshots(
   snapshots: readonly Snapshot[],
-  envelopeObservedAt: string
+  _envelopeObservedAt: string
 ): ApiSpendSample[] {
   const rows: ApiSpendSample[] = [];
   for (const snapshot of snapshots) {
     if (!SYNC_API_SPEND_PROVIDERS.has(snapshot.provider)) continue;
+    // No current source establishes a calendar month period. Lifetime balance
+    // observations must never be relabelled as monthly spending.
+    if (snapshot.window.kind !== "fixed" || snapshot.resetAt === null) continue;
+    const monthStart = monthStartDate(snapshot.observedAt) + "T00:00:00.000Z";
+    const nextMonth = new Date(monthStart);
+    nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+    if (snapshot.resetAt !== nextMonth.toISOString() ||
+        snapshot.window.durationSeconds !== (nextMonth.getTime() - Date.parse(monthStart)) / 1000) continue;
     if (
       snapshot.usedAmount === undefined ||
       snapshot.limitAmount === undefined ||
@@ -219,7 +237,7 @@ export function apiSpendSamplesFromSnapshots(
       month: monthStartDate(snapshot.observedAt),
       spend_usd: snapshot.usedAmount,
       budget_usd: snapshot.limitAmount,
-      source_period: [monthStartDate(snapshot.observedAt) + "T00:00:00.000Z", envelopeObservedAt],
+      source_period: [monthStart, snapshot.observedAt],
       currency_source: "PROVIDER_USD",
       raw_unit_scale: 1,
       forecast_date: null,

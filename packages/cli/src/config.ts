@@ -48,6 +48,7 @@ export interface StatuslineConfig {
   readonly color: StatuslineColor;
   readonly style: StatuslineStyle;
   readonly show: readonly string[];
+  readonly showMode?: "auto" | "explicit";
   readonly hosts: Readonly<Record<string, string>>;
 }
 
@@ -163,6 +164,7 @@ export function normalizeStatusline(value: unknown): StatuslineConfig {
       : DEFAULT_STATUSLINE.color,
     style: style === "bar" || style === "cells" ? style : DEFAULT_STATUSLINE.style,
     show: normalizeShow(value["show"]) ?? DEFAULT_STATUSLINE.show,
+    ...(value["showMode"] === "explicit" ? { showMode: "explicit" as const } : {}),
     hosts: normalizeHosts(value["hosts"])
   };
 }
@@ -263,7 +265,7 @@ export function setStatuslineValue(
   }
   if (key === "show") {
     if (value === "" || value === "NONE" || value === "none") {
-      return { ok: true, statusline: { ...statusline, show: [] } };
+      return { ok: true, statusline: { ...statusline, show: [], showMode: "explicit" } };
     }
     const show = normalizeShow(value.split(",").map((entry) => entry.trim()));
     return show === null
@@ -271,7 +273,7 @@ export function setStatuslineValue(
           ok: false,
           message: "statusline.show must be a comma separated list of provider ids or NONE."
         }
-      : { ok: true, statusline: { ...statusline, show } };
+      : { ok: true, statusline: { ...statusline, show, showMode: "explicit" } };
   }
   if (key === "hosts") {
     if (value === "" || value === "NONE" || value === "none") {

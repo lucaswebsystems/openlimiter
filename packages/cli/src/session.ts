@@ -5,15 +5,15 @@
  * file beside the configuration, exactly the way the configuration itself
  * does. The file is written through the same atomic writer every other state
  * document in this product uses, which already puts it at mode 0600 on every
- * platform that has file modes. Windows has no such mode, so a best effort
- * owner only ACL is applied through `icacls` on top of that, and the file
- * says so about itself so a person who opens it understands why.
+ * platform that has file modes. On Windows the containing directory receives
+ * a verified, protected owner only ACL before any credential bytes are written.
  */
 import { unlink } from "node:fs/promises";
-import { userInfo } from "node:os";
 import path from "node:path";
 import {
   canonicalJson,
+  acquireRefreshLock,
+  prepareStateDirectory,
   readJsonFileSafely,
   resolveStateDirectory,
   writeFileAtomically
@@ -22,11 +22,15 @@ import type { CredentialCommandRunner } from "@openlimiter/core";
 
 export const SESSION_FILE_NAME = "openlimiter-session.json";
 
+function windowsSystemTool(...segments: string[]): string {
+  return path.win32.join(process.env["SystemRoot"] ?? "C:\\Windows", "System32", ...segments);
+}
+
 /** How this build explains the file's own protection, inside the file. */
 export const SESSION_SECURITY_NOTE_POSIX =
   "This file holds a hub sign in. It is written with mode 0600 (owner read and write only).";
 export const SESSION_SECURITY_NOTE_WINDOWS =
-  "This file holds a hub sign in. An owner only ACL is applied through icacls, best effort.";
+  "This file holds a hub sign in. An owner only ACL is verified before credentials are written.";
 
 export interface HubSession {
   readonly version: 1;
@@ -86,61 +90,81 @@ export async function readSession(
 }
 
 /**
- * Apply an owner only ACL to the session file on Windows, best effort.
- *
- * `icacls` is asked to drop inherited permissions and grant the current user
- * full control and nobody else. Every failure here, including no runner being
- * available at all, is swallowed: the file is already private on every
- * platform where a file mode means anything, and a person who cannot run
- * `icacls` on their own machine still has a readable session file rather than
- * a command that refuses to finish signing them in.
+ * Protect the directory and verify the effective rule set before writing.
+ * The atomic writer's temporary file inherits only this rule. Never restore
+ * inheritance or write credentials after a helper failure.
  */
 async function applyWindowsOwnerOnlyAcl(
   target: string,
   runner: CredentialCommandRunner | undefined
 ): Promise<void> {
-  if (runner === undefined) return;
-  const principal = await windowsPrincipal(runner);
-  if (principal === null) return;
-  try {
-    await runner("icacls", [target, "/inheritance:r", "/grant:r", principal + ":F"], 5_000);
-  } catch {
-    /* Best effort, as documented on the file itself. */
-    return;
+  if (runner === undefined) {
+    throw new Error("Private session storage is unavailable: no Windows ACL command runner");
   }
-  /* The grant must leave the file readable by the account that just signed
-     in. A principal icacls resolved to something else (seen once: a bare user
-     name read as a domain prefix) locks the person out of their own session,
-     so the file is read back and the inheritance restored when that happens. */
-  const check = await readJsonFileSafely(target);
-  if (!check.ok) {
-    try {
-      await runner("icacls", [target, "/reset"], 5_000);
-    } catch {
-      /* Nothing more to do: the write itself succeeded. */
-    }
+  const principal = await windowsPrincipal(runner);
+  if (principal === null) {
+    throw new Error("Private session storage is unavailable: current Windows user identity is unavailable");
+  }
+  /* Verify first and repair only when the rule set is wrong. The repair goes
+     through the .NET SetAccessControl call rather than Set-Acl: Set-Acl on a
+     directory whose rules are already protected demands SeSecurityPrivilege,
+     which an ordinary sign in does not hold, so the second write of every
+     session (the renewal) failed with it. Measured on Windows 11, 2026-09-08. */
+  const verify = "$check=Get-Acl -LiteralPath $p;" +
+    "$rules=@($check.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]));" +
+    "$allowed=@($sid.Value,'S-1-5-18','S-1-5-32-544');" +
+    "$bad=$rules|Where-Object {$allowed -notcontains $_.IdentityReference.Value -or $_.IsInherited -or " +
+    "$_.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow -or " +
+    "[int]$_.FileSystemRights -ne [int]$full -or [int]$_.InheritanceFlags -ne [int]$inherit -or " +
+    "[int]$_.PropagationFlags -ne [int][System.Security.AccessControl.PropagationFlags]::None};" +
+    "$private=($check.AreAccessRulesProtected -and $rules.Count -ge 1 -and " +
+    "@($rules|Where-Object {$_.IdentityReference.Value -eq $sid.Value}).Count -eq 1 -and " +
+    "$null -eq $bad -and " +
+    "$check.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -eq $sid.Value);";
+  const repair = "$acl=Get-Acl -LiteralPath $p;" +
+    "$acl.SetAccessRuleProtection($true,$false);" +
+    "@($acl.Access)|ForEach-Object {$acl.RemoveAccessRuleSpecific($_)};" +
+    "$acl.SetOwner($sid);" +
+    "$rule=[System.Security.AccessControl.FileSystemAccessRule]::new($sid,$full,$inherit,[System.Security.AccessControl.PropagationFlags]::None,[System.Security.AccessControl.AccessControlType]::Allow);" +
+    "$acl.AddAccessRule($rule);" +
+    "(Get-Item -LiteralPath $p -Force).SetAccessControl($acl);";
+  const script = "$ErrorActionPreference='Stop';" +
+    "$p='" + target.replace(/'/gu, "''") + "';" +
+    "$sid=[System.Security.Principal.SecurityIdentifier]::new('" + principal + "');" +
+    "$full=[System.Security.AccessControl.FileSystemRights]::FullControl;" +
+    "$inherit=[System.Enum]::Parse([System.Security.AccessControl.InheritanceFlags],'ContainerInherit,ObjectInherit');" +
+    verify +
+    "if (!$private) {" + repair + verify + "};" +
+    "if (!$private) {throw 'Private storage unavailable'};" +
+    "Write-Output 'PRIVATE'";
+  let result;
+  try {
+    result = await runner(windowsSystemTool("WindowsPowerShell", "v1.0", "powershell.exe"), ["-NoProfile", "-NonInteractive", "-Command", script], 5_000);
+  } catch {
+    throw new Error("Private session storage is unavailable: PowerShell ACL helper is unavailable");
+  }
+  if (!result.ok) {
+    throw new Error("Private session storage is unavailable: PowerShell ACL helper failed");
+  }
+  if (result.stdout.trim() !== "PRIVATE") {
+    throw new Error("Private session storage is unavailable: PowerShell ACL verification rejected the ACL");
   }
 }
 
 /**
- * The principal to grant: the current user's SID when whoami answers, which
- * icacls resolves unambiguously with a leading asterisk, otherwise the
- * domain qualified user name, otherwise nothing.
+ * Use the current user's unambiguous SID, or refuse the write.
  */
 async function windowsPrincipal(runner: CredentialCommandRunner): Promise<string | null> {
   try {
-    const answer = await runner("whoami", ["/user", "/fo", "csv", "/nh"], 5_000);
+    const answer = await runner(windowsSystemTool("whoami.exe"), ["/user", "/fo", "csv", "/nh"], 5_000);
     if (answer.ok) {
       const match = /"(S-1-[0-9-]+)"/u.exec(answer.stdout);
-      if (match?.[1] !== undefined) return "*" + match[1];
+      if (match?.[1] !== undefined) return match[1];
     }
   } catch {
-    /* Fall through to the name. */
+    /* A helper failure cannot establish a private owner. */
   }
-  const username = userInfo().username;
-  if (username.length === 0 || username.length > 256) return null;
-  const domain = process.env["USERDOMAIN"];
-  return domain !== undefined && domain.length > 0 && domain.length <= 256 ? domain + "\\" + username : username;
+  return null;
 }
 
 export interface WriteSessionOptions {
@@ -150,13 +174,7 @@ export interface WriteSessionOptions {
 }
 
 /**
- * Write the session document, then narrow who can read it.
- *
- * The write itself goes through the product's shared atomic writer, which
- * already puts the file at mode 0600 wherever a file mode exists. The
- * Windows ACL is layered on afterwards because it is a second, independent
- * mechanism and a failure in it must never roll back a sign in that otherwise
- * succeeded.
+ * Establish private storage, then atomically replace the session document.
  */
 export async function writeSession(
   session: HubSession,
@@ -164,6 +182,10 @@ export async function writeSession(
 ): Promise<void> {
   const directory = options.directory ?? resolveStateDirectory();
   const target = path.join(directory, SESSION_FILE_NAME);
+  await prepareStateDirectory(directory);
+  if (options.platform === "win32") {
+    await applyWindowsOwnerOnlyAcl(directory, options.windowsAclRunner);
+  }
   const documented = {
     security: options.platform === "win32"
       ? SESSION_SECURITY_NOTE_WINDOWS
@@ -171,8 +193,22 @@ export async function writeSession(
     ...session
   };
   await writeFileAtomically(target, canonicalJson(documented));
-  if (options.platform === "win32") {
-    await applyWindowsOwnerOnlyAcl(target, options.windowsAclRunner);
+}
+
+/** One cross process transaction for renewal, revocation and sync cursors. */
+export async function withSessionLock<T>(directory: string, action: () => Promise<T>): Promise<T> {
+  for (;;) {
+    const lock = await acquireRefreshLock(directory, Date.now(), "openlimiter-session.lock");
+    if (!lock.ok) {
+      if (lock.reason === "unavailable") throw new Error("Private session storage is unavailable");
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      continue;
+    }
+    try {
+      return await action();
+    } finally {
+      await lock.release();
+    }
   }
 }
 

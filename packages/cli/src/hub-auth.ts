@@ -268,6 +268,9 @@ export async function runDeviceLogin(options: DeviceLoginOptions): Promise<Devic
     } catch {
       continue;
     }
+    if (pollReply.status === 403) return { kind: "denied" };
+    if (pollReply.status === 409) return { kind: "expired", message: CODE_CONSUMED_SENTENCE };
+    if (pollReply.status === 404 || pollReply.status === 410) return { kind: "expired" };
     if (pollReply.status < 200 || pollReply.status >= 300) continue;
     const poll = parseLoginPoll(pollReply.body);
     if (poll === null) continue;

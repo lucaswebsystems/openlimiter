@@ -53,7 +53,7 @@ describe("Antigravity loopback probe", () => {
   it("parses quota summary payload into raw meters", () => {
     const meters = parseAgyQuotaSummary(SAMPLE_SUMMARY_PAYLOAD, NOW);
     expect(meters).not.toBeNull();
-    expect(meters).toHaveLength(2);
+    expect(meters).toHaveLength(3);
 
     const weekly = meters?.find((m) => m.meter === "SEVEN_DAY");
     expect(weekly).toBeDefined();
@@ -80,7 +80,7 @@ describe("Antigravity loopback probe", () => {
     };
     const meters = parseAgyQuotaSummary(unwrapped, NOW);
     expect(meters).not.toBeNull();
-    expect(meters).toHaveLength(2);
+    expect(meters).toHaveLength(3);
   });
 
   it("returns null on malformed or empty payloads", () => {
@@ -89,7 +89,7 @@ describe("Antigravity loopback probe", () => {
     expect(parseAgyQuotaSummary({ response: { groups: [] } }, NOW)).toBeNull();
   });
 
-  it("enumerates listening ports on Windows via stubbed commands, once a resolver verifies the pid", async () => {
+  it("refuses the Windows fallback when a resolver verifies only the path and no owner", async () => {
     const mockRunner = async (executable: string) => {
       if (executable === "tasklist.exe") {
         return {
@@ -114,7 +114,7 @@ describe("Antigravity loopback probe", () => {
       runCommand: mockRunner,
       resolveExecutablePath: async () => "C:\\Program Files\\Antigravity\\agy.exe"
     });
-    expect(ports).toEqual([57737]);
+    expect(ports).toEqual([]);
   });
 
   it("fails closed on the Windows tasklist fallback: no resolver, no trust, no port", async () => {
@@ -166,7 +166,7 @@ describe("Antigravity loopback probe", () => {
   });
 
   it("enumerates ports on macOS/Linux via stubbed lsof", async () => {
-    const mockRunner = async (executable: string) => {
+    const mockRunner = async (executable: string, args: readonly string[]) => {
       if (executable === "lsof") {
         return {
           ok: true as const,
@@ -176,7 +176,7 @@ describe("Antigravity loopback probe", () => {
       if (executable === "ps") {
         return {
           ok: true as const,
-          stdout: "/opt/agy\n"
+          stdout: args.includes("uid=") ? "1000" : "/opt/google/agy\n"
         };
       }
       return { ok: false as const };
@@ -184,6 +184,7 @@ describe("Antigravity loopback probe", () => {
 
     const ports = await enumerateAgyListeningPorts({
       platform: "darwin",
+      currentUserId: 1000,
       runCommand: mockRunner
     });
     expect(ports).toEqual([44321]);
@@ -224,7 +225,7 @@ describe("Antigravity loopback probe", () => {
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.meters).toHaveLength(2);
+      expect(result.meters).toHaveLength(3);
       expect(result.meters[0]?.provider).toBe("ANTIGRAVITY");
     }
   });
@@ -246,7 +247,7 @@ describe("Antigravity loopback probe", () => {
     const report = result.reports[0];
     expect(report?.ok).toBe(true);
     if (report?.ok === true) {
-      expect(report.snapshots).toHaveLength(2);
+      expect(report.snapshots).toHaveLength(3);
     }
   });
 
@@ -290,15 +291,14 @@ describe("Antigravity loopback probe", () => {
 
   it("validates trusted agy executable paths against install roots", () => {
     const winRoots = [
-      "C:\\Users\\lucas\\AppData\\Local",
-      "C:\\Program Files",
-      "C:\\Users\\lucas\\AppData\\Local\\Programs"
+      "C:\\Program Files\\Antigravity",
+      "C:\\Users\\lucas\\AppData\\Local\\Programs\\Antigravity"
     ];
     expect(
       isTrustedAgyExecutable("C:\\Program Files\\Antigravity\\agy.exe", "win32", winRoots)
     ).toBe(true);
     expect(
-      isTrustedAgyExecutable("C:\\Users\\lucas\\AppData\\Local\\Programs\\agy.exe", "win32", winRoots)
+      isTrustedAgyExecutable("C:\\Users\\lucas\\AppData\\Local\\Programs\\Antigravity\\agy.exe", "win32", winRoots)
     ).toBe(true);
 
     expect(isTrustedAgyExecutable("C:\\Downloads\\agy.exe", "win32", winRoots)).toBe(false);
@@ -311,7 +311,7 @@ describe("Antigravity loopback probe", () => {
       isTrustedAgyExecutable("C:\\Program Files\\Antigravity\\other.exe", "win32", winRoots)
     ).toBe(false);
 
-    const unixRoots = ["/usr/bin", "/opt", "/home/user/.local"];
+    const unixRoots = ["/usr/bin", "/opt/google", "/home/user/.local/bin"];
     expect(isTrustedAgyExecutable("/usr/bin/agy", "linux", unixRoots)).toBe(true);
     expect(isTrustedAgyExecutable("/opt/google/agy", "linux", unixRoots)).toBe(true);
     expect(isTrustedAgyExecutable("/tmp/agy", "linux", unixRoots)).toBe(false);

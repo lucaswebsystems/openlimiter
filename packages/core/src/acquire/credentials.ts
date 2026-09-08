@@ -4,10 +4,9 @@
  *
  * Three rules hold this whole file together.
  *
- * One: nothing here writes. Not a refresh, not a rewrite, not a touch of the
- * modification time. A vendor's credential file belongs to that vendor's
- * client, and a monitor that repairs it is a monitor that can corrupt a login
- * somebody depends on for work.
+ * One: vendor credential files are read only. A completed managed login may
+ * register its home in our own state directory, but never rewrites the
+ * credential file the vendor's client owns.
  *
  * Two: no secret ever leaves this module by any route other than the request
  * builders in `transport.ts`. Every failure is a closed literal with no
@@ -19,7 +18,9 @@
  */
 import { homedir } from "node:os";
 import path from "node:path";
-import { readJsonFileSafely } from "../cache.js";
+import { lstat, realpath } from "node:fs/promises";
+import { readJsonFileSafely, resolveStateDirectory, prepareStateDirectory, writeFileAtomically } from "../cache.js";
+import { codexUsageRequest } from "./transport.js";
 
 /** The providers this path can read a credential for. */
 export const ACQUISITION_PROVIDERS = [
@@ -88,6 +89,7 @@ export type CredentialResult =
   | { ok: false; reason: CredentialFailureReason };
 
 export interface CredentialLookupOptions {
+  readonly stateDirectory?: string;
   readonly platform?: NodeJS.Platform;
   readonly environment?: Readonly<Record<string, string | undefined>>;
   readonly homeDirectory?: string;
@@ -208,6 +210,44 @@ export function credentialCandidatePaths(
 
 /** The Windows Credential Manager target the Antigravity client writes to. */
 export const ANTIGRAVITY_CREDENTIAL_TARGET = "gemini:antigravity";
+
+const MANAGED_CODEX_REGISTRY = "openlimiter-codex-account.json";
+const MANAGED_SESSION_ID = /^[a-zA-Z0-9]{1,64}$/u;
+
+async function registeredCodexPath(directory: string): Promise<string | null> {
+  const registry = await readJsonFileSafely(path.join(directory, MANAGED_CODEX_REGISTRY));
+  if (!registry.ok || !isRecord(registry.value)) return null;
+  const id = registry.value["sessionId"];
+  if (typeof id !== "string" || !MANAGED_SESSION_ID.test(id)) return null;
+  return await safeManagedCodexPath(directory, id);
+}
+
+async function safeManagedCodexPath(directory: string, id: string): Promise<string | null> {
+  const home = path.join(directory, "accounts", "codex", id);
+  try {
+    const root = await realpath(directory);
+    const actual = await realpath(home);
+    if (actual !== path.join(root, "accounts", "codex", id) || (await lstat(home)).isSymbolicLink()) return null;
+    return path.join(home, "auth.json");
+  } catch {
+    return null;
+  }
+}
+
+/** Validate a completed login before publishing its managed home to readers. */
+export async function registerManagedCodexAccount(directory: string, sessionId: string, now: string): Promise<boolean> {
+  if (!MANAGED_SESSION_ID.test(sessionId)) return false;
+  const file = await safeManagedCodexPath(directory, sessionId);
+  if (file === null) return false;
+  const document = await readJsonFileSafely(file, MAX_CREDENTIAL_FILE_BYTES);
+  if (!document.ok) return false;
+  const parsed = readCredentialDocument("CODEX", document.value, Date.parse(now), "vendor_file");
+  if (!parsed.ok || parsed.credential.accountId === null ||
+      codexUsageRequest(parsed.credential.secret, parsed.credential.accountId) === null) return false;
+  await prepareStateDirectory(directory);
+  await writeFileAtomically(path.join(directory, MANAGED_CODEX_REGISTRY), JSON.stringify({ version: 1, sessionId }));
+  return true;
+}
 
 /** The macOS keychain service Claude Code writes to, which this path skips. */
 export const CLAUDE_KEYCHAIN_SERVICE = "Claude Code-credentials";
@@ -387,7 +427,13 @@ export async function readAcquisitionCredential(
     }
   }
   let firstFailure: CredentialFailureReason | null = null;
-  for (const candidate of credentialCandidatePaths(provider, options)) {
+  const candidates = credentialCandidatePaths(provider, options);
+  if (provider === "CODEX") {
+    const directory = options.stateDirectory ?? resolveStateDirectory(options);
+    const managed = await registeredCodexPath(directory);
+    if (managed !== null) candidates.splice(context.environment["CODEX_HOME"] ? 1 : 0, 0, managed);
+  }
+  for (const candidate of candidates) {
     const document = await readJsonFileSafely(candidate, MAX_CREDENTIAL_FILE_BYTES);
     if (!document.ok) {
       if (document.reason !== "missing" && firstFailure === null) {

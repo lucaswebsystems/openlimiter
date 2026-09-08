@@ -78,7 +78,7 @@ async function rejectSymlink(target: string): Promise<void> {
   }
 }
 
-async function prepareStateDirectory(directory: string): Promise<void> {
+export async function prepareStateDirectory(directory: string): Promise<void> {
   await rejectSymlink(directory);
   await mkdir(directory, { recursive: true, mode: 0o700 });
   await rejectSymlink(directory);
