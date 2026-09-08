@@ -20,20 +20,56 @@ export function adoptDetectedProviders(detections) {
   return readConfiguredProviders();
 }
 
-export function homeSelectionControl(provider, onChange, doc = document) {
-  const button = doc.createElement("button");
-  button.type = "button";
+export function homeSelectionControl(provider, onChange, doc = document, persist = async () => ({ ok: true }), name = String(provider).replaceAll("-", " ")) {
+  const label = doc.createElement("label");
+  label.className = "provider-switch";
+  const input = doc.createElement("input");
+  input.type = "checkbox";
+  input.setAttribute("role", "switch");
+  input.setAttribute("aria-label", name);
+  input.dataset.providerSwitch = provider;
+  const track = doc.createElement("span");
+  track.className = "provider-switch-track";
+  track.setAttribute("aria-hidden", "true");
+  const note = doc.createElement("span");
+  note.className = "provider-switch-note";
+  note.setAttribute("role", "status");
   const paint = () => {
-    button.textContent = isProviderConfigured(provider) ? "Remove from Home" : "Add to Home";
+    input.checked = isProviderConfigured(provider);
+    input.setAttribute("aria-checked", String(input.checked));
   };
+  let busy = false;
   paint();
-  button.addEventListener("click", () => {
-    if (isProviderConfigured(provider)) unconfigureProvider(provider);
-    else configureProvider(provider);
-    paint();
-    onChange();
+  input.addEventListener("click", (event) => { if (busy) event.preventDefault(); });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      if (!event.repeat && !busy) input.click();
+    }
   });
-  return button;
+  input.addEventListener("change", async () => {
+    const enabled = input.checked;
+    input.setAttribute("aria-checked", String(enabled));
+    busy = true;
+    input.setAttribute("aria-disabled", "true");
+    note.textContent = "";
+    try {
+      const result = await persist(provider, enabled);
+      if (!result?.ok) throw new Error("save_failed");
+      if (enabled) configureProvider(provider);
+      else unconfigureProvider(provider);
+      paint();
+      onChange();
+    } catch {
+      note.textContent = "Provider settings could not be saved. Try again.";
+    } finally {
+      paint();
+      busy = false;
+      input.setAttribute("aria-disabled", "false");
+    }
+  });
+  label.append(input, track, note);
+  return label;
 }
 
 const ALLOWED = new Set([

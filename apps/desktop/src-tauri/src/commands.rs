@@ -955,10 +955,12 @@ pub async fn test_provider(
     writer: State<'_, Arc<CacheWriter>>,
     runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
     policy: State<'_, crate::request_policy::RequestPolicy>,
+    detection: State<'_, DetectionStore>,
     input: ProbeInput,
 ) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
     let outcome = crate::collector_runtime::run_guarded(
         &runtime,
+        &detection.switches,
         &policy,
         &connections,
         &*secrets,
@@ -980,10 +982,12 @@ pub async fn refresh_provider(
     writer: State<'_, Arc<CacheWriter>>,
     runtime: State<'_, crate::collector_runtime::CollectorRuntime>,
     policy: State<'_, crate::request_policy::RequestPolicy>,
+    detection: State<'_, DetectionStore>,
     input: ProbeInput,
 ) -> Result<crate::collector::CollectionOutcome, CommandFailure> {
     let outcome = crate::collector_runtime::run_guarded(
         &runtime,
+        &detection.switches,
         &policy,
         &connections,
         &*secrets,
@@ -995,6 +999,26 @@ pub async fn refresh_provider(
     .await?;
     runtime.record_pass(outcome.failure(), true);
     Ok(outcome)
+}
+
+#[tauri::command]
+pub fn disabled_providers(
+    detection: State<'_, DetectionStore>,
+) -> Vec<crate::provider_detection::DetectedProviderId> {
+    detection.switches.disabled()
+}
+
+#[tauri::command]
+pub fn set_provider_enabled(
+    detection: State<'_, DetectionStore>,
+    provider: crate::provider_detection::DetectedProviderId,
+    enabled: bool,
+) -> Result<(), String> {
+    detection.switches.set(provider, enabled)?;
+    if enabled {
+        detection.rescan();
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1081,8 +1105,15 @@ pub fn detect_local_tools() -> LocalToolDetection {
 pub async fn list_detected_providers(app: tauri::AppHandle) -> DetectionReport {
     use tauri::Manager;
     let mut report = app.state::<DetectionStore>().report();
-    report.antigravity_running =
-        crate::antigravity_local::running_state(&crate::antigravity_local::SystemAgyPorts).await;
+    if app
+        .state::<DetectionStore>()
+        .switches
+        .enabled(crate::provider_detection::DetectedProviderId::Antigravity)
+    {
+        report.antigravity_running =
+            crate::antigravity_local::running_state(&crate::antigravity_local::SystemAgyPorts)
+                .await;
+    }
     report
 }
 

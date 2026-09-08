@@ -30,6 +30,7 @@ mod pairing;
 mod poll_identity;
 mod pro;
 mod provider_detection;
+mod provider_switches;
 mod reader_registry;
 mod request_policy;
 mod state;
@@ -151,6 +152,8 @@ pub fn run() {
             commands::test_provider,
             commands::refresh_provider,
             commands::refresh_home,
+            commands::disabled_providers,
+            commands::set_provider_enabled,
             commands::collector_status,
             commands::disconnect_provider,
             commands::list_connections,

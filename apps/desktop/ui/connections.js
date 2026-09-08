@@ -998,6 +998,7 @@ export function openProviderConnection(provider) {
 /** Render every provider with live connection evidence in one scalable list. */
 function renderCatalogue() {
   if (!el.catalogueRows) return;
+  const focusedProvider = document.activeElement?.dataset?.providerSwitch;
   el.catalogueRows.textContent = "";
 
   const states = { ...session.detectedProviderStates };
@@ -1038,8 +1039,8 @@ function renderCatalogue() {
     };
     const selected = isProviderConfigured(rowData.connectorId);
     const removed = readRemovedProviders().includes(String(rowData.connectorId).toUpperCase().replaceAll("-", "_"));
-    if (rowData.access === "automatic" && !records[rowData.connectorId] && (selected || removed)) {
-      rowData.stateLabel = selected ? "Added to Home" : "Removed from Home";
+    if (removed || (rowData.access === "automatic" && !records[rowData.connectorId] && selected)) {
+      rowData.stateLabel = selected ? "On" : "Off";
       rowData.actionLabel = null;
     }
     if (rowData.availability !== group) {
@@ -1089,11 +1090,11 @@ function renderCatalogue() {
     access.dataset.access = rowData.access;
     rowEl.append(access, directoryState(rowData));
 
-    if (rowData.connectorId && (selected || removed)) {
+    if (rowData.connectorId) {
       rowEl.append(homeSelectionControl(rowData.connectorId, () => {
         options.onMetersChanged();
-        render();
-      }));
+        renderCatalogue();
+      }, document, backend.setProviderEnabled, rowData.displayName));
     }
 
     if (rowData.actionLabel !== null) {
@@ -1155,6 +1156,9 @@ function renderCatalogue() {
     }
 
     el.catalogueRows.append(rowEl);
+    if (focusedProvider === rowData.connectorId) {
+      rowEl.querySelector('input[role="switch"]')?.focus();
+    }
   }
 }
 

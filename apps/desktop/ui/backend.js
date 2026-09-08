@@ -1,4 +1,4 @@
-import { adoptDetectedProviders } from "./configured-providers.js";
+import { adoptDetectedProviders, readRemovedProviders, unconfigureProvider } from "./configured-providers.js";
 /**
  * The one boundary between this window and the Rust process.
  *
@@ -371,8 +371,40 @@ export async function detectLocalTools() {
   return call("detect_local_tools");
 }
 
+let switchMigration;
+async function syncProviderSwitches() {
+  if (!switchMigration) {
+    switchMigration = (async () => {
+      const result = await call("disabled_providers");
+      if (!result.ok || !Array.isArray(result.value)) return result;
+      const disabled = result.value.map((provider) => provider.toUpperCase());
+      for (const provider of readRemovedProviders()) {
+        if (!disabled.includes(provider)) {
+          const saved = await call("set_provider_enabled", { provider: provider.toLowerCase(), enabled: false });
+          if (!saved.ok) return saved;
+        }
+      }
+      for (const provider of disabled) {
+        if (!readRemovedProviders().includes(provider)) unconfigureProvider(provider);
+      }
+      return { ok: true };
+    })();
+  }
+  const result = await switchMigration;
+  if (!result.ok) switchMigration = null;
+  return result;
+}
+
+export async function setProviderEnabled(provider, enabled) {
+  const ready = await syncProviderSwitches();
+  if (!ready.ok) return ready;
+  return call("set_provider_enabled", { provider: provider.toLowerCase().replaceAll("-", "_"), enabled });
+}
+
 /** The provider and account presence report owned by the native detector. */
 export async function listDetectedProviders() {
+  const ready = await syncProviderSwitches();
+  if (!ready.ok) return ready;
   const result = await call("list_detected_providers");
   if (result.ok) adoptDetectedProviders(result.value);
   return result;

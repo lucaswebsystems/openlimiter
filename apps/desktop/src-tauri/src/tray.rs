@@ -35,7 +35,7 @@ pub const PAIR_URL: &str = "https://openlimiter.com/app/pair";
 /// It disappears the moment there is something to lose by showing it. A menu
 /// that keeps offering a trial to somebody already paying is a menu that reads
 /// as an advertisement rather than as a control.
-const TRIAL_LABEL: &str = "Start free trial";
+const TRIAL_LABEL: &str = "Start Pro free for 30 days (No credit card needed)";
 
 /// The phone entry, always present, because pairing is what a person reaches
 /// for when they are away from this machine and the tray is the fastest way in.
@@ -344,6 +344,10 @@ mod tests {
     /// Both entries lead to the hub, and both addresses are constants here.
     #[test]
     fn the_menu_destinations_are_the_hub_and_carry_no_dashes_in_their_labels() {
+        assert_eq!(
+            TRIAL_LABEL,
+            "Start Pro free for 30 days (No credit card needed)"
+        );
         assert_eq!(TRIAL_URL, "https://openlimiter.com/app?trial=1");
         assert_eq!(PAIR_URL, "https://openlimiter.com/app/pair");
         for label in [TRIAL_LABEL, PHONE_LABEL] {

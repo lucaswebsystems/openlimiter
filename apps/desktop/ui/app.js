@@ -79,6 +79,7 @@ import {
   codexDeviceLoginStart,
   codexDeviceLoginStatus,
   setClaudePollEnabled,
+  setProviderEnabled,
   accountSetSync,
   accountStatus,
   accountSyncConfiguredSnapshot,
@@ -1522,6 +1523,7 @@ if (cardsContainer) {
 initPairing({ onSignIn: openSignIn });
 
 initFirstRun({
+  setProviderEnabled,
   accountStatus,
   detectProviders: listDetectedProviders,
   markFor: (code) => MARKS[code] ?? "",

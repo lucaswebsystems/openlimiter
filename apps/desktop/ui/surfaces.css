@@ -1061,21 +1061,93 @@ select.field:focus-visible {
 
 /* ------------------------------------------------------- the legal line */
 
-/*
- * Present on every screen that can draw a provider mark, and quiet on all of
- * them. It has to be findable, it never has to be read twice, and it must not
- * become the largest block of text on an empty window.
- */
-/*
- * The legal line, as a footer rather than as a paragraph.
- *
- * It has to be present on every surface that draws a provider mark, and it is
- * read once in the life of an install. A narrow block of body text at the foot
- * of the window gave it the weight of content it does not have, and on an
- * empty screen it became the largest thing there. It is one full width muted
- * line now, and the sentences live behind a disclosure for the person who
- * actually wants them.
- */
+/* Provider controls share the product palette in both themes. */
+.provider-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.provider-switch > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.provider-switch-track {
+  display: block;
+  width: 44px;
+  height: 26px;
+  padding: 3px;
+  box-sizing: border-box;
+  border: 1px solid var(--ol-control-border);
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-track);
+  pointer-events: none;
+}
+
+.provider-switch-track::before {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-body);
+  transition: transform var(--ol-motion-fast) var(--ol-ease-out);
+}
+
+.provider-switch > input:checked + .provider-switch-track {
+  background: var(--ol-accent-solid);
+}
+
+.provider-switch > input:checked + .provider-switch-track::before {
+  transform: translateX(18px);
+  background: var(--ol-on-accent);
+}
+
+.provider-switch > input:focus-visible + .provider-switch-track {
+  outline: 2px solid var(--ol-accent);
+  outline-offset: 3px;
+}
+
+.provider-switch > input[aria-disabled="true"] + .provider-switch-track {
+  opacity: 0.6;
+}
+
+.provider-switch-note:empty {
+  display: none;
+}
+
+.provider-switch-note {
+  max-width: 20ch;
+  margin-left: var(--ol-space-2);
+  color: var(--ol-body);
+  font-size: var(--ol-text-micro);
+}
+
+.trial-offer {
+  margin-block: var(--ol-space-3);
+  color: var(--ol-heading);
+}
+
+.trial-offer > p {
+  margin: var(--ol-space-1) 0 0;
+  color: var(--ol-body);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .provider-switch-track::before {
+    transition: none;
+  }
+}
+
+/* The trademark wording is available under Settings About. */
 #trademark-note {
   width: 100%;
   margin: var(--ol-space-5) 0 0;

@@ -82,6 +82,7 @@ impl CollectorRuntime {
 
 pub async fn run_guarded<T: Transport>(
     runtime: &CollectorRuntime,
+    switches: &crate::provider_switches::ProviderSwitches,
     policy: &RequestPolicy,
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
@@ -92,7 +93,7 @@ pub async fn run_guarded<T: Transport>(
 ) -> Result<CollectionOutcome, CommandFailure> {
     connections.apply_plan(crate::pro::multi_account_enabled(secrets), &[])?;
     let record = connections.get(&connection_id)?;
-    if !record.is_active() {
+    if !record.is_active() || !switches.enabled(detected_provider(record.provider_id)) {
         return Err(CommandFailure::Paused);
     }
     let identity = resolve_connection(&record, secrets);
@@ -279,15 +280,16 @@ pub async fn run_pass(
     app: &AppHandle,
     selected: Option<&[DetectedProviderId]>,
 ) -> HomeRefreshOutcome {
+    let detection = app.state::<crate::provider_detection::DetectionStore>();
+    let allowed =
+        |provider| detection.switches.enabled(provider) && requested_provider(selected, provider);
     let connections = app.state::<ConnectionsStore>();
     let secrets = app.state::<KeyringStore>();
     let multi_account = crate::pro::multi_account_enabled(&*secrets);
     let _ = connections.apply_plan(multi_account, &[]);
     let records = connections.list().map(|mut records| {
+        records.retain(|record| allowed(detected_provider(record.provider_id)));
         if selected.is_some() {
-            records.retain(|record| {
-                requested_provider(selected, detected_provider(record.provider_id))
-            });
             for record in &mut records {
                 record.next_refresh_at = None;
             }
@@ -312,6 +314,7 @@ pub async fn run_pass(
                 let writer = app.state::<Arc<CacheWriter>>();
                 match run_guarded(
                     &runtime,
+                    &detection.switches,
                     &policy,
                     &connections,
                     &*secrets,
@@ -338,12 +341,17 @@ pub async fn run_pass(
                 }
             }
 
-            let coverage = connections
-                .list()
-                .map(|records| collection_plan(records, &*secrets, now_epoch_ms()));
+            let coverage = connections.list().map(|mut records| {
+                records.retain(|record| {
+                    detection
+                        .switches
+                        .enabled(detected_provider(record.provider_id))
+                });
+                collection_plan(records, &*secrets, now_epoch_ms())
+            });
             match coverage {
                 Ok(coverage) => {
-                    if requested_provider(selected, DetectedProviderId::Codex)
+                    if allowed(DetectedProviderId::Codex)
                         && !crate::codex_oauth::run_pass(
                             app,
                             &coverage.covered,
@@ -357,7 +365,7 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Codex);
                     }
-                    if requested_provider(selected, DetectedProviderId::Antigravity)
+                    if allowed(DetectedProviderId::Antigravity)
                         && !crate::antigravity_oauth::run_pass(
                             app,
                             &coverage.covered,
@@ -371,7 +379,7 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Antigravity);
                     }
-                    if requested_provider(selected, DetectedProviderId::Grok)
+                    if allowed(DetectedProviderId::Grok)
                         && !crate::grok_oauth::run_pass(
                             app,
                             &coverage.covered,
@@ -385,7 +393,7 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Grok);
                     }
-                    if requested_provider(selected, DetectedProviderId::Kimi)
+                    if allowed(DetectedProviderId::Kimi)
                         && !crate::kimi_oauth::run_pass(
                             app,
                             &coverage.covered,
@@ -399,7 +407,7 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Kimi);
                     }
-                    if requested_provider(selected, DetectedProviderId::Claude)
+                    if allowed(DetectedProviderId::Claude)
                         && !crate::claude_oauth::run_pass(
                             app,
                             automatic_account_limit(
@@ -412,7 +420,7 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Claude);
                     }
-                    if requested_provider(selected, DetectedProviderId::GeminiCli)
+                    if allowed(DetectedProviderId::GeminiCli)
                         && !crate::gemini_cli_oauth::run_pass(
                             app,
                             automatic_account_limit(
@@ -552,6 +560,35 @@ mod tests {
         assert_eq!(plan.records.len(), 1);
         assert_eq!(plan.records[0].id, "first-path");
         assert_eq!(plan.covered.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_disabled_stored_connection_cannot_test_or_refresh_the_provider() {
+        use crate::test_support::{RecordingTransport, TempDir};
+        let dir = TempDir::new();
+        let switches = crate::provider_switches::ProviderSwitches::at(Some(dir.path().into()));
+        switches
+            .set(DetectedProviderId::Antigravity, false)
+            .unwrap();
+        let connections = ConnectionsStore::at(Some(dir.path().into()));
+        connections.insert(antigravity("fixture", 1, None)).unwrap();
+        let transport = RecordingTransport::replying(200, Vec::new(), None);
+        for mode in [CollectionMode::Test, CollectionMode::Refresh] {
+            let result = run_guarded(
+                &CollectorRuntime::default(),
+                &switches,
+                &RequestPolicy::at(None),
+                &connections,
+                &InMemorySecrets::new(),
+                &transport,
+                Arc::new(CacheWriter::at(Some(dir.path().into()))),
+                "fixture".to_string(),
+                mode,
+            )
+            .await;
+            assert!(matches!(result, Err(CommandFailure::Paused)));
+        }
+        assert!(transport.recorded_urls().is_empty());
     }
 
     #[test]

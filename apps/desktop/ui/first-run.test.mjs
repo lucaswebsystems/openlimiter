@@ -273,11 +273,11 @@ test("a detected login is the default and it spawns nothing", () => {
     });
   }
   /* Nothing in that path opens a browser, a console or a device flow: it
-     configures what the machine already had and redraws. */
+     changes the shared persisted switch without replacing the focused control. */
   const source = read("first-run.js");
   assert.match(
     source,
-    /if \(isProviderConfigured\(provider\.code\)\) unconfigureProvider\(provider\.code\);\s*else configureProvider\(provider\.code\);\s*redraw\(\);/u,
+    /homeSelectionControl\(provider.code, \(\) => \{\}, document, options.setProviderEnabled, provider.name\)/u,
   );
 });
 

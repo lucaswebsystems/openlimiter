@@ -1663,12 +1663,28 @@ struct Inventory {
     credentials: BTreeMap<(DetectedProviderId, String), CredentialReference>,
 }
 
+#[cfg(test)]
 fn scan_inventory(context: &DiscoveryContext, now_ms: u64) -> Inventory {
+    scan_enabled_inventory(
+        context,
+        now_ms,
+        &crate::provider_switches::ProviderSwitches::at(None),
+    )
+}
+
+fn scan_enabled_inventory(
+    context: &DiscoveryContext,
+    now_ms: u64,
+    switches: &crate::provider_switches::ProviderSwitches,
+) -> Inventory {
     let scanned_at =
         iso_from_epoch_ms(now_ms).unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string());
     let mut providers = Vec::new();
     let mut credentials = BTreeMap::new();
     for provider in DetectedProviderId::ALL {
+        if !switches.enabled(provider) {
+            continue;
+        }
         let mut candidates = candidate_paths(provider, context);
         candidates.extend(profile_candidates(provider, context.home.as_deref()));
         let mut seen = BTreeSet::new();
@@ -1770,6 +1786,7 @@ pub struct DetectedSecret {
 }
 
 pub struct DetectionStore {
+    pub switches: crate::provider_switches::ProviderSwitches,
     context: DiscoveryContext,
     inventory: RwLock<Inventory>,
 }
@@ -1777,8 +1794,12 @@ pub struct DetectionStore {
 impl DetectionStore {
     pub fn scan() -> Self {
         let context = DiscoveryContext::current();
-        let inventory = scan_inventory(&context, crate::connections::now_epoch_ms());
+        let switches =
+            crate::provider_switches::ProviderSwitches::at(crate::state::state_directory());
+        let inventory =
+            scan_enabled_inventory(&context, crate::connections::now_epoch_ms(), &switches);
         Self {
+            switches,
             context,
             inventory: RwLock::new(inventory),
         }
@@ -1792,7 +1813,11 @@ impl DetectionStore {
     }
 
     pub fn rescan(&self) -> DetectionReport {
-        let next = scan_inventory(&self.context, crate::connections::now_epoch_ms());
+        let next = scan_enabled_inventory(
+            &self.context,
+            crate::connections::now_epoch_ms(),
+            &self.switches,
+        );
         let report = next.report.clone();
         match self.inventory.write() {
             Ok(mut inventory) => *inventory = next,
@@ -1842,7 +1867,8 @@ impl DetectionStore {
         parent replacement and read a different account tree. */
         let mut context = self.context.clone();
         context.managed_codex_root = Some(resolved_root);
-        let next = scan_inventory(&context, crate::connections::now_epoch_ms());
+        let next =
+            scan_enabled_inventory(&context, crate::connections::now_epoch_ms(), &self.switches);
         let report = next.report.clone();
         match self.inventory.write() {
             Ok(mut inventory) => *inventory = next,
@@ -1881,6 +1907,9 @@ impl DetectionStore {
     }
 
     pub fn account_ids(&self, provider: DetectedProviderId) -> Vec<String> {
+        if !self.switches.enabled(provider) {
+            return Vec::new();
+        }
         self.inventory
             .read()
             .map(|inventory| {
@@ -1899,6 +1928,9 @@ impl DetectionStore {
         provider: DetectedProviderId,
         account_id: &str,
     ) -> Result<DetectedSecret, DetectedCredentialError> {
+        if !self.switches.enabled(provider) {
+            return Err(DetectedCredentialError::NotFound);
+        }
         let reference = self
             .inventory
             .read()
@@ -2028,6 +2060,7 @@ impl DetectionStore {
         };
         let inventory = scan_inventory(&context, now_ms);
         Self {
+            switches: crate::provider_switches::ProviderSwitches::at(Some(home.to_path_buf())),
             context,
             inventory: RwLock::new(inventory),
         }
@@ -2099,6 +2132,36 @@ mod tests {
             base64url(br#"{"alg":"none"}"#),
             base64url(payload.as_bytes())
         )
+    }
+
+    #[test]
+    fn switched_off_provider_cannot_supply_credentials_or_return_during_detection() {
+        let dir = TempDir::new();
+        write(
+            &dir.path().join(".codex").join("auth.json"),
+            r#"{"tokens":{"access_token":"fixture","account_id":"fixture"}}"#,
+        );
+        let store = DetectionStore::for_test_home(dir.path(), 1_800_000_000_000);
+        let account = store.account_ids(DetectedProviderId::Codex).pop().unwrap();
+        store
+            .switches
+            .set(DetectedProviderId::Codex, false)
+            .unwrap();
+        assert!(store.account_ids(DetectedProviderId::Codex).is_empty());
+        assert!(matches!(
+            store.read_credential(DetectedProviderId::Codex, &account),
+            Err(DetectedCredentialError::NotFound)
+        ));
+        for _ in 0..3 {
+            let report = store.rescan();
+            assert!(!report
+                .providers
+                .iter()
+                .any(|entry| entry.provider_id == DetectedProviderId::Codex));
+        }
+        store.switches.set(DetectedProviderId::Codex, true).unwrap();
+        store.rescan();
+        assert!(!store.account_ids(DetectedProviderId::Codex).is_empty());
     }
 
     #[test]
@@ -2750,6 +2813,7 @@ mod tests {
             .account_id
             .clone();
         let store = DetectionStore {
+            switches: crate::provider_switches::ProviderSwitches::at(None),
             context,
             inventory: RwLock::new(inventory),
         };

@@ -2,9 +2,9 @@ export const FIRST_RUN_STORAGE_KEY = "openlimiter-first-run-complete-v1";
 
 import {
   configureProvider,
-  isProviderConfigured,
+  readRemovedProviders,
   readConfiguredProviders,
-  unconfigureProvider,
+  homeSelectionControl,
 } from "./configured-providers.js";
 
 /**
@@ -112,7 +112,6 @@ const USE_CURRENT_LOGIN = "Use my current login";
 const SIGN_IN = "Sign in";
 const INSTALL = "Install";
 const VERIFIED_ON_INSTALL = "Verified on install";
-const CONNECTED_REMOVE = "Remove";
 
 /*
  * The one Gemini sentence, on both rows that depend on it.
@@ -636,7 +635,6 @@ export function firstRunCopyStrings() {
     SIGN_IN,
     INSTALL,
     VERIFIED_ON_INSTALL,
-    CONNECTED_REMOVE,
     "Copied",
     "Copy the line above.",
     "Cancel",
@@ -779,30 +777,8 @@ function connectRow(provider, detection, signals, options, redraw, pollEnabled, 
   action.dataset.kind = plan.kind;
   if (provider.code === "CLAUDE") line.textContent = claudeLine(signals);
 
-  if (plan.kind === "current") {
-    const configured = isProviderConfigured(provider.code);
-    if (configured) {
-      const check = element("span", "first-run-check", "✓");
-      check.setAttribute("aria-hidden", "true");
-      action.append(check);
-    }
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "first-run-install";
-    button.textContent = configured ? CONNECTED_REMOVE : plan.label;
-    button.setAttribute("aria-pressed", configured ? "true" : "false");
-    button.setAttribute(
-      "aria-label",
-      (configured ? CONNECTED_REMOVE : plan.label) + " " + provider.name,
-    );
-    /* Nothing is spawned here. The login is already on the machine and this
-       press is only the person saying yes to reading it. */
-    button.addEventListener("click", () => {
-      if (isProviderConfigured(provider.code)) unconfigureProvider(provider.code);
-      else configureProvider(provider.code);
-      redraw();
-    });
-    action.append(button);
+  if (plan.kind === "current" || readRemovedProviders().includes(provider.code)) {
+    action.append(homeSelectionControl(provider.code, () => {}, document, options.setProviderEnabled, provider.name));
   } else if (plan.kind === "signin") {
     const button = document.createElement("button");
     button.type = "button";

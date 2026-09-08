@@ -2297,7 +2297,7 @@ pre {
 .catalogue-row {
   display: grid;
   min-height: 3.75rem;
-  grid-template-columns: minmax(13rem, 1fr) 6.5rem 8.5rem auto;
+  grid-template-columns: minmax(10rem, 1fr) 6.5rem 8.5rem auto auto;
   align-items: center;
   gap: var(--ol-space-3);
   padding: var(--ol-space-2) var(--ol-space-3);
@@ -2574,9 +2574,14 @@ pre {
     margin-left: calc(var(--ol-space-6) + var(--ol-space-3));
   }
 
+  .catalogue-row > .provider-switch {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   .catalogue-action {
     grid-column: 2;
-    grid-row: 1 / span 3;
+    grid-row: 2 / span 2;
   }
 }
 

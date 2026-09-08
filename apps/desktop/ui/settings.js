@@ -258,7 +258,8 @@ function accountMarkup(account) {
   if (account === null || account.signed_in !== true) {
     return (
       '<div class="stack">' +
-      '<p class="note tight">Sign in to carry your settings between devices and to start a Pro trial. Everything local keeps working signed out, and nothing on this machine is paywalled.</p>' +
+      '<p class="note tight">Sign in to carry your settings between devices. Everything local keeps working signed out, and nothing on this machine is paywalled.</p>' +
+      '<div class="trial-offer"><strong>Start Pro free for 30 days</strong><p>No credit card needed</p></div>' +
       '<div class="button-row">' +
       '<button type="button" id="settings-github">Continue with GitHub</button>' +
       '<button type="button" id="settings-google">Continue with Google</button>' +
