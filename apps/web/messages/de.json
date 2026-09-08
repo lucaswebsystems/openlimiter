@@ -1744,7 +1744,7 @@
               "body": "Liest die von Ihren Anbietertools gespeicherten Anmeldungen und fragt jeden Anbieter höchstens alle fünfzehn Minuten nach seiner Nutzung. Gültige Messungen werden im Cache gespeichert. Während die Desktopanwendung läuft, pausiert der Befehl. <code>statusline</code> und <code>snapshot</code> starten ihn automatisch im Hintergrund, sobald der Cache älter als eine Minute ist."
             },
             "terminal": {
-              "body": "Listet alle unterstützten Terminalprogramme mit ihrem Einrichtungszustand auf und bietet die Einrichtung einzelner oder aller Programme an. <code>terminal install <host></code> und <code>terminal uninstall <host></code> richten ein Programm ein oder stellen es wieder her. <code>terminal status</code> zeigt die Tabelle. <code>terminal show</code> und <code>terminal hide</code> bestimmen die angezeigten Anbieter. Programme und Format erklärt der <docs>Agentenkontext</docs>."
+              "body": "Listet alle unterstützten Terminalprogramme mit ihrem Einrichtungszustand auf und bietet die Einrichtung einzelner oder aller Programme an. <code>terminal install '<host>'</code> und <code>terminal uninstall '<host>'</code> richten ein Programm ein oder stellen es wieder her. <code>terminal status</code> zeigt die Tabelle. <code>terminal show</code> und <code>terminal hide</code> bestimmen die angezeigten Anbieter. Programme und Format erklärt der <docs>Agentenkontext</docs>."
             },
             "setup": {
               "body": "Führt dieselben drei Schritte wie <code>openlimiter</code> ohne Argumente aus: anmelden, verbinden, Anzeigeort wählen. Danach erscheinen die Balken einmal. Übersprungene Schritte bleiben übersprungen. Keiner ist zum Anzeigen eines Balkens erforderlich."

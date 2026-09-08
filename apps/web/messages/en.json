@@ -1744,7 +1744,7 @@
               "body": "Reads the logins your provider tools already stored on this machine and asks each provider for its own usage, at most once every fifteen minutes, then folds what survives validation into the cache. It stands down while the desktop app is running, and <code>statusline</code> and <code>snapshot</code> both start it in the background on their own whenever the cache is older than a minute."
             },
             "terminal": {
-              "body": "Lists every terminal host this machine can draw a bar into and its wiring state, and offers to wire one or all of them. <code>terminal install <host></code> and <code>terminal uninstall <host></code> wire or restore one host by name, <code>terminal status</code> prints the table on its own, and <code>terminal show</code> and <code>terminal hide</code> pick which connected providers actually draw a bar. See <docs>agent context</docs> for the hosts and the grammar."
+              "body": "Lists every terminal host this machine can draw a bar into and its wiring state, and offers to wire one or all of them. <code>terminal install '<host>'</code> and <code>terminal uninstall '<host>'</code> wire or restore one host by name, <code>terminal status</code> prints the table on its own, and <code>terminal show</code> and <code>terminal hide</code> pick which connected providers actually draw a bar. See <docs>agent context</docs> for the hosts and the grammar."
             },
             "setup": {
               "body": "Runs the same three steps <code>openlimiter</code> with no arguments runs: sign in, connect, show bars in, then prints the bars once. Any step you skip stays skipped; nothing here is required to see a bar."

@@ -1744,7 +1744,7 @@
               "body": "各ツールが保存したログインを読み、各プロバイダーへ最大15分に1回使用量を問い合わせます。検証に通った読み取りをキャッシュに取り込みます。デスクトップアプリが動作中なら停止します。キャッシュが1分を超えると、<code>statusline</code> と <code>snapshot</code> が自動でバックグラウンド起動します。"
             },
             "terminal": {
-              "body": "対応する表示先と設定状態を一覧表示し、1つまたはすべての設定を提案します。<code>terminal install <host></code> と <code>terminal uninstall <host></code> は指定先を設定または復元します。<code>terminal status</code> は一覧だけを表示し、<code>terminal show</code> と <code>terminal hide</code> は表示するプロバイダーを選びます。対応先と形式は <docs>エージェントコンテキスト</docs> を参照してください。"
+              "body": "対応する表示先と設定状態を一覧表示し、1つまたはすべての設定を提案します。<code>terminal install '<host>'</code> と <code>terminal uninstall '<host>'</code> は指定先を設定または復元します。<code>terminal status</code> は一覧だけを表示し、<code>terminal show</code> と <code>terminal hide</code> は表示するプロバイダーを選びます。対応先と形式は <docs>エージェントコンテキスト</docs> を参照してください。"
             },
             "setup": {
               "body": "引数なしの <code>openlimiter</code> と同じ3つの手順を実行します。ログイン、接続、表示先の選択後に、バーを1回表示します。スキップした手順はそのままです。バーの表示に必須の手順はありません。"

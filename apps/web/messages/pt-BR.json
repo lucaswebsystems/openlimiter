@@ -1744,7 +1744,7 @@
               "body": "Lê as sessões salvas pelas suas ferramentas e pede a cada provedor seu uso, no máximo uma vez a cada quinze minutos. Guarda as leituras válidas no cache. Pausa enquanto o aplicativo está aberto. <code>statusline</code> e <code>snapshot</code> iniciam o comando automaticamente em segundo plano quando o cache passa de um minuto."
             },
             "terminal": {
-              "body": "Lista os terminais compatíveis e sua configuração, oferecendo configurar um ou todos. <code>terminal install <host></code> e <code>terminal uninstall <host></code> configuram ou restauram um terminal. <code>terminal status</code> mostra a tabela, e <code>terminal show</code> e <code>terminal hide</code> escolhem os provedores visíveis. Consulte <docs>contexto do agente</docs> para conhecer os terminais e o formato."
+              "body": "Lista os terminais compatíveis e sua configuração, oferecendo configurar um ou todos. <code>terminal install '<host>'</code> e <code>terminal uninstall '<host>'</code> configuram ou restauram um terminal. <code>terminal status</code> mostra a tabela, e <code>terminal show</code> e <code>terminal hide</code> escolhem os provedores visíveis. Consulte <docs>contexto do agente</docs> para conhecer os terminais e o formato."
             },
             "setup": {
               "body": "Executa os mesmos três passos de <code>openlimiter</code> sem argumentos: entrar, conectar e escolher onde mostrar barras. Depois mostra as barras uma vez. Passos pulados continuam pulados; nenhum é obrigatório para ver uma barra."

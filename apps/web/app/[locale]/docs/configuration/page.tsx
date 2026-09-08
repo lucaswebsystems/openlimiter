@@ -129,7 +129,12 @@ export default async function ConfigurationPage({ params }: LocaleParams) {
           title: t("statusline.title"),
           body: (
             <>
-              <P>{t.rich("statusline.intro", { code })}</P>
+              <P>
+                {t.rich("statusline.intro", {
+                  code,
+                  docs: (chunks) => <DocLink href="/docs/agent-context">{chunks}</DocLink>,
+                })}
+              </P>
               {/* The capture date is a real value from lib/cli-capture.ts, so the
                   caption takes it as an argument rather than spelling it out. */}
               <CodeBlock
