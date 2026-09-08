@@ -1964,7 +1964,7 @@
       "expired": {
         "chip": "finalizado",
         "title": "Pro ha terminado",
-        "body": "Los servicios alojados se detuvieron, y los interruptores locales volvieron a una cuenta por proveedor y al tema estándar. Todo lo que veías antes de Pro sigue igual. Tu historial se guarda treinta días para que puedas exportarlo, y después se elimina."
+        "body": "Tus preferencias guardadas de Pro se conservaron. Abajo se muestra exactamente lo que se detuvo."
       }
     },
     "upgrade": {
@@ -2001,10 +2001,10 @@
       "dismiss": "Cerrar"
     },
     "trial": {
-      "title": "Comienza tu prueba gratuita",
-      "body": "Treinta días de todos los servicios Pro: alertas, historial, acceso desde el teléfono y cuentas adicionales.",
-      "start": "Comenzar prueba gratuita",
-      "free": "30 días gratis, sin tarjeta"
+      "title": "Iniciar Pro gratis durante 30 días",
+      "body": "Treinta días del perfil completo de Pro: alertas al 60, 80 y 90 por ciento y al reiniciar, historial, acceso desde el teléfono, varias cuentas y contexto alojado.",
+      "start": "Iniciar Pro gratis durante 30 días",
+      "free": "No necesitas tarjeta de crédito"
     },
     "offer": {
       "title": "Tu oferta anual",
@@ -2016,11 +2016,20 @@
       "take": "Aprovechar la oferta"
     },
     "lost": {
-      "alerts": "Tus alertas en 60, 80 y 90 por ciento se detuvieron.",
+      "alerts": "{count} alertas se detuvieron.",
+      "noAlerts": "No se detuvo ninguna alerta.",
       "history": "Tu historial se guarda por treinta días y luego se elimina.",
-      "phone": "Tu teléfono emparejado dejó de leer los datos.",
-      "multiAccount": "Cada proveedor volvió a tener una sola cuenta."
-    }
+      "phone": "Teléfono vinculado: {status}.",
+      "multiAccount": "{count} cuentas adicionales se detuvieron.",
+      "hostedContext": "Contexto alojado: {status}.",
+      "paired": "sí",
+      "notPaired": "no",
+      "on": "activado",
+      "off": "desactivado",
+      "loading": "Leyendo lo que se detuvo.",
+      "unavailable": "No se pudo leer lo que se detuvo."
+    },
+    "restore": "Al suscribirte, todo vuelve a estar como antes. Tus preferencias se conservaron."
   },
   "hub": {
     "syncedSpend": { "sourceThrough": "Sincronización del escritorio: {provider}, {account}, de {start} a {end}", "sourceUpTo": "Sincronización del escritorio: {provider}, {account}, de {start} hasta {end}" },
@@ -2100,9 +2109,12 @@
       }
     },
     "trial": {
-      "start": "Comenzar prueba gratuita",
-      "free": "30 días gratis, sin tarjeta",
+      "start": "Iniciar Pro gratis durante 30 días",
+      "free": "No necesitas tarjeta de crédito",
       "label": "Comienza tu prueba gratuita",
+      "title": "Iniciar Pro gratis durante 30 días",
+      "lead": "Un botón activa Pro con el perfil recomendado completo.",
+      "profile": "El perfil completo de Pro incluye alertas al 60, 80 y 90 por ciento y al reiniciar, historial, acceso desde el teléfono, varias cuentas y contexto alojado.",
       "progress": "Paso {step} de {total}",
       "back": "Atrás",
       "cancel": "Ahora no",
@@ -2116,6 +2128,7 @@
       "push": {
         "title": "Notificaciones en este navegador",
         "lead": "Una línea en tu pantalla en el momento en que cambia una ventana. Una notificación nunca lleva detalles de uso, así que una pantalla bloqueada nunca muestra ninguno.",
+        "optional": "Opcional: permite las notificaciones push del navegador cuando cambie una ventana. Rechazarlas no bloquea Pro.",
         "ask": "Permitir notificaciones",
         "granted": "Las notificaciones están activas en este navegador.",
         "denied": "Las notificaciones están desactivadas en este navegador. Todo lo demás funciona, y puedes activarlas más tarde.",
@@ -2124,10 +2137,10 @@
         "working": "Comenzando"
       },
       "done": {
-        "title": "Tu prueba está activa",
+        "title": "Pro se activó",
         "ends": "Tu prueba termina el {date}.",
         "endsUnknown": "Tu prueba dura 30 días.",
-        "lead": "No se cobró nada y no se pidió ninguna tarjeta.",
+      "lead": "Se activaron las alertas al 60, 80 y 90 por ciento y al reiniciar, el historial, el acceso desde el teléfono, varias cuentas y el contexto alojado.",
         "bars": "Ver mis barras"
       },
       "error": {
@@ -2147,7 +2160,7 @@
       },
       "expired": {
         "title": "Pro ha terminado",
-        "lead": "Tus barras siguen exactamente como están. Estos cuatro se detuvieron."
+        "lead": "Tus preferencias guardadas de Pro se conservaron, y estos servicios se detuvieron."
       },
       "feature": {
         "alerts": "Alertas al 60, 80 y 90 por ciento, y cuando una ventana se reinicia.",
@@ -2155,12 +2168,21 @@
         "phone": "Tus barras en tu teléfono, emparejadas con un código QR.",
         "multiAccount": "Más de una cuenta para cada proveedor."
       },
-      "lost": {
-        "alerts": "Tus alertas en 60, 80 y 90 por ciento se detuvieron.",
+    "lost": {
+      "alerts": "{count} alertas se detuvieron.",
+      "noAlerts": "No se detuvo ninguna alerta.",
         "history": "Tu historial se guarda por treinta días y luego se elimina.",
-        "phone": "Tu teléfono emparejado dejó de leer los datos.",
-        "multiAccount": "Cada proveedor volvió a tener una sola cuenta."
+        "phone": "Teléfono vinculado: {status}.",
+        "multiAccount": "{count} cuentas adicionales se detuvieron.",
+        "hostedContext": "Contexto alojado: {status}.",
+        "paired": "sí",
+        "notPaired": "no",
+        "on": "activado",
+        "off": "desactivado",
+        "loading": "Leyendo lo que se detuvo.",
+        "unavailable": "No se pudo leer lo que se detuvo."
       },
+      "restore": "Al suscribirte, todo vuelve a estar como antes. Tus preferencias se conservaron.",
       "offer": {
         "label": "Tu oferta termina en",
         "countdown": "{days}d {hours}h {minutes}m",

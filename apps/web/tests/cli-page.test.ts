@@ -192,7 +192,7 @@ describe("06: pending authentication intent", () => {
     currentSession = fakeSession({ [ONBOARDED_METADATA_KEY]: true });
     mounted = render(createElement(Dashboard, { lockup: null }));
     await flush(6);
-    expect(mounted.container.textContent).toContain(messages.hub.trial.alerts.title);
+    expect(mounted.container.textContent).toContain(messages.hub.trial.title);
     expect(pendingIntent()).toBeNull();
   });
 

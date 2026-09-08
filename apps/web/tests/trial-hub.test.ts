@@ -72,6 +72,15 @@ const OFFER_OPEN = new Date(NOW + 3 * 86_400_000).toISOString();
 
 let entitlementRow: Record<string, unknown> | null = null;
 let entitlementFails = false;
+let expiredSummary: unknown = {
+  data: {
+    alert_count: 4,
+    phone_paired: true,
+    additional_account_count: 2,
+    hosted_context_enabled: true,
+  },
+  error: null,
+};
 let authCallback: ((event: string, session: unknown) => void) | null = null;
 let mounted: Mounted | null = null;
 
@@ -99,13 +108,14 @@ function fakeClient(): unknown {
       signOut: async () => ({ error: null }),
     },
     functions: {
-      invoke: async (fn: string) => {
+      invoke: async (fn: string, options?: { body?: Record<string, unknown> }) => {
         if (fn === "entitlement") {
           if (entitlementFails) {
             return { data: null, error: { context: { status: 500 } } };
           }
           return { data: { entitlement: entitlementRow, devices: [] }, error: null };
         }
+        if (options?.body?.action === "read_expired_pro_summary") return expiredSummary;
         return { data: null, error: { context: { status: 401 } } };
       },
     },
@@ -115,6 +125,15 @@ function fakeClient(): unknown {
 beforeEach(() => {
   entitlementRow = null;
   entitlementFails = false;
+  expiredSummary = {
+    data: {
+      alert_count: 4,
+      phone_paired: true,
+      additional_account_count: 2,
+      hosted_context_enabled: true,
+    },
+    error: null,
+  };
   authCallback = null;
   window.localStorage.clear();
   window.sessionStorage.clear();
@@ -219,7 +238,7 @@ describe("the locked Pro surfaces under the bars", () => {
       offer_ends_at: OFFER_OPEN,
     };
     const view = await open();
-    expect(view.container.textContent).toContain(pro.lost.alerts);
+    expect(view.container.textContent).toContain(pro.lost.alerts.replace("{count}", "4"));
     expect(view.container.querySelector(".ol-lock-countdown")).not.toBeNull();
     expect(view.container.textContent).toContain(pro.offer.price);
   });
@@ -262,20 +281,23 @@ describe("the deep link the tray opens", () => {
   it("lands straight in the wizard and takes the parameter out of the address", async () => {
     window.history.replaceState(null, "", "/app?trial=1");
     const view = await open();
-    expect(view.container.textContent).toContain(trial.alerts.title);
+    expect(view.container.textContent).toContain(trial.title);
     expect(window.location.search).toBe("");
   });
 
-  it("opens the ordinary hub without it", async () => {
+  it("opens the ordinary hub with its trial entry point", async () => {
     const view = await open();
-    expect(view.container.textContent).not.toContain(trial.alerts.title);
     expect(view.container.textContent).toContain(hub.empty.desktop.title);
+    expect(view.container.textContent).toContain(trial.start);
+    expect(view.container.textContent).toContain(trial.free);
+    expect(starters(view).length).toBeGreaterThan(0);
+    expect(view.container.querySelector(".ol-trial-card")).toBeNull();
   });
 
   it("reaches the wizard from the header button as well", async () => {
     const view = await open();
     press(starters(view)[0] ?? null);
     await flush();
-    expect(view.container.textContent).toContain(trial.alerts.title);
+    expect(view.container.textContent).toContain(trial.title);
   });
 });

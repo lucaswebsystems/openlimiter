@@ -2655,21 +2655,8 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 
 /* ---------------------------------------------------- the trial and the lock */
 
-/*
-  The threshold ladder, this wave's signature moment.
-
-  The first step of the trial wizard does not ask about alerts with three
-  checkboxes; it draws them. Sixty, eighty and ninety percent are three real
-  meters at exactly those widths, in exactly the band colours a window that deep
-  is painted in on the next screen, and the reset row is the green band at the
-  width a window that just turned reads. Switching one off drains its fill back
-  to the track rather than hiding it, so the choice is made in the product's own
-  language rather than in a form's.
-
-  Every width lives here, keyed off the threshold on the element, because a
-  width set from JavaScript would be an inline style and this is not a reading:
-  it is the constant the alert fires at.
-*/
+/* The trial card keeps the complete server supplied profile visible, with
+   browser push as the only optional permission. */
 
 .ol-trial-cta {
   display: grid;
@@ -2678,8 +2665,36 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 }
 
 .ol-trial-cta > p {
-  color: var(--ol-muted);
+  color: var(--ol-heading);
   font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-semibold);
+  line-height: var(--ol-leading-body);
+}
+
+.ol-trial-cta-compact {
+  min-width: 0;
+}
+
+.ol-trial-cta-compact .ol-control {
+  max-width: 100%;
+  text-align: left;
+}
+
+.ol-trial-profile {
+  color: var(--ol-body);
+  text-align: left;
+}
+
+.ol-trial-free {
+  color: var(--ol-heading);
+  font-weight: var(--ol-weight-semibold);
+  text-align: left;
+}
+
+.ol-trial-success {
+  color: var(--ol-body);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-medium);
   line-height: var(--ol-leading-body);
 }
 

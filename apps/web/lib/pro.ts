@@ -239,6 +239,52 @@ export async function readProAccount(client: SupabaseClient): Promise<ProResult<
   };
 }
 
+export interface ProExpiredSummary {
+  alertCount: number;
+  phonePaired: boolean;
+  additionalAccountCount: number;
+  hostedContextEnabled: boolean;
+}
+
+function count(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+export function expiredProSummaryOf(value: unknown): ProExpiredSummary | null {
+  const row = record(value);
+  if (row === null) return null;
+  const alertCount = count(row.alert_count);
+  const additionalAccountCount = count(row.additional_account_count);
+  if (
+    alertCount === null ||
+    additionalAccountCount === null ||
+    typeof row.phone_paired !== "boolean" ||
+    typeof row.hosted_context_enabled !== "boolean"
+  ) return null;
+  return {
+    alertCount,
+    phonePaired: row.phone_paired,
+    additionalAccountCount,
+    hostedContextEnabled: row.hosted_context_enabled,
+  };
+}
+
+export async function readExpiredProSummary(
+  client: SupabaseClient,
+): Promise<ProResult<ProExpiredSummary>> {
+  const result = await callProFunction<Record<string, unknown>>(
+    client,
+    "pro-service",
+    { action: "read_expired_pro_summary" },
+  );
+  if (!result.ok) return { ok: false, reason: failureForStatus(result.status) };
+  const summary = expiredProSummaryOf(result.value);
+  return summary === null
+    ? { ok: false, reason: "unavailable" }
+    : { ok: true, value: summary };
+}
+
 /** A Stripe Checkout session for one interval. The caller redirects to `url`. */
 export async function startProCheckout(
   client: SupabaseClient,

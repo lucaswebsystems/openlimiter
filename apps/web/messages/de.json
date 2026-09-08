@@ -1964,7 +1964,7 @@
       "expired": {
         "chip": "beendet",
         "title": "Pro ist beendet",
-        "body": "Die gehosteten Dienste sind gestoppt, und die lokalen Schalter sind auf ein Konto je Anbieter und das Standardthema zurückgefallen. Alles, was du vor Pro sehen konntest, bleibt unverändert. Dein Verlauf bleibt dreißig Tage zum Export erhalten und wird danach gelöscht."
+        "body": "Ihre gespeicherten Pro Einstellungen blieben erhalten. Unten sehen Sie genau, was beendet wurde."
       }
     },
     "upgrade": {
@@ -2001,10 +2001,10 @@
       "dismiss": "Schließen"
     },
     "trial": {
-      "title": "Starten Sie Ihre kostenlose Testphase",
-      "body": "Dreißig Tage jeder Pro Leistung: Benachrichtigungen, Verlauf, Telefonzugriff und zusätzliche Konten.",
-      "start": "Kostenlose Testphase starten",
-      "free": "30 Tage kostenlos, keine Karte nötig"
+      "title": "Pro 30 Tage kostenlos starten",
+      "body": "Dreißig Tage mit dem vollständigen Pro Profil: Alerts bei 60, 80 und 90 Prozent und beim Zurücksetzen, Verlauf, Telefonzugriff, mehrere Konten und gehosteter Kontext.",
+      "start": "Pro 30 Tage kostenlos starten",
+      "free": "Keine Kreditkarte erforderlich"
     },
     "offer": {
       "title": "Ihr Jahresangebot",
@@ -2016,11 +2016,20 @@
       "take": "Angebot annehmen"
     },
     "lost": {
-      "alerts": "Ihre Benachrichtigungen bei 60, 80 und 90 Prozent haben aufgehört.",
+      "alerts": "{count} Alerts wurden gestoppt.",
+      "noAlerts": "Keine Alerts wurden gestoppt.",
       "history": "Ihr Verlauf wird dreißig Tage aufbewahrt und dann gelöscht.",
-      "phone": "Ihr gekoppeltes Telefon hat aufgehört zu lesen.",
-      "multiAccount": "Jeder Anbieter ist wieder auf ein Konto zurückgesetzt."
-    }
+      "phone": "Telefon gekoppelt: {status}.",
+      "multiAccount": "{count} zusätzliche Konten wurden gestoppt.",
+      "hostedContext": "Gehosteter Kontext: {status}.",
+      "paired": "ja",
+      "notPaired": "nein",
+      "on": "aktiv",
+      "off": "inaktiv",
+      "loading": "Es wird gelesen, was gestoppt wurde.",
+      "unavailable": "Was gestoppt wurde, konnte nicht gelesen werden."
+    },
+    "restore": "Mit einem Abonnement kommt alles wie zuvor zurück. Ihre Einstellungen wurden behalten."
   },
   "hub": {
     "syncedSpend": { "sourceThrough": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}", "sourceUpTo": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}" },
@@ -2100,9 +2109,12 @@
       }
     },
     "trial": {
-      "start": "Kostenlose Testphase starten",
-      "free": "30 Tage kostenlos, keine Karte nötig",
+      "start": "Pro 30 Tage kostenlos starten",
+      "free": "Keine Kreditkarte erforderlich",
       "label": "Starten Sie Ihre kostenlose Testphase",
+      "title": "Pro 30 Tage kostenlos starten",
+      "lead": "Mit einem Klick wird Pro mit dem vollständigen empfohlenen Profil gestartet.",
+      "profile": "Das vollständige Pro Profil umfasst Alerts bei 60, 80 und 90 Prozent und beim Zurücksetzen, Verlauf, Telefonzugriff, mehrere Konten und gehosteten Kontext.",
       "progress": "Schritt {step} von {total}",
       "back": "Zurück",
       "cancel": "Jetzt nicht",
@@ -2116,6 +2128,7 @@
       "push": {
         "title": "Push für diesen Browser",
         "lead": "Eine Zeile auf Ihrem Bildschirm in dem Moment, in dem sich ein Fenster ändert. Eine Push Meldung enthält nie Nutzungsdetails, daher zeigt ein gesperrter Bildschirm nie eines an.",
+        "optional": "Optional: Erlauben Sie Browser Push Benachrichtigungen, wenn sich ein Fenster ändert. Eine Ablehnung blockiert Pro nicht.",
         "ask": "Push erlauben",
         "granted": "Push ist für diesen Browser aktiviert.",
         "denied": "Push ist in diesem Browser deaktiviert. Alles andere funktioniert, und Sie können es später erlauben.",
@@ -2124,10 +2137,10 @@
         "working": "Wird gestartet"
       },
       "done": {
-        "title": "Ihre Testphase läuft",
+        "title": "Pro wurde aktiviert",
         "ends": "Ihre Testphase endet am {date}.",
         "endsUnknown": "Ihre Testphase läuft 30 Tage.",
-        "lead": "Es wurde nichts berechnet und keine Karte verlangt.",
+      "lead": "Alerts bei 60, 80 und 90 Prozent und beim Zurücksetzen, Verlauf, Telefonzugriff, mehrere Konten und gehosteter Kontext wurden aktiviert.",
         "bars": "Meine Balken ansehen"
       },
       "error": {
@@ -2147,7 +2160,7 @@
       },
       "expired": {
         "title": "Pro ist beendet",
-        "lead": "Ihre Balken bleiben genau so, wie sie sind. Diese vier haben aufgehört."
+        "lead": "Ihre gespeicherten Pro Einstellungen blieben erhalten, und diese Dienste wurden beendet."
       },
       "feature": {
         "alerts": "Benachrichtigungen bei 60, 80 und 90 Prozent, und wenn ein Fenster zurückgesetzt wird.",
@@ -2155,12 +2168,21 @@
         "phone": "Ihre Balken auf Ihrem Telefon, gekoppelt per QR Code.",
         "multiAccount": "Mehr als ein Konto für jeden Anbieter."
       },
-      "lost": {
-        "alerts": "Ihre Benachrichtigungen bei 60, 80 und 90 Prozent haben aufgehört.",
+    "lost": {
+      "alerts": "{count} Alerts wurden gestoppt.",
+      "noAlerts": "Keine Alerts wurden gestoppt.",
         "history": "Ihr Verlauf wird dreißig Tage aufbewahrt und dann gelöscht.",
-        "phone": "Ihr gekoppeltes Telefon hat aufgehört zu lesen.",
-        "multiAccount": "Jeder Anbieter ist wieder auf ein Konto zurückgesetzt."
+        "phone": "Telefon gekoppelt: {status}.",
+        "multiAccount": "{count} zusätzliche Konten wurden gestoppt.",
+        "hostedContext": "Gehosteter Kontext: {status}.",
+        "paired": "ja",
+        "notPaired": "nein",
+        "on": "aktiv",
+        "off": "inaktiv",
+        "loading": "Es wird gelesen, was gestoppt wurde.",
+        "unavailable": "Was gestoppt wurde, konnte nicht gelesen werden."
       },
+      "restore": "Mit einem Abonnement kommt alles wie zuvor zurück. Ihre Einstellungen wurden behalten.",
       "offer": {
         "label": "Ihr Angebot endet in",
         "countdown": "{days}T {hours}Std {minutes}Min",

@@ -1964,7 +1964,7 @@
       "expired": {
         "chip": "encerrado",
         "title": "O Pro terminou",
-        "body": "Os serviços hospedados pararam, e as chaves locais voltaram a uma conta por provedor e ao tema padrão. Tudo o que você via antes do Pro continua igual. Seu histórico fica guardado por trinta dias para você exportar, e depois é apagado."
+        "body": "Suas preferências salvas do Pro foram mantidas. Abaixo está exatamente o que foi interrompido."
       }
     },
     "upgrade": {
@@ -2001,10 +2001,10 @@
       "dismiss": "Fechar"
     },
     "trial": {
-      "title": "Comece seu teste grátis",
-      "body": "Trinta dias de todos os serviços Pro: alertas, histórico, acesso pelo celular e contas extras.",
-      "start": "Começar teste grátis",
-      "free": "30 dias grátis, sem cartão"
+      "title": "Começar o Pro grátis por 30 dias",
+      "body": "Trinta dias do perfil completo do Pro: alertas em 60, 80 e 90 por cento e no reinício, histórico, acesso pelo celular, várias contas e contexto hospedado.",
+      "start": "Começar o Pro grátis por 30 dias",
+      "free": "Nenhum cartão de crédito é necessário"
     },
     "offer": {
       "title": "Sua oferta anual",
@@ -2016,11 +2016,20 @@
       "take": "Aproveitar a oferta"
     },
     "lost": {
-      "alerts": "Seus alertas em 60, 80 e 90 por cento pararam.",
+      "alerts": "{count} alertas foram interrompidos.",
+      "noAlerts": "Nenhum alerta foi interrompido.",
       "history": "Seu histórico fica guardado por trinta dias e depois é apagado.",
-      "phone": "Seu celular pareado parou de ler os dados.",
-      "multiAccount": "Cada provedor voltou a ter uma conta só."
-    }
+      "phone": "Celular pareado: {status}.",
+      "multiAccount": "{count} contas extras foram interrompidas.",
+      "hostedContext": "Contexto hospedado: {status}.",
+      "paired": "sim",
+      "notPaired": "não",
+      "on": "ativado",
+      "off": "desativado",
+      "loading": "Lendo o que foi interrompido.",
+      "unavailable": "Não foi possível ler o que foi interrompido."
+    },
+    "restore": "Ao assinar, tudo volta ao que era. Suas preferências foram mantidas."
   },
   "hub": {
     "syncedSpend": { "sourceThrough": "Sincronização do computador: {provider}, {account}, de {start} até {end}", "sourceUpTo": "Sincronização do computador: {provider}, {account}, de {start} até {end}" },
@@ -2100,9 +2109,12 @@
       }
     },
     "trial": {
-      "start": "Começar teste grátis",
-      "free": "30 dias grátis, sem cartão",
+      "start": "Começar o Pro grátis por 30 dias",
+      "free": "Nenhum cartão de crédito é necessário",
       "label": "Comece seu teste grátis",
+      "title": "Começar o Pro grátis por 30 dias",
+      "lead": "Um botão inicia o Pro com o perfil recomendado completo.",
+      "profile": "O perfil completo do Pro inclui alertas em 60, 80 e 90 por cento e no reinício, histórico, acesso pelo celular, várias contas e contexto hospedado.",
       "progress": "Passo {step} de {total}",
       "back": "Voltar",
       "cancel": "Agora não",
@@ -2116,6 +2128,7 @@
       "push": {
         "title": "Notificações neste navegador",
         "lead": "Uma linha na sua tela no momento em que uma janela muda. Uma notificação nunca carrega detalhes de uso, então uma tela bloqueada nunca mostra nenhum.",
+        "optional": "Opcional: permita notificações push do navegador quando uma janela mudar. Recusar não bloqueia o Pro.",
         "ask": "Permitir notificações",
         "granted": "As notificações estão ativas neste navegador.",
         "denied": "As notificações estão desativadas neste navegador. Tudo o resto funciona, e você pode ativar depois.",
@@ -2124,10 +2137,10 @@
         "working": "Iniciando"
       },
       "done": {
-        "title": "Seu teste está em andamento",
+        "title": "O Pro foi ativado",
         "ends": "Seu teste termina em {date}.",
         "endsUnknown": "Seu teste dura 30 dias.",
-        "lead": "Nada foi cobrado e nenhum cartão foi pedido.",
+      "lead": "Os alertas em 60, 80 e 90 por cento e no reinício, o histórico, o acesso pelo celular, várias contas e o contexto hospedado foram ativados.",
         "bars": "Ver minhas barras"
       },
       "error": {
@@ -2147,7 +2160,7 @@
       },
       "expired": {
         "title": "O Pro terminou",
-        "lead": "Suas barras continuam exatamente como estão. Estes quatro pararam."
+        "lead": "Suas preferências salvas do Pro foram mantidas, e estes serviços foram interrompidos."
       },
       "feature": {
         "alerts": "Alertas em 60, 80 e 90 por cento, e quando uma janela reinicia.",
@@ -2155,12 +2168,21 @@
         "phone": "Suas barras no seu celular, pareadas por um código QR.",
         "multiAccount": "Mais de uma conta para cada provedor."
       },
-      "lost": {
-        "alerts": "Seus alertas em 60, 80 e 90 por cento pararam.",
+    "lost": {
+      "alerts": "{count} alertas foram interrompidos.",
+      "noAlerts": "Nenhum alerta foi interrompido.",
         "history": "Seu histórico fica guardado por trinta dias e depois é apagado.",
-        "phone": "Seu celular pareado parou de ler os dados.",
-        "multiAccount": "Cada provedor voltou a ter uma conta só."
+        "phone": "Celular pareado: {status}.",
+        "multiAccount": "{count} contas extras foram interrompidas.",
+        "hostedContext": "Contexto hospedado: {status}.",
+        "paired": "sim",
+        "notPaired": "não",
+        "on": "ativado",
+        "off": "desativado",
+        "loading": "Lendo o que foi interrompido.",
+        "unavailable": "Não foi possível ler o que foi interrompido."
       },
+      "restore": "Ao assinar, tudo volta ao que era. Suas preferências foram mantidas.",
       "offer": {
         "label": "Sua oferta termina em",
         "countdown": "{days}d {hours}h {minutes}m",

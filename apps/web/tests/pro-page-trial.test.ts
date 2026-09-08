@@ -66,8 +66,17 @@ const YESTERDAY = new Date(NOW - 86_400_000).toISOString();
 const OFFER_OPEN = new Date(NOW + 4 * 86_400_000).toISOString();
 
 let entitlementRow: Record<string, unknown> | null = null;
+let expiredSummary: unknown = {
+  data: {
+    alert_count: 4,
+    phone_paired: true,
+    additional_account_count: 2,
+    hosted_context_enabled: true,
+  },
+  error: null,
+};
 let checkoutUrl = "https://checkout.stripe.com/offer";
-let invoked: { fn: string; body: unknown }[] = [];
+let invoked: { fn: string; options: { body: unknown } }[] = [];
 let mounted: Mounted | null = null;
 
 const SESSION = { user: { id: "user-1", email: "person@example.com" } };
@@ -83,9 +92,12 @@ function fakeClient(): unknown {
     },
     functions: {
       invoke: async (fn: string, options: { body: unknown }) => {
-        invoked.push({ fn, body: options.body });
+        invoked.push({ fn, options });
         if (fn === "entitlement") {
           return { data: { entitlement: entitlementRow, devices: [] }, error: null };
+        }
+        if ((options.body as Record<string, unknown>).action === "read_expired_pro_summary") {
+          return expiredSummary;
         }
         if (fn === "create-checkout") return { data: { url: checkoutUrl }, error: null };
         return { data: null, error: { context: { status: 500 } } };
@@ -96,6 +108,15 @@ function fakeClient(): unknown {
 
 beforeEach(() => {
   entitlementRow = null;
+  expiredSummary = {
+    data: {
+      alert_count: 4,
+      phone_paired: true,
+      additional_account_count: 2,
+      hosted_context_enabled: true,
+    },
+    error: null,
+  };
   invoked = [];
   checkoutUrl = "https://checkout.stripe.com/offer";
   window.localStorage.clear();
@@ -157,13 +178,51 @@ describe("the offer on the Pro page", () => {
     };
     const view = await open();
     const lines = all(view.container, "li").map((node) => node.textContent?.trim());
-    expect(lines).toContain(portal.lost.alerts);
-    expect(lines).toContain(portal.lost.multiAccount);
+    expect(lines).toContain(portal.lost.alerts.replace("{count}", "4"));
+    expect(lines).toContain(portal.lost.phone.replace("{status}", portal.lost.paired));
+    expect(lines).toContain(portal.lost.multiAccount.replace("{count}", "2"));
+    expect(lines).toContain(portal.lost.hostedContext.replace("{status}", portal.lost.on));
+    expect(view.container.textContent).toContain(portal.restore);
     expect(view.container.textContent).toContain(portal.offer.price);
     expect(byText(view.container, "button", portal.offer.take)).not.toBeNull();
     /* One price on the screen, not two: the ordinary upgrade panel steps aside
        while the discounted one is live. */
     expect(view.container.textContent).not.toContain(portal.upgrade.title);
+  });
+
+  it("names the empty expired profile from the server response", async () => {
+    entitlementRow = {
+      plan_state: "expired",
+      trial_ends_at: YESTERDAY,
+      offer_ends_at: null,
+    };
+    expiredSummary = {
+      data: {
+        alert_count: 0,
+        phone_paired: false,
+        additional_account_count: 0,
+        hosted_context_enabled: false,
+      },
+      error: null,
+    };
+    const view = await open();
+    expect(view.container.textContent).toContain(portal.lost.noAlerts);
+    expect(view.container.textContent).not.toContain(portal.lost.alerts.replace("{count}", "0"));
+    expect(view.container.textContent).toContain(
+      portal.lost.phone.replace("{status}", portal.lost.notPaired),
+    );
+    expect(view.container.textContent).toContain(portal.lost.multiAccount.replace("{count}", "0"));
+    expect(view.container.textContent).toContain(
+      portal.lost.hostedContext.replace("{status}", portal.lost.off),
+    );
+  });
+
+  it("does not ask for an expired summary during a live trial", async () => {
+    entitlementRow = { plan_state: "trialing", trial_ends_at: IN_TEN_DAYS };
+    const view = await open();
+    expect(invoked.some((call) => (call.options.body as Record<string, unknown>).action === "read_expired_pro_summary"))
+      .toBe(false);
+    expect(view.container.textContent).not.toContain(portal.restore);
   });
 
   it("asks create-checkout for the named offer and follows the session", async () => {
@@ -180,9 +239,11 @@ describe("the offer on the Pro page", () => {
     const view = await open();
     press(byText(view.container, "button", portal.offer.take));
     await flush(3);
-    expect(invoked.find((call) => call.fn === "create-checkout")?.body).toEqual({
-      interval: "year",
-      offer: "trial_end_annual",
+    expect(invoked.find((call) => call.fn === "create-checkout")?.options).toEqual({
+      body: {
+        interval: "year",
+        offer: "trial_end_annual",
+      },
     });
     expect(assign).toHaveBeenCalledWith("https://checkout.stripe.com/offer");
   });

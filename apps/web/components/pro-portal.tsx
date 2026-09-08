@@ -38,6 +38,7 @@ import { useOfferCountdown } from "@/lib/use-offer-countdown";
 import { PRO_MONTHLY_PRICE, PRO_YEARLY_PRICE } from "@/lib/site";
 import { SignInCard } from "./sign-in-card";
 import { Button, Chip, SectionPanel } from "./ui";
+import { ExpiredProSummary } from "./pro-expired-summary";
 
 /**
  * The Pro portal.
@@ -74,9 +75,6 @@ type Action = "none" | "month" | "year" | "billing" | "offer";
  * on this page and the entry in the tray menu are the same door.
  */
 const TRIAL_DEEP_LINK = "/app?trial=1";
-
-/** The four services the plan holds, in the order every surface names them. */
-const PRO_SURFACES = ["alerts", "history", "phone", "multiAccount"] as const;
 
 function formatDate(value: string | null, locale: string): string | null {
   if (value === null) return null;
@@ -361,12 +359,13 @@ export function ProPortal({ locale }: { locale: string }) {
           >
             {t("trial.start")}
           </Button>
-          <p className="mt-3 text-sm text-muted">{t("trial.free")}</p>
+          <p className="mt-3 text-sm font-medium text-body">{t("trial.free")}</p>
         </SectionPanel>
       )}
 
       {locked && (
         <OfferPanel
+          client={supabase}
           countdown={offerCountdown}
           working={action === "offer"}
           disabled={action !== "none"}
@@ -484,11 +483,13 @@ export function ProPortal({ locale }: { locale: string }) {
  * somebody has to remember to write.
  */
 function OfferPanel({
+  client,
   countdown,
   working,
   disabled,
   onTake,
 }: {
+  client: SupabaseClient;
   /** Null once the window has closed, which is what removes the price. */
   countdown: OfferCountdown | null;
   working: boolean;
@@ -499,13 +500,7 @@ function OfferPanel({
 
   return (
     <SectionPanel className="border-accent-subtle">
-      <ul className="space-y-1">
-        {PRO_SURFACES.map((surface) => (
-          <li key={surface} className="text-sm leading-relaxed text-muted">
-            {t(`lost.${surface}`)}
-          </li>
-        ))}
-      </ul>
+      <ExpiredProSummary client={client} namespace="proPortal" />
 
       {countdown !== null && (
         <>

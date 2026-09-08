@@ -366,6 +366,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   const [syncedUsage, setSyncedUsage] = useState<SyncedUsageResult | null>(null);
   const [syncedSpend, setSyncedSpend] = useState<SyncedApiSpend[]>([]);
   const [cloudRows, setCloudRows] = useState<CloudMeterKey[]>([]);
+  const [trialStartedNotice, setTrialStartedNotice] = useState(false);
   const [spendFailed, setSpendFailed] = useState(false);
   const [cloudFailed, setCloudFailed] = useState(false);
   const readInFlight = useRef<Promise<void> | null>(null);
@@ -967,9 +968,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
           /* The one aggressive control on this surface, and the only place
              the header carries an accent. It appears for an account that has
              never had a trial and disappears the moment one exists, so it is
-             never a button that can only be refused. The promise rides on
-             its title, because a sentence in a toolbar is a sentence nobody
-             reads; every other placement writes it out in full. It sits on
+             never a button that can only be refused. The promise is written
+             beside it at every size, and it sits on
              the logo's own row so the icon group below it never has to make
              room for it too. */
           view === "bars" && canStartTrial ? (
@@ -1051,6 +1051,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
 
       {view === "bars" && (
         <div className="ol-panel ol-home-stack">
+          {trialStartedNotice && <p className="ol-trial-success" role="status">{t("trial.done.lead")}</p>}
           {barsPanel}
           {!demo && syncEnabled && <>
             <CloudSpendRows rows={cloudRows} now={now ?? new Date().toISOString()} failed={cloudFailed} />
@@ -1077,6 +1078,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               /* The hub redraws from what the call returned rather than from a
                  reload, and asks again anyway so the device list and the
                  features come from the server rather than from this branch. */
+              setTrialStartedNotice(true);
               setEntitlement(next);
               refreshEntitlement();
             }}

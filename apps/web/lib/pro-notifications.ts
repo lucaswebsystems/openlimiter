@@ -251,11 +251,10 @@ export type PushOutcome =
 /**
  * Ask this browser for push, and hand back the subscription without sending it.
  *
- * The wizard stages a subscription the same way it stages a threshold: nothing
- * is written anywhere until the trial itself is started, so somebody who grants
- * the permission and then closes the card has given the server nothing. That is
- * why this is separate from `registerProPush`, which files a subscription
- * against a device grant a browser tab does not hold.
+ * The wizard stages a subscription locally until the trial itself is started,
+ * so somebody who grants the permission and then closes the card has given the
+ * server nothing. That is why this is separate from `registerProPush`, which
+ * files a subscription against a device grant a browser tab does not hold.
  *
  * Refusal is never an error here. A browser with no push, an insecure origin,
  * a permission already denied and a permission denied just now are all the same

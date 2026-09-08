@@ -1964,7 +1964,7 @@
       "expired": {
         "chip": "ended",
         "title": "Pro has ended",
-        "body": "The hosted services stopped, and the local switches fell back to one account per provider and the standard theme. Everything you could see before Pro is unchanged. Your history is kept for thirty days so you can export it, then it is purged."
+        "body": "Your saved Pro preferences stayed in place. The panel below shows exactly what stopped."
       }
     },
     "upgrade": {
@@ -2001,10 +2001,10 @@
       "dismiss": "Dismiss"
     },
     "trial": {
-      "title": "Start your free trial",
-      "body": "Thirty days of every Pro service: alerts, history, phone access and extra accounts.",
-      "start": "Start free trial",
-      "free": "30 days free, no card"
+      "title": "Start Pro free for 30 days",
+      "body": "Thirty days of the complete Pro profile: alerts at 60, 80, 90 percent and reset, history, phone access, multiple accounts and hosted context.",
+      "start": "Start Pro free for 30 days",
+      "free": "No credit card needed"
     },
     "offer": {
       "title": "Your annual offer",
@@ -2016,11 +2016,20 @@
       "take": "Take the offer"
     },
     "lost": {
-      "alerts": "Your alerts stopped at 60, 80 and 90 percent.",
+      "alerts": "{count} alerts stopped.",
+      "noAlerts": "No alerts were stopped.",
       "history": "Your history is kept for thirty days, then purged.",
-      "phone": "Your paired phone stopped reading.",
-      "multiAccount": "Every provider is back to one account."
-    }
+      "phone": "Phone paired: {status}.",
+      "multiAccount": "{count} additional accounts stopped.",
+      "hostedContext": "Hosted context: {status}.",
+      "paired": "yes",
+      "notPaired": "no",
+      "on": "on",
+      "off": "off",
+      "loading": "Reading what stopped.",
+      "unavailable": "What stopped could not be read."
+    },
+    "restore": "Subscribe and everything comes back as it was. Your preferences were kept."
   },
   "hub": {
     "syncedSpend": { "sourceThrough": "Desktop sync: {provider}, {account}, {start} through {end}", "sourceUpTo": "Desktop sync: {provider}, {account}, {start} up to {end}" },
@@ -2100,9 +2109,12 @@
       }
     },
     "trial": {
-      "start": "Start free trial",
-      "free": "30 days free, no card",
+      "start": "Start Pro free for 30 days",
+      "free": "No credit card needed",
       "label": "Start your free trial",
+      "title": "Start Pro free for 30 days",
+      "lead": "One button starts Pro with the complete recommended profile.",
+      "profile": "The full Pro profile includes alerts at 60, 80, 90 percent and reset, history, phone access, multiple accounts and hosted context.",
       "progress": "Step {step} of {total}",
       "back": "Back",
       "cancel": "Not now",
@@ -2116,6 +2128,7 @@
       "push": {
         "title": "Push to this browser",
         "lead": "One line on your screen the moment a window turns. A push never carries usage detail, so a locked screen never shows one.",
+        "optional": "Optional: allow browser push notifications when a window changes. Declining does not block Pro.",
         "ask": "Allow push",
         "granted": "Push is on for this browser.",
         "denied": "Push is off in this browser. Everything else works, and you can allow it later.",
@@ -2124,10 +2137,10 @@
         "working": "Starting"
       },
       "done": {
-        "title": "Your trial is running",
+      "title": "Pro was turned on",
         "ends": "Your trial ends on {date}.",
         "endsUnknown": "Your trial runs for 30 days.",
-        "lead": "Nothing was charged and no card was asked for.",
+      "lead": "Alerts at 60, 80, 90 percent and reset, history, phone access, multiple accounts and hosted context were turned on.",
         "bars": "See my bars"
       },
       "error": {
@@ -2147,7 +2160,7 @@
       },
       "expired": {
         "title": "Pro has ended",
-        "lead": "Your bars carry on exactly as they are. These four stopped."
+        "lead": "Your saved Pro preferences stayed in place, and these are the services that stopped."
       },
       "feature": {
         "alerts": "Alerts at 60, 80 and 90 percent, and when a window resets.",
@@ -2155,12 +2168,21 @@
         "phone": "Your bars on your phone, paired by a QR code.",
         "multiAccount": "More than one account for every provider."
       },
-      "lost": {
-        "alerts": "Your alerts stopped at 60, 80 and 90 percent.",
-        "history": "Your history is kept for thirty days, then purged.",
-        "phone": "Your paired phone stopped reading.",
-        "multiAccount": "Every provider is back to one account."
-      },
+    "lost": {
+      "alerts": "{count} alerts stopped.",
+      "noAlerts": "No alerts were stopped.",
+      "history": "Your history is kept for thirty days, then purged.",
+      "phone": "Phone paired: {status}.",
+      "multiAccount": "{count} additional accounts stopped.",
+      "hostedContext": "Hosted context: {status}.",
+      "paired": "yes",
+      "notPaired": "no",
+      "on": "on",
+      "off": "off",
+      "loading": "Reading what stopped.",
+      "unavailable": "What stopped could not be read."
+    },
+    "restore": "Subscribe and everything comes back as it was. Your preferences were kept.",
       "offer": {
         "label": "Your offer ends in",
         "countdown": "{days}d {hours}h {minutes}m",

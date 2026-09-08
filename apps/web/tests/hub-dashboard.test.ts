@@ -151,7 +151,11 @@ function makeClient(keep: boolean): unknown {
     signInWithOtp: async () => ({ data: {}, error: null }),
   };
   client.functions = {
-    invoke: async (name: string) => {
+    invoke: async (name: string, options?: { body?: Record<string, unknown> }) => {
+      if (name === "pro-service" && options?.body?.action === "start_trial") {
+        currentEntitlement = { plan_state: "trialing" };
+        return { data: { entitlement: currentEntitlement }, error: null };
+      }
       if (name === "entitlement") {
         return entitlementFails
           ? { data: null, error: { context: { status: 500 } } }
@@ -388,7 +392,7 @@ describe("account bound reads", () => {
       await flush();
     });
     expect(pendingIntent()).toBeNull();
-    expect(view.container.textContent).not.toContain(hub.trial.alerts.title);
+    expect(view.container.textContent).not.toContain(hub.trial.title);
   });
 
   it("drops a late response from the previous account", async () => {
@@ -453,6 +457,29 @@ describe("account bound reads", () => {
     });
 
     expect(view.container.textContent).not.toContain(hub.trial.start);
+  });
+});
+
+describe("the trial return path", () => {
+  it("starts from the header and returns to bars with Pro on", async () => {
+    currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
+    currentRead = async () => ({ ok: true, providers: [] });
+    const view = await open();
+    const start = all(view.container, "button").find(
+      (node) => node.textContent?.trim() === hub.trial.start,
+    ) ?? null;
+    press(start);
+    await flush(3);
+    expect(view.container.querySelector(".ol-trial-card")).not.toBeNull();
+    expect(view.container.textContent).not.toContain("Step 1 of 2");
+    press(byText(view.container, "button", hub.trial.start));
+    await flush(5);
+
+    expect(view.container.textContent).toContain(hub.trial.done.lead);
+    expect(view.container.textContent).not.toContain(hub.trial.title);
+    expect(
+      all(view.container, "button").some((node) => node.textContent?.trim() === hub.trial.start),
+    ).toBe(false);
   });
 });
 

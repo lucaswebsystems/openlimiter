@@ -15,12 +15,10 @@ import { callProFunction, entitlementOf, type ProEntitlement } from "./pro";
  * exists rather than a second trial, and an account that has ever had a trial
  * or a paid plan is refused.
  *
- * WHAT THE WIZARD STAGES
+ * WHAT THE WIZARD SENDS
  * ----------------------
- * Thresholds, the reset switch and, when the browser grants it, a push
- * subscription. All of it is held in the wizard's own state and travels in the
- * one call that starts the trial, so somebody who turns push on and then walks
- * away has given the server nothing at all.
+ * The server applies the complete recommended profile. The only optional value
+ * this client can add is a push subscription when the browser grants it.
  *
  * THE COUNTDOWN IS READ, NEVER COMPUTED
  * -------------------------------------
@@ -31,21 +29,10 @@ import { callProFunction, entitlementOf, type ProEntitlement } from "./pro";
  * discounted session: the server checks the window again before it does.
  */
 
-/** The thresholds a trial opens with, and the only ones the server accepts. */
-export const TRIAL_ALERT_THRESHOLDS = [60, 80, 90] as const;
-
 /** The offer `create-checkout` knows by name. There is one, and this is it. */
 export const TRIAL_END_OFFER = "trial_end_annual";
 
-export interface TrialAlertPreferences {
-  /** A subset of the three thresholds above, in ascending order. */
-  thresholds: number[];
-  /** Whether a window resetting is worth a message of its own. */
-  reset: boolean;
-}
-
 export interface TrialPreferences {
-  alerts: TrialAlertPreferences;
   /** Only present when this browser granted the permission and subscribed. */
   push?: PushSubscriptionJSON;
 }
@@ -117,13 +104,9 @@ export function browserDeviceId(): string {
 }
 
 function preferenceBody(preferences: TrialPreferences): Record<string, unknown> {
-  const alerts = {
-    thresholds: [...preferences.alerts.thresholds].sort((left, right) => left - right),
-    reset: preferences.alerts.reset,
-  };
   return preferences.push === undefined
-    ? { alerts }
-    : { alerts, push: { ...preferences.push, device_id: browserDeviceId() } };
+    ? {}
+    : { push: { ...preferences.push, device_id: browserDeviceId() } };
 }
 
 /**
@@ -136,12 +119,11 @@ function preferenceBody(preferences: TrialPreferences): Record<string, unknown> 
  */
 export async function startProTrial(
   client: SupabaseClient,
-  preferences: TrialPreferences,
+  preferences: TrialPreferences = {},
 ): Promise<TrialResult<ProEntitlement | null>> {
-  const result = await callProFunction<Record<string, unknown>>(client, "pro-service", {
-    action: "start_trial",
-    preferences: preferenceBody(preferences),
-  });
+  const body: Record<string, unknown> = { action: "start_trial" };
+  if (preferences.push !== undefined) body.preferences = preferenceBody(preferences);
+  const result = await callProFunction<Record<string, unknown>>(client, "pro-service", body);
   if (!result.ok) return { ok: false, reason: trialFailureForStatus(result.status) };
   /* A 409 is the ordinary path (`result.ok` is false, above), but this guards
      the same refusal delivered as a 200 body: `{ error: "trial_already_used",

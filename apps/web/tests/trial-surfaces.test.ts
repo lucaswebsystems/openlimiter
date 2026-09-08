@@ -8,11 +8,9 @@ import { all, byText, flush, messages, render, type Mounted } from "./render";
 /**
  * The trial wizard and the lock card, mounted for real.
  *
- * What is asserted is what a reader would check by looking: that the ladder
- * opens with all three thresholds and the reset on, that finishing sends
- * exactly one request however many times the button is pressed, that a refused
- * trial and a switched off one say two different things, and that the lock
- * card shows a countdown inside the offer window and prices outside it.
+ * What is asserted is what a reader would check by looking: that one button
+ * starts the trial, push refusal is soft, the server's expired summary is
+ * rendered with its own numbers, and a trialing account never draws the lock.
  *
  * Every sentence is compared against the shipped English catalog rather than
  * against a copy written here, so a wording change moves the test with the
@@ -62,9 +60,21 @@ const OFFER_OPEN = new Date(NOW + 2 * 86_400_000 + 6 * 3_600_000 + 30 * 60_000).
 let mounted: Mounted | null = null;
 let answers: unknown[] = [];
 let invoke: ReturnType<typeof vi.fn>;
+let expiredSummary: unknown = {
+  data: {
+    alert_count: 4,
+    phone_paired: true,
+    additional_account_count: 2,
+    hosted_context_enabled: true,
+  },
+  error: null,
+};
 
 function client(): SupabaseClient {
-  invoke = vi.fn(async () => answers.shift() ?? { data: {}, error: null });
+  invoke = vi.fn(async (_fn: string, options: { body?: Record<string, unknown> }) => {
+    if (options.body?.action === "read_expired_pro_summary") return expiredSummary;
+    return answers.shift() ?? { data: {}, error: null };
+  });
   return { functions: { invoke } } as unknown as SupabaseClient;
 }
 
@@ -97,6 +107,15 @@ function switches(view: Mounted): HTMLElement[] {
 beforeEach(() => {
   answers = [];
   pushAnswer = { state: "unsupported" };
+  expiredSummary = {
+    data: {
+      alert_count: 4,
+      phone_paired: true,
+      additional_account_count: 2,
+      hosted_context_enabled: true,
+    },
+    error: null,
+  };
   currentLocale = "en";
 });
 
@@ -115,88 +134,17 @@ function openWizard(): Mounted {
   return view;
 }
 
-describe("the wizard's first step", () => {
-  it("opens with the three thresholds and the reset already on", () => {
+describe("the one button wizard", () => {
+  it("shows one start control and one optional push permission", () => {
     const view = openWizard();
-    const rows = switches(view);
-    expect(rows.map((row) => row.textContent?.trim())).toEqual([
-      trial.alerts.threshold.replace("{percent}", "60"),
-      trial.alerts.threshold.replace("{percent}", "80"),
-      trial.alerts.threshold.replace("{percent}", "90"),
-      trial.alerts.reset,
-    ]);
-    expect(rows.every((row) => row.getAttribute("aria-checked") === "true")).toBe(true);
+    expect(view.container.textContent).toContain(trial.title);
+    expect(view.container.textContent).toContain(trial.profile);
+    expect(view.container.textContent).toContain(trial.push.optional);
+    expect(switches(view)).toHaveLength(0);
+    expect(all(view.container, "button").filter((node) => node.textContent?.trim() === trial.start))
+      .toHaveLength(1);
   });
 
-  it("draws every threshold as the band a window that deep is painted in", () => {
-    const view = openWizard();
-    expect(switches(view).map((row) => row.textContent?.trim())).toEqual([
-      trial.alerts.threshold.replace("{percent}", "60"),
-      trial.alerts.threshold.replace("{percent}", "80"),
-      trial.alerts.threshold.replace("{percent}", "90"),
-      trial.alerts.reset,
-    ]);
-  });
-
-  it("drains a threshold that is switched off rather than hiding it", () => {
-    const view = openWizard();
-    const ninety = switches(view)[2];
-    press(ninety ?? null);
-    expect(switches(view)[2]?.getAttribute("aria-checked")).toBe("false");
-    /* The bar is still on the row: the width is a CSS answer to this state. */
-    expect(switches(view)[2]?.querySelector(".ol-ladder-fill")).not.toBeNull();
-  });
-
-  it("does not focus the heading on initial open", () => {
-    const view = openWizard();
-    const heading = view.container.querySelector("h2");
-    expect(document.activeElement).not.toBe(heading);
-  });
-});
-
-describe("the wizard's push step", () => {
-  it("asks the browser and keeps a refusal as a soft state", async () => {
-    pushAnswer = { state: "denied" };
-    const view = openWizard();
-    press(byText(view.container, "button", trial.alerts.continue));
-    press(byText(view.container, "button", trial.push.ask));
-    await flush();
-    expect(view.container.textContent).toContain(trial.push.denied);
-    /* The trial is still one press away: a denied permission is not an error. */
-    expect(byText(view.container, "button", trial.push.start)).not.toBeNull();
-  });
-
-  it("sends the subscription it was granted", async () => {
-    pushAnswer = { state: "granted", subscription: { endpoint: "https://push.example/1" } };
-    answers = [{ data: { entitlement: null }, error: null }];
-    const view = openWizard();
-    press(byText(view.container, "button", trial.alerts.continue));
-    press(byText(view.container, "button", trial.push.ask));
-    await flush();
-    expect(view.container.textContent).toContain(trial.push.granted);
-
-    press(byText(view.container, "button", trial.push.start));
-    await flush();
-    const body = invoke.mock.calls[0]?.[1] as {
-      body: { preferences: { push: Record<string, unknown> } };
-    };
-    expect(body.body.preferences.push.endpoint).toBe("https://push.example/1");
-    /* A stable id for this browser travels alongside the subscription; see
-       lib/pro-trial.ts's browserDeviceId. */
-    expect(typeof body.body.preferences.push.device_id).toBe("string");
-    expect((body.body.preferences.push.device_id as string).length).toBeGreaterThan(0);
-  });
-
-  it("focuses the heading when the step changes", async () => {
-    const view = openWizard();
-    press(byText(view.container, "button", trial.alerts.continue));
-    await flush();
-    const heading = view.container.querySelector("h2");
-    expect(document.activeElement).toBe(heading);
-  });
-});
-
-describe("finishing the wizard", () => {
   it("makes one call however many times the button is pressed", async () => {
     answers = [
       new Promise((resolve) =>
@@ -204,8 +152,7 @@ describe("finishing the wizard", () => {
       ),
     ];
     const view = openWizard();
-    press(byText(view.container, "button", trial.alerts.continue));
-    const start = byText(view.container, "button", trial.push.start);
+    const start = byText(view.container, "button", trial.start);
     press(start);
     press(start);
     press(start);
@@ -213,7 +160,7 @@ describe("finishing the wizard", () => {
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
-  it("lands on the date the entitlement came back with", async () => {
+  it("starts when push is declined and returns the completed state", async () => {
     answers = [
       {
         data: { entitlement: { plan_state: "trialing", trial_ends_at: IN_THIRTY_DAYS } },
@@ -221,37 +168,39 @@ describe("finishing the wizard", () => {
       },
     ];
     const view = openWizard();
-    press(byText(view.container, "button", trial.alerts.continue));
-    press(byText(view.container, "button", trial.push.start));
+    pushAnswer = { state: "denied" };
+    press(byText(view.container, "button", trial.start));
     await flush(3);
     expect(view.container.textContent).toContain(trial.done.title);
-    expect(view.container.textContent).toContain("Oct 7, 2026");
+    expect(view.container.textContent).toContain(trial.done.lead);
+    expect(view.container.textContent).not.toContain(trial.alerts.title);
+    expect(invoke.mock.calls[0]?.[1]).toEqual({ body: { action: "start_trial" } });
   });
 
-  it("formats the done date with the active locale", async () => {
-    currentLocale = "pt-BR";
+  it("sends the granted push subscription without threshold choices", async () => {
+    pushAnswer = { state: "granted", subscription: { endpoint: "https://push.example/1" } };
     answers = [
       {
-        data: { entitlement: { plan_state: "trialing", trial_ends_at: IN_THIRTY_DAYS } },
+        data: { entitlement: null },
         error: null,
       },
     ];
     const view = openWizard();
-    press(byText(view.container, "button", trial.alerts.continue));
-    press(byText(view.container, "button", trial.push.start));
+    press(byText(view.container, "button", trial.start));
     await flush(3);
-    expect(view.container.textContent).toContain(trial.done.title);
-    const expected = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(
-      Date.parse(IN_THIRTY_DAYS),
-    );
-    expect(view.container.textContent).toContain(expected);
+    expect(invoke.mock.calls[0]?.[1]).toMatchObject({
+      body: {
+        action: "start_trial",
+        preferences: { push: { endpoint: "https://push.example/1" } },
+      },
+    });
+    expect(invoke.mock.calls[0]?.[1]).not.toHaveProperty("body.preferences.alerts");
   });
 
   it("says the account has had its trial when the server refuses it", async () => {
     answers = [{ data: null, error: { context: { status: 409 } } }];
     const view = openWizard();
-    press(byText(view.container, "button", trial.alerts.continue));
-    press(byText(view.container, "button", trial.push.start));
+    press(byText(view.container, "button", trial.start));
     await flush(3);
     expect(view.container.textContent).toContain(trial.error.alreadyUsed);
     expect(view.container.textContent).not.toContain(trial.done.title);
@@ -265,8 +214,7 @@ describe("finishing the wizard", () => {
       },
     ];
     const view = openWizard();
-    press(byText(view.container, "button", trial.alerts.continue));
-    press(byText(view.container, "button", trial.push.start));
+    press(byText(view.container, "button", trial.start));
     await flush(3);
     expect(view.container.textContent).toContain(trial.error.alreadyUsed);
     expect(view.container.textContent).not.toContain(trial.done.title);
@@ -275,8 +223,7 @@ describe("finishing the wizard", () => {
   it("says the switch is off rather than blaming the service on a 503", async () => {
     answers = [{ data: null, error: { context: { status: 503 } } }];
     const view = openWizard();
-    press(byText(view.container, "button", trial.alerts.continue));
-    press(byText(view.container, "button", trial.push.start));
+    press(byText(view.container, "button", trial.start));
     await flush(3);
     expect(view.container.textContent).toContain(trial.error.switchedOff);
     expect(byText(view.container, "button", trial.error.retry)).not.toBeNull();
@@ -305,9 +252,12 @@ describe("the lock card", () => {
     expect(view.container.textContent).not.toContain(pro.offer.take);
   });
 
-  it("draws nothing at all while a trial is running", () => {
+  it("draws nothing at all while a trial is running and does not read the summary", async () => {
     const view = lock(entitlement({ planState: "trialing", trialEndsAt: IN_THIRTY_DAYS }));
+    await flush(3);
     expect(view.container.textContent).toBe("");
+    expect(invoke.mock.calls.some((call) => call[1]?.body?.action === "read_expired_pro_summary"))
+      .toBe(false);
   });
 
   it("draws nothing at all for a paid plan", () => {
@@ -317,16 +267,43 @@ describe("the lock card", () => {
     expect(view.container.textContent).toBe("");
   });
 
-  it("says what stopped, one line each, once a plan has ended", () => {
+  it("reads and names the exact services that stopped", async () => {
     const view = lock(entitlement());
+    await flush(3);
     expect(view.container.textContent).toContain(pro.expired.title);
     const lines = all(view.container, ".ol-lock-list li").map((node) => node.textContent?.trim());
     expect(lines).toEqual([
-      pro.lost.alerts,
-      pro.lost.history,
-      pro.lost.phone,
-      pro.lost.multiAccount,
+      pro.lost.alerts.replace("{count}", "4"),
+      pro.lost.phone.replace("{status}", pro.lost.paired),
+      pro.lost.multiAccount.replace("{count}", "2"),
+      pro.lost.hostedContext.replace("{status}", pro.lost.on),
     ]);
+    expect(view.container.textContent).toContain(pro.restore);
+    expect(invoke.mock.calls.some((call) => call[1]?.body?.action === "read_expired_pro_summary"))
+      .toBe(true);
+  });
+
+  it("renders the empty expired profile without inventing features", async () => {
+    expiredSummary = {
+      data: {
+        alert_count: 0,
+        phone_paired: false,
+        additional_account_count: 0,
+        hosted_context_enabled: false,
+      },
+      error: null,
+    };
+    const view = lock(entitlement());
+    await flush(3);
+    expect(view.container.textContent).toContain(pro.lost.noAlerts);
+    expect(view.container.textContent).not.toContain(pro.lost.alerts.replace("{count}", "0"));
+    expect(view.container.textContent).toContain(
+      pro.lost.phone.replace("{status}", pro.lost.notPaired),
+    );
+    expect(view.container.textContent).toContain(pro.lost.multiAccount.replace("{count}", "0"));
+    expect(view.container.textContent).toContain(
+      pro.lost.hostedContext.replace("{status}", pro.lost.off),
+    );
   });
 
   it("carries the countdown and the discounted year inside the window", () => {
@@ -363,7 +340,10 @@ describe("the lock card", () => {
     const view = lock(entitlement({ offerEndsAt: OFFER_OPEN }));
     press(byText(view.container, "button", pro.offer.take));
     await flush(3);
-    expect(invoke.mock.calls[0]?.[1]).toEqual({
+    const checkoutCall = invoke.mock.calls.find(
+      (call) => call[1]?.body?.interval === "year",
+    );
+    expect(checkoutCall?.[1]).toEqual({
       body: { interval: "year", offer: "trial_end_annual" },
     });
     expect(assign).toHaveBeenCalledWith("https://checkout.stripe.com/discounted");
@@ -419,7 +399,7 @@ describe("the button itself", () => {
       createElement(StartTrialButton, { onStart: () => undefined, compact: true }),
     );
     mounted = compact;
-    expect(compact.container.textContent).not.toContain(trial.free);
+    expect(compact.container.textContent).toContain(trial.free);
     expect(compact.container.querySelector("button")?.getAttribute("title")).toBe(trial.free);
   });
 });

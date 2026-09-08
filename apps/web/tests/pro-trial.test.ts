@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { entitlementOf } from "@/lib/pro";
 import {
   HUB_DEVICE_ID_KEY,
-  TRIAL_ALERT_THRESHOLDS,
   TRIAL_END_OFFER,
   browserDeviceId,
   isAllowedCheckoutUrl,
@@ -96,22 +95,19 @@ describe("what a status code means on the trial path", () => {
 });
 
 describe("starting the trial", () => {
-  it("sends one call carrying the staged thresholds, sorted, with the reset", async () => {
+  it("lets the server apply the recommended profile", async () => {
     const { client, invoke } = clientAnswering({
       data: { entitlement: { plan_state: "trialing", trial_ends_at: IN_THREE_DAYS } },
       error: null,
     });
 
-    const result = await startProTrial(client, {
-      alerts: { thresholds: [90, 60], reset: true },
-    });
+    const result = await startProTrial(client);
 
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(invoke.mock.calls[0]?.[0]).toBe("pro-service");
     expect(invoke.mock.calls[0]?.[1]).toEqual({
       body: {
         action: "start_trial",
-        preferences: { alerts: { thresholds: [60, 90], reset: true } },
       },
     });
     expect(result).toMatchObject({ ok: true });
@@ -121,19 +117,17 @@ describe("starting the trial", () => {
   it("carries a push subscription with this browser's stable device id, only when the browser granted one", async () => {
     const withPush = clientAnswering({ data: { entitlement: null }, error: null });
     await startProTrial(withPush.client, {
-      alerts: { thresholds: [...TRIAL_ALERT_THRESHOLDS], reset: false },
       push: { endpoint: "https://push.example/1" },
     });
     const body = withPush.invoke.mock.calls[0]?.[1] as { body: Record<string, unknown> };
-    const preferences = body.body.preferences as { alerts: unknown; push: Record<string, unknown> };
-    expect(preferences.alerts).toEqual({ thresholds: [60, 80, 90], reset: false });
+    const preferences = body.body.preferences as { push: Record<string, unknown> };
     expect(preferences.push.endpoint).toBe("https://push.example/1");
     expect(preferences.push.device_id).toBe(browserDeviceId());
 
     const withoutPush = clientAnswering({ data: { entitlement: null }, error: null });
-    await startProTrial(withoutPush.client, { alerts: { thresholds: [60], reset: false } });
+    await startProTrial(withoutPush.client);
     const plain = withoutPush.invoke.mock.calls[0]?.[1] as { body: Record<string, unknown> };
-    expect(Object.keys(plain.body.preferences as object)).toEqual(["alerts"]);
+    expect(plain.body).toEqual({ action: "start_trial" });
   });
 
   it("reads a 200 body carrying trial_already_used as the refusal it is, never a success", async () => {
@@ -141,7 +135,7 @@ describe("starting the trial", () => {
       data: { error: "trial_already_used", entitlement: { plan_state: "trialing" } },
       error: null,
     });
-    expect(await startProTrial(client, { alerts: { thresholds: [60], reset: true } })).toEqual({
+    expect(await startProTrial(client)).toEqual({
       ok: false,
       reason: "alreadyUsed",
     });
@@ -149,7 +143,7 @@ describe("starting the trial", () => {
 
   it("reads a refused trial as already used rather than as a fault", async () => {
     const { client } = clientAnswering(refusal(409));
-    expect(await startProTrial(client, { alerts: { thresholds: [60], reset: true } })).toEqual({
+    expect(await startProTrial(client)).toEqual({
       ok: false,
       reason: "alreadyUsed",
     });
@@ -157,7 +151,7 @@ describe("starting the trial", () => {
 
   it("reads the kill switch as a state that will pass", async () => {
     const { client } = clientAnswering(refusal(503));
-    expect(await startProTrial(client, { alerts: { thresholds: [60], reset: true } })).toEqual({
+    expect(await startProTrial(client)).toEqual({
       ok: false,
       reason: "switchedOff",
     });
@@ -165,7 +159,7 @@ describe("starting the trial", () => {
 
   it("succeeds even when the answer carries no readable entitlement", async () => {
     const { client } = clientAnswering({ data: { entitlement: { nonsense: true } }, error: null });
-    expect(await startProTrial(client, { alerts: { thresholds: [], reset: false } })).toEqual({
+    expect(await startProTrial(client)).toEqual({
       ok: true,
       value: null,
     });
