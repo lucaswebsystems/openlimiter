@@ -175,6 +175,7 @@ import {
   deleteSession,
   readSession,
   StorageDiagnosticError,
+  applyWindowsOwnerOnlyAcl,
   writeSession,
   withSessionLock,
   type HubSession
@@ -1425,10 +1426,12 @@ const agentAliases: Readonly<Record<string, AgentId>> = {
   antigravity: "antigravity",
   claude: "claude",
   codex: "codex",
+  cursor: "cursor",
   gemini: "gemini",
   grok: "grok",
   "grok-build": "grok",
   kimi: "kimi",
+  muse: "muse",
   opencode: "opencode"
 };
 
@@ -2398,6 +2401,13 @@ export async function runCli(
     if (command === "hook") {
       return await hookProtocolCommand(dependencies, argumentsList, now);
     }
+    if (command === "event") {
+      const { eventCommand } = await import("./activity/event.js");
+      return await eventCommand(argumentsList, {
+        ...dependencies,
+        protectWindowsDirectory: (directory) => applyWindowsOwnerOnlyAcl(directory, dependencies.windowsAclRunner)
+      });
+    }
     if (command === "hooks") return await hooksCommand(dependencies, argumentsList);
     if (command === "status") {
       return await explicitStatusCommand(dependencies, argumentsList, now);
@@ -2423,7 +2433,7 @@ export async function runCli(
      * nothing rather than breaking their host. Every other command surfaces the
      * failure with a redacted message so a script can react to it.
      */
-    if (command === "hook") return { exitCode: EXIT_OK, stdout: "", stderr: "" };
+    if (command === "hook" || command === "event") return { exitCode: EXIT_OK, stdout: "", stderr: "" };
     /* A detached refresh writes to a discarded stream and has nobody to tell,
        so it fails quietly rather than leaving an exit code nothing reads. */
     if (command === "refresh") return { exitCode: EXIT_OK, stdout: "", stderr: "" };
