@@ -228,7 +228,9 @@ impl Directory {
                 .share_mode(3)
                 .custom_flags(0x0020_0000 | if directory { 0x0200_0000 } else { 0 });
             if create {
-                options.access_mode(0x4004_0000);
+                // The checkpoint descriptor sets both the DACL and owner. The
+                // handle therefore needs WRITE_OWNER in addition to WRITE_DAC.
+                options.access_mode(0x400C_0000);
             }
             options.open(self.path.join(name))
         }
@@ -326,9 +328,9 @@ impl Directory {
     }
 }
 
-// A protected current user DACL, set on the open file before writing bytes.
-// File ownership can be Administrators on Windows, so OWNER RIGHTS alone does
-// not reliably grant the unelevated creating user access after closing it.
+// A protected owner and DACL matching the session storage helper, set on the
+// open file before writing bytes. Elevated Windows processes can otherwise
+// leave a newly created file owned by Administrators.
 #[cfg(windows)]
 fn protect(file: &File) -> io::Result<()> {
     use std::{ffi::c_void, os::windows::io::AsRawHandle};
@@ -393,7 +395,9 @@ fn protect(file: &File) -> io::Result<()> {
     unsafe {
         LocalFree(sid_text.cast());
     }
-    let text: Vec<u16> = format!("D:P(A;;FA;;;{sid})\0").encode_utf16().collect();
+    let text: Vec<u16> = format!("O:{sid}G:{sid}D:P(A;;FA;;;{sid})(A;;FA;;;SY)(A;;FA;;;BA)\0")
+        .encode_utf16()
+        .collect();
     let mut descriptor = std::ptr::null_mut();
     if unsafe {
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
@@ -406,7 +410,18 @@ fn protect(file: &File) -> io::Result<()> {
     {
         return Err(io::Error::last_os_error());
     }
-    let result = unsafe { SetKernelObjectSecurity(file.as_raw_handle(), 0x8000_0004, descriptor) };
+    const OWNER_SECURITY_INFORMATION: u32 = 0x0000_0001;
+    const DACL_SECURITY_INFORMATION: u32 = 0x0000_0004;
+    const PROTECTED_DACL_SECURITY_INFORMATION: u32 = 0x8000_0000;
+    let result = unsafe {
+        SetKernelObjectSecurity(
+            file.as_raw_handle(),
+            OWNER_SECURITY_INFORMATION
+                | DACL_SECURITY_INFORMATION
+                | PROTECTED_DACL_SECURITY_INFORMATION,
+            descriptor,
+        )
+    };
     let error = io::Error::last_os_error();
     unsafe {
         LocalFree(descriptor);
