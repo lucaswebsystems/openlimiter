@@ -210,6 +210,7 @@ pub fn menu<R: Runtime>(app: &AppHandle<R>, view: &View) -> tauri::Result<Menu<R
 
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(app, "open", "Open", true, None::<&str>)?)?;
+    menu.append(&crate::rail::visibility_menu_item(app)?)?;
     menu.append(&MenuItem::with_id(
         app,
         "refresh",

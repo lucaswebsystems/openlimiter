@@ -1,3 +1,3 @@
 [default]
-description = "Read the rail view model."
-permissions = ["allow-rail-snapshot"]
+description = "Read and control the local Rail windows."
+permissions = ["allow-rail-snapshot", "allow-rail-set-visible", "allow-rail-set-keep-open", "allow-rail-move-offset", "allow-rail-card-open", "allow-rail-card-close"]
