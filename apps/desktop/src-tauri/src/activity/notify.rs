@@ -86,7 +86,11 @@ impl Preferences {
 }
 
 fn load_at(root: &Path) -> io::Result<Preferences> {
-    let directory = Directory::root(root)?;
+    let directory = match Directory::root(root) {
+        Ok(directory) => directory,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Preferences::default()),
+        Err(e) => return Err(e),
+    };
     match directory.read(FILE, 8192) {
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Preferences::default()),
         Err(e) => Err(e),
@@ -114,7 +118,7 @@ fn save_at(root: &Path, value: &Preferences) -> io::Result<()> {
     if !value.valid() {
         return Err(super::storage::unsafe_path());
     }
-    Directory::root(root)?.write(FILE, &serde_json::to_vec(value)?)
+    Directory::create_root(root)?.write(FILE, &serde_json::to_vec(value)?)
 }
 
 fn permits(s: &NotificationSubmission, p: &Preferences, now: i64) -> bool {
@@ -311,5 +315,68 @@ mod tests {
         Directory::root(&root).unwrap().write(FILE, b"{}").unwrap();
         assert!(load_at(&root).is_err());
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn fresh_install_defaults_and_private_root_save() {
+        let root = std::env::temp_dir().join(format!("activity-fresh-{}", uuid::Uuid::new_v4()));
+        assert_eq!(
+            serde_json::to_value(load_at(&root).unwrap()).unwrap(),
+            serde_json::to_value(Preferences::default()).unwrap()
+        );
+        assert!(!root.exists(), "loading defaults must not create storage");
+        let p = Preferences::default();
+        let saved = save_at(&root, &p);
+        assert_private_root(&root);
+        saved.expect("save preferences inside a newly created owner only root");
+        assert_eq!(
+            serde_json::to_value(load_at(&root).unwrap()).unwrap(),
+            serde_json::to_value(p).unwrap()
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn private_state_root_is_owner_only_at_creation() {
+        let root =
+            std::env::temp_dir().join(format!("activity-private-root-{}", uuid::Uuid::new_v4()));
+        drop(Directory::create_root(&root).expect("create owner only root"));
+        assert_private_root(&root);
+        std::fs::remove_dir(root).unwrap();
+    }
+
+    #[test]
+    fn invalid_preference_roots_fail_closed_without_writes() {
+        let root =
+            std::env::temp_dir().join(format!("activity-invalid-root-{}", uuid::Uuid::new_v4()));
+        std::fs::write(&root, b"unchanged").unwrap();
+        assert!(load_at(&root).is_err());
+        assert!(save_at(&root, &Preferences::default()).is_err());
+        assert_eq!(std::fs::read(&root).unwrap(), b"unchanged");
+        std::fs::remove_file(root).unwrap();
+        assert!(load_at(Path::new("relative-root")).is_err());
+        assert!(save_at(Path::new("relative-root"), &Preferences::default()).is_err());
+    }
+
+    fn assert_private_root(root: &Path) {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let meta = std::fs::metadata(&root).unwrap();
+            assert_eq!(meta.mode() & 0o777, 0o700);
+            assert_eq!(meta.uid(), unsafe { libc::geteuid() });
+        }
+        #[cfg(windows)]
+        {
+            use std::{os::windows::process::CommandExt, process::Command};
+            let script = "$a = Get-Acl -LiteralPath $env:ACTIVITY_TEST_ROOT; $r = @($a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); if (!$a.AreAccessRulesProtected -or $r.Count -ne 1 -or $r[0].IsInherited -or $r[0].AccessControlType -ne 'Allow' -or $r[0].IdentityReference.Value -ne [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or $r[0].FileSystemRights -ne 'FullControl') { exit 2 }";
+            assert!(Command::new("powershell.exe")
+                .args(["-NoProfile", "-NonInteractive", "-Command", script])
+                .env("ACTIVITY_TEST_ROOT", &root)
+                .creation_flags(0x0800_0000)
+                .status()
+                .unwrap()
+                .success());
+        }
     }
 }

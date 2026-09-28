@@ -160,6 +160,77 @@ impl Directory {
             Ok(Entries { directory })
         }
     }
+    pub fn create_root(path: &Path) -> io::Result<Self> {
+        if !path.is_absolute() || path.components().any(|c| matches!(c, Component::ParentDir)) {
+            return Err(unsafe_path());
+        }
+        // Pin the application data parent. Missing intermediate directories
+        // receive the same private permissions as the final state directory.
+        let parent_path = path.parent().ok_or_else(unsafe_path)?;
+        let parent = match Self::root(parent_path) {
+            Ok(parent) => parent,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Self::create_root(parent_path)?,
+            Err(e) => return Err(e),
+        };
+        let name = path.file_name().ok_or_else(unsafe_path)?;
+        let destination = parent.path.join(name);
+        match fs::symlink_metadata(&destination) {
+            Ok(meta) if linked(&meta) || !meta.is_dir() => return Err(unsafe_path()),
+            Ok(_) => return Self::root(&destination),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => (),
+            Err(e) => return Err(e),
+        }
+        #[cfg(unix)]
+        let created = {
+            use std::os::{fd::AsRawFd, unix::ffi::OsStrExt};
+            let name = std::ffi::CString::new(name.as_bytes()).map_err(|_| unsafe_path())?;
+            if unsafe { libc::mkdirat(parent.handle.as_raw_fd(), name.as_ptr(), 0o700) } == 0 {
+                Ok(())
+            } else {
+                Err(io::Error::last_os_error())
+            }
+        };
+        #[cfg(windows)]
+        let created = private_descriptor(true, |descriptor| {
+            use std::{ffi::c_void, os::windows::ffi::OsStrExt};
+            #[repr(C)]
+            struct Attributes {
+                size: u32,
+                descriptor: *mut c_void,
+                inherit: i32,
+            }
+            #[link(name = "kernel32")]
+            unsafe extern "system" {
+                fn CreateDirectoryW(path: *const u16, attributes: *const Attributes) -> i32;
+            }
+            let path: Vec<u16> = destination
+                .as_os_str()
+                .encode_wide()
+                .chain(Some(0))
+                .collect();
+            let attributes = Attributes {
+                size: std::mem::size_of::<Attributes>() as u32,
+                descriptor,
+                inherit: 0,
+            };
+            if unsafe { CreateDirectoryW(path.as_ptr(), &attributes) } == 0 {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        });
+        match created {
+            Ok(()) => (),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => (),
+            Err(e) => return Err(e),
+        }
+        let meta = fs::symlink_metadata(&destination)?;
+        if linked(&meta) || !meta.is_dir() || !private(&meta) {
+            return Err(unsafe_path());
+        }
+        Self::root(&destination)
+    }
+
     pub fn root(path: &Path) -> io::Result<Self> {
         if !path.is_absolute() || path.components().any(|c| matches!(c, Component::ParentDir)) {
             return Err(unsafe_path());
@@ -334,16 +405,34 @@ fn protect(file: &File) -> io::Result<()> {
     use std::{ffi::c_void, os::windows::io::AsRawHandle};
     #[link(name = "advapi32")]
     unsafe extern "system" {
+        fn SetKernelObjectSecurity(
+            handle: *mut c_void,
+            information: u32,
+            descriptor: *mut c_void,
+        ) -> i32;
+    }
+    private_descriptor(false, |descriptor| {
+        if unsafe { SetKernelObjectSecurity(file.as_raw_handle(), 0x8000_0004, descriptor) } == 0 {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    })
+}
+
+#[cfg(windows)]
+fn private_descriptor(
+    inherit: bool,
+    use_descriptor: impl FnOnce(*mut std::ffi::c_void) -> io::Result<()>,
+) -> io::Result<()> {
+    use std::ffi::c_void;
+    #[link(name = "advapi32")]
+    unsafe extern "system" {
         fn ConvertStringSecurityDescriptorToSecurityDescriptorW(
             text: *const u16,
             revision: u32,
             descriptor: *mut *mut c_void,
             size: *mut u32,
-        ) -> i32;
-        fn SetKernelObjectSecurity(
-            handle: *mut c_void,
-            information: u32,
-            descriptor: *mut c_void,
         ) -> i32;
         fn OpenProcessToken(process: *mut c_void, access: u32, token: *mut *mut c_void) -> i32;
         fn GetTokenInformation(
@@ -393,7 +482,10 @@ fn protect(file: &File) -> io::Result<()> {
     unsafe {
         LocalFree(sid_text.cast());
     }
-    let text: Vec<u16> = format!("D:P(A;;FA;;;{sid})\0").encode_utf16().collect();
+    let flags = if inherit { "OICI" } else { "" };
+    let text: Vec<u16> = format!("D:P(A;{flags};FA;;;{sid})\0")
+        .encode_utf16()
+        .collect();
     let mut descriptor = std::ptr::null_mut();
     if unsafe {
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
@@ -406,14 +498,9 @@ fn protect(file: &File) -> io::Result<()> {
     {
         return Err(io::Error::last_os_error());
     }
-    let result = unsafe { SetKernelObjectSecurity(file.as_raw_handle(), 0x8000_0004, descriptor) };
-    let error = io::Error::last_os_error();
+    let result = use_descriptor(descriptor);
     unsafe {
         LocalFree(descriptor);
     }
-    if result == 0 {
-        Err(error)
-    } else {
-        Ok(())
-    }
+    result
 }
