@@ -80,7 +80,21 @@ let mounted: Mounted | null = null;
 afterEach(() => {
   mounted?.unmount();
   mounted = null;
+  vi.unstubAllGlobals();
 });
+
+function stubBrowser(browser: {
+  userAgent: string;
+  platform: string;
+  userAgentData: { platform: string; mobile: boolean } | undefined;
+}): void {
+  vi.stubGlobal("navigator", Object.create(window.navigator, {
+    userAgent: { value: browser.userAgent },
+    platform: { value: browser.platform },
+    userAgentData: { value: browser.userAgentData },
+    maxTouchPoints: { value: 0 },
+  }));
+}
 
 function press(node: Element | null): void {
   expect(node).not.toBeNull();
@@ -341,6 +355,7 @@ describe("the first visit", () => {
 
 describe("the empty bars view", () => {
   it("puts the desktop path first and the terminal path second", async () => {
+    stubBrowser({ userAgent: "Mozilla/5.0", platform: "", userAgentData: undefined });
     mounted = render(createElement(BarsEmpty));
     await flush();
 
@@ -353,10 +368,10 @@ describe("the empty bars view", () => {
   });
 
   it("shows the Windows download and PowerShell steps for a Windows browser", async () => {
-    const previous = Object.getOwnPropertyDescriptor(window.navigator, "userAgentData");
-    Object.defineProperty(window.navigator, "userAgentData", {
-      configurable: true,
-      value: { platform: "Windows", mobile: false },
+    stubBrowser({
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      platform: "Win32",
+      userAgentData: { platform: "Windows", mobile: false },
     });
 
     mounted = render(createElement(BarsEmpty));
@@ -370,16 +385,13 @@ describe("the empty bars view", () => {
     expect(mounted.container.textContent).toContain(
       hub.empty.desktop.detected.replace("{system}", hub.empty.desktop.platforms.windows),
     );
-
-    if (previous === undefined) Reflect.deleteProperty(window.navigator, "userAgentData");
-    else Object.defineProperty(window.navigator, "userAgentData", previous);
   });
 
   it("shows all three downloads when the browser reports no desktop system", async () => {
-    const previous = Object.getOwnPropertyDescriptor(window.navigator, "userAgentData");
-    Object.defineProperty(window.navigator, "userAgentData", {
-      configurable: true,
-      value: { platform: "Unknown", mobile: false },
+    stubBrowser({
+      userAgent: "Mozilla/5.0",
+      platform: "",
+      userAgentData: { platform: "Unknown", mobile: false },
     });
 
     mounted = render(createElement(BarsEmpty));
@@ -391,9 +403,6 @@ describe("the empty bars view", () => {
         hub.empty.desktop.download[platform],
       );
     }
-
-    if (previous === undefined) Reflect.deleteProperty(window.navigator, "userAgentData");
-    else Object.defineProperty(window.navigator, "userAgentData", previous);
   });
 
   it("copies the command and says what it copied", async () => {
