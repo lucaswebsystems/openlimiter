@@ -1,5 +1,9 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+// Keep direct Vitest invocations as isolated as pnpm test.
+createRequire(import.meta.url)("./scripts/vitest-bootstrap.cjs");
 
 export default defineConfig({
   esbuild: false,
@@ -24,6 +28,11 @@ export default defineConfig({
     include: [".test-dist/packages/*/test/**/*.test.js"],
     environment: "node",
     pool: "threads",
+    poolOptions: {
+      threads: {
+        execArgv: ["--require", fileURLToPath(new URL("./scripts/vitest-bootstrap.cjs", import.meta.url))]
+      }
+    },
     /* Several tests enforce real wall clock budgets for cache and hook paths.
        Running unrelated files at the same time turns runner contention into
        the value under test. One worker keeps every budget and assertion intact

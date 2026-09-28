@@ -23,7 +23,9 @@ async function measure() {
   const start = performance.now();
   const result = spawnSync(process.execPath, [fileURLToPath(new URL("../dist/bin.js", import.meta.url)), "event", "--agent", "codex", "--event", "UserPromptSubmit"], {
     input: payload, encoding: "utf8", timeout: 40_000, windowsHide: true,
-    env: { ...process.env, LOCALAPPDATA: directory, XDG_STATE_HOME: directory, HOME: directory, USERPROFILE: directory }
+    env: { ...process.env, LOCALAPPDATA: directory, APPDATA: directory,
+      XDG_STATE_HOME: directory, XDG_CONFIG_HOME: directory, XDG_CACHE_HOME: directory,
+      XDG_DATA_HOME: directory, XDG_RUNTIME_DIR: directory, HOME: directory, USERPROFILE: directory }
   });
   return {
     ms: +(performance.now() - start).toFixed(2), exitCode: result.status,

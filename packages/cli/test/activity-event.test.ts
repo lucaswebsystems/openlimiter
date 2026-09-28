@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
+import { spawn } from "node:child_process";
 import { eventCommand, mapHookActivity, readEventInput, EVENT_INPUT_MAX_BYTES } from "../src/activity/event.js";
 import { readActivitySpool } from "../../core/src/activity/spool.js";
 import { runCli } from "../src/cli.js";
@@ -31,6 +32,52 @@ const matrix = [
 ] as const;
 function directory(): string {
   const value = mkdtempSync(path.join(tmpdir(), "openlimiter-event-")); roots.push(value); return value;
+}
+
+async function windowsEventProcess(kind: string, env: NodeJS.ProcessEnv): Promise<{ code: number; stdout: string; stderr: string; elapsed: number }> {
+  // Node's named stdio pipes are denied in some Windows sandboxes. The native
+  // process API uses anonymous pipes, as the shipped PowerShell launcher does.
+  const io = directory();
+  const script = path.join(io, "event.ps1"), result = path.join(io, "result.json");
+  const profileVariables = ["HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"];
+  const quote = (value: string): string => "'" + value.replaceAll("'", "''") + "'";
+  writeFileSync(script, `
+$ErrorActionPreference = 'Stop'
+$info = New-Object System.Diagnostics.ProcessStartInfo
+$info.FileName = ${quote(process.execPath)}
+$info.Arguments = ${quote('"' + path.resolve("packages/cli/dist/bin.js") + '" event --agent codex --event Stop')}
+$info.UseShellExecute = $false
+$info.CreateNoWindow = $true
+$info.RedirectStandardInput = $true
+$info.RedirectStandardOutput = $true
+$info.RedirectStandardError = $true
+${profileVariables.map((name) => `$info.EnvironmentVariables[${quote(name)}] = ${quote(env[name]!)}`).join("\n")}
+$child = New-Object System.Diagnostics.Process
+$child.StartInfo = $info
+$watch = [System.Diagnostics.Stopwatch]::StartNew()
+try {
+  [void]$child.Start()
+  $child.StandardInput.AutoFlush = $true
+  try {
+    ${kind === "stalled" ? "$child.StandardInput.Write('{\"session_id\":')" : `$child.StandardInput.Write('{"session_id":"oversized","prompt":"' + ('x' * ${EVENT_INPUT_MAX_BYTES}) + '"}')`}
+  } catch { if ($_.Exception.GetBaseException() -isnot [System.IO.IOException]) { throw } }
+  if (!$child.WaitForExit(2000)) { $child.Kill(); throw 'Event entry retained stdin beyond its deadline' }
+  $watch.Stop()
+  $value = @{ code = $child.ExitCode; stdout = $child.StandardOutput.ReadToEnd(); stderr = $child.StandardError.ReadToEnd(); elapsed = $watch.Elapsed.TotalMilliseconds }
+  [System.IO.File]::WriteAllText(${quote(result)}, ($value | ConvertTo-Json -Compress))
+} finally { $child.Dispose() }
+`);
+  const diagnostics = path.join(io, "driver-output");
+  const fd = openSync(diagnostics, "w");
+  const driverEnv = { ...env, ...Object.fromEntries(profileVariables.map((name) => [name, io])) };
+  try { await new Promise<void>((resolve, reject) => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script], {
+      env: driverEnv, windowsHide: true, stdio: ["ignore", fd, fd], timeout: 10000
+    });
+    child.once("error", reject);
+    child.once("close", (code) => code === 0 ? resolve() : reject(new Error(`Event test driver exited ${code}: ${readFileSync(diagnostics, "utf8")}`)));
+  }); } finally { closeSync(fd); }
+  return JSON.parse(readFileSync(result, "utf8")) as { code: number; stdout: string; stderr: string; elapsed: number };
 }
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
@@ -88,9 +135,42 @@ describe("activity event", () => {
     expect(await result).toBeNull();
     expect(input.listenerCount("data")).toBe(0);
     const controller = new AbortController();
-    const stalled = readEventInput(controller.signal, new PassThrough());
+    const stalledInput = new PassThrough();
+    const stalled = readEventInput(controller.signal, stalledInput);
     controller.abort();
     expect(await stalled).toBeNull();
+    for (const stream of [input, stalledInput]) {
+      for (const event of ["data", "end", "error", "close"]) expect(stream.listenerCount(event)).toBe(0);
+      expect(stream.isPaused()).toBe(true);
+      expect(stream.destroyed).toBe(true);
+    }
+  });
+
+  it.each(["stalled", "oversized"])("shipped entry releases %s stdin and exits silently without writing", async (kind) => {
+    const root = directory();
+    const env = { ...process.env };
+    for (const name of ["HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "XDG_STATE_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_RUNTIME_DIR"]) env[name] = root;
+    const start = performance.now();
+    const result = process.platform === "win32" ? await windowsEventProcess(kind, env) : await new Promise<{ code: number | null; stdout: string; stderr: string; elapsed: number }>((resolve, reject) => {
+      const child = spawn(process.execPath, [path.resolve("packages/cli/dist/bin.js"), "event", "--agent", "codex", "--event", "Stop"], {
+        env, windowsHide: true, stdio: "pipe"
+      });
+      let stdout = "", stderr = "";
+      const timeout = setTimeout(() => { child.kill(); reject(new Error("Event entry retained stdin beyond its deadline")); }, 2000);
+      child.stdout.on("data", (chunk) => { stdout += String(chunk); });
+      child.stderr.on("data", (chunk) => { stderr += String(chunk); });
+      child.once("error", (error) => { clearTimeout(timeout); reject(error); });
+      child.once("close", (code) => { clearTimeout(timeout); resolve({ code, stdout, stderr, elapsed: performance.now() - start }); });
+      child.stdin.on("error", (error: NodeJS.ErrnoException) => { if (error.code !== "EPIPE") reject(error); });
+      // Never send EOF. Both cases must release the actual pipe themselves.
+      child.stdin.write(kind === "stalled" ? '{"session_id":' : JSON.stringify({ session_id: "oversized", prompt: "x".repeat(EVENT_INPUT_MAX_BYTES) }));
+    });
+    const { elapsed, ...output } = result;
+    console.info(`activity shipped ${kind} input exit ms: ${elapsed.toFixed(2)}`);
+    expect(output).toEqual({ code: 0, stdout: "", stderr: "" });
+    // Includes Node startup plus the 100 ms input deadline, with scheduling headroom.
+    expect(elapsed).toBeLessThan(1000);
+    expect(readdirSync(root)).toEqual([]);
   });
 
   it.each(["{", "[]", " ".repeat(EVENT_INPUT_MAX_BYTES + 1)])("is silent and exits zero for rejected input", async (raw) => {

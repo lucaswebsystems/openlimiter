@@ -197,8 +197,18 @@ function readingsFor(
   provider: ProviderCode,
   now: string
 ): Reading[] {
-  return snapshots
-    .filter((snapshot) => snapshot.provider === provider && snapshot.unit === "PERCENT")
+  const providerRows = snapshots.filter((snapshot) => snapshot.provider === provider);
+  const latestAccount = new Map<string | undefined, number>();
+  for (const snapshot of providerRows) {
+    const observed = Date.parse(snapshot.observedAt);
+    if (Number.isFinite(observed) && observed <= Date.parse(now)) {
+      latestAccount.set(snapshot.accountId, Math.max(latestAccount.get(snapshot.accountId) ?? 0, observed));
+    }
+  }
+  // Dormant accounts remain in the cache, but cannot displace an active account.
+  return providerRows
+    .filter((snapshot) => snapshot.unit === "PERCENT" &&
+      Date.parse(now) - (latestAccount.get(snapshot.accountId) ?? 0) <= ONE_DAY * 1000)
     .map((snapshot) => ({
       snapshot,
       state: freshness(snapshot.observedAt, snapshot.expiresAt, now)
@@ -488,16 +498,7 @@ export function barStyleCells(
     if (!isAllowed) continue;
 
     const readings = readingsFor(snapshots, provider, now);
-    if (readings.length === 0) {
-      if (allowedProviders !== null || snapshots.some((s) => s.provider === provider)) {
-        const tag = provider === hostProvider ? "" : shortTag;
-        const displayTag = tag === "" ? provider.toLowerCase() : tag;
-        const plain = displayTag + " [?]";
-        const painted = color ? displayTag + " \x1b[31m[?]\x1b[0m" : plain;
-        cells.push({ plain, painted, percent: 0 });
-      }
-      continue;
-    }
+    if (readings.length === 0) continue;
 
     let selectedReadings: Reading[] = [];
     if (provider === hostProvider) {
@@ -515,17 +516,19 @@ export function barStyleCells(
     for (const reading of selectedReadings) {
       const { snapshot, state } = reading;
       const providerTag = provider === hostProvider ? "" : shortTag;
+      const ageSeconds = Math.max(0, Math.floor((Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000));
+      const stale = state === "stale" || ageSeconds >= 180;
 
       if (snapshot.usedAmount !== undefined && snapshot.currency === "USD") {
         const age = (Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000;
         const tag = providerTag || shortTag;
-        const plain = age >= 900 ? tag + " [?]" :
-          (state === "stale" || age >= 180 ? "~" : "") + tag + " spend $" + snapshot.usedAmount.toFixed(2);
+        const plain = tag + " spend $" + snapshot.usedAmount.toFixed(2) +
+          (state === "stale" || age >= 180 ? staleAge(age) : "");
         cells.push({ plain, painted: color && (state === "stale" || age >= 180) ? "\x1b[90m" + plain + "\x1b[0m" : plain, percent: snapshot.value });
         continue;
       }
 
-      if (snapshot.window.kind === "unknown") {
+      if (snapshot.window.kind === "unknown" && !stale) {
         const tag = providerTag || shortTag;
         const plain = tag + " [?]";
         const painted = color ? tag + " \x1b[31m[?]\x1b[0m" : plain;
@@ -537,32 +540,19 @@ export function barStyleCells(
       const combinedTag = providerTag + winTag;
       const tag = combinedTag === "" ? shortTag : combinedTag;
 
-      const ageSeconds = Math.max(
-        0,
-        Math.floor((new Date(now).getTime() - new Date(snapshot.observedAt).getTime()) / 1000)
-      );
-
-      if (ageSeconds >= 900) {
-        const plain = tag + " [?]";
-        const painted = color ? tag + " \x1b[31m[?]\x1b[0m" : plain;
-        cells.push({ plain, painted, percent: snapshot.value });
-        continue;
-      }
-
-      const prefix = ageSeconds >= 180 ? "~" : "";
       const bar = tenBlockBar(snapshot.value);
       const percentStr = floorFixed(snapshot.value, 0) + "%";
-      const resetStr = formatResetTime(snapshot.resetAt, now);
+      const resetStr = stale ? staleAge(ageSeconds).trimStart() : formatResetTime(snapshot.resetAt, now);
 
-      const label = prefix + tag;
+      const label = tag;
       const plain = resetStr !== ""
         ? label + " " + bar + " " + percentStr + " " + resetStr
         : label + " " + bar + " " + percentStr;
 
       let painted = plain;
       if (color) {
-        const paintedBar = paintBand(bar, snapshot.value, state, wide);
-        const paintedPct = paintBand(percentStr, snapshot.value, state, wide);
+        const paintedBar = paintBand(bar, snapshot.value, stale ? "stale" : "fresh", wide);
+        const paintedPct = paintBand(percentStr, snapshot.value, stale ? "stale" : "fresh", wide);
         painted = resetStr !== ""
           ? label + " " + paintedBar + " " + paintedPct + " " + resetStr
           : label + " " + paintedBar + " " + paintedPct;
@@ -577,6 +567,12 @@ export function barStyleCells(
   }
 
   return cells;
+}
+
+function staleAge(seconds: number): string {
+  const age = Math.max(0, Math.floor(seconds));
+  return " stale " + (age >= 86_400 ? Math.floor(age / 86_400) + "d" :
+    age >= 3_600 ? Math.floor(age / 3_600) + "h" : age >= 60 ? Math.floor(age / 60) + "m" : age + "s");
 }
 
 function packedBarRows(
@@ -676,9 +672,8 @@ export const STATUSLINE_UNKNOWN = "OpenLimiter UNKNOWN";
  */
 export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
   const { advice, config } = input;
-  if (!advice.inject || advice.reason === "UNKNOWN") return STATUSLINE_UNKNOWN;
-
   if (config.style === "cells") {
+    if (!advice.inject || advice.reason === "UNKNOWN") return STATUSLINE_UNKNOWN;
     const cells = statuslineCells(
       input.snapshots,
       input.now,
