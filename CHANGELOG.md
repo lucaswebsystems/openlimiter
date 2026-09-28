@@ -2,6 +2,37 @@
 
 All notable project changes appear in this file.
 
+## [2.0.0]
+
+Release preparation, not yet published. The entries below describe the intended release and remain subject to the final platform, provider and session checks.
+
+### Desktop
+
+- A left edge Rail keeps usage readings in view on Windows 10 and 11. The macOS and Linux Rail remains a preview, with the tray as the fallback.
+- Agent activity shows busy, waiting and done states for supported agents. Local activity and usage alerts are free. Locate an agent from OpenLimiter's own surfaces; desktop toast activation is not promised.
+- The local monthly spend cap is removed. Free still permits one active account per provider.
+
+### CLI
+
+- Status lines use the meter band colours, with controls to show or hide providers.
+- The desktop and CLI share acquisition ownership and retry deadlines. Refresh follows the same retry policy as scheduled collection, and failed reads retain the original observation time.
+- Published workspace packages, desktop manifests and client version identifiers move together to 2.0.0.
+
+### Web and phone
+
+- Browser and phone session handling improves renewal, pairing, reconnects and logout cleanup. Long session reliability still requires the physical device soak checks before publication.
+- Signed in devices show the latest synchronized readings with their source and freshness. An offline computer does not become a live reading on a phone.
+
+### Providers
+
+- Cursor is Experimental pending live account verification. Provider and platform claims remain limited to recorded evidence.
+- Missing quotas stay unavailable, failed reads never become zero, and cached readings keep their original age.
+
+### Pro
+
+- Local meters, local alerts and current reading sync to the browser and phone stay free after trial expiry.
+- Pro adds history, remote alerts, multiple active accounts per provider and opt in cloud metering for API spend keys. Local subscription credentials remain on the device.
+
 ## [1.3.5] (2026-09-08)
 
 Packages 1.3.5 on npm, desktop v1.3.3, and the site.

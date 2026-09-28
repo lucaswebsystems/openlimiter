@@ -1,4 +1,4 @@
-import { CURRENT_VERSION, REPO_URL, type ShipState } from "./site";
+import { REPO_URL, type ShipState } from "./site";
 
 /**
  * Every way there is to get OpenLimiter, and the honest state of each one.
@@ -45,20 +45,19 @@ import { CURRENT_VERSION, REPO_URL, type ShipState } from "./site";
  */
 
 /**
- * The artifact names follow the bundler's own convention, so they track
- * CURRENT_VERSION. Bump that constant only when the matching release is tagged
- * and its assets are uploaded, or every link on this page points at nothing.
+ * The release workflow uploads these stable copies alongside versioned assets.
+ * Keep these names in sync with its Upload stable installer aliases step.
  */
-const WINDOWS_SETUP = `OpenLimiter_${CURRENT_VERSION}_x64-setup.exe`;
-const WINDOWS_MSI = `OpenLimiter_${CURRENT_VERSION}_x64_en-US.msi`;
-const LINUX_APPIMAGE = `OpenLimiter_${CURRENT_VERSION}_amd64.AppImage`;
-const LINUX_DEB = `OpenLimiter_${CURRENT_VERSION}_amd64.deb`;
-const LINUX_RPM = `OpenLimiter-${CURRENT_VERSION}-1.x86_64.rpm`;
-const MACOS_UNIVERSAL_DMG = `OpenLimiter_${CURRENT_VERSION}_universal.dmg`;
+const WINDOWS_SETUP = "OpenLimiter-windows-x64-setup.exe";
+const WINDOWS_MSI = "OpenLimiter-windows-x64.msi";
+const LINUX_APPIMAGE = "OpenLimiter-linux-x86_64.AppImage";
+const LINUX_DEB = "OpenLimiter-linux-amd64.deb";
+const LINUX_RPM = "OpenLimiter-linux-x86_64.rpm";
+const MACOS_UNIVERSAL_DMG = "OpenLimiter-macos-universal.dmg";
 
-/** The direct link to one packaged file on the tagged release. */
+/** The direct link to one packaged file on the latest published release. */
 function releaseAsset(file: string): string {
-  return `${REPO_URL}/releases/download/v${CURRENT_VERSION}/${file}`;
+  return `${REPO_URL}/releases/latest/download/${file}`;
 }
 
 /** One packaged file a reader can download for a platform. */
