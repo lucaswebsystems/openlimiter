@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "providers",
+  "description": "Read only access to the providers plugin.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "providers:default"
+  ]
+}
