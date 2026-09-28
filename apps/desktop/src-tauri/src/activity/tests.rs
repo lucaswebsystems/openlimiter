@@ -522,6 +522,7 @@ fn windows_checkpoint_acl_is_protected_and_owned_by_current_user() {
             "ACTIVITY_TEST_CHECKPOINT",
             fixture.root.join("activity-desktop-v1.json"),
         )
+        .env_remove("PSModulePath")
         .creation_flags(0x0800_0000)
         .output()
         .unwrap();

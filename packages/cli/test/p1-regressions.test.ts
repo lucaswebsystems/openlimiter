@@ -402,6 +402,48 @@ describe("P1 audit regressions", () => {
     expect(await readSession(directory)).not.toBeNull();
   }, 30_000);
 
+  it.skipIf(process.platform !== "win32")("runs Windows PowerShell ACL commands without an inherited module path", async (context) => {
+    const root = await scratch();
+    const hostileModulePath = path.join(root, "empty-modules");
+    await mkdir(hostileModulePath);
+    const target = path.join(root, "acl-target.txt");
+    await writeFile(target, "", "utf8");
+    const runner = runtimeDependencies().windowsAclRunner;
+    if (runner === undefined) throw new Error("Missing Windows runner");
+    const powershell = path.win32.join(
+      process.env["SystemRoot"] ?? "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe"
+    );
+    const capability = await runner(
+      powershell,
+      ["-NoProfile", "-NonInteractive", "-Command", "'POWERSHELL-CAPABLE'"],
+      5_000
+    ).catch(() => ({ ok: false as const }));
+    if (!capability.ok) return context.skip("The test host cannot launch Windows PowerShell");
+    const previous = process.env["PSModulePath"];
+    process.env["PSModulePath"] = hostileModulePath;
+    try {
+      const result = await runner(
+        powershell,
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$ErrorActionPreference='Stop'; Get-Acl -LiteralPath '" + target.replace(/'/gu, "''") + "' | Out-Null; 'GET-ACL-OK'"
+        ],
+        5_000
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.stdout.trim()).toBe("GET-ACL-OK");
+    } finally {
+      if (previous === undefined) delete process.env["PSModulePath"];
+      else process.env["PSModulePath"] = previous;
+    }
+  });
+
   it("27 keeps hiding the last provider empty in both renderers, while automatic selection still works", async () => {
     const d = await deps();
     d.environment = { ...ENV, CODEX_USAGE_PAYLOAD: "available" };
