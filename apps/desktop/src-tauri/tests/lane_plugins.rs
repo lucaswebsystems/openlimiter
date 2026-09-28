@@ -81,13 +81,25 @@ fn activity_main_allowed() {
     assert_allowed(
         "main",
         "plugin:activity|activity_snapshot",
-        json!({"sessions": []}),
+        json!({"sessions": [], "skippedFiles": 0, "inspectedEntriesLastTick": 0}),
     );
 }
 
 #[test]
 fn activity_ungranted_window_denied() {
     assert_denied("ungranted", "plugin:activity|activity_snapshot");
+}
+
+#[test]
+fn activity_sessions_main_allowed() {
+    assert_allowed("main", "plugin:activity|activity_sessions", json!([]));
+}
+
+#[test]
+fn activity_sessions_ungranted_windows_denied() {
+    for label in ["ungranted", "rail", "tray"] {
+        assert_denied(label, "plugin:activity|activity_sessions");
+    }
 }
 
 #[test]
