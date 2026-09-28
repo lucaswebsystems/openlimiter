@@ -226,6 +226,7 @@ pub fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<S
                     data_interface_status: "authenticated-scrape".to_string(),
                     automation_risk: "high".to_string(),
                     verification: "UNVERIFIED".to_string(),
+                    verification_evidence: None,
                 },
                 used_amount: None,
                 limit_amount: None,
@@ -233,6 +234,9 @@ pub fn parse_opencode(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<S
                 account_id: Some(account_id.to_string()),
                 account_label: None,
                 writer: None,
+                kind: None,
+                availability: None,
+                retry_at: None,
                 provenance: Some(serde_json::json!({
                     "observedVia": "remote_http",
                     "sourceKind": "remote_api"

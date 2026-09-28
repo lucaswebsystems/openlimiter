@@ -277,6 +277,7 @@ fn quota_snapshots(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
                 data_interface_status: "internal-endpoint".to_string(),
                 automation_risk: "high".to_string(),
                 verification: "UNVERIFIED".to_string(),
+                verification_evidence: None,
             },
             used_amount: None,
             limit_amount: None,
@@ -284,6 +285,9 @@ fn quota_snapshots(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
             account_id: Some(account_id.to_string()),
             account_label: None,
             writer: None,
+            kind: None,
+            availability: None,
+            retry_at: None,
             provenance: Some(serde_json::json!({
                 "observedVia": "remote_http",
                 "sourceKind": "remote_api"
@@ -907,6 +911,7 @@ mod tests {
                 data_interface_status: "internal-endpoint".to_string(),
                 automation_risk: "high".to_string(),
                 verification: "UNVERIFIED".to_string(),
+                verification_evidence: None,
             },
             used_amount: None,
             limit_amount: None,
@@ -914,6 +919,9 @@ mod tests {
             account_id: Some("codex-other-account".to_string()),
             account_label: None,
             writer: None,
+            kind: None,
+            availability: None,
+            retry_at: None,
             provenance: None,
         };
         write_report(
