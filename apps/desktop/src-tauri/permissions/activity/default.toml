@@ -1,3 +1,3 @@
 [default]
 description = "Read the activity view model."
-permissions = ["allow-activity-snapshot"]
+permissions = ["allow-activity-snapshot", "allow-activity-sessions"]
