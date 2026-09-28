@@ -10,6 +10,10 @@ use tauri::{plugin::TauriPlugin, Manager, Runtime};
 mod contract;
 #[path = "activity/engine.rs"]
 pub mod engine;
+#[path = "activity/locate.rs"]
+mod locate;
+#[path = "activity/notify.rs"]
+mod notify;
 #[path = "activity/process.rs"]
 mod process;
 #[path = "activity/runtime.rs"]
@@ -25,9 +29,33 @@ mod tests;
 #[derive(Default)]
 struct ActivityState {
     sessions: Mutex<Vec<ActivityDisplayRecord>>,
+    targets: Mutex<std::collections::BTreeMap<String, contract::Process>>,
     running: AtomicBool,
     skipped_files: AtomicUsize,
     inspected_entries: AtomicUsize,
+}
+
+#[tauri::command]
+fn activity_locate(
+    session_id: String,
+    state: tauri::State<'_, ActivityState>,
+) -> locate::LocateResult {
+    let target = state
+        .targets
+        .lock()
+        .ok()
+        .and_then(|targets| targets.get(&session_id).cloned());
+    locate::locate(target.as_ref())
+}
+
+#[tauri::command]
+fn activity_notification_preferences() -> Result<notify::Preferences, String> {
+    notify::load().map_err(|_| "activity_preferences_unavailable".into())
+}
+
+#[tauri::command]
+fn activity_set_notification_preferences(preferences: notify::Preferences) -> Result<(), String> {
+    notify::save(&preferences).map_err(|_| "activity_preferences_unavailable".into())
 }
 
 /// Mirrors ActivityDisplayRecord, never the local ActivitySession or process identity.
@@ -86,7 +114,10 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         })
         .invoke_handler(tauri::generate_handler![
             activity_snapshot,
-            activity_sessions
+            activity_sessions,
+            activity_locate,
+            activity_notification_preferences,
+            activity_set_notification_preferences
         ])
         .build()
 }

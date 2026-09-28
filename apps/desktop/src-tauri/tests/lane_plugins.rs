@@ -96,6 +96,51 @@ fn activity_sessions_main_allowed() {
 }
 
 #[test]
+fn activity_locate_allowed_only_for_agents_and_rail_card() {
+    for label in ["main", "rail-card"] {
+        let app = app();
+        let window = WebviewWindowBuilder::new(&app, label, Default::default())
+            .build()
+            .unwrap();
+        assert_eq!(
+            invoke_body(
+                &window,
+                "plugin:activity|activity_locate",
+                InvokeBody::Json(json!({"sessionId": "unknown"}))
+            ),
+            Ok(json!("unavailable"))
+        );
+    }
+    for label in ["ungranted", "rail", "tray"] {
+        assert_denied(label, "plugin:activity|activity_locate");
+    }
+}
+
+#[test]
+fn activity_preferences_are_main_only() {
+    for label in ["ungranted", "rail", "rail-card", "tray"] {
+        for command in [
+            "activity_notification_preferences",
+            "activity_set_notification_preferences",
+        ] {
+            assert_denied(label, &format!("plugin:activity|{command}"));
+        }
+    }
+    let app = app();
+    let window = WebviewWindowBuilder::new(&app, "main", Default::default())
+        .build()
+        .unwrap();
+    // Invalid preferences reach deserialization, never touch disk.
+    let error = invoke_body(
+        &window,
+        "plugin:activity|activity_set_notification_preferences",
+        InvokeBody::Json(json!({"preferences": {}})),
+    )
+    .unwrap_err();
+    assert!(!error.as_str().unwrap().contains("not allowed"));
+}
+
+#[test]
 fn activity_sessions_ungranted_windows_denied() {
     for label in ["ungranted", "rail", "tray"] {
         assert_denied(label, "plugin:activity|activity_sessions");
