@@ -68,6 +68,7 @@ const MIRROR = {
       "antigravity.ts",
       "claude.ts",
       "codex.ts",
+      "cursor.ts",
       "contract-gate.ts",
       "fixtures.ts",
       "gemini-cli.ts",

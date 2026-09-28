@@ -1,0 +1,26 @@
+{
+  "expected": {
+    "outcome": "readings",
+    "readings": [
+      {
+        "provider": "CURSOR",
+        "meter": "AUTO",
+        "value": 0,
+        "unit": "PERCENT",
+        "window": {
+          "kind": "fixed",
+          "durationSeconds": 2678400
+        },
+        "resetAt": "2026-09-01T00:00:00.000Z",
+        "precision": "exact",
+        "source": "internal_payload",
+        "kind": "quota_percent",
+        "availability": "unlimited",
+        "currency": null,
+        "usedAmount": null,
+        "limitAmount": null,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      }
+    ]
+  }
+}

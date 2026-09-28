@@ -1629,10 +1629,10 @@ mod tests {
                 }
             }
         }
-        assert_eq!(accepted, 7);
+        assert_eq!(accepted, crate::reader_registry::ReaderId::ALL.len());
         assert_eq!(
             secrets.stored_count(),
-            7,
+            accepted,
             "only the real pairings ever stored a secret"
         );
     }

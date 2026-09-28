@@ -1,5 +1,8 @@
 # Wire contract v3
 
+2026-09-28: contract v3.1, Cursor added to the local provider vocabulary,
+experimental maturity aligned with the existing registry schema. Wire version remains 3.
+
 This folder freezes a future sync contract. `WIRE_SCHEMA_VERSION_V3` is 3.
 The envelope keeps the v2 identity, sequence, timestamps, usage array and API
 spend array. Its `schema_version` is 3. No existing emitter uses this module.

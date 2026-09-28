@@ -17,6 +17,7 @@ export const PROVIDER_CODES = [
   "OPENCODE",
   "GROK",
   "KIMI",
+  "CURSOR",
   "MANUAL"
 ] as const;
 
@@ -311,7 +312,7 @@ export type ConnectorEncoding = "json" | "text";
  * behind it. Absent means stable, so a reader says nothing unless it has
  * something to admit.
  */
-export type ConnectorMaturity = "stable" | "beta";
+export type ConnectorMaturity = "stable" | "beta" | "experimental";
 
 export interface ConnectorContract {
   readonly id: Lowercase<ProviderCode>;

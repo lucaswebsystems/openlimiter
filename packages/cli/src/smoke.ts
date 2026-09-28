@@ -149,7 +149,7 @@ export interface SmokeMeter {
 export interface SmokeProvider {
   readonly provider: ProviderCode;
   readonly connector: string;
-  readonly maturity: "stable" | "beta";
+  readonly maturity: import("@openlimiter/core").ConnectorMaturity;
   readonly detected: boolean;
   /** Where the reading came from: a payload file, the local cache, or nothing. */
   readonly via: "payload_file" | "snapshot_cache" | "none";

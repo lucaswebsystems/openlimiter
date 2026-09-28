@@ -149,6 +149,7 @@ describe("provider ordering", () => {
       "OPENCODE",
       "GROK",
       "KIMI",
+      "CURSOR",
       "MANUAL",
       "OPENROUTER"
     ]);
@@ -179,7 +180,8 @@ describe("provider ordering", () => {
       "GEMINI_CLI",
       "OPENCODE",
       "GROK",
-      "KIMI"
+      "KIMI",
+      "CURSOR"
     ]);
   });
 
@@ -192,6 +194,7 @@ describe("provider ordering", () => {
       "OPENCODE",
       "GROK",
       "KIMI",
+      "CURSOR",
       "MANUAL",
       "OPENROUTER"
     ]);
@@ -284,13 +287,13 @@ describe("the cell", () => {
 describe("the head", () => {
   it("leads with the reason code and carries the recommendation", () => {
     expect(statuslineHead(buildAdvice(everyProvider, NOW)))
-      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY");
+      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN CURSOR");
   });
 
   it("names the providers it has nothing for", () => {
     const head = statuslineHead(buildAdvice([reading()], NOW));
     expect(head).toContain(
-      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,GROK,KIMI,MANUAL"
+      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,GROK,KIMI,CURSOR,MANUAL"
     );
   });
 
@@ -339,14 +342,14 @@ describe("stacking", () => {
   it("stops at one row when told to, and says what it dropped", () => {
     const rendered = layout(everyProvider, { rows: 1 });
     expect(rendered.split("\n")).toHaveLength(1);
-    expect(rendered).toContain("+5 more");
+    expect(rendered).toContain("+6 more");
   });
 
   it("keeps the worst providers when it has to drop some", () => {
     const rendered = layout(everyProvider, { rows: 1, width: 100 });
     const shown = rowsOf(rendered)[0]!.slice(1);
     expect(rendered).toContain("OPENCODE ####. 92.0%");
-    expect(rendered).toContain("+7 more");
+    expect(rendered).toContain("+8 more");
     /* Twenty eight percent is the furthest from a cap, so it goes first. */
     expect(shown.some((cell) => cell.startsWith("ANTIGRAVITY "))).toBe(false);
     expect(rendered.length).toBeLessThanOrEqual(100);

@@ -49,6 +49,7 @@ const PROVIDER_CLASS: Record<ProviderCode, "subscription" | "api"> = {
   OPENCODE: "subscription",
   GROK: "subscription",
   KIMI: "subscription",
+  CURSOR: "subscription",
   MANUAL: "subscription",
   OPENROUTER: "api"
 };
@@ -392,6 +393,7 @@ export const PROVIDER_SHORT_TAGS: Readonly<Record<ProviderCode, string>> = {
   GEMINI_CLI: "gm",
   GROK: "gk",
   KIMI: "km",
+  CURSOR: "cu",
   OPENCODE: "oc",
   OPENROUTER: "or",
   MANUAL: "mn"

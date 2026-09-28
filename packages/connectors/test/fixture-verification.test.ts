@@ -93,11 +93,11 @@ function loadFixture(entry: ManifestProvider): unknown {
 }
 
 describe("fixture verification markers", () => {
-  it("keeps the marker separate from the honesty label, which stays UNVERIFIED", () => {
+  it("keeps legacy markers separate and recognizes Cursor fixture verification", () => {
     expect(verification.note.toLowerCase()).toContain("unverified");
-    /* Every shipped connector's honesty label is still UNVERIFIED, whatever the
-       fixture marker says. The two live side by side and never merge. */
-    expect(connectors.every((connector) => connector.labels.verification === "UNVERIFIED"))
+    // Cursor's separate differential corpus establishes its fixture verification.
+    expect(connectors.every((connector) => connector.labels.verification ===
+      (connector.id === "cursor" ? "VERIFIED_FIXTURES" : "UNVERIFIED")))
       .toBe(true);
   });
 

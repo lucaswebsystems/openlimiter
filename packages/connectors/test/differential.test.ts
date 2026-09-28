@@ -1,14 +1,15 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { RawMeter } from "@openlimiter/core";
+import { normalizeMeters, type RawMeter } from "@openlimiter/core";
 import { parseClaudePayload } from "../src/claude.js";
 import { parseCodexPayload } from "../src/codex.js";
 import { parseOpenrouterPayload } from "../src/openrouter.js";
 import { parseKimiPayload } from "../src/kimi.js";
+import { parseCursorPayload } from "../src/cursor.js";
 
 const root = resolve(process.cwd(), "packages/connectors/fixtures");
-const providers = ["claude", "codex", "openrouter", "kimi"] as const;
+const providers = ["claude", "codex", "openrouter", "kimi", "cursor"] as const;
 type Provider = typeof providers[number];
 type Answer = { outcome: "readings" | "rejected"; readings: unknown[] };
 interface Case {
@@ -28,7 +29,8 @@ const parsers = {
   claude: parseClaudePayload,
   codex: parseCodexPayload,
   openrouter: parseOpenrouterPayload,
-  kimi: parseKimiPayload
+  kimi: parseKimiPayload,
+  cursor: parseCursorPayload
 };
 const json = <T>(path: string): T => JSON.parse(readFileSync(path, "utf8")) as T;
 function text(value: unknown): string {
@@ -85,12 +87,17 @@ describe("shared differential provider corpus", () => {
         expect(name).toBe(spec.case + ".json");
         expect(spec.now).toBe("2026-08-07T12:00:00.000Z");
         expect(spec.reader).toMatch(provider === "openrouter" ? /^(key|credits)$/u : /^usage$/u);
-        expect([200, 401, 429]).toContain(spec.status);
+        expect([200, 401, 403, 429]).toContain(spec.status);
         expect(spec.headers).toEqual(spec.status === 429 ? { "retry-after": "120" } : {});
         expect(spec.fixture === undefined).toBe(Object.hasOwn(spec, "body"));
         const body = spec.fixture === undefined ? spec.body : json<unknown>(resolve(root, spec.fixture));
         // Even error bodies reach the parser. No test-only HTTP status shortcut can hide acceptance.
-        const actual = normalize(parsers[provider](body, spec.now));
+        const rows = parsers[provider](body, spec.now);
+        const actual = normalize(rows);
+        if (provider === "cursor" && rows !== null) {
+          expect(normalizeMeters(rows)).toHaveLength(rows.length);
+          for (const row of rows) expect(row.labels).toMatchObject({ verification: "VERIFIED_FIXTURES" });
+        }
         expect(divergenceList.trim()).toBe("");
         expect(actual).toEqual(answer.expected);
         if (spec.status !== 200) expect(actual).toEqual({ outcome: "rejected", readings: [] });

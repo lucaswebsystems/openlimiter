@@ -774,7 +774,8 @@ pub const fn provider_interval_seconds(provider: DetectedProviderId) -> u64 {
         | DetectedProviderId::Opencode
         | DetectedProviderId::Openrouter
         | DetectedProviderId::Grok
-        | DetectedProviderId::Kimi => 300,
+        | DetectedProviderId::Kimi
+        | DetectedProviderId::Cursor => 300,
     }
 }
 

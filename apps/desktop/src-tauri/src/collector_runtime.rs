@@ -495,6 +495,15 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Kimi);
                     }
+                    if allowed(DetectedProviderId::Cursor)
+                        && !crate::native_readers::cursor::run_pass(
+                            app,
+                            &coverage.covered,
+                            automatic_account_limit(multi_account, &coverage.known_providers, DetectedProviderId::Cursor),
+                        ).await
+                    {
+                        failed_providers.push(DetectedProviderId::Cursor);
+                    }
                     if allowed(DetectedProviderId::Claude)
                         && !crate::claude_oauth::run_pass(
                             app,

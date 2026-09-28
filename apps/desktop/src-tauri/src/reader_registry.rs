@@ -41,6 +41,7 @@ pub enum ProviderId {
     Opencode,
     Grok,
     Kimi,
+    Cursor,
 }
 
 impl ProviderId {
@@ -50,13 +51,14 @@ impl ProviderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderId; 6] = [
+    pub const ALL: [ProviderId; 7] = [
         ProviderId::Openrouter,
         ProviderId::Codex,
         ProviderId::Antigravity,
         ProviderId::Opencode,
         ProviderId::Grok,
         ProviderId::Kimi,
+        ProviderId::Cursor,
     ];
 
     /// The uppercase provider code the TypeScript engine speaks, so a record
@@ -70,6 +72,7 @@ impl ProviderId {
             ProviderId::Opencode => "OPENCODE",
             ProviderId::Grok => "GROK",
             ProviderId::Kimi => "KIMI",
+            ProviderId::Cursor => "CURSOR",
         }
     }
 }
@@ -87,6 +90,7 @@ pub enum ReaderId {
     OpencodeUsage,
     GrokUsage,
     KimiUsage,
+    CursorUsage,
 }
 
 /// A source's scheduling shape, without pretending every source has a timer.
@@ -136,7 +140,7 @@ impl ReaderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ReaderId; 7] = [
+    pub const ALL: [ReaderId; 8] = [
         ReaderId::OpenrouterKey,
         ReaderId::OpenrouterCredits,
         ReaderId::CodexUsage,
@@ -144,6 +148,7 @@ impl ReaderId {
         ReaderId::OpencodeUsage,
         ReaderId::GrokUsage,
         ReaderId::KimiUsage,
+        ReaderId::CursorUsage,
     ];
 
     /// Which provider this reader belongs to, so a record's reader and its
@@ -157,6 +162,7 @@ impl ReaderId {
             ReaderId::OpencodeUsage => ProviderId::Opencode,
             ReaderId::GrokUsage => ProviderId::Grok,
             ReaderId::KimiUsage => ProviderId::Kimi,
+            ReaderId::CursorUsage => ProviderId::Cursor,
         }
     }
 
@@ -172,7 +178,8 @@ impl ReaderId {
             | ReaderId::OpenrouterCredits
             | ReaderId::CodexUsage
             | ReaderId::GrokUsage
-            | ReaderId::KimiUsage => 300,
+            | ReaderId::KimiUsage
+            | ReaderId::CursorUsage => 300,
             ReaderId::AntigravityQuota => 600,
             ReaderId::OpencodeUsage => 0,
         }
@@ -207,6 +214,7 @@ pub enum CredentialKind {
     OpencodeBrowserSession,
     GrokSession,
     KimiSession,
+    CursorSession,
 }
 
 impl CredentialKind {
@@ -215,7 +223,7 @@ impl CredentialKind {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [CredentialKind; 7] = [
+    pub const ALL: [CredentialKind; 8] = [
         CredentialKind::OpenrouterInferenceKey,
         CredentialKind::OpenrouterManagementKey,
         CredentialKind::CodexSession,
@@ -223,6 +231,7 @@ impl CredentialKind {
         CredentialKind::OpencodeBrowserSession,
         CredentialKind::GrokSession,
         CredentialKind::KimiSession,
+        CredentialKind::CursorSession,
     ];
 
     /// The largest secret of this kind that will be accepted, in bytes.
@@ -242,6 +251,7 @@ impl CredentialKind {
     pub const fn max_secret_bytes(self) -> usize {
         match self {
             CredentialKind::OpencodeBrowserSession => MAX_BROWSER_SESSION_BYTES,
+            CredentialKind::CursorSession => 32_768,
             CredentialKind::OpenrouterInferenceKey
             | CredentialKind::OpenrouterManagementKey
             | CredentialKind::CodexSession
@@ -263,6 +273,7 @@ impl CredentialKind {
             CredentialKind::OpencodeBrowserSession => ProviderId::Opencode,
             CredentialKind::GrokSession => ProviderId::Grok,
             CredentialKind::KimiSession => ProviderId::Kimi,
+            CredentialKind::CursorSession => ProviderId::Cursor,
         }
     }
 }
@@ -292,6 +303,7 @@ pub enum AuthApplication {
     GrokSessionBearer,
     /// A bearer token read from the official Kimi CLI credential file.
     KimiSessionBearer,
+    CursorSessionCookie,
     /// Gemini CLI's Google OAuth bearer token with JSON request headers and
     /// the OpenLimiter identity. This scheme is used only by the two constant
     /// Code Assist quota addresses in `net.rs`.
@@ -357,7 +369,8 @@ pub const fn reader_route(
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
             | CredentialKind::GrokSession
-            | CredentialKind::KimiSession => mismatch,
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession => mismatch,
         },
         ProviderId::Codex => match credential {
             CredentialKind::CodexSession => Ok(ReaderRoute {
@@ -370,7 +383,8 @@ pub const fn reader_route(
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
             | CredentialKind::GrokSession
-            | CredentialKind::KimiSession => mismatch,
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession => mismatch,
         },
         ProviderId::Antigravity => match credential {
             CredentialKind::AntigravitySession => Ok(ReaderRoute {
@@ -383,7 +397,8 @@ pub const fn reader_route(
             | CredentialKind::CodexSession
             | CredentialKind::OpencodeBrowserSession
             | CredentialKind::GrokSession
-            | CredentialKind::KimiSession => mismatch,
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession => mismatch,
         },
         ProviderId::Opencode => match credential {
             CredentialKind::OpencodeBrowserSession => Ok(ReaderRoute {
@@ -396,7 +411,8 @@ pub const fn reader_route(
             | CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
             | CredentialKind::GrokSession
-            | CredentialKind::KimiSession => mismatch,
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession => mismatch,
         },
         ProviderId::Grok => match credential {
             CredentialKind::GrokSession => Ok(ReaderRoute {
@@ -409,7 +425,8 @@ pub const fn reader_route(
             | CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
-            | CredentialKind::KimiSession => mismatch,
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession => mismatch,
         },
         ProviderId::Kimi => match credential {
             CredentialKind::KimiSession => Ok(ReaderRoute {
@@ -422,7 +439,22 @@ pub const fn reader_route(
             | CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
-            | CredentialKind::GrokSession => mismatch,
+            | CredentialKind::GrokSession
+            | CredentialKind::CursorSession => mismatch,
+        },
+        ProviderId::Cursor => match credential {
+            CredentialKind::CursorSession => Ok(ReaderRoute {
+                reader_id: ReaderId::CursorUsage,
+                endpoint: ProviderEndpoint::CursorUsage,
+                auth: AuthApplication::CursorSessionCookie,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession => mismatch,
         },
     }
 }
@@ -462,8 +494,8 @@ mod tests {
                 }
             }
         }
-        assert_eq!(routed, 7);
-        assert_eq!(refused, 35);
+        assert_eq!(routed, ReaderId::ALL.len());
+        assert_eq!(refused, ProviderId::ALL.len() * CredentialKind::ALL.len() - routed);
         assert_eq!(
             routed + refused,
             ProviderId::ALL.len() * CredentialKind::ALL.len()
@@ -587,10 +619,12 @@ mod tests {
     }
 
     #[test]
-    fn only_a_browser_session_gets_the_larger_bound() {
+    fn session_pairs_and_browser_sessions_have_explicit_bounds() {
         for credential in CredentialKind::ALL {
             let expected = if credential == CredentialKind::OpencodeBrowserSession {
                 MAX_BROWSER_SESSION_BYTES
+            } else if credential == CredentialKind::CursorSession {
+                32_768
             } else {
                 MAX_KEY_SECRET_BYTES
             };

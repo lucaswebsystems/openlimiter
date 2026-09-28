@@ -1,7 +1,7 @@
 {
   "generatedBy": "app/app/engine/sync.mjs",
   "sources": {
-    "core/types.ts": "85ea9c2856782493",
+    "core/types.ts": "03b85c0bfdad747a",
     "core/connection-state.ts": "a99cf59208d5bbde",
     "core/failures.ts": "92c8818a6dcb3557",
     "core/format.ts": "060178a0ef47ac5d",
@@ -15,19 +15,20 @@
     "connectors/antigravity.ts": "29fe19aed737cfb9",
     "connectors/claude.ts": "553ef79750047420",
     "connectors/codex.ts": "98a1e13a8befb71f",
-    "connectors/contract-gate.ts": "65eb62bfd949c4a5",
-    "connectors/fixtures.ts": "aaf5e11c9f3a7aa5",
+    "connectors/cursor.ts": "4f48ea7b33669ff4",
+    "connectors/contract-gate.ts": "0be97577d12a40b1",
+    "connectors/fixtures.ts": "3cee18874694813e",
     "connectors/gemini-cli.ts": "6bdf5b986d6bc9be",
     "connectors/grok.ts": "603a6eaf0a7da573",
     "connectors/kimi.ts": "247cffe264807106",
     "connectors/manual.ts": "2b158d66e87d44fb",
     "connectors/opencode.ts": "e6623e0897aa6b9f",
     "connectors/openrouter.ts": "8dcaf636664386f5",
-    "connectors/index.ts": "fbccbd162a379ac3",
+    "connectors/index.ts": "cb259accae69925b",
     "adapters/claude-code.ts": "d6d1183bd8093600",
     "ui/provider-connect.ts": "ac27de48b19b41e8",
-    "ui/provider-row.ts": "37651bc42859f53a",
+    "ui/provider-row.ts": "0d4319ea46324de5",
     "ui/tokens.css": "b7813d9ea6e941c5",
-    "provider_specs/provider-specs.json": "90ffdc300dc969e9"
+    "provider_specs/provider-specs.json": "5b7681fcdb8f060f"
   }
 }

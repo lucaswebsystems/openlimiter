@@ -39,6 +39,16 @@ export type ConnectorId = Lowercase<ProviderCode>;
 
 export const FIXTURE_NOW = "2026-01-01T00:00:00.000Z";
 
+/** Synthetic Cursor evidence is kept separate from documented and live captures. */
+export const cursorFixtureCorpus = {
+  id: "cursor.synthetic.normal",
+  provenance: "research/01-codenotch-harvest.md, Cursor recipe, 2026-09-28",
+  now: "2026-08-07T12:00:00.000Z",
+  cases: "packages/connectors/fixtures/cases/cursor",
+  expected: "packages/connectors/fixtures/expected/cursor",
+  liveAcquisitionVerified: false
+} as const;
+
 const FIVE_HOURS = 18_000;
 const ONE_DAY = 86_400;
 const SEVEN_DAYS = 604_800;

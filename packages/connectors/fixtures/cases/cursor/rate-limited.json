@@ -1,0 +1,13 @@
+{
+  "provider": "cursor",
+  "case": "rate-limited",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 429,
+  "headers": {
+    "retry-after": "120"
+  },
+  "body": {
+    "error": "rate_limited"
+  }
+}

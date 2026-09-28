@@ -153,31 +153,58 @@
       "providerId": "cursor",
       "productId": "editor",
       "displayName": "Cursor",
-      "headlineMeter": "team_spend",
+      "headlineMeter": "auto",
       "noQuotaConcept": false,
-      "acquisitionSurfaces": [],
-      "displaySurfaces": [],
-      "acquisitionMethod": "remote_http_official",
-      "d5Review": "Recipe only; no shipped reader.",
-      "maturity": "planned",
+      "acquisitionSurfaces": [
+        "desktop",
+        "cli"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Reads the existing local session in place without changing it. Only Cursor receives the cookie pair. Honest OpenLimiter identity, no refresh or impersonation.",
+      "maturity": "experimental",
       "directory": null,
-      "docsUrl": "https://cursor.com/docs/account/teams/admin-api",
-      "reviewedAt": "2026-08-10",
-      "sourceStatus": "official",
+      "docsUrl": "https://cursor.com/api/usage-summary",
+      "reviewedAt": "2026-09-28",
+      "sourceStatus": "provisional",
       "support": {
-        "parser": "absent",
-        "reader": "absent",
-        "auth": "absent",
-        "verification": "unverified"
+        "parser": "implemented",
+        "reader": "implemented",
+        "auth": "implemented",
+        "verification": "experimental"
       },
-      "collection": null,
-      "honesty": null,
+      "collection": {
+        "readers": [
+          {
+            "readerId": "cursor_usage",
+            "endpointId": "cursor_usage",
+            "credentialKind": "cursor_session",
+            "evidenceFixture": "cursor.synthetic.normal",
+            "evidenceStatus": "pending_capture",
+            "lastVerifiedAt": null
+          }
+        ]
+      },
+      "honesty": {
+        "connectorId": "cursor",
+        "credentialOrigin": "official-local-tool",
+        "dataInterfaceStatus": "internal-endpoint",
+        "automationRisk": "high",
+        "verification": "VERIFIED_FIXTURES"
+      },
       "lastVerifiedAt": null,
       "readers": [
-        "official_remote_api"
+        "experimental"
       ],
       "authModes": [
-        "admin_api_key"
+        "existing_local_cli"
       ],
       "platforms": [
         "windows",
@@ -186,17 +213,43 @@
       ],
       "meters": [
         {
-          "id": "team_spend",
-          "label": "Team spend this billing cycle",
-          "kind": "api_spend",
+          "id": "auto",
+          "label": "Auto usage",
+          "kind": "subscription_quota",
           "unit": "percent_used",
-          "scope": "organization",
+          "scope": "account",
           "sourceFormat": "json_path",
           "window": {
             "kind": "billing_period"
           },
           "optional": true,
-          "meterCode": "TEAM_SPEND"
+          "meterCode": "AUTO"
+        },
+        {
+          "id": "api",
+          "label": "API usage",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "billing_period"
+          },
+          "optional": true,
+          "meterCode": "API"
+        },
+        {
+          "id": "included",
+          "label": "Included usage",
+          "kind": "subscription_quota",
+          "unit": "percent_used",
+          "scope": "account",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "billing_period"
+          },
+          "optional": true,
+          "meterCode": "INCLUDED"
         }
       ]
     },

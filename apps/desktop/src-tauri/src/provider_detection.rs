@@ -94,10 +94,11 @@ pub enum DetectedProviderId {
     Openrouter,
     Grok,
     Kimi,
+    Cursor,
 }
 
 impl DetectedProviderId {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Claude,
         Self::Codex,
         Self::Antigravity,
@@ -106,6 +107,7 @@ impl DetectedProviderId {
         Self::Openrouter,
         Self::Grok,
         Self::Kimi,
+        Self::Cursor,
     ];
 
     pub(crate) const fn slug(self) -> &'static str {
@@ -118,6 +120,7 @@ impl DetectedProviderId {
             Self::Openrouter => "openrouter",
             Self::Grok => "grok",
             Self::Kimi => "kimi",
+            Self::Cursor => "cursor",
         }
     }
 
@@ -131,6 +134,7 @@ impl DetectedProviderId {
             Self::Openrouter => "OpenRouter",
             Self::Grok => "Grok",
             Self::Kimi => "Kimi",
+            Self::Cursor => "Cursor",
         }
     }
 
@@ -143,6 +147,7 @@ impl DetectedProviderId {
                 | Self::GeminiCli
                 | Self::Grok
                 | Self::Kimi
+                | Self::Cursor
         )
     }
 }
@@ -232,7 +237,8 @@ fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
         | DetectedProviderId::Antigravity
         | DetectedProviderId::GeminiCli
         | DetectedProviderId::Grok
-        | DetectedProviderId::Kimi => ConnectionMode::Automatic,
+        | DetectedProviderId::Kimi
+        | DetectedProviderId::Cursor => ConnectionMode::Automatic,
         DetectedProviderId::Openrouter => ConnectionMode::ApiKey,
         DetectedProviderId::Opencode => ConnectionMode::ManualEntry,
     }
@@ -253,7 +259,8 @@ fn provider_recovery(
         | DetectedProviderId::Antigravity
         | DetectedProviderId::GeminiCli
         | DetectedProviderId::Grok
-        | DetectedProviderId::Kimi => match state {
+        | DetectedProviderId::Kimi
+        | DetectedProviderId::Cursor => match state {
             ProviderPresence::InstalledLoggedOut => Some(RecoveryAction::SignInToCli),
             ProviderPresence::Absent => Some(RecoveryAction::ManualEntry),
             ProviderPresence::Present => None,
@@ -411,7 +418,18 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
     use CandidateKind::{Credential, Marker};
     let mut paths = Vec::new();
     let home = context.home.as_deref();
+    if provider == DetectedProviderId::Cursor {
+        let base = match context.platform {
+            DiscoveryPlatform::Windows => context.roaming.as_deref(),
+            DiscoveryPlatform::Macos => context.application_support.as_deref(),
+            DiscoveryPlatform::Linux => context.xdg_config.as_deref(),
+        };
+        push_candidate(&mut paths, base, &["Cursor", "User", "globalStorage", "state.vscdb"], Credential);
+        push_candidate(&mut paths, base, &["Cursor", "User"], Marker);
+        return paths;
+    }
     match provider {
+        DetectedProviderId::Cursor => unreachable!(),
         DetectedProviderId::Claude => {
             push_candidate(
                 &mut paths,
@@ -615,7 +633,7 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         );
                     }
                 }
-                DetectedProviderId::Grok | DetectedProviderId::Kimi => {}
+                DetectedProviderId::Grok | DetectedProviderId::Kimi | DetectedProviderId::Cursor => {}
             }
         }
         DiscoveryPlatform::Macos => {
@@ -629,7 +647,7 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 ),
                 DetectedProviderId::GeminiCli
                 | DetectedProviderId::Grok
-                | DetectedProviderId::Kimi => {}
+                | DetectedProviderId::Kimi | DetectedProviderId::Cursor => {}
                 DetectedProviderId::Claude
                 | DetectedProviderId::Codex
                 | DetectedProviderId::Opencode
@@ -642,7 +660,7 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         DetectedProviderId::Antigravity
                         | DetectedProviderId::GeminiCli
                         | DetectedProviderId::Grok
-                        | DetectedProviderId::Kimi => {
+                        | DetectedProviderId::Kimi | DetectedProviderId::Cursor => {
                             unreachable!()
                         }
                     };
@@ -653,7 +671,7 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         DetectedProviderId::Antigravity
                         | DetectedProviderId::GeminiCli
                         | DetectedProviderId::Grok
-                        | DetectedProviderId::Kimi => {
+                        | DetectedProviderId::Kimi | DetectedProviderId::Cursor => {
                             unreachable!()
                         }
                     };
@@ -685,7 +703,7 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         unreachable!()
                     }
                     DetectedProviderId::Openrouter => "config.json",
-                    DetectedProviderId::Grok | DetectedProviderId::Kimi => unreachable!(),
+                    DetectedProviderId::Grok | DetectedProviderId::Kimi | DetectedProviderId::Cursor => unreachable!(),
                 };
                 push_candidate(
                     &mut paths,
@@ -768,7 +786,7 @@ fn profile_prefix(provider: DetectedProviderId) -> Option<(&'static str, &'stati
         | DetectedProviderId::Opencode
         | DetectedProviderId::Openrouter
         | DetectedProviderId::Grok
-        | DetectedProviderId::Kimi => None,
+        | DetectedProviderId::Kimi | DetectedProviderId::Cursor => None,
     }
 }
 
@@ -848,7 +866,7 @@ fn install_root_specs(
         },
         DetectedProviderId::Antigravity
         | DetectedProviderId::Opencode
-        | DetectedProviderId::Openrouter => &[],
+        | DetectedProviderId::Openrouter | DetectedProviderId::Cursor => &[],
     }
 }
 
@@ -1001,6 +1019,7 @@ fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -
         DetectedProviderId::Openrouter => "openrouter",
         DetectedProviderId::Grok => "grok",
         DetectedProviderId::Kimi => "kimi",
+        DetectedProviderId::Cursor => "cursor",
     };
     if platform == DiscoveryPlatform::Windows {
         [".exe", ".cmd", ".bat"]
@@ -1154,7 +1173,7 @@ fn package_name(provider: DetectedProviderId) -> Option<&'static str> {
         DetectedProviderId::Opencode => Some("opencode-ai"),
         DetectedProviderId::Grok => Some("@xai-official/grok"),
         DetectedProviderId::Kimi => Some("@moonshot-ai/kimi-code"),
-        DetectedProviderId::Antigravity | DetectedProviderId::Openrouter => None,
+        DetectedProviderId::Antigravity | DetectedProviderId::Openrouter | DetectedProviderId::Cursor => None,
     }
 }
 
@@ -1429,6 +1448,7 @@ fn token_object<'a>(
         DetectedProviderId::Openrouter => &["openrouter", "credentials"],
         DetectedProviderId::Grok => &["auth", "credentials"],
         DetectedProviderId::Kimi => &["oauth", "credentials"],
+        DetectedProviderId::Cursor => &[],
     };
     nested_object(account, names).unwrap_or(account)
 }
@@ -1446,6 +1466,7 @@ fn access_token<'a>(
         DetectedProviderId::Openrouter => &["api_key", "apiKey", "key", "OPENROUTER_API_KEY"],
         DetectedProviderId::Grok => &["key", "access_token", "accessToken"],
         DetectedProviderId::Kimi => &["access_token", "accessToken"],
+        DetectedProviderId::Cursor => &[],
     };
     names
         .iter()
@@ -1494,6 +1515,22 @@ pub(crate) fn provider_singleton_account_id(provider: DetectedProviderId) -> Str
 }
 
 fn parse_credential_file(provider: DetectedProviderId, path: &Path) -> Vec<ParsedCredential> {
+    if provider == DetectedProviderId::Cursor {
+        let Ok(session) = crate::native_readers::cursor::session(path) else {
+            return Vec::new();
+        };
+        let expires_at_ms = jwt_claims(&session.access_token)
+            .and_then(|claims| claims.get("exp").and_then(Value::as_u64))
+            .and_then(|seconds| seconds.checked_mul(1_000));
+        return vec![ParsedCredential {
+            token: Zeroizing::new(session.access_token),
+            provider_account_id: Some(session.auth_id.clone()),
+            identity_material: session.auth_id,
+            email: None,
+            expires_at_ms,
+            identity_quality: IdentityQuality::ProviderAccount,
+        }];
+    }
     let Some(raw) = fsx::bounded_read(path) else {
         return Vec::new();
     };
@@ -2093,6 +2130,86 @@ impl DetectionStore {
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
+
+    fn cursor_database(context: &DiscoveryContext) -> rusqlite::Connection {
+        let path = candidate_paths(DetectedProviderId::Cursor, context).remove(0).path;
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let db = rusqlite::Connection::open(path).unwrap();
+        db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE ItemTable(key TEXT PRIMARY KEY, value TEXT);").unwrap();
+        for (key, value) in [("cursorAuth/accessToken", "synthetic-token"),
+            ("cursorAuth/stripeMembershipAuthId", "synthetic-auth")] {
+            db.execute("INSERT INTO ItemTable VALUES (?1, ?2)", [key, value]).unwrap();
+        }
+        db
+    }
+
+    #[test]
+    fn cursor_discovers_each_platform_and_keeps_identity_stable_on_rotation() {
+        for platform in [DiscoveryPlatform::Windows, DiscoveryPlatform::Macos, DiscoveryPlatform::Linux] {
+            let dir = TempDir::new();
+            let context = context(platform, dir.path());
+            let db = cursor_database(&context);
+            let inventory = scan_inventory(&context, 1_790_596_800_000);
+            let found = provider(&inventory.report, DetectedProviderId::Cursor);
+            assert_eq!(found.state, ProviderPresence::Present);
+            assert_eq!(found.connection_mode, ConnectionMode::Automatic);
+            assert_eq!(found.accounts.len(), 1);
+            let id = found.accounts[0].account_id.clone();
+            let wire = serde_json::to_string(&inventory.report).unwrap();
+            assert!(!wire.contains("synthetic-auth") && !wire.contains("synthetic-token"));
+            db.execute("UPDATE ItemTable SET value = ?1 WHERE key = 'cursorAuth/accessToken'", ["rotated-token"]).unwrap();
+            let rotated = scan_inventory(&context, 1_790_596_800_000);
+            assert_eq!(provider(&rotated.report, DetectedProviderId::Cursor).accounts[0].account_id, id);
+            db.execute("UPDATE ItemTable SET value = ?1 WHERE key = 'cursorAuth/accessToken'", [jwt(r#"{"exp":1}"#)]).unwrap();
+            let expired = scan_inventory(&context, 1_790_596_800_000);
+            assert_eq!(provider(&expired.report, DetectedProviderId::Cursor).accounts[0].auth_state, DetectedAuthState::Stale);
+        }
+    }
+
+    #[tokio::test]
+    async fn cursor_discovery_to_cache_obeys_durable_refusals_and_retry_after() {
+        use crate::native_readers::cursor::collect_account;
+        use crate::test_support::RecordingTransport;
+        use crate::request_policy::{GateRejection, RequestPolicy};
+        use std::sync::Arc;
+        let now = epoch_ms_from_rfc3339("2026-08-07T12:00:00.000Z").unwrap();
+        let fixture: Value = serde_json::from_str(include_str!("../../../../packages/connectors/fixtures/cases/cursor/normal.json")).unwrap();
+        for (status, drift) in [(200, false), (200, true), (401, false), (403, false), (429, false), (500, false)] {
+            let dir = TempDir::new();
+            let context = context(DiscoveryPlatform::Windows, dir.path());
+            let _db = cursor_database(&context);
+            let inventory = scan_inventory(&context, now);
+            let account = provider(&inventory.report, DetectedProviderId::Cursor).accounts[0].account_id.clone();
+            let detection = DetectionStore { context, switches: crate::provider_switches::ProviderSwitches::at(None), inventory: RwLock::new(inventory) };
+            let state = dir.path().join("state");
+            let policy = RequestPolicy::at(Some(state.clone()));
+            let writer = Arc::new(crate::cache_write::CacheWriter::at(Some(state.clone())));
+            let original = crate::native_readers::cursor::parse(&fixture["body"].to_string(), now - 1_000, &account).unwrap();
+            crate::native_snapshot::write_report(&writer, "CURSOR", Some(&account), crate::native_snapshot::CacheReport::Success(original)).unwrap();
+            let body = if drift { b"{}".to_vec() } else { serde_json::to_vec(&fixture["body"]).unwrap() };
+            let transport = RecordingTransport::replying(status, body, Some(7_200));
+            let result = collect_account(&detection, &policy, &transport, Arc::clone(&writer), &account, now).await;
+            assert_eq!(result.0, status == 200 && !drift);
+            assert_eq!(transport.recorded_urls(), vec![crate::net::CURSOR_USAGE_URL]);
+            assert_eq!(transport.recorded_auths(), vec![crate::reader_registry::AuthApplication::CursorSessionCookie]);
+            assert_eq!(transport.recorded_provider_account_ids(), vec![Some("synthetic-auth".to_string())]);
+            let restored = RequestPolicy::at(Some(state.clone()));
+            assert!(matches!(restored.begin(DetectedProviderId::Cursor, &account, now), Err(GateRejection::Deferred { .. })));
+            if status == 429 {
+                assert!(matches!(restored.begin(DetectedProviderId::Cursor, &account, now + 7_199_000), Err(GateRejection::Deferred { .. })));
+            }
+            let cache = fs::read_to_string(state.join(crate::cache_write::CACHE_FILE_NAME)).unwrap();
+            assert!(cache.contains("CURSOR") && cache.contains("VERIFIED_FIXTURES"));
+            assert!(!cache.contains("synthetic-token") && !cache.contains("synthetic-auth"));
+            let cached: Value = serde_json::from_str(&cache).unwrap();
+            assert_eq!(cached["snapshots"].as_array().unwrap().len(), 2);
+            let observed = if status == 200 && !drift { now } else { now - 1_000 };
+            assert_eq!(cached["snapshots"][0]["observedAt"], iso_from_epoch_ms(observed).unwrap());
+            if drift { assert_eq!(cached["snapshots"][0]["availability"], "schema_drift"); }
+            collect_account(&detection, &restored, &transport, writer, &account, now).await;
+            assert_eq!(transport.recorded_urls().len(), 1);
+        }
+    }
 
     fn context(platform: DiscoveryPlatform, home: &Path) -> DiscoveryContext {
         DiscoveryContext {

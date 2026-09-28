@@ -120,6 +120,7 @@ pub(crate) const fn detected_provider(provider_id: ProviderId) -> DetectedProvid
         ProviderId::Opencode => DetectedProviderId::Opencode,
         ProviderId::Grok => DetectedProviderId::Grok,
         ProviderId::Kimi => DetectedProviderId::Kimi,
+        ProviderId::Cursor => DetectedProviderId::Cursor,
     }
 }
 

@@ -122,7 +122,7 @@ describe("CLI", () => {
     const config = JSON.parse(configText) as {
       connectors: { enabled: boolean }[];
     };
-    expect(config.connectors).toHaveLength(9);
+    expect(config.connectors).toHaveLength(10);
     expect(config.connectors.every((connector) => connector.enabled)).toBe(true);
     expect(configText.includes("sk-DEMO-000")).toBe(false);
   });
@@ -231,7 +231,7 @@ describe("CLI", () => {
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=MANUAL state=fresh usage_percent=35.00 " +
           "reset_at=2026-02-01T00:00:00.000Z",
-        "unknown=GEMINI_CLI",
+        "unknown=GEMINI_CLI,CURSOR",
         "</openlimiter_untrusted_data>"
       ].join("\n");
       const hook = await runCli(["hook"], {
@@ -986,7 +986,7 @@ describe("CLI", () => {
     expect(statusline.stdout).toBe(
       "OpenLimiter NEAR_CAP CLAUDE 64.0% OPENROUTER 62.3% CODEX 84.0% " +
       "ANTIGRAVITY 28.0% OPENCODE 92.0% GROK 42.5% KIMI 69.5% MANUAL 35.0% " +
-      "PREFER ANTIGRAVITY UNKNOWN GEMINI_CLI"
+      "PREFER ANTIGRAVITY UNKNOWN GEMINI_CLI,CURSOR"
     );
     /* One line, no bar, no dollar figure, no escape code, no failure line. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);
@@ -1178,7 +1178,7 @@ describe("CLI", () => {
       show: [],
       hosts: {}
     });
-    expect(stored.connectors).toHaveLength(9);
+    expect(stored.connectors).toHaveLength(10);
   });
 
   it("reads back style, show and hosts, the three keys this lane added", async () => {

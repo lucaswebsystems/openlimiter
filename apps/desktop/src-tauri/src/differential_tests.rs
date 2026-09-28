@@ -110,7 +110,7 @@ fn run_provider(provider: &str) {
         let now = epoch_ms_from_rfc3339(spec["now"].as_str().expect("fixed clock"))
             .expect("valid fixed clock");
         let status = spec["status"].as_u64().expect("HTTP status");
-        assert!([200, 401, 429].contains(&status));
+        assert!([200, 401, 403, 429].contains(&status));
         assert_eq!(
             spec["headers"],
             if status == 429 {
@@ -129,6 +129,7 @@ fn run_provider(provider: &str) {
             ("claude", "usage") => crate::claude_oauth::parse_usage(&body, now, "synthetic-parity"),
             ("codex", "usage") => parse_body(ReaderId::CodexUsage, &body, now, "synthetic-parity"),
             ("kimi", "usage") => parse_body(ReaderId::KimiUsage, &body, now, "synthetic-parity"),
+            ("cursor", "usage") => parse_body(ReaderId::CursorUsage, &body, now, "synthetic-parity"),
             ("openrouter", "credits") => {
                 parse_body(ReaderId::OpenrouterCredits, &body, now, "synthetic-parity")
             }
@@ -137,6 +138,14 @@ fn run_provider(provider: &str) {
             }
             _ => panic!("{id}: unsupported reader"),
         };
+        if provider == "cursor" {
+            if let Some(rows) = &rows {
+                for row in rows {
+                    assert_eq!(row.labels.verification, "VERIFIED_FIXTURES");
+                    assert!(crate::native_snapshot::normalize_snapshot(row.clone()).is_some());
+                }
+            }
+        }
         let actual = normalize(rows);
         assert!(divergences.trim().is_empty(), "{id}: stale divergence list");
         assert_json(&actual, &answer["expected"], &id);
@@ -165,4 +174,9 @@ fn openrouter_shared_corpus() {
 #[test]
 fn kimi_shared_corpus() {
     run_provider("kimi");
+}
+
+#[test]
+fn cursor_shared_corpus() {
+    run_provider("cursor");
 }

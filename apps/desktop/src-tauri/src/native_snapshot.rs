@@ -22,6 +22,7 @@ const PROVIDER_CODES: &[&str] = &[
     "OPENCODE",
     "GROK",
     "KIMI",
+    "CURSOR",
     "MANUAL",
 ];
 const VERIFICATIONS: &[&str] = &["UNVERIFIED", "VERIFIED_FIXTURES", "VERIFIED_LIVE"];
@@ -221,7 +222,7 @@ fn is_canonical_iso(value: &str) -> bool {
         .is_some_and(|canonical| canonical == value)
 }
 
-fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
+pub(crate) fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
     let provider_ok = PROVIDER_CODES.contains(&row.provider.as_str());
     let window_ok = ["rolling", "fixed", "lifetime", "unknown"].contains(&row.window.kind.as_str())
         && row

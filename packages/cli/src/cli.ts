@@ -14,6 +14,7 @@ import {
   canonicalJson,
   claudeSpec,
   codexSpec,
+  cursorSpec,
   dedupeFailures,
   desktopHoldsCache,
   failureFromConnectorReason,
@@ -68,6 +69,7 @@ import {
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
+  parseCursorPayload,
   parseGeminiCliPayload,
   parseGrokPayload,
   parseKimiPayload,
@@ -628,6 +630,7 @@ export function acquisitionSpecs(providers: ProvidersConfig): AcquisitionSpec[] 
   return [
     claudeSpec({ parse: parseClaudePayload, enabled: providers.claude.poll }),
     codexSpec(parseCodexPayload),
+    cursorSpec(parseCursorPayload),
     geminiCliSpec(parseGeminiCliPayload),
     antigravitySpec(parseAntigravityCodeAssistPayload),
     grokSpec(parseGrokPayload),
@@ -2177,6 +2180,7 @@ async function setupSignInStep(dependencies: CliDependencies): Promise<string[]>
 const AGENT_CREDENTIAL_PROVIDER: Readonly<Partial<Record<AgentId, AcquisitionProvider>>> = {
   claude: "CLAUDE",
   codex: "CODEX",
+  cursor: "CURSOR",
   gemini: "GEMINI_CLI",
   antigravity: "ANTIGRAVITY",
   grok: "GROK",
