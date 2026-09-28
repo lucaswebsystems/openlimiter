@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/pro";
+import { callProFunction, SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/pro";
 
 const PROVIDER_PATTERN = /^[A-Z0-9_]{2,32}$/u;
 const ACCOUNT_PATTERN = /^[a-z0-9][a-z0-9-]{0,79}$/u;
@@ -12,11 +12,9 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/u;
  * The current rows are not selectable by a signed in browser: the sync
  * migration revoked `usage_current` and `usage_samples` from `authenticated`
  * on purpose, so a table this file used to name is both renamed and closed.
- * Everything here goes through the two owner scoped functions instead, which
- * answer for the signed in account and nobody else.
+ * Reads go through pro-service with the signed in session. The server calls
+ * the owner scoped functions for that account and nobody else.
  */
-const USAGE_FUNCTION = "read_current_usage_v1";
-const API_SPEND_FUNCTION = "read_current_api_spend_v1";
 
 export interface SyncedUsageWindow {
   windowName: string;
@@ -246,11 +244,16 @@ export async function readSyncedUsage(
   if (state === "unknown") return { ok: false, reason: "unavailable" };
   if (state === "no") return { ok: false, reason: "signed_out" };
 
-  const result = await client.rpc(USAGE_FUNCTION);
-  if (result.error !== null || !Array.isArray(result.data)) {
+  const result = await callProFunction<{ rows?: unknown }>(client, "pro-service", {
+    action: "read_usage",
+  });
+  if (!result.ok) {
+    return { ok: false, reason: result.status === 401 ? "signed_out" : "unavailable" };
+  }
+  if (!Array.isArray(result.value.rows)) {
     return { ok: false, reason: "unavailable" };
   }
-  return { ok: true, providers: groupLatestSyncedUsage(result.data) };
+  return { ok: true, providers: groupLatestSyncedUsage(result.value.rows) };
 }
 
 export async function readSyncedApiSpend(
@@ -261,9 +264,14 @@ export async function readSyncedApiSpend(
   if (state === "unknown") return { ok: false, reason: "unavailable" };
   if (state === "no") return { ok: false, reason: "signed_out" };
 
-  const result = await client.rpc(API_SPEND_FUNCTION);
-  if (result.error !== null || !Array.isArray(result.data)) {
+  const result = await callProFunction<{ rows?: unknown }>(client, "pro-service", {
+    action: "read_api_spend",
+  });
+  if (!result.ok) {
+    return { ok: false, reason: result.status === 401 ? "signed_out" : "unavailable" };
+  }
+  if (!Array.isArray(result.value.rows)) {
     return { ok: false, reason: "unavailable" };
   }
-  return { ok: true, sources: readableApiSpend(result.data) };
+  return { ok: true, sources: readableApiSpend(result.value.rows) };
 }

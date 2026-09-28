@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { describe, expect, it, vi } from "vitest";
+import { FunctionsFetchError, FunctionsHttpError, type SupabaseClient } from "@supabase/supabase-js";
 import {
   apiSpendOf,
   groupLatestSyncedUsage,
@@ -39,7 +39,7 @@ const FIXTURE = JSON.parse(
   }>;
 };
 
-/** The fixture as `read_current_usage_v1()` answers it. */
+/** The fixture as pro-service's read_usage action answers it. */
 function usageRows() {
   return FIXTURE.usage_samples.map((sample) => ({
     device_id: FIXTURE.device_id,
@@ -82,23 +82,88 @@ function clientWith(options: {
         error: options.sessionError ?? null,
       }),
     },
-    rpc: async (name: string) => {
-      if (name === "read_current_usage_v1") {
-        return { data: options.usage ?? [], error: options.usageError ?? null };
-      }
-      if (name === "read_current_api_spend_v1") {
-        return { data: options.spend ?? [], error: null };
-      }
-      throw new Error(`no such function: ${name}`);
+    functions: {
+      invoke: vi.fn(async (name: string, request: { body: { action: string } }) => {
+        if (name === "pro-service" && request.body.action === "read_usage") {
+          return { data: { rows: options.usage ?? [] }, error: options.usageError ?? null };
+        }
+        if (name === "pro-service" && request.body.action === "read_api_spend") {
+          return { data: { rows: options.spend ?? [] }, error: null };
+        }
+        throw new Error(`no such function or action: ${name}, ${request.body.action}`);
+      }),
     },
   } as unknown as SupabaseClient;
 }
 
+describe.each([
+  { action: "read_usage", read: readSyncedUsage, empty: { ok: true, providers: [] } },
+  { action: "read_api_spend", read: readSyncedApiSpend, empty: { ok: true, sources: [] } },
+])("$action transport", ({ action, read, empty }) => {
+  it("invokes pro-service using the session client and the requested action", async () => {
+    const client = clientWith({});
+    expect(await read(client)).toEqual(empty);
+    expect(client.functions.invoke).toHaveBeenCalledExactlyOnceWith("pro-service", {
+      body: { action },
+    });
+  });
+
+  it("does not invoke the service when signed out", async () => {
+    const client = clientWith({ session: null });
+    expect(await read(client)).toEqual({ ok: false, reason: "signed_out" });
+    expect(client.functions.invoke).not.toHaveBeenCalled();
+  });
+
+  it("does not invoke the service when the session cannot be read", async () => {
+    const client = clientWith({ sessionError: new Error("session unavailable") });
+    expect(await read(client)).toEqual({ ok: false, reason: "unavailable" });
+    expect(client.functions.invoke).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [401, "signed_out"],
+    [403, "unavailable"],
+    [503, "unavailable"],
+    [500, "unavailable"],
+    [429, "unavailable"],
+  ])("maps HTTP %s to %s", async (status, reason) => {
+    const client = clientWith({});
+    vi.mocked(client.functions.invoke).mockResolvedValue({
+      data: null,
+      error: new FunctionsHttpError(new Response(null, { status: Number(status) })),
+    });
+    expect(await read(client)).toEqual({ ok: false, reason });
+  });
+
+  it("maps a returned network error to unavailable", async () => {
+    const client = clientWith({});
+    vi.mocked(client.functions.invoke).mockResolvedValue({
+      data: null,
+      error: new FunctionsFetchError(new TypeError("Failed to fetch")),
+    });
+    expect(await read(client)).toEqual({ ok: false, reason: "unavailable" });
+  });
+
+  it("maps a rejected invocation to unavailable", async () => {
+    const client = clientWith({});
+    vi.mocked(client.functions.invoke).mockRejectedValue(new TypeError("Failed to fetch"));
+    expect(await read(client)).toEqual({ ok: false, reason: "unavailable" });
+  });
+
+  it.each([null, undefined, [], {}, { rows: null }, { rows: "invalid" }])(
+    "rejects a malformed response %j",
+    async (data) => {
+      const client = clientWith({});
+      vi.mocked(client.functions.invoke).mockResolvedValue({ data, error: null });
+      expect(await read(client)).toEqual({ ok: false, reason: "unavailable" });
+    },
+  );
+});
+
 describe("the read path", () => {
   it("answers with the rows the account's own function returned", async () => {
-    /* The client here has no table reader at all and refuses any function
-       but the two owner scoped ones, so a read that went back to a table, or
-       to a function this account does not own, has nothing to answer with. */
+    /* The client has no table or RPC reader, so reads must use the hosted
+       service with the signed in session. */
     const result = await readSyncedUsage(clientWith({ usage: usageRows() }));
     expect(result).toEqual({
       ok: true,
