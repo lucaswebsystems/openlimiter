@@ -680,8 +680,8 @@ fn resumable_upload(
 /// feature list its token carries: an upload that names a feature the account
 /// does not hold is refused whole, which would take the percentages down with
 /// it, so the totals are left out rather than risking the rest.
-fn spend_samples_allowed(entitled: bool, api_spend_beta: bool) -> bool {
-    !entitled || api_spend_beta
+fn spend_samples_allowed(entitled: bool, api_spend_sync_enabled: bool) -> bool {
+    !entitled || api_spend_sync_enabled
 }
 
 /// What the hosted surface answered, in the only five shapes it answers in.
@@ -1056,7 +1056,7 @@ pub(crate) async fn sync_snapshot(store: &dyn SecretStore) -> Result<bool, Accou
     }
     let access_token = current_access_token(store).await?;
     let (device_id, entitlement) = sync_identity(store).await?;
-    if !spend_samples_allowed(entitlement.is_some(), crate::pro::api_spend_cap_lifted()) {
+    if !spend_samples_allowed(entitlement.is_some(), crate::pro::api_spend_sync_enabled()) {
         api_spend_samples = Vec::new();
     }
     if usage_samples.is_empty() && api_spend_samples.is_empty() {
@@ -2475,7 +2475,7 @@ mod tests {
     }
 
     #[test]
-    fn dollar_totals_travel_on_a_free_account_and_wait_for_the_feature_on_a_paid_one() {
+    fn dollar_totals_travel_on_free_and_feature_enabled_pro_accounts_only() {
         /* A free upload carries the account bearer alone and the surface
         takes the totals with it. An entitled upload is checked against the
         feature list its token carries, and one naming a feature the account
