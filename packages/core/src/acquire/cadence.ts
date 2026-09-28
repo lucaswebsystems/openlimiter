@@ -13,8 +13,10 @@
 import path from "node:path";
 import {
   MAX_JSON_FILE_BYTES,
+  MAX_POLICY_TIMESTAMP,
   readJsonFileSafely,
   resolveStateDirectory,
+  retryPolicy,
   writeFileAtomically
 } from "../cache.js";
 import { canonicalJson } from "../normalizer.js";
@@ -24,7 +26,7 @@ import type { AcquisitionOutcome } from "./transport.js";
 export const ACQUISITION_INTERVAL_SECONDS = 900;
 
 /** How long a rate limited provider is left alone. */
-export const ACQUISITION_RATE_LIMIT_BACKOFF_SECONDS = 3_600;
+export const ACQUISITION_RATE_LIMIT_BACKOFF_SECONDS = 60;
 
 /** How long a provider that refused this client outright is left alone. */
 export const ACQUISITION_BLOCKED_BACKOFF_SECONDS = 86_400;
@@ -45,6 +47,8 @@ export const ACQUISITION_STATE_FILE_NAME = "openlimiter-acquisition.json";
 export const ACQUISITION_STATE_VERSION = 1;
 
 export interface AcquisitionProviderSchedule {
+  readonly refusalRevision?: string;
+  readonly attempts?: number;
   /** When the last attempt was made. */
   readonly lastAttemptAt: string;
   /** The earliest instant the next attempt may be made. */
@@ -66,15 +70,16 @@ export type AcquisitionSchedule = Readonly<
  */
 export function backoffSecondsFor(
   outcome: AcquisitionOutcome,
-  retryAfterSeconds: number | null = null
+  retryAfterSeconds: number | null = null,
+  attemptCount = 0
 ): number {
   /* A provider that serves a field only to its own tools will answer the same
      way in fifteen minutes, so that outcome waits a day like a refusal does.
      Retrying it on the ordinary interval would be ninety six pointless requests
      a day against an answer that cannot change until we change. */
-  const base = outcome === "rate_limited"
-    ? ACQUISITION_RATE_LIMIT_BACKOFF_SECONDS
-    : outcome === "blocked" || outcome === "identity_refused"
+  const base = outcome === "rate_limited" || outcome === "remote_error" || outcome === "transport"
+    ? retryPolicy({ attemptCount, retryAfter: null, now: "1970-01-01T00:00:00.000Z", jitterSeconds: 0, layer: "policy" }).localDelaySeconds
+    : outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused"
       ? ACQUISITION_BLOCKED_BACKOFF_SECONDS
       : ACQUISITION_INTERVAL_SECONDS;
   if (
@@ -82,19 +87,22 @@ export function backoffSecondsFor(
     !Number.isFinite(retryAfterSeconds) ||
     retryAfterSeconds <= 0
   ) return base;
-  return Math.max(base, Math.min(retryAfterSeconds, ACQUISITION_BLOCKED_BACKOFF_SECONDS));
+  // Refusals wait one day regardless of a server retry header.
+  if (outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused") return base;
+  return Math.max(base, Math.min(7 * 86_400, retryAfterSeconds));
 }
 
 /** The instant an attempt with this outcome earns, or null on an unread clock. */
 export function nextAttemptInstant(
   outcome: AcquisitionOutcome,
   now: string,
-  retryAfterSeconds: number | null = null
+  retryAfterSeconds: number | null = null,
+  attemptCount = 0
 ): string | null {
   const current = Date.parse(now);
   if (!Number.isFinite(current)) return null;
   const instant = new Date(
-    current + backoffSecondsFor(outcome, retryAfterSeconds) * 1_000
+    Math.min(MAX_POLICY_TIMESTAMP, current + backoffSecondsFor(outcome, retryAfterSeconds, attemptCount) * 1_000)
   );
   return Number.isFinite(instant.getTime()) ? instant.toISOString() : null;
 }
@@ -173,6 +181,8 @@ export async function readAcquisitionSchedule(
     if (!isIsoInstant(lastAttemptAt) || !isIsoInstant(nextAttemptAt)) continue;
     if (typeof outcome !== "string" || !outcomeNames.has(outcome)) continue;
     schedule[key] = {
+      ...(typeof entry["refusalRevision"] === "string" && /^[a-f0-9]{64}$/u.test(entry["refusalRevision"]) ? { refusalRevision: entry["refusalRevision"] } : {}),
+      ...(typeof entry["attempts"] === "number" && Number.isSafeInteger(entry["attempts"]) ? { attempts: Math.max(0, entry["attempts"]) } : {}),
       lastAttemptAt,
       nextAttemptAt,
       outcome: outcome as AcquisitionOutcome

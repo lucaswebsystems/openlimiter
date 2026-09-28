@@ -128,7 +128,7 @@ describe("one acquisition round", () => {
     expect(result.reports).toEqual([]);
   });
 
-  it("backs off an hour on a rate limit and a day on a refusal", async () => {
+  it("backs off per the agreed exponential plan on a rate limit and a day on a refusal", async () => {
     const rateLimited = await runAcquisition([grokSpec(() => [meter("GROK")])], {
       transport: async () => reply(429, {}),
       now: NOW,
@@ -136,7 +136,7 @@ describe("one acquisition round", () => {
       readCredential: async () => credential("user-1")
     });
     expect(rateLimited.rows[0]?.status).toBe("stale");
-    expect(rateLimited.rows[0]?.nextAttemptAt).toBe("2026-01-01T01:00:00.000Z");
+    expect(rateLimited.rows[0]?.nextAttemptAt).toBe("2026-01-01T00:01:00.000Z");
     expect(rateLimited.reports).toEqual([]);
 
     const blocked = await runAcquisition([grokSpec(() => [meter("GROK")])], {
@@ -327,16 +327,16 @@ describe("one acquisition round", () => {
         next: "2026-01-01T00:15:00.000Z"
       },
       {
-        name: "a server error",
+        name: "a server error follows the agreed exponential plan rule",
         reply: async () => ({ status: 500, body: "", retryAfterSeconds: null }),
         outcome: "remote_error",
-        next: "2026-01-01T00:15:00.000Z"
+        next: "2026-01-01T00:01:00.000Z"
       },
       {
-        name: "a rate limit",
+        name: "a rate limit follows the agreed exponential plan rule",
         reply: async () => ({ status: 429, body: "", retryAfterSeconds: null }),
         outcome: "rate_limited",
-        next: "2026-01-01T01:00:00.000Z"
+        next: "2026-01-01T00:01:00.000Z"
       },
       {
         name: "a body that is not JSON",

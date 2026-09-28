@@ -4,7 +4,7 @@
   "decisions": {
     "attemptCount": "Zero means the first retry. Local exponential delay is capped before additive nonnegative jitter.",
     "retryAfter": "Raw HTTP header, either integer seconds or an HTTP date. Invalid and negative seconds act as absent. Past dates cannot shorten the local delay.",
-    "ceilings": "Ceilings change the blocked state, never shorten the server deadline. Equality is allowed; exceeding the layer ceiling blocks until the server date.",
+    "ceilings": "Honor server deadlines up to the safety ceiling: collector 24 hours, request policy 7 days. Above the ceiling, cap the deadline and block until that capped time.",
     "lease": "One lease per acquisition key shared by desktop and CLI. A live lease denies another acquisition even for the same owner. Equality means expired. Takeover means replacing a different owner.",
     "freshness": "Fresh while observedAt <= now < expiresAt. Future observations are unavailable.",
     "proposedValues": "Pending plan confirmation: native_payload TTL 60 s; documented_api, internal_payload and local_file TTL 300 s; lease 60 s. These are explicit proposed contract values, not claims about existing implementations."
@@ -288,6 +288,38 @@
   },
   "vectors": {
     "retry": [
+      {
+        "id": "collector-999999-seconds-capped",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "999999",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-08T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-08T12:00:00.000Z",
+          "blockedUntil": "2026-08-08T12:00:00.000Z"
+        }
+      },
+      {
+        "id": "policy-999999-seconds-capped",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "999999",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "policy"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-14T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-14T12:00:00.000Z",
+          "blockedUntil": "2026-08-14T12:00:00.000Z"
+        }
+      },
       {
         "id": "local-attempt-0",
         "input": {
@@ -603,9 +635,9 @@
         },
         "expected": {
           "localDelaySeconds": 60,
-          "serverDeadline": "2026-08-08T12:00:01.000Z",
-          "nextAllowedAt": "2026-08-08T12:00:01.000Z",
-          "blockedUntil": "2026-08-08T12:00:01.000Z"
+          "serverDeadline": "2026-08-08T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-08T12:00:00.000Z",
+          "blockedUntil": "2026-08-08T12:00:00.000Z"
         }
       },
       {
@@ -619,9 +651,9 @@
         },
         "expected": {
           "localDelaySeconds": 60,
-          "serverDeadline": "2026-08-15T12:00:00.000Z",
-          "nextAllowedAt": "2026-08-15T12:00:00.000Z",
-          "blockedUntil": "2026-08-15T12:00:00.000Z"
+          "serverDeadline": "2026-08-08T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-08T12:00:00.000Z",
+          "blockedUntil": "2026-08-08T12:00:00.000Z"
         }
       },
       {
@@ -667,9 +699,9 @@
         },
         "expected": {
           "localDelaySeconds": 60,
-          "serverDeadline": "2026-08-14T12:00:01.000Z",
-          "nextAllowedAt": "2026-08-14T12:00:01.000Z",
-          "blockedUntil": "2026-08-14T12:00:01.000Z"
+          "serverDeadline": "2026-08-14T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-14T12:00:00.000Z",
+          "blockedUntil": "2026-08-14T12:00:00.000Z"
         }
       },
       {
@@ -683,9 +715,9 @@
         },
         "expected": {
           "localDelaySeconds": 60,
-          "serverDeadline": "2026-08-15T12:00:00.000Z",
-          "nextAllowedAt": "2026-08-15T12:00:00.000Z",
-          "blockedUntil": "2026-08-15T12:00:00.000Z"
+          "serverDeadline": "2026-08-14T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-14T12:00:00.000Z",
+          "blockedUntil": "2026-08-14T12:00:00.000Z"
         }
       }
     ],

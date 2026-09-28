@@ -279,6 +279,73 @@ fn release_session(lock_path: &Path, session: PendingWrite) {
 }
 
 impl CacheWriter {
+    pub(crate) fn record_availability(
+        &self,
+        provider: &str,
+        account: Option<&str>,
+        availability: &str,
+        retry_at: Option<u64>,
+        now: u64,
+    ) -> Result<(), CacheWriteError> {
+        let begun = self.begin()?;
+        let mut document: serde_json::Value = match begun.text.as_deref() {
+            Some(text) => match serde_json::from_str(text) {
+                Ok(document) => document,
+                Err(_) => {
+                    self.abort(begun.generation);
+                    return Err(CacheWriteError::NotJson);
+                }
+            },
+            None => serde_json::json!({"version": 2, "snapshots": []}),
+        };
+        let result = (|| {
+            let rows = document
+                .get_mut("snapshots")
+                .and_then(|v| v.as_array_mut())
+                .ok_or(CacheWriteError::NotJson)?;
+            let matches = |row: &serde_json::Value| {
+                row.get("provider").and_then(|v| v.as_str()) == Some(provider)
+                    && account.is_none_or(|account| {
+                        row.get("accountId").and_then(|v| v.as_str()) == Some(account)
+                    })
+            };
+            if !rows.iter().any(matches) {
+                rows.push(serde_json::json!({
+                    "provider": provider, "meter": "ACQUISITION", "value": 0, "unit": "PERCENT",
+                    "window": {"kind": "unknown"}, "resetAt": null, "source": "internal_payload", "precision": "exact",
+                    "observedAt": policy_iso(now), "expiresAt": policy_iso(now.saturating_add(300_000)),
+                    "writer": "desktop", "labels": {"credentialOrigin": "official-local-tool", "dataInterfaceStatus": "internal-endpoint", "automationRisk": "high", "verification": "UNVERIFIED"}
+                }));
+                if let Some(account) = account {
+                    rows.last_mut().unwrap()["accountId"] = serde_json::json!(account);
+                }
+            }
+            for row in rows.iter_mut().filter(|row| matches(row)) {
+                row["availability"] = serde_json::json!(availability);
+                if let Some(retry) = retry_at {
+                    row["retryAt"] = serde_json::json!(policy_iso(retry));
+                } else if let Some(object) = row.as_object_mut() {
+                    object.remove("retryAt");
+                }
+            }
+            self.commit(&document.to_string(), begun.generation)
+        })();
+        if result.is_err() {
+            self.abort(begun.generation);
+        }
+        result
+    }
+    /// Serialize policy changes with cache writes in both desktop and Node.
+    pub(crate) fn policy_transaction<R>(
+        directory: &Path,
+        action: impl FnOnce() -> Result<R, ()>,
+    ) -> Result<R, ()> {
+        let writer = Self::at(Some(directory.to_path_buf()));
+        let session = writer.begin().map_err(|_| ())?;
+        let result = action();
+        writer.abort(session.generation);
+        result
+    }
     /// The writer over the application's real state directory.
     pub fn at_state_directory() -> Self {
         Self::at(crate::state::state_directory())
@@ -398,14 +465,58 @@ impl CacheWriter {
         if text.len() as u64 > MAX_JSON_FILE_BYTES {
             return Err(CacheWriteError::TooLarge);
         }
-        if serde_json::from_str::<serde::de::IgnoredAny>(text).is_err() {
-            return Err(CacheWriteError::NotJson);
+        let mut document: serde_json::Value =
+            serde_json::from_str(text).map_err(|_| CacheWriteError::NotJson)?;
+        if let Some(rows) = document.get_mut("snapshots").and_then(|v| v.as_array_mut()) {
+            for row in rows {
+                let source = row.get("source").and_then(|v| v.as_str()).unwrap_or("");
+                if !matches!(
+                    source,
+                    "native_payload" | "documented_api" | "internal_payload" | "local_file"
+                ) {
+                    continue;
+                }
+                if let Some(observed) = row
+                    .get("observedAt")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                {
+                    let (_, expires, _) = freshness_policy(
+                        source,
+                        observed.timestamp_millis(),
+                        observed.timestamp_millis(),
+                    );
+                    row["expiresAt"] = serde_json::json!(policy_iso(expires as u64));
+                }
+            }
         }
         let file = directory.join(CACHE_FILE_NAME);
         fsx::reject_symlink(&file)?;
-        fsx::atomic_write(&file, text)?;
+        fsx::atomic_write(&file, &document.to_string())?;
         Ok(())
     }
+}
+
+pub(crate) fn policy_iso(ms: u64) -> String {
+    chrono::DateTime::from_timestamp_millis(ms as i64)
+        .unwrap()
+        .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+}
+
+pub(crate) fn freshness_policy(source: &str, observed: i64, now: i64) -> (u64, i64, &'static str) {
+    let ttl = if source == "native_payload" { 60 } else { 300 };
+    let expires = observed.saturating_add(ttl * 1000);
+    (
+        ttl as u64,
+        expires,
+        if now < observed {
+            "unavailable"
+        } else if now < expires {
+            "fresh"
+        } else {
+            "stale"
+        },
+    )
 }
 
 #[cfg(test)]

@@ -315,12 +315,16 @@ export function outcomeForStatus(status: number): AcquisitionOutcome {
 }
 
 /** Retry-After in seconds, when the header is a count of seconds we believe. */
-export function retryAfterSeconds(value: string | null): number | null {
+export function retryAfterSeconds(value: string | null, now = Date.now()): number | null {
   if (value === null) return null;
   const trimmed = value.trim();
-  if (!/^\d{1,7}$/u.test(trimmed)) return null;
-  const seconds = Number.parseInt(trimmed, 10);
-  return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+  if (/^\d+$/u.test(trimmed)) {
+    const seconds = Number(trimmed);
+    return Number.isSafeInteger(seconds) ? seconds : null;
+  }
+  if (!/^[A-Za-z]{3}, /u.test(trimmed)) return null;
+  const deadline = Date.parse(trimmed);
+  return Number.isFinite(deadline) ? Math.max(0, Math.ceil((deadline - now) / 1_000)) : null;
 }
 
 /**

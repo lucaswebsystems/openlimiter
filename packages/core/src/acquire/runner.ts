@@ -12,11 +12,14 @@
  * per provider saying why, because the surfaces above are a status line and a
  * doctor command, and both of them owe a person an answer rather than a stack.
  */
+import { createHash } from "node:crypto";
+import { lstat } from "node:fs/promises";
 import type {
   CollectionFailureReason,
   CollectionReport
 } from "../collection.js";
 import { normalizeMeters } from "../normalizer.js";
+import { acquireMachineLease, recordAcquisitionAvailability, withPolicyFreshness, type MachineLease } from "../cache.js";
 import type { ProviderCode, RawMeter, Snapshot } from "../types.js";
 import {
   ACQUISITION_OUTCOME_SENTENCE,
@@ -27,6 +30,7 @@ import {
 } from "./cadence.js";
 import {
   CREDENTIAL_FAILURE_SENTENCE,
+  credentialCandidatePaths,
   readAcquisitionCredential,
   type AcquiredCredential,
   type AcquisitionProvider,
@@ -120,6 +124,8 @@ export type AcquisitionStatus =
   | "off";
 
 export interface AcquisitionRow {
+  readonly availability?: "expired_credentials" | "access_denied" | "rate_limited";
+  readonly retryAt?: string;
   readonly provider: ProviderCode;
   /** The account these rows were filed under, when one was decided. */
   readonly accountId?: string;
@@ -141,6 +147,9 @@ export interface AcquisitionRunResult {
 }
 
 export interface AcquisitionRunOptions {
+  readonly clock?: () => number;
+  readonly stateDirectory?: string;
+  readonly lease?: MachineLease;
   readonly transport: AcquisitionTransport;
   readonly now: string;
   readonly schedule: AcquisitionSchedule;
@@ -193,9 +202,20 @@ export function collectionReasonFor(
 }
 
 interface Attempt {
+  readonly expiredCredentials?: boolean;
   readonly outcome: AcquisitionOutcome;
   readonly meters: readonly RawMeter[];
   readonly retryAfterSeconds: number | null;
+}
+
+export function credentialExpired(credential: AcquiredCredential, now: number): boolean {
+  if (credential.expiresAtMilliseconds !== null && credential.expiresAtMilliseconds <= now) return true;
+  try {
+    const part = credential.secret.split(".")[1];
+    if (!part) return false;
+    const payload = JSON.parse(Buffer.from(part, "base64url").toString("utf8")) as { exp?: unknown };
+    return typeof payload.exp === "number" && Number.isFinite(payload.exp) && payload.exp * 1000 <= now;
+  } catch { return false; }
 }
 
 async function attempt(
@@ -204,8 +224,16 @@ async function attempt(
   options: AcquisitionRunOptions
 ): Promise<Attempt> {
   const previous: unknown[] = [];
+  const started = Date.now();
   let retryAfter: number | null = null;
   for (const step of spec.steps) {
+    const at = options.clock?.() ?? Date.parse(options.now) + Date.now() - started;
+    if (credentialExpired(credential, at)) {
+      return { outcome: "unauthorized", meters: [], retryAfterSeconds: null, expiredCredentials: true };
+    }
+    if (options.lease && !(await options.lease.stillOwned(at))) {
+      return { outcome: "transport", meters: [], retryAfterSeconds: null };
+    }
     const decided = step({ credential, previous });
     if (decided === null) {
       return { outcome: "drift", meters: [], retryAfterSeconds: null };
@@ -275,12 +303,30 @@ export async function runAcquisition(
     ...options.schedule
   };
   const stamp = options.stamp ?? ((meters: readonly RawMeter[]) => meters);
-  const readCredential = options.readCredential ??
+  const credentialReader = options.readCredential ??
     ((provider: AcquisitionProvider) =>
       readAcquisitionCredential(provider, {
         ...options.lookup,
         now: options.now
       }));
+  const observedCredentials = new Map<AcquisitionProvider, AcquiredCredential>();
+  const readCredential = async (provider: AcquisitionProvider): Promise<CredentialResult> => {
+    const result = await credentialReader(provider);
+    if (result.ok) observedCredentials.set(provider, result.credential);
+    return result;
+  };
+  const revisionFor = async (spec: AcquisitionSpec): Promise<string> => {
+    const credential = await readCredential(spec.credentialProvider);
+    const files = options.readCredential && !options.lookup ? [] : credentialCandidatePaths(spec.credentialProvider, options.lookup);
+    const mtimes = await Promise.all(files.map(async (file) => {
+      try { return [file, (await lstat(file)).mtimeMs]; } catch { return [file, null]; }
+    }));
+    return createHash("sha256").update(JSON.stringify([credential, mtimes])).digest("hex");
+  };
+  const refused = (outcome: AcquisitionOutcome) => outcome === "unauthorized" || outcome === "blocked" || outcome === "identity_refused";
+  const refusalAvailability = (outcome: AcquisitionOutcome) => outcome === "unauthorized"
+    ? { availability: "expired_credentials" as const }
+    : outcome === "blocked" || outcome === "identity_refused" ? { availability: "access_denied" as const } : {};
   /**
    * One provider, start to finish.
    *
@@ -301,11 +347,13 @@ export async function runAcquisition(
       });
       return;
     }
-    if (!isProviderDue(existing, options.now)) {
+    const changedRefusal = existing?.refusalRevision !== undefined && refused(existing.outcome) && existing.refusalRevision !== await revisionFor(spec);
+    if (!isProviderDue(existing, options.now) && !changedRefusal) {
       rows.push({
         provider: spec.provider,
         detected: true,
         status: "waiting",
+        ...(existing ? refusalAvailability(existing.outcome) : {}),
         reason: existing === undefined
           ? null
           : ACQUISITION_OUTCOME_SENTENCE[existing.outcome],
@@ -364,6 +412,15 @@ export async function runAcquisition(
         const credential = await readCredential(spec.credentialProvider);
         if (credential.ok && isSharedCodeAssist(credential.credential)) {
           const fallbackResult = await attempt(spec, credential.credential, options);
+          if (fallbackResult.outcome !== "ok") {
+            const expired = fallbackResult.expiredCredentials === true;
+            const nextAttemptAt = expired ? null : nextAttemptInstant(fallbackResult.outcome, options.now, fallbackResult.retryAfterSeconds, existing?.attempts ?? options.lease?.attempts ?? 0);
+            if (nextAttemptAt) schedule[spec.provider] = { lastAttemptAt: options.now, nextAttemptAt, outcome: fallbackResult.outcome, attempts: (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
+              ...(refused(fallbackResult.outcome) ? { refusalRevision: await revisionFor(spec) } : {}) };
+            rows.push({ provider: spec.provider, detected: true, status: "stale", reason: expired ? CREDENTIAL_FAILURE_SENTENCE.expired : ACQUISITION_OUTCOME_SENTENCE[fallbackResult.outcome], nextAttemptAt, disclosure: spec.disclosure,
+              ...(expired ? { availability: "expired_credentials" as const } : fallbackResult.outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt } : refusalAvailability(fallbackResult.outcome)) });
+            return;
+          }
           if (fallbackResult.outcome === "ok" && fallbackResult.meters.length > 0) {
             const accountId = spec.accountIdFor?.(credential.credential) ?? null;
             const accountLabel = spec.accountLabelFor?.(credential.credential) ?? null;
@@ -423,6 +480,7 @@ export async function runAcquisition(
     if (!credential.ok) {
       const absent = credential.reason === "absent";
       rows.push({
+        ...(credential.reason === "expired" ? { availability: "expired_credentials" as const } : {}),
         provider: spec.provider,
         detected: !absent,
         status: absent ? "not_detected" : "stale",
@@ -435,18 +493,28 @@ export async function runAcquisition(
       return;
     }
     const held = credential.credential;
+    if (credentialExpired(held, Date.parse(options.now))) {
+      rows.push({ provider: spec.provider, detected: true, status: "stale", availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure: spec.disclosure });
+      return;
+    }
     const accountId = spec.accountIdFor?.(held) ?? null;
     const accountLabel = spec.accountLabelFor?.(held) ?? null;
     const disclosure = spec.disclosureFor?.(held) ?? spec.disclosure;
     const sentence = (outcome: AcquisitionOutcome): string =>
       spec.outcomeSentence?.[outcome] ?? ACQUISITION_OUTCOME_SENTENCE[outcome];
     const result = await attempt(spec, held, options);
+    if (result.expiredCredentials) {
+      rows.push({ provider: spec.provider, detected: true, status: "stale", availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });
+      return;
+    }
     const nextAttemptAt = nextAttemptInstant(
       result.outcome,
-      options.now,
-      result.retryAfterSeconds
+      options.clock ? new Date(options.clock()).toISOString() : options.now,
+      result.retryAfterSeconds,
+      existing?.attempts ?? options.lease?.attempts ?? 0
     );
     schedule[spec.provider] = {
+      attempts: result.outcome === "ok" ? 0 : (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
       lastAttemptAt: options.now,
       nextAttemptAt: nextAttemptAt ?? options.now,
       outcome: result.outcome
@@ -490,6 +558,8 @@ export async function runAcquisition(
       ? "drift"
       : result.outcome;
     schedule[spec.provider] = {
+      attempts: (existing?.attempts ?? options.lease?.attempts ?? 0) + 1,
+      ...(refused(outcome) ? { refusalRevision: await revisionFor(spec) } : {}),
       lastAttemptAt: options.now,
       nextAttemptAt: nextAttemptAt ?? options.now,
       outcome
@@ -499,6 +569,7 @@ export async function runAcquisition(
       ...(accountId === null ? {} : { accountId }),
       detected: true,
       status: "stale",
+      ...(outcome === "rate_limited" && nextAttemptAt ? { availability: "rate_limited" as const, retryAt: nextAttemptAt } : refusalAvailability(outcome)),
       reason: sentence(outcome),
       nextAttemptAt,
       disclosure
@@ -506,8 +577,50 @@ export async function runAcquisition(
   };
 
   for (const spec of specs) {
+    let lease: MachineLease | null = null;
     try {
-      await readOne(spec);
+      if (options.stateDirectory !== undefined && spec.enabled !== false) {
+        lease = await acquireMachineLease(spec.provider, options.stateDirectory, options.clock?.() ?? Date.parse(options.now), await revisionFor(spec));
+        if (lease === null) {
+          // A borrowed Gemini login describes the same quota. Reuse the observation
+          // from this round, retaining its age, instead of polling Code Assist twice.
+          if (spec.provider === "ANTIGRAVITY") {
+            const originalCredential = observedCredentials.get("GEMINI_CLI");
+            const credential = await readCredential(spec.credentialProvider);
+            const source = reports.find((report) => report.ok && report.provider === "GEMINI_CLI");
+            if (credential.ok && originalCredential?.secret === credential.credential.secret && isSharedCodeAssist(credential.credential) && !credentialExpired(credential.credential, Date.parse(options.now)) && source?.ok) {
+              const accountId = spec.accountIdFor?.(credential.credential) ?? null;
+              const accountLabel = spec.accountLabelFor?.(credential.credential) ?? null;
+              const snapshots = source.snapshots.map((snapshot) => ({ ...snapshot, provider: spec.provider,
+                ...(accountId ? { accountId } : {}), ...(accountLabel ? { accountLabel } : {}) }));
+              reports.push({ ...source, provider: spec.provider, ...(accountId ? { accountId } : {}), snapshots });
+              const previous = schedule["GEMINI_CLI"];
+              if (previous) schedule[spec.provider] = previous;
+              rows.push({ provider: spec.provider, ...(accountId ? { accountId } : {}), detected: true, status: "read", reason: null,
+                nextAttemptAt: previous?.nextAttemptAt ?? null, disclosure: spec.disclosureFor?.(credential.credential) ?? spec.disclosure });
+              continue;
+            }
+          }
+          rows.push({ provider: spec.provider, detected: true, status: "waiting", reason: "another acquisition owns this provider or its retry deadline is pending", nextAttemptAt: null, disclosure: spec.disclosure });
+          continue;
+        }
+        // Read and persist each provider while its shared machine lease is held.
+        const { stateDirectory: _directory, ...localOptions } = options;
+        const previous = schedule[spec.provider];
+        const localSchedule = previous ? { ...schedule, [spec.provider]: { ...previous, attempts: Math.max(previous.attempts ?? 0, lease.attempts) } } : schedule;
+        const single = await runAcquisition([spec], { ...localOptions, readCredential, now: options.clock ? new Date(options.clock()).toISOString() : options.now, schedule: localSchedule, lease });
+        rows.push(...single.rows);
+        reports.push(...single.reports);
+        const updated = single.schedule[spec.provider];
+        if (updated) schedule[spec.provider] = updated;
+        const entry = schedule[spec.provider];
+        if (entry) await lease.complete(Date.parse(entry.nextAttemptAt), entry.attempts ?? 0, entry.refusalRevision);
+        for (const row of single.rows) {
+          if (row.availability) await recordAcquisitionAvailability(spec.provider, row.availability, options.now, row.retryAt, options.stateDirectory);
+        }
+      } else {
+        await readOne(spec);
+      }
     } catch {
       /*
        * The last line of defence. A provider that threw where nothing was
@@ -527,7 +640,9 @@ export async function runAcquisition(
         nextAttemptAt: null,
         disclosure: spec.disclosure
       });
+    } finally {
+      await lease?.release();
     }
   }
-  return { rows, reports, schedule };
+  return { rows, reports: reports.map((report) => report.ok ? { ...report, snapshots: report.snapshots.map(withPolicyFreshness) } : report), schedule };
 }
