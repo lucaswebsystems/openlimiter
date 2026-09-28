@@ -118,8 +118,13 @@ const entitlementPrivateKey = privateKey.export({ type: "pkcs8", format: "der" }
 const networkHmacKey = randomBytes(32).toString("hex");
 rememberSecret(entitlementPrivateKey);
 rememberSecret(networkHmacKey);
+// Pro requires an HTTPS CORS origin. This is a header value, not a TLS endpoint.
+const appOrigin = "https://127.0.0.1";
+// SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are reserved CLI settings, injected
+// for this disposable stack with its container gateway URL and local service key.
 const functionEnv = join(root, "disposable-functions.env");
-writeFileSync(functionEnv, `ENTITLEMENT_ED25519_KEY_ID=persistence-proof
+writeFileSync(functionEnv, `APP_ORIGIN=${appOrigin}
+ENTITLEMENT_ED25519_KEY_ID=persistence-proof
 ENTITLEMENT_ED25519_PRIVATE_KEY=${entitlementPrivateKey}
 NETWORK_RATE_HMAC_KEY=${networkHmacKey}
 `, { mode: 0o600 });
@@ -128,6 +133,8 @@ let serveLogHandle;
 let serveAttempted = false;
 let started = false;
 let phase = "start disposable Supabase";
+let lastReadinessStatus;
+let lastReadinessBody = "(no response received)";
 try {
   console.log("Starting disposable Supabase for persistence proof");
   started = true;
@@ -143,6 +150,10 @@ try {
   for (const [key, value] of Object.entries(status)) {
     if (/key|token|secret|jwt|password/i.test(key)) rememberSecret(value);
   }
+  phase = "configure disposable proof feature switches";
+  // These switches live in Postgres, not PRO_ENABLED or other function env flags.
+  run("docker", ["exec", db, "psql", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c",
+    "update public.feature_kill_switches set enabled = feature in ('sync_current','history','token_issue');"]);
   phase = "serve real Edge Functions";
   serveLogHandle = openSync(serveLog, "w");
   serveAttempted = true;
@@ -159,8 +170,14 @@ try {
     }
     if (Date.now() >= deadline) throw new Error("Edge Functions not ready after 300 seconds");
     try {
-      const response = await fetch(`${api}/functions/v1/pro-service`, { method: "OPTIONS", signal: AbortSignal.timeout(1000) });
+      const response = await fetch(`${api}/functions/v1/pro-service`, {
+        method: "OPTIONS", headers: { origin: appOrigin }, signal: AbortSignal.timeout(1000),
+      });
+      lastReadinessStatus = response.status;
+      lastReadinessBody = "(response body unavailable)";
       if (response.status >= 200 && response.status < 300) ready = true;
+      // Redact before truncation so a secret crossing the limit cannot leak a prefix.
+      lastReadinessBody = redact(await response.text()).slice(0, 200);
     } catch { /* The local gateway may still be starting. */ }
     if (!ready) await new Promise((done) => setTimeout(done, Math.min(1000, deadline - Date.now())));
   }
@@ -179,7 +196,10 @@ try {
   // Subprocess errors can include generated credentials; report only the phase.
   console.error(`FAIL PERSISTENCE_PROOF: ${phase}`);
   if (error instanceof Error && error.message) console.error(`Reason: ${redact(error.message)}`);
-  if (serveAttempted) printServeLogTail();
+  if (serveAttempted) {
+    console.error(`Last readiness response: status ${lastReadinessStatus ?? "unavailable"}; body ${JSON.stringify(lastReadinessBody)}`);
+    printServeLogTail();
+  }
   process.exitCode = 1;
 } finally {
   server?.kill();
