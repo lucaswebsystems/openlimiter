@@ -47,6 +47,13 @@ export const KEEP_SIGNED_IN_KEY = "openlimiter-keep-signed-in";
 /** What the switch reads as before anybody has touched it. */
 export const KEEP_SIGNED_IN_DEFAULT = true;
 
+const accountCleanup = new WeakMap<SupabaseClient, Promise<void>>();
+
+/** New account reads wait until the departing account's private storage is gone. */
+export function pendingAccountCleanup(client: SupabaseClient | null): Promise<void> | undefined {
+  return client ? accountCleanup.get(client) : undefined;
+}
+
 /** The shape the auth client asks of a place to keep a session. */
 export interface SessionStore {
   getItem: (key: string) => string | null;
@@ -403,11 +410,24 @@ export function createAccountClient(keep: boolean): SupabaseClient | null {
       emailRedirectTo: accountRedirect(credentials.options?.emailRedirectTo),
     } });
   };
-  let identity: string | null = null;
+  let current: Session | null = null;
   client.auth.onAuthStateChange((event, session) => {
-    const next = session?.user.id ?? null;
-    if (event === "SIGNED_OUT" || (identity !== null && next !== identity)) clearPrivateSessionState(session);
-    identity = next;
+    const departing = current;
+    current = session;
+    if (event === "SIGNED_OUT") clearPrivateSessionState();
+    else if (departing && departing.user.id !== session?.user.id) {
+      void endPhoneSession();
+      // SIGNED_IN has already replaced storage. Use the same revocation primitive
+      // as auth.signOut with the retained departing token, leaving the new login intact.
+      // Defer until all auth listeners have invalidated their displayed results.
+      const cleanup = Promise.resolve().then(() => client.auth.admin.signOut(departing.access_token))
+        .catch(() => { /* Local cleanup is required even when revocation fails. */ })
+        .then(() => {
+          clearPrivateSessionState(current);
+          if (accountCleanup.get(client) === cleanup) accountCleanup.delete(client);
+        });
+      accountCleanup.set(client, cleanup);
+    }
   });
   return client;
 }
