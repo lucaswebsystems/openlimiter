@@ -16,6 +16,8 @@ mod collector_schedule;
 mod commands;
 mod connections;
 mod credentials;
+#[cfg(test)]
+mod deps_smoke;
 mod fsx;
 mod gemini_cli_oauth;
 mod grok_oauth;
