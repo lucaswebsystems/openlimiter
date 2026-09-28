@@ -16,6 +16,8 @@ The runner creates a separate temporary Supabase project with unique ports and p
 
 On Windows, `--supabase C:/path/to/supabase.exe` selects an installed binary if the npm binary cannot be found. No dependency or Docker installation is performed by the runner.
 
+The Edge Function serve output is captured in `edge-functions-serve.log` under the runner's temporary directory. Readiness probes `OPTIONS /functions/v1/pro-service` for up to 300 seconds while the serve process remains alive, and any 2xx response is accepted. An early process exit reports its exit code. A serve failure prints the last 60 log lines after redacting generated signing and HMAC keys, Supabase anon and service keys, JWT shaped values, and other key or token shaped values. The installed Supabase CLI has no separate Edge Runtime preparation command, so the first `functions serve` command performs its own runtime image preparation.
+
 When Docker is unavailable, the local command exits zero with this explicit reason:
 
 ```text

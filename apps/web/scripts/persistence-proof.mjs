@@ -3,7 +3,7 @@
 // No linked project, inherited credentials, existing stack or production endpoint is used.
 import { execFileSync, spawn } from "node:child_process";
 import { generateKeyPairSync, randomBytes } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { createRequire } from "node:module";
@@ -26,6 +26,27 @@ const web = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = mkdtempSync(join(tmpdir(), "ol-persistence-proof-"));
 const profile = join(root, "profile");
 mkdirSync(profile);
+const serveLog = join(root, "edge-functions-serve.log");
+const logSecrets = [];
+const rememberSecret = (secret) => {
+  if (typeof secret === "string" && secret.length >= 8) logSecrets.push(secret);
+};
+const redact = (value) => {
+  let safe = value;
+  for (const secret of logSecrets) safe = safe.replaceAll(secret, "[REDACTED]");
+  return safe
+    .replace(/\beyJ[A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]*){0,2}/g, "[REDACTED_JWT]")
+    .replace(/((?:api|access|refresh|service[_ -]?role|anon|jwt|hmac|private|secret|token|key|password)[A-Za-z0-9_ -]*\s*[:=]\s*)[^\s,;]+/gi, "$1[REDACTED]")
+    .replace(/\b[A-Za-z0-9_-]{40,}\b/g, "[REDACTED]");
+};
+const printServeLogTail = () => {
+  let contents;
+  try { contents = readFileSync(serveLog, "utf8"); }
+  catch { contents = "(serve log unavailable)"; }
+  const lines = contents.split(/\r?\n/).slice(-60).map(redact);
+  console.error(`Serve log, last ${Math.min(lines.length, 60)} lines:`);
+  console.error(lines.join("\n"));
+};
 // Do not inherit production API keys, linked project credentials or user profiles.
 const env = {};
 for (const key of ["PATH", "Path", "SystemRoot", "SYSTEMROOT", "COMSPEC", "PATHEXT", "TEMP", "TMP", "CI"]) {
@@ -93,12 +114,18 @@ token_refresh = 10000
 ${functions}
 `);
 const { privateKey } = generateKeyPairSync("ed25519");
+const entitlementPrivateKey = privateKey.export({ type: "pkcs8", format: "der" }).toString("base64url");
+const networkHmacKey = randomBytes(32).toString("hex");
+rememberSecret(entitlementPrivateKey);
+rememberSecret(networkHmacKey);
 const functionEnv = join(root, "disposable-functions.env");
 writeFileSync(functionEnv, `ENTITLEMENT_ED25519_KEY_ID=persistence-proof
-ENTITLEMENT_ED25519_PRIVATE_KEY=${privateKey.export({ type: "pkcs8", format: "der" }).toString("base64url")}
-NETWORK_RATE_HMAC_KEY=${randomBytes(32).toString("hex")}
+ENTITLEMENT_ED25519_PRIVATE_KEY=${entitlementPrivateKey}
+NETWORK_RATE_HMAC_KEY=${networkHmacKey}
 `, { mode: 0o600 });
 let server;
+let serveLogHandle;
+let serveAttempted = false;
 let started = false;
 let phase = "start disposable Supabase";
 try {
@@ -113,20 +140,30 @@ try {
   if (!api || !["127.0.0.1", "localhost", "[::1]"].includes(new URL(api).hostname)) throw new Error("Loopback required");
   const db = run("docker", ["ps", "--filter", `name=^supabase_db_${project}$`, "--format", "{{.ID}}" ]).trim();
   if (!/^[a-f0-9]{12,64}$/.test(db)) throw new Error("Exactly one disposable database required");
+  for (const [key, value] of Object.entries(status)) {
+    if (/key|token|secret|jwt|password/i.test(key)) rememberSecret(value);
+  }
   phase = "serve real Edge Functions";
-  server = spawn(supabase, ["functions", "serve", "--no-verify-jwt", "--env-file", functionEnv], { cwd: root, env, stdio: "ignore", windowsHide: true });
-  let serverError = false;
-  server.on("error", () => { serverError = true; });
+  serveLogHandle = openSync(serveLog, "w");
+  serveAttempted = true;
+  server = spawn(supabase, ["functions", "serve", "--no-verify-jwt", "--env-file", functionEnv], { cwd: root, env, stdio: ["ignore", serveLogHandle, serveLogHandle], windowsHide: true });
+  let serverError;
+  server.on("error", (error) => { serverError = error; });
   let ready = false;
-  for (let attempt = 0; attempt < 60; attempt++) {
-    if (serverError || server.exitCode !== null) break;
+  const deadline = Date.now() + 300_000;
+  while (!ready) {
+    if (serverError) throw new Error(`Edge Functions serve failed to start: ${serverError.code ?? serverError.message}`);
+    if (server.exitCode !== null || server.signalCode !== null) {
+      const status = server.exitCode === null ? `signal ${server.signalCode}` : `exit code ${server.exitCode}`;
+      throw new Error(`Edge Functions process exited before readiness with ${status}`);
+    }
+    if (Date.now() >= deadline) throw new Error("Edge Functions not ready after 300 seconds");
     try {
       const response = await fetch(`${api}/functions/v1/pro-service`, { method: "OPTIONS", signal: AbortSignal.timeout(1000) });
-      if (response.ok) { ready = true; break; }
+      if (response.status >= 200 && response.status < 300) ready = true;
     } catch { /* The local gateway may still be starting. */ }
-    await new Promise((done) => setTimeout(done, 1000));
+    if (!ready) await new Promise((done) => setTimeout(done, Math.min(1000, deadline - Date.now())));
   }
-  if (!ready) throw new Error("Edge Functions not ready");
   phase = "run persistence client tests";
   Object.assign(env, {
     OL_PERSISTENCE_PROOF: "disposable-local", OL_PROOF_SERVICE_KEY: status.SERVICE_ROLE_KEY,
@@ -138,12 +175,18 @@ try {
   const test = spawn(process.execPath, [vitest, "run", "tests/persistence-server.test.ts", "--reporter=verbose"], { cwd: web, env, stdio: "inherit", windowsHide: true });
   const code = await new Promise((done, reject) => { test.on("error", reject); test.on("exit", done); });
   process.exitCode = code === 0 ? 0 : 1;
-} catch {
+} catch (error) {
   // Subprocess errors can include generated credentials; report only the phase.
   console.error(`FAIL PERSISTENCE_PROOF: ${phase}`);
+  if (error instanceof Error && error.message) console.error(`Reason: ${redact(error.message)}`);
+  if (serveAttempted) printServeLogTail();
   process.exitCode = 1;
 } finally {
   server?.kill();
+  if (serveLogHandle !== undefined) {
+    try { closeSync(serveLogHandle); }
+    catch { /* The child may already have closed the inherited descriptor. */ }
+  }
   if (started) {
     try { run(supabase, ["stop", "--no-backup"]); }
     catch { console.error("FAIL PERSISTENCE_PROOF: disposable stack cleanup failed"); process.exitCode = 1; }
