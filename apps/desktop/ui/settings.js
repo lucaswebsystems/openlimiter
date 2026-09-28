@@ -200,6 +200,59 @@ export function snoozeUntil(minutes, now = Date.now()) {
 
 const state = { settings: null, pro: null, mount: null };
 
+export const RAIL_SETTINGS_COPY = {
+  show: "Show the Rail",
+  detail: "Keep usage and agent activity at the edge of your screen.",
+  unavailable: "Rail settings are unavailable.",
+  saveFailed: "Could not save Rail visibility. Try again.",
+};
+
+function railSettingsMarkup() {
+  return '<section class="surface block"><div class="line">' +
+    '<label class="line-label" for="rail-visible"><strong>' + RAIL_SETTINGS_COPY.show +
+    '</strong><span>' + RAIL_SETTINGS_COPY.detail + '</span></label>' +
+    switchMarkup("rail-visible", false, true) + '</div>' +
+    '<p id="rail-visibility-status" class="note" role="status"></p></section>';
+}
+
+export async function wireRailVisibility(control, status, invoke = globalThis.window?.__TAURI__?.core?.invoke) {
+  let persisted;
+  control.disabled = true;
+  const read = async () => {
+    const snapshot = await invoke("plugin:rail|rail_snapshot", {});
+    if (typeof snapshot?.window?.visible !== "boolean") throw new Error("Invalid Rail state");
+    persisted = snapshot.window.visible;
+    control.checked = persisted;
+  };
+  try {
+    await read();
+    control.disabled = false;
+  } catch {
+    status.textContent = RAIL_SETTINGS_COPY.unavailable;
+    return;
+  }
+  control.addEventListener("change", async () => {
+    if (control.disabled) return;
+    const visible = control.checked;
+    control.disabled = true;
+    status.textContent = "";
+    try {
+      await invoke("plugin:rail|rail_set_visible", { visible });
+      persisted = visible;
+      await read();
+    } catch {
+      control.checked = persisted;
+      status.textContent = RAIL_SETTINGS_COPY.saveFailed;
+    } finally {
+      control.disabled = false;
+    }
+  });
+}
+
+function wireRailSettings(mount) {
+  return wireRailVisibility(mount.querySelector("#rail-visible"), mount.querySelector("#rail-visibility-status"));
+}
+
 function eventsMarkup(events) {
   if (events.length === 0) {
     return '<p class="note">No alert has been raised yet.</p>';
@@ -294,8 +347,10 @@ export async function renderSettings(mount) {
 
   if (!settingsResult.ok && settingsResult.reason === BACKEND_ABSENT) {
     mount.innerHTML =
+      railSettingsMarkup() +
       '<section class="surface block"><h2>Notifications</h2>' +
       '<p class="note">This build has no notification backend, so there is nothing to configure.</p></section>';
+    await wireRailSettings(mount);
     return;
   }
 
@@ -321,6 +376,7 @@ export async function renderSettings(mount) {
   const enabled = settings.enabled !== false;
 
   mount.innerHTML =
+    railSettingsMarkup() +
     '<section class="surface block" aria-labelledby="alerts-title">' +
     '<div class="block-head"><h2 id="alerts-title">Alerts</h2>' +
     switchMarkup("alerts-enabled", enabled) +
@@ -449,6 +505,7 @@ export async function renderSettings(mount) {
     "</section>";
 
   wire();
+  await wireRailSettings(mount);
 }
 
 async function save(patch) {

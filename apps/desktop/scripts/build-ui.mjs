@@ -272,6 +272,15 @@ for (const file of MARK_FILES) {
   );
 }
 
+/* Direction C uses the canonical provider artwork without editing its paths. */
+const RAIL_MARK_FILES = ["claude", "codex", "antigravity", "openrouter", "gemini", "opencode", "grok", "kimi", "manual"];
+for (const provider of RAIL_MARK_FILES) {
+  copyFileSync(
+    path.join(REPOSITORY, "packages", "ui", "src", "marks", `${provider}.svg`),
+    path.join(DIST, "marks", `${provider}.svg`),
+  );
+}
+
 /* The two lockups are generated from the frozen canonical SVG. They stay as
    files so the static webview never carries a second inline drawing. */
 const BRAND_FILES = [
@@ -291,5 +300,5 @@ const copied = Object.values(COPY).reduce((total, spec) => total + spec.files.le
 process.stdout.write(
   `Assembled ui/dist from ${String(copied)} compiled modules, one token sheet and ` +
     `${String(WINDOW_FILES.length)} window files, ${String(BRAND_FILES.length)} brand files and ` +
-    `${String(MARK_FILES.length)} provider marks.\n`,
+    `${String(MARK_FILES.length + RAIL_MARK_FILES.length)} provider marks.\n`,
 );
