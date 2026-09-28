@@ -409,7 +409,19 @@ const execFileRunner: CredentialCommandRunner = async (
     execFile(
       executable,
       [...helperArguments],
-      { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true },
+      (() => {
+        if (!executable.toLowerCase().endsWith("powershell.exe")) {
+          return { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true };
+        }
+        const environment: NodeJS.ProcessEnv = { ...process.env };
+        delete environment["PSModulePath"];
+        return {
+          timeout: timeoutMilliseconds,
+          maxBuffer: 262_144,
+          windowsHide: true,
+          env: environment
+        };
+      })(),
       (error, stdout) => {
         resolve(error === null ? { ok: true, stdout } : { ok: false });
       }
@@ -449,7 +461,10 @@ export function runtimeDependencies(): Pick<
 > {
   return {
     acquisitionTransport: createFetchTransport(),
-    probeAntigravity,
+    probeAntigravity: (options) => probeAntigravity({
+      ...options,
+      runCommand: options?.runCommand ?? execFileRunner
+    }),
     resolveExecutablePath: resolveAgyExecutablePath,
     spawnDetached: (executable, argumentsList, options) => {
       const child = spawn(executable, [...argumentsList], {

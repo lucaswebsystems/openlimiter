@@ -211,6 +211,11 @@ pub async fn read_quota_summary<P: AgyPorts, T: LoopbackProbe>(
 /// collector task and a tool that hangs must not take the collector with it.
 fn bounded_output(program: &str, arguments: &[&str]) -> Option<String> {
     let mut command = Command::new(program);
+    if program.eq_ignore_ascii_case("powershell")
+        || program.eq_ignore_ascii_case("powershell.exe")
+    {
+        command.env_remove("PSModulePath");
+    }
     command
         .args(arguments)
         .stdin(Stdio::null())
@@ -738,6 +743,28 @@ mod tests {
     fn write_test_file(path: &Path) {
         std::fs::create_dir_all(path.parent().expect("test file parent")).expect("test directory");
         std::fs::write(path, b"").expect("test file");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_powershell_acl_probe_ignores_an_inherited_module_path() {
+        let hostile_module_path = crate::test_support::TempDir::new();
+        let previous = std::env::var_os("PSModulePath");
+        std::env::set_var("PSModulePath", hostile_module_path.path());
+        let result = bounded_output(
+            "powershell.exe",
+            &[
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "$ErrorActionPreference='Stop'; Get-Acl -LiteralPath $env:TEMP | Out-Null; 'GET-ACL-OK'",
+            ],
+        );
+        match previous {
+            Some(value) => std::env::set_var("PSModulePath", value),
+            None => std::env::remove_var("PSModulePath"),
+        }
+        assert_eq!(result.as_deref().map(str::trim), Some("GET-ACL-OK"));
     }
 
     fn agy_file_name() -> &'static str {
