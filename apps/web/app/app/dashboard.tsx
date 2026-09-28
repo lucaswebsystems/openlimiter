@@ -64,7 +64,7 @@ import { SyncedSpendRows } from "./synced-spend-rows";
 import { clearIntent, pendingIntent, rememberIntent } from "@/lib/pending-intent";
 import { proAccessState, readProAccount, type ProEntitlement } from "@/lib/pro";
 import { offersTrial } from "@/lib/pro-trial";
-import { hubPollIntervalMilliseconds, mostRecentObservedAt } from "@/lib/hub-polling";
+import { createSessionRuntime, observeAccountSession } from "@/lib/session-runtime";
 import {
   readSyncedUsage,
   readSyncedApiSpend,
@@ -532,57 +532,11 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
   }, [syncClient, syncEnabled]);
 
   useEffect(() => {
-    if (session) void refreshSyncedUsage();
-  }, [session, refreshSyncedUsage]);
-
-  /**
-   * The background poll: 60 seconds while a device wrote inside the last
-   * fifteen minutes, five minutes otherwise, and nothing at all while the tab
-   * is hidden.
-   *
-   * The dependency on `syncedUsage` is what drives the loop rather than a
-   * `setInterval`: every call this effect makes ends in a `setSyncedUsage`,
-   * success or failure, which is a new object and therefore re-runs this
-   * effect with a freshly computed interval. That is also what keeps this to
-   * one request in flight: the next call cannot even be scheduled until the
-   * previous one has already produced the state change that reschedules it.
-   * A tab that goes hidden mid-wait has its pending timer cancelled outright;
-   * becoming visible again asks once immediately, and that answer's state
-   * change is what re-enters this effect and resumes the normal cadence.
-   */
-  useEffect(() => {
-    if (syncClient === null || !syncEnabled) return undefined;
-    let timer: number | null = null;
-    let cancelled = false;
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        if (timer !== null) {
-          window.clearTimeout(timer);
-          timer = null;
-        }
-        return;
-      }
-      if (timer === null && !cancelled) void refreshSyncedUsage();
-    };
-
-    if (typeof document === "undefined" || document.visibilityState === "visible") {
-      const interval = hubPollIntervalMilliseconds(
-        syncedUsage?.ok === true ? mostRecentObservedAt(syncedUsage.providers) : null,
-      );
-      timer = window.setTimeout(() => {
-        timer = null;
-        if (!cancelled) void refreshSyncedUsage();
-      }, interval);
-    }
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      cancelled = true;
-      if (timer !== null) window.clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [syncClient, syncEnabled, syncedUsage, refreshSyncedUsage]);
+    if (syncClient === null || !syncEnabled || !accountIdentity) return;
+    const runtime = createSessionRuntime({ read: refreshSyncedUsage });
+    runtime.start();
+    return runtime.stop;
+  }, [syncClient, syncEnabled, accountIdentity, refreshSyncedUsage]);
 
   /**
    * Read the plan.
@@ -643,7 +597,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    */
   const attachAuthListener = useCallback(
     (client: SupabaseClient, requestGenerationAtStart: number) => {
-      const { data } = client.auth.onAuthStateChange((event, next) => {
+      const subscription = observeAccountSession(client, (event, next) => {
         if (requestGenerationAtStart !== authRequestGeneration.current) return;
         authStateGeneration.current += 1;
         const previousUserId = authenticatedUserId.current;
@@ -653,18 +607,24 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         authenticatedUserId.current = nextUserId;
         setSession(next);
         decideOpeningView(next);
-        window.setTimeout(refreshSyncedUsage, 0);
         if (next !== null) window.setTimeout(refreshEntitlement, 0);
-        if (event === "SIGNED_OUT" || authenticatedAccountChanged) clearIntent();
+        if (event === "SIGNED_OUT" || authenticatedAccountChanged) {
+          clearIntent();
+          setLive([]);
+          accountGeneration.current += 1;
+          setSyncedUsage(null);
+          setSyncedSpend([]);
+          setCloudRows([]);
+        }
         else if (next !== null) pendingIntent(next.user.id);
       });
-      authListener.current = data.subscription;
+      authListener.current = subscription;
     },
-    [decideOpeningView, refreshEntitlement, refreshSyncedUsage],
+    [decideOpeningView, refreshEntitlement],
   );
 
   useEffect(() => {
-    refreshSyncedUsage();
+    if (document.visibilityState !== "hidden") void refreshSyncedUsage();
     if (syncClient === null) {
       setSession(null);
       return () => {
@@ -672,34 +632,14 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       };
     }
     const requestGenerationAtStart = ++authRequestGeneration.current;
-    const authStateGenerationAtStart = authStateGeneration.current;
     setSession(null);
-    void syncClient.auth
-      .getSession()
-      .then(({ data }) => {
-        if (
-          requestGenerationAtStart !== authRequestGeneration.current ||
-          authStateGenerationAtStart !== authStateGeneration.current
-        ) return;
-        authenticatedUserId.current = data.session?.user.id ?? null;
-        setSession(data.session);
-        decideOpeningView(data.session);
-      })
-      .catch(() => {
-        if (
-          requestGenerationAtStart === authRequestGeneration.current &&
-          authStateGenerationAtStart === authStateGeneration.current
-        ) setSession(null);
-      });
     attachAuthListener(syncClient, requestGenerationAtStart);
-    window.addEventListener("focus", refreshSyncedUsage);
     return () => {
       /* The switch may already have dropped it. Unsubscribing twice is safe;
          leaving a listener attached to an abandoned client is not. */
       authListener.current?.unsubscribe();
       authListener.current = null;
       authRequestGeneration.current += 1;
-      window.removeEventListener("focus", refreshSyncedUsage);
     };
   }, [attachAuthListener, decideOpeningView, refreshEntitlement, refreshSyncedUsage, syncClient]);
 

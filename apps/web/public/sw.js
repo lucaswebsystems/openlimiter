@@ -31,29 +31,15 @@
 
 /* The registering page hashes its Next assets into this query value. */
 const BUILD = new URL(self.location.href).searchParams.get("build") || "bootstrap-v5";
-const VERSION = "openlimiter-app-" + BUILD.replace(/[^a-z0-9]/giu, "").slice(0, 24);
+const VERSION = "openlimiter-app-private-v1-" + BUILD.replace(/[^a-z0-9]/giu, "").slice(0, 24);
 
 /* The one path this worker is allowed to touch, and its assets. */
 const SHELL = "/app";
-const ASSETS = [
-  "/app",
-  "/manifest.webmanifest",
-  "/icons/openlimiter-192.png",
-  "/icons/openlimiter-512.png",
-  "/icons/openlimiter-maskable-512.png",
-];
-
 /** Immutable build output. Hashed names, so cache first is always correct. */
 const BUILD_PREFIX = "/_next/static/";
 
 function ownsPath(pathname) {
-  return (
-    pathname === SHELL ||
-    pathname.startsWith(SHELL + "/") ||
-    pathname === "/manifest.webmanifest" ||
-    pathname.startsWith("/icons/") ||
-    pathname.startsWith(BUILD_PREFIX)
-  );
+  return pathname === SHELL || pathname.startsWith(BUILD_PREFIX);
 }
 
 /**
@@ -64,9 +50,21 @@ function ownsPath(pathname) {
  * plain text in the HTML the server just sent. Pulling them out of that text
  * is what makes the second launch instant with no build step in the loop.
  */
+function publicResponse(response) {
+  return response.ok && !response.redirected &&
+    !/private|no-store|no-cache/iu.test(response.headers.get("cache-control") || "") &&
+    !response.headers.has("set-cookie") &&
+    !/(?:cookie|authorization|\*)/iu.test(response.headers.get("vary") || "");
+}
+
+async function cachePublicAsset(cache, asset) {
+  const response = await fetch(asset, { credentials: "omit", cache: "no-store" });
+  if (publicResponse(response)) await cache.put(asset, response);
+}
+
 async function shellAssets(cache) {
-  const response = await fetch(SHELL, { cache: "reload" });
-  if (!response.ok) return [];
+  const response = await fetch(SHELL, { cache: "no-store", credentials: "omit" });
+  if (!publicResponse(response)) return [];
   await cache.put(SHELL, response.clone());
   const html = await response.text();
   const found = html.match(/\/_next\/static\/[A-Za-z0-9._\-/]+/gu);
@@ -80,10 +78,9 @@ self.addEventListener("install", (event) => {
       .open(VERSION)
       .then(async (cache) => {
         /* A single asset that will not fetch must not sink the whole install. */
-        await Promise.allSettled(ASSETS.map((asset) => cache.add(asset)));
         try {
           const build = await shellAssets(cache);
-          await Promise.allSettled(build.map((asset) => cache.add(asset)));
+          await Promise.allSettled(build.map((asset) => cachePublicAsset(cache, asset)));
         } catch {
           /* No warm start this time. The worker is still perfectly useful. */
         }
@@ -109,7 +106,8 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  if (request.method !== "GET") return;
+  if (request.method !== "GET" || request.headers.has("authorization") ||
+      request.headers.has("cookie") || request.cache === "no-store") return;
 
   let url;
   try {
@@ -120,16 +118,11 @@ self.addEventListener("fetch", (event) => {
   /* Anything on another origin, or anywhere else on this one, is left alone.
      Not calling respondWith is what hands the request back to the browser. */
   if (url.origin !== self.location.origin) return;
-  if (!ownsPath(url.pathname)) return;
+  if (!ownsPath(url.pathname) || url.search !== "") return;
 
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(VERSION).then((cache) => cache.put(SHELL, copy));
-          return response;
-        })
         .catch(() =>
           caches
             .match(SHELL)
@@ -146,11 +139,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (!url.pathname.startsWith(BUILD_PREFIX)) return;
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached !== undefined) return cached;
-      return fetch(request).then((response) => {
-        if (response.ok && response.type === "basic") {
+      return fetch(request, { credentials: "omit" }).then((response) => {
+        if (publicResponse(response) && response.type === "basic") {
           const copy = response.clone();
           caches.open(VERSION).then((cache) => cache.put(request, copy));
         }
