@@ -4,6 +4,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { fileURLToPath } = require("node:url");
 const { syncBuiltinESMExports } = require("node:module");
+const { promisify } = require("node:util");
 
 // A missing dependency or a HOME-only override must never select the real
 // Windows profile. Fail closed before loading any test or installed CLI copy.
@@ -49,12 +50,16 @@ process.on("exit", () => {
     process.exitCode = 1;
   }
 });
-function guard(target) {
+function guard(target, followFinal = true) {
   if (typeof target === "number" || target === undefined) return;
   if (target instanceof URL) target = fileURLToPath(target);
   if (Buffer.isBuffer(target)) target = target.toString();
   if (typeof target !== "string") return;
-  const resolved = canonical(path.resolve(target));
+  const absolute = path.resolve(target);
+  // Removing or replacing a link changes its directory entry, not its target.
+  // In particular, Windows realpath rejects a junction after its target is gone.
+  const resolved = followFinal ? canonical(absolute)
+    : path.join(canonical(path.dirname(absolute)), path.basename(absolute));
   // The repository itself lives under the profile; only that worktree is
   // writable. Temp files are redirected inside it, never to real AppData.
   if (within(realHome, resolved) && !within(workspace, resolved)) {
@@ -65,15 +70,28 @@ function guard(target) {
 }
 const mutations = {
   writeFile: [0], appendFile: [0], mkdir: [0], mkdtemp: [0], rm: [0], rmdir: [0],
-  unlink: [0], rename: [0, 1], copyFile: [1], cp: [1], link: [0, 1], symlink: [1],
+  unlink: [0], rename: [0, 1], copyFile: [1], cp: [1], link: [1], symlink: [1],
   chmod: [0], chown: [0], lchmod: [0], lchown: [0], utimes: [0], lutimes: [0], truncate: [0]
 };
+const entryMutations = new Set(["rm", "rmdir", "unlink", "rename", "symlink", "lchmod", "lchown", "lutimes"]);
 for (const [name, indices] of Object.entries(mutations)) {
   for (const [object, method] of [[fs, name], [fs, name + "Sync"], [fs.promises, name]]) {
     if (typeof object[method] !== "function") continue;
     const original = object[method];
     object[method] = function (...args) {
-      for (const index of indices) guard(args[index]);
+      for (const index of indices) guard(args[index], !entryMutations.has(name));
+      if (name === "link") {
+        const source = canonical(path.resolve(args[0] instanceof URL ? fileURLToPath(args[0]) : String(args[0])));
+        if (within(realHome, source) && !within(workspace, source)) {
+          // Linking is not a write to the source, but sharing its inode would
+          // allow later writes through the fixture. Request the normal copy
+          // fallback without recording a home write that never happened.
+          const error = Object.assign(new Error("Test isolation requires copying a real home source"), { code: "EXDEV" });
+          if (object === fs.promises) return Promise.reject(error);
+          if (method === "link") return process.nextTick(args.at(-1), error);
+          throw error;
+        }
+      }
       return original.apply(this, args);
     };
   }
@@ -127,4 +145,19 @@ childProcess.exec = function guardedExec(command, ...argumentsList) {
   }
   return originalExec.call(this, command, ...argumentsList);
 };
+// Node's exec APIs have a custom Promise contract. Rebuild it around the
+// guarded functions; copying Node's original custom function bypasses isolation.
+for (const name of ["exec", "execFile"]) {
+  childProcess[name][promisify.custom] = (...args) => {
+    let child;
+    const promise = new Promise((resolve, reject) => {
+      child = childProcess[name](...args, (error, stdout, stderr) => {
+        if (error) reject(Object.assign(error, { stdout, stderr }));
+        else resolve({ stdout, stderr });
+      });
+    });
+    promise.child = child;
+    return promise;
+  };
+}
 syncBuiltinESMExports();

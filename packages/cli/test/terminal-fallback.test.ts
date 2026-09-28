@@ -169,7 +169,11 @@ describe("D18 native launcher fallback", () => {
           const script = await readFile(command.slice("/bin/sh '".length, -1), "utf8");
           expect(script).toContain(`# Supervisor: ${supervisor}`);
           if (supervisor === "timeout") {
+            expect(script).toContain(`' ${launcherTimeout / 1000} "$@"`);
             expect(script).not.toMatch(/\$!|\$run_work\/(?:status|timeout)|\bwhile\b|\bkill\b|\bsleep\b/);
+          } else {
+            expect(script).toContain(`(/bin/sleep ${launcherTimeout / 1000};`);
+            expect(script).toContain('read -r result < "$run_work/status"');
           }
         }
         if (failure === "success") await writeFile(runtime.entry, 'process.stdin.on("data", b => process.stdout.write(b)); process.stderr.write("hidden");');
