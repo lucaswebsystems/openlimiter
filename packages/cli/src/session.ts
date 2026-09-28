@@ -130,7 +130,7 @@ export async function readSession(
  * The atomic writer's temporary file inherits only this rule. Never restore
  * inheritance or write credentials after a helper failure.
  */
-async function applyWindowsOwnerOnlyAcl(
+export async function applyWindowsOwnerOnlyAcl(
   target: string,
   runner: CredentialCommandRunner | undefined
 ): Promise<void> {

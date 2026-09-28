@@ -16,6 +16,8 @@ export type AgentId =
   | "gemini"
   | "grok"
   | "kimi"
+  | "muse"
+  | "cursor"
   | "opencode";
 
 export interface AgentAdapter {
@@ -76,6 +78,8 @@ export interface AgentCompatibilityGate {
 
 export const AGENT_COMPATIBILITY: Readonly<Record<AgentId, AgentCompatibilityGate>> = {
   claude: { minimumTestedVersion: "2.1.257", launchState: "included" },
+  muse: { minimumTestedVersion: null, launchState: "included" },
+  cursor: { minimumTestedVersion: null, launchState: "included" },
   codex: { minimumTestedVersion: "0.152.0", launchState: "included" },
   gemini: { minimumTestedVersion: null, launchState: "gated" },
   antigravity: { minimumTestedVersion: "1.1.27", launchState: "excluded" },
@@ -129,7 +133,7 @@ const commonClaude = {
   prompt: "string"
 } as const;
 
-const contracts: Readonly<Record<Exclude<AgentId, "grok">, InputContract>> = {
+const contracts: Readonly<Record<Exclude<AgentId, "grok" | "muse" | "cursor">, InputContract>> = {
   claude: {
     eventKey: "hook_event_name",
     eventName: "UserPromptSubmit",
@@ -258,7 +262,7 @@ function executeSharedContract(
   validatedContext: string,
   allowUntestedVersion: boolean
 ): AgentContextAdapterV1Output {
-  if (input.agent_id === "grok") return emptyContract("event");
+  if (input.agent_id === "grok" || input.agent_id === "muse" || input.agent_id === "cursor") return emptyContract("event");
   const contract = contracts[input.agent_id];
   if (
     input.hook_event !== contract.eventName ||
@@ -345,7 +349,7 @@ function runValidatedAgentHook(
   request: AgentHookRequest,
   allowUntestedVersion: boolean
 ): AgentHookResult {
-  if (request.agent === "grok") return empty("grok", "event");
+  if (request.agent === "grok" || request.agent === "muse" || request.agent === "cursor") return empty(request.agent, "event");
   if (request.rawInput === null) return empty(request.agent, "input");
   if (Buffer.byteLength(request.rawInput, "utf8") > HOOK_INPUT_MAX_BYTES) {
     return empty(request.agent, "oversized");
