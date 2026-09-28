@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { closeSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, mkdtempSync, openSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -82,6 +82,18 @@ try {
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe("activity event", () => {
+  it("publishes a silent hook event through a symlinked state root", async () => {
+    const root = directory();
+    const alias = path.join(directory(), "linked-root");
+    symlinkSync(root, alias, process.platform === "win32" ? "junction" : "dir");
+    expect(await eventCommand(["event", "--agent", "codex", "--event", "Stop"], {
+      stateDirectory: alias,
+      readStandardInput: async () => JSON.stringify({ session_id: "linked-root-session" }),
+      protectWindowsDirectory: async () => undefined
+    })).toEqual(silent);
+    expect(readActivitySpool(root)).toMatchObject({ skipped: 0, events: [expect.objectContaining({ sessionId: "linked-root-session", state: "done" })] });
+  });
+
   it.each(matrix)("maps %s %s to %s using only structural fields", (agent, name, state) => {
     const event = mapHookActivity(agent, name, {
       session_id: "session", conversation_id: "conversation", hook_event_name: name,

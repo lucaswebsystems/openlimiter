@@ -155,6 +155,11 @@ describe("D18 native launcher fallback", () => {
           const file = shell === "cmd" ? command.match(/-File "(.*)"$/)![1]!
             : command.match(/-File '(.*)'$/)![1]!.replaceAll("''", "'");
           const script = await readFile(file, "utf8");
+          // Assert the supervisor's actual deadline, independently of shell
+          // startup and runner scheduling. Doubling the renderer budget must fail.
+          const commandDeadline = script.match(/\$clock = \[Diagnostics\.Stopwatch\]::StartNew\(\)\s+while \(!\$p\.HasExited -and \$clock\.ElapsedMilliseconds -lt (\d+)\)/);
+          expect(commandDeadline, "each command starts a fresh deadline clock").not.toBeNull();
+          expect(Number(commandDeadline![1]), "renderer gets one configured budget before fallback").toBe(launcherTimeout);
           // Observe each internal result without changing stdout or stderr.
           const resultLine = /^( +\$result = Invoke-Bar .+)$/gm;
           expect([...script.matchAll(resultLine)], "renderer and original diagnostic hooks").toHaveLength(2);
@@ -185,23 +190,11 @@ describe("D18 native launcher fallback", () => {
         expect(originalOutput.code, failure).toBe(0);
         expect(await readFile(originalRan, "utf8"), failure).toBe("original\n");
         await rm(originalRan);
-        let deadline = launcherTimeout + 1_000;
-        if (failure === "timeout" && shell !== "posix") {
-          const calibrationStarted = performance.now();
-          const calibration = await execute(shell === "cmd" ? "exit /b 0" : "exit 0", shell, Buffer.alloc(0));
-          const spawnCost = performance.now() - calibrationStarted;
-          expect(calibration.code).toBe(0);
-          // Budget 64 cmd starts or 12 PowerShell starts for the supervisor,
-          // runtime, original command and scheduling under load. cmd startup is
-          // much cheaper than the PowerShell supervisor it launches. A measured
-          // 240 ms PowerShell start needed 1984 ms overhead under concurrent load,
-          // so twelve leaves headroom on top of the configured command timeout.
-          const spawnAllowance = shell === "cmd" ? 64 : 12;
-          deadline = launcherTimeout + spawnAllowance * spawnCost;
-          console.info(`${label} spawn cost: ${Math.round(spawnCost)} ms, fallback budget: ${Math.round(deadline)} ms`);
-        }
+        const deadline = launcherTimeout + 1_000;
         const started = performance.now();
-        const result = await execute(command + " statusline --host claude", shell, payload, failure === "timeout" ? Math.ceil(deadline + 500) : undefined);
+        // Native Windows timing is proved by the supervisor deadline above;
+        // this outer watchdog only prevents a hung test on a loaded runner.
+        const result = await execute(command + " statusline --host claude", shell, payload, failure === "timeout" ? shell === "posix" ? deadline + 500 : 30_000 : undefined);
         const elapsed = performance.now() - started;
         if (failure === "timeout") {
           console.info(`${label} timeout fallback wall time: ${Math.round(elapsed)} ms`);
@@ -211,7 +204,7 @@ describe("D18 native launcher fallback", () => {
             expect(killed[0], "timed out renderer was killed").toBe(true);
             expect(killed[1], "stored original was not killed by its own timeout").toBe(false);
           }
-          expect(elapsed).toBeLessThan(deadline);
+          if (shell === "posix") expect(elapsed).toBeLessThan(deadline);
         }
         expect(result.code, failure).toBe(0);
         expect(result.stderr.length, failure).toBe(0);
@@ -238,7 +231,7 @@ describe("D18 native launcher fallback", () => {
       expect(withoutOneLeadingBom(result.stdout)).toEqual(Buffer.from("new bars\n\n"));
       expect(result.stderr.length).toBe(0);
     // This case starts many processes across six failures and two silent paths.
-    // Its runner budget is separate from the calibrated fallback deadline above.
+    // Its runner budget is separate from the supervisor deadline above.
     }, 120_000);
   }
   it("refuses a changed existing supervisor without replacing it", async () => {

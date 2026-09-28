@@ -20,6 +20,27 @@ function setup() {
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe("activity spool", () => {
+  it.each(["root", "ancestor", "missing root"])("publishes and reads through a symlinked state %s without trusting links below it", async (kind) => {
+    const options = setup();
+    const aliases = setup();
+    const alias = path.join(aliases.directory, "linked-root");
+    symlinkSync(options.directory, alias, process.platform === "win32" ? "junction" : "dir");
+    const directory = kind === "root" ? alias : path.join(alias, "state");
+    if (kind === "ancestor") mkdirSync(directory);
+    expect(readActivitySpool(directory, now)).toEqual({ events: [], skipped: 0 });
+    const stored = await writeActivityEvent(event(), { ...options, directory });
+    expect(readActivitySpool(directory, now)).toEqual({ events: [stored], skipped: 0 });
+    expect(readActivitySpool(kind === "root" ? options.directory : path.join(options.directory, "state"), now).events).toEqual([stored]);
+
+    rmSync(path.join(directory, "activity"), { recursive: true });
+    const outside = path.join(aliases.directory, "outside");
+    mkdirSync(outside);
+    symlinkSync(outside, path.join(directory, "activity"), process.platform === "win32" ? "junction" : "dir");
+    await expect(writeActivityEvent(event(), { ...options, directory })).rejects.toThrow("unsafe directory");
+    expect(readActivitySpool(directory, now)).toEqual({ events: [], skipped: 1 });
+    expect(readdirSync(outside)).toEqual([]);
+  });
+
   it("publishes complete files, preserves opaque IDs, and allocates ordered sequences across concurrent writers", async () => {
     const options = setup();
     const results = await Promise.all(Array.from({ length: 12 }, () => writeActivityEvent(event(), options)));
@@ -94,7 +115,7 @@ describe("activity spool", () => {
     await expect(writeActivityEvent(event(), options)).rejects.toThrow();
   });
 
-  it("refuses directory junctions, ancestor links and path escapes", async () => {
+  it("refuses owned directory junctions and path escapes", async () => {
     const options = setup();
     const outside = path.join(options.directory, "outside");
     mkdirSync(outside);

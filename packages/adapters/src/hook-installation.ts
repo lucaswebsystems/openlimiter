@@ -4,7 +4,7 @@ import {
   writeFileAtomically,
   type CommandRunResult
 } from "@openlimiter/core";
-import { lstat, mkdir, open, unlink, type FileHandle } from "node:fs/promises";
+import { lstat, mkdir, open, realpath, unlink, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import {
   AGENT_COMPATIBILITY,
@@ -95,14 +95,15 @@ function errorCode(error: unknown): string | undefined {
 
 function within(parent: string, child: string): boolean {
   const relative = path.relative(path.resolve(parent), path.resolve(child));
-  return relative !== "" && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
+  return relative !== "" && relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
 }
 
-async function pathContainsLink(target: string): Promise<boolean> {
+async function pathContainsLink(target: string, root = path.parse(path.resolve(target)).root): Promise<boolean> {
   const resolved = path.resolve(target);
-  const parsed = path.parse(resolved);
-  let current = parsed.root;
-  for (const segment of resolved.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
+  if (!within(root, resolved)) return true;
+  // Resolve the trusted home, project or PATH root, not the owned descendants.
+  let current = await realpath(root);
+  for (const segment of path.relative(root, resolved).split(path.sep).filter(Boolean)) {
     current = path.join(current, segment);
     try {
       if ((await lstat(current)).isSymbolicLink()) return true;
@@ -117,7 +118,7 @@ async function pathContainsLink(target: string): Promise<boolean> {
 async function rejectReparsePath(target: string, home: string): Promise<void> {
   if (!path.isAbsolute(target) || !within(home, target)) throw new Error("unsafe path");
   const relative = path.relative(path.resolve(home), path.resolve(target));
-  let current = path.resolve(home);
+  let current = await realpath(home);
   try {
     if ((await lstat(current)).isSymbolicLink()) throw new Error("unsafe path");
   } catch (error) {
@@ -135,8 +136,9 @@ async function rejectReparsePath(target: string, home: string): Promise<void> {
   }
 }
 
-async function rejectExecutable(target: string): Promise<void> {
-  if (!path.isAbsolute(target) || await pathContainsLink(target)) {
+async function rejectExecutable(target: string, roots: readonly string[]): Promise<void> {
+  const root = roots.find((candidate) => within(candidate, target));
+  if (!path.isAbsolute(target) || await pathContainsLink(target, root)) {
     throw new Error("unsafe executable");
   }
   const stat = await lstat(target);
@@ -703,10 +705,11 @@ async function mutate(
   const scope = agent === "muse" ? options.projectDirectory ?? options.homeDirectory : options.homeDirectory;
   await rejectReparsePath(target.path, scope);
   if (action === "install") {
-    await rejectExecutable(options.openLimiterScript);
-    await rejectExecutable(options.nodeExecutable ?? process.execPath);
+    const roots = [options.homeDirectory, scope];
+    await rejectExecutable(options.openLimiterScript, roots);
+    await rejectExecutable(options.nodeExecutable ?? process.execPath, roots);
     if (options.agentExecutable !== undefined) {
-      await rejectExecutable(options.agentExecutable);
+      await rejectExecutable(options.agentExecutable, roots);
     }
     await mkdir(path.dirname(target.path), { recursive: true, mode: 0o700 });
     await rejectReparsePath(target.path, scope);
@@ -807,7 +810,7 @@ async function resolvedAgentExecutable(
           if (
             stat.isFile() &&
             !stat.isSymbolicLink() &&
-            !(await pathContainsLink(file))
+            !(await pathContainsLink(file, directory))
           ) return file;
         } catch (error) {
           if (errorCode(error) !== "ENOENT") continue;
