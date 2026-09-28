@@ -19,6 +19,7 @@ pub(super) struct Consumer {
 }
 pub(super) struct Tick {
     pub sessions: Vec<ActivityDisplayRecord>,
+    pub targets: std::collections::BTreeMap<String, super::contract::Process>,
     pub transitions: Vec<Transition>,
     pub skipped: Option<usize>,
     pub inspected: usize,
@@ -54,6 +55,21 @@ impl Consumer {
         *current = next;
         Ok(Tick {
             sessions: current.displays(),
+            targets: current
+                .sessions
+                .iter()
+                .filter_map(|(key, session)| {
+                    ((session.ended_at.is_none() || session.state == "done")
+                        && !session.identity_lost)
+                        .then(|| {
+                            session
+                                .process
+                                .clone()
+                                .map(|process| (key.clone(), process))
+                        })
+                        .flatten()
+                })
+                .collect(),
             transitions,
             skipped: scan.complete.then_some(scan.skipped),
             inspected: scan.inspected,
@@ -63,6 +79,9 @@ impl Consumer {
 
 pub(super) fn publish<R: Runtime>(app: &AppHandle<R>, tick: Tick) {
     let state = app.state::<ActivityState>();
+    if let Ok(mut targets) = state.targets.lock() {
+        *targets = tick.targets;
+    }
     state
         .inspected_entries
         .store(tick.inspected, Ordering::Relaxed);
@@ -73,6 +92,7 @@ pub(super) fn publish<R: Runtime>(app: &AppHandle<R>, tick: Tick) {
         *sessions = tick.sessions;
     }
     for transition in tick.transitions {
+        super::notify::submit(app, &transition.notification);
         // App is the Rust listener target. No raw local metadata is broadcast
         // to webviews lacking the activity capability.
         let _ = app.emit_to(tauri::EventTarget::App, "activity-transition", transition);
@@ -81,7 +101,7 @@ pub(super) fn publish<R: Runtime>(app: &AppHandle<R>, tick: Tick) {
 
 // Mirrors state::state_directory; kept independent so production ACL tests can
 // include just this plugin, without starting any shell or credential service.
-fn state_root() -> Option<PathBuf> {
+pub(super) fn state_root() -> Option<PathBuf> {
     let variable = |key| {
         std::env::var_os(key)
             .filter(|v| !v.is_empty())

@@ -752,6 +752,34 @@ fn native_transition_handoff_and_populated_ipc_use_sanitized_records() {
 }
 
 #[test]
+fn locate_targets_keep_completed_tasks_but_drop_ended_sessions() {
+    let fixture = Fixture::new();
+    let mut first = event(0, "busy");
+    first.process = Some(Process {
+        pid: None,
+        started_at: None,
+        ppid: Some(42),
+    });
+    fixture.event(&first);
+    let probe = |_| Probe::Alive(timestamp(NOW - 10_000));
+    let mut consumer = super::runtime::Consumer::new(&fixture.root);
+    let tick = consumer.tick(NOW, &probe).unwrap();
+    assert_eq!(tick.targets.len(), 1);
+    fixture.event(&event(1, "done"));
+    let tick = consumer.tick(NOW, &probe).unwrap();
+    assert_eq!(tick.sessions[0].state, "done");
+    assert_eq!(
+        tick.targets.len(),
+        1,
+        "a completed task can still own a live terminal"
+    );
+    let mut end = event(2, "unknown");
+    end.signal = Some("session_ended".into());
+    fixture.event(&end);
+    assert!(consumer.tick(NOW, &probe).unwrap().targets.is_empty());
+}
+
+#[test]
 fn unreadable_process_and_clock_regression_do_not_invent_success() {
     let mut engine = Engine::default();
     let mut initial = event(0, "done");

@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-activity-locate"
+description = "Locate a validated live session from an explicit user action."
+commands.allow = ["activity_locate"]
+
+[[permission]]
+identifier = "allow-activity-preferences"
+description = "Read and update free local activity notification preferences."
+commands.allow = ["activity_notification_preferences", "activity_set_notification_preferences"]
