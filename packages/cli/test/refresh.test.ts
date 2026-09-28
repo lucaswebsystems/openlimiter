@@ -114,6 +114,33 @@ async function cachedProviders(directory: string): Promise<string[]> {
 }
 
 describe("openlimiter refresh", () => {
+  it("discovers Cursor SQLite, dispatches its request and persists normalized rows", async () => {
+    const state = await temporaryDirectory("cursor-cli-state-");
+    const home = await temporaryDirectory("cursor-cli-home-");
+    const file = path.join(home, ".config/Cursor/User/globalStorage/state.vscdb");
+    await mkdir(path.dirname(file), { recursive: true });
+    const { DatabaseSync } = await import("node:sqlite");
+    const db = new DatabaseSync(file);
+    try {
+      db.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE ItemTable(key TEXT PRIMARY KEY, value TEXT)");
+      const insert = db.prepare("INSERT INTO ItemTable VALUES (?, ?)");
+      insert.run("cursorAuth/accessToken", "synthetic-token");
+      insert.run("cursorAuth/stripeMembershipAuthId", "synthetic-auth");
+      const fixture = JSON.parse(await readFile(path.resolve("packages/connectors/fixtures/cases/cursor/normal.json"), "utf8")) as { now: string; body: unknown };
+      const recorder = recordingTransport(fixture.now, { cursor_usage: fixture.body });
+      const result = await runCli(["refresh"], { ...dependencies(state, home, recorder.transport, fixture.now), environment: {} });
+      expect(result.exitCode).toBe(0);
+      expect(recorder.sent).toHaveLength(1);
+      expect(recorder.sent[0]).toMatchObject({ endpoint: "cursor_usage", headers: { cookie: "WorkosCursorSessionToken=synthetic-auth::synthetic-token" } });
+      const cache = await readSnapshotCache(state);
+      expect(cache.ok && cache.snapshots.map(row => row.provider)).toEqual(["CURSOR", "CURSOR"]);
+      expect(JSON.stringify(cache)).not.toContain("synthetic-auth");
+      expect(JSON.stringify(cache)).not.toContain("synthetic-token");
+      await runCli(["refresh"], { ...dependencies(state, home, recorder.transport, fixture.now), environment: {} });
+      expect(recorder.sent).toHaveLength(1);
+    } finally { db.close(); }
+  });
+
   it("acquires every provider this machine has a login for", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();

@@ -9,6 +9,9 @@ use crate::native_snapshot::{
 };
 use crate::reader_registry::ReaderId;
 
+#[path = "cursor_reader.rs"]
+pub mod cursor;
+
 const MAX_WINDOW_SECONDS: u64 = 31_536_000;
 const CLOCK_SKEW_SECONDS: u64 = 3_600;
 
@@ -661,6 +664,7 @@ pub fn parse_body(
         ReaderId::OpencodeUsage => parse_opencode(body, now_ms, account_id),
         ReaderId::GrokUsage => parse_grok(body, now_ms, account_id),
         ReaderId::KimiUsage => parse_kimi(body, now_ms, account_id),
+        ReaderId::CursorUsage => cursor::parse(body, now_ms, account_id),
     }?;
     // A reading remains live for its provider cadence, not a one minute
     // repaint budget. Explicit only readers retain their existing expiry.

@@ -530,7 +530,7 @@ describe("opencode: says out loud that it is beta", () => {
        able to say so. */
     expect(connectorMaturity(opencodeConnector)).toBe("beta");
     for (const connector of connectors) {
-      const expected = connector.id === "opencode" ? "beta" : "stable";
+      const expected = connector.id === "opencode" ? "beta" : connector.id === "cursor" ? "experimental" : "stable";
       expect(connectorMaturity(connector), connector.id).toBe(expected);
     }
   });

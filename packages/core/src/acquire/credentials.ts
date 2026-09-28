@@ -21,6 +21,7 @@ import path from "node:path";
 import { lstat, realpath } from "node:fs/promises";
 import { readJsonFileSafely, resolveStateDirectory, prepareStateDirectory, writeFileAtomically } from "../cache.js";
 import { codexUsageRequest } from "./transport.js";
+import { cursorStatePath, readCursorSession } from "./cursor.js";
 
 /** The providers this path can read a credential for. */
 export const ACQUISITION_PROVIDERS = [
@@ -30,6 +31,7 @@ export const ACQUISITION_PROVIDERS = [
   "ANTIGRAVITY",
   "GROK",
   "KIMI",
+  "CURSOR",
   "OPENROUTER"
 ] as const;
 
@@ -276,6 +278,7 @@ function stringField(
  * level field should be read the way its own client reads it.
  */
 const CONTAINERS: Readonly<Record<AcquisitionProvider, readonly string[]>> = {
+  CURSOR: [],
   CLAUDE: ["claudeAiOauth", "oauth", "credentials"],
   CODEX: ["tokens", "oauth", "credentials"],
   GEMINI_CLI: ["oauth", "tokens", "credentials"],
@@ -286,6 +289,7 @@ const CONTAINERS: Readonly<Record<AcquisitionProvider, readonly string[]>> = {
 };
 
 const SECRET_FIELDS: Readonly<Record<AcquisitionProvider, readonly string[]>> = {
+  CURSOR: [],
   CLAUDE: ["accessToken", "access_token", "token"],
   CODEX: ["access_token", "accessToken"],
   GEMINI_CLI: ["access_token", "accessToken"],
@@ -407,6 +411,10 @@ export async function readAcquisitionCredential(
   const context = resolve(options);
   const nowMilliseconds = Date.parse(options.now ?? new Date().toISOString());
   const clock = Number.isFinite(nowMilliseconds) ? nowMilliseconds : Date.now();
+  if (provider === "CURSOR") {
+    const file = cursorStatePath({ ...options, homeDirectory: context.home });
+    return file === null ? { ok: false, reason: "absent" } : readCursorSession(file, clock);
+  }
   if (provider === "ANTIGRAVITY" && context.platform === "win32") {
     const reader = options.readWindowsCredential;
     if (reader !== undefined) {

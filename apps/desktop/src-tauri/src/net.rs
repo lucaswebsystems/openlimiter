@@ -49,6 +49,7 @@ pub const GROK_USAGE_URL: &str = "https://cli-chat-proxy.grok.com/v1/billing?for
 
 /// The Kimi Code usage report used by the official Kimi CLI.
 pub const KIMI_USAGE_URL: &str = "https://api.kimi.com/coding/v1/usages";
+pub const CURSOR_USAGE_URL: &str = "https://cursor.com/api/usage-summary";
 
 /// The Antigravity quota summary, on Google's metadata plane.
 ///
@@ -126,13 +127,14 @@ pub enum ProviderEndpoint {
     ClaudeOauthUsage,
     GrokUsage,
     KimiUsage,
+    CursorUsage,
 }
 
 impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 10] = [
+    pub const ALL: [ProviderEndpoint; 11] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::CodexUsage,
@@ -143,6 +145,7 @@ impl ProviderEndpoint {
         ProviderEndpoint::ClaudeOauthUsage,
         ProviderEndpoint::GrokUsage,
         ProviderEndpoint::KimiUsage,
+        ProviderEndpoint::CursorUsage,
     ];
 
     /// The address the first request of this endpoint goes to.
@@ -158,6 +161,7 @@ impl ProviderEndpoint {
             ProviderEndpoint::ClaudeOauthUsage => CLAUDE_OAUTH_USAGE_URL,
             ProviderEndpoint::GrokUsage => GROK_USAGE_URL,
             ProviderEndpoint::KimiUsage => KIMI_USAGE_URL,
+            ProviderEndpoint::CursorUsage => CURSOR_USAGE_URL,
         }
     }
 
@@ -177,7 +181,8 @@ impl ProviderEndpoint {
             | ProviderEndpoint::OpencodeUsage
             | ProviderEndpoint::ClaudeOauthUsage
             | ProviderEndpoint::GrokUsage
-            | ProviderEndpoint::KimiUsage => HttpMethod::Get,
+            | ProviderEndpoint::KimiUsage
+            | ProviderEndpoint::CursorUsage => HttpMethod::Get,
             ProviderEndpoint::AntigravityQuota
             | ProviderEndpoint::GeminiCliLoad
             | ProviderEndpoint::GeminiCliQuota => HttpMethod::Post,
@@ -198,7 +203,8 @@ impl ProviderEndpoint {
             | ProviderEndpoint::OpencodeUsage
             | ProviderEndpoint::ClaudeOauthUsage
             | ProviderEndpoint::GrokUsage
-            | ProviderEndpoint::KimiUsage => None,
+            | ProviderEndpoint::KimiUsage
+            | ProviderEndpoint::CursorUsage => None,
         }
     }
 }
@@ -555,6 +561,19 @@ async fn fetch_endpoint_inner<T: Transport>(
         without one validated project body. */
         return Err(NetError::Protocol);
     }
+    if endpoint == ProviderEndpoint::CursorUsage || auth == AuthApplication::CursorSessionCookie {
+        if endpoint != ProviderEndpoint::CursorUsage || auth != AuthApplication::CursorSessionCookie
+            || !crate::native_readers::cursor::cookie_component(secret)
+            || !provider_account_id.is_some_and(crate::native_readers::cursor::cookie_component)
+        {
+            return Err(NetError::Protocol);
+        }
+        let request = EndpointRequest {
+            url: endpoint.url(), method: endpoint.method(), auth,
+            provider_account_id, body: None,
+        };
+        return outcome_of(transport.send(&request, secret).await.map_err(NetError::from)?);
+    }
     if endpoint.needs_workspace() {
         return fetch_through_workspace(transport, endpoint, auth, secret).await;
     }
@@ -862,6 +881,18 @@ fn authenticated_builder(
             credential.push_str("Bearer ");
             credential.push_str(secret);
         }
+        AuthApplication::CursorSessionCookie => {
+            let auth_id = request.provider_account_id.ok_or(TransportFailure::Protocol)?;
+            if request.url != CURSOR_USAGE_URL
+                || !crate::native_readers::cursor::cookie_component(secret)
+                || !crate::native_readers::cursor::cookie_component(auth_id) {
+                return Err(TransportFailure::Protocol);
+            }
+            credential.push_str("WorkosCursorSessionToken=");
+            credential.push_str(auth_id);
+            credential.push_str("::");
+            credential.push_str(secret);
+        }
         AuthApplication::BrowserSessionCookie => credential.push_str(secret),
     }
     let mut header_value = reqwest::header::HeaderValue::from_str(&credential)
@@ -919,6 +950,10 @@ fn authenticated_builder(
         AuthApplication::GeminiCliBearer => builder
             .header(reqwest::header::AUTHORIZATION, header_value)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
+            .header(reqwest::header::ACCEPT, "application/json"),
+        AuthApplication::CursorSessionCookie => builder
+            .header(reqwest::header::COOKIE, header_value)
             .header(reqwest::header::USER_AGENT, OPENLIMITER_USER_AGENT)
             .header(reqwest::header::ACCEPT, "application/json"),
         AuthApplication::BrowserSessionCookie => builder
@@ -980,7 +1015,7 @@ mod tests {
     use crate::reader_registry::{reader_route, CredentialKind, ProviderId};
     use crate::test_support::RecordingTransport;
 
-    const ROUTED_ENDPOINTS: [ProviderEndpoint; 8] = [
+    const ROUTED_ENDPOINTS: [ProviderEndpoint; 9] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::CodexUsage,
@@ -989,6 +1024,7 @@ mod tests {
         ProviderEndpoint::ClaudeOauthUsage,
         ProviderEndpoint::GrokUsage,
         ProviderEndpoint::KimiUsage,
+        ProviderEndpoint::CursorUsage,
     ];
 
     /// The authentication scheme each endpoint is really reached with, taken
@@ -1026,7 +1062,7 @@ mod tests {
     fn account_for(endpoint: ProviderEndpoint) -> Option<&'static str> {
         matches!(
             endpoint,
-            ProviderEndpoint::CodexUsage | ProviderEndpoint::GrokUsage
+            ProviderEndpoint::CodexUsage | ProviderEndpoint::GrokUsage | ProviderEndpoint::CursorUsage
         )
         .then_some("fake-account-id")
     }
@@ -1085,6 +1121,7 @@ mod tests {
                 CLAUDE_OAUTH_USAGE_URL.to_string(),
                 GROK_USAGE_URL.to_string(),
                 KIMI_USAGE_URL.to_string(),
+                CURSOR_USAGE_URL.to_string(),
                 GEMINI_CLI_LOAD_URL.to_string(),
                 GEMINI_CLI_QUOTA_URL.to_string(),
             ]
@@ -1443,6 +1480,26 @@ mod tests {
         }
     }
 
+    #[test]
+    fn cursor_uses_only_its_sensitive_cookie_pair_and_honest_identity() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::new();
+        let mut request = EndpointRequest { url: CURSOR_USAGE_URL, method: HttpMethod::Get,
+            auth: AuthApplication::CursorSessionCookie, provider_account_id: Some("synthetic-auth"), body: None };
+        let built = authenticated_builder(&client, &request, "synthetic-token").unwrap().build().unwrap();
+        let headers = built.headers();
+        assert_eq!(headers.len(), 3);
+        assert_eq!(headers[reqwest::header::COOKIE], "WorkosCursorSessionToken=synthetic-auth::synthetic-token");
+        assert!(headers[reqwest::header::COOKIE].is_sensitive());
+        assert_eq!(headers[reqwest::header::USER_AGENT], OPENLIMITER_USER_AGENT);
+        assert_eq!(headers[reqwest::header::ACCEPT], "application/json");
+        assert!(!headers.contains_key(reqwest::header::AUTHORIZATION));
+        request.url = OPENROUTER_KEY_URL;
+        assert!(authenticated_builder(&client, &request, "synthetic-token").is_err());
+        request.url = CURSOR_USAGE_URL;
+        assert!(authenticated_builder(&client, &request, "token;extra=bad").is_err());
+    }
+
     /// The Antigravity request identifies OpenLimiter, and the cost is known.
     ///
     /// This used to assert the opposite: that the request carried
@@ -1701,7 +1758,7 @@ mod tests {
             .expect("the module has a body before its tests");
         assert_eq!(
             head.matches("https://").count(),
-            12,
+            13,
             "an address appeared outside the constants"
         );
     }

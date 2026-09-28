@@ -1,6 +1,7 @@
 export * from "./antigravity.js";
 export * from "./claude.js";
 export * from "./codex.js";
+export * from "./cursor.js";
 export * from "./contract-gate.js";
 export * from "./fixtures.js";
 export * from "./gemini-cli.js";
@@ -14,6 +15,7 @@ import type { ConnectorContract } from "@openlimiter/core";
 import { antigravityConnector } from "./antigravity.js";
 import { claudeConnector } from "./claude.js";
 import { codexConnector } from "./codex.js";
+import { cursorConnector } from "./cursor.js";
 import { geminiCliConnector } from "./gemini-cli.js";
 import { grokConnector } from "./grok.js";
 import { kimiConnector } from "./kimi.js";
@@ -25,6 +27,7 @@ export const connectors: readonly ConnectorContract[] = [
   claudeConnector,
   openrouterConnector,
   codexConnector,
+  cursorConnector,
   antigravityConnector,
   geminiCliConnector,
   opencodeConnector,

@@ -7,6 +7,7 @@
  * cadence, coordination and configuration, and they are separate on purpose.
  */
 import type { RawMeter } from "../types.js";
+import { cursorAccountId } from "./cursor.js";
 import type { AcquiredCredential } from "./credentials.js";
 import type { AcquisitionSpec, AcquisitionStep } from "./runner.js";
 import {
@@ -14,6 +15,7 @@ import {
   codeAssistLoadRequest,
   codeAssistQuotaRequest,
   codexUsageRequest,
+  cursorUsageRequest,
   grokBillingRequest,
   kimiUsageRequest,
   openrouterKeyRequest
@@ -165,6 +167,15 @@ export function codexSpec(parse: PayloadParser): AcquisitionSpec {
     ],
     parse,
     disclosure: ACQUISITION_DISCLOSURE.codex
+  };
+}
+
+export function cursorSpec(parse: PayloadParser): AcquisitionSpec {
+  return {
+    provider: "CURSOR", credentialProvider: "CURSOR", parse,
+    accountIdFor: credential => credential.accountId === null ? null : cursorAccountId(credential.accountId),
+    steps: [({ credential }) => credential.accountId === null ? null : cursorUsageRequest(credential.secret, credential.accountId)],
+    disclosure: "Experimental: parser tested on fixtures; live acquisition unverified"
   };
 }
 

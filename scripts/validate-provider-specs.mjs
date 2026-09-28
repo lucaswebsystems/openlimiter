@@ -420,6 +420,7 @@ const AUTH_SUPPORT = new Set(["implemented", "not_required", "absent"]);
  * often, and reviewed far less carefully, than the network layer.
  */
 const READER_IDS = new Set([
+  "cursor_usage",
   "openrouter_key",
   "openrouter_credits",
   "codex_usage",
@@ -430,6 +431,7 @@ const READER_IDS = new Set([
   "kimi_usage"
 ]);
 const ENDPOINT_IDS = new Set([
+  "cursor_usage",
   "openrouter_key",
   "openrouter_credits",
   "codex_usage",
@@ -440,6 +442,7 @@ const ENDPOINT_IDS = new Set([
   "kimi_usage"
 ]);
 const CREDENTIAL_KINDS = new Set([
+  "cursor_session",
   "openrouter_inference_key",
   "openrouter_management_key",
   "codex_session",
@@ -472,6 +475,7 @@ const DATA_INTERFACE_STATUSES = new Set([
 ]);
 const AUTOMATION_RISKS = new Set(["low", "high"]);
 const CONNECTOR_IDS = new Set([
+  "cursor",
   "claude",
   "openrouter",
   "codex",
@@ -976,13 +980,14 @@ export function validateSpec(document, file, relative, fixtureIds) {
       requireString(honestyBlock, where, "data_interface_status", DATA_INTERFACE_STATUSES);
     const automationRisk =
       requireString(honestyBlock, where, "automation_risk", AUTOMATION_RISKS);
-    /*
-     * One value, always. Nothing in this product has earned any other, and a
-     * spec that could write "verified" here could do it without a human ever
-     * checking an account.
-     */
+    // Cursor has a differential fixture verifier, but no live account evidence.
     const verification = requireString(honestyBlock, where, "verification");
-    if (verification !== "UNVERIFIED") {
+    const cursorFixtures = connectorId === "cursor" && maturity === "experimental" &&
+      parser === "implemented" && verificationStatus === "experimental" &&
+      collection?.readers.some((entry) => entry.readerId === "cursor_usage" &&
+        entry.evidenceStatus === "pending_capture");
+    if (verification !== "UNVERIFIED" &&
+        !(verification === "VERIFIED_FIXTURES" && cursorFixtures)) {
       fail(where, "verification is UNVERIFIED until a verifier exists");
     }
     /* A scrape or an internal endpoint is never low risk. The pair would read
@@ -1400,7 +1405,7 @@ export async function generateRegistry(args = process.argv.slice(2)) {
     for (const reader of entry.collection.readers) {
       if (reader.evidenceStatus !== "pending_capture") continue;
       pending.push(entry.id + ": live reader " + reader.readerId +
-        " ships on a PENDING sanitized capture, so it stays UNVERIFIED");
+        " ships on a PENDING sanitized capture, so live acquisition stays unverified");
     }
   }
   for (const sentence of pending) {

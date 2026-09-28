@@ -42,6 +42,7 @@ export const GROK_USAGE_URL = "https://cli-chat-proxy.grok.com/v1/billing?format
 
 /** The Kimi Code usage report the official Kimi CLI reads. */
 export const KIMI_USAGE_URL = "https://api.kimi.com/coding/v1/usages";
+export const CURSOR_USAGE_URL = "https://cursor.com/api/usage-summary";
 
 /** The OpenRouter inference key report: limit, remaining and usage. */
 export const OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key";
@@ -61,6 +62,7 @@ export const ACQUISITION_ENDPOINTS = {
   code_assist_quota: { url: GEMINI_CLI_QUOTA_URL, method: "POST" },
   grok_billing: { url: GROK_USAGE_URL, method: "GET" },
   kimi_usage: { url: KIMI_USAGE_URL, method: "GET" },
+  cursor_usage: { url: CURSOR_USAGE_URL, method: "GET" },
   openrouter_key: { url: OPENROUTER_KEY_URL, method: "GET" }
 } as const satisfies Readonly<Record<string, { url: string; method: "GET" | "POST" }>>;
 
@@ -243,6 +245,17 @@ export function kimiUsageRequest(secret: string): AcquisitionRequest | null {
   };
 }
 
+export function cursorUsageRequest(secret: string, authId: string): AcquisitionRequest | null {
+  if (!/^[A-Za-z0-9._-]{1,16384}$/u.test(secret) || !/^[A-Za-z0-9._-]{1,16384}$/u.test(authId)) return null;
+  return {
+    endpoint: "cursor_usage", url: CURSOR_USAGE_URL, method: "GET", body: null,
+    headers: {
+      "user-agent": OPENLIMITER_USER_AGENT, accept: "application/json",
+      cookie: `WorkosCursorSessionToken=${authId}::${secret}`
+    }
+  };
+}
+
 /** The OpenRouter key report, the one documented interface in this table. */
 export function openrouterKeyRequest(secret: string): AcquisitionRequest | null {
   if (!usableHeaderSecret(secret)) return null;
@@ -337,6 +350,7 @@ export function retryAfterSeconds(value: string | null, now = Date.now()): numbe
  */
 export const ALLOWED_REQUEST_HEADERS: readonly string[] = [
   "authorization",
+  "cookie",
   "accept",
   "user-agent",
   "content-type",
@@ -358,6 +372,7 @@ function validHeaderValue(name: string, value: string, method: string): boolean 
   if (!/^[\x20-\x7E]+$/u.test(value)) return false;
   if (name === "user-agent") return value === OPENLIMITER_USER_AGENT;
   if (name === "accept") return value === "application/json";
+  if (name === "cookie") return /^WorkosCursorSessionToken=[A-Za-z0-9._-]{1,16384}::[A-Za-z0-9._-]{1,16384}$/u.test(value);
   if (name === "content-type") {
     return value === "application/json" && method === "POST";
   }
@@ -421,6 +436,9 @@ export function validAcquisitionRequest(request: AcquisitionRequest): boolean {
   if (endpoint === undefined) return false;
   if (request.url !== endpoint.url || request.method !== endpoint.method) return false;
   if (request.headers["user-agent"] !== OPENLIMITER_USER_AGENT) return false;
+  if (request.endpoint === "cursor_usage") {
+    if (Object.keys(request.headers).sort().join(",") !== "accept,cookie,user-agent") return false;
+  } else if (request.headers["cookie"] !== undefined) return false;
   for (const name of Object.keys(request.headers)) {
     if (!ALLOWED_REQUEST_HEADERS.includes(name)) return false;
     const value = request.headers[name];

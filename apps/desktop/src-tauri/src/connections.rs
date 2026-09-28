@@ -1226,8 +1226,8 @@ mod tests {
                 }
             }
         }
-        assert_eq!(stored, 7);
-        assert_eq!(store.list().expect("list").len(), 7);
+        assert_eq!(stored, crate::reader_registry::ReaderId::ALL.len());
+        assert_eq!(store.list().expect("list").len(), stored);
     }
 
     #[test]
