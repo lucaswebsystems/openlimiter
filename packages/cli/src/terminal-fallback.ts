@@ -7,6 +7,7 @@ import { type Launcher } from "./terminal-launcher.js";
 
 export const LAUNCHER_TIMEOUT_MILLISECONDS = 5_000;
 export interface FallbackLauncherOptions {
+  /** Each command gets this timeout; the stored original starts after the renderer attempt ends. */
   timeoutMilliseconds?: number;
   /** Omit to detect at build time; null selects the portable polling supervisor. */
   posixTimeoutCommand?: string | null;
@@ -102,7 +103,10 @@ try {
     $p.StartInfo.RedirectStandardError = $true
     $outputBytes = New-Object IO.MemoryStream
     $errorBytes = New-Object IO.MemoryStream
+    $outTask = $null
+    $errTask = $null
     $ok = $false
+    $killed = $false
     try {
       [void]$p.Start()
       $outTask = $p.StandardOutput.BaseStream.CopyToAsync($outputBytes)
@@ -110,6 +114,7 @@ try {
       $inputBytes.Position = 0
       $inTask = $inputBytes.CopyToAsync($p.StandardInput.BaseStream)
       $inputClosed = $false
+      # Each command gets ${timeout} ms; the stored original starts after the renderer attempt ends.
       $clock = [Diagnostics.Stopwatch]::StartNew()
       while (!$p.HasExited -and $clock.ElapsedMilliseconds -lt ${timeout}) {
         if ($inTask.IsCompleted -and !$inputClosed) { $p.StandardInput.Close(); $inputClosed = $true }
@@ -117,15 +122,23 @@ try {
       }
       if (!$p.HasExited) {
         $p.Kill()
+        $killed = $true
         [void]$p.WaitForExit(1000)
-      } elseif ($outTask.Wait(100) -and $errTask.Wait(100)) {
+      } else {
         $ok = $p.ExitCode -eq 0
       }
     } catch { } finally {
-      try { if (!$p.HasExited) { $p.Kill(); [void]$p.WaitForExit(1000) } } catch { }
+      try { if (!$p.HasExited) { $p.Kill(); $killed = $true; [void]$p.WaitForExit(1000) } } catch { }
+      # Drain both streams after normal exit or termination before taking the
+      # snapshot. The drain gets the same bound as the command: never unbounded,
+      # because a grandchild that survives Kill can hold the pipe open forever
+      # and a status line that never returns is worse than an empty one, and
+      # never so short that a busy machine loses output a command did print.
+      try { if ($null -ne $outTask) { [void]$outTask.Wait(${timeout}) } } catch { }
+      try { if ($null -ne $errTask) { [void]$errTask.Wait(${timeout}) } } catch { }
       $p.Dispose()
     }
-    return @{ ok = $ok; bytes = $outputBytes.ToArray() }
+    return @{ ok = $ok; killed = $killed; bytes = $outputBytes.ToArray() }
   }
   $result = Invoke-Bar ${psQuote(runtime.node)} (${psQuote('"' + runtime.entry + '" ')} + ($args -join ' '))
   $fallback = !$result.ok
