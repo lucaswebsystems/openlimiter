@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
+import { mountAgents } from "./agents.js";
 import { accountView, ageLabel, dragOffset, renderAccounts, renderSessions, startRail, startRailTheme, RAIL_COPY } from "./rail.js";
 import { wireRailVisibility, renderSettings, RAIL_SETTINGS_COPY } from "./settings.js";
 
@@ -11,13 +13,14 @@ const row = patch => ({ provider: "claude", account: null, headlineMeterId: "quo
   value: 41, meaning: "used", windowLabel: "5 hours", resetAt: "2026-09-28T14:00:00Z",
   freshness: "fresh", availability: "available", band: "green", precision: "exact", fidelityMarker: null,
   sessions: { busy: 0, waiting: 0, done: 0, idle: 0, unknown: 0 }, ...patch });
-const record = patch => ({ sessionId: "synthetic-session", agent: "claude", state: "busy", confidence: "explicit",
+const record = patch => ({ sessionId: "synthetic-session", agent: "claude_code", state: "busy", confidence: "explicit",
   firstObservedAt: "2026-09-28T10:00:00Z", observedAt: "2026-09-28T11:57:00Z",
-  stateChangedAt: "2026-09-28T11:57:00Z", ...patch });
-const snapshot = patch => ({ accounts: [row()], window: { available: true, visible: true, unfolded: true,
+  elapsedSeconds: 7200, computer: "local", ...patch });
+const snapshot = patch => ({ accounts: [row()], sessions: [], window: { available: true, visible: true, unfolded: true,
   keepOpen: false, offset: 120, cardOpen: false, cardAnchor: null }, ...patch });
 
 class Element {
+  dataset = {};
   children = [];
   handlers = {};
   attributes = {};
@@ -95,7 +98,9 @@ for (const [state, text, glyph] of [["busy", "Working", ""], ["waiting", "Needs 
       assert.equal(tab.attributes["data-agent"], state);
       assert.ok(tab.textContent.includes(text));
       assert.ok(tab.textContent.includes("3 min ago"));
-      assert.ok(tab.textContent.includes("Fixture project"));
+      assert.ok(!tab.textContent.includes("Fixture project"));
+      assert.ok(tab.textContent.includes("This computer"));
+      assert.ok(tab.textContent.includes("120:00 elapsed"));
       assert.equal(tab.children[0].children[0].textContent, glyph);
       if (state === "busy") assert.equal(tab.children[0].children[0].children.length, 3);
       if (state === "waiting") assert.ok(tab.textContent.includes("Waiting for your input"));
@@ -120,6 +125,104 @@ test("age uses observation time and handles malformed or future observations hon
   assert.equal(ageLabel("2026-09-29T09:00:00Z", now), "Age unavailable");
 });
 
+test("stale quota ages come from observedAt, including absent timestamps", () => {
+  const { doc, nodes } = documentFixture();
+  for (const [observedAt, expected] of [["2026-09-28T11:57:00Z", "3 min ago"],
+    [null, "Age unavailable"], ["invalid", "Age unavailable"], ["2026-09-29T00:00:00Z", "Age unavailable"]]) {
+    for (const isCard of [false, true]) {
+      renderAccounts(doc, nodes.accounts, [row({ freshness: "stale", observedAt })], isCard, () => {}, now);
+      assert.ok(nodes.accounts.textContent.includes(expected));
+    }
+  }
+});
+
+test("Rail renders snapshot sessions without a direct activity read and only cards locate", async () => {
+  for (const search of ["", "?card"]) {
+    const { doc, nodes } = documentFixture();
+    const calls = [];
+    const stop = startRail(doc, async (command, args) => {
+      calls.push([command, args]);
+      if (command === "plugin:rail|rail_snapshot") return snapshot({ sessions: [
+        record({ state: "busy" }), record({ sessionId: "waiting", state: "waiting" }), record({ sessionId: "done", state: "done" }),
+      ] });
+      if (command === "plugin:activity|activity_locate") return "flashed";
+      throw new Error("denied");
+    }, search);
+    try {
+      await tick();
+      assert.match(nodes.sessions.textContent, /Working/);
+      assert.match(nodes.sessions.textContent, /Needs you/);
+      assert.match(nodes.sessions.textContent, /Done/);
+      assert.deepEqual(calls.map(([command]) => command), ["plugin:rail|rail_snapshot"]);
+      const buttons = nodes.sessions.children.flatMap(row => row.children.filter(child => child.className === "session-locate"));
+      assert.equal(buttons.length, search ? 3 : 0);
+      if (search) {
+        await buttons[1].handlers.click();
+        assert.deepEqual(calls.at(-1), ["plugin:activity|activity_locate", { sessionId: "waiting" }]);
+        assert.equal(nodes.status.textContent, "App highlighted in the taskbar");
+      }
+    } finally { stop(); }
+  }
+});
+
+test("session age updates preserve the card locate button", () => {
+  const { doc, nodes } = documentFixture();
+  renderSessions(doc, nodes.sessions, [record()], true, () => {}, now, () => {});
+  const tab = nodes.sessions.children[0];
+  const button = tab.children[2];
+  renderSessions(doc, nodes.sessions, [record({ elapsedSeconds: 7201 })], true, () => {}, now + 1000, () => {});
+  assert.equal(nodes.sessions.children[0], tab);
+  assert.equal(tab.children[2], button);
+  assert.match(tab.textContent, /120:01 elapsed/);
+});
+
+test("stale age updates preserve the quota tab for keyboard activation", () => {
+  const { doc, nodes } = documentFixture();
+  const reading = row({ freshness: "stale", observedAt: "2026-09-28T11:59:45Z" });
+  renderAccounts(doc, nodes.accounts, [reading], false, () => {}, now);
+  const tab = nodes.accounts.children[0];
+  assert.match(tab.textContent, /15 sec ago/);
+  renderAccounts(doc, nodes.accounts, [reading], false, () => {}, now + 1000);
+  assert.equal(nodes.accounts.children[0], tab);
+  assert.match(tab.textContent, /16 sec ago/);
+});
+
+test("desktop shell mounts the Agents component inside Home and disposes on unload", async () => {
+  const html = read("./index.html");
+  assert.match(html, /href="\.\/agents.css"/);
+  const homeStart = html.indexOf('<section id="panel-meters"');
+  const hostStart = html.indexOf('<div id="agents-mount">');
+  assert.ok(homeStart < hostStart && hostStart < html.indexOf("</section>", homeStart));
+  const app = read("./app.js");
+  assert.match(app, /import \{ mountAgents \} from "\.\/agents.js"/);
+  const wiring = app.match(/const disposeAgents = mountAgents\(elements.agentsMount\);\s*window.addEventListener\("beforeunload", disposeAgents, \{ once: true \}\);/);
+  assert.ok(wiring);
+  const { doc } = documentFixture();
+  const host = new Element(); host.ownerDocument = doc;
+  let dispose;
+  runInNewContext(wiring[0], {
+    elements: { agentsMount: host },
+    mountAgents: target => mountAgents(target, { now: () => now, client: {
+      sessions: async () => [record({ state: "waiting" })],
+      preferences: async () => { throw new Error("unavailable"); },
+    } }),
+    window: { addEventListener: (event, callback) => { assert.equal(event, "beforeunload"); dispose = callback; } },
+  });
+  try {
+    await tick();
+    assert.match(host.textContent, /Agents/);
+    assert.match(host.textContent, /Needs you/);
+    assert.match(host.textContent, /This computer/);
+  } finally { dispose(); }
+  assert.equal(host.children.length, 0);
+});
+
+test("built Home and Rail include the Agents component and its local dependencies", () => {
+  for (const file of ["agents.js", "agents.css", "agents.en.js", "agents.en.json"]) {
+    assert.equal(read(`./dist/${file}`), read(`./${file}`), `${file} must be packaged by build-ui`);
+  }
+});
+
 test("loading, empty and unavailable states are distinct and activity failure cannot hide accounts", async () => {
   const { doc, nodes } = documentFixture();
   let release;
@@ -127,7 +230,7 @@ test("loading, empty and unavailable states are distinct and activity failure ca
   const stop = startRail(doc, command => command.endsWith("rail_snapshot") ? promise : Promise.reject(new Error("denied")));
   try {
     assert.ok(nodes.accounts.textContent.includes("Loading"));
-    release(snapshot({ accounts: [] }));
+    release(snapshot({ accounts: [], sessions: null }));
     await tick();
     assert.ok(nodes.accounts.textContent.includes("No accounts"));
     assert.ok(nodes.sessions.textContent.includes("Agent activity unavailable"));
@@ -166,7 +269,7 @@ test("Rail commands, bounded anchors, drag, keyboard and literal text preserve L
     nodes.close.handlers.click();
     doc.handlers.keydown({ key: "Escape", preventDefault() {} });
     await tick();
-    assert.deepEqual(calls.slice(2), [
+    assert.deepEqual(calls.slice(1), [
       ["plugin:rail|rail_card_open", { anchor: 320 }], ["plugin:rail|rail_card_open", { anchor: 0 }],
       ["plugin:rail|rail_set_keep_open", { keepOpen: true }], ["plugin:rail|rail_move_offset", { offset: 170 }],
       ["plugin:rail|rail_move_offset", { offset: 130 }], ["plugin:rail|rail_set_visible", { visible: false }],

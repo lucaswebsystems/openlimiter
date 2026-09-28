@@ -71,6 +71,7 @@ body.card .t-edge { position: relative; display: block; top: auto; bottom: auto;
 body.card .fill { height: 100%; width: var(--meter, 0%); }
 body.card .detail, body.card .sess-detail { display: block; margin: 8px 0 0; color: var(--ol-soft); font-size: var(--ol-text-caption); line-height: 1.5; overflow-wrap: anywhere; }
 body.card .controls { grid-template-columns: 1fr 1fr; }
+body.card .session-locate { margin-top: 8px; padding: 6px 10px; background: var(--ol-raised); border: 1px solid var(--ol-control-border); border-radius: var(--ol-radius-xs); }
 @keyframes olBars { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
 @keyframes olMorph { from { clip-path: inset(0 calc(100% - 56px) calc(100% - 88px) 0 round 0 var(--ol-radius-xs) var(--ol-radius-xs) 0); } to { clip-path: inset(0 0 0 0 round 0 var(--ol-radius-md) var(--ol-radius-md) 0); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

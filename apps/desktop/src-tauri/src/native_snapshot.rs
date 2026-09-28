@@ -383,9 +383,23 @@ pub(crate) fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
 }
 
 fn read_document(text: Option<&str>) -> Result<(Vec<Snapshot>, Vec<Suppression>), CacheWriteError> {
+    read_document_for_surface(text, false)
+}
+
+fn read_document_for_surface(
+    text: Option<&str>,
+    require_supported_version: bool,
+) -> Result<(Vec<Snapshot>, Vec<Suppression>), CacheWriteError> {
     let root = text
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
         .unwrap_or_else(|| Value::Object(Map::new()));
+    if require_supported_version
+        && root
+            .get("version")
+            .is_some_and(|version| !matches!(version.as_u64(), Some(1 | 2)))
+    {
+        return Err(CacheWriteError::NotJson);
+    }
     let rows = root
         .get("snapshots")
         .and_then(Value::as_array)
@@ -422,6 +436,23 @@ fn read_document(text: Option<&str>) -> Result<(Vec<Snapshot>, Vec<Suppression>)
 
 fn account_matches(existing: Option<&str>, target: Option<&str>) -> bool {
     existing == target || (target.is_some() && existing.is_none())
+}
+
+/// Read only display access to the same validated cache rows used by native writers.
+/// A suppression withdraws a reading until that identity has a newer observation.
+pub(crate) fn display_snapshots(text: Option<&str>) -> Vec<Snapshot> {
+    let Ok((rows, suppressions)) = read_document_for_surface(text, true) else {
+        return Vec::new();
+    };
+    rows.into_iter()
+        .filter(|row| {
+            !suppressions.iter().any(|suppression| {
+                row.provider == suppression.provider
+                    && row.account_id == suppression.account_id
+                    && row.observed_at <= suppression.suppressed_at
+            })
+        })
+        .collect()
 }
 
 fn identity(row: &Snapshot) -> String {

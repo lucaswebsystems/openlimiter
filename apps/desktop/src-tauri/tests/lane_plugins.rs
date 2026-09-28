@@ -5,8 +5,46 @@ mod activity;
 mod providers_plugin;
 #[path = "../src/rail.rs"]
 mod rail;
+// The Rail reads the production cache boundary even in the mock IPC runtime.
+#[path = "../src/native_snapshot.rs"]
+mod native_snapshot;
+#[path = "../src/native_time.rs"]
+mod native_time;
+#[path = "../src/state.rs"]
+mod state;
+#[path = "../src/cache_write.rs"]
+mod cache_write;
+#[path = "../src/fsx.rs"]
+mod fsx;
+#[path = "../src/test_support.rs"]
+mod test_support;
+#[path = "../src/native_readers.rs"]
+mod native_readers;
+#[path = "../src/native_opencode.rs"]
+mod native_opencode;
+#[path = "../src/reader_registry.rs"]
+mod reader_registry;
+#[path = "../src/net.rs"]
+mod net;
+#[path = "../src/credentials.rs"]
+mod credentials;
+#[path = "../src/provider_detection.rs"]
+mod provider_detection;
+#[path = "../src/request_policy.rs"]
+mod request_policy;
+#[path = "../src/poll_identity.rs"]
+mod poll_identity;
+#[path = "../src/connections.rs"]
+mod connections;
+#[path = "../src/antigravity_credential.rs"]
+mod antigravity_credential;
+#[path = "../src/antigravity_local.rs"]
+mod antigravity_local;
+#[path = "../src/provider_switches.rs"]
+mod provider_switches;
 
 use serde_json::{json, Value};
+use std::{fs, path::Path};
 use tauri::{
     ipc::{CallbackFn, InvokeBody},
     test::{get_ipc_response, mock_builder, MockRuntime, INVOKE_KEY},
@@ -21,6 +59,12 @@ fn app() -> tauri::App<MockRuntime> {
         .plugin(providers_plugin::init())
         .build(tauri::generate_context!())
         .expect("production capability context builds")
+}
+
+fn app_with_snapshot_root(root: &Path) -> tauri::App<MockRuntime> {
+    let app = app();
+    rail::set_test_snapshot_root(&app.handle(), root.to_path_buf());
+    app
 }
 
 fn invoke(window: &WebviewWindow<MockRuntime>, command: &str) -> Result<Value, Value> {
@@ -158,12 +202,15 @@ fn rail_future_window_allowed() {
 }
 
 fn assert_rail_snapshot(label: &str) {
-    let app = app();
+    let root = test_support::TempDir::new();
+    let app = app_with_snapshot_root(root.path());
     let window = WebviewWindowBuilder::new(&app, label, Default::default())
         .build()
         .unwrap();
     let snapshot = invoke(&window, "plugin:rail|rail_snapshot").unwrap();
     assert_eq!(snapshot["accounts"], json!([]));
+    assert_eq!(snapshot["sessions"], json!([]));
+    assert_eq!(snapshot.as_object().unwrap().len(), 3);
     assert_eq!(snapshot["window"]["visible"], true);
     assert_eq!(snapshot["window"]["edge"], "left");
     assert_eq!(snapshot["window"]["keepOpen"], false);
@@ -175,9 +222,78 @@ fn rail_card_window_allowed() {
 }
 
 #[test]
+fn rail_snapshot_reads_seeded_cache_from_test_root() {
+    let root = test_support::TempDir::new();
+    fs::write(
+        root.path().join("openlimiter-cache.json"),
+        json!({
+            "version": 2,
+            "snapshots": [{
+                "provider": "CLAUDE",
+                "meter": "FIVE_HOUR",
+                "accountId": "fixture-account",
+                "value": 82,
+                "unit": "PERCENT",
+                "kind": "quota_percent",
+                "window": { "kind": "rolling", "durationSeconds": 18000 },
+                "resetAt": "2099-09-28T15:00:00.000Z",
+                "observedAt": "2020-09-28T11:57:00.000Z",
+                "expiresAt": "2099-09-28T15:00:00.000Z",
+                "precision": "exact",
+                "source": "internal_payload",
+                "labels": {
+                    "credentialOrigin": "official-local-tool",
+                    "dataInterfaceStatus": "internal-endpoint",
+                    "automationRisk": "high",
+                    "verification": "UNVERIFIED"
+                },
+                "accountLabel": "private fixture label",
+                "privateMetadata": "private fixture path"
+            }]
+        })
+        .to_string(),
+    )
+    .expect("the fixture cache is writable");
+    let app = app_with_snapshot_root(root.path());
+    let window = WebviewWindowBuilder::new(&app, "rail", Default::default())
+        .build()
+        .unwrap();
+
+    let snapshot = invoke(&window, "plugin:rail|rail_snapshot").unwrap();
+    assert_eq!(
+        snapshot["accounts"],
+        json!([{
+            "provider": "CLAUDE",
+            "account": "fixture-account",
+            "headlineMeterId": "session_5h",
+            "kind": "quota_percent",
+            "value": 82.0,
+            "meaning": "used",
+            "windowLabel": "Current session",
+            "resetAt": "2099-09-28T15:00:00.000Z",
+            "observedAt": "2020-09-28T11:57:00.000Z",
+            "freshness": "fresh",
+            "availability": "available",
+            "band": "orange",
+            "precision": "exact",
+            "fidelityMarker": null,
+            "sessions": {
+                "busy": 0,
+                "waiting": 0,
+                "done": 0,
+                "idle": 0,
+                "unknown": 0
+            }
+        }])
+    );
+    assert!(!snapshot.to_string().contains("private fixture"));
+}
+
+#[test]
 fn rail_controls_allowed_through_production_acl() {
     for label in ["main", "rail", "rail-card"] {
-        let app = app();
+        let root = test_support::TempDir::new();
+        let app = app_with_snapshot_root(root.path());
         let window = WebviewWindowBuilder::new(&app, label, Default::default())
             .build()
             .unwrap();
@@ -249,7 +365,11 @@ fn providers_ungranted_window_denied() {
 
 #[test]
 fn rail_window_cannot_read_activity() {
-    assert_denied("rail", "plugin:activity|activity_snapshot");
+    for label in ["rail", "rail-card"] {
+        for command in ["activity_snapshot", "activity_sessions"] {
+            assert_denied(label, &format!("plugin:activity|{command}"));
+        }
+    }
 }
 
 #[test]
@@ -299,6 +419,7 @@ fn rail_account_uses_contract_keys_and_preserves_nulls() {
         meaning: "used".into(),
         window_label: "Unknown".into(),
         reset_at: None,
+        observed_at: Some("2026-09-28T11:57:00.000Z".into()),
         freshness: "unknown".into(),
         availability: "available".into(),
         band: "stale".into(),
@@ -317,6 +438,7 @@ fn rail_account_uses_contract_keys_and_preserves_nulls() {
         json!({
             "provider": "codex", "account": null, "headlineMeterId": "quota", "kind": "unknown",
             "value": null, "meaning": "used", "windowLabel": "Unknown", "resetAt": null,
+            "observedAt": "2026-09-28T11:57:00.000Z",
             "freshness": "unknown", "availability": "available", "band": "stale",
             "precision": "unknown", "fidelityMarker": "unknown",
             "sessions": { "busy": 0, "waiting": 0, "done": 0, "idle": 0, "unknown": 0 }

@@ -1,5 +1,8 @@
 /* Rust owns hover, geometry, full screen state and persistence. No window API
    permissions, remote assets, HTML interpolation or fabricated quota readings. */
+import { AGENT_NAMES } from "./agents.js";
+import { agentText } from "./agents.en.js";
+
 export const RAIL_COPY = {
   title: "Usage and agents", loading: "Loading", empty: "No accounts",
   emptyDetail: "No accounts yet. Add an account in Settings.",
@@ -29,7 +32,7 @@ export function ageLabel(instant, now = Date.now()) {
   return formatCount(RAIL_COPY.ageDays, Math.floor(seconds / 86400));
 }
 
-export function accountView(row) {
+export function accountView(row, now = Date.now()) {
   const signedOut = ["missing_credentials", "expired_credentials"].includes(row.availability);
   const numeric = row.availability === "available" && Number.isFinite(row.value) && row.value >= 0 &&
     (row.kind !== "quota_percent" || row.value <= 100);
@@ -41,9 +44,8 @@ export function accountView(row) {
   const band = signedOut || row.availability === "unlimited" ? "none" : row.freshness !== "fresh" ? "stale" : percent && ["green", "yellow", "orange", "red"].includes(row.band) ? row.band : "none";
   const meaning = row.meaning === "remaining" ? RAIL_COPY.remaining : RAIL_COPY.used;
   return { reading, meaning: numeric ? meaning : "", fill, band, stale,
-    // SurfaceAccountRow carries no observation timestamp or currency. Never
-    // infer age from resetAt, or turn a balance into dollars or a percentage.
-    age: stale ? RAIL_COPY.ageUnavailable : "",
+    // Observation time belongs to this reading, never to its reset.
+    age: stale ? ageLabel(row.observedAt, now) : "",
     label: `${row.provider}${row.account ? `, ${row.account}` : ""}: ${reading}${numeric ? ` ${meaning}` : ""} (${row.windowLabel})` };
 }
 
@@ -77,12 +79,23 @@ function messageTab(doc, isCard, open, title, detail = title) {
   return element;
 }
 
+const accountNodes = new WeakMap();
+
 export function renderAccounts(doc, mount, rows, isCard, open, now = Date.now()) {
-  mount.replaceChildren();
+  const previous = accountNodes.get(mount) ?? [];
+  const identity = row => JSON.stringify([row.provider, row.account, row.headlineMeterId]);
+  const stable = rows.length > 0 && previous.length === rows.length &&
+    rows.every((row, index) => previous[index].id === identity(row));
+  if (!stable) mount.replaceChildren();
+  const nextNodes = [];
   if (!rows.length) mount.append(messageTab(doc, isCard, open, RAIL_COPY.empty, RAIL_COPY.emptyDetail));
-  for (const row of rows) {
-    const view = accountView(row);
-    const element = tab(doc, isCard, open, view.label);
+  for (const [index, row] of rows.entries()) {
+    const view = accountView(row, now);
+    const prior = stable ? previous[index] : undefined;
+    const element = prior?.element ?? tab(doc, isCard, open, view.label);
+    element.setAttribute("aria-label", view.label);
+    element.setAttribute("title", view.label);
+    element.replaceChildren();
     element.setAttribute("data-band", view.band);
     element.setAttribute("data-p", row.provider);
     const body = node(doc, "span", "t-body");
@@ -106,12 +119,20 @@ export function renderAccounts(doc, mount, rows, isCard, open, now = Date.now())
     const detail = [view.label, view.stale ? `${RAIL_COPY.stale}. ${view.age}` : row.freshness === "fresh" ? RAIL_COPY.fresh : RAIL_COPY.unknown,
       row.fidelityMarker ? RAIL_COPY[row.fidelityMarker] ?? RAIL_COPY.unknown : "", resetText].filter(Boolean).join(". ");
     element.append(body, edge, node(doc, "p", "detail", detail));
-    mount.append(element);
+    if (!prior) mount.append(element);
+    nextNodes.push({ id: identity(row), element });
   }
+  accountNodes.set(mount, nextNodes);
 }
 
-export function renderSessions(doc, mount, sessions, isCard, open, now = Date.now()) {
-  mount.replaceChildren();
+const sessionNodes = new WeakMap();
+
+export function renderSessions(doc, mount, sessions, isCard, open, now = Date.now(), locate) {
+  const previous = sessionNodes.get(mount) ?? [];
+  const stable = sessions?.length > 0 && previous.length === sessions.length &&
+    sessions.every((session, index) => previous[index].id === session.sessionId);
+  if (!stable) mount.replaceChildren();
+  sessionNodes.delete(mount);
   if (sessions === null) {
     mount.append(messageTab(doc, isCard, open, RAIL_COPY.unknown, RAIL_COPY.agentsUnavailable));
     return;
@@ -119,23 +140,45 @@ export function renderSessions(doc, mount, sessions, isCard, open, now = Date.no
   if (!sessions.length && isCard) mount.append(node(doc, "p", "sess-detail", RAIL_COPY.noSessions));
   // Sanitized activity records have no account identity. Keep them separate
   // from quota tabs rather than assigning a session to an arbitrary account.
-  for (const session of sessions) {
+  const nextNodes = [];
+  for (const [index, session] of sessions.entries()) {
     const state = ["busy", "waiting", "done", "idle"].includes(session.state) ? session.state : "unknown";
     const outcome = ["cancelled", "failed"].includes(session.outcome) ? RAIL_COPY[session.outcome] : "";
     const title = outcome || RAIL_COPY[state];
-    const detail = [session.agent, session.userProjectLabel, outcome || RAIL_COPY[`${state}Detail`],
+    const name = AGENT_NAMES[session.agent] ?? agentText("agents.agent.unknown");
+    const seconds = session.elapsedSeconds;
+    const elapsed = Number.isSafeInteger(seconds) && seconds >= 0
+      ? agentText("agents.elapsed", { time: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` })
+      : agentText("agents.elapsedUnknown");
+    const detail = [name, outcome || RAIL_COPY[`${state}Detail`],
+      session.confidence === "inferred" ? RAIL_COPY.estimated : "",
+      session.computer === "local" ? agentText("agents.computer") : "", elapsed,
       ageLabel(session.observedAt, now)].filter(Boolean).join(". ");
-    const element = tab(doc, isCard, open, detail);
+    const prior = stable ? previous[index] : undefined;
+    const element = prior?.element ?? tab(doc, isCard, open, detail);
+    element.setAttribute("aria-label", detail);
+    element.setAttribute("title", detail);
     element.setAttribute("data-agent", state);
     element.setAttribute("data-band", "none");
-    const body = node(doc, "span", "t-body");
+    const body = prior?.body ?? node(doc, "span", "t-body");
+    body.replaceChildren();
     const glyph = node(doc, "span", "agent-glyph", state === "done" ? (outcome ? "!" : "✓") : state === "waiting" ? "?" : state === "unknown" ? "?" : "");
     glyph.setAttribute("aria-hidden", "true");
     if (state === "busy") for (let i = 0; i < 3; i++) glyph.append(node(doc, "i", ""));
-    body.append(glyph, node(doc, "span", "t-num", title), node(doc, "span", "t-cap", session.agent));
-    element.append(body, node(doc, "p", "sess-detail", detail));
-    mount.append(element);
+    body.append(glyph, node(doc, "span", "t-num", title), node(doc, "span", "t-cap", name));
+    const description = prior?.description ?? node(doc, "p", "sess-detail");
+    description.textContent = detail;
+    if (!prior) element.append(body, description);
+    if (!prior && isCard && locate && typeof session.sessionId === "string") {
+      const button = node(doc, "button", "session-locate", agentText("agents.locate"));
+      button.type = "button";
+      button.addEventListener("click", () => locate(session.sessionId));
+      element.append(button);
+    }
+    if (!prior) mount.append(element);
+    nextNodes.push({ id: session.sessionId, element, body, description });
   }
+  sessionNodes.set(mount, nextNodes);
 }
 
 export function dragOffset(startOffset, startScreen, currentScreen) {
@@ -159,6 +202,7 @@ export function startRail(doc, invoke, search = "") {
   let moving = false;
   let disposed = false;
   let timer;
+  let locateStatus = "";
   const call = async (command, args = {}) => {
     try { return await invoke(`plugin:rail|${command}`, args); }
     catch { status.textContent = RAIL_COPY.unavailable; return undefined; }
@@ -167,16 +211,23 @@ export function startRail(doc, invoke, search = "") {
   doc.body.classList.toggle("card", isCard);
   doc.body.classList.toggle("folded", !isCard);
   accounts.append(messageTab(doc, isCard, open, RAIL_COPY.loading));
-  const activity = async () => {
-    try { return await invoke("plugin:activity|activity_sessions", {}); }
-    catch { return null; }
+  const locate = async (sessionId) => {
+    if (!isCard) return;
+    let result;
+    try { result = await invoke("plugin:activity|activity_locate", { sessionId }); }
+    catch { result = "unavailable"; }
+    if (disposed) return;
+    const known = ["focused", "flashed", "not_supported_yet"].includes(result) ? result : "unavailable";
+    locateStatus = agentText(`agents.locate.${known}`);
+    status.textContent = locateStatus;
   };
   const update = async () => {
-    const [next, records] = await Promise.all([call("rail_snapshot"), activity()]);
+    const next = await call("rail_snapshot");
+    const records = next?.sessions;
     if (disposed) return;
     if (next) {
       snapshot = next;
-      status.textContent = "";
+      status.textContent = locateStatus;
       doc.body.classList.toggle("card", isCard);
       doc.body.classList.toggle("folded", !isCard && !next.window.unfolded);
       keep.setAttribute("aria-pressed", String(next.window.keepOpen));
@@ -187,7 +238,7 @@ export function startRail(doc, invoke, search = "") {
         doc.body.classList.add("morphing");
       }
       cardOpen = next.window.cardOpen;
-      const key = JSON.stringify([next.accounts, next.accounts.map(row => Date.parse(row.resetAt) <= Date.now())]);
+      const key = JSON.stringify([next.accounts, Math.floor(Date.now() / 1000)]);
       if (rowsKey !== key) {
         rowsKey = key;
         renderAccounts(doc, accounts, next.accounts, isCard, open);
@@ -196,10 +247,10 @@ export function startRail(doc, invoke, search = "") {
       rowsKey = undefined;
       accounts.replaceChildren(messageTab(doc, isCard, open, RAIL_COPY.unavailable));
     }
-    const key = JSON.stringify([records, Math.floor(Date.now() / 60000)]);
+    const key = JSON.stringify([records, Math.floor(Date.now() / 1000)]);
     if (sessionsKey !== key) {
       sessionsKey = key;
-      renderSessions(doc, sessions, Array.isArray(records) ? records : null, isCard, open);
+      renderSessions(doc, sessions, Array.isArray(records) ? records : null, isCard, open, Date.now(), locate);
     }
     timer = setTimeout(update, 250);
   };
