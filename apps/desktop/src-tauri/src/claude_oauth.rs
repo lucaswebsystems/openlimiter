@@ -240,7 +240,7 @@ impl BucketWindow {
     /// The paid overflow allowance: a budget with a billing period, and the
     /// endpoint states neither its length nor when it turns over.
     const BILLING_PERIOD: Self = Self {
-        kind: "fixed",
+        kind: "unknown",
         duration_seconds: None,
     };
 
@@ -395,9 +395,9 @@ fn extra_usage_percent(
     used: Option<f64>,
     limit: Option<f64>,
 ) -> Option<f64> {
-    if let Some(stated) = extra.get("utilization").and_then(Value::as_f64) {
-        if stated.is_finite() && stated >= 0.0 {
-            return Some(stated.min(100.0));
+    for field in ["used_percentage", "utilization", "percent"] {
+        if let Some(stated) = percentage(extra.get(field)) {
+            return Some(stated);
         }
     }
     let (used, limit) = (used?, limit?);
@@ -422,19 +422,47 @@ fn parse_extra_usage(
     now_ms: u64,
     account_id: &str,
 ) -> Option<Snapshot> {
-    let used = amount(extra.get("used_credits"));
-    let limit = amount(extra.get("monthly_limit"));
+    let used = amount(
+        ["used_amount", "used_credits", "used"]
+            .iter()
+            .find_map(|field| extra.get(*field)),
+    );
+    let limit = amount(
+        [
+            "limit_amount",
+            "limit_credits",
+            "monthly_limit",
+            "limit",
+            "cap",
+        ]
+        .iter()
+        .find_map(|field| extra.get(*field)),
+    );
     let value = extra_usage_percent(extra, used, limit)?;
-    let currency = extra
-        .get("currency")
-        .and_then(Value::as_str)
-        .map(str::to_ascii_uppercase)
-        .filter(|currency| currency == CACHE_CURRENCY);
+    let currency = match extra.get("currency") {
+        None => Some(CACHE_CURRENCY.to_string()),
+        Some(value) => value
+            .as_str()
+            .map(str::to_ascii_uppercase)
+            .filter(|currency| currency == CACHE_CURRENCY),
+    };
+    let reset_at = extra.get("resets_at").and_then(|value| {
+        let horizon = 2_678_400 * 2 + CLOCK_SKEW_SECONDS;
+        if let Some(seconds) = value.as_f64() {
+            return crate::native_snapshot::future_epoch_seconds(seconds, now_ms, Some(horizon));
+        }
+        let text = value.as_str()?.trim();
+        if (9..=13).contains(&text.len()) && text.bytes().all(|byte| byte.is_ascii_digit()) {
+            let seconds = text.parse::<f64>().ok()? / if text.len() == 13 { 1_000.0 } else { 1.0 };
+            return crate::native_snapshot::future_epoch_seconds(seconds, now_ms, Some(horizon));
+        }
+        future_rfc3339(text, now_ms, horizon)
+    });
     let mut row = snapshot(
         EXTRA_USAGE_METER,
         value,
         BucketWindow::BILLING_PERIOD,
-        None,
+        reset_at,
         now_ms,
         account_id,
     )?;
@@ -518,14 +546,15 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
             dropped("unnamed root window", "unnamed");
             continue;
         };
-        let Some(row) = parse_reading(
-            bucket,
-            "utilization",
-            &meter,
-            BucketWindow::UNKNOWN,
-            now_ms,
-            account_id,
-        ) else {
+        let window = if key.starts_with("seven_day") {
+            BucketWindow::rolling(604_800)
+        } else if key.starts_with("five_hour") {
+            BucketWindow::rolling(18_000)
+        } else {
+            BucketWindow::UNKNOWN
+        };
+        let Some(row) = parse_reading(bucket, "utilization", &meter, window, now_ms, account_id)
+        else {
             dropped("unnamed root window", &meter);
             continue;
         };
@@ -582,7 +611,7 @@ pub fn parse_usage(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snap
     }
 
     if let Some(extra) = root.get(EXTRA_USAGE_KEY).and_then(Value::as_object) {
-        if extra.get("is_enabled").and_then(Value::as_bool) == Some(true) {
+        if extra.get("is_enabled").and_then(Value::as_bool) != Some(false) {
             match parse_extra_usage(extra, now_ms, account_id) {
                 Some(row) if taken.insert(EXTRA_USAGE_METER.to_string()) => rows.push(row),
                 Some(_) => {}
