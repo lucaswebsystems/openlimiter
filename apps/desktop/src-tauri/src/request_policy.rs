@@ -17,9 +17,9 @@ const REQUEST_POLICY_LOCK_FILE_NAME: &str = "request-policy.lock";
 const REQUEST_POLICY_VERSION: u8 = 1;
 const MAX_ACCOUNTS_PER_PROVIDER: usize = 128;
 const PROVIDER_SPACING_SECONDS: u64 = 15;
-const PROVISIONAL_REQUEST_SECONDS: u64 = 86_400;
+const PROVISIONAL_REQUEST_SECONDS: u64 = 60;
 pub const BLOCKED_PROVIDER_SECONDS: u64 = 86_400;
-pub const RATE_LIMIT_SECONDS: u64 = 3_600;
+pub const RATE_LIMIT_SECONDS: u64 = 60;
 const MAX_SERVER_DELAY_SECONDS: u64 = 7 * 86_400;
 const LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_millis(500);
 const LOCK_RETRY_DELAY: Duration = Duration::from_millis(10);
@@ -27,6 +27,8 @@ const LOCK_RETRY_DELAY: Duration = Duration::from_millis(10);
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ProviderPolicyState {
+    #[serde(default)]
+    attempts: BTreeMap<String, u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     blocked_until: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -53,6 +55,7 @@ impl Default for RequestPolicyDocument {
 }
 
 struct PolicyInner {
+    active_shared: Option<MachineLease>,
     document: RequestPolicyDocument,
     healthy: bool,
     active_provider: Option<DetectedProviderId>,
@@ -61,6 +64,7 @@ struct PolicyInner {
 
 pub struct RequestPolicy {
     directory: Option<PathBuf>,
+    clock: Option<fn() -> u64>,
     inner: Mutex<PolicyInner>,
 }
 
@@ -84,18 +88,22 @@ impl Drop for RequestLease<'_> {
 
 impl RequestPolicy {
     pub fn at_state_directory() -> Self {
-        Self::at(crate::state::state_directory())
+        let mut policy = Self::at(crate::state::state_directory());
+        policy.clock = Some(crate::connections::now_epoch_ms);
+        policy
     }
 
     pub fn at(directory: Option<PathBuf>) -> Self {
         let healthy = directory.is_some();
         Self {
             directory,
+            clock: None,
             inner: Mutex::new(PolicyInner {
                 document: RequestPolicyDocument::default(),
                 healthy,
                 active_provider: None,
                 active_lock: None,
+                active_shared: None,
             }),
         }
     }
@@ -168,6 +176,27 @@ impl RequestPolicy {
             }
         }
 
+        let shared_provider = if matches!(
+            provider,
+            DetectedProviderId::Antigravity | DetectedProviderId::GeminiCli
+        ) {
+            "code-assist"
+        } else {
+            provider.slug()
+        };
+        let shared = match MachineLease::acquire_account(
+            self.directory.as_ref().unwrap(),
+            shared_provider,
+            Some(account_id),
+            now_ms,
+        ) {
+            Ok(lease) => lease,
+            Err(rejection) => {
+                let _ = FileExt::unlock(&lock_file);
+                self.cancel_begin(provider, false);
+                return Err(rejection);
+            }
+        };
         let state = document.providers.entry(provider).or_default();
         state.next_request_at =
             Some(now_ms.saturating_add(
@@ -199,6 +228,7 @@ impl RequestPolicy {
         }
         inner.document = document;
         inner.active_lock = Some(lock_file);
+        inner.active_shared = Some(shared);
         drop(inner);
         Ok(RequestLease {
             policy: self,
@@ -213,8 +243,16 @@ impl RequestPolicy {
         now_ms: u64,
         minimum_seconds: u64,
     ) {
+        let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
         let delay = jittered_account_delay(provider, account_id, minimum_seconds.max(1));
+        self.complete_shared(now_ms.saturating_add(delay.saturating_mul(1000)), 0);
         self.mutate_durable(|document| {
+            document
+                .providers
+                .entry(provider)
+                .or_default()
+                .attempts
+                .remove(account_id);
             document
                 .providers
                 .entry(provider)
@@ -227,11 +265,27 @@ impl RequestPolicy {
         });
     }
 
+    pub(crate) fn refuse_account(&self, provider: DetectedProviderId, account_id: &str, now_ms: u64, denied: bool) {
+        let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
+        let next = now_ms.saturating_add(BLOCKED_PROVIDER_SECONDS * 1000);
+        self.complete_shared(next, 0);
+        self.mutate_durable(|document| {
+            let state = document.providers.entry(provider).or_default();
+            state.attempts.remove(account_id);
+            state.accounts.insert(account_id.to_string(), next);
+        });
+        if let Some(directory) = &self.directory {
+            let writer = crate::cache_write::CacheWriter::at(Some(directory.clone()));
+            let _ = writer.record_availability(&provider.slug().to_uppercase().replace('-', "_"), None,
+                if denied { "access_denied" } else { "expired_credentials" }, None, now_ms);
+        }
+    }
+
     pub fn block_provider(&self, provider: DetectedProviderId, now_ms: u64, minimum_seconds: u64) {
-        let delay = minimum_seconds
-            .max(BLOCKED_PROVIDER_SECONDS)
-            .min(MAX_SERVER_DELAY_SECONDS);
+        let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
+        let delay = minimum_seconds.max(BLOCKED_PROVIDER_SECONDS);
         let blocked_until = now_ms.saturating_add(delay.saturating_mul(1_000));
+        self.complete_shared(blocked_until, 0);
         self.mutate_durable(|document| {
             let state = document.providers.entry(provider).or_default();
             state.blocked_until = Some(
@@ -249,16 +303,68 @@ impl RequestPolicy {
         now_ms: u64,
         retry_after_seconds: Option<u64>,
     ) {
+        self.retry_account(provider, account_id, now_ms, retry_after_seconds, true);
+    }
+
+    pub(crate) fn retry_account(
+        &self,
+        provider: DetectedProviderId,
+        account_id: &str,
+        now_ms: u64,
+        retry_after_seconds: Option<u64>,
+        rate_limited: bool,
+    ) {
+        // Retry-After was measured when the response arrived, not at request start.
+        let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
         if !valid_account_id(account_id) || now_ms > MAX_TIMESTAMP_EPOCH_MS {
             return;
         }
-        let seconds = retry_after_seconds
-            .unwrap_or(RATE_LIMIT_SECONDS)
-            .max(RATE_LIMIT_SECONDS)
-            .min(MAX_SERVER_DELAY_SECONDS);
-        let retry_at = now_ms.saturating_add(seconds.saturating_mul(1_000));
+        let attempts = self
+            .inner
+            .lock()
+            .ok()
+            .map(|inner| {
+                inner
+                    .document
+                    .providers
+                    .get(&provider)
+                    .and_then(|state| state.attempts.get(account_id).copied())
+                    .unwrap_or(0)
+                    .max(
+                        inner
+                            .active_shared
+                            .as_ref()
+                            .map_or(0, |lease| lease.attempts),
+                    )
+            })
+            .unwrap_or(0);
+        let decision = retry_decision(
+            attempts,
+            retry_after_seconds.map(|seconds| now_ms.saturating_add(seconds.saturating_mul(1000))),
+            now_ms,
+            0,
+            MAX_SERVER_DELAY_SECONDS,
+        );
+        let retry_at = decision.next_allowed_at.min(MAX_TIMESTAMP_EPOCH_MS);
+        self.complete_shared(retry_at, attempts.saturating_add(1));
+        if let Some(directory) = self.directory.as_ref().filter(|_| rate_limited) {
+            let writer = crate::cache_write::CacheWriter::at(Some(directory.clone()));
+            let _ = writer.record_availability(
+                &provider.slug().to_uppercase().replace('-', "_"),
+                None,
+                "rate_limited",
+                Some(retry_at),
+                now_ms,
+            );
+        }
         self.mutate_durable(|document| {
             let state = document.providers.entry(provider).or_default();
+            state
+                .attempts
+                .insert(account_id.to_string(), attempts.saturating_add(1));
+            if decision.blocked_until.is_some() {
+                state.blocked_until = Some(retry_at);
+            }
             /* The account row replaces begin's crash reservation. The provider
             row carries the same deadline so a second account or process does
             not hammer an endpoint that just asked this process to stop. */
@@ -269,6 +375,16 @@ impl RequestPolicy {
                     .map_or(retry_at, |current| current.max(retry_at)),
             );
         });
+    }
+
+    fn complete_shared(&self, next: u64, attempts: u32) {
+        if let Ok(mut inner) = self.inner.lock() {
+            if let Some(lease) = inner.active_shared.as_ref() {
+                if lease.complete(next, attempts).is_err() {
+                    inner.healthy = false;
+                }
+            }
+        }
     }
 
     fn mutate_durable(&self, mutate: impl FnOnce(&mut RequestPolicyDocument)) {
@@ -302,6 +418,7 @@ impl RequestPolicy {
                 return None;
             }
             inner.active_provider = None;
+            inner.active_shared.take();
             inner.active_lock.take()
         });
         if let Some(lock_file) = lock_file {
@@ -351,6 +468,219 @@ fn acquire_document_lock(directory: Option<&PathBuf>) -> Result<File, GateReject
             }
             Err(_) => return Err(GateRejection::Busy),
         }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub(crate) struct RetryDecision {
+    pub local_delay_seconds: u64,
+    pub server_deadline: Option<u64>,
+    pub next_allowed_at: u64,
+    pub blocked_until: Option<u64>,
+}
+
+pub(crate) fn retry_decision(
+    attempt: u32,
+    server: Option<u64>,
+    now: u64,
+    jitter: u64,
+    ceiling: u64,
+) -> RetryDecision {
+    let local = (RATE_LIMIT_SECONDS << attempt.min(4))
+        .min(900)
+        .saturating_add(jitter);
+    let limit = now.saturating_add(ceiling.saturating_mul(1000));
+    let capped_server = server.map(|date| date.min(limit));
+    RetryDecision {
+        local_delay_seconds: local,
+        server_deadline: capped_server,
+        next_allowed_at: now
+            .saturating_add(local.saturating_mul(1000))
+            .max(capped_server.unwrap_or(0)),
+        blocked_until: server.filter(|date| *date > limit).map(|_| limit),
+    }
+}
+
+pub(crate) fn server_deadline(header: &str, now: u64) -> Option<u64> {
+    let raw = header.trim();
+    if !raw.is_empty() && raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return raw
+            .parse::<u64>()
+            .ok()
+            .map(|seconds| now.saturating_add(seconds.saturating_mul(1000)));
+    }
+    httpdate::parse_http_date(raw)
+        .ok()?
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_millis() as u64)
+}
+
+pub(crate) fn lease_decision(
+    now: u64,
+    requester: &str,
+    owner: Option<&str>,
+    expires: u64,
+    seconds: u64,
+) -> (bool, bool, String, u64) {
+    let acquired = owner.is_none() || now >= expires;
+    (
+        acquired,
+        acquired && owner.is_some_and(|owner| owner != requester),
+        if acquired { requester } else { owner.unwrap() }.to_string(),
+        if acquired {
+            now.saturating_add(seconds.saturating_mul(1000))
+        } else {
+            expires
+        },
+    )
+}
+
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MachineState {
+    #[serde(default)]
+    last_account: Option<String>,
+    owner: Option<String>,
+    expires_at: u64,
+    token: String,
+    next_allowed_at: u64,
+    attempts: u32,
+}
+
+struct MachineLease {
+    directory: PathBuf,
+    file: PathBuf,
+    token: String,
+    attempts: u32,
+    stop: std::sync::mpsc::Sender<()>,
+}
+
+impl MachineLease {
+    fn read(file: &std::path::Path) -> Result<MachineState, ()> {
+        match fsx::bounded_read(file) {
+            Some(text) => serde_json::from_str(&text).map_err(|_| ()),
+            None if !file.exists() => Ok(MachineState::default()),
+            None => Err(()),
+        }
+    }
+
+    fn acquire(
+        directory: &std::path::Path,
+        provider: &str,
+        now: u64,
+    ) -> Result<Self, GateRejection> {
+        Self::acquire_account(directory, provider, None, now)
+    }
+
+    fn acquire_account(
+        directory: &std::path::Path,
+        provider: &str,
+        account: Option<&str>,
+        now: u64,
+    ) -> Result<Self, GateRejection> {
+        let file = directory.join(format!("acquisition-{provider}.json"));
+        let token = uuid::Uuid::new_v4().to_string();
+        let mut rejection = GateRejection::Unavailable;
+        let mut attempts = 0;
+        crate::cache_write::CacheWriter::policy_transaction(directory, || {
+            fsx::reject_symlink(&file).map_err(|_| ())?;
+            let mut state = Self::read(&file)?;
+            attempts = state.attempts;
+            let (acquired, _, _, expires) =
+                lease_decision(now, "desktop", state.owner.as_deref(), state.expires_at, 60);
+            if !acquired {
+                rejection = GateRejection::Busy;
+                return Err(());
+            }
+            if now < state.next_allowed_at
+                && (account.is_none()
+                    || state.last_account.is_none()
+                    || account == state.last_account.as_deref())
+            {
+                rejection = GateRejection::Deferred {
+                    retry_at: state.next_allowed_at,
+                };
+                return Err(());
+            }
+            state.owner = Some("desktop".to_string());
+            state.expires_at = expires;
+            state.token = token.clone();
+            state.last_account = account.map(str::to_string);
+            fsx::atomic_write(&file, &serde_json::to_string(&state).map_err(|_| ())?)
+                .map_err(|_| ())
+        })
+        .map_err(|_| rejection)?;
+        let (stop, receiver) = std::sync::mpsc::channel();
+        let heartbeat_directory = directory.to_path_buf();
+        let heartbeat_file = file.clone();
+        let heartbeat_token = token.clone();
+        let started = Instant::now();
+        std::thread::spawn(move || {
+            while matches!(
+                receiver.recv_timeout(Duration::from_secs(20)),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ) {
+                let at = now.saturating_add(started.elapsed().as_millis() as u64);
+                let result = crate::cache_write::CacheWriter::policy_transaction(
+                    &heartbeat_directory,
+                    || {
+                        let mut state = Self::read(&heartbeat_file)?;
+                        if state.token != heartbeat_token
+                            || state.owner.as_deref() != Some("desktop")
+                            || at >= state.expires_at
+                        {
+                            return Err(());
+                        }
+                        state.expires_at = at.saturating_add(60_000);
+                        fsx::atomic_write(
+                            &heartbeat_file,
+                            &serde_json::to_string(&state).map_err(|_| ())?,
+                        )
+                        .map_err(|_| ())
+                    },
+                );
+                if result.is_err() {
+                    break;
+                }
+            }
+        });
+        Ok(Self {
+            directory: directory.to_path_buf(),
+            file,
+            token,
+            attempts,
+            stop,
+        })
+    }
+
+    fn mutate(&self, action: impl FnOnce(&mut MachineState)) -> Result<(), ()> {
+        crate::cache_write::CacheWriter::policy_transaction(&self.directory, || {
+            let mut state = Self::read(&self.file)?;
+            if state.token != self.token {
+                return Err(());
+            }
+            action(&mut state);
+            fsx::atomic_write(&self.file, &serde_json::to_string(&state).map_err(|_| ())?)
+                .map_err(|_| ())
+        })
+    }
+
+    fn complete(&self, next: u64, attempts: u32) -> Result<(), ()> {
+        self.mutate(|state| {
+            state.next_allowed_at = state.next_allowed_at.max(next);
+            state.attempts = attempts;
+        })
+    }
+}
+
+impl Drop for MachineLease {
+    fn drop(&mut self) {
+        let _ = self.stop.send(());
+        let _ = self.mutate(|state| {
+            state.owner = None;
+            state.expires_at = 0;
+        });
     }
 }
 
@@ -471,6 +801,103 @@ mod tests {
     use crate::test_support::TempDir;
 
     const NOW: u64 = 1_787_136_000_000;
+
+    fn millis(value: &serde_json::Value) -> u64 {
+        chrono::DateTime::parse_from_rfc3339(value.as_str().unwrap())
+            .unwrap()
+            .timestamp_millis() as u64
+    }
+
+    #[test]
+    fn every_shared_policy_vector() {
+        use crate::cache_write::{freshness_policy, policy_iso};
+        let document: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/policy-vectors.json"
+        ))
+        .unwrap();
+        let vectors = &document["vectors"];
+        for vector in vectors["retry"].as_array().unwrap() {
+            let input = &vector["input"];
+            let now = millis(&input["now"]);
+            let decision = retry_decision(
+                input["attemptCount"].as_u64().unwrap() as u32,
+                input["retryAfter"]
+                    .as_str()
+                    .and_then(|header| server_deadline(header, now)),
+                now,
+                input["jitterSeconds"].as_u64().unwrap(),
+                if input["layer"] == "collector" {
+                    86400
+                } else {
+                    604800
+                },
+            );
+            let actual = serde_json::json!({ "localDelaySeconds": decision.local_delay_seconds,
+                "serverDeadline": decision.server_deadline.map(policy_iso), "nextAllowedAt": policy_iso(decision.next_allowed_at),
+                "blockedUntil": decision.blocked_until.map(policy_iso) });
+            assert_eq!(actual, vector["expected"], "{}", vector["id"]);
+        }
+        for vector in vectors["lease"].as_array().unwrap() {
+            let input = &vector["input"];
+            let (acquired, takeover, owner, expires) = lease_decision(
+                millis(&input["now"]),
+                input["requester"].as_str().unwrap(),
+                input["owner"].as_str(),
+                if input["expiresAt"].is_null() {
+                    0
+                } else {
+                    millis(&input["expiresAt"])
+                },
+                input["leaseSeconds"].as_u64().unwrap(),
+            );
+            assert_eq!(
+                serde_json::json!({"acquired": acquired, "takeover": takeover, "owner": owner, "expiresAt": policy_iso(expires)}),
+                vector["expected"],
+                "{}",
+                vector["id"]
+            );
+        }
+        for vector in vectors["freshness"].as_array().unwrap() {
+            let input = &vector["input"];
+            let (ttl, expires, availability) = freshness_policy(
+                input["sourceClass"].as_str().unwrap(),
+                millis(&input["observedAt"]) as i64,
+                millis(&input["now"]) as i64,
+            );
+            assert_eq!(
+                serde_json::json!({"ttlSeconds": ttl, "expiresAt": policy_iso(expires as u64), "availability": availability}),
+                vector["expected"],
+                "{}",
+                vector["id"]
+            );
+        }
+    }
+
+    #[test]
+    fn shared_cli_lease_takeover_and_stale_owner_fencing() {
+        let dir = TempDir::new();
+        let file = dir.path().join("acquisition-claude.json");
+        std::fs::write(&file, serde_json::json!({"owner": "cli", "expiresAt": NOW + 1, "token": "cli-instance", "nextAllowedAt": 0, "attempts": 2}).to_string()).unwrap();
+        assert!(matches!(
+            MachineLease::acquire(dir.path(), "claude", NOW),
+            Err(GateRejection::Busy)
+        ));
+        let first = MachineLease::acquire(dir.path(), "claude", NOW + 1).unwrap();
+        assert!(matches!(
+            MachineLease::acquire(dir.path(), "claude", NOW + 1),
+            Err(GateRejection::Busy)
+        ));
+        let second = MachineLease::acquire(dir.path(), "claude", NOW + 60_001).unwrap();
+        assert!(first.complete(NOW, 0).is_err());
+        drop(first);
+        assert_eq!(MachineLease::read(&file).unwrap().token, second.token);
+        second.complete(NOW + 900_000, 3).unwrap();
+        drop(second);
+        assert!(matches!(
+            MachineLease::acquire(dir.path(), "claude", NOW + 100_000),
+            Err(GateRejection::Deferred { .. })
+        ));
+    }
 
     fn policy(dir: &TempDir) -> RequestPolicy {
         RequestPolicy::at(Some(dir.path().to_path_buf()))
@@ -695,11 +1122,8 @@ mod tests {
     }
 
     #[test]
-    fn missing_and_absurd_retry_after_use_safe_bounded_deadlines() {
-        for (retry_after, expected_seconds) in [
-            (None, RATE_LIMIT_SECONDS),
-            (Some(u64::MAX), MAX_SERVER_DELAY_SECONDS),
-        ] {
+    fn missing_retry_uses_local_delay_and_absurd_retry_blocks_to_seven_day_ceiling() {
+        for (retry_after, expected_seconds) in [(None, 60), (Some(999_999), 7 * 86400)] {
             let dir = TempDir::new();
             let policy = policy(&dir);
             let lease = policy

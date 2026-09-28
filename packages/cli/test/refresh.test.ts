@@ -226,7 +226,7 @@ describe("openlimiter refresh", () => {
     expect(third.sent.length).toBe(asked);
   });
 
-  it("waits an hour after a rate limit and a day after a refusal", async () => {
+  it("waits per the agreed exponential plan after a rate limit and a day after a refusal", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
     const rateLimited: AcquisitionTransport = async (request) =>
@@ -237,11 +237,11 @@ describe("openlimiter refresh", () => {
       ["refresh"],
       dependencies(state, home, rateLimited)
     );
-    expect(result.stdout).toContain("kimi yes stale 2026-01-01T01:00:00.000Z");
+    expect(result.stdout).toContain("kimi yes stale 2026-01-01T00:01:00.000Z");
     expect(result.stdout).toContain("codex yes stale 2026-01-02T00:00:00.000Z");
-    /* A failed read never rewrites the cache. The rows a person already had
-       stay, and age out through the ordinary freshness rule. */
-    expect(await cachedProviders(state)).toEqual([]);
+    // The agreed plan records availability without inventing usage observations.
+    const cached = await readSnapshotCache(state);
+    expect(cached.ok && cached.snapshots.every((row) => row.meter === "ACQUISITION" && row.availability !== undefined)).toBe(true);
   });
 
   it("leaves the desktop owned provider alone while acquiring the other providers", async () => {

@@ -3,10 +3,9 @@
  *
  * Two questions live here, and they are different questions.
  *
- * The first is ownership. A machine running the desktop tray already has a
- * refresher, and a status line that polls anyway doubles the traffic the
- * provider sees for no new information. So a cache carrying a desktop write
- * inside the last interval is a cache the command line tool leaves alone.
+ * Provider ownership is enforced by the shared machine lease in cache.ts.
+ * Legacy desktop writer markers also reserve providers inside the freshness
+ * interval, so a 2.0 CLI cooperates with a 1.3 desktop without leases.
  *
  * The second is freshness without a background service. A status line render
  * reads the cache and nothing else, and when the cache is older than a minute

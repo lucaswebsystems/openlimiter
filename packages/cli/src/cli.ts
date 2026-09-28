@@ -851,16 +851,12 @@ const ACQUISITION_HEADER = "PROVIDER DETECTED STATUS NEXT NOTE";
 /**
  * Run one round of acquisition and fold what it found into the cache.
  *
- * Three refusals come before any request. A desktop that wrote inside the last
- * interval already owns this machine's refreshing, so this command stands down
- * rather than doubling the traffic a provider sees. A refresh already running
- * holds the lock, so this one exits instead of racing it on the same
- * credentials. And a provider inside its own backoff is skipped by the runner
- * without being asked anything.
+ * The refresh lock serializes CLI rounds. The runner takes the shared machine
+ * lease for each provider before acquisition and persists its retry deadline
+ * before releasing ownership.
  *
- * Only a successful read writes. A refusal, a rate limit or a shape this build
- * did not understand leaves every cached row exactly where it was, to age out
- * through the ordinary freshness rule.
+ * Successful reads replace observations. Expiry and rate limits record
+ * availability while preserving the original observation time.
  */
 async function refreshCommand(
   dependencies: CliDependencies,
@@ -875,15 +871,8 @@ async function refreshCommand(
     ].join(NEWLINE));
   }
   try {
-    /*
-     * Desktop ownership is decided HERE, under the lock, and nowhere else.
-     * Checking it before taking the lock read a cache that a desktop could
-     * start writing a millisecond later, and this round would then poll every
-     * provider a second time for nothing. One check, on the only side of the
-     * lock where the answer cannot change underneath it.
-     */
-    const settled = await readSnapshotCache(dependencies.stateDirectory);
     const providers = await readProvidersConfig(dependencies.stateDirectory);
+    const settled = await readSnapshotCache(dependencies.stateDirectory);
     const specs = acquisitionSpecs(providers).filter((spec) => !desktopHoldsCache(
       settled.ok ? settled.snapshots.filter((row) => row.provider === spec.provider) : [], now
     ));
@@ -898,6 +887,8 @@ async function refreshCommand(
     await clearRefreshSpawnFailure(dependencies.stateDirectory);
     const schedule = await readAcquisitionSchedule(dependencies.stateDirectory);
     const result = await runAcquisition(specs, {
+      stateDirectory: dependencies.stateDirectory ?? resolveStateDirectory(),
+      clock: () => Date.parse(dependencies.now()),
       transport: dependencies.acquisitionTransport,
       now,
       schedule,
@@ -915,10 +906,8 @@ async function refreshCommand(
      * can outlive its lock if this machine was suspended mid refresh, and a
      * round that lost its lock must not write over the round that took it.
      *
-     * The refresh lock only coordinates other copies of THIS tool. The desktop
-     * tray is a separate process that knows nothing about it, so the write
-     * itself has to be safe against a desktop row that appeared since this
-     * round started reading. `mergeAcquiredSnapshots` decides that per row,
+     * Native payloads can arrive during acquisition. `mergeAcquiredSnapshots`
+     * arbitrates observations per row,
      * inside the cache lock both processes do share, keeping whichever row is
      * newer and leaving a tie with the row already there.
      */
