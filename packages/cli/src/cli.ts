@@ -95,6 +95,7 @@ import {
 } from "@openlimiter/adapters";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import packageJson from "../package.json" with { type: "json" };
 import { homedir } from "node:os";
 import {
   PROVIDER_KEYS,
@@ -1046,6 +1047,7 @@ function doctorRows(
 
 const help = [
   "openlimiter",
+  "openlimiter --version | -v | version",
   "openlimiter setup",
   "openlimiter login [--open]",
   "openlimiter logout",
@@ -2379,6 +2381,9 @@ export async function runCli(
   const command = argumentsList[0] ?? "setup";
   const now = dependencies.now();
   try {
+    if (command === "--version" || command === "-v" || command === "version") {
+      return succeed(packageJson.version);
+    }
     if (command === "setup") {
       const result = await setupCommand(dependencies, now);
       if (hasOutputSink || setupOutput.length === 0) return result;

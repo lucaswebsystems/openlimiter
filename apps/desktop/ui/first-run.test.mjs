@@ -463,6 +463,45 @@ test("overlapping forced scans serialize and commit only the latest generation",
   );
 });
 
+test("a successful Claude poll toggle updates the value used by the next redraw", () => {
+  let cached = false;
+  assert.equal(
+    persistedToggleValue(false, true, { ok: true, value: true }, (value) => {
+      cached = value;
+    }),
+    true,
+  );
+  assert.equal(cached, true);
+  assert.equal(
+    persistedToggleValue(true, false, { ok: false }, (value) => {
+      cached = value;
+    }),
+    true,
+  );
+  assert.equal(cached, true);
+});
+
+test("Claude poll cache changes only after an acknowledged matching save", () => {
+  for (const requested of [true, false]) {
+    for (const result of [false, undefined, { ok: false }, { ok: true, value: !requested }]) {
+      let calls = 0;
+      assert.equal(
+        persistedToggleValue(!requested, requested, result, () => { calls += 1; }),
+        !requested,
+      );
+      assert.equal(calls, 0);
+    }
+    for (const result of [true, { ok: true, value: requested }]) {
+      const saved = [];
+      assert.equal(
+        persistedToggleValue(!requested, requested, result, (value) => saved.push(value)),
+        requested,
+      );
+      assert.deepEqual(saved, [requested]);
+    }
+  }
+});
+
 test("the Codex device flow finishes inside our own window", async () => {
   const seen = [];
   let started = null;

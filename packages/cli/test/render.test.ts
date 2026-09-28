@@ -297,6 +297,21 @@ describe("fields", () => {
 });
 
 describe("table", () => {
+  it.each([
+    ["FIVE_HOUR", "5h"],
+    ["SEVEN_DAY", "Weekly"],
+    ["WEEKLY", "Weekly"],
+    ["MONTHLY", "Monthly"],
+    ["Provider custom window", "Provider custom window"],
+    ["NEW_PROVIDER_WINDOW", "New provider window"],
+    ["custom_window", "Custom window"],
+    ["TOKENS", "Tokens"]
+  ])("renders synced window %s as %s", (meter, label) => {
+    const table = renderTable([reading({ meter })], NOW, false);
+    expect(table.split("\n")[1]).toMatch(new RegExp("^OPENROUTER\\s+" + label + "\\s+"));
+    if (meter !== label) expect(table).not.toContain(meter);
+  });
+
   it("keeps nine columns on every row so a script can split it", () => {
     const table = renderTable(
       [

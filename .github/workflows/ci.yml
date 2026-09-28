@@ -79,6 +79,20 @@ jobs:
         working-directory: apps/web
         run: pnpm install --ignore-workspace --frozen-lockfile
 
+      - name: Lint web application
+        working-directory: apps/web
+        run: pnpm lint
+
+      - name: Test web application
+        working-directory: apps/web
+        run: pnpm test
+
+      - name: Validate locale ICU catalogs
+        working-directory: apps/web
+        run: |
+          node ../../scripts/check-catalogs.mjs --self-test
+          node ../../scripts/check-catalogs.mjs
+
       - name: Build web application standalone
         working-directory: apps/web
         run: pnpm build
@@ -88,7 +102,7 @@ jobs:
       # release workflow assembles it before the crate is tested.
       - name: Install desktop dependencies
         working-directory: apps/desktop
-        run: pnpm install --ignore-workspace
+        run: pnpm install --ignore-workspace --frozen-lockfile
 
       - name: Generate icons
         working-directory: apps/desktop
@@ -97,6 +111,10 @@ jobs:
       - name: Assemble the desktop user interface
         working-directory: apps/desktop
         run: node scripts/build-ui.mjs
+
+      - name: Test desktop user interface
+        working-directory: apps/desktop
+        run: node --test ui/*.test.mjs
 
       - name: Run desktop cargo tests
         working-directory: apps/desktop/src-tauri

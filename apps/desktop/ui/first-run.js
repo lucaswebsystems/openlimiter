@@ -743,8 +743,9 @@ function quietButton(label) {
 }
 
 /** Keep the old displayed value until the backend confirms the new one. */
-export function persistedToggleValue(previous, requested, result) {
+export function persistedToggleValue(previous, requested, result, onPersisted = () => {}) {
   const saved = result === true || (result?.ok === true && result.value === requested);
+  if (saved) onPersisted(requested);
   return saved ? requested : previous;
 }
 
@@ -754,7 +755,16 @@ export function persistedToggleValue(previous, requested, result) {
  * it. Everything a state needs to say more than a button can hold goes in the
  * disclosure under both columns, which grows the row downward instead.
  */
-function connectRow(provider, detection, signals, options, redraw, pollEnabled, quota) {
+function connectRow(
+  provider,
+  detection,
+  signals,
+  options,
+  redraw,
+  pollEnabled,
+  onPollChanged,
+  quota,
+) {
   const row = element("div", "first-run-row");
   row.dataset.state = detection?.state ?? "unavailable";
   row.dataset.provider = provider.code;
@@ -819,7 +829,7 @@ function connectRow(provider, detection, signals, options, redraw, pollEnabled, 
   /* The poll setting belongs to the Claude row and to no other, so it is
      drawn under it rather than in a settings list a person has not met yet. */
   if (provider.code === "CLAUDE" && (detection?.state ?? "") === "present") {
-    row.append(claudePollRow(options, pollEnabled));
+    row.append(claudePollRow(options, pollEnabled, onPollChanged));
   }
   return row;
 }
@@ -843,13 +853,8 @@ export function claudePollRow(options, enabled, onPersisted, id = "first-run-cla
       .setClaudePoll(requested)
       .catch(() => ({ ok: false }))
       .then((result) => {
-        const settled = persistedToggleValue(previous, requested, result);
-        input.checked = settled;
+        input.checked = persistedToggleValue(previous, requested, result, onPersisted);
         input.disabled = false;
-        /* The caller keeps its own copy of the setting, so a row rebuilt
-           after this point draws what was actually stored, not the value
-           the page started with. */
-        if (settled === requested && typeof onPersisted === "function") onPersisted(settled);
       });
   });
   wrapper.append(label, note);
@@ -909,7 +914,16 @@ async function startCodexSignIn(provider, options, disclosure, button, redraw) {
   button.disabled = false;
 }
 
-function renderProviders(screen, result, signals, options, redraw, pollEnabled, quota) {
+function renderProviders(
+  screen,
+  result,
+  signals,
+  options,
+  redraw,
+  pollEnabled,
+  onPollChanged,
+  quota,
+) {
   const list = screen.querySelector("#first-run-providers");
   const note = screen.querySelector("#first-run-status");
   if (list === null) return;
@@ -923,7 +937,16 @@ function renderProviders(screen, result, signals, options, redraw, pollEnabled, 
       recovery: null,
     };
     list.append(
-      connectRow(provider, detection, signals, options, redraw, pollEnabled, quota),
+      connectRow(
+        provider,
+        detection,
+        signals,
+        options,
+        redraw,
+        pollEnabled,
+        onPollChanged,
+        quota,
+      ),
     );
   }
   if (note === null) return;
@@ -1065,6 +1088,9 @@ export function initFirstRun(input) {
         options,
         redraw,
         claudePollEnabled,
+        (value) => {
+          claudePollEnabled = value === true;
+        },
         codexQuota,
       );
     };
@@ -1078,6 +1104,9 @@ export function initFirstRun(input) {
       options,
       redraw,
       claudePollEnabled,
+      (value) => {
+        claudePollEnabled = value === true;
+      },
       codexQuota,
     );
   }

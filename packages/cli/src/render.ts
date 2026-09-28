@@ -345,6 +345,20 @@ function providerIdentity(snapshot: Snapshot): string {
   return collectionIdentity(snapshot.provider, snapshot.accountId);
 }
 
+/** Display familiar windows and preserve provider supplied names. */
+function windowName(meter: string): string {
+  const names: Readonly<Record<string, string>> = {
+    FIVE_HOUR: "5h",
+    SEVEN_DAY: "Weekly",
+    WEEKLY: "Weekly",
+    MONTHLY: "Monthly"
+  };
+  if (Object.hasOwn(names, meter)) return names[meter]!;
+  if (!meter.includes("_") && meter !== meter.toUpperCase()) return meter;
+  const words = meter.toLowerCase().replace(/[_\s-]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** Trim an identity to the column width, keeping the leftmost characters. */
 function truncateIdentity(text: string, maxWidth: number): string {
   if (text.length <= maxWidth) return text;
@@ -390,7 +404,7 @@ function buildRow(
 ): Row {
   return {
     provider: truncateIdentity(providerIdentity(snapshot), MAX_PROVIDER_WIDTH),
-    meter: snapshot.meter,
+    meter: windowName(snapshot.meter),
     bar: meterBar(snapshot.value, state, color),
     usage: floorFixed(snapshot.value, 2) + snapshot.unit,
     amount: amountField(snapshot),

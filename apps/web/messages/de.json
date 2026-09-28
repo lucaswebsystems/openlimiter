@@ -2032,6 +2032,13 @@
     "restore": "Mit einem Abonnement kommt alles wie zuvor zurück. Ihre Einstellungen wurden behalten."
   },
   "hub": {
+    "providers": {
+      "title": "Anbieter",
+      "automaticPrompt": "Öffne die Desktopanwendung. Dort beginnt die lokale Erkennung.",
+      "manualPrompt": "Öffne die Desktopanwendung. Dein Schlüssel bleibt im Anmeldeinformationsspeicher des Systems.",
+      "getDesktop": "Desktop App herunterladen",
+      "close": "Schließen"
+    },
     "syncedSpend": { "sourceThrough": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}", "sourceUpTo": "Vom Desktop synchronisiert: {provider}, {account}, {start} bis {end}" },
     "addAccount": "Konto hinzufügen",
     "configuration": "Konfiguration",

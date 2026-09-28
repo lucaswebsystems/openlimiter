@@ -2032,6 +2032,13 @@
     "restore": "登録するとすべてが元の状態に戻ります。設定は保持されています。"
   },
   "hub": {
+    "providers": {
+      "title": "プロバイダー",
+      "automaticPrompt": "デスクトップアプリを開いてください。ローカル検出はそこから始まります。",
+      "manualPrompt": "デスクトップアプリを開いてください。キーはOSの資格情報ストアに保存されたままです。",
+      "getDesktop": "デスクトップアプリを入手",
+      "close": "閉じる"
+    },
     "syncedSpend": { "sourceThrough": "デスクトップから同期：{provider}、{account}、{start}から{end}まで", "sourceUpTo": "デスクトップから同期：{provider}、{account}、{start}から{end}まで" },
     "addAccount": "アカウントを追加",
     "configuration": "設定",

@@ -264,24 +264,34 @@ pub(crate) fn loopback_port(address: &str) -> Option<u16> {
     (port != 0).then_some(port)
 }
 
-/// Directories a real Antigravity may have been installed into.
-///
-/// # Why a list of roots and not a list of exact paths
-///
-/// The honest position is that this repository has no verified install path
-/// for the vendor's client. Writing one down from memory would be a guess that
-/// breaks the reader on every machine that installed it somewhere else, which
-/// is worse than the problem it is meant to solve. What can be stated without
-/// guessing is where software legitimately lives on this operating system, so
-/// that is the fence: a binary called `agy` sitting in a program directory or
-/// a package manager's bin directory is plausibly the vendor's, and one
-/// sitting in a downloads folder, a temporary directory or a shared drive is
-/// not something this process starts talking to.
+/// The Windows user installer places `agy.exe` in this exact directory below
+/// `%LOCALAPPDATA%`, as documented by the vendor.
+const WINDOWS_AGY_INSTALL_RELATIVE: &[&str] = &["agy", "bin"];
+
+/// The vendor's documented machine wide Windows installation directory below
+/// a `Program Files` root.
+const WINDOWS_AGY_PROGRAM_FILES_RELATIVE: &[&str] = &["Google", "antigravity-cli"];
+
+/// The vendor's macOS installer places `agy` in this exact directory below the
+/// user's home directory.
+const MACOS_AGY_INSTALL_RELATIVE: &[&str] = &[".local", "bin"];
+
+/// The vendor's Linux installer places `agy` in this exact directory below the
+/// user's home directory.
+const LINUX_AGY_INSTALL_RELATIVE: &[&str] = &[".local", "bin"];
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum TargetPlatform {
     Windows,
     Macos,
     Linux,
+}
+
+fn append_relative(base: &Path, relative: &[&str]) -> PathBuf {
+    let mut path = base.to_path_buf();
+    for part in relative {
+        path.push(part);
+    }
+    path
 }
 
 impl TargetPlatform {
@@ -300,54 +310,28 @@ pub(crate) fn roots_for_platform(
     platform: TargetPlatform,
     home: Option<&Path>,
     local_app_data: Option<&Path>,
-    /* %APPDATA% itself is never a root: see the comment on the Windows arm
-    below. The parameter stays, unused, rather than reshaping every call site
-    (including `install_roots` and this file's own tests) around its removal. */
+    // The roaming application data directory is not a vendor install root.
     _app_data: Option<&Path>,
     program_files: &[Option<&Path>],
 ) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     match platform {
         TargetPlatform::Windows => {
-            /* The bare %LOCALAPPDATA% and %APPDATA% roots are refused on
-            purpose: both are where a browser download, an archive extraction
-            or an installer's own temp files land too, not only where software
-            legitimately lives. Their `Programs` subfolder is the actual
-            install location and stays; the two broad parents around it do
-            not, so an executable planted anywhere else under either one is
-            never mistaken for the real client. */
             if let Some(lad) = local_app_data {
-                roots.push(lad.join("Programs"));
+                roots.push(append_relative(lad, WINDOWS_AGY_INSTALL_RELATIVE));
             }
             for pf in program_files.iter().flatten() {
-                roots.push(pf.to_path_buf());
-            }
-            if let Some(h) = home {
-                roots.push(h.join("bin"));
-                roots.push(h.join("Applications"));
+                roots.push(append_relative(pf, WINDOWS_AGY_PROGRAM_FILES_RELATIVE));
             }
         }
         TargetPlatform::Macos => {
             if let Some(h) = home {
-                roots.push(h.join("Applications"));
-                roots.push(h.join("bin"));
-                roots.push(h.join(".local"));
-                roots.push(h.join(".nvm"));
-            }
-            for fixed in ["/Applications", "/usr/bin", "/usr/local", "/opt"] {
-                roots.push(PathBuf::from(fixed));
+                roots.push(append_relative(h, MACOS_AGY_INSTALL_RELATIVE));
             }
         }
         TargetPlatform::Linux => {
             if let Some(h) = home {
-                roots.push(h.join(".local").join("bin"));
-                roots.push(h.join("bin"));
-                roots.push(h.join("Applications"));
-                roots.push(h.join(".local"));
-                roots.push(h.join(".nvm"));
-            }
-            for fixed in ["/opt", "/usr/local", "/usr/bin", "/snap"] {
-                roots.push(PathBuf::from(fixed));
+                roots.push(append_relative(h, LINUX_AGY_INSTALL_RELATIVE));
             }
         }
     }
@@ -373,11 +357,8 @@ fn install_roots() -> Vec<PathBuf> {
 
 /// Whether this executable path may be talked to.
 ///
-/// Two questions, both cheap: is the file actually named after the vendor's
-/// client, and does it live somewhere software lives. A process is free to
-/// call itself `agy.exe` from anywhere, and the name alone was the whole of
-/// the check before this, so anything that could start a process could have
-/// this build POST to a port of its choosing on loopback.
+/// Check the executable name and its canonical location before a port is
+/// addressed.
 pub(crate) fn trusted_agy_executable(path: &Path, roots: &[PathBuf]) -> bool {
     let named = path
         .file_name()
@@ -396,7 +377,7 @@ pub(crate) fn trusted_agy_executable(path: &Path, roots: &[PathBuf]) -> bool {
     {
         return false;
     }
-    roots.iter().any(|root| path.starts_with(root))
+    crate::provider_detection::validated_executable_in_roots(path, roots).is_some()
 }
 
 /// Loopback ports a `netstat` report shows those processes listening on.
@@ -482,9 +463,11 @@ fn executable_of(pid: u32) -> Option<PathBuf> {
 
 #[cfg(all(unix, not(target_os = "linux")))]
 fn executable_of(pid: u32) -> Option<PathBuf> {
-    let report = bounded_output("ps", &["-o", "comm=", "-p", &pid.to_string()])?;
-    let line = report.lines().next()?.trim();
-    (!line.is_empty()).then(|| PathBuf::from(line))
+    let report = bounded_output("lsof", &["-a", "-p", &pid.to_string(), "-d", "txt", "-Fn"])?;
+    report
+        .lines()
+        .find_map(|line| line.strip_prefix('n').filter(|path| !path.is_empty()))
+        .map(PathBuf::from)
 }
 
 /// The real enumeration, asking the operating system what is listening.
@@ -498,6 +481,18 @@ pub struct SystemAgyPorts;
 /// nothing else.
 #[cfg(windows)]
 pub(crate) fn owned_agy_pids(report: &str, roots: &[PathBuf]) -> Vec<u32> {
+    report
+        .lines()
+        .filter_map(|line| {
+            let (pid, path) = line.trim().split_once('|')?;
+            let pid = pid.trim().parse::<u32>().ok()?;
+            trusted_agy_executable(Path::new(path.trim()), roots).then_some(pid)
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+fn owned_agy_processes(report: &str, roots: &[PathBuf]) -> Vec<(u32, PathBuf)> {
     let mut pids = Vec::new();
     for line in report.lines() {
         let Some((pid, path)) = line.trim().split_once('|') else {
@@ -510,8 +505,13 @@ pub(crate) fn owned_agy_pids(report: &str, roots: &[PathBuf]) -> Vec<u32> {
         if path.is_empty() {
             continue;
         }
-        if trusted_agy_executable(Path::new(path), roots) {
-            pids.push(pid);
+        let path = Path::new(path);
+        if trusted_agy_executable(path, roots) {
+            if let Some(real) =
+                crate::provider_detection::validated_executable_in_roots(path, roots)
+            {
+                pids.push((pid, real));
+            }
         }
     }
     pids
@@ -568,13 +568,14 @@ impl AgyPorts for SystemAgyPorts {
         ) else {
             return Vec::new();
         };
-        let pids = owned_agy_pids(&report, &install_roots());
+        let pids = owned_agy_processes(&report, &install_roots());
         if pids.is_empty() {
             return Vec::new();
         }
         let Some(connections) = bounded_output("netstat", &["-ano", "-p", "TCP"]) else {
             return Vec::new();
         };
+        let pids = pids.into_iter().map(|(pid, _)| pid).collect::<Vec<_>>();
         netstat_ports(&connections, &pids)
     }
 }
@@ -589,9 +590,8 @@ impl AgyPorts for SystemAgyPorts {
 
         Scoped to this user where the machine states one, so another account's
         session on a shared machine is never addressed. */
-        let user = std::env::var("USER")
-            .or_else(|_| std::env::var("LOGNAME"))
-            .ok()
+        let user = bounded_output("id", &["-un"])
+            .and_then(|value| value.lines().next().map(str::trim).map(str::to_owned))
             .filter(|value| !value.is_empty());
         let mut arguments: Vec<&str> = vec![
             "-nP",
@@ -686,12 +686,19 @@ impl SystemLoopbackProbe {
         if !response.status().is_success() {
             return None;
         }
-        let bytes = response.bytes().await.ok()?;
-        if bytes.len() > MAX_BODY_BYTES {
+        bounded_response_body(response).await
+    }
+}
+
+async fn bounded_response_body(mut response: reqwest::Response) -> Option<String> {
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.ok()? {
+        if body.len().saturating_add(chunk.len()) > MAX_BODY_BYTES {
             return None;
         }
-        String::from_utf8(bytes.to_vec()).ok()
+        body.extend_from_slice(&chunk);
     }
+    String::from_utf8(body).ok()
 }
 
 /// Even with redirect policy disabled, keep the final destination check beside
@@ -727,6 +734,19 @@ impl LoopbackProbe for SystemLoopbackProbe {
 mod tests {
     use super::*;
     use std::sync::Mutex;
+
+    fn write_test_file(path: &Path) {
+        std::fs::create_dir_all(path.parent().expect("test file parent")).expect("test directory");
+        std::fs::write(path, b"").expect("test file");
+    }
+
+    fn agy_file_name() -> &'static str {
+        if cfg!(windows) {
+            "agy.exe"
+        } else {
+            "agy"
+        }
+    }
 
     #[derive(Clone)]
     struct StubPorts(Vec<u16>);
@@ -938,38 +958,36 @@ mod tests {
     /// choosing.
     #[test]
     fn a_process_called_agy_from_anywhere_is_not_trusted() {
-        let roots = vec![PathBuf::from(if cfg!(windows) {
-            r"C:\Program Files"
-        } else {
-            "/usr/local"
-        })];
-        let inside = if cfg!(windows) {
-            r"C:\Program Files\Antigravity\agy.exe"
-        } else {
-            "/usr/local/bin/agy"
-        };
-        assert!(trusted_agy_executable(Path::new(inside), &roots));
+        let dir = crate::test_support::TempDir::new();
+        let roots = vec![dir.path().join("vendor-root")];
+        let inside = roots[0].join("Antigravity").join(agy_file_name());
+        write_test_file(&inside);
+        assert!(trusted_agy_executable(&inside, &roots));
 
-        for hostile in if cfg!(windows) {
-            vec![
-                r"C:\Users\someone\Downloads\agy.exe",
-                r"C:\Temp\agy.exe",
-                r"C:\Program Files\Antigravity\notagy.exe",
-                r"C:\Program Files\..\Temp\agy.exe",
-                r"agy.exe",
-            ]
+        let hostile_downloads = dir.path().join("Downloads").join(agy_file_name());
+        let hostile_temp = dir.path().join("Temp").join(agy_file_name());
+        let hostile_name = roots[0].join("Antigravity").join(if cfg!(windows) {
+            "notagy.exe"
         } else {
-            vec![
-                "/tmp/agy",
-                "/home/someone/Downloads/agy",
-                "/usr/local/bin/notagy",
-                "/usr/local/../tmp/agy",
-                "agy",
-            ]
-        } {
+            "notagy"
+        });
+        let hostile_parent = roots[0].join("..").join("Temp").join(agy_file_name());
+        write_test_file(&hostile_downloads);
+        write_test_file(&hostile_temp);
+        write_test_file(&hostile_name);
+        write_test_file(&hostile_parent);
+
+        for hostile in [
+            hostile_downloads,
+            hostile_temp,
+            hostile_name,
+            hostile_parent,
+            PathBuf::from(agy_file_name()),
+        ] {
             assert!(
-                !trusted_agy_executable(Path::new(hostile), &roots),
-                "{hostile} was trusted"
+                !trusted_agy_executable(&hostile, &roots),
+                "{} was trusted",
+                hostile.display()
             );
         }
     }
@@ -990,17 +1008,18 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn only_a_verified_executable_of_this_user_contributes_a_process() {
-        let roots = vec![PathBuf::from(r"C:\Program Files")];
-        let report = concat!(
-            "4812|C:\\Program Files\\Antigravity\\agy.exe\n",
-            /* Right name, wrong place. */
-            "9001|C:\\Users\\someone\\Downloads\\agy.exe\n",
-            /* No path at all, which is what a process this query could not
-            open looks like. */
-            "9002|\n",
-            "garbage\n",
+        let dir = crate::test_support::TempDir::new();
+        let roots = vec![dir.path().join("vendor-root")];
+        let inside = roots[0].join("Antigravity").join("agy.exe");
+        let outside = dir.path().join("Downloads").join("agy.exe");
+        write_test_file(&inside);
+        write_test_file(&outside);
+        let report = format!(
+            "4812|{}\n9001|{}\n9002|\ngarbage\n",
+            inside.display(),
+            outside.display(),
         );
-        assert_eq!(owned_agy_pids(report, &roots), vec![4812]);
+        assert_eq!(owned_agy_pids(&report, &roots), vec![4812]);
         assert!(owned_agy_pids("", &roots).is_empty());
     }
 
@@ -1090,81 +1109,133 @@ mod tests {
 
     #[test]
     fn install_roots_accept_and_refuse_per_platform() {
-        // Windows: %LOCALAPPDATA%\Programs, user profile's bin and Applications
+        let dir = crate::test_support::TempDir::new();
+
+        // Windows: the user installer directory and the documented machine directory
+        let win_home = dir.path().join("windows-home");
+        let win_local = win_home.join("AppData").join("Local");
+        let win_roaming = win_home.join("AppData").join("Roaming");
+        let win_program_files = dir.path().join("Program Files");
         let win_roots = roots_for_platform(
             TargetPlatform::Windows,
-            Some(Path::new(r"C:\Users\someone")),
-            Some(Path::new(r"C:\Users\someone\AppData\Local")),
-            Some(Path::new(r"C:\Users\someone\AppData\Roaming")),
-            &[Some(Path::new(r"C:\Program Files"))],
+            Some(&win_home),
+            Some(&win_local),
+            Some(&win_roaming),
+            &[Some(win_program_files.as_path())],
         );
-        let win_accepted_programs =
-            Path::new(r"C:\Users\someone\AppData\Local\Programs\Antigravity\agy.exe");
-        let win_accepted_bin = Path::new(r"C:\Users\someone\bin\agy.exe");
-        let win_accepted_apps = Path::new(r"C:\Users\someone\Applications\agy.exe");
-        let win_refused = Path::new(r"C:\Users\someone\Downloads\agy.exe");
-        // Windows drive letters and backslashes are not absolute paths on
-        // POSIX. Each host must apply its own path grammar to this fixture.
-        for accepted in [win_accepted_programs, win_accepted_bin, win_accepted_apps] {
-            assert_eq!(trusted_agy_executable(accepted, &win_roots), cfg!(windows));
-        }
-        assert!(!trusted_agy_executable(win_refused, &win_roots));
+        let win_user_agy = win_local.join("agy").join("bin").join("agy.exe");
+        let win_machine_agy = win_program_files
+            .join("Google")
+            .join("antigravity-cli")
+            .join("agy.exe");
+        let win_unrelated = win_local.join("Programs").join("unrelated").join("agy.exe");
+        write_test_file(&win_user_agy);
+        write_test_file(&win_machine_agy);
+        write_test_file(&win_unrelated);
+        assert!(trusted_agy_executable(&win_user_agy, &win_roots));
+        assert!(trusted_agy_executable(&win_machine_agy, &win_roots));
+        assert!(!trusted_agy_executable(&win_unrelated, &win_roots));
 
-        /* The bare %LOCALAPPDATA% and %APPDATA% roots are refused: only their
-        Programs subfolder is where software legitimately lives, and the two
-        broad parents around it are exactly where a browser download or an
-        archive extraction lands too. */
-        let win_refused_bare_local = Path::new(r"C:\Users\someone\AppData\Local\Temp\agy.exe");
-        let win_refused_bare_roaming =
-            Path::new(r"C:\Users\someone\AppData\Roaming\Downloads\agy.exe");
-        assert!(!trusted_agy_executable(win_refused_bare_local, &win_roots));
-        assert!(!trusted_agy_executable(
-            win_refused_bare_roaming,
-            &win_roots
-        ));
+        // macOS: the vendor's user installer directory
+        let mac_home = dir.path().join("mac-home");
+        let mac_roots = roots_for_platform(TargetPlatform::Macos, Some(&mac_home), None, None, &[]);
+        let mac_agy = mac_home.join(".local").join("bin").join("agy");
+        let mac_unrelated = mac_home.join("Applications").join("unrelated").join("agy");
+        write_test_file(&mac_agy);
+        write_test_file(&mac_unrelated);
+        assert!(trusted_agy_executable(&mac_agy, &mac_roots));
+        assert!(!trusted_agy_executable(&mac_unrelated, &mac_roots));
 
-        // macOS: ~/Applications, ~/bin, /Applications
-        let mac_roots = roots_for_platform(
-            TargetPlatform::Macos,
-            Some(Path::new("/Users/someone")),
-            None,
-            None,
-            &[],
-        );
-        let mac_accepted_user_apps = Path::new("/Users/someone/Applications/Antigravity/agy");
-        let mac_accepted_bin = Path::new("/Users/someone/bin/agy");
-        let mac_accepted_sys_apps = Path::new("/Applications/Antigravity.app/Contents/MacOS/agy");
-        let mac_refused = Path::new("/Users/someone/Downloads/agy");
-        assert!(trusted_agy_executable(mac_accepted_user_apps, &mac_roots));
-        assert!(trusted_agy_executable(mac_accepted_bin, &mac_roots));
-        assert!(trusted_agy_executable(mac_accepted_sys_apps, &mac_roots));
-        assert!(!trusted_agy_executable(mac_refused, &mac_roots));
+        // Linux: the vendor's user installer directory
+        let linux_home = dir.path().join("linux-home");
+        let linux_roots =
+            roots_for_platform(TargetPlatform::Linux, Some(&linux_home), None, None, &[]);
+        let linux_agy = linux_home.join(".local").join("bin").join("agy");
+        let linux_unrelated = linux_home
+            .join(".local")
+            .join("share")
+            .join("unrelated")
+            .join("agy");
+        write_test_file(&linux_agy);
+        write_test_file(&linux_unrelated);
+        assert!(trusted_agy_executable(&linux_agy, &linux_roots));
+        assert!(!trusted_agy_executable(&linux_unrelated, &linux_roots));
+    }
 
-        // Linux: ~/.local/bin, ~/bin, ~/Applications, /opt, /usr/local
-        let linux_roots = roots_for_platform(
-            TargetPlatform::Linux,
-            Some(Path::new("/home/someone")),
-            None,
-            None,
-            &[],
-        );
-        let linux_accepted_local_bin = Path::new("/home/someone/.local/bin/agy");
-        let linux_accepted_bin = Path::new("/home/someone/bin/agy");
-        let linux_accepted_apps = Path::new("/home/someone/Applications/agy");
-        let linux_accepted_opt = Path::new("/opt/antigravity/bin/agy");
-        let linux_accepted_usr_local = Path::new("/usr/local/bin/agy");
-        let linux_refused = Path::new("/home/someone/Downloads/agy");
-        assert!(trusted_agy_executable(
-            linux_accepted_local_bin,
-            &linux_roots
-        ));
-        assert!(trusted_agy_executable(linux_accepted_bin, &linux_roots));
-        assert!(trusted_agy_executable(linux_accepted_apps, &linux_roots));
-        assert!(trusted_agy_executable(linux_accepted_opt, &linux_roots));
-        assert!(trusted_agy_executable(
-            linux_accepted_usr_local,
-            &linux_roots
-        ));
-        assert!(!trusted_agy_executable(linux_refused, &linux_roots));
+    #[test]
+    fn a_real_agy_path_must_be_a_file_in_the_exact_vendor_directory() {
+        let dir = crate::test_support::TempDir::new();
+        let root = dir.path().join("agy").join("bin");
+        let unrelated = dir.path().join("unrelated");
+        std::fs::create_dir_all(&root).expect("vendor directory");
+        std::fs::create_dir_all(&unrelated).expect("unrelated directory");
+        let canonical = root.join("agy");
+        let foreign = unrelated.join("agy");
+        std::fs::write(&canonical, b"agy").expect("canonical executable");
+        std::fs::write(&foreign, b"agy").expect("foreign executable");
+        let roots = vec![root];
+
+        assert!(trusted_agy_executable(&canonical, &roots));
+        assert!(!trusted_agy_executable(&foreign, &roots));
+    }
+
+    #[tokio::test]
+    async fn an_oversized_chunked_answer_is_refused_before_end_of_body() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        use std::thread;
+
+        let listener = TcpListener::bind("127.0.0.1:0").expect("listener");
+        let port = listener.local_addr().expect("address").port();
+        let (release, hold_open) = std::sync::mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("connection");
+            stream
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .expect("read deadline");
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 1024];
+            loop {
+                let count = stream.read(&mut buffer).expect("request");
+                assert!(count > 0);
+                request.extend_from_slice(&buffer[..count]);
+                if request
+                    .windows(4)
+                    .position(|part| part == b"\r\n\r\n")
+                    .is_some_and(|end| request.len() >= end + 4 + QUOTA_SUMMARY_BODY.len())
+                {
+                    break;
+                }
+            }
+            let headers = concat!(
+                "HTTP/1.1 200 OK\r\n",
+                "Content-Type: application/json\r\n",
+                "Transfer-Encoding: chunked\r\n",
+                "Connection: keep-alive\r\n\r\n",
+            );
+            stream.write_all(headers.as_bytes()).expect("headers");
+            let size = format!("{:X}\r\n", MAX_BODY_BYTES);
+            stream.write_all(size.as_bytes()).expect("size");
+            stream.write_all(&vec![b'a'; MAX_BODY_BYTES]).expect("body");
+            stream.write_all(b"\r\n1\r\nx\r\n").expect("excess byte");
+            // Never finish the body until the probe has returned or timed out.
+            let _ = hold_open.recv_timeout(Duration::from_secs(10));
+        });
+
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .no_proxy()
+            .build()
+            .expect("client");
+        let url = format!("http://127.0.0.1:{port}{QUOTA_SUMMARY_PATH}");
+        let result = tokio::time::timeout(
+            Duration::from_secs(3),
+            SystemLoopbackProbe::ask(Some(&client), &url),
+        )
+        .await;
+        let _ = release.send(());
+        server.join().expect("server");
+        assert_eq!(result.expect("rejected before the body ended"), None);
     }
 }
