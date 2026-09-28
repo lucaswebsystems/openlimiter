@@ -171,6 +171,46 @@ jobs:
             exit 1
           fi
 
+      - name: Upload stable installer aliases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          RELEASE_REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bundleRoot = 'apps/desktop/src-tauri/target/release/bundle'
+          $installers = switch ($env:RUNNER_OS) {
+            'Windows' {
+              @{ Directory = 'nsis'; Pattern = '*.exe'; Name = 'OpenLimiter-windows-x64-setup.exe' }
+              @{ Directory = 'msi'; Pattern = '*.msi'; Name = 'OpenLimiter-windows-x64.msi' }
+            }
+            'Linux' {
+              @{ Directory = 'appimage'; Pattern = '*.AppImage'; Name = 'OpenLimiter-linux-x86_64.AppImage' }
+              @{ Directory = 'deb'; Pattern = '*.deb'; Name = 'OpenLimiter-linux-amd64.deb' }
+              @{ Directory = 'rpm'; Pattern = '*.rpm'; Name = 'OpenLimiter-linux-x86_64.rpm' }
+            }
+            'macOS' {
+              $bundleRoot = 'apps/desktop/src-tauri/target/universal-apple-darwin/release/bundle'
+              @{ Directory = 'dmg'; Pattern = '*.dmg'; Name = 'OpenLimiter-macos-universal.dmg' }
+            }
+            default { throw "Unsupported runner: $env:RUNNER_OS" }
+          }
+          $staging = Join-Path $env:RUNNER_TEMP 'openlimiter-stable-installers'
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          [string[]]$uploads = foreach ($installer in $installers) {
+            $sourceDirectory = Join-Path $bundleRoot $installer.Directory
+            $files = @(Get-ChildItem -LiteralPath $sourceDirectory -Filter $installer.Pattern -File)
+            if ($files.Count -ne 1) {
+              throw "Expected exactly one $($installer.Pattern) in $sourceDirectory, found $($files.Count)"
+            }
+            $destination = Join-Path $staging $installer.Name
+            Copy-Item -LiteralPath $files[0].FullName -Destination $destination -Force
+            $destination
+          }
+          & gh release upload $env:RELEASE_TAG @uploads --repo $env:RELEASE_REPO --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Stable installer upload failed' }
+
   verify_existing:
     if: ${{ inputs.verify_existing }}
     name: Verify existing ${{ matrix.label }}

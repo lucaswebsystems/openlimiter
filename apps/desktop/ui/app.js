@@ -118,6 +118,7 @@ import {
   openProviderConnection,
 } from "./connections.js";
 import { initFirstRun, claudePollRow } from "./first-run.js";
+import { initWhatsNew } from "./whats-new.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
@@ -1523,6 +1524,10 @@ if (cardsContainer) {
 }
 
 initPairing({ onSignIn: openSignIn });
+
+void initWhatsNew().catch(() => {
+  // Release notes must not prevent startup if the local resource is unavailable.
+});
 
 initFirstRun({
   setProviderEnabled,

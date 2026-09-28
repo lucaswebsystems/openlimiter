@@ -41,6 +41,12 @@ const REPOSITORY = path.resolve(DESKTOP, "..", "..");
 const DIST = path.join(DESKTOP, "ui", "dist");
 const ENGINE = path.join(DIST, "engine");
 
+const { version } = JSON.parse(readFileSync(path.join(DESKTOP, "package.json"), "utf8"));
+const whatsNew = JSON.parse(readFileSync(path.join(DESKTOP, "ui", "whats-new.en.json"), "utf8"));
+if (!Object.hasOwn(whatsNew.releases, version)) {
+  throw new Error(`Missing What's New for ${version}`);
+}
+
 /** Compiled modules to copy, per package. */
 const COPY = {
   core: {
@@ -224,6 +230,8 @@ const WINDOW_FILES = [
   "theme.css",
   "app.css",
   "app.js",
+  "whats-new.js",
+  "whats-new.css",
   "home-state.js",
   "backend.js",
   "configured-providers.js",
@@ -258,6 +266,8 @@ const WINDOW_FILES = [
 for (const file of WINDOW_FILES) {
   copyFileSync(path.join(DESKTOP, "ui", file), path.join(DIST, file));
 }
+writeFileSync(path.join(DIST, "whats-new-data.js"),
+  `export const version = ${JSON.stringify(version)};\nexport const catalog = ${JSON.stringify(whatsNew)};\n`, "utf8");
 
 /* The two provider marks the sign in draws. Google's G is served as the file
    Google publishes, in its own four colours; the GitHub mark is the file the

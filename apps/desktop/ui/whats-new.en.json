@@ -1,0 +1,17 @@
+{
+  "title": "What's New",
+  "versionLabel": "Version {version}",
+  "dismiss": "Got it",
+  "releases": {
+    "2.0.0": {
+      "heading": "Your limits and agents, in view",
+      "rail": "The left edge Rail keeps your readings in view on Windows. The macOS and Linux Rail is a preview; the tray remains available.",
+      "activity": "See when a supported agent is busy, waiting for you, or done. Local activity and usage alerts are free.",
+      "statusline": "The terminal status line uses the same band colours as your meters. Toggles let you choose which providers appear.",
+      "cursor": "Cursor is Experimental. Live account verification is still required, and a missing quota stays unavailable.",
+      "retry": "The desktop and CLI share one retry policy. Refresh respects provider retry deadlines and keeps the last reading with its original time.",
+      "sessions": "Phone and browser sessions handle renewal, pairing and reconnects more reliably. Older readings remain clearly marked when a computer stops syncing.",
+      "spend": "The local monthly spend cap is removed. Local spend readings remain free, with one active account per provider."
+    }
+  }
+}
