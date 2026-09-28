@@ -5,7 +5,8 @@
  * Only import specifiers were rewritten. Edit the package instead, then run
  * the script again.
  */
-import type { ConnectionStatus } from "./connection-state";
+import type { ConnectionStatus, SnapshotAvailability } from "./connection-state";
+export type { SnapshotAvailability } from "./connection-state";
 
 export const PROVIDER_CODES = [
   "CLAUDE",
@@ -36,13 +37,32 @@ export interface SnapshotWindow {
 }
 
 /**
- * The one currency an amount may be stated in, for now.
+ * The currencies an amount may be stated in, exactly as the provider stated it.
  *
  * A literal rather than a string keeps a provider from writing its own text
- * into a field a human reads. When a second currency is genuinely supported it
- * is added here and the normalizer's set below grows with it.
+ * into a field a human reads. CNY joined for providers that bill in yuan
+ * (DeepSeek among them); amounts are never converted, because a converted
+ * balance is a number no provider ever said.
  */
-export type SnapshotCurrency = "USD";
+export type SnapshotCurrency = "USD" | "CNY";
+
+export const SNAPSHOT_KINDS = [
+  "quota_percent", "money_balance", "spend", "token_count", "runtime_info"
+] as const;
+export type SnapshotKind = (typeof SNAPSHOT_KINDS)[number];
+
+export const CONNECTOR_VERIFICATIONS = [
+  "UNVERIFIED", "VERIFIED_FIXTURES", "VERIFIED_LIVE"
+] as const;
+export type ConnectorVerification = (typeof CONNECTOR_VERIFICATIONS)[number];
+
+export interface VerificationEvidence {
+  providerVersion: string;
+  accountShape: string;
+  os: string;
+  /** Canonical ISO instant, using the same format as observedAt. */
+  date: string;
+}
 
 /** Largest money amount a reading may carry. Above this it is not a plan. */
 export const MAX_SNAPSHOT_AMOUNT = 1_000_000;
@@ -110,6 +130,24 @@ export interface SnapshotProvenance {
 }
 
 /**
+ * Which OpenLimiter process last wrote a row.
+ *
+ * The cache is shared by every surface on the machine, and two of them can
+ * poll: the desktop tray, which runs all day, and the command line tool, which
+ * wakes up when a status line asks it to. Without this field neither can tell
+ * whether the other is already keeping the rows fresh, so both poll and the
+ * provider sees twice the traffic it should.
+ *
+ * Absent is the honest answer for every row written before this field existed
+ * and for any row whose writer could not be believed, and absent means unknown
+ * rather than "nobody": a reader that finds no marker falls back to polling,
+ * which is the same behaviour the product always had.
+ */
+export const SNAPSHOT_WRITERS = ["desktop", "cli"] as const;
+
+export type SnapshotWriter = (typeof SNAPSHOT_WRITERS)[number];
+
+/**
  * What a reading's provenance becomes when the stated provenance cannot be
  * believed. The reading itself still stands: how a number arrived is a separate
  * question from whether the number is in range.
@@ -128,7 +166,11 @@ export const UNKNOWN_PROVENANCE: SnapshotProvenance = {
  */
 export const ACCOUNT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 
-export interface ConnectorLabels {
+/**
+ * Plan concepts: source = source plus provenance, precision = precision,
+ * verification = labels.verification. Validation never upgrades verification.
+ */
+export type ConnectorLabels = {
   credentialOrigin:
     | "official-local-tool"
     | "user-key"
@@ -141,8 +183,10 @@ export interface ConnectorLabels {
     | "authenticated-scrape"
     | "manual";
   automationRisk: "low" | "high";
-  verification: "UNVERIFIED";
-}
+} & (
+  | { verification: "UNVERIFIED" | "VERIFIED_FIXTURES"; verificationEvidence?: never }
+  | { verification: "VERIFIED_LIVE"; verificationEvidence?: VerificationEvidence }
+);
 
 export interface Snapshot {
   provider: ProviderCode;
@@ -168,8 +212,35 @@ export interface Snapshot {
    * "default": a row without this field keeps the identity it always had.
    */
   accountId?: string;
+  /**
+   * A human name for the account this row belongs to.
+   *
+   * `accountId` is an identifier: lowercase, hyphenated, safe to key a cache
+   * on, and unreadable. A surface that prints it prints exactly that, which is
+   * fine for an account a person named and wrong for one this product had to
+   * invent, such as the Gemini CLI login borrowed for the shared Code Assist
+   * pool. Absent means the surface should fall back to the identifier, which is
+   * what every row written before this field did.
+   */
+  accountLabel?: string;
   /** How the reading arrived. Absent means it was never recorded. */
   provenance?: SnapshotProvenance;
+  /**
+   * Which process wrote this row, when the writer said so.
+   *
+   * Never part of the row's identity, so a row that gains or loses the marker
+   * merges exactly as it always did.
+   */
+  writer?: SnapshotWriter;
+  /** Absent means unknown. Never infer this from unit. */
+  kind?: SnapshotKind;
+  /**
+   * The meter could not be read. Consumers must never count a row carrying
+   * availability as a numeric reading, including when value is zero.
+   */
+  availability?: SnapshotAvailability;
+  /** Canonical ISO instant. Allowed only when availability is rate_limited. */
+  retryAt?: string;
 }
 
 export interface RawMeter {
@@ -188,7 +259,12 @@ export interface RawMeter {
   limitAmount?: unknown;
   currency?: unknown;
   accountId?: unknown;
+  accountLabel?: unknown;
   provenance?: unknown;
+  writer?: unknown;
+  kind?: unknown;
+  availability?: unknown;
+  retryAt?: unknown;
 }
 
 export interface ConnectorReadContext {

@@ -240,6 +240,28 @@ export const CONNECTION_REASONS = [
 
 export type ConnectionReason = (typeof CONNECTION_REASONS)[number];
 
+/** Why an individual meter is unavailable, independent of connection state. */
+export const SNAPSHOT_AVAILABILITIES = [
+  "missing_credentials", "expired_credentials", "access_denied",
+  "missing_subscription", "unlimited", "quota_unavailable", "rate_limited",
+  "network_failure", "schema_drift"
+] as const;
+
+export type SnapshotAvailability = (typeof SNAPSHOT_AVAILABILITIES)[number];
+
+/** Reuse connection reasons where they apply; null makes no connection claim. */
+export const availabilityConnectionReason = {
+  missing_credentials: "no_credential",
+  expired_credentials: "token_expired",
+  access_denied: "provider_refusing",
+  missing_subscription: null,
+  unlimited: null,
+  quota_unavailable: null,
+  rate_limited: "provider_refusing",
+  network_failure: "network_unreachable",
+  schema_drift: "shape_mismatch"
+} as const satisfies Record<SnapshotAvailability, ConnectionReason | null>;
+
 /** One sentence per reason, written for a person rather than for a log. */
 export const connectionReasonSentence = {
   token_expired: "The credential this connection uses stopped working.",
