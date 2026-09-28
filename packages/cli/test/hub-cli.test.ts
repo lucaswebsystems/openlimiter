@@ -158,15 +158,19 @@ describe("openlimiter logout and whoami", () => {
     const result = await runCli(["whoami"], { stateDirectory });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("not signed in");
+    expect(result.stdout).toBe("");
   });
 
-  it("whoami prints the label and the device id once signed in", async () => {
+  it.each(["person@example.com", "Personal account"])("whoami identifies account %s before the labelled device", async (accountLabel) => {
     const stateDirectory = await temporaryDirectory("openlimiter-hub-");
-    await writeSession(session(), { directory: stateDirectory, platform: "linux" });
+    await writeSession(session({ accountLabel }), { directory: stateDirectory, platform: "linux" });
     const result = await runCli(["whoami"], { stateDirectory });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("person@example.com");
-    expect(result.stdout).toContain("device-1234");
+    expect(result.stdout.split(/\r?\n/)).toEqual([
+      "Account: " + accountLabel,
+      "Device: device-1234"
+    ]);
+    expect(result.stderr).toBe("");
   });
 
   it("logout deletes the session file", async () => {

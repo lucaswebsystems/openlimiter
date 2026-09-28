@@ -121,6 +121,7 @@ describe("D18 native launcher fallback", () => {
     const options = supervisor === "polling" ? { posixTimeoutCommand: null } : {};
     const shellTest = shell === "posix" && (!posixAvailable || supervisor === "timeout" && !timeoutAvailable) ? it.skip : it;
     shellTest(`${label} preserves ordinary output and runs the stored original on every failure`, async () => {
+      const launcherTimeout = 500;
       // Keep native execution coverage, but compare both captures under the same
       // contract. Leading mark counts belong to the synthetic cases above.
       for (const failure of ["success", "package missing", "binary missing", "runtime throws", "nonzero", "timeout"] as const) {
@@ -130,7 +131,7 @@ describe("D18 native launcher fallback", () => {
         const normalizedRuntime = shell === "posix"
           ? { ...runtime, node: runtime.node.replaceAll("\\", "/"), entry: runtime.entry.replaceAll("\\", "/") } : runtime;
         const normalizedOriginal = shell === "posix" ? original.replaceAll("\\", "/") : original;
-        const command = await fallbackLauncherCommand(normalizedRuntime, shell, normalizedOriginal, { ...options, timeoutMilliseconds: 500 });
+        const command = await fallbackLauncherCommand(normalizedRuntime, shell, normalizedOriginal, { ...options, timeoutMilliseconds: launcherTimeout });
         if (supervisor) {
           const script = await readFile(command.slice("/bin/sh '".length, -1), "utf8");
           expect(script).toContain(`# Supervisor: ${supervisor}`);
@@ -156,12 +157,27 @@ describe("D18 native launcher fallback", () => {
         expect(originalOutput.code, failure).toBe(0);
         expect(await readFile(originalRan, "utf8"), failure).toBe("original\n");
         await rm(originalRan);
+        let deadline = 1_500;
+        if (failure === "timeout" && shell !== "posix") {
+          const calibrationStarted = performance.now();
+          const calibration = await execute(shell === "cmd" ? "exit /b 0" : "exit 0", shell, Buffer.alloc(0));
+          const spawnCost = performance.now() - calibrationStarted;
+          expect(calibration.code).toBe(0);
+          // Budget 64 cmd starts or 12 PowerShell starts for the supervisor,
+          // runtime, original command and scheduling under load. cmd startup is
+          // much cheaper than the PowerShell supervisor it launches. A measured
+          // 240 ms PowerShell start needed 1984 ms overhead under concurrent load,
+          // so twelve leaves headroom. The launcher timeout itself stays 500 ms.
+          const spawnAllowance = shell === "cmd" ? 64 : 12;
+          deadline = launcherTimeout + spawnAllowance * spawnCost;
+          console.info(`${label} spawn cost: ${Math.round(spawnCost)} ms, fallback budget: ${Math.round(deadline)} ms`);
+        }
         const started = performance.now();
-        const result = await execute(command + " statusline --host claude", shell, payload, failure === "timeout" ? 2_000 : undefined);
+        const result = await execute(command + " statusline --host claude", shell, payload, failure === "timeout" ? Math.ceil(deadline + 500) : undefined);
         const elapsed = performance.now() - started;
         if (failure === "timeout") {
           console.info(`${label} timeout fallback wall time: ${Math.round(elapsed)} ms`);
-          expect(elapsed).toBeLessThan(1_500);
+          expect(elapsed).toBeLessThan(deadline);
         }
         expect(result.code, failure).toBe(0);
         expect(result.stderr.length, failure).toBe(0);
@@ -187,7 +203,9 @@ describe("D18 native launcher fallback", () => {
       expect(result.code).toBe(0);
       expect(withoutOneLeadingBom(result.stdout)).toEqual(Buffer.from("new bars\n\n"));
       expect(result.stderr.length).toBe(0);
-    }, 30_000);
+    // This case starts many processes across six failures and two silent paths.
+    // Its runner budget is separate from the calibrated fallback deadline above.
+    }, 120_000);
   }
   it("refuses a changed existing supervisor without replacing it", async () => {
     const { root, runtime, original } = await fixture();
