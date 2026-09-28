@@ -21,6 +21,17 @@ provider_id: mistral
 product_id: api
 display_name: Mistral AI
 
+headlineMeter: usage_breakdown
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Recipe only; no shipped reader.
+maturity: planned
+
 source:
   docs_url: https://docs.mistral.ai/api/endpoint/beta/admin/billing
   reviewed_at: "2026-08-10"

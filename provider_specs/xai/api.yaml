@@ -16,6 +16,19 @@ provider_id: xai
 product_id: api
 display_name: xAI
 
+headlineMeter: prepaid_balance
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Native desktop billing reader exists; shared connector absent and live verification pending.
+maturity: experimental
+
 source:
   docs_url: https://docs.x.ai/developers/rest-api-reference/management/billing
   reviewed_at: "2026-08-10"

@@ -24,6 +24,19 @@ provider_id: moonshot
 product_id: api
 display_name: Kimi (Moonshot AI)
 
+headlineMeter: available_balance
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Native desktop balance reader exists; shared connector absent and live verification pending.
+maturity: experimental
+
 source:
   docs_url: https://platform.kimi.ai/docs/api/balance
   reviewed_at: "2026-08-10"

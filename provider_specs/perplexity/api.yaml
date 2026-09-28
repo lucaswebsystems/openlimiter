@@ -20,6 +20,17 @@ provider_id: perplexity
 product_id: api
 display_name: Perplexity
 
+headlineMeter: credits
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: manual
+d5Review: Recipe only; no shipped reader.
+maturity: planned
+
 source:
   docs_url: https://docs.perplexity.ai/guides/api-organization
   reviewed_at: "2026-08-10"

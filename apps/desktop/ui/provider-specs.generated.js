@@ -8,14 +8,95 @@
  * softening a word the registry froze.
  */
 export const PROVIDER_SPECS = {
-  "schema": 1,
+  "schema": 2,
   "note": "Generated from provider_specs/**/*.yaml by scripts/validate-provider-specs.mjs. Do not edit by hand. Regenerate with: node scripts/validate-provider-specs.mjs --emit",
   "providers": [
+    {
+      "id": "anthropic/api",
+      "providerId": "anthropic",
+      "productId": "api",
+      "displayName": "Anthropic API",
+      "headlineMeter": "cost",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop"
+      ],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Native desktop cost reader exists; shared connector absent and live verification pending.",
+      "maturity": "experimental",
+      "directory": null,
+      "docsUrl": "https://docs.anthropic.com/en/api/admin-api/cost-report",
+      "reviewedAt": "2026-09-28",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "absent",
+        "verification": "experimental"
+      },
+      "collection": null,
+      "honesty": null,
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "admin_api_key"
+      ],
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "meters": [
+        {
+          "id": "cost",
+          "label": "API cost",
+          "kind": "api_spend",
+          "unit": "currency",
+          "scope": "organization",
+          "sourceFormat": "json_path",
+          "window": {
+            "kind": "calendar_month"
+          },
+          "optional": true,
+          "meterCode": "API_COST"
+        }
+      ]
+    },
     {
       "id": "anthropic/claude-code",
       "providerId": "anthropic",
       "productId": "claude-code",
       "displayName": "Claude Code",
+      "headlineMeter": "session_5h",
+      "weeklyMeter": "weekly_7d",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop",
+        "cli"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "statusline_payload",
+      "d5Review": "Documented statusline fallback; native desktop OAuth uses a separate internal endpoint.",
+      "maturity": "headline",
+      "directory": {
+        "order": 1,
+        "rowId": "anthropic/claude-code",
+        "label": "Claude Code",
+        "connectorId": "claude",
+        "access": "automatic"
+      },
       "docsUrl": "https://code.claude.com/docs/en/statusline",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -41,9 +122,9 @@ export const PROVIDER_SPECS = {
         "existing_local_cli"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -81,6 +162,14 @@ export const PROVIDER_SPECS = {
       "providerId": "cursor",
       "productId": "editor",
       "displayName": "Cursor",
+      "headlineMeter": "team_spend",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [],
+      "displaySurfaces": [],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Recipe only; no shipped reader.",
+      "maturity": "planned",
+      "directory": null,
       "docsUrl": "https://cursor.com/docs/account/teams/admin-api",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -100,9 +189,9 @@ export const PROVIDER_SPECS = {
         "admin_api_key"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -125,6 +214,14 @@ export const PROVIDER_SPECS = {
       "providerId": "deepseek",
       "productId": "api",
       "displayName": "DeepSeek",
+      "headlineMeter": "balance",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [],
+      "displaySurfaces": [],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Recipe only; no shipped reader.",
+      "maturity": "planned",
+      "directory": null,
       "docsUrl": "https://api-docs.deepseek.com/api/get-user-balance/",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -144,9 +241,9 @@ export const PROVIDER_SPECS = {
         "api_key"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -169,6 +266,14 @@ export const PROVIDER_SPECS = {
       "providerId": "github",
       "productId": "copilot",
       "displayName": "GitHub Copilot",
+      "headlineMeter": "ai_credits",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [],
+      "displaySurfaces": [],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Recipe only; no shipped reader.",
+      "maturity": "planned",
+      "directory": null,
       "docsUrl": "https://docs.github.com/en/rest/billing/usage",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -188,9 +293,9 @@ export const PROVIDER_SPECS = {
         "oauth"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -213,6 +318,30 @@ export const PROVIDER_SPECS = {
       "providerId": "google",
       "productId": "antigravity",
       "displayName": "Antigravity",
+      "headlineMeter": "primary",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop",
+        "cli"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Internal provider interface; high automation risk and capture pending.",
+      "maturity": "headline",
+      "directory": {
+        "order": 3,
+        "rowId": "google/antigravity",
+        "label": "Antigravity",
+        "connectorId": "antigravity",
+        "access": "automatic"
+      },
       "docsUrl": "packages/connectors/src/antigravity.ts",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "provisional",
@@ -249,9 +378,9 @@ export const PROVIDER_SPECS = {
         "existing_local_cli"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -274,6 +403,30 @@ export const PROVIDER_SPECS = {
       "providerId": "google",
       "productId": "gemini-cli",
       "displayName": "Gemini CLI",
+      "headlineMeter": "gemini_3_1_pro_preview",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop",
+        "cli"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Internal provider interface; high automation risk and capture pending.",
+      "maturity": "headline",
+      "directory": {
+        "order": 2,
+        "rowId": "google/gemini-cli",
+        "label": "Gemini CLI",
+        "connectorId": "gemini-cli",
+        "access": "automatic"
+      },
       "docsUrl": "https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/code_assist/server.ts",
       "reviewedAt": "2026-08-20",
       "sourceStatus": "provisional",
@@ -310,9 +463,9 @@ export const PROVIDER_SPECS = {
         "existing_local_cli"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -348,6 +501,14 @@ export const PROVIDER_SPECS = {
       "providerId": "lmstudio",
       "productId": "local",
       "displayName": "LM Studio",
+      "headlineMeter": null,
+      "noQuotaConcept": true,
+      "acquisitionSurfaces": [],
+      "displaySurfaces": [],
+      "acquisitionMethod": "local_command",
+      "d5Review": "Recipe only; no shipped reader.",
+      "maturity": "planned",
+      "directory": null,
       "docsUrl": "https://lmstudio.ai/docs/developer/rest/endpoints",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -367,31 +528,25 @@ export const PROVIDER_SPECS = {
         "none"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
-      "meters": [
-        {
-          "id": "max_context_length",
-          "label": "Model max context length",
-          "kind": "context",
-          "unit": "tokens",
-          "scope": "model",
-          "sourceFormat": "json_path",
-          "window": {
-            "kind": "provider_defined"
-          },
-          "optional": true,
-          "meterCode": "MAX_CONTEXT_LENGTH"
-        }
-      ]
+      "meters": []
     },
     {
       "id": "mistral/api",
       "providerId": "mistral",
       "productId": "api",
       "displayName": "Mistral AI",
+      "headlineMeter": "usage_breakdown",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [],
+      "displaySurfaces": [],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Recipe only; no shipped reader.",
+      "maturity": "planned",
+      "directory": null,
       "docsUrl": "https://docs.mistral.ai/api/endpoint/beta/admin/billing",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -411,9 +566,9 @@ export const PROVIDER_SPECS = {
         "admin_api_key"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -436,6 +591,18 @@ export const PROVIDER_SPECS = {
       "providerId": "moonshot",
       "productId": "api",
       "displayName": "Kimi (Moonshot AI)",
+      "headlineMeter": "available_balance",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop"
+      ],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Native desktop balance reader exists; shared connector absent and live verification pending.",
+      "maturity": "experimental",
+      "directory": null,
       "docsUrl": "https://platform.kimi.ai/docs/api/balance",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -455,9 +622,9 @@ export const PROVIDER_SPECS = {
         "api_key"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -480,6 +647,31 @@ export const PROVIDER_SPECS = {
       "providerId": "moonshot",
       "productId": "kimi-code",
       "displayName": "Kimi",
+      "headlineMeter": "weekly",
+      "weeklyMeter": "weekly",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop",
+        "cli"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Internal provider interface; high automation risk and capture pending.",
+      "maturity": "headline",
+      "directory": {
+        "order": 5,
+        "rowId": "moonshot/api",
+        "label": "Kimi",
+        "connectorId": "kimi",
+        "access": "automatic"
+      },
       "docsUrl": "https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts",
       "reviewedAt": "2026-08-19",
       "sourceStatus": "provisional",
@@ -516,9 +708,9 @@ export const PROVIDER_SPECS = {
         "existing_local_cli"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -555,6 +747,14 @@ export const PROVIDER_SPECS = {
       "providerId": "ollama",
       "productId": "local",
       "displayName": "Ollama",
+      "headlineMeter": null,
+      "noQuotaConcept": true,
+      "acquisitionSurfaces": [],
+      "displaySurfaces": [],
+      "acquisitionMethod": "local_command",
+      "d5Review": "Recipe only; no shipped reader.",
+      "maturity": "planned",
+      "directory": null,
       "docsUrl": "https://github.com/ollama/ollama/blob/main/docs/api.md",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -574,23 +774,65 @@ export const PROVIDER_SPECS = {
         "none"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
+      ],
+      "meters": []
+    },
+    {
+      "id": "openai/api",
+      "providerId": "openai",
+      "productId": "api",
+      "displayName": "OpenAI API",
+      "headlineMeter": "cost",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop"
+      ],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Native desktop cost reader exists; shared connector absent and live verification pending.",
+      "maturity": "experimental",
+      "directory": null,
+      "docsUrl": "https://platform.openai.com/docs/api-reference/usage/costs",
+      "reviewedAt": "2026-09-28",
+      "sourceStatus": "official",
+      "support": {
+        "parser": "absent",
+        "reader": "absent",
+        "auth": "absent",
+        "verification": "experimental"
+      },
+      "collection": null,
+      "honesty": null,
+      "lastVerifiedAt": null,
+      "readers": [
+        "official_remote_api"
+      ],
+      "authModes": [
+        "admin_api_key"
+      ],
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
       ],
       "meters": [
         {
-          "id": "context_length",
-          "label": "Model context length",
-          "kind": "context",
-          "unit": "tokens",
-          "scope": "model",
+          "id": "cost",
+          "label": "API cost",
+          "kind": "api_spend",
+          "unit": "currency",
+          "scope": "organization",
           "sourceFormat": "json_path",
           "window": {
-            "kind": "provider_defined"
+            "kind": "calendar_month"
           },
           "optional": true,
-          "meterCode": "CONTEXT_LENGTH"
+          "meterCode": "API_COST"
         }
       ]
     },
@@ -599,6 +841,30 @@ export const PROVIDER_SPECS = {
       "providerId": "openai",
       "productId": "codex",
       "displayName": "Codex",
+      "headlineMeter": "primary",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop",
+        "cli"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Internal provider interface; high automation risk and capture pending.",
+      "maturity": "headline",
+      "directory": {
+        "order": 0,
+        "rowId": "openai/codex",
+        "label": "Codex",
+        "connectorId": "codex",
+        "access": "automatic"
+      },
       "docsUrl": "packages/connectors/src/codex.ts",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "provisional",
@@ -635,9 +901,9 @@ export const PROVIDER_SPECS = {
         "existing_local_cli"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -660,6 +926,30 @@ export const PROVIDER_SPECS = {
       "providerId": "opencode",
       "productId": "opencode",
       "displayName": "OpenCode",
+      "headlineMeter": "rolling",
+      "weeklyMeter": "weekly",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "authenticated_page",
+      "d5Review": "Authenticated page extraction; high automation risk and capture pending.",
+      "maturity": "headline",
+      "directory": {
+        "order": 6,
+        "rowId": "opencode/opencode",
+        "label": "OpenCode",
+        "connectorId": "opencode",
+        "access": "manual"
+      },
       "docsUrl": "packages/connectors/src/opencode.ts",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "provisional",
@@ -696,9 +986,9 @@ export const PROVIDER_SPECS = {
         "manual"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -750,6 +1040,23 @@ export const PROVIDER_SPECS = {
       "providerId": "openlimiter",
       "productId": "manual",
       "displayName": "Manual",
+      "headlineMeter": "custom",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "manual",
+      "d5Review": "User entered values; no automatic acquisition.",
+      "maturity": "manual",
+      "directory": null,
       "docsUrl": "packages/connectors/src/manual.ts",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "provisional",
@@ -775,9 +1082,9 @@ export const PROVIDER_SPECS = {
         "none"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -800,6 +1107,30 @@ export const PROVIDER_SPECS = {
       "providerId": "openrouter",
       "productId": "api",
       "displayName": "OpenRouter",
+      "headlineMeter": "credits",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop",
+        "cli"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Desktop key based billing reader; live account verification pending.",
+      "maturity": "headline",
+      "directory": {
+        "order": 7,
+        "rowId": "openrouter/api",
+        "label": "OpenRouter",
+        "connectorId": "openrouter",
+        "access": "key"
+      },
       "docsUrl": "https://openrouter.ai/docs/api-reference/get-credits",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -844,9 +1175,9 @@ export const PROVIDER_SPECS = {
         "api_key"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -869,6 +1200,14 @@ export const PROVIDER_SPECS = {
       "providerId": "perplexity",
       "productId": "api",
       "displayName": "Perplexity",
+      "headlineMeter": "credits",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [],
+      "displaySurfaces": [],
+      "acquisitionMethod": "manual",
+      "d5Review": "Recipe only; no shipped reader.",
+      "maturity": "planned",
+      "directory": null,
       "docsUrl": "https://docs.perplexity.ai/guides/api-organization",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -888,9 +1227,9 @@ export const PROVIDER_SPECS = {
         "manual"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -913,6 +1252,14 @@ export const PROVIDER_SPECS = {
       "providerId": "together",
       "productId": "api",
       "displayName": "Together AI",
+      "headlineMeter": "credits",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [],
+      "displaySurfaces": [],
+      "acquisitionMethod": "manual",
+      "d5Review": "Recipe only; no shipped reader.",
+      "maturity": "planned",
+      "directory": null,
       "docsUrl": "https://docs.together.ai/docs/billing-credits",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -932,9 +1279,9 @@ export const PROVIDER_SPECS = {
         "manual"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -957,6 +1304,14 @@ export const PROVIDER_SPECS = {
       "providerId": "windsurf",
       "productId": "editor",
       "displayName": "Devin Desktop (formerly Windsurf, Cognition)",
+      "headlineMeter": "addon_credits",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [],
+      "displaySurfaces": [],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Recipe only; no shipped reader.",
+      "maturity": "planned",
+      "directory": null,
       "docsUrl": "https://docs.devin.ai/windsurf/plugins/accounts/api-reference/get-team-credit-balance",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -976,9 +1331,9 @@ export const PROVIDER_SPECS = {
         "admin_api_key"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -1001,6 +1356,18 @@ export const PROVIDER_SPECS = {
       "providerId": "xai",
       "productId": "api",
       "displayName": "xAI",
+      "headlineMeter": "prepaid_balance",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop"
+      ],
+      "displaySurfaces": [
+        "desktop"
+      ],
+      "acquisitionMethod": "remote_http_official",
+      "d5Review": "Native desktop billing reader exists; shared connector absent and live verification pending.",
+      "maturity": "experimental",
+      "directory": null,
       "docsUrl": "https://docs.x.ai/developers/rest-api-reference/management/billing",
       "reviewedAt": "2026-08-10",
       "sourceStatus": "official",
@@ -1020,9 +1387,9 @@ export const PROVIDER_SPECS = {
         "management_key"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {
@@ -1045,6 +1412,30 @@ export const PROVIDER_SPECS = {
       "providerId": "xai",
       "productId": "grok-cli",
       "displayName": "Grok Build",
+      "headlineMeter": "current_period",
+      "noQuotaConcept": false,
+      "acquisitionSurfaces": [
+        "desktop",
+        "cli"
+      ],
+      "displaySurfaces": [
+        "desktop",
+        "rail",
+        "tray",
+        "cli_cache",
+        "web",
+        "phone"
+      ],
+      "acquisitionMethod": "remote_http_internal",
+      "d5Review": "Internal provider interface; high automation risk and capture pending.",
+      "maturity": "headline",
+      "directory": {
+        "order": 4,
+        "rowId": "xai/api",
+        "label": "Grok (xAI)",
+        "connectorId": "grok",
+        "access": "automatic"
+      },
       "docsUrl": "https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs",
       "reviewedAt": "2026-08-19",
       "sourceStatus": "provisional",
@@ -1081,9 +1472,9 @@ export const PROVIDER_SPECS = {
         "existing_local_cli"
       ],
       "platforms": [
-        "linux",
+        "windows",
         "macos",
-        "windows"
+        "linux"
       ],
       "meters": [
         {

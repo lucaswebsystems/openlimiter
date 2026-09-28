@@ -1,0 +1,61 @@
+# Native desktop organization costs. The shared connector recipe is not implemented.
+provider_id: openai
+product_id: api
+display_name: OpenAI API
+headlineMeter: cost
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Native desktop cost reader exists; shared connector absent and live verification pending.
+maturity: experimental
+
+source:
+  docs_url: https://platform.openai.com/docs/api-reference/usage/costs
+  reviewed_at: "2026-09-28"
+  source_status: official
+
+availability:
+  requires_plan: organization_admin
+  appears_after: admin_api_key_created
+  absence_is_error: false
+
+# These support flags describe the shared connector recipe, not the native reader.
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: admin_api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: experimental
+  last_verified_at: null
+  fixture_ids:
+    - openai.api.cost.pending
+
+meters:
+  - id: cost
+    label: API cost
+    kind: api_spend
+    unit: currency
+    scope: organization
+    window:
+      kind: calendar_month
+    source_path: data.results.amount.value
+    amount_currency: USD
+    reset_path: null
+    reset_encoding: none
+    optional: true
+    meter_code: API_COST

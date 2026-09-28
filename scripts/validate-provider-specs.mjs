@@ -19,12 +19,13 @@
  *   scalars: unquoted text, "quoted" text, integers, decimals, true, false, null
  *   whole line comments beginning with a hash
  *
- * Anything else, including flow style, anchors, multi line strings and trailing
+ * The empty list literal [] is also accepted. Anything else, including nonempty
+ * flow style, anchors, multi line strings and trailing
  * comments, is a hard error. A spec that a real YAML parser would read
  * differently from this one is a spec this script refuses.
  */
 
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -69,6 +70,7 @@ function readScalar(text, where) {
   if (text === "null" || text === "~") return null;
   if (text === "true") return true;
   if (text === "false") return false;
+  if (text === "[]") return [];
   if (text.startsWith("[") || text.startsWith("{")) {
     fail(where, "flow style is not supported in this subset");
   }
@@ -323,6 +325,13 @@ const AUTH_MODES = new Set([
   "none"
 ]);
 const PLATFORMS = new Set(["windows", "macos", "linux"]);
+const ACQUISITION_SURFACES = new Set(["desktop", "cli"]);
+const DISPLAY_SURFACES = new Set(["desktop", "rail", "tray", "cli_cache", "web", "phone"]);
+const ACQUISITION_METHODS = new Set([
+  "statusline_payload", "local_file", "local_command", "loopback_process",
+  "remote_http_official", "remote_http_internal", "authenticated_page", "user_key", "manual"
+]);
+const MATURITIES = new Set(["headline", "experimental", "manual", "planned"]);
 const METER_KINDS = new Set([
   "subscription_quota",
   "api_spend",
@@ -576,6 +585,20 @@ function requireArray(value, where, field) {
   return inner;
 }
 
+function requireEnumList(value, where, field, allowed) {
+  const list = value[field];
+  if (!Array.isArray(list)) fail(where, field + " must be a list");
+  const seen = new Set();
+  for (const item of list) {
+    if (typeof item !== "string" || !allowed.has(item)) {
+      fail(where, field + " has unknown value " + JSON.stringify(item));
+    }
+    if (seen.has(item)) fail(where, field + " repeats " + item);
+    seen.add(item);
+  }
+  return list;
+}
+
 function validateMeter(meter, where) {
   if (!isPlainObject(meter)) fail(where, "each meter must be a block");
   const id = requireString(meter, where, "id");
@@ -673,7 +696,7 @@ function validateMeter(meter, where) {
   };
 }
 
-function validateSpec(document, file, relative, fixtureIds) {
+export function validateSpec(document, file, relative, fixtureIds) {
   if (!isPlainObject(document)) fail(file, "the document must be a block");
   const providerId = requireString(document, file, "provider_id");
   const productId = requireString(document, file, "product_id");
@@ -684,6 +707,38 @@ function validateSpec(document, file, relative, fixtureIds) {
     fail(file, "the path must be provider_specs/" + expected);
   }
   requireString(document, file, "display_name");
+  const acquisitionSurfaces = requireEnumList(document, file, "acquisitionSurfaces", ACQUISITION_SURFACES);
+  const displaySurfaces = requireEnumList(document, file, "displaySurfaces", DISPLAY_SURFACES);
+  const platforms = requireEnumList(document, file, "platforms", PLATFORMS);
+  if (platforms.length === 0) fail(file, "platforms must not be empty");
+  const acquisitionMethod = requireString(document, file, "acquisitionMethod", ACQUISITION_METHODS);
+  const d5Review = requireString(document, file, "d5Review");
+  const maturity = requireString(document, file, "maturity", MATURITIES);
+  let directory = null;
+  if (document.directory !== undefined) {
+    const block = requireObject(document, file, "directory");
+    for (const key of Object.keys(block)) {
+      if (!["order", "rowId", "label", "connectorId", "access"].includes(key)) {
+        fail(file, "unknown directory field " + key);
+      }
+    }
+    if (!Number.isSafeInteger(block.order) || block.order < 0) {
+      fail(file, "directory order must be a nonnegative integer");
+    }
+    const rowId = requireString(block, file, "rowId");
+    if (!/^[a-z0-9_-]+\/[a-z0-9_-]+$/u.test(rowId)) {
+      fail(file, "directory rowId must name a provider/product");
+    }
+    directory = {
+      order: block.order,
+      rowId,
+      label: requireString(block, file, "label"),
+      connectorId: requireString(block, file, "connectorId"),
+      access: requireString(block, file, "access", new Set(["automatic", "key", "manual"]))
+    };
+  }
+  const noQuotaConcept = document.noQuotaConcept === undefined
+    ? false : requireBoolean(document, file, "noQuotaConcept");
 
   const source = requireObject(document, file, "source");
   const status = requireString(source, file + " source", "source_status", SOURCE_STATUS);
@@ -724,6 +779,9 @@ function validateSpec(document, file, relative, fixtureIds) {
     }
   }
   const connectionPlatforms = [...platformSet].sort();
+  if (JSON.stringify([...platforms].sort()) !== JSON.stringify(connectionPlatforms)) {
+    fail(file, "platforms must agree with the connection recipes");
+  }
 
   const verification = requireObject(document, file, "verification");
   const verificationStatus = requireString(
@@ -749,6 +807,9 @@ function validateSpec(document, file, relative, fixtureIds) {
   const parser = requireString(support, file + " support", "parser", PARSER_SUPPORT);
   const reader = requireString(support, file + " support", "reader", READER_SUPPORT);
   const auth = requireString(support, file + " support", "auth", AUTH_SUPPORT);
+  if (maturity === "headline" && (parser !== "implemented" || reader !== "implemented")) {
+    fail(file, "headline maturity requires an implemented parser and reader");
+  }
 
   /*
    * The collection block: present exactly when a live reader ships, absent
@@ -944,13 +1005,29 @@ function validateSpec(document, file, relative, fixtureIds) {
     fail(file, "a shipped reader must publish its honesty labels");
   }
 
+  if (directory !== null &&
+      directory.connectorId !== honesty?.connectorId.replaceAll("_", "-")) {
+    fail(file, "directory connectorId must match the declared connector");
+  }
   const ids = new Set();
   const meters = [];
-  for (const meter of requireArray(document, file, "meters")) {
+  if (!Array.isArray(document.meters)) fail(file, "meters must be a list");
+  if (noQuotaConcept ? document.meters.length !== 0 : document.meters.length === 0) {
+    fail(file, "meters must be empty exactly when noQuotaConcept is true");
+  }
+  for (const meter of document.meters) {
     const compiled = validateMeter(meter, file);
     if (ids.has(compiled.id)) fail(file, "duplicate meter id " + compiled.id);
     ids.add(compiled.id);
     meters.push(compiled);
+  }
+  const headlineMeter = document.headlineMeter;
+  if (noQuotaConcept ? headlineMeter !== null : !ids.has(headlineMeter)) {
+    fail(file, "headlineMeter must name a meter, or be null for noQuotaConcept");
+  }
+  const weeklyMeter = document.weeklyMeter;
+  if (weeklyMeter !== undefined && !ids.has(weeklyMeter)) {
+    fail(file, "weeklyMeter must name a meter");
   }
 
   return {
@@ -958,6 +1035,15 @@ function validateSpec(document, file, relative, fixtureIds) {
     providerId,
     productId,
     displayName: document["display_name"],
+    headlineMeter,
+    ...(weeklyMeter === undefined ? {} : { weeklyMeter }),
+    noQuotaConcept,
+    acquisitionSurfaces,
+    displaySurfaces,
+    acquisitionMethod,
+    d5Review,
+    maturity,
+    directory,
     docsUrl: typeof docsUrl === "string" ? docsUrl : null,
     reviewedAt,
     sourceStatus: status,
@@ -967,7 +1053,7 @@ function validateSpec(document, file, relative, fixtureIds) {
     lastVerifiedAt: lastVerified,
     readers: connectionReaders,
     authModes: connectionAuthModes,
-    platforms: connectionPlatforms,
+    platforms,
     meters
   };
 }
@@ -1089,7 +1175,7 @@ async function specFiles() {
       });
     }
   }
-  return found.sort((left, right) => left.path.localeCompare(right.path));
+  return found.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
 }
 
 /* ------------------------------------------------------------------ *
@@ -1148,7 +1234,7 @@ function compileDesktopRegistry(json) {
  * Separate from any spec's own review date: this number changes when the shape
  * of this file changes, not when a provider's facts do.
  */
-const COMPILED_SCHEMA = 1;
+const COMPILED_SCHEMA = 2;
 
 /**
  * The support matrix, compiled from the YAML into one file a surface imports.
@@ -1160,14 +1246,26 @@ const COMPILED_SCHEMA = 1;
  * never edited by hand: the check below fails when it drifts from the YAML,
  * which means a spec change that is not compiled cannot reach a release.
  */
-function compileRegistry(entries) {
+export function compileRegistry(entries) {
+  const directoryRows = new Set();
+  const directoryOrders = new Set();
+  const entryIds = new Set(entries.map((entry) => entry.id));
+  for (const entry of entries) {
+    if (entry.directory === null) continue;
+    const { rowId, order } = entry.directory;
+    if (!entryIds.has(rowId)) fail(entry.id, "directory rowId names no spec: " + rowId);
+    if (directoryRows.has(rowId)) fail(entry.id, "duplicate directory rowId " + rowId);
+    if (directoryOrders.has(order)) fail(entry.id, "duplicate directory order " + order);
+    directoryRows.add(rowId);
+    directoryOrders.add(order);
+  }
   return JSON.stringify(
     {
       schema: COMPILED_SCHEMA,
       note: "Generated from provider_specs/**/*.yaml by " +
         "scripts/validate-provider-specs.mjs. Do not edit by hand. " +
         "Regenerate with: node scripts/validate-provider-specs.mjs --emit",
-      providers: [...entries].sort((left, right) => left.id.localeCompare(right.id))
+      providers: [...entries].sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
     },
     null,
     2
@@ -1203,16 +1301,22 @@ async function readFixtureIds() {
   return found;
 }
 
-async function main() {
+export async function generateRegistry(args = process.argv.slice(2)) {
   selfTest();
-  const emit = process.argv.includes("--emit");
+  const emit = args.includes("--emit");
+  const outputIndex = args.indexOf("--output-dir");
+  if (outputIndex !== -1 && (!emit || !args[outputIndex + 1] ||
+      args[outputIndex + 1].startsWith("--"))) {
+    throw new Error("--output-dir requires --emit and a directory");
+  }
+  const outputRoot = outputIndex === -1 ? repositoryRoot : path.resolve(args[outputIndex + 1]);
   /*
    * The release gate's switch. Off, a live reader whose sanitized capture has
    * not been taken passes with a loud WARN. On, it fails. Off is the default so
    * that the rest of the suite can run while a capture is outstanding; the
    * release gate turns it on, and the WARN below is never silent either way.
    */
-  const requireCaptures = process.argv.includes("--require-captures");
+  const requireCaptures = args.includes("--require-captures");
   const fixtureIds = await readFixtureIds();
   const files = await specFiles();
   if (files.length === 0) {
@@ -1318,14 +1422,16 @@ async function main() {
     for (const target of [...ARTIFACT_FILES, DESKTOP_ARTIFACT_FILE]) {
       const isDesktop = target === DESKTOP_ARTIFACT_FILE;
       const expected = isDesktop ? desktopWanted : wanted;
-      const current = await readTarget(target);
+      const destination = path.join(outputRoot, path.relative(repositoryRoot, target));
+      const current = await readTarget(destination);
       const shown = path.relative(repositoryRoot, target)
         .split(path.sep).join("/");
       if (emit) {
         if (current === expected) {
           console.log("PASS " + shown + " already current");
         } else {
-          await writeFile(target, expected, "utf8");
+          await mkdir(path.dirname(destination), { recursive: true });
+          await writeFile(destination, expected, "utf8");
           console.log("WROTE " + shown);
         }
       } else if (current === null) {
@@ -1352,4 +1458,6 @@ async function main() {
   );
 }
 
-await main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await generateRegistry();
+}

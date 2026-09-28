@@ -30,6 +30,17 @@ provider_id: windsurf
 product_id: editor
 display_name: Devin Desktop (formerly Windsurf, Cognition)
 
+headlineMeter: addon_credits
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Recipe only; no shipped reader.
+maturity: planned
+
 source:
   docs_url: https://docs.devin.ai/windsurf/plugins/accounts/api-reference/get-team-credit-balance
   reviewed_at: "2026-08-10"
