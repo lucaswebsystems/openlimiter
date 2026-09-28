@@ -205,4 +205,51 @@ describe.skipIf(!enabled)(enabled ? "disposable Supabase persistence proof" : "P
     expect((await reopened.auth.getSession()).data.session?.user.id).toBe(owner.id);
     expect((await reopened.auth.getUser()).data.user?.id).toBe(owner.id);
   }, 300_000);
+
+  it.each(["logout", "switch"])("revokes the departing real account once on %s and erases private storage", async (action) => {
+    const owner = await user();
+    const next = action === "switch" ? await user() : null;
+    browser();
+    const routedFetch = globalThis.fetch;
+    let revocations = 0;
+    let tokenPresentAtRevocation = false;
+    const key = account.authStorageKey()!;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/auth/v1/logout")) {
+        revocations += 1;
+        tokenPresentAtRevocation = localStorage.getItem(key) !== null;
+      }
+      return routedFetch(input, init);
+    });
+    const { createAccountSessionRuntime } = await import("@/lib/session-runtime");
+    const runtime = createAccountSessionRuntime();
+    runtime.start();
+    const client = runtime.current().client!;
+    clients.push(client);
+    try {
+      const signedIn = await client.auth.signInWithPassword({ email: owner.email, password: owner.password });
+      check(!signedIn.error && signedIn.data.session, "Real account sign in must succeed");
+      const refresh = signedIn.data.session.refresh_token;
+      localStorage.setItem("openlimiter-app-live", "[]");
+      sessionStorage.setItem("openlimiter-private-key", "synthetic-private-key");
+      if (next) {
+        const switched = await client.auth.signInWithPassword({ email: next.email, password: next.password });
+        check(!switched.error, "Real account switch must succeed");
+      } else await runtime.logout();
+      await vi.waitFor(() => {
+        expect(revocations).toBe(1);
+        expect(localStorage.getItem("openlimiter-app-live")).toBeNull();
+        expect(sessionStorage.getItem("openlimiter-private-key")).toBeNull();
+      });
+      expect(tokenPresentAtRevocation).toBe(true);
+      expect(sessionStorage.getItem(key)).toBeNull();
+      if (next) expect((await client.auth.getUser()).data.user?.id).toBe(next.id);
+      else expect(localStorage.getItem(key)).toBeNull();
+      const replay = await nativeFetch(`${base}/auth/v1/token?grant_type=refresh_token`, {
+        method: "POST", headers: { apikey: service, "content-type": "application/json" },
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+      check(!replay.ok, "Departing refresh credential must be revoked on the real server");
+    } finally { runtime.stop(); }
+  }, 60_000);
 });

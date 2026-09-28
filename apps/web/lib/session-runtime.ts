@@ -1,5 +1,5 @@
 import type { AuthChangeEvent, Session, SupabaseClient } from "@supabase/supabase-js";
-import { applyKeepSignedIn, clearPrivateSessionState, createAccountClient, readKeepSignedIn, resumeAccountClient, stopAccountClient, writeKeepSignedIn } from "./account-client";
+import { applyKeepSignedIn, clearPrivateSessionState, createAccountClient, pendingAccountCleanup, readKeepSignedIn, resumeAccountClient, stopAccountClient, writeKeepSignedIn } from "./account-client";
 import { endPhoneSession, readCurrentPhoneBars, type PhoneReadOutcome } from "./phone-session";
 import { listCloudKeys, type CloudMeterKey } from "./cloud-meter";
 import { clearIntent, pendingIntent } from "./pending-intent";
@@ -108,14 +108,11 @@ export function observeAccountSession(
 ): { unsubscribe(): void } {
   let active = true;
   let revision = 0;
-  let identity: string | null = null;
   const accept = (event: AuthChangeEvent, session: Session | null) => {
     if (!active) return;
-    const next = session?.user.id ?? null;
-    if (event === "SIGNED_OUT" || (identity !== null && next !== identity)) {
+    if (event === "SIGNED_OUT") {
       clearPrivateSessionState(session);
     }
-    identity = next;
     listener(event, session);
   };
   const { data } = client.auth.onAuthStateChange((event, session) => {
@@ -198,7 +195,7 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
     cloudFailed: false, entitlement: undefined,
   });
   const read = (): Promise<void> => {
-    if (!active) return Promise.resolve();
+    if (!active || locallySignedOut || pendingAccountCleanup(state.client)) return Promise.resolve();
     if (!state.syncEnabled) {
       publish({ syncedUsage: { ok: false, reason: "signed_out" } });
       return Promise.resolve();
@@ -226,7 +223,7 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
     const turn = generation;
     const revision = ++entitlementRevision;
     const client = state.client;
-    if (!active) return;
+    if (!active || locallySignedOut || pendingAccountCleanup(state.client)) return;
     if (client === null) { publish({ entitlement: null }); return; }
     try {
       const result = await readProAccount(client);
@@ -238,7 +235,7 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
     }
   };
   const startPoll = () => {
-    if (!active || !state.syncEnabled || !state.session || poll) return;
+    if (!active || !state.syncEnabled || !state.session || poll || pendingAccountCleanup(state.client)) return;
     poll = createSessionRuntime({ read });
     poll.start();
   };
@@ -261,6 +258,16 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
         publish({ live: [] });
       } else if (next) pendingIntent(next.user.id);
       publish({ session: next });
+      const cleanup = pendingAccountCleanup(client);
+      if (cleanup) {
+        const turn = generation;
+        void cleanup.then(() => {
+          if (!active || revision !== authRevision || turn !== generation) return;
+          startPoll();
+          if (next) void refreshEntitlement();
+        });
+        return;
+      }
       startPoll();
       // Supabase awaits auth callbacks under its lock. Reads must start afterwards.
       const turn = generation;
@@ -272,6 +279,7 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
   };
   const changeKeepSignedIn = (next: boolean): Promise<boolean> => {
     if (handover) return handover;
+    if (pendingAccountCleanup(state.client)) return Promise.resolve(false);
     if (next === state.keepSignedIn) return Promise.resolve(true);
     const request = (async () => {
       invalidate();
@@ -315,7 +323,8 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
         state = { ...state, syncEnabled: store.getItem(WEB_SYNC_KEY) !== "false" };
       } catch { /* Storage is optional. */ }
       if (state.client) void resumeAccountClient(state.client);
-      publish({ client: state.client ?? createAccountClient(state.keepSignedIn), live: readLiveSnapshots() });
+      publish({ client: state.client ?? createAccountClient(state.keepSignedIn),
+        live: locallySignedOut || pendingAccountCleanup(state.client) ? [] : readLiveSnapshots() });
       if (document.visibilityState !== "hidden") void read();
       attach();
     },
@@ -329,7 +338,10 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
     },
     current: () => state,
     subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    refresh() { publish({ live: readLiveSnapshots() }); return read(); },
+    refresh() {
+      if (!locallySignedOut && !pendingAccountCleanup(state.client)) publish({ live: readLiveSnapshots() });
+      return read();
+    },
     refreshEntitlement,
     acceptEntitlement(userId, entitlement) {
       if (active && userId && userId === state.session?.user.id) publish({ entitlement });
@@ -347,11 +359,18 @@ export function createAccountSessionRuntime(): AccountSessionRuntime {
     async logout() {
       locallySignedOut = true;
       invalidate();
-      clearPrivateSessionState();
       clearIntent();
       clearResults();
       publish({ session: null, live: [] });
-      await state.client?.auth.signOut();
+      // Invalidate phone reads now, but leave the account token for Supabase's revocation.
+      void endPhoneSession();
+      try {
+        await state.client?.auth.signOut();
+      } catch {
+        // An unreachable auth server must not prevent local logout.
+      } finally {
+        clearPrivateSessionState();
+      }
     },
   };
 }
