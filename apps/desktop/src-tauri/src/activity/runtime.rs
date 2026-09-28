@@ -12,6 +12,86 @@ use std::{
 };
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
+// Rust consumers receive only the engine's display projection, never targets.
+// No command or webview permission is added for this read.
+pub(crate) fn display_sessions<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Option<Vec<ActivityDisplayRecord>> {
+    let state = app.try_state::<ActivityState>()?;
+    let sessions = state.sessions.lock().ok()?;
+    Some(
+        sessions
+            .iter()
+            .take(super::contract::LIVE_SESSIONS)
+            .cloned()
+            .collect(),
+    )
+}
+
+#[cfg(test)]
+mod rail_tests {
+    use super::*;
+    use tauri::{
+        ipc::{CallbackFn, InvokeBody},
+        test::{get_ipc_response, mock_builder, INVOKE_KEY},
+        webview::InvokeRequest,
+        WebviewWindowBuilder,
+    };
+
+    #[test]
+    fn rail_snapshot_reads_bounded_native_display_state_through_ipc() {
+        let app = mock_builder()
+            .plugin(crate::activity::init())
+            .plugin(crate::rail::init())
+            .build(tauri::generate_context!())
+            .unwrap();
+        let record = ActivityDisplayRecord {
+            session_id: "a".repeat(64),
+            agent: "codex".into(),
+            state: "busy".into(),
+            confidence: "explicit".into(),
+            first_observed_at: "2026-01-01T00:00:00.000Z".into(),
+            observed_at: "2026-01-01T00:01:00.000Z".into(),
+            state_changed_at: "2026-01-01T00:00:00.000Z".into(),
+            user_project_label: Some("private project".into()),
+            outcome: None,
+        };
+        *app.state::<ActivityState>().sessions.lock().unwrap() = vec![record; 1000];
+        for label in ["rail", "rail-card"] {
+            let window = WebviewWindowBuilder::new(&app, label, Default::default())
+                .build()
+                .unwrap();
+            let response = get_ipc_response(
+                &window,
+                InvokeRequest {
+                    cmd: "plugin:rail|rail_snapshot".into(),
+                    callback: CallbackFn(0),
+                    error: CallbackFn(1),
+                    url: if cfg!(any(windows, target_os = "android")) {
+                        "http://tauri.localhost"
+                    } else {
+                        "tauri://localhost"
+                    }
+                    .parse()
+                    .unwrap(),
+                    body: InvokeBody::default(),
+                    headers: Default::default(),
+                    invoke_key: INVOKE_KEY.into(),
+                },
+            )
+            .unwrap()
+            .deserialize::<serde_json::Value>()
+            .unwrap();
+            assert_eq!(response["sessions"].as_array().unwrap().len(), 64);
+            assert_eq!(response["sessions"][0]["agent"], "codex");
+            assert_eq!(response["sessions"][0]["state"], "busy");
+            assert_eq!(response["sessions"][0]["computer"], "local");
+            assert!(response["sessions"][0]["elapsedSeconds"].is_u64());
+            assert!(!response.to_string().contains("private project"));
+        }
+    }
+}
+
 pub(super) struct Consumer {
     root: PathBuf,
     reader: Reader,

@@ -17,6 +17,8 @@ mod persistence;
 mod placement;
 #[path = "rail/runtime.rs"]
 mod runtime;
+#[path = "rail/snapshot.rs"]
+mod snapshot;
 #[cfg(windows)]
 #[path = "rail/windows.rs"]
 mod windows;
@@ -24,6 +26,7 @@ mod windows;
 struct RailState {
     inner: Mutex<Inner>,
     running: AtomicBool,
+    snapshot_state_root: Mutex<Option<PathBuf>>,
 }
 
 struct Inner {
@@ -46,6 +49,33 @@ impl Inner {
 }
 
 struct RailMenu<R: Runtime>(Mutex<Option<tauri::menu::MenuItem<R>>>);
+
+const SNAPSHOT_CACHE_FILE_NAME: &str = "openlimiter-cache.json";
+
+fn read_snapshot_cache(state: &RailState) -> Option<String> {
+    let root = state.snapshot_state_root.lock().ok()?.clone();
+    match root {
+        Some(path) => crate::fsx::bounded_read(&path.join(SNAPSHOT_CACHE_FILE_NAME)),
+        None => {
+            #[cfg(test)]
+            {
+                None
+            }
+            #[cfg(not(test))]
+            {
+                crate::state::read_cache()
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn set_test_snapshot_root<R: Runtime>(app: &tauri::AppHandle<R>, root: PathBuf) {
+    *app.state::<RailState>()
+        .snapshot_state_root
+        .lock()
+        .expect("Rail snapshot root is not poisoned") = Some(root);
+}
 
 /// Explicit opt in for unverified macOS/Linux builds without changing Cargo features.
 fn enabled() -> bool {
@@ -91,6 +121,7 @@ pub struct RailAccountViewModel {
     pub meaning: String,
     pub window_label: String,
     pub reset_at: Option<String>,
+    pub observed_at: Option<String>,
     pub freshness: String,
     pub availability: String,
     pub band: String,
@@ -103,18 +134,30 @@ pub struct RailAccountViewModel {
 #[serde(rename_all = "camelCase")]
 pub struct RailSnapshot {
     pub accounts: Vec<RailAccountViewModel>,
+    pub sessions: Option<Vec<snapshot::SessionDisplay>>,
     pub window: WindowSnapshot,
 }
 
 #[tauri::command]
-fn rail_snapshot(state: tauri::State<'_, RailState>) -> Result<RailSnapshot, String> {
+fn rail_snapshot<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, RailState>,
+) -> Result<RailSnapshot, String> {
+    let now = chrono::Utc::now().timestamp_millis();
+    let sessions =
+        crate::activity::display_sessions(&app).map(|records| snapshot::sessions(records, now));
+    let accounts = snapshot::accounts(
+        crate::native_snapshot::display_snapshots(read_snapshot_cache(&state).as_deref()),
+        now,
+    );
     let inner = state.inner.lock().map_err(|_| "Rail state unavailable")?;
     let p = &inner.preferences;
     let id = placement::select(&inner.monitors, &p.monitor_id)
         .map(|m| m.id.as_str())
         .unwrap_or(&p.monitor_id);
     Ok(RailSnapshot {
-        accounts: Vec::new(),
+        accounts,
+        sessions,
         window: WindowSnapshot {
             available: inner.available,
             preview: !cfg!(windows),
@@ -263,6 +306,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                     available: false,
                 }),
                 running: AtomicBool::new(false),
+                snapshot_state_root: Mutex::new(None),
             });
             app.manage(RailMenu::<R>(Mutex::new(None)));
             Ok(())

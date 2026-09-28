@@ -18,6 +18,7 @@ mod notify;
 mod process;
 #[path = "activity/runtime.rs"]
 mod runtime;
+pub(crate) use runtime::display_sessions;
 #[path = "activity/spool.rs"]
 mod spool;
 #[path = "activity/storage.rs"]

@@ -42,6 +42,7 @@ import {
    the other three drawing what they can prove. */
 import { renderPlanCap } from "./plan-cap.js";
 import { renderSettings } from "./settings.js";
+import { mountAgents } from "./agents.js";
 import { renderPro, renderSpend } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
    account, and both are drawn by their own module rather than here. */
@@ -1521,6 +1522,9 @@ if (cardsContainer) {
   });
   observer.observe(cardsContainer, { childList: true, subtree: true });
 }
+
+const disposeAgents = mountAgents(elements.agentsMount);
+window.addEventListener("beforeunload", disposeAgents, { once: true });
 
 initPairing({ onSignIn: openSignIn });
 
