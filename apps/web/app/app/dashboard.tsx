@@ -38,14 +38,6 @@ import { SectionPanel } from "@/components/ui";
 import { LiveMeter } from "./live-meter";
 import { NotificationBell, type AlertScope } from "./notification-bell";
 import {
-  applyKeepSignedIn,
-  createAccountClient,
-  readKeepSignedIn,
-  resumeAccountClient,
-  stopAccountClient,
-  writeKeepSignedIn,
-} from "@/lib/account-client";
-import {
   CONFIGURATION_DEEP_LINK_PARAM,
   ONBOARDED_METADATA_KEY,
   TRIAL_DEEP_LINK_PARAM,
@@ -59,18 +51,13 @@ import {
   type HubView,
 } from "@/lib/onboarding";
 import { CloudMeterPanel, CloudSpendRows } from "./cloud-meter-panel";
-import { listCloudKeys, type CloudMeterKey } from "@/lib/cloud-meter";
 import { SyncedSpendRows } from "./synced-spend-rows";
 import { clearIntent, pendingIntent, rememberIntent } from "@/lib/pending-intent";
-import { proAccessState, readProAccount, type ProEntitlement } from "@/lib/pro";
+import { proAccessState } from "@/lib/pro";
 import { offersTrial } from "@/lib/pro-trial";
-import { createSessionRuntime, observeAccountSession } from "@/lib/session-runtime";
+import { createAccountSessionRuntime } from "@/lib/session-runtime";
 import {
-  readSyncedUsage,
-  readSyncedApiSpend,
-  type SyncedApiSpend,
   type SyncedProviderUsage,
-  type SyncedUsageResult,
 } from "@/lib/synced-usage";
 import { getDevPreviewSnapshots } from "./dev-preview";
 import { useTranslations } from "next-intl";
@@ -112,33 +99,11 @@ const IS_DEV = process.env.NODE_ENV !== "production";
  * live store because it never names it.
  */
 
-/** Where real readings live, on this device only. */
-const LIVE_KEY = "openlimiter-app-live";
-
 /** Where synthetic readings live. Never read as live, never merged into it. */
 const DEMO_KEY = "openlimiter-app-demo";
 
 /** Which of the two is on screen. */
 const MODE_KEY = "openlimiter-app-mode";
-
-/**
- * The single key the two used to share, and the flag that sat beside it.
- *
- * Read once, on first load, and then removed, whichever way it goes. What
- * happens in between depends on what the flag said, and the two cases are
- * opposites:
- *
- *   flag absent or "0", meaning the contents were real, and the live store is
- *   still empty: the contents are PROMOTED into the live store, so somebody
- *   upgrading does not lose the readings they had;
- *
- *   flag "1", meaning the contents were synthetic, or a live store that already
- *   holds something: the contents are dropped, because a store that cannot
- *   prove a reading came from an account is not allowed to hand it to the live
- *   store, and a real live store is never overwritten by an older one.
- */
-const LEGACY_KEY = "openlimiter-app-snapshots";
-const LEGACY_SAMPLE_KEY = "openlimiter-app-sample";
 
 /** How often the clock advances, which is what ages a reading to stale. */
 const TICK_MILLISECONDS = 10_000;
@@ -157,7 +122,6 @@ const BUSY_FLOOR_MILLISECONDS = 240;
 const READY_ATTR = "data-ol-ready";
 
 const SYNC_FRESH_MILLISECONDS = 5 * 60_000;
-const WEB_SYNC_KEY = "openlimiter-web-sync-enabled";
 
 function snapshotsFromSync(providers: readonly SyncedProviderUsage[]): Snapshot[] {
   const supported = new Set<string>(PROVIDER_CODES);
@@ -294,32 +258,6 @@ function saveMode(mode: Mode): void {
   }
 }
 
-/**
- * Promote a single key store into the live key, or drop it if it was synthetic.
- *
- * Promotion is the point of this function: a reading the old flag called real
- * is carried over intact rather than thrown away, and only an empty live store
- * will accept it. Everything else about the legacy pair is removed either way,
- * so this runs once per browser and never again.
- */
-function migrateLegacy(): void {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = window.localStorage.getItem(LEGACY_KEY);
-    if (raw === null) return;
-    const wasSample = window.localStorage.getItem(LEGACY_SAMPLE_KEY) === "1";
-    /* Readings the old flag called real are carried over into a live store that
-       has nothing in it yet. Anything else is dropped. */
-    if (!wasSample && window.localStorage.getItem(LIVE_KEY) === null) {
-      window.localStorage.setItem(LIVE_KEY, raw);
-    }
-    window.localStorage.removeItem(LEGACY_KEY);
-    window.localStorage.removeItem(LEGACY_SAMPLE_KEY);
-  } catch {
-    /* Nothing to migrate if storage was never available. */
-  }
-}
-
 /** The way back from a place, under the panel it belongs to. */
 function BackToBars({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -338,7 +276,13 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    *
    * Nothing in this component ever combines them. `shown` below picks one.
    */
-  const [live, setLive] = useState<readonly Snapshot[]>([]);
+  const [sessionRuntime] = useState(createAccountSessionRuntime);
+  const [accountState, setAccountState] = useState(sessionRuntime.current);
+  const { live, session, syncedUsage, syncedSpend, cloudRows, spendFailed, cloudFailed,
+    entitlement, keepSignedIn, syncEnabled, client: syncClient } = accountState;
+  const refreshSyncedUsage = sessionRuntime.refresh;
+  const refreshEntitlement = sessionRuntime.refreshEntitlement;
+  const changeKeepSignedIn = sessionRuntime.changeKeepSignedIn;
   const [demoSnapshots, setDemoSnapshots] = useState<readonly Snapshot[]>([]);
   const [mode, setMode] = useState<Mode>("live");
   /**
@@ -363,23 +307,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    * reached from the header, rather than tabs sitting above the product.
    */
   const [view, setView] = useState<HubView>("bars");
-  const [syncedUsage, setSyncedUsage] = useState<SyncedUsageResult | null>(null);
-  const [syncedSpend, setSyncedSpend] = useState<SyncedApiSpend[]>([]);
-  const [cloudRows, setCloudRows] = useState<CloudMeterKey[]>([]);
   const [trialStartedNotice, setTrialStartedNotice] = useState(false);
-  const [spendFailed, setSpendFailed] = useState(false);
-  const [cloudFailed, setCloudFailed] = useState(false);
-  const readInFlight = useRef<Promise<void> | null>(null);
-  const accountGeneration = useRef(0);
-  const syncedRequestGeneration = useRef(0);
-  const entitlementRequestGeneration = useRef(0);
-  const authRequestGeneration = useRef(0);
-  const authStateGeneration = useRef(0);
-  const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const accountIdentity = session?.user.id ?? null;
-  const accountIdentityRef = useRef<string | null>(accountIdentity);
-  accountIdentityRef.current = accountIdentity;
-  const [syncEnabled, setSyncEnabled] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<ProviderDirectoryRow | null>(null);
   /**
    * The plan, as the server last reported it.
@@ -389,29 +317,15 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    * brand new account and is exactly who the trial is for. Nothing here starts
    * a trial; the wizard is the one door. See lib/pro-trial.ts.
    */
-  const [entitlement, setEntitlement] = useState<ProEntitlement | null | undefined>(undefined);
   /** The deep link the desktop tray opens, consumed once and then forgotten. */
   const [deepLinkTrial, setDeepLinkTrial] = useState(false);
   /** The deep link the OpenRouter callback returns on, consumed the same way. */
   const [deepLinkConfiguration, setDeepLinkConfiguration] = useState(false);
   const busyTimer = useRef<number | null>(null);
   const t = useTranslations("hub");
-  /**
-   * Read on the first render that has a browser to read from. The skeleton is
-   * what is on screen at that moment, and it says nothing about this value, so
-   * there is no server rendered answer for it to disagree with.
-   */
-  const [keepSignedIn, setKeepSignedIn] = useState(() => readKeepSignedIn());
-  /* Rebuilt when the switch moves: the store a session lands in is fixed when
-     the client is constructed. See lib/account-client.ts. */
-  const syncClient = useMemo(() => createAccountClient(keepSignedIn), [keepSignedIn]);
   /** The account the opening view was decided for, so a token refresh cannot
       throw somebody out of the screen they are reading. */
   const decidedFor = useRef<string | null>(null);
-  /** The live auth listener, so a client being replaced takes its own with it. */
-  const authListener = useRef<{ unsubscribe: () => void } | null>(null);
-  const authenticatedUserId = useRef<string | null>(null);
-
   const demo = mode === "demo";
 
   const [mounted, setMounted] = useState(false);
@@ -447,14 +361,10 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
 
-    migrateLegacy();
-    const storedLive = loadStore(LIVE_KEY);
     const storedDemo = loadStore(DEMO_KEY);
     const storedMode = loadMode();
-    setLive(storedLive);
     setDemoSnapshots(storedDemo);
     setMode(storedMode);
-    setSyncEnabled(window.localStorage.getItem(WEB_SYNC_KEY) !== "false");
     setNow(new Date().toISOString());
 
     /* The launch splash waits on this and nothing else. */
@@ -472,101 +382,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     if (!mounted || session === undefined || session === null || deepLinkTrial) return;
     if (pendingIntent(session.user.id)?.kind === "trial") setDeepLinkTrial(true);
   }, [deepLinkTrial, mounted, session]);
-
-  useEffect(() => {
-    accountGeneration.current += 1;
-    syncedRequestGeneration.current += 1;
-    entitlementRequestGeneration.current += 1;
-    readInFlight.current = null;
-    setSyncedUsage(null);
-    setSyncedSpend([]);
-    setCloudRows([]);
-    setSpendFailed(false);
-    setCloudFailed(false);
-    setEntitlement(undefined);
-    return () => {
-      accountGeneration.current += 1;
-      syncedRequestGeneration.current += 1;
-      entitlementRequestGeneration.current += 1;
-    };
-  }, [syncClient, syncEnabled, accountIdentity]);
-
-  const refreshSyncedUsage = useCallback((): Promise<void> => {
-    if (!syncEnabled) {
-      setSyncedUsage({ ok: false, reason: "signed_out" });
-      return Promise.resolve();
-    }
-    /* A rejection is an answer too. Without this the first read failing would
-       leave the working state on screen with nothing ever to replace it. The
-       promise is returned (every existing call site already ignores it) so
-       the automatic poll below can tell when one call ends and the next may
-       start: see hubPollIntervalMilliseconds. */
-    if (readInFlight.current) return readInFlight.current;
-    const identityAtStart = accountIdentityRef.current;
-    const accountGenerationAtStart = accountGeneration.current;
-    const requestGenerationAtStart = ++syncedRequestGeneration.current;
-    const request = Promise.allSettled([
-      readSyncedUsage(syncClient),
-      readSyncedApiSpend(syncClient),
-      syncClient === null ? Promise.resolve(null) : listCloudKeys(syncClient),
-    ]).then(([usage, spend, cloud]) => {
-      if (
-        accountGenerationAtStart !== accountGeneration.current ||
-        requestGenerationAtStart !== syncedRequestGeneration.current ||
-        identityAtStart !== accountIdentityRef.current
-      ) return;
-      if (spend.status === "fulfilled" && spend.value.ok) {
-        setSyncedSpend(spend.value.sources);
-        setSpendFailed(false);
-      } else setSpendFailed(true);
-      if (cloud.status === "fulfilled" && cloud.value?.ok) {
-        setCloudRows(cloud.value.value);
-        setCloudFailed(false);
-      } else setCloudFailed(true);
-      setSyncedUsage(usage.status === "fulfilled" ? usage.value : { ok: false, reason: "unavailable" });
-    }).finally(() => {
-      if (readInFlight.current === request) readInFlight.current = null;
-    });
-    readInFlight.current = request;
-    return request;
-  }, [syncClient, syncEnabled]);
-
-  useEffect(() => {
-    if (syncClient === null || !syncEnabled || !accountIdentity) return;
-    const runtime = createSessionRuntime({ read: refreshSyncedUsage });
-    runtime.start();
-    return runtime.stop;
-  }, [syncClient, syncEnabled, accountIdentity, refreshSyncedUsage]);
-
-  /**
-   * Read the plan.
-   *
-   * One call, on a signed in session and on nothing else. A refusal is an
-   * answer: the surfaces that depend on this draw nothing rather than
-   * inventing a state, which is the same rule the Pro portal holds.
-   */
-  const refreshEntitlement = useCallback(() => {
-    if (syncClient === null) {
-      setEntitlement(null);
-      return;
-    }
-    const identityAtStart = accountIdentityRef.current;
-    const accountGenerationAtStart = accountGeneration.current;
-    const requestGenerationAtStart = ++entitlementRequestGeneration.current;
-    const stillCurrent = () =>
-      accountGenerationAtStart === accountGeneration.current &&
-      requestGenerationAtStart === entitlementRequestGeneration.current &&
-      identityAtStart === accountIdentityRef.current;
-    void readProAccount(syncClient).then(
-      (result) => {
-        if (!stillCurrent()) return;
-        setEntitlement(result.ok ? result.value.entitlement : undefined);
-      },
-      () => {
-        if (stillCurrent()) setEntitlement(undefined);
-      },
-    );
-  }, [syncClient]);
 
   /**
    * Where a signed in reader lands, decided once per account.
@@ -587,66 +402,14 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setView(openingView(hasOnboarded(user as AccountProfile, flagStore())));
   }, []);
 
-  /**
-   * Listen to one client, and be able to do it again.
-   *
-   * The switch detaches this before it touches storage, and a move that fails
-   * attaches it back to the same client, so a browser that refused the write
-   * is left with a client that is both refreshing and listening, exactly as it
-   * was a moment earlier.
-   */
-  const attachAuthListener = useCallback(
-    (client: SupabaseClient, requestGenerationAtStart: number) => {
-      const subscription = observeAccountSession(client, (event, next) => {
-        if (requestGenerationAtStart !== authRequestGeneration.current) return;
-        authStateGeneration.current += 1;
-        const previousUserId = authenticatedUserId.current;
-        const nextUserId = next?.user.id ?? null;
-        const authenticatedAccountChanged =
-          previousUserId !== null && nextUserId !== null && previousUserId !== nextUserId;
-        authenticatedUserId.current = nextUserId;
-        setSession(next);
-        decideOpeningView(next);
-        if (next !== null) window.setTimeout(refreshEntitlement, 0);
-        if (event === "SIGNED_OUT" || authenticatedAccountChanged) {
-          clearIntent();
-          setLive([]);
-          accountGeneration.current += 1;
-          setSyncedUsage(null);
-          setSyncedSpend([]);
-          setCloudRows([]);
-        }
-        else if (next !== null) pendingIntent(next.user.id);
-      });
-      authListener.current = subscription;
-    },
-    [decideOpeningView, refreshEntitlement],
-  );
-
   useEffect(() => {
-    if (document.visibilityState !== "hidden") void refreshSyncedUsage();
-    if (syncClient === null) {
-      setSession(null);
-      return () => {
-        authRequestGeneration.current += 1;
-      };
-    }
-    const requestGenerationAtStart = ++authRequestGeneration.current;
-    setSession(null);
-    attachAuthListener(syncClient, requestGenerationAtStart);
-    return () => {
-      /* The switch may already have dropped it. Unsubscribing twice is safe;
-         leaving a listener attached to an abandoned client is not. */
-      authListener.current?.unsubscribe();
-      authListener.current = null;
-      authRequestGeneration.current += 1;
-    };
-  }, [attachAuthListener, decideOpeningView, refreshEntitlement, refreshSyncedUsage, syncClient]);
+    const unsubscribe = sessionRuntime.subscribe(setAccountState);
+    sessionRuntime.start();
+    setAccountState(sessionRuntime.current());
+    return () => { unsubscribe(); sessionRuntime.stop(); };
+  }, [sessionRuntime]);
 
-  useEffect(() => {
-    if (session?.user.id === undefined) return;
-    refreshEntitlement();
-  }, [refreshEntitlement, session?.user.id]);
+  useEffect(() => { decideOpeningView(session ?? null); }, [decideOpeningView, session]);
 
   /**
    * The deep link, honoured once the reader is actually signed in.
@@ -675,37 +438,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     setDeepLinkConfiguration(false);
     setView("configuration");
   }, [deepLinkConfiguration, session]);
-
-  /**
-   * Move the session, then swap the client. In that order, and not otherwise.
-   *
-   * The old client is silenced first, both halves of it: the refresh ticker,
-   * because two clients spending one refresh token is a race whose loser signs
-   * the reader out, and the listener, because a client mid handover reporting
-   * a session change would send this component off deciding views on behalf of
-   * a client that is about to be thrown away. Only then does the session move,
-   * and only a move that actually landed is allowed to change the answer: a
-   * store that refused gets the old client back, ticker and listener both, the
-   * old preference kept, and the card a sentence to draw.
-   */
-  const changeKeepSignedIn = useCallback(
-    async (next: boolean): Promise<boolean> => {
-      if (next === keepSignedIn) return true;
-      await stopAccountClient(syncClient);
-      authListener.current?.unsubscribe();
-      authListener.current = null;
-      authRequestGeneration.current += 1;
-      if (!applyKeepSignedIn(next)) {
-        await resumeAccountClient(syncClient);
-        if (syncClient !== null) attachAuthListener(syncClient, authRequestGeneration.current);
-        return false;
-      }
-      writeKeepSignedIn(next);
-      setKeepSignedIn(next);
-      return true;
-    },
-    [attachAuthListener, keepSignedIn, syncClient],
-  );
 
   /** Show the working state, then clear it no sooner than the floor above. */
   const work = useCallback((run: () => void) => {
@@ -745,7 +477,6 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
       if (mode === "demo") {
         setDemoSnapshots(loadStore(DEMO_KEY));
       } else {
-        setLive(loadStore(LIVE_KEY));
         refreshSyncedUsage();
       }
       setNow(new Date().toISOString());
@@ -955,8 +686,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
               accountEmail={effectiveSession.user.email ?? "Signed in"}
               syncEnabled={syncEnabled}
               onSyncChange={(enabled) => {
-                setSyncEnabled(enabled);
-                window.localStorage.setItem(WEB_SYNC_KEY, enabled ? "true" : "false");
+                sessionRuntime.setSyncEnabled(enabled);
               }}
               onCheckUpdate={() => {
                 if (navigator.serviceWorker === undefined) return;
@@ -966,8 +696,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                 });
               }}
               onLogout={() => {
-                clearIntent();
-                void syncClient?.auth.signOut();
+                void sessionRuntime.logout();
               }}
             />
           </>
@@ -1019,7 +748,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                  reload, and asks again anyway so the device list and the
                  features come from the server rather than from this branch. */
               setTrialStartedNotice(true);
-              setEntitlement(next);
+              sessionRuntime.acceptEntitlement(session?.user.id, next);
               refreshEntitlement();
             }}
             onClose={() => setView("bars")}

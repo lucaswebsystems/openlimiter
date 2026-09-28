@@ -5,7 +5,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPhoneSessionRuntime, createSessionRuntime, observeAccountSession } from "@/lib/session-runtime";
 import { accountReturnDestination, authStorageKey, clearPrivateSessionState, createAccountClient } from "@/lib/account-client";
-import { PHONE_PAIR_META_KEY, PHONE_REFRESH_COOKIE, PHONE_TOKEN_COOKIE, readCurrentPhoneBars, requestPhoneRenewal, writePhonePairMeta } from "@/lib/phone-session";
+import { endPhoneSession, establishPhoneSession, PHONE_PAIR_META_KEY, PHONE_REFRESH_COOKIE, PHONE_TOKEN_COOKIE, readCurrentPhoneBars, requestPhoneRead, requestPhoneRenewal, writePhonePairMeta } from "@/lib/phone-session";
 import { POST as renewPost } from "@/app/app/pair/api/renew/route";
 import { POST as readPost } from "@/app/app/pair/api/read/route";
 
@@ -35,6 +35,55 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const drain = async () => { for (let n = 0; n < 30; n += 1) await Promise.resolve(); };
 
 describe("the shared visible session lifecycle", () => {
+  it.each(["logout", "account switch", "new pairing"])("invalidates the recovery read during %s", async (action) => {
+    writePhonePairMeta({ label: "Phone", expiresAt: NOW / 1000 + 86_400 });
+    let finish!: (response: Response) => void;
+    let reads = 0;
+    vi.stubGlobal("fetch", vi.fn(async (input, init) => {
+      if (init?.method === "DELETE" || String(input).endsWith("session")) return json({ ok: true });
+      if (String(input).endsWith("renew")) return json({ expires_at: NOW / 1000 + 86_400 });
+      if (++reads === 1) return json({ error: "no_pair" }, 401);
+      return new Promise<Response>((resolve) => { finish = resolve; });
+    }));
+    const pending = readCurrentPhoneBars();
+    await drain();
+    expect(reads).toBe(2);
+    if (action === "account switch") clearPrivateSessionState({ user: { id: "next" } } as Session);
+    else await endPhoneSession();
+    if (action === "new pairing") {
+      expect(await establishPhoneSession({ token: "new", expiresAt: NOW / 1000 + 86_400,
+        refreshCredential: "new-refresh", refreshExpiresAt: NOW / 1000 + 30 * 86_400 }, "Next")).toBe(true);
+    }
+    finish(json({ body: { privateQuota: 42 } }));
+    expect(await pending).toEqual({ kind: "unpaired" });
+  });
+
+  it("invalidates a direct read even when shared storage refuses logout", async () => {
+    let finish!: (response: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(async (_input, init) => init?.method === "DELETE"
+      ? json({ ok: true }) : new Promise<Response>((resolve) => { finish = resolve; })));
+    const pending = requestPhoneRead();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("refused"); });
+    await endPhoneSession();
+    finish(json({ body: { privateQuota: 42 } }));
+    expect(await pending).toEqual({ kind: "unpaired" });
+  });
+
+  it("never restores metadata from a renewal completed after a new pairing", async () => {
+    writePhonePairMeta({ label: "Old", expiresAt: NOW / 1000 });
+    let finish!: (response: Response) => void;
+    vi.stubGlobal("fetch", vi.fn(async (input) => String(input).endsWith("renew")
+      ? new Promise<Response>((resolve) => { finish = resolve; }) : json({ ok: true })));
+    const pending = requestPhoneRenewal();
+    await drain();
+    await endPhoneSession();
+    await establishPhoneSession({ token: "new", expiresAt: NOW / 1000 + 86_400,
+      refreshCredential: "new-refresh", refreshExpiresAt: NOW / 1000 + 30 * 86_400 }, "Next");
+    finish(json({ expires_at: NOW / 1000 + 100 }));
+    expect(await pending).toEqual({ kind: "unpaired" });
+    expect(JSON.parse(localStorage.getItem(PHONE_PAIR_META_KEY)!)).toEqual({ label: "Next", expiresAt: NOW / 1000 + 86_400 });
+  });
+
   it("reads every 60 seconds, pauses hidden, and refreshes on visibility and network recovery", async () => {
     const read = vi.fn(async () => "fresh");
     const runtime = createSessionRuntime({ read });

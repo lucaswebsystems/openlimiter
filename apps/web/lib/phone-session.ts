@@ -348,13 +348,15 @@ async function postJson(path: string, body?: unknown): Promise<{ status: number;
  * confirms the cookies are set.
  */
 export async function establishPhoneSession(pair: PhonePair, label: string): Promise<boolean> {
+  invalidatePhoneRequests();
+  const current = phoneRequestGuard();
   const answer = await postJson("/app/pair/api/session", {
     token: pair.token,
     expires_at: pair.expiresAt,
     refresh_credential: pair.refreshCredential,
     refresh_expires_at: pair.refreshExpiresAt,
   });
-  if (answer.status !== 200) return false;
+  if (!current() || answer.status !== 200) return false;
   try { window.localStorage.removeItem(PHONE_DISABLED_KEY); } catch { /* Storage refused. */ }
   writePhonePairMeta({ label, expiresAt: pair.expiresAt });
   return true;
@@ -362,6 +364,7 @@ export async function establishPhoneSession(pair: PhonePair, label: string): Pro
 
 /** End the pairing: clear both cookies server side, then the local marker. */
 export async function endPhoneSession(): Promise<void> {
+  invalidatePhoneRequests();
   clearPhonePairMeta();
   // Block recovery from cookies if logout happens offline or a read is still running.
   try { window.localStorage.setItem(PHONE_DISABLED_KEY, "true"); } catch { /* Storage refused. */ }
@@ -384,9 +387,10 @@ export type RenewSessionOutcome =
 const RENEW_LOCK_NAME = "openlimiter-phone-renew";
 
 async function renewOnce(): Promise<RenewSessionOutcome> {
+  const current = phoneRequestGuard();
   if (phoneDisabled()) return { kind: "unpaired" };
   const answer = await postJson("/app/pair/api/renew");
-  if (phoneDisabled()) return { kind: "unpaired" };
+  if (!current() || phoneDisabled()) return { kind: "unpaired" };
   if (answer.status === 403) {
     clearPhonePairMeta();
     return { kind: "revoked" };
@@ -423,6 +427,22 @@ async function renewOnce(): Promise<RenewSessionOutcome> {
  */
 let renewalFlight: Promise<RenewSessionOutcome> | null = null;
 
+let phoneGeneration = 0;
+const PHONE_REVISION_KEY = "openlimiter-phone-session-revision";
+function storedRevision(): string | null {
+  try { return window.localStorage.getItem(PHONE_REVISION_KEY); } catch { return null; }
+}
+function invalidatePhoneRequests(): void {
+  phoneGeneration += 1;
+  renewalFlight = null;
+  try { window.localStorage.setItem(PHONE_REVISION_KEY, crypto.randomUUID()); } catch { /* Memory still fences this tab. */ }
+}
+function phoneRequestGuard(): () => boolean {
+  const generation = phoneGeneration;
+  const revision = storedRevision();
+  return () => generation === phoneGeneration && revision === storedRevision();
+}
+
 /** Lamport's bakery lock for browsers without Web Locks. Tickets are per tab attempt.
  * A lease outlives the bounded fetch; an expired waiter never starts a request.
  * Refused shared storage fails closed, rather than rotating without exclusion.
@@ -458,9 +478,10 @@ async function storageRenewalLock(run: () => Promise<RenewSessionOutcome>): Prom
 
 export function requestPhoneRenewal(force = false): Promise<RenewSessionOutcome> {
   if (renewalFlight) return renewalFlight;
+  const current = phoneRequestGuard();
   const initialExpiry = readPhonePairMeta()?.expiresAt;
   const renew = async (): Promise<RenewSessionOutcome> => {
-    if (phoneDisabled()) return { kind: "unpaired" };
+    if (!current() || phoneDisabled()) return { kind: "unpaired" };
     const meta = readPhonePairMeta();
     if (meta !== null && ((!force && !phonePairNeedsRenewal(meta)) || (force && meta.expiresAt !== initialExpiry))) {
       return { kind: "skipped", expiresAt: meta.expiresAt };
@@ -470,7 +491,11 @@ export function requestPhoneRenewal(force = false): Promise<RenewSessionOutcome>
   const request = typeof navigator !== "undefined" && navigator.locks
     ? navigator.locks.request(RENEW_LOCK_NAME, renew)
     : storageRenewalLock(renew);
-  renewalFlight = Promise.resolve(request).then((answer) => answer).finally(() => { renewalFlight = null; });
+  const flight = Promise.resolve(request).then((answer): RenewSessionOutcome =>
+    current() ? answer : { kind: "unpaired" }).finally(() => {
+    if (renewalFlight === flight) renewalFlight = null;
+  });
+  renewalFlight = flight;
   return renewalFlight;
 }
 
@@ -482,7 +507,10 @@ export type PhoneReadOutcome =
 
 /** Read the account's meters through the same-origin route. */
 export async function requestPhoneRead(): Promise<PhoneReadOutcome> {
+  const current = phoneRequestGuard();
+  if (phoneDisabled()) return { kind: "unpaired" };
   const answer = await postJson("/app/pair/api/read");
+  if (!current() || phoneDisabled()) return { kind: "unpaired" };
   if (answer.status === 401) {
     const body = record(answer.body);
     return body?.error === "no_pair" ? { kind: "unpaired" } : { kind: "empty" };
@@ -495,21 +523,25 @@ export async function requestPhoneRead(): Promise<PhoneReadOutcome> {
 
 /** Renew before reading, and recover a missing access cookie without deleting the refresh cookie. */
 export async function readCurrentPhoneBars(): Promise<PhoneReadOutcome> {
+  const current = phoneRequestGuard();
   if (phoneDisabled()) return { kind: "unpaired" };
   const meta = readPhonePairMeta();
   if (meta !== null && phonePairNeedsRenewal(meta)) {
     const renewal = await requestPhoneRenewal();
+    if (!current() || phoneDisabled()) return { kind: "unpaired" };
     if (renewal.kind === "revoked") return renewal;
     if (renewal.kind === "unpaired") return renewal;
     if (renewal.kind === "unavailable") return { kind: "empty" };
   }
   const answer = await requestPhoneRead();
-  if (phoneDisabled()) return { kind: "unpaired" };
+  if (!current() || phoneDisabled()) return { kind: "unpaired" };
   if (answer.kind !== "unpaired") return answer;
   const renewal = await requestPhoneRenewal(true);
+  if (!current() || phoneDisabled()) return { kind: "unpaired" };
   if (renewal.kind === "revoked") return renewal;
   if (renewal.kind === "unpaired") return renewal;
   if (renewal.kind === "unavailable") return { kind: meta === null ? "unpaired" : "empty" };
   const retried = await requestPhoneRead();
+  if (!current() || phoneDisabled()) return { kind: "unpaired" };
   return retried.kind === "unpaired" ? { kind: "empty" } : retried;
 }
