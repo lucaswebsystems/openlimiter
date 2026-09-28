@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   chmodSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync,
-  readdirSync, readSync, renameSync, rmdirSync, unlinkSync, writeFileSync,
+  readdirSync, readSync, realpathSync, renameSync, rmdirSync, unlinkSync, writeFileSync,
   type Stats
 } from "node:fs";
 import path from "node:path";
@@ -37,10 +37,12 @@ function checkpoint(options: ActivitySpoolOptions): void {
   if (options.deadline !== undefined && performance.now() >= options.deadline) throw new Error("activity: deadline");
 }
 
-/** Check every ancestor, including junctions, before any creation or read. */
+/** The root is already canonical. Refuse links in the owned subtree. */
 function directories(target: string, create: boolean): boolean {
   if (!path.isAbsolute(target)) throw new Error("activity: absolute state root required");
-  let current = path.parse(target).root;
+  let current = path.dirname(target);
+  const root = lstatSync(current);
+  if (!root.isDirectory() || root.isSymbolicLink()) throw new Error("activity: unsafe directory");
   let created = false;
   for (const segment of target.slice(current.length).split(path.sep).filter(Boolean)) {
     if (segment === "." || segment === "..") throw new Error("activity: path escape");
@@ -58,9 +60,12 @@ function directories(target: string, create: boolean): boolean {
   return created;
 }
 
-function spoolPath(root: string): string {
+function spoolPath(root: string, create = false): string {
   if (!path.isAbsolute(root) || root.split(/[\\/]/u).includes("..")) throw new Error("activity: path escape");
-  return path.join(root, "activity");
+  if (create) mkdirSync(root, { recursive: true, mode: 0o700 });
+  // System roots may contain aliases (macOS /var, Windows junctions). Resolve
+  // only the supplied state root, never activity or any of its entries.
+  return path.join(realpathSync(root), "activity");
 }
 
 function same(left: Stats, right: Stats): boolean {
@@ -96,7 +101,7 @@ function readFile(file: string, info: Stats, now: number): ActivityEvent {
 
 export async function prepareActivitySpool(options: ActivitySpoolOptions): Promise<string> {
   checkpoint(options);
-  const directory = spoolPath(options.directory);
+  const directory = spoolPath(options.directory, true);
   const created = directories(directory, true);
   const before = lstatSync(directory);
   if (process.platform === "win32") {

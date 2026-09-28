@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { ACTIVITY_HOOK_EVENTS, changeAgentHook, changeAgentHookFixture, readAgentHookStatus, type HookInstallOptions } from "../src/hook-installation.js";
+import { ACTIVITY_HOOK_EVENTS, changeAgentHook, changeAgentHookFixture, detectAgentInstallation, readAgentHookStatus, type HookInstallOptions } from "../src/hook-installation.js";
 import type { AgentId } from "../src/stubs.js";
 
 const roots: string[] = [];
@@ -16,6 +16,59 @@ function setup(): HookInstallOptions {
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe("lifecycle hook installers", () => {
+  it.each(["muse", "cursor"] as const)("installs and removes %s hooks through a symlinked home", async (agent) => {
+    const options = setup();
+    const aliases = setup();
+    const homeDirectory = path.join(aliases.homeDirectory, "linked-home");
+    symlinkSync(options.homeDirectory, homeDirectory, process.platform === "win32" ? "junction" : "dir");
+    const linked = { ...options, homeDirectory, openLimiterScript: path.join(homeDirectory, "openlimiter.js") };
+    expect(await changeAgentHook(agent, "install", linked)).toMatchObject({ supported: true, changed: true });
+    expect(await readAgentHookStatus(agent, linked)).toMatchObject({ installed: true });
+    expect(await changeAgentHook(agent, "install", linked)).toMatchObject({ supported: true, changed: false });
+    expect(await changeAgentHook(agent, "uninstall", linked)).toMatchObject({ supported: true, changed: true });
+    expect(await readAgentHookStatus(agent, linked)).toMatchObject({ installed: false });
+  });
+
+  it("accepts a symlinked Muse project root but refuses config and runtime links beneath it", async () => {
+    const options = setup();
+    const aliases = setup();
+    const projectDirectory = path.join(aliases.homeDirectory, "linked-project");
+    symlinkSync(options.homeDirectory, projectDirectory, process.platform === "win32" ? "junction" : "dir");
+    const linked = { ...options, projectDirectory };
+    expect(await changeAgentHook("muse", "install", linked)).toMatchObject({ supported: true, changed: true });
+    const config = path.join(projectDirectory, ".muse");
+    rmSync(config, { recursive: true });
+    const outside = path.join(aliases.homeDirectory, "outside");
+    mkdirSync(outside);
+    symlinkSync(outside, config, process.platform === "win32" ? "junction" : "dir");
+    expect(await changeAgentHook("muse", "install", linked)).toMatchObject({ supported: false, changed: false });
+    expect(await readAgentHookStatus("muse", linked)).toMatchObject({ installed: false });
+    expect(readdirSync(outside)).toEqual([]);
+    rmSync(config, { recursive: true });
+    const runtime = path.join(options.homeDirectory, "runtime");
+    symlinkSync(outside, runtime, process.platform === "win32" ? "junction" : "dir");
+    writeFileSync(path.join(outside, "openlimiter.js"), "// fixture executable\n");
+    expect(await changeAgentHook("muse", "install", { ...linked, openLimiterScript: path.join(runtime, "openlimiter.js") })).toMatchObject({ supported: false, changed: false });
+    expect(readdirSync(options.homeDirectory)).not.toContain(".muse");
+  });
+
+  it("detects an executable through a symlinked PATH root while refusing executable links", async () => {
+    const options = setup();
+    const aliases = setup();
+    const alias = path.join(aliases.homeDirectory, "linked-bin");
+    symlinkSync(options.homeDirectory, alias, process.platform === "win32" ? "junction" : "dir");
+    const executable = path.join(alias, "codex");
+    writeFileSync(executable, "// synthetic version fixture\n");
+    const detection = {
+      environment: { PATH: alias }, platform: "linux" as const,
+      runCommand: async () => ({ ok: true as const, stdout: "codex 1.0.0", stderr: "" })
+    };
+    expect(await detectAgentInstallation("codex", detection)).toMatchObject({ executable, version: "1.0.0" });
+    rmSync(executable);
+    symlinkSync(aliases.homeDirectory, executable, process.platform === "win32" ? "junction" : "dir");
+    expect(await detectAgentInstallation("codex", detection)).toBeNull();
+  });
+
   it.each(["claude", "codex", "muse", "gemini", "cursor"] as const)("installs, reinstalls, and removes exactly owned %s lifecycle handlers while preserving edits", async (agent) => {
     const options = setup();
     const install = await changeAgentHookFixture(agent, "install", options);
