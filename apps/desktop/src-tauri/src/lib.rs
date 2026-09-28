@@ -115,6 +115,10 @@ fn show_window(app: &AppHandle) {
     }
 }
 
+pub(crate) fn app_context<R: tauri::Runtime>() -> tauri::Context<R> {
+    tauri::generate_context!()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -260,7 +264,7 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .build(tauri::generate_context!())
+        .build(app_context())
         .expect("OpenLimiter could not start")
         .run(|app_handle, event| {
             /* A Codex device login this process spawned must not outlive the

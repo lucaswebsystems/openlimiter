@@ -511,11 +511,11 @@ fn restart_persists_dedupe_and_never_reannounces() {
 
 #[cfg(windows)]
 #[test]
-fn windows_checkpoint_acl_is_protected_and_current_user_only() {
+fn windows_checkpoint_acl_is_protected_and_owned_by_current_user() {
     use std::{os::windows::process::CommandExt, process::Command};
     let fixture = Fixture::new();
     Engine::default().save(&fixture.root).unwrap();
-    let script = "$a = Get-Acl -LiteralPath $env:ACTIVITY_TEST_CHECKPOINT; $r = @($a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); if (!$a.AreAccessRulesProtected -or $r.Count -ne 1 -or $r[0].IsInherited -or $r[0].AccessControlType -ne 'Allow' -or $r[0].IdentityReference.Value -ne [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or $r[0].FileSystemRights -ne 'FullControl') { exit 2 }";
+    let script = "$a = Get-Acl -LiteralPath $env:ACTIVITY_TEST_CHECKPOINT; $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; $allowed = @($sid,'S-1-5-18','S-1-5-32-544'); $r = @($a.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])); $bad = @($r | Where-Object {$allowed -notcontains $_.IdentityReference.Value -or $_.IsInherited -or $_.AccessControlType -ne 'Allow' -or $_.FileSystemRights -ne 'FullControl'}); if (!$a.AreAccessRulesProtected -or $r.Count -ne 3 -or @($r | Where-Object {$_.IdentityReference.Value -eq $sid}).Count -ne 1 -or $bad.Count -ne 0 -or $a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $sid) { Write-Output ('protected={0}; count={1}; owner={2}; sid={3}; userRules={4}; bad={5}' -f $a.AreAccessRulesProtected,$r.Count,$a.GetOwner([System.Security.Principal.SecurityIdentifier]).Value,$sid,@($r | Where-Object {$_.IdentityReference.Value -eq $sid}).Count,$bad.Count); $r | ForEach-Object { Write-Output ('rule={0}; inherited={1}; rights={2}; type={3}' -f $_.IdentityReference.Value,$_.IsInherited,$_.FileSystemRights,$_.AccessControlType) }; exit 2 }";
     let result = Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
         .env(
@@ -527,7 +527,9 @@ fn windows_checkpoint_acl_is_protected_and_current_user_only() {
         .unwrap();
     assert!(
         result.status.success(),
-        "checkpoint ACL is not protected current user only"
+        "checkpoint ACL is not protected owner and allowlist: stdout={} stderr={}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
     );
 }
 
@@ -856,7 +858,7 @@ fn native_transition_handoff_and_populated_ipc_use_sanitized_records() {
     let tick = consumer.tick(NOW, &unavailable).unwrap();
     let app = mock_builder()
         .plugin(super::init())
-        .build(tauri::generate_context!())
+        .build(tauri::generate_context!(test = true))
         .unwrap();
     let (sender, receiver) = std::sync::mpsc::channel();
     app.listen("activity-transition", move |event| {
