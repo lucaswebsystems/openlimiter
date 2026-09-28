@@ -44,7 +44,6 @@ export default function OpenGraphImage() {
           width: "100%",
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={BRAND_LOCKUP_DARK_DATA_URI} width={900} height={188} alt="OpenLimiter" />
       </div>
     ),

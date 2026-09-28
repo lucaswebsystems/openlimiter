@@ -40,7 +40,6 @@ export default function AppleIcon() {
           width: "100%",
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={BRAND_MARK_DATA_URI}
           width={markSize}
