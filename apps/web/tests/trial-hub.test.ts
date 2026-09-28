@@ -72,6 +72,9 @@ const OFFER_OPEN = new Date(NOW + 3 * 86_400_000).toISOString();
 
 let entitlementRow: Record<string, unknown> | null = null;
 let entitlementFails = false;
+let trialCalls = 0;
+let signedOut = false;
+let trialRefused = false;
 let expiredSummary: unknown = {
   data: {
     alert_count: 4,
@@ -97,7 +100,7 @@ const SESSION = {
 function fakeClient(): unknown {
   return {
     auth: {
-      getSession: async () => ({ data: { session: SESSION } }),
+      getSession: async () => ({ data: { session: signedOut ? null : SESSION } }),
       onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
         authCallback = cb;
         return { data: { subscription: { unsubscribe: () => undefined } } };
@@ -109,6 +112,14 @@ function fakeClient(): unknown {
     },
     functions: {
       invoke: async (fn: string, options?: { body?: Record<string, unknown> }) => {
+        if (options?.body?.action === "start_trial") {
+          trialCalls += 1;
+          expect(fn).toBe("pro-service");
+          expect(options.body).toEqual({ action: "start_trial" });
+          if (trialRefused) return { data: null, error: { context: { status: 409 } } };
+          entitlementRow = { plan_state: "trialing", trial_ends_at: IN_TEN_DAYS };
+          return { data: { entitlement: entitlementRow }, error: null };
+        }
         if (fn === "entitlement") {
           if (entitlementFails) {
             return { data: null, error: { context: { status: 500 } } };
@@ -125,6 +136,9 @@ function fakeClient(): unknown {
 beforeEach(() => {
   entitlementRow = null;
   entitlementFails = false;
+  trialCalls = 0;
+  signedOut = false;
+  trialRefused = false;
   expiredSummary = {
     data: {
       alert_count: 4,
@@ -167,6 +181,45 @@ function starters(view: Mounted): Element[] {
 }
 
 describe("the header", () => {
+  it("does not offer a trial while the account entitlement cannot be read", async () => {
+    entitlementFails = true;
+    const view = await open();
+    expect(view.container.querySelector(".ol-header-trial")).toBeNull();
+    expect(trialCalls).toBe(0);
+  });
+
+  it("shows a refusal without a success notice or another start button", async () => {
+    trialRefused = true;
+    const view = await open();
+    press(view.container.querySelector(".ol-header-trial button"));
+    await flush(3);
+    expect(view.container.querySelector(".ol-header-trial [role=alert]")?.textContent).toBe(trial.error.alreadyUsed);
+    expect(view.container.querySelector(".ol-header-trial button")).toBeNull();
+    expect(view.container.querySelector(".ol-header-trial [role=status]")).toBeNull();
+  });
+
+  it("starts once from a single header click and replaces the button with a billing chip", async () => {
+    const view = await open();
+    const start = view.container.querySelector(".ol-header-trial button");
+    press(start);
+    press(start);
+    await flush(4);
+    expect(trialCalls).toBe(1);
+    expect(view.container.querySelector(".ol-header-trial button")).toBeNull();
+    const chip = view.container.querySelector<HTMLAnchorElement>(".ol-trial-chip");
+    expect(chip?.textContent).toBe("Pro trial, 10 days left");
+    expect(chip?.getAttribute("href")).toBe("/pro");
+    expect(view.container.querySelector(".ol-header-trial [role=status]")?.textContent).toBe(trial.done.title);
+  });
+
+  it("offers signed out visitors the trial only at the existing sign in card", async () => {
+    signedOut = true;
+    const view = await open();
+    expect(view.container.querySelector(".ol-account-gate")?.textContent).toContain(trial.header.signIn);
+    expect(view.container.querySelector(".ol-header-trial")).toBeNull();
+    expect(trialCalls).toBe(0);
+  });
+
   it("carries the button for an account that has never had a plan", async () => {
     const view = await open();
     expect(starters(view).length).toBeGreaterThan(0);
@@ -183,17 +236,33 @@ describe("the header", () => {
     expect(view.container.querySelector(".ol-commandbar-actions")?.textContent).not.toContain(
       trial.start,
     );
+    expect(view.container.querySelector(".ol-trial-chip")?.textContent).toBe("Pro trial, 10 days left");
+  });
+
+  it("counts a partial final day as one and removes the chip when the trial ends", async () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(NOW);
+    entitlementRow = { plan_state: "trialing", trial_ends_at: new Date(NOW + 1000).toISOString() };
+    const view = await open();
+    expect(view.container.querySelector(".ol-trial-chip")?.textContent).toBe("Pro trial, 1 day left");
+    clock.mockReturnValue(NOW + 1000);
+    view.run(() => { document.dispatchEvent(new Event("visibilitychange")); });
+    await flush(2);
+    expect(view.container.querySelector(".ol-trial-chip")).toBeNull();
+    expect(view.container.querySelector(".ol-header-trial button")).toBeNull();
+    clock.mockRestore();
   });
 
   it("drops it for a paid plan and for one that has ended", async () => {
     entitlementRow = { plan_state: "active", current_period_end: IN_TEN_DAYS };
     let view = await open();
     expect(starters(view).length).toBe(0);
+    expect(view.container.querySelector(".ol-header-trial")).toBeNull();
     view.unmount();
 
     entitlementRow = { plan_state: "expired", trial_ends_at: YESTERDAY };
     view = await open();
     expect(starters(view).length).toBe(0);
+    expect(view.container.querySelector(".ol-header-trial")).toBeNull();
   });
 
   it("keeps the trialing entitlement and does not show the button if a refresh fails", async () => {
@@ -294,10 +363,11 @@ describe("the deep link the tray opens", () => {
     expect(view.container.querySelector(".ol-trial-card")).toBeNull();
   });
 
-  it("reaches the wizard from the header button as well", async () => {
+  it("starts directly from the header without opening the deep link wizard", async () => {
     const view = await open();
     press(starters(view)[0] ?? null);
     await flush();
-    expect(view.container.textContent).toContain(trial.title);
+    expect(view.container.querySelector(".ol-trial-card")).toBeNull();
+    expect(trialCalls).toBe(1);
   });
 });

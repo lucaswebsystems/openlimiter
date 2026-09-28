@@ -6,9 +6,9 @@ import { callProFunction, entitlementOf, type ProEntitlement } from "./pro";
  *
  * THERE IS EXACTLY ONE DOOR INTO A TRIAL
  * --------------------------------------
- * It is `startProTrial`, and it is called from one place: the wizard's last
- * action. Nothing else in this application starts a trial, reading an
- * entitlement never starts one, and opening checkout never starts one, because
+ * It is `startProTrial`, called by explicit start controls in the header and
+ * the wizard. Reading an entitlement never starts one, and opening checkout
+ * never starts one, because
  * a trial that can begin as a side effect of looking at a page is a trial
  * nobody chose and a thirty day clock nobody was told about. The server holds
  * the same rule from its side: a second call returns the state that already
