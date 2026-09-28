@@ -43,7 +43,7 @@ mod rail_tests {
         let app = mock_builder()
             .plugin(crate::activity::init())
             .plugin(crate::rail::init())
-            .build(tauri::generate_context!())
+            .build(tauri::generate_context!(test = true))
             .unwrap();
         let record = ActivityDisplayRecord {
             session_id: "a".repeat(64),
