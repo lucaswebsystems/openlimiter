@@ -8,6 +8,9 @@ use super::{
 use serde::{Deserialize, Serialize};
 use std::{io, path::Path};
 
+#[cfg(all(windows, test))]
+use std::path::PathBuf;
+
 const FILE: &str = "activity-notifications-v1.json";
 const PROVIDERS: &[&str] = &[
     "CLAUDE",
@@ -19,6 +22,17 @@ const PROVIDERS: &[&str] = &[
     "GROK",
     "ANTIGRAVITY",
 ];
+
+#[cfg(all(windows, test))]
+fn windows_powershell_module_path() -> PathBuf {
+    PathBuf::from(
+        std::env::var_os("SystemRoot").unwrap_or_else(|| std::ffi::OsString::from(r"C:\Windows")),
+    )
+    .join("System32")
+    .join("WindowsPowerShell")
+    .join("v1.0")
+    .join("Modules")
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -373,7 +387,7 @@ mod tests {
             assert!(Command::new("powershell.exe")
                 .args(["-NoProfile", "-NonInteractive", "-Command", script])
                 .env("ACTIVITY_TEST_ROOT", &root)
-                .env_remove("PSModulePath")
+                .env("PSModulePath", windows_powershell_module_path())
                 .creation_flags(0x0800_0000)
                 .status()
                 .unwrap()

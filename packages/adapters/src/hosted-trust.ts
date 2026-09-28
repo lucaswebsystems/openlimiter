@@ -269,7 +269,13 @@ async function readWindowsTrustSecurity(
   return await new Promise<WindowsTrustSecurity | null>((resolve) => {
     try {
       const environment: NodeJS.ProcessEnv = { ...process.env, [WINDOWS_SECURITY_TARGET]: file };
-      delete environment["PSModulePath"];
+      environment["PSModulePath"] = path.win32.join(
+        process.env["SystemRoot"] ?? "C:\\Windows",
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
+        "Modules"
+      );
       execFile(
         "powershell.exe",
         [

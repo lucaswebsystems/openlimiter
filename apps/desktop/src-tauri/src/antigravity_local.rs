@@ -102,6 +102,17 @@ const MAX_ENUMERATION_BYTES: usize = 512 * 1024;
 /// The most bytes accepted from one quota summary answer.
 const MAX_BODY_BYTES: usize = 256 * 1024;
 
+#[cfg(windows)]
+fn windows_powershell_module_path() -> PathBuf {
+    PathBuf::from(
+        std::env::var_os("SystemRoot").unwrap_or_else(|| std::ffi::OsString::from(r"C:\Windows")),
+    )
+    .join("System32")
+    .join("WindowsPowerShell")
+    .join("v1.0")
+    .join("Modules")
+}
+
 /// How long the whole enumeration may take before it is abandoned.
 ///
 /// Every tool it calls is bounded on its own, but the budget is stated once
@@ -211,10 +222,10 @@ pub async fn read_quota_summary<P: AgyPorts, T: LoopbackProbe>(
 /// collector task and a tool that hangs must not take the collector with it.
 fn bounded_output(program: &str, arguments: &[&str]) -> Option<String> {
     let mut command = Command::new(program);
-    if program.eq_ignore_ascii_case("powershell")
-        || program.eq_ignore_ascii_case("powershell.exe")
+    if program.eq_ignore_ascii_case("powershell") || program.eq_ignore_ascii_case("powershell.exe")
     {
-        command.env_remove("PSModulePath");
+        #[cfg(windows)]
+        command.env("PSModulePath", windows_powershell_module_path());
     }
     command
         .args(arguments)

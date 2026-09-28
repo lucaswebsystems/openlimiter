@@ -10,6 +10,17 @@ use std::{fs, path::PathBuf};
 
 const NOW: i64 = 1_790_596_800_000;
 
+#[cfg(windows)]
+fn windows_powershell_module_path() -> PathBuf {
+    PathBuf::from(
+        std::env::var_os("SystemRoot").unwrap_or_else(|| std::ffi::OsString::from(r"C:\Windows")),
+    )
+    .join("System32")
+    .join("WindowsPowerShell")
+    .join("v1.0")
+    .join("Modules")
+}
+
 struct Fixture {
     root: PathBuf,
 }
@@ -522,7 +533,7 @@ fn windows_checkpoint_acl_is_protected_and_owned_by_current_user() {
             "ACTIVITY_TEST_CHECKPOINT",
             fixture.root.join("activity-desktop-v1.json"),
         )
-        .env_remove("PSModulePath")
+        .env("PSModulePath", windows_powershell_module_path())
         .creation_flags(0x0800_0000)
         .output()
         .unwrap();
