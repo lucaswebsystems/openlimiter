@@ -28,6 +28,8 @@ const LOCK_RETRY_DELAY: Duration = Duration::from_millis(10);
 #[serde(deny_unknown_fields)]
 struct ProviderPolicyState {
     #[serde(default)]
+    refusal_revisions: BTreeMap<String, String>,
+    #[serde(default)]
     attempts: BTreeMap<String, u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     blocked_until: Option<u64>,
@@ -55,6 +57,7 @@ impl Default for RequestPolicyDocument {
 }
 
 struct PolicyInner {
+    credential_revision: Option<String>,
     active_shared: Option<MachineLease>,
     document: RequestPolicyDocument,
     healthy: bool,
@@ -99,6 +102,7 @@ impl RequestPolicy {
             directory,
             clock: None,
             inner: Mutex::new(PolicyInner {
+                credential_revision: None,
                 document: RequestPolicyDocument::default(),
                 healthy,
                 active_provider: None,
@@ -113,6 +117,16 @@ impl RequestPolicy {
         provider: DetectedProviderId,
         account_id: &str,
         now_ms: u64,
+    ) -> Result<RequestLease<'_>, GateRejection> {
+        self.begin_with_revision(provider, account_id, now_ms, None)
+    }
+
+    pub(crate) fn begin_with_revision(
+        &self,
+        provider: DetectedProviderId,
+        account_id: &str,
+        now_ms: u64,
+        revision: Option<&str>,
     ) -> Result<RequestLease<'_>, GateRejection> {
         if !valid_account_id(account_id) || now_ms > MAX_TIMESTAMP_EPOCH_MS {
             return Err(GateRejection::Unavailable);
@@ -146,6 +160,19 @@ impl RequestPolicy {
             }
         };
         prune_expired(&mut document, now_ms);
+        let mut changed_refusal = false;
+        if let Some(state) = document.providers.get_mut(&provider) {
+            if state
+                .refusal_revisions
+                .get(account_id)
+                .is_some_and(|previous| revision.is_some_and(|current| current != previous))
+            {
+                changed_refusal = true;
+                state.accounts.remove(account_id);
+                state.refusal_revisions.remove(account_id);
+                state.attempts.remove(account_id);
+            }
+        }
         if let Some(state) = document.providers.get(&provider) {
             if let Some(retry_at) = state.blocked_until.filter(|until| now_ms < *until) {
                 let _ = FileExt::unlock(&lock_file);
@@ -184,11 +211,12 @@ impl RequestPolicy {
         } else {
             provider.slug()
         };
-        let shared = match MachineLease::acquire_account(
+        let shared = match MachineLease::acquire_account_with_refusal_change(
             self.directory.as_ref().unwrap(),
             shared_provider,
             Some(account_id),
             now_ms,
+            changed_refusal,
         ) {
             Ok(lease) => lease,
             Err(rejection) => {
@@ -229,6 +257,7 @@ impl RequestPolicy {
         inner.document = document;
         inner.active_lock = Some(lock_file);
         inner.active_shared = Some(shared);
+        inner.credential_revision = revision.map(str::to_string);
         drop(inner);
         Ok(RequestLease {
             policy: self,
@@ -251,6 +280,12 @@ impl RequestPolicy {
                 .providers
                 .entry(provider)
                 .or_default()
+                .refusal_revisions
+                .remove(account_id);
+            document
+                .providers
+                .entry(provider)
+                .or_default()
                 .attempts
                 .remove(account_id);
             document
@@ -265,19 +300,44 @@ impl RequestPolicy {
         });
     }
 
-    pub(crate) fn refuse_account(&self, provider: DetectedProviderId, account_id: &str, now_ms: u64, denied: bool) {
+    pub(crate) fn refuse_account(
+        &self,
+        provider: DetectedProviderId,
+        account_id: &str,
+        now_ms: u64,
+        denied: bool,
+    ) {
         let now_ms = self.clock.map_or(now_ms, |clock| clock().max(now_ms));
         let next = now_ms.saturating_add(BLOCKED_PROVIDER_SECONDS * 1000);
+        let revision = self
+            .inner
+            .lock()
+            .ok()
+            .and_then(|inner| inner.credential_revision.clone());
         self.complete_shared(next, 0);
         self.mutate_durable(|document| {
             let state = document.providers.entry(provider).or_default();
             state.attempts.remove(account_id);
             state.accounts.insert(account_id.to_string(), next);
+            if let Some(revision) = revision {
+                state
+                    .refusal_revisions
+                    .insert(account_id.to_string(), revision);
+            }
         });
         if let Some(directory) = &self.directory {
             let writer = crate::cache_write::CacheWriter::at(Some(directory.clone()));
-            let _ = writer.record_availability(&provider.slug().to_uppercase().replace('-', "_"), None,
-                if denied { "access_denied" } else { "expired_credentials" }, None, now_ms);
+            let _ = writer.record_availability(
+                &provider.slug().to_uppercase().replace('-', "_"),
+                Some(account_id),
+                if denied {
+                    "access_denied"
+                } else {
+                    "expired_credentials"
+                },
+                None,
+                now_ms,
+            );
         }
     }
 
@@ -351,7 +411,7 @@ impl RequestPolicy {
             let writer = crate::cache_write::CacheWriter::at(Some(directory.clone()));
             let _ = writer.record_availability(
                 &provider.slug().to_uppercase().replace('-', "_"),
-                None,
+                Some(account_id),
                 "rate_limited",
                 Some(retry_at),
                 now_ms,
@@ -579,6 +639,16 @@ impl MachineLease {
         account: Option<&str>,
         now: u64,
     ) -> Result<Self, GateRejection> {
+        Self::acquire_account_with_refusal_change(directory, provider, account, now, false)
+    }
+
+    fn acquire_account_with_refusal_change(
+        directory: &std::path::Path,
+        provider: &str,
+        account: Option<&str>,
+        now: u64,
+        changed_refusal: bool,
+    ) -> Result<Self, GateRejection> {
         let file = directory.join(format!("acquisition-{provider}.json"));
         let token = uuid::Uuid::new_v4().to_string();
         let mut rejection = GateRejection::Unavailable;
@@ -586,13 +656,21 @@ impl MachineLease {
         crate::cache_write::CacheWriter::policy_transaction(directory, || {
             fsx::reject_symlink(&file).map_err(|_| ())?;
             let mut state = Self::read(&file)?;
-            attempts = state.attempts;
             let (acquired, _, _, expires) =
                 lease_decision(now, "desktop", state.owner.as_deref(), state.expires_at, 60);
             if !acquired {
                 rejection = GateRejection::Busy;
                 return Err(());
             }
+            let same_account =
+                state.last_account.is_none() || account == state.last_account.as_deref();
+            // Only the local refusal revision can release its shared deadline.
+            // The CLI computes its revision from different source metadata.
+            if same_account && changed_refusal {
+                state.next_allowed_at = 0;
+                state.attempts = 0;
+            }
+            attempts = if same_account { state.attempts } else { 0 };
             if now < state.next_allowed_at
                 && (account.is_none()
                     || state.last_account.is_none()
@@ -607,6 +685,10 @@ impl MachineLease {
             state.expires_at = expires;
             state.token = token.clone();
             state.last_account = account.map(str::to_string);
+            if !same_account {
+                state.next_allowed_at = 0;
+                state.attempts = 0;
+            }
             fsx::atomic_write(&file, &serde_json::to_string(&state).map_err(|_| ())?)
                 .map_err(|_| ())
         })
@@ -740,6 +822,9 @@ fn prune_expired(document: &mut RequestPolicyDocument, now_ms: u64) {
             state.next_request_at = None;
         }
         state.accounts.retain(|_, until| *until > now_ms);
+        state
+            .refusal_revisions
+            .retain(|account, _| state.accounts.contains_key(account));
     }
 }
 
@@ -768,6 +853,10 @@ fn validate_document(document: &RequestPolicyDocument) -> Result<(), ()> {
     }
     for state in document.providers.values() {
         if state.accounts.len() > MAX_ACCOUNTS_PER_PROVIDER
+            || state.refusal_revisions.len() > MAX_ACCOUNTS_PER_PROVIDER
+            || state.refusal_revisions.iter().any(|(account, revision)| {
+                !state.accounts.contains_key(account) || revision.len() > 256
+            })
             || state
                 .blocked_until
                 .is_some_and(|value| value > MAX_TIMESTAMP_EPOCH_MS)
@@ -806,6 +895,124 @@ mod tests {
         chrono::DateTime::parse_from_rfc3339(value.as_str().unwrap())
             .unwrap()
             .timestamp_millis() as u64
+    }
+
+    #[test]
+    fn refusal_revision_survives_restart_and_unchanged_waits_exactly_a_day() {
+        for changed in [false, true] {
+            let dir = TempDir::new();
+            let first = policy(&dir);
+            let lease = first
+                .begin_with_revision(
+                    DetectedProviderId::Claude,
+                    "account-one",
+                    NOW,
+                    Some("revision-one"),
+                )
+                .unwrap();
+            first.refuse_account(DetectedProviderId::Claude, "account-one", NOW, false);
+            drop(lease);
+            drop(first);
+            let restarted = policy(&dir);
+            let revision = if changed {
+                "revision-two"
+            } else {
+                "revision-one"
+            };
+            let at = NOW + 60_000;
+            let attempt = restarted.begin_with_revision(
+                DetectedProviderId::Claude,
+                "account-one",
+                at,
+                Some(revision),
+            );
+            if changed {
+                assert!(attempt.is_ok());
+            } else {
+                assert!(
+                    matches!(attempt, Err(GateRejection::Deferred { retry_at }) if retry_at == NOW + 86_400_000)
+                );
+                assert!(restarted
+                    .begin_with_revision(
+                        DetectedProviderId::Claude,
+                        "account-one",
+                        NOW + 86_400_000,
+                        Some(revision)
+                    )
+                    .is_ok());
+            }
+        }
+    }
+
+    #[test]
+    fn refusal_and_rate_limit_availability_only_change_the_failing_account() {
+        for denied in [None, Some(false), Some(true)] {
+            let dir = TempDir::new();
+            let writer = crate::cache_write::CacheWriter::at(Some(dir.path().to_path_buf()));
+            writer
+                .record_availability("CODEX", Some("healthy-account"), "fresh", None, NOW)
+                .unwrap();
+            let file = dir.path().join(crate::cache_write::CACHE_FILE_NAME);
+            let before: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+            let policy = policy(&dir);
+            let _lease = policy
+                .begin_with_revision(
+                    DetectedProviderId::Codex,
+                    "failing-account",
+                    NOW,
+                    Some("revision-one"),
+                )
+                .unwrap();
+            if let Some(denied) = denied {
+                policy.refuse_account(DetectedProviderId::Codex, "failing-account", NOW, denied);
+            } else {
+                policy.rate_limit_account(DetectedProviderId::Codex, "failing-account", NOW, None);
+            }
+            let after: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(file).unwrap()).unwrap();
+            let rows = after["snapshots"].as_array().unwrap();
+            assert_eq!(
+                rows.iter()
+                    .find(|row| row["accountId"] == "healthy-account")
+                    .unwrap(),
+                &before["snapshots"][0]
+            );
+            let failed = rows
+                .iter()
+                .find(|row| row["accountId"] == "failing-account")
+                .unwrap();
+            assert_eq!(
+                failed["availability"],
+                match denied {
+                    None => "rate_limited",
+                    Some(false) => "expired_credentials",
+                    Some(true) => "access_denied",
+                }
+            );
+            assert_eq!(failed.get("retryAt").is_some(), denied.is_none());
+        }
+    }
+
+    #[test]
+    fn a_second_account_does_not_inherit_the_first_accounts_attempts() {
+        let dir = TempDir::new();
+        let policy = policy(&dir);
+        let lease = policy
+            .begin(DetectedProviderId::Codex, "account-one", NOW)
+            .unwrap();
+        policy.rate_limit_account(DetectedProviderId::Codex, "account-one", NOW, None);
+        drop(lease);
+        let at = NOW + 60_000;
+        let _lease = policy
+            .begin(DetectedProviderId::Codex, "account-two", at)
+            .unwrap();
+        policy.rate_limit_account(DetectedProviderId::Codex, "account-two", at, None);
+        let document = load_document(Some(&dir.path().to_path_buf())).unwrap();
+        assert_eq!(
+            document.providers[&DetectedProviderId::Codex].accounts["account-two"],
+            at + 60_000
+        );
     }
 
     #[test]

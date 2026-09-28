@@ -99,10 +99,14 @@ pub async fn run_guarded<T: Transport>(
     let identity = resolve_connection(&record, secrets);
     let provider = detected_provider(record.provider_id);
     let now_ms = now_epoch_ms();
-    if secrets
-        .read_secret(&record.id)
-        .ok()
-        .is_some_and(|secret| crate::poll_identity::credential_expired(&secret, now_ms))
+    let credential = secrets.read_secret(&record.id).ok();
+    let revision = credential
+        .as_ref()
+        .map(|secret| crate::poll_identity::credential_revision(secret))
+        .unwrap_or_else(|| "unavailable".to_string());
+    if credential
+        .as_ref()
+        .is_some_and(|secret| crate::poll_identity::credential_expired(secret, now_ms))
     {
         let code = provider.slug().to_uppercase().replace('-', "_");
         let _ = writer.record_availability(
@@ -119,7 +123,12 @@ pub async fn run_guarded<T: Transport>(
             retry_after_seconds: None,
         });
     }
-    let _lease = match policy.begin(provider, identity.account_id(), now_ms) {
+    let _lease = match policy.begin_with_revision(
+        provider,
+        identity.account_id(),
+        now_ms,
+        Some(&revision),
+    ) {
         Ok(lease) => lease,
         Err(_) => {
             return Ok(CollectionOutcome::Failed {
@@ -158,11 +167,26 @@ pub async fn run_guarded<T: Transport>(
     let completed_at = now_epoch_ms();
     match status {
         Some(401 | 403) => {
-            policy.refuse_account(provider, identity.account_id(), completed_at, status == Some(403));
-            let _ = writer.record_availability(&provider.slug().to_uppercase().replace('-', "_"), Some(identity.account_id()),
-                if status == Some(403) { "access_denied" } else { "expired_credentials" }, None, completed_at);
+            policy.refuse_account(
+                provider,
+                identity.account_id(),
+                completed_at,
+                status == Some(403),
+            );
+            let _ = writer.record_availability(
+                &provider.slug().to_uppercase().replace('-', "_"),
+                Some(identity.account_id()),
+                if status == Some(403) {
+                    "access_denied"
+                } else {
+                    "expired_credentials"
+                },
+                None,
+                completed_at,
+            );
             let _ = connections.update(&connection_id, |record| {
-                record.next_refresh_at = Some(completed_at.saturating_add(BLOCKED_PROVIDER_SECONDS * 1000));
+                record.next_refresh_at =
+                    Some(completed_at.saturating_add(BLOCKED_PROVIDER_SECONDS * 1000));
             });
         }
         Some(404 | 410) => policy.block_provider(provider, now_ms, BLOCKED_PROVIDER_SECONDS),
