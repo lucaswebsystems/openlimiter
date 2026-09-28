@@ -2163,7 +2163,12 @@
       }
     },
     "trial": {
-      "start": "Start Pro free for 30 days",
+      "start": "Start your free 30 day Pro trial",
+      "header": {
+        "signIn": "Sign in to start your free 30 day Pro trial",
+        "dayLeft": "Pro trial, 1 day left",
+        "daysLeft": "Pro trial, {count} days left"
+      },
       "free": "No credit card needed",
       "label": "Start your free trial",
       "title": "Start Pro free for 30 days",

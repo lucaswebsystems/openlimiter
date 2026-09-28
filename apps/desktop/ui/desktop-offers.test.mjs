@@ -9,7 +9,7 @@ const assurance = "No credit card needed";
 test("every trial offer keeps its duration and card assurance together without dashes", () => {
   const html = read("./index.html");
   const firstRun = html.slice(html.indexOf('id="first-run-account"'), html.indexOf('id="first-run-setup"'));
-  for (const source of [firstRun, read("./settings.js")]) {
+  for (const source of [firstRun]) {
     const block = source.match(/<div class="trial-offer">(.*?)<\/div>/su)?.[1];
     assert.ok(block);
     const text = block.replace(/<[^>]+>/gu, " ");
@@ -17,6 +17,8 @@ test("every trial offer keeps its duration and card assurance together without d
     assert.ok(text.includes(assurance));
     assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
   }
+  assert.match(read("./settings.js"), /Sign in to start your free 30 day Pro trial/u);
+  assert.match(read("./settings.js"), /TRIAL_EN.signIn[\s\S]*No credit card needed/u);
   const tray = read("../src-tauri/src/tray.rs");
   assert.ok(tray.includes(`const TRIAL_LABEL: &str = "${offer} (${assurance})";`));
   assert.match(tray, /"trial",\s*TRIAL_LABEL,\s*true,/u);

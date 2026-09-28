@@ -41,7 +41,7 @@ import {
    owns its own tab and reads the backend itself, so a failure in one leaves
    the other three drawing what they can prove. */
 import { renderPlanCap } from "./plan-cap.js";
-import { renderSettings } from "./settings.js";
+import { renderSettings, refreshDesktopTrial, tickDesktopTrial } from "./settings.js";
 import { renderPro, renderSpend } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
    account, and both are drawn by their own module rather than here. */
@@ -442,6 +442,7 @@ function applyAccountState(status) {
   if (elements.menuSignedIn !== null) elements.menuSignedIn.hidden = !signedIn;
   if (elements.menuLogout !== null) elements.menuLogout.hidden = !signedIn;
   setPairingAccountState(signedIn);
+  void refreshDesktopTrial();
 }
 
 /* ------------------------------------------------------------- signing in */
@@ -905,10 +906,13 @@ async function openCheckout(plan) {
    "restart the app". */
 window.addEventListener("focus", () => {
   if (!signedIn) return;
+  void refreshDesktopTrial();
   void proRefresh().then(() => {
     void paintPlanBadge();
   });
 });
+
+window.setInterval(tickDesktopTrial, 60_000);
 
 /* ------------------------------------------------------------------ reading */
 

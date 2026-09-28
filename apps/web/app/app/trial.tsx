@@ -1,12 +1,15 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useTranslations } from "next-intl";
-import { useCallback, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { localePath } from "@/i18n/routing";
+import { isLocale } from "@/i18n/locales";
 import { BandHorizon } from "./horizon";
 import { Button } from "./pieces";
 import { subscribeBrowserPush, type PushOutcome } from "@/lib/pro-notifications";
-import { proAccessState, startProCheckout, type ProAccessState, type ProEntitlement } from "@/lib/pro";
+import { proAccessState, proTrialDaysLeft, startProCheckout, type ProAccessState, type ProEntitlement } from "@/lib/pro";
 import {
   isAllowedCheckoutUrl,
   locksPro,
@@ -95,6 +98,69 @@ export function StartTrialButton({
     <div className={`ol-trial-cta${compact ? " ol-trial-cta-compact" : ""}`}>
       {button}
       <p>{t("free")}</p>
+    </div>
+  );
+}
+
+/** A deliberate header click starts the existing service trial without a wizard. */
+export function HeaderTrial({ client, entitlement, onStarted }: {
+  client: SupabaseClient;
+  entitlement: ProEntitlement | null | undefined;
+  onStarted: (entitlement: ProEntitlement | null) => void;
+}) {
+  const t = useTranslations("hub.trial");
+  const locale = useLocale();
+  const [now, setNow] = useState(Date.now);
+  const [starting, setStarting] = useState(false);
+  const [complete, setComplete] = useState(false);
+  const [failure, setFailure] = useState<TrialFailure | null>(null);
+  const inFlight = useRef(false);
+  useEffect(() => {
+    const update = () => setNow(Date.now());
+    const timer = window.setInterval(update, 60_000);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, []);
+  const state = entitlement === undefined ? null : proAccessState(entitlement, now);
+  const days = entitlement == null ? null : proTrialDaysLeft(entitlement, now);
+  const offering = state === "none" && !complete && failure !== "alreadyUsed";
+  const running = state === "trial" && days !== null;
+  async function start() {
+    if (inFlight.current || !offering) return;
+    inFlight.current = true;
+    setStarting(true);
+    setFailure(null);
+    try {
+      const result = await startProTrial(client);
+      if (!result.ok) { setFailure(result.reason); return; }
+      setComplete(true);
+      onStarted(result.value);
+    } catch {
+      setFailure("unavailable");
+    } finally {
+      inFlight.current = false;
+      setStarting(false);
+    }
+  }
+  if (!offering && !running && !complete && failure === null) return null;
+  // Paid and ended plans have no promotion, including an old success notice.
+  if (state !== null && state !== "none" && state !== "trial") return null;
+  return (
+    <div className="ol-header-trial">
+      {offering && <>
+        <Button tone="primary" onClick={() => void start()} disabled={starting}>
+          {starting ? t("push.working") : t("start")}
+        </Button>
+        <p className="ol-header-trial-note">{t("free")}</p>
+      </>}
+      {running && <Link className="ol-trial-chip" href={localePath(isLocale(locale) ? locale : "en", "/pro")}>
+        {days === 1 ? t("header.dayLeft") : t("header.daysLeft", { count: days })}
+      </Link>}
+      {complete && <p className="ol-header-trial-note" role="status">{t("done.title")}</p>}
+      {failure !== null && <p className="ol-trial-error" role="alert">{t(`error.${failure}`)}</p>}
     </div>
   );
 }

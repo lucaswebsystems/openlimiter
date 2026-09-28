@@ -2164,6 +2164,11 @@
     },
     "trial": {
       "start": "Pro 30 Tage kostenlos starten",
+      "header": {
+        "signIn": "Melde dich an, um deine kostenlose Pro Testphase von 30 Tagen zu starten",
+        "dayLeft": "Pro Testphase, noch 1 Tag",
+        "daysLeft": "Pro Testphase, noch {count} Tage"
+      },
       "free": "Keine Kreditkarte erforderlich",
       "label": "Starten Sie Ihre kostenlose Testphase",
       "title": "Pro 30 Tage kostenlos starten",

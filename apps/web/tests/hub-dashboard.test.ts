@@ -153,7 +153,10 @@ function makeClient(keep: boolean): unknown {
   client.functions = {
     invoke: async (name: string, options?: { body?: Record<string, unknown> }) => {
       if (name === "pro-service" && options?.body?.action === "start_trial") {
-        currentEntitlement = { plan_state: "trialing" };
+        currentEntitlement = {
+          plan_state: "trialing",
+          trial_ends_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+        };
         return { data: { entitlement: currentEntitlement }, error: null };
       }
       if (name === "entitlement") {
@@ -461,7 +464,7 @@ describe("account bound reads", () => {
 });
 
 describe("the trial return path", () => {
-  it("starts from the header and returns to bars with Pro on", async () => {
+  it("starts from the header and stays on the bars with Pro on", async () => {
     currentSession = signedIn({ [ONBOARDED_METADATA_KEY]: true });
     currentRead = async () => ({ ok: true, providers: [] });
     const view = await open();
@@ -470,12 +473,9 @@ describe("the trial return path", () => {
     ) ?? null;
     press(start);
     await flush(3);
-    expect(view.container.querySelector(".ol-trial-card")).not.toBeNull();
+    expect(view.container.querySelector(".ol-trial-card")).toBeNull();
     expect(view.container.textContent).not.toContain("Step 1 of 2");
-    press(byText(view.container, "button", hub.trial.start));
-    await flush(5);
-
-    expect(view.container.textContent).toContain(hub.trial.done.lead);
+    expect(view.container.querySelector(".ol-header-trial [role=status]")?.textContent).toBe(hub.trial.done.title);
     expect(view.container.textContent).not.toContain(hub.trial.title);
     expect(
       all(view.container, "button").some((node) => node.textContent?.trim() === hub.trial.start),
