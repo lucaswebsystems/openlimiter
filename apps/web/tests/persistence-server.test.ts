@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PhonePair } from "@/lib/phone-session";
+import { meterRowsOf } from "@/lib/device-snapshots";
 
 // The runner supplies only credentials minted by its disposable local stack.
 // Time compression ages stored timestamps, never signs or fabricates a token.
@@ -53,9 +54,7 @@ async function user() {
   sql(`insert into public.entitlements(user_id,product,status,source)
     values (${literal(created.id)},'openlimiter_pro','comped','comp');
     insert into public.entitlement_features(user_id,product,feature)
-    select ${literal(created.id)},'openlimiter_pro',unnest(enum_range(null::public.entitlement_feature_v1));
-    insert into public.usage_current(user_id,account_id,provider,meter,window_id,event_id,usage_percent,observed_at)
-    values (${literal(created.id)},'default','CLAUDE','FIVE_HOUR','FIVE_HOUR',gen_random_uuid(),42,now());`);
+    select ${literal(created.id)},'openlimiter_pro',unnest(enum_range(null::public.entitlement_feature_v1));`);
   return { id: created.id as string, email, password };
 }
 async function paired() {
@@ -65,6 +64,12 @@ async function paired() {
     select public.register_device_grant_v2(${literal(owner.id)},${literal(desktop)},'Proof desktop',null);
     select public.pair_device_v1('create',${literal(owner.id)},${literal(desktop)},null,null,'{}',repeat('a',64));`).split("\n").at(-1)!);
   check(typeof created.code === "string", "Server must create a pairing code");
+  // v3 metadata is optional for old rows. Exercise the v3 wire shape explicitly,
+  // owned by the desktop that uploaded it, not the phone that reads the account.
+  sql(`insert into public.usage_current(user_id,device_id,account_id,provider,meter,window_id,
+    event_id,usage_percent,observed_at,stale,source,reading_precision,verification,kind,availability,retry_at)
+    values (${literal(owner.id)},${literal(desktop)},'default','CLAUDE','FIVE_HOUR','FIVE_HOUR',
+      gen_random_uuid(),42,now(),false,'native_payload','exact','UNVERIFIED','quota_percent',null,null);`);
   const claimed = await device.claimPairingCode(created.code, { name: "Proof phone", platform: "ios", user_agent_hash: "a".repeat(64) });
   check(claimed.status === 200, "Real pairing claim must succeed");
   const claimId = (claimed.body as { claim_id: string }).claim_id;
@@ -75,7 +80,29 @@ async function paired() {
   const pair = phone.phonePairOf(delivered.body);
   check(delivered.status === 200 && pair, "Real server must deliver a signed phone pair");
   const deviceId = sql(`select phone_device_id from public.pairing_codes where claim_id=${literal(claimId)};`);
+  const snapshot = await device.readDeviceSnapshots(pair.token);
+  check(snapshot.status === 200, `PRO_PHONE_READ_FAILED: read_device_snapshots_v2 returned HTTP ${snapshot.status} for a paired phone with valid v3 usage`);
+  expectQuota(snapshot.body);
   return { owner, pair, deviceId };
+}
+
+function expectQuota(body: unknown) {
+  expect(body, "PRO_PHONE_V3_ROW_MISSING: read_device_snapshots_v2 must return the desktop's current account usage").toMatchObject({
+    schema_version: 3,
+    rows: [expect.objectContaining({ account_id: "default", provider: "CLAUDE", code: "FIVE_HOUR",
+      percent: 42, stale: false, source: "native_payload", precision: "exact", verification: "UNVERIFIED", kind: "quota_percent" })],
+  });
+  expect(meterRowsOf(body), "PHONE_V3_DECODE_FAILED: the phone UI must accept the real quota row").toMatchObject([
+    { accountId: "default", provider: "CLAUDE", code: "FIVE_HOUR", percent: 42, stale: false },
+  ]);
+}
+
+function routeRequest(path: string, init: RequestInit | undefined, cookie: string) {
+  // An HTTP hop serializes method, headers and body, never the browser's signal.
+  // jsdom's AbortSignal is not a Node AbortSignal accepted by NextRequest.
+  return new NextRequest(`https://proof.invalid${path}`, {
+    method: init?.method, body: init?.body, headers: { ...Object.fromEntries(new Headers(init?.headers)), cookie },
+  });
 }
 
 // Only the browser to Next hop is in process. Every hosted request goes to the
@@ -95,9 +122,7 @@ function browser(initial?: PhonePair) {
     const now = Date.now() / 1000;
     const cookie = [...jar].filter(([, entry]) => entry.expires > now)
       .map(([name, entry]) => `${name}=${entry.value}`).join("; ");
-    const request = new NextRequest(`https://proof.invalid${path}`, {
-      ...init, signal: init?.signal ?? undefined, headers: { cookie, "content-type": "application/json" },
-    });
+    const request = routeRequest(path, init, cookie);
     const response = path.endsWith("renew") ? await routes.renew(request)
       : path.endsWith("read") ? await routes.read(request)
       : init?.method === "DELETE" ? await routes.session.DELETE() : await routes.session.POST(request);
@@ -109,6 +134,19 @@ function browser(initial?: PhonePair) {
   });
   return jar;
 }
+
+describe("persistence proof browser adapter", () => {
+  it("serializes a jsdom request into a Node route without passing its AbortSignal", async () => {
+    const request = routeRequest("/app/pair/api/session", {
+      method: "POST", body: '{"synthetic":true}', signal: AbortSignal.timeout(10_000),
+      headers: { "content-type": "application/json" }, credentials: "same-origin", cache: "no-store",
+    }, "synthetic=value");
+    expect(request.method).toBe("POST");
+    expect(request.headers.get("content-type")).toBe("application/json");
+    expect(request.cookies.get("synthetic")?.value).toBe("value");
+    expect(await request.json()).toEqual({ synthetic: true });
+  });
+});
 
 describe.skipIf(!enabled)(enabled ? "disposable Supabase persistence proof" : "PERSISTENCE_PROOF_NOT_CONFIGURED: run node scripts/persistence-proof.mjs --pro-dir <Pro checkout>", () => {
   beforeAll(async () => {
@@ -123,7 +161,12 @@ describe.skipIf(!enabled)(enabled ? "disposable Supabase persistence proof" : "P
     sql("update public.feature_kill_switches set enabled=true where feature in ('sync_current','history','token_issue');");
   });
   afterEach(async () => {
-    for (const client of clients.splice(0)) await client.auth.stopAutoRefresh();
+    for (const client of clients.splice(0)) {
+      await account.pendingAccountCleanup(client);
+      // stopAutoRefresh leaves subscribers and BroadcastChannel alive. Previous
+      // tests must not act like open tabs and revoke their old accounts here.
+      await client.auth.dispose();
+    }
     vi.unstubAllGlobals();
     localStorage.clear();
     sessionStorage.clear();
@@ -138,12 +181,15 @@ describe.skipIf(!enabled)(enabled ? "disposable Supabase persistence proof" : "P
     expect(renewed.pair.refreshExpiresAt - Date.now() / 1000).toBeGreaterThan(29 * 86400);
     sql(`update public.device_grants set phone_prev_refresh_expires_at=now()-interval '1 second' where device_id=${literal(deviceId)};`);
     expect((await device.renewPhoneCredential(pair.refreshCredential)).status).toBe(401);
-    expect((await phone.readPhoneBars(renewed.pair)).kind).toBe("fresh");
+    const read = await phone.readPhoneBars(renewed.pair);
+    check(read.kind === "fresh", "Renewed phone must read quota");
+    expectQuota(read.body);
   }, 60_000);
 
   it("refuses a genuinely expired refresh row through the real browser recovery path", async () => {
     const { pair, deviceId } = await paired();
     sql(`update public.device_grants set phone_refresh_expires_at=now()-interval '1 second' where device_id=${literal(deviceId)};`);
+    expect((await device.renewPhoneCredential(pair.refreshCredential)).status).toBe(401);
     browser(pair);
     phone.writePhonePairMeta({ label: "Proof", expiresAt: Date.now() / 1000 - 1 });
     expect(await phone.readCurrentPhoneBars()).toEqual({ kind: "unpaired" });
@@ -153,8 +199,11 @@ describe.skipIf(!enabled)(enabled ? "disposable Supabase persistence proof" : "P
     const { pair, deviceId, owner } = await paired();
     browser(pair);
     phone.writePhonePairMeta({ label: "Proof", expiresAt: pair.expiresAt });
-    expect((await phone.readCurrentPhoneBars()).kind).toBe("fresh");
+    const before = await phone.readCurrentPhoneBars();
+    check(before.kind === "fresh", "Paired browser must read quota before revocation");
+    expectQuota(before.body);
     sql(`set role service_role; select public.revoke_device_grant_v2(${literal(owner.id)},${literal(deviceId)});`);
+    expect((await device.readDeviceSnapshots(pair.token)).status).toBe(401);
     expect((await phone.readCurrentPhoneBars()).kind).toBe("unpaired");
   }, 60_000);
 
@@ -169,7 +218,7 @@ describe.skipIf(!enabled)(enabled ? "disposable Supabase persistence proof" : "P
     const outcome = await phone.readCurrentPhoneBars();
     expect(outcome.kind).toBe("fresh");
     check(outcome.kind === "fresh", "Reopened phone must read quota");
-    expect((outcome.body as { rows: Array<{ percent: number }> }).rows[0]?.percent).toBe(42);
+    expectQuota(outcome.body);
     expect(jar.get(phone.PHONE_REFRESH_COOKIE)?.value !== pair.refreshCredential).toBe(true);
     expect(jar.get(phone.PHONE_TOKEN_COOKIE)!.expires).toBeGreaterThan(Date.now() / 1000 + 23 * HOUR);
   }, 60_000);
@@ -206,18 +255,23 @@ describe.skipIf(!enabled)(enabled ? "disposable Supabase persistence proof" : "P
     expect((await reopened.auth.getUser()).data.user?.id).toBe(owner.id);
   }, 300_000);
 
-  it.each(["logout", "switch"])("revokes the departing real account once on %s and erases private storage", async (action) => {
+  it.each(["logout", "switch"])("revokes the departing real session on %s, leaves no live refresh credential and erases private storage", async (action) => {
     const owner = await user();
     const next = action === "switch" ? await user() : null;
     browser();
     const routedFetch = globalThis.fetch;
-    let revocations = 0;
-    let tokenPresentAtRevocation = false;
+    let departingAccess: string | undefined;
+    const revocations: Array<{ status: number; privateStatePresent: boolean }> = [];
     const key = account.authStorageKey()!;
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes("/auth/v1/logout")) {
-        revocations += 1;
-        tokenPresentAtRevocation = localStorage.getItem(key) !== null;
+      const url = new URL(String(input), base);
+      if (departingAccess && url.pathname === "/auth/v1/logout" && init?.method === "POST"
+          && new Headers(init.headers).get("authorization") === `Bearer ${departingAccess}`) {
+        const privateStatePresent = localStorage.getItem(key) !== null
+          && sessionStorage.getItem("openlimiter-private-key") !== null;
+        const response = await routedFetch(input, init);
+        revocations.push({ status: response.status, privateStatePresent });
+        return response;
       }
       return routedFetch(input, init);
     });
@@ -230,6 +284,10 @@ describe.skipIf(!enabled)(enabled ? "disposable Supabase persistence proof" : "P
       const signedIn = await client.auth.signInWithPassword({ email: owner.email, password: owner.password });
       check(!signedIn.error && signedIn.data.session, "Real account sign in must succeed");
       const refresh = signedIn.data.session.refresh_token;
+      departingAccess = signedIn.data.session.access_token;
+      const liveRefreshCount = () => Number(sql(`select count(*) from auth.refresh_tokens
+        where user_id=${literal(owner.id)} and revoked=false;`));
+      expect(liveRefreshCount()).toBeGreaterThan(0);
       localStorage.setItem("openlimiter-app-live", "[]");
       sessionStorage.setItem("openlimiter-private-key", "synthetic-private-key");
       if (next) {
@@ -237,13 +295,18 @@ describe.skipIf(!enabled)(enabled ? "disposable Supabase persistence proof" : "P
         check(!switched.error, "Real account switch must succeed");
       } else await runtime.logout();
       await vi.waitFor(() => {
-        expect(revocations).toBe(1);
+        expect(revocations.some((entry) => entry.status >= 200 && entry.status < 300)).toBe(true);
         expect(localStorage.getItem("openlimiter-app-live")).toBeNull();
         expect(sessionStorage.getItem("openlimiter-private-key")).toBeNull();
       });
-      expect(tokenPresentAtRevocation).toBe(true);
+      expect(revocations[0]?.privateStatePresent).toBe(true);
+      expect(liveRefreshCount(), "Departing account must have no live server refresh rows").toBe(0);
       expect(sessionStorage.getItem(key)).toBeNull();
-      if (next) expect((await client.auth.getUser()).data.user?.id).toBe(next.id);
+      if (next) {
+        const renewed = await client.auth.refreshSession();
+        check(!renewed.error && renewed.data.session?.user.id === next.id, "New account refresh must survive departing revocation");
+        expect((await client.auth.getUser()).data.user?.id).toBe(next.id);
+      }
       else expect(localStorage.getItem(key)).toBeNull();
       const replay = await nativeFetch(`${base}/auth/v1/token?grant_type=refresh_token`, {
         method: "POST", headers: { apikey: service, "content-type": "application/json" },

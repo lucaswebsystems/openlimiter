@@ -24,7 +24,7 @@ When Docker is unavailable, the local command exits zero with this explicit reas
 SKIP PERSISTENCE_PROOF_DOCKER_UNAVAILABLE: no reachable disposable Docker daemon and no CI database proof runner
 ```
 
-Other named prerequisite skips are `PERSISTENCE_PROOF_PRO_CHECKOUT_REQUIRED` and `PERSISTENCE_PROOF_SUPABASE_CLI_UNAVAILABLE`. Once a stack starts, setup errors and test failures fail the command; they never become skips. A normal unit test run skips the five server tests under `PERSISTENCE_PROOF_NOT_CONFIGURED`.
+Other named prerequisite skips are `PERSISTENCE_PROOF_PRO_CHECKOUT_REQUIRED` and `PERSISTENCE_PROOF_SUPABASE_CLI_UNAVAILABLE`. Once a stack starts, setup errors and test failures fail the command; they never become skips. A normal unit test run skips the seven server tests under `PERSISTENCE_PROOF_NOT_CONFIGURED`, but runs the browser adapter regression.
 
 ## Request to the Pro workflow owner
 
@@ -38,13 +38,15 @@ node scripts/persistence-proof.mjs --pro-dir "$GITHUB_WORKSPACE" --require
 
 ## What is proved
 
-Five tests use real clients and server responses. Phone provisioning uses the real database pairing operations for desktop approval and the production claim and poll client calls for delivery. The browser to Next route hop runs in process with an expiring cookie jar; every hosted fetch reaches the real local service. No server response or token is fabricated.
+Seven tests use real clients and server responses. Phone provisioning uses the real database pairing operations for desktop approval and the production claim and poll client calls for delivery. The browser to Next route hop runs in process with an expiring cookie jar; every hosted fetch reaches the real local service. No server response or token is fabricated.
 
 1. Phone refresh rotates, keeps the server supplied refresh expiry, and refuses the old credential after its server grace expires.
 2. An expired server refresh row ends browser recovery.
 3. Revoking the real device grant ends the next read and recovery attempt.
 4. A phone reopened after 25 hours of stored age has lost its access cookie, retains its refresh cookie, rotates through the real renewal route, and reads the seeded quota.
 5. An account retains its identity through 168 real GoTrue refresh rotations, with a server authenticated user read after each renewal and a fresh client reopen at the end.
+6. Logout successfully revokes the departing session before private storage is erased, leaves no live refresh rows, and refuses replay of the departing refresh credential.
+7. Account switch meets the same revocation guarantees and the new account can still refresh and authenticate.
 
 Time compression subtracts elapsed time from disposable database timestamps and client expiry metadata. It leaves server issued JWTs and refresh credentials intact. This exercises real storage, rotation and refusal contracts without waiting seven days. It does not simulate seven days of operating system suspension, server clock changes, signed JWT aging or browser scheduling, and does not replace the required physical soak after the Oct 7 freeze.
 
@@ -105,3 +107,68 @@ Validation in `apps/web`, with all profile directories redirected to fresh tempo
 5. The same harness executed the actual runner with synthetic subprocess, filesystem, clock and fetch boundaries: seven scenarios passed, covering 200, 204, 299, persistent 403, persistent 503, connection failure and early process exit. Assertions checked generated key validity, matching Origin, feature switch SQL, profile isolation, status diagnostics, secret redaction, the 200 character body limit, stack cleanup and env file removal. Node printed its expected experimental VM modules warning. This harness validates runner control flow, not the database persistence contract.
 
 Fable must push the reviewed public changes and rerun the Pro database proof against the intended Pro commit. Docker is unavailable here, so the five real persistence tests and the CLI supplied container settings remain unverified in a live stack during this unit. No product strings, locale keys, dependencies or lockfiles changed.
+
+## L5a.7 failure attribution and verification checkpoint
+
+2026-09-28, Codex. Public baseline reviewed: `d32120239b03208054503d9316be666b7dad15cb`. Pro source reviewed read only: `7caedf2e382c503eac729cdb8c0dd30a5d66a5d3`. CI run `36482755397`, attempt 3, used public `a24850988e67c56e4665d1383f8a725e7e0a6139` and Pro `059cadd59884b19143dab92221d2343487816922`, according to `lanes/out/pro-persistence-proof-run3.txt:22`. That Pro CI object is absent locally (`fatal: bad object 059cadd59884b19143dab92221d2343487816922`), so equivalence to the inspected Pro checkout is not asserted. No remote fetch was performed.
+
+All five observed failures are test defects, severity major because they block the real persistence proof. No product source change is warranted by these failures. R19's server supplied refresh expiry, renewal within 12 hours, and L5a.4's invalidate, revoke, erase order remain intact. Only this document and `tests/persistence-server.test.ts` changed. No runner change was necessary. No secrets, product strings, locale keys, dependencies or lockfiles were added. Vault logging is outside the write allowlist; this dated checkpoint is the handoff.
+
+| Failure | Verdict and evidence | Fix |
+| --- | --- | --- |
+| Expired refresh returns `empty` instead of `unpaired` | Test defect. The old adapter at baseline line 99 passed jsdom's signal to Node's `NextRequest`. A local reproduction throws `TypeError: RequestInit: Expected signal ("AbortSignal {}") to be an instance of AbortSignal.` The catch in `lib/phone-session.ts:336` becomes status zero and renewal becomes unavailable, before a hosted renewal occurs. | `routeRequest` at line 100 serializes method, headers and body across the simulated HTTP boundary. The test at line 189 also proves the real hosted credential returns 401 before browser recovery. |
+| Read before device revocation returns `empty` | Test defect. Same request construction failure, before the read reaches the real server. CI's direct `readPhoneBars` test passed, while the browser adapter failed. `empty` is a transport outcome, not evidence of zero quota rows. | Same adapter fix. The test at line 198 now checks the quota before revocation and the direct hosted 401 afterwards. |
+| Reopen after 25 hours returns `empty` | Test defect. Same signal mismatch prevents browser renewal. The stored access and refresh age expectations remain valid. | Same adapter fix. The test at line 210 keeps rotation and cookie lifetime assertions and now checks v3 metadata plus the phone UI decoder. |
+| Logout counts 3 requests instead of 1 | Test defect. Baseline teardown only stopped refresh timers; it left two prior clients' auth listeners and broadcast channels alive. The counter counted every `/auth/v1/logout`, regardless of which account authorized it. A synthetic local reproduction using the actual `account-client.ts` and installed SDK produced exactly 3 calls: 2 for the previous account and 1 for the departing account. With disposal it produced 1, for the departing account. | Teardown at line 163 awaits pending cleanup and calls `auth.dispose()`. The test at line 258 scopes successful POST revocations to the departing bearer and checks server state and replay, rather than requiring exactly one HTTP request globally. |
+| Account switch counts 4 requests instead of 1 | Test defect. The accumulated clients act as additional tabs. Each retained account listener at `lib/account-client.ts:414` reacts to the switch and revokes its departing token. A synthetic local reproduction with four clients produced exactly 4 revocations; disposing the three abandoned clients reduced it to 1. Multiple tabs may legitimately send idempotent revocations. | Same teardown and scoped assertions. The new account must also successfully rotate its refresh credential and pass `getUser()` after the old account is revoked. |
+
+The counter reproductions used synthetic sessions and local fetch substitutes only to identify the extra callers. They loaded the actual account client through the installed TypeScript compiler and used the installed Supabase SDK and real BroadcastChannel delivery. They are not claims of server persistence verification. The seven disposable server tests still use only server issued credentials and real hosted responses.
+
+The original usage seed was valid, not a missing v3 migration fixture. `supabase/migrations/20260901221608_snapshot_sync_v2.sql:58` permits a null upload device; `20260904095000_meter_contract_v2.sql:4` generates `code`, `percent`, and `resets_at` from the older columns. In `20260929090000_meter_contract_v3.sql:4`, metadata remains nullable for legacy rows. A percentage of 42 satisfies the value constraint, with null availability and retry fields. The phone RPC at line 591 validates the phone's read grant, token issue, entitlement epoch and history feature, then selects usage by `user_id` at line 618. It does not filter usage to the phone device or a particular account ID. Age beyond 15 minutes marks a row stale rather than filtering it out. The account RPC at line 639 likewise reads by owner and left joins the upload device for its label.
+
+The strengthened seed at `tests/persistence-server.test.ts:67` explicitly belongs to the registered desktop and supplies `source=native_payload`, `reading_precision=exact`, `verification=UNVERIFIED`, `kind=quota_percent`, fresh timestamps and null availability/retry fields. Every pairing now proves a real direct read of that row. The server emits wire `precision` and schema version 3 through `pro-service/index.ts:420` and `_shared/sync_contract.ts`'s `wireReadRow`. `expectQuota` at line 89 verifies both that wire response and `meterRowsOf`, the decoder used by the phone UI. This is a numeric quota decode proof; it does not claim that the UI renders availability only rows or all v3 metadata.
+
+The proof now fails explicitly with `PRO_PHONE_READ_FAILED`, `PRO_PHONE_V3_ROW_MISSING`, or `PHONE_V3_DECODE_FAILED` if those boundaries break. No Pro defect was found and no speculative SQL change is requested. Account revocation requires a successful departing session request while private state is still present, zero live refresh rows for that disposable user, refused refresh replay, erased private storage, and a surviving new session on switch. Existing `tests/account-revocation.test.ts` continues to assert exactly one request per isolated client for success, server failure and network failure in both persistence modes.
+
+Verification context: `apps/web`. Each command that could write state ran with HOME, USERPROFILE, LOCALAPPDATA, APPDATA and all five XDG profile directories redirected to a fresh temporary directory. Installed Node is `v24.13.0`, below the declared `24.15.0`; pnpm is `9.15.0`.
+
+| Command or check | Exact result |
+| --- | --- |
+| `pnpm lint` | Exit 0; no ESLint warnings or errors. pnpm prints the Node engine mismatch warning. |
+| `pnpm test` | Exit 1 before collection: `Error: spawn EPERM`, while esbuild loads `vitest.config.mts`. Standard command acceptance is not met locally. |
+| `node --check scripts/persistence-proof.mjs` | Exit 0. |
+| `node node_modules/typescript/bin/tsc --noEmit --incremental false` | Exit 0. |
+| Programmatic Vitest fallback below | Exit 0, 27 test files passed, 418 tests passed, 7 server tests skipped. Includes the new adapter regression and all 12 existing revocation cases. |
+| `node scripts/persistence-proof.mjs --pro-dir ../../../../wt/L0d-pro` | Exit 0 with `SKIP PERSISTENCE_PROOF_DOCKER_UNAVAILABLE: no reachable disposable Docker daemon and no CI database proof runner`. This is a skip, not a successful server proof. |
+| `git diff --check` | Exit 0. Only the two allowed test/document paths are modified; Pro status is clean. |
+
+The fallback was run through `node --input-type=module -e $proofScript` in PowerShell, after creating and assigning the isolated profile directories. `$proofScript` contained:
+
+```js
+import { startVitest } from 'vitest/node';
+import ts from 'typescript';
+const ctx = await startVitest('test', [], {
+  config: false, environment: 'jsdom', pool: 'threads',
+  maxWorkers: 2, minWorkers: 1,
+  include: ['tests/**/*.test.ts'], restoreMocks: true,
+}, {
+  configFile: false, esbuild: false,
+  resolve: { preserveSymlinks: true, alias: { '@': process.cwd() } },
+  plugins: [{ name: 'isolated-typescript-check', enforce: 'pre',
+    transform(code, id) {
+      if (!/\.[cm]?tsx?(?:\?|$)/.test(id) || id.includes('node_modules')) return;
+      code = code.replaceAll('process.env.NODE_ENV', JSON.stringify('test'));
+      return { code: ts.transpileModule(code, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022,
+          module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.ReactJSX, sourceMap: true },
+        fileName: id,
+      }).outputText, map: null };
+    },
+  }],
+});
+await ctx?.close();
+```
+
+This supplements standard verification, not replaces it. Initial fallback attempts also hit `spawn EPERM`: first Vite's Windows realpath optimization (27 unhandled errors, no tests), then its environment define transform (369 tests passed, 7 skipped, 3 suites failed before collection). `preserveSymlinks` and the equivalent test environment literal avoided those subprocesses. No repository config was changed. The first exploratory counter harness had a missing temporary module filename and aborted before running its scenarios; the corrected in memory loader completed all four logout/switch cleanup scenarios described above.
+
+Request to Fable: integrate the two public files, run standard `pnpm test` on the host, push under the existing integration authority, and rerun the Pro database proof against the intended pinned Pro commit. Expect seven server persistence cases plus the local adapter regression to pass. A named Pro request is not justified by the inspected code or these reproductions. Seven real server passes remain unverified until that rerun; the physical seven day soak also remains a separate acceptance requirement.
