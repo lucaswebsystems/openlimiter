@@ -75,11 +75,25 @@ fn event(sequence: u64, state: &str) -> Event {
         is_sidechain: None,
     }
 }
+fn event_at(sequence: u64, state: &str, observed_at: i64) -> Event {
+    let mut event = event(sequence, state);
+    event.observed_at = timestamp(observed_at);
+    event
+}
 fn unavailable(_: u64) -> Probe {
     Probe::Unavailable
 }
 fn apply(engine: &mut Engine, events: Vec<Event>) -> Vec<super::engine::Transition> {
     engine.apply(events, NOW, &unavailable)
+}
+fn checkpoint_lengths(fixture: &Fixture) -> (usize, usize) {
+    let value: serde_json::Value =
+        serde_json::from_slice(&fs::read(fixture.root.join("activity-desktop-v1.json")).unwrap())
+            .unwrap();
+    (
+        value["seen"].as_object().unwrap().len(),
+        value["retired"].as_object().unwrap().len(),
+    )
 }
 fn session(engine: &Engine) -> &super::engine::Session {
     engine.sessions.values().next().unwrap()
@@ -331,6 +345,143 @@ fn retirement_uses_state_time_and_bounds_sessions() {
         .collect();
     apply(&mut engine, events);
     assert_eq!(engine.sessions.len(), LIVE_SESSIONS);
+}
+
+#[test]
+fn seen_capacity_evicts_oldest_and_keeps_recent_duplicates_suppressed() {
+    let fixture = Fixture::new();
+    let mut engine = Engine::default();
+    let start = NOW - super::engine::MAX_SEEN as i64 - 10;
+    let events = (0..super::engine::MAX_SEEN as u64)
+        .map(|sequence| {
+            let mut event = event_at(sequence, "busy", start + sequence as i64);
+            event.event_id = format!("seen-{sequence}");
+            event
+        })
+        .collect();
+    apply(&mut engine, events);
+
+    let mut newest = event_at(
+        super::engine::MAX_SEEN as u64,
+        "waiting",
+        start + super::engine::MAX_SEEN as i64,
+    );
+    newest.event_id = "seen-newest".into();
+    newest.signal = Some("user_question".into());
+    assert_eq!(apply(&mut engine, vec![newest]).len(), 1);
+    assert_eq!(session(&engine).state, "waiting");
+
+    let mut recent_duplicate = event_at(
+        super::engine::MAX_SEEN as u64 + 1,
+        "done",
+        start + super::engine::MAX_SEEN as i64 + 1,
+    );
+    recent_duplicate.event_id = format!("seen-{}", super::engine::MAX_SEEN - 1);
+    assert!(apply(&mut engine, vec![recent_duplicate]).is_empty());
+    assert_eq!(session(&engine).state, "waiting");
+
+    let mut next = event_at(
+        super::engine::MAX_SEEN as u64 + 2,
+        "done",
+        start + super::engine::MAX_SEEN as i64 + 2,
+    );
+    next.event_id = "seen-next".into();
+    assert_eq!(apply(&mut engine, vec![next]).len(), 1);
+    assert_eq!(session(&engine).state, "done");
+
+    let mut evicted_duplicate = event_at(
+        super::engine::MAX_SEEN as u64 + 3,
+        "waiting",
+        start + super::engine::MAX_SEEN as i64 + 3,
+    );
+    evicted_duplicate.event_id = "seen-0".into();
+    evicted_duplicate.signal = Some("user_question".into());
+    assert_eq!(apply(&mut engine, vec![evicted_duplicate]).len(), 1);
+    assert_eq!(session(&engine).state, "waiting");
+
+    let mut recent_duplicate = event_at(
+        super::engine::MAX_SEEN as u64 + 4,
+        "done",
+        start + super::engine::MAX_SEEN as i64 + 4,
+    );
+    recent_duplicate.event_id = "seen-next".into();
+    assert!(apply(&mut engine, vec![recent_duplicate]).is_empty());
+    assert_eq!(session(&engine).state, "waiting");
+
+    engine.save(&fixture.root).unwrap();
+    let (seen, retired) = checkpoint_lengths(&fixture);
+    assert_eq!(seen, super::engine::MAX_SEEN);
+    assert_eq!(retired, 0);
+    let mut restored = Engine::load(&fixture.root, NOW).unwrap();
+    let mut restored_duplicate = event_at(
+        super::engine::MAX_SEEN as u64 + 5,
+        "done",
+        start + super::engine::MAX_SEEN as i64 + 5,
+    );
+    restored_duplicate.event_id = "seen-next".into();
+    assert!(apply(&mut restored, vec![restored_duplicate]).is_empty());
+}
+
+#[test]
+fn retired_capacity_evicts_oldest_and_keeps_new_sessions_trackable() {
+    let fixture = Fixture::new();
+    let mut engine = Engine::default();
+    let mut sequence = 0_u64;
+    let mut now = NOW;
+    while sequence < super::engine::MAX_SEEN as u64 {
+        let batch_end = (sequence + LIVE_SESSIONS as u64).min(super::engine::MAX_SEEN as u64);
+        let events = (sequence..batch_end)
+            .map(|sequence| {
+                let mut event = event_at(sequence, "done", now - DAY);
+                event.event_id = format!("retired-{sequence}");
+                event.session_id = format!("retired-session-{sequence}");
+                event
+            })
+            .collect();
+        assert_eq!(engine.apply(events, now, &unavailable).len(), 0);
+        assert_eq!(engine.sessions.len(), (batch_end - sequence) as usize);
+        engine.maintain(now, &unavailable);
+        assert!(engine.sessions.is_empty());
+        sequence = batch_end;
+        now += 1;
+    }
+
+    let mut new_session = event_at(sequence, "busy", now - DAY);
+    new_session.event_id = "retired-new-session".into();
+    new_session.session_id = "new-session".into();
+    assert!(engine
+        .apply(vec![new_session], now, &unavailable)
+        .is_empty());
+    assert!(engine
+        .sessions
+        .contains_key(&session_key("claude_code", "new-session")));
+
+    let mut finish = event_at(sequence + 1, "done", now - DAY);
+    finish.event_id = "retired-new-session-done".into();
+    finish.session_id = "new-session".into();
+    assert_eq!(
+        engine.apply(vec![finish.clone()], now, &unavailable).len(),
+        1
+    );
+    engine.maintain(now, &unavailable);
+    assert!(engine.sessions.is_empty());
+
+    engine.save(&fixture.root).unwrap();
+    let (seen, retired) = checkpoint_lengths(&fixture);
+    assert!(seen <= super::engine::MAX_SEEN);
+    assert_eq!(retired, super::engine::MAX_SEEN);
+    let mut restored = Engine::load(&fixture.root, now).unwrap();
+    let mut resurrect = finish;
+    resurrect.event_id = "retired-new-session-resurrect".into();
+    resurrect.sequence += 1;
+    resurrect.state = "busy".into();
+    assert!(engine
+        .apply(vec![resurrect.clone()], now, &unavailable)
+        .is_empty());
+    assert!(restored
+        .apply(vec![resurrect], now, &unavailable)
+        .is_empty());
+    assert!(restored.sessions.is_empty());
 }
 
 #[test]

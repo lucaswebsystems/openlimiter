@@ -13,7 +13,7 @@ use std::{
 
 const CHECKPOINT: &str = "activity-desktop-v1.json";
 const CHECKPOINT_BYTES: u64 = 16 * 1024 * 1024;
-const MAX_SEEN: usize = 65_536;
+pub(super) const MAX_SEEN: usize = 65_536;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -95,6 +95,10 @@ pub struct Engine {
     pub sessions: BTreeMap<String, Session>,
     seen: BTreeMap<String, i64>,
     retired: BTreeMap<String, (u64, i64)>,
+    #[serde(skip, default)]
+    seen_order: BTreeSet<(i64, String)>,
+    #[serde(skip, default)]
+    retired_order: BTreeSet<(i64, String)>,
     #[serde(skip, default = "yes")]
     cold: bool,
 }
@@ -109,6 +113,8 @@ impl Default for Engine {
             sessions: BTreeMap::new(),
             seen: BTreeMap::new(),
             retired: BTreeMap::new(),
+            seen_order: BTreeSet::new(),
+            retired_order: BTreeSet::new(),
             cold: true,
         }
     }
@@ -121,8 +127,9 @@ impl Engine {
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Self::default()),
             Err(e) => Err(e),
             Ok(bytes) => {
-                let engine: Self =
+                let mut engine: Self =
                     serde_json::from_slice(&bytes).map_err(|_| super::storage::unsafe_path())?;
+                engine.rebuild_indexes();
                 if !engine.valid(now) {
                     return Err(super::storage::unsafe_path());
                 }
@@ -196,6 +203,19 @@ impl Engine {
         self.sessions.values().map(Session::display).collect()
     }
 
+    fn rebuild_indexes(&mut self) {
+        self.seen_order = self
+            .seen
+            .iter()
+            .map(|(key, at)| (*at, key.clone()))
+            .collect();
+        self.retired_order = self
+            .retired
+            .iter()
+            .map(|(key, (_, at))| (*at, key.clone()))
+            .collect();
+    }
+
     pub fn maintain(&mut self, now: i64, probe: &impl Fn(u64) -> Probe) {
         for session in self.sessions.values_mut() {
             let at = timestamp(now.max(instant(&session.observed_at).unwrap_or(now)));
@@ -217,9 +237,20 @@ impl Engine {
                 }
             }
         }
-        self.seen.retain(|_, at| now.saturating_sub(*at) <= DAY);
-        self.retired
-            .retain(|_, (_, at)| now.saturating_sub(*at) <= DAY);
+        while let Some((at, key)) = self.seen_order.iter().next().cloned() {
+            if now.saturating_sub(at) <= DAY {
+                break;
+            }
+            self.seen.remove(&key);
+            self.seen_order.remove(&(at, key));
+        }
+        while let Some((at, key)) = self.retired_order.iter().next().cloned() {
+            if now.saturating_sub(at) <= DAY {
+                break;
+            }
+            self.retired.remove(&key);
+            self.retired_order.remove(&(at, key));
+        }
         let retiring: Vec<String> = self
             .sessions
             .iter()
@@ -227,11 +258,14 @@ impl Engine {
             .map(|(k, _)| k.clone())
             .collect();
         for key in retiring {
-            if self.retired.len() == MAX_SEEN {
-                break;
-            }
             let session = self.sessions.remove(&key).unwrap();
-            self.retired.insert(key, (session.sequence, now));
+            if self.retired.len() >= MAX_SEEN {
+                let (oldest_at, oldest_key) = self.retired_order.iter().next().cloned().unwrap();
+                self.retired.remove(&oldest_key);
+                self.retired_order.remove(&(oldest_at, oldest_key));
+            }
+            self.retired.insert(key.clone(), (session.sequence, now));
+            self.retired_order.insert((now, key));
         }
     }
 
@@ -255,10 +289,17 @@ impl Engine {
                 continue;
             }
             let id = digest(event.event_id.as_bytes());
-            if self.seen.contains_key(&id) || self.seen.len() == MAX_SEEN {
+            if self.seen.contains_key(&id) {
                 continue;
             }
-            self.seen.insert(id, instant(&event.observed_at).unwrap());
+            if self.seen.len() >= MAX_SEEN {
+                let (oldest_at, oldest_id) = self.seen_order.iter().next().cloned().unwrap();
+                self.seen.remove(&oldest_id);
+                self.seen_order.remove(&(oldest_at, oldest_id));
+            }
+            let observed_at = instant(&event.observed_at).unwrap();
+            self.seen.insert(id.clone(), observed_at);
+            self.seen_order.insert((observed_at, id));
             let key = session_key(&event.agent, &event.session_id);
             if self.retired.contains_key(&key) {
                 continue;
