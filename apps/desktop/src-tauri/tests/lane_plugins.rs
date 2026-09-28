@@ -24,6 +24,14 @@ fn app() -> tauri::App<MockRuntime> {
 }
 
 fn invoke(window: &WebviewWindow<MockRuntime>, command: &str) -> Result<Value, Value> {
+    invoke_body(window, command, InvokeBody::default())
+}
+
+fn invoke_body(
+    window: &WebviewWindow<MockRuntime>,
+    command: &str,
+    body: InvokeBody,
+) -> Result<Value, Value> {
     get_ipc_response(
         window,
         InvokeRequest {
@@ -37,7 +45,7 @@ fn invoke(window: &WebviewWindow<MockRuntime>, command: &str) -> Result<Value, V
             }
             .parse()
             .unwrap(),
-            body: InvokeBody::default(),
+            body,
             headers: Default::default(),
             invoke_key: INVOKE_KEY.into(),
         },
@@ -84,12 +92,83 @@ fn activity_ungranted_window_denied() {
 
 #[test]
 fn rail_main_allowed() {
-    assert_allowed("main", "plugin:rail|rail_snapshot", json!({"accounts": []}));
+    assert_rail_snapshot("main");
 }
 
 #[test]
 fn rail_future_window_allowed() {
-    assert_allowed("rail", "plugin:rail|rail_snapshot", json!({"accounts": []}));
+    assert_rail_snapshot("rail");
+}
+
+fn assert_rail_snapshot(label: &str) {
+    let app = app();
+    let window = WebviewWindowBuilder::new(&app, label, Default::default())
+        .build()
+        .unwrap();
+    let snapshot = invoke(&window, "plugin:rail|rail_snapshot").unwrap();
+    assert_eq!(snapshot["accounts"], json!([]));
+    assert_eq!(snapshot["window"]["visible"], true);
+    assert_eq!(snapshot["window"]["edge"], "left");
+    assert_eq!(snapshot["window"]["keepOpen"], false);
+}
+
+#[test]
+fn rail_card_window_allowed() {
+    assert_rail_snapshot("rail-card");
+}
+
+#[test]
+fn rail_controls_allowed_through_production_acl() {
+    for label in ["main", "rail", "rail-card"] {
+        let app = app();
+        let window = WebviewWindowBuilder::new(&app, label, Default::default())
+            .build()
+            .unwrap();
+        for (command, args) in [
+            ("rail_set_keep_open", json!({"keepOpen": true})),
+            ("rail_card_open", json!({"anchor": 24})),
+            ("rail_card_close", json!({})),
+            ("rail_set_visible", json!({"visible": false})),
+        ] {
+            assert_eq!(
+                invoke_body(
+                    &window,
+                    &format!("plugin:rail|{command}"),
+                    InvokeBody::Json(args)
+                ),
+                Ok(Value::Null)
+            );
+        }
+        let snapshot = invoke(&window, "plugin:rail|rail_snapshot").unwrap();
+        assert_eq!(snapshot["window"]["visible"], false);
+        assert_eq!(snapshot["window"]["keepOpen"], true);
+        assert_eq!(snapshot["window"]["cardOpen"], false);
+        // This reaches validation, proving the ACL granted it; no real monitor
+        // is queried or window shown by the mock application.
+        assert_eq!(
+            invoke_body(
+                &window,
+                "plugin:rail|rail_move_offset",
+                InvokeBody::Json(json!({"offset": -1}))
+            ),
+            Err(json!("invalid Rail offset"))
+        );
+    }
+}
+
+#[test]
+fn rail_controls_denied_to_ungranted_and_tray_windows() {
+    for label in ["ungranted", "tray"] {
+        for command in [
+            "rail_set_visible",
+            "rail_set_keep_open",
+            "rail_move_offset",
+            "rail_card_open",
+            "rail_card_close",
+        ] {
+            assert_denied(label, &format!("plugin:rail|{command}"));
+        }
+    }
 }
 
 #[test]
