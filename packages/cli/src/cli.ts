@@ -149,8 +149,10 @@ import {
   isStatuslineHost,
   renderStatuslineLayout,
   statuslineColor,
+  statuslineUnicode,
   type StatuslineHost
 } from "./statusline.js";
+import { parseStatuslineSession } from "./statusline-ingest.js";
 import {
   TERMINAL_HOST_NAMES,
   installHost,
@@ -1053,8 +1055,8 @@ const help = [
   "openlimiter terminal status",
   "openlimiter terminal install <host> [--wrap]",
   "openlimiter terminal uninstall <host|all>",
-  "openlimiter terminal show <provider ...>",
-  "openlimiter terminal hide <provider ...>",
+  "openlimiter terminal show <segment|provider|window ...>",
+  "openlimiter terminal hide <segment|provider|window ...>",
   "openlimiter refresh",
   "openlimiter hook [--dry-run]",
   "openlimiter hooks install <agent>",
@@ -1090,8 +1092,8 @@ const help = [
  *
  * This is the path that gives the tool something to meter. It performs no
  * network access at all: it validates the JSON the host already wrote to this
- * process. Every failure returns null so the caller can fall back to the
- * cache instead of breaking the host tool.
+ * process. Unusable quota readings leave snapshots null so the caller can
+ * fall back to the cache while retaining display metadata from valid JSON.
  *
  * Which parser runs, and which provenance the reading is stamped with, are
  * decided by the host. Codex names no scripting interface at all (its status
@@ -1102,7 +1104,7 @@ async function ingestStandardInput(
   dependencies: CliDependencies,
   now: string,
   host: StatuslineHost = "claude"
-): Promise<Snapshot[] | null> {
+): Promise<{ snapshots: Snapshot[] | null; payload: unknown } | null> {
   if (host === "codex" || host === "shell") return null;
   try {
     const document = parseJsonText(await dependencies.readStandardInput());
@@ -1112,7 +1114,7 @@ async function ingestStandardInput(
       : host === "grok"
         ? parseGrokStatuslinePayload(document.value, now)
         : parseClaudePayload(document.value, now);
-    if (meters === null) return null;
+    if (meters === null) return { snapshots: null, payload: document.value };
     const provenance = host === "antigravity"
       ? ANTIGRAVITY_STATUSLINE_PROVENANCE
       : host === "grok"
@@ -1121,12 +1123,13 @@ async function ingestStandardInput(
     /* The host wrote this to our standard input in this session. It is a live
        reading, and it says so. */
     const incoming = normalizeMeters(withProvenance(meters, provenance));
-    if (incoming.length === 0) return null;
+    if (incoming.length === 0) return { snapshots: null, payload: document.value };
     try {
-      return (await persistSnapshots(incoming, dependencies.stateDirectory, now)).merged;
+      const { merged } = await persistSnapshots(incoming, dependencies.stateDirectory, now);
+      return { snapshots: merged, payload: document.value };
     } catch {
       const existing = await cachedSnapshots(dependencies.stateDirectory);
-      return mergeSnapshots(existing, incoming);
+      return { snapshots: mergeSnapshots(existing, incoming), payload: document.value };
     }
   } catch {
     return null;
@@ -1391,7 +1394,7 @@ async function statuslineCommand(
     ? (hostFlag.toLowerCase() as StatuslineHost)
     : "claude";
   const ingested = await ingestStandardInput(dependencies, now, host);
-  const snapshots = ingested ?? await cachedSnapshots(dependencies.stateDirectory);
+  const snapshots = ingested?.snapshots ?? await cachedSnapshots(dependencies.stateDirectory);
   /*
    * The refresh that keeps the other providers current starts here and is never
    * waited for. This render draws whatever the cache already holds, the child
@@ -1399,7 +1402,7 @@ async function statuslineCommand(
    * whole reason a terminal person needs no background service.
    */
   await startRefreshBehind(dependencies, snapshots, now);
-  if (ingested === null) {
+  if (ingested?.snapshots == null) {
     await writeAgentContextSnapshot(
       snapshots,
       dependencies.stateDirectory,
@@ -1415,11 +1418,14 @@ async function statuslineCommand(
     snapshots,
     now,
     config,
+    session: parseStatuslineSession(ingested?.payload),
     color: statuslineColor(
       config.color,
       dependencies.environment,
-      dependencies.colorOutput
+      dependencies.colorOutput,
+      host
     ),
+    unicode: statuslineUnicode(dependencies.environment),
     host
   }));
 }
@@ -1813,8 +1819,8 @@ const terminalUsage = [
   "openlimiter terminal status",
   "openlimiter terminal install <host> [--wrap]",
   "openlimiter terminal uninstall <host|all>",
-  "openlimiter terminal show <provider ...>",
-  "openlimiter terminal hide <provider ...>",
+  "openlimiter terminal show <segment|provider|window ...>",
+  "openlimiter terminal hide <segment|provider|window ...>",
   "",
   "hosts: " + TERMINAL_HOST_NAMES.join(", ") + "."
 ].join("\n");
@@ -1912,7 +1918,7 @@ async function terminalCommand(
     if (providerIds.length === 0) {
       return fail(
         EXIT_USAGE,
-        "openlimiter terminal: " + action + " needs at least one provider id."
+        "openlimiter terminal: " + action + " needs at least one segment, provider or window."
       );
     }
     const result = action === "show"

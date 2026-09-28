@@ -7,21 +7,10 @@ import { renderStatuslineLayout, STATUSLINE_HOSTS, tenBlockBar } from "../src/st
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
 /**
- * Byte for byte golden files, one per host shape and width, for both styles.
- *
- * `bar` is decision D6's reference grammar and differs by host, because the
- * whole point of a host tag is to disappear for the provider that host
- * belongs to: `openlimiter statusline --host codex` draws Codex's own window
- * bare and tags everyone else's. `cells` is the pre D6 grammar this project
- * shipped first; it never reads which host is asking, so one set of files
- * covers every host and the width sweep below asserts that directly rather
- * than writing five identical copies of the same three files.
- *
- * The golden text lives under `packages/cli/test/golden/`, generated from a
- * real render of `fixtures/statusline-snapshots.ts` rather than typed out by
- * hand, so a change to a column, a tag, a bar, a percent or a separator has
- * to be made in the renderer and reviewed here, exactly as the CLI's own
- * golden demo output is kept honest.
+ * Reference bars keep every enabled window and leave wrapping to the host.
+ * These goldens changed from width shedding, truncated percentages and spend
+ * amounts to the reference line, rounded percentages and remaining credits.
+ * Legacy cells retain their width budget and explicitly request worst meters.
  */
 
 const GOLDEN_DIR = path.join(process.cwd(), "packages/cli/test/golden");
@@ -45,23 +34,22 @@ describe("account and freshness status line goldens", () => {
     const rows = [row({ value: 16 }),
       row({ provider: "CODEX", accountId: "old", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(19 * 86400), value: 99 }),
       row({ provider: "CODEX", accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(840), value: 26 })];
-    expect(render(rows)).toBe("5h [█░░░░░░░░░] 16% | cx7d [██░░░░░░░░] 26% stale 14m");
+    expect(render(rows)).toBe("5h [█░░░░░░░░░] 16% | cx7d [██░░░░░░░░] ~26%");
     expect(render([...rows].reverse())).toBe(render(rows));
   });
-  it.each([180, 900, 7200, 86400])("retains the last value with age at %s seconds", (seconds) => {
-    const age = seconds === 180 ? "3m" : seconds === 900 ? "15m" : seconds === 7200 ? "2h" : "1d";
+  it.each([180, 900, 7200, 86400])("marks the last value as stale at %s seconds", (seconds) => {
     expect(render([row({ observedAt: ago(seconds), expiresAt: ago(seconds - 60) })]))
-      .toBe("5h [████░░░░░░] 42% stale " + age);
+      .toBe("5h [████░░░░░░] ~42%");
   });
-  it("omits providers with no rows even when explicitly selected", () => {
+  it("marks explicitly selected providers without readings as unknown", () => {
     expect(render([row({ value: 16 })], ["claude", "codex", "antigravity", "gemini_cli", "openrouter"]))
-      .toBe("5h [█░░░░░░░░░] 16%");
+      .toBe("5h [█░░░░░░░░░] 16% | cx [?] | ag [?] | gm [?] | or [?]");
   });
-  it("keeps stale spend and unknown window readings with their age", () => {
+  it("marks stale spend and unknown window readings", () => {
     expect(render([row({ provider: "GROK", meter: "SPEND", usedAmount: 12.5, currency: "USD", observedAt: ago(900) })]))
-      .toBe("gk spend $12.50 stale 15m");
+      .toBe("gk spend ~$12.50");
     expect(render([row({ provider: "GROK", meter: "UNSPECIFIED", window: { kind: "unknown" }, observedAt: ago(900) })]))
-      .toBe("gk [████░░░░░░] 42% stale 15m");
+      .toBe("gk [████░░░░░░] ~42%");
   });
   it.each([
     ["missing_credentials", "signed out"],
@@ -100,7 +88,7 @@ describe("account and freshness status line goldens", () => {
         expiresAt: ago(120)
       }),
       row({ accountId, observedAt: ago(240), expiresAt: ago(120), value: 42 })
-    ])).toBe("5h " + tenBlockBar(42) + " 42% stale 4m");
+    ])).toBe("5h " + tenBlockBar(42) + " ~42%");
   });
   it("omits a provider whose only account is more than 24 hours old", () => {
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(86401) })]))
@@ -108,7 +96,7 @@ describe("account and freshness status line goldens", () => {
   });
   it("measures last seen per account, rather than discarding every older meter", () => {
     expect(render([row({ accountId: "active", value: 16 }), row({ accountId: "active", meter: "SEVEN_DAY", window: { kind: "rolling", durationSeconds: 604800 }, observedAt: ago(90000), value: 26 })]))
-      .toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] 26% stale 1d");
+      .toBe("5h [█░░░░░░░░░] 16% | 7d [██░░░░░░░░] ~26%");
   });
 });
 
@@ -170,7 +158,7 @@ describe("statusline golden files", () => {
             advice: ADVICE,
             snapshots: GOLDEN_SNAPSHOTS,
             now: GOLDEN_NOW,
-            config: { ...DEFAULT_STATUSLINE, style: "cells", width, rows: 2 },
+            config: { ...DEFAULT_STATUSLINE, style: "cells", meters: "worst", width, rows: 2 },
             color: false,
             host
           });

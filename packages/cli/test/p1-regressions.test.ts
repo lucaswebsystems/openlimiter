@@ -176,16 +176,16 @@ describe("P1 audit regressions", () => {
     await writeFile(path.join(d.homeDirectory, ".codex", "auth.json"), JSON.stringify(credentialDocuments.codex));
     const result = await runCli(["terminal", "show", "codex"], d);
     expect(result.exitCode).toBe(0);
-    expect((await readStatuslineConfig(d.stateDirectory)).show).toEqual(["codex"]);
+    expect((await readStatuslineConfig(d.stateDirectory)).visibility).toEqual({ codex: true });
   });
 
-  it("13 shows actual OpenRouter money with a spend label and freshness on every host", () => {
+  it("13 shows actual OpenRouter remaining credits and freshness on every host", () => {
     const snapshots = normalizeMeters(parseOpenrouterPayload({ data: { total_credits: 20, total_usage: 6.4 } }, NOW) ?? []);
     for (const host of STATUSLINE_HOSTS) {
       const render = (now: string) => barStyleCells(snapshots, now, ["OPENROUTER"], host, [], "all", false).map((cell) => cell.plain).join(" ");
-      expect(render(NOW)).toBe("or spend $6.40");
-      expect(render("2026-09-07T12:03:01.000Z")).toBe("or spend $6.40 stale 3m");
-      expect(render("2026-09-07T12:16:00.000Z")).toBe("or spend $6.40 stale 16m");
+      expect(render(NOW)).toBe("or $13.60");
+      expect(render("2026-09-07T12:03:01.000Z")).toBe("or ~$13.60");
+      expect(render("2026-09-07T12:16:00.000Z")).toBe("or ~$13.60");
     }
   });
 
