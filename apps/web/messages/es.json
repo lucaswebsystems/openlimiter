@@ -2032,6 +2032,13 @@
     "restore": "Al suscribirte, todo vuelve a estar como antes. Tus preferencias se conservaron."
   },
   "hub": {
+    "providers": {
+      "title": "Proveedores",
+      "automaticPrompt": "Abre la aplicación de escritorio. La detección local empieza ahí.",
+      "manualPrompt": "Abre la aplicación de escritorio. Tu clave se queda en el almacén de credenciales del sistema.",
+      "getDesktop": "Descargar para escritorio",
+      "close": "Cerrar"
+    },
     "syncedSpend": { "sourceThrough": "Sincronización del escritorio: {provider}, {account}, de {start} a {end}", "sourceUpTo": "Sincronización del escritorio: {provider}, {account}, de {start} hasta {end}" },
     "addAccount": "Agregar cuenta",
     "configuration": "Configuración",

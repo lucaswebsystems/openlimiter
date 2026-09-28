@@ -2032,6 +2032,13 @@
     "restore": "Subscribe and everything comes back as it was. Your preferences were kept."
   },
   "hub": {
+    "providers": {
+      "title": "Providers",
+      "automaticPrompt": "Open the desktop app. Local detection starts there.",
+      "manualPrompt": "Open the desktop app. Your key stays in the system credential store.",
+      "getDesktop": "Get desktop",
+      "close": "Close"
+    },
     "syncedSpend": { "sourceThrough": "Desktop sync: {provider}, {account}, {start} through {end}", "sourceUpTo": "Desktop sync: {provider}, {account}, {start} up to {end}" },
     "addAccount": "Add account",
     "configuration": "Configuration",

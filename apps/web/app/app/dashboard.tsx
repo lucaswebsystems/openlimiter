@@ -1124,7 +1124,7 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
             </ul>
           </Panel>
           <CloudMeterPanel client={syncClient} onStartTrial={() => setView("trial")} />
-          <Panel title="Providers" demo={demo}>
+          <Panel title={t("providers.title")} demo={demo}>
             <ProviderDirectory
               onConnect={setSelectedProvider}
               onManual={setSelectedProvider}
@@ -1140,20 +1140,18 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
                 </div>
                 <p>
                   {selectedProvider.access === "automatic"
-                    ? "Open the desktop app. Local detection starts there."
-                    : "Open the desktop app. Your key stays in the system credential store."}
+                    ? t("providers.automaticPrompt")
+                    : t("providers.manualPrompt")}
                 </p>
                 <div className="ol-connect-prompt-actions">
-                  <Button
-                    tone="primary"
-                    onClick={() => {
-                      window.location.assign("/en/download");
-                    }}
+                  <LocaleLink
+                    href="/download"
+                    className="ol-tap focus-ring inline-flex items-center justify-center rounded-lg border border-control-border bg-transparent px-4 py-2 text-sm font-medium text-heading hover:border-heading hover:bg-surface"
                   >
-                    Get desktop
-                  </Button>
+                    {t("providers.getDesktop")}
+                  </LocaleLink>
                   <Button tone="ghost" onClick={() => setSelectedProvider(null)}>
-                    Close
+                    {t("providers.close")}
                   </Button>
                 </div>
               </section>
@@ -1166,3 +1164,5 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
     </div>
   );
 }
+
+import { Link as LocaleLink } from "../../i18n/navigation";
