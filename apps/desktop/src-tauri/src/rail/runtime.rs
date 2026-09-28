@@ -98,7 +98,7 @@ fn create_windows<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
         ("rail", "rail.html", 20.0, placement::LENGTH),
         ("rail-card", "rail.html?card", 320.0, 240.0),
     ] {
-        let window = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
+        let builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into()))
             .title("OpenLimiter Rail")
             .inner_size(width, height)
             .visible(false)
@@ -106,8 +106,12 @@ fn create_windows<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
             .decorations(false)
             .resizable(false)
             .skip_taskbar(true)
-            .always_on_top(true)
-            .transparent(cfg!(windows))
+            .always_on_top(true);
+        // macOS offers transparency only behind Tauri's private API feature;
+        // the plan ships an opaque, token styled surface there first.
+        #[cfg(not(target_os = "macos"))]
+        let builder = builder.transparent(cfg!(windows));
+        let window = builder
             .shadow(false)
             .on_navigation(|url| {
                 matches!(url.scheme(), "tauri" | "http" | "https")

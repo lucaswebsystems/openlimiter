@@ -2178,10 +2178,12 @@ mod tests {
         ] {
             assert_eq!(validated_executable_in_roots(&refused, &roots), None);
         }
+        // The temp path can be an 8.3 short name (RUNNER~1 on CI), so compare
+        // with the canonical long path the validator returns.
         #[cfg(windows)]
         assert_eq!(
             validated_executable_in_roots(&fs::canonicalize(&executable).unwrap(), &roots),
-            Some(executable)
+            Some(normalize_verbatim_prefix(fs::canonicalize(&executable).unwrap()))
         );
     }
 
