@@ -115,21 +115,62 @@ impl ClaudeOauthOutcome {
 pub struct ClaudeOauthRuntime {
     next_allowed: Mutex<BTreeMap<String, u64>>,
     attempts: Mutex<BTreeMap<String, u32>>,
+    refusal_revisions: Mutex<BTreeMap<String, String>>,
 }
 
 impl ClaudeOauthRuntime {
+    fn observe_revision(&self, account_id: &str, revision: &str) {
+        if let Ok(mut refusals) = self.refusal_revisions.lock() {
+            if refusals
+                .get(account_id)
+                .is_some_and(|previous| previous != revision)
+            {
+                refusals.remove(account_id);
+                if let Ok(mut entries) = self.next_allowed.lock() {
+                    entries.remove(account_id);
+                }
+                if let Ok(mut attempts) = self.attempts.lock() {
+                    attempts.remove(account_id);
+                }
+            }
+        }
+    }
+
+    fn refuse(&self, account_id: &str, revision: &str, now_ms: u64) -> u64 {
+        if let Ok(mut refusals) = self.refusal_revisions.lock() {
+            if let Ok(entries) = self.next_allowed.lock() {
+                refusals
+                    .retain(|account, _| entries.get(account).is_some_and(|next| *next > now_ms));
+            }
+            refusals.insert(account_id.to_string(), revision.to_string());
+        }
+        self.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS)
+    }
+
     fn retry(&self, account_id: &str, now_ms: u64, server: Option<u64>) -> u64 {
-        let attempt = self.attempts.lock().ok().map(|mut attempts| {
-            let entry = attempts.entry(account_id.to_string()).or_default();
-            let attempt = *entry;
-            *entry = entry.saturating_add(1);
-            attempt
-        }).unwrap_or(0);
+        let attempt = self
+            .attempts
+            .lock()
+            .ok()
+            .map(|mut attempts| {
+                let entry = attempts.entry(account_id.to_string()).or_default();
+                let attempt = *entry;
+                *entry = entry.saturating_add(1);
+                attempt
+            })
+            .unwrap_or(0);
         let decision = crate::request_policy::retry_decision(
-            attempt, server.map(|seconds| now_ms.saturating_add(seconds.saturating_mul(1000))),
-            now_ms, 0, 7 * 86_400,
+            attempt,
+            server.map(|seconds| now_ms.saturating_add(seconds.saturating_mul(1000))),
+            now_ms,
+            0,
+            7 * 86_400,
         );
-        self.postpone(account_id, now_ms, (decision.next_allowed_at - now_ms) / 1000)
+        self.postpone(
+            account_id,
+            now_ms,
+            (decision.next_allowed_at - now_ms) / 1000,
+        )
     }
     fn begin(&self, account_id: &str, now_ms: u64) -> Result<(), u64> {
         let mut entries = self.next_allowed.lock().map_err(|_| now_ms)?;
@@ -675,8 +716,15 @@ async fn collect_with_secret<T: Transport>(
     secret: &DetectedSecret,
     now_ms: u64,
 ) -> ClaudeOauthOutcome {
+    runtime.observe_revision(account_id, &secret.credential_revision);
     if crate::poll_identity::credential_expired(&secret.access_token, now_ms) {
-        let _ = writer.record_availability("CLAUDE", Some(account_id), "expired_credentials", None, now_ms);
+        let _ = writer.record_availability(
+            "CLAUDE",
+            Some(account_id),
+            "expired_credentials",
+            None,
+            now_ms,
+        );
         return ClaudeOauthOutcome::reopen(account_id);
     }
     if let Err(retry_ms) = runtime.begin(account_id, now_ms) {
@@ -701,12 +749,14 @@ async fn collect_with_secret<T: Transport>(
             return ClaudeOauthOutcome::Failed {
                 account_id: account_id.to_string(),
                 reason: net_failure(error),
-            }
+            };
         }
     };
     match response.status {
         200..=299 => {
-            if let Ok(mut attempts) = runtime.attempts.lock() { attempts.remove(account_id); }
+            if let Ok(mut attempts) = runtime.attempts.lock() {
+                attempts.remove(account_id);
+            }
             let Some(body) = response.body else {
                 fallback_report(writer, account_id, true, now_ms).await;
                 return ClaudeOauthOutcome::fallback(account_id, ClaudeOauthFailure::Drift, None);
@@ -733,15 +783,27 @@ async fn collect_with_secret<T: Transport>(
             }
         }
         401 => {
-            runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
+            runtime.refuse(account_id, &secret.credential_revision, now_ms);
             fallback_report(Arc::clone(&writer), account_id, false, now_ms).await;
-            let _ = writer.record_availability("CLAUDE", Some(account_id), "expired_credentials", None, now_ms);
+            let _ = writer.record_availability(
+                "CLAUDE",
+                Some(account_id),
+                "expired_credentials",
+                None,
+                now_ms,
+            );
             ClaudeOauthOutcome::reopen(account_id)
         }
         403 | 404 | 410 => {
-            let retry_ms = runtime.postpone(account_id, now_ms, BLOCKED_BACKOFF_SECONDS);
+            let retry_ms = runtime.refuse(account_id, &secret.credential_revision, now_ms);
             fallback_report(Arc::clone(&writer), account_id, false, now_ms).await;
-            let _ = writer.record_availability("CLAUDE", Some(account_id), "access_denied", None, now_ms);
+            let _ = writer.record_availability(
+                "CLAUDE",
+                Some(account_id),
+                "access_denied",
+                None,
+                now_ms,
+            );
             ClaudeOauthOutcome::fallback(
                 account_id,
                 ClaudeOauthFailure::ProviderBlocked,
@@ -751,7 +813,13 @@ async fn collect_with_secret<T: Transport>(
         429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
             let retry_after_seconds = response.retry_after_seconds;
             let retry_ms = runtime.retry(account_id, now_ms, retry_after_seconds);
-            let _ = writer.record_availability("CLAUDE", Some(account_id), "rate_limited", Some(retry_ms), now_ms);
+            let _ = writer.record_availability(
+                "CLAUDE",
+                Some(account_id),
+                "rate_limited",
+                Some(retry_ms),
+                now_ms,
+            );
             ClaudeOauthOutcome::rate_limited(
                 account_id,
                 iso_from_epoch_ms(retry_ms),
@@ -761,9 +829,10 @@ async fn collect_with_secret<T: Transport>(
         _ => {
             runtime.retry(account_id, now_ms, None);
             ClaudeOauthOutcome::Failed {
-            account_id: account_id.to_string(),
-            reason: ClaudeOauthFailure::ProviderResponse,
-        } },
+                account_id: account_id.to_string(),
+                reason: ClaudeOauthFailure::ProviderResponse,
+            }
+        }
     }
 }
 
@@ -784,7 +853,10 @@ pub async fn collect_account<T: Transport>(
     now_ms: u64,
 ) -> ClaudeOauthOutcome {
     // Refresh the inventory so expiry metadata belongs to the current stored token.
-    let expired = detection.rescan().providers.iter()
+    let expired = detection
+        .rescan()
+        .providers
+        .iter()
         .filter(|provider| provider.provider_id == DetectedProviderId::Claude)
         .flat_map(|provider| &provider.accounts)
         .filter(|account| account.account_id == account_id)
@@ -792,7 +864,13 @@ pub async fn collect_account<T: Transport>(
         .filter_map(|expiry| chrono::DateTime::parse_from_rfc3339(expiry).ok())
         .any(|expiry| expiry.timestamp_millis() <= now_ms as i64);
     if expired {
-        let _ = writer.record_availability("CLAUDE", Some(&account_id), "expired_credentials", None, now_ms);
+        let _ = writer.record_availability(
+            "CLAUDE",
+            Some(&account_id),
+            "expired_credentials",
+            None,
+            now_ms,
+        );
         detection.mark_stale(DetectedProviderId::Claude, &account_id);
         return ClaudeOauthOutcome::reopen(&account_id);
     }
@@ -800,7 +878,13 @@ pub async fn collect_account<T: Transport>(
         Ok(secret) => secret,
         Err(error) => {
             if matches!(error, DetectedCredentialError::Stale) {
-                let _ = writer.record_availability("CLAUDE", Some(&account_id), "expired_credentials", None, now_ms);
+                let _ = writer.record_availability(
+                    "CLAUDE",
+                    Some(&account_id),
+                    "expired_credentials",
+                    None,
+                    now_ms,
+                );
             }
             detection.mark_stale(DetectedProviderId::Claude, &account_id);
             return credential_failure(&account_id, error);
@@ -832,7 +916,16 @@ pub async fn collect_account_guarded<T: Transport>(
     account_id: String,
     now_ms: u64,
 ) -> (ClaudeOauthOutcome, bool) {
-    let _lease = match policy.begin(DetectedProviderId::Claude, &account_id, now_ms) {
+    let revision = detection
+        .read_credential(DetectedProviderId::Claude, &account_id)
+        .map(|secret| secret.credential_revision)
+        .unwrap_or_else(|_| "unavailable".to_string());
+    let _lease = match policy.begin_with_revision(
+        DetectedProviderId::Claude,
+        &account_id,
+        now_ms,
+        Some(&revision),
+    ) {
         Ok(lease) => lease,
         Err(GateRejection::Deferred { retry_at }) => {
             return (
@@ -854,6 +947,8 @@ pub async fn collect_account_guarded<T: Transport>(
             )
         }
     };
+    // The durable gate owns retry timing, including after a process restart.
+    runtime.postpone(&account_id, now_ms, 0);
     let outcome = collect_account(
         detection,
         runtime,
@@ -863,12 +958,23 @@ pub async fn collect_account_guarded<T: Transport>(
         now_ms,
     )
     .await;
-    let abort_provider = match &outcome {
+    let abort_provider = complete_outcome(policy, &account_id, now_ms, &outcome);
+    (outcome, abort_provider)
+}
+
+fn complete_outcome(
+    policy: &RequestPolicy,
+    account_id: &str,
+    now_ms: u64,
+    outcome: &ClaudeOauthOutcome,
+) -> bool {
+    match outcome {
+        ClaudeOauthOutcome::Cached { .. } => false,
         ClaudeOauthOutcome::Fallback {
             reason: ClaudeOauthFailure::ProviderBlocked,
             ..
         } => {
-            policy.block_provider(DetectedProviderId::Claude, now_ms, BLOCKED_BACKOFF_SECONDS);
+            policy.refuse_account(DetectedProviderId::Claude, &account_id, now_ms, true);
             true
         }
         ClaudeOauthOutcome::Fallback {
@@ -885,15 +991,10 @@ pub async fn collect_account_guarded<T: Transport>(
             true
         }
         ClaudeOauthOutcome::ReopenCli { .. } => {
-            policy.refuse_account(
-                DetectedProviderId::Claude,
-                &account_id,
-                now_ms,
-                false,
-            );
+            policy.refuse_account(DetectedProviderId::Claude, &account_id, now_ms, false);
             false
         }
-        ClaudeOauthOutcome::Failed { reason: ClaudeOauthFailure::ProviderResponse | ClaudeOauthFailure::Timeout | ClaudeOauthFailure::Connect | ClaudeOauthFailure::Tls, .. } => {
+        ClaudeOauthOutcome::Failed { .. } => {
             policy.retry_account(DetectedProviderId::Claude, &account_id, now_ms, None, false);
             false
         }
@@ -906,8 +1007,7 @@ pub async fn collect_account_guarded<T: Transport>(
             );
             false
         }
-    };
-    (outcome, abort_provider)
+    }
 }
 
 fn pass_read_succeeded(outcome: &ClaudeOauthOutcome) -> bool {
@@ -1212,7 +1312,10 @@ mod tests {
         assert!(transport.recorded_urls().is_empty());
         let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).unwrap();
         let document: serde_json::Value = serde_json::from_str(&cache).unwrap();
-        assert_eq!(document["snapshots"][0]["availability"], "expired_credentials");
+        assert_eq!(
+            document["snapshots"][0]["availability"],
+            "expired_credentials"
+        );
         assert!(document["snapshots"][0].get("retryAt").is_none());
     }
 
@@ -1234,8 +1337,14 @@ mod tests {
         let refused_at = NOW + REFRESH_SECONDS * 1000;
         for elapsed in [0, 86_399_999, 86_400_000] {
             let outcome = collect_with_secret(
-                &runtime, &transport, writer(&dir), ACCOUNT, &secret("refused"), refused_at + elapsed,
-            ).await;
+                &runtime,
+                &transport,
+                writer(&dir),
+                ACCOUNT,
+                &secret("refused"),
+                refused_at + elapsed,
+            )
+            .await;
             if elapsed == 86_399_999 {
                 assert!(matches!(outcome, ClaudeOauthOutcome::Cached { .. }));
                 assert_eq!(transport.recorded_urls().len(), 1);
@@ -1248,7 +1357,10 @@ mod tests {
         assert!(!cache.contains("FIVE_HOUR"));
         assert!(!cache.contains("SEVEN_DAY"));
         let document: serde_json::Value = serde_json::from_str(&cache).unwrap();
-        assert_eq!(document["snapshots"][0]["availability"], "expired_credentials");
+        assert_eq!(
+            document["snapshots"][0]["availability"],
+            "expired_credentials"
+        );
         assert!(document["snapshots"][0].get("retryAt").is_none());
     }
 
@@ -1390,6 +1502,112 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[tokio::test]
+    async fn runtime_refusal_clears_only_when_the_credential_revision_changes() {
+        for status in [401, 403] {
+            let dir = TempDir::new();
+            let runtime = ClaudeOauthRuntime::default();
+            let transport = RecordingTransport::scripted(vec![
+                (status, Vec::new(), None),
+                (200, valid_body(), None),
+            ]);
+            collect_with_secret(
+                &runtime,
+                &transport,
+                writer(&dir),
+                ACCOUNT,
+                &secret("revision-one"),
+                NOW,
+            )
+            .await;
+            let same = collect_with_secret(
+                &runtime,
+                &transport,
+                writer(&dir),
+                ACCOUNT,
+                &secret("revision-one"),
+                NOW + 60_000,
+            )
+            .await;
+            assert!(matches!(same, ClaudeOauthOutcome::Cached { .. }));
+            assert_eq!(transport.recorded_urls().len(), 1);
+            let changed = collect_with_secret(
+                &runtime,
+                &transport,
+                writer(&dir),
+                ACCOUNT,
+                &secret("revision-two"),
+                NOW + 60_001,
+            )
+            .await;
+            assert!(matches!(changed, ClaudeOauthOutcome::CacheCommitted { .. }));
+            assert_eq!(transport.recorded_urls().len(), 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn guarded_refusal_clears_on_vendor_credential_change() {
+        for status in [401, 403] {
+            let dir = TempDir::new();
+            let path = dir.path().join(".claude/.credentials.json");
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let credential = |token: &str| {
+                serde_json::json!({"claudeAiOauth": {"accessToken": token, "accountId": "synthetic-account"}}).to_string()
+            };
+            fs::write(&path, credential("synthetic-old-token")).unwrap();
+            let detection = DetectionStore::for_test_home(dir.path(), NOW);
+            let account = detection
+                .account_ids(DetectedProviderId::Claude)
+                .pop()
+                .unwrap();
+            let runtime = ClaudeOauthRuntime::default();
+            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let transport = RecordingTransport::scripted(vec![
+                (status, Vec::new(), None),
+                (200, valid_body(), None),
+            ]);
+            collect_account_guarded(
+                &detection,
+                &runtime,
+                &policy,
+                &transport,
+                writer(&dir),
+                account.clone(),
+                NOW,
+            )
+            .await;
+            let (same, _) = collect_account_guarded(
+                &detection,
+                &runtime,
+                &policy,
+                &transport,
+                writer(&dir),
+                account.clone(),
+                NOW + 60_000,
+            )
+            .await;
+            assert!(matches!(same, ClaudeOauthOutcome::Cached { .. }));
+            assert_eq!(transport.recorded_urls().len(), 1);
+            fs::write(&path, credential("synthetic-new-token")).unwrap();
+            let restarted = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let (changed, _) = collect_account_guarded(
+                &detection,
+                &runtime,
+                &restarted,
+                &transport,
+                writer(&dir),
+                account,
+                NOW + 60_001,
+            )
+            .await;
+            assert!(
+                matches!(changed, ClaudeOauthOutcome::CacheCommitted { .. }),
+                "{changed:?}"
+            );
+            assert_eq!(transport.recorded_urls().len(), 2);
+        }
     }
 
     /* --------------------------------------------------- every bucket sent */

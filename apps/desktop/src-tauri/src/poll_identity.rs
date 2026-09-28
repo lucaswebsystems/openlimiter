@@ -7,6 +7,11 @@ use crate::provider_detection::{
 };
 use crate::reader_registry::ProviderId;
 
+pub(crate) fn credential_revision(secret: &str) -> String {
+    use sha2::{Digest, Sha256};
+    format!("{:x}", Sha256::digest(secret.as_bytes()))
+}
+
 /// Reject expiry metadata and JWT expiry before any saved credential is sent.
 pub(crate) fn credential_expired(secret: &str, now_ms: u64) -> bool {
     use base64::Engine;

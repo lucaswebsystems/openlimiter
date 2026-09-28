@@ -26,7 +26,6 @@ use crate::request_policy::{GateRejection, RequestPolicy};
 /// two surfaces reading the same pool on two different clocks is how a person
 /// ends up watching a bar disagree with itself.
 pub const REFRESH_SECONDS: u64 = 900;
-const RATE_LIMIT_BACKOFF_SECONDS: u64 = 3_600;
 const BLOCKED_BACKOFF_SECONDS: u64 = 86_400;
 const MAX_THROTTLE_ENTRIES: usize = 128;
 
@@ -308,12 +307,7 @@ async fn collect_with_secret<T: Transport>(
         }
         429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
             let retry_after_seconds = response.retry_after_seconds;
-            let seconds = response
-                .retry_after_seconds
-                .unwrap_or(0)
-                .max(RATE_LIMIT_BACKOFF_SECONDS)
-                .min(BLOCKED_BACKOFF_SECONDS);
-            runtime.postpone(account_id, now_ms, seconds);
+            runtime.postpone(account_id, now_ms, 0);
             fallback_report(writer, account_id, false, now_ms).await;
             AntigravityOutcome::rate_limited(account_id, retry_after_seconds)
         }
@@ -402,25 +396,49 @@ pub async fn collect_account<P: AgyPorts, L: LoopbackProbe, T: Transport>(
     account_id: String,
     now_ms: u64,
 ) -> AntigravityOutcome {
+    collect_account_result(
+        detection, runtime, ports, probe, transport, writer, account_id, now_ms,
+    )
+    .await
+    .0
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn collect_account_result<P: AgyPorts, L: LoopbackProbe, T: Transport>(
+    detection: &DetectionStore,
+    runtime: &AntigravityOauthRuntime,
+    ports: &P,
+    probe: &L,
+    transport: &T,
+    writer: Arc<CacheWriter>,
+    account_id: String,
+    now_ms: u64,
+) -> (AntigravityOutcome, Option<AntigravityOutcome>) {
     if let Err(retry_ms) = runtime.begin(&account_id, now_ms) {
-        return AntigravityOutcome::Cached {
-            account_id,
-            retry_at: iso_from_epoch_ms(retry_ms)
-                .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
-        };
+        return (
+            AntigravityOutcome::Cached {
+                account_id,
+                retry_at: iso_from_epoch_ms(retry_ms)
+                    .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
+            },
+            None,
+        );
     }
     /* The parser is the acceptance test, so a port answering with something
     this build cannot read is passed over and the next one is still tried. A
     body that does not parse is not data. */
     let accept =
         |body: &str| parse_body(ReaderId::AntigravityQuota, body, now_ms, &account_id).is_some();
+    let mut requested = false;
     let outcome = match read_quota_summary(ports, probe, accept).await {
         LocalRead::Answered { body } => {
+            requested = true;
             commit_local(Arc::clone(&writer), &account_id, &body, now_ms).await
         }
         LocalRead::NoClient => {
             match detection.read_credential(DetectedProviderId::Antigravity, &account_id) {
                 Ok(secret) => {
+                    requested = true;
                     collect_with_secret(
                         runtime,
                         transport,
@@ -438,6 +456,8 @@ pub async fn collect_account<P: AgyPorts, L: LoopbackProbe, T: Transport>(
             }
         }
     };
+    // A mirrored display must not replace the failure observed by the retry authority.
+    let request_outcome = requested.then(|| outcome.clone());
     /* The mirror is the last thing tried and only when nothing above wrote a
     row, so a machine with both logins does not pay for two readings of one
     pool. */
@@ -469,7 +489,7 @@ pub async fn collect_account<P: AgyPorts, L: LoopbackProbe, T: Transport>(
         | AntigravityOutcome::NoClient { .. }
         | AntigravityOutcome::Failed { .. } => {}
     }
-    outcome
+    (outcome, request_outcome)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -484,12 +504,48 @@ async fn collect_account_guarded<P: AgyPorts, L: LoopbackProbe, T: Transport>(
     account_id: String,
     now_ms: u64,
 ) -> (AntigravityOutcome, bool) {
-    let _lease = match policy.begin(DetectedProviderId::Antigravity, &account_id, now_ms) {
+    let revision = detection
+        .read_credential(DetectedProviderId::Antigravity, &account_id)
+        .map(|secret| secret.credential_revision)
+        .unwrap_or_else(|_| "unavailable".to_string());
+    guarded_attempt(runtime, policy, &account_id, &revision, now_ms, || {
+        collect_account_result(
+            detection,
+            runtime,
+            ports,
+            probe,
+            transport,
+            writer,
+            account_id.clone(),
+            now_ms,
+        )
+    })
+    .await
+}
+
+async fn guarded_attempt<F, Fut>(
+    runtime: &AntigravityOauthRuntime,
+    policy: &RequestPolicy,
+    account_id: &str,
+    revision: &str,
+    now_ms: u64,
+    acquire: F,
+) -> (AntigravityOutcome, bool)
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = (AntigravityOutcome, Option<AntigravityOutcome>)>,
+{
+    let _lease = match policy.begin_with_revision(
+        DetectedProviderId::Antigravity,
+        &account_id,
+        now_ms,
+        Some(&revision),
+    ) {
         Ok(lease) => lease,
         Err(GateRejection::Deferred { retry_at }) => {
             return (
                 AntigravityOutcome::Cached {
-                    account_id,
+                    account_id: account_id.to_string(),
                     retry_at: iso_from_epoch_ms(retry_at)
                         .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".to_string()),
                 },
@@ -499,34 +555,47 @@ async fn collect_account_guarded<P: AgyPorts, L: LoopbackProbe, T: Transport>(
         Err(GateRejection::Busy | GateRejection::Unavailable) => {
             return (
                 AntigravityOutcome::Failed {
-                    account_id,
+                    account_id: account_id.to_string(),
                     reason: AntigravityFailure::Protocol,
                 },
                 false,
             )
         }
     };
-    let outcome = collect_account(
-        detection,
-        runtime,
-        ports,
-        probe,
-        transport,
-        writer,
-        account_id.clone(),
-        now_ms,
-    )
-    .await;
-    let abort_provider = match &outcome {
+    // The durable gate owns retry timing, including after a process restart.
+    runtime.postpone(&account_id, now_ms, 0);
+    let (outcome, request_outcome) = acquire().await;
+    let abort_provider = request_outcome
+        .as_ref()
+        .is_some_and(|attempt| complete_outcome(policy, account_id, now_ms, attempt));
+    (outcome, abort_provider)
+}
+
+fn complete_outcome(
+    policy: &RequestPolicy,
+    account_id: &str,
+    now_ms: u64,
+    outcome: &AntigravityOutcome,
+) -> bool {
+    match outcome {
+        AntigravityOutcome::Cached { .. }
+        | AntigravityOutcome::NoClient { .. }
+        | AntigravityOutcome::Mirrored { .. } => false,
+        AntigravityOutcome::Failed { .. } => {
+            policy.retry_account(
+                DetectedProviderId::Antigravity,
+                &account_id,
+                now_ms,
+                None,
+                false,
+            );
+            false
+        }
         AntigravityOutcome::Fallback {
             reason: AntigravityFailure::ProviderBlocked,
             ..
         } => {
-            policy.block_provider(
-                DetectedProviderId::Antigravity,
-                now_ms,
-                BLOCKED_BACKOFF_SECONDS,
-            );
+            policy.refuse_account(DetectedProviderId::Antigravity, &account_id, now_ms, true);
             true
         }
         AntigravityOutcome::Fallback {
@@ -542,12 +611,12 @@ async fn collect_account_guarded<P: AgyPorts, L: LoopbackProbe, T: Transport>(
             );
             true
         }
-        AntigravityOutcome::ReopenCli { .. } => {
-            policy.complete_after(
+        AntigravityOutcome::ReopenCli { .. } | AntigravityOutcome::IdentityRefused { .. } => {
+            policy.refuse_account(
                 DetectedProviderId::Antigravity,
                 &account_id,
                 now_ms,
-                BLOCKED_BACKOFF_SECONDS,
+                matches!(outcome, AntigravityOutcome::IdentityRefused { .. }),
             );
             false
         }
@@ -560,8 +629,7 @@ async fn collect_account_guarded<P: AgyPorts, L: LoopbackProbe, T: Transport>(
             );
             false
         }
-    };
-    (outcome, abort_provider)
+    }
 }
 
 /// How long the durable gate holds this account after an outcome.
@@ -1229,5 +1297,166 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[tokio::test]
+    async fn guarded_acquisitions_follow_shared_exponential_retry() {
+        let dir = TempDir::new();
+        let runtime = AntigravityOauthRuntime::default();
+        let transport = RecordingTransport::replying(429, Vec::new(), None);
+        let credential = secret("synthetic-revision");
+        let mut at = NOW;
+        for (index, seconds) in [60, 120, 240, 480, 900, 900].into_iter().enumerate() {
+            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let (outcome, _) = guarded_attempt(
+                &runtime,
+                &policy,
+                ACCOUNT,
+                &credential.credential_revision,
+                at,
+                || async {
+                    // The native credential store is replaced, but the gate, runtime and reader are real.
+                    runtime.begin(ACCOUNT, at).unwrap();
+                    let outcome = collect_with_secret(
+                        &runtime,
+                        &transport,
+                        writer(&dir),
+                        ACCOUNT,
+                        &credential,
+                        at,
+                    )
+                    .await;
+                    (outcome.clone(), Some(outcome))
+                },
+            )
+            .await;
+            assert!(matches!(
+                outcome,
+                AntigravityOutcome::Fallback {
+                    reason: AntigravityFailure::RateLimited,
+                    ..
+                }
+            ));
+            assert_eq!(transport.recorded_urls().len(), index + 1);
+            let next = at + seconds * 1000;
+            let (early, _) = guarded_attempt(
+                &runtime,
+                &policy,
+                ACCOUNT,
+                &credential.credential_revision,
+                next - 1,
+                || async { panic!("no acquisition before the shared deadline") },
+            )
+            .await;
+            assert!(matches!(early, AntigravityOutcome::Cached { .. }));
+            at = next;
+        }
+    }
+
+    #[test]
+    fn outcomes_without_a_request_preserve_shared_failures() {
+        for outcome in [
+            AntigravityOutcome::Cached {
+                account_id: ACCOUNT.into(),
+                retry_at: iso_from_epoch_ms(NOW).unwrap(),
+            },
+            AntigravityOutcome::NoClient {
+                account_id: ACCOUNT.into(),
+                message: String::new(),
+            },
+            AntigravityOutcome::mirrored(ACCOUNT),
+        ] {
+            let dir = TempDir::new();
+            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let lease = policy
+                .begin(DetectedProviderId::Antigravity, ACCOUNT, NOW)
+                .unwrap();
+            policy.rate_limit_account(DetectedProviderId::Antigravity, ACCOUNT, NOW, None);
+            drop(lease);
+            let at = NOW + 60_000;
+            let _lease = policy
+                .begin(DetectedProviderId::Antigravity, ACCOUNT, at)
+                .unwrap();
+            complete_outcome(&policy, ACCOUNT, at, &outcome);
+            policy.rate_limit_account(DetectedProviderId::Antigravity, ACCOUNT, at, None);
+            let document: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(
+                    dir.path()
+                        .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(document["providers"]["antigravity"]["attempts"][ACCOUNT], 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_mirrored_display_keeps_the_request_failure_for_policy() {
+        let dir = TempDir::new();
+        let runtime = AntigravityOauthRuntime::default();
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let transport = RecordingTransport::replying(429, Vec::new(), None);
+        for at in [NOW, NOW + 60_000] {
+            let (display, _) =
+                guarded_attempt(&runtime, &policy, ACCOUNT, "revision", at, || async {
+                    let request = collect_with_secret(
+                        &runtime,
+                        &transport,
+                        writer(&dir),
+                        ACCOUNT,
+                        &secret("revision"),
+                        at,
+                    )
+                    .await;
+                    (
+                        AntigravityOutcome::mirrored(SHARED_CODE_ASSIST_ACCOUNT),
+                        Some(request),
+                    )
+                })
+                .await;
+            assert!(matches!(display, AntigravityOutcome::Mirrored { .. }));
+        }
+        assert_eq!(transport.recorded_urls().len(), 2);
+        assert!(
+            matches!(policy.begin(DetectedProviderId::Antigravity, ACCOUNT, NOW + 179_999),
+            Err(GateRejection::Deferred { retry_at }) if retry_at == NOW + 180_000)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_guarded_pass_without_a_client_does_not_complete_a_request() {
+        let dir = TempDir::new();
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let lease = policy
+            .begin(DetectedProviderId::Antigravity, ACCOUNT, NOW)
+            .unwrap();
+        policy.rate_limit_account(DetectedProviderId::Antigravity, ACCOUNT, NOW, None);
+        drop(lease);
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let transport = RecordingTransport::replying(200, Vec::new(), None);
+        let (outcome, _) = collect_account_guarded(
+            &detection,
+            &AntigravityOauthRuntime::default(),
+            &policy,
+            &StubPorts(Vec::new()),
+            &StubProbe::silent(),
+            &transport,
+            writer(&dir),
+            ACCOUNT.to_string(),
+            NOW + 60_000,
+        )
+        .await;
+        assert!(matches!(outcome, AntigravityOutcome::NoClient { .. }));
+        assert!(transport.recorded_urls().is_empty());
+        let document: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(
+                dir.path()
+                    .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(document["providers"]["antigravity"]["attempts"][ACCOUNT], 1);
     }
 }
