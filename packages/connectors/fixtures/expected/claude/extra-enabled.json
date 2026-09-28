@@ -1,0 +1,77 @@
+{
+  "expected": {
+    "outcome": "readings",
+    "readings": [
+      {
+        "provider": "CLAUDE",
+        "meter": "EXTRA_USAGE",
+        "value": 62.35000000000001,
+        "unit": "PERCENT",
+        "window": {
+          "kind": "unknown",
+          "durationSeconds": null
+        },
+        "resetAt": null,
+        "precision": "exact",
+        "source": "internal_payload",
+        "kind": null,
+        "availability": null,
+        "currency": "USD",
+        "usedAmount": 12.47,
+        "limitAmount": 20,
+        "observedAt": "2026-08-07T12:00:00.000Z"
+      }
+    ]
+  },
+  "knownDivergence": {
+    "reason": "TypeScript calls the extra usage window unknown; Rust calls it fixed.",
+    "typescript": {
+      "outcome": "readings",
+      "readings": [
+        {
+          "provider": "CLAUDE",
+          "meter": "EXTRA_USAGE",
+          "value": 62.35000000000001,
+          "unit": "PERCENT",
+          "window": {
+            "kind": "unknown",
+            "durationSeconds": null
+          },
+          "resetAt": null,
+          "precision": "exact",
+          "source": "internal_payload",
+          "kind": null,
+          "availability": null,
+          "currency": "USD",
+          "usedAmount": 12.47,
+          "limitAmount": 20,
+          "observedAt": "2026-08-07T12:00:00.000Z"
+        }
+      ]
+    },
+    "rust": {
+      "outcome": "readings",
+      "readings": [
+        {
+          "provider": "CLAUDE",
+          "meter": "EXTRA_USAGE",
+          "value": 62.35000000000001,
+          "unit": "PERCENT",
+          "window": {
+            "kind": "fixed",
+            "durationSeconds": null
+          },
+          "resetAt": null,
+          "precision": "exact",
+          "source": "internal_payload",
+          "kind": null,
+          "availability": null,
+          "currency": "USD",
+          "usedAmount": 12.47,
+          "limitAmount": 20,
+          "observedAt": "2026-08-07T12:00:00.000Z"
+        }
+      ]
+    }
+  }
+}

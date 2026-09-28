@@ -1,0 +1,16 @@
+{
+  "provider": "openrouter",
+  "case": "key-unlimited",
+  "reader": "key",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "data": {
+      "limit": null,
+      "limit_remaining": null,
+      "usage": 12.47,
+      "is_free_tier": false
+    }
+  }
+}

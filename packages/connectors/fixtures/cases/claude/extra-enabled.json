@@ -1,0 +1,16 @@
+{
+  "provider": "claude",
+  "case": "extra-enabled",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "extra_usage": {
+      "is_enabled": true,
+      "used_credits": 12.47,
+      "monthly_limit": 20,
+      "currency": "USD"
+    }
+  }
+}

@@ -70,3 +70,27 @@ asserts unknown metadata on v2, rejects the invalid samples, and checks
 `local -> v3 -> local` equality before enabling negotiated v3 uploads.
 Neither layer may upgrade verification, infer kind from unit, convert CNY,
 or render an unavailable row as a numeric percent.
+
+## Policy vectors for L1a
+
+`policy-vectors.json` contains shared retry, acquisition lease and freshness
+vectors, plus their embedded JSON schema. The differential TypeScript suite
+checks that schema only. L1a must connect production implementations to these
+answers; this unit introduces no policy implementation.
+
+Retry attempt zero waits 60 seconds, doubling to 900 seconds before additive
+nonnegative jitter. The next allowed time is the later of that local deadline
+and the server Retry-After deadline. The collector ceiling is 24 hours and the
+policy ceiling is 7 days. A later server date is retained as both the next
+allowed time and a blocking deadline, never shortened to the ceiling.
+
+A live acquisition lease excludes desktop and CLI, including duplicate work by
+the same owner. Expiry equality permits acquisition. Replacing an expired lease
+owned by the other process is a takeover. Freshness expires at TTL equality;
+a future observation is unavailable.
+
+The 60 second lease and TTLs (native_payload 60 seconds, documented_api,
+internal_payload and local_file 300 seconds) are explicit proposed values pending
+plan confirmation, because the allowed source files do not specify these policy
+values. The JSON decisions field records that status. Resolve it before L1a
+uses these vectors as approved product policy.
