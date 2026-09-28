@@ -1,0 +1,527 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenLimiter wire v3 sync envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "device_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "previous_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "observed_at": {
+      "$ref": "#/$defs/instant"
+    },
+    "client_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": 3
+    },
+    "usage_samples": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sample"
+      }
+    },
+    "api_spend_samples": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/apiSpendSample"
+      }
+    }
+  },
+  "required": [
+    "event_id",
+    "device_id",
+    "previous_sequence",
+    "sequence",
+    "observed_at",
+    "client_version",
+    "schema_version",
+    "usage_samples",
+    "api_spend_samples"
+  ],
+  "$defs": {
+    "instant": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "period": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/instant"
+        },
+        {
+          "$ref": "#/$defs/instant"
+        }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "verificationEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider_version": {
+          "type": "string"
+        },
+        "account_shape": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "date": {
+          "$ref": "#/$defs/instant"
+        }
+      },
+      "required": [
+        "provider_version",
+        "account_shape",
+        "os",
+        "date"
+      ]
+    },
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1
+        },
+        "window_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observed_at": {
+          "$ref": "#/$defs/instant"
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "meter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "usage_percent": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "percent": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reset_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resets_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/instant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "amount": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMaximum": 100000000000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "enum": [
+                "USD",
+                "CNY"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_period": {
+          "$ref": "#/$defs/period"
+        },
+        "source": {
+          "enum": [
+            "native_payload",
+            "documented_api",
+            "internal_payload",
+            "authenticated_page",
+            "manual_entry"
+          ]
+        },
+        "precision": {
+          "enum": [
+            "exact",
+            "estimated",
+            "manual"
+          ]
+        },
+        "verification": {
+          "enum": [
+            "UNVERIFIED",
+            "VERIFIED_FIXTURES",
+            "VERIFIED_LIVE"
+          ]
+        },
+        "verification_evidence": {
+          "$ref": "#/$defs/verificationEvidence"
+        },
+        "kind": {
+          "enum": [
+            "quota_percent",
+            "money_balance",
+            "spend",
+            "token_count",
+            "runtime_info"
+          ]
+        },
+      "availability": {
+          "enum": [
+            "network_failure",
+            "missing_credentials",
+            "expired_credentials",
+            "access_denied",
+            "missing_subscription",
+            "unlimited",
+            "quota_unavailable",
+            "rate_limited",
+            "schema_drift"
+          ]
+        },
+        "retry_at": {
+          "$ref": "#/$defs/instant"
+        }
+      },
+      "required": [
+        "account_id",
+        "provider",
+        "window_id",
+        "observed_at",
+        "stale"
+      ],
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "required": [
+                "meter"
+              ]
+            },
+            {
+              "required": [
+                "code"
+              ]
+            }
+          ]
+        },
+        {
+          "anyOf": [
+            {
+              "required": [
+                "usage_percent"
+              ],
+              "properties": {
+                "usage_percent": {
+                  "type": "number"
+                }
+              }
+            },
+            {
+              "required": [
+                "percent"
+              ],
+              "properties": {
+                "percent": {
+                  "type": "number"
+                }
+              }
+            },
+            {
+              "required": [
+                "amount"
+              ],
+              "properties": {
+                "amount": {
+                  "type": "number"
+                }
+              }
+            },
+            {
+              "required": [
+                "availability"
+              ]
+            }
+          ]
+        },
+        {
+          "if": {
+            "required": [
+              "availability"
+            ]
+          },
+          "then": {
+            "properties": {
+              "usage_percent": {
+                "type": "null"
+              },
+              "percent": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "retry_at"
+            ]
+          },
+          "then": {
+            "required": [
+              "availability"
+            ],
+            "properties": {
+              "availability": {
+                "const": "rate_limited"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "verification_evidence"
+            ]
+          },
+          "then": {
+            "required": [
+              "verification"
+            ],
+            "properties": {
+              "verification": {
+                "const": "VERIFIED_LIVE"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "amount"
+            ],
+            "properties": {
+              "amount": {
+                "type": "number"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "currency"
+            ],
+            "properties": {
+              "currency": {
+                "enum": [
+                  "USD",
+                  "CNY"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "currency"
+            ],
+            "properties": {
+              "currency": {
+                "type": "string"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "amount"
+            ],
+            "properties": {
+              "amount": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "forecastInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "first_observed_at": {
+          "$ref": "#/$defs/instant"
+        },
+        "last_observed_at": {
+          "$ref": "#/$defs/instant"
+        },
+        "sample_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "burn_usd_per_day": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "first_observed_at",
+        "last_observed_at",
+        "sample_count",
+        "burn_usd_per_day"
+      ]
+    },
+    "apiSpendSample": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "type": "string"
+        },
+        "account_id": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "key_label": {
+          "type": "string"
+        },
+        "month": {
+          "type": "string"
+        },
+        "spend_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "budget_usd": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_period": {
+          "$ref": "#/$defs/period"
+        },
+        "currency_source": {
+          "type": "string"
+        },
+        "raw_unit_scale": {
+          "type": "number",
+          "minimum": 0
+        },
+        "forecast_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "forecast_input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/forecastInput"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "period_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "source_id",
+        "account_id",
+        "provider",
+        "key_label",
+        "month",
+        "spend_usd",
+        "budget_usd",
+        "source_period",
+        "currency_source",
+        "raw_unit_scale",
+        "forecast_date",
+        "forecast_input",
+        "period_complete"
+      ]
+    }
+  }
+}

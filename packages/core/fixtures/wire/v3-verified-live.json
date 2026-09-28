@@ -1,0 +1,43 @@
+{
+  "schema_version": 3,
+  "sample": {
+    "account_id": "default",
+    "provider": "CLAUDE",
+    "meter": "FIVE_HOUR",
+    "window_id": "FIVE_HOUR",
+    "usage_percent": 42,
+    "reset_at": null,
+    "observed_at": "2026-09-28T12:00:00.000Z",
+    "stale": false,
+    "source": "documented_api",
+    "precision": "exact",
+    "verification": "VERIFIED_LIVE",
+    "verification_evidence": {
+      "provider_version": "fixture-1",
+      "account_shape": "individual",
+      "os": "windows",
+      "date": "2026-09-28T11:00:00.000Z"
+    },
+    "kind": "quota_percent"
+  },
+  "local": {
+    "accountId": "default",
+    "provider": "CLAUDE",
+    "meter": "FIVE_HOUR",
+    "windowId": "FIVE_HOUR",
+    "usagePercent": 42,
+    "resetAt": null,
+    "observedAt": "2026-09-28T12:00:00.000Z",
+    "stale": false,
+    "source": "documented_api",
+    "precision": "exact",
+    "verification": "VERIFIED_LIVE",
+    "verificationEvidence": {
+      "providerVersion": "fixture-1",
+      "accountShape": "individual",
+      "os": "windows",
+      "date": "2026-09-28T11:00:00.000Z"
+    },
+    "kind": "quota_percent"
+  }
+}
