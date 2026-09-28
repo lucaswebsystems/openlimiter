@@ -4,7 +4,8 @@ import {
   freshness,
   type Advice,
   type ProviderCode,
-  type Snapshot
+  type Snapshot,
+  type SnapshotAvailability
 } from "@openlimiter/core";
 import { STATUSLINE_BAR_SEGMENTS, meterBar } from "./render.js";
 import type { StatuslineColor, StatuslineConfig } from "./config.js";
@@ -110,6 +111,39 @@ const ONE_DAY = 86_400;
 const SEVEN_DAYS = 604_800;
 const THIRTY_ONE_DAYS = 2_678_400;
 
+const AVAILABILITY_WORDS: Readonly<Record<SnapshotAvailability, string>> = {
+  missing_credentials: "signed out",
+  expired_credentials: "credential expired",
+  access_denied: "access denied",
+  missing_subscription: "subscription missing",
+  unlimited: "unlimited",
+  quota_unavailable: "quota unavailable",
+  rate_limited: "rate limited",
+  network_failure: "network failure",
+  schema_drift: "schema changed"
+};
+
+function isAvailabilitySnapshot(snapshot: Snapshot): boolean {
+  return snapshot.availability !== undefined || snapshot.meter.toUpperCase() === "ACQUISITION";
+}
+
+function availabilityText(snapshot: Snapshot, now: string): string {
+  if (snapshot.availability === undefined) return "not measured";
+  if (snapshot.availability === "rate_limited" && snapshot.retryAt !== undefined) {
+    const retryAt = Date.parse(snapshot.retryAt);
+    const nowAt = Date.parse(now);
+    if (Number.isFinite(retryAt) && Number.isFinite(nowAt) && retryAt > nowAt) {
+      return "rate limited until " + new Date(retryAt).toISOString().slice(11, 16);
+    }
+  }
+  return AVAILABILITY_WORDS[snapshot.availability];
+}
+
+function availabilityCell(label: string, snapshot: Snapshot, now: string): StatuslineCell {
+  const text = label + " " + availabilityText(snapshot, now);
+  return { plain: text, painted: text, percent: Number.NEGATIVE_INFINITY };
+}
+
 /**
  * The classes a meter name maps to when its window states no duration.
  *
@@ -206,8 +240,8 @@ function readingsFor(
     }
   }
   // Dormant accounts remain in the cache, but cannot displace an active account.
-  return providerRows
-    .filter((snapshot) => snapshot.unit === "PERCENT" &&
+  const readings = providerRows
+    .filter((snapshot) => (snapshot.unit === "PERCENT" || isAvailabilitySnapshot(snapshot)) &&
       Date.parse(now) - (latestAccount.get(snapshot.accountId) ?? 0) <= ONE_DAY * 1000)
     .map((snapshot) => ({
       snapshot,
@@ -220,6 +254,14 @@ function readingsFor(
       if (rank !== 0) return rank;
       return left.snapshot.meter < right.snapshot.meter ? -1 : 1;
     });
+  const measuredAccounts = new Set(
+    readings
+      .filter((reading) => !isAvailabilitySnapshot(reading.snapshot))
+      .map((reading) => reading.snapshot.accountId)
+  );
+  return readings.filter((reading) =>
+    !isAvailabilitySnapshot(reading.snapshot) || !measuredAccounts.has(reading.snapshot.accountId)
+  );
 }
 
 /**
@@ -250,6 +292,10 @@ export function statuslineCells(
     if (readings.length === 0) continue;
     if (meters === "all") {
       for (const reading of readings) {
+        if (isAvailabilitySnapshot(reading.snapshot)) {
+          cells.push(availabilityCell(provider, reading.snapshot, now));
+          continue;
+        }
         cells.push(buildCell(
           provider + ":" + reading.snapshot.meter,
           reading.snapshot,
@@ -263,6 +309,10 @@ export function statuslineCells(
     let worst = readings[0]!;
     for (const reading of readings.slice(1)) {
       if (reading.snapshot.value > worst.snapshot.value) worst = reading;
+    }
+    if (isAvailabilitySnapshot(worst.snapshot)) {
+      cells.push(availabilityCell(provider, worst.snapshot, now));
+      continue;
     }
     cells.push(buildCell(provider, worst.snapshot, worst.state, color, wide));
   }
@@ -518,6 +568,13 @@ export function barStyleCells(
       const providerTag = provider === hostProvider ? "" : shortTag;
       const ageSeconds = Math.max(0, Math.floor((Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000));
       const stale = state === "stale" || ageSeconds >= 180;
+
+      if (isAvailabilitySnapshot(snapshot)) {
+        const tag = providerTag || shortTag;
+        const plain = tag + " " + availabilityText(snapshot, now);
+        cells.push({ plain, painted: plain, percent: Number.NEGATIVE_INFINITY });
+        continue;
+      }
 
       if (snapshot.usedAmount !== undefined && snapshot.currency === "USD") {
         const age = (Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000;

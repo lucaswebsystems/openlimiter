@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildAdvice, type Snapshot } from "@openlimiter/core";
 import { DEFAULT_STATUSLINE } from "../src/config.js";
-import { renderStatuslineLayout, STATUSLINE_HOSTS } from "../src/statusline.js";
+import { renderStatuslineLayout, STATUSLINE_HOSTS, tenBlockBar } from "../src/statusline.js";
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
 /**
@@ -62,6 +62,45 @@ describe("account and freshness status line goldens", () => {
       .toBe("gk spend $12.50 stale 15m");
     expect(render([row({ provider: "GROK", meter: "UNSPECIFIED", window: { kind: "unknown" }, observedAt: ago(900) })]))
       .toBe("gk [████░░░░░░] 42% stale 15m");
+  });
+  it.each([
+    ["missing_credentials", "signed out"],
+    ["expired_credentials", "credential expired"],
+    ["access_denied", "access denied"],
+    ["missing_subscription", "subscription missing"],
+    ["unlimited", "unlimited"],
+    ["quota_unavailable", "quota unavailable"],
+    ["rate_limited", "rate limited until 14:05"],
+    ["network_failure", "network failure"],
+    ["schema_drift", "schema changed"]
+  ] as const)("renders availability %s as words", (availability, expected) => {
+    expect(render([row({
+      provider: "CODEX",
+      meter: "ACQUISITION",
+      value: 0,
+      window: { kind: "unknown" },
+      availability,
+      ...(availability === "rate_limited" ? { retryAt: "2026-01-01T14:05:00.000Z" } : {})
+    })])).toBe("cx " + expected);
+  });
+  it("renders an acquisition placeholder without inventing a percentage", () => {
+    expect(render([row({ provider: "CODEX", meter: "ACQUISITION", value: 0, window: { kind: "unknown" } })]))
+      .toBe("cx not measured");
+  });
+  it("omits a stale acquisition placeholder beside a stale real reading for the same account", () => {
+    const accountId = "account-one";
+    expect(render([
+      row({
+        accountId,
+        meter: "ACQUISITION",
+        value: 0,
+        window: { kind: "unknown" },
+        availability: "access_denied",
+        observedAt: ago(240),
+        expiresAt: ago(120)
+      }),
+      row({ accountId, observedAt: ago(240), expiresAt: ago(120), value: 42 })
+    ])).toBe("5h " + tenBlockBar(42) + " 42% stale 4m");
   });
   it("omits a provider whose only account is more than 24 hours old", () => {
     expect(render([row({ value: 16 }), row({ provider: "CODEX", observedAt: ago(86401) })]))
