@@ -92,9 +92,11 @@ if (wrapperRequested && wrapped === null) {
     promptForSecret,
     promptChoice,
     ...(controller === null ? {} : { interruptSignal: controller.signal }),
-    readStandardInput: (signal) => argumentsList[0] === "hook"
-      ? readStandardInputText(process.stdin, HOOK_INPUT_MAX_BYTES, undefined, signal)
-      : readStandardInputText()
+    readStandardInput: async (signal) => argumentsList[0] === "event"
+      ? (await import("./activity/event.js")).readEventInput(signal)
+      : argumentsList[0] === "hook"
+        ? readStandardInputText(process.stdin, HOOK_INPUT_MAX_BYTES, undefined, signal)
+        : readStandardInputText()
   });
   if (controller !== null) process.off("SIGINT", onInterrupt);
   if (result.stdout !== "") process.stdout.write(result.stdout + "\n");

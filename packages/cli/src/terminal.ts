@@ -285,7 +285,11 @@ async function changeConfigHost(host: ConfigHost, context: TerminalHostContext, 
       const command = `${base} statusline --host ${host}` +
         (!context.wrap || userCommand === null ? "" : ` --wrap ${encodeWrappedStatuslineCommand(userCommand)}`);
       data["openlimiter managed"] = true;
-      data["statusLine"] = host === "claude" ? { type: "command", command } : command;
+      const previousLine = data["statusLine"];
+      data["statusLine"] = host === "claude" ? {
+        ...(previousLine !== null && typeof previousLine === "object" && !Array.isArray(previousLine) ? previousLine : {}),
+        type: "command", command
+      } : command;
       updated = JSON.stringify(data, null, 2) + "\n";
       JSON.parse(updated);
     } else if (host === "codex") {

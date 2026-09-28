@@ -184,8 +184,8 @@ describe("P1 audit regressions", () => {
     for (const host of STATUSLINE_HOSTS) {
       const render = (now: string) => barStyleCells(snapshots, now, ["OPENROUTER"], host, [], "all", false).map((cell) => cell.plain).join(" ");
       expect(render(NOW)).toBe("or spend $6.40");
-      expect(render("2026-09-07T12:03:01.000Z")).toContain("~or spend $6.40");
-      expect(render("2026-09-07T12:16:00.000Z")).not.toContain("$6.40");
+      expect(render("2026-09-07T12:03:01.000Z")).toBe("or spend $6.40 stale 3m");
+      expect(render("2026-09-07T12:16:00.000Z")).toBe("or spend $6.40 stale 16m");
     }
   });
 

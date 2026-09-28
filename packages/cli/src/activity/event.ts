@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import type { Readable } from "node:stream";
 import { resolveStateDirectory } from "@openlimiter/core";
 import type { ActivityEvent, ActivityAgent } from "../../../core/dist/activity/contract.js";
 // Resolve beside the installed core entry, including when tests relocate the CLI.
@@ -106,16 +107,21 @@ export async function eventCommand(argumentsList: readonly string[], dependencie
 }
 
 /** A bounded streaming reader for the standalone hook entry, with no retained tail. */
-export function readEventInput(signal?: AbortSignal, input: NodeJS.ReadableStream = process.stdin): Promise<string | null> {
+export function readEventInput(signal?: AbortSignal, input: Readable = process.stdin): Promise<string | null> {
   return new Promise((resolve) => {
     let chunks: Buffer[] = [];
     let size = 0;
+    let finished = false;
     const finish = (value: string | null): void => {
+      if (finished) return;
+      finished = true;
       input.removeListener("data", data);
       input.removeListener("end", end);
       input.removeListener("error", failed);
+      input.removeListener("close", failed);
       signal?.removeEventListener("abort", failed);
       input.pause();
+      input.destroy();
       chunks = [];
       resolve(value);
     };
@@ -130,8 +136,8 @@ export function readEventInput(signal?: AbortSignal, input: NodeJS.ReadableStrea
       catch { finish(null); }
     };
     const failed = (): void => finish(null);
-    if (signal?.aborted) { resolve(null); return; }
-    input.on("data", data).once("end", end).once("error", failed);
+    if (signal?.aborted) { finish(null); return; }
+    input.on("data", data).once("end", end).once("error", failed).once("close", failed);
     signal?.addEventListener("abort", failed, { once: true });
   });
 }
