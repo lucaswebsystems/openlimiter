@@ -430,10 +430,10 @@ describe("the wire parsing and renewal boundary", () => {
     expect(phonePairOf({ token: "t" })).toBeNull();
   });
 
-  it("asks for renewal exactly at the one hour boundary", () => {
+  it("asks for renewal exactly at the twelve hour boundary", () => {
     const base = { expiresAt: NOW / 1_000 + PHONE_RENEW_WITHIN_SECONDS };
     expect(phonePairNeedsRenewal(base, NOW)).toBe(true);
-    expect(phonePairNeedsRenewal({ expiresAt: NOW / 1_000 + 3_601 }, NOW)).toBe(false);
+    expect(phonePairNeedsRenewal({ expiresAt: NOW / 1_000 + PHONE_RENEW_WITHIN_SECONDS + 1 }, NOW)).toBe(false);
     expect(phonePairNeedsRenewal({ expiresAt: NOW / 1_000 - 10 }, NOW)).toBe(true);
   });
 

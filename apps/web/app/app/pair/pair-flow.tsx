@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { writeDeviceSession } from "@/lib/device-session";
 import {
   amountRows,
   formatAmount,
@@ -24,12 +23,12 @@ import {
   type PairState,
 } from "@/lib/pairing";
 import {
-  endPhoneSession,
   establishPhoneSession,
   readCurrentPhoneBars,
   readPhonePairMeta,
   phonePairOf,
 } from "@/lib/phone-session";
+import { createPhoneSessionRuntime } from "@/lib/session-runtime";
 import { serialPoll } from "@/lib/serial-poll";
 import { claimPairingCode, pollPairingClaim } from "@/lib/pro-device";
 import { PROVIDER_CODES, parseQuotaText } from "../engine";
@@ -49,8 +48,8 @@ import { PairInstallStep } from "./pair-install";
  * of the address bar by then.
  *
  * Approval hands the page a read token and a refresh credential, stored
- * together under one key. Every later open renews through phone_renew when
- * the token is within an hour of its end or past it, and the bars render here
+ * in HttpOnly cookies. Every later open renews through phone_renew when
+ * the token is within twelve hours of its end or past it, and the bars render here
  * through the same read path the paired device view uses. A revoked epoch is
  * the one answer that ends the pairing; every other failure keeps the last
  * good bars on screen with the stale mark.
@@ -261,28 +260,20 @@ function PairedPhone({
   }, []);
 
   useEffect(() => {
-    let live = true;
-    const poll = serialPoll(async () => {
-      const answer = await readCurrentPhoneBars();
-      if (!live) return;
+    const runtime = createPhoneSessionRuntime();
+    const unsubscribe = runtime.subscribe((answer) => {
       if (answer.kind === "revoked") {
-        await endPhoneSession();
-        setState((previous) => ({ ...previous, phase: "revoked" }));
-        poll.stop();
-        return;
-      }
-      if (answer.kind === "unpaired") {
+        setState((previous) => ({ ...previous, bars: null, phase: "revoked" }));
+      } else if (answer.kind === "unpaired") {
         unpairedRef.current();
-        poll.stop();
-        return;
-      }
-      if (answer.kind === "fresh") {
+      } else if (answer.kind === "fresh") {
         setState((previous) => ({ ...previous, bars: answer.body, phase: "ready", generation: previous.generation + 1 }));
-        return;
+      } else {
+        setState((previous) => ({ ...previous, phase: "offline" }));
       }
-      setState((previous) => ({ ...previous, phase: "offline" }));
-    }, 60_000);
-    retry.current = poll.refresh;
+    });
+    runtime.start();
+    retry.current = runtime.refresh;
     const refreshClock = () => {
       if (document.visibilityState !== "hidden") setNow(new Date().toISOString());
     };
@@ -290,8 +281,8 @@ function PairedPhone({
     const clock = window.setInterval(refreshClock, 10_000);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
-      live = false;
-      poll.stop();
+      unsubscribe();
+      runtime.stop();
       window.clearInterval(clock);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       retry.current = null;
@@ -495,7 +486,7 @@ export function PairFlow() {
         const pair = next.phase === "approved" && next.session === null
           ? phonePairOf(response.body)
           : null;
-        setState(next);
+        setState(next.phase === "approved" && pair === null ? { ...next, phase: "error", session: null } : next);
         if (pair !== null) {
           const label = pairDeviceMeta(browserMeta()).name;
           void establishPhoneSession(pair, label)
@@ -538,12 +529,6 @@ export function PairFlow() {
     return () => window.clearInterval(timer);
   }, [state.phase, state.expiresAt]);
 
-  useEffect(() => {
-    if (state.phase !== "approved" || state.session === null) return;
-    writeDeviceSession(state.session);
-    window.location.assign("/app");
-  }, [state.phase, state.session]);
-
   if (pairedLabel !== null) {
     return (
       <PairedPhone
@@ -558,7 +543,9 @@ export function PairFlow() {
     );
   }
 
-  if (checkingExisting || state.phase === "reading" || state.phase === "claiming") {
+  /* Approved but the phone session is still being established: keep the
+     reading card up rather than falling through to the error card. */
+  if (checkingExisting || state.phase === "reading" || state.phase === "claiming" || state.phase === "approved") {
     return (
       <Card title={t("pairPage.setup.reading.title")} tone="accent">
         <p>{t("pairPage.setup.reading.body")}</p>

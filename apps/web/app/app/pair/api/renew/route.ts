@@ -22,6 +22,12 @@ import {
 
 export const runtime = "nodejs";
 
+function privateJson(body: unknown, init: ResponseInit = {}): NextResponse {
+  const headers = new Headers(init.headers);
+  headers.set("Cache-Control", "private, no-store");
+  return NextResponse.json(body, { ...init, headers });
+}
+
 function cookieOptions(maxAgeSeconds: number) {
   return {
     httpOnly: true as const,
@@ -35,7 +41,7 @@ function cookieOptions(maxAgeSeconds: number) {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const refreshCredential = request.cookies.get(PHONE_REFRESH_COOKIE)?.value ?? "";
   if (refreshCredential === "") {
-    return NextResponse.json({ error: "no_pair" }, { status: 401 });
+    return privateJson({ error: "no_pair" }, { status: 401 });
   }
 
   const placeholder = { token: "", expiresAt: 0, refreshCredential, refreshExpiresAt: 0 };
@@ -48,20 +54,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   });
 
   if (outcome.kind === "revoked") {
-    const response = NextResponse.json({ error: "revoked" }, { status: 403 });
+    const response = privateJson({ error: "revoked" }, { status: 403 });
     response.cookies.set(PHONE_TOKEN_COOKIE, "", cookieOptions(0));
     response.cookies.set(PHONE_REFRESH_COOKIE, "", cookieOptions(0));
     return response;
   }
   if (outcome.kind === "unpaired") {
-    return NextResponse.json({ error: "no_pair" }, { status: 401 });
+    return privateJson({ error: "no_pair" }, { status: 401 });
   }
   if (outcome.kind !== "renewed") {
-    return NextResponse.json({ error: "unavailable" }, { status: 503 });
+    return privateJson({ error: "unavailable" }, { status: 503 });
   }
 
   const now = Math.floor(Date.now() / 1_000);
-  const response = NextResponse.json({ expires_at: outcome.pair.expiresAt });
+  const response = privateJson({ expires_at: outcome.pair.expiresAt });
   response.cookies.set(
     PHONE_TOKEN_COOKIE,
     outcome.pair.token,
