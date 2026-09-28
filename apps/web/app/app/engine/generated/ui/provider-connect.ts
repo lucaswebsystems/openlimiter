@@ -284,4 +284,4 @@ export function buildProviderDirectory(
       ),
   ];
 }
-import providerRegistry from "../../../provider_specs/provider-specs.json" with { type: "json" };
+import providerRegistry from "../provider-specs.json" with { type: "json" };

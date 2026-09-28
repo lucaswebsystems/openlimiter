@@ -133,7 +133,10 @@ function rewrite(source, packageName) {
   const depth = packageName === "core" ? "." : "../core";
   const rewritten = source
     .replace(/from "@openlimiter\/core"/gu, `from "${depth}"`)
-    .replace(/from "(\.[^"]*)\.js"/gu, 'from "$1"');
+    .replace(/from "(\.[^"]*)\.js"/gu, 'from "$1"')
+    /* The registry lives at the repository root; its mirror sits at the root
+       of generated/, one level above every mirrored package folder. */
+    .replace(/from "(?:\.\.\/)+provider_specs\/provider-specs\.json"/gu, 'from "../provider-specs.json"');
   return packageName === "adapters" ? browserAdapter(rewritten) : rewritten;
 }
 
@@ -192,6 +195,9 @@ function build() {
     }
   }
   written.set(path.join("core", "index.ts"), coreBarrel(MIRROR.core.files));
+  const registry = readFileSync(path.join(REPOSITORY, "provider_specs", "provider-specs.json"), "utf8");
+  manifest["provider_specs/provider-specs.json"] = hash(registry);
+  written.set("provider-specs.json", registry);
   written.set(
     "MANIFEST.json",
     JSON.stringify({ generatedBy: "app/app/engine/sync.mjs", sources: manifest }, null, 2) + "\n",
