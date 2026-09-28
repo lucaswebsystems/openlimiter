@@ -138,31 +138,8 @@ fn run_provider(provider: &str) {
             _ => panic!("{id}: unsupported reader"),
         };
         let actual = normalize(rows);
-        if let Some(known) = answer.get("knownDivergence") {
-            assert!(!known["reason"]
-                .as_str()
-                .expect("divergence reason")
-                .is_empty());
-            assert!(
-                divergences.contains(&format!("| {id} |")),
-                "{id}: undocumented divergence"
-            );
-            assert_ne!(
-                known["typescript"], known["rust"],
-                "{id}: obsolete divergence"
-            );
-            assert!(
-                answer["expected"] == known["typescript"] || answer["expected"] == known["rust"]
-            );
-            eprintln!("KNOWN DIVERGENCE {id}: {}", known["reason"]);
-            assert_json(&actual, &known["rust"], &format!("{id} [KNOWN DIVERGENCE]"));
-        } else {
-            assert!(
-                !divergences.contains(&format!("| {id} |")),
-                "{id}: stale divergence list"
-            );
-            assert_json(&actual, &answer["expected"], &id);
-        }
+        assert!(divergences.trim().is_empty(), "{id}: stale divergence list");
+        assert_json(&actual, &answer["expected"], &id);
         if status != 200 {
             assert_json(
                 &actual,

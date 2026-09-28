@@ -110,15 +110,26 @@ fn safe_meter(value: &str) -> bool {
 fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
     let data = root.get("data")?.as_object()?;
-    let credits = number(data.get("total_credits"), 1_000_000_000_000.0)?;
-    let usage = number(data.get("total_usage"), 1_000_000_000_000.0)?;
-    if credits <= 0.0 || usage > credits {
-        return None;
-    }
-    let percent = usage / credits * 100.0;
-    if !percent.is_finite() || !(0.0..=100.0).contains(&percent) {
-        return None;
-    }
+    let key_response = !data.contains_key("total_credits") && !data.contains_key("total_usage");
+    let credits = number(
+        data.get(if key_response {
+            "limit"
+        } else {
+            "total_credits"
+        }),
+        1_000_000_000_000.0,
+    );
+    let usage = number(
+        data.get(if key_response { "usage" } else { "total_usage" }),
+        1_000_000_000_000.0,
+    )?;
+    let unlimited = key_response && data.get("limit").is_some_and(Value::is_null);
+    // Availability uses the required legacy scalar slot without claiming a percentage.
+    let percent = if unlimited {
+        0.0
+    } else {
+        percent_of(usage, credits?)?
+    };
     let observed_at = iso_from_epoch_ms(now_ms)?;
     let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
     let mut snapshot = base_snapshot(
@@ -137,9 +148,14 @@ fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sna
         labels("user-key", "documented-api", "low"),
         account_id,
     );
-    snapshot.used_amount = Some(usage);
-    snapshot.limit_amount = Some(credits);
-    snapshot.currency = Some("USD".to_string());
+    if unlimited {
+        snapshot.kind = Some("availability".to_string());
+        snapshot.availability = Some("unlimited".to_string());
+    } else {
+        snapshot.used_amount = Some(usage);
+        snapshot.limit_amount = credits;
+        snapshot.currency = Some("USD".to_string());
+    }
     Some(vec![snapshot])
 }
 
@@ -157,28 +173,57 @@ fn codex_meter_id(length: Option<u64>, key: &str) -> Option<String> {
 
 fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>> {
     let root: Value = serde_json::from_str(body).ok()?;
-    let limits = root.get("rate_limit")?.as_object()?;
+    let limits = root.get("rate_limit").and_then(Value::as_object);
     let observed_at = iso_from_epoch_ms(now_ms)?;
     let expires_at = iso_from_epoch_ms(now_ms.saturating_add(60_000))?;
     let mut snapshots = Vec::new();
-    for (key, value) in limits {
+    for (key, value) in limits.into_iter().flatten() {
         if !key.ends_with("_window") {
             continue;
         }
         if value.is_null() {
             continue;
         }
-        let window = value.as_object()?;
-        let percent = number(window.get("used_percent"), 100.0)?;
-        let length = match window.get("limit_window_seconds") {
-            Some(value) => Some(window_seconds(Some(value))?),
-            None => None,
+        let Some(window) = value.as_object() else {
+            continue;
         };
+        let Some(percent) = number(window.get("used_percent"), 100.0) else {
+            continue;
+        };
+        let length = window_seconds(window.get("limit_window_seconds"));
         let max_ahead =
             length.map(|seconds| seconds.saturating_mul(2).saturating_add(CLOCK_SKEW_SECONDS));
-        let reset_value = window.get("reset_at")?.as_f64()?;
-        let reset_at = future_epoch_seconds(reset_value, now_ms, max_ahead)?;
-        let meter = codex_meter_id(length, key)?;
+        let instant = window.get("reset_at").filter(|value| !value.is_null());
+        let countdown = window
+            .get("reset_after_seconds")
+            .filter(|value| !value.is_null());
+        let reset_at = if let Some(value) = instant {
+            value
+                .as_f64()
+                .and_then(|seconds| future_epoch_seconds(seconds, now_ms, max_ahead))
+        } else if let Some(value) = countdown {
+            value
+                .as_f64()
+                .filter(|seconds| {
+                    seconds.is_finite()
+                        && *seconds > 0.0
+                        && max_ahead.is_none_or(|maximum| *seconds <= maximum as f64)
+                })
+                .and_then(|seconds| {
+                    let milliseconds = now_ms as f64 + seconds * 1_000.0;
+                    (milliseconds <= 8_640_000_000_000_000.0)
+                        .then(|| iso_from_epoch_ms(milliseconds as u64))
+                        .flatten()
+                })
+        } else {
+            None
+        };
+        if (instant.is_some() || countdown.is_some()) && reset_at.is_none() {
+            continue;
+        }
+        let Some(meter) = codex_meter_id(length, key) else {
+            continue;
+        };
         snapshots.push(base_snapshot(
             "CODEX",
             &meter,
@@ -192,7 +237,7 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
                 .to_string(),
                 duration_seconds: length,
             },
-            Some(reset_at),
+            reset_at,
             "internal_payload",
             "estimated",
             &observed_at,
@@ -200,6 +245,32 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
             labels("official-local-tool", "internal-endpoint", "high"),
             account_id,
         ));
+    }
+    if root
+        .get("credits")
+        .and_then(|credits| credits.get("unlimited"))
+        .and_then(Value::as_bool)
+        == Some(true)
+    {
+        let mut snapshot = base_snapshot(
+            "CODEX",
+            "CREDITS",
+            0.0,
+            SnapshotWindow {
+                kind: "unknown".to_string(),
+                duration_seconds: None,
+            },
+            None,
+            "internal_payload",
+            "exact",
+            &observed_at,
+            &expires_at,
+            labels("official-local-tool", "internal-endpoint", "high"),
+            account_id,
+        );
+        snapshot.kind = Some("availability".to_string());
+        snapshot.availability = Some("unlimited".to_string());
+        snapshots.push(snapshot);
     }
     (!snapshots.is_empty()).then_some(snapshots)
 }
@@ -535,12 +606,11 @@ fn parse_kimi(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot>
         account_id,
     )];
     let mut ordinals = BTreeMap::<u64, usize>::new();
-    for entry in root
-        .get("limits")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-    {
+    let limits = match root.get("limits") {
+        Some(value) => value.as_array()?.as_slice(),
+        None => &[],
+    };
+    for entry in limits {
         let entry = entry.as_object()?;
         let detail = match entry.get("detail").and_then(Value::as_object) {
             Some(detail) => detail,
@@ -781,7 +851,7 @@ mod tests {
     }
 
     #[test]
-    fn one_malformed_codex_window_rejects_the_whole_response() {
+    fn one_malformed_codex_window_keeps_the_usable_sibling() {
         let reset_seconds = (now() + 3_600_000) / 1_000;
         let body = serde_json::json!({
             "rate_limit": {
@@ -798,7 +868,10 @@ mod tests {
             }
         })
         .to_string();
-        assert!(parse_body(ReaderId::CodexUsage, &body, now(), ACCOUNT).is_none());
+        let rows = parse_body(ReaderId::CodexUsage, &body, now(), ACCOUNT).expect("usable sibling");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].meter, "FIVE_HOUR");
+        assert_eq!(rows[0].value, 25.0);
     }
 
     #[test]

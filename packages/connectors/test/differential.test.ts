@@ -23,7 +23,6 @@ interface Case {
 }
 interface Expected {
   expected: Answer;
-  knownDivergence?: { reason: string; typescript: Answer; rust: Answer };
 }
 const parsers = {
   claude: parseClaudePayload,
@@ -81,7 +80,7 @@ describe("shared differential provider corpus", () => {
       const spec = json<Case>(resolve(root, "cases", provider, name));
       const answer = json<Expected>(resolve(root, "expected", provider, name));
       const id = provider + "/" + spec.case;
-      it(id + (answer.knownDivergence ? " [KNOWN DIVERGENCE]" : ""), () => {
+      it(id, () => {
         expect(spec.provider).toBe(provider);
         expect(name).toBe(spec.case + ".json");
         expect(spec.now).toBe("2026-08-07T12:00:00.000Z");
@@ -92,17 +91,8 @@ describe("shared differential provider corpus", () => {
         const body = spec.fixture === undefined ? spec.body : json<unknown>(resolve(root, spec.fixture));
         // Even error bodies reach the parser. No test-only HTTP status shortcut can hide acceptance.
         const actual = normalize(parsers[provider](body, spec.now));
-        const known = answer.knownDivergence;
-        if (known) {
-          expect(known.reason.length).toBeGreaterThan(0);
-          expect(divergenceList).toContain("| " + id + " |");
-          expect(known.typescript).not.toEqual(known.rust);
-          expect([known.typescript, known.rust]).toContainEqual(answer.expected);
-          expect(actual).toEqual(known.typescript);
-        } else {
-          expect(divergenceList).not.toContain("| " + id + " |");
-          expect(actual).toEqual(answer.expected);
-        }
+        expect(divergenceList.trim()).toBe("");
+        expect(actual).toEqual(answer.expected);
         if (spec.status !== 200) expect(actual).toEqual({ outcome: "rejected", readings: [] });
         const text = JSON.stringify(body);
         expect(text).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u);

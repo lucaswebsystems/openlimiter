@@ -31,9 +31,30 @@ export const openrouterCredential = {
 export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const data = record(root?.["data"]);
-  const credits = boundedNumber(data?.["total_credits"], 1_000_000_000_000);
-  const usage = boundedNumber(data?.["total_usage"], 1_000_000_000_000);
+  if (data === null) return null;
+  const keyResponse = !("total_credits" in data || "total_usage" in data);
+  const credits = boundedNumber(data[keyResponse ? "limit" : "total_credits"], 1_000_000_000_000);
+  const usage = boundedNumber(data[keyResponse ? "usage" : "total_usage"], 1_000_000_000_000);
   const expiresAt = shortExpiry(now);
+  if (keyResponse && data["limit"] === null) {
+    if (usage === null || expiresAt === null) return null;
+    return [{
+      provider: "OPENROUTER",
+      meter: "CREDITS",
+      kind: "availability",
+      availability: "unlimited",
+      // Required legacy transport fields; availability carries no percentage.
+      value: 0,
+      unit: "PERCENT",
+      window: { kind: "lifetime" },
+      resetAt: null,
+      source: "documented_api",
+      precision: "exact",
+      observedAt: now,
+      expiresAt,
+      labels: openrouterLabels
+    }];
+  }
   if (
     credits === null ||
     usage === null ||

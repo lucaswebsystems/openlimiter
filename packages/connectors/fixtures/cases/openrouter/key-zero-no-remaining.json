@@ -1,0 +1,14 @@
+{
+  "provider": "openrouter",
+  "case": "key-zero-no-remaining",
+  "reader": "key",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "data": {
+      "limit": 20,
+      "usage": 0
+    }
+  }
+}

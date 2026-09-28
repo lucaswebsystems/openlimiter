@@ -405,6 +405,7 @@ function amountField(
 function parseExtraUsage(value: unknown, now: string): MeterInput | null {
   const input = record(value);
   if (input === null) return null;
+  if (input["is_enabled"] === false) return null;
   const used = amountField(input, ["used_amount", "used_credits", "used"]);
   const limit = amountField(
     input,
