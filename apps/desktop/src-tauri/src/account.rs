@@ -31,6 +31,7 @@ const MAX_RESPONSE_BYTES: usize = 131_072;
 const MAX_REQUEST_BYTES: usize = 8_192;
 const NETWORK_TIMEOUT_SECONDS: u64 = 15;
 const OAUTH_TIMEOUT_SECONDS: u64 = 180;
+const OAUTH_CONNECTION_TIMEOUT_SECONDS: u64 = 3;
 
 /// The contract version the hosted sync surface accepts, and nothing else.
 const SYNC_SCHEMA_VERSION: u8 = 2;
@@ -1206,6 +1207,18 @@ fn oauth_request_with_timeout(
     listener: &TcpListener,
     timeout: Duration,
 ) -> Result<(String, String), AccountFailure> {
+    oauth_request_with_connection_timeout(
+        listener,
+        timeout,
+        Duration::from_secs(OAUTH_CONNECTION_TIMEOUT_SECONDS),
+    )
+}
+
+fn oauth_request_with_connection_timeout(
+    listener: &TcpListener,
+    timeout: Duration,
+    connection_timeout: Duration,
+) -> Result<(String, String), AccountFailure> {
     let deadline = std::time::Instant::now() + timeout;
     loop {
         if std::time::Instant::now() >= deadline {
@@ -1216,7 +1229,9 @@ fn oauth_request_with_timeout(
                 if stream.set_nonblocking(false).is_err() {
                     continue;
                 }
-                let Some(head) = request_head(&mut stream, deadline) else {
+                let connection_deadline =
+                    std::cmp::min(deadline, std::time::Instant::now() + connection_timeout);
+                let Some(head) = request_head(&mut stream, connection_deadline) else {
                     continue;
                 };
                 let Some(target) = head
@@ -1638,6 +1653,41 @@ mod tests {
         let answer = handle.join().expect("thread joined");
         assert!(matches!(answer, Err(AccountFailure::OauthTimeout)));
         drop(silent);
+    }
+
+    #[test]
+    fn oauth_request_accepts_a_callback_after_an_idle_connection_expires() {
+        use std::net::TcpStream;
+
+        assert_eq!(OAUTH_CONNECTION_TIMEOUT_SECONDS, 3);
+        let listener = TcpListener::bind("127.0.0.1:0").expect("the loopback port");
+        let address = listener.local_addr().expect("the listener address");
+        listener.set_nonblocking(true).expect("nonblocking");
+        let idle = TcpStream::connect(address).expect("idle connection");
+        let handle = std::thread::spawn(move || {
+            oauth_request_with_timeout(
+                &listener,
+                Duration::from_secs(OAUTH_CONNECTION_TIMEOUT_SECONDS + 3),
+            )
+        });
+
+        let mut callback = TcpStream::connect(address).expect("callback connection");
+        callback
+            .set_read_timeout(Some(Duration::from_secs(OAUTH_CONNECTION_TIMEOUT_SECONDS + 2)))
+            .expect("bounded callback wait");
+        callback
+            .write_all(b"GET /auth/callback?code=queued-code&state=queued-state HTTP/1.1\r\nHost: x\r\n\r\n")
+            .expect("callback");
+        let mut buffer = [0_u8; 256];
+        let count = callback.read(&mut buffer).expect("response");
+        assert!(String::from_utf8_lossy(&buffer[..count]).starts_with("HTTP/1.1 200"));
+
+        let answer = handle.join().expect("thread joined").expect("callback");
+        assert_eq!(
+            answer,
+            ("queued-code".to_string(), "queued-state".to_string())
+        );
+        drop(idle);
     }
 
     #[test]

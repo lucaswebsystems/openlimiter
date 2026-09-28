@@ -932,17 +932,24 @@ fn path_components_are_real_directory(path: &Path) -> bool {
     true
 }
 
-/// Resolve an executable launcher before accepting it. POSIX package managers
-/// conventionally put a symbolic link in `bin/`; its target is accepted only
-/// when canonicalization keeps it inside a trusted vendor install root. The
-/// canonical target is returned, so a later process start does not follow the
-/// launcher path again. A launcher outside those roots is never run and never
-/// used for metadata.
-fn validated_launcher(
-    provider: DetectedProviderId,
-    context: &DiscoveryContext,
-    path: &Path,
-) -> Option<PathBuf> {
+fn normalize_verbatim_prefix(path: PathBuf) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let path = path.to_string_lossy();
+        if let Some(path) = path.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{path}"));
+        }
+        if let Some(path) = path.strip_prefix(r"\\?\") {
+            return PathBuf::from(path);
+        }
+    }
+    path
+}
+
+/// Resolve an executable and prove that its real file remains inside one of
+/// the caller's trusted install directories. The caller owns the directory
+/// list because each vendor has a different canonical installation contract.
+pub(crate) fn validated_executable_in_roots(path: &Path, roots: &[PathBuf]) -> Option<PathBuf> {
     if !(path.is_absolute() || path.has_root())
         || path
             .components()
@@ -957,16 +964,31 @@ fn validated_launcher(
     if !metadata.is_file() && !metadata.file_type().is_symlink() {
         return None;
     }
-    let resolved = fs::canonicalize(path).ok()?;
+    let resolved = normalize_verbatim_prefix(fs::canonicalize(path).ok()?);
     if !fs::metadata(&resolved).is_ok_and(|metadata| metadata.is_file()) {
         return None;
     }
-    provider_install_roots(provider, context)
-        .into_iter()
-        .filter_map(|root| fs::canonicalize(root).ok())
+    roots
+        .iter()
+        .filter_map(|root| fs::canonicalize(root).ok().map(normalize_verbatim_prefix))
         .filter(|root| path_components_are_real_directory(root))
         .any(|root| resolved.starts_with(root))
         .then_some(resolved)
+}
+
+/// Resolve an executable launcher before accepting it. POSIX package managers
+/// conventionally put a symbolic link in `bin/`; its target is accepted only
+/// when canonicalization keeps it inside a trusted vendor install root. The
+/// canonical target is returned, so a later process start does not follow the
+/// launcher path again. A launcher outside those roots is never run and never
+/// used for metadata.
+fn validated_launcher(
+    provider: DetectedProviderId,
+    context: &DiscoveryContext,
+    path: &Path,
+) -> Option<PathBuf> {
+    let roots = provider_install_roots(provider, context);
+    validated_executable_in_roots(path, &roots)
 }
 
 fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -> Vec<String> {
@@ -2132,6 +2154,35 @@ mod tests {
             base64url(br#"{"alg":"none"}"#),
             base64url(payload.as_bytes())
         )
+    }
+
+    #[test]
+    fn executable_validation_returns_canonical_vendor_files_only() {
+        let dir = TempDir::new();
+        let root = dir.path().join("vendor");
+        let executable = root.join("agy.exe");
+        let outside = dir.path().join("outside").join("agy.exe");
+        write(&executable, "fixture executable");
+        write(&outside, "outside fixture");
+        let roots = vec![root.clone()];
+        assert_eq!(
+            validated_executable_in_roots(&executable, &roots),
+            Some(normalize_verbatim_prefix(fs::canonicalize(&executable).unwrap()))
+        );
+        for refused in [
+            outside,
+            root.clone(),
+            root.join("missing.exe"),
+            root.join("..").join("vendor").join("agy.exe"),
+            PathBuf::from("agy.exe"),
+        ] {
+            assert_eq!(validated_executable_in_roots(&refused, &roots), None);
+        }
+        #[cfg(windows)]
+        assert_eq!(
+            validated_executable_in_roots(&fs::canonicalize(&executable).unwrap(), &roots),
+            Some(executable)
+        );
     }
 
     #[test]
