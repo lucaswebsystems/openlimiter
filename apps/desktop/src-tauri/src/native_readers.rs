@@ -18,6 +18,7 @@ fn labels(origin: &str, interface: &str, risk: &str) -> ConnectorLabels {
         data_interface_status: interface.to_string(),
         automation_risk: risk.to_string(),
         verification: "UNVERIFIED".to_string(),
+        verification_evidence: None,
     }
 }
 
@@ -62,6 +63,9 @@ fn base_snapshot(
         through, so a parser never has to know which process it is running in.
         See `native_snapshot::fold`. */
         writer: None,
+        kind: None,
+        availability: None,
+        retry_at: None,
         provenance: provenance(),
     }
 }

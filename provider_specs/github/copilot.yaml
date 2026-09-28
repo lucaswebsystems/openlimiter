@@ -26,6 +26,17 @@ provider_id: github
 product_id: copilot
 display_name: GitHub Copilot
 
+headlineMeter: ai_credits
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Recipe only; no shipped reader.
+maturity: planned
+
 source:
   docs_url: https://docs.github.com/en/rest/billing/usage
   reviewed_at: "2026-08-10"

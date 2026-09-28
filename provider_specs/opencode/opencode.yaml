@@ -19,6 +19,31 @@ provider_id: opencode
 product_id: opencode
 display_name: OpenCode
 
+headlineMeter: rolling
+weeklyMeter: weekly
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: authenticated_page
+d5Review: Authenticated page extraction; high automation risk and capture pending.
+maturity: headline
+directory:
+  order: 6
+  rowId: opencode/opencode
+  label: OpenCode
+  connectorId: opencode
+  access: manual
+
 source:
   docs_url: packages/connectors/src/opencode.ts
   reviewed_at: "2026-08-10"

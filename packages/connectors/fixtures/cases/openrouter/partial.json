@@ -1,0 +1,13 @@
+{
+  "provider": "openrouter",
+  "case": "partial",
+  "reader": "credits",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "data": {
+      "total_credits": 20
+    }
+  }
+}

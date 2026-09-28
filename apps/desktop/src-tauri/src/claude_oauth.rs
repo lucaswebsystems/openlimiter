@@ -155,6 +155,7 @@ fn labels() -> ConnectorLabels {
         data_interface_status: "internal-endpoint".to_string(),
         automation_risk: "high".to_string(),
         verification: "UNVERIFIED".to_string(),
+        verification_evidence: None,
     }
 }
 
@@ -347,6 +348,9 @@ fn snapshot(
         account_id: Some(account_id.to_string()),
         account_label: None,
         writer: None,
+        kind: None,
+        availability: None,
+        retry_at: None,
         provenance: Some(serde_json::json!({
             "observedVia": "remote_http",
             "sourceKind": "remote_api"

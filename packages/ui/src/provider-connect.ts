@@ -26,6 +26,14 @@ interface GeneratedProviderSpec {
   displayName?: unknown;
   authModes?: unknown;
   honesty?: { connectorId?: unknown } | null;
+  support?: { reader?: unknown };
+  directory?: {
+    order: number;
+    rowId: string;
+    label: string;
+    connectorId: string;
+    access: ProviderAccessClass;
+  } | null;
 }
 
 export interface GeneratedProviderRegistry {
@@ -36,54 +44,10 @@ export interface ProviderDirectoryOptions {
   states?: Readonly<Record<string, string | null | undefined>>;
 }
 
-/** One recognition order for every provider surface. Change only this list. */
-export const PROVIDER_RECOGNITION_ORDER = [
-  "openai/codex",
-  "anthropic/claude-code",
-  "google/gemini-cli",
-  "google/antigravity",
-  "xai/api",
-  "moonshot/api",
-  "opencode/opencode",
-  "openrouter/api",
-] as const;
-
-const READY_CONNECTORS = new Set([
-  "claude",
-  "codex",
-  "openrouter",
-  "antigravity",
-  "gemini-cli",
-  "opencode",
-  "grok",
-  "kimi",
-]);
-
-/** Grok and Kimi are entering through local discovery despite their API catalog entries. */
-const AUTOMATIC_OVERRIDES = new Set(["xai/api", "moonshot/api"]);
-
-/**
- * The expansion reference names provider families, while automatic collection
- * lands as a product specific CLI spec. Join the CLI fact to the existing row
- * so an arriving connector promotes that row instead of adding a duplicate.
- */
-const CONNECTOR_SPEC_FOR_ROW: Readonly<Record<string, string>> = {
-  "xai/api": "xai/grok-cli",
-  "moonshot/api": "moonshot/kimi-code",
-};
-
-/** Runtime connectors that arrived after their research specs were generated. */
-const CONNECTOR_ID_FOR_ROW: Readonly<Record<string, string>> = {
-  "google/gemini-cli": "gemini-cli",
-};
-
-const COMPACT_NAMES: Readonly<Record<string, string>> = {
-  "xai/api": "Grok (xAI)",
-  "moonshot/api": "Kimi",
-  "together/api": "Together",
-  "mistral/api": "Mistral",
-  "windsurf/editor": "Devin Desktop",
-};
+/** Recognition identity, labels, and ordering are authored only in the YAML. */
+export const PROVIDER_RECOGNITION_ORDER: readonly string[] = Object.freeze(
+  directorySpecs(providerRegistry).map((spec) => spec.directory!.rowId),
+);
 
 const ACCESS_LABELS = {
   automatic: "Automatic",
@@ -96,25 +60,6 @@ const ACCESS_DESCRIPTIONS = {
   key: "Secure key",
   manual: "Enter usage",
 } as const satisfies Record<ProviderAccessClass, string>;
-
-function firstAuthMode(spec: GeneratedProviderSpec): string | null {
-  if (!Array.isArray(spec.authModes)) return null;
-  const mode = spec.authModes[0];
-  return typeof mode === "string" ? mode : null;
-}
-
-function accessClass(specId: string, spec: GeneratedProviderSpec): ProviderAccessClass {
-  if (specId === "openlimiter/manual") return "manual";
-  if (AUTOMATIC_OVERRIDES.has(specId)) return "automatic";
-  const mode = firstAuthMode(spec);
-  if (mode === "existing_local_cli" || mode === "oauth" || mode === "none") {
-    return "automatic";
-  }
-  if (mode === "api_key" || mode === "admin_api_key" || mode === "management_key") {
-    return "key";
-  }
-  return "manual";
-}
 
 function stateView(
   state: string,
@@ -236,6 +181,17 @@ function readSpecs(registry: GeneratedProviderRegistry): Map<string, GeneratedPr
   return result;
 }
 
+function directorySpecs(registry: GeneratedProviderRegistry): GeneratedProviderSpec[] {
+  return [...readSpecs(registry).values()]
+    .filter((spec) => {
+      const row = spec.directory;
+      return row != null && Number.isSafeInteger(row.order) && row.order >= 0 &&
+        typeof row.rowId === "string" && typeof row.label === "string" &&
+        typeof row.connectorId === "string" && PROVIDER_ACCESS_CLASSES.includes(row.access);
+    })
+    .sort((left, right) => left.directory!.order - right.directory!.order);
+}
+
 /**
  * Build the one provider directory shared by web and desktop.
  *
@@ -250,18 +206,17 @@ export function buildProviderDirectory(
   const specs = readSpecs(registry);
   const rows: ProviderDirectoryRow[] = [];
 
-  for (const specId of PROVIDER_RECOGNITION_ORDER) {
+  const recognition = directorySpecs(registry);
+  for (const connectorSpec of recognition) {
+    const directory = connectorSpec.directory!;
+    const specId = directory.rowId;
     const spec = specs.get(specId);
     if (spec === undefined || typeof spec.displayName !== "string") continue;
-    const connectorSpec = specs.get(CONNECTOR_SPEC_FOR_ROW[specId] ?? specId) ?? spec;
-    const rawConnector = connectorSpec.honesty?.connectorId;
-    const connectorId =
-      CONNECTOR_ID_FOR_ROW[specId] ??
-      (typeof rawConnector === "string" ? rawConnector : null);
+    const connectorId = directory.connectorId;
     const availability =
-      connectorId !== null && READY_CONNECTORS.has(connectorId) ? "ready" : "planned";
-    const access = accessClass(specId, connectorSpec);
-    const displayName = COMPACT_NAMES[specId] ?? spec.displayName;
+      connectorSpec.support?.reader === "implemented" ? "ready" : "planned";
+    const access = directory.access;
+    const displayName = directory.label;
 
     if (availability === "planned") {
       rows.push({
@@ -301,9 +256,9 @@ export function buildProviderDirectory(
   }
 
   const byDisplayOrder = new Map<string, number>(
-    PROVIDER_RECOGNITION_ORDER.map((specId, index) => [specId, index]),
+    recognition.map((spec, index) => [spec.directory!.rowId, index]),
   );
-  const fallbackOrder = PROVIDER_RECOGNITION_ORDER.length;
+  const fallbackOrder = recognition.length;
 
   return [
     ...rows
@@ -322,3 +277,4 @@ export function buildProviderDirectory(
       ),
   ];
 }
+import providerRegistry from "../../../provider_specs/provider-specs.json" with { type: "json" };

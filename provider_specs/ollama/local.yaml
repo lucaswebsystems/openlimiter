@@ -18,6 +18,18 @@ provider_id: ollama
 product_id: local
 display_name: Ollama
 
+headlineMeter: null
+noQuotaConcept: true
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: local_command
+d5Review: Recipe only; no shipped reader.
+maturity: planned
+
 source:
   docs_url: https://github.com/ollama/ollama/blob/main/docs/api.md
   reviewed_at: "2026-08-10"
@@ -57,16 +69,4 @@ verification:
 # real parser needs architecture aware key matching this registry entry
 # cannot state. Marked optional because it is a model capability, not usage,
 # and because no reader exists yet.
-meters:
-  - id: context_length
-    label: Model context length
-    kind: context
-    unit: tokens
-    scope: model
-    window:
-      kind: provider_defined
-    source_path: context_length
-    reset_path: null
-    reset_encoding: none
-    optional: true
-    meter_code: CONTEXT_LENGTH
+meters: []

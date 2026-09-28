@@ -1,0 +1,33 @@
+{
+  "schema_version": 3,
+  "sample": {
+    "account_id": "default",
+    "provider": "CLAUDE",
+    "meter": "FIVE_HOUR",
+    "window_id": "FIVE_HOUR",
+    "reset_at": null,
+    "observed_at": "2026-09-28T12:00:00.000Z",
+    "stale": false,
+    "source": "documented_api",
+    "precision": "exact",
+    "verification": "UNVERIFIED",
+    "kind": "quota_percent",
+    "availability": "rate_limited",
+    "retry_at": "2026-09-28T12:05:00.000Z"
+  },
+  "local": {
+    "accountId": "default",
+    "provider": "CLAUDE",
+    "meter": "FIVE_HOUR",
+    "windowId": "FIVE_HOUR",
+    "resetAt": null,
+    "observedAt": "2026-09-28T12:00:00.000Z",
+    "stale": false,
+    "source": "documented_api",
+    "precision": "exact",
+    "verification": "UNVERIFIED",
+    "kind": "quota_percent",
+    "availability": "rate_limited",
+    "retryAt": "2026-09-28T12:05:00.000Z"
+  }
+}

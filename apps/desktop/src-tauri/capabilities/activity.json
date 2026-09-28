@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "activity",
+  "description": "Read only access to the activity plugin.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "activity:default"
+  ]
+}

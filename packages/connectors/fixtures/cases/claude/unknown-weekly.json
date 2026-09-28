@@ -1,0 +1,15 @@
+{
+  "provider": "claude",
+  "case": "unknown-weekly",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "seven_day_haiku": {
+      "utilization": 12,
+      "resets_at": "2026-08-11T12:00:00.000Z"
+    },
+    "limits": []
+  }
+}

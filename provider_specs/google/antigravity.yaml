@@ -20,6 +20,31 @@ provider_id: google
 product_id: antigravity
 display_name: Antigravity
 
+headlineMeter: primary
+acquisitionSurfaces:
+  - desktop
+  - cli
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Internal provider interface; high automation risk and capture pending.
+maturity: headline
+directory:
+  order: 3
+  rowId: google/antigravity
+  label: Antigravity
+  connectorId: antigravity
+  access: automatic
+
 source:
   docs_url: packages/connectors/src/antigravity.ts
   reviewed_at: "2026-08-10"

@@ -66,9 +66,9 @@ describe("provider catalogue", () => {
 });
 
 describe("catalogue rows", () => {
-  it("derives all nineteen catalogue rows in document order", () => {
+  it("derives all twenty one catalogue rows in document order", () => {
     const rows = queryCatalogueRows(providerSpecs);
-    expect(rows).toHaveLength(19);
+    expect(rows).toHaveLength(21);
 
     const connectableRows = rows.slice(0, 7);
     expect(connectableRows.every((row) => row.availability === "connectable")).toBe(true);
@@ -77,7 +77,7 @@ describe("catalogue rows", () => {
     ).toEqual(["claude", "openrouter", "codex", "antigravity", "opencode", "grok", "kimi"]);
 
     const plannedRows = rows.slice(7);
-    expect(plannedRows).toHaveLength(12);
+    expect(plannedRows).toHaveLength(14);
     for (const row of plannedRows) {
       expect(row.availability).toBe("planned");
       expect(row.action).toBe("Planned");

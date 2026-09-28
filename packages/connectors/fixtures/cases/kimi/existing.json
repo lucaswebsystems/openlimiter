@@ -1,0 +1,9 @@
+{
+  "provider": "kimi",
+  "case": "existing",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "fixture": "kimi.usages.json"
+}

@@ -1,0 +1,37 @@
+{
+  "expected": {
+    "outcome": "rejected",
+    "readings": []
+  },
+  "knownDivergence": {
+    "reason": "TypeScript rejects a nonarray limits field; Rust ignores it and returns the weekly quota.",
+    "typescript": {
+      "outcome": "rejected",
+      "readings": []
+    },
+    "rust": {
+      "outcome": "readings",
+      "readings": [
+        {
+          "provider": "KIMI",
+          "meter": "WEEKLY",
+          "value": 10.44921875,
+          "unit": "PERCENT",
+          "window": {
+            "kind": "rolling",
+            "durationSeconds": 604800
+          },
+          "resetAt": "2026-08-12T12:00:00.000Z",
+          "precision": "estimated",
+          "source": "internal_payload",
+          "kind": null,
+          "availability": null,
+          "currency": null,
+          "usedAmount": null,
+          "limitAmount": null,
+          "observedAt": "2026-08-07T12:00:00.000Z"
+        }
+      ]
+    }
+  }
+}

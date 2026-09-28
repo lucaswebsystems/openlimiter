@@ -280,6 +280,8 @@ const elements = {
   spendMount: document.getElementById("spend-mount"),
   proMount: document.getElementById("pro-mount"),
   settingsMount: document.getElementById("settings-mount"),
+  agentsMount: document.getElementById("agents-mount"),
+  railSettingsMount: document.getElementById("rail-settings-mount"),
   tabs: [
     document.getElementById("tab-meters"),
     document.getElementById("tab-spend"),

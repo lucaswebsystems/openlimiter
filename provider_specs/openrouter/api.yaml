@@ -9,6 +9,31 @@ provider_id: openrouter
 product_id: api
 display_name: OpenRouter
 
+headlineMeter: credits
+acquisitionSurfaces:
+  - desktop
+  - cli
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Desktop key based billing reader; live account verification pending.
+maturity: headline
+directory:
+  order: 7
+  rowId: openrouter/api
+  label: OpenRouter
+  connectorId: openrouter
+  access: key
+
 source:
   docs_url: https://openrouter.ai/docs/api-reference/get-credits
   reviewed_at: "2026-08-10"

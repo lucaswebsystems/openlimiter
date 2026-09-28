@@ -20,6 +20,17 @@ provider_id: cursor
 product_id: editor
 display_name: Cursor
 
+headlineMeter: team_spend
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Recipe only; no shipped reader.
+maturity: planned
+
 source:
   docs_url: https://cursor.com/docs/account/teams/admin-api
   reviewed_at: "2026-08-10"

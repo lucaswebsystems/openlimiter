@@ -19,6 +19,17 @@ provider_id: deepseek
 product_id: api
 display_name: DeepSeek
 
+headlineMeter: balance
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Recipe only; no shipped reader.
+maturity: planned
+
 source:
   docs_url: https://api-docs.deepseek.com/api/get-user-balance/
   reviewed_at: "2026-08-10"

@@ -6,6 +6,21 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./activity/contract": {
+      "types": "./dist/activity/contract.d.ts",
+      "import": "./dist/activity/contract.js",
+      "default": "./dist/activity/contract.js"
+    },
+    "./contracts/notify": {
+      "types": "./dist/contracts/notify.d.ts",
+      "import": "./dist/contracts/notify.js",
+      "default": "./dist/contracts/notify.js"
+    },
+    "./contracts/surfaces": {
+      "types": "./dist/contracts/surfaces.d.ts",
+      "import": "./dist/contracts/surfaces.js",
+      "default": "./dist/contracts/surfaces.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
