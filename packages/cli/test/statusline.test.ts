@@ -117,7 +117,7 @@ function layout(
     advice: buildAdvice(snapshots, NOW),
     snapshots,
     now: NOW,
-    config: { ...DEFAULT_STATUSLINE, style: "cells", ...overrides },
+    config: { ...DEFAULT_STATUSLINE, style: "cells", meters: "worst", ...overrides },
     color,
     /* Stated only where a colour is asserted, so no test asks the machine it
        happens to be running on which colours it has. */
@@ -411,12 +411,11 @@ describe("colour", () => {
     expect(rendered).toContain(ESCAPE + "[31m");
   });
 
-  it("degrades the orange band to yellow where there is no orange", () => {
+  it("keeps the locked orange band without a palette hint", () => {
     const rendered = layout(everyBand, { width: 400 }, true, false);
-    expect(rendered).not.toContain("38;5;208");
+    expect(rendered).toContain("38;5;208");
     expect(rendered).toContain(ESCAPE + "[33m");
-    /* The cell is not dropped and the reading is not changed. Only the
-       distinction between the urgent band and the watch band is lost. */
+    /* The cell is not dropped and the reading is not changed. The locked band remains orange. */
     expect(rendered).toContain("84.0%");
     expect(rendered).toContain(ESCAPE + "[31m");
   });
@@ -486,7 +485,7 @@ describe("statusline bar rendering window codes and unknown cells", () => {
     expect(windowCode(manualMonthSnapshot)).toBe("mo");
   });
 
-  it("renders explicit [?] cell when windowCode returns empty string", () => {
+  it("keeps a usable percentage when the window is unknown", () => {
     const unrecognisedWindowSnapshot: Snapshot = {
       provider: "GROK",
       meter: "UNRECOGNISED_CUSTOM_METER",
@@ -517,7 +516,7 @@ describe("statusline bar rendering window codes and unknown cells", () => {
       false
     );
     expect(cells).toHaveLength(1);
-    expect(cells[0]?.plain).toBe("gk [?]");
+    expect(cells[0]?.plain).toBe("gk [█████░░░░░] 50%");
 
     const paintedCells = barStyleCells(
       [unrecognisedWindowSnapshot],
@@ -528,6 +527,6 @@ describe("statusline bar rendering window codes and unknown cells", () => {
       "worst",
       true
     );
-    expect(paintedCells[0]?.painted).toContain("\x1b[31m[?]\x1b[0m");
+    expect(paintedCells[0]?.painted).toContain("\x1b[32m50%\x1b[0m");
   });
 });

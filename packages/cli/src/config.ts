@@ -16,19 +16,12 @@ export const CONFIG_FILE_NAME = "openlimiter-config.json";
 /** Whether a provider with several meters shows one cell or all of them. */
 export type StatuslineMeters = "worst" | "all";
 
-/**
- * When the statusline may paint.
- *
- * `auto` follows the terminal, which is what every other command does. It is
- * the honest default and it is also the reason the other two exist: a
- * statusline host captures the command's output rather than handing it a
- * terminal, so `auto` resolves to no colour in exactly the place a person most
- * wants colour. `always` is how you say the host understands escape codes.
- * `never` is how you say it does not, whatever the terminal claims.
- */
+/** Auto follows the terminal or an ANSI capable host; NO_COLOR always wins. */
 export type StatuslineColor = "auto" | "always" | "never";
 
 export type StatuslineStyle = "bar" | "cells";
+
+export const TERMINAL_SEGMENTS = ["model", "effort", "dir", "ctx", "style", "5h", "7d"] as const;
 
 export interface StatuslineConfig {
   /**
@@ -40,7 +33,7 @@ export interface StatuslineConfig {
    */
   readonly order: readonly string[];
   readonly meters: StatuslineMeters;
-  /** The column budget one row may spend before the line stacks. */
+  /** Column budget for the optional legacy cells style. Hosts wrap bar lines. */
   readonly width: number;
   readonly rows: 1 | 2;
   /** False restores the single plain line released in 0.1.0. */
@@ -49,6 +42,8 @@ export interface StatuslineConfig {
   readonly style: StatuslineStyle;
   readonly show: readonly string[];
   readonly showMode?: "auto" | "explicit";
+  /** Independent overrides leave unselected providers in automatic mode. */
+  readonly visibility?: Readonly<Record<string, boolean>>;
   readonly hosts: Readonly<Record<string, string>>;
 }
 
@@ -79,7 +74,7 @@ export const MAX_STATUSLINE_WIDTH = 400;
 
 export const DEFAULT_STATUSLINE: StatuslineConfig = {
   order: [],
-  meters: "worst",
+  meters: "all",
   width: 140,
   rows: 2,
   bars: true,
@@ -165,6 +160,12 @@ export function normalizeStatusline(value: unknown): StatuslineConfig {
     style: style === "bar" || style === "cells" ? style : DEFAULT_STATUSLINE.style,
     show: normalizeShow(value["show"]) ?? DEFAULT_STATUSLINE.show,
     ...(value["showMode"] === "explicit" ? { showMode: "explicit" as const } : {}),
+    ...(isRecord(value["visibility"]) ? {
+      visibility: Object.fromEntries(Object.entries(value["visibility"]).filter(
+        ([key, enabled]) => typeof enabled === "boolean" &&
+          ([...TERMINAL_SEGMENTS, ...connectorIds] as readonly string[]).includes(key)
+      )) as Record<string, boolean>
+    } : {}),
     hosts: normalizeHosts(value["hosts"])
   };
 }

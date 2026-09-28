@@ -9,24 +9,12 @@ import {
 } from "@openlimiter/core";
 import { STATUSLINE_BAR_SEGMENTS, meterBar } from "./render.js";
 import type { StatuslineColor, StatuslineConfig } from "./config.js";
+import type { StatuslineSession } from "./statusline-ingest.js";
 
 /**
- * Statusline layout, version two.
- *
- * Version one was one plain line of provider names and percentages, and every
- * person who wanted to see pressure at a glance ended up drawing their own bar
- * around it. This module draws it instead: one compact cell per provider,
- * `NAME bar percent`, with the overall reason code leading the row, and a
- * second row when the first one runs out of columns.
- *
- * The old line is still here. `bars false` returns it byte for byte through the
- * adapter that has always produced it, because a format somebody wrote a script
- * against is a promise, and the way to change a promise is to leave the old one
- * reachable.
- *
- * Nothing in this file decides a number. Percentages, freshness, the reason
- * code and the recommendation all arrive already decided by the engine; this is
- * ordering, measuring and wrapping.
+ * Reference terminal layout with host session details and labelled quota bars.
+ * The host wraps the bar line. The optional legacy cells style keeps its own
+ * width budget and advice header for existing configurations.
  */
 
 /**
@@ -213,11 +201,10 @@ function buildCell(
   wide?: boolean
 ): StatuslineCell {
   const percent = floorFixed(snapshot.value, 1) + "%";
-  const bar = (paint: boolean): string =>
-    meterBar(snapshot.value, state, paint, STATUSLINE_BAR_SEGMENTS, wide);
+  const bar = meterBar(snapshot.value, state, false, STATUSLINE_BAR_SEGMENTS, wide);
   return {
-    plain: label + " " + bar(false) + " " + percent,
-    painted: label + " " + bar(color) + " " + percent,
+    plain: label + " " + bar + " " + percent,
+    painted: label + " " + (color ? paintBand(bar, snapshot.value, state) + " " + paintBand(percent, snapshot.value, state) : bar + " " + percent),
     percent: snapshot.value
   };
 }
@@ -242,7 +229,7 @@ function readingsFor(
   }
   // Dormant accounts remain in the cache, but cannot displace an active account.
   const readings = providerRows
-    .filter((snapshot) => (snapshot.unit === "PERCENT" || isAvailabilitySnapshot(snapshot)) &&
+    .filter((snapshot) => (snapshot.unit === "PERCENT" || snapshot.provider === "OPENROUTER" && snapshot.unit === "CREDITS" || isAvailabilitySnapshot(snapshot)) &&
       Date.parse(now) - (latestAccount.get(snapshot.accountId) ?? 0) <= ONE_DAY * 1000)
     .map((snapshot) => ({
       snapshot,
@@ -289,7 +276,7 @@ export function statuslineCells(
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
   for (const provider of order) {
-    const readings = readingsFor(snapshots, provider, now);
+    const readings = readingsFor(snapshots.filter((snapshot) => snapshot.unit === "PERCENT" || isAvailabilitySnapshot(snapshot)), provider, now);
     if (readings.length === 0) continue;
     if (meters === "all") {
       for (const reading of readings) {
@@ -468,12 +455,11 @@ export function windowCode(snapshot: Snapshot): string {
   const duration = snapshot.window.durationSeconds;
   const meterName = snapshot.meter.toUpperCase();
   if (meterName.includes("MONTH") || meterName === "ON_DEMAND_MONTHLY") return "mo";
-  if (duration !== undefined) {
-    if (duration <= SIX_HOURS || meterName === "FIVE_HOUR" || meterName === "SESSION") return "5h";
-    if (duration <= ONE_DAY || meterName === "DAILY" || meterName === "DAY") return "1d";
-    if (duration <= SEVEN_DAYS || meterName === "WEEKLY" || meterName === "SEVEN_DAY") return "7d";
-    if (duration <= THIRTY_ONE_DAYS || meterName === "MONTHLY" || meterName === "MONTH") return "mo";
-    return "";
+  if (duration !== undefined && Number.isFinite(duration) && duration > 0) {
+    if (duration % ONE_DAY === 0) return String(duration / ONE_DAY) + "d";
+    if (duration % 3600 === 0) return String(duration / 3600) + "h";
+    if (duration % 60 === 0) return String(duration / 60) + "m";
+    return String(duration) + "s";
   }
   if (meterName === "FIVE_HOUR" || meterName === "SESSION") return "5h";
   if (meterName === "DAILY" || meterName === "DAY") return "1d";
@@ -482,18 +468,18 @@ export function windowCode(snapshot: Snapshot): string {
   return "";
 }
 
-export function tenBlockBar(value: number): string {
+export function tenBlockBar(value: number, unicode = true): string {
   const clamped = Math.min(100, Math.max(0, value));
-  const filled = Math.min(10, Math.max(0, Math.floor(clamped / 10)));
+  const filled = clamped > 0 ? Math.max(1, Math.floor(clamped / 10)) : 0;
   const empty = 10 - filled;
-  return "[" + TEN_BLOCK_FULL.repeat(filled) + TEN_BLOCK_EMPTY.repeat(empty) + "]";
+  return "[" + (unicode ? TEN_BLOCK_FULL : "#").repeat(filled) + (unicode ? TEN_BLOCK_EMPTY : ".").repeat(empty) + "]";
 }
 
 export function formatResetTime(resetAt: string | null | undefined, now: string): string {
   if (!resetAt) return "";
   const diffMs = new Date(resetAt).getTime() - new Date(now).getTime();
   const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec <= 0) return "";
+  if (!Number.isFinite(diffSec) || diffSec <= 0) return "";
   if (diffSec >= 86_400) {
     const days = Math.floor(diffSec / 86_400);
     const hours = Math.floor((diffSec % 86_400) / 3600);
@@ -514,12 +500,11 @@ export function formatResetTime(resetAt: string | null | undefined, now: string)
 export function paintBand(
   text: string,
   value: number,
-  state: "fresh" | "stale",
-  wide = false
+  _state: "fresh" | "stale",
+  _wide = false
 ): string {
-  if (state === "stale") return "\x1b[90m" + text + "\x1b[0m";
   if (value >= 90) return "\x1b[31m" + text + "\x1b[0m";
-  if (value >= 80) return wide ? "\x1b[38;5;208m" + text + "\x1b[0m" : "\x1b[33m" + text + "\x1b[0m";
+  if (value >= 80) return "\x1b[38;5;208m" + text + "\x1b[0m";
   if (value >= 60) return "\x1b[33m" + text + "\x1b[0m";
   return "\x1b[32m" + text + "\x1b[0m";
 }
@@ -533,7 +518,9 @@ export function barStyleCells(
   metersSetting: StatuslineConfig["meters"],
   color: boolean,
   wide?: boolean,
-  explicitSelection = false
+  explicitSelection = false,
+  visibility: Readonly<Record<string, boolean>> = {},
+  unicode = true
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
   const hostProvider = HOST_PROVIDER[host];
@@ -543,14 +530,28 @@ export function barStyleCells(
 
   for (const provider of order) {
     const shortTag = PROVIDER_SHORT_TAGS[provider];
-    const isAllowed = allowedProviders === null ||
+    const isAllowed = visibility[provider.toLowerCase()] ?? (allowedProviders === null ||
       allowedProviders.has(provider.toLowerCase()) ||
-      allowedProviders.has(shortTag);
+      allowedProviders.has(shortTag));
 
     if (!isAllowed) continue;
 
-    const readings = readingsFor(snapshots, provider, now);
-    if (readings.length === 0) continue;
+    const readings = readingsFor(snapshots, provider, now).filter(({ snapshot }) =>
+      visibility[windowCode(snapshot)] !== false);
+    if (readings.length === 0) {
+      // A dormant account stays omitted even when its provider was selected.
+      const rows = snapshots.filter((snapshot) => snapshot.provider === provider);
+      const dormant = rows.length > 0 && rows.every((snapshot) =>
+        Date.parse(now) - Date.parse(snapshot.observedAt) > ONE_DAY * 1000);
+      const windowsHidden = readingsFor(snapshots, provider, now).length > 0;
+      const chosen = visibility[provider.toLowerCase()] === true ||
+        allowedProviders?.has(provider.toLowerCase()) || allowedProviders?.has(shortTag);
+      if (chosen && !dormant && !windowsHidden) {
+        const plain = shortTag + " [?]";
+        cells.push({ plain, painted: color ? shortTag + " \x1b[31m[?]\x1b[0m" : plain, percent: Infinity });
+      }
+      continue;
+    }
 
     let selectedReadings: Reading[] = [];
     if (provider === hostProvider) {
@@ -569,29 +570,32 @@ export function barStyleCells(
       const { snapshot, state } = reading;
       const providerTag = provider === hostProvider ? "" : shortTag;
       const ageSeconds = Math.max(0, Math.floor((Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000));
-      const stale = state === "stale" || ageSeconds >= 180;
+      const stale = state === "stale" || ageSeconds >= 180 || snapshot.precision === "estimated";
 
       if (isAvailabilitySnapshot(snapshot)) {
         const tag = providerTag || shortTag;
         const plain = tag + " " + availabilityText(snapshot, now);
-        cells.push({ plain, painted: plain, percent: Number.NEGATIVE_INFINITY });
+        const chosen = visibility[provider.toLowerCase()] === true ||
+          allowedProviders?.has(provider.toLowerCase()) || allowedProviders?.has(shortTag);
+        const unknown = chosen && snapshot.availability !== "unlimited";
+        cells.push({ plain: plain + (unknown ? " [?]" : ""), painted: plain +
+          (unknown ? (color ? " \x1b[31m[?]\x1b[0m" : " [?]") : ""), percent: Number.NEGATIVE_INFINITY });
+        continue;
+      }
+
+      if (provider === "OPENROUTER" && (snapshot.unit === "CREDITS" ||
+          snapshot.currency === "USD" && snapshot.limitAmount !== undefined && snapshot.usedAmount !== undefined)) {
+        const balance = snapshot.unit === "CREDITS" ? snapshot.value : snapshot.limitAmount! - snapshot.usedAmount!;
+        const amount = (stale ? "~" : "") + "$" + balance.toFixed(2);
+        const band = balance < 1 ? 95 : balance < 5 ? 65 : 0;
+        cells.push({ plain: "or " + amount, painted: "or " + (color ? paintBand(amount, band, "fresh") : amount), percent: band });
         continue;
       }
 
       if (snapshot.usedAmount !== undefined && snapshot.currency === "USD") {
-        const age = (Date.parse(now) - Date.parse(snapshot.observedAt)) / 1000;
         const tag = providerTag || shortTag;
-        const plain = tag + " spend $" + snapshot.usedAmount.toFixed(2) +
-          (state === "stale" || age >= 180 ? staleAge(age) : "");
-        cells.push({ plain, painted: color && (state === "stale" || age >= 180) ? "\x1b[90m" + plain + "\x1b[0m" : plain, percent: snapshot.value });
-        continue;
-      }
-
-      if (snapshot.window.kind === "unknown" && !stale) {
-        const tag = providerTag || shortTag;
-        const plain = tag + " [?]";
-        const painted = color ? tag + " \x1b[31m[?]\x1b[0m" : plain;
-        cells.push({ plain, painted, percent: snapshot.value });
+        const plain = tag + " spend " + (stale ? "~" : "") + "$" + snapshot.usedAmount.toFixed(2);
+        cells.push({ plain, painted: plain, percent: snapshot.value });
         continue;
       }
 
@@ -599,9 +603,9 @@ export function barStyleCells(
       const combinedTag = providerTag + winTag;
       const tag = combinedTag === "" ? shortTag : combinedTag;
 
-      const bar = tenBlockBar(snapshot.value);
-      const percentStr = floorFixed(snapshot.value, 0) + "%";
-      const resetStr = stale ? staleAge(ageSeconds).trimStart() : formatResetTime(snapshot.resetAt, now);
+      const bar = tenBlockBar(snapshot.value, unicode);
+      const percentStr = (stale ? "~" : "") + Math.round(snapshot.value) + "%";
+      const resetStr = formatResetTime(snapshot.resetAt, now).replace("·", unicode ? "·" : ".");
 
       const label = tag;
       const plain = resetStr !== ""
@@ -628,44 +632,6 @@ export function barStyleCells(
   return cells;
 }
 
-function staleAge(seconds: number): string {
-  const age = Math.max(0, Math.floor(seconds));
-  return " stale " + (age >= 86_400 ? Math.floor(age / 86_400) + "d" :
-    age >= 3_600 ? Math.floor(age / 3_600) + "h" : age >= 60 ? Math.floor(age / 60) + "m" : age + "s");
-}
-
-function packedBarRows(
-  cells: readonly StatuslineCell[],
-  width: number,
-  rows: number
-): StatuslineCell[][] {
-  const laid: StatuslineCell[][] = [];
-  let index = 0;
-  for (let row = 0; row < rows; row += 1) {
-    const current: StatuslineCell[] = [];
-    let used = 0;
-    while (index < cells.length) {
-      const cell = cells[index]!;
-      const needed = used === 0
-        ? cell.plain.length
-        : used + BAR_CELL_SEPARATOR.length + cell.plain.length;
-      if (needed > width) break;
-      used = needed;
-      current.push(cell);
-      index += 1;
-    }
-    laid.push(current);
-  }
-  return laid;
-}
-
-function paintBarRows(rows: readonly StatuslineCell[][]): string {
-  return rows
-    .map((row) => row.map((cell) => cell.painted).join(BAR_CELL_SEPARATOR))
-    .filter((line) => line !== "")
-    .join("\n");
-}
-
 function renderBarStatusline(input: StatuslineLayoutInput): string {
   const { config } = input;
   const host = input.host ?? "claude";
@@ -678,27 +644,21 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
     config.meters,
     input.color,
     input.wide,
-    config.showMode === "explicit"
+    config.showMode === "explicit",
+    config.visibility,
+    input.unicode
   );
-  if (cells.length === 0) return STATUSLINE_UNKNOWN;
-
-  const whole = packedBarRows(cells, config.width, config.rows);
-  if (fittedCount(whole) === cells.length) return paintBarRows(whole);
-
-  for (let keep = fittedCount(whole); keep >= 0; keep -= 1) {
-    const dropped = cells.length - keep;
-    const tailText = "+" + String(dropped);
-    const tailCell: StatuslineCell = {
-      plain: tailText,
-      painted: tailText,
-      percent: Number.NEGATIVE_INFINITY
-    };
-    const shown = [...worstCells(cells, keep), tailCell];
-    const attempt = packedBarRows(shown, config.width, config.rows);
-    if (fittedCount(attempt) === shown.length) return paintBarRows(attempt);
-  }
-
-  return cells[0]?.painted ?? STATUSLINE_UNKNOWN;
+  const session = input.session ?? {};
+  const shown = (key: string): boolean => config.visibility?.[key] !== false;
+  const parts: string[] = [];
+  const identity = [shown("model") ? session.model : undefined, shown("effort") ? session.effort : undefined].filter(Boolean).join(" ");
+  if (identity) parts.push(identity);
+  if (shown("dir") && session.dir) parts.push(session.dir);
+  if (shown("ctx") && session.ctx !== undefined) parts.push("ctx " + Math.round(session.ctx) + "%");
+  parts.push(...cells.map((cell) => cell.painted));
+  if (shown("style") && session.style) parts.push(session.style);
+  // The host owns wrapping. A column guess must not silently hide a provider.
+  return parts.join(BAR_CELL_SEPARATOR) || STATUSLINE_UNKNOWN;
 }
 
 export interface StatuslineLayoutInput {
@@ -707,15 +667,11 @@ export interface StatuslineLayoutInput {
   now: string;
   config: StatuslineConfig;
   color: boolean;
-  /**
-   * Whether the host terminal claims a 256 colour palette.
-   *
-   * Only the orange band at 80 depends on it, and only a test ever states it.
-   * Left off, the bar asks the environment, which is the right answer for every
-   * caller that is a real terminal or a statusline host standing in for one.
-   */
+  /** Legacy caller compatibility; the reference palette is locked. */
   wide?: boolean;
   host?: StatuslineHost;
+  session?: StatuslineSession;
+  unicode?: boolean;
 }
 
 /** What the statusline says when it has nothing bounded to say. */
@@ -734,11 +690,12 @@ export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
   if (config.style === "cells") {
     if (!advice.inject || advice.reason === "UNKNOWN") return STATUSLINE_UNKNOWN;
     const cells = statuslineCells(
-      input.snapshots,
+      input.snapshots.filter((snapshot) => config.visibility?.[windowCode(snapshot)] !== false),
       input.now,
       resolveProviderOrder(config.order).filter((provider) =>
-        config.show.length === 0 && config.showMode !== "explicit" ||
-        config.show.includes(provider.toLowerCase()) || config.show.includes(PROVIDER_SHORT_TAGS[provider])),
+        config.visibility?.[provider.toLowerCase()] ??
+        (config.show.length === 0 && config.showMode !== "explicit" ||
+        config.show.includes(provider.toLowerCase()) || config.show.includes(PROVIDER_SHORT_TAGS[provider]))),
       config.meters,
       input.color,
       input.wide
@@ -768,10 +725,17 @@ export function renderStatuslineLayout(input: StatuslineLayoutInput): string {
 export function statuslineColor(
   setting: StatuslineColor,
   environment: Readonly<Record<string, string | undefined>>,
-  automatic: boolean
+  automatic: boolean,
+  host?: StatuslineHost
 ): boolean {
   if (environment["NO_COLOR"] !== undefined) return false;
   if (setting === "never") return false;
   if (setting === "always") return true;
-  return automatic;
+  return automatic || host === "claude";
+}
+
+/** Node writes UTF8 on every OS; fall back only for an explicit encoding limitation. */
+export function statuslineUnicode(environment: Readonly<Record<string, string | undefined>>): boolean {
+  const locale = environment["LC_ALL"] || environment["LC_CTYPE"] || environment["LANG"];
+  return environment["TERM"] !== "dumb" && !/^(C|POSIX)$/i.test(locale ?? "");
 }

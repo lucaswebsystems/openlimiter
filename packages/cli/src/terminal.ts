@@ -5,6 +5,7 @@ import { type CredentialCommandRunner, writeFileAtomically } from "@openlimiter/
 import {
   DEFAULT_PROVIDERS,
   DEFAULT_STATUSLINE,
+  TERMINAL_SEGMENTS,
   readConfig,
   writeConfig,
   type OpenLimiterConfig
@@ -13,6 +14,8 @@ import {
   decodeWrappedStatuslineCommand,
   encodeWrappedStatuslineCommand
 } from "./statusline-wrapper.js";
+
+import { PROVIDER_SHORT_TAGS } from "./statusline.js";
 
 import { parseToml, editToml, tomlValue } from "./terminal-toml.js";
 import { installLauncher } from "./terminal-launcher.js";
@@ -671,6 +674,15 @@ export async function uninstallHost(
 /**
  * Terminal status table
  */
+export const TERMINAL_VISIBILITY_TEXT = {
+  shown: "Shown: ",
+  hidden: "Hidden: ",
+  automatic: "Providers without a selection appear when a reading is available.",
+  invalid: "Unknown terminal segment or provider. Choose: ",
+  showing: "Showing in terminal: ",
+  hiding: "Hidden in terminal: "
+} as const;
+
 export async function terminalStatusTable(
   context: TerminalHostContext
 ): Promise<string> {
@@ -690,6 +702,15 @@ export async function terminalStatusTable(
     const status = await hostStatus(name, context);
     rows.push(`${name}: ${status}`);
   }
+  const { statusline } = await loadTerminalConfig(context);
+  const visible = (id: string): boolean => statusline.visibility?.[id] ??
+    (TERMINAL_SEGMENTS.includes(id as typeof TERMINAL_SEGMENTS[number]) ||
+      statusline.show.length === 0 && statusline.showMode !== "explicit" ||
+      statusline.show.includes(id) || statusline.show.includes(PROVIDER_SHORT_TAGS[id.toUpperCase() as keyof typeof PROVIDER_SHORT_TAGS]));
+  const ids = [...TERMINAL_SEGMENTS, ...Object.keys(PROVIDER_SHORT_TAGS).map((id) => id.toLowerCase())];
+  rows.push(TERMINAL_VISIBILITY_TEXT.shown + (ids.filter(visible).join(", ") || "none"));
+  rows.push(TERMINAL_VISIBILITY_TEXT.hidden + (ids.filter((id) => !visible(id)).join(", ") || "none"));
+  rows.push(TERMINAL_VISIBILITY_TEXT.automatic);
   return rows.join("\n");
 }
 
@@ -717,124 +738,32 @@ async function loadTerminalConfig(
   };
 }
 
-/**
- * Toggle terminal show providers
- */
-export async function terminalShow(
-  providerIds: readonly string[],
-  context: TerminalHostContext
+/** Segment and provider overrides preserve automatic discovery for other providers. */
+async function terminalVisibility(
+  ids: readonly string[],
+  context: TerminalHostContext,
+  enabled: boolean
 ): Promise<TerminalOperationResult> {
+  const aliases = new Map(Object.entries(PROVIDER_SHORT_TAGS).flatMap(([provider, tag]) =>
+    [[provider.toLowerCase(), provider.toLowerCase()], [tag, provider.toLowerCase()]]));
+  const resolved = ids.map((id) => aliases.get(id.toLowerCase()) ?? id.toLowerCase());
+  const known = new Set<string>([...TERMINAL_SEGMENTS, ...aliases.values()]);
+  if (resolved.length === 0 || resolved.some((id) => !known.has(id))) {
+    return { ok: false, message: TERMINAL_VISIBILITY_TEXT.invalid + [...known].join(", ") + "." };
+  }
   const config = await loadTerminalConfig(context);
-
-  const detected = new Set(
-    (context.detectedProviders ?? config.connectors.filter((c) => c.detected).map((c) => c.id)).map((id) =>
-      id.toLowerCase()
-    )
-  );
-
-  const invalid: string[] = [];
-  for (const id of providerIds) {
-    const lower = id.toLowerCase();
-    if (!detected.has(lower)) {
-      invalid.push(lower);
-    }
-  }
-
-  if (invalid.length > 0) {
-    return {
-      ok: false,
-      message: CONNECT_FIRST_SENTENCE
-    };
-  }
-
-  const currentShow = [...config.statusline.show];
-  for (const id of providerIds) {
-    const lower = id.toLowerCase();
-    if (!currentShow.includes(lower)) {
-      currentShow.push(lower);
-    }
-  }
-
-  const updatedConfig = {
-    ...config,
-    statusline: {
-      ...config.statusline,
-      show: currentShow,
-      showMode: "explicit" as const
-    }
-  };
-
+  const visibility = { ...config.statusline.visibility };
+  for (const id of resolved) visibility[id] = enabled;
   try {
-    await writeConfig(updatedConfig, context.stateDirectory);
-    return {
-      ok: true,
-      message: "Showing in terminal: " + currentShow.join(", ") + "."
-    };
+    await writeConfig({ ...config, statusline: { ...config.statusline, visibility } }, context.stateDirectory);
+    return { ok: true, message: (enabled ? TERMINAL_VISIBILITY_TEXT.showing : TERMINAL_VISIBILITY_TEXT.hiding) + [...new Set(resolved)].join(", ") + "." };
   } catch {
     return { ok: false, message: "Could not write configuration." };
   }
 }
 
-/**
- * Toggle terminal hide providers
- */
-export async function terminalHide(
-  providerIds: readonly string[],
-  context: TerminalHostContext
-): Promise<TerminalOperationResult> {
-  const config = await loadTerminalConfig(context);
+export const terminalShow = (ids: readonly string[], context: TerminalHostContext): Promise<TerminalOperationResult> =>
+  terminalVisibility(ids, context, true);
 
-  const detected = new Set(
-    (context.detectedProviders ?? config.connectors.filter((c) => c.detected).map((c) => c.id)).map((id) =>
-      id.toLowerCase()
-    )
-  );
-
-  const invalid: string[] = [];
-  for (const id of providerIds) {
-    const lower = id.toLowerCase();
-    if (!detected.has(lower)) {
-      invalid.push(lower);
-    }
-  }
-
-  if (invalid.length > 0) {
-    return {
-      ok: false,
-      message: CONNECT_FIRST_SENTENCE
-    };
-  }
-
-  let currentShow: string[];
-  if (config.statusline.show.length === 0 && config.statusline.showMode !== "explicit") {
-    const allProviders = connectors.map((c) => c.id);
-    currentShow = allProviders.filter(
-      (id) => !providerIds.map((p) => p.toLowerCase()).includes(id.toLowerCase())
-    );
-  } else {
-    currentShow = config.statusline.show.filter(
-      (id) => !providerIds.map((p) => p.toLowerCase()).includes(id.toLowerCase())
-    );
-  }
-
-  const updatedConfig = {
-    ...config,
-    statusline: {
-      ...config.statusline,
-      show: currentShow,
-      showMode: "explicit" as const
-    }
-  };
-
-  try {
-    await writeConfig(updatedConfig, context.stateDirectory);
-    return {
-      ok: true,
-      message: currentShow.length === 0
-        ? "No providers shown in terminal."
-        : "Showing in terminal: " + currentShow.join(", ") + "."
-    };
-  } catch {
-    return { ok: false, message: "Could not write configuration." };
-  }
-}
+export const terminalHide = (ids: readonly string[], context: TerminalHostContext): Promise<TerminalOperationResult> =>
+  terminalVisibility(ids, context, false);

@@ -299,7 +299,8 @@ describe("CLI", () => {
       const directory = await seeded();
       const statusline = await runCli(["statusline"], {
         stateDirectory: directory,
-        now: () => FIXTURE_NOW
+        now: () => FIXTURE_NOW,
+        environment: { NO_COLOR: "" }
       });
       /* `statusline.style` defaults to `bar`, decision D6's reference grammar,
          since this lane. Host defaults to `claude`, so the provider's own
@@ -311,11 +312,13 @@ describe("CLI", () => {
          cells`, tested in statusline.test.ts. */
       expect(statusline.stdout).toBe([
         "5h [████░░░░░░] 42% ·5h | 7d [██████░░░░] 64% ·7d | " +
-          "cx5h [████████░░] 84% ·5h | ag5h [██░░░░░░░░] 28% ·5h | " +
-          "oc5h [█████████░] 92% ·20h",
-        "gk7d [████░░░░░░] 42% ·7d | km5h [██████░░░░] 69% ·5h | " +
-          "mnmo [███░░░░░░░] 35% ·31d | or spend $12.47"
-      ].join("\n"));
+          "cx5h [████████░░] ~84% ·5h | ag5h [██░░░░░░░░] ~28% ·5h | " +
+          "ag7d [█░░░░░░░░░] ~10% ·7d | oc5h [█████████░] ~92% ·20h | " +
+          "oc7d [████░░░░░░] ~40% ·5d20h | ocmo [█░░░░░░░░░] ~15% ·21d | " +
+          "gk7d [████░░░░░░] ~43% ·7d | gkmo [█░░░░░░░░░] ~6% | " +
+          "km5h [██████░░░░] ~70% ·5h | km7d [█░░░░░░░░░] ~10% ·7d | " +
+          "mnmo [███░░░░░░░] 35% ·31d | or $7.53"
+      ].join(""));
     });
   });
 
@@ -940,10 +943,11 @@ describe("CLI", () => {
     const statusline = await runCli(["statusline"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW,
-      colorOutput: false
+      colorOutput: false,
+      environment: { NO_COLOR: "" }
     });
     expect(statusline.stdout).toMatch(/^OpenLimiter [A-Z_]+ /u);
-    expect(statusline.stdout).toContain("OPENCODE ####. 92.0%");
+    expect(statusline.stdout).toContain("OPENCODE:FIVE_HOUR ####. 92.0%");
     /* A statusline states pressure. Money and failure text belong elsewhere. */
     expect(statusline.stdout).not.toContain("$");
     expect(statusline.stdout).not.toContain("PAYLOAD_UNREADABLE");
@@ -995,7 +999,7 @@ describe("CLI", () => {
     expect(statusline.stdout).not.toContain("#");
   });
 
-  it("stacks the statusline into a second row at the default budget", async () => {
+  it("leaves reference line wrapping to the host at every configured width", async () => {
     const directory = await temporaryDirectory();
     await runCli(["snapshot", "--refresh"], {
       stateDirectory: directory,
@@ -1008,8 +1012,8 @@ describe("CLI", () => {
       colorOutput: false
     });
     const rows = stacked.stdout.split("\n");
-    expect(rows).toHaveLength(2);
-    for (const row of rows) expect(row.length).toBeLessThanOrEqual(140);
+    expect(rows).toHaveLength(1);
+    expect(stacked.stdout).toContain("oc7d");
     await runCli(["config", "set", "statusline.width", "260"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -1020,6 +1024,7 @@ describe("CLI", () => {
       colorOutput: false
     });
     expect(wide.stdout.split("\n")).toHaveLength(1);
+    expect(wide.stdout).toBe(stacked.stdout);
   });
 
   it("obeys the configured order, meter mode and colour setting", async () => {
@@ -1077,8 +1082,8 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: false
     });
-    /* Every unusable key fell back to its default, so the default stacks. */
-    expect(statusline.stdout.split("\n")).toHaveLength(2);
+    /* Every unusable key falls back to the complete reference line. */
+    expect(statusline.stdout.split("\n")).toHaveLength(1);
     expect(statusline.stdout).toContain("oc5h");
     expect(statusline.stdout).toContain("92%");
   });
@@ -1110,7 +1115,7 @@ describe("CLI", () => {
     expect(before.exitCode).toBe(0);
     expect(before.stdout.split("\n")).toEqual([
       "statusline.order=NONE",
-      "statusline.meters=worst",
+      "statusline.meters=all",
       "statusline.width=140",
       "statusline.rows=2",
       "statusline.bars=true",

@@ -28,7 +28,6 @@ async function prepareCompiledLauncherSource(): Promise<void> {
 }
 beforeAll(prepareCompiledLauncherSource);
 import {
-  CONNECT_FIRST_SENTENCE,
   STATUS_NOT_WIRED,
   STATUS_OWN_LINE_FOUND,
   STATUS_WIRED,
@@ -335,14 +334,14 @@ describe("terminal host installers", () => {
     const ctx = await context(home);
     const table = await terminalStatusTable(ctx);
     const rows = table.split("\n");
-    expect(rows).toHaveLength(8);
+    expect(rows).toHaveLength(11);
     expect(rows).toContain("Claude: " + STATUS_NOT_WIRED);
     expect(rows).toContain("Gemini: " + UNSUPPORTED_HOST_ALTERNATIVE);
   });
 });
 
 describe("terminal show and hide", () => {
-  it("refuses a provider with no login or key on this machine", async () => {
+  it("allows explicit selection before a provider has a reading", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const stateDirectory = await temporaryDirectory("openlimiter-terminal-state-");
     const ctx: TerminalHostContext = {
@@ -352,8 +351,8 @@ describe("terminal show and hide", () => {
       detectedProviders: []
     };
     const result = await terminalShow(["claude"], ctx);
-    expect(result.ok).toBe(false);
-    expect(result.message).toBe(CONNECT_FIRST_SENTENCE);
+    expect(result.ok).toBe(true);
+    expect(result.message).toBe("Showing in terminal: claude.");
   });
 
   it("shows a provider once it is detected, and hide reverses it", async () => {
@@ -379,7 +378,7 @@ describe("openlimiter terminal (CLI dispatch)", () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const result = await runCli(["terminal", "status"], { homeDirectory: home });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.split("\n")).toHaveLength(8);
+    expect(result.stdout.split("\n")).toHaveLength(11);
   });
 
   it("install and uninstall a named host", async () => {
@@ -435,7 +434,7 @@ describe("openlimiter terminal (CLI dispatch)", () => {
     expect(status.stdout).toContain("Claude: " + STATUS_NOT_WIRED);
   });
 
-  it("show refuses an unconnected provider through the CLI, and succeeds once connected", async () => {
+  it("show persists explicit selection with and without a connected provider", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const stateDirectory = await temporaryDirectory("openlimiter-terminal-state-");
     const refused = await runCli(["terminal", "show", "claude"], {
@@ -443,8 +442,8 @@ describe("openlimiter terminal (CLI dispatch)", () => {
       stateDirectory,
       environment: {}
     });
-    expect(refused.exitCode).toBe(2);
-    expect(refused.stderr).toContain(CONNECT_FIRST_SENTENCE);
+    expect(refused.exitCode).toBe(0);
+    expect(refused.stdout).toContain("Showing in terminal: claude.");
 
     const allowed = await runCli(["terminal", "show", "claude"], {
       homeDirectory: home,
@@ -454,8 +453,8 @@ describe("openlimiter terminal (CLI dispatch)", () => {
     expect(allowed.exitCode).toBe(0);
     const stored = JSON.parse(
       await readFile(path.join(stateDirectory, CONFIG_FILE_NAME), "utf8")
-    ) as { statusline: { show: string[] } };
-    expect(stored.statusline.show).toEqual(["claude"]);
+    ) as { statusline: { visibility: Record<string, boolean> } };
+    expect(stored.statusline.visibility).toEqual({ claude: true });
 
     const hidden = await runCli(["terminal", "hide", "claude"], {
       homeDirectory: home,
@@ -473,7 +472,7 @@ describe("openlimiter terminal (CLI dispatch)", () => {
     }
   });
 
-  it("hide rejects unrecognized or unconnected provider ids", async () => {
+  it("hide rejects unrecognized provider ids", async () => {
     const home = await temporaryDirectory("openlimiter-terminal-");
     const stateDirectory = await temporaryDirectory("openlimiter-terminal-state-");
     const ctx: TerminalHostContext = {
@@ -485,7 +484,7 @@ describe("openlimiter terminal (CLI dispatch)", () => {
 
     const direct = await terminalHide(["unknown-provider"], ctx);
     expect(direct.ok).toBe(false);
-    expect(direct.message).toBe(CONNECT_FIRST_SENTENCE);
+    expect(direct.message).toContain("Unknown terminal segment or provider.");
 
     const cli = await runCli(["terminal", "hide", "unconnected"], {
       homeDirectory: home,
@@ -493,7 +492,7 @@ describe("openlimiter terminal (CLI dispatch)", () => {
       environment: {}
     });
     expect(cli.exitCode).toBe(2);
-    expect(cli.stderr).toContain(CONNECT_FIRST_SENTENCE);
+    expect(cli.stderr).toContain("Unknown terminal segment or provider.");
   });
 });
 
