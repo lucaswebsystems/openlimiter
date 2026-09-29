@@ -192,17 +192,19 @@ test("desktop shell mounts the Agents component inside Home and disposes on unlo
   assert.match(html, /href="\.\/agents.css"/);
   const homeStart = html.indexOf('<section id="panel-meters"');
   const hostStart = html.indexOf('<div id="agents-mount">');
-  assert.ok(homeStart < hostStart && hostStart < html.indexOf("</section>", homeStart));
+  assert.ok(homeStart < hostStart && hostStart < html.indexOf('id="panel-spend"', homeStart));
   const app = read("./app.js");
   assert.match(app, /import \{ mountAgents \} from "\.\/agents.js"/);
-  const wiring = app.match(/const disposeAgents = mountAgents\(elements.agentsMount\);\s*window.addEventListener\("beforeunload", disposeAgents, \{ once: true \}\);/);
+  const wiring = app.match(/const disposeAgents = mountAgents\(elements.agentsMount, \{ markFor: officialMark \}\);\s*window.addEventListener\("beforeunload", disposeAgents, \{ once: true \}\);/);
   assert.ok(wiring);
+  assert.match(html, /<h2 id="agents-title">Agents<\/h2>/);
   const { doc } = documentFixture();
   const host = new Element(); host.ownerDocument = doc;
   let dispose;
   runInNewContext(wiring[0], {
     elements: { agentsMount: host },
-    mountAgents: target => mountAgents(target, { now: () => now, client: {
+    officialMark: () => "",
+    mountAgents: (target, options) => mountAgents(target, { ...options, now: () => now, client: {
       sessions: async () => [record({ state: "waiting" })],
       preferences: async () => { throw new Error("unavailable"); },
     } }),
@@ -210,9 +212,9 @@ test("desktop shell mounts the Agents component inside Home and disposes on unlo
   });
   try {
     await tick();
-    assert.match(host.textContent, /Agents/);
+    assert.match(host.textContent, /Claude Code/);
     assert.match(host.textContent, /Needs you/);
-    assert.match(host.textContent, /This computer/);
+    assert.match(host.textContent, /Show app/);
   } finally { dispose(); }
   assert.equal(host.children.length, 0);
 });

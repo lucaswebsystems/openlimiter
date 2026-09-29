@@ -1,0 +1,225 @@
+/*
+ * The edge panel: a card floating beside the edge tab.
+ *
+ * The window is 360 by 480 and transparent, so the card is drawn inside it
+ * with room for its own shadow, sized to its content and scrolling past the
+ * window. Where the window cannot be transparent (macOS draws it opaque) the
+ * card simply becomes the window.
+ */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+}
+
+body {
+  overflow: hidden;
+  color: var(--ol-body);
+  font-family: var(--ol-font-sans);
+  font-size: var(--ol-text-body);
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+.p-card {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  max-height: calc(100% - 1.5rem);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-surface);
+  box-shadow: var(--ol-shadow-float), var(--ol-elev-1);
+}
+
+:root[data-theme="light"] .p-card {
+  border-color: var(--ol-hairline);
+}
+
+html.opaque body {
+  background: var(--ol-surface);
+}
+
+html.opaque .p-card {
+  inset: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.p-head {
+  display: flex;
+  height: 2.75rem;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.875rem;
+  border-bottom: 1px solid var(--ol-hairline);
+}
+
+.p-head img {
+  width: 1rem;
+  height: 1rem;
+}
+
+.p-head h1 {
+  color: var(--ol-heading);
+  font-size: 0.9375rem;
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.p-updated {
+  margin-left: auto;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  white-space: nowrap;
+}
+
+.p-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--ol-hairline-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.p-agents {
+  padding: 0.5rem 0.5rem 0.25rem;
+  border-bottom: 1px solid var(--ol-hairline);
+}
+
+.p-agents .q-agent-list {
+  padding: 0;
+}
+
+.p-agents .q-note {
+  margin: 0.25rem 0.375rem 0.25rem;
+}
+
+.p-cap {
+  padding: 0.125rem 0.375rem 0.375rem;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1.4;
+}
+
+.p-limits {
+  padding: 0.375rem 0.875rem 0.625rem;
+}
+
+.p-state {
+  display: grid;
+  gap: 0.125rem;
+  padding: 1rem 0.875rem;
+}
+
+.p-state b {
+  color: var(--ol-heading);
+  font-size: var(--ol-text-body);
+  font-weight: var(--ol-weight-semibold);
+}
+
+.p-state span {
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+}
+
+.p-state span:empty,
+.p-state[hidden],
+.p-limits[hidden],
+.p-agents[hidden] {
+  display: none;
+}
+
+.p-foot {
+  display: flex;
+  height: 2.5rem;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.5rem 0 0.875rem;
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.p-sum {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  white-space: nowrap;
+}
+
+/* A hollow ring at rest, a filled blue dot while an agent runs. */
+.p-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  flex: none;
+  border: 1.5px solid currentColor;
+  border-radius: var(--ol-radius-pill);
+}
+
+.p-sum[data-live] {
+  color: var(--ol-soft);
+}
+
+.p-sum[data-live] .p-dot {
+  border-color: var(--ol-accent);
+  background: var(--ol-accent);
+  box-shadow: 0 0 0 3px var(--ol-accent-subtle);
+}
+
+.p-open {
+  display: inline-flex;
+  height: 1.75rem;
+  flex: none;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: var(--ol-radius-xs);
+  background: transparent;
+  color: var(--ol-link);
+  font: inherit;
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-medium);
+  cursor: pointer;
+}
+
+.p-open:hover {
+  background: var(--ol-raised);
+}
+
+.p-open svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.p-open:focus-visible {
+  outline: none;
+  box-shadow: var(--ol-focus-ring);
+}

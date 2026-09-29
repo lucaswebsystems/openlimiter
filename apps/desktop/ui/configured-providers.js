@@ -81,6 +81,7 @@ const ALLOWED = new Set([
   "OPENCODE",
   "GROK",
   "KIMI",
+  "CURSOR",
 ]);
 
 function normalized(provider) {

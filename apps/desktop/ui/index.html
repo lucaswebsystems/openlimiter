@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="./app.css" />
     <link rel="stylesheet" href="./surfaces.css" />
     <link rel="stylesheet" href="./agents.css" />
+    <link rel="stylesheet" href="./quiet.css" />
     <link rel="stylesheet" href="./whats-new.css" />
     <script>
       /*
@@ -300,7 +301,7 @@
         aria-controls="panel-connections"
         tabindex="-1"
       >
-        Connections
+        Connections<span class="tab-count" id="connections-count" aria-hidden="true" hidden></span>
       </button>
       <button
         type="button"
@@ -317,52 +318,52 @@
     <main>
       <section id="panel-meters" role="tabpanel" aria-labelledby="tab-meters" tabindex="-1">
         <div class="desktop-trial" data-desktop-trial hidden></div>
-        <div id="agents-mount"></div>
-        <div class="home-observation">
-          <span class="home-clock">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-              <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-            </svg>
-            <time id="home-observed">No reading yet</time>
-          </span>
-          <button type="button" id="home-refresh">Refresh</button>
-        </div>
-        <p id="home-refresh-status" role="status" aria-live="polite"></p>
 
-        <!-- The stale notice, when nothing on screen is a live reading. -->
-        <p class="stale-strip" id="stale-strip" hidden>
-          <span class="stale-swatch" aria-hidden="true"></span>
-          <span id="stale-strip-text"></span>
-        </p>
-
-        <!-- One alert per provider that failed, in the words the core used. -->
-        <div id="failures" class="stack" hidden></div>
-
-        <!-- The skeleton, at the geometry of the rows it stands in for. -->
-        <div id="loading" class="stack" hidden aria-hidden="true">
-          <div class="skeleton-row">
-            <div class="skeleton-head">
-              <span class="skeleton-bar tile"></span>
-              <span class="skeleton-bar name"></span>
-            </div>
-            <span class="skeleton-bar"></span>
-            <span class="skeleton-bar"></span>
+        <!-- Limits: one card, one group per provider, tightest window first.
+             Only what can be measured right now is here; everything else is
+             a Needs attention row on Connections. -->
+        <section class="q-section" aria-labelledby="limits-title">
+          <div class="q-head">
+            <h2 id="limits-title">Limits</h2>
+            <time id="home-observed" class="q-updated">No reading yet</time>
+            <button type="button" id="home-refresh" class="q-iconbtn" aria-label="Refresh" title="Refresh">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M13.2 8A5.2 5.2 0 1 1 11.7 4.3" /><path d="M13 2.2v3.1H9.9" />
+              </svg>
+            </button>
           </div>
-          <div class="skeleton-row">
-            <div class="skeleton-head">
-              <span class="skeleton-bar tile"></span>
-              <span class="skeleton-bar name"></span>
-            </div>
-            <span class="skeleton-bar"></span>
+          <p id="home-refresh-status" class="q-note" role="status" aria-live="polite"></p>
+
+          <!-- One alert per provider that failed, in the words the core used. -->
+          <div id="failures" class="stack" hidden></div>
+
+          <!-- The skeleton, at the geometry of the groups it stands in for. -->
+          <div id="loading" class="q-card q-skeleton" hidden aria-hidden="true">
+            <span class="q-skel q-skel-name"></span>
+            <span class="q-skel"></span>
+            <span class="q-skel"></span>
           </div>
-        </div>
 
-        <div id="provider-rows" class="provider-rows" aria-label="Provider usage by account"></div>
+          <div id="provider-rows" class="q-card q-limits" aria-label="Limits by provider" hidden></div>
 
-        <!-- Home view empty state. -->
-        <div id="empty" class="empty" hidden>
-          <button type="button" id="empty-connect" class="empty-line">No providers configured. Open Configuration.</button>
-        </div>
+          <div id="empty" class="q-card q-empty" hidden>
+            <span class="q-emptyico" aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false">
+                <path d="M6.6 9.4 9.4 6.6" /><path d="M7.2 4.6 8.4 3.4a2.9 2.9 0 0 1 4.2 4.2l-1.2 1.2M8.8 11.4l-1.2 1.2a2.9 2.9 0 0 1-4.2-4.2l1.2-1.2" />
+              </svg>
+            </span>
+            <div class="q-empty-text">
+              <b>Nothing measurable yet</b>
+              <p>Connect a tool, or open one you already use so it reports its limits.</p>
+            </div>
+            <button type="button" id="empty-connect" class="q-btn q-btn-primary">Open Connections</button>
+          </div>
+        </section>
+
+        <section class="q-section" aria-labelledby="agents-title">
+          <div class="q-head"><h2 id="agents-title">Agents</h2></div>
+          <div id="agents-mount"></div>
+        </section>
       </section>
 
       <section
@@ -408,6 +409,17 @@
         tabindex="-1"
         hidden
       >
+        <!-- Every provider that cannot be measured right now, each with the
+             one thing that fixes it. Home, the tray and the edge panel never
+             show these. -->
+        <section id="needs-attention" class="q-section" aria-labelledby="attention-title" hidden>
+          <div class="q-head">
+            <h2 id="attention-title">Needs attention</h2>
+            <span class="q-badge" id="attention-count"></span>
+          </div>
+          <div id="attention-rows" class="q-card q-flags" role="list"></div>
+        </section>
+
         <!--
           The accounts that exist, what the plan allows, and why any of them is
           paused. It heads this tab because a person who opens Connections

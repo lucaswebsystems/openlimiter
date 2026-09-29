@@ -38,9 +38,9 @@
 }
 
 .desktop-trial .trial-start {
-  background: var(--ol-accent-solid);
-  border-color: var(--ol-accent-solid);
-  color: var(--ol-on-accent);
+  background: var(--ol-primary);
+  border-color: var(--ol-primary);
+  color: var(--ol-on-primary);
 }
 
 .desktop-trial .trial-chip {
@@ -243,7 +243,7 @@ html[data-first-run="complete"] .first-run {
   justify-content: center;
   padding: 0 var(--ol-space-4);
   border: 1px solid var(--ol-hairline-strong);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-xs);
   color: var(--ol-heading);
   font-size: var(--ol-text-caption);
   font-weight: var(--ol-weight-semibold);
@@ -251,9 +251,9 @@ html[data-first-run="complete"] .first-run {
 }
 
 .first-run-empty-action.primary {
-  border-color: var(--ol-accent);
-  background: var(--ol-accent);
-  color: var(--ol-on-accent);
+  border-color: var(--ol-primary);
+  background: var(--ol-primary);
+  color: var(--ol-on-primary);
 }
 
 .first-run-detail::before {
@@ -527,17 +527,6 @@ h1 {
 
 main {
   padding: var(--ol-space-4) var(--ol-space-4) var(--ol-space-5);
-}
-
-.provider-rows {
-  display: block;
-  border-top: 1px solid var(--hairline);
-  background: var(--surface);
-}
-
-.provider-rows > .home-provider-card {
-  display: block;
-  min-width: 0;
 }
 
 /* -------------------------------------------------------------------- cards */
@@ -955,45 +944,6 @@ main {
   margin: var(--ol-space-4) 0 0;
   max-width: 60em;
   font-size: var(--ol-text-caption);
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-.empty {
-  border: 1px solid var(--hairline);
-  border-radius: var(--ol-radius-sm);
-  background: var(--surface);
-  padding: var(--ol-space-7) var(--ol-space-5);
-  text-align: center;
-}
-
-/* No bar on the first launch screen. An empty bar next to a provider's name is
-   the closest thing to a fabricated zero this window can draw. */
-.empty-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  margin-bottom: var(--ol-space-5);
-  border: 1px solid var(--hairline);
-  border-radius: var(--ol-radius-sm);
-  background: var(--raised);
-  color: var(--soft);
-}
-
-.empty h3 {
-  margin: 0;
-  font-family: var(--ol-font-sans);
-  font-weight: var(--ol-weight-semibold);
-  letter-spacing: -0.01em;
-  font-size: var(--ol-text-title);
-  color: var(--heading);
-}
-
-.empty p {
-  margin: var(--ol-space-2) auto 0;
-  max-width: 34em;
-  font-size: var(--ol-text-label);
   line-height: 1.6;
   color: var(--muted);
 }
@@ -1457,9 +1407,7 @@ button.confirming {
   }
 }
 
-.card,
-.provider-rows > .home-provider-card,
-.empty {
+.card {
   animation: rise-in 560ms cubic-bezier(0, 0, 0.58, 1) backwards;
 }
 
@@ -1481,25 +1429,6 @@ button.confirming {
 .card:nth-child(n + 6) {
   animation-delay: 350ms;
 }
-.provider-rows > .home-provider-card:nth-child(1) {
-  animation-delay: 0ms;
-}
-.provider-rows > .home-provider-card:nth-child(2) {
-  animation-delay: 70ms;
-}
-.provider-rows > .home-provider-card:nth-child(3) {
-  animation-delay: 140ms;
-}
-.provider-rows > .home-provider-card:nth-child(4) {
-  animation-delay: 210ms;
-}
-.provider-rows > .home-provider-card:nth-child(5) {
-  animation-delay: 280ms;
-}
-.provider-rows > .home-provider-card:nth-child(n + 6) {
-  animation-delay: 350ms;
-}
-
 /* A panel cross fades in on the same curve over a shorter distance. */
 @keyframes panel-in {
   from {
@@ -1585,7 +1514,7 @@ pre,
 
 .surface {
   border-color: var(--ol-hairline);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-surface);
   box-shadow: var(--ol-elev-1);
 }
@@ -1628,11 +1557,10 @@ button:focus-visible,
   box-shadow: var(--ol-focus-ring);
 }
 
-button.first-run-continue,
-#empty-connect {
-  border-color: var(--ol-accent-solid);
-  background: var(--ol-accent-solid);
-  color: var(--ol-on-accent);
+button.first-run-continue {
+  border-color: var(--ol-primary);
+  background: var(--ol-primary);
+  color: var(--ol-on-primary);
 }
 
 button.first-run-continue:hover,
@@ -1712,7 +1640,7 @@ button.first-run-continue:hover,
   margin: var(--ol-space-2) 0 var(--ol-space-3);
   padding: var(--ol-space-2) var(--ol-space-3);
   border: 1px solid var(--ol-accent-subtle);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-accent-subtle);
   color: var(--ol-accent);
 }
@@ -1761,7 +1689,7 @@ button.first-run-continue:hover,
 .first-run-providers {
   overflow: hidden;
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-surface);
   box-shadow: var(--ol-elev-1);
 }
@@ -1957,7 +1885,7 @@ button.first-run-continue {
   gap: var(--ol-space-3);
   padding: var(--ol-space-4);
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-surface);
   box-shadow: var(--ol-elev-2);
 }
@@ -2091,33 +2019,6 @@ main {
   padding: var(--ol-space-3) var(--ol-space-4) var(--ol-space-6);
 }
 
-.provider-rows {
-  display: grid;
-  gap: var(--ol-space-4);
-  overflow: visible;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.empty {
-  display: block;
-}
-
-.empty-line {
-  width: 100%;
-  padding: var(--ol-space-4);
-  border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-lg);
-  background: var(--ol-surface);
-  color: var(--ol-heading);
-  font-family: var(--ol-font-sans);
-  font-size: var(--ol-text-body);
-  text-align: left;
-  line-height: var(--ol-leading-body);
-}
-
 #panel-connections:not([hidden]) {
   display: grid;
   gap: var(--ol-space-4);
@@ -2127,7 +2028,7 @@ main {
   margin: 0;
   padding: var(--ol-space-2) var(--ol-space-4);
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-surface);
 }
 
@@ -2135,7 +2036,7 @@ main {
   margin: 0;
   padding: var(--ol-space-4);
   border: 1px solid var(--ol-hairline);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-surface);
 }
 
@@ -2143,7 +2044,7 @@ main {
   margin: 0;
   padding: var(--ol-space-3) var(--ol-space-4);
   border-color: var(--ol-hairline);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-surface);
   box-shadow: none;
   transition: background-color var(--ol-motion-fast) var(--ol-ease-out);
@@ -2272,7 +2173,7 @@ pre {
 .provider-directory {
   overflow: hidden;
   padding: 0;
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-sm);
 }
 
 .provider-directory:hover {
@@ -2520,15 +2421,15 @@ pre {
 }
 
 .catalogue-action button.primary {
-  border-color: var(--ol-accent-solid);
-  background: var(--ol-accent-solid);
-  color: var(--ol-on-accent);
+  border-color: var(--ol-primary);
+  background: var(--ol-primary);
+  color: var(--ol-on-primary);
 }
 
 .provider-editor {
   margin-top: var(--ol-space-3);
   border: 1px solid var(--ol-accent-subtle);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-raised);
 }
 
@@ -2536,9 +2437,7 @@ pre {
   background: var(--ol-raised);
 }
 
-.card,
-.provider-rows > .home-provider-card,
-.empty {
+.card {
   animation: panel-in var(--ol-motion-slow) var(--ol-ease-out) backwards;
 }
 
@@ -2575,14 +2474,6 @@ pre {
     display: none;
   }
 
-  .empty {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  #empty-connect {
-    width: 100%;
-  }
 
   .conn-head {
     display: grid;

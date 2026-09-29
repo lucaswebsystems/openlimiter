@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "edge-panel-open-app",
+  "description": "The edge panel's Open app button brings the main window forward: find it, show it, restore it and focus it. Nothing else.",
+  "windows": ["rail-card"],
+  "permissions": [
+    "core:window:allow-get-all-windows",
+    "core:window:allow-show",
+    "core:window:allow-unminimize",
+    "core:window:allow-set-focus"
+  ]
+}

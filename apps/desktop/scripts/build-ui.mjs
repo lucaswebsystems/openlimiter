@@ -254,6 +254,12 @@ const WINDOW_FILES = [
   "edge-tab.css",
   "edge-tab.js",
   "edge-panel.html",
+  "edge-panel.css",
+  "edge-panel.js",
+  /* The one projection, names and drawing Home and the edge panel share. */
+  "names.js",
+  "readings.js",
+  "quiet.css",
   "rail.html",
   "rail.js",
   "rail.css",

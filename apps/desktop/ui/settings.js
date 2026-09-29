@@ -37,6 +37,7 @@ import {
   proService,
   setNotificationSettings,
 } from "./backend.js";
+import { meterLabel, providerName } from "./names.js";
 
 // English catalog for desktop quota alerts. L7 owns translations.
 export const ALERTS_EN = Object.freeze({
@@ -401,10 +402,7 @@ function eventsMarkup(events) {
         escapeText(KIND_LABELS[event.kind] ?? event.kind) +
         '</span><span class="event-body"><strong>' +
         escapeText(
-          (event.provider ?? "") +
-            (event.accountId ? " " + event.accountId : "") +
-            ", " +
-            (event.windowName ?? "")
+          providerName(event.provider) + ", " + meterLabel(event.windowName, event.provider).toLowerCase()
         ) +
         "</strong><span>" +
         escapeText(

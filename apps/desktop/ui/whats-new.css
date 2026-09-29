@@ -5,7 +5,7 @@
   overflow: auto;
   padding: var(--ol-space-5);
   border: 1px solid var(--ol-hairline-strong);
-  border-radius: var(--ol-radius-lg);
+  border-radius: var(--ol-radius-sm);
   background: var(--ol-surface);
   color: var(--ol-body);
   font: inherit;

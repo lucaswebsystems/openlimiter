@@ -1,17 +1,79 @@
-:root { color-scheme: light dark; font: 13px system-ui, sans-serif; }
-* { box-sizing: border-box; }
-html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
-body { background: transparent; color: #172234; }
-.edge-tab { position: relative; width: 100%; height: 100%; display: grid; place-items: center; border-radius: 0 8px 8px 0; background: #f4f6fa; }
-.edge-tab img { width: 20px; height: 20px; max-width: 100%; pointer-events: none; }
-.attention { position: absolute; width: 8px; height: 4px; border-radius: 4px; background: #e99324; bottom: 4px; left: calc(50% - 4px); }
-[hidden] { display: none !important; }
-.edge-panel { height: 100%; overflow: auto; padding: 16px; background: #f4f6fa; overflow-wrap: anywhere; }
-.edge-panel h1 { font-size: 16px; margin: 0 0 12px; }
-.edge-panel p { line-height: 1.5; }
-.edge-panel dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
-.edge-panel dd { margin: 0; }
-@media (prefers-color-scheme: dark) {
-  body { color: #e8edf5; }
-  .edge-tab, .edge-panel { background: #182232; }
+/*
+ * The collapsed edge tab. Its window is 24 by 44 and transparent; the tab is
+ * drawn inside it at 22 by 40, flush with the screen edge, with the mark at
+ * 12 pixels. Hover and an open panel lift it one step. The pill is the only
+ * other mark it ever shows: something needs a look now.
+ */
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.edge-tab {
+  position: absolute;
+  top: 0.125rem;
+  left: 0;
+  display: grid;
+  width: 1.375rem;
+  height: 2.5rem;
+  box-sizing: border-box;
+  place-items: center;
+  padding-right: 0.0625rem;
+  border: 1px solid var(--ol-hairline-strong);
+  border-left: 0;
+  border-radius: 0 var(--ol-radius-xs) var(--ol-radius-xs) 0;
+  background: var(--ol-surface);
+}
+
+.edge-tab img {
+  width: 0.75rem;
+  height: 0.75rem;
+  pointer-events: none;
+}
+
+.edge-tab:hover,
+.edge-tab.open {
+  border-color: var(--ol-control-border);
+  background: var(--ol-elevated);
+}
+
+:root[data-theme="light"] .edge-tab:hover,
+:root[data-theme="light"] .edge-tab.open {
+  background: var(--ol-raised);
+}
+
+.attention {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-band-yellow-fill);
+  box-shadow: 0 0 0 1.5px var(--ol-surface);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* macOS draws this window opaque, so the tab fills it there. */
+html.opaque body {
+  background: var(--ol-surface);
+}
+
+html.opaque .edge-tab {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
 }

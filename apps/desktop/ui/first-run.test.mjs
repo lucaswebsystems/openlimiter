@@ -37,14 +37,17 @@ const providerSpec = (code) =>
    about what a person reads and not about which key made it. */
 const DASH = /[-‐‑‒–—―−]/u;
 
-test("keeps an unconfigured Home to one line pointing at Configuration", () => {
+test("keeps an unconfigured Home to one quiet card pointing at Connections", () => {
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   const start = html.indexOf('<section id="panel-meters"');
-  const end = html.indexOf("</section>", start);
+  const end = html.indexOf('id="panel-spend"', start);
   const panel = html.slice(start, end);
 
-  assert.equal((panel.match(/class="empty-line/g) ?? []).length, 1);
-  assert.match(panel, />No providers configured\. Open Configuration\.<\/button>/u);
+  assert.equal((panel.match(/id="empty"/g) ?? []).length, 1);
+  assert.match(panel, /<div id="empty" class="q-card q-empty" hidden>/u);
+  assert.match(panel, /<b>Nothing measurable yet<\/b>/u);
+  assert.match(panel, /id="empty-connect" class="q-btn q-btn-primary">Open Connections<\/button>/u);
+  const empty = panel.slice(panel.indexOf('<div id="empty"'), panel.indexOf("</section>", panel.indexOf('<div id="empty"')));
 
   /*
    * Home carries the live meter, the stale strip and the failure alerts now,
@@ -60,12 +63,9 @@ test("keeps an unconfigured Home to one line pointing at Configuration", () => {
       assert.match(panel, /id="home-refresh-status"[^>]*><\/p>/u);
       continue;
     }
-    const container = panel.slice(0, paragraph.index);
-    const openedBlock = container.lastIndexOf("<div");
-    const openedHidden =
-      openedBlock >= 0 && /hidden/u.test(panel.slice(openedBlock, panel.indexOf(">", openedBlock)));
+    // The only other paragraph is the empty card's, which ships hidden.
     assert.ok(
-      /hidden/u.test(tag) || openedHidden,
+      /hidden/u.test(tag) || empty.includes(tag),
       "a Home paragraph ships visible: " + tag,
     );
   }

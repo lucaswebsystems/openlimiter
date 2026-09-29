@@ -38,6 +38,8 @@ import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import { configureProvider, unconfigureProvider, isProviderConfigured, readRemovedProviders, homeSelectionControl } from "./configured-providers.js";
 import { normalizeDetections } from "./first-run.js";
 import * as backend from "./backend.js";
+import { renderAttention } from "./readings.js";
+import { say } from "./names.js";
 
 /** The event Rust emits after a native collection pass changes observable state. */
 const COLLECTOR_UPDATED_EVENT = "collector-updated";
@@ -101,6 +103,9 @@ const session = {
   claudeVerdict: null,
   /** The one provider editor visible below the shared directory. */
   activeSetup: null,
+  /** Needs attention, as attentionFlags left it, and the key it was drawn at. */
+  attention: [],
+  attentionKey: "",
 };
 
 /** Wired by initConnections. Nothing here runs before that. */
@@ -1376,6 +1381,62 @@ export function connectionFactFor(provider) {
     state: KNOWN_STATES.has(best.state) ? best.state : null,
     liveOk: best.state === "CONNECTED",
   };
+}
+
+/**
+ * Perform one Needs attention fix. Reconnect and sign in start the provider's
+ * existing connect flow; switch on turns the provider back on; open app has
+ * already asked the person to open that tool, so it only scans again (the tool
+ * refreshes its own sign in, OpenLimiter never does). Resolves false when the
+ * backend refused.
+ */
+async function fixAttention(flag) {
+  if (flag.fixKind === "switch_on") {
+    const saved = await backend.setProviderEnabled(flag.provider, true);
+    if (!saved.ok) return false;
+    configureProvider(flag.provider);
+    options.onMetersChanged();
+    return true;
+  }
+  if (flag.fixKind === "open_app") {
+    const scanned = await backend.rescanDetectedProviders();
+    await syncProviderDetections();
+    render();
+    options.onMetersChanged();
+    return scanned.ok;
+  }
+  openProviderConnection(flag.provider.toLowerCase());
+  return true;
+}
+
+/**
+ * Draw Needs attention and its count on the Connections tab. Called with every
+ * repaint; the rows are rebuilt only when the flags changed, so a fix in flight
+ * keeps its button and its status line.
+ */
+export function showAttention(flags) {
+  session.attention = flags;
+  const section = document.getElementById("needs-attention");
+  const rows = document.getElementById("attention-rows");
+  if (!section || !rows) return;
+  const key = JSON.stringify(flags.map((flag) => [flag.provider, flag.fixKind]));
+  if (key !== session.attentionKey) {
+    session.attentionKey = key;
+    renderAttention(document, rows, flags, { fix: fixAttention });
+  }
+  section.hidden = flags.length === 0;
+  const count = String(flags.length);
+  const badge = document.getElementById("attention-count");
+  if (badge) badge.textContent = count;
+  const tabCount = document.getElementById("connections-count");
+  if (tabCount) {
+    tabCount.hidden = flags.length === 0;
+    tabCount.textContent = count;
+  }
+  const tab = document.getElementById("tab-connections");
+  if (flags.length === 0) tab?.removeAttribute("aria-label");
+  else tab?.setAttribute("aria-label", "Connections, " + (flags.length === 1
+    ? say("attentionOne") : say("attentionMany", { count: flags.length })));
 }
 
 /**

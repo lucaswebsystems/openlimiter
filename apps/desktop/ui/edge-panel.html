@@ -4,19 +4,34 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenLimiter</title>
-  <link rel="stylesheet" href="edge-tab.css">
-  <script type="module" src="edge-tab.js"></script>
+  <link rel="stylesheet" href="./engine/ui/tokens.css">
+  <link rel="stylesheet" href="./quiet.css">
+  <link rel="stylesheet" href="./edge-panel.css">
+  <script type="module" src="edge-panel.js"></script>
 </head>
 <body data-surface="panel">
-  <main class="edge-panel">
-    <h1>Usage and agents</h1>
-    <p id="status" role="status">Loading</p>
-    <dl>
-      <dt>Accounts with readings</dt><dd id="accounts">0</dd>
-      <dt>Agent sessions</dt><dd id="sessions">0</dd>
-      <dt>Needs attention</dt><dd id="attention-count">0</dd>
-    </dl>
-    <p>Your usage panel will appear here.</p>
+  <main class="p-card" aria-labelledby="panel-title">
+    <header class="p-head">
+      <img src="brand/openlimiter-mark.svg" width="16" height="16" alt="">
+      <h1 id="panel-title">OpenLimiter</h1>
+      <span id="panel-updated" class="p-updated"></span>
+    </header>
+    <div class="p-scroll">
+      <section id="panel-agents" class="p-agents" aria-labelledby="panel-agents-title" hidden>
+        <h2 id="panel-agents-title" class="p-cap">Agents</h2>
+        <div id="panel-agent-rows" class="q-agent-list" role="list"></div>
+        <p id="panel-note" class="q-note" role="status"></p>
+      </section>
+      <div id="panel-limits" class="q-limits q-compact p-limits" aria-label="Limits" hidden></div>
+      <div id="panel-state" class="p-state" role="status">
+        <b id="panel-state-title">Loading your limits</b>
+        <span id="panel-state-detail"></span>
+      </div>
+    </div>
+    <footer class="p-foot">
+      <span id="panel-running" class="p-sum"><span class="p-dot" aria-hidden="true"></span><span id="panel-running-text"></span></span>
+      <button type="button" id="panel-open" class="p-open">Open app<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 11 11 5M6 5h5v5"/></svg></button>
+    </footer>
   </main>
 </body>
 </html>
