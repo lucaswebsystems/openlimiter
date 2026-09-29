@@ -47,8 +47,8 @@
     "saveFailed": "No se pudo guardar la visibilidad del Rail. Inténtalo de nuevo."
   },
   "meta": {
-    "title": "OpenLimiter 2.0, límites de codificación con IA y actividad de agentes",
-    "description": "Consulta los límites de codificación con IA en tu escritorio, terminal y teléfono. Sigue a los agentes ocupados, en espera y terminados con alertas locales gratuitas en OpenLimiter 2.0."
+    "title": "OpenLimiter, límites de programación con IA y actividad de agentes",
+    "description": "Consulta los límites de programación con IA en tu escritorio, terminal y teléfono. Sigue a los agentes ocupados, en espera y terminados con alertas locales gratuitas."
   },
   "common": {
     "skipToContent": "Saltar al contenido",
@@ -77,8 +77,8 @@
     "closeMenu": "Cerrar menú"
   },
   "announce": {
-    "message": "OpenLimiter Pro ya está aquí. Todo lo que ves es gratis. Las alertas, el historial, el acceso desde el teléfono, las cuentas adicionales y el seguimiento de gasto por encima de $100 son Pro.",
-    "short": "OpenLimiter Pro ya está aquí",
+    "message": "OpenLimiter Pro ya está aquí. Las alertas del escritorio, el acceso a la cuenta y los medidores locales son gratis. Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube.",
+    "short": "Las alertas del escritorio siguen siendo gratis",
     "dismiss": "Cerrar este aviso"
   },
   "footer": {
@@ -110,7 +110,7 @@
       },
       "account": {
         "title": "La cuenta y Pro",
-        "body": "La cuenta es gratis, y todo lo que ves localmente sigue siendo gratis con ella o sin ella. Iniciar sesión activa la sincronización, porque llevar tus porcentajes entre tus propios dispositivos es para lo que sirve iniciar sesión. Pro son cinco funciones: todas las alertas, noventa días de historial alojado con pronóstico, más de una cuenta por proveedor, un preajuste de visualización Pro, y la beta de gasto de API por encima del techo gratuito. Tres son servicios alojados y dos son interruptores en la aplicación local. El límite gratuito de una cuenta por proveedor lo aplica la aplicación de escritorio como política en código abierto y no como frontera de seguridad, lo que es una promesa sobre cómo se comporta el producto y no una restricción técnica."
+        "body": "La cuenta es gratis, y todo lo que ves localmente sigue siendo gratis con ella o sin ella. Iniciar sesión activa la sincronización, porque para eso sirve llevar tus propios porcentajes entre tus propios dispositivos. Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube. El límite gratuito de una cuenta activa por proveedor lo aplica la aplicación de escritorio como política de código abierto, no como frontera de seguridad."
       },
       "billing": {
         "title": "Cobro",
@@ -157,7 +157,7 @@
   "privacy": {
     "title": "Privacidad",
     "lead": "Qué recoge OpenLimiter, qué no recoge nunca, adónde va cada cosa y cuánto tiempo se guarda. Esto está escrito a partir de los flujos de datos que existen en el producto, no a partir de una plantilla.",
-    "metaDescription": "Cómo trata los datos OpenLimiter. El modo local no recoge nada, los campos de la cuenta y de la sincronización están listados uno por uno, las claves de proveedor se quedan en el llavero del sistema operativo y cada plazo de retención tiene nombre.",
+    "metaDescription": "Cómo trata OpenLimiter los datos. El modo local no recoge nada, los campos de la cuenta y la sincronización están listados uno por uno, las credenciales locales de proveedores permanecen en el almacén del sistema operativo y las claves opcionales de API en la nube se guardan cifradas solo cuando activas la medición.",
     "summary": {
       "title": "La versión corta",
       "bullets": {
@@ -176,7 +176,7 @@
         "reads": "Los conectores leen archivos que tus herramientas ya escribieron, solo lectura. Nunca reescriben, reparan ni migran lo que abren.",
         "credentials": "Las credenciales de proveedor las guarda el almacén de credenciales del sistema operativo. OpenLimiter nunca copia una en una caché, una exportación, un diagnóstico o un registro.",
         "telemetry": "La aplicación no envía telemetría, uso, diagnósticos, identificadores ni contenido de prompts a ninguna parte.",
-        "account": "No hace falta iniciar sesión para usar ninguna función local. Todo lo que ves localmente es gratis, y Pro vende alertas, historial, acceso desde el teléfono, cuentas adicionales y seguimiento de gasto por encima del techo gratuito."
+        "account": "No necesitas iniciar sesión para usar las funciones locales. Los medidores locales y las alertas del escritorio siguen siendo gratis. Pro añade historial alojado, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube."
       }
     },
     "account": {
@@ -211,7 +211,7 @@
     },
     "alerts": {
       "title": "Alertas en el escritorio, por correo y por push",
-      "body": "Todas las alertas forman parte de Pro. Pueden avisarte cuando una ventana pasa del sesenta, el ochenta o el noventa por ciento, y cuando se reinicia. Una notificación de escritorio la dibuja la aplicación en tu propia máquina, el correo lo entrega Resend, y el push el servicio de push de tu navegador o sistema operativo.",
+      "body": "Las alertas del escritorio son gratis. Pro añade alertas por correo y push en el teléfono cuando una ventana cruza el sesenta, ochenta o noventa por ciento, y cuando se reinicia. La aplicación dibuja la notificación del escritorio en tu propio equipo, Resend entrega el correo y el push lo entrega tu navegador o sistema operativo.",
       "bullets": {
         "generic": "Por defecto el mensaje lleva solo el nombre del producto, el nombre del proveedor, el nivel como sesenta, ochenta, noventa o reinicio, una línea genérica y un enlace al producto con la sesión iniciada. Sin porcentaje exacto, sin importe, sin modelo, sin proyecto, sin presupuesto y sin fecha de previsión.",
         "detail": "El correo detallado es un permiso aparte que tienes que aceptar. Puede añadir el porcentaje exacto, el importe, el presupuesto y la fecha de previsión de tus propios datos. Si los campos cambian, la versión del consentimiento cambia y el detalle vuelve a quedar desactivado hasta que lo aceptes de nuevo.",
@@ -351,7 +351,7 @@
       "title": "Tus derechos y los controles que los hacen reales",
       "body": "Un derecho que no puedes ejercer no es un derecho, así que cada punto de abajo es un control del producto y no una solicitud que tengas que redactar.",
       "bullets": {
-        "export": "Exportar todo lo que el servicio alojado guarda sobre ti, como un archivo legible por máquina con una tabla accesible al lado. Las claves de proveedor nunca están en él, porque nunca estuvieron ahí.",
+        "export": "Exporta todo lo que el servicio alojado guarda sobre ti, como un archivo legible por máquina con una tabla accesible al lado. Las claves de proveedor quedan fuera de las exportaciones. Las credenciales locales permanecen en tu dispositivo, mientras que una clave opcional de API en la nube solo se conserva para medir y se elimina cuando la desactivas o lo solicitas.",
         "delete": "Borrar tu cuenta. Los datos de producto se van en veinticuatro horas, las copias de seguridad cifradas caducan en treinta días y nada local se toca.",
         "devices": "Ver todos los dispositivos con sesión en tu cuenta, incluido un teléfono emparejado por QR, y revocar cualquiera. Un dispositivo revocado pierde el acceso alojado de inmediato.",
         "channels": "Desactivar el correo o el push por separado, cuando quieras, sin afectar al otro.",
@@ -439,7 +439,7 @@
     "release": {
       "rail": {
         "title": "Una Rail tranquila. Una petición clara para ti.",
-        "lead": "OpenLimiter 2.0 coloca tus límites de codificación con IA y la actividad de tus agentes en el borde izquierdo de tu escritorio. Mantén la Rail plegada mientras trabajas y despliégala para ver qué agente necesita tu intervención. Los meters locales y las alertas del escritorio son gratis, con una cuenta activa por proveedor.",
+        "lead": "OpenLimiter coloca tus límites de programación con IA y la actividad de los agentes en el borde izquierdo de tu escritorio. Mantén la Rail plegada mientras trabajas y ábrela para ver qué agente necesita intervención. Los medidores locales y las alertas del escritorio son gratis, con una cuenta activa por proveedor.",
         "folded": "Plegada en el borde izquierdo, con el uso y la actividad a la vista.",
         "unfolded": "Despliega la Rail para leer la tarjeta y localizar la aplicación del agente.",
         "foldedAlt": "La Rail real de OpenLimiter plegada contra el borde izquierdo, con meters sintéticos de proveedores y actividad de agentes.",
@@ -476,7 +476,7 @@
     "title": "Tu día de programación en un solo lugar",
     "lead": "Los meters de uso locales y la lista de agentes comparten la Home de escritorio. Consulta qué tan reciente es una lectura, cuándo se reinicia su ventana y qué agente compatible necesita tu atención.",
     "screenshot": {
-      "alt": "La Home de escritorio de OpenLimiter 2.0 con lecturas de uso sintéticas y una lista de agentes que muestra sesiones en espera, ocupadas y terminadas."
+      "alt": "La pantalla Home de escritorio de OpenLimiter con lecturas sintéticas de uso y una lista de agentes con sesiones en espera, ocupadas y terminadas."
     },
     "caption": "La interfaz real de escritorio renderizada sin interfaz gráfica, con fixtures sintéticos. No aparece ninguna cuenta personal, credencial ni cifra de uso real."
   },
@@ -520,11 +520,11 @@
       },
       "openCode": {
         "tag": "lee una sesión que ya abriste",
-        "detail": "Describe la vista de uso detrás de una sesión existente. Es el que carga el mayor riesgo de automatización de los nueve, y se detiene en el momento en que esa sesión expira."
+        "detail": "Lee el uso de OpenCode mediante su adaptador experimental e indica con claridad la versión y la configuración necesarias."
       },
       "gemini": {
         "tag": "lee la cuota de modelos mediante la CLI instalada",
-        "detail": "Lee la respuesta de cuota mediante la sesión de Gemini CLI que ya existe en este dispositivo."
+        "detail": "Lee el uso de Gemini CLI en los datos de la sesión local e informa la ventana del proveedor cuando está disponible."
       },
       "grok": {
         "tag": "lee ventanas de suscripción de la sesión local",
@@ -543,19 +543,19 @@
     "surfaces": {
       "statusline": {
         "name": "Claude Code statusline",
-        "detail": "Una línea junto a tu prompt: el peor meter por proveedor, con un código de motivo por delante. Recurre a la caché y nunca bloquea la herramienta que la llamó."
+        "detail": "Lee localmente la línea de estado del proveedor y muestra su ventana de cuota actual sin enviar credenciales."
       },
       "promptHook": {
         "name": "Claude Code prompt hook",
-        "detail": "Un bloque acotado al enviar el prompt, delimitado dentro de un límite explícito de datos no confiables. Cuando todos los proveedores están unknown, no inyecta nada."
+        "detail": "Un hook acotado puede capturar eventos del prompt como datos no confiables, sin acción del proveedor cuando se desconoce el origen."
       },
       "shell": {
         "name": "Cualquier shell",
-        "detail": "Toda la instantánea como tabla para ti, o como JSON para un script, leída directamente desde la caché local, sin daemon en el medio. El modo local tiene cero telemetría y ninguna cuenta; cuando un proveedor se conecta a través de la aplicación de escritorio, esa conexión habla solo con el propio endpoint del proveedor, nunca con OpenLimiter."
+        "detail": "Ejecuta comandos del shell como fuente de verdad, con permisos explícitos, salida limitada y sin acceso oculto a la red."
       },
       "fileWriter": {
         "name": "Cualquier herramienta que pueda escribir un archivo",
-        "detail": "Una orden genérica toma una carga para cualquier connector, así que un proveedor sin integración igual puede alimentarse desde un script que tú controlas."
+        "detail": "Escribe una instantánea local para tus propias herramientas, con rutas explícitas y sin solicitudes ocultas al proveedor."
       },
       "ci": {
         "name": "Integración continua",
@@ -574,7 +574,7 @@
     "groups": {
       "today": {
         "label": "Ya distribuidos",
-        "note": "Nueve connectors se distribuyen en este release"
+        "note": "Ocho conectores se incluyen en esta versión"
       },
       "planned": {
         "label": "Planeados",
@@ -700,7 +700,7 @@
   },
   "cliTranscript": {
     "captions": {
-      "demo": "Los nueve connectors, un solo esquema",
+      "demo": "Los ocho conectores, un esquema",
       "statusline": "Statusline, barras donde ya miras",
       "statuslineNarrow": "Una fila, se conservan los peores proveedores",
       "statuslinePlain": "La línea de 0.1.0, si la pides",
@@ -755,7 +755,7 @@
     "items": {
       "whatLeaves": {
         "question": "¿Qué sale realmente de mi máquina?",
-        "answer": "En modo local, nada sale hacia OpenLimiter. Las conexiones con proveedores solo hablan con ese proveedor mediante una lista fija de permisos, y las credenciales se quedan en tu dispositivo. Cuando inicias sesión, instantáneas seleccionadas y acotadas de quota van al servicio alojado para que tus propios dispositivos puedan verlas. Pro añade alertas remotas, historial alojado y pronósticos. Las alertas locales son gratuitas. Las credenciales de los proveedores nunca van allí."
+        "answer": "En modo local, nada sale hacia OpenLimiter. Las conexiones con proveedores solo hablan con ese proveedor mediante una lista fija de permisos, y las credenciales locales se quedan en tu dispositivo. Cuando inicias sesión, instantáneas seleccionadas y acotadas de cuota van al servicio alojado para que tus propios dispositivos puedan verlas. Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube. Una clave de API que autorizas para medir en la nube se guarda cifrada para ese trabajo y se elimina al desactivarla o solicitarlo. Las alertas del escritorio son gratis."
       },
       "safeToPoint": {
         "question": "¿Es seguro apuntarlo a mis herramientas?",
@@ -787,29 +787,29 @@
       },
       "free": {
         "question": "¿Es gratis?",
-        "answer": "Todo lo que ves es gratis y siempre lo será, bajo Apache 2.0. La cuenta de OpenLimiter es gratis. Las alertas, noventa días de historial, el acceso desde el teléfono, más de una cuenta por proveedor y el seguimiento de gasto por encima de $100 por mes natural para cada fuente son Pro. Solo se sincronizan porcentajes de uso, nunca claves ni credenciales."
+        "answer": "Todo lo que ves es gratis y siempre lo será, bajo Apache 2.0. La cuenta de OpenLimiter es gratis. Las alertas del escritorio son gratis. Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube. Solo se sincronizan porcentajes de uso, nunca credenciales locales de proveedores."
       },
       "pro": {
         "question": "¿Qué es OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro cuesta $5 al mes o $50 al año, con los primeros 30 días gratis y sin tarjeta. Añade cinco cosas: todas las alertas, como aviso de escritorio, correo y push en el teléfono al 60, 80 y 90 por ciento y al reiniciarse; noventa días de historial alojado con pronóstico; más de una cuenta por proveedor; un acento o preajuste de densidad Pro; y medidores de gasto de API en una beta etiquetada por encima del techo gratuito de $100 por mes natural para cada fuente. Tres de ellas son servicios alojados y dos son interruptores en la aplicación local. Reembolso completo a petición dentro de los 14 días siguientes a cualquier cargo."
+        "answer": "OpenLimiter Pro cuesta 5 USD al mes o 50 USD al año, con los primeros 30 días gratis y sin tarjeta. Añade cuatro cosas: historial con pronóstico; alertas por correo y push en el teléfono al 60, 80 y 90 por ciento y al reiniciar; más de una cuenta por proveedor; y medición de gasto de API en la nube para las claves que autorices. Las alertas del escritorio, los medidores locales y el acceso a la cuenta siguen siendo gratis. Puedes solicitar un reembolso completo durante los 14 días posteriores a cualquier cargo."
       },
       "alerts": {
         "question": "¿Recibo alertas cuando una ventana se llena?",
-        "answer": "Sí, con Pro. Todas las alertas forman parte de Pro: una notificación de escritorio, un correo y un push en el teléfono, al 60, 80 y 90 por ciento de una ventana y otra vez cuando esa ventana se reinicia. Esos cuatro momentos son el producto, no un ajuste. Una carga de push nunca lleva detalle de uso, así que una pantalla bloqueada nunca muestra uno."
+        "answer": "Sí. Las alertas del escritorio son gratis. Pro añade alertas por correo y push en el teléfono al 60, 80 y 90 por ciento de una ventana y de nuevo cuando se reinicia. Esos cuatro momentos son el producto, no una configuración. La carga del push nunca contiene detalles de uso, así que una pantalla bloqueada nunca muestra ninguno."
       },
       "phoneAccess": {
         "question": "¿Puedo ver mi quota en el teléfono?",
-        "answer": "Sí, con Pro. La aplicación de escritorio muestra un código QR que vive dos minutos, lo escaneas con el teléfono y apruebas el emparejamiento de vuelta en el escritorio. El teléfono pasa a tener un token de solo lectura: nunca puede cambiar la cuenta ni subir nada, y revocar ese dispositivo desde el escritorio o desde la página de tu cuenta termina su acceso de inmediato."
+        "answer": "Sí. La aplicación de escritorio muestra un código QR válido durante dos minutos. Lo escaneas con el teléfono y apruebas la vinculación en el escritorio. El teléfono guarda un token de solo lectura: nunca puede cambiar la cuenta ni subir nada, y revocar ese dispositivo desde el escritorio o la página de la cuenta termina su acceso de inmediato. El acceso desde el teléfono no requiere Pro."
       },
       "spendCeiling": {
-        "question": "¿Cuánto gasto de API registra el plan gratuito?",
-        "answer": "Hasta $100 por mes natural para cada fuente, y Pro va por encima. Los medidores de gasto de API son una beta etiquetada que lee la propia superficie de facturación del proveedor, así que necesitan una clave de administrador de organización o de gestión, y una clave de proyecto no sirve. Moonshot se lee como saldo y no como gasto, en tres cifras separadas, y nunca se convierte en un total mensual, un pronóstico o una alerta de presupuesto."
+        "question": "¿Qué incluye la medición de gasto de API en la nube?",
+        "answer": "La medición de gasto de API en la nube es una beta de Pro para las claves que autorices explícitamente. Lee la superficie de facturación del proveedor, por lo que necesita una clave de administración de organización y una clave de proyecto no funciona. Moonshot se lee como saldo, no como gasto, en tres cifras separadas, y nunca se convierte en un total mensual, un pronóstico o una alerta de presupuesto."
       }
     }
   },
   "pricing": {
     "title": "Precios",
-    "lead": "Los meters locales, las alertas locales y el acceso a la cuenta son gratuitos, con una cuenta activa por proveedor. Pro añade alertas remotas, historial alojado, cuentas adicionales y más.",
+    "lead": "Los medidores locales, las alertas del escritorio y el acceso a la cuenta son gratis, con una cuenta activa por proveedor. Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube.",
     "plannedChip": "planeado",
     "free": {
       "status": "disponible",
@@ -835,14 +835,14 @@
       "perYear": "al año",
       "trialChip": "30 días gratis",
       "priceNote": "Los primeros 30 días son gratis y sin tarjeta. Cuando el acceso termina, las funciones Pro se detienen: las alojadas de inmediato, y las locales vuelven a una cuenta por proveedor y al tema estándar. Todo lo que veías antes de Pro sigue igual.",
-      "lead": "Cinco funciones Pro. Tres son servicios alojados y dos son interruptores en la aplicación local.",
+      "lead": "Cuatro funciones Pro: historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube.",
       "footnote": "Después del periodo de prueba, los meters locales, las alertas locales y el acceso gratuito a la cuenta siguen funcionando. La versión gratuita mantiene una cuenta activa por proveedor.",
       "lines": {
-        "alerts": "Alertas remotas por correo y push en el teléfono. Las alertas locales del escritorio son gratuitas",
-        "themes": "Un acento o preajuste de densidad Pro, aplicado en la aplicación local",
-        "multiSubscription": "Más de una cuenta por proveedor, desbloqueada en la aplicación local",
-        "heavyApi": "Medidores de gasto de API, en beta. El plan gratis registra hasta $100 por mes natural para cada fuente y Pro va por encima",
-        "history": "Noventa días de historial alojado, con un pronóstico hasta el día en que una ventana se agota"
+        "alerts": "Alertas por correo y push en el teléfono. Las alertas locales del escritorio son gratis",
+        "themes": "Historial y pronósticos para lecturas sincronizadas",
+        "multiSubscription": "Cuentas adicionales por proveedor",
+        "heavyApi": "Medición de gasto de API en la nube con claves de proveedor autorizadas",
+        "history": "Noventa días de historial alojado, con un pronóstico"
       },
       "cta": "Empieza tu periodo de prueba gratuito de 30 días",
       "conditions": "Los medidores de gasto necesitan una clave de administrador de organización. Reembolso completo en 14 días, cancela cuando quieras en el portal de Stripe. Vendido por Lucas Costa, pagos gestionados por Stripe.",
@@ -861,7 +861,7 @@
       },
       "reportsNobody": {
         "title": "No le reporta a nadie",
-        "detail": "La aplicación no informa a nadie. No envía telemetría en ningún modo. Este sitio cuenta vistas de página sin cookies, lo que es un recuento de páginas y no un perfil tuyo. Pro es opcional y recibe solo instantáneas acotadas de cuota después de iniciar sesión, nunca credenciales de proveedor."
+        "detail": "La aplicación no informa a nadie. No envía telemetría en ningún modo. Este sitio cuenta vistas de página sin cookies, lo que es un recuento de páginas y no un perfil tuyo. Pro es opcional y recibe instantáneas acotadas de cuota después de iniciar sesión. Solo recibe una clave de API cuando activas explícitamente la medición en la nube, y únicamente para ese trabajo."
       },
       "unknownStaysUnknown": {
         "title": "Unknown se queda unknown",
@@ -1019,7 +1019,7 @@
               "node": "Node 24 o posterior para el terminal.",
               "npm": "npm viene incluido con Node."
             },
-            "local": "Nada local queda nunca detrás de un pago. La aplicación de escritorio y el terminal muestran barras sin cuenta. Una cuenta solo añade sincronización."
+            "local": "Los medidores locales, las alertas del escritorio y el terminal siguen siendo gratis. Una cuenta añade sincronización, y Pro añade historial alojado, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube."
           },
           "terminal": {
             "title": "Terminal",
@@ -1042,7 +1042,7 @@
             "intro": "Las barras son gratuitas para siempre y no necesitan ninguna cuenta.",
             "bullets": {
               "sync": "Una cuenta añade sincronización: el porcentaje actual de cada ventana se mantiene actualizado entre todos los dispositivos donde inicias sesión.",
-              "pro": "Pro añade historial, alertas, el teléfono, varias cuentas por proveedor y medición en la nube para claves de gasto de API.",
+              "pro": "Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición en la nube para claves de gasto de API.",
               "trial": "Cada función Pro ofrece una prueba gratuita de 30 días, sin tarjeta."
             }
           },
@@ -1128,12 +1128,12 @@
       },
       "providers": {
         "title": "Supported providers",
-        "description": "The nine connectors that ship today: how you connect each one, what it reads, and how likely it is to break.",
-        "lead": "Nine connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
+        "description": "Los ocho conectores disponibles hoy: cómo conectar cada uno, qué lee y qué probabilidad tiene de fallar.",
+        "lead": "Hoy hay ocho conectores. Cada uno lleva etiquetas claras sobre el origen de sus credenciales, el carácter oficial de su interfaz de datos y la probabilidad de fallar.",
         "sections": {
           "the-nine": {
-            "title": "The nine connectors",
-            "caption": "Connectors that ship today, how you connect each one, and what it reads",
+            "title": "Los ocho conectores",
+            "caption": "Conectores disponibles hoy, cómo conectar cada uno y qué lee",
             "columns": {
               "id": "id",
               "connect": "connect",
@@ -1220,7 +1220,7 @@
           },
           "not-yet": {
             "title": "Connectors that do not exist yet",
-            "body": "Only the nine above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
+            "body": "Solo los ocho de arriba son reales. Cualquier otra opción que esperes no está construida, no está programada y no debes asumir que existe. Si una suscripción no tiene conector, la ruta manual la cubre hoy con números que introduces tú."
           },
           "api-spend-keys": {
             "title": "Claves de gasto de API",
@@ -1313,12 +1313,12 @@
             },
             "what-this-is-not-claiming": {
               "title": "Lo que esta página no está afirmando",
-              "body": "No que los trece estén en pantalla en todas partes. La aplicación web y la herramienta de línea de comandos siguen mostrando el vocabulario más simple de tres chips de arriba, porque ninguna de las dos lee a un proveedor en vivo por su cuenta. Los trece estados son reales y están probados en el paquete núcleo del que está construido este producto, y nombran el ciclo de vida general que sigue una conexión dondequiera que exista un lector en vivo, que hoy es la propia pantalla de Conexiones de la aplicación de escritorio, en vez de esta página."
+              "body": "Los trece estados no aparecen en todas las pantallas. La aplicación web y la herramienta de línea de comandos muestran el vocabulario sencillo de tres chips cuando no hay un lector en vivo. La línea de comandos puede solicitar una actualización en vivo cuando existe un lector configurado. Los trece estados son reales y están probados en el paquete central, y la pantalla Connections del escritorio los muestra durante el ciclo de vida de una conexión."
             }
           },
           "what-changes": {
             "title": "Qué cambia con una conexión en vivo",
-            "intro": "Nada en esta página es una fecha o una promesa para la aplicación web o la herramienta de línea de comandos, que permanecen en los tres chips de arriba porque ninguna de las dos lee a un proveedor en vivo. Cuando un proveedor gana un lector real, la descripción honesta de él deja de ser un chip fijo y pasa a ser el que corresponda de los trece estados de arriba en ese momento: detectado, esperando una credencial, conectando, conectado, o, cuando algo sale mal, degradado, obsoleto o necesitando una revisión. Esa es la razón para nombrar aquí todo el vocabulario, para que la frase que lee una persona no cambie mientras el estado debajo de ella se mueve.",
+            "intro": "Nada en esta página es una fecha ni una promesa. La aplicación web y la herramienta de línea de comandos usan los tres chips anteriores cuando no hay un lector en vivo, mientras que un lector configurado en la línea de comandos puede actualizar un proveedor. Cuando un proveedor tiene un lector real, su descripción honesta es uno de los trece estados que encaja en ese momento: detectado, esperando una credencial, conectando, conectado o, cuando algo falla, degradado, obsoleto o necesitado de atención.",
             "noReader": "No todos los proveedores tienen ese lector hoy; la propia pantalla de Conexiones de la aplicación de escritorio es donde aparece primero uno en vivo. Consulta el <roadmap>roadmap</roadmap> para ver qué está planeado y qué no, y <providers>proveedores compatibles</providers> para ver qué puede hacer realmente cada connector ahora mismo."
           }
         }
@@ -1333,7 +1333,7 @@
             "title": "Qué hace OpenLimiter",
             "body": "OpenLimiter reúne cada ventana de quota que expone un proveedor compatible, muestra cuánto se usó y cuándo se reinicia, y ofrece consejo limitado de enrutamiento para ti y tu agente de código. Es un medidor y consejero. Nunca gasta quota, cambia un plan ni elige un proveedor sin ti.",
             "calloutTitle": "Lo local sigue siendo gratis",
-            "calloutBody": "El medidor local, todos los conectores locales, la aplicación de escritorio y la herramienta de línea de comandos son gratis para siempre y de código abierto. El plan de pago opcional contiene solamente alertas alojadas, historial, pronósticos y enrutamiento de agentes."
+            "calloutBody": "El medidor local, cada conector local, la aplicación de escritorio y la herramienta de línea de comandos son gratis para siempre y de código abierto. El plan de pago opcional incluye historial alojado, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube. Las alertas del escritorio siguen siendo gratis."
           },
           "discovery": {
             "title": "Cómo funciona la detección",
@@ -1348,7 +1348,7 @@
           },
           "providers": {
             "title": "Proveedores y lecturas compatibles",
-            "intro": "La aplicación de escritorio es compatible con cinco familias de proveedores. Cada fila nombra con claridad la lectura y su fuente.",
+            "intro": "La aplicación de escritorio admite ocho conectores de proveedores. Cada fila nombra con claridad la lectura y su fuente.",
             "caption": "Lecturas compatibles y sus fuentes",
             "columns": {
               "provider": "proveedor",
@@ -1585,7 +1585,7 @@
             },
             "opencode": {
               "calloutTitle": "OpenCode is an explicit opt in",
-              "calloutBody": "OpenCode documents no prompt injection event. The adapter uses an undocumented transform, is pinned to the exact version it was inspected against, and does nothing at all unless <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> is set both when installing and when running. It is experimental on purpose, it can stop working at any release, and it is not part of what this version promises."
+              "calloutBody": "OpenCode no documenta ningún evento de inyección de prompts. El adaptador usa una transformación no documentada, está fijado a la versión exacta contra la que se inspeccionó y no hace nada en absoluto a menos que <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> esté configurado tanto al instalar como al ejecutar. Es experimental a propósito, puede dejar de funcionar en cualquier versión y no forma parte de lo que promete esta versión."
             },
             "grok": {
               "title": "Grok Build, and why there is no hook",
@@ -1746,7 +1746,7 @@
           "credentials": {
             "title": "Credenciales",
             "calloutTitle": "Las claves pertenecen al almacén de credenciales del sistema operativo",
-            "calloutBody": "La única credencial de la que OpenLimiter tiene algún concepto es una clave de OpenRouter, y pertenece al almacén de credenciales de tu sistema operativo. Nunca debe aparecer en archivos del repositorio, archivos de caché, exportaciones, diagnósticos, fixtures ni registros. Los artefactos de autenticación del proveedor se abren de solo lectura y nunca se reescriben, respaldan, reparan ni migran.",
+            "calloutBody": "OpenLimiter lee localmente los artefactos de autenticación de proveedores y puede aceptar una clave de API para la medición opcional en la nube. Las credenciales locales pertenecen al almacén del sistema operativo. Una clave de medición en la nube solo se envía al punto final fijo del proveedor o al servicio alojado cifrado que actives. Ninguno de los dos tipos puede aparecer en archivos del repositorio, caché, exportaciones, diagnósticos, fixtures ni registros. Los artefactos de proveedores se abren en modo de solo lectura y nunca se reescriben, respaldan, reparan ni migran.",
             "stub": "La llamada a la librería de credenciales está detrás de una interfaz, y el adaptador está en stub en este release, así que <code>openlimiter init</code> no puede guardar una clave hasta que se suministre un driver. Nada más en tu máquina se toca."
           },
           "detection": {
@@ -1867,7 +1867,7 @@
               "noServer": "<strong>El modo local no llega a ningún servidor de OpenLimiter.</strong> No se envía nada a los autores del proyecto, porque en modo local no hay adónde enviarlo. El servicio alojado existe solo para la cuenta gratuita, para la sincronización y para Pro, y solo después de iniciar sesión.",
               "noTelemetry": "<strong>No hay telemetría.</strong> Ningún comando envía uso, diagnósticos, identificadores ni prompts a ninguna parte, en ningún modo. El estado de cuota sale de tu máquina solo mediante la sincronización, solo después de iniciar sesión, y solo como las lecturas acotadas que puedes desactivar.",
               "hookNoNetwork": "<strong>El hook no hace ninguna solicitud de red.</strong> Lee la caché local y nada más.",
-              "noEgress": "<strong>El modo local no envía nada a OpenLimiter.</strong> Las conexiones hablan solo con cada proveedor. Pro opcional envía datos limitados de cuota al servicio después de iniciar sesión, nunca credenciales del proveedor.",
+              "noEgress": "<strong>El modo local no envía nada a OpenLimiter.</strong> Las conexiones hablan solo con cada proveedor mediante una lista fija de permisos. Pro opcional envía instantáneas acotadas de cuota al servicio alojado después de iniciar sesión. Una clave de API que autorizas explícitamente para medir en la nube se envía una vez por HTTPS y se guarda cifrada para ese trabajo. Las credenciales locales de proveedores nunca salen del dispositivo.",
               "unknownNeverZero": "<strong>Unknown nunca se convierte en cero.</strong> Lo ausente, lo expirado, lo malformado y lo no reconocido, todo se resuelve como unknown.",
               "readOnlyArtifacts": "<strong>Los artefactos de autenticación del proveedor son de solo lectura.</strong> Nunca se reescriben, respaldan, reparan ni migran."
             }
@@ -1885,7 +1885,7 @@
           },
           "secrets": {
             "title": "Manejo de secretos",
-            "intro": "La única credencial de la que el proyecto tiene algún concepto es una clave de OpenRouter, y pertenece al almacén de credenciales de tu sistema operativo. Nunca debe aparecer en archivos del repositorio, archivos de caché, exportaciones, diagnósticos, fixtures ni registros. La llamada a la librería de credenciales está detrás de una interfaz, y las pruebas usan solo una implementación en memoria con una clave sintética.",
+            "intro": "El proyecto lee localmente los artefactos de autenticación de proveedores y puede aceptar una clave de API para la medición opcional en la nube. Las credenciales locales pertenecen al almacén del sistema operativo. Una clave de nube activada solo se envía a su punto final fijo o al servicio alojado de medición cifrado, y nunca debe aparecer en archivos del repositorio, caché, exportaciones, diagnósticos, fixtures ni registros. La llamada a la biblioteca de credenciales está detrás de una interfaz y las pruebas solo usan una implementación en memoria con una clave sintética.",
             "local-state": {
               "title": "Estado local",
               "body": "El directorio de estado se crea con permisos restrictivos donde la plataforma los admite, una ruta que resulta ser un enlace simbólico se rechaza en vez de seguirse, y cada reemplazo de archivo es atómico. Consulta <docs>configuración</docs> para ver las rutas."
@@ -1897,7 +1897,7 @@
             "bullets": {
               "noOfficialApi": "La mayoría de los proveedores de suscripción para consumidores no ofrecen una API de quota oficial. Varios connectors describen por lo tanto interfaces no oficiales que pueden cambiar o desaparecer sin aviso.",
               "unverified": "Cada connector se distribuye marcado <code>UNVERIFIED</code>. Nada aquí fue confirmado contra una cuenta real por un verificador explícito.",
-              "opencode": "El connector de OpenCode describe la forma de una página autenticada y lleva un riesgo de automatización alto. Trátalo como el más frágil de los nueve.",
+              "opencode": "El conector OpenCode describe la forma de una página autenticada y tiene un alto riesgo de automatización. Trátalo como el más frágil de los ocho.",
               "adviceOnly": "OpenLimiter entrega consejos de enrutamiento. No enruta solicitudes de forma automática, no evade límites, ni cambia cómo se autentica tu agente."
             }
           },
@@ -1914,7 +1914,7 @@
           },
           "reporting": {
             "title": "Reportar un problema",
-            "address": "Reporta una vulnerabilidad sospechada en privado a <code>security@openlimiter.com</code>. Incluye una descripción concisa, la versión afectada, pasos de reproducción usando datos sintéticos y el impacto esperado. No incluyas credenciales reales ni datos de cuenta de proveedor. Esa dirección es un marcador de posición del proyecto hasta que se active la recepción pública de seguridad.",
+            "address": "Reporta una sospecha de vulnerabilidad de forma privada a <code>lucas@lucaswebsystems.com</code>. Incluye una descripción concisa, la versión afectada, pasos de reproducción con datos sintéticos y el impacto esperado. No incluyas credenciales reales ni datos de cuenta de proveedores. Una persona lee los informes en este contacto público.",
             "scope": "En alcance: divulgación de secretos, modificación de artefactos de proveedor, comportamiento inseguro de caché, evasión de enlace simbólico, evasión de los límites del parser, inyección en agent context y salida de red inesperada. La deriva de un connector sin impacto de seguridad es un problema de compatibilidad, así que abre en cambio una solicitud de connector. La política completa está en <policy>SECURITY.md</policy>, y el razonamiento en <threat>THREAT_MODEL.md</threat>.",
             "supported": "Solo la última versión publicada recibe correcciones de seguridad durante el período de desarrollo inicial."
           }
@@ -1941,9 +1941,9 @@
           },
           "mobile": {
             "title": "Shipped: the phone, planned: a native app",
-            "intro": "The phone pairs from the hub by QR code, with nothing typed, and installs to its home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen. That is available today, on Pro.",
+            "intro": "El teléfono se vincula desde el hub mediante un código QR, sin escribir nada, y se instala en la pantalla de inicio: Android ofrece instalarlo y en iOS se usa Compartir y después Añadir a pantalla de inicio. El acceso desde el teléfono está disponible hoy con una cuenta gratis.",
             "bullets": {
-              "status": "Status: phone pairing and the installable web app are shipped, on Pro.",
+              "status": "Estado: la vinculación del teléfono y la aplicación web instalable están disponibles con una cuenta gratis.",
               "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
             }
           },
@@ -1992,7 +1992,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Todo lo que ves es gratis. Las alertas, el historial, el acceso desde el teléfono, las cuentas adicionales y el seguimiento de gasto por encima de $100 son Pro.",
+    "lead": "Todo lo que ves es gratis. Pro añade historial, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube.",
     "metaDescription": "Inicia sesión para gestionar tu plan OpenLimiter Pro, tu facturación y los dispositivos que leen tu quota.",
     "loading": "Leyendo tu cuenta.",
     "working": "Procesando",
@@ -2023,14 +2023,14 @@
       "trial": {
         "chip": "prueba",
         "title": "Estás en la prueba gratuita",
-        "body": "Todos los servicios Pro están activos: alertas, noventa días de historial con pronóstico, acceso desde el teléfono por QR, cuentas adicionales y seguimiento de gasto más allá del techo gratuito de $100 por mes natural para cada fuente. No se pidió ninguna tarjeta.",
+        "body": "Todos los servicios Pro están activos: historial con pronóstico, alertas por correo y push en el teléfono, cuentas adicionales y medición de gasto de API en la nube para las claves que autorices. No se pidió ninguna tarjeta.",
         "daysLeft": "Prueba: {count, plural, one {# día restante} other {# días restantes}}.",
         "ends": "Termina el {date}."
       },
       "active": {
         "chip": "activo",
         "title": "Pro está activo",
-        "body": "Las alertas, el historial, el acceso desde el teléfono, las cuentas adicionales y el seguimiento de gasto por encima del techo gratuito están todos activos.",
+        "body": "El historial, las alertas por correo y push en el teléfono, las cuentas adicionales y la medición de gasto de API en la nube están activos.",
         "renewsOn": "Se renueva el {date}.",
         "endsOn": "Termina el {date} y no se renueva."
       },
@@ -2080,7 +2080,7 @@
     },
     "trial": {
       "title": "Iniciar Pro gratis durante 30 días",
-      "body": "Treinta días del perfil completo de Pro: alertas al 60, 80 y 90 por ciento y al reiniciar, historial, acceso desde el teléfono, varias cuentas y contexto alojado.",
+      "body": "Treinta días de Pro: historial, alertas por correo y push en el teléfono al 60, 80 y 90 por ciento y al reiniciar, cuentas adicionales y medición de gasto de API en la nube.",
       "start": "Iniciar Pro gratis durante 30 días",
       "free": "No necesitas tarjeta de crédito"
     },
@@ -2099,7 +2099,7 @@
       "history": "Tu historial se guarda por treinta días y luego se elimina.",
       "phone": "Teléfono vinculado: {status}.",
       "multiAccount": "{count} cuentas adicionales se detuvieron.",
-      "hostedContext": "Contexto alojado: {status}.",
+      "hostedContext": "Medición de gasto de API en la nube: {status}.",
       "paired": "sí",
       "notPaired": "no",
       "on": "activado",
@@ -2152,7 +2152,7 @@
         "macos": "Abre Terminal, pulsa Command y Espacio, escribe Terminal, pulsa Enter, pega el comando y pulsa Enter.",
         "linux": "Abre tu terminal, pega el comando y pulsa Enter."
       },
-      "requirementBefore": "Se necesita Node 18 o una versión posterior. Si no lo tienes, consíguelo en",
+      "requirementBefore": "Se necesita Node 24 o una versión posterior. Si no lo tienes, consíguelo en",
       "nodeLink": "nodejs.org",
       "requirementAfter": ".",
       "nextTitle": "Qué ocurre después",
@@ -2204,7 +2204,7 @@
       "label": "Comienza tu prueba gratuita",
       "title": "Iniciar Pro gratis durante 30 días",
       "lead": "Un botón activa Pro con el perfil recomendado completo.",
-      "profile": "El perfil completo de Pro incluye alertas al 60, 80 y 90 por ciento y al reiniciar, historial, acceso desde el teléfono, varias cuentas y contexto alojado.",
+      "profile": "El perfil completo de Pro incluye historial, alertas por correo y push en el teléfono al 60, 80 y 90 por ciento y al reiniciar, cuentas adicionales y medición de gasto de API en la nube.",
       "progress": "Paso {step} de {total}",
       "back": "Atrás",
       "cancel": "Ahora no",
@@ -2230,7 +2230,7 @@
         "title": "Pro se activó",
         "ends": "Tu prueba termina el {date}.",
         "endsUnknown": "Tu prueba dura 30 días.",
-      "lead": "Se activaron las alertas al 60, 80 y 90 por ciento y al reiniciar, el historial, el acceso desde el teléfono, varias cuentas y el contexto alojado.",
+      "lead": "Se activaron el historial, las alertas por correo y push en el teléfono al 60, 80 y 90 por ciento y al reiniciar, las cuentas adicionales y la medición de gasto de API en la nube.",
         "bars": "Ver mis barras"
       },
       "error": {
@@ -2245,8 +2245,8 @@
     "pro": {
       "label": "Pro",
       "locked": {
-        "title": "Alertas, historial, teléfono y cuentas adicionales",
-        "lead": "Tus barras son gratis y siguen siendo gratis. Estos cuatro son Pro."
+        "title": "Historial, alertas, cuentas adicionales y medición en la nube",
+        "lead": "Tus barras y las alertas del escritorio son gratis. Estas funciones Pro están disponibles con una prueba."
       },
       "expired": {
         "title": "Pro ha terminado",
@@ -2255,7 +2255,7 @@
       "feature": {
         "alerts": "Alertas por correo y push en el teléfono. Las alertas locales del escritorio son gratuitas.",
         "history": "Noventa días de historial, con un pronóstico.",
-        "phone": "Tus barras en tu teléfono, emparejadas con un código QR.",
+        "phone": "Medidores de gasto de API en la nube para las claves que autorices.",
         "multiAccount": "Más de una cuenta para cada proveedor."
       },
     "lost": {
@@ -2264,7 +2264,7 @@
         "history": "Tu historial se guarda por treinta días y luego se elimina.",
         "phone": "Teléfono vinculado: {status}.",
         "multiAccount": "{count} cuentas adicionales se detuvieron.",
-        "hostedContext": "Contexto alojado: {status}.",
+        "hostedContext": "Medición de gasto de API en la nube: {status}.",
         "paired": "sí",
         "notPaired": "no",
         "on": "activado",
