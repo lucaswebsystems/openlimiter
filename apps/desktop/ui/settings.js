@@ -38,6 +38,19 @@ import {
   setNotificationSettings,
 } from "./backend.js";
 
+// English catalog for desktop quota alerts. L7 owns translations.
+export const ALERTS_EN = Object.freeze({
+  title: "Desktop alerts",
+  localFreeTitle: "Desktop alerts stay free",
+  localFree: "Desktop alerts stay free, with or without an account. Phone push and email are Pro.",
+  signInLead: "Every bar and every desktop alert is free with no account, and signing in brings sync to your phone, with Pro adding phone push, email and more than one account per provider.",
+  thresholds: "OpenLimiter tells you when a window crosses a threshold, and once more when it resets.",
+  quietPrefix: "Desktop alerts are held from ",
+  snooze: "Hold desktop alerts for a while. Anything raised during a snooze is dropped rather than stacked up, so it never arrives all at once when the snooze ends.",
+  channelOn: "Desktop alerts on",
+  channelOff: "Desktop alerts off",
+});
+
 // English catalog for the Home and Settings trial control. L7 owns translations.
 export const TRIAL_EN = Object.freeze({
   start: "Start your free 30 day Pro trial",
@@ -296,7 +309,7 @@ export function quietSentence(settings) {
   }
   const crosses = start > end;
   return (
-    "Push alerts are held from " +
+    ALERTS_EN.quietPrefix +
     start +
     " until " +
     end +
@@ -501,12 +514,13 @@ export async function renderSettings(mount) {
   mount.innerHTML =
     railSettingsMarkup() +
     '<section class="surface block" aria-labelledby="alerts-title">' +
-    '<div class="block-head"><h2 id="alerts-title">Alerts</h2>' +
+    '<div class="block-head"><h2 id="alerts-title">' + escapeText(ALERTS_EN.title) + '</h2>' +
     switchMarkup("alerts-enabled", enabled) +
     "</div>" +
     /* The switches below say which crossings to choose. The note says only
        what a crossing is. */
-    '<p class="note tight">OpenLimiter tells you when a window crosses a threshold, and once more when it resets.</p>' +
+    '<p class="note tight">' + escapeText(ALERTS_EN.localFree) + '</p>' +
+    '<p class="note tight">' + escapeText(ALERTS_EN.thresholds) + '</p>' +
     '<div class="stack">' +
     THRESHOLDS.map(
       (threshold) =>
@@ -569,7 +583,7 @@ export async function renderSettings(mount) {
 
     '<section class="surface block" aria-labelledby="snooze-title">' +
     '<h2 id="snooze-title">Snooze</h2>' +
-    '<p class="note tight">Hold every push for a while. Anything raised during a snooze is dropped rather than stacked up, so it never arrives all at once when the snooze ends.</p>' +
+    '<p class="note tight">' + escapeText(ALERTS_EN.snooze) + '</p>' +
     '<div class="button-row">' +
     SNOOZE_WINDOWS.map(
       (window) =>
@@ -590,7 +604,7 @@ export async function renderSettings(mount) {
     '<span class="badge" data-tone="' +
     (enabled ? "ok" : "") +
     '">' +
-    (enabled ? "Push on" : "Push off") +
+    escapeText(enabled ? ALERTS_EN.channelOn : ALERTS_EN.channelOff) +
     "</span></div>" +
     '<div class="line"><span class="line-label"><strong>Channel version</strong>' +
     "<span>Every change to these settings raises this number and cancels work already queued under the old one. A message accepted by the sender a moment earlier can still arrive.</span></span>" +
