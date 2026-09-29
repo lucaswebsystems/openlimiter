@@ -13,8 +13,8 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
   const locale = await pageLocale(params);
   const t = await getTranslations({ locale, namespace: "download" });
   return pageMetadata({
-    title: t("metaTitle"),
-    description: t("metaDescription"),
+    title: t("metaTitle", { version: CURRENT_VERSION }),
+    description: t("metaDescription", { version: CURRENT_VERSION }),
     route: "/download",
     locale,
   });
@@ -31,11 +31,10 @@ export default async function DownloadPage({ params }: LocaleParams) {
   const releaseUrl = `${REPO_URL}/releases/tag/v${CURRENT_VERSION}`;
 
   return (
-    <PageShell title={t("title")} lead={t("metaDescription")}>
+    <PageShell title={t("title")} lead={t("metaDescription", { version: CURRENT_VERSION })}>
       <JsonLd data={await softwareApplicationSchema(locale)} />
       <div className="py-10 md:py-16">
-        <p className="mb-8 max-w-3xl text-base leading-relaxed text-soft">{t("releaseLead")}</p>
-        <p className="mb-6 text-xs text-muted"><time dateTime={SITE_CONTENT_UPDATED}>{t("updated")}</time></p>
+        <p className="mb-6 text-center text-xs text-muted"><time dateTime={SITE_CONTENT_UPDATED}>{t("updated")}</time></p>
         <DownloadChoice
           windowsHref={primaryDownloadHref("windows")}
           linuxHref={primaryDownloadHref("linux")}

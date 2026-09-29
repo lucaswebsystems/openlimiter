@@ -153,6 +153,9 @@ export function verifyManifest(manifest, { config, workflow, assetsDir, tag }) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  // A release and the site ship together: the site must name the version this tag builds.
+  const siteVersion = readFileSync(resolve(root, "apps/web/lib/site.ts"), "utf8").match(/CURRENT_VERSION = "([^"]+)"/u)?.[1];
+  requireCondition(siteVersion === config.version, `apps/web/lib/site.ts says ${siteVersion}, the desktop app is ${config.version}`);
   const manifestIndex = process.argv.indexOf("--manifest");
   if (manifestIndex >= 0) {
     const manifestPath = process.argv[manifestIndex + 1];

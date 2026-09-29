@@ -874,10 +874,9 @@
     "readSource": "Read the source"
   },
   "download": {
-    "releaseLead": "Get OpenLimiter 2.0.0 for Windows, macOS or Linux, or install the command line tool from npm. Local meters and desktop alerts are free, with one active account per provider. These desktop builds are unsigned. Sign in to a free account to see synchronized readings on your phone.",
     "updated": "Updated September 28, 2026",
-    "metaTitle": "Download 2.0.0 for desktop and terminal",
-    "metaDescription": "Download OpenLimiter 2.0.0 for Windows, macOS or Linux, or install the CLI from npm. Free local meters and alerts. Desktop builds are unsigned.",
+    "metaTitle": "Download {version} for desktop and terminal",
+    "metaDescription": "Download OpenLimiter {version} for Windows, macOS or Linux, or install the CLI from npm. Free local meters and alerts. Desktop builds are unsigned.",
     "title": "Download",
     "lead": "Windows, macOS and Linux desktop builds are available now. Windows and macOS ship unsigned, so each one asks you to allow it once: on Windows choose More info then Run anyway, and on macOS open System Settings, go to Privacy and Security, and choose Open Anyway. macOS ships as one universal disk image that runs on Apple silicon and on Intel. npm and the web app are also available.",
     "choice": {
