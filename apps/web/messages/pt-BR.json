@@ -880,6 +880,10 @@
     "title": "Download",
     "lead": "As builds de desktop para Windows, macOS e Linux já estão disponíveis. Windows e macOS saem sem assinatura, então cada um pede autorização uma vez: no Windows escolha Mais informações e depois Executar assim mesmo, e no macOS abra Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Mesmo Assim. O macOS sai como uma única imagem de disco universal que roda em Apple silicon e em Intel. npm e o web app também estão disponíveis.",
     "choice": {
+      "windowsSummary": "Build sem assinatura. Se o SmartScreen avisar, escolha Mais informações e depois Executar assim mesmo.",
+      "macosSummary": "Build universal sem assinatura para Apple silicon e Intel. Autorize uma vez em Privacidade e Segurança.",
+      "linuxSummary": "Escolha AppImage, deb ou rpm para sua distribuição. O AppImage roda depois que você define o bit executável.",
+      "detected": "Detectado",
       "windows": "Baixar para Windows",
       "linux": "Baixar para Linux",
       "macos": "Baixar para macOS",
@@ -887,6 +891,10 @@
       "smartScreen": "Esta versão para Windows não é assinada, então o SmartScreen pode avisar: escolha Mais informações e depois Executar assim mesmo.",
       "openAnyway": "Esta build de macOS não é assinada. Abra uma vez, depois abra os Ajustes do Sistema, vá em Privacidade e Segurança e escolha Abrir Mesmo Assim. A imagem de disco é universal, então roda em Apple silicon e em Intel. As atualizações automáticas chegam com as builds assinadas.",
       "linuxNote": "Pacotes AppImage, deb e rpm disponíveis. Executa diretamente sem aviso de assinatura."
+    },
+    "preview": {
+      "title": "Aplicativo de desktop OpenLimiter",
+      "alt": "Tela inicial do OpenLimiter mostrando meters de provedores, o Rail e atividade dos agentes"
     },
     "versionLine": "Versão {version}",
     "releaseNotes": "Notas de lançamento",
@@ -899,7 +907,16 @@
       "title": "Disponível agora",
       "lead": "Windows, macOS e Linux têm builds de desktop empacotadas, e cada link abaixo leva direto ao arquivo. A ferramenta de linha de comando é um npm install em qualquer plataforma, ou um clone se você preferir compilar do código. O web app não precisa de instalação."
     },
+    "packages": {
+      "title": "Outros pacotes de desktop",
+      "lead": "Escolha o pacote que combina com a forma como você administra sua máquina. Cada link baixa o arquivo do release atual.",
+      "windows": "Use o MSI para instalações administradas em várias máquinas Windows. Use o instalador acima para uma máquina comum.",
+      "linux": "Escolha deb para Debian ou Ubuntu, rpm para Fedora ou openSUSE, ou AppImage para uma instalação portátil."
+    },
     "phone": {
+      "iphoneGuide": "Abra o web app no Safari, toque em Compartilhar e escolha Adicionar à Tela de Início. Entre para manter suas leituras sincronizadas por perto.",
+      "androidGuide": "Abra o web app no Chrome, abra o menu e escolha Instalar aplicativo ou Adicionar à tela inicial. Entre para continuar.",
+      "openApp": "Abrir o web app",
       "title": "No seu celular",
       "lead": "Isso instala o web app na sua tela de início. Nenhum aplicativo nativo para iOS ou Android foi construído.",
       "qrAlt": "Código QR apontando para {url}",

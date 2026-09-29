@@ -880,6 +880,10 @@
     "title": "ダウンロード",
     "lead": "Windows、macOS、Linux のデスクトップビルドが利用できます。Windows と macOS は署名されていないため、それぞれ一度だけ許可を求めます。Windows では詳細情報を選び、実行を選びます。macOS ではシステム設定を開き、プライバシーとセキュリティで、このまま開くを選びます。macOS は Apple silicon と Intel の両方で動くひとつのユニバーサルディスクイメージとして配布されます。npm と Web アプリも利用できます。",
     "choice": {
+      "windowsSummary": "未署名のビルドです。SmartScreenが警告したら、詳細情報を選び、実行を選択してください。",
+      "macosSummary": "Apple siliconとIntelに対応したユニバーサル未署名ビルドです。プライバシーとセキュリティで一度だけ許可します。",
+      "linuxSummary": "ディストリビューションに合わせてAppImage、deb、rpmを選べます。AppImageは実行権限を設定して起動します。",
+      "detected": "検出済み",
       "windows": "Windows版をダウンロード",
       "linux": "Linux版をダウンロード",
       "macos": "macOS版をダウンロード",
@@ -887,6 +891,10 @@
       "smartScreen": "このWindows版は未署名のためSmartScreenが警告する場合があります。詳細情報を選び、実行を選択してください。",
       "openAnyway": "この macOS ビルドは署名されていません。一度開いたあと、システム設定を開き、プライバシーとセキュリティで、このまま開くを選びます。ディスクイメージはユニバーサルなので、Apple silicon と Intel の両方で動きます。自動更新は署名済みビルドとともに提供されます。",
       "linuxNote": "AppImage、deb、rpmパッケージを提供しています。署名警告なしで直接実行できます。"
+    },
+    "preview": {
+      "title": "OpenLimiterデスクトップアプリケーション",
+      "alt": "プロバイダーのメーター、Rail、エージェントのアクティビティを表示したOpenLimiterのホーム画面"
     },
     "versionLine": "バージョン {version}",
     "releaseNotes": "リリースノート",
@@ -899,7 +907,16 @@
       "title": "今すぐ利用可能",
       "lead": "Windows、macOS、Linuxにはパッケージ済みのデスクトップビルドがあり、下のリンクはどれもファイルに直接つながります。コマンドラインツールはどのプラットフォームでもnpm installひとつ、あるいは自分でビルドしたい場合はcloneひとつです。Web appは何もインストールせずに動きます。"
     },
+    "packages": {
+      "title": "その他のデスクトップパッケージ",
+      "lead": "マシンの管理方法に合うパッケージを選んでください。各リンクは現在のリリースのファイルを直接ダウンロードします。",
+      "windows": "複数のWindowsマシンを管理する場合はMSIを使います。通常のマシンには上のインストーラーを使います。",
+      "linux": "DebianまたはUbuntuはdeb、FedoraまたはopenSUSEはrpm、ポータブルな導入にはAppImageを選びます。"
+    },
     "phone": {
+      "iphoneGuide": "SafariでWebアプリを開き、共有をタップしてホーム画面に追加を選びます。サインインすると同期した読み取りを近くで確認できます。",
+      "androidGuide": "ChromeでWebアプリを開き、メニューからアプリをインストールまたはホーム画面に追加を選びます。サインインして続けます。",
+      "openApp": "Webアプリを開く",
       "title": "スマートフォンで",
       "lead": "これはWebアプリをホーム画面にインストールするものです。ネイティブのiOSやAndroidアプリケーションは作られていません。",
       "qrAlt": "{url}へのリンクを含むQRコード",

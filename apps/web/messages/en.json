@@ -880,13 +880,21 @@
     "title": "Download",
     "lead": "Windows, macOS and Linux desktop builds are available now. Windows and macOS ship unsigned, so each one asks you to allow it once: on Windows choose More info then Run anyway, and on macOS open System Settings, go to Privacy and Security, and choose Open Anyway. macOS ships as one universal disk image that runs on Apple silicon and on Intel. npm and the web app are also available.",
     "choice": {
+      "windowsSummary": "Unsigned build. If SmartScreen warns, choose More info, then Run anyway. Install the desktop app in one step.",
+      "macosSummary": "Universal unsigned build for Apple silicon and Intel. Allow it once in Privacy and Security, then open the app.",
+      "linuxSummary": "Choose AppImage, deb or rpm for your distribution. AppImage runs after you set its executable bit.",
+      "detected": "Detected",
       "windows": "Download for Windows",
       "linux": "Download for Linux",
       "macos": "Download for macOS",
       "other": "Other platforms",
-      "smartScreen": "This Windows build is unsigned, so SmartScreen may warn you: choose More info, then Run anyway.",
-      "openAnyway": "This macOS build is unsigned. Open it once, then open System Settings, go to Privacy and Security, and choose Open Anyway. The disk image is universal, so it runs on Apple silicon and on Intel. Automatic updates arrive with signed builds.",
-      "linuxNote": "AppImage, deb and rpm packages are available. Runs directly with no signing warning."
+      "smartScreen": "Unsigned build. If SmartScreen warns, choose More info, then Run anyway. Install the desktop app in one step.",
+      "openAnyway": "Universal unsigned build for Apple silicon and Intel. Allow it once in Privacy and Security, then open the app.",
+      "linuxNote": "Choose AppImage, deb or rpm for your distribution. AppImage runs after you set its executable bit."
+    },
+    "preview": {
+      "title": "OpenLimiter desktop application",
+      "alt": "OpenLimiter desktop home screen showing provider meters, the Rail and agent activity"
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release notes",
@@ -903,7 +911,16 @@
       "title": "On your phone",
       "lead": "This installs the web app to your home screen. No native iOS or Android application is built.",
       "qrAlt": "QR code linking to {url}",
-      "scan": "Scan this with your phone's camera. The web app opens, and you install it to the home screen from there."
+      "scan": "Scan this with your phone's camera. The web app opens, and you install it to the home screen from there.",
+      "iphoneGuide": "Open the web app in Safari, tap Share, then choose Add to Home Screen. Sign in there to keep your synced readings close.",
+      "androidGuide": "Open the web app in Chrome, open the menu, then choose Install app or Add to Home screen. Sign in to continue.",
+      "openApp": "Open the web app"
+    },
+    "packages": {
+      "title": "Other desktop packages",
+      "lead": "Choose the package that matches how you manage your machine. Each link downloads the file from the current release.",
+      "windows": "Use the MSI for managed installs across several Windows machines. Use the installer above for one normal machine.",
+      "linux": "Choose deb for Debian or Ubuntu, rpm for Fedora or openSUSE, or AppImage for a portable install."
     },
     "building": {
       "title": "Coming soon",
