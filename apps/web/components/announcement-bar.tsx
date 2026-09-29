@@ -53,11 +53,11 @@ export async function AnnouncementBar() {
   return (
     <div className="announce-bar bg-announce text-announce-fg">
       <div
-        className={`${SHELL} flex h-[var(--ol-announce-h)] items-center gap-2`}
+        className={`${SHELL} announce-inner`}
       >
         <SiteLink
           href={ANNOUNCE_HREF}
-          className="focus-ring-inset group flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors duration-200"
+          className="announce-link focus-ring-inset group flex min-w-0 items-center justify-center gap-1.5 rounded text-center text-xs font-medium transition-colors duration-200"
         >
           <span className="sr-only">{t("message")}</span>
           {/* A small spark on the left, drawn here: the promo is a founding
@@ -78,7 +78,7 @@ export async function AnnouncementBar() {
               is a word no translator can be handed. Both are complete in every
               language, the visible pair is hidden from assistive technology, and
               the sentence a screen reader gets sits above them. */}
-          <span aria-hidden="true" className="truncate">
+          <span aria-hidden="true" className="min-w-0 [text-wrap:balance]">
             <span className="hidden sm:inline">{t("message")}</span>
             <span className="sm:hidden">{t("short")}</span>
           </span>

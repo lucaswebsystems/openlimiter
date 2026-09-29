@@ -50,7 +50,7 @@ export function ScrollTop() {
         const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
       }}
-      className={`focus-ring fixed bottom-5 right-5 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full border border-hairline bg-surface text-soft shadow-[0_8px_20px_-10px_rgb(0_0_0/0.6)] transition-[opacity,transform,color,border-color] duration-200 hover:border-hairline-strong hover:text-accent ${
+      className={`focus-ring fixed bottom-5 right-5 z-30 inline-flex h-11 w-11 items-center justify-center rounded-full border border-hairline bg-surface text-soft shadow-floating transition-[opacity,transform,color,border-color] duration-200 hover:border-hairline-strong hover:text-accent ${
         shown ? "cursor-pointer opacity-100" : "pointer-events-none translate-y-2 opacity-0"
       }`}
     >

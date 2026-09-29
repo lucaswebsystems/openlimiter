@@ -1,7 +1,7 @@
 import { Analytics } from "@vercel/analytics/next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
-import { Inter } from "next/font/google";
+import { Baloo_2, Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import { AnnouncementBar } from "@/components/announcement-bar";
 import { Footer } from "@/components/footer";
@@ -22,6 +22,23 @@ const inter = Inter({
   variable: "--ol-font-inter",
   preload: true,
 });
+
+const baloo = Baloo_2({
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
+  variable: "--ol-font-baloo",
+  preload: true,
+});
+
+// Resolve the OS preference before paint without persisting it as a choice.
+export const siteThemeArmScript = themeArmScript + [
+  "(function(){var r=document.documentElement;",
+  "var explicit=r.getAttribute('data-theme');",
+  "r.setAttribute('data-theme-source',explicit==='light'||explicit==='dark'?'user':'system');",
+  "if(r.getAttribute('data-theme-source')==='system'){",
+  "r.setAttribute('data-theme',window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');",
+  "}})();",
+].join("");
 
 /**
  * The document, in one place, for all three root layouts.
@@ -136,12 +153,12 @@ export async function SiteHtml({
   const offer = localised ? await localeOfferCopy() : null;
 
   return (
-    <html lang={locale} className={inter.variable} suppressHydrationWarning>
-      <body className="min-h-screen bg-canvas font-sans text-body antialiased selection:bg-accent-subtle selection:text-heading">
+    <html lang={locale} className={`${inter.variable} ${baloo.variable}`} suppressHydrationWarning>
+      <body className="site-centered min-h-screen bg-canvas font-sans text-center text-body antialiased selection:bg-accent-subtle selection:text-heading">
         {/* These synchronous scripts are the first body children, before any
             visible content, so stored presentation state is applied before
             paint without maintaining a hand written document head. */}
-        <script dangerouslySetInnerHTML={{ __html: themeArmScript }} />
+        <script dangerouslySetInnerHTML={{ __html: siteThemeArmScript }} />
         <script dangerouslySetInnerHTML={{ __html: markArmScript }} />
         <script dangerouslySetInnerHTML={{ __html: motionArmScript }} />
         <script dangerouslySetInnerHTML={{ __html: announceArmScript }} />

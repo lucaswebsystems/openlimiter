@@ -83,8 +83,19 @@
 
   --font-sans: var(--ol-font-sans);
   --font-mono: var(--ol-font-mono);
+  --font-heading: var(--ol-font-heading);
+  --spacing: var(--ol-space-1);
+  --spacing-section: var(--ol-section-gap);
+  --spacing-section-heading: var(--ol-section-heading-gap);
+  --text-2xs: var(--ol-text-micro);
+  --text-2xs--line-height: var(--ol-space-4);
+  --radius-phone: var(--ol-radius-phone);
+  --shadow-sheet: var(--ol-shadow-sheet);
+  --shadow-floating: var(--ol-shadow-floating);
 
   --radius-sm: var(--ol-radius-xs);
+  --radius: var(--ol-radius-xs);
+  --radius-full: var(--ol-radius-pill);
   --radius-md: var(--ol-radius-sm);
   --radius-lg: var(--ol-radius-md);
   --radius-xl: var(--ol-radius-lg);
@@ -101,123 +112,14 @@
   --color-band-green-label: var(--ol-band-green-label);
 }
 
-@theme {
-  /* The plain system stack, exactly as the reference uses it. There is no
-     brand face on this site: headings, body and the wordmark all render in
-     whatever the visitor's operating system calls its interface font. */
-  --font-sans: var(--ol-font-sans);
-  --font-mono: var(--ol-font-mono);
-
-  --text-2xs: 0.6875rem;
-  --text-2xs--line-height: 1rem;
-
-  /* The one radius the standard scale does not cover: a phone shell. */
-  --radius-phone: 2.5rem;
-}
-
-/* Site layout aliases. Visual values stay in the canonical token sheet. */
+/* Site layout aliases. Values live in the canonical token sheet. */
 :root {
-  /*
-    The three window control dots on the desktop mockup.
-
-    They are the platform's own traffic light colours rather than this
-    product's palette, which is exactly why they belong here: a component that
-    carries a literal is a component that can drift, and the whole point of a
-    borrowed colour is that it never does. Same value in both themes, because
-    the window chrome they imitate does not change with a theme either.
-  */
-  --ol-window-close: #ff5f57;
-  --ol-window-minimise: #febc2e;
-  --ol-window-zoom: #28c840;
-
-  /*
-    Microsoft's four squares, at the values Microsoft publishes.
-
-    Same reasoning as the window dots above, and the same reasoning the token
-    sheet gives for the provider marks it already carries: a borrowed mark is
-    reproduced unmodified, so its colours are facts rather than choices, and a
-    fact written inside a component is a fact that can drift. The Google mark
-    beside it is served as a file for the same reason. Identical in both
-    themes, because a brand mark does not follow a theme.
-  */
-  --ol-provider-microsoft-red: #f25022;
-  --ol-provider-microsoft-green: #7fba00;
-  --ol-provider-microsoft-blue: #00a4ef;
-  --ol-provider-microsoft-yellow: #ffb900;
-  --ol-font-heading: var(--ol-font-baloo, "Baloo 2"), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --ol-font-sans: var(--ol-font-inter, "Inter"), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --ol-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-
-  /* 5 Band Quota System Tokens (Dark Theme) */
-  --ol-band-green-fill: #2ea043;
-  --ol-band-green-label: #3fb950;
-  --ol-band-green-subtle: rgb(46 160 67 / 0.14);
-
-  --ol-band-yellow-fill: #d29922;
-  --ol-band-yellow-label: #e3b341;
-  --ol-band-yellow-subtle: rgb(210 153 34 / 0.14);
-
-  --ol-band-orange-fill: #db6d28;
-  --ol-band-orange-label: #ffa657;
-  --ol-band-orange-subtle: rgb(219 109 40 / 0.14);
-
-  --ol-band-red-fill: #f85149;
-  --ol-band-red-label: #ff7b72;
-  --ol-band-red-subtle: rgb(248 81 73 / 0.14);
-
-  --ol-band-stale-fill: #72839b;
-  --ol-band-stale-label: #929ead;
-  --ol-band-stale-subtle: rgb(114 131 155 / 0.14);
-
-  --ol-meter-hatched-pattern: repeating-linear-gradient(
-    45deg,
-    #72839b 0,
-    #72839b 6px,
-    #202b3b 6px,
-    #202b3b 12px
-  );
-  --ol-band-hatched-pattern: var(--ol-meter-hatched-pattern);
-  --ol-band-hatched-label: var(--ol-band-stale-label);
-
-  --ol-announce: var(--ol-accent-solid);
+  --ol-announce: var(--ol-announcement-background);
   --ol-announce-fg: var(--ol-on-accent);
   --ol-announce-h: var(--ol-control-height);
   --ol-nav-dark-surface: var(--ol-fixed-dark-canvas);
   --ol-nav-dark-line: var(--ol-fixed-dark-hairline);
   --ol-header-h: calc(var(--ol-space-7) + var(--ol-space-6));
-}
-
-:root[data-theme="light"] {
-  /* 5 Band Quota System Tokens (Light Theme) */
-  --ol-band-green-fill: #1a7f37;
-  --ol-band-green-label: #116329;
-  --ol-band-green-subtle: rgb(26 127 55 / 0.14);
-
-  --ol-band-yellow-fill: #9e6a03;
-  --ol-band-yellow-label: #744210;
-  --ol-band-yellow-subtle: rgb(158 106 3 / 0.14);
-
-  --ol-band-orange-fill: #bc4c00;
-  --ol-band-orange-label: #872b00;
-  --ol-band-orange-subtle: rgb(188 76 0 / 0.14);
-
-  --ol-band-red-fill: #cf222e;
-  --ol-band-red-label: #82071e;
-  --ol-band-red-subtle: rgb(207 34 46 / 0.14);
-
-  --ol-band-stale-fill: #617087;
-  --ol-band-stale-label: #46566b;
-  --ol-band-stale-subtle: rgb(97 112 135 / 0.14);
-
-  --ol-meter-hatched-pattern: repeating-linear-gradient(
-    45deg,
-    #617087 0,
-    #617087 6px,
-    #d7e1ee 6px,
-    #d7e1ee 12px
-  );
-  --ol-band-hatched-pattern: var(--ol-meter-hatched-pattern);
-  --ol-band-hatched-label: var(--ol-band-stale-label);
 }
 
 *,
@@ -275,6 +177,51 @@ body {
   background-color: var(--ol-canvas);
   color: var(--ol-body);
   overflow-x: hidden;
+}
+
+/* Public prose stays centered across breakpoints. Code retains whitespace and
+   alignment, while product controls keep their own layout contract. */
+.site-centered :where(h1, h2, h3, h4, h5, h6, p, figcaption, blockquote),
+.page-shell,
+.site-footer,
+#nav-sheet,
+.locale-offer {
+  text-align: center;
+}
+
+.site-centered :where(p, blockquote),
+.page-shell > :where(article, section, [class*="max-w-"]) {
+  margin-inline: auto;
+}
+
+.site-centered :where(pre, pre code) {
+  text-align: start;
+}
+
+.site-footer nav {
+  align-items: center;
+  justify-content: center;
+}
+
+.locale-offer > div {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.page-shell {
+  padding-bottom: var(--ol-section-gap);
+}
+
+.shell-sections > * + * {
+  margin-top: var(--ol-section-gap);
+}
+
+.section-band {
+  padding-block: calc(var(--ol-section-gap) / 2);
+}
+
+.section-band-compact {
+  padding-block: calc(var(--ol-section-compact-gap) / 2);
 }
 
 /* Official provider colour is confined to provider artwork. */
@@ -364,6 +311,33 @@ body {
   accent outline on an accent band is invisible. Inside the bar it is drawn in
   the bar's own foreground token instead.
 */
+.announce-bar {
+  flex: none;
+  background: var(--ol-announce);
+  color: var(--ol-announce-fg);
+}
+
+/* Equal side tracks center the message independently of the dismiss button.
+   The bar may grow for translated text but can never collapse to a strip. */
+.announce-inner {
+  display: grid;
+  grid-template-columns: var(--ol-control-height) minmax(0, 1fr) var(--ol-control-height);
+  align-items: center;
+  gap: var(--ol-space-2);
+  min-height: var(--ol-control-height);
+  padding-block: var(--ol-space-1);
+}
+
+.announce-link {
+  grid-column: 2;
+  min-height: calc(var(--ol-control-height) - 2 * var(--ol-space-1));
+}
+
+.announce-inner > .announce-dismiss {
+  grid-column: 3;
+  margin: 0;
+}
+
 :root[data-announce="off"] {
   --ol-announce-h: 0px;
 }
@@ -483,7 +457,7 @@ body:has(main[data-quiet-chrome]) .locale-offer {
   color: var(--ol-soft);
   font: inherit;
   font-size: var(--ol-text-label);
-  text-align: left;
+  text-align: center;
 }
 
 .ol-switch:hover {
@@ -545,11 +519,8 @@ body:has(main[data-quiet-chrome]) .locale-offer {
   correct icon is right on the very first paint with no hydration step and no
   browser globals read during render.
 
-  No media query in here, on purpose: the palette above renders DARK whenever
-  the attribute is not "light", whatever the system preference says, so the
-  icon has to follow the attribute and only the attribute. The old media
-  keyed rules showed a light system visitor the moon while the page was
-  actually dark.
+  The document bootstrap resolves the OS preference to the same attribute
+  used by the palette. Explicit choices override subsequent OS changes.
 */
 .icon-to-light {
   display: none;
@@ -571,12 +542,8 @@ body:has(main[data-quiet-chrome]) .locale-offer {
   are in the markup at identical dimensions, so the swap cannot move anything:
   one of them is `display: none` and neither ever loads at a different size.
 
-  Only the attribute is consulted, and `prefers-color-scheme` deliberately is
-  not, because the palette above does not consult it either: this product is
-  dark first for every visitor whatever their system says, and light is reached
-  only by asking for it. A media query here would put a light screenshot on a
-  dark page for anybody whose laptop is in light mode, which is exactly the
-  defect this pair exists to remove.
+  The document bootstrap resolves the OS preference before paint. The toggle
+  keeps this attribute current, so imagery and palette always change together.
 */
 .shot-light {
   display: none;
