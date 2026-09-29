@@ -112,3 +112,25 @@ export function messyFixtures(now = Date.now()) {
   ];
   return { raw, projected, active, sessions };
 }
+
+/** Nothing connected yet: no displayable row and nothing flagged. */
+export function emptyFixtures() {
+  return { raw: { version: 2, snapshots: [], suppressions: [] }, projected: { version: 2, snapshots: [], flags: [] }, sessions: [] };
+}
+
+/* Enough measured tools and windows to fill the panel past its clamp at 90%
+   of the screen, with agents on top. */
+export function tallFixtures(now = Date.now()) {
+  const at = typeof now === "string" ? Date.parse(now) : now;
+  const { sessions } = messyFixtures(at);
+  const rows = [
+    ["CLAUDE", "FIVE_HOUR", 91, HOUR], ["CLAUDE", "SEVEN_DAY", 64, 3 * DAY], ["CLAUDE", "SEVEN_DAY_FABLE", 40, 3 * DAY],
+    ["CODEX", "SEVEN_DAY", 83, 2 * DAY], ["CODEX", "PRIMARY", 22, 3 * HOUR],
+    ["GEMINI_CLI", "GEMINI_3_1_PRO_PREVIEW", 55, 12 * HOUR], ["GEMINI_CLI", "GEMINI_3_FLASH_PREVIEW", 18, 12 * HOUR],
+    ["GROK", "WEEKLY", 71, 5 * DAY], ["GROK", "ON_DEMAND_MONTHLY", 9, 20 * DAY],
+    ["KIMI", "WEEKLY", 36, 6 * DAY], ["KIMI", "FIVE_HOUR", 12, 2 * HOUR],
+    ["CURSOR", "INCLUDED", 48, 18 * DAY], ["CURSOR", "AUTO", 27, 18 * DAY], ["CURSOR", "API", 5, 18 * DAY],
+    ["OPENCODE", "FIVE_HOUR", 30, 4 * HOUR], ["OPENCODE", "SEVEN_DAY", 21, 4 * DAY], ["OPENCODE", "MONTHLY", 14, 25 * DAY],
+  ].map(([provider, meter, value, reset]) => row(at, provider, meter, value, { reset, writer: "cli" }));
+  return { projected: { version: 2, snapshots: rows, flags: [] }, sessions };
+}

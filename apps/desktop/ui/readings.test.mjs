@@ -7,7 +7,8 @@ import { agentName, meterLabel, providerCode, providerName, READINGS_COPY, say }
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 // readings.js reaches the compiled engine, which only exists in the build.
 import {
-  attentionFlags, limitsModel, officialMark, projectReadings, renderAttention, renderLimits, timeLeft, updatedLabel,
+  attentionFlags, connectedProviders, fixWords, holdReadings, limitsModel, officialMark, projectReadings, renderAttention,
+  renderConnected, renderLimits, timeLeft, updatedLabel,
 } from "./dist/readings.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
@@ -44,6 +45,23 @@ test("meter codes read as words, and an unfamiliar code is read out of its parts
   assert.equal(agentName("unknown"), null);
 });
 
+test("a reserved or id shaped meter code reads as the neutral Limit, never as itself", () => {
+  for (const code of ["UNKNOWN", "UNKNOWN_WINDOW", "NULL", "A1B2C3D4E5F60718", "PLAN_4B1D4B1D0123", "X_ABCDEFGHIJKLMNOPQRS"]) {
+    assert.equal(meterLabel(code, "MANUAL"), "Limit", code);
+  }
+  // Ordinary codes with numbers in them still read as words.
+  assert.equal(meterLabel("TEAM_PLAN", "MANUAL"), "Team plan");
+  assert.equal(meterLabel("SEVEN_DAY_HAIKU_4_5", "CLAUDE"), "Haiku 4.5 weekly");
+  assert.equal(meterLabel("DEADBEEF", "MANUAL"), "Deadbeef");
+  // The bar's aria label is the meter label, so it is neutral too.
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  const row = { ...fixtures.projected.snapshots[0], provider: "MANUAL", meter: "A1B2C3D4E5F60718" };
+  renderLimits(doc, mount, limitsModel([row], now));
+  assert.deepEqual(leaks(spoken(mount)), []);
+  assert.ok(spoken(mount).includes("Limit"));
+});
+
 test("the projected payload is exactly what the one projection makes of the raw cache", () => {
   const raw = normalizeMetersReport(fixtures.raw.snapshots);
   assert.equal(raw.rejected.length, 0);
@@ -72,18 +90,61 @@ test("every row the webview draws passes the projection, native rows included", 
   assert.deepEqual(projectReadings(null, "{not json", now).failures, [{ provider: "MANUAL", category: "PAYLOAD_UNREADABLE" }]);
 });
 
-test("Needs attention holds one row per unmeasurable provider, never one Home shows", () => {
+test("Needs attention holds one row per unmeasurable provider, never one Home shows or one switched off", () => {
   const readings = projectReadings(JSON.stringify(fixtures.projected), null, now);
   const flags = attentionFlags(readings.flags, readings.snapshots);
   assert.deepEqual(flags.map((flag) => [flag.provider, flag.fixKind]), [
-    ["CURSOR", "switch_on"], ["GROK", "sign_in"], ["OPENCODE", "reconnect"],
+    ["GROK", "sign_in"], ["OPENCODE", "reconnect"],
     ["ANTIGRAVITY", "open_app"], ["KIMI", "open_app"], ["GEMINI_CLI", "unsupported"],
   ]);
+  // A switch off is a choice: that provider leaves the group whatever else it flags.
+  assert.deepEqual(attentionFlags([
+    { provider: "GROK", reason: "disabled", fixKind: "switch_on" },
+    { provider: "GROK", reason: "missing_credentials", fixKind: "sign_in" },
+  ], []), []);
+  assert.deepEqual(attentionFlags([{ provider: "KIMI", reason: "stale", fixKind: "open_app" }], [], ["KIMI"]), []);
   // Two flags for one provider become its most useful fix.
   assert.deepEqual(attentionFlags([
     { provider: "KIMI", reason: "placeholder", fixKind: "unsupported" },
     { provider: "KIMI", reason: "expired_credentials", fixKind: "open_app" },
   ], []).map((flag) => flag.fixKind), ["open_app"]);
+});
+
+test("Connected lists what is switched on and measured, detected or keyed, never a flagged or switched off one", () => {
+  const readings = projectReadings(JSON.stringify(fixtures.projected), null, now);
+  const attention = attentionFlags(readings.flags, readings.snapshots);
+  const detections = { providers: [
+    { provider_id: "gemini-cli", state: "present" }, { provider_id: "cursor", state: "present" },
+    { provider_id: "grok", state: "installed_logged_out" },
+  ] };
+  const connections = [{ provider: "opencode", state: "CONNECTED" }, { provider: "antigravity", state: "NEEDS_AUTH" }];
+  const connected = connectedProviders({ snapshots: readings.snapshots, detections, connections, flags: readings.flags, attention });
+  // Cursor is switched off, Gemini CLI and OpenCode wait in Needs attention.
+  assert.deepEqual(connected.map((provider) => [provider.name, provider.access]),
+    [["Claude Code", "automatic"], ["Codex", "automatic"], ["OpenRouter", "key"]]);
+  assert.deepEqual(connectedProviders({ snapshots: [], detections: { providers: [{ provider_id: "kimi", state: "present" }] } })
+    .map((provider) => provider.code), ["KIMI"]);
+  assert.deepEqual(connectedProviders({ snapshots: [] }), []);
+  const doc = fakeDocument();
+  const mount = doc.createElement("div");
+  renderConnected(doc, mount, [...connected, { code: "MANUAL", name: "Manual", access: "manual" }]);
+  const rows = mount.all((node) => "connectedRow" in node.dataset);
+  assert.deepEqual(rows.map((row) => row.textContent), [
+    "Claude CodeUses your Claude Code sign in on this computerConnected",
+    "CodexUses your Codex sign in on this computerConnected",
+    "OpenRouterUses your OpenRouter keyConnected",
+    "ManualUses the numbers you enteredConnected",
+  ]);
+  assert.deepEqual(leaks(spoken(mount)), []);
+});
+
+test("rows already on screen are held to the one freshness policy when a read fails", () => {
+  const rows = fixtures.projected.snapshots;
+  assert.equal(holdReadings(rows, now).length, rows.length);
+  // Seven minutes on, the desktop Codex row expired; the status line Claude rows have not.
+  const later = new Date(NOW + 7 * 60_000).toISOString();
+  assert.deepEqual([...new Set(holdReadings(rows, later).map((row) => row.provider))], ["CLAUDE", "OPENROUTER"]);
+  assert.deepEqual(holdReadings(rows, new Date(NOW + 30 * 60_000).toISOString()), []);
 });
 
 test("Home's model: one entry per provider, tightest window and tightest provider first", () => {
@@ -96,7 +157,7 @@ test("Home's model: one entry per provider, tightest window and tightest provide
   // The raw cache still gives one card per provider; a second account says so by position.
   const raw = limitsModel(projectReadings(JSON.stringify(fixtures.raw), null, now).snapshots, now);
   assert.deepEqual(raw.map((provider) => provider.code), ["CODEX", "CLAUDE", "OPENROUTER"]);
-  assert.ok(raw[1].windows.some((window) => window.label === "Weekly, account 2"));
+  assert.ok(raw[1].windows.some((window) => window.label === "Weekly, account\u00a02"));
   // Rows that went stale since the projection are not drawn.
   const later = new Date(NOW + 3_600_000).toISOString();
   assert.equal(limitsModel(fixtures.projected.snapshots, later).length, 0);
@@ -136,20 +197,32 @@ test("drawn limits show names and words only, with a shape past green", () => {
   }
 });
 
+test("a fix reads by its route: this window's own flow, or sign in in the tool and check again", () => {
+  const signIn = { provider: "GROK", fixKind: "sign_in" };
+  assert.deepEqual(fixWords(signIn, "connect"), { issue: "fixSignInIssue", detail: "fixSignInDetail", action: "fixSignInAction" });
+  assert.deepEqual(fixWords(signIn, "rescan"), { issue: "fixSignInIssue", detail: "fixToolDetail", action: "fixOpenAppAction" });
+  assert.deepEqual(fixWords({ provider: "OPENCODE", fixKind: "reconnect" }, "connect").action, "fixReconnectAction");
+  assert.equal(fixWords({ provider: "KIMI", fixKind: "open_app" }, "rescan").action, "fixOpenAppAction");
+  assert.equal(fixWords({ provider: "GEMINI_CLI", fixKind: "unsupported" }, "none").action, null);
+});
+
 test("Needs attention rows carry one sentence and one fix, or none when unsupported", async () => {
   const doc = fakeDocument();
   const mount = doc.createElement("div");
   const pressed = [];
   const flags = attentionFlags(fixtures.projected.flags, fixtures.projected.snapshots);
-  renderAttention(doc, mount, flags, { fix: async (flag) => { pressed.push(flag.provider); return flag.provider !== "KIMI"; } });
+  const route = (flag) => flag.fixKind === "unsupported" ? "none" : flag.provider === "OPENCODE" ? "connect" : "rescan";
+  renderAttention(doc, mount, flags, { route, fix: async (flag) => { pressed.push(flag.provider); return flag.provider !== "KIMI"; } });
   const rows = mount.all((node) => "flagRow" in node.dataset);
-  assert.equal(rows.length, 6);
+  assert.equal(rows.length, 5);
   assert.deepEqual(leaks(spoken(mount)), []);
   for (const row of rows) {
     const fixes = row.all((node) => "fix" in node.dataset);
     assert.equal(fixes.length, 1, row.dataset.provider);
     assert.equal(fixes[0].localName, row.dataset.fixKind === "unsupported" ? "p" : "button");
   }
+  const grok = rows.find((row) => row.dataset.provider === "GROK");
+  assert.match(grok.textContent, /Sign in to Grok \(xAI\) on this computer, then check again\.Check again/u);
   const kimi = rows.find((row) => row.dataset.provider === "KIMI");
   assert.match(kimi.textContent, /Open Kimi once so it refreshes its own sign in, then check again\./u);
   await kimi.all((node) => node.localName === "button")[0].fire("click");

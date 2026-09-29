@@ -21,7 +21,7 @@ import {
 } from "./engine/core/index.js";
 import { parseManualPayload } from "./engine/connectors/manual.js";
 import { bandForPercent, bandIconSvg, closestToLimit, providerMarkMarkup, windowRank } from "./engine/ui/provider-row.js";
-import { duration, meterLabel, providerCode, providerName, say } from "./names.js";
+import { duration, meterLabel, providerAccess, providerCode, providerName, say } from "./names.js";
 
 function parseJson(text) {
   if (typeof text !== "string" || text.trim() === "") return null;
@@ -76,21 +76,76 @@ export function projectReadings(cacheText, manualText, now) {
   return { snapshots: projected.snapshots, flags: [...flags, ...readFlags(projected.flags)], failures: dedupeFailures(failures) };
 }
 
+/** Providers a person switched off: native flags them, the window may remember more. */
+export function switchedOff(flags, removed = []) {
+  return new Set([...removed.map(providerCode), ...flags.filter((flag) => flag.fixKind === "switch_on").map((flag) => flag.provider)]);
+}
+
+/**
+ * What is still displayable of rows already on screen, at `now`. When a read
+ * fails the window keeps only these, so expired rows leave by the one
+ * freshness policy instead of freezing where they were.
+ */
+export function holdReadings(snapshots, now) {
+  return projectSnapshots(snapshots, now).snapshots;
+}
+
 /**
  * One Needs attention entry per provider that shows nothing, with its most
  * useful fix. A provider that still shows a measured row is not flagged: an old
- * account's leftovers are storage, not something a person has to act on.
+ * account's leftovers are storage, not something a person has to act on. A
+ * provider switched off is not flagged at all: that was the person's choice,
+ * and its switch stays in the catalogue.
  */
-export function attentionFlags(flags, snapshots) {
+export function attentionFlags(flags, snapshots, removed = []) {
   const shown = new Set(snapshots.map((row) => providerCode(row.provider)));
+  const off = switchedOff(flags, removed);
   const best = new Map();
   for (const flag of flags) {
     const held = best.get(flag.provider);
-    if (shown.has(flag.provider) || (held && FIX_KINDS.indexOf(held.fixKind) <= FIX_KINDS.indexOf(flag.fixKind))) continue;
+    if (shown.has(flag.provider) || off.has(flag.provider) ||
+        (held && FIX_KINDS.indexOf(held.fixKind) <= FIX_KINDS.indexOf(flag.fixKind))) continue;
     best.set(flag.provider, flag);
   }
   return [...best.values()].sort((left, right) => FIX_KINDS.indexOf(left.fixKind) - FIX_KINDS.indexOf(right.fixKind) ||
     providerName(left.provider).localeCompare(providerName(right.provider)));
+}
+
+/**
+ * Connected: every provider switched on that is measured right now, detected
+ * with a login on this computer, or connected by a key, and not waiting in
+ * Needs attention. `detections` and `connections` are the native reports.
+ */
+export function connectedProviders({ snapshots, detections = null, connections = [], flags = [], removed = [], attention = [] }) {
+  const off = switchedOff(flags, removed);
+  const flagged = new Set(attention.map((flag) => flag.provider));
+  const codes = new Set([
+    ...snapshots.map((row) => providerCode(row.provider)),
+    ...(detections?.providers ?? []).filter((entry) => entry.state === "present").map((entry) => providerCode(entry.provider_id)),
+    ...connections.filter((entry) => entry.state === "CONNECTED").map((entry) => providerCode(entry.provider)),
+  ]);
+  return [...codes].filter((code) => code && !off.has(code) && !flagged.has(code))
+    .map((code) => ({ code, name: providerName(code), access: providerAccess(code) }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+const SOURCE_KEYS = Object.freeze({ automatic: "sourceLocal", key: "sourceKey", manual: "sourceManual" });
+
+/** Connected rows: mark, name, where the numbers come from, and a green check. */
+export function renderConnected(doc, mount, providers) {
+  mount.replaceChildren(...providers.map((provider) => {
+    const row = node(doc, "div", "q-conn");
+    row.setAttribute("role", "listitem");
+    row.dataset.connectedRow = "";
+    row.dataset.provider = provider.code;
+    const text = node(doc, "div", "q-ftext");
+    text.append(node(doc, "div", "q-fname-text", provider.name),
+      node(doc, "p", "q-fdetail", say(SOURCE_KEYS[provider.access] ?? "sourceLocal", { name: provider.name })));
+    const status = node(doc, "span", "q-ok");
+    status.append(art(doc, "q-sico", CHECK_ICON), node(doc, "span", "", say("connected")));
+    row.append(markNode(doc, provider.code), text, status);
+    return row;
+  }));
 }
 
 const money = (amount, currency) => new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
@@ -157,7 +212,9 @@ export function limitsModel(snapshots, now) {
   const model = [...providers].map(([code, accounts]) => {
     const windows = [...accounts.keys()].sort().flatMap((account, index) => [...accounts.get(account).values()].map((row) => {
       const view = windowView(row, now);
-      return index === 0 ? view : { ...view, label: say("accountOrdinal", { label: view.label, count: index + 1 }) };
+      if (index === 0) return view;
+      // The count stays on the line of its word: "account 2" never breaks before the 2.
+      return { ...view, label: say("accountOrdinal", { label: view.label, count: index + 1 }).replace(/ (?=\d+$)/u, "\u00a0") };
     }));
     return { code, name: providerName(code), windows: tightestFirst(windows) };
   });
@@ -172,7 +229,9 @@ function node(doc, tag, className, text) {
   return element;
 }
 
-/* Constant artwork: the alert circle a Needs attention row opens with. */
+/* Constant artwork: the check a Connected row ends with, and the alert circle
+   a Needs attention row opens with. */
+const CHECK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.2"/><path d="m5.3 8.2 1.9 1.9 3.6-3.9"/></svg>';
 const ALERT_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6.2"/><path d="M8 4.9v3.5"/><circle cx="8" cy="11" r=".6" fill="currentColor" stroke="none"/></svg>';
 
 function art(doc, className, markup) {
@@ -269,19 +328,32 @@ export function updatedLabel(instant, now) {
   return hours < 24 ? say("updatedHours", { count: hours }) : say("updatedDays", { count: Math.floor(hours / 24) });
 }
 
-const FIX_WORDS = Object.freeze({
-  reconnect: "Reconnect", sign_in: "SignIn", switch_on: "SwitchOn", open_app: "OpenApp", unsupported: "Unsupported",
-});
+/**
+ * The words for one fix. `route` is "connect" when this window has its own
+ * connect flow for the provider, "rescan" when the sign in lives in the tool
+ * itself (the person signs in there, then checks again), or "none".
+ */
+export function fixWords(flag, route) {
+  if (flag.fixKind === "unsupported" || route === "none") {
+    return { issue: "fixUnsupportedIssue", detail: "fixUnsupportedDetail", action: null };
+  }
+  if (flag.fixKind === "open_app") return { issue: "fixOpenAppIssue", detail: "fixOpenAppDetail", action: "fixOpenAppAction" };
+  const words = flag.fixKind === "sign_in" ? "SignIn" : "Reconnect";
+  return route === "connect"
+    ? { issue: `fix${words}Issue`, detail: `fix${words}Detail`, action: `fix${words}Action` }
+    : { issue: `fix${words}Issue`, detail: "fixToolDetail", action: "fixOpenAppAction" };
+}
 
 /**
- * Needs attention: mark, name, one plain sentence and one fix. `fix(flag)`
- * performs the fix and resolves false when it did not work; an unsupported
- * provider has nothing to press and says so.
+ * Needs attention: mark, name, one plain sentence and one fix. `route(flag)`
+ * says how the fix works (see fixWords) and `fix(flag)` performs it, resolving
+ * false when it did not work; an unsupported provider has nothing to press and
+ * says so.
  */
-export function renderAttention(doc, mount, flags, { fix }) {
+export function renderAttention(doc, mount, flags, { fix, route = () => "rescan" }) {
   mount.replaceChildren(...flags.map((flag) => {
     const name = providerName(flag.provider);
-    const words = FIX_WORDS[flag.fixKind];
+    const words = fixWords(flag, route(flag));
     const row = node(doc, "div", "q-flag");
     row.setAttribute("role", "listitem");
     row.dataset.flagRow = "";
@@ -290,15 +362,15 @@ export function renderAttention(doc, mount, flags, { fix }) {
     const text = node(doc, "div", "q-ftext");
     const title = node(doc, "div", "q-fname");
     const issue = node(doc, "span", "q-issue");
-    issue.append(art(doc, "q-sico", ALERT_ICON), node(doc, "span", "", say(`fix${words}Issue`)));
+    issue.append(art(doc, "q-sico", ALERT_ICON), node(doc, "span", "", say(words.issue)));
     title.append(node(doc, "span", "q-fname-text", name), issue);
-    const detail = node(doc, "p", "q-fdetail", say(`fix${words}Detail`, { name }));
+    const detail = node(doc, "p", "q-fdetail", say(words.detail, { name }));
     text.append(title, detail);
-    if (flag.fixKind === "unsupported") {
+    if (words.action === null) {
       detail.dataset.fix = "unsupported";
     } else {
       const actions = node(doc, "div", "q-actions");
-      const button = node(doc, "button", "q-btn q-btn-primary", say(`fix${words}Action`));
+      const button = node(doc, "button", "q-btn q-btn-primary", say(words.action));
       button.type = "button";
       button.dataset.fix = flag.fixKind;
       const status = node(doc, "span", "q-fstatus");

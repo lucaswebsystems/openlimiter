@@ -131,6 +131,12 @@ button.q-btn:hover {
   transform: none;
 }
 
+.q-btn svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+}
+
 button.q-btn-primary {
   border: 0;
   background: var(--ol-primary);
@@ -281,8 +287,11 @@ button.q-show {
   line-height: 1.25;
 }
 
+/* A little air above and below each line: a one line label still sits in the
+   row's minimum height, and one that wraps stays clear of the next row's. */
 .q-row {
   min-height: 2.125rem;
+  padding-block: 0.25rem;
   padding-left: 1.75rem;
 }
 
@@ -659,6 +668,57 @@ button.q-show {
   font-size: var(--ol-text-caption);
 }
 
+/* ----------------------------------------------------------- connected */
+
+.q-conn {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 0.75rem;
+  padding: 0.875rem var(--ol-space-4);
+}
+
+.q-conn + .q-conn {
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.q-conn .q-mark {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.0625rem;
+}
+
+.q-conn .q-fname-text {
+  display: block;
+  line-height: 1.375rem;
+}
+
+.q-ok {
+  display: inline-flex;
+  min-height: 1.375rem;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--ol-band-green-label);
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-medium);
+  white-space: nowrap;
+}
+
+/* Connections reads Needs attention, Connected, Add a tool, and folds every
+   other control into the catalogue below it. */
+#panel-connections > .q-section + .q-section {
+  margin-top: var(--ol-space-2);
+}
+
+button.q-add {
+  justify-self: start;
+}
+
+.q-catalogue {
+  display: grid;
+  gap: var(--ol-space-4);
+}
+
 .q-fstatus:empty {
   display: none;
 }
@@ -667,6 +727,8 @@ button.q-show {
 .q-card[hidden],
 .q-empty[hidden],
 .q-agent-list[hidden],
+.q-catalogue[hidden],
+button.q-add[hidden],
 .tab-count[hidden] {
   display: none;
 }

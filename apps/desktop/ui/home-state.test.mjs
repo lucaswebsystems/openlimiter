@@ -21,7 +21,12 @@ test("Home keeps no second freshness policy and draws only through the shared pr
   assert.doesNotMatch(home, /REFRESH_SECONDS|expiresAt|observedAt|interval/u);
   assert.match(app, /projectReadings\(cacheRead\.ok \? cacheRead\.value : null, manualRead\.ok \? manualRead\.value : null, now\)/u);
   assert.match(app, /renderLimits\(document, elements\.rows, model\)/u);
-  assert.match(app, /showAttention\(attentionFlags\(collected\.flags, collected\.snapshots\)\)/u);
+  assert.match(app, /const attention = attentionFlags\(collected\.flags, collected\.snapshots, removed\);/u);
+  assert.match(app, /showConnections\(\{\s*attention,\s*connected: connectedProviders\(/u);
+  // A failed read ages out what is on screen by the same policy and says why.
+  assert.match(app, /heldSnapshots = holdReadings\(heldSnapshots, now\);/u);
+  assert.match(app, /elements\.refreshStatus\.textContent = say\("cacheUnreadable"\)/u);
+  assert.doesNotMatch(app, /paintFailures\(\[\{ provider: "MANUAL"/u);
   assert.doesNotMatch(app, /createProviderRowElement|homeCard|homeSnapshots|stale-strip|staleStrip/u);
   // The panel reads the same projection, the same model and the same drawing.
   const panel = read("./edge-panel.js");

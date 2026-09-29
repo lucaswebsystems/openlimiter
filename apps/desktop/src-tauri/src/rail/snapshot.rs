@@ -34,6 +34,20 @@ fn spec_id(provider: &str) -> Option<&'static str> {
     })
 }
 
+/// The name every surface shows for a provider code: the registry directory's
+/// label, else its display name. The window's names.js reads the same fields,
+/// so the tray, the edge panel and Home never name one provider two ways.
+pub(crate) fn display_name(provider: &str) -> Option<&'static str> {
+    let id = spec_id(provider)?;
+    let spec = registry()["providers"]
+        .as_array()?
+        .iter()
+        .find(|spec| spec["id"] == id)?;
+    spec["directory"]["label"]
+        .as_str()
+        .or_else(|| spec["displayName"].as_str())
+}
+
 /// Project validated local rows, never credentials, labels or arbitrary cache metadata.
 pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewModel> {
     let specs = registry()["providers"].as_array().expect("provider list");

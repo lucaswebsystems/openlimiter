@@ -4,16 +4,19 @@ import test from "node:test";
 import { messyFixtures } from "./messy-fixtures.mjs";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 // The panel reaches the compiled engine, which only exists in the build.
-import { openMainWindow, startPanel } from "./dist/edge-panel.js";
+import { naturalHeight, openMainWindow, PANEL_SHOWN_EVENT, startPanel } from "./dist/edge-panel.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
-const IDS = ["panel-updated", "panel-agents", "panel-agent-rows", "panel-note", "panel-limits", "panel-state",
-  "panel-state-title", "panel-state-detail", "panel-running", "panel-running-text", "panel-open"];
+const IDS = ["panel-card", "panel-scroll", "panel-updated", "panel-agents", "panel-agent-rows", "panel-note", "panel-limits",
+  "panel-state", "panel-state-title", "panel-state-detail", "panel-running", "panel-running-text", "panel-open"];
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function panel({ cache, sessions = [], windows } = {}) {
+function panel({ cache, sessions = [], windows, event, content = 300 } = {}) {
   const fixtures = messyFixtures(NOW);
   const doc = fakeDocument(IDS);
+  // The card sits 12 pixels in, is 400 tall, and shows 300 of the scroller.
+  Object.assign(doc.getElementById("panel-card"), { offsetTop: 12, offsetHeight: 400 });
+  Object.assign(doc.getElementById("panel-scroll"), { clientHeight: 300, scrollHeight: content });
   const calls = [];
   const scheduled = [];
   const invoke = async (command, args) => {
@@ -27,7 +30,7 @@ function panel({ cache, sessions = [], windows } = {}) {
     if (command === "plugin:activity|activity_locate") return "focused";
     return null;
   };
-  const stop = startPanel(doc, { core: { invoke }, window: windows }, {
+  const stop = startPanel(doc, { core: { invoke }, window: windows, event }, {
     now: () => new Date(NOW).toISOString(), schedule: (callback) => { scheduled.push(callback); return scheduled.length; }, cancel: () => {},
   });
   return { doc, calls, scheduled, stop, fixtures, view: (id) => doc.getElementById(id) };
@@ -107,6 +110,45 @@ test("polls serialize and nothing is redrawn when nothing changed", async () => 
   assert.equal(scheduled.length, 2);
 });
 
+test("the panel reports the height its content needs, and only when it changes", async () => {
+  assert.equal(naturalHeight({ offsetTop: 12, offsetHeight: 400 }, { clientHeight: 300, scrollHeight: 520 }), 644);
+  assert.equal(naturalHeight({ offsetTop: 0, offsetHeight: 480 }, { clientHeight: 380, scrollHeight: 200 }), 300);
+  const { calls, scheduled, doc, stop } = panel({ content: 520 });
+  await flush();
+  const reports = () => calls.filter(([command]) => command === "plugin:rail|rail_card_height").map(([, args]) => args.height);
+  assert.deepEqual(reports(), [644]);
+  await scheduled.at(-1)();
+  assert.deepEqual(reports(), [644], "an unchanged height is not sent again");
+  doc.getElementById("panel-scroll").scrollHeight = 250;
+  await scheduled.at(-1)();
+  assert.deepEqual(reports(), [644, 374]);
+  stop();
+});
+
+test("the panel reads once at start, polls only while shown, and stops when hidden", async () => {
+  const listeners = {};
+  let unlistened = 0;
+  const event = { listen: async (name, handler) => { listeners[name] = handler; return () => { unlistened++; }; } };
+  const { calls, scheduled, stop } = panel({ event });
+  await flush();
+  const reads = () => calls.filter(([command]) => command === "read_cache").length;
+  assert.equal(reads(), 1, "the first draw sizes the panel before it is ever shown");
+  assert.equal(scheduled.length, 0, "a hidden panel does not poll");
+  listeners[PANEL_SHOWN_EVENT]({ payload: true });
+  await flush();
+  assert.equal(reads(), 2, "opening reads at once");
+  assert.equal(scheduled.length, 1, "and keeps reading while shown");
+  await scheduled[0]();
+  assert.equal(reads(), 3);
+  listeners[PANEL_SHOWN_EVENT]({ payload: false });
+  await flush();
+  const before = scheduled.length;
+  await scheduled.at(-1)();
+  assert.equal(scheduled.length, before, "hidden: the poll that was due does not schedule another");
+  stop();
+  assert.equal(unlistened, 1);
+});
+
 test("the panel window may invoke only what its capability grants", () => {
   const read = (file) => JSON.parse(readFileSync(new URL(file, import.meta.url), "utf8"));
   const granted = new Set();
@@ -116,10 +158,15 @@ test("the panel window may invoke only what its capability grants", () => {
     }
   }
   for (const permission of ["rail:default", "activity:allow-activity-locate", "core:window:allow-get-all-windows",
-    "core:window:allow-show", "core:window:allow-unminimize", "core:window:allow-set-focus"]) {
+    "core:window:allow-show", "core:window:allow-unminimize", "core:window:allow-set-focus",
+    "rail:allow-rail-card-height", "core:event:allow-listen", "core:event:allow-unlisten"]) {
     assert.ok(granted.has(permission), permission);
   }
   const edge = read("../src-tauri/capabilities/edge-panel.json");
   assert.deepEqual(edge.windows, ["rail-card"]);
-  assert.equal(edge.permissions.length, 4, "nothing beyond bringing the main window forward");
+  assert.equal(edge.permissions.length, 7, "Open app, its own height and its shown state; nothing else");
+  // The height command is the panel's alone: not part of rail:default, which main and the tab also hold.
+  const railDefault = readFileSync(new URL("../src-tauri/permissions/rail/default.toml", import.meta.url), "utf8");
+  assert.doesNotMatch(railDefault, /rail-card-height/u);
+  assert.match(readFileSync(new URL("../src-tauri/build_support/rail.rs", import.meta.url), "utf8"), /"rail_card_height"/u);
 });

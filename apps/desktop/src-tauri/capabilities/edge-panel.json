@@ -1,12 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "edge-panel-open-app",
-  "description": "The edge panel's Open app button brings the main window forward: find it, show it, restore it and focus it. Nothing else.",
+  "description": "The edge panel only: Open app brings the main window forward (find it, show it, restore it, focus it), the panel reports its own content height so native code can size it, and it hears when it is shown or hidden so it polls only while seen. Nothing else.",
   "windows": ["rail-card"],
   "permissions": [
     "core:window:allow-get-all-windows",
     "core:window:allow-show",
     "core:window:allow-unminimize",
-    "core:window:allow-set-focus"
+    "core:window:allow-set-focus",
+    "rail:allow-rail-card-height",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
   ]
 }

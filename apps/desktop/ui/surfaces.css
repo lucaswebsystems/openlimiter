@@ -1570,18 +1570,24 @@ body > .strip > .strip-top {
   margin-inline: auto;
 }
 
-/* The header rule and the tab underline still run the full width, because a
-   divider that stops short of the edges reads as an unfinished card. */
+/* The header and the tab row run the full width on the page's own
+   background, never an inset box of their own, and line their contents up
+   with the column below. Only the tab row carries a rule: one divider between
+   the chrome and the content, as the concept draws it. */
 body > .strip,
 body > .tabs {
   max-width: none;
-}
-
-body > .tabs {
+  margin-inline: 0;
   padding-inline: max(
     var(--ol-space-4),
-    calc((100% - var(--window-column, 46rem)) / 2)
+    calc((100% - var(--window-column, 46rem)) / 2 + var(--ol-space-4))
   );
+}
+
+body > .strip {
+  border-bottom: 0;
+  background: transparent;
+  backdrop-filter: none;
 }
 
 /*

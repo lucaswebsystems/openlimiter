@@ -6,7 +6,13 @@ use std::{
     sync::atomic::Ordering,
     time::{Duration, Instant},
 };
-use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, EventTarget, Manager, Runtime, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
+};
+
+/// Sent to the panel whenever it is shown or hidden, with that state.
+pub const PANEL_SHOWN_EVENT: &str = "edge-panel-shown";
 
 #[derive(Default)]
 struct Applied {
@@ -205,10 +211,11 @@ fn tick<R: Runtime>(
     }
     let Some(monitor) = placement::select(&inner.monitors, &inner.preferences.monitor_id).cloned()
     else {
+        drop(inner);
         apply(&rail, Rect::default(), false)?;
         apply(&card, Rect::default(), false)?;
         applied.rail = None;
-        applied.card = None;
+        announce(app, applied.card.take().map(|(_, shown)| shown), false);
         return Ok(());
     };
     // Top/bottom geometry is tested but secondary edges remain disabled in this unit.
@@ -221,10 +228,11 @@ fn tick<R: Runtime>(
         p.offset(&monitor.id),
         inner.behavior.unfolded,
     );
+    let height = inner.card_height;
     let old_card = inner
         .behavior
         .card_anchor
-        .map(|a| placement::card(&monitor, edge, old_rail, a));
+        .map(|a| placement::card(&monitor, edge, old_rail, a, height));
     #[cfg(windows)]
     let (pointer, fullscreen, escape) = (
         super::windows::cursor(),
@@ -260,6 +268,7 @@ fn tick<R: Runtime>(
         edge,
         bounds,
         inner.behavior.card_anchor.unwrap_or_default(),
+        height,
     );
     let card_visible = visible && inner.behavior.card_anchor.is_some();
     drop(inner);
@@ -267,11 +276,21 @@ fn tick<R: Runtime>(
         apply(&rail, bounds, visible)?;
         applied.rail = Some((bounds, visible));
     }
+    let was_shown = applied.card.map(|(_, shown)| shown);
     if reassert || applied.card != Some((card_bounds, card_visible)) {
         apply(&card, card_bounds, card_visible)?;
         applied.card = Some((card_bounds, card_visible));
     }
+    announce(app, was_shown, card_visible);
     Ok(())
+}
+
+/// Tell the panel it was shown or hidden, only when that changed. Called on
+/// the main thread after the lock is released; it creates nothing.
+fn announce<R: Runtime>(app: &AppHandle<R>, before: Option<bool>, shown: bool) {
+    if before.unwrap_or(false) != shown {
+        let _ = app.emit_to(EventTarget::webview_window("rail-card"), PANEL_SHOWN_EVENT, shown);
+    }
 }
 
 fn apply<R: Runtime>(window: &WebviewWindow<R>, bounds: Rect, visible: bool) -> Result<(), String> {

@@ -2511,6 +2511,7 @@ pre {
   .catalogue-row > .provider-switch {
     grid-column: 2;
     grid-row: 1;
+    justify-self: end;
   }
 
   .catalogue-action {

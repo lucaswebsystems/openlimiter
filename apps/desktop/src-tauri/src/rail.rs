@@ -19,6 +19,7 @@ mod placement;
 mod runtime;
 #[path = "rail/snapshot.rs"]
 mod snapshot;
+pub(crate) use snapshot::display_name as provider_display_name;
 #[cfg(windows)]
 #[path = "rail/windows.rs"]
 mod windows;
@@ -35,6 +36,8 @@ struct Inner {
     path: Option<PathBuf>,
     monitors: Vec<placement::Monitor>,
     available: bool,
+    /// The panel's own content height in logical pixels, as it last reported.
+    card_height: f64,
 }
 
 impl Inner {
@@ -236,6 +239,21 @@ fn rail_card_open(state: tauri::State<'_, RailState>, anchor: f64) -> Result<(),
     Ok(())
 }
 
+/// The panel reports its natural content height after it draws. Placement
+/// clamps and applies it on the next tick; nothing here touches a window.
+#[tauri::command]
+fn rail_card_height(state: tauri::State<'_, RailState>, height: f64) -> Result<(), String> {
+    if !height.is_finite() || height <= 0.0 || height > 100_000.0 {
+        return Err("invalid edge panel height".into());
+    }
+    state
+        .inner
+        .lock()
+        .map_err(|_| "Rail state unavailable")?
+        .card_height = height;
+    Ok(())
+}
+
 #[tauri::command]
 fn rail_card_close(state: tauri::State<'_, RailState>) -> Result<(), String> {
     state
@@ -312,6 +330,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                     path,
                     monitors: Vec::new(),
                     available: false,
+                    card_height: placement::PANEL_HEIGHT,
                 }),
                 running: AtomicBool::new(false),
                 snapshot_state_root: Mutex::new(None),
@@ -391,6 +410,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             rail_set_keep_open,
             rail_move_offset,
             rail_card_open,
+            rail_card_height,
             rail_card_close
         ])
         .build()

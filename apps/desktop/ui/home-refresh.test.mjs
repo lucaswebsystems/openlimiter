@@ -56,6 +56,16 @@ test("failed, partial and thrown reads leave a plain sentence and release the bu
   }
 });
 
+test("a sentence a failed read already wrote is not replaced by the generic one", async () => {
+  const button = new Element(), status = new Element();
+  const run = bindHomeRefresh({ button, status, readNow: async () => ({ ok: true }), repaint: async () => {
+    status.textContent = "The saved readings could not be read just now, so only readings that are still fresh are shown.";
+    return false;
+  } });
+  await run();
+  assert.equal(status.textContent, "The saved readings could not be read just now, so only readings that are still fresh are shown.");
+});
+
 test("clock uses the freshest actual observation and does not invent a refresh time", () => {
   const clock = new Element();
   const snapshots = [{ observedAt: "2026-09-08T10:00:00Z" }, { observedAt: "invalid" }, { observedAt: "2026-09-08T09:00:00Z" }];

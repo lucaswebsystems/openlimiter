@@ -23,11 +23,11 @@ export function bindHomeRefresh({ button, status, readNow, repaint }) {
     try {
       const result = await readNow();
       const painted = await repaint();
-      if (!result?.ok || result.value?.succeeded === false || painted === false) {
+      if ((!result?.ok || result.value?.succeeded === false || painted === false) && !status.textContent) {
         status.textContent = "Some readings could not refresh; try again shortly.";
       }
     } catch {
-      status.textContent = "The readings could not refresh; try again shortly.";
+      if (!status.textContent) status.textContent = "The readings could not refresh; try again shortly.";
     } finally {
       button.disabled = false;
       button.setAttribute("aria-busy", "false");

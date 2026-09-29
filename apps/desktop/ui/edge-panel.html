@@ -10,13 +10,13 @@
   <script type="module" src="edge-panel.js"></script>
 </head>
 <body data-surface="panel">
-  <main class="p-card" aria-labelledby="panel-title">
+  <main id="panel-card" class="p-card" aria-labelledby="panel-title">
     <header class="p-head">
       <img src="brand/openlimiter-mark.svg" width="16" height="16" alt="">
       <h1 id="panel-title">OpenLimiter</h1>
       <span id="panel-updated" class="p-updated"></span>
     </header>
-    <div class="p-scroll">
+    <div id="panel-scroll" class="p-scroll">
       <section id="panel-agents" class="p-agents" aria-labelledby="panel-agents-title" hidden>
         <h2 id="panel-agents-title" class="p-cap">Agents</h2>
         <div id="panel-agent-rows" class="q-agent-list" role="list"></div>

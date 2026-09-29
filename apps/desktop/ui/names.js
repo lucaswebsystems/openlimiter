@@ -55,6 +55,13 @@ function words(code, title) {
     (title || index === 0 ? part.charAt(0) + part.slice(1).toLowerCase() : part.toLowerCase())).join(" ");
 }
 
+/** How a provider is read: "automatic" (its own sign in on this computer),
+    "key" (a key a person pasted) or "manual" (numbers a person entered). */
+export function providerAccess(value) {
+  const code = providerCode(value);
+  return SPECS.get(code)?.directory?.access ?? (code === "MANUAL" ? "manual" : "automatic");
+}
+
 /** The name the registry's directory gives a provider (the one Connections
     lists), its display name, or the code read out as words. */
 export function providerName(value) {
@@ -70,13 +77,20 @@ const METERS = Object.freeze({
   SESSION: "Session", EXTRA_USAGE: "Extra usage", CREDITS: "Credits", BALANCE: "Balance",
 });
 
+/* Words a code may never be read out as, and parts that look like an id: a
+   long run of hex with digits in it, or any part longer than a word. */
+const RESERVED = new Set(["UNKNOWN", "UNDEFINED", "NULL", "NONE", "NAN"]);
+const identityShaped = (part) => part.length > 16 || (/^[0-9A-F]{8,}$/u.test(part) && /\d/u.test(part));
+
 /**
  * A meter code as a label. The two windows every tool shares come first, then
  * a model's own weekly pool ("Fable weekly"), then the label the reviewed
- * registry gives that provider's meter, then the code read out as words.
+ * registry gives that provider's meter, then the code read out as words. A
+ * code built on a reserved word or an id reads as the neutral "Limit".
  */
 export function meterLabel(code, provider) {
   const meter = providerCode(code);
+  if (meter.split("_").some((part) => RESERVED.has(part) || identityShaped(part))) return say("meterFallback");
   if (meter === "FIVE_HOUR" || meter === "SEVEN_DAY") return METERS[meter];
   const numbered = meter.match(/^(FIVE_HOUR|SEVEN_DAY)_([2-9]\d*)$/u);
   if (numbered) return `${METERS[numbered[1]]} ${numbered[2]}`;

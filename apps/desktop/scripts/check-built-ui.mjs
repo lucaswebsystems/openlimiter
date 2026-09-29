@@ -159,19 +159,20 @@ try {
  * writes the 2x screenshots a person reviews.
  */
 async function checkMessyViews(browser, origin) {
-  const { messyFixtures } = await import(new URL("../ui/messy-fixtures.mjs", import.meta.url).href);
+  const { messyFixtures, emptyFixtures, tallFixtures } = await import(new URL("../ui/messy-fixtures.mjs", import.meta.url).href);
   const { version } = JSON.parse(await readFile(path.join(desktop, "package.json"), "utf8"));
   const shotsArgument = process.argv.find(argument => argument.startsWith("--shots="));
   const shots = shotsArgument ? path.resolve(shotsArgument.slice("--shots=".length)) : null;
   if (shots) await mkdir(shots, { recursive: true });
   const failures = [];
   const hidden = ["Kimi", "Antigravity"];
-  const open = async (theme, viewport, entry, options = {}) => {
-    const fixtures = messyFixtures(Date.now());
-    const payload = options.raw ? fixtures.raw : fixtures.projected;
+  const open = async (theme, viewport, entry, { set = "projected", agents = false, clock = false, cardOpen } = {}) => {
+    const fixtures = set === "tall" ? tallFixtures(Date.now()) : set === "empty" ? emptyFixtures() : messyFixtures(Date.now());
+    const payload = set === "raw" ? fixtures.raw : fixtures.projected;
     const context = await browser.newContext({ viewport, deviceScaleFactor: shots ? 2 : 1, colorScheme: theme, serviceWorkers: "block" });
     await context.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
-    await context.addInitScript(installFixtureStub, { payload, sessions: options.agents ? fixtures.sessions : [], theme, version });
+    if (clock) await context.clock.install({ time: new Date() });
+    await context.addInitScript(installFixtureStub, { payload, sessions: agents ? fixtures.sessions : [], theme, version, cardOpen });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -187,40 +188,162 @@ async function checkMessyViews(browser, origin) {
   const cards = (label, counted) => ["CLAUDE", "CODEX"].filter(provider => counted[provider] !== 1)
     .map(provider => `${label}: ${counted[provider] ?? 0} ${provider === "CLAUDE" ? "Claude" : "Codex"} cards, expected exactly one`);
   const settle = page => page.waitForFunction(() => document.fonts.status === "loaded").then(() => page.waitForTimeout(350));
+  // What the projected messy set must read as, card by card, tightest first.
+  const readings = [
+    ["CODEX", "Codex", [["Weekly", "70%"]]],
+    ["CLAUDE", "Claude Code", [["Weekly", "46%"], ["Fable weekly", "31%"], ["5 hour", "6%"]]],
+    ["OPENROUTER", "OpenRouter", [["Credits", "$12.50"]]],
+  ];
+  // Each unmeasurable provider's fix: the button text, or null for a sentence only.
+  const fixes = { KIMI: "Check again", ANTIGRAVITY: "Check again", GROK: "Check again", OPENCODE: "Reconnect", GEMINI_CLI: null };
+  const connected = ["CLAUDE", "CODEX", "OPENROUTER"];
+  const PANEL_MIN = 160;
+  const PANEL_MAX = Math.floor(1040 * 0.9);
+
+  // The overlap reader is checked too: an icon drawn over a label that sits
+  // directly in the same button is an overlap, whatever contains what.
+  {
+    const { context, page, errors } = await open("dark", { width: 520, height: 800 }, "index.html", { set: "empty" });
+    try {
+      await page.evaluate(() => {
+        const button = document.createElement("button");
+        button.id = "overlap-canary";
+        Object.assign(button.style, { position: "relative", padding: "8px 12px" });
+        const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        icon.setAttribute("width", "16");
+        icon.setAttribute("height", "16");
+        Object.assign(icon.style, { position: "absolute", left: "10px", top: "8px" });
+        button.append(icon, "Check again");
+        document.body.prepend(button);
+      });
+      const canary = await page.evaluate(inspectView, { scope: "#overlap-canary", cards: "button", forbidden: [] });
+      const caught = canary.findings.some(finding => finding.startsWith("overlap:"));
+      record("Overlap reader finds an icon drawn over its own button's label", [...(caught ? [] : ["it was not found"]), ...errors]);
+    } finally { await context.close(); }
+  }
 
   for (const theme of ["dark", "light"]) {
     // The projected cache is what the webview receives; the raw one is what
     // 2.0.1 received, and it must not break the one card per provider rule.
-    for (const [raw, agents] of [[false, false], [true, false], [false, true]]) {
-      const payloadName = `${raw ? "raw cache" : "projected cache"}${agents ? ", agents at work" : ""}`;
-      const { context, page, errors } = await open(theme, { width: 520, height: 800 }, "index.html", { raw, agents });
+    for (const [set, agents] of [["projected", false], ["raw", false], ["projected", true]]) {
+      const payloadName = `${set} cache${agents ? ", agents at work" : ""}`;
+      const { context, page, errors } = await open(theme, { width: 520, height: 800 }, "index.html", { set, agents });
       try {
         await page.locator("#tab-meters").click();
         await page.waitForSelector("[data-provider-card], .home-provider-card", { timeout: 5000 }).catch(() => {});
         if (agents) await page.waitForSelector("#agents-mount .q-agent", { timeout: 3000 }).catch(() => {});
         await settle(page);
         const home = await page.evaluate(inspectView, { scope: "#panel-meters", cards: "[data-provider-card], .home-provider-card", forbidden: hidden });
-        record(`Home 520x800 ${theme}, ${payloadName}`, [...home.findings, ...cards("Home", home.cards), ...errors]);
-        if (shots && !raw) await page.screenshot({ path: path.join(shots, `home-520${agents ? "-agents" : ""}-${theme}.png`), fullPage: true });
+        const shown = set === "projected" ? await page.evaluate(inspectReadings, { scope: "#panel-meters", expected: readings }) : [];
+        // The header runs the full width on the page's own background, never an inset box.
+        const band = await page.evaluate(() => {
+          const strip = document.querySelector("body > .strip");
+          const box = strip.getBoundingClientRect();
+          const width = document.documentElement.clientWidth;
+          const paint = getComputedStyle(strip).backgroundColor;
+          return [
+            ...(Math.abs(box.left) > 0.5 || Math.abs(box.right - width) > 0.5 ? [`the header spans ${box.left} to ${box.right} of ${width}`] : []),
+            ...(paint === "rgba(0, 0, 0, 0)" ? [] : [`the header paints its own background ${paint}`]),
+          ];
+        });
+        record(`Home 520x800 ${theme}, ${payloadName}`, [...home.findings, ...shown, ...band, ...cards("Home", home.cards), ...errors]);
+        if (shots && set === "projected") await page.screenshot({ path: path.join(shots, `home-520${agents ? "-agents" : ""}-${theme}.png`), fullPage: true });
         if (agents) continue;
         await page.locator("#tab-connections").click();
         await page.waitForSelector("[data-flag-row]", { timeout: 3000 }).catch(() => {});
         await settle(page);
-        const flags = await page.evaluate(inspectFlags, { providers: hidden, scope: "#panel-connections" });
-        const connections = await page.evaluate(inspectView, { scope: "#panel-connections", cards: "[data-flag-row]", forbidden: [] });
-        record(`Connections ${theme}, ${payloadName}`, [...flags, ...connections.findings, ...errors]);
-        if (shots && !raw) await page.screenshot({ path: path.join(shots, `connections-${theme}.png`), fullPage: true });
+        const expectedFixes = set === "raw" ? Object.fromEntries(Object.entries(fixes).filter(([provider]) => provider !== "GROK")) : fixes;
+        const flags = await page.evaluate(inspectFlags, { scope: "#panel-connections", fixes: expectedFixes, absent: ["CURSOR", "CLAUDE", "CODEX"] });
+        const listed = await page.evaluate(inspectConnections, { scope: "#panel-connections", connected, catalogueOpen: false });
+        const words = await page.evaluate(inspectView, { scope: "#panel-connections", cards: "[data-flag-row], [data-connected-row]", forbidden: [] });
+        if (shots && set === "projected") await page.screenshot({ path: path.join(shots, `connections-${theme}.png`), fullPage: true });
+        // Add a tool opens the whole catalogue, switches and accounts included.
+        // (A missing button is already a finding above; there is nothing to press.)
+        const add = page.locator("#add-tool");
+        const pressed = await add.isVisible() && await add.click().then(() => true);
+        const opened = !pressed ? [] : await page.evaluate(() => {
+          const shown = element => element !== null && element.checkVisibility() && element.getClientRects().length > 0;
+          return [
+            ...(shown(document.querySelector("#provider-catalogue")) ? [] : ["Add a tool did not show the provider catalogue"]),
+            ...(shown(document.querySelector("#plan-cap")) ? [] : ["Add a tool did not show the accounts card"]),
+            ...(document.querySelector("#add-tool").getAttribute("aria-expanded") === "true" ? [] : ["Add a tool is not marked expanded"]),
+          ];
+        });
+        record(`Connections ${theme}, ${payloadName}`, [...flags, ...listed, ...words.findings, ...opened, ...errors]);
       } finally { await context.close(); }
     }
-    for (const agents of [false, true]) {
-      const { context, page, errors } = await open(theme, { width: 360, height: 480 }, "edge-panel.html", { agents });
+    // Nothing connected yet: the catalogue is the page, with no Add a tool.
+    {
+      const { context, page, errors } = await open(theme, { width: 520, height: 800 }, "index.html", { set: "empty" });
+      try {
+        await page.locator("#tab-connections").click();
+        await settle(page);
+        const listed = await page.evaluate(inspectConnections, { scope: "#panel-connections", connected: [], catalogueOpen: true });
+        const words = await page.evaluate(inspectView, { scope: "#panel-connections", cards: "[data-flag-row], [data-connected-row]", forbidden: [] });
+        record(`Connections ${theme}, nothing connected yet`, [...listed, ...words.findings, ...errors]);
+        if (shots && theme === "dark") await page.screenshot({ path: path.join(shots, `connections-empty-${theme}.png`), fullPage: true });
+      } finally { await context.close(); }
+    }
+    // A failed read keeps only what is still fresh of what was on screen, by
+    // the one freshness policy, and says why; it never freezes old numbers.
+    {
+      const { context, page, errors } = await open(theme, { width: 520, height: 800 }, "index.html", { clock: true });
+      try {
+        await page.locator("#tab-meters").click();
+        await page.waitForSelector("[data-provider-card], .home-provider-card", { timeout: 5000 }).catch(() => {});
+        const before = await page.locator("[data-provider-card], .home-provider-card").count();
+        await page.evaluate(() => { window.__failCache = true; });
+        await page.clock.fastForward("25:00");
+        await page.waitForTimeout(400);
+        const findings = await page.evaluate(() => {
+          const out = [];
+          const status = document.getElementById("home-refresh-status")?.textContent ?? "";
+          if (document.querySelectorAll("[data-provider-card], .home-provider-card").length) out.push("expired cards are still drawn after a failed read");
+          if (document.getElementById("empty")?.hidden !== false) out.push("the empty card is not shown after every reading expired");
+          if (status !== "The saved readings could not be read just now, so only readings that are still fresh are shown.") {
+            out.push(`the status says "${status}"`);
+          }
+          if (document.getElementById("failures")?.textContent.includes("Manual")) out.push("the failure names Manual");
+          return out;
+        });
+        record(`Home ${theme}, cache read fails after the readings expire`, [...(before ? [] : ["no cards were drawn before the read failed"]), ...findings, ...errors]);
+      } finally { await context.close(); }
+    }
+    // The panel reports the height its content needs and is sized to it (native
+    // clamps between 160 and 90% of a 1040 pixel work area); it scrolls only
+    // past that clamp.
+    for (const [set, agents] of [["projected", false], ["projected", true], ...(theme === "dark" ? [["tall", true]] : [])]) {
+      const { context, page, errors } = await open(theme, { width: 360, height: 480 }, "edge-panel.html", { set, agents });
       try {
         await page.waitForSelector("[data-provider-card]", { timeout: 3000 }).catch(() => {});
         await settle(page);
-        const panel = await page.evaluate(inspectView, { scope: "body", cards: "[data-provider-card]", forbidden: hidden });
-        record(`Edge panel 360x480 ${theme}${agents ? ", agents example" : ""}`, [...panel.findings, ...cards("Panel", panel.cards), ...errors]);
+        const heights = await page.evaluate(() => window.__heights ?? []);
+        const reported = heights.at(-1);
+        const sized = Math.min(Math.max(reported ?? 480, PANEL_MIN), PANEL_MAX);
+        await page.setViewportSize({ width: 360, height: sized });
+        await settle(page);
+        const fit = await page.evaluate(() => {
+          const scroll = document.getElementById("panel-scroll") ?? document.querySelector(".p-scroll") ?? document.scrollingElement;
+          return { overflow: scroll.scrollHeight - scroll.clientHeight, again: (window.__heights ?? []).at(-1) };
+        });
+        const findings = [];
+        if (!Number.isFinite(reported)) findings.push("the panel never reported its height");
+        if (set === "tall") {
+          if (!(reported > PANEL_MAX)) findings.push(`a tall panel reported ${reported}, expected more than the clamp ${PANEL_MAX}`);
+          if (fit.overflow <= 0) findings.push("a tall panel does not scroll past the clamp");
+        } else if (fit.overflow > 1) {
+          findings.push(`the panel sized to its reported ${reported} still clips ${fit.overflow} pixels`);
+        }
+        if (fit.again !== reported) findings.push(`the panel reported ${fit.again} after being sized to ${reported}`);
+        const panel = await page.evaluate(inspectView, { scope: "body", cards: "[data-provider-card]", forbidden: set === "tall" ? [] : hidden });
+        const shown = set === "projected" ? await page.evaluate(inspectReadings, { scope: "#panel-limits", expected: readings }) : [];
+        const label = `Edge panel 360x${sized} ${theme}${set === "tall" ? ", tall" : agents ? ", agents example" : ""}`;
+        record(label, [...findings, ...panel.findings, ...shown, ...(set === "tall" ? [] : cards("Panel", panel.cards)), ...errors]);
         // The panel window is transparent around its card, so the shot is too.
-        if (shots) await page.screenshot({ path: path.join(shots, `panel${agents ? "-agents" : ""}-${theme}.png`), omitBackground: true });
+        if (shots) {
+          const name = set === "tall" ? "panel-tall" : `panel${agents ? "-agents" : ""}`;
+          await page.screenshot({ path: path.join(shots, `${name}-${theme}.png`), omitBackground: true });
+        }
       } finally { await context.close(); }
     }
     // The collapsed tab at its real 24 by 44, magnified for review, with and
@@ -245,6 +368,7 @@ async function checkMessyViews(browser, origin) {
 /* Runs in the page before any script: the same bridge shape as the stub above,
    answering with one messy fixture set. */
 function installFixtureStub({ payload, sessions, theme, version, cardOpen = true }) {
+  window.__heights = [];
   localStorage.setItem("openlimiter-first-run-complete-v1", "complete");
   localStorage.setItem("openlimiter-configured-providers-v1", JSON.stringify(["CLAUDE", "CODEX", "OPENROUTER"]));
   localStorage.setItem("openlimiter-theme", theme);
@@ -252,8 +376,12 @@ function installFixtureStub({ payload, sessions, theme, version, cardOpen = true
   const records = sessions.map(session => ({ ...session,
     firstObservedAt: new Date(Date.now() - session.elapsedSeconds * 1000).toISOString() }));
   window.__TAURI__ = {
-    core: { invoke: async name => {
-      if (name === "read_cache") return JSON.stringify(payload);
+    core: { invoke: async (name, args) => {
+      if (name === "plugin:rail|rail_card_height") { window.__heights.push(args.height); return null; }
+      if (name === "read_cache") {
+        if (window.__failCache) throw new Error("fixture cache read failure");
+        return JSON.stringify(payload);
+      }
       if (name === "connection_flags") return payload.flags ?? [];
       if (name === "read_manual") return "";
       if (name === "state_directory") return "the demo fixtures";
@@ -313,7 +441,7 @@ function inspectView({ scope, cards, forbidden }) {
         if (!rects.length) continue;
         checkWords(child.nodeValue, "text");
         leaves.push({ text: child.nodeValue.trim().slice(0, 40), rects, element });
-        rects.forEach(rect => boxes.push({ rect, label: excerpt(child.nodeValue), element }));
+        rects.forEach(rect => boxes.push({ rect, label: excerpt(child.nodeValue), element, text: true }));
       } else if (child.nodeType === Node.ELEMENT_NODE) {
         if (shown(child)) {
           for (const name of ["aria-label", "title", "alt", "aria-valuetext"]) {
@@ -374,12 +502,25 @@ function inspectView({ scope, cards, forbidden }) {
     .filter(box => box.rect.right - box.rect.left > 0.5 && box.rect.bottom - box.rect.top > 0.5);
   for (let a = 0; a < shownBoxes.length; a++) {
     for (let b = a + 1; b < shownBoxes.length; b++) {
-      if (shownBoxes[a].element.contains(shownBoxes[b].element) || shownBoxes[b].element.contains(shownBoxes[a].element)) continue;
+      if (!shownBoxes[a].text && !shownBoxes[b].text &&
+          (shownBoxes[a].element.contains(shownBoxes[b].element) || shownBoxes[b].element.contains(shownBoxes[a].element))) continue;
+      if (shownBoxes[a].text && shownBoxes[b].text && shownBoxes[a].element === shownBoxes[b].element) continue;
       const first = shownBoxes[a].rect;
       const second = shownBoxes[b].rect;
       const width = Math.min(first.right, second.right) - Math.max(first.left, second.left);
       const height = Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
       if (width > 1.5 && height > 3) findings.push(`overlap: ${shownBoxes[a].label} and ${shownBoxes[b].label}`);
+    }
+  }
+  // Two limit labels must never read as one: a label that wraps keeps clear of
+  // the label on the next line down.
+  const labels = [...root.querySelectorAll(".q-lbl")].filter(shown)
+    .map(label => ({ text: label.textContent.trim(), rect: label.getBoundingClientRect() })).sort((a, b) => a.rect.top - b.rect.top);
+  for (let at = 1; at < labels.length; at++) {
+    const [above, below] = [labels[at - 1], labels[at]];
+    const gap = below.rect.top - above.rect.bottom;
+    if (gap >= 0 && gap < 4 && below.rect.left < above.rect.right && above.rect.left < below.rect.right) {
+      findings.push(`labels run together: "${above.text}" and "${below.text}" are ${gap.toFixed(1)} pixels apart`);
     }
   }
   const counted = {};
@@ -392,15 +533,86 @@ function inspectView({ scope, cards, forbidden }) {
 }
 
 /* Runs in the page. Each unmeasurable provider has one Needs attention row
-   with its fix, on screen. */
-function inspectFlags({ providers, scope }) {
+   with its fix: a visible, enabled button with the right words, or, when
+   nothing here can fix it, the sentence that says so. A switched off or
+   measured provider has no row at all. */
+function inspectFlags({ scope, fixes, absent }) {
   const root = document.querySelector(scope);
   const findings = [];
-  for (const provider of providers) {
-    const rows = [...(root?.querySelectorAll(`[data-flag-row][data-provider="${provider.toUpperCase()}"]`) ?? [])]
-      .filter(row => row.getClientRects().length > 0);
-    if (rows.length !== 1) findings.push(`${provider}: ${rows.length} Needs attention rows on Connections, expected one`);
-    else if (!rows[0].querySelector("[data-fix]")) findings.push(`${provider}: its Needs attention row has no fix`);
+  const shown = element => element !== null && element.checkVisibility() && element.getClientRects().length > 0 &&
+    element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0;
+  const rowsFor = provider => [...(root?.querySelectorAll(`[data-flag-row][data-provider="${provider}"]`) ?? [])].filter(shown);
+  for (const [provider, text] of Object.entries(fixes)) {
+    const rows = rowsFor(provider);
+    if (rows.length !== 1) { findings.push(`${provider}: ${rows.length} Needs attention rows on Connections, expected one`); continue; }
+    const button = rows[0].querySelector("button[data-fix]");
+    if (text === null) {
+      if (button) findings.push(`${provider}: offers "${button.textContent.trim()}" where nothing here can fix it`);
+      if (!shown(rows[0].querySelector("[data-fix]"))) findings.push(`${provider}: no sentence says it cannot be measured`);
+    } else if (!shown(button)) {
+      findings.push(`${provider}: its fix is not a visible control`);
+    } else {
+      if (button.disabled) findings.push(`${provider}: its fix is disabled`);
+      if (button.textContent.trim() !== text) findings.push(`${provider}: its fix says "${button.textContent.trim()}", expected "${text}"`);
+    }
+  }
+  for (const provider of absent) if (rowsFor(provider).length) findings.push(`${provider}: flagged although it should not be`);
+  const count = document.getElementById("connections-count")?.textContent;
+  if (count !== String(Object.keys(fixes).length)) findings.push(`the Connections tab counts ${count}, expected ${Object.keys(fixes).length}`);
+  return findings;
+}
+
+/* Runs in the page. Reads the cards back in order: each provider's name, and
+   each visible line's label and value. */
+function inspectReadings({ scope, expected }) {
+  const root = document.querySelector(scope);
+  const findings = [];
+  const shown = element => element !== null && element.checkVisibility() && element.getClientRects().length > 0;
+  const cards = [...(root?.querySelectorAll("[data-provider-card]") ?? [])].filter(shown);
+  const order = cards.map(card => card.dataset.provider).join(", ");
+  const want = expected.map(([code]) => code).join(", ");
+  if (order !== want) findings.push(`cards read ${order}, expected ${want}`);
+  for (const [code, name, rows] of expected) {
+    const card = cards.find(entry => entry.dataset.provider === code);
+    if (!card) { findings.push(`${name}: no card`); continue; }
+    const title = card.querySelector(".q-pname")?.textContent.trim();
+    if (title !== name) findings.push(`${code}: named "${title}", expected "${name}"`);
+    const lines = [...card.querySelectorAll(".q-row")].filter(shown);
+    if (lines.length !== rows.length) findings.push(`${name}: ${lines.length} lines, expected ${rows.length}`);
+    rows.forEach(([label, value], index) => {
+      const line = lines[index];
+      const got = [line?.querySelector(".q-lbl"), line?.querySelector(".q-val")];
+      if (!got.every(shown)) { findings.push(`${name} line ${index + 1}: its label or value is not visible`); return; }
+      const [text, reading] = got.map(element => element.textContent.trim());
+      if (text !== label || !reading.startsWith(value)) findings.push(`${name} line ${index + 1}: "${text}" "${reading}", expected "${label}" "${value}"`);
+    });
+  }
+  return findings;
+}
+
+/* Runs in the page. Connected lists exactly the connected providers with a
+   green Connected; Add a tool shows while anything is connected and folds the
+   catalogue away; nothing connected shows the catalogue itself. No sentence
+   may claim nothing is connected while something is. */
+function inspectConnections({ scope, connected, catalogueOpen }) {
+  const root = document.querySelector(scope);
+  const findings = [];
+  const shown = element => element !== null && element.checkVisibility() && element.getClientRects().length > 0;
+  const rows = [...(root?.querySelectorAll("[data-connected-row]") ?? [])].filter(shown);
+  const listed = rows.map(row => row.dataset.provider).sort().join(", ");
+  if (listed !== [...connected].sort().join(", ")) findings.push(`Connected lists ${listed || "nothing"}, expected ${connected.join(", ") || "nothing"}`);
+  for (const row of rows) {
+    const status = row.querySelector(".q-ok");
+    if (!shown(status) || status.textContent.trim() !== "Connected") findings.push(`${row.dataset.provider}: no visible Connected status`);
+  }
+  const add = document.getElementById("add-tool");
+  if (connected.length && (!shown(add) || add.disabled || add.textContent.trim() !== "Add a tool")) findings.push("no visible, enabled Add a tool");
+  if (!connected.length && shown(add)) findings.push("Add a tool shows while nothing is connected");
+  if (shown(document.getElementById("tool-catalogue")) !== catalogueOpen) {
+    findings.push(`the catalogue is ${catalogueOpen ? "folded" : "open"}, expected ${catalogueOpen ? "open" : "folded"}`);
+  }
+  if (connected.length && /\bno (connections|account|accounts|providers?|tools?)\b[^.]*\b(yet|exist|connected)\b/iu.test(root?.innerText ?? "")) {
+    findings.push("a sentence says nothing is connected while providers are connected");
   }
   return findings;
 }

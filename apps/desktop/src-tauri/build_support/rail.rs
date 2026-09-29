@@ -5,4 +5,5 @@ pub const COMMANDS: &[&str] = &[
     "rail_move_offset",
     "rail_card_open",
     "rail_card_close",
+    "rail_card_height",
 ];

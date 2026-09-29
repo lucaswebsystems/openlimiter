@@ -31,13 +31,15 @@ import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 /* The one projection, names and drawing Home shares with the edge panel. */
 import {
   attentionFlags,
+  connectedProviders,
+  holdReadings,
   limitsModel,
   officialMark,
   projectReadings,
   renderLimits,
   updatedLabel,
 } from "./readings.js";
-import { meterLabel, providerName } from "./names.js";
+import { meterLabel, providerName, say } from "./names.js";
 /* The four screens the connection and entitlement contract asks for. Each one
    owns its own tab and reads the backend itself, so a failure in one leaves
    the other three drawing what they can prove. */
@@ -117,8 +119,9 @@ import {
   connectionsTabShown,
   initConnections,
   noteMetersRefreshed,
+  openCatalogue,
   openProviderConnection,
-  showAttention,
+  showConnections,
 } from "./connections.js";
 import { initFirstRun, claudePollRow } from "./first-run.js";
 import { initWhatsNew } from "./whats-new.js";
@@ -202,6 +205,7 @@ const elements = {
   addAccount: document.getElementById("add-account"),
   emptyConnect: document.getElementById("empty-connect"),
   observed: document.getElementById("home-observed"),
+  refreshStatus: document.getElementById("home-refresh-status"),
   failures: document.getElementById("failures"),
   loading: document.getElementById("loading"),
   planCapMount: document.getElementById("plan-cap-mount"),
@@ -330,6 +334,7 @@ elements.tabs.forEach((tab, index) => {
 
 function beginAddAccount() {
   selectTab(TAB_CONNECTIONS, true);
+  openCatalogue();
   const panel = document.getElementById("panel-connections");
   panel?.setAttribute("data-adding", "");
   window.setTimeout(() => panel?.removeAttribute("data-adding"), 1200);
@@ -871,6 +876,9 @@ function trayProviders(advice, configuredProviders) {
 
 let refreshing = null;
 let selectedHomeProviders = [];
+/* The rows on screen, held so a failed read can age them out by the one
+   freshness policy rather than leave them frozen. */
+let heldSnapshots = [];
 
 /**
  * Whether a fresh Claude reading that arrived through the local statusline is
@@ -961,14 +969,15 @@ async function repaintHome() {
       }
     }
 
-    const model = limitsModel(visible, now);
-    renderLimits(document, elements.rows, model);
-    if (elements.loading !== null) elements.loading.hidden = true;
-    elements.empty.hidden = model.length > 0;
-    elements.rows.hidden = model.length === 0;
-    paintObserved(elements.observed, visible, (instant) => updatedLabel(instant, now));
+    heldSnapshots = visible;
+    paintLimits(visible, now);
+    if (elements.refreshStatus?.textContent === say("cacheUnreadable")) elements.refreshStatus.textContent = "";
     paintFailures(visibleFailures);
-    showAttention(attentionFlags(collected.flags, collected.snapshots));
+    const attention = attentionFlags(collected.flags, collected.snapshots, removed);
+    showConnections({
+      attention,
+      connected: connectedProviders({ snapshots: visible, detections, connections, flags: collected.flags, removed, attention }),
+    });
 
     const notificationSamples = visible
       .filter(
@@ -1001,14 +1010,26 @@ async function repaintHome() {
     noteMetersRefreshed();
     return true;
   } catch (error) {
-    /* A failed refresh leaves the last valid provider rows untouched, which
-       is the right behaviour and was also, for a while, a place a real bug
-       went to die. The reason is surfaced now: an interface that cannot say
-       why it stopped updating is one nobody can debug from a screenshot. */
-    if (elements.loading !== null) elements.loading.hidden = true;
-    paintFailures([{ provider: "MANUAL", category: "PAYLOAD_UNREADABLE" }]);
+    /* A failed read keeps only what is still fresh of the rows already on
+       screen, by the same freshness policy, and says why in one sentence. The
+       tray is asked to redraw too: it reads the cache itself. */
+    const now = new Date().toISOString();
+    heldSnapshots = holdReadings(heldSnapshots, now);
+    paintLimits(heldSnapshots, now);
+    if (elements.refreshStatus) elements.refreshStatus.textContent = say("cacheUnreadable");
+    await setTrayStatus({ providers: [], trialOffered });
     return false;
   }
+}
+
+/** Draw Home's limits, or its empty card, from displayable rows. */
+function paintLimits(snapshots, now) {
+  const model = limitsModel(snapshots, now);
+  renderLimits(document, elements.rows, model);
+  if (elements.loading !== null) elements.loading.hidden = true;
+  elements.empty.hidden = model.length > 0;
+  elements.rows.hidden = model.length === 0;
+  paintObserved(elements.observed, snapshots, (instant) => updatedLabel(instant, now));
 }
 
 bindHomeRefresh({
