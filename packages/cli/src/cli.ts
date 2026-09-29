@@ -415,6 +415,12 @@ const execFileRunner: CredentialCommandRunner = async (
           return { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true };
         }
         const environment: NodeJS.ProcessEnv = { ...process.env };
+        /* Windows environment names ignore case, but a copied process.env keeps
+           the inherited spelling (PSMODULEPATH, Psmodulepath...); drop every
+           variant so the child sees exactly one module path. */
+        for (const key of Object.keys(environment)) {
+          if (key.toLowerCase() === "psmodulepath") delete environment[key];
+        }
         environment["PSModulePath"] = path.win32.join(
           process.env["SystemRoot"] ?? "C:\\Windows",
           "System32",
