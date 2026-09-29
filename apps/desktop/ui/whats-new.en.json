@@ -3,6 +3,10 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.0.1": {
+      "heading": "Startup fix",
+      "startup": "Fixes a freeze at startup on Windows."
+    },
     "2.0.0": {
       "heading": "Your limits and agents, in view",
       "rail": "The left edge Rail keeps your readings in view on Windows. The macOS and Linux Rail is a preview; the tray remains available.",

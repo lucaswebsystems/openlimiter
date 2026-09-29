@@ -290,7 +290,11 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     tauri::plugin::Builder::new("rail")
         .setup(|app, _| {
             #[cfg(not(test))]
-            let path = Some(app.path().app_config_dir()?.join("rail.json"));
+            let path = app
+                .path()
+                .app_config_dir()
+                .ok()
+                .map(|p| p.join("rail.json"));
             #[cfg(test)]
             let path: Option<PathBuf> = None;
             let preferences = path
@@ -313,9 +317,13 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         })
         .on_event(|app, event| match event {
             tauri::RunEvent::Ready if enabled() => {
-                if let Err(error) = runtime::start(app) {
-                    eprintln!("Rail unavailable: {error}");
-                }
+                let app = app.clone();
+                // Plugin dispatch holds Tauri's plugin lock; window creation needs it too.
+                std::thread::spawn(move || {
+                    if let Err(error) = runtime::start(&app) {
+                        eprintln!("Rail unavailable: {error}");
+                    }
+                });
             }
             tauri::RunEvent::Exit => {
                 app.state::<RailState>()
@@ -323,27 +331,31 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                     .store(false, Ordering::Relaxed);
             }
             tauri::RunEvent::MenuEvent(event) if event.id().as_ref() == "rail-toggle" => {
-                let visible = app
-                    .state::<RailState>()
-                    .inner
-                    .lock()
-                    .map(|s| s.preferences.visible)
-                    .unwrap_or(false);
-                if let Err(error) = set_visible(app, !visible) {
-                    eprintln!("Rail visibility: {error}");
-                    return;
-                }
-                // An explicit tray selection is the sole keyboard activation path.
-                // Hover, resume, settings visibility and periodic topmost never focus.
-                if !visible {
-                    if let Ok(mut inner) = app.state::<RailState>().inner.lock() {
-                        inner.behavior.keyboard = true;
+                let app = app.clone();
+                // Menu updates and window operations must run outside plugin dispatch.
+                std::thread::spawn(move || {
+                    let visible = app
+                        .state::<RailState>()
+                        .inner
+                        .lock()
+                        .map(|s| s.preferences.visible)
+                        .unwrap_or(false);
+                    if let Err(error) = set_visible(&app, !visible) {
+                        eprintln!("Rail visibility: {error}");
+                        return;
                     }
-                    if let Some(window) = app.get_webview_window("rail") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
+                    // An explicit tray selection is the sole keyboard activation path.
+                    // Hover, resume, settings visibility and periodic topmost never focus.
+                    if !visible {
+                        if let Ok(mut inner) = app.state::<RailState>().inner.lock() {
+                            inner.behavior.keyboard = true;
+                        }
+                        if let Some(window) = app.get_webview_window("rail") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
                     }
-                }
+                });
             }
             _ => {}
         })

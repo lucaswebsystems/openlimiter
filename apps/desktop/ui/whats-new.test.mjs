@@ -14,14 +14,21 @@ test("the current desktop version has a complete What's New entry", () => {
   assert.equal(entry.versionLabel, `Version ${manifest.version}`);
   assert.ok(entry.heading.trim());
   assert.ok(entry.dismiss.trim());
-  assert.deepEqual(entry.items.map(({ key }) => key), [
-    "rail", "activity", "statusline", "cursor", "retry", "sessions", "spend",
+  assert.deepEqual(entry.items, [
+    { key: "startup", text: "Fixes a freeze at startup on Windows." },
   ]);
   for (const { text } of entry.items) {
     assert.ok(text.trim());
     assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
   }
-  assert.match(WHATS_NEW_EN.releases[manifest.version].cursor, /Experimental/u);
+});
+
+test("the 2.0.0 release notes remain available", () => {
+  const entry = whatsNewForVersion("2.0.0");
+  assert.deepEqual(entry.items.map(({ key }) => key), [
+    "rail", "activity", "statusline", "cursor", "retry", "sessions", "spend",
+  ]);
+  assert.match(WHATS_NEW_EN.releases["2.0.0"].cursor, /Experimental/u);
 });
 
 function fixture({ seen, ready = true, storageFails = false, showFails = false } = {}) {
@@ -81,10 +88,10 @@ test("an upgrade from 1.3.x with no release marker shows all notes once", async 
 });
 
 test("a previous release marker is advanced only after onboarding completes", async () => {
-  const f = fixture({ seen: "1.3.3", ready: false });
+  const f = fixture({ seen: "2.0.0", ready: false });
   await initWhatsNew(f.options);
   assert.equal(f.doc.body.children.length, 0);
-  assert.equal(f.stored.get(WHATS_NEW_STORAGE_KEY), "1.3.3");
+  assert.equal(f.stored.get(WHATS_NEW_STORAGE_KEY), "2.0.0");
   f.doc.documentElement.dataset.firstRun = "complete";
   f.notify();
   f.notify();

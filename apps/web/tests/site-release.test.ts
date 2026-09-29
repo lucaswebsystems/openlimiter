@@ -11,7 +11,7 @@ vi.mock("next-intl/server", () => ({
 
 describe("2.0 site release", () => {
   it("uses the six aliases published by L8.2, with no version in their names", () => {
-    expect(CURRENT_VERSION).toBe("2.0.0");
+    expect(CURRENT_VERSION).toBe("2.0.1");
     const links = [primaryDownloadHref("windows"), downloadAssetHref("windows", "msi"),
       primaryDownloadHref("macos"), primaryDownloadHref("linux"),
       downloadAssetHref("linux", "deb"), downloadAssetHref("linux", "rpm")];
@@ -28,7 +28,7 @@ describe("2.0 site release", () => {
   it("publishes the release version and the free, monthly and annual offers", async () => {
     const { softwareApplicationSchema, jsonLdText } = await import("../lib/jsonld");
     const schema = JSON.parse(jsonLdText(await softwareApplicationSchema("en")));
-    expect(schema.softwareVersion).toBe("2.0.0");
+    expect(schema.softwareVersion).toBe("2.0.1");
     expect(schema.dateModified).toBe("2026-09-28");
     expect(schema.offers.map((offer: { price: string }) => offer.price)).toEqual(["0", "5", "50"]);
   });

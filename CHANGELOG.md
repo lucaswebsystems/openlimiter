@@ -2,6 +2,12 @@
 
 All notable project changes appear in this file.
 
+## [2.0.1]
+
+### Fixed
+
+Fixes a freeze at startup on Windows.
+
 ## [2.0.0]
 
 Release preparation, not yet published. The entries below describe the intended release and remain subject to the final platform, provider and session checks.
