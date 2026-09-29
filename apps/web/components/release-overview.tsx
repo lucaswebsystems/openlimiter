@@ -1,57 +1,39 @@
 import { getTranslations } from "next-intl/server";
-import { ButtonLink, DemoDataChip, SectionHeading } from "./ui";
+import { ButtonLink, SectionHeading } from "./ui";
+import { ProductFigure } from "./device-frame";
+import { CURRENT_VERSION } from "@/lib/site";
 import { reveal } from "@/lib/motion";
-
-function ProductShot({ name, alt, width, height }: { name: string; alt: string; width: number; height: number }) {
-  return (
-    <div className="overflow-hidden rounded-xl border border-hairline bg-frame">
-      {["dark", "light"].map((theme) => (
-        // The images are captured from the real app with synthetic fixtures.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img key={theme} className={`shot-${theme} h-auto w-full`} src={`/screenshots/${name}${theme === "light" ? "-light" : ""}.png`} alt={alt} width={width} height={height} loading="lazy" />
-      ))}
-    </div>
-  );
-}
 
 export async function ReleaseOverview() {
   const t = await getTranslations("home.release");
   return (
-    <div className="space-y-24">
+    <div className="space-y-[calc(var(--ol-space-7)*2)] text-center">
       <section id="rail" {...reveal}>
-        <SectionHeading title={t("rail.title")} lead={t("rail.lead")} />
+        <SectionHeading title={t("rail.title")} lead={t("rail.lead", { version: CURRENT_VERSION })} />
         <div className="grid gap-6 md:grid-cols-2">
           {(["folded", "unfolded"] as const).map((state) => (
-            <figure key={state} className="space-y-3">
-              <ProductShot name={`rail-${state}`} alt={t(`rail.${state}Alt`)} width={1280} height={800} />
-              <figcaption className="text-sm text-muted">{t(`rail.${state}`)}</figcaption>
-            </figure>
+            <ProductFigure key={state} name={`rail-${state}`} alt={t(`rail.${state}Alt`)} caption={t(`rail.${state}`)} />
           ))}
         </div>
       </section>
       <section id="agents" {...reveal}>
         <SectionHeading title={t("agents.title")} lead={t("agents.lead")} />
-        <ProductShot name="desktop-home" alt={t("agents.alt")} width={2000} height={1520} />
-        <p className="mt-4 text-sm text-muted">{t("agents.note")}</p>
+        <ProductFigure name="desktop-home" alt={t("agents.alt")} caption={t("agents.note")} />
       </section>
       <section id="terminal" {...reveal}>
         <SectionHeading title={t("terminal.title")} lead={t("terminal.lead")} />
-        <ProductShot name="terminal-statusline" alt={t("terminal.alt")} width={2400} height={600} />
-        <p className="mt-4 text-sm text-muted">{t("terminal.note")}</p>
+        <ProductFigure name="terminal-statusline" alt={t("terminal.alt")} caption={t("terminal.note")} />
       </section>
-      <section id="web-app" className="grid items-center gap-10 md:grid-cols-[1fr_320px]" {...reveal}>
-        <div>
-          <SectionHeading title={t("phone.title")} lead={t("phone.lead")} />
-          <p className="mb-6 text-sm leading-relaxed text-muted">{t("phone.note")}</p>
+      <section id="web-app" className="rounded-2xl border border-hairline bg-surface p-[var(--ol-space-5)] md:p-[var(--ol-space-7)]" {...reveal}>
+        <SectionHeading title={t("phone.title")} lead={t("phone.lead")} />
+        <div className="mx-auto max-w-80">
+          <ProductFigure name="phone-1" alt={t("phone.alt")} caption={t("phone.note")} />
+        </div>
+        <div className="mt-[var(--ol-space-5)]">
           <ButtonLink href="/app" tone="primary">{t("phone.cta")}</ButtonLink>
         </div>
-        <div className="mx-auto w-full max-w-80">
-          <ProductShot name="phone-1" alt={t("phone.alt")} width={1170} height={2532} />
-        </div>
       </section>
-      <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-muted">
-        <p>{t("captureNote")}</p><DemoDataChip />
-      </div>
+      <p className="mx-auto max-w-2xl text-sm leading-relaxed text-muted">{t("captureNote")}</p>
     </div>
   );
 }
