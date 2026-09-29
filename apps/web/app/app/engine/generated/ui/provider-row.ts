@@ -19,6 +19,9 @@ import {
 } from "../core";
 import { PROVIDER_RECOGNITION_ORDER } from "./provider-connect";
 
+// Home and Connections consume the same projection as the native Rail and tray.
+export { projectSnapshots, freshnessPolicy, fixKind } from "../core";
+
 export type HeadroomTone = "ok" | "watch" | "high" | "critical" | "none";
 
 export interface ProviderWindowView {

@@ -56,6 +56,7 @@ const COPY = {
       "types.js",
       "collection.js",
       "connection-state.js",
+      "data-rules.js",
       "failures.js",
       "format.js",
       "forecast.js",
