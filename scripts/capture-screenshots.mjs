@@ -3,7 +3,9 @@
  *
  *   node scripts/capture-screenshots.mjs
  *
- * Sixteen files land in apps/web/public/screenshots:
+ * The sixteen PNG captures land in apps/web/public/screenshots, followed by
+ * their density-labelled WebP variants. Set OPENLIMITER_VIDEO_OUT to also
+ * write tight, element-level PNGs for the promo video.
  *
  *   desktop-app.png        the packaged window on a macOS style desk, dark
  *   desktop-app-light.png  the same scene and the same window, light
@@ -44,9 +46,11 @@
  */
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
-import { readFile, stat, mkdir } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { copyFile, readFile, stat, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import { ansiHtml, assertCaptureSafe, demoSessions } from "./capture-screenshots-sanitize.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -54,6 +58,11 @@ const REPOSITORY = path.resolve(HERE, "..");
 const DESKTOP_DIST = path.join(REPOSITORY, "apps", "desktop", "ui", "dist");
 const OUTPUT = path.join(REPOSITORY, "apps", "web", "public", "screenshots");
 const WALLPAPER = path.join(REPOSITORY, ".media", "images", "image_001.png");
+const README_HOME = path.join(REPOSITORY, "assets", "readme", "openlimiter-2-0-home.png");
+const VIDEO_OUT = process.env.OPENLIMITER_VIDEO_OUT?.trim()
+  ? path.resolve(process.env.OPENLIMITER_VIDEO_OUT)
+  : undefined;
+const execFileAsync = promisify(execFile);
 
 /** Where the built site is already being served. Nothing is started here. */
 const SITE = process.env.OPENLIMITER_SITE ?? "http://127.0.0.1:3111";
@@ -99,6 +108,48 @@ function loadPlaywright() {
     "Playwright is not resolvable from here. Install it, then run this again:\n" +
       "  npm i -g playwright && npx playwright install chromium",
   );
+}
+
+async function assertFfmpegAvailable() {
+  try {
+    await execFileAsync("ffmpeg", ["-hide_banner", "-version"], { windowsHide: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw new Error("WebP capture requires ffmpeg on PATH. Install ffmpeg with libwebp, then run the capture again.");
+    }
+    throw new Error(`Could not start ffmpeg for WebP capture: ${error?.message ?? String(error)}`);
+  }
+}
+
+async function encodeWebp(source, target, scale) {
+  const filter = scale === 1 ? undefined : `scale=trunc(iw*${scale}):trunc(ih*${scale}):flags=lanczos`;
+  const args = ["-hide_banner", "-loglevel", "error", "-y", "-i", source];
+  if (filter !== undefined) args.push("-vf", filter);
+  args.push("-frames:v", "1", "-c:v", "libwebp", "-quality", "88", "-compression_level", "6", target);
+  try {
+    await execFileAsync("ffmpeg", args, { windowsHide: true, maxBuffer: 1024 * 1024 });
+  } catch (error) {
+    const detail = error?.stderr?.trim() || error?.message || String(error);
+    throw new Error(`ffmpeg could not encode ${path.basename(source)} as WebP: ${detail}`);
+  }
+}
+
+async function emitWebpVariants(pngNames) {
+  await assertFfmpegAvailable();
+  const outputs = [];
+  for (const name of pngNames) {
+    const source = path.join(OUTPUT, name);
+    const stem = name.replace(/\.png$/u, "");
+    const variants = name.startsWith("phone-")
+      ? [["3x", 1], ["2x", 2 / 3], ["1x", 1 / 3]]
+      : [["2x", 1], ["1x", 1 / 2]];
+    for (const [density, scale] of variants) {
+      const output = `${stem}@${density}.webp`;
+      await encodeWebp(source, path.join(OUTPUT, output), scale);
+      outputs.push(output);
+    }
+  }
+  return outputs;
 }
 
 /* ------------------------------------------------------------------ *
@@ -361,12 +412,7 @@ async function captureProductDetails(browser, theme, port) {
   try {
     await page.goto(`${origin}/window-${theme}`, { waitUntil: "networkidle" });
     await page.locator(".agents-row").nth(2).waitFor();
-    /* What's New opens once per version over Home; close it as a person would. */
-    const whatsNew = page.locator("dialog.whats-new[open]");
-    if (await whatsNew.waitFor({ timeout: 4000 }).then(() => true, () => false)) {
-      await whatsNew.locator("button").click();
-      await whatsNew.waitFor({ state: "detached" });
-    }
+    await closeWhatsNew(page);
     await page.locator("#agents-mount").scrollIntoViewIfNeeded();
     await shoot("desktop-home");
     await page.setViewportSize({ width: 640, height: 400 });
@@ -384,6 +430,106 @@ async function captureProductDetails(browser, theme, port) {
     await shoot("terminal-statusline");
   } finally { await context.close(); }
   return names;
+}
+
+/* What's New opens once per version over Home; video frames need the same
+   honest Home state as the marketing captures, without a modal over it. */
+async function closeWhatsNew(page) {
+  const whatsNew = page.locator("dialog.whats-new[open]");
+  if (await whatsNew.waitFor({ timeout: 4000 }).then(() => true, () => false)) {
+    await whatsNew.locator("button").click();
+    await whatsNew.waitFor({ state: "detached" });
+  }
+}
+
+async function assertCapturePageSafe(page) {
+  for (const frame of page.frames()) {
+    assertCaptureSafe(await frame.locator("body").innerText());
+  }
+}
+
+async function captureVideoElement(page, locator, name, options = {}) {
+  await assertCapturePageSafe(page);
+  assertCaptureSafe(await locator.innerText());
+  await locator.screenshot({
+    path: path.join(VIDEO_OUT, name),
+    animations: "disabled",
+    ...options,
+  });
+  return name;
+}
+
+async function captureVideoShots(browser, port) {
+  await mkdir(VIDEO_OUT, { recursive: true });
+  const origin = `http://127.0.0.1:${port}`;
+  const context = await browser.newContext({
+    viewport: { width: 1000, height: 760 },
+    deviceScaleFactor: 2,
+    colorScheme: "dark",
+    reducedMotion: "reduce",
+    serviceWorkers: "block",
+  });
+  await context.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+  const page = await context.newPage();
+  const written = [];
+  const transparent = { omitBackground: true };
+  try {
+    await page.goto(`${origin}/scene-dark`, { waitUntil: "networkidle" });
+    await page.frameLocator("iframe").locator(".agents-row").nth(2).waitFor();
+    await closeWhatsNew(page.frameLocator("iframe"));
+    written.push(await captureVideoElement(page, page.locator(".window"), "home-window.png"));
+
+    await page.goto(`${origin}/window-dark`, { waitUntil: "networkidle" });
+    await page.locator(".agents-row").nth(2).waitFor();
+    await closeWhatsNew(page);
+    for (const state of ["busy", "waiting", "done"]) {
+      const row = page.locator(`.agents-row[data-state="${state}"]`);
+      await row.waitFor();
+      written.push(await captureVideoElement(page, row, `agents-row-${state}.png`, transparent));
+    }
+
+    /* The alerts section renders only when the stubbed bridge reports native
+       notifications; without it this optional shot is skipped, not faked. */
+    try {
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      const alerts = page.locator("#settings-mount section[aria-labelledby=\"alerts-title\"]");
+      await alerts.waitFor({ timeout: 8000 });
+      if ((await alerts.innerText()).includes("Desktop alerts stay free")) {
+        written.push(await captureVideoElement(page, alerts, "settings-alerts.png", transparent));
+      } else {
+        process.stdout.write("skip settings-alerts.png: section does not say desktop alerts stay free\n");
+      }
+    } catch {
+      process.stdout.write("skip settings-alerts.png: alerts section not rendered by the stub\n");
+    }
+
+    await page.goto(`${origin}/rail-dark`, { waitUntil: "networkidle" });
+    await page.locator('[data-agent="waiting"]').waitFor();
+    written.push(await captureVideoElement(page, page.locator("#surface"), "rail-strip.png", transparent));
+
+    await page.goto(`${origin}/rail-dark?card`, { waitUntil: "networkidle" });
+    await page.locator('[data-agent="waiting"]').waitFor();
+    const card = page.locator("#surface");
+    const cardText = await card.innerText();
+    if (!cardText.includes("Claude") || !cardText.includes("Needs you")) {
+      throw new Error("Video capture requires the unfolded Rail to show the full Claude needs you card.");
+    }
+    written.push(await captureVideoElement(page, card, "rail-card.png", transparent));
+    const sourceLabel = page.locator('#surface [data-source-label], #surface [data-source], #surface [class~="source"], #surface [class*="source"]');
+    if (await sourceLabel.count() > 0 && await sourceLabel.first().isVisible()) {
+      written.push(await captureVideoElement(page, card, "rail-source-detail.png", transparent));
+    } else {
+      process.stdout.write("Rail source label not rendered; skipped rail-source-detail.png\n");
+    }
+
+    for (const theme of ["dark", "light"]) {
+      await page.goto(`${origin}/terminal-${theme}`, { waitUntil: "networkidle" });
+      written.push(await captureVideoElement(page, page.locator("pre"), `statusline-${theme}.png`, transparent));
+    }
+  } finally {
+    await context.close();
+  }
+  return written;
 }
 
 /* ------------------------------------------------------------------ *
@@ -622,21 +768,33 @@ async function main() {
     executablePath === undefined || executablePath === "" ? { headless: true } : { headless: true, executablePath },
   );
   const written = [];
+  let video = [];
   try {
     for (const theme of ["dark", "light"]) {
       written.push(await captureDesk(browser, theme, port));
       written.push(...(await captureProductDetails(browser, theme, port)));
       written.push(...(await capturePhone(browser, theme, snapshots, now)));
     }
+    if (VIDEO_OUT !== undefined) video = await captureVideoShots(browser, port);
   } finally {
     await browser.close();
     server.close();
   }
 
+  await copyFile(path.join(OUTPUT, "desktop-home.png"), README_HOME);
+  const webp = await emitWebpVariants(written);
+  written.push(...webp);
+
   for (const name of written.sort()) {
     const info = await stat(path.join(OUTPUT, name));
     process.stdout.write(name.padEnd(24) + String(info.size).padStart(9) + " bytes\n");
   }
+  for (const name of video.sort()) {
+    const info = await stat(path.join(VIDEO_OUT, name));
+    process.stdout.write(`video/${name}`.padEnd(32) + String(info.size).padStart(9) + " bytes\n");
+  }
+  const readmeInfo = await stat(README_HOME);
+  process.stdout.write(`readme/${path.basename(README_HOME)}`.padEnd(32) + String(readmeInfo.size).padStart(9) + " bytes\n");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

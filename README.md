@@ -7,10 +7,10 @@
 OpenLimiter 2.0 reads usage limits and agent activity from supported AI tools on your computer and shows them in your desktop Rail, tray, terminal, browser and phone.
 
 <p align="center">
-  <img src="assets/readme/openlimiter-real-providers.png" width="522" alt="OpenLimiter desktop showing current Codex, Claude, and Antigravity quota windows">
+  <img src="assets/readme/openlimiter-2-0-home.png" width="522" alt="OpenLimiter Home window showing provider meters and local agent activity">
 </p>
 
-<p align="center"><sub>Current desktop renderer reading a real local cache. Account identifiers were replaced with local provider aliases. Percentages and reset times were not changed.</sub></p>
+<p align="center"><sub>Current desktop renderer with synthetic fixtures for provider meters and local agent activity. No account identifiers or real usage data are included.</sub></p>
 
 [![Download for Windows](https://img.shields.io/badge/Download-Windows-blue)](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64-setup.exe)
 [![Download for macOS](https://img.shields.io/badge/Download-macOS-blue)](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-macos-universal.dmg)
