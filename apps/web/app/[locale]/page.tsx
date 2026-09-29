@@ -8,10 +8,9 @@ import { Hero } from "@/components/hero";
 import { IntegrationStrip } from "@/components/integration-strip";
 import { JsonLd } from "@/components/json-ld";
 import { Pricing } from "@/components/pricing";
-import { RunsWhere } from "@/components/runs-where";
+import { ReleaseOverview } from "@/components/release-overview";
 import { SiteLink } from "@/components/site-link";
 import { SHELL } from "@/components/ui";
-import { WebApp } from "@/components/web-app";
 import { WorksWith } from "@/components/works-with";
 import {
   faqPageSchema,
@@ -134,10 +133,7 @@ export default async function Home({ params }: LocaleParams) {
             <WorksWith />
           </SectionBand>
           <SectionBand>
-            <RunsWhere />
-          </SectionBand>
-          <SectionBand>
-            <WebApp />
+            <ReleaseOverview />
           </SectionBand>
           <SectionBand>
             <DocsLine />

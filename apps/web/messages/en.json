@@ -47,8 +47,8 @@
     "saveFailed": "Could not save Rail visibility. Try again."
   },
   "meta": {
-    "title": "OpenLimiter, quota awareness for AI coding agents",
-    "description": "OpenLimiter reads the quota of your AI subscriptions on your own machine and gives coding agents bounded budget state plus routing advice. Open source, local first, with zero telemetry in local mode."
+    "title": "OpenLimiter 2.0, AI coding limits and agent activity",
+    "description": "See AI coding limits on your desktop, in your terminal and on your phone. Track busy, waiting and done agents with free local alerts in OpenLimiter 2.0."
   },
   "common": {
     "skipToContent": "Skip to content",
@@ -436,19 +436,49 @@
     "disclaimer": "Packaged desktop builds ship for Windows, macOS and Linux. Windows and macOS are unsigned: SmartScreen wants More info then Run anyway, and macOS wants Open Anyway once. The download page has the exact steps. npm and the web app are available now. Native mobile applications are not built."
   },
   "home": {
+    "release": {
+      "rail": {
+        "title": "A quiet Rail. A clear request for you.",
+        "lead": "OpenLimiter 2.0 puts your AI coding limits and agent activity at the left edge of your desktop. Keep the Rail folded while you work, then unfold it to see which agent needs input. Local meters and desktop alerts are free, with one active account per provider.",
+        "folded": "Folded at the left edge, with usage and activity in view.",
+        "unfolded": "Unfold the Rail to read the card and locate the agent's application.",
+        "foldedAlt": "The real OpenLimiter Rail folded against the left edge with synthetic provider meters and agent activity.",
+        "unfoldedAlt": "The real OpenLimiter Rail unfolded beside a card showing Claude needs input, with a Locate app button."
+      },
+      "agents": {
+        "title": "Busy, waiting or done. Know when to return.",
+        "lead": "The Home Agents list shows activity from supported agent integrations. A waiting agent needs input. A done agent has reported completion. Free local notifications bring you back when there is something to do.",
+        "note": "Locate app brings you to the owning application where the operating system allows it. It does not promise a particular terminal tab. Unknown activity is never shown as success.",
+        "alt": "OpenLimiter desktop Home with Claude waiting, Codex busy and Cursor done in the Agents list, using synthetic sessions."
+      },
+      "terminal": {
+        "title": "Your limits beside your prompt.",
+        "lead": "The terminal status line shows usage, reset times and freshness for supported hosts. Green, yellow, orange and red bands make a filling window easy to spot. Percentages and labels keep the meaning clear without relying on colour.",
+        "note": "This is the real CLI renderer with synthetic readings. Status line support depends on the host. See the CLI guide for setup.",
+        "alt": "Real OpenLimiter CLI output with green, yellow, orange and red usage bands, percentages and reset times."
+      },
+      "phone": {
+        "title": "Sign in on your phone. See your computer's readings.",
+        "lead": "Sign in to the same OpenLimiter account on your computer and phone. The web app shows the latest synchronized readings, including when they were observed. Free account access keeps working after a Pro trial ends.",
+        "note": "Your computer must collect and sync new readings. A phone does not make an offline computer current, and provider credentials stay on the device that reads them.",
+        "cta": "Sign in to the web app",
+        "alt": "The signed in OpenLimiter web app at phone size, showing synthetic readings synchronized from a computer."
+      },
+      "captureNote": "Real application screens with synthetic data. No personal account or usage data."
+    },
     "docsLine": "Both of those are written up in full: <agentContext>what an agent is told</agentContext> and <cli>every command it ships with</cli>.",
     "bridge": {
-      "line": "When you step away from the desk, the numbers are still on your own disk.",
-      "note": "Nothing had to be uploaded to make that true."
+      "line": "Keep working. See when an agent needs you.",
+      "note": "The Rail and terminal show local readings. Sign in to see synchronized readings on your phone."
     }
   },
   "deviceFrame": {
-    "title": "Every plan on one screen",
-    "lead": "A card per provider: the meter, how fresh that reading is, and when the window resets. Every number is read from your own machine, and what you see in this capture is exactly what installs.",
+    "title": "Your coding day, in one place",
+    "lead": "Local usage meters and the Agents list share the desktop Home. See how fresh a reading is, when its window resets, and which supported agent needs your attention.",
     "screenshot": {
-      "alt": "The OpenLimiter desktop application, showing one card per provider with a meter, a percentage, a freshness state and a reset countdown, over synthetic demo data."
+      "alt": "The OpenLimiter 2.0 desktop Home with synthetic usage readings and an Agents list showing waiting, busy and done sessions."
     },
-    "caption": "The packaged desktop application, captured on a real machine against the project's synthetic demo fixtures. No account, credential or real usage figure appears in it."
+    "caption": "The real desktop UI rendered headlessly with synthetic fixtures. No personal account, credential or real usage figure appears in it."
   },
   "phonePanels": {
     "shots": {
@@ -725,7 +755,7 @@
     "items": {
       "whatLeaves": {
         "question": "What actually leaves my machine?",
-        "answer": "In local mode, nothing leaves for OpenLimiter. Provider connections talk only to that provider through a fixed allowlist, and credentials stay in the operating system credential store. When you sign in, selected bounded quota snapshots go to the hosted service so your own devices can see them, and Pro adds alerts, history, forecasts and agent routing on top of those. Provider credentials never go there."
+        "answer": "In local mode, nothing leaves for OpenLimiter. Provider connections talk only to that provider through a fixed allowlist, and credentials stay on your device. When you sign in, selected bounded quota snapshots go to the hosted service so your own devices can see them. Pro adds remote alerts, hosted history and forecasts. Local alerts are free. Provider credentials never go there."
       },
       "safeToPoint": {
         "question": "Is it safe to point at my tools?",
@@ -737,7 +767,7 @@
       },
       "providersToday": {
         "question": "Which providers work today?",
-        "answer": "Nine connectors ship: Claude through the native statusline payload, OpenRouter through its documented shape, Codex, Antigravity, Gemini CLI, Grok and Kimi through internal shapes that may break, OpenCode through an existing session that may break, and manual entry. Every one is marked UNVERIFIED until an explicit verifier exists."
+        "answer": "The provider guide lists the available meters, setup steps and verification status for each integration. Quota readings and agent activity are separate capabilities. A provider that reports activity does not necessarily expose a quota, and a parser tested on fixtures is not proof of live acquisition."
       },
       "apiKey": {
         "question": "Do I need an API key?",
@@ -779,7 +809,7 @@
   },
   "pricing": {
     "title": "Pricing",
-    "lead": "Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above $100 are Pro.",
+    "lead": "Local meters, local alerts and account access are free, with one active account per provider. Pro adds remote alerts, hosted history, extra accounts and more.",
     "plannedChip": "planned",
     "free": {
       "status": "available",
@@ -806,15 +836,15 @@
       "trialChip": "30 days free",
       "priceNote": "The first 30 days are free with no card required. When access ends the Pro features stop: the hosted ones at once, and the local ones fall back to one account per provider and the standard theme. Everything you could see before Pro is unchanged.",
       "lead": "Five Pro features. Three are hosted services and two are switches in the local application.",
-      "footnote": "Everything you can see is free. Alerts, history, phone access, extra accounts and spend tracking above $100 are Pro.",
+      "footnote": "After the trial, local meters, local alerts and free account access keep working. Free keeps one active account per provider.",
       "lines": {
-        "alerts": "Every alert: a desktop toast, an email and a phone push at 60, 80 and 90 percent of a window, and when it resets",
+        "alerts": "Remote email and phone push alerts. Local desktop alerts are free",
         "themes": "One Pro accent or density preset, applied in the local application",
         "multiSubscription": "More than one account per provider, unlocked in the local application",
         "heavyApi": "API spend meters, in beta. Free tracks up to $100 a calendar month for each source and Pro goes above it",
         "history": "Ninety days of hosted history, with a forecast to the day a window runs out"
       },
-      "cta": "Start 30 days free",
+      "cta": "Start your free 30 day Pro trial",
       "conditions": "Spend meters need an organisation admin key. Full refund within 14 days, cancel any time in the Stripe portal. Sold by Lucas Costa, payments by Stripe.",
       "conditionsLink": "Full conditions"
     },
@@ -844,8 +874,10 @@
     "readSource": "Read the source"
   },
   "download": {
-    "metaTitle": "Download",
-    "metaDescription": "Get OpenLimiter for Windows, macOS or Linux, install the command line tool from npm, or open the web app.",
+    "releaseLead": "Get OpenLimiter 2.0.0 for Windows, macOS or Linux, or install the command line tool from npm. Local meters and desktop alerts are free, with one active account per provider. These desktop builds are unsigned. Sign in to a free account to see synchronized readings on your phone.",
+    "updated": "Updated September 28, 2026",
+    "metaTitle": "Download 2.0.0 for desktop and terminal",
+    "metaDescription": "Download OpenLimiter 2.0.0 for Windows, macOS or Linux, or install the CLI from npm. Free local meters and alerts. Desktop builds are unsigned.",
     "title": "Download",
     "lead": "Windows, macOS and Linux desktop builds are available now. Windows and macOS ship unsigned, so each one asks you to allow it once: on Windows choose More info then Run anyway, and on macOS open System Settings, go to Privacy and Security, and choose Open Anyway. macOS ships as one universal disk image that runs on Apple silicon and on Intel. npm and the web app are also available.",
     "choice": {

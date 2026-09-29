@@ -90,7 +90,19 @@ export const HERO_BACKDROP_ENABLED: boolean = true;
  * line shown on the download page, so it must be bumped in the same commit
  * that tags a desktop release, never after.
  */
-export const CURRENT_VERSION = "1.3.3";
+export const CURRENT_VERSION = "2.0.0";
+export const SITE_CONTENT_UPDATED = "2026-09-28";
+
+/** L8.2 desktop-release.yml publishes these aliases beside versioned assets. */
+export const STABLE_DOWNLOAD_BASE = `${RELEASES_URL}/latest/download`;
+export const STABLE_DOWNLOADS = {
+  windows: `${STABLE_DOWNLOAD_BASE}/OpenLimiter-windows-x64-setup.exe`,
+  msi: `${STABLE_DOWNLOAD_BASE}/OpenLimiter-windows-x64.msi`,
+  macos: `${STABLE_DOWNLOAD_BASE}/OpenLimiter-macos-universal.dmg`,
+  linux: `${STABLE_DOWNLOAD_BASE}/OpenLimiter-linux-x86_64.AppImage`,
+  deb: `${STABLE_DOWNLOAD_BASE}/OpenLimiter-linux-amd64.deb`,
+  rpm: `${STABLE_DOWNLOAD_BASE}/OpenLimiter-linux-x86_64.rpm`,
+} as const;
 
 /**
  * What actually ships today, in one place, so no surface can quietly promote a

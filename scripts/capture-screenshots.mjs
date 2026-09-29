@@ -3,12 +3,16 @@
  *
  *   node scripts/capture-screenshots.mjs
  *
- * Eight files land in apps/web/public/screenshots:
+ * Sixteen files land in apps/web/public/screenshots:
  *
  *   desktop-app.png        the packaged window on a macOS style desk, dark
  *   desktop-app-light.png  the same scene and the same window, light
  *   phone-1..3.png         the web app at phone size, dark, one per view
  *   phone-1..3-light.png   the same three views, light
+ *   rail-folded*.png       the real Rail folded, dark and light
+ *   rail-unfolded*.png     the real Rail and attention card, dark and light
+ *   desktop-home*.png      Home with the real Agents list, dark and light
+ *   terminal-statusline*.png  real CLI ANSI output, dark and light
  *
  * WHAT IS IN THE PICTURES, AND WHAT IS NOT
  * ----------------------------------------
@@ -28,19 +32,22 @@
  * A running production build of the site on the port below, for the phone
  * captures, and a built desktop window for the desk:
  *
- *   pnpm --dir apps/web build && pnpm --dir apps/web exec next start -p 3111
+ *   Build the web app with synthetic public configuration only:
+ *   NEXT_PUBLIC_SUPABASE_URL=https://capture.openlimiter.invalid
+ *   NEXT_PUBLIC_SUPABASE_ANON_KEY=capture-only
+ *   then serve that build on 127.0.0.1:3111.
  *   node apps/desktop/scripts/build-ui.mjs
  *
- * Playwright is not a dependency of this repository, because nothing that ships
- * needs a browser. Install it where you run this:
- *
- *   npm i -g playwright && npx playwright install chromium
+ * Uses the web app's installed Playwright. Run with a disposable profile for
+ * HOME, USERPROFILE, APPDATA, LOCALAPPDATA and all XDG directories. No desktop
+ * executable is started. All browser contexts reject nonlocal network traffic.
  */
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { ansiHtml, assertCaptureSafe, demoSessions } from "./capture-screenshots-sanitize.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPOSITORY = path.resolve(HERE, "..");
@@ -65,7 +72,7 @@ const MENUBAR_HEIGHT = 26;
 const WINDOW = { left: 141, top: 93, width: 998, height: 642, titlebar: 37 };
 
 function loadPlaywright() {
-  const require = createRequire(import.meta.url);
+  const require = createRequire(path.join(REPOSITORY, "apps/web/package.json"));
   for (const name of ["playwright", "playwright-core"]) {
     try {
       return require(name);
@@ -102,11 +109,14 @@ function loadPlaywright() {
  * Synthetic fixture readings stamped like a real machine (statusline
  * provenance for Claude, fresh states, plausible as of timestamps).
  */
-async function demoSnapshots(now) {
+export async function demoSnapshots(now) {
   const engine = path.join(DESKTOP_DIST, "engine");
-  const connectors = await import(
-    pathToFileURL(path.join(engine, "connectors", "index.js")).href
-  );
+  // Import the packaged readers directly. The desktop bundle intentionally
+  // contains a subset of the connector package's barrel exports.
+  const connectors = Object.assign({}, ...await Promise.all(
+    ["fixtures", "claude", "openrouter", "codex", "antigravity", "opencode", "manual"].map(name =>
+      import(pathToFileURL(path.join(engine, "connectors", `${name}.js`)).href)),
+  ));
   const core = await import(pathToFileURL(path.join(engine, "core", "index.js")).href);
   const rawSnapshots = core.normalizeMeters([
     ...(connectors.parseClaudePayload(connectors.claudeFixture(now), now) ?? []),
@@ -261,16 +271,29 @@ async function scenePage(theme, windowUrl) {
  * A classic inline script runs before any deferred module, so the stub is in
  * place before app.js reads it, and app.js is byte for byte the shipped file.
  */
-async function windowPage(theme, snapshots) {
+export async function windowPage(theme, snapshots, sessions) {
   const html = await readFile(path.join(DESKTOP_DIST, "index.html"), "utf8");
   const cache = JSON.stringify(JSON.stringify({ version: 1, snapshots }));
+  /* A returning user: first run finished with the pictured providers set up,
+     so Home is on screen rather than the first run sheet. The keys come from
+     the shipped modules so a version bump cannot quietly hide Home again. */
+  const { FIRST_RUN_STORAGE_KEY } = await import(pathToFileURL(path.join(DESKTOP_DIST, "first-run.js")).href);
+  const { CONFIGURED_PROVIDERS_STORAGE_KEY } = await import(pathToFileURL(path.join(DESKTOP_DIST, "configured-providers.js")).href);
+  const configured = JSON.stringify([...new Set(snapshots.map((row) => row.provider))]);
   const stub = `<script>
       window.localStorage.setItem("openlimiter-theme", ${JSON.stringify(theme)});
+      window.localStorage.setItem(${JSON.stringify(FIRST_RUN_STORAGE_KEY)}, "complete");
+      window.localStorage.setItem(${JSON.stringify(CONFIGURED_PROVIDERS_STORAGE_KEY)}, ${JSON.stringify(configured)});
       document.documentElement.setAttribute("data-theme", ${JSON.stringify(theme)});
       window.__TAURI__ = {
         core: {
           invoke: function (name) {
             if (name === "read_cache") return Promise.resolve(${cache});
+            /* The Rust AccountStatus of a signed out release build. A null here
+               throws in first run before it can check the stored completion. */
+            if (name === "account_status") return Promise.resolve({configured:true,signedIn:false,email:null,syncEnabled:true,backendReachable:true});
+            if (name === "plugin:activity|activity_sessions") return Promise.resolve(${JSON.stringify(sessions)});
+            if (name === "plugin:activity|activity_notification_preferences") return Promise.resolve({local:{enabled:true,quietHours:null,mutedProviders:[]},sound:"silent"});
             if (name === "read_manual") return Promise.resolve("");
             if (name === "state_directory") return Promise.resolve("the demo fixtures");
             return Promise.resolve(null);
@@ -280,6 +303,81 @@ async function windowPage(theme, snapshots) {
       };
     </script>`;
   return html.replace('<script type="module"', stub + '\n    <script type="module"');
+}
+
+export async function railPage(theme, sessions, now) {
+  const html = await readFile(path.join(DESKTOP_DIST, "rail.html"), "utf8");
+  const accounts = [["claude", 42, "green"]].map(([provider, value, band]) => ({ provider, account: "", headlineMeterId: "SESSION",
+    kind: "quota_percent", availability: "available", value, meaning: "used", band,
+    freshness: "fresh", windowLabel: "Session", observedAt: now,
+    resetAt: new Date(Date.parse(now) + 7200000).toISOString() }));
+  const stub = `<script>
+    localStorage.setItem("openlimiter-theme", ${JSON.stringify(theme)});
+    window.__TAURI__ = {core:{invoke:async function(name) {
+      if (name === "plugin:rail|rail_snapshot") return {
+        accounts:${JSON.stringify(accounts)}, sessions:${JSON.stringify(sessions)},
+        window:{unfolded:location.search.includes("unfolded"),keepOpen:false,cardOpen:true,offset:0}
+      };
+      return null;
+    }}};
+  </script>`;
+  return html.replace('<script type="module"', stub + '<script type="module"');
+}
+
+export async function terminalPage(theme, snapshots, now) {
+  const { renderStatuslineLayout } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/statusline.js")));
+  const { DEFAULT_STATUSLINE } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/config.js")));
+  const seen = new Set();
+  const rows = snapshots.filter(row => {
+    if (row.unit !== "PERCENT" || row.usedAmount !== undefined || row.provider === "OPENROUTER" || seen.has(row.provider)) return false;
+    seen.add(row.provider); return true;
+  }).slice(0, 4)
+    .map((row, index) => ({ ...row, value: [42, 64, 84, 94][index] }));
+  const output = renderStatuslineLayout({ snapshots: rows, now, config: DEFAULT_STATUSLINE,
+    advice: { inject: false, reason: "UNKNOWN" }, host: "shell", color: true, unicode: true });
+  const body = ansiHtml(output);
+  for (const band of ["green", "yellow", "orange", "red"]) {
+    if (!body.includes(`band-${band}`)) throw new Error(`CLI capture did not render ${band}.`);
+  }
+  return `<!doctype html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8">
+    <link rel="stylesheet" href="engine/ui/tokens.css"><style>
+      *{box-sizing:border-box}body{margin:0;padding:44px;background:var(--ol-canvas);color:var(--ol-body);font-family:var(--ol-font-sans)}
+      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+      ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}
+    </style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
+}
+
+async function captureProductDetails(browser, theme, port) {
+  const origin = `http://127.0.0.1:${port}`;
+  const context = await browser.newContext({ viewport: { width: 1000, height: 760 }, deviceScaleFactor: 2, colorScheme: theme, reducedMotion: "reduce", serviceWorkers: "block" });
+  await context.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+  const page = await context.newPage();
+  const names = [];
+  const shoot = async name => {
+    for (const frame of page.frames()) assertCaptureSafe(await frame.locator("body").innerText());
+    const file = `${name}${theme === "light" ? "-light" : ""}.png`;
+    await page.screenshot({ path: path.join(OUTPUT, file) }); names.push(file);
+  };
+  try {
+    await page.goto(`${origin}/window-${theme}`, { waitUntil: "networkidle" });
+    await page.locator(".agents-row").nth(2).waitFor();
+    await page.locator("#agents-mount").scrollIntoViewIfNeeded();
+    await shoot("desktop-home");
+    await page.setViewportSize({ width: 640, height: 400 });
+    for (const state of ["folded", "unfolded"]) {
+      const desk = `<iframe src="${origin}/scene-${theme}" style="position:absolute;width:1280px;height:800px;transform:scale(.5);transform-origin:top left;border:0"></iframe>`;
+      const rail = `<iframe src="${origin}/rail-${theme}?${state}" style="position:absolute;left:0;top:12px;width:${state === "folded" ? 8 : 56}px;height:380px;border:0"></iframe>`;
+      const card = state === "unfolded" ? `<iframe src="${origin}/rail-${theme}?card" style="position:absolute;left:72px;top:12px;width:350px;height:380px;border:0"></iframe>` : "";
+      await page.setContent(`<body style="margin:0">${desk}${rail}${card}</body>`);
+      await page.waitForTimeout(500);
+      for (const frame of page.frames().filter(frame => frame.url().includes("/rail-"))) await frame.locator('[data-agent="waiting"]').waitFor();
+      await shoot(`rail-${state}`);
+    }
+    await page.setViewportSize({ width: 1200, height: 300 });
+    await page.goto(`${origin}/terminal-${theme}`, { waitUntil: "networkidle" });
+    await shoot("terminal-statusline");
+  } finally { await context.close(); }
+  return names;
 }
 
 /* ------------------------------------------------------------------ *
@@ -368,53 +466,71 @@ const STANDALONE = [
    wave, and a capture of the loading skeleton looked like an open sheet over
    a blurred void. Waiting for real content cannot rot the same way. */
 const PHONE_VIEWS = [
-  { file: "phone-1", tab: "tab-home", panel: "#panel-home", proof: "Claude", scrollY: 150 },
-  { file: "phone-2", tab: "tab-advanced", panel: "#panel-advanced", proof: "NEAR_CAP", selector: "#panel-advanced pre" },
-  { file: "phone-3", tab: "tab-connections", panel: "#panel-connections", proof: "OpenRouter", selector: "#panel-connections" },
+  { file: "phone-1", scrollY: 0 },
+  { file: "phone-2", scrollY: 500 },
+  { file: "phone-3", scrollY: 1000 },
 ];
 
-async function capturePhone(browser, theme, snapshots) {
+async function capturePhone(browser, theme, snapshots, now) {
   const context = await browser.newContext({
     viewport: { width: PHONE.width, height: PHONE.height },
     deviceScaleFactor: PHONE.scale,
     colorScheme: theme,
     isMobile: true,
     hasTouch: true,
+    serviceWorkers: "block",
   });
-  /* Seed LIVE storage key with synthetic fixture readings stamped like a real machine. */
+  // Build the local site with NEXT_PUBLIC_SUPABASE_URL=https://capture.openlimiter.invalid
+  // and NEXT_PUBLIC_SUPABASE_ANON_KEY=capture-only. No real service is contacted.
+  const api = "https://capture.openlimiter.invalid";
+  const user = { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated",
+    user_metadata: { full_name: "Demo", openlimiter_onboarded: true }, app_metadata: { provider: "github" }, created_at: now };
+  const session = { access_token: "capture-only", refresh_token: "capture-only", token_type: "bearer", expires_in: 86400,
+    expires_at: Math.floor(Date.parse(now) / 1000) + 86400, user };
+  let syncedReads = 0;
+  await context.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin === api) {
+      const action = route.request().postDataJSON()?.action;
+      let body = {};
+      if (url.pathname.startsWith("/auth/")) body = user;
+      else if (action === "read_usage") {
+        syncedReads++;
+        body = { rows: snapshots.filter(row => row.unit === "PERCENT").map(row => ({
+          provider: row.provider, account_id: "demo", window_id: row.meter, used_percent: row.value,
+          resets_at: row.resetAt, observed_at: now, stale: false,
+        })) };
+      } else if (url.pathname.endsWith("/entitlement")) body = { entitlement: null, devices: [] };
+      else body = { rows: [], keys: [] };
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
+    }
+    if (url.origin === new URL(SITE).origin) return route.continue();
+    return route.abort();
+  });
+  /* Only the stubbed sync response supplies phone readings. No local fallback
+     can make a failed sign in or an invalid sync response look successful. */
   await context.addInitScript(
-    ([kind, rows]) => {
+    ([kind, auth]) => {
       window.localStorage.setItem("openlimiter-theme", kind);
       window.localStorage.setItem("openlimiter-app-mode", "live");
-      window.localStorage.setItem("openlimiter-app-live", rows);
       window.localStorage.setItem("openlimiter-app-view", "grid");
+      window.localStorage.setItem("sb-capture-auth-token", auth);
     },
-    [theme, JSON.stringify(snapshots)],
+    [theme, JSON.stringify(session)],
   );
   const page = await context.newPage();
   const written = [];
   for (const view of PHONE_VIEWS) {
     await page.goto(SITE + "/app", { waitUntil: "domcontentloaded" });
-    await page.waitForSelector("html[data-ol-ready]", { state: "attached" });
     await page.addStyleTag({ content: STANDALONE });
-    await page.click("#" + view.tab);
     /* The launch splash clears at 760ms, the busy floor is 240ms, and then
        the panel must actually contain its proof text before the shutter. */
     await page.waitForTimeout(1600);
-    await page.waitForFunction(
-      ([panel, proof]) => {
-        const el = document.querySelector(panel);
-        return el !== null && el.textContent !== null && el.textContent.includes(proof);
-      },
-      [view.panel, view.proof],
-      { timeout: 20000 },
-    );
-    if (view.selector) {
-      await page.locator(view.selector).first().scrollIntoViewIfNeeded();
-      await page.evaluate(() => window.scrollBy(0, -120));
-    } else if (typeof view.scrollY === "number") {
-      await page.evaluate((y) => window.scrollTo(0, y), view.scrollY);
-    }
+    await page.waitForFunction(() => document.body.textContent.includes("Claude") && document.body.textContent.includes("Codex"), null, { timeout: 20000 });
+    await page.locator(".ol-live-meter-card").waitFor();
+    if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
+    assertCaptureSafe(await page.locator("body").innerText());
+    await page.evaluate((y) => window.scrollTo(0, y), view.scrollY);
     await page.waitForTimeout(300);
     const name = view.file + (theme === "light" ? "-light" : "") + ".png";
     await page.screenshot({ path: path.join(OUTPUT, name) });
@@ -429,12 +545,17 @@ async function captureDesk(browser, theme, port) {
     viewport: { width: SCENE.width, height: SCENE.height },
     deviceScaleFactor: SCENE.scale,
     colorScheme: theme,
+    serviceWorkers: "block",
   });
+  const origin = `http://127.0.0.1:${port}`;
+  await context.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${String(port)}/scene-${theme}`, {
     waitUntil: "networkidle",
   });
+  await page.frameLocator("iframe").locator(".agents-row").nth(2).waitFor();
   await page.waitForTimeout(1200);
+  assertCaptureSafe(await page.frameLocator("iframe").locator("body").innerText());
   const name = theme === "light" ? "desktop-app-light.png" : "desktop-app.png";
   await page.screenshot({ path: path.join(OUTPUT, name) });
   await context.close();
@@ -442,16 +563,24 @@ async function captureDesk(browser, theme, port) {
 }
 
 async function main() {
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(SITE).hostname)) {
+    throw new Error("Screenshot capture requires a local fixture site.");
+  }
   const { chromium } = loadPlaywright();
   const now = new Date().toISOString();
   const snapshots = await demoSnapshots(now);
+  const sessions = demoSessions(now);
+  assertCaptureSafe(snapshots);
+  await mkdir(OUTPUT, { recursive: true });
   if (snapshots.length === 0) {
     throw new Error("The fixtures produced no snapshots. Run pnpm build first.");
   }
 
   const pages = new Map();
   for (const theme of ["dark", "light"]) {
-    pages.set("/window-" + theme, await windowPage(theme, snapshots));
+    pages.set("/window-" + theme, await windowPage(theme, snapshots, sessions));
+    pages.set("/rail-" + theme, await railPage(theme, sessions.filter(session => session.state === "waiting"), now));
+    pages.set("/terminal-" + theme, await terminalPage(theme, snapshots, now));
   }
   const { server, port } = await startDesk(pages);
   for (const theme of ["dark", "light"]) {
@@ -462,13 +591,14 @@ async function main() {
      a second one. Empty means let Playwright resolve its own. */
   const executablePath = process.env.OPENLIMITER_CHROMIUM;
   const browser = await chromium.launch(
-    executablePath === undefined || executablePath === "" ? {} : { executablePath },
+    executablePath === undefined || executablePath === "" ? { headless: true } : { headless: true, executablePath },
   );
   const written = [];
   try {
     for (const theme of ["dark", "light"]) {
       written.push(await captureDesk(browser, theme, port));
-      written.push(...(await capturePhone(browser, theme, snapshots)));
+      written.push(...(await captureProductDetails(browser, theme, port)));
+      written.push(...(await capturePhone(browser, theme, snapshots, now)));
     }
   } finally {
     await browser.close();
@@ -481,4 +611,4 @@ async function main() {
   }
 }
 
-await main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
