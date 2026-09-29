@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StartTrialButton } from "./trial";
 import { readDeviceToken } from "@/lib/device-session";
@@ -88,6 +89,7 @@ export function NotificationBell({
   trialOffered?: boolean;
   onStartTrial?: () => void;
 }) {
+  const t = useTranslations("hub");
   const [open, setOpen] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [preferences, setPreferences] = useState<ProAlertPreference[]>([]);
@@ -108,6 +110,7 @@ export function NotificationBell({
   useEffect(() => {
     if (!open) return undefined;
     const node = panel.current;
+    const triggerNode = trigger.current;
     node?.focus();
     const closeOnKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -139,7 +142,7 @@ export function NotificationBell({
     return () => {
       document.removeEventListener("keydown", closeOnKey);
       document.removeEventListener("mousedown", closeOnPointer);
-      trigger.current?.focus();
+      triggerNode?.focus();
     };
   }, [open]);
 

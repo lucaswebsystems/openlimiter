@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { createElement } from "react";
 import { existsSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -5,6 +7,16 @@ import { PRODUCT_SHOTS, ProductShot } from "../components/device-frame";
 import { render, type Mounted } from "./render";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+
+// The image component also exports a section that imports SiteLink. The
+// standalone image tests do not run inside Next's localized router.
+vi.mock("@/i18n/navigation", async () => {
+  const { createElement: element } = await import("react");
+  return {
+    Link: ({ href, children, ...rest }: { href: string; children?: unknown }) =>
+      element("a", { href, ...rest }, children as never),
+  };
+});
 
 let mounted: Mounted | undefined;
 afterEach(() => {
@@ -45,13 +57,14 @@ describe("home product image delivery", () => {
   it("keeps every display cap at or below half the real capture width", () => {
     for (const [name, shot] of Object.entries(PRODUCT_SHOTS)) {
       for (const theme of ["", "-light"]) {
-        const base = new URL(`../public/screenshots/${name}${theme}`, import.meta.url);
-        const png = readFileSync(new URL(`${base.href}.png`));
+        // Real file paths: under jsdom, import.meta.url is not a file URL.
+        const base = path.join(path.dirname(fileURLToPath(import.meta.url)), "../public/screenshots", `${name}${theme}`);
+        const png = readFileSync(`${base}.png`);
         expect(png.readUInt32BE(16)).toBe(shot.width);
         expect(png.readUInt32BE(20)).toBe(shot.height);
         expect(shot.maxWidth * 2).toBeLessThanOrEqual(shot.width);
         for (const density of name.startsWith("phone-") ? [1, 2, 3] : [1, 2]) {
-          expect(existsSync(new URL(`${base.href}@${density}x.webp`))).toBe(true);
+          expect(existsSync(`${base}@${density}x.webp`)).toBe(true);
         }
       }
     }

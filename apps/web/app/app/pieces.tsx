@@ -669,7 +669,7 @@ export function Button({
   children,
 }: {
   tone?: keyof typeof buttonTone;
-  onClick: () => void;
+  onClick?: () => void;
   disabled?: boolean;
   type?: "button" | "submit" | "reset";
   /** Accessible name, for a control whose text alone is not enough. */

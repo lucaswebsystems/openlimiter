@@ -343,10 +343,12 @@ describe("the Configuration panel", () => {
     expect(calls).toEqual(["list", "poll_now", "list", "delete", "list"]);
   });
 
-  it("never persists the typed key anywhere, success or failure", async () => {
+  it.each(["button", "form"])("never persists the typed key when submitted through %s", async (submission) => {
+    let stores = 0;
     const client = fakeClient(async (_fn, options) => {
       const body = (options as { body: { action: string } }).body;
       if (body.action === "list") return { data: { rows: [] }, error: null };
+      stores += 1;
       return { data: { id: "k1", provider: "xai", label: "New key", last_status: "needs_attention" }, error: null };
     });
     mounted = render(createElement(CloudMeterPanel, { client, onStartTrial: () => undefined }));
@@ -358,15 +360,26 @@ describe("the Configuration panel", () => {
     typeInto(keyInput, "sk-super-secret");
     await flush();
 
+    const submit = mounted.container.querySelector<HTMLButtonElement>('button[type="submit"]');
+    expect(submit).not.toBeNull();
+    expect(submit?.disabled).toBe(false);
+
     /* Before submit: the field holds it in memory, storage holds nothing. */
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);
 
-    press(byText(mounted.container, "button", "Add"));
+    if (submission === "button") {
+      press(submit);
+    } else {
+      const form = mounted.container.querySelector("form");
+      expect(form).not.toBeNull();
+      mounted.run(() => { form?.requestSubmit(); });
+    }
     await flush(4);
 
     /* After a successful submit: the field is cleared and nothing was ever
        written to a store this browser keeps between reloads. */
+    expect(stores).toBe(1);
     expect((keyInput as HTMLInputElement).value).toBe("");
     expect(window.localStorage.length).toBe(0);
     expect(window.sessionStorage.length).toBe(0);

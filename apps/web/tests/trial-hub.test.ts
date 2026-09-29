@@ -334,15 +334,23 @@ describe("the locked Pro surfaces under the bars", () => {
 describe("the alerts gate", () => {
   it("carries the same button, because alerts are where people meet the gate", async () => {
     const view = await open();
-    press(
-      all(view.container, "button").find(
-        (node) => node.getAttribute("aria-label") === "Open alerts",
-      ) ?? null,
-    );
+    const trigger = view.container.querySelector('button[aria-label="Open alerts"]');
+    press(trigger);
     await flush();
     expect(view.container.querySelector(".ol-notification-popover")?.textContent).toContain(
       trial.start,
     );
+    expect(document.activeElement).toBe(view.container.querySelector('[role="dialog"]'));
+    press(byText(view.container, "button", hub.providers.close));
+    expect(view.container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+
+    press(trigger);
+    view.run(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(view.container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 });
 
