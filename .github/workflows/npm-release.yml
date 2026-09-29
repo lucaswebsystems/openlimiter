@@ -81,6 +81,11 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
+      # The CLI compiles against core's build output, so build first, exactly
+      # as ci.yml does before its tests.
+      - name: Build public packages before verification
+        run: pnpm build
+
       - name: Run the complete verification suite
         run: pnpm test
 
