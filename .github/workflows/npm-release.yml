@@ -93,22 +93,48 @@ jobs:
       - name: Inspect the CLI archive
         run: pnpm --filter openlimiter release:inspect
 
-      - name: Confirm every version is unused
+      - name: Plan remaining package publications
+        id: release_plan
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
 
-          for name in \
-            @openlimiter/core \
-            @openlimiter/connectors \
-            @openlimiter/adapters \
-            openlimiter; do
-            if npm view "${name}@${EXPECTED_VERSION}" version >/dev/null 2>&1; then
-              echo "${name}@${EXPECTED_VERSION} already exists."
-              exit 1
-            fi
-          done
+          export NPM_GLOBAL_ROOT="$(npm root --global)"
+          node <<'NODE'
+          const { execFileSync } = require("node:child_process");
+          const { appendFileSync } = require("node:fs");
+          const { join } = require("node:path");
+          // Use the semver implementation shipped with the reviewed npm client.
+          const semver = require(join(process.env.NPM_GLOBAL_ROOT, "npm/node_modules/semver"));
+          const version = process.env.EXPECTED_VERSION;
+          if (!semver.valid(version)) throw new Error(`Invalid release version: ${version}`);
+          for (const [id, name] of [
+            ["core", "@openlimiter/core"],
+            ["connectors", "@openlimiter/connectors"],
+            ["adapters", "@openlimiter/adapters"],
+            ["cli", "openlimiter"],
+          ]) {
+            let versions;
+            try {
+              versions = JSON.parse(execFileSync("npm", ["view", name, "versions", "--json"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+            } catch (error) {
+              let code;
+              try { code = JSON.parse(String(error.stdout)).error?.code; } catch {}
+              if (code !== "E404") throw error;
+              versions = [];
+            }
+            if (typeof versions === "string") versions = [versions];
+            if (!Array.isArray(versions) || versions.some((value) => !semver.valid(value))) {
+              throw new Error(`Invalid registry versions for ${name}`);
+            }
+            const newer = versions.find((value) => semver.gt(value, version));
+            if (newer) throw new Error(`${name} already has newer version ${newer}; refusing ${version}`);
+            const published = versions.includes(version);
+            console.log(`${name}@${version}: ${published ? "already published, skipping" : "pending"}`);
+            appendFileSync(process.env.GITHUB_OUTPUT, `${id}=${!published}\n`);
+          }
+          NODE
 
       - name: Pack the exact archives
         env:
@@ -129,25 +155,48 @@ jobs:
           test -f "${destination}/openlimiter-${EXPECTED_VERSION}.tgz"
 
       - name: Publish core
+        if: steps.release_plan.outputs.core == 'true'
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-core-${EXPECTED_VERSION}.tgz" --access public --provenance
 
       - name: Publish connectors
+        if: steps.release_plan.outputs.connectors == 'true'
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-connectors-${EXPECTED_VERSION}.tgz" --access public --provenance
 
       - name: Publish adapters
+        if: steps.release_plan.outputs.adapters == 'true'
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-adapters-${EXPECTED_VERSION}.tgz" --access public --provenance
 
       - name: Publish CLI
+        if: steps.release_plan.outputs.cli == 'true'
         env:
           EXPECTED_VERSION: ${{ inputs.version }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${RUNNER_TEMP}/openlimiter-packages/openlimiter-${EXPECTED_VERSION}.tgz" --access public --provenance
+
+      - name: Verify every exact version is published
+        env:
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          for name in @openlimiter/core @openlimiter/connectors @openlimiter/adapters openlimiter; do
+            # The registry can lag a publish by a minute; retry before failing.
+            actual=""
+            for attempt in 1 2 3 4 5 6; do
+              actual="$(npm view "${name}@${EXPECTED_VERSION}" version 2>/dev/null || true)"
+              [ "$actual" = "$EXPECTED_VERSION" ] && break
+              sleep 15
+            done
+            if [ "$actual" != "$EXPECTED_VERSION" ]; then
+              echo "${name} reports ${actual}, expected ${EXPECTED_VERSION}."
+              exit 1
+            fi
+          done

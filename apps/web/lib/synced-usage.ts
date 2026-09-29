@@ -112,6 +112,7 @@ export function syncedPeriodOf(periodStart: string, periodEnd: string): {
 function rowOf(value: unknown): UsageRow | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
+  if (row.used_percent === null || row.used_percent === undefined) return null;
   const provider = typeof row.provider === "string" ? row.provider : "";
   const accountId = typeof row.account_id === "string" ? row.account_id : "";
   const windowId = typeof row.window_id === "string" ? row.window_id : "";
