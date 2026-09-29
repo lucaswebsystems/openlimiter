@@ -375,7 +375,7 @@ export async function railPage(theme, sessions, now) {
   return html.replace('<script type="module"', stub + '<script type="module"');
 }
 
-export async function terminalPage(theme, snapshots, now) {
+export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) {
   const { renderStatuslineLayout } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/statusline.js")));
   const { DEFAULT_STATUSLINE } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/config.js")));
   const seen = new Set();
@@ -393,7 +393,7 @@ export async function terminalPage(theme, snapshots, now) {
   return `<!doctype html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8">
     <link rel="stylesheet" href="engine/ui/tokens.css"><style>
       *{box-sizing:border-box}body{margin:0;padding:44px;background:var(--ol-canvas);color:var(--ol-body);font-family:var(--ol-font-sans)}
-      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};overflow-wrap:${wrap ? "anywhere" : "normal"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}
       ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}
     </style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
 }
@@ -522,8 +522,9 @@ async function captureVideoShots(browser, port) {
       process.stdout.write("Rail source label not rendered; skipped rail-source-detail.png\n");
     }
 
+    await page.setViewportSize({ width: 2000, height: 760 });
     for (const theme of ["dark", "light"]) {
-      await page.goto(`${origin}/terminal-${theme}`, { waitUntil: "networkidle" });
+      await page.goto(`${origin}/terminal-line-${theme}`, { waitUntil: "networkidle" });
       written.push(await captureVideoElement(page, page.locator("pre"), `statusline-${theme}.png`, transparent));
     }
   } finally {
@@ -757,6 +758,7 @@ async function main() {
     pages.set("/window-" + theme, await windowPage(theme, snapshots, sessions));
     pages.set("/rail-" + theme, await railPage(theme, sessions.filter(session => session.state === "waiting"), now));
     pages.set("/terminal-" + theme, await terminalPage(theme, snapshots, now));
+    pages.set("/terminal-line-" + theme, await terminalPage(theme, snapshots, now, { wrap: false }));
   }
   const { server, port } = await startDesk(pages);
   for (const theme of ["dark", "light"]) {
