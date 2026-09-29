@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/json-ld";
 import { PageShell } from "@/components/page-shell";
 import { findPost, formatPostDate, posts, type Block } from "@/lib/blog";
-import { blogPostingSchema } from "@/lib/jsonld";
+import { AUTHOR_LINKEDIN, AUTHOR_NAME, AUTHOR_SITE } from "@/lib/site";
+import { blogBreadcrumbSchema, blogPostingSchema } from "@/lib/jsonld";
 import { pageMetadata } from "@/lib/metadata";
 
 /**
@@ -111,11 +112,28 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
   return (
     <PageShell title={post.title} lead={post.description}>
       <JsonLd data={blogPostingSchema(post)} />
+      <JsonLd data={blogBreadcrumbSchema(post)} />
       {/* 576 pixels, which is the reading column the whole post sits in. */}
-      <div className="max-w-xl">
+      <article className="max-w-xl">
+        <nav aria-label="Breadcrumb" className="text-sm text-muted">
+          <ol className="flex flex-wrap items-center gap-2">
+            <li>
+              <Link href="/" className="focus-ring rounded text-accent hover:text-heading">Home</Link>
+            </li>
+            <li aria-hidden="true">/</li>
+            <li>
+              <Link href="/blog" className="focus-ring rounded text-accent hover:text-heading">Blog</Link>
+            </li>
+            <li aria-hidden="true">/</li>
+            <li aria-current="page" className="truncate">{post.title}</li>
+          </ol>
+        </nav>
         <time dateTime={post.date} className="block text-sm text-muted">
           {formatPostDate(post.date)}
         </time>
+        <p className="mt-3 text-sm text-muted">
+          By <Link href={AUTHOR_SITE} className="focus-ring rounded text-accent hover:text-heading">{AUTHOR_NAME}</Link>, author and maintainer. <Link href={AUTHOR_LINKEDIN} className="focus-ring rounded text-accent hover:text-heading">Profile</Link>
+        </p>
 
         <div className="mt-10 space-y-6">
           {post.body.map((block, index) => (
@@ -131,7 +149,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             Back to the blog
           </Link>
         </div>
-      </div>
+      </article>
     </PageShell>
   );
 }

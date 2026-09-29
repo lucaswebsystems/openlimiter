@@ -126,7 +126,12 @@ OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE`}
 
               <Sub id="statusline">statusline</Sub>
               <P>{t("commands.statusline.intro")}</P>
-              <P>{t("commands.statusline.cells")}</P>
+              <P>
+                {t.rich("commands.statusline.cells", {
+                  code,
+                  docs: (chunks) => <DocLink href="/docs/agent-context">{chunks}</DocLink>,
+                })}
+              </P>
               {/* The capture date is a real value from lib/cli-capture.ts, so the
                   caption takes it as an argument rather than spelling it out. */}
               <CodeBlock
@@ -155,7 +160,7 @@ OPENROUTER CREDITS ######.... 62.35PERCENT $12.47/$20.00 fresh NONE NONE`}
               <P>{t.rich("commands.terminal.body", { code, docs: (chunks) => <DocLink href="/docs/agent-context">{chunks}</DocLink> })}</P>
 
               <Sub id="refresh">refresh</Sub>
-              <P>{t("commands.refresh.body")}</P>
+              <P>{t.rich("commands.refresh.body", { code })}</P>
 
               <Sub id="config">config</Sub>
               <P>

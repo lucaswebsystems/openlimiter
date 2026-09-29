@@ -105,6 +105,7 @@ export function ProPortal({ locale }: { locale: string }) {
   const [actionFailed, setActionFailed] = useState(false);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [checkout, setCheckout] = useState<ProCheckoutOutcome>(null);
+  const accountRequest = useRef(0);
   /** The live auth listener, so a client being replaced takes its own with it. */
   const authListener = useRef<{ unsubscribe: () => void } | null>(null);
   /**
@@ -122,7 +123,10 @@ export function ProPortal({ locale }: { locale: string }) {
   useEffect(() => {
     const outcome = proCheckoutOutcome(window.location.search);
     if (outcome === null) return;
-    setCheckout(outcome);
+    /* A return parameter is not proof of payment. The account read below is
+       the only source allowed to turn a checkout into an entitlement. A
+       cancellation is safe to report because it makes no positive claim. */
+    setCheckout(outcome === "cancel" ? outcome : null);
     const url = new URL(window.location.href);
     url.searchParams.delete("checkout");
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
@@ -131,6 +135,9 @@ export function ProPortal({ locale }: { locale: string }) {
   /** Listen to one client, and be able to attach again after a failed move. */
   const attachAuthListener = useCallback((client: SupabaseClient) => {
     const { data } = client.auth.onAuthStateChange((_event, next) => {
+      accountRequest.current += 1;
+      setAccount(null);
+      setAccountState("loading");
       setSession(next);
       if (next === null) clearIntent();
     });
@@ -138,6 +145,9 @@ export function ProPortal({ locale }: { locale: string }) {
   }, []);
 
   useEffect(() => {
+    accountRequest.current += 1;
+    setAccount(null);
+    setAccountState("loading");
     if (supabase === null) {
       setSession(null);
       return;
@@ -149,6 +159,7 @@ export function ProPortal({ locale }: { locale: string }) {
     attachAuthListener(supabase);
     return () => {
       live = false;
+      accountRequest.current += 1;
       /* The switch may already have dropped it; unsubscribing twice is safe. */
       authListener.current?.unsubscribe();
       authListener.current = null;
@@ -180,8 +191,11 @@ export function ProPortal({ locale }: { locale: string }) {
 
   const loadAccount = useCallback(() => {
     if (supabase === null || session === null || session === undefined) return;
+    const requestId = ++accountRequest.current;
+    const userId = session.user.id;
     setAccountState("loading");
     void readProAccount(supabase).then((result) => {
+      if (requestId !== accountRequest.current || session?.user.id !== userId) return;
       if (result.ok) {
         setAccount(result.value);
         setAccountState("ready");

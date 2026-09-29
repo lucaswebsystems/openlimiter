@@ -92,7 +92,12 @@ export const metadata: Metadata = {
     title,
     description,
   },
-  robots: { index: true, follow: true },
+  robots: {
+    index: false,
+    follow: false,
+    noarchive: true,
+    nosnippet: true,
+  },
 };
 
 export const viewport: Viewport = {

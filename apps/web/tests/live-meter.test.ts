@@ -11,4 +11,10 @@ describe("live meter", () => {
     expect(featured?.provider).toBe("CODEX");
     expect(featuredSnapshotOf([])).toBeNull();
   });
+
+  it("does not feature a non percentage or invalid reading", () => {
+    expect(featuredSnapshotOf([{ ...reading("OPENROUTER", 12), unit: "CREDITS" } as Snapshot])).toBeNull();
+    expect(featuredSnapshotOf([reading("CODEX", Number.NaN)])).toBeNull();
+    expect(featuredSnapshotOf([reading("CODEX", 101)])).toBeNull();
+  });
 });

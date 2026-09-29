@@ -3,7 +3,7 @@ import { LOCALES, type Locale } from "@/i18n/locales";
 import { localePath } from "@/i18n/routing";
 import { posts } from "@/lib/blog";
 import { docPages } from "@/lib/docs";
-import { SITE_URL } from "@/lib/site";
+import { SITE_CONTENT_UPDATED, SITE_URL } from "@/lib/site";
 
 /**
  * Every public route, generated from the same lists the pages render, so a page
@@ -17,9 +17,9 @@ import { SITE_URL } from "@/lib/site";
  * five thin duplicates, and it is built from `localePath`, which is the same
  * function the canonical tags and the footer switcher use.
  *
- * An English only route appears once, with no alternates at all. The blog and
- * web application are English by decision, and claiming a translation that
- * does not exist is worse than claiming nothing.
+ * An English only route appears once, with no alternates at all. The blog is
+ * English by decision, and claiming a translation that does not exist is worse
+ * than claiming nothing. The private application is not a sitemap surface.
  */
 
 /** The localised routes, in the order a reader meets them. */
@@ -35,10 +35,17 @@ const LOCALISED_ROUTES: readonly { route: string; priority: number }[] = [
 
 /** The routes that exist in English only. */
 const ENGLISH_ONLY_ROUTES: readonly { route: string; priority: number }[] = [
-  { route: "/app", priority: 0.9 },
   { route: "/blog", priority: 0.7 },
   ...posts.map((post) => ({ route: `/blog/${post.slug}`, priority: 0.6 })),
 ];
+
+function lastModifiedFor(route: string): Date {
+  const post = route.startsWith("/blog/")
+    ? posts.find((candidate) => `/blog/${candidate.slug}` === route)
+    : undefined;
+  const date = post?.date ?? SITE_CONTENT_UPDATED;
+  return new Date(`${date}T00:00:00.000Z`);
+}
 
 function absolute(locale: Locale, route: string): string {
   const path = localePath(locale, route);
@@ -54,13 +61,12 @@ function languagesFor(route: string): Record<string, string> {
 }
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const lastModified = new Date();
   const monthly = "monthly" as const;
 
   const localised = LOCALISED_ROUTES.flatMap(({ route, priority }) =>
     LOCALES.map((locale) => ({
       url: absolute(locale, route),
-      lastModified,
+      lastModified: lastModifiedFor(route),
       changeFrequency: monthly,
       priority,
       alternates: { languages: languagesFor(route) },
@@ -69,7 +75,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const englishOnly = ENGLISH_ONLY_ROUTES.map(({ route, priority }) => ({
     url: `${SITE_URL}${route}`,
-    lastModified,
+    lastModified: lastModifiedFor(route),
     changeFrequency: monthly,
     priority,
   }));
