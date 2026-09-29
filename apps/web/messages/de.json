@@ -880,6 +880,10 @@
     "title": "Download",
     "lead": "Die Desktop Builds für Windows, macOS und Linux sind jetzt verfügbar. Windows und macOS erscheinen unsigniert, jeder fragt dich also einmal um Erlaubnis: unter Windows wähle Weitere Informationen und dann Trotzdem ausführen, unter macOS öffne die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle Trotzdem öffnen. macOS erscheint als eine einzige universelle Abbilddatei, die auf Apple silicon und auf Intel läuft. npm und die Web App sind ebenfalls verfügbar.",
     "choice": {
+      "windowsSummary": "Unsignierter Build. Wenn SmartScreen warnt, wähle Weitere Informationen und dann Trotzdem ausführen.",
+      "macosSummary": "Universeller unsignierter Build für Apple silicon und Intel. Einmal in Datenschutz und Sicherheit erlauben.",
+      "linuxSummary": "Wähle AppImage, deb oder rpm für deine Distribution. AppImage läuft nach dem Setzen des Ausführungsbits.",
+      "detected": "Erkannt",
       "windows": "Für Windows herunterladen",
       "linux": "Für Linux herunterladen",
       "macos": "Für macOS herunterladen",
@@ -887,6 +891,10 @@
       "smartScreen": "Dieser Windows Build ist nicht signiert, daher kann SmartScreen warnen: wähle Weitere Informationen und dann Trotzdem ausführen.",
       "openAnyway": "Dieser macOS Build ist unsigniert. Öffne ihn einmal, öffne dann die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle Trotzdem öffnen. Die Abbilddatei ist universell und läuft auf Apple silicon und auf Intel. Automatische Updates kommen mit signierten Builds.",
       "linuxNote": "AppImage, deb und rpm Pakete sind verfügbar. Startet direkt ohne Signaturwarnung."
+    },
+    "preview": {
+      "title": "OpenLimiter Desktop Anwendung",
+      "alt": "OpenLimiter Startbildschirm mit Anbieter Meters, Rail und Agentenaktivität"
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release Notes",
@@ -899,7 +907,16 @@
       "title": "Jetzt verfügbar",
       "lead": "Windows, macOS und Linux haben paketierte Desktop Builds, und jeder Link unten führt direkt zur Datei. Das Kommandozeilenwerkzeug ist ein npm install auf jeder Plattform, oder ein Clone, wenn du lieber selbst baust. Die Web App braucht keine Installation."
     },
+    "packages": {
+      "title": "Weitere Desktop Pakete",
+      "lead": "Wähle das Paket passend zu deiner Verwaltung des Rechners. Jeder Link lädt die Datei aus dem aktuellen Release.",
+      "windows": "Nutze das MSI für verwaltete Installationen auf mehreren Windows Rechnern. Für einen normalen Rechner reicht der Installer oben.",
+      "linux": "Wähle deb für Debian oder Ubuntu, rpm für Fedora oder openSUSE, oder AppImage für eine portable Installation."
+    },
     "phone": {
+      "iphoneGuide": "Öffne die Web App in Safari, tippe auf Teilen und wähle Zum Home Bildschirm. Melde dich an, damit deine synchronisierten Werte bleiben.",
+      "androidGuide": "Öffne die Web App in Chrome, öffne das Menü und wähle App installieren oder Zum Startbildschirm. Melde dich an, um fortzufahren.",
+      "openApp": "Web App öffnen",
       "title": "Auf deinem Handy",
       "lead": "Das installiert die Web App auf deinen Startbildschirm. Keine native iOS oder Android Anwendung ist gebaut.",
       "qrAlt": "QR Code, der zu {url} führt",

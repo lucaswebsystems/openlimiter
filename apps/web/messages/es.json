@@ -880,6 +880,10 @@
     "title": "Descargar",
     "lead": "Las compilaciones de escritorio para Windows, macOS y Linux ya están disponibles. Windows y macOS salen sin firmar, así que cada uno te pide permitirlo una vez: en Windows elige Más información y luego Ejecutar de todas formas, y en macOS abre Ajustes del Sistema, ve a Privacidad y Seguridad y elige Abrir de todos modos. macOS sale como una única imagen de disco universal que funciona en Apple silicon y en Intel. npm y la web app también están disponibles.",
     "choice": {
+      "windowsSummary": "Compilación sin firmar. Si SmartScreen avisa, elige Más información y luego Ejecutar de todas formas.",
+      "macosSummary": "Compilación universal sin firmar para Apple silicon e Intel. Permítela una vez en Privacidad y Seguridad.",
+      "linuxSummary": "Elige AppImage, deb o rpm para tu distribución. AppImage funciona después de darle permiso de ejecución.",
+      "detected": "Detectado",
       "windows": "Descargar para Windows",
       "linux": "Descargar para Linux",
       "macos": "Descargar para macOS",
@@ -887,6 +891,10 @@
       "smartScreen": "Esta versión para Windows no está firmada, por lo que SmartScreen puede advertirte: elige Más información y luego Ejecutar de todas formas.",
       "openAnyway": "Esta compilación de macOS no está firmada. Ábrela una vez, luego abre los Ajustes del Sistema, ve a Privacidad y Seguridad y elige Abrir de todos modos. La imagen de disco es universal, así que funciona en Apple silicon y en Intel. Las actualizaciones automáticas llegan con las compilaciones firmadas.",
       "linuxNote": "Paquetes AppImage, deb y rpm disponibles. Se ejecuta directamente sin advertencia de firma."
+    },
+    "preview": {
+      "title": "Aplicación de escritorio OpenLimiter",
+      "alt": "Pantalla principal de OpenLimiter con medidores de proveedores, el Rail y actividad de agentes"
     },
     "versionLine": "Versión {version}",
     "releaseNotes": "Notas de la versión",
@@ -899,7 +907,16 @@
       "title": "Disponible ahora",
       "lead": "Windows, macOS y Linux tienen builds de escritorio empaquetadas, y cada enlace de abajo va directo al archivo. La herramienta de línea de comandos es un npm install en cualquier plataforma, o un clone si prefieres compilar desde el código. La aplicación web no necesita instalar nada."
     },
+    "packages": {
+      "title": "Otros paquetes de escritorio",
+      "lead": "Elige el paquete que corresponda a cómo administras tu equipo. Cada enlace descarga el archivo de la versión actual.",
+      "windows": "Usa el MSI para instalaciones administradas en varios equipos Windows. Usa el instalador de arriba para un equipo normal.",
+      "linux": "Elige deb para Debian o Ubuntu, rpm para Fedora u openSUSE, o AppImage para una instalación portátil."
+    },
     "phone": {
+      "iphoneGuide": "Abre la aplicación web en Safari, toca Compartir y elige Añadir a la pantalla de inicio. Inicia sesión para conservar tus lecturas sincronizadas.",
+      "androidGuide": "Abre la aplicación web en Chrome, abre el menú y elige Instalar aplicación o Añadir a la pantalla de inicio. Inicia sesión para continuar.",
+      "openApp": "Abrir la aplicación web",
       "title": "En tu teléfono",
       "lead": "Esto instala la aplicación web en tu pantalla de inicio. No hay ninguna aplicación nativa para iOS o Android construida.",
       "qrAlt": "Código QR que enlaza a {url}",
