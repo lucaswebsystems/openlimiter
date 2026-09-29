@@ -51,6 +51,7 @@ const MIRROR = {
     files: [
       "types.ts",
       "connection-state.ts",
+      "data-rules.ts",
       "failures.ts",
       "format.ts",
       "forecast.ts",

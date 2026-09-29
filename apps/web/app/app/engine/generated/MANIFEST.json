@@ -3,6 +3,7 @@
   "sources": {
     "core/types.ts": "03b85c0bfdad747a",
     "core/connection-state.ts": "a99cf59208d5bbde",
+    "core/data-rules.ts": "df1431796801856e",
     "core/failures.ts": "92c8818a6dcb3557",
     "core/format.ts": "060178a0ef47ac5d",
     "core/forecast.ts": "5155cb1a6fde4a0e",
