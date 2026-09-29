@@ -4,7 +4,6 @@ import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { SectionHeading, SHELL } from "./ui";
 import { reveal } from "@/lib/motion";
-import { CURRENT_VERSION } from "@/lib/site";
 
 function subscribeTheme(onChange: () => void) {
   const observer = new MutationObserver(onChange);
@@ -63,12 +62,11 @@ export function ProductFigure({ name, alt, caption, className = "" }: { name: Pr
 
 export function DeviceFrame() {
   const t = useTranslations("deviceFrame");
-  const release = useTranslations("home.release");
   return (
     <section className={`${SHELL} relative py-[var(--ol-space-7)] text-center`}>
       <SectionHeading title={t("title")} lead={t("lead")} />
       <div {...reveal}>
-        <ProductFigure name="desktop-home" alt={release("agents.alt", { version: CURRENT_VERSION })} caption={t("caption")} />
+        <ProductFigure name="desktop-home" alt={t("screenshot.alt")} caption={t("caption")} />
       </div>
     </section>
   );

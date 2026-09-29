@@ -85,6 +85,7 @@ export const MARKETING_CLIENT_NAMESPACES = [
   "localeSwitcher",
   "proPortal",
   "signIn",
+  "deviceFrame",
 ] as const;
 
 /**
