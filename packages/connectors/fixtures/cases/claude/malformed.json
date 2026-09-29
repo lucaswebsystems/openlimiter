@@ -1,0 +1,14 @@
+{
+  "provider": "claude",
+  "case": "malformed",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "five_hour": {
+      "utilization": "not-a-number",
+      "resets_at": "2026-08-07T16:00:00.000Z"
+    }
+  }
+}

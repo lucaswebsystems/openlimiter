@@ -14,6 +14,7 @@ import {
   canonicalJson,
   claudeSpec,
   codexSpec,
+  cursorSpec,
   dedupeFailures,
   desktopHoldsCache,
   failureFromConnectorReason,
@@ -68,6 +69,7 @@ import {
   parseAntigravityPayload,
   parseClaudePayload,
   parseCodexPayload,
+  parseCursorPayload,
   parseGeminiCliPayload,
   parseGrokPayload,
   parseKimiPayload,
@@ -95,7 +97,9 @@ import {
 } from "@openlimiter/adapters";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import packageJson from "../package.json" with { type: "json" };
 import { homedir } from "node:os";
+import path from "node:path";
 import {
   PROVIDER_KEYS,
   STATUSLINE_KEYS,
@@ -146,8 +150,10 @@ import {
   isStatuslineHost,
   renderStatuslineLayout,
   statuslineColor,
+  statuslineUnicode,
   type StatuslineHost
 } from "./statusline.js";
+import { parseStatuslineSession } from "./statusline-ingest.js";
 import {
   TERMINAL_HOST_NAMES,
   installHost,
@@ -174,6 +180,7 @@ import {
   deleteSession,
   readSession,
   StorageDiagnosticError,
+  applyWindowsOwnerOnlyAcl,
   writeSession,
   withSessionLock,
   type HubSession
@@ -403,7 +410,31 @@ const execFileRunner: CredentialCommandRunner = async (
     execFile(
       executable,
       [...helperArguments],
-      { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true },
+      (() => {
+        if (!executable.toLowerCase().endsWith("powershell.exe")) {
+          return { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true };
+        }
+        const environment: NodeJS.ProcessEnv = { ...process.env };
+        /* Windows environment names ignore case, but a copied process.env keeps
+           the inherited spelling (PSMODULEPATH, Psmodulepath...); drop every
+           variant so the child sees exactly one module path. */
+        for (const key of Object.keys(environment)) {
+          if (key.toLowerCase() === "psmodulepath") delete environment[key];
+        }
+        environment["PSModulePath"] = path.win32.join(
+          process.env["SystemRoot"] ?? "C:\\Windows",
+          "System32",
+          "WindowsPowerShell",
+          "v1.0",
+          "Modules"
+        );
+        return {
+          timeout: timeoutMilliseconds,
+          maxBuffer: 262_144,
+          windowsHide: true,
+          env: environment
+        };
+      })(),
       (error, stdout) => {
         resolve(error === null ? { ok: true, stdout } : { ok: false });
       }
@@ -443,7 +474,10 @@ export function runtimeDependencies(): Pick<
 > {
   return {
     acquisitionTransport: createFetchTransport(),
-    probeAntigravity,
+    probeAntigravity: (options) => probeAntigravity({
+      ...options,
+      runCommand: options?.runCommand ?? execFileRunner
+    }),
     resolveExecutablePath: resolveAgyExecutablePath,
     spawnDetached: (executable, argumentsList, options) => {
       const child = spawn(executable, [...argumentsList], {
@@ -626,6 +660,7 @@ export function acquisitionSpecs(providers: ProvidersConfig): AcquisitionSpec[] 
   return [
     claudeSpec({ parse: parseClaudePayload, enabled: providers.claude.poll }),
     codexSpec(parseCodexPayload),
+    cursorSpec(parseCursorPayload),
     geminiCliSpec(parseGeminiCliPayload),
     antigravitySpec(parseAntigravityCodeAssistPayload),
     grokSpec(parseGrokPayload),
@@ -850,16 +885,12 @@ const ACQUISITION_HEADER = "PROVIDER DETECTED STATUS NEXT NOTE";
 /**
  * Run one round of acquisition and fold what it found into the cache.
  *
- * Three refusals come before any request. A desktop that wrote inside the last
- * interval already owns this machine's refreshing, so this command stands down
- * rather than doubling the traffic a provider sees. A refresh already running
- * holds the lock, so this one exits instead of racing it on the same
- * credentials. And a provider inside its own backoff is skipped by the runner
- * without being asked anything.
+ * The refresh lock serializes CLI rounds. The runner takes the shared machine
+ * lease for each provider before acquisition and persists its retry deadline
+ * before releasing ownership.
  *
- * Only a successful read writes. A refusal, a rate limit or a shape this build
- * did not understand leaves every cached row exactly where it was, to age out
- * through the ordinary freshness rule.
+ * Successful reads replace observations. Expiry and rate limits record
+ * availability while preserving the original observation time.
  */
 async function refreshCommand(
   dependencies: CliDependencies,
@@ -874,15 +905,8 @@ async function refreshCommand(
     ].join(NEWLINE));
   }
   try {
-    /*
-     * Desktop ownership is decided HERE, under the lock, and nowhere else.
-     * Checking it before taking the lock read a cache that a desktop could
-     * start writing a millisecond later, and this round would then poll every
-     * provider a second time for nothing. One check, on the only side of the
-     * lock where the answer cannot change underneath it.
-     */
-    const settled = await readSnapshotCache(dependencies.stateDirectory);
     const providers = await readProvidersConfig(dependencies.stateDirectory);
+    const settled = await readSnapshotCache(dependencies.stateDirectory);
     const specs = acquisitionSpecs(providers).filter((spec) => !desktopHoldsCache(
       settled.ok ? settled.snapshots.filter((row) => row.provider === spec.provider) : [], now
     ));
@@ -897,6 +921,8 @@ async function refreshCommand(
     await clearRefreshSpawnFailure(dependencies.stateDirectory);
     const schedule = await readAcquisitionSchedule(dependencies.stateDirectory);
     const result = await runAcquisition(specs, {
+      stateDirectory: dependencies.stateDirectory ?? resolveStateDirectory(),
+      clock: () => Date.parse(dependencies.now()),
       transport: dependencies.acquisitionTransport,
       now,
       schedule,
@@ -914,10 +940,8 @@ async function refreshCommand(
      * can outlive its lock if this machine was suspended mid refresh, and a
      * round that lost its lock must not write over the round that took it.
      *
-     * The refresh lock only coordinates other copies of THIS tool. The desktop
-     * tray is a separate process that knows nothing about it, so the write
-     * itself has to be safe against a desktop row that appeared since this
-     * round started reading. `mergeAcquiredSnapshots` decides that per row,
+     * Native payloads can arrive during acquisition. `mergeAcquiredSnapshots`
+     * arbitrates observations per row,
      * inside the cache lock both processes do share, keeping whichever row is
      * newer and leaving a tie with the row already there.
      */
@@ -1046,6 +1070,7 @@ function doctorRows(
 
 const help = [
   "openlimiter",
+  "openlimiter --version | -v | version",
   "openlimiter setup",
   "openlimiter login [--open]",
   "openlimiter logout",
@@ -1058,8 +1083,8 @@ const help = [
   "openlimiter terminal status",
   "openlimiter terminal install <host> [--wrap]",
   "openlimiter terminal uninstall <host|all>",
-  "openlimiter terminal show <provider ...>",
-  "openlimiter terminal hide <provider ...>",
+  "openlimiter terminal show <segment|provider|window ...>",
+  "openlimiter terminal hide <segment|provider|window ...>",
   "openlimiter refresh",
   "openlimiter hook [--dry-run]",
   "openlimiter hooks install <agent>",
@@ -1095,8 +1120,8 @@ const help = [
  *
  * This is the path that gives the tool something to meter. It performs no
  * network access at all: it validates the JSON the host already wrote to this
- * process. Every failure returns null so the caller can fall back to the
- * cache instead of breaking the host tool.
+ * process. Unusable quota readings leave snapshots null so the caller can
+ * fall back to the cache while retaining display metadata from valid JSON.
  *
  * Which parser runs, and which provenance the reading is stamped with, are
  * decided by the host. Codex names no scripting interface at all (its status
@@ -1107,7 +1132,7 @@ async function ingestStandardInput(
   dependencies: CliDependencies,
   now: string,
   host: StatuslineHost = "claude"
-): Promise<Snapshot[] | null> {
+): Promise<{ snapshots: Snapshot[] | null; payload: unknown } | null> {
   if (host === "codex" || host === "shell") return null;
   try {
     const document = parseJsonText(await dependencies.readStandardInput());
@@ -1117,7 +1142,7 @@ async function ingestStandardInput(
       : host === "grok"
         ? parseGrokStatuslinePayload(document.value, now)
         : parseClaudePayload(document.value, now);
-    if (meters === null) return null;
+    if (meters === null) return { snapshots: null, payload: document.value };
     const provenance = host === "antigravity"
       ? ANTIGRAVITY_STATUSLINE_PROVENANCE
       : host === "grok"
@@ -1126,12 +1151,13 @@ async function ingestStandardInput(
     /* The host wrote this to our standard input in this session. It is a live
        reading, and it says so. */
     const incoming = normalizeMeters(withProvenance(meters, provenance));
-    if (incoming.length === 0) return null;
+    if (incoming.length === 0) return { snapshots: null, payload: document.value };
     try {
-      return (await persistSnapshots(incoming, dependencies.stateDirectory, now)).merged;
+      const { merged } = await persistSnapshots(incoming, dependencies.stateDirectory, now);
+      return { snapshots: merged, payload: document.value };
     } catch {
       const existing = await cachedSnapshots(dependencies.stateDirectory);
-      return mergeSnapshots(existing, incoming);
+      return { snapshots: mergeSnapshots(existing, incoming), payload: document.value };
     }
   } catch {
     return null;
@@ -1396,7 +1422,7 @@ async function statuslineCommand(
     ? (hostFlag.toLowerCase() as StatuslineHost)
     : "claude";
   const ingested = await ingestStandardInput(dependencies, now, host);
-  const snapshots = ingested ?? await cachedSnapshots(dependencies.stateDirectory);
+  const snapshots = ingested?.snapshots ?? await cachedSnapshots(dependencies.stateDirectory);
   /*
    * The refresh that keeps the other providers current starts here and is never
    * waited for. This render draws whatever the cache already holds, the child
@@ -1404,7 +1430,7 @@ async function statuslineCommand(
    * whole reason a terminal person needs no background service.
    */
   await startRefreshBehind(dependencies, snapshots, now);
-  if (ingested === null) {
+  if (ingested?.snapshots == null) {
     await writeAgentContextSnapshot(
       snapshots,
       dependencies.stateDirectory,
@@ -1420,11 +1446,14 @@ async function statuslineCommand(
     snapshots,
     now,
     config,
+    session: parseStatuslineSession(ingested?.payload),
     color: statuslineColor(
       config.color,
       dependencies.environment,
-      dependencies.colorOutput
+      dependencies.colorOutput,
+      host
     ),
+    unicode: statuslineUnicode(dependencies.environment),
     host
   }));
 }
@@ -1434,10 +1463,12 @@ const agentAliases: Readonly<Record<string, AgentId>> = {
   antigravity: "antigravity",
   claude: "claude",
   codex: "codex",
+  cursor: "cursor",
   gemini: "gemini",
   grok: "grok",
   "grok-build": "grok",
   kimi: "kimi",
+  muse: "muse",
   opencode: "opencode"
 };
 
@@ -1816,8 +1847,8 @@ const terminalUsage = [
   "openlimiter terminal status",
   "openlimiter terminal install <host> [--wrap]",
   "openlimiter terminal uninstall <host|all>",
-  "openlimiter terminal show <provider ...>",
-  "openlimiter terminal hide <provider ...>",
+  "openlimiter terminal show <segment|provider|window ...>",
+  "openlimiter terminal hide <segment|provider|window ...>",
   "",
   "hosts: " + TERMINAL_HOST_NAMES.join(", ") + "."
 ].join("\n");
@@ -1915,7 +1946,7 @@ async function terminalCommand(
     if (providerIds.length === 0) {
       return fail(
         EXIT_USAGE,
-        "openlimiter terminal: " + action + " needs at least one provider id."
+        "openlimiter terminal: " + action + " needs at least one segment, provider or window."
       );
     }
     const result = action === "show"
@@ -2183,6 +2214,7 @@ async function setupSignInStep(dependencies: CliDependencies): Promise<string[]>
 const AGENT_CREDENTIAL_PROVIDER: Readonly<Partial<Record<AgentId, AcquisitionProvider>>> = {
   claude: "CLAUDE",
   codex: "CODEX",
+  cursor: "CURSOR",
   gemini: "GEMINI_CLI",
   antigravity: "ANTIGRAVITY",
   grok: "GROK",
@@ -2379,6 +2411,9 @@ export async function runCli(
   const command = argumentsList[0] ?? "setup";
   const now = dependencies.now();
   try {
+    if (command === "--version" || command === "-v" || command === "version") {
+      return succeed(packageJson.version);
+    }
     if (command === "setup") {
       const result = await setupCommand(dependencies, now);
       if (hasOutputSink || setupOutput.length === 0) return result;
@@ -2403,6 +2438,13 @@ export async function runCli(
     }
     if (command === "hook") {
       return await hookProtocolCommand(dependencies, argumentsList, now);
+    }
+    if (command === "event") {
+      const { eventCommand } = await import("./activity/event.js");
+      return await eventCommand(argumentsList, {
+        ...dependencies,
+        protectWindowsDirectory: (directory) => applyWindowsOwnerOnlyAcl(directory, dependencies.windowsAclRunner)
+      });
     }
     if (command === "hooks") return await hooksCommand(dependencies, argumentsList);
     if (command === "status") {
@@ -2429,7 +2471,7 @@ export async function runCli(
      * nothing rather than breaking their host. Every other command surfaces the
      * failure with a redacted message so a script can react to it.
      */
-    if (command === "hook") return { exitCode: EXIT_OK, stdout: "", stderr: "" };
+    if (command === "hook" || command === "event") return { exitCode: EXIT_OK, stdout: "", stderr: "" };
     /* A detached refresh writes to a discarded stream and has nobody to tell,
        so it fails quietly rather than leaving an exit code nothing reads. */
     if (command === "refresh") return { exitCode: EXIT_OK, stdout: "", stderr: "" };

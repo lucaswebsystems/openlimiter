@@ -1,0 +1,18 @@
+{
+  "provider": "cursor",
+  "case": "malformed",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 200,
+  "headers": {},
+  "body": {
+    "billingCycleStart": "2026-08-01T00:00:00.000Z",
+    "billingCycleEnd": "2026-09-01T00:00:00.000Z",
+    "individualUsage": {
+      "plan": {
+        "autoPercentUsed": "42",
+        "apiPercentUsed": 2
+      }
+    }
+  }
+}

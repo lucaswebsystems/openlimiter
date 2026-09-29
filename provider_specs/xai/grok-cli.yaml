@@ -5,6 +5,31 @@ provider_id: xai
 product_id: grok-cli
 display_name: Grok Build
 
+headlineMeter: current_period
+acquisitionSurfaces:
+  - desktop
+  - cli
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Internal provider interface; high automation risk and capture pending.
+maturity: headline
+directory:
+  order: 4
+  rowId: xai/api
+  label: Grok (xAI)
+  connectorId: grok
+  access: automatic
+
 source:
   docs_url: https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/extensions/billing.rs
   reviewed_at: "2026-08-19"

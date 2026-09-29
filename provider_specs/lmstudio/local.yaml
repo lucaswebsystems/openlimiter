@@ -14,6 +14,18 @@ provider_id: lmstudio
 product_id: local
 display_name: LM Studio
 
+headlineMeter: null
+noQuotaConcept: true
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: local_command
+d5Review: Recipe only; no shipped reader.
+maturity: planned
+
 source:
   docs_url: https://lmstudio.ai/docs/developer/rest/endpoints
   reviewed_at: "2026-08-10"
@@ -43,16 +55,4 @@ verification:
   fixture_ids:
     - lmstudio.documented.models
 
-meters:
-  - id: max_context_length
-    label: Model max context length
-    kind: context
-    unit: tokens
-    scope: model
-    window:
-      kind: provider_defined
-    source_path: max_context_length
-    reset_path: null
-    reset_encoding: none
-    optional: true
-    meter_code: MAX_CONTEXT_LENGTH
+meters: []

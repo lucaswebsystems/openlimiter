@@ -4,7 +4,7 @@ import {
   writeFileAtomically,
   type CommandRunResult
 } from "@openlimiter/core";
-import { lstat, mkdir, open, unlink, type FileHandle } from "node:fs/promises";
+import { lstat, mkdir, open, realpath, unlink, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import {
   AGENT_COMPATIBILITY,
@@ -28,6 +28,8 @@ const OPENCODE_MARKER = "// openlimiter experimental hook v1";
 
 export interface HookInstallOptions {
   homeDirectory: string;
+  /** Explicit project scope for Muse; otherwise use the user's settings file. */
+  projectDirectory?: string;
   openLimiterScript: string;
   nodeExecutable?: string;
   detectedVersion?: string | null;
@@ -52,11 +54,17 @@ export interface HookMutationResult {
 interface AgentTarget {
   format: "antigravity" | "json" | "kimi" | "opencode";
   path: string;
-  event?: "BeforeAgent" | "UserPromptSubmit";
+  event?: string;
   timeout?: number;
 }
 
-function targetFor(agent: AgentId, home: string): AgentTarget | null {
+function targetFor(agent: AgentId, home: string, project?: string): AgentTarget | null {
+  if (agent === "muse") {
+    return { format: "json", path: project === undefined ? path.join(home, ".config", "muse", "settings.json") : path.join(project, ".muse", "hooks.json"), event: "SessionStart", timeout: 1 };
+  }
+  if (agent === "cursor") {
+    return { format: "json", path: path.join(home, ".cursor", "hooks.json"), event: "sessionStart", timeout: 1 };
+  }
   if (agent === "claude") {
     return { format: "json", path: path.join(home, ".claude", "settings.json"), event: "UserPromptSubmit", timeout: 1 };
   }
@@ -87,14 +95,15 @@ function errorCode(error: unknown): string | undefined {
 
 function within(parent: string, child: string): boolean {
   const relative = path.relative(path.resolve(parent), path.resolve(child));
-  return relative !== "" && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
+  return relative !== "" && relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
 }
 
-async function pathContainsLink(target: string): Promise<boolean> {
+async function pathContainsLink(target: string, root = path.parse(path.resolve(target)).root): Promise<boolean> {
   const resolved = path.resolve(target);
-  const parsed = path.parse(resolved);
-  let current = parsed.root;
-  for (const segment of resolved.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
+  if (!within(root, resolved)) return true;
+  // Resolve the trusted home, project or PATH root, not the owned descendants.
+  let current = await realpath(root);
+  for (const segment of path.relative(root, resolved).split(path.sep).filter(Boolean)) {
     current = path.join(current, segment);
     try {
       if ((await lstat(current)).isSymbolicLink()) return true;
@@ -109,7 +118,7 @@ async function pathContainsLink(target: string): Promise<boolean> {
 async function rejectReparsePath(target: string, home: string): Promise<void> {
   if (!path.isAbsolute(target) || !within(home, target)) throw new Error("unsafe path");
   const relative = path.relative(path.resolve(home), path.resolve(target));
-  let current = path.resolve(home);
+  let current = await realpath(home);
   try {
     if ((await lstat(current)).isSymbolicLink()) throw new Error("unsafe path");
   } catch (error) {
@@ -127,8 +136,9 @@ async function rejectReparsePath(target: string, home: string): Promise<void> {
   }
 }
 
-async function rejectExecutable(target: string): Promise<void> {
-  if (!path.isAbsolute(target) || await pathContainsLink(target)) {
+async function rejectExecutable(target: string, roots: readonly string[]): Promise<void> {
+  const root = roots.find((candidate) => within(candidate, target));
+  if (!path.isAbsolute(target) || await pathContainsLink(target, root)) {
     throw new Error("unsafe executable");
   }
   const stat = await lstat(target);
@@ -412,6 +422,76 @@ function managedHandler(value: unknown, agent: AgentId): boolean {
     .some((argv) => argv !== null && managedArgv(argv, agent));
 }
 
+export const ACTIVITY_HOOK_EVENTS: Readonly<Partial<Record<AgentId, readonly string[]>>> = {
+  claude: ["SessionStart", "UserPromptSubmit", "Notification", "Stop", "SessionEnd"],
+  codex: ["SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "SessionEnd"],
+  muse: ["SessionStart", "UserPromptSubmit", "PermissionRequest", "Notification", "Stop", "SessionEnd"],
+  gemini: ["SessionStart", "BeforeAgent", "Notification", "AfterAgent", "SessionEnd"],
+  cursor: ["sessionStart", "beforeSubmitPrompt", "stop", "sessionEnd"]
+};
+
+function activityHandler(agent: AgentId, event: string, options: HookInstallOptions): Record<string, unknown> {
+  const argv = [options.nodeExecutable ?? process.execPath, options.openLimiterScript, "event", "--agent", agent,
+    "--event", event, "--managed-hook", "openlimiter-activity-v1"];
+  const command = argv.map((argument) => quoteHookArgument(argument, options.platform ?? process.platform)).join(" ");
+  if (agent === "claude") return { type: "command", command: argv[0], args: argv.slice(1), timeout: 1 };
+  if (agent === "cursor") return { command, timeout: 1 };
+  return { type: "command", command, timeout: agent === "gemini" ? 500 : 1,
+    ...(agent === "gemini" ? { name: "openlimiter-activity-" + event } : {}) };
+}
+
+/** Exact command grammar; a quoted marker or a changed Windows command is not owned. */
+function managedActivityHandler(value: unknown, agent: AgentId, event: string): boolean {
+  const handler = record(value);
+  if (!handler || typeof handler["command"] !== "string") return false;
+  if (handler["commandWindows"] !== undefined && handler["commandWindows"] !== handler["command"]) return false;
+  const command = handler["command"];
+  const args = handler["args"];
+  const candidates = args === undefined ? [splitWindowsCommand(command), splitPosixCommand(command)] :
+    Array.isArray(args) && args.every((value) => typeof value === "string") ? [[command, ...args as string[]]] : [];
+  return candidates.some((argv) => argv !== null && argv.length === 9 && absoluteArgument(argv[0]) && absoluteArgument(argv[1]) &&
+    argv[2] === "event" && argv[3] === "--agent" && argv[4] === agent && argv[5] === "--event" && argv[6] === event &&
+    argv[7] === "--managed-hook" && argv[8] === "openlimiter-activity-v1");
+}
+
+function activityJson(original: string | null, agent: AgentId, action: "install" | "uninstall", options: HookInstallOptions): string | null {
+  const lifecycle = ACTIVITY_HOOK_EVENTS[agent];
+  if (!lifecycle || (original === null && action === "uninstall")) return original;
+  const root = parseRoot(original);
+  if (root["hooks"] !== undefined && record(root["hooks"]) === null) throw new Error("Invalid hooks object");
+  if (agent === "cursor" && root["version"] !== undefined && root["version"] !== 1) throw new Error("Unknown Cursor hooks version");
+  const hooks = record(root["hooks"]) ?? {};
+  for (const event of lifecycle) {
+    if (hooks[event] !== undefined && !Array.isArray(hooks[event])) throw new Error("Invalid event configuration");
+    const entries = (hooks[event] ?? []) as unknown[];
+    const desired = activityHandler(agent, event, options);
+    let found = false;
+    const update = (handlers: unknown[]): unknown[] => handlers.flatMap((handler) => {
+      if (!managedActivityHandler(handler, agent, event)) return [handler];
+      if (action === "uninstall" || found) return [];
+      found = true;
+      return [desired];
+    });
+    const updated = agent === "cursor" ? update(entries) : entries.flatMap((entry): unknown[] => {
+      const group = record(entry);
+      if (!group || !Array.isArray(group["hooks"])) return [entry];
+      const handlers = update(group["hooks"] as unknown[]);
+      return handlers.length ? [{ ...group, hooks: handlers }] : [];
+    });
+    if (action === "install" && !found) {
+      const budgetGroup = agent === "cursor" ? undefined : updated.map(record).find((group) =>
+        group !== null && group["matcher"] === undefined && Array.isArray(group["hooks"]) &&
+        (group["hooks"] as unknown[]).some((handler) => managedHandler(handler, agent)));
+      if (budgetGroup) (budgetGroup["hooks"] as unknown[]).push(desired);
+      else updated.push(agent === "cursor" ? desired : { hooks: [desired] });
+    }
+    if (updated.length > 0 || hooks[event] !== undefined) hooks[event] = updated;
+  }
+  root["hooks"] = hooks;
+  if (agent === "cursor" && action === "install") root["version"] = 1;
+  return original !== null && canonicalJson(parseRoot(original)) === canonicalJson(root) ? original : canonicalJson(root) + "\n";
+}
+
 function jsonHandler(
   agent: AgentId,
   target: AgentTarget,
@@ -619,23 +699,26 @@ async function mutate(
   action: "install" | "uninstall",
   version: string,
   options: HookInstallOptions,
-  target: AgentTarget
+  target: AgentTarget,
+  attempt = 0
 ): Promise<{ changed: boolean; backupPath: string | null }> {
-  await rejectReparsePath(target.path, options.homeDirectory);
+  const scope = agent === "muse" ? options.projectDirectory ?? options.homeDirectory : options.homeDirectory;
+  await rejectReparsePath(target.path, scope);
   if (action === "install") {
-    await rejectExecutable(options.openLimiterScript);
-    await rejectExecutable(options.nodeExecutable ?? process.execPath);
+    const roots = [options.homeDirectory, scope];
+    await rejectExecutable(options.openLimiterScript, roots);
+    await rejectExecutable(options.nodeExecutable ?? process.execPath, roots);
     if (options.agentExecutable !== undefined) {
-      await rejectExecutable(options.agentExecutable);
+      await rejectExecutable(options.agentExecutable, roots);
     }
     await mkdir(path.dirname(target.path), { recursive: true, mode: 0o700 });
-    await rejectReparsePath(target.path, options.homeDirectory);
+    await rejectReparsePath(target.path, scope);
   }
   const original = await readBounded(target.path);
   const command = hookCommand(agent, version, options);
   let next: string | null;
   if (target.format === "json") {
-    next = action === "install"
+    next = agent === "muse" || agent === "cursor" ? original : action === "install"
       ? jsonInstall(
           original,
           agent,
@@ -644,6 +727,7 @@ async function mutate(
           options.platform ?? process.platform
         )
       : jsonUninstall(original, agent, target);
+    next = activityJson(next, agent, action, options);
   } else if (target.format === "antigravity") {
     next = action === "install"
       ? antigravityInstall(original, command.command)
@@ -665,6 +749,11 @@ async function mutate(
     return { changed: false, backupPath: null };
   }
   const backupPath = await backup(target.path, original);
+  await rejectReparsePath(target.path, scope);
+  if (await readBounded(target.path) !== original) {
+    if (attempt >= 3) throw new Error("Configuration is changing concurrently");
+    return await mutate(agent, action, version, options, target, attempt + 1);
+  }
   if (
     target.format === "opencode" &&
     action === "uninstall" &&
@@ -721,7 +810,7 @@ async function resolvedAgentExecutable(
           if (
             stat.isFile() &&
             !stat.isSymbolicLink() &&
-            !(await pathContainsLink(file))
+            !(await pathContainsLink(file, directory))
           ) return file;
         } catch (error) {
           if (errorCode(error) !== "ENOENT") continue;
@@ -833,7 +922,7 @@ export async function changeAgentHook(
   action: "install" | "uninstall",
   options: HookInstallOptions
 ): Promise<HookMutationResult> {
-  const target = targetFor(agent, options.homeDirectory);
+  const target = targetFor(agent, options.homeDirectory, options.projectDirectory);
   if (target === null) {
     return unsupported(agent, action, null, null, "Grok Build discards hook stdout; use openlimiter status --agent-context.");
   }
@@ -841,7 +930,8 @@ export async function changeAgentHook(
     ...(options.environment === undefined ? {} : { environment: options.environment }),
     ...(options.platform === undefined ? {} : { platform: options.platform })
   };
-  const detected = action === "uninstall"
+  const activityOnly = agent === "muse" || agent === "cursor";
+  const detected = action === "uninstall" || activityOnly
     ? null
     : options.detectedVersion === undefined
     ? await detectAgentInstallation(agent, detectionOptions)
@@ -857,7 +947,7 @@ export async function changeAgentHook(
           mtimeMilliseconds: options.agentMtimeMilliseconds
         };
   const version = detected?.version ?? options.detectedVersion ?? null;
-  if (action === "install") {
+  if (action === "install" && !activityOnly) {
     const gate = AGENT_COMPATIBILITY[agent];
     if (gate.launchState === "excluded") {
       return unsupported(agent, action, version, target, "Dynamic injection is excluded for this agent.");
@@ -918,7 +1008,7 @@ export async function changeAgentHookFixture(
   action: "install" | "uninstall",
   options: HookInstallOptions
 ): Promise<HookMutationResult> {
-  const target = targetFor(agent, options.homeDirectory);
+  const target = targetFor(agent, options.homeDirectory, options.projectDirectory);
   const version = options.detectedVersion ?? "fixture";
   if (target === null) {
     return unsupported(agent, action, version, null, "This agent has no hook configuration target.");
@@ -942,12 +1032,12 @@ export async function changeAgentHookFixture(
 
 export async function readAgentHookStatus(
   agent: AgentId,
-  options: Pick<HookInstallOptions, "homeDirectory">
+  options: Pick<HookInstallOptions, "homeDirectory" | "projectDirectory">
 ): Promise<{ configPath: string | null; installed: boolean }> {
-  const target = targetFor(agent, options.homeDirectory);
+  const target = targetFor(agent, options.homeDirectory, options.projectDirectory);
   if (target === null) return { configPath: null, installed: false };
   try {
-    await rejectReparsePath(target.path, options.homeDirectory);
+    await rejectReparsePath(target.path, agent === "muse" ? options.projectDirectory ?? options.homeDirectory : options.homeDirectory);
     const text = await readBounded(target.path);
     if (text === null) return { configPath: target.path, installed: false };
     let installed = false;
@@ -967,10 +1057,11 @@ export async function readAgentHookStatus(
       const hooks = record(root["hooks"]);
       const groups = target.event === undefined ? null : hooks?.[target.event];
       installed = Array.isArray(groups) && groups.some((candidate) => {
+        if (agent === "cursor") return managedActivityHandler(candidate, agent, target.event!);
         const group = record(candidate);
         return Array.isArray(group?.["hooks"]) &&
           (group["hooks"] as unknown[]).some(
-            (entry) => managedHandler(entry, agent)
+            (entry) => managedHandler(entry, agent) || managedActivityHandler(entry, agent, target.event!)
           );
       });
     }

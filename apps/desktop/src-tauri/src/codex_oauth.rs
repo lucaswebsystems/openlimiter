@@ -16,7 +16,6 @@ use crate::reader_registry::{AuthApplication, ProviderId, ReaderId};
 use crate::request_policy::{GateRejection, RequestPolicy};
 
 pub const REFRESH_SECONDS: u64 = 300;
-const RATE_LIMIT_BACKOFF_SECONDS: u64 = 3_600;
 const BLOCKED_BACKOFF_SECONDS: u64 = 86_400;
 const MAX_THROTTLE_ENTRIES: usize = 128;
 
@@ -225,12 +224,7 @@ async fn collect_with_secret<T: Transport>(
         }
         429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
             let retry_after_seconds = response.retry_after_seconds;
-            let seconds = response
-                .retry_after_seconds
-                .unwrap_or(0)
-                .max(RATE_LIMIT_BACKOFF_SECONDS)
-                .min(BLOCKED_BACKOFF_SECONDS);
-            runtime.postpone(account_id, now_ms, seconds);
+            runtime.postpone(account_id, now_ms, 0);
             fallback_report(writer, account_id, false, now_ms).await;
             CodexOutcome::rate_limited(account_id, retry_after_seconds)
         }
@@ -290,7 +284,16 @@ pub(crate) async fn collect_account_guarded<T: Transport>(
     account_id: String,
     now_ms: u64,
 ) -> (CodexOutcome, bool) {
-    let _lease = match policy.begin(DetectedProviderId::Codex, &account_id, now_ms) {
+    let revision = detection
+        .read_credential(DetectedProviderId::Codex, &account_id)
+        .map(|secret| secret.credential_revision)
+        .unwrap_or_else(|_| "unavailable".to_string());
+    let _lease = match policy.begin_with_revision(
+        DetectedProviderId::Codex,
+        &account_id,
+        now_ms,
+        Some(&revision),
+    ) {
         Ok(lease) => lease,
         Err(GateRejection::Deferred { retry_at }) => {
             return (
@@ -312,6 +315,8 @@ pub(crate) async fn collect_account_guarded<T: Transport>(
             )
         }
     };
+    // The durable gate owns retry timing, including after a process restart.
+    runtime.postpone(&account_id, now_ms, 0);
     let outcome = collect_account(
         detection,
         runtime,
@@ -321,12 +326,27 @@ pub(crate) async fn collect_account_guarded<T: Transport>(
         now_ms,
     )
     .await;
-    let abort_provider = match &outcome {
+    let abort_provider = complete_outcome(policy, &account_id, now_ms, &outcome);
+    (outcome, abort_provider)
+}
+
+fn complete_outcome(
+    policy: &RequestPolicy,
+    account_id: &str,
+    now_ms: u64,
+    outcome: &CodexOutcome,
+) -> bool {
+    match outcome {
+        CodexOutcome::Cached { .. } => false,
+        CodexOutcome::Failed { .. } => {
+            policy.retry_account(DetectedProviderId::Codex, &account_id, now_ms, None, false);
+            false
+        }
         CodexOutcome::Fallback {
             reason: CodexFailure::ProviderBlocked,
             ..
         } => {
-            policy.block_provider(DetectedProviderId::Codex, now_ms, BLOCKED_BACKOFF_SECONDS);
+            policy.refuse_account(DetectedProviderId::Codex, &account_id, now_ms, true);
             true
         }
         CodexOutcome::Fallback {
@@ -343,12 +363,7 @@ pub(crate) async fn collect_account_guarded<T: Transport>(
             true
         }
         CodexOutcome::ReopenCli { .. } => {
-            policy.complete_after(
-                DetectedProviderId::Codex,
-                &account_id,
-                now_ms,
-                BLOCKED_BACKOFF_SECONDS,
-            );
+            policy.refuse_account(DetectedProviderId::Codex, &account_id, now_ms, false);
             false
         }
         _ => {
@@ -360,8 +375,7 @@ pub(crate) async fn collect_account_guarded<T: Transport>(
             );
             false
         }
-    };
-    (outcome, abort_provider)
+    }
 }
 
 fn uncovered_account_ids(
@@ -668,6 +682,94 @@ mod tests {
         assert!(wire.contains("reopen_cli"));
         assert!(wire.contains("Reopen Codex to refresh this login."));
         assert!(!wire.contains(TOKEN));
+    }
+
+    #[tokio::test]
+    async fn guarded_acquisitions_follow_shared_exponential_retry() {
+        let dir = TempDir::new();
+        let path = dir.path().join(".codex/auth.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            r#"{"access_token":"synthetic-test-token","account_id":"synthetic-account"}"#,
+        )
+        .unwrap();
+        let detection = DetectionStore::for_test_home(dir.path(), NOW);
+        let account = detection
+            .account_ids(DetectedProviderId::Codex)
+            .pop()
+            .expect("synthetic account");
+        let runtime = CodexOauthRuntime::default();
+        let transport = RecordingTransport::replying(429, Vec::new(), None);
+        let mut at = NOW;
+        for (index, seconds) in [60, 120, 240, 480, 900, 900].into_iter().enumerate() {
+            // Reopen the policy to prove attempts survive a process restart.
+            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let (outcome, _) = collect_account_guarded(
+                &detection,
+                &runtime,
+                &policy,
+                &transport,
+                writer(&dir),
+                account.clone(),
+                at,
+            )
+            .await;
+            assert!(
+                matches!(outcome, CodexOutcome::Fallback { .. }),
+                "{outcome:?}"
+            );
+            assert_eq!(transport.recorded_urls().len(), index + 1);
+            let next = at + seconds * 1000;
+            let (early, _) = collect_account_guarded(
+                &detection,
+                &runtime,
+                &policy,
+                &transport,
+                writer(&dir),
+                account.clone(),
+                next - 1,
+            )
+            .await;
+            assert!(matches!(early, CodexOutcome::Cached { .. }), "{early:?}");
+            assert_eq!(transport.recorded_urls().len(), index + 1);
+            at = next;
+        }
+    }
+
+    #[test]
+    fn cached_outcome_preserves_shared_failures() {
+        let dir = TempDir::new();
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let account = "synthetic-account";
+        let lease = policy
+            .begin(DetectedProviderId::Codex, account, NOW)
+            .unwrap();
+        policy.rate_limit_account(DetectedProviderId::Codex, account, NOW, None);
+        drop(lease);
+        let at = NOW + 60_000;
+        let _lease = policy
+            .begin(DetectedProviderId::Codex, account, at)
+            .unwrap();
+        complete_outcome(
+            &policy,
+            account,
+            at,
+            &CodexOutcome::Cached {
+                account_id: account.into(),
+                retry_at: iso_from_epoch_ms(at + 1).unwrap(),
+            },
+        );
+        policy.rate_limit_account(DetectedProviderId::Codex, account, at, None);
+        let document: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(
+                dir.path()
+                    .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(document["providers"]["codex"]["attempts"][account], 2);
     }
 
     #[tokio::test]

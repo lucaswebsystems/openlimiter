@@ -264,6 +264,19 @@ describe("the read path", () => {
     expect(grouped.flatMap((provider) => provider.windows)).toHaveLength(3);
   });
 
+  it.each([null, undefined])("drops an unavailable percentage %s instead of fabricating zero", (used_percent) => {
+    expect(groupLatestSyncedUsage([
+      { ...usageRows()[0], used_percent, availability: "rate_limited" },
+    ])).toEqual([]);
+  });
+
+  it("keeps a genuine zero percentage", () => {
+    const grouped = groupLatestSyncedUsage([{ ...usageRows()[0], used_percent: 0 }]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].windows).toHaveLength(1);
+    expect(grouped[0].windows[0].percentage).toBe(0);
+  });
+
   it("keeps the newest reading of a window when a device sent two", () => {
     const [first] = usageRows();
     const older = { ...first, used_percent: 9, observed_at: "2026-09-07T10:00:00.000Z" };

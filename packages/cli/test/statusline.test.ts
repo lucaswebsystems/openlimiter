@@ -117,7 +117,7 @@ function layout(
     advice: buildAdvice(snapshots, NOW),
     snapshots,
     now: NOW,
-    config: { ...DEFAULT_STATUSLINE, style: "cells", ...overrides },
+    config: { ...DEFAULT_STATUSLINE, style: "cells", meters: "worst", ...overrides },
     color,
     /* Stated only where a colour is asserted, so no test asks the machine it
        happens to be running on which colours it has. */
@@ -149,6 +149,7 @@ describe("provider ordering", () => {
       "OPENCODE",
       "GROK",
       "KIMI",
+      "CURSOR",
       "MANUAL",
       "OPENROUTER"
     ]);
@@ -179,7 +180,8 @@ describe("provider ordering", () => {
       "GEMINI_CLI",
       "OPENCODE",
       "GROK",
-      "KIMI"
+      "KIMI",
+      "CURSOR"
     ]);
   });
 
@@ -192,6 +194,7 @@ describe("provider ordering", () => {
       "OPENCODE",
       "GROK",
       "KIMI",
+      "CURSOR",
       "MANUAL",
       "OPENROUTER"
     ]);
@@ -284,13 +287,13 @@ describe("the cell", () => {
 describe("the head", () => {
   it("leads with the reason code and carries the recommendation", () => {
     expect(statuslineHead(buildAdvice(everyProvider, NOW)))
-      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY");
+      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN CURSOR");
   });
 
   it("names the providers it has nothing for", () => {
     const head = statuslineHead(buildAdvice([reading()], NOW));
     expect(head).toContain(
-      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,GROK,KIMI,MANUAL"
+      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,GROK,KIMI,CURSOR,MANUAL"
     );
   });
 
@@ -339,14 +342,14 @@ describe("stacking", () => {
   it("stops at one row when told to, and says what it dropped", () => {
     const rendered = layout(everyProvider, { rows: 1 });
     expect(rendered.split("\n")).toHaveLength(1);
-    expect(rendered).toContain("+5 more");
+    expect(rendered).toContain("+6 more");
   });
 
   it("keeps the worst providers when it has to drop some", () => {
     const rendered = layout(everyProvider, { rows: 1, width: 100 });
     const shown = rowsOf(rendered)[0]!.slice(1);
     expect(rendered).toContain("OPENCODE ####. 92.0%");
-    expect(rendered).toContain("+7 more");
+    expect(rendered).toContain("+8 more");
     /* Twenty eight percent is the furthest from a cap, so it goes first. */
     expect(shown.some((cell) => cell.startsWith("ANTIGRAVITY "))).toBe(false);
     expect(rendered.length).toBeLessThanOrEqual(100);
@@ -408,12 +411,11 @@ describe("colour", () => {
     expect(rendered).toContain(ESCAPE + "[31m");
   });
 
-  it("degrades the orange band to yellow where there is no orange", () => {
+  it("keeps the locked orange band without a palette hint", () => {
     const rendered = layout(everyBand, { width: 400 }, true, false);
-    expect(rendered).not.toContain("38;5;208");
+    expect(rendered).toContain("38;5;208");
     expect(rendered).toContain(ESCAPE + "[33m");
-    /* The cell is not dropped and the reading is not changed. Only the
-       distinction between the urgent band and the watch band is lost. */
+    /* The cell is not dropped and the reading is not changed. The locked band remains orange. */
     expect(rendered).toContain("84.0%");
     expect(rendered).toContain(ESCAPE + "[31m");
   });
@@ -483,7 +485,7 @@ describe("statusline bar rendering window codes and unknown cells", () => {
     expect(windowCode(manualMonthSnapshot)).toBe("mo");
   });
 
-  it("renders explicit [?] cell when windowCode returns empty string", () => {
+  it("keeps a usable percentage when the window is unknown", () => {
     const unrecognisedWindowSnapshot: Snapshot = {
       provider: "GROK",
       meter: "UNRECOGNISED_CUSTOM_METER",
@@ -514,7 +516,7 @@ describe("statusline bar rendering window codes and unknown cells", () => {
       false
     );
     expect(cells).toHaveLength(1);
-    expect(cells[0]?.plain).toBe("gk [?]");
+    expect(cells[0]?.plain).toBe("gk [█████░░░░░] 50%");
 
     const paintedCells = barStyleCells(
       [unrecognisedWindowSnapshot],
@@ -525,6 +527,6 @@ describe("statusline bar rendering window codes and unknown cells", () => {
       "worst",
       true
     );
-    expect(paintedCells[0]?.painted).toContain("\x1b[31m[?]\x1b[0m");
+    expect(paintedCells[0]?.painted).toContain("\x1b[32m50%\x1b[0m");
   });
 });

@@ -90,6 +90,17 @@ function statuslinePayload(now = FIXTURE_NOW): string {
 }
 
 describe("CLI", () => {
+  it.each(["--version", "-v", "version"])("prints the package version for %s", async (command) => {
+    const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+    expect(await runCli([command])).toEqual({ exitCode: 0, stdout: version, stderr: "" });
+  });
+
+  it.each(["help", "--help", "-h"])("documents version flags in %s", async (command) => {
+    const result = await runCli([command]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("openlimiter --version | -v | version");
+  });
+
   it("initializes every connector as enabled and stores only the prompted key", async () => {
     const directory = await temporaryDirectory();
     const store = new MemoryCredentialStore();
@@ -111,7 +122,7 @@ describe("CLI", () => {
     const config = JSON.parse(configText) as {
       connectors: { enabled: boolean }[];
     };
-    expect(config.connectors).toHaveLength(9);
+    expect(config.connectors).toHaveLength(10);
     expect(config.connectors.every((connector) => connector.enabled)).toBe(true);
     expect(configText.includes("sk-DEMO-000")).toBe(false);
   });
@@ -125,8 +136,8 @@ describe("CLI", () => {
     });
     expect(result.exitCode).toBe(0);
     /* The padded table carries every bounded meter with its percent and bar. */
-    expect(result.stdout).toMatch(/CLAUDE\s+FIVE_HOUR\s+[^\s]{10}\s+42\.00PERCENT/);
-    expect(result.stdout).toMatch(/OPENROUTER\s+CREDITS\s+[^\s]{10}\s+62\.35PERCENT/);
+    expect(result.stdout).toMatch(/CLAUDE\s+5h\s+[^\s]{10}\s+42\.00PERCENT/);
+    expect(result.stdout).toMatch(/OPENROUTER\s+Credits\s+[^\s]{10}\s+62\.35PERCENT/);
     expect(result.stdout.includes("demo@example.test")).toBe(false);
   });
 
@@ -164,33 +175,33 @@ describe("CLI", () => {
       expect(result.stdout).toBe([
         "PROVIDER    METER             BAR        USAGE        AMOUNT        " +
           "STATE RESET                    IN    SOURCE       ",
-        "OPENCODE    FIVE_HOUR         #########. 92.00PERCENT NONE          " +
+        "OPENCODE    5h                #########. 92.00PERCENT NONE          " +
           "fresh 2026-01-01T20:00:00.000Z 20h0m [import only]",
-        "OPENCODE    SEVEN_DAY         ####...... 40.00PERCENT NONE          " +
+        "OPENCODE    Weekly            ####...... 40.00PERCENT NONE          " +
           "fresh 2026-01-06T20:00:00.000Z 5d20h [import only]",
-        "OPENCODE    MONTHLY           #......... 15.00PERCENT NONE          " +
+        "OPENCODE    Monthly           #......... 15.00PERCENT NONE          " +
           "fresh 2026-01-22T00:00:00.000Z 21d0h [import only]",
-        "CODEX       FIVE_HOUR         ########.. 84.00PERCENT NONE          " +
+        "CODEX       5h                ########.. 84.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "KIMI        FIVE_HOUR         ######.... 69.50PERCENT NONE          " +
+        "KIMI        5h                ######.... 69.50PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "KIMI        WEEKLY            #......... 10.44PERCENT NONE          " +
+        "KIMI        Weekly            #......... 10.44PERCENT NONE          " +
           "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "CLAUDE      SEVEN_DAY         ######.... 64.00PERCENT NONE          " +
+        "CLAUDE      Weekly            ######.... 64.00PERCENT NONE          " +
           "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "CLAUDE      FIVE_HOUR         ####...... 42.00PERCENT NONE          " +
+        "CLAUDE      5h                ####...... 42.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "OPENROUTER  CREDITS           ######.... 62.35PERCENT $12.47/$20.00 " +
+        "OPENROUTER  Credits           ######.... 62.35PERCENT $12.47/$20.00 " +
           "fresh NONE                     NONE  [import only]",
-        "GROK        WEEKLY            ####...... 42.50PERCENT NONE          " +
+        "GROK        Weekly            ####...... 42.50PERCENT NONE          " +
           "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]",
-        "GROK        ON_DEMAND_MONTHLY .......... 6.00PERCENT  NONE          " +
+        "GROK        On demand monthly .......... 6.00PERCENT  NONE          " +
           "fresh NONE                     NONE  [import only]",
-        "MANUAL      MONTHLY           ###....... 35.00PERCENT NONE          " +
+        "MANUAL      Monthly           ###....... 35.00PERCENT NONE          " +
           "fresh 2026-02-01T00:00:00.000Z 31d0h [import only]",
-        "ANTIGRAVITY FIVE_HOUR         ##........ 28.00PERCENT NONE          " +
+        "ANTIGRAVITY 5h                ##........ 28.00PERCENT NONE          " +
           "fresh 2026-01-01T05:00:00.000Z 5h0m  [import only]",
-        "ANTIGRAVITY SEVEN_DAY         #......... 10.00PERCENT NONE          " +
+        "ANTIGRAVITY Weekly            #......... 10.00PERCENT NONE          " +
           "fresh 2026-01-08T00:00:00.000Z 7d0h  [import only]"
       ].join("\n"));
     });
@@ -220,7 +231,7 @@ describe("CLI", () => {
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=MANUAL state=fresh usage_percent=35.00 " +
           "reset_at=2026-02-01T00:00:00.000Z",
-        "unknown=GEMINI_CLI",
+        "unknown=GEMINI_CLI,CURSOR",
         "</openlimiter_untrusted_data>"
       ].join("\n");
       const hook = await runCli(["hook"], {
@@ -288,7 +299,8 @@ describe("CLI", () => {
       const directory = await seeded();
       const statusline = await runCli(["statusline"], {
         stateDirectory: directory,
-        now: () => FIXTURE_NOW
+        now: () => FIXTURE_NOW,
+        environment: { NO_COLOR: "" }
       });
       /* `statusline.style` defaults to `bar`, decision D6's reference grammar,
          since this lane. Host defaults to `claude`, so the provider's own
@@ -300,11 +312,13 @@ describe("CLI", () => {
          cells`, tested in statusline.test.ts. */
       expect(statusline.stdout).toBe([
         "5h [████░░░░░░] 42% ·5h | 7d [██████░░░░] 64% ·7d | " +
-          "cx5h [████████░░] 84% ·5h | ag5h [██░░░░░░░░] 28% ·5h | " +
-          "oc5h [█████████░] 92% ·20h",
-        "gk7d [████░░░░░░] 42% ·7d | km5h [██████░░░░] 69% ·5h | " +
-          "mnmo [███░░░░░░░] 35% ·31d | or spend $12.47"
-      ].join("\n"));
+          "cx5h [████████░░] ~84% ·5h | ag5h [██░░░░░░░░] ~28% ·5h | " +
+          "ag7d [█░░░░░░░░░] ~10% ·7d | oc5h [█████████░] ~92% ·20h | " +
+          "oc7d [████░░░░░░] ~40% ·5d20h | ocmo [█░░░░░░░░░] ~15% ·21d | " +
+          "gk7d [████░░░░░░] ~43% ·7d | gkmo [█░░░░░░░░░] ~6% | " +
+          "km5h [██████░░░░] ~70% ·5h | km7d [█░░░░░░░░░] ~10% ·7d | " +
+          "mnmo [███░░░░░░░] 35% ·31d | or $7.53"
+      ].join(""));
     });
   });
 
@@ -567,7 +581,7 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW
     });
     expect(refreshed.exitCode).toBe(0);
-    expect(refreshed.stdout).toMatch(/MANUAL\s+MONTHLY\s+[^\s]{10}\s+35\.00PERCENT/);
+    expect(refreshed.stdout).toMatch(/MANUAL\s+Monthly\s+[^\s]{10}\s+35\.00PERCENT/);
     const doctor = await runCli(["doctor"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -591,7 +605,7 @@ describe("CLI", () => {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
-    expect(refreshed.stdout).toMatch(/MANUAL\s+MONTHLY\s+[^\s]{10}\s+35\.00PERCENT/);
+    expect(refreshed.stdout).toMatch(/MANUAL\s+Monthly\s+[^\s]{10}\s+35\.00PERCENT/);
     expect(refreshed.stdout.includes("bad name")).toBe(false);
   });
 
@@ -745,7 +759,7 @@ describe("CLI", () => {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
     });
-    expect(demo.stdout).toMatch(/MANUAL\s+MONTHLY\s+[^\s]{10}\s+35\.00PERCENT/);
+    expect(demo.stdout).toMatch(/MANUAL\s+Monthly\s+[^\s]{10}\s+35\.00PERCENT/);
     const emptyExport = await runCli(["export"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -765,18 +779,19 @@ describe("CLI", () => {
 
   it("draws a bar, a percent and a time to reset on every demo row", async () => {
     const demo = await runCli(["demo"], { now: () => FIXTURE_NOW, colorOutput: false });
-    const lines = demo.stdout.split("\n").slice(1);
+    const [header, ...lines] = demo.stdout.split("\n");
+    const barColumn = header!.indexOf("BAR");
     expect(lines.length).toBeGreaterThan(0);
     for (const line of lines) {
-      const tokens = line.split(/\s+/);
-      /* Nine named columns; the SOURCE chip may span multiple tokens. */
-      expect(tokens.length).toBeGreaterThanOrEqual(9);
+      // Window names can contain spaces, so start at the aligned bar column.
+      const tokens = line.slice(barColumn).split(/\s+/);
+      expect(tokens.length).toBeGreaterThanOrEqual(7);
       /* Bar column always spans exactly ten visible characters. */
-      expect(tokens[2]).toHaveLength(10);
+      expect(tokens[0]).toHaveLength(10);
       /* USAGE carries an exact percent with two decimal places. */
-      expect(tokens[3]).toMatch(/^\d+\.\d\dPERCENT$/u);
+      expect(tokens[1]).toMatch(/^\d+\.\d\dPERCENT$/u);
       /* The IN column (time to reset) is never empty. */
-      expect(tokens[7]).not.toBe("");
+      expect(tokens[5]).not.toBe("");
     }
   });
 
@@ -869,7 +884,7 @@ describe("CLI", () => {
       colorOutput: false,
       payloads: { claude: payloads.claude }
     });
-    expect(result.stdout).toMatch(/CLAUDE\s+FIVE_HOUR/);
+    expect(result.stdout).toMatch(/CLAUDE\s+5h/);
     for (const category of [
       "PAYLOAD_UNREADABLE",
       "SESSION_EXPIRED",
@@ -928,10 +943,11 @@ describe("CLI", () => {
     const statusline = await runCli(["statusline"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW,
-      colorOutput: false
+      colorOutput: false,
+      environment: { NO_COLOR: "" }
     });
     expect(statusline.stdout).toMatch(/^OpenLimiter [A-Z_]+ /u);
-    expect(statusline.stdout).toContain("OPENCODE ####. 92.0%");
+    expect(statusline.stdout).toContain("OPENCODE:FIVE_HOUR ####. 92.0%");
     /* A statusline states pressure. Money and failure text belong elsewhere. */
     expect(statusline.stdout).not.toContain("$");
     expect(statusline.stdout).not.toContain("PAYLOAD_UNREADABLE");
@@ -974,7 +990,7 @@ describe("CLI", () => {
     expect(statusline.stdout).toBe(
       "OpenLimiter NEAR_CAP CLAUDE 64.0% OPENROUTER 62.3% CODEX 84.0% " +
       "ANTIGRAVITY 28.0% OPENCODE 92.0% GROK 42.5% KIMI 69.5% MANUAL 35.0% " +
-      "PREFER ANTIGRAVITY UNKNOWN GEMINI_CLI"
+      "PREFER ANTIGRAVITY UNKNOWN GEMINI_CLI,CURSOR"
     );
     /* One line, no bar, no dollar figure, no escape code, no failure line. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);
@@ -983,7 +999,7 @@ describe("CLI", () => {
     expect(statusline.stdout).not.toContain("#");
   });
 
-  it("stacks the statusline into a second row at the default budget", async () => {
+  it("leaves reference line wrapping to the host at every configured width", async () => {
     const directory = await temporaryDirectory();
     await runCli(["snapshot", "--refresh"], {
       stateDirectory: directory,
@@ -996,8 +1012,8 @@ describe("CLI", () => {
       colorOutput: false
     });
     const rows = stacked.stdout.split("\n");
-    expect(rows).toHaveLength(2);
-    for (const row of rows) expect(row.length).toBeLessThanOrEqual(140);
+    expect(rows).toHaveLength(1);
+    expect(stacked.stdout).toContain("oc7d");
     await runCli(["config", "set", "statusline.width", "260"], {
       stateDirectory: directory,
       now: () => FIXTURE_NOW
@@ -1008,6 +1024,7 @@ describe("CLI", () => {
       colorOutput: false
     });
     expect(wide.stdout.split("\n")).toHaveLength(1);
+    expect(wide.stdout).toBe(stacked.stdout);
   });
 
   it("obeys the configured order, meter mode and colour setting", async () => {
@@ -1065,8 +1082,8 @@ describe("CLI", () => {
       now: () => FIXTURE_NOW,
       colorOutput: false
     });
-    /* Every unusable key fell back to its default, so the default stacks. */
-    expect(statusline.stdout.split("\n")).toHaveLength(2);
+    /* Every unusable key falls back to the complete reference line. */
+    expect(statusline.stdout.split("\n")).toHaveLength(1);
     expect(statusline.stdout).toContain("oc5h");
     expect(statusline.stdout).toContain("92%");
   });
@@ -1098,7 +1115,7 @@ describe("CLI", () => {
     expect(before.exitCode).toBe(0);
     expect(before.stdout.split("\n")).toEqual([
       "statusline.order=NONE",
-      "statusline.meters=worst",
+      "statusline.meters=all",
       "statusline.width=140",
       "statusline.rows=2",
       "statusline.bars=true",
@@ -1166,7 +1183,7 @@ describe("CLI", () => {
       show: [],
       hosts: {}
     });
-    expect(stored.connectors).toHaveLength(9);
+    expect(stored.connectors).toHaveLength(10);
   });
 
   it("reads back style, show and hosts, the three keys this lane added", async () => {

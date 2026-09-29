@@ -1,7 +1,9 @@
 import {
   ACCOUNT_ID_PATTERN,
+  CONNECTOR_VERIFICATIONS,
   MAX_SNAPSHOT_AMOUNT,
   PROVIDER_CODES,
+  SNAPSHOT_KINDS,
   SNAPSHOT_OBSERVED_VIA,
   SNAPSHOT_SOURCE_KINDS,
   SNAPSHOT_WRITERS,
@@ -11,7 +13,9 @@ import {
   type RawMeter,
   type Snapshot,
   type SnapshotAmounts,
+  type SnapshotAvailability,
   type SnapshotCurrency,
+  type SnapshotKind,
   type SnapshotObservedVia,
   type SnapshotPrecision,
   type SnapshotProvenance,
@@ -21,6 +25,7 @@ import {
   type SnapshotWindow,
   type SnapshotWriter
 } from "./types.js";
+import { SNAPSHOT_AVAILABILITIES } from "./connection-state.js";
 
 const units = new Set<SnapshotUnit>(["PERCENT", "CREDITS", "TOKENS", "REQUESTS"]);
 const sources = new Set<SnapshotSource>([
@@ -31,7 +36,10 @@ const sources = new Set<SnapshotSource>([
   "manual_entry"
 ]);
 const precisions = new Set<SnapshotPrecision>(["exact", "estimated", "manual"]);
-const currencies = new Set<SnapshotCurrency>(["USD"]);
+const currencies = new Set<SnapshotCurrency>(["USD", "CNY"]);
+const verifications = new Set<string>(CONNECTOR_VERIFICATIONS);
+const kinds = new Set<string>(SNAPSHOT_KINDS);
+const availabilities = new Set<string>(SNAPSHOT_AVAILABILITIES);
 const providerCodes = new Set<string>(PROVIDER_CODES);
 const sourceKinds = new Set<string>(SNAPSHOT_SOURCE_KINDS);
 const observedVia = new Set<string>(SNAPSHOT_OBSERVED_VIA);
@@ -69,7 +77,17 @@ function normalizeWindow(value: unknown): SnapshotWindow | null {
 }
 
 function normalizeLabels(value: unknown): ConnectorLabels | null {
-  if (!isRecord(value) || value["verification"] !== "UNVERIFIED") return null;
+  if (!isRecord(value)) return null;
+  const verification = value["verification"];
+  if (typeof verification !== "string" || !verifications.has(verification)) return null;
+  const evidence = value["verificationEvidence"];
+  if (evidence !== undefined && (
+    verification !== "VERIFIED_LIVE" || !isRecord(evidence) ||
+    typeof evidence["providerVersion"] !== "string" || !evidence["providerVersion"].trim() ||
+    typeof evidence["accountShape"] !== "string" || !evidence["accountShape"].trim() ||
+    typeof evidence["os"] !== "string" || !evidence["os"].trim() ||
+    !isIsoInstant(evidence["date"])
+  )) return null;
   const credentialOrigin = value["credentialOrigin"];
   const dataInterfaceStatus = value["dataInterfaceStatus"];
   const automationRisk = value["automationRisk"];
@@ -87,12 +105,24 @@ function normalizeLabels(value: unknown): ConnectorLabels | null {
     dataInterfaceStatus !== "manual"
   ) return null;
   if (automationRisk !== "low" && automationRisk !== "high") return null;
-  return {
+  const base = {
     credentialOrigin,
     dataInterfaceStatus,
-    automationRisk,
-    verification: "UNVERIFIED"
+    automationRisk
   };
+  if (verification === "UNVERIFIED" || verification === "VERIFIED_FIXTURES") {
+    return { ...base, verification } as ConnectorLabels;
+  }
+  return {
+    ...base,
+    verification,
+    ...(evidence === undefined ? {} : { verificationEvidence: {
+      providerVersion: evidence["providerVersion"],
+      accountShape: evidence["accountShape"],
+      os: evidence["os"],
+      date: evidence["date"]
+    } })
+  } as ConnectorLabels;
 }
 
 /**
@@ -188,6 +218,13 @@ function readWriter(value: unknown): SnapshotWriter | null {
 }
 
 export function normalizeMeter(raw: RawMeter): Snapshot | null {
+  if (raw.kind !== undefined && (typeof raw.kind !== "string" || !kinds.has(raw.kind))) return null;
+  if (raw.availability !== undefined && (
+    typeof raw.availability !== "string" || !availabilities.has(raw.availability)
+  )) return null;
+  if (raw.retryAt !== undefined && (
+    raw.availability !== "rate_limited" || !isIsoInstant(raw.retryAt)
+  )) return null;
   if (typeof raw.provider !== "string" || !providerCodes.has(raw.provider)) return null;
   if (typeof raw.meter !== "string" || !safeMeter.test(raw.meter)) return null;
   if (typeof raw.value !== "number" || !Number.isFinite(raw.value) || raw.value < 0) {
@@ -233,7 +270,10 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
       ? {}
       : { accountLabel }),
     ...(provenance === null ? {} : { provenance }),
-    ...(writer === null ? {} : { writer })
+    ...(writer === null ? {} : { writer }),
+    ...(raw.kind === undefined ? {} : { kind: raw.kind as SnapshotKind }),
+    ...(raw.availability === undefined ? {} : { availability: raw.availability as SnapshotAvailability }),
+    ...(raw.retryAt === undefined ? {} : { retryAt: raw.retryAt as string })
   };
 }
 

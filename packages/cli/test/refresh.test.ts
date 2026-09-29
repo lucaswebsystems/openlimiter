@@ -114,6 +114,33 @@ async function cachedProviders(directory: string): Promise<string[]> {
 }
 
 describe("openlimiter refresh", () => {
+  it("discovers Cursor SQLite, dispatches its request and persists normalized rows", async () => {
+    const state = await temporaryDirectory("cursor-cli-state-");
+    const home = await temporaryDirectory("cursor-cli-home-");
+    const file = path.join(home, ".config/Cursor/User/globalStorage/state.vscdb");
+    await mkdir(path.dirname(file), { recursive: true });
+    const { DatabaseSync } = await import("node:sqlite");
+    const db = new DatabaseSync(file);
+    try {
+      db.exec("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE ItemTable(key TEXT PRIMARY KEY, value TEXT)");
+      const insert = db.prepare("INSERT INTO ItemTable VALUES (?, ?)");
+      insert.run("cursorAuth/accessToken", "synthetic-token");
+      insert.run("cursorAuth/stripeMembershipAuthId", "synthetic-auth");
+      const fixture = JSON.parse(await readFile(path.resolve("packages/connectors/fixtures/cases/cursor/normal.json"), "utf8")) as { now: string; body: unknown };
+      const recorder = recordingTransport(fixture.now, { cursor_usage: fixture.body });
+      const result = await runCli(["refresh"], { ...dependencies(state, home, recorder.transport, fixture.now), environment: {} });
+      expect(result.exitCode).toBe(0);
+      expect(recorder.sent).toHaveLength(1);
+      expect(recorder.sent[0]).toMatchObject({ endpoint: "cursor_usage", headers: { cookie: "WorkosCursorSessionToken=synthetic-auth::synthetic-token" } });
+      const cache = await readSnapshotCache(state);
+      expect(cache.ok && cache.snapshots.map(row => row.provider)).toEqual(["CURSOR", "CURSOR"]);
+      expect(JSON.stringify(cache)).not.toContain("synthetic-auth");
+      expect(JSON.stringify(cache)).not.toContain("synthetic-token");
+      await runCli(["refresh"], { ...dependencies(state, home, recorder.transport, fixture.now), environment: {} });
+      expect(recorder.sent).toHaveLength(1);
+    } finally { db.close(); }
+  });
+
   it("acquires every provider this machine has a login for", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
@@ -226,7 +253,7 @@ describe("openlimiter refresh", () => {
     expect(third.sent.length).toBe(asked);
   });
 
-  it("waits an hour after a rate limit and a day after a refusal", async () => {
+  it("waits per the agreed exponential plan after a rate limit and a day after a refusal", async () => {
     const state = await temporaryDirectory("openlimiter-state-");
     const home = await machineWithLogins();
     const rateLimited: AcquisitionTransport = async (request) =>
@@ -237,11 +264,11 @@ describe("openlimiter refresh", () => {
       ["refresh"],
       dependencies(state, home, rateLimited)
     );
-    expect(result.stdout).toContain("kimi yes stale 2026-01-01T01:00:00.000Z");
+    expect(result.stdout).toContain("kimi yes stale 2026-01-01T00:01:00.000Z");
     expect(result.stdout).toContain("codex yes stale 2026-01-02T00:00:00.000Z");
-    /* A failed read never rewrites the cache. The rows a person already had
-       stay, and age out through the ordinary freshness rule. */
-    expect(await cachedProviders(state)).toEqual([]);
+    // The agreed plan records availability without inventing usage observations.
+    const cached = await readSnapshotCache(state);
+    expect(cached.ok && cached.snapshots.every((row) => row.meter === "ACQUISITION" && row.availability !== undefined)).toBe(true);
   });
 
   it("leaves the desktop owned provider alone while acquiring the other providers", async () => {

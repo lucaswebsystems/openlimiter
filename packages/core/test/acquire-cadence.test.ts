@@ -42,12 +42,12 @@ afterEach(async () => {
 });
 
 describe("acquisition cadence", () => {
-  it("mirrors the desktop's three constants exactly", () => {
+  it("mirrors the new desktop constants under the agreed plan rule", () => {
     /* apps/desktop/src-tauri/src/claude_oauth.rs lines 20 to 23. Two clients
        on one machine that disagree about cadence poll twice as often as either
        intended, and the provider only ever sees the total. */
     expect(ACQUISITION_INTERVAL_SECONDS).toBe(900);
-    expect(ACQUISITION_RATE_LIMIT_BACKOFF_SECONDS).toBe(3_600);
+    expect(ACQUISITION_RATE_LIMIT_BACKOFF_SECONDS).toBe(60);
     expect(ACQUISITION_BLOCKED_BACKOFF_SECONDS).toBe(86_400);
     expect(DESKTOP_OWNERSHIP_SECONDS).toBe(ACQUISITION_INTERVAL_SECONDS);
   });
@@ -64,16 +64,17 @@ describe("acquisition cadence", () => {
     expect(ACQUISITION_CLIENT_VERSION).toBe(manifest.version);
   });
 
-  it("earns the right backoff per outcome", () => {
+  it("earns the agreed plan backoff per outcome, including exponential transport retries", () => {
     expect(backoffSecondsFor("ok")).toBe(ACQUISITION_INTERVAL_SECONDS);
     expect(backoffSecondsFor("rate_limited")).toBe(
       ACQUISITION_RATE_LIMIT_BACKOFF_SECONDS
     );
     expect(backoffSecondsFor("blocked")).toBe(ACQUISITION_BLOCKED_BACKOFF_SECONDS);
-    expect(backoffSecondsFor("transport")).toBe(ACQUISITION_INTERVAL_SECONDS);
+    expect(backoffSecondsFor("transport")).toBe(60);
+    expect(backoffSecondsFor("unauthorized")).toBe(86_400);
   });
 
-  it("treats Retry-After as a floor and never as a discount", () => {
+  it("treats Retry-After as a floor within the agreed seven day policy ceiling", () => {
     /* A provider asking for more time gets it. A provider asking for less than
        our own interval does not talk us into polling sooner. */
     expect(backoffSecondsFor("rate_limited", 7_200)).toBe(7_200);
@@ -82,16 +83,16 @@ describe("acquisition cadence", () => {
     );
     expect(backoffSecondsFor("ok", 10)).toBe(ACQUISITION_INTERVAL_SECONDS);
     expect(backoffSecondsFor("rate_limited", 999_999)).toBe(
-      ACQUISITION_BLOCKED_BACKOFF_SECONDS
+      7 * ACQUISITION_BLOCKED_BACKOFF_SECONDS
     );
   });
 
-  it("reads a Retry-After header only when it is a count of seconds", () => {
+  it("reads seconds and HTTP dates under the agreed plan rule", () => {
     expect(retryAfterSeconds("120")).toBe(120);
     expect(retryAfterSeconds(" 60 ")).toBe(60);
-    expect(retryAfterSeconds("Wed, 21 Oct 2026 07:28:00 GMT")).toBeNull();
+    expect(retryAfterSeconds("Wed, 21 Oct 2026 07:28:00 GMT", Date.parse("2026-10-21T07:27:00Z"))).toBe(60);
     expect(retryAfterSeconds(null)).toBeNull();
-    expect(retryAfterSeconds("0")).toBeNull();
+    expect(retryAfterSeconds("0")).toBe(0);
   });
 
   it("turns a status into a decision", () => {
@@ -104,9 +105,9 @@ describe("acquisition cadence", () => {
     expect(outcomeForStatus(302)).toBe("remote_error");
   });
 
-  it("schedules the next attempt from the outcome", () => {
+  it("schedules the next attempt under the agreed exponential plan rule", () => {
     expect(nextAttemptInstant("ok", NOW)).toBe("2026-01-01T00:15:00.000Z");
-    expect(nextAttemptInstant("rate_limited", NOW)).toBe("2026-01-01T01:00:00.000Z");
+    expect(nextAttemptInstant("rate_limited", NOW)).toBe("2026-01-01T00:01:00.000Z");
     expect(nextAttemptInstant("blocked", NOW)).toBe("2026-01-02T00:00:00.000Z");
     expect(nextAttemptInstant("ok", "not a clock")).toBeNull();
   });

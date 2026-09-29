@@ -1,0 +1,31 @@
+.whats-new {
+  box-sizing: border-box;
+  width: min(38rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  padding: var(--ol-space-5);
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-lg);
+  background: var(--ol-surface);
+  color: var(--ol-body);
+  font: inherit;
+}
+
+/* The title takes focus only so screen readers announce it; it is not a
+   control, so it shows no focus ring. */
+.whats-new h2:focus {
+  outline: none;
+}
+
+.whats-new::backdrop {
+  background: var(--ol-backdrop);
+}
+
+.whats-new li + li {
+  margin-top: var(--ol-space-3);
+}
+
+.whats-new button {
+  min-height: 44px;
+  padding: var(--ol-space-2) var(--ol-space-4);
+}

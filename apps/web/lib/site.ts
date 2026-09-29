@@ -86,11 +86,11 @@ export const HERO_BACKDROP_ENABLED: boolean = true;
 /**
  * The version this site describes. Kept in step with the root CHANGELOG.
  *
- * This one constant drives every download link on the site and the version
- * line shown on the download page, so it must be bumped in the same commit
- * that tags a desktop release, never after.
+ * This constant drives the version shown on the download page. Installer links
+ * use stable aliases on the latest published release, independent of this value.
  */
-export const CURRENT_VERSION = "1.3.3";
+export const CURRENT_VERSION = "2.0.0";
+export const SITE_CONTENT_UPDATED = "2026-09-28";
 
 /**
  * What actually ships today, in one place, so no surface can quietly promote a

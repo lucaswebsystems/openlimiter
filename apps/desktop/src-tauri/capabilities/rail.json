@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "rail",
+  "description": "Local Rail controls, including the main window Settings toggle.",
+  "windows": [
+    "main",
+    "rail",
+    "rail-card"
+  ],
+  "permissions": [
+    "rail:default"
+  ]
+}

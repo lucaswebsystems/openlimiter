@@ -1,66 +1,107 @@
-# Cursor. An Admin API is real and documented at the source_url, but it is
-# scoped to a team: the only credential type documented is an API key "tied
-# to your organization... viewable by all admins," created at
-# cursor.com/dashboard. No separate personal usage endpoint exists for a
-# solo Hobby or Pro subscriber with no team: for that account shape this
-# surface is scrape_only in practice, dashboard only, even though
-# official_api is the literal, correct bucket for the endpoint itself. See
-# provider_specs/RESEARCH.md.
-#
-# POST /teams/spend documents teamMemberSpend[] with spendCents (per
-# member), overallSpendCents, monthlyLimitDollars, and
-# effectivePerUserLimitDollars. overallSpendCents against monthlyLimitDollars
-# is the closest confirmed used against limit pair, carried through below,
-# flagging that spend is documented in cents and the limit in whole dollars,
-# a unit mismatch a real parser must convert. subscriptionCycleStart is also
-# documented but no forward looking reset timestamp field was found, so
-# reset_path is null here rather than guessed.
-
+# Cursor endpoint facts: research/01-codenotch-harvest.md, September 28, 2026.
+# Independently implemented. Fixtures are entirely synthetic.
+# Tested OS: Windows, synthetic SQLite WAL and mocked HTTP only.
+# Live provider version, account shape and acquisition remain unverified.
+# UI label: Experimental: parser tested on fixtures; live acquisition unverified
+# Unsupported: cursor-agent keychain, JWT sub fallback, admin API, on demand
+# dollar meters, team pooled spend, custom profile roots.
+# D5: no SQLite immutable mode, database copy, token refresh, impersonation or PTY.
 provider_id: cursor
 product_id: editor
 display_name: Cursor
-
+headlineMeter: auto
+acquisitionSurfaces:
+  - desktop
+  - cli
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Reads the existing local session in place without changing it. Only Cursor receives the cookie pair. Honest OpenLimiter identity, no refresh or impersonation.
+maturity: experimental
 source:
-  docs_url: https://cursor.com/docs/account/teams/admin-api
-  reviewed_at: "2026-08-10"
-  source_status: official
-
+  docs_url: https://cursor.com/api/usage-summary
+  reviewed_at: "2026-09-28"
+  source_status: provisional
 availability:
-  requires_plan: team_or_business
-  appears_after: admin_key_created
-  absence_is_error: true
-
+  requires_plan: any
+  appears_after: local_app_login
+  absence_is_error: false
 support:
-  parser: absent
-  reader: absent
-  auth: absent
-
+  parser: implemented
+  reader: implemented
+  auth: implemented
+collection:
+  reader: implemented
+  auth: implemented
+  readers:
+    - reader_id: cursor_usage
+      endpoint_id: cursor_usage
+      credential_kind: cursor_session
+      evidence_fixture: cursor.synthetic.normal
+      evidence_status: pending_capture
+      last_verified_at: null
 connections:
-  - reader: official_remote_api
-    auth_mode: admin_api_key
+  - reader: experimental
+    auth_mode: existing_local_cli
     platforms:
       - windows
       - macos
       - linux
-
 verification:
-  verification_status: unverified
+  verification_status: experimental
   last_verified_at: null
   fixture_ids:
-    - cursor.documented.spend
-
+    - cursor.synthetic.normal
+honesty:
+  connector_id: cursor
+  credential_origin: official-local-tool
+  data_interface_status: internal-endpoint
+  automation_risk: high
+  verification: VERIFIED_FIXTURES
 meters:
-  - id: team_spend
-    label: Team spend this billing cycle
-    kind: api_spend
+  - id: auto
+    label: Auto usage
+    kind: subscription_quota
     unit: percent_used
-    scope: organization
+    scope: account
     window:
       kind: billing_period
-    source_path: overallSpendCents
-    limit_path: monthlyLimitDollars
-    amount_currency: USD
-    reset_path: null
-    reset_encoding: none
+    source_path: individualUsage.plan.autoPercentUsed
+    reset_path: billingCycleEnd
+    reset_encoding: rfc3339
     optional: true
-    meter_code: TEAM_SPEND
+    meter_code: AUTO
+  - id: api
+    label: API usage
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: billing_period
+    source_path: individualUsage.plan.apiPercentUsed
+    reset_path: billingCycleEnd
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: API
+  - id: included
+    label: Included usage
+    kind: subscription_quota
+    unit: percent_used
+    scope: account
+    window:
+      kind: billing_period
+    source_path: individualUsage.overall.used
+    limit_path: individualUsage.overall.limit
+    reset_path: billingCycleEnd
+    reset_encoding: rfc3339
+    optional: true
+    meter_code: INCLUDED

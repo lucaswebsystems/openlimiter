@@ -267,6 +267,7 @@ const PROVIDER_NAMES: Record<ProviderCode, string> = {
   OPENCODE: "OpenCode",
   GROK: "Grok Build",
   KIMI: "Kimi",
+  CURSOR: "Cursor",
   MANUAL: "Manual",
 };
 
@@ -284,6 +285,7 @@ const PROVIDER_ORIGIN: Record<ProviderCode, string> = {
   OPENCODE: "Authenticated page",
   GROK: "Official local CLI session",
   KIMI: "Official local CLI session",
+  CURSOR: "Local editor session",
   MANUAL: "Written down by you",
 };
 
@@ -341,6 +343,7 @@ const PROVIDER_DEFAULT_SOURCE: Record<ProviderCode, SourceState> = {
   OPENCODE: "IMPORT_ONLY",
   GROK: "CONNECTED",
   KIMI: "CONNECTED",
+  CURSOR: "CONNECTED",
   MANUAL: "MANUAL",
 };
 

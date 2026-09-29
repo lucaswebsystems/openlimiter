@@ -17,6 +17,7 @@ import {
   boundedNumber,
   connectorConnection,
   futureInstantFromEpochSeconds,
+  instantAfter,
   plausibleResetHorizon,
   rawMeter,
   record,
@@ -87,6 +88,29 @@ export const codexEncoding = "json" as const;
  * uppercased, which is enough to keep two windows apart without inventing a
  * vocabulary for buckets we have not seen yet.
  */
+/**
+ * A reset stated as a countdown rather than as an instant.
+ *
+ * Some responses carry `reset_after_seconds` where others carry `reset_at`, and
+ * a reader that knows only the second reports no countdown at all against the
+ * first. The countdown is turned into an instant against the supplied clock and
+ * held to the same plausibility bound the instant form is held to, so a window
+ * cannot claim to reset years after the window it belongs to has ended.
+ *
+ * Zero and negative are refused rather than read as now: a window that reset in
+ * the past says nothing about the window running now.
+ */
+function resetFromCountdown(
+  value: unknown,
+  now: string,
+  lengthSeconds: number | null
+): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  const horizon = lengthSeconds === null ? null : plausibleResetHorizon(lengthSeconds);
+  if (horizon !== null && value > horizon) return null;
+  return instantAfter(now, value);
+}
+
 function meterIdFor(lengthSeconds: number | null, windowKey: string): string {
   if (lengthSeconds === 18_000) return "FIVE_HOUR";
   if (lengthSeconds === 604_800) return "SEVEN_DAY";
@@ -96,11 +120,12 @@ function meterIdFor(lengthSeconds: number | null, windowKey: string): string {
 export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const limits = record(root?.["rate_limit"]);
-  if (limits === null) return null;
+  const expiresAt = shortExpiry(now);
+  if (root === null || expiresAt === null) return null;
   const meters: RawMeter[] = [];
-  for (const windowKey of Object.keys(limits)) {
+  for (const windowKey of Object.keys(limits ?? {})) {
     if (!windowKey.endsWith("_window")) continue;
-    const windowRecord = record(limits[windowKey]);
+    const windowRecord = record(limits?.[windowKey]);
     if (windowRecord === null) continue;
     const percent = boundedNumber(windowRecord["used_percent"]);
     if (percent === null) continue;
@@ -122,16 +147,22 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
      */
     const resetProvided =
       windowRecord["reset_at"] !== undefined && windowRecord["reset_at"] !== null;
+    const countdownProvided =
+      windowRecord["reset_after_seconds"] !== undefined &&
+      windowRecord["reset_after_seconds"] !== null;
+    /* The instant form wins when both are present. It is absolute, so it
+       survives a slow response and a clock this machine reads differently,
+       while a countdown is only true at the moment it was written. */
     const resetAt = resetProvided
       ? futureInstantFromEpochSeconds(
           windowRecord["reset_at"],
           now,
           length === null ? undefined : plausibleResetHorizon(length)
         )
-      : null;
-    const expiresAt = shortExpiry(now);
-    if (expiresAt === null) continue;
-    if (resetProvided && resetAt === null) continue;
+      : countdownProvided
+        ? resetFromCountdown(windowRecord["reset_after_seconds"], now, length)
+        : null;
+    if ((resetProvided || countdownProvided) && resetAt === null) continue;
     meters.push(
       rawMeter({
         provider: "CODEX",
@@ -154,6 +185,24 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
         labels: codexLabels
       })
     );
+  }
+  if (record(root["credits"])?.["unlimited"] === true) {
+    meters.push({
+      provider: "CODEX",
+      meter: "CREDITS",
+      kind: "availability",
+      availability: "unlimited",
+      // Required legacy transport fields; availability carries no percentage.
+      value: 0,
+      unit: "PERCENT",
+      window: { kind: "unknown" },
+      resetAt: null,
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: now,
+      expiresAt,
+      labels: codexLabels
+    });
   }
   return meters.length === 0 ? null : meters;
 }

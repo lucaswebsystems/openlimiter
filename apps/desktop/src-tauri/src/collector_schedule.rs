@@ -4,7 +4,7 @@ use crate::connections::{
 };
 use crate::reader_registry::{CollectionSource, SchedulePolicy};
 
-const BACKOFF_CEILING_SECONDS: u64 = 3_600;
+const BACKOFF_CEILING_SECONDS: u64 = 900;
 const RETRY_AFTER_CEILING_SECONDS: u64 = 86_400;
 const JITTER_RATIO: f64 = 0.2;
 
@@ -22,17 +22,21 @@ pub(crate) fn refresh_delay_seconds(
     retry_after_seconds: Option<u64>,
     random: f64,
 ) -> u64 {
-    let exponent = failures.min(32);
-    let multiplier = 1u64.checked_shl(exponent).unwrap_or(u64::MAX);
-    let backoff = base_seconds
-        .saturating_mul(multiplier)
-        .min(BACKOFF_CEILING_SECONDS);
-    let jitter = 1.0 + (usable_random(random) * 2.0 - 1.0) * JITTER_RATIO;
-    let jittered = ((backoff as f64 * jitter).round().max(1.0) as u64).max(base_seconds);
-    retry_after_seconds
-        .filter(|seconds| *seconds > 0)
-        .map(|seconds| seconds.min(RETRY_AFTER_CEILING_SECONDS))
-        .map_or(jittered, |floor| floor.max(jittered))
+    if failures == 0 && retry_after_seconds.is_none() {
+        return base_seconds;
+    }
+    let attempt = failures.saturating_sub(1);
+    let base = (60u64 << attempt.min(4)).min(BACKOFF_CEILING_SECONDS);
+    let jitter = (base as f64 * usable_random(random) * JITTER_RATIO).round() as u64;
+    crate::request_policy::retry_decision(
+        attempt,
+        retry_after_seconds.map(|s| s.saturating_mul(1000)),
+        0,
+        jitter,
+        RETRY_AFTER_CEILING_SECONDS,
+    )
+    .next_allowed_at
+        / 1000
 }
 
 pub(crate) fn scheduled_at(
@@ -116,6 +120,7 @@ mod tests {
             }
             ReaderId::GrokUsage => (ProviderId::Grok, CredentialKind::GrokSession),
             ReaderId::KimiUsage => (ProviderId::Kimi, CredentialKind::KimiSession),
+            ReaderId::CursorUsage => (ProviderId::Cursor, CredentialKind::CursorSession),
         };
         ConnectionRecord {
             id: id.to_string(),
@@ -152,6 +157,7 @@ mod tests {
             (ReaderId::OpencodeUsage, None),
             (ReaderId::GrokUsage, Some(300)),
             (ReaderId::KimiUsage, Some(300)),
+            (ReaderId::CursorUsage, Some(300)),
         ];
         for (reader, expected_seconds) in cases {
             let next = scheduled_at(CollectionSource::Reader(reader), NOW, 0, None, 0.5);
@@ -163,13 +169,15 @@ mod tests {
     }
 
     #[test]
-    fn failures_back_off_and_never_lower_the_reader_floor() {
+    fn plan_rule_exponential_retries_honor_server_waits_up_to_the_collector_ceiling() {
         assert_eq!(refresh_delay_seconds(300, 0, None, 0.5), 300);
         assert_eq!(refresh_delay_seconds(300, 0, None, 0.0), 300);
-        assert_eq!(refresh_delay_seconds(300, 1, None, 0.5), 600);
-        assert_eq!(refresh_delay_seconds(300, 2, None, 0.5), 1_200);
-        assert_eq!(refresh_delay_seconds(300, 32, None, 0.5), 3_600);
+        assert_eq!(refresh_delay_seconds(300, 1, None, 0.0), 60);
+        assert_eq!(refresh_delay_seconds(300, 2, None, 0.0), 120);
+        assert_eq!(refresh_delay_seconds(300, 32, None, 0.0), 900);
+        assert_eq!(refresh_delay_seconds(300, 32, None, 0.5), 990);
         assert_eq!(refresh_delay_seconds(300, 1, Some(10_000), 0.5), 10_000);
+        assert_eq!(refresh_delay_seconds(300, 1, Some(999_999), 0.0), 86_400);
     }
 
     #[test]

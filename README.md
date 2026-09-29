@@ -4,7 +4,9 @@
   <img src="assets/brand/openlimiter-lockup.svg" width="344" alt="OpenLimiter">
 </p>
 
-OpenLimiter shows the quota windows from the AI tools already signed in on your computer, right where you already look: your terminal, your tray, your phone. It keeps each provider and account separate and never invents a missing number.
+OpenLimiter 2.0 reads usage limits and agent activity from supported AI tools on your computer and shows them in your desktop Rail, tray, terminal, browser and phone.
+
+This branch prepares 2.0.0. Publication and the final release checks are still pending; the download links below become available when 2.0.0 is published as the latest release.
 
 <p align="center">
   <img src="assets/readme/openlimiter-real-providers.png" width="522" alt="OpenLimiter desktop showing current Codex, Claude, and Antigravity quota windows">
@@ -12,17 +14,25 @@ OpenLimiter shows the quota windows from the AI tools already signed in on your 
 
 <p align="center"><sub>Current desktop renderer reading a real local cache. Account identifiers were replaced with local provider aliases. Percentages and reset times were not changed.</sub></p>
 
-[Download for Windows, macOS, or Linux](https://openlimiter.com/download)
+[![Download for Windows](https://img.shields.io/badge/Download-Windows-blue)](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64-setup.exe)
+[![Download for macOS](https://img.shields.io/badge/Download-macOS-blue)](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-macos-universal.dmg)
+[![Download for Linux](https://img.shields.io/badge/Download-Linux-blue)](https://github.com/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-linux-x86_64.AppImage)
+
+[All download formats](https://openlimiter.com/download)
+
+```sh
+npm install -g openlimiter
+```
 
 ## Get started
 
 Bars are free and need no account. Run `npx openlimiter`, or install it with `npm install -g openlimiter` and run `openlimiter`: it walks the same three steps everywhere, sign in, connect, show bars in, and any step you skip stays skipped. The desktop app's first run is the same three steps in its own window. The hub at [openlimiter.com/app](https://openlimiter.com/app) is account first: sign in, connect, bars.
 
-An account only adds sync, current percentages kept current between your devices. Pro adds history, alerts, the phone, more than one account per provider, and cloud metering for API spend keys, with a 30 day free trial and no card required.
+Local meters, agent activity and desktop alerts are free, with one active account per provider and no local monthly spend cap. An account adds current reading sync across your devices, including your browser and phone. Pro adds history, remote alerts, more than one account per provider and opt in cloud metering for API spend keys, with a 30 day free trial and no card required.
 
 ## Terminal
 
-Claude Code, Grok Build and the Antigravity CLI draw bars through their own status line. Codex draws its own built in items instead. Gemini CLI, OpenCode, Kimi and any other terminal read a shell prompt segment. `openlimiter terminal` wires whichever hosts a machine supports, and `openlimiter terminal show` and `terminal hide` pick which connected providers actually draw a bar.
+Claude Code, Grok Build and the Antigravity CLI draw bars through their own status line. Codex draws its own built in items instead. Gemini CLI, OpenCode, Kimi and any other terminal read a shell prompt segment. The status line uses the same band colours as the meters. `openlimiter terminal` wires whichever hosts a machine supports, and `openlimiter terminal show` and `terminal hide` pick which connected providers actually draw a bar.
 
 ## Connect
 
@@ -42,11 +52,13 @@ The local product is free forever and has zero analytics or tracking. Local read
 
 Every connector remains labelled `UNVERIFIED` until its reviewed registry evidence meets the project verification contract. When a response fails its expected contract, that provider becomes unknown rather than repaired, estimated, or substituted.
 
+Cursor is Experimental until live account verification is complete. The Rail targets Windows 10 and 11; macOS and Linux Rail support is a preview, with the tray available as the fallback. A phone shows the latest synchronized reading, which can be stale when its computer is offline.
+
 ## Free core and Pro
 
-The complete local product is open source under Apache 2.0. Free includes every local reader, meter, the terminal bars, the tray, the command line tool, and current percentage sync.
+The complete local product is open source under Apache 2.0. Free includes local readers and meters, the Rail, agent activity, local alerts, terminal bars, the tray, the command line tool and current reading sync to the browser and phone. Free keeps one active account per provider. Local spend readings have no monthly cap.
 
-OpenLimiter Pro costs 5 US dollars a month or 50 US dollars a year, with a 30 day free trial and no card required. It adds history, alerts, the phone, more than one account per provider, and cloud metering for API spend keys. Checkout runs through Stripe, which acts as the payment processor. A full refund is available on request within 14 days of any charge. No local feature ever moves behind payment.
+OpenLimiter Pro costs 5 US dollars a month or 50 US dollars a year, with a 30 day free trial and no card required. It adds history, remote alerts, more than one account per provider and opt in cloud metering for API spend keys. Checkout runs through Stripe, which acts as the payment processor. A full refund is available on request within 14 days of any charge. Local meters and local alerts remain available after a trial ends.
 
 ## Build and contribute
 
@@ -62,7 +74,7 @@ Windows, macOS and Linux builds ship, all unsigned for now. On Windows, SmartScr
 
 [Documentation](https://openlimiter.com/docs)
 
-[Release notes](docs/RELEASE_NOTES_1.0.md)
+[Release notes draft for 2.0.0](RELEASE_NOTES_2.0.0.md)
 
 [Honest comparison](docs/COMPARISON.md)
 

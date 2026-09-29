@@ -7,25 +7,32 @@
  */
 import {
   ACCOUNT_ID_PATTERN,
+  CONNECTOR_VERIFICATIONS,
   MAX_SNAPSHOT_AMOUNT,
   PROVIDER_CODES,
+  SNAPSHOT_KINDS,
   SNAPSHOT_OBSERVED_VIA,
   SNAPSHOT_SOURCE_KINDS,
+  SNAPSHOT_WRITERS,
   UNKNOWN_PROVENANCE,
   type ConnectorLabels,
   type ProviderCode,
   type RawMeter,
   type Snapshot,
   type SnapshotAmounts,
+  type SnapshotAvailability,
   type SnapshotCurrency,
+  type SnapshotKind,
   type SnapshotObservedVia,
   type SnapshotPrecision,
   type SnapshotProvenance,
   type SnapshotSource,
   type SnapshotSourceKind,
   type SnapshotUnit,
-  type SnapshotWindow
+  type SnapshotWindow,
+  type SnapshotWriter
 } from "./types";
+import { SNAPSHOT_AVAILABILITIES } from "./connection-state";
 
 const units = new Set<SnapshotUnit>(["PERCENT", "CREDITS", "TOKENS", "REQUESTS"]);
 const sources = new Set<SnapshotSource>([
@@ -36,10 +43,14 @@ const sources = new Set<SnapshotSource>([
   "manual_entry"
 ]);
 const precisions = new Set<SnapshotPrecision>(["exact", "estimated", "manual"]);
-const currencies = new Set<SnapshotCurrency>(["USD"]);
+const currencies = new Set<SnapshotCurrency>(["USD", "CNY"]);
+const verifications = new Set<string>(CONNECTOR_VERIFICATIONS);
+const kinds = new Set<string>(SNAPSHOT_KINDS);
+const availabilities = new Set<string>(SNAPSHOT_AVAILABILITIES);
 const providerCodes = new Set<string>(PROVIDER_CODES);
 const sourceKinds = new Set<string>(SNAPSHOT_SOURCE_KINDS);
 const observedVia = new Set<string>(SNAPSHOT_OBSERVED_VIA);
+const writers = new Set<string>(SNAPSHOT_WRITERS);
 const safeMeter = /^[A-Z][A-Z0-9_]{0,31}$/u;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -73,7 +84,17 @@ function normalizeWindow(value: unknown): SnapshotWindow | null {
 }
 
 function normalizeLabels(value: unknown): ConnectorLabels | null {
-  if (!isRecord(value) || value["verification"] !== "UNVERIFIED") return null;
+  if (!isRecord(value)) return null;
+  const verification = value["verification"];
+  if (typeof verification !== "string" || !verifications.has(verification)) return null;
+  const evidence = value["verificationEvidence"];
+  if (evidence !== undefined && (
+    verification !== "VERIFIED_LIVE" || !isRecord(evidence) ||
+    typeof evidence["providerVersion"] !== "string" || !evidence["providerVersion"].trim() ||
+    typeof evidence["accountShape"] !== "string" || !evidence["accountShape"].trim() ||
+    typeof evidence["os"] !== "string" || !evidence["os"].trim() ||
+    !isIsoInstant(evidence["date"])
+  )) return null;
   const credentialOrigin = value["credentialOrigin"];
   const dataInterfaceStatus = value["dataInterfaceStatus"];
   const automationRisk = value["automationRisk"];
@@ -91,12 +112,24 @@ function normalizeLabels(value: unknown): ConnectorLabels | null {
     dataInterfaceStatus !== "manual"
   ) return null;
   if (automationRisk !== "low" && automationRisk !== "high") return null;
-  return {
+  const base = {
     credentialOrigin,
     dataInterfaceStatus,
-    automationRisk,
-    verification: "UNVERIFIED"
+    automationRisk
   };
+  if (verification === "UNVERIFIED" || verification === "VERIFIED_FIXTURES") {
+    return { ...base, verification } as ConnectorLabels;
+  }
+  return {
+    ...base,
+    verification,
+    ...(evidence === undefined ? {} : { verificationEvidence: {
+      providerVersion: evidence["providerVersion"],
+      accountShape: evidence["accountShape"],
+      os: evidence["os"],
+      date: evidence["date"]
+    } })
+  } as ConnectorLabels;
 }
 
 /**
@@ -139,6 +172,22 @@ function readAccountId(value: unknown): { ok: true; accountId: string | null } |
   return { ok: true, accountId: value };
 }
 
+/** Longest human account name a row may carry. */
+export const MAX_ACCOUNT_LABEL_CHARS = 64;
+
+/**
+ * Read the human name for an account.
+ *
+ * A label is text on a screen, so it is held to printable ASCII and a length,
+ * and a label that fails is dropped rather than taking the row with it: the
+ * reading is still true, and the surface falls back to the identifier.
+ */
+function readAccountLabel(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  if (value.length === 0 || value.length > MAX_ACCOUNT_LABEL_CHARS) return null;
+  return /^[\x20-\x7E]+$/u.test(value) ? value : null;
+}
+
 /**
  * Read how the observation arrived.
  *
@@ -161,7 +210,28 @@ function readProvenance(value: unknown): SnapshotProvenance | null {
   };
 }
 
+/**
+ * Read which process wrote this row.
+ *
+ * Fails towards ABSENT rather than towards a value, and absent is read as
+ * unknown by every caller. A marker this build cannot believe must never let a
+ * reader conclude that some other process is keeping a provider fresh, because
+ * the consequence of that mistake is a bar that silently stops updating. The
+ * opposite mistake costs one extra request.
+ */
+function readWriter(value: unknown): SnapshotWriter | null {
+  if (typeof value !== "string" || !writers.has(value)) return null;
+  return value as SnapshotWriter;
+}
+
 export function normalizeMeter(raw: RawMeter): Snapshot | null {
+  if (raw.kind !== undefined && (typeof raw.kind !== "string" || !kinds.has(raw.kind))) return null;
+  if (raw.availability !== undefined && (
+    typeof raw.availability !== "string" || !availabilities.has(raw.availability)
+  )) return null;
+  if (raw.retryAt !== undefined && (
+    raw.availability !== "rate_limited" || !isIsoInstant(raw.retryAt)
+  )) return null;
   if (typeof raw.provider !== "string" || !providerCodes.has(raw.provider)) return null;
   if (typeof raw.meter !== "string" || !safeMeter.test(raw.meter)) return null;
   if (typeof raw.value !== "number" || !Number.isFinite(raw.value) || raw.value < 0) {
@@ -186,6 +256,8 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
   const account = readAccountId(raw.accountId);
   if (!account.ok) return null;
   const provenance = readProvenance(raw.provenance);
+  const writer = readWriter(raw.writer);
+  const accountLabel = readAccountLabel(raw.accountLabel);
   const amounts = normalizeAmounts(raw);
   return {
     provider: raw.provider as Snapshot["provider"],
@@ -201,7 +273,14 @@ export function normalizeMeter(raw: RawMeter): Snapshot | null {
     labels,
     ...(amounts === null ? {} : amounts),
     ...(account.accountId === null ? {} : { accountId: account.accountId }),
-    ...(provenance === null ? {} : { provenance })
+    ...(accountLabel === null || account.accountId === null
+      ? {}
+      : { accountLabel }),
+    ...(provenance === null ? {} : { provenance }),
+    ...(writer === null ? {} : { writer }),
+    ...(raw.kind === undefined ? {} : { kind: raw.kind as SnapshotKind }),
+    ...(raw.availability === undefined ? {} : { availability: raw.availability as SnapshotAvailability }),
+    ...(raw.retryAt === undefined ? {} : { retryAt: raw.retryAt as string })
   };
 }
 

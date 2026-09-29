@@ -13,3 +13,7 @@ export * from "./normalizer.js";
 export * from "./policy.js";
 export * from "./schedule.js";
 export * from "./types.js";
+export * from "./contracts/wire.js";
+export * from "./activity/contract.js";
+export * from "./contracts/notify.js";
+export * from "./contracts/surfaces.js";

@@ -22,6 +22,24 @@ provider_id: openlimiter
 product_id: manual
 display_name: Manual
 
+headlineMeter: custom
+acquisitionSurfaces:
+  - desktop
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: manual
+d5Review: User entered values; no automatic acquisition.
+maturity: manual
+
 source:
   docs_url: packages/connectors/src/manual.ts
   reviewed_at: "2026-08-10"

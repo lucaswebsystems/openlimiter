@@ -3,7 +3,7 @@ import { cp, mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { fallbackLauncherCommand } from "../src/terminal-fallback.js";
+import { fallbackLauncherCommand, LAUNCHER_TIMEOUT_MILLISECONDS } from "../src/terminal-fallback.js";
 
 const roots: string[] = [];
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
@@ -41,11 +41,12 @@ async function fixture() {
   return { root, runtime, original, originalRan };
 }
 
-async function execute(command: string, shell: "posix" | "cmd" | "powershell", input: Buffer, timeout?: number) {
+async function execute(command: string, shell: "posix" | "cmd" | "powershell" | "powershell-direct", input: Buffer, timeout?: number) {
   const executable = shell === "posix"
     ? process.platform === "win32" ? "bash" : "/bin/sh"
-    : shell === "powershell" ? "powershell.exe" : "cmd.exe";
+    : shell.startsWith("powershell") ? "powershell.exe" : "cmd.exe";
   const args = shell === "posix" ? ["-c", command.replaceAll("\\", "/")]
+    : shell === "powershell-direct" ? ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", command]
     : shell === "powershell" ? ["-NoProfile", "-NonInteractive", "-Command", command]
     : ["/d", "/s", "/c", `"${command}"`];
   const root = await mkdtemp(path.join(tmpdir(), "openlimiter output "));
@@ -82,6 +83,23 @@ describe("output normalisation contract", () => {
 });
 
 describe("D18 native launcher fallback", () => {
+  it.skipIf(process.platform !== "win32")("gives the stored original its full budget after a missing renderer", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "openlimiter missing renderer "));
+    roots.push(root);
+    const runtime = { node: path.join(root, "missing.exe"), entry: path.join(root, "terminal-runtime", "openlimiter.cjs"), version: "test" };
+    const command = await fallbackLauncherCommand(runtime, "powershell", "echo x", { timeoutMilliseconds: LAUNCHER_TIMEOUT_MILLISECONDS });
+    const script = command.match(/-File '(.*)'$/)![1]!.replaceAll("''", "'");
+    const results: { code: number | null; stdout: Buffer; stderr: Buffer }[] = [];
+    let next = 0;
+    await Promise.all(Array.from({ length: 8 }, async () => {
+      while (next++ < 50) {
+        results.push(await execute(script, "powershell-direct", Buffer.alloc(0)));
+      }
+    }));
+    const failures = results.filter(result => result.code !== 0 || !result.stdout.equals(Buffer.from("x\r\n")) || result.stderr.length !== 0);
+    expect(results).toHaveLength(50);
+    expect(failures, `${failures.length}/50 runs lost the stored original`).toHaveLength(0);
+  }, 120_000);
   /* The POSIX launcher is only ever installed where the product installs it,
      and terminal.ts picks cmd on Windows for every host, so the POSIX script
      never runs there in production. Exercising it through Git Bash instead
@@ -121,6 +139,7 @@ describe("D18 native launcher fallback", () => {
     const options = supervisor === "polling" ? { posixTimeoutCommand: null } : {};
     const shellTest = shell === "posix" && (!posixAvailable || supervisor === "timeout" && !timeoutAvailable) ? it.skip : it;
     shellTest(`${label} preserves ordinary output and runs the stored original on every failure`, async () => {
+      const launcherTimeout = 1_500;
       // Keep native execution coverage, but compare both captures under the same
       // contract. Leading mark counts belong to the synthetic cases above.
       for (const failure of ["success", "package missing", "binary missing", "runtime throws", "nonzero", "timeout"] as const) {
@@ -130,12 +149,31 @@ describe("D18 native launcher fallback", () => {
         const normalizedRuntime = shell === "posix"
           ? { ...runtime, node: runtime.node.replaceAll("\\", "/"), entry: runtime.entry.replaceAll("\\", "/") } : runtime;
         const normalizedOriginal = shell === "posix" ? original.replaceAll("\\", "/") : original;
-        const command = await fallbackLauncherCommand(normalizedRuntime, shell, normalizedOriginal, { ...options, timeoutMilliseconds: 500 });
+        const command = await fallbackLauncherCommand(normalizedRuntime, shell, normalizedOriginal, { ...options, timeoutMilliseconds: launcherTimeout });
+        const killDiagnostics = path.join(root, "killed.jsonl");
+        if (failure === "timeout" && shell !== "posix") {
+          const file = shell === "cmd" ? command.match(/-File "(.*)"$/)![1]!
+            : command.match(/-File '(.*)'$/)![1]!.replaceAll("''", "'");
+          const script = await readFile(file, "utf8");
+          // Assert the supervisor's actual deadline, independently of shell
+          // startup and runner scheduling. Doubling the renderer budget must fail.
+          const commandDeadline = script.match(/\$clock = \[Diagnostics\.Stopwatch\]::StartNew\(\)\s+while \(!\$p\.HasExited -and \$clock\.ElapsedMilliseconds -lt (\d+)\)/);
+          expect(commandDeadline, "each command starts a fresh deadline clock").not.toBeNull();
+          expect(Number(commandDeadline![1]), "renderer gets one configured budget before fallback").toBe(launcherTimeout);
+          // Observe each internal result without changing stdout or stderr.
+          const resultLine = /^( +\$result = Invoke-Bar .+)$/gm;
+          expect([...script.matchAll(resultLine)], "renderer and original diagnostic hooks").toHaveLength(2);
+          await writeFile(file, script.replace(resultLine, line => `${line}\n    [IO.File]::AppendAllText('${killDiagnostics.replaceAll("'", "''")}', (($result.killed | ConvertTo-Json -Compress) + [Environment]::NewLine))`));
+        }
         if (supervisor) {
           const script = await readFile(command.slice("/bin/sh '".length, -1), "utf8");
           expect(script).toContain(`# Supervisor: ${supervisor}`);
           if (supervisor === "timeout") {
+            expect(script).toContain(`' ${launcherTimeout / 1000} "$@"`);
             expect(script).not.toMatch(/\$!|\$run_work\/(?:status|timeout)|\bwhile\b|\bkill\b|\bsleep\b/);
+          } else {
+            expect(script).toContain(`(/bin/sleep ${launcherTimeout / 1000};`);
+            expect(script).toContain('read -r result < "$run_work/status"');
           }
         }
         if (failure === "success") await writeFile(runtime.entry, 'process.stdin.on("data", b => process.stdout.write(b)); process.stderr.write("hidden");');
@@ -156,12 +194,21 @@ describe("D18 native launcher fallback", () => {
         expect(originalOutput.code, failure).toBe(0);
         expect(await readFile(originalRan, "utf8"), failure).toBe("original\n");
         await rm(originalRan);
+        const deadline = launcherTimeout + 1_000;
         const started = performance.now();
-        const result = await execute(command + " statusline --host claude", shell, payload, failure === "timeout" ? 2_000 : undefined);
+        // Native Windows timing is proved by the supervisor deadline above;
+        // this outer watchdog only prevents a hung test on a loaded runner.
+        const result = await execute(command + " statusline --host claude", shell, payload, failure === "timeout" ? shell === "posix" ? deadline + 500 : 30_000 : undefined);
         const elapsed = performance.now() - started;
         if (failure === "timeout") {
           console.info(`${label} timeout fallback wall time: ${Math.round(elapsed)} ms`);
-          expect(elapsed).toBeLessThan(1_500);
+          if (shell !== "posix") {
+            const killed = (await readFile(killDiagnostics, "utf8")).trim().split(/\r?\n/).map(line => JSON.parse(line) as boolean);
+            expect(killed, "renderer and stored original both returned diagnostics").toHaveLength(2);
+            expect(killed[0], "timed out renderer was killed").toBe(true);
+            expect(killed[1], "stored original was not killed by its own timeout").toBe(false);
+          }
+          if (shell === "posix") expect(elapsed).toBeLessThan(deadline);
         }
         expect(result.code, failure).toBe(0);
         expect(result.stderr.length, failure).toBe(0);
@@ -187,7 +234,9 @@ describe("D18 native launcher fallback", () => {
       expect(result.code).toBe(0);
       expect(withoutOneLeadingBom(result.stdout)).toEqual(Buffer.from("new bars\n\n"));
       expect(result.stderr.length).toBe(0);
-    }, 30_000);
+    // This case starts many processes across six failures and two silent paths.
+    // Its runner budget is separate from the supervisor deadline above.
+    }, 120_000);
   }
   it("refuses a changed existing supervisor without replacing it", async () => {
     const { root, runtime, original } = await fixture();

@@ -17,7 +17,7 @@ import {
   type HostedTrustDocument
 } from "@openlimiter/adapters";
 import { readSnapshotCache, writeSnapshotCache, type Snapshot } from "@openlimiter/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { persistSnapshots, readStandardInputText, runCli } from "../src/index.js";
 
 /* The temp root in canonical form, which is the form the product compares
@@ -43,6 +43,7 @@ async function temporaryDirectory(prefix: string): Promise<string> {
 }
 
 afterEach(async () => {
+  vi.useRealTimers();
   for (const directory of created.splice(0)) {
     await rm(directory, { recursive: true, force: true });
   }
@@ -220,6 +221,10 @@ describe("hook CLI", () => {
   });
 
   it("loads hosted trust only from the protected desktop bridge", async () => {
+    /* This case proves trust, not disk latency against the 450 ms hook budget.
+       Keep the deadline clock still while real reads complete; the deadline
+       cases below retain real timers. The fixture wall clock is injected below. */
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const stateDirectory = await temporaryDirectory("openlimiter-cli-hosted-state-");
     const homeDirectory = await temporaryDirectory("openlimiter-cli-hosted-home-");
     const fixture = JSON.parse(await readFile(

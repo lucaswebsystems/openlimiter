@@ -2,6 +2,32 @@ provider_id: moonshot
 product_id: kimi-code
 display_name: Kimi
 
+headlineMeter: weekly
+weeklyMeter: weekly
+acquisitionSurfaces:
+  - desktop
+  - cli
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_internal
+d5Review: Internal provider interface; high automation risk and capture pending.
+maturity: headline
+directory:
+  order: 5
+  rowId: moonshot/api
+  label: Kimi
+  connectorId: kimi
+  access: automatic
+
 source:
   docs_url: https://github.com/MoonshotAI/kimi-code/blob/main/packages/oauth/src/managed-usage.ts
   reviewed_at: "2026-08-19"

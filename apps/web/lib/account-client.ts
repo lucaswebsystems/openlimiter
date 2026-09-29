@@ -1,5 +1,6 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/pro";
+import { endPhoneSession } from "./phone-session";
 
 /**
  * The account client, and the one choice a reader makes about how long it
@@ -45,6 +46,13 @@ export const KEEP_SIGNED_IN_KEY = "openlimiter-keep-signed-in";
 
 /** What the switch reads as before anybody has touched it. */
 export const KEEP_SIGNED_IN_DEFAULT = true;
+
+const accountCleanup = new WeakMap<SupabaseClient, Promise<void>>();
+
+/** New account reads wait until the departing account's private storage is gone. */
+export function pendingAccountCleanup(client: SupabaseClient | null): Promise<void> | undefined {
+  return client ? accountCleanup.get(client) : undefined;
+}
 
 /** The shape the auth client asks of a place to keep a session. */
 export interface SessionStore {
@@ -312,6 +320,58 @@ export function sessionStorageAdapter(keep: boolean): SessionStore {
   };
 }
 
+/** Remove the departing identity from both stores, keeping only a newly accepted session. */
+export function clearPrivateSessionState(next: Session | null = null): void {
+  const prefix = authStoragePrefix();
+  for (const store of [localStore(), sessionStore()]) {
+    if (!store) continue;
+    try {
+      const keys = Array.from({ length: store.length }, (_, index) => store.key(index));
+      for (const key of keys) {
+        if (!key || key === KEEP_SIGNED_IN_KEY || key.startsWith("openlimiter-phone-renew:")) continue;
+        if (prefix && key.startsWith(prefix)) {
+          // Supabase persists the new account before delivering SIGNED_IN.
+          if (next && key === prefix) {
+            try {
+              if (JSON.parse(store.getItem(key) ?? "null")?.user?.id === next.user.id) continue;
+            } catch { /* Invalid storage belongs to neither account. */ }
+          }
+          store.removeItem(key);
+        } else if (key.startsWith("openlimiter-")) store.removeItem(key);
+      }
+    } catch { /* A refused store cannot be read by this page either. */ }
+  }
+  void endPhoneSession();
+}
+
+/** Same origin destinations only; pairing fragments never travel to an auth server. */
+export function accountReturnDestination(href: string): string {
+  const url = new URL(href);
+  if (url.pathname === "/app/cli") {
+    const code = (url.searchParams.get("code") ?? "").replace(/[\s-]/gu, "").toUpperCase();
+    return `/app/cli${/^[A-Z0-9]{8}$/u.test(code) ? `?code=${code}` : ""}`;
+  }
+  if (url.pathname === "/app/pair") return "/app/pair";
+  return url.pathname === "/app" && url.searchParams.get("trial") === "1" ? "/app?trial=1" : "/app";
+}
+
+function accountRedirect(proposed?: string): string {
+  const current = accountReturnDestination(window.location.href);
+  if (proposed) {
+    try {
+      const url = new URL(proposed, window.location.origin);
+      const candidate = accountReturnDestination(url.href);
+      // The CLI removes its code from the address bar before asking for auth.
+      // Keep the validated destination its pending intent adapter already supplied.
+      if (url.origin === window.location.origin &&
+          (current === "/app" || (url.pathname === current.split("?")[0] && candidate.length >= current.length))) {
+        return window.location.origin + candidate;
+      }
+    } catch { /* Fall back to this page, never an untrusted redirect. */ }
+  }
+  return window.location.origin + current;
+}
+
 /**
  * One account client, built around the answer to the switch.
  *
@@ -326,7 +386,8 @@ export function sessionStorageAdapter(keep: boolean): SessionStore {
 export function createAccountClient(keep: boolean): SupabaseClient | null {
   if (SUPABASE_URL === "" || SUPABASE_ANON_KEY === "") return null;
   const storageKey = authStorageKey();
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
     auth: {
       persistSession: true,
       autoRefreshToken: true,
@@ -335,4 +396,38 @@ export function createAccountClient(keep: boolean): SupabaseClient | null {
       ...(storageKey === null ? {} : { storageKey }),
     },
   });
+  // Preserve the requested page even when a sign in component supplies /app.
+  const oauth = client.auth.signInWithOAuth.bind(client.auth);
+  client.auth.signInWithOAuth = (credentials) => {
+    return oauth({ ...credentials, options: { ...credentials.options,
+      redirectTo: accountRedirect(credentials.options?.redirectTo),
+    } });
+  };
+  const otp = client.auth.signInWithOtp.bind(client.auth);
+  client.auth.signInWithOtp = (credentials) => {
+    if (!("email" in credentials)) return otp(credentials);
+    return otp({ ...credentials, options: { ...credentials.options,
+      emailRedirectTo: accountRedirect(credentials.options?.emailRedirectTo),
+    } });
+  };
+  let current: Session | null = null;
+  client.auth.onAuthStateChange((event, session) => {
+    const departing = current;
+    current = session;
+    if (event === "SIGNED_OUT") clearPrivateSessionState();
+    else if (departing && departing.user.id !== session?.user.id) {
+      void endPhoneSession();
+      // SIGNED_IN has already replaced storage. Use the same revocation primitive
+      // as auth.signOut with the retained departing token, leaving the new login intact.
+      // Defer until all auth listeners have invalidated their displayed results.
+      const cleanup = Promise.resolve().then(() => client.auth.admin.signOut(departing.access_token))
+        .catch(() => { /* Local cleanup is required even when revocation fails. */ })
+        .then(() => {
+          clearPrivateSessionState(current);
+          if (accountCleanup.get(client) === cleanup) accountCleanup.delete(client);
+        });
+      accountCleanup.set(client, cleanup);
+    }
+  });
+  return client;
 }

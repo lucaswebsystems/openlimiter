@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { DownloadChoice } from "@/components/download-choice";
 import { PageShell } from "@/components/page-shell";
+import { JsonLd } from "@/components/json-ld";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
-import { primaryDownloadHref } from "@/lib/downloads";
 import { pageMetadata } from "@/lib/metadata";
-import { CURRENT_VERSION, REPO_URL } from "@/lib/site";
+import { softwareApplicationSchema } from "@/lib/jsonld";
+import { downloadAssetHref, primaryDownloadHref } from "@/lib/downloads";
+import { CURRENT_VERSION, REPO_URL, SITE_CONTENT_UPDATED } from "@/lib/site";
 
 export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
   const locale = await pageLocale(params);
@@ -19,7 +21,7 @@ export async function generateMetadata({ params }: LocaleParams): Promise<Metada
 }
 
 export default async function DownloadPage({ params }: LocaleParams) {
-  await pageLocale(params);
+  const locale = await pageLocale(params);
   const t = await getTranslations("download");
 
   /* The other platforms link and the release notes link point at the same
@@ -30,7 +32,10 @@ export default async function DownloadPage({ params }: LocaleParams) {
 
   return (
     <PageShell title={t("title")} lead={t("metaDescription")}>
+      <JsonLd data={await softwareApplicationSchema(locale)} />
       <div className="py-10 md:py-16">
+        <p className="mb-8 max-w-3xl text-base leading-relaxed text-soft">{t("releaseLead")}</p>
+        <p className="mb-6 text-xs text-muted"><time dateTime={SITE_CONTENT_UPDATED}>{t("updated")}</time></p>
         <DownloadChoice
           windowsHref={primaryDownloadHref("windows")}
           linuxHref={primaryDownloadHref("linux")}
@@ -47,6 +52,17 @@ export default async function DownloadPage({ params }: LocaleParams) {
           releaseNotesLabel={t("releaseNotes")}
           releaseNotesHref={releaseUrl}
         />
+        <section className="mt-12 space-y-4" aria-labelledby="cli-install">
+          <h2 id="cli-install" className="heading-face text-xl text-heading">{t("targets.npm.name")}</h2>
+          <p className="text-soft">{t("targets.npm.summary")}</p>
+          <pre className="overflow-x-auto rounded-xl border border-hairline bg-frame p-5 text-sm"><code>npm install -g openlimiter</code></pre>
+          <p className="text-sm text-muted">{t("targets.npm.requirement")}</p>
+          <div className="flex flex-wrap gap-4 text-sm">
+            <a className="focus-ring text-accent" href={downloadAssetHref("windows", "msi")}>{t("targets.windows.assets.msi")}</a>
+            <a className="focus-ring text-accent" href={downloadAssetHref("linux", "deb")}>{t("targets.linux.assets.deb")}</a>
+            <a className="focus-ring text-accent" href={downloadAssetHref("linux", "rpm")}>{t("targets.linux.assets.rpm")}</a>
+          </div>
+        </section>
       </div>
     </PageShell>
   );

@@ -112,9 +112,10 @@ test("step one says the bars are free and what the account is for", () => {
   const account = step.slice(step.indexOf('id="first-run-account"'));
 
   assert.match(account, /<h1 id="first-run-account-title">Create your account<\/h1>/u);
-  const lead = account.match(/class="sign-in-lead">([^<]+)</u)?.[1] ?? "";
+  const lead = account.match(/class="sign-in-lead"[^>]*>([^<]+)</u)?.[1] ?? "";
   assert.match(lead, /free with no account/u);
-  assert.match(lead, /sync, alerts, your phone, and more than one account per provider/u);
+  assert.match(lead, /every desktop alert is free with no account/u);
+  assert.match(lead, /sync to your phone, with Pro adding phone push, email and more than one account per provider/u);
   /* One sentence, one full stop, at the end of it. */
   assert.equal((lead.match(/\./gu) ?? []).length, 1);
   assert.match(lead, /\.$/u);
@@ -461,6 +462,45 @@ test("overlapping forced scans serialize and commit only the latest generation",
     loader.committed().result.providers.find((entry) => entry.code === "CODEX")?.state,
     "present",
   );
+});
+
+test("a successful Claude poll toggle updates the value used by the next redraw", () => {
+  let cached = false;
+  assert.equal(
+    persistedToggleValue(false, true, { ok: true, value: true }, (value) => {
+      cached = value;
+    }),
+    true,
+  );
+  assert.equal(cached, true);
+  assert.equal(
+    persistedToggleValue(true, false, { ok: false }, (value) => {
+      cached = value;
+    }),
+    true,
+  );
+  assert.equal(cached, true);
+});
+
+test("Claude poll cache changes only after an acknowledged matching save", () => {
+  for (const requested of [true, false]) {
+    for (const result of [false, undefined, { ok: false }, { ok: true, value: !requested }]) {
+      let calls = 0;
+      assert.equal(
+        persistedToggleValue(!requested, requested, result, () => { calls += 1; }),
+        !requested,
+      );
+      assert.equal(calls, 0);
+    }
+    for (const result of [true, { ok: true, value: requested }]) {
+      const saved = [];
+      assert.equal(
+        persistedToggleValue(!requested, requested, result, (value) => saved.push(value)),
+        requested,
+      );
+      assert.deepEqual(saved, [requested]);
+    }
+  }
 });
 
 test("the Codex device flow finishes inside our own window", async () => {

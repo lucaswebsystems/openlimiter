@@ -1,4 +1,5 @@
-import type { ConnectionStatus } from "./connection-state.js";
+import type { ConnectionStatus, SnapshotAvailability } from "./connection-state.js";
+export type { SnapshotAvailability } from "./connection-state.js";
 
 export const PROVIDER_CODES = [
   "CLAUDE",
@@ -9,6 +10,7 @@ export const PROVIDER_CODES = [
   "OPENCODE",
   "GROK",
   "KIMI",
+  "CURSOR",
   "MANUAL"
 ] as const;
 
@@ -29,13 +31,32 @@ export interface SnapshotWindow {
 }
 
 /**
- * The one currency an amount may be stated in, for now.
+ * The currencies an amount may be stated in, exactly as the provider stated it.
  *
  * A literal rather than a string keeps a provider from writing its own text
- * into a field a human reads. When a second currency is genuinely supported it
- * is added here and the normalizer's set below grows with it.
+ * into a field a human reads. CNY joined for providers that bill in yuan
+ * (DeepSeek among them); amounts are never converted, because a converted
+ * balance is a number no provider ever said.
  */
-export type SnapshotCurrency = "USD";
+export type SnapshotCurrency = "USD" | "CNY";
+
+export const SNAPSHOT_KINDS = [
+  "quota_percent", "money_balance", "spend", "token_count", "runtime_info"
+] as const;
+export type SnapshotKind = (typeof SNAPSHOT_KINDS)[number];
+
+export const CONNECTOR_VERIFICATIONS = [
+  "UNVERIFIED", "VERIFIED_FIXTURES", "VERIFIED_LIVE"
+] as const;
+export type ConnectorVerification = (typeof CONNECTOR_VERIFICATIONS)[number];
+
+export interface VerificationEvidence {
+  providerVersion: string;
+  accountShape: string;
+  os: string;
+  /** Canonical ISO instant, using the same format as observedAt. */
+  date: string;
+}
 
 /** Largest money amount a reading may carry. Above this it is not a plan. */
 export const MAX_SNAPSHOT_AMOUNT = 1_000_000;
@@ -139,7 +160,11 @@ export const UNKNOWN_PROVENANCE: SnapshotProvenance = {
  */
 export const ACCOUNT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 
-export interface ConnectorLabels {
+/**
+ * Plan concepts: source = source plus provenance, precision = precision,
+ * verification = labels.verification. Validation never upgrades verification.
+ */
+export type ConnectorLabels = {
   credentialOrigin:
     | "official-local-tool"
     | "user-key"
@@ -152,8 +177,10 @@ export interface ConnectorLabels {
     | "authenticated-scrape"
     | "manual";
   automationRisk: "low" | "high";
-  verification: "UNVERIFIED";
-}
+} & (
+  | { verification: "UNVERIFIED" | "VERIFIED_FIXTURES"; verificationEvidence?: never }
+  | { verification: "VERIFIED_LIVE"; verificationEvidence?: VerificationEvidence }
+);
 
 export interface Snapshot {
   provider: ProviderCode;
@@ -199,6 +226,15 @@ export interface Snapshot {
    * merges exactly as it always did.
    */
   writer?: SnapshotWriter;
+  /** Absent means unknown. Never infer this from unit. */
+  kind?: SnapshotKind;
+  /**
+   * The meter could not be read. Consumers must never count a row carrying
+   * availability as a numeric reading, including when value is zero.
+   */
+  availability?: SnapshotAvailability;
+  /** Canonical ISO instant. Allowed only when availability is rate_limited. */
+  retryAt?: string;
 }
 
 export interface RawMeter {
@@ -220,6 +256,9 @@ export interface RawMeter {
   accountLabel?: unknown;
   provenance?: unknown;
   writer?: unknown;
+  kind?: unknown;
+  availability?: unknown;
+  retryAt?: unknown;
 }
 
 export interface ConnectorReadContext {
@@ -266,7 +305,7 @@ export type ConnectorEncoding = "json" | "text";
  * behind it. Absent means stable, so a reader says nothing unless it has
  * something to admit.
  */
-export type ConnectorMaturity = "stable" | "beta";
+export type ConnectorMaturity = "stable" | "beta" | "experimental";
 
 export interface ConnectorContract {
   readonly id: Lowercase<ProviderCode>;

@@ -430,10 +430,10 @@ describe("the wire parsing and renewal boundary", () => {
     expect(phonePairOf({ token: "t" })).toBeNull();
   });
 
-  it("asks for renewal exactly at the one hour boundary", () => {
+  it("asks for renewal exactly at the twelve hour boundary", () => {
     const base = { expiresAt: NOW / 1_000 + PHONE_RENEW_WITHIN_SECONDS };
     expect(phonePairNeedsRenewal(base, NOW)).toBe(true);
-    expect(phonePairNeedsRenewal({ expiresAt: NOW / 1_000 + 3_601 }, NOW)).toBe(false);
+    expect(phonePairNeedsRenewal({ expiresAt: NOW / 1_000 + PHONE_RENEW_WITHIN_SECONDS + 1 }, NOW)).toBe(false);
     expect(phonePairNeedsRenewal({ expiresAt: NOW / 1_000 - 10 }, NOW)).toBe(true);
   });
 
@@ -1119,6 +1119,7 @@ describe("the pair page", () => {
   });
 
   it("claims, receives approval, and establishes cookies without retaining credentials", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
     window.history.replaceState(null, "", "/app/pair#code=ABCD2345");
     const seen: unknown[] = [];
     let sessionEstablished = false;
@@ -1159,7 +1160,10 @@ describe("the pair page", () => {
       }),
     );
     mounted = render(createElement(PairFlow));
-    await flush(10);
+    await vi.waitFor(async () => {
+      await flush();
+      expect(readPhonePairMeta()).not.toBeNull();
+    });
 
     expect(pollCalls).toBe(1);
     expect(seen).toEqual([{
@@ -1178,6 +1182,15 @@ describe("the pair page", () => {
   });
 
   it("clears the delivered credentials when cookie establishment fails", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    let releaseDigest!: () => void;
+    const digestGate = new Promise<void>((resolve) => { releaseDigest = resolve; });
+    vi.spyOn(crypto.subtle, "digest").mockImplementationOnce(async (...args) => {
+      const result = await digest(...args);
+      await digestGate;
+      return result;
+    });
     window.history.replaceState(null, "", "/app/pair#code=ABCD2345");
     const seen: unknown[] = [];
     let pollCalls = 0;
@@ -1212,7 +1225,15 @@ describe("the pair page", () => {
       }),
     );
     mounted = render(createElement(PairFlow));
+    // Native hashing can outlast any fixed number of React flushes.
     await flush(10);
+    expect(pollCalls).toBe(0);
+    expect(seen).toHaveLength(0);
+    releaseDigest();
+    await vi.waitFor(async () => {
+      await flush();
+      expect(mounted?.container.textContent).toContain(hub.pairPage.setup.error.title);
+    });
 
     expect(pollCalls).toBe(1);
     expect(seen).toHaveLength(1);

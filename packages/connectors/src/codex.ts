@@ -113,11 +113,12 @@ function meterIdFor(lengthSeconds: number | null, windowKey: string): string {
 export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | null {
   const root = record(payload);
   const limits = record(root?.["rate_limit"]);
-  if (limits === null) return null;
+  const expiresAt = shortExpiry(now);
+  if (root === null || expiresAt === null) return null;
   const meters: RawMeter[] = [];
-  for (const windowKey of Object.keys(limits)) {
+  for (const windowKey of Object.keys(limits ?? {})) {
     if (!windowKey.endsWith("_window")) continue;
-    const windowRecord = record(limits[windowKey]);
+    const windowRecord = record(limits?.[windowKey]);
     if (windowRecord === null) continue;
     const percent = boundedNumber(windowRecord["used_percent"]);
     if (percent === null) continue;
@@ -154,8 +155,6 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
       : countdownProvided
         ? resetFromCountdown(windowRecord["reset_after_seconds"], now, length)
         : null;
-    const expiresAt = shortExpiry(now);
-    if (expiresAt === null) continue;
     if ((resetProvided || countdownProvided) && resetAt === null) continue;
     meters.push(
       rawMeter({
@@ -179,6 +178,24 @@ export function parseCodexPayload(payload: unknown, now: string): RawMeter[] | n
         labels: codexLabels
       })
     );
+  }
+  if (record(root["credits"])?.["unlimited"] === true) {
+    meters.push({
+      provider: "CODEX",
+      meter: "CREDITS",
+      kind: "availability",
+      availability: "unlimited",
+      // Required legacy transport fields; availability carries no percentage.
+      value: 0,
+      unit: "PERCENT",
+      window: { kind: "unknown" },
+      resetAt: null,
+      source: "internal_payload",
+      precision: "exact",
+      observedAt: now,
+      expiresAt,
+      labels: codexLabels
+    });
   }
   return meters.length === 0 ? null : meters;
 }

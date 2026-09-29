@@ -1,0 +1,15 @@
+{
+  "schema_version": 3,
+  "sample": {
+    "account_id": "default",
+    "provider": "CLAUDE",
+    "meter": "FIVE_HOUR",
+    "window_id": "FIVE_HOUR",
+    "usage_percent": 42,
+    "reset_at": null,
+    "observed_at": "2026-09-28T12:00:00.000Z",
+    "stale": false,
+    "verification": "TRUSTED"
+  },
+  "error": "verification must be one of"
+}

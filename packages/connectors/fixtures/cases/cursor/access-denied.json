@@ -1,0 +1,11 @@
+{
+  "provider": "cursor",
+  "case": "access-denied",
+  "reader": "usage",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 403,
+  "headers": {},
+  "body": {
+    "error": "forbidden"
+  }
+}

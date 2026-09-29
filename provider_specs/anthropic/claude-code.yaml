@@ -11,6 +11,32 @@ provider_id: anthropic
 product_id: claude-code
 display_name: Claude Code
 
+headlineMeter: session_5h
+weeklyMeter: weekly_7d
+acquisitionSurfaces:
+  - desktop
+  - cli
+displaySurfaces:
+  - desktop
+  - rail
+  - tray
+  - cli_cache
+  - web
+  - phone
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: statusline_payload
+d5Review: Documented statusline fallback; native desktop OAuth uses a separate internal endpoint.
+maturity: headline
+directory:
+  order: 1
+  rowId: anthropic/claude-code
+  label: Claude Code
+  connectorId: claude
+  access: automatic
+
 source:
   docs_url: https://code.claude.com/docs/en/statusline
   reviewed_at: "2026-08-10"

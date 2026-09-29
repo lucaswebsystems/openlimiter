@@ -176,16 +176,16 @@ describe("P1 audit regressions", () => {
     await writeFile(path.join(d.homeDirectory, ".codex", "auth.json"), JSON.stringify(credentialDocuments.codex));
     const result = await runCli(["terminal", "show", "codex"], d);
     expect(result.exitCode).toBe(0);
-    expect((await readStatuslineConfig(d.stateDirectory)).show).toEqual(["codex"]);
+    expect((await readStatuslineConfig(d.stateDirectory)).visibility).toEqual({ codex: true });
   });
 
-  it("13 shows actual OpenRouter money with a spend label and freshness on every host", () => {
+  it("13 shows actual OpenRouter remaining credits and freshness on every host", () => {
     const snapshots = normalizeMeters(parseOpenrouterPayload({ data: { total_credits: 20, total_usage: 6.4 } }, NOW) ?? []);
     for (const host of STATUSLINE_HOSTS) {
       const render = (now: string) => barStyleCells(snapshots, now, ["OPENROUTER"], host, [], "all", false).map((cell) => cell.plain).join(" ");
-      expect(render(NOW)).toBe("or spend $6.40");
-      expect(render("2026-09-07T12:03:01.000Z")).toContain("~or spend $6.40");
-      expect(render("2026-09-07T12:16:00.000Z")).not.toContain("$6.40");
+      expect(render(NOW)).toBe("or $13.60");
+      expect(render("2026-09-07T12:03:01.000Z")).toBe("or ~$13.60");
+      expect(render("2026-09-07T12:16:00.000Z")).toBe("or ~$13.60");
     }
   });
 
@@ -401,6 +401,48 @@ describe("P1 audit regressions", () => {
     await writeSession(session(), { directory: alias, platform: "win32", windowsAclRunner: runner });
     expect(await readSession(directory)).not.toBeNull();
   }, 30_000);
+
+  it.skipIf(process.platform !== "win32")("runs Windows PowerShell ACL commands without an inherited module path", async (context) => {
+    const root = await scratch();
+    const hostileModulePath = path.join(root, "empty-modules");
+    await mkdir(hostileModulePath);
+    const target = path.join(root, "acl-target.txt");
+    await writeFile(target, "", "utf8");
+    const runner = runtimeDependencies().windowsAclRunner;
+    if (runner === undefined) throw new Error("Missing Windows runner");
+    const powershell = path.win32.join(
+      process.env["SystemRoot"] ?? "C:\\Windows",
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe"
+    );
+    const capability = await runner(
+      powershell,
+      ["-NoProfile", "-NonInteractive", "-Command", "'POWERSHELL-CAPABLE'"],
+      30_000
+    ).catch(() => ({ ok: false as const }));
+    if (!capability.ok) return context.skip("The test host cannot launch Windows PowerShell");
+    const previous = process.env["PSModulePath"];
+    process.env["PSModulePath"] = hostileModulePath;
+    try {
+      const result = await runner(
+        powershell,
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$ErrorActionPreference='Stop'; Get-Acl -LiteralPath '" + target.replace(/'/gu, "''") + "' | Out-Null; 'GET-ACL-OK'"
+        ],
+        30_000
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.stdout.trim()).toBe("GET-ACL-OK");
+    } finally {
+      if (previous === undefined) delete process.env["PSModulePath"];
+      else process.env["PSModulePath"] = previous;
+    }
+  }, 70_000);
 
   it("27 keeps hiding the last provider empty in both renderers, while automatic selection still works", async () => {
     const d = await deps();

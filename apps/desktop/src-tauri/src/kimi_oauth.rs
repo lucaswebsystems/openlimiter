@@ -16,7 +16,6 @@ use crate::reader_registry::{AuthApplication, ProviderId, ReaderId};
 use crate::request_policy::{GateRejection, RequestPolicy};
 
 pub const REFRESH_SECONDS: u64 = 300;
-const RATE_LIMIT_BACKOFF_SECONDS: u64 = 3_600;
 const BLOCKED_BACKOFF_SECONDS: u64 = 86_400;
 const MAX_THROTTLE_ENTRIES: usize = 128;
 
@@ -225,12 +224,7 @@ async fn collect_with_secret<T: Transport>(
         }
         429 | 503 if response.status == 429 || response.retry_after_seconds.is_some() => {
             let retry_after_seconds = response.retry_after_seconds;
-            let seconds = response
-                .retry_after_seconds
-                .unwrap_or(0)
-                .max(RATE_LIMIT_BACKOFF_SECONDS)
-                .min(BLOCKED_BACKOFF_SECONDS);
-            runtime.postpone(account_id, now_ms, seconds);
+            runtime.postpone(account_id, now_ms, 0);
             fallback_report(writer, account_id, false, now_ms).await;
             KimiOutcome::rate_limited(account_id, retry_after_seconds)
         }
@@ -286,7 +280,16 @@ async fn collect_account_guarded<T: Transport>(
     account_id: String,
     now_ms: u64,
 ) -> (KimiOutcome, bool) {
-    let _lease = match policy.begin(DetectedProviderId::Kimi, &account_id, now_ms) {
+    let revision = detection
+        .read_credential(DetectedProviderId::Kimi, &account_id)
+        .map(|secret| secret.credential_revision)
+        .unwrap_or_else(|_| "unavailable".to_string());
+    let _lease = match policy.begin_with_revision(
+        DetectedProviderId::Kimi,
+        &account_id,
+        now_ms,
+        Some(&revision),
+    ) {
         Ok(lease) => lease,
         Err(GateRejection::Deferred { retry_at }) => {
             return (
@@ -308,6 +311,8 @@ async fn collect_account_guarded<T: Transport>(
             )
         }
     };
+    // The durable gate owns retry timing, including after a process restart.
+    runtime.postpone(&account_id, now_ms, 0);
     let outcome = collect_account(
         detection,
         runtime,
@@ -317,12 +322,27 @@ async fn collect_account_guarded<T: Transport>(
         now_ms,
     )
     .await;
-    let abort_provider = match &outcome {
+    let abort_provider = complete_outcome(policy, &account_id, now_ms, &outcome);
+    (outcome, abort_provider)
+}
+
+fn complete_outcome(
+    policy: &RequestPolicy,
+    account_id: &str,
+    now_ms: u64,
+    outcome: &KimiOutcome,
+) -> bool {
+    match outcome {
+        KimiOutcome::Cached { .. } => false,
+        KimiOutcome::Failed { .. } => {
+            policy.retry_account(DetectedProviderId::Kimi, &account_id, now_ms, None, false);
+            false
+        }
         KimiOutcome::Fallback {
             reason: KimiFailure::ProviderBlocked,
             ..
         } => {
-            policy.block_provider(DetectedProviderId::Kimi, now_ms, BLOCKED_BACKOFF_SECONDS);
+            policy.refuse_account(DetectedProviderId::Kimi, &account_id, now_ms, true);
             true
         }
         KimiOutcome::Fallback {
@@ -339,12 +359,7 @@ async fn collect_account_guarded<T: Transport>(
             true
         }
         KimiOutcome::ReopenCli { .. } => {
-            policy.complete_after(
-                DetectedProviderId::Kimi,
-                &account_id,
-                now_ms,
-                BLOCKED_BACKOFF_SECONDS,
-            );
+            policy.refuse_account(DetectedProviderId::Kimi, &account_id, now_ms, false);
             false
         }
         _ => {
@@ -356,8 +371,7 @@ async fn collect_account_guarded<T: Transport>(
             );
             false
         }
-    };
-    (outcome, abort_provider)
+    }
 }
 
 fn uncovered_account_ids(
@@ -574,6 +588,92 @@ mod tests {
         let account_id = "kimi-account-one".to_string();
         let covered = HashSet::from([PollIdentity::detected(ProviderId::Kimi, account_id.clone())]);
         assert!(uncovered_account_ids(vec![account_id], &covered).is_empty());
+    }
+
+    #[tokio::test]
+    async fn guarded_acquisitions_follow_shared_exponential_retry() {
+        let dir = TempDir::new();
+        let path = dir.path().join(".kimi/credentials/kimi-code.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            r#"{"access_token":"synthetic-test-token","account_id":"synthetic-account"}"#,
+        )
+        .unwrap();
+        let detection = DetectionStore::for_test_home(dir.path(), now());
+        let account = detection
+            .account_ids(DetectedProviderId::Kimi)
+            .pop()
+            .expect("synthetic account");
+        let runtime = KimiOauthRuntime::default();
+        let transport = RecordingTransport::replying(429, Vec::new(), None);
+        let mut at = now();
+        for (index, seconds) in [60, 120, 240, 480, 900, 900].into_iter().enumerate() {
+            // Reopen the policy to prove attempts survive a process restart.
+            let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+            let (outcome, _) = collect_account_guarded(
+                &detection,
+                &runtime,
+                &policy,
+                &transport,
+                writer(&dir),
+                account.clone(),
+                at,
+            )
+            .await;
+            assert!(
+                matches!(outcome, KimiOutcome::Fallback { .. }),
+                "{outcome:?}"
+            );
+            assert_eq!(transport.recorded_urls().len(), index + 1);
+            let next = at + seconds * 1000;
+            let (early, _) = collect_account_guarded(
+                &detection,
+                &runtime,
+                &policy,
+                &transport,
+                writer(&dir),
+                account.clone(),
+                next - 1,
+            )
+            .await;
+            assert!(matches!(early, KimiOutcome::Cached { .. }), "{early:?}");
+            assert_eq!(transport.recorded_urls().len(), index + 1);
+            at = next;
+        }
+    }
+
+    #[test]
+    fn cached_outcome_preserves_shared_failures() {
+        let dir = TempDir::new();
+        let policy = RequestPolicy::at(Some(dir.path().to_path_buf()));
+        let account = "synthetic-account";
+        let lease = policy
+            .begin(DetectedProviderId::Kimi, account, now())
+            .unwrap();
+        policy.rate_limit_account(DetectedProviderId::Kimi, account, now(), None);
+        drop(lease);
+        let at = now() + 60_000;
+        let _lease = policy.begin(DetectedProviderId::Kimi, account, at).unwrap();
+        complete_outcome(
+            &policy,
+            account,
+            at,
+            &KimiOutcome::Cached {
+                account_id: account.into(),
+                retry_at: iso_from_epoch_ms(at + 1).unwrap(),
+            },
+        );
+        policy.rate_limit_account(DetectedProviderId::Kimi, account, at, None);
+        let document: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(
+                dir.path()
+                    .join(crate::request_policy::REQUEST_POLICY_FILE_NAME),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(document["providers"]["kimi"]["attempts"][account], 2);
     }
 
     #[tokio::test]

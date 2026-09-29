@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CACHE_FILE_NAME,
   CACHE_LOCK_NAME,
@@ -44,6 +44,7 @@ async function temporaryDirectory(): Promise<string> {
 }
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   for (const directory of created.splice(0)) {
     await rm(directory, { recursive: true, force: true });
   }
@@ -161,15 +162,22 @@ describe("snapshot cache", () => {
 
   it("keeps every concurrent merge instead of losing rows", async () => {
     const directory = await temporaryDirectory();
+    /* Lock age is fixed while actual filesystem writes still overlap. Slow
+       runners must not turn this merge test into a stale lock test. */
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse(snapshot().observedAt));
     const merges = Array.from({ length: 8 }, (_unused, index) =>
       mergeSnapshotCache(
         [snapshot({ meter: "W_" + String(index), value: index })],
         directory
       ));
     const settled = await Promise.allSettled(merges);
-    expect(settled.filter((entry) => entry.status === "fulfilled")).toHaveLength(8);
+    expect(settled.map((entry) => entry.status)).toEqual(Array(8).fill("fulfilled"));
     const result = await readSnapshotCache(directory);
-    expect(result.ok ? result.snapshots : []).toHaveLength(8);
+    expect(result.ok).toBe(true);
+    expect(result.ok ? result.snapshots : []).toEqual(
+      Array.from({ length: 8 }, (_unused, index) =>
+        snapshot({ meter: "W_" + String(index), value: index }))
+    );
   });
 
   it("skips the write when a merge changes nothing", async () => {

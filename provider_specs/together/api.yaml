@@ -15,6 +15,17 @@ provider_id: together
 product_id: api
 display_name: Together AI
 
+headlineMeter: credits
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: manual
+d5Review: Recipe only; no shipped reader.
+maturity: planned
+
 source:
   docs_url: https://docs.together.ai/docs/billing-credits
   reviewed_at: "2026-08-10"

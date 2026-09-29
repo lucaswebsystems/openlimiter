@@ -74,6 +74,20 @@ async function seed(home: string, host: keyof typeof layouts): Promise<string> {
 }
 
 describe("P2 ownership and full backups", () => {
+  it("keeps every unowned Claude statusLine field through reinstall and restores exact bytes", async () => {
+    const home = await scratch(), file = await seed(home, "claude");
+    const statusLine = { type: "command", command: "echo original", refreshInterval: 60, padding: 0, custom: { enabled: false, items: [1, null] } };
+    const original = JSON.stringify({ statusLine, theme: "dark" }, null, 3) + "\n";
+    await writeFile(file, original);
+    for (const wrap of [false, true, false]) {
+      expect((await installHost("claude", { ...context(home), wrap })).ok).toBe(true);
+      const installed = JSON.parse(await readFile(file, "utf8")).statusLine;
+      expect(installed).toEqual({ ...statusLine, command: expect.any(String) });
+      expect(installed.command).not.toBe(statusLine.command);
+    }
+    expect((await uninstallHost("claude", context(home))).ok).toBe(true);
+    expect(await readFile(file, "utf8")).toBe(original);
+  }, 20_000);
   for (const host of Object.keys(layouts) as (keyof typeof layouts)[]) {
     it(`03 leaves unmanaged ${host} settings byte identical`, async () => {
       const home = await scratch(), file = await seed(home, host);

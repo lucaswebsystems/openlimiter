@@ -16,7 +16,8 @@ import type { ProviderCode } from "@openlimiter/core";
 
 const MARKS_DIRECTORY = path.join(process.cwd(), "packages", "ui", "src", "marks");
 
-const FILE_BY_PROVIDER: Readonly<Record<ProviderCode, string>> = {
+// Cursor uses a text fallback until the UI owner supplies its mark.
+const FILE_BY_PROVIDER: Readonly<Record<Exclude<ProviderCode, "CURSOR">, string>> = {
   CLAUDE: "claude.svg",
   OPENROUTER: "openrouter.svg",
   CODEX: "codex.svg",

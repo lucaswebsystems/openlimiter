@@ -1,0 +1,1065 @@
+{
+  "version": 1,
+  "scope": "L0a1.3 policy contract vectors; implementations are deferred to L1a.",
+  "decisions": {
+    "attemptCount": "Zero means the first retry. Local exponential delay is capped before additive nonnegative jitter.",
+    "retryAfter": "Raw HTTP header, either integer seconds or an HTTP date. Invalid and negative seconds act as absent. Past dates cannot shorten the local delay.",
+    "ceilings": "Honor server deadlines up to the safety ceiling: collector 24 hours, request policy 7 days. Above the ceiling, cap the deadline and block until that capped time.",
+    "lease": "One lease per acquisition key shared by desktop and CLI. A live lease denies another acquisition even for the same owner. Equality means expired. Takeover means replacing a different owner.",
+    "freshness": "Fresh while observedAt <= now < expiresAt. Future observations are unavailable.",
+    "proposedValues": "Pending plan confirmation: native_payload TTL 60 s; documented_api, internal_payload and local_file TTL 300 s; lease 60 s. These are explicit proposed contract values, not claims about existing implementations."
+  },
+  "schema": {
+    "type": "object",
+    "properties": {
+      "retry": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-z0-9_-]+$"
+            },
+            "input": {
+              "type": "object",
+              "properties": {
+                "attemptCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "retryAfter": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "now": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "jitterSeconds": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "layer": {
+                  "type": "string",
+                  "enum": [
+                    "collector",
+                    "policy"
+                  ]
+                }
+              },
+              "required": [
+                "attemptCount",
+                "retryAfter",
+                "now",
+                "jitterSeconds",
+                "layer"
+              ],
+              "additionalProperties": false
+            },
+            "expected": {
+              "type": "object",
+              "properties": {
+                "localDelaySeconds": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "serverDeadline": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "nextAllowedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "blockedUntil": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "localDelaySeconds",
+                "serverDeadline",
+                "nextAllowedAt",
+                "blockedUntil"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "id",
+            "input",
+            "expected"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "lease": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-z0-9_-]+$"
+            },
+            "input": {
+              "type": "object",
+              "properties": {
+                "now": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "requester": {
+                  "type": "string",
+                  "enum": [
+                    "desktop",
+                    "cli"
+                  ]
+                },
+                "owner": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "desktop",
+                    "cli",
+                    null
+                  ]
+                },
+                "expiresAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "leaseSeconds": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "now",
+                "requester",
+                "owner",
+                "expiresAt",
+                "leaseSeconds"
+              ],
+              "additionalProperties": false
+            },
+            "expected": {
+              "type": "object",
+              "properties": {
+                "acquired": {
+                  "type": "boolean"
+                },
+                "takeover": {
+                  "type": "boolean"
+                },
+                "owner": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "desktop",
+                    "cli",
+                    null
+                  ]
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "acquired",
+                "takeover",
+                "owner",
+                "expiresAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "id",
+            "input",
+            "expected"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "freshness": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-z0-9_-]+$"
+            },
+            "input": {
+              "type": "object",
+              "properties": {
+                "sourceClass": {
+                  "type": "string",
+                  "enum": [
+                    "native_payload",
+                    "documented_api",
+                    "internal_payload",
+                    "local_file"
+                  ]
+                },
+                "observedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "now": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "sourceClass",
+                "observedAt",
+                "now"
+              ],
+              "additionalProperties": false
+            },
+            "expected": {
+              "type": "object",
+              "properties": {
+                "ttlSeconds": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "expiresAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "availability": {
+                  "type": "string",
+                  "enum": [
+                    "fresh",
+                    "stale",
+                    "unavailable"
+                  ]
+                }
+              },
+              "required": [
+                "ttlSeconds",
+                "expiresAt",
+                "availability"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "id",
+            "input",
+            "expected"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "retry",
+      "lease",
+      "freshness"
+    ],
+    "additionalProperties": false
+  },
+  "vectors": {
+    "retry": [
+      {
+        "id": "collector-999999-seconds-capped",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "999999",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-08T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-08T12:00:00.000Z",
+          "blockedUntil": "2026-08-08T12:00:00.000Z"
+        }
+      },
+      {
+        "id": "policy-999999-seconds-capped",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "999999",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "policy"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-14T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-14T12:00:00.000Z",
+          "blockedUntil": "2026-08-14T12:00:00.000Z"
+        }
+      },
+      {
+        "id": "local-attempt-0",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": null,
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:01:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "local-attempt-1",
+        "input": {
+          "attemptCount": 1,
+          "retryAfter": null,
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 120,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:02:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "local-attempt-2",
+        "input": {
+          "attemptCount": 2,
+          "retryAfter": null,
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 240,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:04:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "local-attempt-3",
+        "input": {
+          "attemptCount": 3,
+          "retryAfter": null,
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 480,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:08:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "local-attempt-4",
+        "input": {
+          "attemptCount": 4,
+          "retryAfter": null,
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 900,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:15:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "local-attempt-5",
+        "input": {
+          "attemptCount": 5,
+          "retryAfter": null,
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 900,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:15:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "local-attempt-1000000",
+        "input": {
+          "attemptCount": 1000000,
+          "retryAfter": null,
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 900,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:15:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "zero-server-wait",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "0",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-07T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-07T12:01:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "server-shorter-than-local",
+        "input": {
+          "attemptCount": 2,
+          "retryAfter": "30",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 240,
+          "serverDeadline": "2026-08-07T12:00:30.000Z",
+          "nextAllowedAt": "2026-08-07T12:04:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "server-longer-than-local",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "1800",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-07T12:30:00.000Z",
+          "nextAllowedAt": "2026-08-07T12:30:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "jitter-only-lengthens",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": null,
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 30,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 90,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:01:30.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "jitter-after-local-cap",
+        "input": {
+          "attemptCount": 4,
+          "retryAfter": null,
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 25,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 925,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:15:25.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "jitter-cannot-shorten-server",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "1800",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 30,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 90,
+          "serverDeadline": "2026-08-07T12:30:00.000Z",
+          "nextAllowedAt": "2026-08-07T12:30:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "jitter-can-exceed-server",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "70",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 30,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 90,
+          "serverDeadline": "2026-08-07T12:01:10.000Z",
+          "nextAllowedAt": "2026-08-07T12:01:30.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "http-date-future",
+        "input": {
+          "attemptCount": 1,
+          "retryAfter": "Fri, 07 Aug 2026 12:10:00 GMT",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 120,
+          "serverDeadline": "2026-08-07T12:10:00.000Z",
+          "nextAllowedAt": "2026-08-07T12:10:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "http-date-past",
+        "input": {
+          "attemptCount": 1,
+          "retryAfter": "Fri, 07 Aug 2026 11:59:00 GMT",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 120,
+          "serverDeadline": "2026-08-07T11:59:00.000Z",
+          "nextAllowedAt": "2026-08-07T12:02:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "invalid-header",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "not-a-date",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:01:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "negative-seconds",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "-1",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": null,
+          "nextAllowedAt": "2026-08-07T12:01:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "collector-ceiling",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "86400",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-08T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-08T12:00:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "collector-above-ceiling",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "86401",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-08T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-08T12:00:00.000Z",
+          "blockedUntil": "2026-08-08T12:00:00.000Z"
+        }
+      },
+      {
+        "id": "collector-far-date",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "Sat, 15 Aug 2026 12:00:00 GMT",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "collector"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-08T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-08T12:00:00.000Z",
+          "blockedUntil": "2026-08-08T12:00:00.000Z"
+        }
+      },
+      {
+        "id": "policy-above-collector-ceiling",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "172800",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "policy"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-09T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-09T12:00:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "policy-ceiling",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "604800",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "policy"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-14T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-14T12:00:00.000Z",
+          "blockedUntil": null
+        }
+      },
+      {
+        "id": "policy-above-ceiling",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "604801",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "policy"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-14T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-14T12:00:00.000Z",
+          "blockedUntil": "2026-08-14T12:00:00.000Z"
+        }
+      },
+      {
+        "id": "policy-far-date",
+        "input": {
+          "attemptCount": 0,
+          "retryAfter": "Sat, 15 Aug 2026 12:00:00 GMT",
+          "now": "2026-08-07T12:00:00.000Z",
+          "jitterSeconds": 0,
+          "layer": "policy"
+        },
+        "expected": {
+          "localDelaySeconds": 60,
+          "serverDeadline": "2026-08-14T12:00:00.000Z",
+          "nextAllowedAt": "2026-08-14T12:00:00.000Z",
+          "blockedUntil": "2026-08-14T12:00:00.000Z"
+        }
+      }
+    ],
+    "lease": [
+      {
+        "id": "desktop-acquires-empty",
+        "input": {
+          "now": "2026-08-07T12:00:00.000Z",
+          "requester": "desktop",
+          "owner": null,
+          "expiresAt": null,
+          "leaseSeconds": 60
+        },
+        "expected": {
+          "acquired": true,
+          "takeover": false,
+          "owner": "desktop",
+          "expiresAt": "2026-08-07T12:01:00.000Z"
+        }
+      },
+      {
+        "id": "cli-acquires-empty",
+        "input": {
+          "now": "2026-08-07T12:00:00.000Z",
+          "requester": "cli",
+          "owner": null,
+          "expiresAt": null,
+          "leaseSeconds": 60
+        },
+        "expected": {
+          "acquired": true,
+          "takeover": false,
+          "owner": "cli",
+          "expiresAt": "2026-08-07T12:01:00.000Z"
+        }
+      },
+      {
+        "id": "cli-defers-to-live-desktop",
+        "input": {
+          "now": "2026-08-07T12:00:00.000Z",
+          "requester": "cli",
+          "owner": "desktop",
+          "expiresAt": "2026-08-07T12:00:01.000Z",
+          "leaseSeconds": 60
+        },
+        "expected": {
+          "acquired": false,
+          "takeover": false,
+          "owner": "desktop",
+          "expiresAt": "2026-08-07T12:00:01.000Z"
+        }
+      },
+      {
+        "id": "desktop-defers-to-live-cli",
+        "input": {
+          "now": "2026-08-07T12:00:00.000Z",
+          "requester": "desktop",
+          "owner": "cli",
+          "expiresAt": "2026-08-07T12:00:01.000Z",
+          "leaseSeconds": 60
+        },
+        "expected": {
+          "acquired": false,
+          "takeover": false,
+          "owner": "cli",
+          "expiresAt": "2026-08-07T12:00:01.000Z"
+        }
+      },
+      {
+        "id": "cli-takes-over-at-expiry",
+        "input": {
+          "now": "2026-08-07T12:00:00.000Z",
+          "requester": "cli",
+          "owner": "desktop",
+          "expiresAt": "2026-08-07T12:00:00.000Z",
+          "leaseSeconds": 60
+        },
+        "expected": {
+          "acquired": true,
+          "takeover": true,
+          "owner": "cli",
+          "expiresAt": "2026-08-07T12:01:00.000Z"
+        }
+      },
+      {
+        "id": "desktop-takes-over-after-expiry",
+        "input": {
+          "now": "2026-08-07T12:00:00.000Z",
+          "requester": "desktop",
+          "owner": "cli",
+          "expiresAt": "2026-08-07T11:59:59.000Z",
+          "leaseSeconds": 60
+        },
+        "expected": {
+          "acquired": true,
+          "takeover": true,
+          "owner": "desktop",
+          "expiresAt": "2026-08-07T12:01:00.000Z"
+        }
+      },
+      {
+        "id": "same-owner-live-does-not-duplicate",
+        "input": {
+          "now": "2026-08-07T12:00:00.000Z",
+          "requester": "desktop",
+          "owner": "desktop",
+          "expiresAt": "2026-08-07T12:00:30.000Z",
+          "leaseSeconds": 60
+        },
+        "expected": {
+          "acquired": false,
+          "takeover": false,
+          "owner": "desktop",
+          "expiresAt": "2026-08-07T12:00:30.000Z"
+        }
+      },
+      {
+        "id": "same-owner-reacquires-expired",
+        "input": {
+          "now": "2026-08-07T12:00:00.000Z",
+          "requester": "cli",
+          "owner": "cli",
+          "expiresAt": "2026-08-07T12:00:00.000Z",
+          "leaseSeconds": 60
+        },
+        "expected": {
+          "acquired": true,
+          "takeover": false,
+          "owner": "cli",
+          "expiresAt": "2026-08-07T12:01:00.000Z"
+        }
+      }
+    ],
+    "freshness": [
+      {
+        "id": "native_payload-before-expiry",
+        "input": {
+          "sourceClass": "native_payload",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:00:59.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 60,
+          "expiresAt": "2026-08-07T12:01:00.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "native_payload-at-expiry",
+        "input": {
+          "sourceClass": "native_payload",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:01:00.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 60,
+          "expiresAt": "2026-08-07T12:01:00.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "native_payload-after-expiry",
+        "input": {
+          "sourceClass": "native_payload",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:01:01.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 60,
+          "expiresAt": "2026-08-07T12:01:00.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "native_payload-future-observation",
+        "input": {
+          "sourceClass": "native_payload",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T11:59:59.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 60,
+          "expiresAt": "2026-08-07T12:01:00.000Z",
+          "availability": "unavailable"
+        }
+      },
+      {
+        "id": "documented_api-before-expiry",
+        "input": {
+          "sourceClass": "documented_api",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:04:59.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "documented_api-at-expiry",
+        "input": {
+          "sourceClass": "documented_api",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:05:00.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "documented_api-after-expiry",
+        "input": {
+          "sourceClass": "documented_api",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:05:01.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "documented_api-future-observation",
+        "input": {
+          "sourceClass": "documented_api",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T11:59:59.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "unavailable"
+        }
+      },
+      {
+        "id": "internal_payload-before-expiry",
+        "input": {
+          "sourceClass": "internal_payload",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:04:59.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "internal_payload-at-expiry",
+        "input": {
+          "sourceClass": "internal_payload",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:05:00.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "internal_payload-after-expiry",
+        "input": {
+          "sourceClass": "internal_payload",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:05:01.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "internal_payload-future-observation",
+        "input": {
+          "sourceClass": "internal_payload",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T11:59:59.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "unavailable"
+        }
+      },
+      {
+        "id": "local_file-before-expiry",
+        "input": {
+          "sourceClass": "local_file",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:04:59.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "fresh"
+        }
+      },
+      {
+        "id": "local_file-at-expiry",
+        "input": {
+          "sourceClass": "local_file",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:05:00.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "local_file-after-expiry",
+        "input": {
+          "sourceClass": "local_file",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T12:05:01.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "stale"
+        }
+      },
+      {
+        "id": "local_file-future-observation",
+        "input": {
+          "sourceClass": "local_file",
+          "observedAt": "2026-08-07T12:00:00.000Z",
+          "now": "2026-08-07T11:59:59.000Z"
+        },
+        "expected": {
+          "ttlSeconds": 300,
+          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "availability": "unavailable"
+        }
+      }
+    ]
+  }
+}

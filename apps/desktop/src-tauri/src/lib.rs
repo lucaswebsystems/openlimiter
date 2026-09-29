@@ -1,4 +1,5 @@
 mod account;
+mod activity;
 mod antigravity_credential;
 mod antigravity_local;
 mod antigravity_oauth;
@@ -16,6 +17,8 @@ mod collector_schedule;
 mod commands;
 mod connections;
 mod credentials;
+#[cfg(test)]
+mod deps_smoke;
 mod fsx;
 mod gemini_cli_oauth;
 mod grok_oauth;
@@ -31,6 +34,8 @@ mod poll_identity;
 mod pro;
 mod provider_detection;
 mod provider_switches;
+mod providers_plugin;
+mod rail;
 mod reader_registry;
 mod request_policy;
 mod state;
@@ -110,6 +115,10 @@ fn show_window(app: &AppHandle) {
     }
 }
 
+pub(crate) fn app_context<R: tauri::Runtime>() -> tauri::Context<R> {
+    tauri::generate_context!()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -138,6 +147,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(activity::init())
+        .plugin(rail::init())
+        .plugin(providers_plugin::init())
         .invoke_handler(tauri::generate_handler![
             read_cache,
             read_manual,
@@ -252,7 +264,7 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .build(tauri::generate_context!())
+        .build(app_context())
         .expect("OpenLimiter could not start")
         .run(|app_handle, event| {
             /* A Codex device login this process spawned must not outlive the
@@ -268,3 +280,4 @@ pub fn run() {
             }
         });
 }
+#[cfg(test)] mod differential_tests;

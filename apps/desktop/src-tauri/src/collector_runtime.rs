@@ -99,7 +99,36 @@ pub async fn run_guarded<T: Transport>(
     let identity = resolve_connection(&record, secrets);
     let provider = detected_provider(record.provider_id);
     let now_ms = now_epoch_ms();
-    let _lease = match policy.begin(provider, identity.account_id(), now_ms) {
+    let credential = secrets.read_secret(&record.id).ok();
+    let revision = credential
+        .as_ref()
+        .map(|secret| crate::poll_identity::credential_revision(secret))
+        .unwrap_or_else(|| "unavailable".to_string());
+    if credential
+        .as_ref()
+        .is_some_and(|secret| crate::poll_identity::credential_expired(secret, now_ms))
+    {
+        let code = provider.slug().to_uppercase().replace('-', "_");
+        let _ = writer.record_availability(
+            &code,
+            Some(identity.account_id()),
+            "expired_credentials",
+            None,
+            now_ms,
+        );
+        return Ok(CollectionOutcome::Failed {
+            connection_id,
+            reason: CollectorFailure::ProviderResponse,
+            status: Some(401),
+            retry_after_seconds: None,
+        });
+    }
+    let _lease = match policy.begin_with_revision(
+        provider,
+        identity.account_id(),
+        now_ms,
+        Some(&revision),
+    ) {
         Ok(lease) => lease,
         Err(_) => {
             return Ok(CollectionOutcome::Failed {
@@ -122,7 +151,7 @@ pub async fn run_guarded<T: Transport>(
         connections,
         secrets,
         transport,
-        writer,
+        Arc::clone(&writer),
         connection_id.clone(),
         mode,
     )
@@ -135,23 +164,60 @@ pub async fn run_guarded<T: Transport>(
         .as_ref()
         .ok()
         .and_then(CollectionOutcome::retry_after_seconds);
+    let completed_at = now_epoch_ms();
     match status {
-        Some(403 | 404 | 410) => policy.block_provider(provider, now_ms, BLOCKED_PROVIDER_SECONDS),
-        Some(429) | Some(503) if retry_after_seconds.is_some() => {
-            policy.rate_limit_account(provider, identity.account_id(), now_ms, retry_after_seconds)
+        Some(401 | 403) => {
+            policy.refuse_account(
+                provider,
+                identity.account_id(),
+                completed_at,
+                status == Some(403),
+            );
+            let _ = writer.record_availability(
+                &provider.slug().to_uppercase().replace('-', "_"),
+                Some(identity.account_id()),
+                if status == Some(403) {
+                    "access_denied"
+                } else {
+                    "expired_credentials"
+                },
+                None,
+                completed_at,
+            );
+            let _ = connections.update(&connection_id, |record| {
+                record.next_refresh_at =
+                    Some(completed_at.saturating_add(BLOCKED_PROVIDER_SECONDS * 1000));
+            });
         }
-        Some(429) => policy.rate_limit_account(provider, identity.account_id(), now_ms, None),
-        Some(401) => policy.complete_after(
+        Some(404 | 410) => policy.block_provider(provider, now_ms, BLOCKED_PROVIDER_SECONDS),
+        Some(429) | Some(503) if retry_after_seconds.is_some() => policy.rate_limit_account(
             provider,
             identity.account_id(),
-            now_ms,
-            BLOCKED_PROVIDER_SECONDS,
+            completed_at,
+            retry_after_seconds,
         ),
+        Some(429) => policy.rate_limit_account(provider, identity.account_id(), completed_at, None),
+        _ if outcome
+            .as_ref()
+            .map_or(true, |outcome| outcome.failure().is_some()) =>
+        {
+            policy.retry_account(
+                provider,
+                identity.account_id(),
+                completed_at,
+                retry_after_seconds,
+                false,
+            )
+        }
         _ => policy.complete_after(
             provider,
             identity.account_id(),
-            now_ms,
-            provider_interval_seconds(provider),
+            completed_at,
+            if record.reader_id == crate::reader_registry::ReaderId::OpenrouterCredits {
+                900
+            } else {
+                provider_interval_seconds(provider)
+            },
         ),
     }
     synchronize_schedule(connections, secrets, &identity, &connection_id);
@@ -283,6 +349,28 @@ pub async fn run_pass(
     let detection = app.state::<crate::provider_detection::DetectionStore>();
     let allowed =
         |provider| detection.switches.enabled(provider) && requested_provider(selected, provider);
+    // Detection rereads credentials before use; expose known expiry in the cache too.
+    for provider in detection.report().providers {
+        if !allowed(provider.provider_id) {
+            continue;
+        }
+        for account in provider.accounts.iter().filter(|account| {
+            account
+                .expires_at
+                .as_deref()
+                .and_then(|text| chrono::DateTime::parse_from_rfc3339(text).ok())
+                .is_some_and(|date| date.timestamp_millis() <= now_epoch_ms() as i64)
+        }) {
+            let writer = app.state::<Arc<CacheWriter>>();
+            let _ = writer.record_availability(
+                &provider.provider_id.slug().to_uppercase().replace('-', "_"),
+                Some(&account.account_id),
+                "expired_credentials",
+                None,
+                now_epoch_ms(),
+            );
+        }
+    }
     let connections = app.state::<ConnectionsStore>();
     let secrets = app.state::<KeyringStore>();
     let multi_account = crate::pro::multi_account_enabled(&*secrets);
@@ -407,6 +495,15 @@ pub async fn run_pass(
                     {
                         failed_providers.push(DetectedProviderId::Kimi);
                     }
+                    if allowed(DetectedProviderId::Cursor)
+                        && !crate::native_readers::cursor::run_pass(
+                            app,
+                            &coverage.covered,
+                            automatic_account_limit(multi_account, &coverage.known_providers, DetectedProviderId::Cursor),
+                        ).await
+                    {
+                        failed_providers.push(DetectedProviderId::Cursor);
+                    }
                     if allowed(DetectedProviderId::Claude)
                         && !crate::claude_oauth::run_pass(
                             app,
@@ -493,6 +590,50 @@ mod tests {
     use crate::test_support::InMemorySecrets;
 
     const NOW: u64 = 1_787_136_000_000;
+
+    #[test]
+    fn expired_saved_credential_never_reaches_transport() {
+        tauri::async_runtime::block_on(async {
+            use crate::test_support::{RecordingTransport, TempDir};
+            let dir = TempDir::new();
+            let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+            let secrets = InMemorySecrets::new();
+            let saved = record(
+                "expired",
+                ProviderId::Codex,
+                ReaderId::CodexUsage,
+                CredentialKind::CodexSession,
+                Some("account"),
+                NOW,
+                None,
+            );
+            connections.insert(saved.clone()).unwrap();
+            secrets
+                .store_secret(&saved.id, "header.eyJleHAiOjE3MDAwMDAwMDB9.signature")
+                .unwrap();
+            let transport = RecordingTransport::replying(429, vec![], Some(3600));
+            let writer = Arc::new(CacheWriter::at(Some(dir.path().to_path_buf())));
+            let outcome = run_guarded(
+                &CollectorRuntime::default(),
+                &crate::provider_switches::ProviderSwitches::at(Some(dir.path().to_path_buf())),
+                &RequestPolicy::at(Some(dir.path().to_path_buf())),
+                &connections,
+                &secrets,
+                &transport,
+                writer,
+                saved.id,
+                CollectionMode::Refresh,
+            )
+            .await
+            .unwrap();
+            assert_eq!(outcome.status(), Some(401));
+            assert!(transport.recorded_urls().is_empty());
+            let text =
+                std::fs::read_to_string(dir.path().join(crate::cache_write::CACHE_FILE_NAME))
+                    .unwrap();
+            assert!(text.contains("expired_credentials"));
+        });
+    }
 
     fn record(
         id: &str,

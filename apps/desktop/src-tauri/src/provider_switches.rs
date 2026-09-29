@@ -85,7 +85,7 @@ mod tests {
             ProviderSwitches::at(Some(dir.path().into()))
                 .disabled()
                 .len(),
-            8
+            DetectedProviderId::ALL.len()
         );
     }
 }

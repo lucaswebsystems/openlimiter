@@ -13,6 +13,57 @@ pub const MAX_CACHE_ENTRIES: usize = 64;
 const MAX_AMOUNT: f64 = 1_000_000.0;
 const MAX_VALUE: f64 = 1_000_000_000_000.0;
 
+const PROVIDER_CODES: &[&str] = &[
+    "CLAUDE",
+    "OPENROUTER",
+    "CODEX",
+    "ANTIGRAVITY",
+    "GEMINI_CLI",
+    "OPENCODE",
+    "GROK",
+    "KIMI",
+    "CURSOR",
+    "MANUAL",
+];
+const VERIFICATIONS: &[&str] = &["UNVERIFIED", "VERIFIED_FIXTURES", "VERIFIED_LIVE"];
+const SNAPSHOT_KINDS: &[&str] = &[
+    "quota_percent",
+    "money_balance",
+    "spend",
+    "token_count",
+    "runtime_info",
+];
+const AVAILABILITIES: &[&str] = &[
+    "missing_credentials",
+    "expired_credentials",
+    "access_denied",
+    "missing_subscription",
+    "unlimited",
+    "quota_unavailable",
+    "rate_limited",
+    "network_failure",
+    "schema_drift",
+];
+
+// New optional fields may be absent, but an explicit null is not a valid value.
+fn deserialize_present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationEvidence {
+    pub provider_version: String,
+    pub account_shape: String,
+    pub os: String,
+    /// Canonical ISO instant, using the same format as observed_at.
+    pub date: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotWindow {
@@ -23,11 +74,19 @@ pub struct SnapshotWindow {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Source = source plus provenance, precision = precision,
+/// verification = labels.verification. Validation never upgrades verification.
 pub struct ConnectorLabels {
     pub credential_origin: String,
     pub data_interface_status: String,
     pub automation_risk: String,
     pub verification: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    pub verification_evidence: Option<VerificationEvidence>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -82,6 +141,28 @@ pub struct Snapshot {
     /// as writing it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub writer: Option<String>,
+    /// Absent means unknown. Never infer this from unit.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    pub kind: Option<String>,
+    /// Consumers must never count a row carrying availability as a numeric reading,
+    /// including when value is zero.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    pub availability: Option<String>,
+    /// Canonical ISO instant, allowed only with rate_limited availability.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present"
+    )]
+    pub retry_at: Option<String>,
 }
 
 /// The one value this process may stamp on a row.
@@ -141,19 +222,8 @@ fn is_canonical_iso(value: &str) -> bool {
         .is_some_and(|canonical| canonical == value)
 }
 
-fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
-    let provider_ok = [
-        "CLAUDE",
-        "OPENROUTER",
-        "CODEX",
-        "ANTIGRAVITY",
-        "GEMINI_CLI",
-        "OPENCODE",
-        "GROK",
-        "KIMI",
-        "MANUAL",
-    ]
-    .contains(&row.provider.as_str());
+pub(crate) fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
+    let provider_ok = PROVIDER_CODES.contains(&row.provider.as_str());
     let window_ok = ["rolling", "fixed", "lifetime", "unknown"].contains(&row.window.kind.as_str())
         && row
             .window
@@ -175,7 +245,18 @@ fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
         ]
         .contains(&row.labels.data_interface_status.as_str())
         && ["low", "high"].contains(&row.labels.automation_risk.as_str())
-        && row.labels.verification == "UNVERIFIED";
+        && VERIFICATIONS.contains(&row.labels.verification.as_str())
+        && row
+            .labels
+            .verification_evidence
+            .as_ref()
+            .is_none_or(|evidence| {
+                row.labels.verification == "VERIFIED_LIVE"
+                    && !evidence.provider_version.trim().is_empty()
+                    && !evidence.account_shape.trim().is_empty()
+                    && !evidence.os.trim().is_empty()
+                    && is_canonical_iso(&evidence.date)
+            });
     let basic = provider_ok
         && safe_identifier(&row.meter, true, 32)
         && row.value.is_finite()
@@ -201,7 +282,18 @@ fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
             .account_id
             .as_deref()
             .is_none_or(|account| safe_identifier(account, false, 64))
-        && labels_ok;
+        && labels_ok
+        && row
+            .kind
+            .as_deref()
+            .is_none_or(|kind| SNAPSHOT_KINDS.contains(&kind))
+        && row
+            .availability
+            .as_deref()
+            .is_none_or(|availability| AVAILABILITIES.contains(&availability))
+        && row.retry_at.as_deref().is_none_or(|retry_at| {
+            row.availability.as_deref() == Some("rate_limited") && is_canonical_iso(retry_at)
+        });
     if !basic {
         return None;
     }
@@ -218,7 +310,7 @@ fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
      *
      * The bounds that remain are the ones that keep a row printable and
      * bounded: both figures finite, neither negative, neither past MAX_AMOUNT,
-     * and the one currency this cache stores. A pair failing those still costs
+     * and a currency this cache stores. A pair failing those still costs
      * the pair, and never the row.
      */
     let amounts_ok = match (&row.used_amount, &row.limit_amount, &row.currency) {
@@ -230,7 +322,7 @@ fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
                 && *used <= MAX_AMOUNT
                 && *limit >= 0.0
                 && *limit <= MAX_AMOUNT
-                && currency == "USD"
+                && ["USD", "CNY"].contains(&currency.as_str())
         }
         _ => false,
     };
@@ -291,9 +383,23 @@ fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
 }
 
 fn read_document(text: Option<&str>) -> Result<(Vec<Snapshot>, Vec<Suppression>), CacheWriteError> {
+    read_document_for_surface(text, false)
+}
+
+fn read_document_for_surface(
+    text: Option<&str>,
+    require_supported_version: bool,
+) -> Result<(Vec<Snapshot>, Vec<Suppression>), CacheWriteError> {
     let root = text
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
         .unwrap_or_else(|| Value::Object(Map::new()));
+    if require_supported_version
+        && root
+            .get("version")
+            .is_some_and(|version| !matches!(version.as_u64(), Some(1 | 2)))
+    {
+        return Err(CacheWriteError::NotJson);
+    }
     let rows = root
         .get("snapshots")
         .and_then(Value::as_array)
@@ -310,18 +416,7 @@ fn read_document(text: Option<&str>) -> Result<(Vec<Snapshot>, Vec<Suppression>)
                 let suppression: Suppression =
                     serde_json::from_value(entry.clone()).map_err(|_| CacheWriteError::NotJson)?;
                 let valid = suppression.reason == "drift"
-                    && [
-                        "CLAUDE",
-                        "OPENROUTER",
-                        "CODEX",
-                        "ANTIGRAVITY",
-                        "GEMINI_CLI",
-                        "OPENCODE",
-                        "GROK",
-                        "KIMI",
-                        "MANUAL",
-                    ]
-                    .contains(&suppression.provider.as_str())
+                    && PROVIDER_CODES.contains(&suppression.provider.as_str())
                     && is_canonical_iso(&suppression.suppressed_at)
                     && suppression
                         .account_id
@@ -341,6 +436,23 @@ fn read_document(text: Option<&str>) -> Result<(Vec<Snapshot>, Vec<Suppression>)
 
 fn account_matches(existing: Option<&str>, target: Option<&str>) -> bool {
     existing == target || (target.is_some() && existing.is_none())
+}
+
+/// Read only display access to the same validated cache rows used by native writers.
+/// A suppression withdraws a reading until that identity has a newer observation.
+pub(crate) fn display_snapshots(text: Option<&str>) -> Vec<Snapshot> {
+    let Ok((rows, suppressions)) = read_document_for_surface(text, true) else {
+        return Vec::new();
+    };
+    rows.into_iter()
+        .filter(|row| {
+            !suppressions.iter().any(|suppression| {
+                row.provider == suppression.provider
+                    && row.account_id == suppression.account_id
+                    && row.observed_at <= suppression.suppressed_at
+            })
+        })
+        .collect()
 }
 
 fn identity(row: &Snapshot) -> String {
@@ -543,6 +655,218 @@ mod tests {
     use super::*;
     use crate::native_readers::parse_body;
     use crate::reader_registry::ReaderId;
+
+    // Frozen serialization of the existing overspent_extra_usage test row.
+    const LEGACY_ROW: &str = r#"{"provider":"CLAUDE","meter":"EXTRA_USAGE","value":100.0,"unit":"PERCENT","window":{"kind":"fixed"},"resetAt":null,"source":"internal_payload","precision":"exact","observedAt":"2026-08-16T12:00:00.000Z","expiresAt":"2026-08-16T12:20:00.000Z","labels":{"credentialOrigin":"official-local-tool","dataInterfaceStatus":"internal-endpoint","automationRisk":"high","verification":"UNVERIFIED"},"usedAmount":62.5,"limitAmount":50.0,"currency":"USD","accountId":"claude-overspend"}"#;
+
+    fn contract_row() -> Value {
+        serde_json::from_str(LEGACY_ROW).expect("legacy row")
+    }
+
+    fn validate_contract(value: Value) -> Option<Snapshot> {
+        serde_json::from_value(value)
+            .ok()
+            .and_then(normalize_snapshot)
+    }
+
+    fn evidence() -> Value {
+        serde_json::json!({
+            "providerVersion": "2.0.0", "accountShape": "individual", "os": "windows",
+            "date": "2026-01-01T00:00:00.000Z"
+        })
+    }
+
+    #[test]
+    fn local_contract_legacy_bytes() {
+        let now = epoch_ms_from_rfc3339("2026-08-16T12:00:00.000Z").unwrap();
+        assert_eq!(
+            serde_json::to_string(&overspent_extra_usage(now)).unwrap(),
+            LEGACY_ROW
+        );
+        let row: Snapshot = serde_json::from_str(LEGACY_ROW).unwrap();
+        let result = normalize_snapshot(row).expect("legacy row still validates");
+        assert_eq!(serde_json::to_string(&result).unwrap(), LEGACY_ROW);
+        assert!(result.kind.is_none());
+        assert!(result.availability.is_none());
+        assert!(result.retry_at.is_none());
+        assert!(result.labels.verification_evidence.is_none());
+    }
+
+    #[test]
+    fn local_contract_verification() {
+        for verification in VERIFICATIONS {
+            let mut row = contract_row();
+            row["labels"]["verification"] = Value::from(*verification);
+            let result = validate_contract(row.clone()).expect("known verification");
+            assert_eq!(result.labels.verification, *verification);
+            assert_eq!(serde_json::to_value(&result).unwrap(), row);
+            let parsed: Snapshot =
+                serde_json::from_str(&serde_json::to_string(&result).unwrap()).unwrap();
+            assert_eq!(
+                normalize_snapshot(parsed).unwrap().labels.verification,
+                *verification
+            );
+        }
+        for verification in [
+            Value::from("VERIFIED"),
+            Value::from("verified_live"),
+            Value::from(""),
+            Value::Null,
+            Value::from(1),
+        ] {
+            let mut row = contract_row();
+            row["labels"]["verification"] = verification;
+            assert!(validate_contract(row).is_none());
+        }
+        for verification in [None, Some("UNVERIFIED"), Some("VERIFIED_FIXTURES")] {
+            let mut row = contract_row();
+            if let Some(value) = verification {
+                row["labels"]["verification"] = Value::from(value);
+            } else {
+                row["labels"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("verification");
+            }
+            row["labels"]["verificationEvidence"] = evidence();
+            assert!(validate_contract(row).is_none());
+        }
+        let mut live = contract_row();
+        live["labels"]["verification"] = Value::from("VERIFIED_LIVE");
+        live["labels"]["verificationEvidence"] = evidence();
+        let result = validate_contract(live.clone()).expect("live evidence");
+        assert_eq!(serde_json::to_value(result).unwrap(), live);
+        for invalid in [
+            Value::Null,
+            serde_json::json!([]),
+            serde_json::json!({}),
+            Value::from("proof"),
+        ] {
+            let mut row = live.clone();
+            row["labels"]["verificationEvidence"] = invalid;
+            assert!(validate_contract(row).is_none());
+        }
+        for (field, value) in [
+            ("providerVersion", Value::from(" ")),
+            ("accountShape", Value::from(1)),
+            ("os", Value::from("")),
+            ("date", Value::from("2026-01-01")),
+            ("date", Value::from("2026-02-30T00:00:00.000Z")),
+        ] {
+            let mut row = live.clone();
+            row["labels"]["verificationEvidence"][field] = value;
+            assert!(validate_contract(row).is_none());
+        }
+    }
+
+    #[test]
+    fn local_contract_kind_currency() {
+        for kind in SNAPSHOT_KINDS {
+            let mut row = contract_row();
+            row["kind"] = Value::from(*kind);
+            assert_eq!(
+                serde_json::to_value(validate_contract(row.clone()).unwrap()).unwrap(),
+                row
+            );
+        }
+        for kind in [
+            Value::from("unknown"),
+            Value::from("PERCENT"),
+            Value::from(""),
+            Value::Null,
+            Value::from(1),
+        ] {
+            let mut row = contract_row();
+            row["kind"] = kind;
+            assert!(validate_contract(row).is_none());
+        }
+        for unit in ["PERCENT", "CREDITS", "TOKENS", "REQUESTS"] {
+            let mut row = contract_row();
+            row["unit"] = Value::from(unit);
+            assert!(validate_contract(row).unwrap().kind.is_none());
+        }
+        for used in [0.0, 12.47, MAX_AMOUNT] {
+            let mut row = contract_row();
+            row["usedAmount"] = Value::from(used);
+            row["currency"] = Value::from("CNY");
+            let result = validate_contract(row.clone()).expect("CNY amount");
+            assert_eq!(result.used_amount, Some(used));
+            assert_eq!(result.limit_amount, Some(50.0));
+            assert_eq!(result.currency.as_deref(), Some("CNY"));
+            assert_eq!(serde_json::to_value(result).unwrap(), row);
+        }
+        assert_eq!(MAX_AMOUNT, 1_000_000.0);
+        let mut row = contract_row();
+        row["usedAmount"] = Value::from(MAX_AMOUNT + 1.0);
+        row["currency"] = Value::from("CNY");
+        assert!(validate_contract(row).unwrap().currency.is_none());
+    }
+
+    #[test]
+    fn local_contract_availability() {
+        let retry_at = "2026-01-01T00:01:00.000Z";
+        for availability in AVAILABILITIES {
+            let mut row = contract_row();
+            row["value"] = Value::from(0.0);
+            row["availability"] = Value::from(*availability);
+            assert_eq!(
+                serde_json::to_value(validate_contract(row.clone()).unwrap()).unwrap(),
+                row
+            );
+            row["retryAt"] = Value::from(retry_at);
+            let result = validate_contract(row);
+            if *availability == "rate_limited" {
+                assert_eq!(result.unwrap().retry_at.as_deref(), Some(retry_at));
+            } else {
+                assert!(result.is_none());
+            }
+        }
+        for availability in [
+            Value::from("unknown"),
+            Value::from("no_credential"),
+            Value::from(""),
+            Value::Null,
+            Value::from(1),
+        ] {
+            let mut row = contract_row();
+            row["availability"] = availability;
+            assert!(validate_contract(row).is_none());
+        }
+        let mut row = contract_row();
+        row["retryAt"] = Value::from(retry_at);
+        assert!(validate_contract(row).is_none());
+        for retry_at in [
+            Value::Null,
+            Value::from(1),
+            Value::from("soon"),
+            Value::from("2026-01-01"),
+            Value::from("2026-02-30T00:00:00.000Z"),
+        ] {
+            let mut row = contract_row();
+            row["availability"] = Value::from("rate_limited");
+            row["retryAt"] = retry_at;
+            assert!(validate_contract(row).is_none());
+        }
+        let mut row = contract_row();
+        row["value"] = Value::from(0.0);
+        let result = validate_contract(row).expect("zero is a numeric reading");
+        assert_eq!(result.value, 0.0);
+        assert!(result.availability.is_none());
+    }
+
+    #[test]
+    fn local_contract_provider_codes() {
+        /* New providers join this list with their reader, mark and registry
+        entry (relaunch units L1b and L6), never ahead of them. */
+        for provider in PROVIDER_CODES {
+            let mut row = contract_row();
+            row["provider"] = Value::from(*provider);
+            assert_eq!(validate_contract(row).unwrap().provider, *provider);
+        }
+        let mut row = contract_row();
+        row["provider"] = Value::from("UNRECOGNIZED");
+        assert!(validate_contract(row).is_none());
+    }
 
     #[test]
     fn native_fold_commits_a_read_and_drift_never_writes_zero() {
@@ -798,6 +1122,7 @@ mod tests {
                 data_interface_status: "internal-endpoint".to_string(),
                 automation_risk: "high".to_string(),
                 verification: "UNVERIFIED".to_string(),
+                verification_evidence: None,
             },
             used_amount: Some(62.5),
             limit_amount: Some(50.0),
@@ -806,6 +1131,9 @@ mod tests {
             account_label: None,
             writer: None,
             provenance: None,
+            kind: None,
+            availability: None,
+            retry_at: None,
         }
     }
 

@@ -19,6 +19,12 @@ import { PHONE_COOKIE_PATH, PHONE_REFRESH_COOKIE, PHONE_TOKEN_COOKIE, phonePairO
 
 export const runtime = "nodejs";
 
+function privateJson(body: unknown, init: ResponseInit = {}): NextResponse {
+  const headers = new Headers(init.headers);
+  headers.set("Cache-Control", "private, no-store");
+  return NextResponse.json(body, { ...init, headers });
+}
+
 function cookieOptions(maxAgeSeconds: number) {
   return {
     httpOnly: true as const,
@@ -34,13 +40,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+    return privateJson({ error: "invalid_body" }, { status: 400 });
   }
   const pair = phonePairOf(body);
-  if (pair === null) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+  if (pair === null) return privateJson({ error: "invalid_body" }, { status: 400 });
 
   const now = Math.floor(Date.now() / 1_000);
-  const response = NextResponse.json({ ok: true });
+  const response = privateJson({ ok: true });
   response.cookies.set(PHONE_TOKEN_COOKIE, pair.token, cookieOptions(pair.expiresAt - now));
   response.cookies.set(
     PHONE_REFRESH_COOKIE,
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 export async function DELETE(): Promise<NextResponse> {
-  const response = NextResponse.json({ ok: true });
+  const response = privateJson({ ok: true });
   response.cookies.set(PHONE_TOKEN_COOKIE, "", cookieOptions(0));
   response.cookies.set(PHONE_REFRESH_COOKIE, "", cookieOptions(0));
   return response;

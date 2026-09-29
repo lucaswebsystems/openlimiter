@@ -23,9 +23,139 @@ import {
 } from "./collection.js";
 import { MAX_CACHE_ENTRIES, mergeSnapshots, snapshotIdentity } from "./merge.js";
 import { canonicalJson, normalizeMeter, normalizeMeters } from "./normalizer.js";
-import type { RawMeter, Snapshot } from "./types.js";
+import type { ProviderCode, RawMeter, Snapshot } from "./types.js";
 
 export const CACHE_FILE_NAME = "openlimiter-cache.json";
+export const MAX_POLICY_TIMESTAMP = 253_402_300_799_999;
+
+/** Pure policy shared with the desktop contract. All instants are UTC. */
+export function retryPolicy(input: { attemptCount: number; retryAfter: string | null; now: string; jitterSeconds: number; layer: string }) {
+  const now = Date.parse(input.now);
+  const raw = input.retryAfter?.trim();
+  const server = raw === undefined ? NaN : /^\d+$/u.test(raw)
+    ? Math.min(MAX_POLICY_TIMESTAMP, now + Number(raw) * 1000)
+    : /^[A-Za-z]{3}, /u.test(raw) ? Date.parse(raw) : NaN;
+  const localDelaySeconds = Math.min(60 * 2 ** Math.min(input.attemptCount, 4), 900) + Math.max(0, input.jitterSeconds);
+  const ceiling = now + (input.layer === "collector" ? 86400 : 604800) * 1000;
+  const cappedServer = Math.min(server, ceiling);
+  const serverDeadline = Number.isFinite(server) ? new Date(cappedServer).toISOString() : null;
+  return {
+    localDelaySeconds, serverDeadline,
+    nextAllowedAt: new Date(Math.max(now + localDelaySeconds * 1000, Number.isFinite(server) ? cappedServer : 0)).toISOString(),
+    blockedUntil: server > ceiling ? serverDeadline : null
+  };
+}
+
+export function leasePolicy(input: { now: string; requester: string; owner: string | null; expiresAt: string | null; leaseSeconds: number }) {
+  const acquired = input.owner === null || input.expiresAt === null || Date.parse(input.expiresAt) <= Date.parse(input.now);
+  return {
+    acquired, takeover: acquired && input.owner !== null && input.owner !== input.requester,
+    owner: acquired ? input.requester : input.owner,
+    expiresAt: acquired ? new Date(Date.parse(input.now) + input.leaseSeconds * 1000).toISOString() : input.expiresAt
+  };
+}
+
+export function freshnessPolicy(input: { sourceClass: string; observedAt: string; now: string }) {
+  const ttlSeconds = input.sourceClass === "native_payload" ? 60 : 300;
+  const observed = Date.parse(input.observedAt);
+  const now = Date.parse(input.now);
+  const expiresAt = new Date(observed + ttlSeconds * 1000).toISOString();
+  return { ttlSeconds, expiresAt, availability: now < observed ? "unavailable" : now < Date.parse(expiresAt) ? "fresh" : "stale" };
+}
+
+export function withPolicyFreshness(snapshot: Snapshot): Snapshot {
+  if (!["native_payload", "documented_api", "internal_payload", "local_file"].includes(snapshot.source)) return snapshot;
+  return { ...snapshot, expiresAt: freshnessPolicy({ sourceClass: snapshot.source, observedAt: snapshot.observedAt, now: snapshot.observedAt }).expiresAt };
+}
+
+export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "rate_limited", now: string, retryAt: string | undefined, directory = resolveStateDirectory()): Promise<void> {
+  await withCacheLock(directory, async () => {
+    const state = await readCacheState(directory);
+    if (!state.ok && state.reason !== "missing") throw new Error("Unreadable snapshot cache");
+    const rows = state.ok ? state.state.snapshots : [];
+    const matching = rows.filter((row) => row.provider === provider);
+    const seed: Snapshot = {
+      provider, meter: "ACQUISITION", value: 0, unit: "PERCENT", window: { kind: "unknown" }, resetAt: null,
+      source: "internal_payload", precision: "exact", observedAt: now, writer: "cli",
+      expiresAt: freshnessPolicy({ sourceClass: "internal_payload", observedAt: now, now }).expiresAt,
+      labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" }
+    };
+    const snapshots = [...rows.filter((row) => row.provider !== provider), ...(matching.length ? matching : [seed]).map((row) => {
+      const { retryAt: _oldRetry, ...rest } = row;
+      return { ...rest, availability, ...(availability === "rate_limited" && retryAt ? { retryAt } : {}) };
+    })];
+    await replaceCache(directory, snapshots, state.ok ? state.state.suppressions : []);
+  });
+}
+
+interface MachinePolicy {
+  refusalRevision?: string | null;
+  lastAccount?: string | null;
+  owner: string | null;
+  expiresAt: number;
+  token: string;
+  nextAllowedAt: number;
+  attempts: number;
+}
+
+export interface MachineLease {
+  readonly attempts: number;
+  stillOwned(now?: number): Promise<boolean>;
+  complete(nextAllowedAt: number, attempts: number, refusalRevision?: string): Promise<void>;
+  release(): Promise<void>;
+}
+
+/** Provider scope deliberately also excludes aliases of the same account. */
+export async function acquireMachineLease(provider: string, directory = resolveStateDirectory(), now = Date.now(), credentialRevision?: string): Promise<MachineLease | null> {
+  const named = provider.toLowerCase().replaceAll("_", "-");
+  const slug = named === "gemini-cli" || named === "antigravity" ? "code-assist" : named;
+  if (!/^[a-z][a-z-]{0,31}$/u.test(slug)) throw new Error("Invalid provider");
+  const file = path.join(directory, `acquisition-${slug}.json`);
+  const read = async (): Promise<MachinePolicy> => {
+    const result = await readJsonFileSafely(file);
+    if (!result.ok) {
+      if (result.reason !== "missing") throw new Error("Unreadable acquisition policy");
+      return { owner: null, expiresAt: 0, token: "", nextAllowedAt: 0, attempts: 0 };
+    }
+    const value = result.value as MachinePolicy;
+    if (!isRecord(value) || !Number.isSafeInteger(value.expiresAt) || !Number.isSafeInteger(value.nextAllowedAt) || !Number.isSafeInteger(value.attempts) || typeof value.token !== "string" || (value.owner !== null && value.owner !== "desktop" && value.owner !== "cli")) throw new Error("Invalid acquisition policy");
+    return value;
+  };
+  const state = await withCacheLock(directory, async () => {
+    const current = await read();
+    const decision = leasePolicy({ now: new Date(now).toISOString(), requester: "cli", owner: current.owner, expiresAt: new Date(current.expiresAt).toISOString(), leaseSeconds: 60 });
+    const changedRefusal = typeof current.refusalRevision === "string" && credentialRevision !== undefined && current.refusalRevision !== credentialRevision;
+    if (!decision.acquired || (now < current.nextAllowedAt && !changedRefusal)) return null;
+    const next = { ...current, lastAccount: null, owner: "cli", expiresAt: now + 60_000, token: randomUUID() };
+    await writeFileAtomically(file, canonicalJson(next));
+    return next;
+  });
+  if (state === null) return null;
+  const mutate = async (action: (current: MachinePolicy) => void) => withCacheLock(directory, async () => {
+    const current = await read();
+    if (current.token !== state.token) throw new Error("Acquisition lease lost");
+    action(current);
+    await writeFileAtomically(file, canonicalJson(current));
+  });
+  const started = Date.now();
+  const heartbeat = setInterval(() => {
+    void mutate((current) => {
+      const at = now + Date.now() - started;
+      if (current.owner !== "cli" || at >= current.expiresAt) throw new Error("Acquisition lease expired");
+      current.expiresAt = at + 60_000;
+    }).catch(() => clearInterval(heartbeat));
+  }, 20_000);
+  heartbeat.unref();
+  return {
+    attempts: state.attempts,
+    stillOwned: async (at = Date.now()) => { const current = await read(); return current.token === state.token && current.owner === "cli" && at < current.expiresAt; },
+    complete: async (nextAllowedAt, attempts, refusalRevision) => mutate((current) => { current.nextAllowedAt = nextAllowedAt; current.attempts = attempts; current.refusalRevision = refusalRevision ?? null; }),
+    release: async () => {
+      clearInterval(heartbeat);
+      await mutate((current) => { current.owner = null; current.expiresAt = 0; }).catch(() => undefined);
+    }
+  };
+}
 export const CACHE_LOCK_NAME = "openlimiter.lock";
 
 /** Largest JSON document this package will read into memory. */
@@ -588,7 +718,7 @@ export async function mergeAcquiredSnapshots(
   return await withCacheLock(directory, async () => {
     const cached = await readCacheState(directory);
     const before: CacheState = cached.ok
-      ? cached.state
+      ? { ...cached.state, snapshots: cached.state.snapshots.filter((row) => !(row.provider === report.provider && row.meter === "ACQUISITION" && row.availability !== undefined && row.observedAt <= report.observedAt)) }
       : { snapshots: [], suppressions: [] };
     const held = new Map(
       before.snapshots.map((snapshot) => [snapshotIdentity(snapshot), snapshot])

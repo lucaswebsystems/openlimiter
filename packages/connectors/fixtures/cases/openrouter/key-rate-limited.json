@@ -1,0 +1,16 @@
+{
+  "provider": "openrouter",
+  "case": "key-rate-limited",
+  "reader": "key",
+  "now": "2026-08-07T12:00:00.000Z",
+  "status": 429,
+  "headers": {
+    "retry-after": "120"
+  },
+  "body": {
+    "error": {
+      "code": "rate_limited",
+      "message": "Synthetic error response"
+    }
+  }
+}
