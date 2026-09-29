@@ -420,7 +420,7 @@ describe("P1 audit regressions", () => {
     const capability = await runner(
       powershell,
       ["-NoProfile", "-NonInteractive", "-Command", "'POWERSHELL-CAPABLE'"],
-      5_000
+      30_000
     ).catch(() => ({ ok: false as const }));
     if (!capability.ok) return context.skip("The test host cannot launch Windows PowerShell");
     const previous = process.env["PSModulePath"];
@@ -434,7 +434,7 @@ describe("P1 audit regressions", () => {
           "-Command",
           "$ErrorActionPreference='Stop'; Get-Acl -LiteralPath '" + target.replace(/'/gu, "''") + "' | Out-Null; 'GET-ACL-OK'"
         ],
-        5_000
+        30_000
       );
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.stdout.trim()).toBe("GET-ACL-OK");
@@ -442,7 +442,7 @@ describe("P1 audit regressions", () => {
       if (previous === undefined) delete process.env["PSModulePath"];
       else process.env["PSModulePath"] = previous;
     }
-  });
+  }, 70_000);
 
   it("27 keeps hiding the last provider empty in both renderers, while automatic selection still works", async () => {
     const d = await deps();
