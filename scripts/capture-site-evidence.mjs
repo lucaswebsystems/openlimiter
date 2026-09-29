@@ -29,7 +29,7 @@ const PAGES = [
   { name: "download", path: "/download" },
 ];
 
-function loadPlaywright() {
+export function loadPlaywright() {
   const require = createRequire(path.join(REPOSITORY, "apps/web/package.json"));
   for (const name of ["playwright", "playwright-core"]) {
     try {
@@ -128,7 +128,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}
