@@ -15,7 +15,7 @@
  */
 
 /** The published version this build identifies as. */
-export const ACQUISITION_CLIENT_VERSION = "2.0.0";
+export const ACQUISITION_CLIENT_VERSION = "2.0.1";
 
 /** The only user agent any acquisition request may carry. */
 export const OPENLIMITER_USER_AGENT =

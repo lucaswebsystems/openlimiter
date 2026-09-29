@@ -6,8 +6,6 @@
 
 OpenLimiter 2.0 reads usage limits and agent activity from supported AI tools on your computer and shows them in your desktop Rail, tray, terminal, browser and phone.
 
-This branch prepares 2.0.0. Publication and the final release checks are still pending; the download links below become available when 2.0.0 is published as the latest release.
-
 <p align="center">
   <img src="assets/readme/openlimiter-real-providers.png" width="522" alt="OpenLimiter desktop showing current Codex, Claude, and Antigravity quota windows">
 </p>
