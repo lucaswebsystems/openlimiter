@@ -728,6 +728,8 @@ async function captureDesk(browser, theme, port) {
     waitUntil: "networkidle",
   });
   await page.frameLocator("iframe").locator(".agents-row").nth(2).waitFor();
+  /* The desk shows the window as a person uses it, after What's New is closed. */
+  await closeWhatsNew(page.frameLocator("iframe"));
   await page.waitForTimeout(1200);
   assertCaptureSafe(await page.frameLocator("iframe").locator("body").innerText());
   const name = theme === "light" ? "desktop-app-light.png" : "desktop-app.png";
