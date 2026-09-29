@@ -1,84 +1,74 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
-import { DemoDataChip, SectionHeading, SHELL } from "./ui";
+import { SectionHeading, SHELL } from "./ui";
 import { reveal } from "@/lib/motion";
+import { CURRENT_VERSION } from "@/lib/site";
 
-/**
- * The one large product visual.
- *
- * This used to hold three command line transcripts, because no capture of the
- * desktop application existed. One does now, so the frame holds the product
- * itself: a real window shot of the packaged application, taken against the
- * project's synthetic demo fixtures, which is what the chip and the caption
- * underneath say in the open.
- *
- * SCREENSHOT below is the whole contract with the file. The image is served
- * from public/ at its natural pixel size, and only its width and height are
- * written here, so the capture can be retaken at any time and the frame follows
- * it. Nothing in this component depends on what is inside the picture.
- *
- * The accessible description of what is inside it does depend on it, though,
- * and that string lives in the message catalog (`deviceFrame.screenshot.alt`)
- * rather than on this object, so a locale change does not need a new capture.
- */
-
-interface Screenshot {
-  /** Basename under public/screenshots. The light file adds `-light`. */
-  name: string;
-  width: number;
-  height: number;
+function subscribeTheme(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => observer.disconnect();
 }
 
-const SCREENSHOT: Screenshot = {
-  name: "desktop-app",
-  width: 2560,
-  height: 1600,
-};
+function readTheme() {
+  return document.documentElement.dataset.theme ?? null;
+}
+
+// Dimensions describe the supplied captures, not an upscaled derivative.
+export const PRODUCT_SHOTS = {
+  "desktop-home": { width: 2000, height: 1520, maxWidth: 1000 },
+  "rail-folded": { width: 1280, height: 800, maxWidth: 640 },
+  "rail-unfolded": { width: 1280, height: 800, maxWidth: 640 },
+  "terminal-statusline": { width: 2400, height: 600, maxWidth: 1200 },
+  "phone-1": { width: 1170, height: 2532, maxWidth: 390 },
+  "phone-3": { width: 1170, height: 2532, maxWidth: 390 },
+} as const;
+
+export type ProductShotName = keyof typeof PRODUCT_SHOTS;
+
+export function ProductShot({ name, alt }: { name: ProductShotName; alt: string }) {
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => null);
+  const shot = PRODUCT_SHOTS[name];
+  const phone = name.startsWith("phone-");
+  const srcSet = (light: boolean) => {
+    const path = `/screenshots/${name}${light ? "-light" : ""}`;
+    return `${path}@1x.webp 1x, ${path}@2x.webp 2x${phone ? `, ${path}@3x.webp 3x` : ""}`;
+  };
+  return (
+    <div className="elev-1 mx-auto w-full overflow-hidden rounded-xl border border-hairline bg-frame p-[var(--ol-space-2)]" style={{ maxWidth: shot.maxWidth }}>
+      <picture>
+        <source type="image/webp" media={theme === null ? "(prefers-color-scheme: light)" : theme === "light" ? "all" : "not all"} srcSet={srcSet(true)} />
+        <source type="image/webp" srcSet={srcSet(false)} />
+        {/* One image per capture: hidden theme images cannot compete for priority. */}
+        <img className="h-auto w-full rounded-lg" src={`/screenshots/${name}${theme === "light" ? "-light" : ""}.png`} alt={alt} width={shot.width} height={shot.height} loading="lazy" decoding="async" />
+      </picture>
+    </div>
+  );
+}
+
+export function ProductFigure({ name, alt, caption, className = "" }: { name: ProductShotName; alt: string; caption: string; className?: string }) {
+  const t = useTranslations("common");
+  return (
+    <figure className={`min-w-0 text-center ${className}`}>
+      <ProductShot name={name} alt={alt} />
+      <figcaption className="mx-auto mt-[var(--ol-space-4)] flex max-w-2xl flex-col items-center gap-[var(--ol-space-2)] text-sm leading-relaxed text-body">
+        <p>{caption}</p>
+        <span className="inline-flex items-center justify-center rounded-full border border-hairline bg-raised px-[var(--ol-space-3)] py-[var(--ol-space-1)] text-xs font-medium text-heading">{t("demoData")}</span>
+      </figcaption>
+    </figure>
+  );
+}
 
 export function DeviceFrame() {
   const t = useTranslations("deviceFrame");
-  const alt = t("screenshot.alt");
-  const common = {
-    width: SCREENSHOT.width,
-    height: SCREENSHOT.height,
-    className: "h-auto w-full rounded-lg sm:rounded-xl",
-  };
+  const release = useTranslations("home.release");
   return (
-    /* A real section, not a bare picture: air after the fold, a heading a
-       reader can scan to, one lead sentence, then the frame. Lucas's call
-       (2026-08-10) after the fold shipped with the image butted straight
-       against the footage. */
-    <section className={`${SHELL} relative py-16 md:py-24`}>
+    <section className={`${SHELL} relative py-[var(--ol-space-7)] text-center`}>
       <SectionHeading title={t("title")} lead={t("lead")} />
-      <div {...reveal} data-scroll-pin="">
-        <div className="elev-2 overflow-hidden rounded-xl border border-hairline bg-frame p-2 sm:rounded-2xl sm:p-3">
-          {/* The pair. Same file name, same dimensions, one of them hidden by
-              the theme, so the largest visual on the page belongs to whichever
-              theme the reader is actually in. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            {...common}
-            alt={alt}
-            src={`/screenshots/${SCREENSHOT.name}.png`}
-            fetchPriority="high"
-            className={`shot-dark ${common.className}`}
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            {...common}
-            alt={alt}
-            src={`/screenshots/${SCREENSHOT.name}-light.png`}
-            loading="lazy"
-            className={`shot-light ${common.className}`}
-          />
-        </div>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-2xl text-xs leading-relaxed text-muted">
-            {t("caption")}
-          </p>
-          <span className="flex-none">
-            <DemoDataChip />
-          </span>
-        </div>
+      <div {...reveal}>
+        <ProductFigure name="desktop-home" alt={release("agents.alt", { version: CURRENT_VERSION })} caption={t("caption")} />
       </div>
     </section>
   );

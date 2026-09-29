@@ -97,22 +97,18 @@ export async function Faq() {
       <h2 className="text-center text-3xl font-medium text-heading" {...reveal}>
         {t("title")}
       </h2>
-      {/* Two columns from the large breakpoint. A single column ran past a
-          screen height on its own; in two they read as a block, and each item
-          is a self contained card so an open answer pushes only its own
-          column. */}
-      <div className="grid gap-3 lg:grid-cols-2 lg:gap-x-4" {...revealGroup}>
+      <div className="grid grid-cols-1 items-stretch gap-[var(--ol-space-4)] lg:grid-cols-4" {...revealGroup}>
         {items.map((item, index) => (
           <details
             key={FAQ_IDS[index]}
-            className="lift-sm elev-1 group h-fit rounded-xl border border-hairline bg-surface transition-colors hover:border-hairline-strong open:border-hairline-strong open:bg-raised"
+            className="lift-sm elev-1 group text-center lg:col-span-2 lg:last:odd:col-start-2 rounded-xl border border-hairline bg-surface transition-colors hover:border-hairline-strong open:border-hairline-strong open:bg-raised"
             {...reveal}
           >
-            <summary className="focus-ring-inset flex cursor-pointer list-none items-start gap-3 rounded-xl px-4 py-3.5 text-sm font-medium text-heading transition-colors duration-200 group-hover:text-accent">
+            <summary className="focus-ring-inset flex cursor-pointer list-none min-h-20 items-center justify-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium text-heading transition-colors duration-200 group-hover:text-accent">
               <Chevron />
               <span className="heading-face min-w-0">{item.question}</span>
             </summary>
-            <div className="border-t border-hairline px-4 py-3.5 pl-11 text-sm leading-relaxed text-muted">
+            <div className="border-t border-hairline px-4 py-3.5 text-sm leading-relaxed text-muted">
               {item.answer}
             </div>
           </details>

@@ -1,43 +1,9 @@
 import { useTranslations } from "next-intl";
-import { preload } from "react-dom";
-import { HeroFoldMedia } from "./hero-backdrop";
 import { SiteLink } from "./site-link";
 import { heroMarks, toolTitle } from "./tool-marks";
 import { ButtonLink, SHELL } from "./ui";
-import { HERO_BACKDROP_ENABLED } from "@/lib/site";
 
-/**
- * The first fold, the full Perpeta pattern (founder's order, 2026-08-10).
- *
- * The whole fold is the footage: 100svh, full width, a dark island in both
- * themes, with the copy sitting left and vertically centred over it. Two
- * measured scrims carry the legibility, the lateral curtain for the copy and
- * the top scrim for the header zone; both live in globals.css with the
- * numbers that closed them. The sticky header floats transparent over all of
- * it, which is why this section pulls itself up under the header's flow slot.
- *
- * NO GREY AND NO ALPHA IN THE FOLD, on purpose. Alpha has no contrast of its
- * own (it depends on the frame passing behind it), and the site's muted grey
- * would need a near opaque scrim to reach AA over footage. So the title, the
- * lead, the disclaimer, the links and the supports row all ride the same near
- * white, and SIZE alone carries the hierarchy. That is the pattern's own
- * rule, kept whole.
- *
- * No button in the fold is transparent either: a ghost outline over a moving
- * picture is whatever the frame behind it says it is. The primary keeps its
- * white solid; everything else sits on a solid surface fill.
- *
- * Nine targets, honestly. Available desktop platforms, the macOS coming soon
- * status, mobile install guides and npm go to their rows on the download page.
- * The web app is a route on this site, GitHub is the repository, and the docs
- * stay on this site. Labels describe the state without turning a planned build
- * into a download.
- *
- * The entrance runs on the fold-enter CSS classes rather than the scroll
- * reveal system: the title and lead are born visible and animate transform
- * only, so the fold's largest paint never waits for hydration.
- */
-
+/** Centered introduction and platform actions, followed by the real product capture. */
 function WindowsGlyph() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
@@ -190,21 +156,6 @@ export function Hero() {
      `tools.title` catalog entries rather than for `hero` itself. */
   const tToolTitle = useTranslations("tools.title");
 
-  /* The poster would otherwise be discovered only when the stylesheet lays
-     the media layer out, which measured 991 to 1491ms into the load. The
-     preload puts the request in the document head with high priority, so the
-     fold's first frame is on the wire before the CSS has finished parsing. */
-  if (HERO_BACKDROP_ENABLED) {
-    preload("/backdrop/hero-backdrop.jpg", { as: "image", fetchPriority: "high" });
-  }
-
-  /* Everything between the media layer and the pause control, in reading
-     order. It is handed to the media component as children so the pause
-     control can sit AFTER the fold's links and buttons in the DOM: a keyboard
-     reaches the headline, the downloads and the two links first, and the
-     pill last, whatever the pill's visual position. Paint order is untouched:
-     the media layer has no z-index, the copy block sits at z-10, the pill at
-     z-20. */
   const inner = (
     <>
       {/* The header watcher's top marker: exactly one bar height tall, pinned
@@ -214,19 +165,11 @@ export function Hero() {
           frosted dark coat takes over. Its height follows the token across
           the breakpoint, so the boundary can never go stale. */}
       <div aria-hidden="true" className="hero-fold-sentinel" />
-      <div aria-hidden="true" className="hero-scrim-side" />
-      <div aria-hidden="true" className="hero-scrim-top" />
 
-      {/* The centering box excludes the header's band: the bar floats OVER the
-          fold, so content centered in the full height can rise underneath it on
-          a small screen, which put the headline behind the controls the day the
-          bar grew. Reserving the bar's own height plus a small gap above (and a
-          matching breath below) keeps the centre optically where it was while
-          making the collision impossible at any viewport. */}
-      <div className="relative z-10 flex min-h-[inherit] items-center pb-4 pt-[calc(var(--ol-header-h)+0.5rem)] lg:pb-20">
-        <div className={`${SHELL} w-full`}>
+      <div className="relative z-10 pt-[calc(var(--ol-header-h)+var(--ol-space-7))] pb-[var(--ol-space-6)]">
+        <div className={`${SHELL} w-full text-center`}>
           <div>
-            <h1 className="fold-enter fold-enter-title text-[1.375rem] font-medium leading-tight tracking-tight text-heading min-[400px]:text-2xl sm:text-4xl lg:text-[3.25rem]">
+            <h1 className="fold-enter fold-enter-title text-3xl font-medium leading-tight tracking-tight text-heading sm:text-4xl lg:text-5xl">
               {/* One flowing paragraph on a phone, two measured lines from the
                  large breakpoint: the founder wants three lines on mobile, not
                  a hard break that costs five. */}
@@ -242,7 +185,7 @@ export function Hero() {
               </span>
             </h1>
 
-            <p className="fold-enter fold-enter-lead mt-6 max-w-xl text-lg leading-relaxed text-body">
+            <p className="fold-enter fold-enter-lead mx-auto mt-[var(--ol-space-5)] max-w-2xl text-lg leading-relaxed text-body">
               {t("lead")}
             </p>
 
@@ -251,43 +194,43 @@ export function Hero() {
                downloads on the first line, the two phone installs on the
                second, the terminal with the blue web app beside it on the
                third, and nothing else. */}
-            <div className="fold-enter fold-enter-row mt-9 space-y-3">
+            <div className="fold-enter fold-enter-row mx-auto mt-[var(--ol-space-6)] max-w-3xl space-y-[var(--ol-space-3)]">
               {/* A phone gets the three paths a phone can take, the founder's
                  order (2026-08-11): the web app and the two install guides.
                  The desktop platforms and the terminal appear from the large
                  breakpoint, where they mean something. Separate rows per
                  breakpoint rather than utility overrides on one row, because
                  a display utility on a button fights the button's own. */}
-              <div className="hidden flex-wrap gap-3 lg:flex">
-                <ButtonLink href="/download#windows" tone="primary" className="h-11 gap-2 whitespace-nowrap" label={t("rows.windows")}>
+              <div className="hidden grid-cols-3 gap-[var(--ol-space-3)] lg:grid">
+                <ButtonLink href="/download#windows" tone="solid" className="min-h-11 gap-2 !text-[var(--ol-fixed-dark-on-accent)]" label={t("rows.windows")}>
                   <WindowsGlyph />
                   {t("rows.windows")}
                 </ButtonLink>
-                <ButtonLink href="/download#macos" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.macos")}>
+                <ButtonLink href="/download#macos" tone="solid" className="min-h-11 gap-2 !text-[var(--ol-fixed-dark-on-accent)]" label={t("rows.macos")}>
                   <AppleGlyph />
                   {t("rows.macos")}
                 </ButtonLink>
-                <ButtonLink href="/download#linux" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.linux")}>
+                <ButtonLink href="/download#linux" tone="solid" className="min-h-11 gap-2 !text-[var(--ol-fixed-dark-on-accent)]" label={t("rows.linux")}>
                   <LinuxGlyph />
                   {t("rows.linux")}
                 </ButtonLink>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap justify-center gap-[var(--ol-space-3)]">
                 <ButtonLink href="/app" tone="solid" className="h-11 gap-2 whitespace-nowrap !border-transparent !bg-accent-solid !text-on-accent hover:!bg-accent-solid-hover lg:hidden" label={t("rows.webApp")}>
                   <GlobeGlyph />
                   {t("rows.webApp")}
                 </ButtonLink>
-                <ButtonLink href="/download#iphone" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.iphone")}>
+                <ButtonLink href="/download#iphone" tone="solid" className="min-h-11 gap-2 !text-[var(--ol-fixed-dark-on-accent)]" label={t("rows.iphone")}>
                   <IphoneGlyph />
                   {t("rows.iphone")}
                 </ButtonLink>
-                <ButtonLink href="/download#android" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.android")}>
+                <ButtonLink href="/download#android" tone="solid" className="min-h-11 gap-2 !text-[var(--ol-fixed-dark-on-accent)]" label={t("rows.android")}>
                   <AndroidGlyph />
                   {t("rows.android")}
                 </ButtonLink>
               </div>
-              <div className="hidden flex-wrap gap-3 lg:flex">
-                <ButtonLink href="/download#npm" tone="solid" className="h-11 gap-2 whitespace-nowrap" label={t("rows.cli")}>
+              <div className="hidden grid-cols-2 gap-[var(--ol-space-3)] lg:grid">
+                <ButtonLink href="/download#npm" tone="solid" className="min-h-11 gap-2 !text-[var(--ol-fixed-dark-on-accent)]" label={t("rows.cli")}>
                   <TerminalGlyph />
                   {t("rows.cli")}
                 </ButtonLink>
@@ -302,21 +245,18 @@ export function Hero() {
         </div>
       </div>
 
-      {/* The supports row rides the fold's bottom edge, the founder's call:
-         the disclaimer and the all downloads link left the fold entirely, the
-         download page owns that story. */}
-      <div className="absolute inset-x-0 bottom-6 z-10 hidden lg:block">
+      <div className="relative z-10 pb-[var(--ol-space-6)]">
         <div className={SHELL}>
-          <div className="fold-enter fold-enter-marks flex flex-wrap items-center gap-2">
+          <div className="fold-enter fold-enter-marks flex flex-wrap items-center justify-center gap-[var(--ol-space-4)] text-center">
             <span className="text-xs text-body">{t("supports.label")}</span>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-[var(--ol-space-4)]">
               {heroMarks.map((tool) => (
                 <span
                   key={tool.name}
                   title={toolTitle(tool, tToolTitle)}
                   className="inline-flex items-center justify-center text-heading"
                 >
-                  <tool.Mark className="h-[18px] w-[18px]" />
+                  <tool.Mark className="h-6 w-6" />
                   <span className="sr-only">{toolTitle(tool, tToolTitle)}</span>
                 </span>
               ))}
@@ -334,19 +274,10 @@ export function Hero() {
   );
 
   return (
-    <section className="hero-fold hero-dark-island w-full">
+    <section className="hero-fold hero-dark-island w-full bg-canvas" style={{ minHeight: "auto" }}>
       {/* Runs at parse time, before the header can paint. See the note above. */}
       <script dangerouslySetInnerHTML={{ __html: FOLD_SYNC_SCRIPT }} />
-      {/* The one flag from lib/site.ts switches the footage alone: with it
-          off, the fold is the same dark island on its plain canvas, and no
-          poster, video or pause control reaches the page. */}
-      {HERO_BACKDROP_ENABLED ? (
-        <HeroFoldMedia playLabel={t("backdrop.play")} pauseLabel={t("backdrop.pause")}>
-          {inner}
-        </HeroFoldMedia>
-      ) : (
-        inner
-      )}
+      {inner}
     </section>
   );
 }

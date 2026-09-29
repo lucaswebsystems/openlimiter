@@ -72,7 +72,7 @@ export function GitHubMark({ className = "h-4 w-4" }: { className?: string }) {
 export function GoogleMark({ className = "h-4 w-4" }: { className?: string }) {
   /* eslint-disable-next-line @next/next/no-img-element -- a brand mark served
      verbatim, at its intrinsic size, with no optimisation pass over it. */
-  return <img src="/marks/google-g.svg" alt="" aria-hidden="true" className={`${className} flex-none`} />;
+  return <img width={48} height={48} src="/marks/google-g.svg" alt="" aria-hidden="true" className={`${className} flex-none`} />;
 }
 
 /**

@@ -24,7 +24,7 @@ export function BrandMark({
   draw?: boolean;
   variant?: "full" | "small";
 }) {
-  return <img src={BRAND_MARK_DATA_URI} className={className} alt="" aria-hidden="true" />;
+  return <img width={400} height={400} src={BRAND_MARK_DATA_URI} className={className} alt="" aria-hidden="true" />;
 }
 
 /**
@@ -42,8 +42,8 @@ export function BrandLockup({
   const size = heightClasses(markClassName);
   return (
     <span className={`brand-lockup relative inline-grid flex-none ${size}`} role="img" aria-label="OpenLimiter">
-      <img className="brand-lockup-image brand-lockup-light h-full w-auto" src={BRAND_LOCKUP_LIGHT_DATA_URI} alt="" />
-      <img className="brand-lockup-image brand-lockup-dark h-full w-auto" src={BRAND_LOCKUP_DARK_DATA_URI} alt="" />
+      <img width={344} height={72} className="brand-lockup-image brand-lockup-light h-full w-auto" src={BRAND_LOCKUP_LIGHT_DATA_URI} alt="" />
+      <img width={344} height={72} className="brand-lockup-image brand-lockup-dark h-full w-auto" src={BRAND_LOCKUP_DARK_DATA_URI} alt="" />
     </span>
   );
 }
