@@ -247,8 +247,12 @@ function readingsFor(
       .filter((reading) => !isAvailabilitySnapshot(reading.snapshot))
       .map((reading) => reading.snapshot.accountId)
   );
+  // Only measured readings are drawn: a provider that cannot be measured right
+  // now is left out of the line entirely, exactly as it is left off Home.
+  // Unlimited is an answer, not a failure, so it stays.
   return readings.filter((reading) =>
-    !isAvailabilitySnapshot(reading.snapshot) || !measuredAccounts.has(reading.snapshot.accountId)
+    !isAvailabilitySnapshot(reading.snapshot) ||
+    reading.snapshot.availability === "unlimited" && !measuredAccounts.has(reading.snapshot.accountId)
   );
 }
 
@@ -538,20 +542,8 @@ export function barStyleCells(
 
     const readings = readingsFor(snapshots, provider, now).filter(({ snapshot }) =>
       visibility[windowCode(snapshot)] !== false);
-    if (readings.length === 0) {
-      // A dormant account stays omitted even when its provider was selected.
-      const rows = snapshots.filter((snapshot) => snapshot.provider === provider);
-      const dormant = rows.length > 0 && rows.every((snapshot) =>
-        Date.parse(now) - Date.parse(snapshot.observedAt) > ONE_DAY * 1000);
-      const windowsHidden = readingsFor(snapshots, provider, now).length > 0;
-      const chosen = visibility[provider.toLowerCase()] === true ||
-        allowedProviders?.has(provider.toLowerCase()) || allowedProviders?.has(shortTag);
-      if (chosen && !dormant && !windowsHidden) {
-        const plain = shortTag + " [?]";
-        cells.push({ plain, painted: color ? shortTag + " \x1b[31m[?]\x1b[0m" : plain, percent: Infinity });
-      }
-      continue;
-    }
+    // Nothing measured means nothing drawn, even for a provider someone chose.
+    if (readings.length === 0) continue;
 
     let selectedReadings: Reading[] = [];
     if (provider === hostProvider) {
@@ -653,7 +645,9 @@ function renderBarStatusline(input: StatuslineLayoutInput): string {
   const parts: string[] = [];
   const identity = [shown("model") ? session.model : undefined, shown("effort") ? session.effort : undefined].filter(Boolean).join(" ");
   if (identity) parts.push(identity);
-  if (shown("dir") && session.dir) parts.push(session.dir);
+  // The folder is opt in: the line goes from model and effort straight to the
+  // context window unless someone runs `openlimiter terminal show dir`.
+  if (config.visibility?.["dir"] === true && session.dir) parts.push(session.dir);
   if (shown("ctx") && session.ctx !== undefined) parts.push("ctx " + Math.round(session.ctx) + "%");
   parts.push(...cells.map((cell) => cell.painted));
   if (shown("style") && session.style) parts.push(session.style);

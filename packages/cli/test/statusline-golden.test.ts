@@ -41,9 +41,9 @@ describe("account and freshness status line goldens", () => {
     expect(render([row({ observedAt: ago(seconds), expiresAt: ago(seconds - 60) })]))
       .toBe("5h [████░░░░░░] ~42%");
   });
-  it("marks explicitly selected providers without readings as unknown", () => {
+  it("leaves explicitly selected providers without readings out", () => {
     expect(render([row({ value: 16 })], ["claude", "codex", "antigravity", "gemini_cli", "openrouter"]))
-      .toBe("5h [█░░░░░░░░░] 16% | cx [?] | ag [?] | gm [?] | or [?]");
+      .toBe("5h [█░░░░░░░░░] 16%");
   });
   it("marks stale spend and unknown window readings", () => {
     expect(render([row({ provider: "GROK", meter: "SPEND", usedAmount: 12.5, currency: "USD", observedAt: ago(900) })]))
@@ -52,16 +52,16 @@ describe("account and freshness status line goldens", () => {
       .toBe("gk [████░░░░░░] ~42%");
   });
   it.each([
-    ["missing_credentials", "signed out"],
-    ["expired_credentials", "credential expired"],
-    ["access_denied", "access denied"],
-    ["missing_subscription", "subscription missing"],
+    ["missing_credentials", null],
+    ["expired_credentials", null],
+    ["access_denied", null],
+    ["missing_subscription", null],
     ["unlimited", "unlimited"],
-    ["quota_unavailable", "quota unavailable"],
-    ["rate_limited", "rate limited until 14:05"],
-    ["network_failure", "network failure"],
-    ["schema_drift", "schema changed"]
-  ] as const)("renders availability %s as words", (availability, expected) => {
+    ["quota_unavailable", null],
+    ["rate_limited", null],
+    ["network_failure", null],
+    ["schema_drift", null]
+  ] as const)("hides availability %s unless it is unlimited", (availability, expected) => {
     expect(render([row({
       provider: "CODEX",
       meter: "ACQUISITION",
@@ -69,11 +69,11 @@ describe("account and freshness status line goldens", () => {
       window: { kind: "unknown" },
       availability,
       ...(availability === "rate_limited" ? { retryAt: "2026-01-01T14:05:00.000Z" } : {})
-    })])).toBe("cx " + expected);
+    })])).toBe(expected === null ? "OpenLimiter UNKNOWN" : "cx " + expected);
   });
-  it("renders an acquisition placeholder without inventing a percentage", () => {
+  it("leaves an acquisition placeholder out instead of inventing a percentage", () => {
     expect(render([row({ provider: "CODEX", meter: "ACQUISITION", value: 0, window: { kind: "unknown" } })]))
-      .toBe("cx not measured");
+      .toBe("OpenLimiter UNKNOWN");
   });
   it("omits a stale acquisition placeholder beside a stale real reading for the same account", () => {
     const accountId = "account-one";

@@ -79,7 +79,7 @@ describe("built statusline entry on a fresh install", () => {
       noColor ? text : `\x1b[${code}m${text}\x1b[0m`;
     expect(readFileSync(errors, "utf8")).toBe("");
     expect(readFileSync(output, "utf8")).toBe(
-      "opus-5-5 high | project | ctx 31% | 5h " +
+      "opus-5-5 high | ctx 31% | 5h " +
       paint(`[${bar}]`, band) + " " + paint(`${used}%`, band) + " ·3h20m | 7d " +
       paint("[██░░░░░░░░]", 32) + " " + paint("27%", 32) + " ·4d2h\n"
     );

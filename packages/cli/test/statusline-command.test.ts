@@ -20,8 +20,8 @@ const payload = (directory = "/work/Olá projeto") => ({
     seven_day: { used_percentage: 65, resets_at: "2026-01-05T02:00:00Z" }
   }
 });
-const plain = "opus-5-5 high | Olá projeto | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██████░░░░] 65% ·4d2h | cx7d [████████░░] 85% ·4d2h | concise";
-const painted = "opus-5-5 high | Olá projeto | ctx 42% | 5h \x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m ·3h20m | 7d \x1b[33m[██████░░░░]\x1b[0m \x1b[33m65%\x1b[0m ·4d2h | cx7d \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m85%\x1b[0m ·4d2h | concise";
+const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██████░░░░] 65% ·4d2h | cx7d [████████░░] 85% ·4d2h | concise";
+const painted = "opus-5-5 high | ctx 42% | 5h \x1b[32m[█░░░░░░░░░]\x1b[0m \x1b[32m17%\x1b[0m ·3h20m | 7d \x1b[33m[██████░░░░]\x1b[0m \x1b[33m65%\x1b[0m ·4d2h | cx7d \x1b[38;5;208m[████████░░]\x1b[0m \x1b[38;5;208m85%\x1b[0m ·4d2h | concise";
 
 const roots: string[] = [];
 async function seeded(): Promise<string> {
