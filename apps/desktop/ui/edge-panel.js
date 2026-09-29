@@ -8,7 +8,7 @@
  * of the screen, so the panel scrolls only past the clamp. It is told when it
  * is shown or hidden, and polls only while it is seen.
  */
-import { limitsModel, officialMark, projectReadings, renderLimits, updatedLabel } from "./readings.js";
+import { holdReadings, limitsModel, officialMark, projectReadings, renderLimits, updatedLabel } from "./readings.js";
 import { agentsModel, locateSentence, renderAgents, runningLabel } from "./agents.js";
 import { freshestObservation } from "./home-refresh.js";
 import { say } from "./names.js";
@@ -28,12 +28,15 @@ export async function openMainWindow(tauri) {
 export const PANEL_SHOWN_EVENT = "edge-panel-shown";
 
 /**
- * The height the panel's content needs, in CSS pixels: the card as drawn,
- * minus the scroller's visible part, plus everything the scroller holds, plus
- * the inset around the card (none where the card fills the window).
+ * The height the panel's content needs, in CSS pixels: the card's own head and
+ * foot (the card as drawn minus the scroller's visible part), plus the content
+ * the scroller holds, plus the inset around the card (none where the card
+ * fills the window). The content is measured on its own wrapper, never on the
+ * scroller: where the card is stretched to the window (macOS) the scroller is
+ * as tall as the window whatever it holds, and the panel could never shrink.
  */
-export function naturalHeight(card, scroll) {
-  return Math.ceil(2 * card.offsetTop + card.offsetHeight - scroll.clientHeight + scroll.scrollHeight);
+export function naturalHeight(card, scroll, content) {
+  return Math.ceil(2 * card.offsetTop + card.offsetHeight - scroll.clientHeight + content.offsetHeight);
 }
 
 /**
@@ -47,7 +50,7 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   const invoke = tauri.core.invoke;
   const $ = (id) => doc.getElementById(id);
   const view = {
-    card: $("panel-card"), scroll: $("panel-scroll"),
+    card: $("panel-card"), scroll: $("panel-scroll"), content: $("panel-content"),
     updated: $("panel-updated"), agents: $("panel-agents"), agentRows: $("panel-agent-rows"), note: $("panel-note"),
     limits: $("panel-limits"), state: $("panel-state"), stateTitle: $("panel-state-title"), stateDetail: $("panel-state-detail"),
     running: $("panel-running"), runningText: $("panel-running-text"), open: $("panel-open"),
@@ -58,6 +61,8 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   let drawnLimits = "";
   let drawnAgents = "";
   let reported = 0;
+  // The rows last drawn, so a failed read keeps what is still fresh of them.
+  let held = [];
   // Without an event channel the panel cannot know it is hidden, so it keeps
   // polling rather than going stale.
   const listen = tauri.event?.listen;
@@ -65,7 +70,7 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   let unlisten = null;
 
   const reportHeight = () => {
-    const height = naturalHeight(view.card, view.scroll);
+    const height = naturalHeight(view.card, view.scroll, view.content);
     if (!Number.isFinite(height) || height <= 0 || height === reported) return;
     reported = height;
     void Promise.resolve(invoke("plugin:rail|rail_card_height", { height })).catch(() => {});
@@ -92,24 +97,24 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
         invoke("read_cache"), invoke("read_manual"), invoke("plugin:rail|rail_snapshot", {}),
       ]);
       if (stopped) return;
-      if (cache.status === "rejected") {
-        drawnLimits = "";
-        view.limits.hidden = true;
-        view.updated.textContent = "";
-        state(say("unavailable"));
-      } else {
-        const readings = projectReadings(cache.value, manual.status === "fulfilled" ? manual.value : null, at);
-        const model = limitsModel(readings.snapshots, at);
-        const key = JSON.stringify(model);
-        if (key !== drawnLimits) {
-          drawnLimits = key;
-          renderLimits(doc, view.limits, model, { compact: true });
-        }
-        view.limits.hidden = model.length === 0;
-        view.updated.textContent = model.length ? updatedLabel(freshestObservation(readings.snapshots), at) : "";
-        if (model.length) state(null);
-        else state(say("emptyTitle"), say("emptyPanel"));
+      /* A failed read (native code rejects a cache it cannot read or parse)
+         keeps what is still fresh of the rows already drawn, by the one
+         freshness policy, exactly as Home does; only nothing left to show
+         reads as unavailable. */
+      held = cache.status === "rejected"
+        ? holdReadings(held, at)
+        : projectReadings(cache.value, manual.status === "fulfilled" ? manual.value : null, at).snapshots;
+      const model = limitsModel(held, at);
+      const limitsKey = JSON.stringify(model);
+      if (limitsKey !== drawnLimits) {
+        drawnLimits = limitsKey;
+        renderLimits(doc, view.limits, model, { compact: true });
       }
+      view.limits.hidden = model.length === 0;
+      view.updated.textContent = model.length ? updatedLabel(freshestObservation(held), at) : "";
+      if (model.length) state(null);
+      else if (cache.status === "rejected") state(say("unavailable"));
+      else state(say("emptyTitle"), say("emptyPanel"));
       const sessions = rail.status === "fulfilled" && Array.isArray(rail.value?.sessions) ? rail.value.sessions : null;
       const agents = agentsModel(sessions, Date.parse(at));
       const key = JSON.stringify(agents);
@@ -134,7 +139,9 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   };
   const escape = (event) => { if (event.key === "Escape") close(); };
   // Shown: read now and keep reading. Hidden: stop until the next open.
+  let heard = false;
   const onShown = (event) => {
+    heard = true;
     shown = event?.payload === true;
     cancel(timer);
     if (shown) void refresh();
@@ -142,9 +149,14 @@ export function startPanel(doc, tauri, { schedule = globalThis.setTimeout, cance
   view.open.addEventListener("click", openApp);
   doc.addEventListener("keydown", escape);
   if (!shown) {
-    Promise.resolve(listen(PANEL_SHOWN_EVENT, onShown)).then((stop) => {
-      if (stopped) stop?.();
-      else unlisten = stop;
+    Promise.resolve(listen(PANEL_SHOWN_EVENT, onShown)).then(async (stop) => {
+      if (stopped) return stop?.();
+      unlisten = stop;
+      /* A panel already open when the listener arrived missed its shown
+         event: the snapshot says whether it is open. An event heard since is
+         newer than the snapshot, so it wins. */
+      const rail = await Promise.resolve(invoke("plugin:rail|rail_snapshot", {})).catch(() => null);
+      if (!stopped && !heard && rail?.window?.cardOpen === true) onShown({ payload: true });
     }).catch(() => { shown = true; void refresh(); });
   }
   void refresh();

@@ -7,33 +7,38 @@ import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 import { naturalHeight, openMainWindow, PANEL_SHOWN_EVENT, startPanel } from "./dist/edge-panel.js";
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
-const IDS = ["panel-card", "panel-scroll", "panel-updated", "panel-agents", "panel-agent-rows", "panel-note", "panel-limits",
-  "panel-state", "panel-state-title", "panel-state-detail", "panel-running", "panel-running-text", "panel-open"];
+const IDS = ["panel-card", "panel-scroll", "panel-content", "panel-updated", "panel-agents", "panel-agent-rows", "panel-note",
+  "panel-limits", "panel-state", "panel-state-title", "panel-state-detail", "panel-running", "panel-running-text", "panel-open"];
+// What native code hands the window when it cannot read or parse the cache.
+const UNREADABLE = "The saved readings could not be read.";
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-function panel({ cache, sessions = [], windows, event, content = 300 } = {}) {
+function panel({ cache, sessions = [], windows, event, content = 300, cardOpen = false } = {}) {
   const fixtures = messyFixtures(NOW);
   const doc = fakeDocument(IDS);
   // The card sits 12 pixels in, is 400 tall, and shows 300 of the scroller.
   Object.assign(doc.getElementById("panel-card"), { offsetTop: 12, offsetHeight: 400 });
-  Object.assign(doc.getElementById("panel-scroll"), { clientHeight: 300, scrollHeight: content });
+  Object.assign(doc.getElementById("panel-scroll"), { clientHeight: 300 });
+  Object.assign(doc.getElementById("panel-content"), { offsetHeight: content });
   const calls = [];
   const scheduled = [];
+  // What the next reads answer, and the clock, both changeable mid test.
+  const source = { cache, at: NOW };
   const invoke = async (command, args) => {
     calls.push([command, args]);
     if (command === "read_cache") {
-      if (cache === "fail") throw new Error("fixture failure");
-      return JSON.stringify(cache ?? fixtures.projected);
+      if (source.cache === "fail") throw UNREADABLE;
+      return JSON.stringify(source.cache ?? fixtures.projected);
     }
     if (command === "read_manual") return "";
-    if (command === "plugin:rail|rail_snapshot") return { accounts: [], flags: [], sessions };
+    if (command === "plugin:rail|rail_snapshot") return { accounts: [], flags: [], sessions, window: { cardOpen } };
     if (command === "plugin:activity|activity_locate") return "focused";
     return null;
   };
   const stop = startPanel(doc, { core: { invoke }, window: windows, event }, {
-    now: () => new Date(NOW).toISOString(), schedule: (callback) => { scheduled.push(callback); return scheduled.length; }, cancel: () => {},
+    now: () => new Date(source.at).toISOString(), schedule: (callback) => { scheduled.push(callback); return scheduled.length; }, cancel: () => {},
   });
-  return { doc, calls, scheduled, stop, fixtures, view: (id) => doc.getElementById(id) };
+  return { doc, calls, scheduled, stop, fixtures, source, view: (id) => doc.getElementById(id) };
 }
 
 test("the panel draws Home's projection in its column form, tightest first", async () => {
@@ -83,6 +88,35 @@ test("honest states: loading, nothing measurable yet, and unavailable", async ()
   broken.stop();
 });
 
+test("a failed read keeps the still fresh rows it drew, and only an empty hand reads as unavailable", async () => {
+  const { view, scheduled, source, stop } = panel();
+  await flush();
+  const providers = () => view("panel-limits").all((node) => "providerCard" in node.dataset).map((card) => card.dataset.provider);
+  assert.deepEqual(providers(), ["CODEX", "CLAUDE", "OPENROUTER"]);
+  // Native code rejects a cache it cannot read or parse (a sharing violation mid replace).
+  source.cache = "fail";
+  await scheduled.at(-1)();
+  assert.deepEqual(providers(), ["CODEX", "CLAUDE", "OPENROUTER"], "nothing drawn is dropped while it is still fresh");
+  assert.equal(view("panel-limits").hidden, false);
+  assert.equal(view("panel-state").hidden, true);
+  // Seven minutes on the desktop Codex row has expired by the one freshness policy.
+  source.at = NOW + 7 * 60_000;
+  await scheduled.at(-1)();
+  assert.deepEqual(providers(), ["CLAUDE", "OPENROUTER"]);
+  // Half an hour on nothing held is fresh, and the panel says it cannot read.
+  source.at = NOW + 30 * 60_000;
+  await scheduled.at(-1)();
+  assert.equal(view("panel-limits").hidden, true);
+  assert.equal(view("panel-state-title").textContent, "Your limits are unavailable right now.");
+  assert.equal(view("panel-updated").textContent, "");
+  // A good read draws again.
+  source.cache = undefined;
+  source.at = NOW;
+  await scheduled.at(-1)();
+  assert.deepEqual(providers(), ["CODEX", "CLAUDE", "OPENROUTER"]);
+  stop();
+});
+
 test("Open app brings the main window forward and closes the panel; Escape closes it", async () => {
   const steps = [];
   const main = { show: async () => steps.push("show"), unminimize: async () => steps.push("unminimize"), setFocus: async () => steps.push("focus") };
@@ -111,15 +145,17 @@ test("polls serialize and nothing is redrawn when nothing changed", async () => 
 });
 
 test("the panel reports the height its content needs, and only when it changes", async () => {
-  assert.equal(naturalHeight({ offsetTop: 12, offsetHeight: 400 }, { clientHeight: 300, scrollHeight: 520 }), 644);
-  assert.equal(naturalHeight({ offsetTop: 0, offsetHeight: 480 }, { clientHeight: 380, scrollHeight: 200 }), 300);
+  // Floating card: 12 pixels of inset, a 100 pixel head and foot, 520 of content.
+  assert.equal(naturalHeight({ offsetTop: 12, offsetHeight: 400 }, { clientHeight: 300 }, { offsetHeight: 520 }), 644);
+  // macOS: the card is the window, 480 tall, and its content needs only 200 of the 380 the scroller shows.
+  assert.equal(naturalHeight({ offsetTop: 0, offsetHeight: 480 }, { clientHeight: 380 }, { offsetHeight: 200 }), 300);
   const { calls, scheduled, doc, stop } = panel({ content: 520 });
   await flush();
   const reports = () => calls.filter(([command]) => command === "plugin:rail|rail_card_height").map(([, args]) => args.height);
   assert.deepEqual(reports(), [644]);
   await scheduled.at(-1)();
   assert.deepEqual(reports(), [644], "an unchanged height is not sent again");
-  doc.getElementById("panel-scroll").scrollHeight = 250;
+  doc.getElementById("panel-content").offsetHeight = 250;
   await scheduled.at(-1)();
   assert.deepEqual(reports(), [644, 374]);
   stop();
@@ -147,6 +183,31 @@ test("the panel reads once at start, polls only while shown, and stops when hidd
   assert.equal(scheduled.length, before, "hidden: the poll that was due does not schedule another");
   stop();
   assert.equal(unlistened, 1);
+});
+
+test("a panel already open when its listener arrives starts polling from the snapshot", async () => {
+  // The listener registers only after the first draw, so the shown event came and went.
+  const late = (onRegister) => ({ listen: async (name, handler) => {
+    await flush();
+    onRegister?.(handler);
+    return () => {};
+  } });
+  const open = panel({ event: late(), cardOpen: true });
+  await flush(); await flush(); await flush();
+  const reads = (calls) => calls.filter(([command]) => command === "read_cache").length;
+  assert.equal(reads(open.calls), 2, "the start draw, then a read as soon as the snapshot says open");
+  assert.equal(open.scheduled.length, 1, "and it keeps polling");
+  open.stop();
+  const closed = panel({ event: late(), cardOpen: false });
+  await flush(); await flush(); await flush();
+  assert.equal(reads(closed.calls), 1);
+  assert.equal(closed.scheduled.length, 0, "a closed panel still waits for its shown event");
+  closed.stop();
+  // An event heard after the listener registered is newer than any snapshot, so it wins.
+  const hidden = panel({ event: late((handler) => handler({ payload: false })), cardOpen: true });
+  await flush(); await flush(); await flush();
+  assert.equal(hidden.scheduled.length, 0);
+  hidden.stop();
 });
 
 test("the panel window may invoke only what its capability grants", () => {

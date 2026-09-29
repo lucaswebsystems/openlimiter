@@ -77,6 +77,34 @@ pub fn read_cache() -> Option<String> {
     read_state_file(CACHE_FILE_NAME)
 }
 
+/// Read the snapshot cache for the window, telling a cache that is not there
+/// from one that is there but cannot be used right now.
+///
+/// `Ok(None)` is a cache that does not exist yet, which is ordinary: the window
+/// is often opened before anything has written one. A cache that exists but
+/// cannot be read or parsed is an error. On Windows that happens whenever the
+/// collector or the terminal status line replaces the file during a read (a
+/// sharing violation), and the window must then keep the readings it holds
+/// rather than draw an empty cache.
+pub fn read_cache_document() -> Result<Option<String>, String> {
+    const UNREADABLE: &str = "The saved readings could not be read.";
+    let Some(directory) = state_directory() else {
+        return Ok(None);
+    };
+    let file = directory.join(CACHE_FILE_NAME);
+    let Some(text) = crate::fsx::bounded_read(&file) else {
+        // Absent only when the path names nothing at all: a link, a folder, a
+        // file too large and a file another process holds all exist.
+        return match std::fs::symlink_metadata(&file) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            _ => Err(UNREADABLE.into()),
+        };
+    };
+    // A torn or foreign document is a failed read, never an empty cache.
+    serde_json::from_str::<serde_json::Value>(&text).map_err(|_| UNREADABLE.to_string())?;
+    Ok(Some(text))
+}
+
 /// Read the manual quota document as text, or nothing at all.
 ///
 /// This is the one connector whose input lives on disk and needs no network,
@@ -96,6 +124,45 @@ fn read_state_file(name: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    const DOCUMENT: &str = r#"{"version":2,"snapshots":[]}"#;
+
+    #[test]
+    fn an_absent_cache_reads_as_empty_and_an_unusable_one_as_an_error() {
+        let cache = super::state_directory().unwrap().join(super::CACHE_FILE_NAME);
+        assert_eq!(super::read_cache_document(), Ok(None), "nothing written yet");
+        std::fs::write(&cache, DOCUMENT).unwrap();
+        assert_eq!(super::read_cache_document(), Ok(Some(DOCUMENT.to_string())));
+        // Caught half written: there, but not a document.
+        std::fs::write(&cache, &DOCUMENT[..12]).unwrap();
+        assert!(super::read_cache_document().is_err());
+        // Something that is not a file where the cache belongs.
+        std::fs::remove_file(&cache).unwrap();
+        std::fs::create_dir(&cache).unwrap();
+        assert!(super::read_cache_document().is_err());
+        std::fs::remove_dir(&cache).unwrap();
+        assert_eq!(super::read_cache_document(), Ok(None));
+    }
+
+    /// What a reader meets while another process replaces the cache on
+    /// Windows: the file is there and opening it is a sharing violation.
+    #[cfg(windows)]
+    #[test]
+    fn a_cache_another_process_holds_is_an_error_until_it_lets_go() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let cache = super::state_directory().unwrap().join(super::CACHE_FILE_NAME);
+        std::fs::write(&cache, DOCUMENT).unwrap();
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .share_mode(0)
+            .open(&cache)
+            .unwrap();
+        assert!(super::read_cache_document().is_err());
+        drop(held);
+        assert_eq!(super::read_cache_document(), Ok(Some(DOCUMENT.to_string())));
+        std::fs::remove_file(&cache).unwrap();
+    }
+
     #[test]
     fn real_state_directory_is_never_resolved_by_tests() {
         let state = super::state_directory().unwrap();
