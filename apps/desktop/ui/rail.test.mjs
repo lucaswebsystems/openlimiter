@@ -218,9 +218,14 @@ test("desktop shell mounts the Agents component inside Home and disposes on unlo
 });
 
 test("built Home and Rail include the Agents component and its local dependencies", () => {
-  for (const file of ["agents.js", "agents.css", "agents.en.js", "agents.en.json"]) {
+  for (const file of ["agents.js", "agents.css"]) {
     assert.equal(read(`./dist/${file}`), read(`./${file}`), `${file} must be packaged by build-ui`);
   }
+  // The catalog ships as a JavaScript module: the desktop CSP blocks JSON
+  // module imports (connect-src), so build-ui converts the JSON and rewrites
+  // the import in agents.en.js.
+  assert.match(read("./dist/agents.en.json.js"), /^export default /);
+  assert.match(read("./dist/agents.en.js"), /agents\.en\.json\.js/);
 });
 
 test("loading, empty and unavailable states are distinct and activity failure cannot hide accounts", async () => {
