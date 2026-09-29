@@ -8,12 +8,22 @@ import {
   type QuotaBand,
   type Snapshot,
 } from "./engine";
+import { meterName, providerName } from "./language";
 import { ProviderMark } from "./marks";
 
 export interface LiveMeterProps {
   snapshots: readonly Snapshot[];
   now: string | null;
   demo?: boolean;
+}
+
+/** The tightest window leads: the one a person is closest to running out of. */
+export function featuredSnapshotOf(snapshots: readonly Snapshot[]): Snapshot | null {
+  const withPercent = snapshots.filter(
+    (s) => s.unit === "PERCENT" && typeof s.value === "number",
+  );
+  if (withPercent.length === 0) return snapshots[0] ?? null;
+  return withPercent.reduce((top, s) => ((s.value as number) > (top.value as number) ? s : top));
 }
 
 export function CheckmarkShieldIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
@@ -175,14 +185,7 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
     return () => window.clearInterval(interval);
   }, []);
 
-  const featuredSnapshot = useMemo(() => {
-    if (snapshots.length === 0) return null;
-    const withPercent = snapshots.filter(
-      (s) => s.unit === "PERCENT" && typeof s.value === "number",
-    );
-    if (withPercent.length > 0) return withPercent[0]!;
-    return snapshots[0]!;
-  }, [snapshots]);
+  const featuredSnapshot = useMemo(() => featuredSnapshotOf(snapshots), [snapshots]);
 
   if (featuredSnapshot === null) return null;
 
@@ -195,28 +198,11 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
   const headroomPercent = Math.max(0, Math.round(100 - usedPercent));
   const countdownText = formatTickingCountdown(featuredSnapshot.resetAt, tickerMillis);
 
-  const providerTitle =
-    featuredSnapshot.provider === "CLAUDE"
-      ? "Claude Code"
-      : featuredSnapshot.provider === "CODEX"
-        ? "OpenAI Codex"
-        : featuredSnapshot.provider === "GEMINI_CLI"
-          ? "Gemini CLI"
-          : featuredSnapshot.provider === "ANTIGRAVITY"
-            ? "Google Antigravity"
-            : featuredSnapshot.provider === "OPENCODE"
-              ? "OpenCode"
-              : featuredSnapshot.provider === "GROK"
-                ? "xAI Grok"
-                : featuredSnapshot.provider === "KIMI"
-                  ? "Moonshot Kimi"
-                  : featuredSnapshot.provider === "OPENROUTER"
-                    ? "OpenRouter"
-                    : "Session Quota";
+  const providerTitle = providerName(featuredSnapshot.provider);
 
   const windowTitle =
     featuredSnapshot.meter && featuredSnapshot.meter !== "default"
-      ? featuredSnapshot.meter
+      ? meterName(featuredSnapshot.meter)
       : "Live Ticking Session Window";
 
   /* SVG Ring properties */

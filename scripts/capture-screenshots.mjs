@@ -526,10 +526,14 @@ async function capturePhone(browser, theme, snapshots, now) {
     /* The launch splash clears at 760ms, the busy floor is 240ms, and then
        the panel must actually contain its proof text before the shutter. */
     await page.waitForTimeout(1600);
-    await page.waitForFunction(() => document.body.textContent.includes("Claude") && document.body.textContent.includes("Codex"), null, { timeout: 20000 });
+    /* Provider rows render inside shadow roots, which document text never
+       reaches; Playwright locators pierce them. */
+    for (const name of ["Claude", "Codex"]) {
+      await page.getByText(name, { exact: true }).first().waitFor({ timeout: 20000 });
+    }
     await page.locator(".ol-live-meter-card").waitFor();
     if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
-    assertCaptureSafe(await page.locator("body").innerText());
+    assertCaptureSafe(await deepText(page));
     await page.evaluate((y) => window.scrollTo(0, y), view.scrollY);
     await page.waitForTimeout(300);
     const name = view.file + (theme === "light" ? "-light" : "") + ".png";
@@ -538,6 +542,24 @@ async function capturePhone(browser, theme, snapshots, now) {
   }
   await context.close();
   return written;
+}
+
+/** Every visible string on the page, shadow roots included, for the safety check. */
+function deepText(page) {
+  return page.evaluate(() => {
+    const parts = [];
+    const walk = (root) => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          if (!["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"].includes(node.parentElement?.tagName) && node.parentElement?.checkVisibility()) parts.push(node.textContent);
+        }
+        else if (node.shadowRoot !== null) walk(node.shadowRoot);
+      }
+    };
+    walk(document.body);
+    return parts.join(" ");
+  });
 }
 
 async function captureDesk(browser, theme, port) {
