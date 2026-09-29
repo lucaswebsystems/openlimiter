@@ -41,7 +41,7 @@ import {
    owns its own tab and reads the backend itself, so a failure in one leaves
    the other three drawing what they can prove. */
 import { renderPlanCap } from "./plan-cap.js";
-import { renderSettings } from "./settings.js";
+import { renderSettings, refreshDesktopTrial, tickDesktopTrial } from "./settings.js";
 import { mountAgents } from "./agents.js";
 import { renderPro, renderSpend } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
@@ -119,6 +119,7 @@ import {
   openProviderConnection,
 } from "./connections.js";
 import { initFirstRun, claudePollRow } from "./first-run.js";
+import { initWhatsNew } from "./whats-new.js";
 
 /** How often the window re reads the cache, in milliseconds. */
 const REFRESH_INTERVAL = 30_000;
@@ -443,6 +444,7 @@ function applyAccountState(status) {
   if (elements.menuSignedIn !== null) elements.menuSignedIn.hidden = !signedIn;
   if (elements.menuLogout !== null) elements.menuLogout.hidden = !signedIn;
   setPairingAccountState(signedIn);
+  void refreshDesktopTrial();
 }
 
 /* ------------------------------------------------------------- signing in */
@@ -906,10 +908,13 @@ async function openCheckout(plan) {
    "restart the app". */
 window.addEventListener("focus", () => {
   if (!signedIn) return;
+  void refreshDesktopTrial();
   void proRefresh().then(() => {
     void paintPlanBadge();
   });
 });
+
+window.setInterval(tickDesktopTrial, 60_000);
 
 /* ------------------------------------------------------------------ reading */
 
@@ -1527,6 +1532,10 @@ const disposeAgents = mountAgents(elements.agentsMount);
 window.addEventListener("beforeunload", disposeAgents, { once: true });
 
 initPairing({ onSignIn: openSignIn });
+
+void initWhatsNew().catch(() => {
+  // Release notes must not prevent startup if the local resource is unavailable.
+});
 
 initFirstRun({
   setProviderEnabled,

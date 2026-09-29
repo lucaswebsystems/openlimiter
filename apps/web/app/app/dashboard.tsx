@@ -30,7 +30,7 @@ import {
 } from "./pieces";
 import { BarsEmpty, ConnectList } from "./connect";
 import { Onboarding } from "./onboarding";
-import { ProLockCard, StartTrialButton, TrialWizard } from "./trial";
+import { HeaderTrial, ProLockCard, TrialWizard } from "./trial";
 import PhoneButton from "./phone-button";
 import { SignInCard } from "@/components/sign-in-card";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -190,6 +190,7 @@ function AccountGate({
   keepSignedIn: boolean;
   onKeepSignedInChange: (next: boolean) => Promise<boolean>;
 }) {
+  const t = useTranslations("hub.trial");
   return (
     <section className="ol-account-gate" aria-label="Sign in">
       {client === null ? (
@@ -201,12 +202,15 @@ function AccountGate({
           </p>
         </SectionPanel>
       ) : (
-        <SignInCard
-          client={client}
-          heading="h1"
-          keepSignedIn={keepSignedIn}
-          onKeepSignedInChange={onKeepSignedInChange}
-        />
+        <div>
+          <p className="ol-header-trial-note">{t("header.signIn")}</p>
+          <SignInCard
+            client={client}
+            heading="h1"
+            keepSignedIn={keepSignedIn}
+            onKeepSignedInChange={onKeepSignedInChange}
+          />
+        </div>
       )}
     </section>
   );
@@ -314,8 +318,8 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
    *
    * Undefined is "not asked yet" and null is "asked, and there is no row",
    * which are two different screens: the first draws nothing, the second is a
-   * brand new account and is exactly who the trial is for. Nothing here starts
-   * a trial; the wizard is the one door. See lib/pro-trial.ts.
+   * brand new account and is exactly who the trial is for. Only an explicit
+   * start action begins a trial. See lib/pro-trial.ts.
    */
   /** The deep link the desktop tray opens, consumed once and then forgotten. */
   const [deepLinkTrial, setDeepLinkTrial] = useState(false);
@@ -636,15 +640,16 @@ export function Dashboard({ lockup }: { lockup: ReactNode }) {
         busy={busy}
         onRefresh={refresh}
         accent={
-          /* The one aggressive control on this surface, and the only place
-             the header carries an accent. It appears for an account that has
-             never had a trial and disappears the moment one exists, so it is
-             never a button that can only be refused. The promise is written
-             beside it at every size, and it sits on
-             the logo's own row so the icon group below it never has to make
-             room for it too. */
-          view === "bars" && canStartTrial ? (
-            <StartTrialButton compact onStart={() => setView("trial")} />
+          syncClient !== null ? (
+            <HeaderTrial
+              key={effectiveSession.user.id}
+              client={syncClient}
+              entitlement={entitlement}
+              onStarted={(next) => {
+                sessionRuntime.acceptEntitlement(session?.user.id, next);
+                refreshEntitlement();
+              }}
+            />
           ) : null
         }
         actions={

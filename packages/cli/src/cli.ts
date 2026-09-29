@@ -99,6 +99,7 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import packageJson from "../package.json" with { type: "json" };
 import { homedir } from "node:os";
+import path from "node:path";
 import {
   PROVIDER_KEYS,
   STATUSLINE_KEYS,
@@ -414,7 +415,19 @@ const execFileRunner: CredentialCommandRunner = async (
           return { timeout: timeoutMilliseconds, maxBuffer: 262_144, windowsHide: true };
         }
         const environment: NodeJS.ProcessEnv = { ...process.env };
-        delete environment["PSModulePath"];
+        /* Windows environment names ignore case, but a copied process.env keeps
+           the inherited spelling (PSMODULEPATH, Psmodulepath...); drop every
+           variant so the child sees exactly one module path. */
+        for (const key of Object.keys(environment)) {
+          if (key.toLowerCase() === "psmodulepath") delete environment[key];
+        }
+        environment["PSModulePath"] = path.win32.join(
+          process.env["SystemRoot"] ?? "C:\\Windows",
+          "System32",
+          "WindowsPowerShell",
+          "v1.0",
+          "Modules"
+        );
         return {
           timeout: timeoutMilliseconds,
           maxBuffer: 262_144,

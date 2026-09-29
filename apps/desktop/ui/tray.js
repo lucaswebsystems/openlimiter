@@ -627,7 +627,7 @@ async function start() {
   const [coreModule, sharedModule, meterModule] = await Promise.all([
     import("./engine/core/index.js"),
     import("./engine/ui/provider-row.js"),
-    import("./live-meter.js"),
+    import("./tray-countdown.js"),
   ]);
   core = coreModule;
   shared = sharedModule;

@@ -2680,6 +2680,46 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
   text-align: left;
 }
 
+.ol-header-trial {
+  display: grid;
+  gap: var(--ol-space-1);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ol-header-trial .ol-control,
+.ol-trial-chip {
+  min-height: 24px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ol-header-trial-note {
+  margin: 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+}
+
+.ol-trial-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--ol-space-1) var(--ol-space-2);
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-raised);
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+}
+
+.ol-header-trial :is(button, a):focus-visible {
+  outline: 2px solid var(--ol-accent-solid);
+  outline-offset: 2px;
+}
+
+@media (max-width: 799px) {
+  .ol-commandbar-brand-row { flex-wrap: wrap; }
+}
+
 .ol-trial-profile {
   color: var(--ol-body);
   text-align: left;

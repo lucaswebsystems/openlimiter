@@ -6,7 +6,8 @@ import { JsonLd } from "@/components/json-ld";
 import { type LocaleParams, pageLocale } from "@/i18n/params";
 import { pageMetadata } from "@/lib/metadata";
 import { softwareApplicationSchema } from "@/lib/jsonld";
-import { CURRENT_VERSION, REPO_URL, SITE_CONTENT_UPDATED, STABLE_DOWNLOADS } from "@/lib/site";
+import { downloadAssetHref, primaryDownloadHref } from "@/lib/downloads";
+import { CURRENT_VERSION, REPO_URL, SITE_CONTENT_UPDATED } from "@/lib/site";
 
 export async function generateMetadata({ params }: LocaleParams): Promise<Metadata> {
   const locale = await pageLocale(params);
@@ -36,9 +37,9 @@ export default async function DownloadPage({ params }: LocaleParams) {
         <p className="mb-8 max-w-3xl text-base leading-relaxed text-soft">{t("releaseLead")}</p>
         <p className="mb-6 text-xs text-muted"><time dateTime={SITE_CONTENT_UPDATED}>{t("updated")}</time></p>
         <DownloadChoice
-          windowsHref={STABLE_DOWNLOADS.windows}
-          linuxHref={STABLE_DOWNLOADS.linux}
-          macosHref={STABLE_DOWNLOADS.macos}
+          windowsHref={primaryDownloadHref("windows")}
+          linuxHref={primaryDownloadHref("linux")}
+          macosHref={primaryDownloadHref("macos")}
           otherHref={releaseUrl}
           windowsLabel={t("choice.windows")}
           linuxLabel={t("choice.linux")}
@@ -57,9 +58,9 @@ export default async function DownloadPage({ params }: LocaleParams) {
           <pre className="overflow-x-auto rounded-xl border border-hairline bg-frame p-5 text-sm"><code>npm install -g openlimiter</code></pre>
           <p className="text-sm text-muted">{t("targets.npm.requirement")}</p>
           <div className="flex flex-wrap gap-4 text-sm">
-            <a className="focus-ring text-accent" href={STABLE_DOWNLOADS.msi}>{t("targets.windows.assets.msi")}</a>
-            <a className="focus-ring text-accent" href={STABLE_DOWNLOADS.deb}>{t("targets.linux.assets.deb")}</a>
-            <a className="focus-ring text-accent" href={STABLE_DOWNLOADS.rpm}>{t("targets.linux.assets.rpm")}</a>
+            <a className="focus-ring text-accent" href={downloadAssetHref("windows", "msi")}>{t("targets.windows.assets.msi")}</a>
+            <a className="focus-ring text-accent" href={downloadAssetHref("linux", "deb")}>{t("targets.linux.assets.deb")}</a>
+            <a className="focus-ring text-accent" href={downloadAssetHref("linux", "rpm")}>{t("targets.linux.assets.rpm")}</a>
           </div>
         </section>
       </div>

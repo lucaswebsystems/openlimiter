@@ -22,6 +22,49 @@
   box-sizing: border-box;
 }
 
+.desktop-trial {
+  display: grid;
+  justify-items: start;
+  gap: var(--ol-space-1);
+  margin-bottom: var(--ol-space-3);
+}
+
+.desktop-trial :is(button, a) {
+  min-height: 24px;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: var(--ol-text-caption);
+}
+
+.desktop-trial .trial-start {
+  background: var(--ol-accent-solid);
+  border-color: var(--ol-accent-solid);
+  color: var(--ol-on-accent);
+}
+
+.desktop-trial .trial-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--ol-space-1) var(--ol-space-2);
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-raised);
+  color: var(--ol-heading);
+  text-decoration: none;
+}
+
+.desktop-trial :is(button, a):focus-visible {
+  outline: 2px solid var(--ol-accent-solid);
+  outline-offset: 2px;
+}
+
+.desktop-trial .trial-note {
+  margin: 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+}
+
 /* The grid and flex rules below would otherwise out specify the hidden
    attribute, and a hidden panel has to actually be hidden. */
 [hidden] {

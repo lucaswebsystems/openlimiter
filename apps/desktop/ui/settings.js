@@ -34,8 +34,131 @@ import {
   notificationEvents,
   notificationSettings,
   proStatus,
+  proService,
   setNotificationSettings,
 } from "./backend.js";
+
+// English catalog for the Home and Settings trial control. L7 owns translations.
+export const TRIAL_EN = Object.freeze({
+  start: "Start your free 30 day Pro trial",
+  signIn: "Sign in to start your free 30 day Pro trial",
+  free: "No card needed",
+  working: "Starting",
+  done: "Pro was turned on",
+  dayLeft: "Pro trial, 1 day left",
+  daysLeft: "Pro trial, {count} days left",
+  unavailable: "That did not go through. Try again in a moment.",
+  alreadyUsed: "This account has already had its trial.",
+});
+
+export const TRIAL_URL = "https://openlimiter.com/app?trial=1";
+
+/** Open the fixed web trial flow with the desktop's existing safe link shape. */
+export function openTrialInBrowser(url = TRIAL_URL) {
+  return window.open(url, "_blank", "noopener,noreferrer");
+}
+
+export function desktopTrialState(account, result, now = Date.now()) {
+  if (account?.signedIn !== true || !result?.ok) return { kind: "hidden" };
+  const row = result.value;
+  if (!row || typeof row !== "object") return { kind: "hidden" };
+  const plan = row.plan_state ?? row.status;
+  const end = Date.parse(row.trial_ends_at ?? "");
+  if ((plan === "trial" || plan === "trialing") && Number.isFinite(end) && end > now) {
+    return { kind: "running", days: Math.ceil((end - now) / 86_400_000) };
+  }
+  if ((plan === "none" || plan === "free") && row.trial_ends_at == null &&
+      row.trial_started_at == null && row.had_paid_entitlement !== true && row.trial_used !== true) {
+    return { kind: "offer" };
+  }
+  return { kind: "hidden" };
+}
+
+export function desktopTrialMarkup(state, { busy = false, complete = false, error = null } = {}) {
+  let markup = "";
+  if (state.kind === "offer" && !complete) {
+    markup = '<button type="button" class="trial-start" data-trial-start' +
+      (busy ? ' disabled aria-busy="true"' : "") + '>' +
+      (busy ? TRIAL_EN.working : TRIAL_EN.start) +
+      '</button><p class="trial-note">' + TRIAL_EN.free + '</p>';
+  } else if (state.kind === "running") {
+    markup = '<a class="trial-chip" data-trial-billing href="#pro-mount">' +
+      (state.days === 1 ? TRIAL_EN.dayLeft : TRIAL_EN.daysLeft.replace("{count}", String(state.days))) + '</a>';
+  }
+  if (complete && state.kind !== "hidden") markup += '<p class="trial-note" role="status">' + TRIAL_EN.done + '</p>';
+  if (error) markup += '<p class="trial-note" role="alert">' + escapeText(error) + '</p>';
+  return markup;
+}
+
+/** Both mounts share one flight so switching tabs cannot send another start. */
+export function createDesktopTrial(
+  api = { accountStatus, proService },
+  changed = () => {},
+  openBrowser = openTrialInBrowser,
+) {
+  let account = null;
+  let result = null;
+  let busy = false;
+  let complete = false;
+  let error = null;
+  let revision = 0;
+  const snapshot = () => ({
+    state: complete && account?.signedIn === true && (!result?.ok || !result.value)
+      ? { kind: "started" } : desktopTrialState(account, result),
+    busy, complete, error,
+  });
+  async function refresh(afterStart = false) {
+    if (busy && !afterStart) return;
+    const request = ++revision;
+    const next = await api.accountStatus();
+    const hosted = next.ok && next.value?.signedIn === true
+      ? await api.proService("account_status") : null;
+    if (request !== revision) return;
+    const nextAccount = next.ok ? next.value : null;
+    if (account?.email !== nextAccount?.email) { complete = false; error = null; }
+    account = nextAccount;
+    result = hosted;
+    if (account?.signedIn !== true) { complete = false; error = null; }
+    changed(snapshot());
+  }
+  async function start() {
+    if (busy || complete || snapshot().state.kind !== "offer") return;
+  busy = true;
+  error = null;
+  changed(snapshot());
+  try {
+  if (openBrowser(TRIAL_URL) === null) error = TRIAL_EN.unavailable;
+  } catch {
+  error = TRIAL_EN.unavailable;
+  } finally {
+      busy = false;
+      changed(snapshot());
+    }
+  }
+  return { refresh, start, snapshot };
+}
+
+function paintDesktopTrial() {
+  const { state: trial, ...notice } = desktopTrial.snapshot();
+  for (const mount of document.querySelectorAll("[data-desktop-trial]")) {
+    const markup = desktopTrialMarkup(trial, notice);
+    if (mount.innerHTML === markup) continue;
+    mount.innerHTML = markup;
+    mount.hidden = mount.innerHTML === "";
+    mount.querySelector("[data-trial-start]")?.addEventListener("click", () => void desktopTrial.start());
+    mount.querySelector("[data-trial-billing]")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      document.getElementById("tab-settings")?.click();
+    });
+  }
+}
+
+const desktopTrial = createDesktopTrial(undefined, paintDesktopTrial);
+export async function refreshDesktopTrial() {
+  await desktopTrial.refresh();
+}
+
+export function tickDesktopTrial() { paintDesktopTrial(); }
 
 const THRESHOLDS = [
   {
@@ -308,11 +431,11 @@ function presetMarkup(entitled, chosen) {
 }
 
 function accountMarkup(account) {
-  if (account === null || account.signed_in !== true) {
+  if (account === null || account.signedIn !== true) {
     return (
       '<div class="stack">' +
       '<p class="note tight">Sign in to carry your settings between devices. Everything local keeps working signed out, and nothing on this machine is paywalled.</p>' +
-      '<div class="trial-offer"><strong>Start Pro free for 30 days</strong><p>No credit card needed</p></div>' +
+      '<div class="trial-offer"><strong>' + TRIAL_EN.signIn + '</strong><p>No credit card needed</p></div>' +
       '<div class="button-row">' +
       '<button type="button" id="settings-github">Continue with GitHub</button>' +
       '<button type="button" id="settings-google">Continue with Google</button>' +
@@ -489,6 +612,7 @@ export async function renderSettings(mount) {
       ? "A preset changes the accent and surface tones. The five band meter colours never change, because they are the reading and not the decoration."
       : "Presets are the one cosmetic thing Pro holds. Nothing local is paywalled: every meter, every alert and every connection works the same on Free.") +
     "</p>" +
+    '<div class="desktop-trial" data-desktop-trial hidden></div>' +
     '<div class="preset-grid">' +
     presetMarkup(entitled, chosen) +
     "</div>" +
@@ -505,6 +629,7 @@ export async function renderSettings(mount) {
     "</section>";
 
   wire();
+  await refreshDesktopTrial();
   await wireRailSettings(mount);
 }
 

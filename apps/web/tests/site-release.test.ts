@@ -2,7 +2,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import en from "../messages/en.json";
-import { CURRENT_VERSION, STABLE_DOWNLOADS } from "../lib/site";
+import { downloadAssetHref, primaryDownloadHref } from "../lib/downloads";
+import { CURRENT_VERSION } from "../lib/site";
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async () => (key: string) => en.meta[key as keyof typeof en.meta],
@@ -11,7 +12,10 @@ vi.mock("next-intl/server", () => ({
 describe("2.0 site release", () => {
   it("uses the six aliases published by L8.2, with no version in their names", () => {
     expect(CURRENT_VERSION).toBe("2.0.0");
-    expect(Object.values(STABLE_DOWNLOADS).map(href => new URL(href).pathname)).toEqual([
+    const links = [primaryDownloadHref("windows"), downloadAssetHref("windows", "msi"),
+      primaryDownloadHref("macos"), primaryDownloadHref("linux"),
+      downloadAssetHref("linux", "deb"), downloadAssetHref("linux", "rpm")];
+    expect(links.map(href => new URL(href).pathname)).toEqual([
       "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64-setup.exe",
       "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-windows-x64.msi",
       "/lucaswebsystems/openlimiter/releases/latest/download/OpenLimiter-macos-universal.dmg",

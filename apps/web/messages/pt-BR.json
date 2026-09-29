@@ -2196,6 +2196,11 @@
     },
     "trial": {
       "start": "Começar o Pro grátis por 30 dias",
+      "header": {
+        "signIn": "Entre para começar seu teste gratuito do Pro por 30 dias",
+        "dayLeft": "Teste do Pro, falta 1 dia",
+        "daysLeft": "Teste do Pro, faltam {count} dias"
+      },
       "free": "Nenhum cartão de crédito é necessário",
       "label": "Comece seu teste grátis",
       "title": "Começar o Pro grátis por 30 dias",

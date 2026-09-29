@@ -1,0 +1,160 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { initWhatsNew, WHATS_NEW_STORAGE_KEY, whatsNewForVersion as selectRelease } from "./whats-new.js";
+
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+const manifest = JSON.parse(read("../package.json"));
+const WHATS_NEW_EN = JSON.parse(read("./whats-new.en.json"));
+const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
+
+test("the current desktop version has a complete What's New entry", () => {
+  const entry = whatsNewForVersion(manifest.version);
+  assert.ok(entry, `Missing What's New for ${manifest.version}`);
+  assert.equal(entry.versionLabel, `Version ${manifest.version}`);
+  assert.ok(entry.heading.trim());
+  assert.ok(entry.dismiss.trim());
+  assert.deepEqual(entry.items.map(({ key }) => key), [
+    "rail", "activity", "statusline", "cursor", "retry", "sessions", "spend",
+  ]);
+  for (const { text } of entry.items) {
+    assert.ok(text.trim());
+    assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
+  }
+  assert.match(WHATS_NEW_EN.releases[manifest.version].cursor, /Experimental/u);
+});
+
+function fixture({ seen, ready = true, storageFails = false, showFails = false } = {}) {
+  const stored = new Map(seen ? [[WHATS_NEW_STORAGE_KEY, seen]] : []);
+  let callback;
+  let disconnected = false;
+  class Element {
+    children = [];
+    listeners = {};
+    attributes = {};
+    constructor(tag) { this.tag = tag; }
+    append(...children) { this.children.push(...children); }
+    setAttribute(name, value) { this.attributes[name] = value; }
+    addEventListener(name, fn) { this.listeners[name] = fn; }
+    showModal() {
+      if (showFails) throw new Error("Cannot show dialog");
+      this.open = true;
+    }
+    close() { this.open = false; this.listeners.close(); }
+    remove() { this.removed = true; }
+  }
+  const doc = {
+    documentElement: { dataset: { firstRun: ready ? "complete" : "pending" } },
+    body: new Element("body"),
+    createElement: (tag) => new Element(tag),
+  };
+  const options = {
+    document: doc,
+    storage: () => {
+      if (storageFails) throw new Error("Storage refused");
+      return { getItem: (key) => stored.get(key), setItem: (key, value) => stored.set(key, value) };
+    },
+    load: async () => ({ version: manifest.version, catalog: WHATS_NEW_EN }),
+    observe: (fn) => {
+      callback = fn;
+      return { observe() {}, disconnect() { disconnected = true; } };
+    },
+  };
+  return { doc, stored, options, notify: () => callback(), disconnected: () => disconnected };
+}
+
+test("an upgrade from 1.3.x with no release marker shows all notes once", async () => {
+  const f = fixture();
+  await initWhatsNew(f.options);
+  const [dialog] = f.doc.body.children;
+  assert.equal(dialog.open, true);
+  assert.equal(dialog.attributes["aria-labelledby"], dialog.children[0].id);
+  assert.equal(dialog.children[1].textContent, `Version ${manifest.version}`);
+  assert.deepEqual(dialog.children[3].children.map((node) => node.textContent),
+    whatsNewForVersion(manifest.version).items.map(({ text }) => text));
+  assert.equal(f.stored.get(WHATS_NEW_STORAGE_KEY), manifest.version);
+  dialog.children[4].listeners.click();
+  assert.equal(dialog.removed, true);
+  await initWhatsNew(f.options);
+  assert.equal(f.doc.body.children.length, 1, "a restart does not repeat this release");
+  assert.equal(f.disconnected(), true);
+});
+
+test("a previous release marker is advanced only after onboarding completes", async () => {
+  const f = fixture({ seen: "1.3.3", ready: false });
+  await initWhatsNew(f.options);
+  assert.equal(f.doc.body.children.length, 0);
+  assert.equal(f.stored.get(WHATS_NEW_STORAGE_KEY), "1.3.3");
+  f.doc.documentElement.dataset.firstRun = "complete";
+  f.notify();
+  f.notify();
+  assert.equal(f.doc.body.children.length, 1);
+  assert.equal(f.stored.get(WHATS_NEW_STORAGE_KEY), manifest.version);
+});
+
+test("a seen release and a release without notes do not create a dialog", async () => {
+  const seen = fixture({ seen: manifest.version });
+  await initWhatsNew(seen.options);
+  assert.equal(seen.doc.body.children.length, 0);
+  const unknown = fixture();
+  await initWhatsNew({ ...unknown.options, load: async () => ({ version: "999.0.0", catalog: WHATS_NEW_EN }) });
+  assert.equal(unknown.doc.body.children.length, 0);
+});
+
+test("storage refusal does not block notes or repeat them in the same session", async () => {
+  const f = fixture({ storageFails: true });
+  await initWhatsNew(f.options);
+  f.notify();
+  assert.equal(f.doc.body.children.length, 1);
+  assert.equal(f.doc.body.children[0].open, true);
+});
+
+test("a dialog that fails to open is never marked seen", async () => {
+  const f = fixture({ showFails: true });
+  await assert.rejects(initWhatsNew(f.options), /Cannot show dialog/);
+  assert.equal(f.stored.has(WHATS_NEW_STORAGE_KEY), false);
+  assert.equal(f.doc.body.children[0].removed, true);
+});
+
+test("the desktop entry point and assembler ship the release dialog and its catalog", () => {
+  assert.match(read("./app.js"), /import \{ initWhatsNew \} from "\.\/whats-new\.js"/);
+  assert.match(read("./app.js"), /initWhatsNew\(\)/);
+  assert.match(read("./index.html"), /href="\.\/whats-new\.css"/);
+  const build = read("../scripts/build-ui.mjs");
+  for (const file of ["whats-new.js", "whats-new.css", "whats-new.en.json", "whats-new-data.js"]) {
+    assert.ok(build.includes(`"${file}"`), file);
+  }
+  assert.match(build, /Object\.hasOwn\(whatsNew\.releases, version\)/);
+});
+
+test("all desktop release manifests agree with the What's New version", () => {
+  assert.equal(JSON.parse(read("../src-tauri/tauri.conf.json")).version, manifest.version);
+  const crate = read("../src-tauri/Cargo.toml");
+  assert.equal(crate.match(/^version = "([^"]+)"/mu)?.[1], manifest.version);
+  const lock = read("../src-tauri/Cargo.lock");
+  assert.equal(lock.match(/name = "openlimiter-desktop"\r?\nversion = "([^"]+)"/u)?.[1], manifest.version);
+});
+
+test("an unknown release never displays another version's What's New", () => {
+  assert.equal(whatsNewForVersion("999.0.0"), null);
+  assert.equal(whatsNewForVersion("constructor"), null);
+});
+
+test("workspace packages and client identities share the desktop release version", () => {
+  for (const name of ["core", "connectors", "adapters", "cli", "ui"]) {
+    const pkg = JSON.parse(read(`../../../packages/${name}/package.json`));
+    assert.equal(pkg.version, manifest.version, name);
+    for (const [dependency, range] of Object.entries(pkg.dependencies ?? {})) {
+      if (dependency.startsWith("@openlimiter/")) {
+        assert.ok(["workspace:*", `workspace:${manifest.version}`, manifest.version].includes(range), dependency);
+      }
+    }
+  }
+  for (const [path, constant] of [
+    ["../../../packages/core/src/acquire/identity.ts", "ACQUISITION_CLIENT_VERSION"],
+    ["../../../packages/cli/src/hub-sync.ts", "SYNC_CLIENT_VERSION"],
+    ["../../web/lib/site.ts", "CURRENT_VERSION"],
+  ]) {
+    assert.ok(read(path).includes(`${constant} = "${manifest.version}"`), constant);
+  }
+});

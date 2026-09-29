@@ -2196,6 +2196,11 @@
     },
     "trial": {
       "start": "Iniciar Pro gratis durante 30 días",
+      "header": {
+        "signIn": "Inicia sesión para comenzar tu prueba gratuita de Pro de 30 días",
+        "dayLeft": "Prueba de Pro, queda 1 día",
+        "daysLeft": "Prueba de Pro, quedan {count} días"
+      },
       "free": "No necesitas tarjeta de crédito",
       "label": "Comienza tu prueba gratuita",
       "title": "Iniciar Pro gratis durante 30 días",

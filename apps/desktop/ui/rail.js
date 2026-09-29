@@ -2,6 +2,11 @@
    permissions, remote assets, HTML interpolation or fabricated quota readings. */
 import { AGENT_NAMES } from "./agents.js";
 import { agentText } from "./agents.en.js";
+import { PROVIDER_SPECS } from "./provider-specs.generated.js";
+
+const PROVIDER_NAMES = new Map(PROVIDER_SPECS.providers
+  .filter(spec => spec.directory?.connectorId)
+  .map(spec => [spec.directory.connectorId, spec.displayName]));
 
 export const RAIL_COPY = {
   title: "Usage and agents", loading: "Loading", empty: "No accounts",
@@ -46,7 +51,7 @@ export function accountView(row, now = Date.now()) {
   return { reading, meaning: numeric ? meaning : "", fill, band, stale,
     // Observation time belongs to this reading, never to its reset.
     age: stale ? ageLabel(row.observedAt, now) : "",
-    label: `${row.provider}${row.account ? `, ${row.account}` : ""}: ${reading}${numeric ? ` ${meaning}` : ""} (${row.windowLabel})` };
+    label: `${PROVIDER_NAMES.get(row.provider) ?? row.provider}${row.account ? `, ${row.account}` : ""}: ${reading}${numeric ? ` ${meaning}` : ""} (${row.windowLabel})` };
 }
 
 export function accountLabel(row) { return accountView(row).label; }
