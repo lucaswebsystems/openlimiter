@@ -14,6 +14,7 @@ import {
   RELEASES_URL,
   REPO_URL,
   SITE_NAME,
+  SITE_CONTENT_UPDATED,
   SITE_URL,
 } from "./site";
 
@@ -198,6 +199,7 @@ export async function softwareApplicationSchema(locale: Locale): Promise<JsonLdN
     applicationCategory: "DeveloperApplication",
     operatingSystem: "Windows, macOS, Linux",
     softwareVersion: CURRENT_VERSION,
+    dateModified: SITE_CONTENT_UPDATED,
     downloadUrl: RELEASES_URL,
     license: LICENSE_SPDX_URL,
     isAccessibleForFree: true,

@@ -47,8 +47,8 @@
     "saveFailed": "Die Sichtbarkeit der Rail konnte nicht gespeichert werden. Versuche es erneut."
   },
   "meta": {
-    "title": "OpenLimiter, Quotabewusstsein für KI Coding Agenten",
-    "description": "OpenLimiter liest die Kontingente deiner KI Abonnements auf deinem Computer und gibt Coding Agents begrenzte Budgetdaten mit Routingempfehlungen. Open Source, lokal zuerst, ohne Telemetrie im lokalen Modus."
+    "title": "OpenLimiter 2.0, KI Coding Limits und Agentenaktivität",
+    "description": "Sieh KI Coding Limits auf deinem Desktop, in deinem Terminal und auf deinem Handy. Verfolge beschäftigte, wartende und fertige Agenten mit kostenlosen lokalen Alerts in OpenLimiter 2.0."
   },
   "common": {
     "skipToContent": "Zum Inhalt springen",
@@ -436,19 +436,49 @@
     "disclaimer": "Gepackte Desktop Builds gibt es für Windows, macOS und Linux. Windows und macOS sind nicht signiert: SmartScreen will Weitere Informationen und dann Trotzdem ausführen, und macOS will einmal Trotzdem öffnen. Die Downloadseite hat die genauen Schritte. npm und die Web App sind jetzt verfügbar. Native mobile Anwendungen sind nicht gebaut."
   },
   "home": {
+    "release": {
+      "rail": {
+        "title": "Eine ruhige Rail. Eine klare Bitte an dich.",
+        "lead": "OpenLimiter 2.0 stellt deine KI Coding Limits und deine Agentenaktivität an den linken Rand deines Desktops. Lass die Rail während der Arbeit eingeklappt und klappe sie dann auf, um zu sehen, welcher Agent Eingaben braucht. Lokale Meter und Desktop Alerts sind kostenlos, mit einem aktiven Konto je Anbieter.",
+        "folded": "Am linken Rand eingeklappt, mit sichtbarer Nutzung und Aktivität.",
+        "unfolded": "Klappe die Rail auf, um die Karte zu lesen und die Anwendung des Agenten zu finden.",
+        "foldedAlt": "Die echte OpenLimiter Rail am linken Rand eingeklappt, mit synthetischen Anbietermetern und Agentenaktivität.",
+        "unfoldedAlt": "Die echte OpenLimiter Rail neben einer Karte aufgeklappt, die zeigt, dass Claude Eingaben braucht, mit einer Schaltfläche Anwendung finden."
+      },
+      "agents": {
+        "title": "Beschäftigt, wartend oder fertig. Du weißt, wann du zurückkehren musst.",
+        "lead": "Die Agentenliste der Home zeigt die Aktivität unterstützter Agentenintegrationen. Ein wartender Agent braucht Eingaben. Ein fertiger Agent hat den Abschluss gemeldet. Kostenlose lokale Benachrichtigungen holen dich zurück, wenn etwas zu tun ist.",
+        "note": "Anwendung finden bringt dich zur zuständigen Anwendung, wenn das Betriebssystem es erlaubt. Eine bestimmte Registerkarte im Terminal wird nicht versprochen. Unknown Aktivität wird nie als Erfolg angezeigt.",
+        "alt": "OpenLimiter Desktop Home mit Claude im Wartezustand, Codex beschäftigt und Cursor fertig in der Agentenliste, mit synthetischen Sitzungen."
+      },
+      "terminal": {
+        "title": "Deine Limits neben deinem Prompt.",
+        "lead": "Die Statusline im Terminal zeigt Nutzung, Reset Zeiten und Aktualität für unterstützte Hosts. Grüne, gelbe, orange und rote Bänder machen ein sich füllendes Fenster leicht erkennbar. Prozente und Bezeichnungen halten die Bedeutung klar, ohne sich auf Farbe zu verlassen.",
+        "note": "Das ist der echte CLI Renderer mit synthetischen Messungen. Die Unterstützung der Statusline hängt vom Host ab. Sieh in der CLI Anleitung nach, um sie einzurichten.",
+        "alt": "Echte OpenLimiter CLI Ausgabe mit grünen, gelben, orangen und roten Nutzungsbändern, Prozentangaben und Reset Zeiten."
+      },
+      "phone": {
+        "title": "Melde dich auf deinem Handy an. Sieh die Messungen deines Computers.",
+        "lead": "Melde dich auf deinem Computer und deinem Handy mit demselben OpenLimiter Konto an. Die Web App zeigt die neuesten synchronisierten Messungen einschließlich des Zeitpunkts ihrer Erfassung. Der kostenlose Kontozugriff funktioniert auch nach dem Ende eines Pro Tests weiter.",
+        "note": "Dein Computer muss neue Messungen sammeln und synchronisieren. Ein Handy macht einen offline Computer nicht aktuell, und Anbieterzugangsdaten bleiben auf dem Gerät, das sie liest.",
+        "cta": "In der Web App anmelden",
+        "alt": "Die angemeldete OpenLimiter Web App im Handyformat mit synthetischen, von einem Computer synchronisierten Messungen."
+      },
+      "captureNote": "Echte Anwendungsbildschirme mit synthetischen Daten. Kein persönliches Konto und keine Nutzungsdaten."
+    },
     "docsLine": "Beides ist ausführlich dokumentiert: <agentContext>was ein Agent erfährt</agentContext> und <cli>jeder Befehl, mit dem es ausgeliefert wird</cli>.",
     "bridge": {
-      "line": "Wenn du vom Schreibtisch weggehst, stehen die Zahlen weiterhin auf deiner eigenen Festplatte.",
-      "note": "Dafür musste nichts hochgeladen werden."
+      "line": "Arbeite weiter. Sieh, wann ein Agent dich braucht.",
+      "note": "Rail und Terminal zeigen lokale Messungen. Melde dich an, um synchronisierte Messungen auf deinem Handy zu sehen."
     }
   },
   "deviceFrame": {
-    "title": "Jeder Plan auf einem Bildschirm",
-    "lead": "Eine Karte pro Provider: der Meter, wie frisch dieser Wert ist, und wann sich das Fenster zurücksetzt. Jede Zahl wird von deiner eigenen Maschine gelesen, und was du in dieser Aufnahme siehst, ist genau das, was du installierst.",
+    "title": "Dein Coding Tag an einem Ort",
+    "lead": "Lokale Nutzungsmeter und die Agentenliste teilen sich die Desktop Home. Sieh, wie aktuell eine Messung ist, wann ihr Fenster zurückgesetzt wird und welcher unterstützte Agent deine Aufmerksamkeit braucht.",
     "screenshot": {
-      "alt": "Die OpenLimiter Desktop Anwendung zeigt eine Karte pro Provider mit Meter, Prozentangabe, Aktualitätsstatus und Reset Countdown, über synthetischen Demodaten."
+      "alt": "Die OpenLimiter 2.0 Desktop Home mit synthetischen Nutzungsmessungen und einer Agentenliste mit wartenden, beschäftigten und fertigen Sitzungen."
     },
-    "caption": "Die gepackte Desktop Anwendung, aufgenommen auf einer echten Maschine gegen die synthetischen Demo Fixtures des Projekts. Kein Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
+    "caption": "Die echte Desktop Oberfläche ohne grafische Oberfläche gerendert, mit synthetischen Fixtures. Kein persönliches Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
   },
   "phonePanels": {
     "shots": {
@@ -725,7 +755,7 @@
     "items": {
       "whatLeaves": {
         "question": "Was verlässt meinen Rechner wirklich?",
-        "answer": "Im lokalen Modus verlässt nichts das Gerät Richtung OpenLimiter. Anbieterverbindungen sprechen über eine feste Liste nur mit dem jeweiligen Anbieter, und Zugangsdaten bleiben im Anmeldeinformationsspeicher des Betriebssystems. Wenn du dich anmeldest, gehen ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst, damit deine eigenen Geräte sie sehen, und Pro legt Alerts, Verlauf, Prognosen und Agenten Routing darauf. Anbieterzugangsdaten gehen nie dorthin."
+        "answer": "Im lokalen Modus verlässt nichts das Gerät für OpenLimiter. Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter, und Zugangsdaten bleiben auf deinem Gerät. Wenn du dich anmeldest, gehen ausgewählte begrenzte quota Aufnahmen an den gehosteten Dienst, damit deine eigenen Geräte sie sehen können. Pro fügt entfernte Alerts, gehosteten Verlauf und Prognosen hinzu. Lokale Alerts sind kostenlos. Anbieterzugangsdaten gehen nie dorthin."
       },
       "safeToPoint": {
         "question": "Ist es sicher, es auf meine Tools anzusetzen?",
@@ -737,7 +767,7 @@
       },
       "providersToday": {
         "question": "Welche Provider funktionieren heute?",
-        "answer": "Neun Connectors sind dabei: Claude über die native Statusline Payload, OpenRouter über seine dokumentierte Form, Codex, Antigravity, Gemini CLI, Grok und Kimi über interne Formen, die brechen können, OpenCode über eine bestehende Session, die brechen kann, und manual entry. Jeder ist als UNVERIFIED markiert, bis ein expliziter Verifier existiert."
+        "answer": "Der Anbieterleitfaden listet die verfügbaren Meter, Einrichtungsschritte und den Prüfstatus jeder Integration. Quota Messungen und Agentenaktivität sind getrennte Fähigkeiten. Ein Anbieter, der Aktivität meldet, stellt nicht unbedingt eine quota bereit, und ein an Fixtures getesteter Parser beweist keine Live Erfassung."
       },
       "apiKey": {
         "question": "Brauche ich einen API Key?",
@@ -779,7 +809,7 @@
   },
   "pricing": {
     "title": "Preise",
-    "lead": "Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
+    "lead": "Lokale Meter, lokale Alerts und Kontozugriff sind kostenlos, mit einem aktiven Konto je Anbieter. Pro fügt entfernte Alerts, gehosteten Verlauf, zusätzliche Konten und mehr hinzu.",
     "plannedChip": "geplant",
     "free": {
       "status": "verfügbar",
@@ -806,15 +836,15 @@
       "trialChip": "30 Tage kostenlos",
       "priceNote": "Die ersten 30 Tage sind kostenlos, ohne Karte. Endet der Zugang, hören die Pro Funktionen auf: die gehosteten sofort, die lokalen fallen auf ein Konto je Anbieter und das Standardthema zurück. Alles, was du vor Pro sehen konntest, bleibt unverändert.",
       "lead": "Fünf Pro Funktionen. Drei sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung.",
-      "footnote": "Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
+      "footnote": "Nach dem Test funktionieren lokale Meter, lokale Alerts und der kostenlose Kontozugriff weiter. Die kostenlose Version behält ein aktives Konto je Anbieter.",
       "lines": {
-        "alerts": "Jeder Alert: eine Meldung auf dem Desktop, eine Mail und ein Push aufs Telefon bei 60, 80 und 90 Prozent eines Fensters und beim Zurücksetzen",
+        "alerts": "Entfernte Alerts per E Mail und Push aufs Handy. Lokale Desktop Alerts sind kostenlos",
         "themes": "Ein Pro Akzent oder eine Dichtevorgabe, angewandt in der lokalen Anwendung",
         "multiSubscription": "Mehr als ein Konto je Anbieter, in der lokalen Anwendung freigeschaltet",
         "heavyApi": "Ausgabenzähler für APIs, im Beta. Kostenlos werden je Quelle bis zu $100 pro Kalendermonat erfasst, Pro geht darüber hinaus",
         "history": "Neunzig Tage gehosteter Verlauf, mit einer Prognose bis zu dem Tag, an dem ein Fenster aufgebraucht ist"
       },
-      "cta": "30 Tage kostenlos starten",
+      "cta": "Starte deinen kostenlosen Pro Test für 30 Tage",
       "conditions": "Ausgabenzähler benötigen einen Organisationsadminschlüssel. Volle Rückerstattung innerhalb von 14 Tagen, jederzeit kündbar im Stripe Portal. Verkauft von Lucas Costa, Zahlung über Stripe.",
       "conditionsLink": "Alle Bedingungen"
     },
@@ -844,8 +874,10 @@
     "readSource": "Quellcode lesen"
   },
   "download": {
-    "metaTitle": "Download",
-    "metaDescription": "Hole OpenLimiter für Windows, macOS oder Linux, installiere das Kommandozeilenwerkzeug aus npm, oder öffne die Web App.",
+    "releaseLead": "Hol dir OpenLimiter 2.0.0 für Windows, macOS oder Linux, oder installiere das Kommandozeilenwerkzeug aus npm. Lokale Meter und Desktop Alerts sind kostenlos, mit einem aktiven Konto je Anbieter. Diese Desktop Builds sind nicht signiert. Melde dich bei einem kostenlosen Konto an, um synchronisierte Messungen auf deinem Handy zu sehen.",
+    "updated": "Aktualisiert am 28. September 2026",
+    "metaTitle": "2.0.0 für Desktop und Terminal herunterladen",
+    "metaDescription": "Lade OpenLimiter 2.0.0 für Windows, macOS oder Linux herunter, oder installiere die CLI aus npm. Kostenlose lokale Meter und Alerts. Desktop Builds sind nicht signiert.",
     "title": "Download",
     "lead": "Die Desktop Builds für Windows, macOS und Linux sind jetzt verfügbar. Windows und macOS erscheinen unsigniert, jeder fragt dich also einmal um Erlaubnis: unter Windows wähle Weitere Informationen und dann Trotzdem ausführen, unter macOS öffne die Systemeinstellungen, gehe zu Datenschutz und Sicherheit und wähle Trotzdem öffnen. macOS erscheint als eine einzige universelle Abbilddatei, die auf Apple silicon und auf Intel läuft. npm und die Web App sind ebenfalls verfügbar.",
     "choice": {
@@ -2222,7 +2254,7 @@
         "lead": "Ihre gespeicherten Pro Einstellungen blieben erhalten, und diese Dienste wurden beendet."
       },
       "feature": {
-        "alerts": "Benachrichtigungen bei 60, 80 und 90 Prozent, und wenn ein Fenster zurückgesetzt wird.",
+        "alerts": "E Mail und Push Benachrichtigungen auf dem Telefon. Lokale Desktop Benachrichtigungen sind kostenlos.",
         "history": "Neunzig Tage Verlauf, mit einer Prognose.",
         "phone": "Ihre Balken auf Ihrem Telefon, gekoppelt per QR Code.",
         "multiAccount": "Mehr als ein Konto für jeden Anbieter."

@@ -193,3 +193,11 @@ export function primaryDownloadHref(platform: DesktopPlatform): string {
   if (asset === undefined) throw new Error(`Missing ${platform} download asset.`);
   return asset.href;
 }
+
+/** One named packaged file, for the links under the primary download. */
+export function downloadAssetHref(platform: DesktopPlatform, id: string): string {
+  const target = downloadTargets.find((entry) => entry.id === platform);
+  const asset = target?.assets?.find((entry) => entry.id === id);
+  if (asset === undefined) throw new Error(`Missing ${platform} ${id} download asset.`);
+  return asset.href;
+}

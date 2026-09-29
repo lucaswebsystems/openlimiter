@@ -47,8 +47,8 @@
     "saveFailed": "No se pudo guardar la visibilidad del Rail. Inténtalo de nuevo."
   },
   "meta": {
-    "title": "OpenLimiter, conciencia de quota para agentes de programación con IA",
-    "description": "OpenLimiter lee la cuota de tus suscripciones de IA en tu equipo y da a los agentes de código un estado limitado del presupuesto con consejos de ruta. Código abierto, local primero, sin telemetría en modo local."
+    "title": "OpenLimiter 2.0, límites de codificación con IA y actividad de agentes",
+    "description": "Consulta los límites de codificación con IA en tu escritorio, terminal y teléfono. Sigue a los agentes ocupados, en espera y terminados con alertas locales gratuitas en OpenLimiter 2.0."
   },
   "common": {
     "skipToContent": "Saltar al contenido",
@@ -436,19 +436,49 @@
     "disclaimer": "Las compilaciones de escritorio para Windows, macOS y Linux están disponibles. Windows y macOS no están firmados: SmartScreen pide Más información y luego Ejecutar de todas formas, y macOS pide Abrir igualmente una vez. La página de descarga tiene los pasos exactos. npm y la aplicación web ya están disponibles. Las aplicaciones móviles nativas no están construidas."
   },
   "home": {
+    "release": {
+      "rail": {
+        "title": "Una Rail tranquila. Una petición clara para ti.",
+        "lead": "OpenLimiter 2.0 coloca tus límites de codificación con IA y la actividad de tus agentes en el borde izquierdo de tu escritorio. Mantén la Rail plegada mientras trabajas y despliégala para ver qué agente necesita tu intervención. Los meters locales y las alertas del escritorio son gratis, con una cuenta activa por proveedor.",
+        "folded": "Plegada en el borde izquierdo, con el uso y la actividad a la vista.",
+        "unfolded": "Despliega la Rail para leer la tarjeta y localizar la aplicación del agente.",
+        "foldedAlt": "La Rail real de OpenLimiter plegada contra el borde izquierdo, con meters sintéticos de proveedores y actividad de agentes.",
+        "unfoldedAlt": "La Rail real de OpenLimiter desplegada junto a una tarjeta que muestra que Claude necesita intervención, con un botón Localizar aplicación."
+      },
+      "agents": {
+        "title": "Ocupado, en espera o terminado. Sabrás cuándo volver.",
+        "lead": "La lista de agentes de Home muestra la actividad de las integraciones de agentes compatibles. Un agente en espera necesita intervención. Un agente terminado ha informado que completó su trabajo. Las notificaciones locales gratuitas te traen de vuelta cuando hay algo que hacer.",
+        "note": "Localizar aplicación te lleva a la aplicación responsable cuando el sistema operativo lo permite. No promete una pestaña concreta del terminal. La actividad unknown nunca se muestra como éxito.",
+        "alt": "Home de escritorio de OpenLimiter con Claude en espera, Codex ocupado y Cursor terminado en la lista de agentes, usando sesiones sintéticas."
+      },
+      "terminal": {
+        "title": "Tus límites junto a tu prompt.",
+        "lead": "La statusline del terminal muestra el uso, las horas de reinicio y la vigencia para los hosts compatibles. Las franjas verdes, amarillas, naranjas y rojas hacen fácil detectar una ventana que se está llenando. Los porcentajes y las etiquetas mantienen claro el significado sin depender del color.",
+        "note": "Este es el renderer real de la CLI con lecturas sintéticas. La compatibilidad con statusline depende del host. Consulta la guía de la CLI para configurarla.",
+        "alt": "Salida real de la CLI de OpenLimiter con franjas de uso verdes, amarillas, naranjas y rojas, porcentajes y horas de reinicio."
+      },
+      "phone": {
+        "title": "Inicia sesión en tu teléfono. Consulta las lecturas de tu computadora.",
+        "lead": "Inicia sesión con la misma cuenta de OpenLimiter en tu computadora y en tu teléfono. El web app muestra las lecturas sincronizadas más recientes, incluido el momento en que se observaron. El acceso a la cuenta gratuita sigue funcionando cuando termina el periodo de prueba de Pro.",
+        "note": "Tu computadora debe recopilar y sincronizar nuevas lecturas. Un teléfono no actualiza una computadora sin conexión, y las credenciales de los proveedores permanecen en el dispositivo que las lee.",
+        "cta": "Inicia sesión en el web app",
+        "alt": "El web app de OpenLimiter con sesión iniciada en tamaño de teléfono, mostrando lecturas sintéticas sincronizadas desde una computadora."
+      },
+      "captureNote": "Pantallas reales de la aplicación con datos sintéticos. Ninguna cuenta personal ni dato de uso."
+    },
     "docsLine": "Ambas cosas están documentadas en detalle: <agentContext>lo que se le dice a un agente</agentContext> y <cli>cada comando con el que se distribuye</cli>.",
     "bridge": {
-      "line": "Cuando te alejas del escritorio, los números siguen en tu propio disco.",
-      "note": "No hizo falta subir nada para que eso fuera cierto."
+      "line": "Sigue trabajando. Mira cuándo un agente te necesita.",
+      "note": "La Rail y el terminal muestran lecturas locales. Inicia sesión para ver lecturas sincronizadas en tu teléfono."
     }
   },
   "deviceFrame": {
-    "title": "Todos tus planes en una sola pantalla",
-    "lead": "Una tarjeta por proveedor: el meter, qué tan vigente es esa lectura y cuándo se reinicia la ventana. Cada número se lee de tu propia máquina, y lo que ves en esta captura es exactamente lo que se instala.",
+    "title": "Tu día de programación en un solo lugar",
+    "lead": "Los meters de uso locales y la lista de agentes comparten la Home de escritorio. Consulta qué tan reciente es una lectura, cuándo se reinicia su ventana y qué agente compatible necesita tu atención.",
     "screenshot": {
-      "alt": "La aplicación de escritorio de OpenLimiter, mostrando una tarjeta por proveedor con un meter, un porcentaje, un estado de vigencia y una cuenta regresiva de reinicio, sobre datos de demostración sintéticos."
+      "alt": "La Home de escritorio de OpenLimiter 2.0 con lecturas de uso sintéticas y una lista de agentes que muestra sesiones en espera, ocupadas y terminadas."
     },
-    "caption": "La aplicación de escritorio empaquetada, capturada en una máquina real contra los datos de demostración sintéticos del proyecto. No aparece en ella ninguna cuenta, credencial ni cifra de uso real."
+    "caption": "La interfaz real de escritorio renderizada sin interfaz gráfica, con fixtures sintéticos. No aparece ninguna cuenta personal, credencial ni cifra de uso real."
   },
   "phonePanels": {
     "shots": {
@@ -725,7 +755,7 @@
     "items": {
       "whatLeaves": {
         "question": "¿Qué sale realmente de mi máquina?",
-        "answer": "En modo local, nada sale hacia OpenLimiter. Las conexiones con proveedores hablan solo con ese proveedor a través de una lista fija, y las credenciales se quedan en el almacén de credenciales del sistema operativo. Cuando inicias sesión, instantáneas acotadas y seleccionadas de quota van al servicio alojado para que tus propios dispositivos las vean, y Pro añade alertas, historial, pronósticos y enrutamiento de agente encima de eso. Las credenciales de proveedor nunca van allí."
+        "answer": "En modo local, nada sale hacia OpenLimiter. Las conexiones con proveedores solo hablan con ese proveedor mediante una lista fija de permisos, y las credenciales se quedan en tu dispositivo. Cuando inicias sesión, instantáneas seleccionadas y acotadas de quota van al servicio alojado para que tus propios dispositivos puedan verlas. Pro añade alertas remotas, historial alojado y pronósticos. Las alertas locales son gratuitas. Las credenciales de los proveedores nunca van allí."
       },
       "safeToPoint": {
         "question": "¿Es seguro apuntarlo a mis herramientas?",
@@ -737,7 +767,7 @@
       },
       "providersToday": {
         "question": "¿Qué proveedores funcionan hoy?",
-        "answer": "Se distribuyen nueve connectors: Claude a través de la carga nativa del statusline, OpenRouter a través de su forma documentada, Codex, Antigravity, Gemini CLI, Grok y Kimi a través de formas internas que pueden romperse, OpenCode a través de una sesión existente que puede romperse, y manual entry. Todos están marcados UNVERIFIED hasta que exista un verificador explícito."
+        "answer": "La guía de proveedores enumera los meters disponibles, los pasos de configuración y el estado de verificación de cada integración. Las lecturas de quota y la actividad de agentes son capacidades separadas. Un proveedor que informa de actividad no necesariamente expone una quota, y un parser probado con fixtures no demuestra una adquisición en vivo."
       },
       "apiKey": {
         "question": "¿Necesito una clave de API?",
@@ -779,7 +809,7 @@
   },
   "pricing": {
     "title": "Precios",
-    "lead": "Todo lo que ves es gratis. Las alertas, el historial, el acceso desde el teléfono, las cuentas adicionales y el seguimiento de gasto por encima de $100 son Pro.",
+    "lead": "Los meters locales, las alertas locales y el acceso a la cuenta son gratuitos, con una cuenta activa por proveedor. Pro añade alertas remotas, historial alojado, cuentas adicionales y más.",
     "plannedChip": "planeado",
     "free": {
       "status": "disponible",
@@ -806,15 +836,15 @@
       "trialChip": "30 días gratis",
       "priceNote": "Los primeros 30 días son gratis y sin tarjeta. Cuando el acceso termina, las funciones Pro se detienen: las alojadas de inmediato, y las locales vuelven a una cuenta por proveedor y al tema estándar. Todo lo que veías antes de Pro sigue igual.",
       "lead": "Cinco funciones Pro. Tres son servicios alojados y dos son interruptores en la aplicación local.",
-      "footnote": "Todo lo que ves es gratis. Las alertas, el historial, el acceso desde el teléfono, las cuentas adicionales y el seguimiento de gasto por encima de $100 son Pro.",
+      "footnote": "Después del periodo de prueba, los meters locales, las alertas locales y el acceso gratuito a la cuenta siguen funcionando. La versión gratuita mantiene una cuenta activa por proveedor.",
       "lines": {
-        "alerts": "Todas las alertas: aviso de escritorio, correo y push en el teléfono al 60, 80 y 90 por ciento de una ventana, y cuando se reinicia",
+        "alerts": "Alertas remotas por correo y push en el teléfono. Las alertas locales del escritorio son gratuitas",
         "themes": "Un acento o preajuste de densidad Pro, aplicado en la aplicación local",
         "multiSubscription": "Más de una cuenta por proveedor, desbloqueada en la aplicación local",
         "heavyApi": "Medidores de gasto de API, en beta. El plan gratis registra hasta $100 por mes natural para cada fuente y Pro va por encima",
         "history": "Noventa días de historial alojado, con un pronóstico hasta el día en que una ventana se agota"
       },
-      "cta": "Empezar 30 días gratis",
+      "cta": "Empieza tu periodo de prueba gratuito de 30 días",
       "conditions": "Los medidores de gasto necesitan una clave de administrador de organización. Reembolso completo en 14 días, cancela cuando quieras en el portal de Stripe. Vendido por Lucas Costa, pagos gestionados por Stripe.",
       "conditionsLink": "Condiciones completas"
     },
@@ -844,8 +874,10 @@
     "readSource": "Leer el código fuente"
   },
   "download": {
-    "metaTitle": "Descargar",
-    "metaDescription": "Descarga OpenLimiter para Windows, macOS o Linux, instala la herramienta de línea de comandos desde npm, o abre la aplicación web.",
+    "releaseLead": "Obtén OpenLimiter 2.0.0 para Windows, macOS o Linux, o instala la herramienta de línea de comandos desde npm. Los meters locales y las alertas del escritorio son gratuitos, con una cuenta activa por proveedor. Estas versiones de escritorio no están firmadas. Inicia sesión en una cuenta gratuita para ver lecturas sincronizadas en tu teléfono.",
+    "updated": "Actualizado el 28 de septiembre de 2026",
+    "metaTitle": "Descarga 2.0.0 para escritorio y terminal",
+    "metaDescription": "Descarga OpenLimiter 2.0.0 para Windows, macOS o Linux, o instala la CLI desde npm. Meters y alertas locales gratis. Las versiones de escritorio no están firmadas.",
     "title": "Descargar",
     "lead": "Las compilaciones de escritorio para Windows, macOS y Linux ya están disponibles. Windows y macOS salen sin firmar, así que cada uno te pide permitirlo una vez: en Windows elige Más información y luego Ejecutar de todas formas, y en macOS abre Ajustes del Sistema, ve a Privacidad y Seguridad y elige Abrir de todos modos. macOS sale como una única imagen de disco universal que funciona en Apple silicon y en Intel. npm y la web app también están disponibles.",
     "choice": {
@@ -2222,7 +2254,7 @@
         "lead": "Tus preferencias guardadas de Pro se conservaron, y estos servicios se detuvieron."
       },
       "feature": {
-        "alerts": "Alertas al 60, 80 y 90 por ciento, y cuando una ventana se reinicia.",
+        "alerts": "Alertas por correo y push en el teléfono. Las alertas locales del escritorio son gratuitas.",
         "history": "Noventa días de historial, con un pronóstico.",
         "phone": "Tus barras en tu teléfono, emparejadas con un código QR.",
         "multiAccount": "Más de una cuenta para cada proveedor."

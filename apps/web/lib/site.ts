@@ -90,6 +90,7 @@ export const HERO_BACKDROP_ENABLED: boolean = true;
  * use stable aliases on the latest published release, independent of this value.
  */
 export const CURRENT_VERSION = "2.0.0";
+export const SITE_CONTENT_UPDATED = "2026-09-28";
 
 /**
  * What actually ships today, in one place, so no surface can quietly promote a
