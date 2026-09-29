@@ -31,6 +31,15 @@ impl Default for Preferences {
 }
 
 impl Preferences {
+    /// R35 fixes placement to the primary display. Keep the existing visibility
+    /// switch, but never revive tile offsets or a permanently unfolded panel.
+    pub fn edge_tab(mut self) -> Self {
+        self.edge = Edge::Left;
+        self.monitor_id.clear();
+        self.offsets.clear();
+        self.keep_open = false;
+        self
+    }
     pub fn offset(&self, monitor: &str) -> f64 {
         self.offsets.get(monitor).copied().unwrap_or(120.0)
     }
@@ -91,6 +100,17 @@ pub fn save(path: &Path, value: &Preferences) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn migration_keeps_explicit_visibility_and_drops_tile_placement() {
+        let old: Preferences = serde_json::from_str(r#"{"visible":false,"edge":"bottom","monitorId":"old","offsets":{"old":200},"keepOpen":true}"#).unwrap();
+        let migrated = old.edge_tab();
+        assert!(!migrated.visible);
+        assert_eq!(migrated.edge, Edge::Left);
+        assert!(migrated.monitor_id.is_empty() && migrated.offsets.is_empty());
+        assert!(!migrated.keep_open);
+        assert!(Preferences::default().edge_tab().visible);
+        assert_eq!(migrated.clone().edge_tab(), migrated);
+    }
     #[test]
     fn round_trip_replaces_existing_file_and_keeps_each_monitor_offset() {
         let dir =
