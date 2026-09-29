@@ -11,6 +11,12 @@
   font: inherit;
 }
 
+/* The title takes focus only so screen readers announce it; it is not a
+   control, so it shows no focus ring. */
+.whats-new h2:focus {
+  outline: none;
+}
+
 .whats-new::backdrop {
   background: var(--ol-backdrop);
 }

@@ -33,7 +33,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { rewriteJsonImports } from "./ui-modules.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP = path.resolve(HERE, "..");
@@ -165,6 +166,34 @@ function browserSafeAdapter(source) {
   return browser.slice(0, cacheStart);
 }
 
+/* Resolve against the original module, before relocation into engine changes
+   the meaning of its relative imports. JSON modules also require connect-src
+   in Chromium, so ship ordinary scripts without changing the desktop CSP. */
+function emitJsonModule(sourceFile) {
+  const ui = path.join(DESKTOP, "ui");
+  const root = sourceFile.startsWith(ui + path.sep) ? ui : REPOSITORY;
+  const relative = path.relative(root, sourceFile);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`JSON module is outside the repository: ${sourceFile}`);
+  }
+  const output = path.join(DIST, relative + ".js");
+  mkdirSync(path.dirname(output), { recursive: true });
+  const value = JSON.parse(readFileSync(sourceFile, "utf8"));
+  writeFileSync(output, `export default ${JSON.stringify(value)};\n`, "utf8");
+  return output;
+}
+
+function browserJsonImports(source, sourceFile, outputFile) {
+  return rewriteJsonImports(source, specifier => {
+    if (!specifier.startsWith("./") && !specifier.startsWith("../")) {
+      throw new Error(`JSON module must be local: ${specifier}`);
+    }
+    const output = emitJsonModule(fileURLToPath(new URL(specifier, pathToFileURL(sourceFile))));
+    const relative = path.relative(path.dirname(outputFile), output).split(path.sep).join("/");
+    return relative.startsWith(".") ? relative : `./${relative}`;
+  }, sourceFile);
+}
+
 assertBuilt();
 /* WebView2 can keep the directory itself open after its last window closes.
    Windows still permits removing every child in that state. The fallback
@@ -198,7 +227,8 @@ for (const [name, spec] of Object.entries(COPY)) {
       'from "../core/index.js"',
     );
     const browserSource = name === "adapters" ? browserSafeAdapter(rewritten) : rewritten;
-    writeFileSync(path.join(target, file), browserSource, "utf8");
+    const output = path.join(target, file);
+    writeFileSync(output, browserJsonImports(browserSource, path.join(spec.from, file), output), "utf8");
   }
 }
 
@@ -233,7 +263,6 @@ const WINDOW_FILES = [
   "agents.js",
   "agents.css",
   "agents.en.js",
-  "agents.en.json",
   "whats-new.js",
   "whats-new.css",
   "home-state.js",
@@ -265,13 +294,31 @@ const WINDOW_FILES = [
   "tray.html",
   "tray.css",
   "tray.js",
+  "tray-countdown.js",
 ];
 
 for (const file of WINDOW_FILES) {
-  copyFileSync(path.join(DESKTOP, "ui", file), path.join(DIST, file));
+  const source = path.join(DESKTOP, "ui", file);
+  const output = path.join(DIST, file);
+  if (file.endsWith(".js")) {
+    writeFileSync(output, browserJsonImports(readFileSync(source, "utf8"), source, output), "utf8");
+  } else if (file.endsWith(".html")) {
+    /* Keep the early theme script synchronous while satisfying script-src self
+       even when the configured CSP is served verbatim by a static server. */
+    let index = 0;
+    const html = readFileSync(source, "utf8").replace(/<script>([\s\S]*?)<\/script>/gu, (_, script) => {
+      const name = `${path.basename(file, ".html")}.inline-${++index}.js`;
+      writeFileSync(path.join(DIST, name), browserJsonImports(script, source, path.join(DIST, name)), "utf8");
+      return `<script src="./${name}"></script>`;
+    });
+    writeFileSync(output, html, "utf8");
+  } else {
+    copyFileSync(source, output);
+  }
 }
+emitJsonModule(path.join(DESKTOP, "ui", "whats-new.en.json"));
 writeFileSync(path.join(DIST, "whats-new-data.js"),
-  `export const version = ${JSON.stringify(version)};\nexport const catalog = ${JSON.stringify(whatsNew)};\n`, "utf8");
+  `export { default as catalog } from "./whats-new.en.json.js";\nexport const version = ${JSON.stringify(version)};\n`, "utf8");
 
 /* The two provider marks the sign in draws. Google's G is served as the file
    Google publishes, in its own four colours; the GitHub mark is the file the
