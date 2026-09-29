@@ -269,7 +269,7 @@ test("the first run account step wears the same centred head and hosts the same 
   const step = markup.slice(start, markup.indexOf("</section>", start));
   assert.match(step, /class="sign-in-head"[\s\S]*?class="sign-in-lockup"[\s\S]*?id="first-run-account-title"[\s\S]*?class="sign-in-lead"/u);
   /* One lead sentence: a single full stop, at the end. */
-  const lead = step.match(/class="sign-in-lead">([^<]+)</u)?.[1] ?? "";
+  const lead = step.match(/class="sign-in-lead"[^>]*>([^<]+)</u)?.[1] ?? "";
   assert.equal((lead.match(/\./gu) ?? []).length, 1);
   assert.match(lead, /\.$/u);
   assert.match(step, /id="first-run-sign-in-mount"/u);

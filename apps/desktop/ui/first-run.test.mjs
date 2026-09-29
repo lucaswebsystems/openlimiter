@@ -112,9 +112,10 @@ test("step one says the bars are free and what the account is for", () => {
   const account = step.slice(step.indexOf('id="first-run-account"'));
 
   assert.match(account, /<h1 id="first-run-account-title">Create your account<\/h1>/u);
-  const lead = account.match(/class="sign-in-lead">([^<]+)</u)?.[1] ?? "";
+  const lead = account.match(/class="sign-in-lead"[^>]*>([^<]+)</u)?.[1] ?? "";
   assert.match(lead, /free with no account/u);
-  assert.match(lead, /sync, alerts, your phone, and more than one account per provider/u);
+  assert.match(lead, /every desktop alert is free with no account/u);
+  assert.match(lead, /sync to your phone, with Pro adding phone push, email and more than one account per provider/u);
   /* One sentence, one full stop, at the end of it. */
   assert.equal((lead.match(/\./gu) ?? []).length, 1);
   assert.match(lead, /\.$/u);

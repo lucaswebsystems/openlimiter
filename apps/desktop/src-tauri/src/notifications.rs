@@ -11,6 +11,8 @@ use tauri_plugin_notification::NotificationExt;
 
 const NOTIFICATIONS_FILE_NAME: &str = "notifications-v2.json";
 const DOCUMENT_VERSION: u8 = 2;
+// Persisted local channel name. Keep it stable so existing dedupe keys survive upgrades.
+// These events never enter the remote push or email delivery path.
 const CHANNEL: &str = "push";
 const THRESHOLDS: [u32; 3] = [60, 80, 90];
 const MAX_EVENTS: usize = 40;
@@ -105,6 +107,9 @@ pub struct NotificationSettingsInput {
     pub quiet_start: String,
     pub quiet_end: String,
     pub snoozed_until: Option<String>,
+    // Settings sends the last response back; the native writer owns the next epoch.
+    #[serde(default, rename = "channelEpoch")]
+    _channel_epoch: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -372,17 +377,9 @@ fn threshold_enabled(settings: &NotificationSettings, threshold: u32) -> bool {
     }
 }
 
-/// Whether a toast may leave the process for this band, right now.
-///
-/// `entitled` comes first on purpose. Every notification is a Pro capability,
-/// so a Free window suppresses the popup before quiet hours, snooze or the per
-/// band switches are even consulted. The event is still recorded, because the
-/// history a person sees in the bell is a local fact about their own meters
-/// and nothing about it is sold. What Pro pays for is the interruption.
-fn popup_allowed(settings: &NotificationSettings, kind: &str, now: i64, entitled: bool) -> bool {
-    if !entitled {
-        return false;
-    }
+/// Local desktop popups are free, including without an OpenLimiter login.
+/// Entitlement and trial expiry cannot override local notification preferences.
+fn popup_allowed(settings: &NotificationSettings, kind: &str, now: i64) -> bool {
     let kind_enabled = match kind {
         "reset" => settings.reset,
         "60" => settings.threshold_60,
@@ -536,19 +533,13 @@ fn record_event(
     Some(event)
 }
 
-/// Evaluate every sample against the stored meter state, for one plan.
-///
-/// `entitled` says whether this machine currently holds the alerts feature.
-/// It decides one thing only: whether a crossing that would have queued a
-/// toast queues it or is recorded as suppressed. Band arithmetic, coalescing,
-/// hysteresis and the uniqueness ledger are identical either way, so a person
-/// who upgrades does not get a backlog of old crossings fired at them.
-fn evaluate_document_for_plan(
+/// Evaluate local crossings without consulting an account or subscription.
+/// Remote push and email use their own Pro gated delivery path.
+fn evaluate_document(
     document: &mut NotificationDocument,
     samples: Vec<NotificationSample>,
     system_time_zone: &str,
     now: i64,
-    entitled: bool,
 ) -> Result<Evaluation, String> {
     if samples.len() > MAX_SAMPLES {
         return Err("invalid_input".to_string());
@@ -603,7 +594,7 @@ fn evaluate_document_for_plan(
             previous.reset_id = previous.reset_id.saturating_add(1);
             previous.low_candidate = None;
             previous.peak_value = sample.value;
-            let status = if popup_allowed(&document.settings, "reset", now, entitled) {
+            let status = if popup_allowed(&document.settings, "reset", now) {
                 "queued"
             } else {
                 "suppressed"
@@ -661,7 +652,7 @@ fn evaluate_document_for_plan(
             }
             if let Some(highest) = highest {
                 let highest_text = highest.to_string();
-                let status = if popup_allowed(&document.settings, &highest_text, now, entitled) {
+                let status = if popup_allowed(&document.settings, &highest_text, now) {
                     "queued"
                 } else {
                     "suppressed"
@@ -697,18 +688,6 @@ fn evaluate_document_for_plan(
     Ok(Evaluation { created, popups })
 }
 
-/// The entitled evaluation, for tests that are about band arithmetic rather
-/// than about the plan. Production always names the plan explicitly.
-#[cfg(test)]
-fn evaluate_document(
-    document: &mut NotificationDocument,
-    samples: Vec<NotificationSample>,
-    system_time_zone: &str,
-    now: i64,
-) -> Result<Evaluation, String> {
-    evaluate_document_for_plan(document, samples, system_time_zone, now, true)
-}
-
 fn now_seconds() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -734,11 +713,8 @@ fn mark_popup(document: &mut NotificationDocument, event_id: &str, delivered: bo
     }
 }
 
-/// Whether this machine may raise a toast at all, and why not when it may not.
-///
-/// The window asks for this before it draws the bell, so a Free build says
-/// "Alerts are a Pro feature" with an upgrade in reach rather than showing a
-/// settings panel whose switches would do nothing.
+/// Retain the bell's capability response without requiring a login or Pro.
+/// OS permission and local preferences still determine delivery.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationGate {
@@ -746,10 +722,8 @@ pub struct NotificationGate {
 }
 
 #[tauri::command]
-pub fn notification_gate(store: State<'_, crate::credentials::KeyringStore>) -> NotificationGate {
-    NotificationGate {
-        entitled: crate::pro::alerts_enabled(store.inner()),
-    }
+pub fn notification_gate() -> NotificationGate {
+    NotificationGate { entitled: true }
 }
 
 #[tauri::command]
@@ -758,19 +732,11 @@ pub fn evaluate_notifications(
     system_time_zone: String,
     app: AppHandle,
     state: State<'_, NotificationState>,
-    store: State<'_, crate::credentials::KeyringStore>,
 ) -> Result<Vec<NotificationEvent>, String> {
-    let entitled = crate::pro::alerts_enabled(store.inner());
     let mut held = state.document.lock().map_err(|_| storage_error())?;
     let current = held.as_ref().ok_or_else(storage_error)?;
     let mut next = current.clone();
-    let evaluation = evaluate_document_for_plan(
-        &mut next,
-        samples,
-        &system_time_zone,
-        now_seconds(),
-        entitled,
-    )?;
+    let evaluation = evaluate_document(&mut next, samples, &system_time_zone, now_seconds())?;
     state.persist(&next)?;
     *held = Some(next);
     drop(held);
@@ -917,95 +883,104 @@ mod tests {
     }
 
     #[test]
-    fn a_free_machine_queues_no_toast_at_any_band() {
-        /* Every notification is Pro. A Free window still keeps its own local
-        history, so the crossing is recorded, but nothing may interrupt. */
+    fn a_free_machine_without_a_login_gets_an_80_percent_popup() {
+        assert!(notification_gate().entitled);
         let mut document = NotificationDocument::default();
-        evaluate_document_for_plan(
+        let baseline = evaluate_document(
             &mut document,
             vec![sample(50.0, "2026-09-01T10:00:00Z")],
             "UTC",
             1_788_278_400,
-            false,
         )
         .unwrap();
-        let result = evaluate_document_for_plan(
+        assert!(baseline.popups.is_empty());
+        let result = evaluate_document(
             &mut document,
-            vec![sample(95.0, "2026-09-01T10:01:00Z")],
+            vec![sample(80.0, "2026-09-01T10:01:00Z")],
             "UTC",
             1_788_278_460,
-            false,
-        )
-        .unwrap();
-        assert!(result.popups.is_empty());
-        assert_eq!(result.created.len(), 1);
-        assert_eq!(result.created[0].kind, "threshold_90");
-        assert_eq!(result.created[0].status, "suppressed");
-        assert!(document
-            .records
-            .iter()
-            .all(|record| record.status != "queued"));
-    }
-
-    #[test]
-    fn an_entitled_machine_queues_the_toast_the_free_one_suppressed() {
-        let mut document = NotificationDocument::default();
-        evaluate_document_for_plan(
-            &mut document,
-            vec![sample(50.0, "2026-09-01T10:00:00Z")],
-            "UTC",
-            1_788_278_400,
-            true,
-        )
-        .unwrap();
-        let result = evaluate_document_for_plan(
-            &mut document,
-            vec![sample(95.0, "2026-09-01T10:01:00Z")],
-            "UTC",
-            1_788_278_460,
-            true,
         )
         .unwrap();
         assert_eq!(result.popups.len(), 1);
-        assert_eq!(result.popups[0].threshold, "90");
+        assert_eq!(result.popups[0].threshold, "80");
         assert_eq!(result.created[0].status, "queued");
     }
 
     #[test]
-    fn a_free_machine_raises_no_reset_toast_either() {
-        /* The reset band ships on now, so it is the band most likely to fire
-        on a machine that never chose it. It obeys the same plan gate. */
+    fn a_free_machine_gets_a_reset_popup() {
         let mut document = NotificationDocument::default();
-        for (value, observed, now) in [
-            (80.0, "2026-09-01T10:00:00Z", 1_788_278_400),
-            (5.0, "2026-09-01T10:01:00Z", 1_788_278_460),
-            (4.0, "2026-09-01T10:06:00Z", 1_788_278_760),
+        for (value, observed, now, expected) in [
+            (80.0, "2026-09-01T10:00:00Z", 1_788_278_400, 0),
+            (5.0, "2026-09-01T10:01:00Z", 1_788_278_460, 0),
+            (4.0, "2026-09-01T10:06:00Z", 1_788_278_760, 1),
         ] {
             let mut reading = sample(value, observed);
             reading.window_is_authoritative = false;
             reading.window_id = "weekly".to_string();
-            let result =
-                evaluate_document_for_plan(&mut document, vec![reading], "UTC", now, false)
-                    .unwrap();
-            assert!(result.popups.is_empty());
+            let result = evaluate_document(&mut document, vec![reading], "UTC", now).unwrap();
+            assert_eq!(result.popups.len(), expected);
         }
         assert!(document
             .records
             .iter()
-            .any(|record| record.threshold == "reset" && record.status == "suppressed"));
+            .any(|record| { record.threshold == "reset" && record.status == "queued" }));
     }
 
     #[test]
-    fn the_reset_band_ships_on_so_an_entitled_machine_hears_the_window_turn_over() {
-        /* The reset is the one alert a person acts on happily rather than
-        anxiously, and it shipped off by default, which meant nobody ever met
-        it. It is on now, and the plan gate above is what keeps it quiet on a
-        Free machine rather than a switch nobody found. */
+    fn all_local_bands_ship_enabled() {
         let settings = NotificationSettings::default();
         assert!(settings.reset);
         assert!(settings.threshold_60);
         assert!(settings.threshold_80);
         assert!(settings.threshold_90);
+    }
+
+    #[test]
+    fn switching_accounts_baselines_the_new_account_without_a_popup() {
+        let mut document = NotificationDocument::default();
+        evaluate_document(
+            &mut document,
+            vec![sample(50.0, "2026-09-01T10:00:00Z")],
+            "UTC",
+            1_788_278_400,
+        )
+        .unwrap();
+        let mut other = sample(95.0, "2026-09-01T10:01:00Z");
+        other.account_id = "account-two".to_string();
+        let result = evaluate_document(&mut document, vec![other], "UTC", 1_788_278_460).unwrap();
+        assert!(result.created.is_empty());
+        assert!(result.popups.is_empty());
+        assert_eq!(document.meters.len(), 2);
+    }
+
+    #[test]
+    fn snoozed_crossings_are_not_replayed_after_snooze_ends() {
+        let mut document = NotificationDocument::default();
+        document.settings.snoozed_until = Some("2026-09-01T10:02:00Z".into());
+        evaluate_document(
+            &mut document,
+            vec![sample(50.0, "2026-09-01T10:00:00Z")],
+            "UTC",
+            parse_observed_at("2026-09-01T10:00:00Z").unwrap(),
+        )
+        .unwrap();
+        let held = evaluate_document(
+            &mut document,
+            vec![sample(80.0, "2026-09-01T10:01:00Z")],
+            "UTC",
+            parse_observed_at("2026-09-01T10:01:00Z").unwrap(),
+        )
+        .unwrap();
+        assert!(held.popups.is_empty());
+        assert_eq!(held.created[0].status, "suppressed");
+        let resumed = evaluate_document(
+            &mut document,
+            vec![sample(81.0, "2026-09-01T10:03:00Z")],
+            "UTC",
+            parse_observed_at("2026-09-01T10:03:00Z").unwrap(),
+        )
+        .unwrap();
+        assert!(resumed.popups.is_empty());
     }
 
     #[test]
@@ -1143,5 +1118,18 @@ mod tests {
         assert!(valid_settings(&settings));
         settings.snoozed_until = Some("2026-09-02T01:00:00-03:00".to_string());
         assert!(!valid_settings(&settings));
+    }
+
+    #[test]
+    fn settings_accept_the_returned_epoch_when_saving_snooze() {
+        let settings = NotificationSettings::default();
+        let mut input = serde_json::to_value(&settings).unwrap();
+        input["channelEpoch"] = serde_json::json!(999);
+        input["snoozedUntil"] = serde_json::json!("2026-09-01T11:00:00Z");
+        let parsed: NotificationSettingsInput = serde_json::from_value(input).unwrap();
+        assert_eq!(
+            parsed.snoozed_until.as_deref(),
+            Some("2026-09-01T11:00:00Z")
+        );
     }
 }

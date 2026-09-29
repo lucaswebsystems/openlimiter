@@ -41,7 +41,7 @@ import {
    owns its own tab and reads the backend itself, so a failure in one leaves
    the other three drawing what they can prove. */
 import { renderPlanCap } from "./plan-cap.js";
-import { renderSettings, refreshDesktopTrial, tickDesktopTrial } from "./settings.js";
+import { ALERTS_EN, renderSettings, refreshDesktopTrial, tickDesktopTrial } from "./settings.js";
 import { mountAgents } from "./agents.js";
 import { renderPro, renderSpend } from "./pro.js";
 /* The phone panel and the device list it produces. Both live behind an
@@ -781,9 +781,8 @@ async function runUpdateCheck(silent) {
   elements.menuUpdate.textContent = "Install OpenLimiter " + version;
 }
 
-/* Asked once per window, and only where it can be honoured. A Free machine
-   raises no toast at all, so asking the operating system for permission to
-   raise one would be asking for something nothing would ever use. */
+/* Ask once per window when the native backend is available.
+   Local desktop alerts are free, with or without an account. */
 let permissionAsked = false;
 
 async function requestAlertPermission(notification = globalThis.Notification) {
@@ -825,7 +824,7 @@ async function paintAlertGate() {
   if (note === null) return;
   elements.notificationGate.hidden = false;
   const title = document.getElementById("notification-gate-title");
-  if (title !== null) title.textContent = "Alerts are on for your plan";
+  if (title !== null) title.textContent = ALERTS_EN.localFreeTitle;
   note.textContent = permissionSentence(outcome);
   elements.notificationUpgrade?.setAttribute("hidden", "");
 }
