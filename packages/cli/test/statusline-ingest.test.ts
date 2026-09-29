@@ -1,9 +1,9 @@
-import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { FIXTURE_NOW, claudeFixture, grokFixture } from "@openlimiter/connectors";
-import { CACHE_FILE_NAME } from "@openlimiter/core";
+import { CACHE_FILE_NAME, opaqueAccountId, readSnapshotCache } from "@openlimiter/core";
 import { runCli } from "../src/index.js";
 
 /**
@@ -80,6 +80,24 @@ function antigravityStatuslinePayload(now: string): Record<string, unknown> {
 }
 
 describe("statusline ingestion by host", () => {
+  it("captures identity before a delayed payload and keeps simultaneous accounts distinct", async () => {
+    const home = await temporaryDirectory();
+    const directory = await temporaryDirectory();
+    await mkdir(path.join(home, ".claude"));
+    await writeFile(path.join(home, ".claude", ".credentials.json"), JSON.stringify({ claudeAiOauth: { accessToken: "fixture-token" } }));
+    const select = (id: string) => writeFile(path.join(home, ".claude.json"), JSON.stringify({ oauthAccount: { accountUuid: id } }));
+    await select("fixture-a");
+    const options = { stateDirectory: directory, homeDirectory: home, environment: {}, platform: "linux" as const, now: () => FIXTURE_NOW };
+    await runCli(["statusline", "--host", "claude"], { ...options, readStandardInput: async () => {
+      await select("fixture-b");
+      return JSON.stringify(claudeFixture(FIXTURE_NOW));
+    } });
+    let cache = await readSnapshotCache(directory);
+    expect(cache.ok && cache.snapshots.every(row => row.accountId === opaqueAccountId("CLAUDE", "fixture-a"))).toBe(true);
+    await runCli(["statusline", "--host", "claude"], { ...options, readStandardInput: async () => JSON.stringify(claudeFixture(FIXTURE_NOW)) });
+    cache = await readSnapshotCache(directory);
+    expect(cache.ok && new Set(cache.snapshots.map(row => row.accountId))).toEqual(new Set([opaqueAccountId("CLAUDE", "fixture-a"), opaqueAccountId("CLAUDE", "fixture-b")]));
+  });
   it("Claude: rate_limits five_hour and seven_day become cache rows", async () => {
     const directory = await temporaryDirectory();
     const result = await runCli(["statusline", "--host", "claude"], {

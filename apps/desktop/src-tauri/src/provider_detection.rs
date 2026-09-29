@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -344,6 +345,29 @@ fn non_empty_path(name: &str) -> Option<PathBuf> {
 }
 
 impl DiscoveryContext {
+    #[cfg(test)]
+    fn current() -> Self {
+        let home = crate::state::state_directory().unwrap();
+        Self {
+            platform: DiscoveryPlatform::current(),
+            read_native_credentials: false,
+            home: Some(home.clone()),
+            roaming: Some(home.join("roaming")),
+            local: Some(home.join("local")),
+            application_support: Some(home.join("support")),
+            xdg_config: Some(home.join("config")),
+            xdg_data: Some(home.join("data")),
+            codex_home: None,
+            managed_codex_root: Some(home.join("accounts/codex")),
+            grok_home: None,
+            kimi_code_home: None,
+            kimi_share_dir: None,
+            program_files: Vec::new(),
+            path_entries: Vec::new(),
+        }
+    }
+
+    #[cfg(not(test))]
     fn current() -> Self {
         let platform = DiscoveryPlatform::current();
         let home = crate::state::home();
@@ -369,7 +393,7 @@ impl DiscoveryContext {
             crate::state::state_directory().map(|value| value.join("accounts").join("codex"));
         Self {
             platform,
-            read_native_credentials: true,
+            read_native_credentials: !cfg!(test),
             home,
             roaming,
             local,
@@ -424,7 +448,12 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
             DiscoveryPlatform::Macos => context.application_support.as_deref(),
             DiscoveryPlatform::Linux => context.xdg_config.as_deref(),
         };
-        push_candidate(&mut paths, base, &["Cursor", "User", "globalStorage", "state.vscdb"], Credential);
+        push_candidate(
+            &mut paths,
+            base,
+            &["Cursor", "User", "globalStorage", "state.vscdb"],
+            Credential,
+        );
         push_candidate(&mut paths, base, &["Cursor", "User"], Marker);
         return paths;
     }
@@ -633,7 +662,9 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         );
                     }
                 }
-                DetectedProviderId::Grok | DetectedProviderId::Kimi | DetectedProviderId::Cursor => {}
+                DetectedProviderId::Grok
+                | DetectedProviderId::Kimi
+                | DetectedProviderId::Cursor => {}
             }
         }
         DiscoveryPlatform::Macos => {
@@ -647,7 +678,8 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 ),
                 DetectedProviderId::GeminiCli
                 | DetectedProviderId::Grok
-                | DetectedProviderId::Kimi | DetectedProviderId::Cursor => {}
+                | DetectedProviderId::Kimi
+                | DetectedProviderId::Cursor => {}
                 DetectedProviderId::Claude
                 | DetectedProviderId::Codex
                 | DetectedProviderId::Opencode
@@ -660,7 +692,8 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         DetectedProviderId::Antigravity
                         | DetectedProviderId::GeminiCli
                         | DetectedProviderId::Grok
-                        | DetectedProviderId::Kimi | DetectedProviderId::Cursor => {
+                        | DetectedProviderId::Kimi
+                        | DetectedProviderId::Cursor => {
                             unreachable!()
                         }
                     };
@@ -671,7 +704,8 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         DetectedProviderId::Antigravity
                         | DetectedProviderId::GeminiCli
                         | DetectedProviderId::Grok
-                        | DetectedProviderId::Kimi | DetectedProviderId::Cursor => {
+                        | DetectedProviderId::Kimi
+                        | DetectedProviderId::Cursor => {
                             unreachable!()
                         }
                     };
@@ -703,7 +737,9 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         unreachable!()
                     }
                     DetectedProviderId::Openrouter => "config.json",
-                    DetectedProviderId::Grok | DetectedProviderId::Kimi | DetectedProviderId::Cursor => unreachable!(),
+                    DetectedProviderId::Grok
+                    | DetectedProviderId::Kimi
+                    | DetectedProviderId::Cursor => unreachable!(),
                 };
                 push_candidate(
                     &mut paths,
@@ -786,7 +822,8 @@ fn profile_prefix(provider: DetectedProviderId) -> Option<(&'static str, &'stati
         | DetectedProviderId::Opencode
         | DetectedProviderId::Openrouter
         | DetectedProviderId::Grok
-        | DetectedProviderId::Kimi | DetectedProviderId::Cursor => None,
+        | DetectedProviderId::Kimi
+        | DetectedProviderId::Cursor => None,
     }
 }
 
@@ -866,7 +903,8 @@ fn install_root_specs(
         },
         DetectedProviderId::Antigravity
         | DetectedProviderId::Opencode
-        | DetectedProviderId::Openrouter | DetectedProviderId::Cursor => &[],
+        | DetectedProviderId::Openrouter
+        | DetectedProviderId::Cursor => &[],
     }
 }
 
@@ -1173,7 +1211,9 @@ fn package_name(provider: DetectedProviderId) -> Option<&'static str> {
         DetectedProviderId::Opencode => Some("opencode-ai"),
         DetectedProviderId::Grok => Some("@xai-official/grok"),
         DetectedProviderId::Kimi => Some("@moonshot-ai/kimi-code"),
-        DetectedProviderId::Antigravity | DetectedProviderId::Openrouter | DetectedProviderId::Cursor => None,
+        DetectedProviderId::Antigravity
+        | DetectedProviderId::Openrouter
+        | DetectedProviderId::Cursor => None,
     }
 }
 
@@ -1715,11 +1755,13 @@ struct CredentialReference {
     provider: DetectedProviderId,
     account_id: String,
     source: CredentialSource,
+    revision: String,
 }
 
 struct Inventory {
     report: DetectionReport,
     credentials: BTreeMap<(DetectedProviderId, String), CredentialReference>,
+    statusline_accounts: BTreeSet<String>,
 }
 
 #[cfg(test)]
@@ -1795,6 +1837,7 @@ fn scan_enabled_inventory(
                             provider,
                             account_id,
                             source: source.clone(),
+                            revision: token_digest(&parsed.token),
                         },
                     );
                 }
@@ -1819,6 +1862,20 @@ fn scan_enabled_inventory(
             message: provider_message(provider, state),
         });
     }
+    // A status line needs the current metadata identity even if the secret is in Keychain.
+    let statusline_accounts = if credentials
+        .keys()
+        .any(|(provider, _)| *provider == DetectedProviderId::Claude)
+    {
+        BTreeSet::new()
+    } else {
+        candidate_paths(DetectedProviderId::Claude, context)
+            .into_iter()
+            .filter(|candidate| candidate.kind == CandidateKind::Credential)
+            .filter_map(|candidate| claude_identity_hint(&candidate.path))
+            .map(|hint| opaque_account_id(DetectedProviderId::Claude, &hint.value))
+            .collect()
+    };
     Inventory {
         report: DetectionReport {
             antigravity_running: None,
@@ -1827,6 +1884,7 @@ fn scan_enabled_inventory(
             providers,
         },
         credentials,
+        statusline_accounts,
     }
 }
 
@@ -1848,6 +1906,33 @@ pub struct DetectionStore {
     pub switches: crate::provider_switches::ProviderSwitches,
     context: DiscoveryContext,
     inventory: RwLock<Inventory>,
+    scan_gate: Mutex<Option<Instant>>,
+}
+
+pub fn spawn_rescans(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut timer = tokio::time::interval(Duration::from_secs(300));
+        timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            timer.tick().await;
+            let app = app.clone();
+            let _ = tauri::async_runtime::spawn_blocking(move || {
+                use tauri::Manager;
+                app.state::<DetectionStore>()
+                    .rescan_due(false, Duration::from_secs(300));
+            })
+            .await;
+        }
+    });
+}
+
+pub fn request_focus_scan(app: tauri::AppHandle) {
+    // try_lock in rescan_due drops overlapping triggers, the time gate coalesces focus bursts.
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        app.state::<DetectionStore>()
+            .rescan_due(false, Duration::from_secs(30));
+    });
 }
 
 impl DetectionStore {
@@ -1855,12 +1940,21 @@ impl DetectionStore {
         let context = DiscoveryContext::current();
         let switches =
             crate::provider_switches::ProviderSwitches::at(crate::state::state_directory());
-        let inventory =
-            scan_enabled_inventory(&context, crate::connections::now_epoch_ms(), &switches);
+        let inventory = Inventory {
+            report: DetectionReport {
+                version: 1,
+                scanned_at: String::new(),
+                providers: Vec::new(),
+                antigravity_running: None,
+            },
+            credentials: BTreeMap::new(),
+            statusline_accounts: BTreeSet::new(),
+        };
         Self {
             switches,
             context,
             inventory: RwLock::new(inventory),
+            scan_gate: Mutex::new(None),
         }
     }
 
@@ -1872,17 +1966,84 @@ impl DetectionStore {
     }
 
     pub fn rescan(&self) -> DetectionReport {
+        self.rescan_due(true, Duration::ZERO)
+    }
+
+    pub fn rescan_due(&self, explicit: bool, minimum: Duration) -> DetectionReport {
+        let Ok(mut gate) = self.scan_gate.try_lock() else {
+            return self.report();
+        };
+        if !explicit && gate.is_some_and(|at| at.elapsed() < minimum) {
+            return self.report();
+        }
+        if explicit {
+            crate::antigravity_credential::retry_after_denial();
+        }
         let next = scan_enabled_inventory(
             &self.context,
             crate::connections::now_epoch_ms(),
             &self.switches,
         );
-        let report = next.report.clone();
-        match self.inventory.write() {
-            Ok(mut inventory) => *inventory = next,
-            Err(poisoned) => *poisoned.into_inner() = next,
-        }
+        let report = self.merge_inventory(next);
+        *gate = Some(Instant::now());
         report
+    }
+
+    fn merge_inventory(&self, mut next: Inventory) -> DetectionReport {
+        let mut inventory = self
+            .inventory
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        for provider in &mut next.report.providers {
+            for account in &mut provider.accounts {
+                let key = (provider.provider_id, account.account_id.clone());
+                if next
+                    .credentials
+                    .get(&key)
+                    .zip(inventory.credentials.get(&key))
+                    .is_some_and(|(new, old)| new.revision == old.revision)
+                {
+                    if let Some(old) = inventory
+                        .report
+                        .providers
+                        .iter()
+                        .find(|old| old.provider_id == provider.provider_id)
+                        .and_then(|old| {
+                            old.accounts
+                                .iter()
+                                .find(|old| old.account_id == account.account_id)
+                        })
+                    {
+                        // Expiry still advances with the clock. A known refusal must survive rescans.
+                        if account.auth_state != DetectedAuthState::Stale {
+                            account.auth_state = old.auth_state;
+                        }
+                        account.collection_state = old.collection_state;
+                        account.recovery = old.recovery;
+                        account.message = old.message.clone();
+                    }
+                }
+            }
+        }
+        let report = next.report.clone();
+        *inventory = next;
+        report
+    }
+
+    pub(crate) fn referenced_paths(&self) -> Vec<PathBuf> {
+        self.inventory
+            .read()
+            .map(|inventory| {
+                inventory
+                    .credentials
+                    .values()
+                    .filter_map(|reference| match &reference.source {
+                        CredentialSource::File(path) => Some(path.clone()),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Validate one device login home, rescan the owned account root, and
@@ -1890,6 +2051,7 @@ impl DetectionStore {
     /// The home must be a direct child of the state directory this process
     /// owns, and the vendor file must contain exactly one readable account.
     pub fn register_managed_account(&self, home: &Path) -> Option<String> {
+        let mut gate = self.scan_gate.lock().ok()?;
         let root = self.context.managed_codex_root.as_deref()?;
         if fs::symlink_metadata(home).ok()?.file_type().is_symlink() || is_reparse_point(home) {
             return None;
@@ -1928,11 +2090,8 @@ impl DetectionStore {
         context.managed_codex_root = Some(resolved_root);
         let next =
             scan_enabled_inventory(&context, crate::connections::now_epoch_ms(), &self.switches);
-        let report = next.report.clone();
-        match self.inventory.write() {
-            Ok(mut inventory) => *inventory = next,
-            Err(poisoned) => *poisoned.into_inner() = next,
-        }
+        let report = self.merge_inventory(next);
+        *gate = Some(Instant::now());
         report
             .providers
             .iter()
@@ -1980,6 +2139,16 @@ impl DetectionStore {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    pub(crate) fn display_account_ids(&self, provider: DetectedProviderId) -> Vec<String> {
+        let mut accounts = self.account_ids(provider);
+        if provider == DetectedProviderId::Claude && self.switches.enabled(provider) {
+            if let Ok(inventory) = self.inventory.read() {
+                accounts.extend(inventory.statusline_accounts.iter().cloned());
+            }
+        }
+        accounts
     }
 
     pub fn read_credential(
@@ -2122,6 +2291,7 @@ impl DetectionStore {
             switches: crate::provider_switches::ProviderSwitches::at(Some(home.to_path_buf())),
             context,
             inventory: RwLock::new(inventory),
+            scan_gate: Mutex::new(None),
         }
     }
 }
@@ -2131,21 +2301,114 @@ mod tests {
     use super::*;
     use crate::test_support::TempDir;
 
+    #[test]
+    fn all_provider_identity_hashes_match_typescript_vectors() {
+        let vectors: Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/identity-vectors.json"
+        ))
+        .unwrap();
+        for provider in DetectedProviderId::ALL {
+            let code = provider.slug().to_uppercase().replace('-', "_");
+            let cases: Vec<_> = vectors
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|row| row["provider"] == code)
+                .collect();
+            assert_eq!(cases.len(), 4);
+            for case in cases {
+                assert_eq!(
+                    opaque_account_id(provider, case["material"].as_str().unwrap()),
+                    case["expected"].as_str().unwrap()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn statusline_metadata_tracks_account_switch_without_reading_keychain() {
+        let root = TempDir::new();
+        let metadata = root.path().join(".claude.json");
+        write(&metadata, r#"{"oauthAccount":{"accountUuid":"fixture-a"}}"#);
+        let store = DetectionStore::for_test_home(root.path(), 1_800_000_000_000);
+        assert!(store.account_ids(DetectedProviderId::Claude).is_empty());
+        assert_eq!(
+            store.display_account_ids(DetectedProviderId::Claude),
+            vec![opaque_account_id(DetectedProviderId::Claude, "fixture-a")]
+        );
+        write(&metadata, r#"{"oauthAccount":{"accountUuid":"fixture-b"}}"#);
+        store.rescan();
+        assert_eq!(
+            store.display_account_ids(DetectedProviderId::Claude),
+            vec![opaque_account_id(DetectedProviderId::Claude, "fixture-b")]
+        );
+    }
+
+    #[test]
+    fn rescan_preserves_refusal_until_vendor_rotates_credentials() {
+        let root = TempDir::new();
+        let file = root.path().join(".codex/auth.json");
+        write(
+            &file,
+            r#"{"tokens":{"access_token":"fixture-a","account_id":"fixture"}}"#,
+        );
+        let store = DetectionStore::for_test_home(root.path(), 1_800_000_000_000);
+        let id = store.account_ids(DetectedProviderId::Codex).pop().unwrap();
+        store.mark_stale(DetectedProviderId::Codex, &id);
+        let report = store.rescan();
+        assert_eq!(
+            provider(&report, DetectedProviderId::Codex).accounts[0].auth_state,
+            DetectedAuthState::Stale
+        );
+        write(
+            &file,
+            r#"{"tokens":{"access_token":"fixture-b","account_id":"fixture"}}"#,
+        );
+        let report = store.rescan();
+        assert_eq!(
+            provider(&report, DetectedProviderId::Codex).accounts[0].auth_state,
+            DetectedAuthState::ExpiryUnknown
+        );
+        assert_eq!(store.account_ids(DetectedProviderId::Codex), vec![id]);
+    }
+
+    #[test]
+    fn focus_bursts_and_overlapping_scans_are_coalesced() {
+        let root = TempDir::new();
+        let store = DetectionStore::for_test_home(root.path(), 1_800_000_000_000);
+        let before = store.rescan().scanned_at;
+        assert_eq!(
+            store.rescan_due(false, Duration::from_secs(300)).scanned_at,
+            before
+        );
+        let _gate = store.scan_gate.lock().unwrap();
+        assert_eq!(store.rescan().scanned_at, before);
+    }
+
     fn cursor_database(context: &DiscoveryContext) -> rusqlite::Connection {
-        let path = candidate_paths(DetectedProviderId::Cursor, context).remove(0).path;
+        let path = candidate_paths(DetectedProviderId::Cursor, context)
+            .remove(0)
+            .path;
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         let db = rusqlite::Connection::open(path).unwrap();
         db.execute_batch("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE ItemTable(key TEXT PRIMARY KEY, value TEXT);").unwrap();
-        for (key, value) in [("cursorAuth/accessToken", "synthetic-token"),
-            ("cursorAuth/stripeMembershipAuthId", "synthetic-auth")] {
-            db.execute("INSERT INTO ItemTable VALUES (?1, ?2)", [key, value]).unwrap();
+        for (key, value) in [
+            ("cursorAuth/accessToken", "synthetic-token"),
+            ("cursorAuth/stripeMembershipAuthId", "synthetic-auth"),
+        ] {
+            db.execute("INSERT INTO ItemTable VALUES (?1, ?2)", [key, value])
+                .unwrap();
         }
         db
     }
 
     #[test]
     fn cursor_discovers_each_platform_and_keeps_identity_stable_on_rotation() {
-        for platform in [DiscoveryPlatform::Windows, DiscoveryPlatform::Macos, DiscoveryPlatform::Linux] {
+        for platform in [
+            DiscoveryPlatform::Windows,
+            DiscoveryPlatform::Macos,
+            DiscoveryPlatform::Linux,
+        ] {
             let dir = TempDir::new();
             let context = context(platform, dir.path());
             let db = cursor_database(&context);
@@ -2157,55 +2420,134 @@ mod tests {
             let id = found.accounts[0].account_id.clone();
             let wire = serde_json::to_string(&inventory.report).unwrap();
             assert!(!wire.contains("synthetic-auth") && !wire.contains("synthetic-token"));
-            db.execute("UPDATE ItemTable SET value = ?1 WHERE key = 'cursorAuth/accessToken'", ["rotated-token"]).unwrap();
+            db.execute(
+                "UPDATE ItemTable SET value = ?1 WHERE key = 'cursorAuth/accessToken'",
+                ["rotated-token"],
+            )
+            .unwrap();
             let rotated = scan_inventory(&context, 1_790_596_800_000);
-            assert_eq!(provider(&rotated.report, DetectedProviderId::Cursor).accounts[0].account_id, id);
-            db.execute("UPDATE ItemTable SET value = ?1 WHERE key = 'cursorAuth/accessToken'", [jwt(r#"{"exp":1}"#)]).unwrap();
+            assert_eq!(
+                provider(&rotated.report, DetectedProviderId::Cursor).accounts[0].account_id,
+                id
+            );
+            db.execute(
+                "UPDATE ItemTable SET value = ?1 WHERE key = 'cursorAuth/accessToken'",
+                [jwt(r#"{"exp":1}"#)],
+            )
+            .unwrap();
             let expired = scan_inventory(&context, 1_790_596_800_000);
-            assert_eq!(provider(&expired.report, DetectedProviderId::Cursor).accounts[0].auth_state, DetectedAuthState::Stale);
+            assert_eq!(
+                provider(&expired.report, DetectedProviderId::Cursor).accounts[0].auth_state,
+                DetectedAuthState::Stale
+            );
         }
     }
 
     #[tokio::test]
     async fn cursor_discovery_to_cache_obeys_durable_refusals_and_retry_after() {
         use crate::native_readers::cursor::collect_account;
-        use crate::test_support::RecordingTransport;
         use crate::request_policy::{GateRejection, RequestPolicy};
+        use crate::test_support::RecordingTransport;
         use std::sync::Arc;
         let now = epoch_ms_from_rfc3339("2026-08-07T12:00:00.000Z").unwrap();
-        let fixture: Value = serde_json::from_str(include_str!("../../../../packages/connectors/fixtures/cases/cursor/normal.json")).unwrap();
-        for (status, drift) in [(200, false), (200, true), (401, false), (403, false), (429, false), (500, false)] {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../../packages/connectors/fixtures/cases/cursor/normal.json"
+        ))
+        .unwrap();
+        for (status, drift) in [
+            (200, false),
+            (200, true),
+            (401, false),
+            (403, false),
+            (429, false),
+            (500, false),
+        ] {
             let dir = TempDir::new();
             let context = context(DiscoveryPlatform::Windows, dir.path());
             let _db = cursor_database(&context);
             let inventory = scan_inventory(&context, now);
-            let account = provider(&inventory.report, DetectedProviderId::Cursor).accounts[0].account_id.clone();
-            let detection = DetectionStore { context, switches: crate::provider_switches::ProviderSwitches::at(None), inventory: RwLock::new(inventory) };
+            let account = provider(&inventory.report, DetectedProviderId::Cursor).accounts[0]
+                .account_id
+                .clone();
+            let detection = DetectionStore {
+                scan_gate: Mutex::new(None),
+                context,
+                switches: crate::provider_switches::ProviderSwitches::at(None),
+                inventory: RwLock::new(inventory),
+            };
             let state = dir.path().join("state");
             let policy = RequestPolicy::at(Some(state.clone()));
             let writer = Arc::new(crate::cache_write::CacheWriter::at(Some(state.clone())));
-            let original = crate::native_readers::cursor::parse(&fixture["body"].to_string(), now - 1_000, &account).unwrap();
-            crate::native_snapshot::write_report(&writer, "CURSOR", Some(&account), crate::native_snapshot::CacheReport::Success(original)).unwrap();
-            let body = if drift { b"{}".to_vec() } else { serde_json::to_vec(&fixture["body"]).unwrap() };
+            let original = crate::native_readers::cursor::parse(
+                &fixture["body"].to_string(),
+                now - 1_000,
+                &account,
+            )
+            .unwrap();
+            crate::native_snapshot::write_report(
+                &writer,
+                "CURSOR",
+                Some(&account),
+                crate::native_snapshot::CacheReport::Success(original),
+            )
+            .unwrap();
+            let body = if drift {
+                b"{}".to_vec()
+            } else {
+                serde_json::to_vec(&fixture["body"]).unwrap()
+            };
             let transport = RecordingTransport::replying(status, body, Some(7_200));
-            let result = collect_account(&detection, &policy, &transport, Arc::clone(&writer), &account, now).await;
+            let result = collect_account(
+                &detection,
+                &policy,
+                &transport,
+                Arc::clone(&writer),
+                &account,
+                now,
+            )
+            .await;
             assert_eq!(result.0, status == 200 && !drift);
-            assert_eq!(transport.recorded_urls(), vec![crate::net::CURSOR_USAGE_URL]);
-            assert_eq!(transport.recorded_auths(), vec![crate::reader_registry::AuthApplication::CursorSessionCookie]);
-            assert_eq!(transport.recorded_provider_account_ids(), vec![Some("synthetic-auth".to_string())]);
+            assert_eq!(
+                transport.recorded_urls(),
+                vec![crate::net::CURSOR_USAGE_URL]
+            );
+            assert_eq!(
+                transport.recorded_auths(),
+                vec![crate::reader_registry::AuthApplication::CursorSessionCookie]
+            );
+            assert_eq!(
+                transport.recorded_provider_account_ids(),
+                vec![Some("synthetic-auth".to_string())]
+            );
             let restored = RequestPolicy::at(Some(state.clone()));
-            assert!(matches!(restored.begin(DetectedProviderId::Cursor, &account, now), Err(GateRejection::Deferred { .. })));
+            assert!(matches!(
+                restored.begin(DetectedProviderId::Cursor, &account, now),
+                Err(GateRejection::Deferred { .. })
+            ));
             if status == 429 {
-                assert!(matches!(restored.begin(DetectedProviderId::Cursor, &account, now + 7_199_000), Err(GateRejection::Deferred { .. })));
+                assert!(matches!(
+                    restored.begin(DetectedProviderId::Cursor, &account, now + 7_199_000),
+                    Err(GateRejection::Deferred { .. })
+                ));
             }
-            let cache = fs::read_to_string(state.join(crate::cache_write::CACHE_FILE_NAME)).unwrap();
+            let cache =
+                fs::read_to_string(state.join(crate::cache_write::CACHE_FILE_NAME)).unwrap();
             assert!(cache.contains("CURSOR") && cache.contains("VERIFIED_FIXTURES"));
             assert!(!cache.contains("synthetic-token") && !cache.contains("synthetic-auth"));
             let cached: Value = serde_json::from_str(&cache).unwrap();
             assert_eq!(cached["snapshots"].as_array().unwrap().len(), 2);
-            let observed = if status == 200 && !drift { now } else { now - 1_000 };
-            assert_eq!(cached["snapshots"][0]["observedAt"], iso_from_epoch_ms(observed).unwrap());
-            if drift { assert_eq!(cached["snapshots"][0]["availability"], "schema_drift"); }
+            let observed = if status == 200 && !drift {
+                now
+            } else {
+                now - 1_000
+            };
+            assert_eq!(
+                cached["snapshots"][0]["observedAt"],
+                iso_from_epoch_ms(observed).unwrap()
+            );
+            if drift {
+                assert_eq!(cached["snapshots"][0]["availability"], "schema_drift");
+            }
             collect_account(&detection, &restored, &transport, writer, &account, now).await;
             assert_eq!(transport.recorded_urls().len(), 1);
         }
@@ -2284,7 +2626,9 @@ mod tests {
         let roots = vec![root.clone()];
         assert_eq!(
             validated_executable_in_roots(&executable, &roots),
-            Some(normalize_verbatim_prefix(fs::canonicalize(&executable).unwrap()))
+            Some(normalize_verbatim_prefix(
+                fs::canonicalize(&executable).unwrap()
+            ))
         );
         for refused in [
             outside,
@@ -2300,7 +2644,9 @@ mod tests {
         #[cfg(windows)]
         assert_eq!(
             validated_executable_in_roots(&fs::canonicalize(&executable).unwrap(), &roots),
-            Some(normalize_verbatim_prefix(fs::canonicalize(&executable).unwrap()))
+            Some(normalize_verbatim_prefix(
+                fs::canonicalize(&executable).unwrap()
+            ))
         );
     }
 
@@ -2986,6 +3332,7 @@ mod tests {
             switches: crate::provider_switches::ProviderSwitches::at(None),
             context,
             inventory: RwLock::new(inventory),
+            scan_gate: Mutex::new(None),
         };
         let secret = store
             .read_credential(DetectedProviderId::Codex, &account_id)

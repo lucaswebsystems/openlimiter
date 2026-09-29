@@ -17,6 +17,7 @@ mod collector_schedule;
 mod commands;
 mod connections;
 mod credentials;
+mod data_rules;
 #[cfg(test)]
 mod deps_smoke;
 mod fsx;
@@ -38,6 +39,7 @@ mod providers_plugin;
 mod rail;
 mod reader_registry;
 mod request_policy;
+mod startup_cleanup;
 mod state;
 #[cfg(test)]
 mod test_support;
@@ -63,8 +65,20 @@ use tauri::{AppHandle, Manager, WindowEvent};
 /// the boundary.
 /// The snapshot cache as text, or nothing when there is nothing to read.
 #[tauri::command]
-fn read_cache() -> Option<String> {
-    state::read_cache()
+fn read_cache(app: AppHandle) -> Option<String> {
+    let rows = native_snapshot::display_snapshots(state::read_cache().as_deref());
+    let projection = data_rules::for_app(&app, rows, chrono::Utc::now().timestamp_millis());
+    serde_json::to_string(&serde_json::json!({ "version": 2, "snapshots": projection.snapshots, "flags": projection.flags })).ok()
+}
+
+#[tauri::command]
+fn connection_flags(app: AppHandle) -> Vec<data_rules::ConnectionFlag> {
+    data_rules::for_app(
+        &app,
+        native_snapshot::display_snapshots(state::read_cache().as_deref()),
+        chrono::Utc::now().timestamp_millis(),
+    )
+    .flags
 }
 
 /// The manual quota document as text, for the one connector that reads a file.
@@ -95,7 +109,34 @@ fn set_tray_status(
     providers: Vec<tray::ProviderStatus>,
     trial_offered: Option<bool>,
 ) -> Result<(), String> {
-    tray::update(&app, providers, trial_offered.unwrap_or(true))
+    let _ = providers;
+    let projection = data_rules::for_app(
+        &app,
+        native_snapshot::display_snapshots(state::read_cache().as_deref()),
+        chrono::Utc::now().timestamp_millis(),
+    );
+    let mut values = std::collections::BTreeMap::<String, f64>::new();
+    for row in projection
+        .snapshots
+        .into_iter()
+        .filter(|row| row.unit == "PERCENT")
+    {
+        values
+            .entry(row.provider)
+            .and_modify(|value| *value = value.max(row.value))
+            .or_insert(row.value);
+    }
+    tray::update(
+        &app,
+        values
+            .into_iter()
+            .map(|(provider, value)| tray::ProviderStatus {
+                provider,
+                usage_percent: Some(value),
+            })
+            .collect(),
+        trial_offered.unwrap_or(true),
+    )
 }
 
 /// Open one of the two hub destinations the tray menu names.
@@ -140,6 +181,7 @@ pub fn run() {
         .manage(kimi_oauth::KimiOauthRuntime::default())
         .manage(gemini_cli_oauth::GeminiCliOauthRuntime::default())
         .manage(collector_runtime::CollectorRuntime::default())
+        .manage(data_rules::ConnectionIdentities::default())
         .manage(request_policy::RequestPolicy::at_state_directory())
         .manage(updates::PendingUpdate::default())
         .manage(notifications::NotificationState::default())
@@ -152,6 +194,7 @@ pub fn run() {
         .plugin(providers_plugin::init())
         .invoke_handler(tauri::generate_handler![
             read_cache,
+            connection_flags,
             read_manual,
             state_directory,
             set_tray_status,
@@ -216,7 +259,19 @@ pub fn run() {
             /* The full collector outlives every window. Its schedule, reads,
             parsing and cache commits never depend on a webview receiving an
             event or being allowed to run a timer. */
-            collector_runtime::spawn_collector(app.handle().clone());
+            let startup = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let worker = startup.clone();
+                let _ = tauri::async_runtime::spawn_blocking(move || {
+                    worker
+                        .state::<provider_detection::DetectionStore>()
+                        .rescan_due(false, std::time::Duration::ZERO);
+                    startup_cleanup::run(&worker);
+                })
+                .await;
+                collector_runtime::spawn_collector(startup.clone());
+                provider_detection::spawn_rescans(startup);
+            });
             api_spend::spawn_polling(app.handle().clone());
             account::spawn_sync();
             pro::spawn_silent_refresh();
@@ -259,6 +314,9 @@ pub fn run() {
             /* Closing the window hides it instead of ending the process. The
             native collector and tray continue independently. Quit is on the
             menu. */
+            if matches!(event, WindowEvent::Focused(true)) {
+                provider_detection::request_focus_scan(window.app_handle().clone());
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
@@ -280,4 +338,5 @@ pub fn run() {
             }
         });
 }
-#[cfg(test)] mod differential_tests;
+#[cfg(test)]
+mod differential_tests;

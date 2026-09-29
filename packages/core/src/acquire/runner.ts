@@ -49,6 +49,7 @@ import {
   type AntigravityProbeResult
 } from "./antigravity-probe.js";
 import { isSharedCodeAssist } from "./providers.js";
+import { acquisitionAccountId } from "./identity.js";
 
 export interface AcquisitionStepContext {
   readonly credential: AcquiredCredential;
@@ -382,17 +383,19 @@ export async function runAcquisition(
           nextAttemptAt: nextAttemptAt ?? options.now,
           outcome: "ok"
         };
+        const accountId = acquisitionAccountId("ANTIGRAVITY", { secret: "", accountId: null, origin: "vendor_store" });
         const snapshots = normalizeMeters(
           stamp(probeResult.meters, {
             secret: "",
             accountId: null,
             expiresAtMilliseconds: null,
             origin: "vendor_store"
-          })
+          }).map(row => ({ ...row, accountId }))
         );
         if (snapshots.length > 0) {
           rows.push({
             provider: spec.provider,
+            accountId,
             detected: true,
             status: "read",
             reason: null,
@@ -402,6 +405,7 @@ export async function runAcquisition(
           reports.push({
             ok: true,
             provider: spec.provider,
+            accountId,
             observedAt: options.now,
             snapshots
           });
@@ -422,7 +426,7 @@ export async function runAcquisition(
             return;
           }
           if (fallbackResult.outcome === "ok" && fallbackResult.meters.length > 0) {
-            const accountId = spec.accountIdFor?.(credential.credential) ?? null;
+            const accountId = spec.accountIdFor?.(credential.credential) ?? acquisitionAccountId(spec.provider, credential.credential);
             const accountLabel = spec.accountLabelFor?.(credential.credential) ?? null;
             const disclosure = spec.disclosureFor?.(credential.credential) ?? spec.disclosure;
             const nextAttemptAt = nextAttemptInstant("ok", options.now);
@@ -494,17 +498,17 @@ export async function runAcquisition(
     }
     const held = credential.credential;
     if (credentialExpired(held, Date.parse(options.now))) {
-      rows.push({ provider: spec.provider, detected: true, status: "stale", availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure: spec.disclosure });
+      rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, held), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure: spec.disclosure });
       return;
     }
-    const accountId = spec.accountIdFor?.(held) ?? null;
+    const accountId = spec.accountIdFor?.(held) ?? acquisitionAccountId(spec.provider, held);
     const accountLabel = spec.accountLabelFor?.(held) ?? null;
     const disclosure = spec.disclosureFor?.(held) ?? spec.disclosure;
     const sentence = (outcome: AcquisitionOutcome): string =>
       spec.outcomeSentence?.[outcome] ?? ACQUISITION_OUTCOME_SENTENCE[outcome];
     const result = await attempt(spec, held, options);
     if (result.expiredCredentials) {
-      rows.push({ provider: spec.provider, detected: true, status: "stale", availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });
+      rows.push({ provider: spec.provider, detected: true, status: "stale", accountId: acquisitionAccountId(spec.provider, held), availability: "expired_credentials", reason: CREDENTIAL_FAILURE_SENTENCE.expired, nextAttemptAt: null, disclosure });
       return;
     }
     const nextAttemptAt = nextAttemptInstant(
@@ -589,7 +593,7 @@ export async function runAcquisition(
             const credential = await readCredential(spec.credentialProvider);
             const source = reports.find((report) => report.ok && report.provider === "GEMINI_CLI");
             if (credential.ok && originalCredential?.secret === credential.credential.secret && isSharedCodeAssist(credential.credential) && !credentialExpired(credential.credential, Date.parse(options.now)) && source?.ok) {
-              const accountId = spec.accountIdFor?.(credential.credential) ?? null;
+              const accountId = spec.accountIdFor?.(credential.credential) ?? acquisitionAccountId(spec.provider, credential.credential);
               const accountLabel = spec.accountLabelFor?.(credential.credential) ?? null;
               const snapshots = source.snapshots.map((snapshot) => ({ ...snapshot, provider: spec.provider,
                 ...(accountId ? { accountId } : {}), ...(accountLabel ? { accountLabel } : {}) }));
@@ -616,7 +620,7 @@ export async function runAcquisition(
         const entry = schedule[spec.provider];
         if (entry) await lease.complete(Date.parse(entry.nextAttemptAt), entry.attempts ?? 0, entry.refusalRevision);
         for (const row of single.rows) {
-          if (row.availability) await recordAcquisitionAvailability(spec.provider, row.availability, options.now, row.retryAt, options.stateDirectory);
+          if (row.availability) await recordAcquisitionAvailability(spec.provider, row.availability, options.now, row.retryAt, options.stateDirectory, row.accountId);
         }
       } else {
         await readOne(spec);

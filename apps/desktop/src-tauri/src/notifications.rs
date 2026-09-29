@@ -742,17 +742,7 @@ pub fn evaluate_notifications(
     drop(held);
 
     for popup in evaluation.popups {
-        let (title, body) = if popup.threshold == "reset" {
-            (
-                format!("{} reset", popup.provider),
-                "A usage window reset.".to_string(),
-            )
-        } else {
-            (
-                format!("{} usage", popup.provider),
-                format!("Usage reached {} percent.", popup.threshold),
-            )
-        };
+        let (title, body) = popup_text(&popup.provider, &popup.threshold);
         let delivered = app
             .notification()
             .builder()
@@ -833,10 +823,36 @@ pub fn set_notification_settings(
     Ok(candidate)
 }
 
+/// A desktop alert's title and body. The provider is named the way every
+/// other surface names it (the registry display name), never by its code.
+fn popup_text(provider: &str, threshold: &str) -> (String, String) {
+    let name = crate::rail::provider_display_name(provider).unwrap_or("A provider");
+    if threshold == "reset" {
+        (format!("{name} reset"), "A usage window reset.".to_string())
+    } else {
+        (
+            format!("{name} usage"),
+            format!("Usage reached {threshold} percent."),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
+
+    #[test]
+    fn alerts_name_providers_like_the_window_and_never_by_code() {
+        assert_eq!(popup_text("CODEX", "80").0, "Codex usage");
+        assert_eq!(popup_text("CLAUDE", "reset").0, "Claude Code reset");
+        assert_eq!(popup_text("GROK", "90").0, "Grok (xAI) usage");
+        assert_eq!(popup_text("SOMETHING_NEW", "90").0, "A provider usage");
+        for (title, body) in [popup_text("CODEX", "80"), popup_text("KIMI", "reset")] {
+            assert!(!title.contains("CODEX") && !title.contains("KIMI"));
+            assert!(!format!("{title}{body}").contains(['-', '\u{2013}', '\u{2014}']));
+        }
+    }
 
     fn sample(value: f64, observed_at: &str) -> NotificationSample {
         NotificationSample {

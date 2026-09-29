@@ -854,7 +854,7 @@ pub async fn collect_account<T: Transport>(
 ) -> ClaudeOauthOutcome {
     // Refresh the inventory so expiry metadata belongs to the current stored token.
     let expired = detection
-        .rescan()
+        .report()
         .providers
         .iter()
         .filter(|provider| provider.provider_id == DetectedProviderId::Claude)

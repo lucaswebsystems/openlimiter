@@ -38,6 +38,8 @@ import { PROVIDER_SPECS } from "./provider-specs.generated.js";
 import { configureProvider, unconfigureProvider, isProviderConfigured, readRemovedProviders, homeSelectionControl } from "./configured-providers.js";
 import { normalizeDetections } from "./first-run.js";
 import * as backend from "./backend.js";
+import { renderAttention, renderConnected } from "./readings.js";
+import { say } from "./names.js";
 
 /** The event Rust emits after a native collection pass changes observable state. */
 const COLLECTOR_UPDATED_EVENT = "collector-updated";
@@ -101,6 +103,15 @@ const session = {
   claudeVerdict: null,
   /** The one provider editor visible below the shared directory. */
   activeSetup: null,
+  /** Needs attention, as attentionFlags left it, and the key it was drawn at. */
+  attention: [],
+  attentionKey: "",
+  /** The Connected list, and the key it was drawn at. */
+  connectedKey: "",
+  /** Whether anything is connected, which folds the catalogue behind Add a tool. */
+  hasConnected: false,
+  /** Whether a person opened the catalogue with Add a tool. */
+  catalogueOpen: false,
 };
 
 /** Wired by initConnections. Nothing here runs before that. */
@@ -114,7 +125,6 @@ function grabElements() {
     schedulerLine: document.getElementById("scheduler-line"),
     absent: document.getElementById("connections-absent"),
     reprobe: document.getElementById("connections-reprobe"),
-    empty: document.getElementById("connections-empty"),
     cards: document.getElementById("connections-cards"),
     openrouterAdd: document.getElementById("openrouter-add"),
     openrouterKind: () =>
@@ -972,6 +982,7 @@ function openManualEntry() {
 }
 
 export function openProviderConnection(provider) {
+  openCatalogue();
   const targetId = SETUP_TARGETS[String(provider ?? "").toLowerCase()];
   /* Every connectable action that is setup shaped resolves to its existing
      real editor. Anything without one has an honest manual path. */
@@ -1217,11 +1228,6 @@ function render() {
     line.textContent = "Listing connections failed: " + session.listError;
     el.cards.append(line);
   }
-  el.empty.hidden = !(
-    session.backendPresent === true &&
-    session.connections.length === 0 &&
-    session.listError === null
-  );
 
   renderClaude();
   renderCatalogue();
@@ -1379,6 +1385,114 @@ export function connectionFactFor(provider) {
 }
 
 /**
+ * Perform one Needs attention fix. Reconnect and sign in start the provider's
+ * existing connect flow; switch on turns the provider back on; open app has
+ * already asked the person to open that tool, so it only scans again (the tool
+ * refreshes its own sign in, OpenLimiter never does). Resolves false when the
+ * backend refused.
+ */
+/** A provider code as the connector id the directory and the editors use. */
+function connectorOf(provider) {
+  return String(provider ?? "").toLowerCase().replaceAll("_", "-");
+}
+
+/**
+ * How one Needs attention fix is carried out. "connect" opens this window's
+ * own connect flow for the provider (an editor below the directory). "rescan"
+ * is for a sign in that lives in the provider's own tool: the person signs in
+ * or opens it there, and Check again asks native code to look once more
+ * (OpenLimiter never refreshes a sign in itself). "none": nothing here can.
+ */
+export function attentionRoute(flag) {
+  if (flag.fixKind === "unsupported") return "none";
+  if (flag.fixKind === "open_app") return "rescan";
+  return SETUP_TARGETS[connectorOf(flag.provider)] ? "connect" : "rescan";
+}
+
+/** Perform one fix by its route; resolves false when the backend refused. */
+export async function fixAttention(flag) {
+  const route = attentionRoute(flag);
+  if (route === "connect") {
+    openProviderConnection(connectorOf(flag.provider));
+    return true;
+  }
+  if (route !== "rescan") return false;
+  const scanned = await backend.rescanDetectedProviders();
+  await syncProviderDetections();
+  render();
+  options?.onMetersChanged();
+  return scanned.ok;
+}
+
+/**
+ * Draw Needs attention and its count on the Connections tab. Called with every
+ * repaint; the rows are rebuilt only when the flags changed, so a fix in flight
+ * keeps its button and its status line.
+ */
+export function showAttention(flags) {
+  session.attention = flags;
+  const section = document.getElementById("needs-attention");
+  const rows = document.getElementById("attention-rows");
+  if (!section || !rows) return;
+  const key = JSON.stringify(flags.map((flag) => [flag.provider, flag.fixKind]));
+  if (key !== session.attentionKey) {
+    session.attentionKey = key;
+    renderAttention(document, rows, flags, { fix: fixAttention, route: attentionRoute });
+  }
+  section.hidden = flags.length === 0;
+  const count = String(flags.length);
+  const badge = document.getElementById("attention-count");
+  if (badge) badge.textContent = count;
+  const tabCount = document.getElementById("connections-count");
+  if (tabCount) {
+    tabCount.hidden = flags.length === 0;
+    tabCount.textContent = count;
+  }
+  const tab = document.getElementById("tab-connections");
+  if (flags.length === 0) tab?.removeAttribute("aria-label");
+  else tab?.setAttribute("aria-label", "Connections, " + (flags.length === 1
+    ? say("attentionOne") : say("attentionMany", { count: flags.length })));
+}
+
+/**
+ * Draw Connected, then fold the catalogue behind Add a tool while anything is
+ * connected. With nothing connected the catalogue is the page, with no button,
+ * so no screen ever says nothing is connected while something is.
+ */
+export function showConnections({ attention, connected }) {
+  showAttention(attention);
+  const section = document.getElementById("connected");
+  const rows = document.getElementById("connected-rows");
+  if (section && rows) {
+    const key = JSON.stringify(connected.map((provider) => [provider.code, provider.access]));
+    if (key !== session.connectedKey) {
+      session.connectedKey = key;
+      renderConnected(document, rows, connected);
+    }
+    section.hidden = connected.length === 0;
+  }
+  session.hasConnected = connected.length > 0;
+  paintCatalogue();
+}
+
+function paintCatalogue() {
+  const add = document.getElementById("add-tool");
+  const catalogue = document.getElementById("tool-catalogue");
+  const open = !session.hasConnected || session.catalogueOpen;
+  if (catalogue) catalogue.hidden = !open;
+  if (add) {
+    add.hidden = !session.hasConnected;
+    add.setAttribute("aria-expanded", String(open));
+  }
+}
+
+/** Show the catalogue, for anything that sends a person to a provider there. */
+export function openCatalogue() {
+  session.catalogueOpen = true;
+  paintCatalogue();
+}
+
+/**
  * The meters just re-read the cache. The Claude card's split between ready
  * and collecting depends on that cache, so it is redrawn.
  */
@@ -1439,6 +1553,11 @@ export function initConnections(configuration) {
 
   el.reprobe.addEventListener("click", () => {
     void bootstrap();
+  });
+  document.getElementById("add-tool")?.addEventListener("click", () => {
+    session.catalogueOpen = !session.catalogueOpen;
+    paintCatalogue();
+    if (session.catalogueOpen) document.getElementById("provider-catalogue")?.focus();
   });
   el.openrouterSubmit.addEventListener("click", () => {
     void submitOpenrouter();

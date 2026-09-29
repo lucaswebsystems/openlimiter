@@ -103,7 +103,7 @@ test("the window keeps its promise that nothing off disk reaches innerHTML", () 
   for (const assignment of app.matchAll(/(\w+)\.innerHTML\s*=\s*([^;\n]+)/gu)) {
     assert.match(
       assignment[2],
-      /^(MARKS\[|options\.markFor\(|"")/u,
+      /^(MARKS\[|options\.markFor\(|officialMark\(|"")/u,
       "an innerHTML assignment carries something other than a frozen mark: " +
         assignment[0],
     );

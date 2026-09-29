@@ -1,0 +1,202 @@
+[
+  {
+    "provider": "CLAUDE",
+    "material": "fixture-account-a",
+    "expected": "claude-af152983e5730b89aa099646"
+  },
+  {
+    "provider": "CLAUDE",
+    "material": "fixture-account-b",
+    "expected": "claude-2d594461f74b347675a4d2de"
+  },
+  {
+    "provider": "CLAUDE",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "claude-0a5db6d9b5ee4ee39273deda"
+  },
+  {
+    "provider": "CLAUDE",
+    "material": "fixture-?",
+    "expected": "claude-f3b7f170888e7bb5aec77fe2"
+  },
+  {
+    "provider": "CODEX",
+    "material": "fixture-account-a",
+    "expected": "codex-5d37cc96b0e7a71244c168a8"
+  },
+  {
+    "provider": "CODEX",
+    "material": "fixture-account-b",
+    "expected": "codex-c19cd316773861c8c58a5dc7"
+  },
+  {
+    "provider": "CODEX",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "codex-9660f6033342dd652ece3059"
+  },
+  {
+    "provider": "CODEX",
+    "material": "fixture-?",
+    "expected": "codex-59285d550974fc3f4b884105"
+  },
+  {
+    "provider": "GEMINI_CLI",
+    "material": "fixture-account-a",
+    "expected": "gemini-cli-eb71bdc466a009dd7943d5d2"
+  },
+  {
+    "provider": "GEMINI_CLI",
+    "material": "fixture-account-b",
+    "expected": "gemini-cli-caac99f169f10e0754d481c3"
+  },
+  {
+    "provider": "GEMINI_CLI",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "gemini-cli-e34fc1d56ffbc9ebfbbb2eec"
+  },
+  {
+    "provider": "GEMINI_CLI",
+    "material": "fixture-?",
+    "expected": "gemini-cli-9a4cc00a3f9ee908474b1898"
+  },
+  {
+    "provider": "ANTIGRAVITY",
+    "material": "fixture-account-a",
+    "expected": "antigravity-12c0f374ef1599540dc52a8e"
+  },
+  {
+    "provider": "ANTIGRAVITY",
+    "material": "fixture-account-b",
+    "expected": "antigravity-d795eca8c679ea4f1e70d450"
+  },
+  {
+    "provider": "ANTIGRAVITY",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "antigravity-944ffea48891d40780e0d162"
+  },
+  {
+    "provider": "ANTIGRAVITY",
+    "material": "fixture-?",
+    "expected": "antigravity-c43b3f344465650792bf515d"
+  },
+  {
+    "provider": "GROK",
+    "material": "fixture-account-a",
+    "expected": "grok-ea1de2a742d2f4e47c311d7f"
+  },
+  {
+    "provider": "GROK",
+    "material": "fixture-account-b",
+    "expected": "grok-378742641c3fed33061e5ae7"
+  },
+  {
+    "provider": "GROK",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "grok-73eead20c89b39f43cdbe61b"
+  },
+  {
+    "provider": "GROK",
+    "material": "fixture-?",
+    "expected": "grok-aaa6d69e73e3ec58cdc7bdf8"
+  },
+  {
+    "provider": "KIMI",
+    "material": "fixture-account-a",
+    "expected": "kimi-c6b8f1dfc35ed925a7bfdc28"
+  },
+  {
+    "provider": "KIMI",
+    "material": "fixture-account-b",
+    "expected": "kimi-a9998048f458280a4b65f724"
+  },
+  {
+    "provider": "KIMI",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "kimi-96ded11ccb56576da39a2728"
+  },
+  {
+    "provider": "KIMI",
+    "material": "fixture-?",
+    "expected": "kimi-b286e317d465b0159d4e4673"
+  },
+  {
+    "provider": "CURSOR",
+    "material": "fixture-account-a",
+    "expected": "cursor-b6581636cd9451ad7d7f6fd0"
+  },
+  {
+    "provider": "CURSOR",
+    "material": "fixture-account-b",
+    "expected": "cursor-6c13555aa70b1e26b51d4a32"
+  },
+  {
+    "provider": "CURSOR",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "cursor-a046dbe18c43c7301990c09b"
+  },
+  {
+    "provider": "CURSOR",
+    "material": "fixture-?",
+    "expected": "cursor-289cada9a88f90269c46fc18"
+  },
+  {
+    "provider": "OPENROUTER",
+    "material": "fixture-account-a",
+    "expected": "openrouter-3d3fb845197bc11b00d25fb5"
+  },
+  {
+    "provider": "OPENROUTER",
+    "material": "fixture-account-b",
+    "expected": "openrouter-877e53438eb0abb2f865ea92"
+  },
+  {
+    "provider": "OPENROUTER",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "openrouter-c780c10d295b45268b7ebabb"
+  },
+  {
+    "provider": "OPENROUTER",
+    "material": "fixture-?",
+    "expected": "openrouter-b7eb144296df6738aa3405c6"
+  },
+  {
+    "provider": "OPENCODE",
+    "material": "fixture-account-a",
+    "expected": "opencode-62f655c0336f161df268817f"
+  },
+  {
+    "provider": "OPENCODE",
+    "material": "fixture-account-b",
+    "expected": "opencode-6c7c1e4ea42a99d1747600ab"
+  },
+  {
+    "provider": "OPENCODE",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "opencode-8ef9149259f535c7b1b6a1eb"
+  },
+  {
+    "provider": "OPENCODE",
+    "material": "fixture-?",
+    "expected": "opencode-7506a8790bc665292fbac11a"
+  },
+  {
+    "provider": "MANUAL",
+    "material": "fixture-account-a",
+    "expected": "manual-7aba75a3ff2acc1f07b4436a"
+  },
+  {
+    "provider": "MANUAL",
+    "material": "fixture-account-b",
+    "expected": "manual-3c66855d70319da8eac5dfb5"
+  },
+  {
+    "provider": "MANUAL",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "manual-9f6ff297f5105b7ca8584b38"
+  },
+  {
+    "provider": "MANUAL",
+    "material": "fixture-?",
+    "expected": "manual-7a7d012d25f606bc1037e971"
+  }
+]

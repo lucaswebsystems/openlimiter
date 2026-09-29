@@ -16,13 +16,14 @@ describe("provider connection directory", () => {
       "moonshot/api",
       "opencode/opencode",
       "openrouter/api",
+      "cursor/editor",
     ]);
   });
 
-  it("shows only the eight providers with collecting connectors", () => {
+  it("shows only the nine providers with collecting connectors", () => {
     const rows = buildProviderDirectory(providerSpecs);
 
-    expect(rows).toHaveLength(8);
+    expect(rows).toHaveLength(9);
     expect(rows.filter((row) => row.availability === "ready").map((row) => row.displayName))
       .toEqual([
         "Codex",
@@ -33,12 +34,13 @@ describe("provider connection directory", () => {
         "Kimi",
         "OpenCode",
         "OpenRouter",
+        "Cursor",
       ]);
     expect(rows.some((row) => row.availability === "planned")).toBe(false);
     expect(rows.some((row) => row.connectorId === "manual")).toBe(false);
   });
 
-  it("classifies the eight collecting providers by their real access path", () => {
+  it("classifies the nine collecting providers by their real access path", () => {
     const rows = buildProviderDirectory(providerSpecs);
     const byId = new Map(rows.map((row) => [row.specId, row]));
 
@@ -92,7 +94,7 @@ describe("provider connection directory", () => {
     });
   });
 
-  it("keeps every required connection state distinct across all eight rows", () => {
+  it("keeps every required connection state distinct across all nine rows", () => {
     const rows = buildProviderDirectory(providerSpecs, {
       states: {
         claude: "CONNECTED",
@@ -103,7 +105,7 @@ describe("provider connection directory", () => {
     });
     const byConnector = new Map(rows.map((row) => [row.connectorId, row]));
 
-    expect(rows).toHaveLength(8);
+    expect(rows).toHaveLength(9);
     expect(byConnector.get("claude")).toMatchObject({
       access: "automatic",
       stateLabel: "Connected",

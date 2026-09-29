@@ -41,11 +41,14 @@ describe("Lucas reference layout", () => {
     ["Linux", "/workspace/Olá projeto"]
   ])("renders the exact plain and ANSI payload line for %s paths", (_os, directory) => {
     const session = parseStatuslineSession(payload(directory));
-    const plain = "opus-5-5 high | Olá projeto | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██░░░░░░░░] 26% ·4d2h | cx7d [███░░░░░░░] 32% ·4d2h | ag5h [█░░░░░░░░░] 9% ·18m | oc5h [████░░░░░░] 42% | or $12.34 | concise";
-    const painted = "opus-5-5 high | Olá projeto | ctx 42% | 5h " + green("[█░░░░░░░░░]") + " " + green("17%") + " ·3h20m | 7d " + green("[██░░░░░░░░]") + " " + green("26%") + " ·4d2h | cx7d " + green("[███░░░░░░░]") + " " + green("32%") + " ·4d2h | ag5h " + green("[█░░░░░░░░░]") + " " + green("9%") + " ·18m | oc5h " + green("[████░░░░░░]") + " " + green("42%") + " | or " + green("$12.34") + " | concise";
+    const plain = "opus-5-5 high | ctx 42% | 5h [█░░░░░░░░░] 17% ·3h20m | 7d [██░░░░░░░░] 26% ·4d2h | cx7d [███░░░░░░░] 32% ·4d2h | ag5h [█░░░░░░░░░] 9% ·18m | oc5h [████░░░░░░] 42% | or $12.34 | concise";
+    const painted = "opus-5-5 high | ctx 42% | 5h " + green("[█░░░░░░░░░]") + " " + green("17%") + " ·3h20m | 7d " + green("[██░░░░░░░░]") + " " + green("26%") + " ·4d2h | cx7d " + green("[███░░░░░░░]") + " " + green("32%") + " ·4d2h | ag5h " + green("[█░░░░░░░░░]") + " " + green("9%") + " ·18m | oc5h " + green("[████░░░░░░]") + " " + green("42%") + " | or " + green("$12.34") + " | concise";
     expect(render(snapshots, { session })).toBe(plain);
     expect(render(snapshots, { session, color: true })).toBe(painted);
     expect(render(snapshots, { session, color: statuslineColor("always", { NO_COLOR: "" }, true, "claude") })).toBe(plain);
+    // The folder only appears once someone opts in, and then by its last name.
+    expect(render(snapshots, { session, config: { ...DEFAULT_STATUSLINE, visibility: { dir: true } } }))
+      .toBe(plain.replace("opus-5-5 high | ", "opus-5-5 high | Olá projeto | "));
   });
 
   it("uses metadata fallbacks and discards malformed or default fields", () => {
@@ -70,12 +73,12 @@ describe("Lucas reference layout", () => {
     expect(render([credit], { color: true })).toBe(`or \x1b[${code}m$${Number(balance).toFixed(2)}\x1b[0m`);
   });
 
-  it("only shows unknown markers for selected providers and leaves dormant accounts out", () => {
+  it("never draws unknown markers, even for a selected provider, and leaves dormant accounts out", () => {
     expect(render([])).toBe("OpenLimiter UNKNOWN");
     const config = { ...DEFAULT_STATUSLINE, visibility: { codex: true } };
-    expect(render([], { config, color: true })).toBe("cx \x1b[31m[?]\x1b[0m");
+    expect(render([], { config, color: true })).toBe("OpenLimiter UNKNOWN");
     expect(render([row({ provider: "CODEX", observedAt: "2025-12-30T23:59:59Z" })], { config })).toBe("OpenLimiter UNKNOWN");
-    expect(render([row({ provider: "CODEX", meter: "ACQUISITION", availability: "access_denied" })], { config })).toBe("cx access denied [?]");
+    expect(render([row({ provider: "CODEX", meter: "ACQUISITION", availability: "access_denied" })], { config })).toBe("OpenLimiter UNKNOWN");
   });
 
   it("supports ASCII only when the terminal indicates limited encoding", () => {

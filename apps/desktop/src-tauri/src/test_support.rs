@@ -31,6 +31,10 @@ impl TempDir {
         let path =
             std::env::temp_dir().join(format!("openlimiter-desktop-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&path).expect("the test directory is creatable");
+        // Resolve OS owned ancestors such as macOS /var. Keep the usual
+        // Windows spelling so tests still exercise canonical path comparisons.
+        #[cfg(unix)]
+        let path = std::fs::canonicalize(path).expect("the test directory is resolvable");
         Self { path }
     }
 

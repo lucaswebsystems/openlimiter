@@ -12,6 +12,9 @@ import {
 } from "@openlimiter/core";
 import { PROVIDER_RECOGNITION_ORDER } from "./provider-connect.js";
 
+// Home and Connections consume the same projection as the native Rail and tray.
+export { projectSnapshots, freshnessPolicy, fixKind } from "@openlimiter/core";
+
 export type HeadroomTone = "ok" | "watch" | "high" | "critical" | "none";
 
 export interface ProviderWindowView {
@@ -699,9 +702,6 @@ export function providerRowMarkup(row: ProviderAccountRowView): string {
   );
 }
 
-const PROVIDER_TABLE_COLUMNS =
-  "minmax(10.5rem, 12.5rem) minmax(12rem, 1fr) repeat(3, minmax(3.75rem, 4.5rem)) minmax(5rem, 5.75rem)";
-
 const PROVIDER_ROW_STYLE = `
 :host {
   display: block;
@@ -710,11 +710,9 @@ const PROVIDER_ROW_STYLE = `
   font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
   --row-surface: var(--ol-surface, var(--surface));
   --row-raised: var(--ol-raised, var(--raised));
-  --row-elevated: var(--ol-elevated, var(--raised));
   --row-heading: var(--ol-heading, var(--heading));
   --row-soft: var(--ol-soft, var(--soft));
   --row-muted: var(--ol-muted, var(--muted));
-  --row-faint: var(--ol-faint, var(--muted));
   --row-hairline: var(--ol-hairline, var(--hairline));
   --row-hairline-strong: var(--ol-hairline-strong, var(--hairline-strong));
   --row-ok: var(--ol-band-green-fill, var(--ol-meter-ok, var(--meter-ok)));
@@ -729,51 +727,9 @@ const PROVIDER_ROW_STYLE = `
   --row-hatched: var(--ol-band-hatched-pattern, var(--ol-track, var(--track)));
   --row-track: var(--ol-meter-empty, var(--meter-empty));
   --row-ghost: var(--ol-meter-ghost, var(--meter-ghost));
-  --row-live: var(--ol-live, var(--meter-ok));
   --row-accent: var(--ol-accent, var(--accent));
-  --row-accent-subtle: var(--ol-accent-subtle, var(--accent-subtle));
 }
 * { box-sizing: border-box; }
-.row {
-  display: grid;
-  grid-template-columns: ${PROVIDER_TABLE_COLUMNS};
-  min-width: 0;
-  min-height: 5.25rem;
-  overflow: hidden;
-  border: 1px solid var(--row-hairline);
-  border-radius: var(--ol-radius-md);
-  background: var(--row-surface);
-  box-shadow: var(--ol-elev-1);
-  transition: border-color var(--ol-motion-fast) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out), transform var(--ol-motion-base) var(--ol-ease-out);
-}
-.identity {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--ol-space-2);
-  padding: var(--ol-space-3) var(--ol-space-4);
-  border-right: 1px solid var(--row-hairline);
-}
-.identity-main {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--ol-space-3);
-}
-.mark {
-  display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  flex: none;
-  place-items: center;
-  border: 1px solid var(--row-hairline);
-  border-radius: var(--ol-radius-sm);
-  background: var(--row-raised);
-  color: var(--row-heading);
-  box-shadow: var(--ol-elev-1);
-}
-.mark svg { width: 1.25rem; height: 1.25rem; }
 :host([data-provider="CLAUDE"]) .mark { color: var(--ol-provider-claude); }
 :host([data-provider="OPENROUTER"]) .mark { color: var(--ol-provider-openrouter); }
 :host([data-provider="CODEX"]) .mark { color: var(--ol-provider-codex); }
@@ -796,211 +752,6 @@ const PROVIDER_ROW_STYLE = `
 :host([data-provider="OPENCODE"]) .mark svg,
 :host([data-provider="GROK"]) .mark svg,
 :host([data-provider="KIMI"]) .mark svg { fill: currentColor; }
-.provider {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--ol-space-1);
-}
-.provider-line {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--ol-space-2);
-}
-.provider strong {
-  overflow: hidden;
-  color: var(--row-heading);
-  font-size: var(--ol-text-label);
-  font-weight: var(--ol-weight-semibold);
-  line-height: var(--ol-leading-tight);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.account-value {
-  overflow: hidden;
-  max-width: 7rem;
-  padding: var(--ol-space-1) var(--ol-space-2);
-  border: 1px solid var(--row-hairline);
-  border-radius: var(--ol-radius-pill);
-  background: var(--row-raised);
-  color: var(--row-soft);
-  font-family: var(--ol-font-mono);
-  font-size: var(--ol-text-micro);
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.identity-foot {
-  display: flex;
-  min-height: var(--ol-text-micro);
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ol-space-2);
-  padding-left: var(--ol-space-7);
-}
-.source, .demo { font-size: var(--ol-text-micro); line-height: 1.2; }
-.source { color: var(--row-muted); }
-.demo {
-  padding: var(--ol-space-1) var(--ol-space-2);
-  border-radius: var(--ol-radius-pill);
-  background: var(--row-accent-subtle);
-  color: var(--row-accent);
-}
-.fallback-state,
-.fallback-detail {
-  overflow: hidden;
-  font-size: var(--ol-text-micro);
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fallback-state { color: var(--row-soft); font-weight: var(--ol-weight-semibold); }
-.fallback-state[data-kind="manual_entry"] { color: var(--row-accent); }
-.fallback-detail { color: var(--row-muted); }
-.failure {
-  display: flex;
-  margin: 0;
-  align-items: flex-start;
-  gap: var(--ol-space-1);
-  padding-left: var(--ol-space-7);
-  color: var(--row-critical);
-  font-size: var(--ol-text-micro);
-  line-height: var(--ol-leading-body);
-}
-.usage {
-  display: grid;
-  min-width: 0;
-  align-items: center;
-  padding: var(--ol-space-3) var(--ol-space-4);
-  border-right: 1px solid var(--row-hairline);
-}
-.usage-line {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(4rem, 1fr) auto auto;
-  align-items: center;
-  gap: var(--ol-space-2);
-}
-.state {
-  display: inline-flex;
-  width: 0.5rem;
-  height: 0.5rem;
-  align-self: center;
-  color: var(--row-muted);
-}
-.state-dot {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--ol-radius-pill);
-  background: currentColor;
-}
-.usage[data-state="fresh"] .state { color: var(--row-live); }
-.usage[data-state="fresh"] .state-dot {
-  animation: olLivePulse 2.4s var(--ol-ease-out) infinite;
-}
-.usage[data-state="stale"] .state-dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px currentColor;
-}
-.usage[data-state="unknown"] .state-dot { opacity: 0.45; }
-.hero-readout {
-  color: var(--row-muted);
-  font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
-  font-size: var(--ol-text-title);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--ol-weight-semibold);
-  letter-spacing: -0.035em;
-  line-height: 1;
-  white-space: nowrap;
-}
-.usage[data-tone="ok"] .hero-readout { color: var(--row-ok-label); }
-.usage[data-tone="watch"] .hero-readout { color: var(--row-watch-label); }
-.usage[data-tone="high"] .hero-readout { color: var(--row-high-label); }
-.usage[data-tone="critical"] .hero-readout { color: var(--row-critical-label); }
-.usage[data-state="stale"] .hero-readout,
-.usage[data-state="unknown"] .hero-readout { color: var(--row-stale-label); }
-.hero-meter {
-  position: relative;
-  display: block;
-  min-width: 0;
-  height: var(--ol-meter-height);
-  overflow: hidden;
-  border-radius: var(--ol-meter-radius);
-  background: var(--row-track);
-}
-.usage[data-state="unknown"] .hero-meter {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--row-ghost);
-}
-.meter-fill {
-  display: block;
-  height: 100%;
-  transform-origin: left center;
-  border-radius: inherit;
-  background: var(--row-ghost);
-  animation: olMeterArrive var(--ol-motion-slow) var(--ol-ease-out) both;
-  transition: width var(--ol-motion-base) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out), opacity var(--ol-motion-fast) var(--ol-ease-out);
-}
-.usage[data-tone="ok"] .meter-fill { background: var(--row-ok); }
-.usage[data-tone="watch"] .meter-fill { background: var(--row-watch); }
-.usage[data-tone="high"] .meter-fill { background: var(--row-high); }
-.usage[data-tone="critical"] .meter-fill { background: var(--row-critical); }
-.usage[data-state="stale"] .meter-fill { opacity: 0.58; }
-.metric,
-.reset {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: center;
-  padding: var(--ol-space-3) var(--ol-space-2);
-  border-right: 1px solid var(--row-hairline);
-  color: var(--row-muted);
-  font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
-  font-size: var(--ol-text-body);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--ol-weight-semibold);
-  line-height: var(--ol-leading-tight);
-  white-space: nowrap;
-}
-.metric-empty { color: var(--row-faint); font-weight: var(--ol-weight-regular); }
-.reset {
-  gap: var(--ol-space-1);
-  border-right: 0;
-  font-size: var(--ol-text-micro);
-  font-weight: var(--ol-weight-semibold);
-}
-.reset-clock {
-  position: relative;
-  width: 0.6875rem;
-  height: 0.6875rem;
-  flex: none;
-  border: 1px solid currentColor;
-  border-radius: var(--ol-radius-pill);
-  opacity: 0.72;
-}
-.reset-clock::before {
-  position: absolute;
-  top: 0.13rem;
-  left: 0.28rem;
-  width: 1px;
-  height: 0.2rem;
-  background: currentColor;
-  content: "";
-}
-.reset-clock::after {
-  position: absolute;
-  top: 0.32rem;
-  left: 0.28rem;
-  width: 0.19rem;
-  height: 1px;
-  background: currentColor;
-  content: "";
-}
-@keyframes olLivePulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--ol-live-soft); }
-  50% { box-shadow: 0 0 0 0.25rem transparent; }
-}
 @keyframes olMeterArrive {
   from { transform: scaleX(0.84); }
   to { transform: scaleX(1); }
@@ -1009,50 +760,6 @@ const PROVIDER_ROW_STYLE = `
   .row:hover {
     border-color: var(--row-hairline-strong);
     background: var(--row-raised);
-  }
-}
-@media (max-width: 639px) {
-  .row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-areas:
-      "identity identity identity"
-      "usage usage reset"
-      "session week month";
-    min-height: 0;
-  }
-  .identity {
-    grid-area: identity;
-    min-height: 4rem;
-    padding: var(--ol-space-3);
-    border-right: 0;
-    border-bottom: 1px solid var(--row-hairline);
-  }
-  .mark {
-    width: 2.25rem;
-    height: 2.25rem;
-  }
-  .identity-foot,
-  .failure { padding-left: 3rem; }
-  .usage {
-    grid-area: usage;
-    min-height: 3.75rem;
-    padding: var(--ol-space-3);
-  }
-  .usage-line { grid-template-columns: minmax(3.75rem, 1fr) auto auto; }
-  .hero-readout { font-size: var(--ol-text-title); }
-  .metric,
-  .reset {
-    min-height: 2.75rem;
-    padding: var(--ol-space-2);
-    border-top: 1px solid var(--row-hairline);
-  }
-  .metric-session { grid-area: session; }
-  .metric-week { grid-area: week; }
-  .metric-month { grid-area: month; border-right: 0; }
-  .reset {
-    grid-area: reset;
-    min-height: 3.75rem;
-    border-top: 0;
   }
 }
 
@@ -1068,20 +775,27 @@ const PROVIDER_ROW_STYLE = `
  */
 .row {
   display: grid;
-  /* One column. The wide table template above belongs to the other form this
-     component can take, and leaving it in place put the heading and the lines
-     into six columns that neither of them was written for. */
+  /* One column, at every width. 2.0.1 also carried a six column table form
+     whose narrow window grid areas outlived this override and scattered the
+     heading and the lines at 520 pixels; nothing draws that form, so it went. */
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--ol-space-3);
+  min-width: 0;
   min-height: 0;
   padding: var(--ol-space-4);
   overflow: hidden;
+  border: 1px solid var(--row-hairline);
+  border-radius: var(--ol-radius-md);
+  background: var(--row-surface);
+  box-shadow: var(--ol-elev-1);
+  transition: border-color var(--ol-motion-fast) var(--ol-ease-out), background-color var(--ol-motion-fast) var(--ol-ease-out), transform var(--ol-motion-base) var(--ol-ease-out);
   /* The one grid the heading and every line share, in one place. */
   --row-columns: minmax(7rem, 0.85fr) minmax(8rem, 1.8fr) 4.5rem 5rem;
 }
 .identity {
   display: grid;
+  min-width: 0;
   min-height: 0;
   grid-template-columns: var(--row-columns);
   align-items: center;
@@ -1116,12 +830,14 @@ const PROVIDER_ROW_STYLE = `
   white-space: nowrap;
 }
 .mark {
+  display: grid;
   width: 1.75rem;
   height: 1.75rem;
-  border: 0;
+  flex: none;
+  place-items: center;
   border-radius: var(--ol-radius-sm);
   background: var(--row-raised);
-  box-shadow: none;
+  color: var(--row-heading);
 }
 .mark svg { width: 1.25rem; height: 1.25rem; }
 .provider-name {
@@ -1223,6 +939,12 @@ const PROVIDER_ROW_STYLE = `
    two so the bar arrives at its new length just after it has admitted its new
    band, which is what makes a threshold feel crossed rather than redrawn. */
 .meter-fill {
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+  border-radius: inherit;
+  background: var(--row-ghost);
+  animation: olMeterArrive var(--ol-motion-slow) var(--ol-ease-out) both;
   transition: width var(--ol-motion-base, 180ms)
       var(--ol-ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
     background-color var(--ol-motion-fast, 120ms) linear;
@@ -1259,8 +981,7 @@ const PROVIDER_ROW_STYLE = `
   .window-reset { font-size: var(--ol-text-micro); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .meter-fill,
-  .usage[data-state="fresh"] .state-dot { animation: none; }
+  .meter-fill { animation: none; }
   .meter-fill,
   .window-readout { transition: none; }
 }
@@ -1270,43 +991,6 @@ const PROVIDER_TABLE_HEADER_STYLE = `
 :host {
   display: block;
   min-width: 0;
-  color: var(--ol-muted, var(--muted));
-  font-family: var(--ol-font-sans, ui-sans-serif, system-ui, sans-serif);
-}
-* { box-sizing: border-box; }
-.table-head {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: ${PROVIDER_TABLE_COLUMNS};
-  align-items: center;
-  color: var(--ol-muted, var(--muted));
-  font-size: var(--ol-text-micro);
-  font-weight: var(--ol-weight-semibold);
-  letter-spacing: 0.08em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-.table-head > span { min-width: 0; }
-.head-usage { padding: 0 var(--ol-space-4); }
-.head-session,
-.head-week,
-.head-month,
-.head-resets { text-align: center; }
-@media (max-width: 639px) {
-  .table-head {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-areas:
-      "usage usage resets"
-      "session week month";
-    row-gap: var(--ol-space-3);
-    padding-top: var(--ol-space-1);
-  }
-  .head-provider { display: none; }
-  .head-usage { grid-area: usage; padding-left: var(--ol-space-3); }
-  .head-session { grid-area: session; }
-  .head-week { grid-area: week; }
-  .head-month { grid-area: month; }
-  .head-resets { grid-area: resets; text-align: center; }
 }
 `;
 

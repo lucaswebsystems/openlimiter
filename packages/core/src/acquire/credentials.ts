@@ -22,6 +22,7 @@ import { lstat, realpath } from "node:fs/promises";
 import { readJsonFileSafely, resolveStateDirectory, prepareStateDirectory, writeFileAtomically } from "../cache.js";
 import { codexUsageRequest } from "./transport.js";
 import { cursorStatePath, readCursorSession } from "./cursor.js";
+import { credentialIdentityMaterial, credentialProviderAccount, opaqueAccountId } from "./identity.js";
 
 /** The providers this path can read a credential for. */
 export const ACQUISITION_PROVIDERS = [
@@ -80,6 +81,7 @@ export interface AcquiredCredential {
   readonly secret: string;
   /** The account the provider knows this credential by, when it states one. */
   readonly accountId: string | null;
+  readonly identityMaterial?: string | null;
   /** Expiry in epoch milliseconds, when the document states one. */
   readonly expiresAtMilliseconds: number | null;
   /** Where this credential came from, so a row can say whose login it is. */
@@ -299,14 +301,6 @@ const SECRET_FIELDS: Readonly<Record<AcquisitionProvider, readonly string[]>> = 
   OPENROUTER: ["key", "api_key", "apiKey"]
 };
 
-const ACCOUNT_FIELDS: readonly string[] = [
-  "chatgpt_account_id",
-  "account_id",
-  "accountId",
-  "user_id",
-  "userId"
-];
-
 const EXPIRY_FIELDS: readonly string[] = [
   "expiresAt",
   "expires_at",
@@ -349,7 +343,8 @@ export function readCredentialDocument(
   provider: AcquisitionProvider,
   document: unknown,
   nowMilliseconds: number,
-  origin: CredentialOrigin = "vendor_file"
+  origin: CredentialOrigin = "vendor_file",
+  identityHint: string | null = null
 ): CredentialResult {
   const root = isRecord(document) ? document : null;
   if (root === null) return { ok: false, reason: "invalid" };
@@ -381,13 +376,15 @@ export function readCredentialDocument(
     if (expiry !== null && expiry <= nowMilliseconds) {
       return { ok: false, reason: "expired" };
     }
-    const accountId = stringField(container, ACCOUNT_FIELDS) ??
-      stringField(root, ACCOUNT_FIELDS);
+    const accountId = credentialProviderAccount(provider, container, root, secret);
+    const identityMaterial = credentialIdentityMaterial(container, root, secret, identityHint);
+    if (provider === "GEMINI_CLI" && identityMaterial === null) return { ok: false, reason: "invalid" };
     return {
       ok: true,
       credential: {
         secret,
         accountId,
+        ...(identityMaterial !== null && identityMaterial !== accountId ? { identityMaterial } : {}),
         expiresAtMilliseconds: expiry,
         origin
       }
@@ -455,7 +452,8 @@ export async function readAcquisitionCredential(
       provider,
       document.value,
       clock,
-      provider === "ANTIGRAVITY" ? "shared_code_assist" : "vendor_file"
+      provider === "ANTIGRAVITY" ? "shared_code_assist" : "vendor_file",
+      provider === "CLAUDE" ? await claudeIdentityHint(candidate) : null
     );
     if (result.ok) return result;
     if (firstFailure === null) firstFailure = result.reason;
@@ -471,6 +469,33 @@ export async function readAcquisitionCredential(
     return { ok: false, reason: "keychain_not_read" };
   }
   return { ok: false, reason: "absent" };
+}
+
+async function claudeIdentityHint(credentialPath: string): Promise<string | null> {
+  const directory = path.dirname(credentialPath);
+  const name = path.basename(directory);
+  if (!name.startsWith(".claude")) return null;
+  const metadata = await readJsonFileSafely(path.join(path.dirname(directory), name + ".json"), MAX_CREDENTIAL_FILE_BYTES);
+  if (!metadata.ok || !isRecord(metadata.value)) return null;
+  const account = metadata.value["oauthAccount"];
+  return isRecord(account) ? stringField(account, ["accountUuid", "account_id", "accountId", "user_id", "userId"]) : null;
+}
+
+/** Statusline identity is captured before consuming the payload, never during cache merge. */
+export async function captureStatuslineAccount(provider: AcquisitionProvider, options: CredentialLookupOptions): Promise<string | undefined> {
+  const credential = await readAcquisitionCredential(provider, options);
+  if (credential.ok) {
+    const material = credential.credential.identityMaterial ?? credential.credential.accountId;
+    if (material) return opaqueAccountId(provider, material);
+  }
+  if (provider === "CLAUDE") {
+    for (const candidate of credentialCandidatePaths(provider, options)) {
+      const hint = await claudeIdentityHint(candidate);
+      if (hint) return opaqueAccountId(provider, hint);
+    }
+  }
+  // A singleton cannot prove which concurrent session emitted an anonymous payload.
+  return undefined;
 }
 
 /**

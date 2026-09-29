@@ -7,7 +7,7 @@ use tauri::{AppHandle, Runtime};
 
 pub const ID: &str = "openlimiter-tray";
 
-const PROVIDER_LIMIT: usize = 8;
+const PROVIDER_LIMIT: usize = 9;
 
 const ICON_UNKNOWN: &[u8] = include_bytes!("../icons/tray-unknown-32.png");
 const ICON_OK: &[u8] = include_bytes!("../icons/tray-ok-32.png");
@@ -68,18 +68,22 @@ pub struct View {
     trial_offered: bool,
 }
 
+/// A provider the tray lists, by code, named the way the registry names it
+/// everywhere else (the window reads the same directory label).
 fn provider(code: &str) -> Option<(&'static str, &'static str)> {
-    match code.to_ascii_uppercase().as_str() {
-        "CLAUDE" => Some(("CLAUDE", "Claude")),
-        "OPENROUTER" => Some(("OPENROUTER", "OpenRouter")),
-        "CODEX" => Some(("CODEX", "Codex")),
-        "ANTIGRAVITY" => Some(("ANTIGRAVITY", "Antigravity")),
-        "GEMINI_CLI" => Some(("GEMINI_CLI", "Gemini CLI")),
-        "OPENCODE" => Some(("OPENCODE", "OpenCode")),
-        "GROK" => Some(("GROK", "Grok")),
-        "KIMI" => Some(("KIMI", "Kimi")),
-        _ => None,
-    }
+    let code = match code.to_ascii_uppercase().as_str() {
+        "CLAUDE" => "CLAUDE",
+        "OPENROUTER" => "OPENROUTER",
+        "CODEX" => "CODEX",
+        "ANTIGRAVITY" => "ANTIGRAVITY",
+        "GEMINI_CLI" => "GEMINI_CLI",
+        "OPENCODE" => "OPENCODE",
+        "GROK" => "GROK",
+        "KIMI" => "KIMI",
+        "CURSOR" => "CURSOR",
+        _ => return None,
+    };
+    Some((code, crate::rail::provider_display_name(code)?))
 }
 
 fn pressure_of(percent: Option<f64>) -> Pressure {
@@ -99,7 +103,7 @@ fn whole_percent(value: f64) -> u8 {
 fn reading(value: Option<f64>) -> String {
     value
         .map(|percent| format!("{}%", whole_percent(percent)))
-        .unwrap_or_else(|| "\u{2014}".to_string())
+        .unwrap_or_else(|| "no reading".to_string())
 }
 
 pub fn view(statuses: Vec<ProviderStatus>) -> Result<View, &'static str> {
@@ -163,8 +167,8 @@ pub fn view_with_trial(
         return Ok(View {
             pressure: Pressure::Unknown,
             title: "OpenLimiter".to_string(),
-            tooltip: "OpenLimiter: \u{2014} headroom".to_string(),
-            summary: "\u{2014} headroom".to_string(),
+            tooltip: "OpenLimiter: no reading yet".to_string(),
+            summary: "No reading yet".to_string(),
             providers,
             trial_offered,
         });
@@ -290,13 +294,13 @@ mod tests {
     }
 
     #[test]
-    fn provider_rows_are_text_only_and_missing_readings_use_a_dash() {
+    fn provider_rows_are_text_only_and_missing_readings_say_so_without_a_dash() {
         let rendered =
             view(vec![status("codex", None), status("claude", Some(12.4))]).expect("valid view");
         assert_eq!(rendered.providers[0].code, "CLAUDE");
         assert_eq!(rendered.providers[1].code, "CODEX");
         assert_eq!(reading(rendered.providers[0].usage_percent), "12%");
-        assert_eq!(reading(rendered.providers[1].usage_percent), "\u{2014}");
+        assert_eq!(reading(rendered.providers[1].usage_percent), "no reading");
     }
 
     #[test]
@@ -310,11 +314,33 @@ mod tests {
             status("OPENCODE", None),
             status("GROK", None),
             status("KIMI", None),
+            status("CURSOR", None),
         ])
         .expect("every provider is valid");
         assert_eq!(rendered.providers.len(), PROVIDER_LIMIT);
-        assert_eq!(rendered.providers[6].name, "Grok");
+        assert_eq!(rendered.providers[6].name, "Grok (xAI)");
         assert_eq!(rendered.providers[7].name, "Kimi");
+    }
+
+    /// The tray names providers exactly as the window does: the registry
+    /// directory label, else its display name, and never a code or a dash.
+    #[test]
+    fn tray_names_are_the_registry_names_the_window_shows() {
+        for (code, name) in [
+            ("CLAUDE", "Claude Code"),
+            ("OPENROUTER", "OpenRouter"),
+            ("CODEX", "Codex"),
+            ("ANTIGRAVITY", "Antigravity"),
+            ("GEMINI_CLI", "Gemini CLI"),
+            ("OPENCODE", "OpenCode"),
+            ("GROK", "Grok (xAI)"),
+            ("KIMI", "Kimi"),
+            ("CURSOR", "Cursor"),
+        ] {
+            assert_eq!(provider(code), Some((code, name)));
+            assert_eq!(provider(&code.to_ascii_lowercase()), Some((code, name)));
+            assert!(!name.contains(['-', '\u{2013}', '\u{2014}']));
+        }
     }
 
     #[test]
@@ -322,8 +348,8 @@ mod tests {
         let rendered = view(vec![status("CLAUDE", None)]).expect("valid view");
         assert_eq!(rendered.pressure, Pressure::Unknown);
         assert_eq!(rendered.title, "OpenLimiter");
-        assert_eq!(rendered.tooltip, "OpenLimiter: \u{2014} headroom");
-        assert_eq!(rendered.summary, "\u{2014} headroom");
+        assert_eq!(rendered.tooltip, "OpenLimiter: no reading yet");
+        assert_eq!(rendered.summary, "No reading yet");
     }
 
     /// The trial entry is offered only while there is nothing to lose by it.

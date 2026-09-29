@@ -56,6 +56,7 @@ const COPY = {
       "types.js",
       "collection.js",
       "connection-state.js",
+      "data-rules.js",
       "failures.js",
       "format.js",
       "forecast.js",
@@ -249,6 +250,16 @@ copyFileSync(
    backend.js is the one module allowed to name a Tauri command, and
    connections.js is the Connections tab that talks through it. */
 const WINDOW_FILES = [
+  "edge-tab.html",
+  "edge-tab.css",
+  "edge-tab.js",
+  "edge-panel.html",
+  "edge-panel.css",
+  "edge-panel.js",
+  /* The one projection, names and drawing Home and the edge panel share. */
+  "names.js",
+  "readings.js",
+  "quiet.css",
   "rail.html",
   "rail.js",
   "rail.css",

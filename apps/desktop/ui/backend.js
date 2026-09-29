@@ -410,6 +410,11 @@ export async function listDetectedProviders() {
   return result;
 }
 
+/** Scan for provider logins again, after a person opened a tool so it refreshed its own sign in. */
+export async function rescanDetectedProviders() {
+  return call("rescan_detected_providers");
+}
+
 /** Check the real CLI and Claude Code settings without changing either. */
 export async function claudeConnectPreflight({ configuredCliPath } = {}) {
   return call("claude_connect_preflight", {

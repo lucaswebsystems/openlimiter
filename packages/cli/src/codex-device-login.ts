@@ -18,7 +18,7 @@
 import { spawnWithWindowsCommandShim } from "@openlimiter/core";
 import { createInterface } from "node:readline";
 import type { ChildProcess } from "node:child_process";
-import { lstat, mkdir } from "node:fs/promises";
+import { lstat, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /** The client release that first carried `--device-auth`. */
@@ -304,6 +304,8 @@ export async function startCodexDeviceLogin(
   now: number
 ): Promise<{ session: CodexDeviceLoginSession; start: DeviceLoginStart }> {
   await prepareManagedHome(home);
+  // A second app instance must not delete a login that is still waiting for the vendor.
+  await writeFile(path.join(home, ".openlimiter-login"), "", { flag: "wx", mode: 0o600 });
   const child = await runner.start(home);
   const startupDeadline = Date.now() + START_TIMEOUT_MILLISECONDS;
   const found: ScannedLine = { code: null, url: null };
