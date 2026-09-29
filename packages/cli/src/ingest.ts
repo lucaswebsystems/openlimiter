@@ -367,7 +367,8 @@ export async function persistSnapshots(
 ): Promise<CacheMergeResult> {
   const merged = await mergeSnapshotCache(
     incoming,
-    directory ?? resolveStateDirectory()
+    directory ?? resolveStateDirectory(),
+    Date.parse(now)
   );
   await writeAgentContextSnapshot(merged.merged, directory, now);
   return merged;

@@ -1009,14 +1009,17 @@ pub fn disabled_providers(
 }
 
 #[tauri::command]
-pub fn set_provider_enabled(
-    detection: State<'_, DetectionStore>,
+pub async fn set_provider_enabled(
+    app: tauri::AppHandle,
     provider: crate::provider_detection::DetectedProviderId,
     enabled: bool,
 ) -> Result<(), String> {
-    detection.switches.set(provider, enabled)?;
+    use tauri::Manager;
+    app.state::<DetectionStore>()
+        .switches
+        .set(provider, enabled)?;
     if enabled {
-        detection.rescan();
+        rescan_detected_providers(app).await?;
     }
     Ok(())
 }
@@ -1118,8 +1121,13 @@ pub async fn list_detected_providers(app: tauri::AppHandle) -> DetectionReport {
 }
 
 #[tauri::command]
-pub fn rescan_detected_providers(detection: State<'_, DetectionStore>) -> DetectionReport {
-    detection.rescan()
+pub async fn rescan_detected_providers(app: tauri::AppHandle) -> Result<DetectionReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        app.state::<DetectionStore>().rescan()
+    })
+    .await
+    .map_err(|_| "Provider scan unavailable".to_string())
 }
 
 #[tauri::command]

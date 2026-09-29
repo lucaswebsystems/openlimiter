@@ -461,6 +461,13 @@ impl DeviceLoginSession {
     ) -> Result<(Arc<Self>, DeviceLoginStart), DeviceLoginFailure> {
         let requested_home = managed_home(session_id).ok_or(DeviceLoginFailure::Storage)?;
         let home = prepare_managed_home(&requested_home)?;
+        // Other app instances must not classify a live login's empty home as a leftover.
+        // Kept on disk after a crash, because absence of a process is not proof of ownership.
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(home.join(".openlimiter-login"))
+            .map_err(|_| DeviceLoginFailure::Storage)?;
         let mut child = runner.start(&home)?;
         /* A separate, much shorter deadline than the login's own. The client
         prints its code within a second of starting, so twenty is generous, and
@@ -794,6 +801,16 @@ pub struct OpenDeviceLogin {
 }
 
 impl OpenDeviceLogin {
+    pub(crate) fn referenced_paths(&self) -> Vec<PathBuf> {
+        self.open
+            .lock()
+            .map(|held| {
+                held.as_ref()
+                    .map(|(_, session)| vec![session.home.clone()])
+                    .unwrap_or_default()
+            })
+            .unwrap_or_default()
+    }
     /// Stop whatever login this process is holding, regardless of its id.
     ///
     /// Called from the application's own exit path (`RunEvent::ExitRequested`
@@ -853,6 +870,7 @@ pub async fn codex_device_login_start(
 /// How the open login is going.
 #[tauri::command]
 pub async fn codex_device_login_status(
+    app: tauri::AppHandle,
     session_id: String,
     detection: State<'_, DetectionStore>,
     open: State<'_, OpenDeviceLogin>,
@@ -870,9 +888,15 @@ pub async fn codex_device_login_status(
         Some((_, session)) => {
             let state = session.state(Instant::now());
             if matches!(&state, DeviceLoginState::Complete { .. }) {
-                let account_id = detection
-                    .register_managed_account(session.home())
-                    .ok_or(DeviceLoginFailure::Storage)?;
+                let home = session.home().to_path_buf();
+                let account_id = tauri::async_runtime::spawn_blocking(move || {
+                    use tauri::Manager;
+                    app.state::<DetectionStore>()
+                        .register_managed_account(&home)
+                })
+                .await
+                .map_err(|_| DeviceLoginFailure::Storage)?
+                .ok_or(DeviceLoginFailure::Storage)?;
                 let (outcome, _) = crate::codex_oauth::collect_account_guarded(
                     &detection,
                     &runtime,

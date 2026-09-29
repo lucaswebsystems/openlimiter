@@ -10,6 +10,12 @@ provider_id: cursor
 product_id: editor
 display_name: Cursor
 headlineMeter: auto
+directory:
+  order: 9
+  rowId: cursor/editor
+  label: Cursor
+  connectorId: cursor
+  access: automatic
 acquisitionSurfaces:
   - desktop
   - cli

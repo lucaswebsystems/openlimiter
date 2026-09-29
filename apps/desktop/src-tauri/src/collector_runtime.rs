@@ -376,6 +376,28 @@ pub async fn run_pass(
     let multi_account = crate::pro::multi_account_enabled(&*secrets);
     let _ = connections.apply_plan(multi_account, &[]);
     let records = connections.list().map(|mut records| {
+        let identities = records
+            .iter()
+            .filter(|record| record.is_active())
+            .map(|record| {
+                let identity = resolve_connection(record, &*secrets);
+                (
+                    record.id.clone(),
+                    (
+                        detected_provider(record.provider_id)
+                            .slug()
+                            .to_uppercase()
+                            .replace('-', "_"),
+                        identity.account_id().to_string(),
+                    ),
+                )
+            })
+            .collect();
+        if let Some(state) = app.try_state::<crate::data_rules::ConnectionIdentities>() {
+            if let Ok(mut held) = state.0.lock() {
+                *held = identities;
+            }
+        }
         records.retain(|record| allowed(detected_provider(record.provider_id)));
         if selected.is_some() {
             for record in &mut records {
@@ -499,8 +521,13 @@ pub async fn run_pass(
                         && !crate::native_readers::cursor::run_pass(
                             app,
                             &coverage.covered,
-                            automatic_account_limit(multi_account, &coverage.known_providers, DetectedProviderId::Cursor),
-                        ).await
+                            automatic_account_limit(
+                                multi_account,
+                                &coverage.known_providers,
+                                DetectedProviderId::Cursor,
+                            ),
+                        )
+                        .await
                     {
                         failed_providers.push(DetectedProviderId::Cursor);
                     }

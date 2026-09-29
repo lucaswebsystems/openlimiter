@@ -1,3 +1,5 @@
+import { freshnessPolicy, retainSnapshots } from "./data-rules.js";
+export { freshnessPolicy } from "./data-rules.js";
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
@@ -55,32 +57,26 @@ export function leasePolicy(input: { now: string; requester: string; owner: stri
   };
 }
 
-export function freshnessPolicy(input: { sourceClass: string; observedAt: string; now: string }) {
-  const ttlSeconds = input.sourceClass === "native_payload" ? 60 : 300;
-  const observed = Date.parse(input.observedAt);
-  const now = Date.parse(input.now);
-  const expiresAt = new Date(observed + ttlSeconds * 1000).toISOString();
-  return { ttlSeconds, expiresAt, availability: now < observed ? "unavailable" : now < Date.parse(expiresAt) ? "fresh" : "stale" };
-}
-
 export function withPolicyFreshness(snapshot: Snapshot): Snapshot {
   if (!["native_payload", "documented_api", "internal_payload", "local_file"].includes(snapshot.source)) return snapshot;
-  return { ...snapshot, expiresAt: freshnessPolicy({ sourceClass: snapshot.source, observedAt: snapshot.observedAt, now: snapshot.observedAt }).expiresAt };
+  return { ...snapshot, expiresAt: freshnessPolicy({ ...snapshot, sourceClass: snapshot.source, now: snapshot.observedAt }).expiresAt };
 }
 
-export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "rate_limited", now: string, retryAt: string | undefined, directory = resolveStateDirectory()): Promise<void> {
+export async function recordAcquisitionAvailability(provider: ProviderCode, availability: "expired_credentials" | "access_denied" | "rate_limited", now: string, retryAt: string | undefined, directory = resolveStateDirectory(), accountId?: string): Promise<void> {
   await withCacheLock(directory, async () => {
     const state = await readCacheState(directory);
     if (!state.ok && state.reason !== "missing") throw new Error("Unreadable snapshot cache");
-    const rows = state.ok ? state.state.snapshots : [];
-    const matching = rows.filter((row) => row.provider === provider);
+    const rows = retainSnapshots(state.ok ? state.state.snapshots : [], Date.parse(now));
+    const matches = (row: Snapshot) => row.provider === provider && row.accountId === accountId;
+    const matching = rows.filter(matches);
+    if (matching.some(row => row.observedAt > now)) return;
     const seed: Snapshot = {
-      provider, meter: "ACQUISITION", value: 0, unit: "PERCENT", window: { kind: "unknown" }, resetAt: null,
+      provider, ...(accountId ? { accountId } : {}), meter: "ACQUISITION", value: 0, unit: "PERCENT", window: { kind: "unknown" }, resetAt: null,
       source: "internal_payload", precision: "exact", observedAt: now, writer: "cli",
       expiresAt: freshnessPolicy({ sourceClass: "internal_payload", observedAt: now, now }).expiresAt,
       labels: { credentialOrigin: "official-local-tool", dataInterfaceStatus: "internal-endpoint", automationRisk: "high", verification: "UNVERIFIED" }
     };
-    const snapshots = [...rows.filter((row) => row.provider !== provider), ...(matching.length ? matching : [seed]).map((row) => {
+    const snapshots = [...rows.filter((row) => !matches(row)), ...(matching.length ? matching : [seed]).map((row) => {
       const { retryAt: _oldRetry, ...rest } = row;
       return { ...rest, availability, ...(availability === "rate_limited" && retryAt ? { retryAt } : {}) };
     })];
@@ -671,7 +667,8 @@ export interface CacheMergeResult {
  */
 export async function mergeSnapshotCache(
   incoming: readonly Snapshot[],
-  directory = resolveStateDirectory()
+  directory = resolveStateDirectory(),
+  now = Date.now()
 ): Promise<CacheMergeResult> {
   rejectOutOfBounds(incoming);
   return await withCacheLock(directory, async () => {
@@ -679,7 +676,7 @@ export async function mergeSnapshotCache(
     const state: CacheState = cached.ok
       ? cached.state
       : { snapshots: [], suppressions: [] };
-    const merged = mergeSnapshots(state.snapshots, incoming);
+    const merged = retainSnapshots(mergeSnapshots(state.snapshots, incoming), now);
     if (canonicalJson(merged) === canonicalJson(state.snapshots)) {
       return { merged, written: false };
     }
@@ -718,7 +715,7 @@ export async function mergeAcquiredSnapshots(
   return await withCacheLock(directory, async () => {
     const cached = await readCacheState(directory);
     const before: CacheState = cached.ok
-      ? { ...cached.state, snapshots: cached.state.snapshots.filter((row) => !(row.provider === report.provider && row.meter === "ACQUISITION" && row.availability !== undefined && row.observedAt <= report.observedAt)) }
+      ? { ...cached.state, snapshots: cached.state.snapshots.filter((row) => !(row.provider === report.provider && row.accountId === report.accountId && row.meter === "ACQUISITION" && row.availability !== undefined && row.observedAt <= report.observedAt)) }
       : { snapshots: [], suppressions: [] };
     const held = new Map(
       before.snapshots.map((snapshot) => [snapshotIdentity(snapshot), snapshot])
@@ -769,7 +766,7 @@ export async function mergeAcquiredSnapshots(
       await replaceCache(directory, after.snapshots, after.suppressions);
       return { written: true, taken: taken.length, deferred };
     }
-    const merged = mergeSnapshots(before.snapshots, taken);
+    const merged = retainSnapshots(mergeSnapshots(before.snapshots, taken), Date.parse(report.observedAt));
     if (canonicalJson(merged) === canonicalJson(before.snapshots)) {
       return { written: false, taken: taken.length, deferred };
     }
@@ -807,5 +804,19 @@ export async function applyCollectionReportToCache(
     rejectOutOfBounds(after.snapshots);
     await replaceCache(directory, after.snapshots, after.suppressions);
     return { state: after, written: true };
+  });
+}
+
+/** Startup maintenance uses the same lock as all writers and never repairs unreadable state. */
+export async function pruneSnapshotCache(directory = resolveStateDirectory(), now = Date.now()): Promise<number> {
+  const existing = await readCacheState(directory);
+  if (!existing.ok) return 0;
+  return withCacheLock(directory, async () => {
+    const cached = await readCacheState(directory);
+    if (!cached.ok) return 0;
+    const snapshots = retainSnapshots(cached.state.snapshots, now);
+    const count = cached.state.snapshots.length - snapshots.length;
+    if (count) await replaceCache(directory, snapshots, cached.state.suppressions);
+    return count;
   });
 }

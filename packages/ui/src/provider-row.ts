@@ -12,6 +12,9 @@ import {
 } from "@openlimiter/core";
 import { PROVIDER_RECOGNITION_ORDER } from "./provider-connect.js";
 
+// Home and Connections consume the same projection as the native Rail and tray.
+export { projectSnapshots, freshnessPolicy, fixKind } from "@openlimiter/core";
+
 export type HeadroomTone = "ok" | "watch" | "high" | "critical" | "none";
 
 export interface ProviderWindowView {
