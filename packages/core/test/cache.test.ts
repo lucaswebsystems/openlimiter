@@ -181,6 +181,7 @@ describe("snapshot cache", () => {
   });
 
   it("skips the write when a merge changes nothing", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse(snapshot().observedAt));
     const directory = await temporaryDirectory();
     expect((await mergeSnapshotCache([snapshot()], directory)).written).toBe(true);
     expect((await mergeSnapshotCache([snapshot()], directory)).written).toBe(false);

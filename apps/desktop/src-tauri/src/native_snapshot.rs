@@ -435,7 +435,7 @@ fn read_document_for_surface(
 }
 
 fn account_matches(existing: Option<&str>, target: Option<&str>) -> bool {
-    existing == target || (target.is_some() && existing.is_none())
+    existing == target
 }
 
 /// Read only display access to the same validated cache rows used by native writers.
@@ -474,35 +474,68 @@ fn fold(
     report: &CacheReport,
 ) -> Result<String, CacheWriteError> {
     let (mut rows, mut suppressions) = read_document(text)?;
+    let observed = match report {
+        CacheReport::Success(incoming) => incoming.iter().map(|row| row.observed_at.as_str()).max(),
+        CacheReport::Drift { observed_at } => Some(observed_at.as_str()),
+        CacheReport::Unavailable => None,
+    };
+    let delayed = observed.is_some_and(|at| {
+        rows.iter().any(|row| {
+            row.provider == provider
+                && row.account_id.as_deref() == account_id
+                && row.observed_at.as_str() > at
+        }) || suppressions.iter().any(|entry| {
+            entry.provider == provider
+                && entry.account_id.as_deref() == account_id
+                && entry.suppressed_at.as_str() > at
+        })
+    });
     let belongs = |existing: Option<&str>| match report {
         CacheReport::Unavailable => existing == account_id,
         CacheReport::Success(_) | CacheReport::Drift { .. } => {
             account_matches(existing, account_id)
         }
     };
-    rows.retain(|row| row.provider != provider || !belongs(row.account_id.as_deref()));
-    suppressions
-        .retain(|entry| entry.provider != provider || !belongs(entry.account_id.as_deref()));
-    match report {
-        /* Stamped here and nowhere else. Every row this process writes reaches
-        disk through this fold, so one line makes the whole desktop attributable
-        and no reader has to remember to set it. A row that arrives already
-        claiming another writer is corrected: this process is the one writing
-        it. */
-        CacheReport::Success(incoming) => rows.extend(incoming.iter().cloned().filter_map(|row| {
-            normalize_snapshot(Snapshot {
-                writer: Some(DESKTOP_WRITER.to_string()),
-                ..row
-            })
-        })),
-        CacheReport::Drift { observed_at } => suppressions.push(Suppression {
-            provider: provider.to_string(),
-            account_id: account_id.map(str::to_string),
-            reason: "drift".to_string(),
-            suppressed_at: observed_at.clone(),
-        }),
-        CacheReport::Unavailable => {}
+    rows.retain(|row| delayed || row.provider != provider || !belongs(row.account_id.as_deref()));
+    suppressions.retain(|entry| {
+        delayed || entry.provider != provider || !belongs(entry.account_id.as_deref())
+    });
+    if !delayed {
+        match report {
+            /* Stamped here and nowhere else. Every row this process writes reaches
+            disk through this fold, so one line makes the whole desktop attributable
+            and no reader has to remember to set it. A row that arrives already
+            claiming another writer is corrected: this process is the one writing
+            it. */
+            CacheReport::Success(incoming) => {
+                rows.extend(incoming.iter().cloned().filter_map(|row| {
+                    normalize_snapshot(Snapshot {
+                        writer: Some(DESKTOP_WRITER.to_string()),
+                        ..row
+                    })
+                }))
+            }
+            CacheReport::Drift { observed_at } => suppressions.push(Suppression {
+                provider: provider.to_string(),
+                account_id: account_id.map(str::to_string),
+                reason: "drift".to_string(),
+                suppressed_at: observed_at.clone(),
+            }),
+            CacheReport::Unavailable => {}
+        }
     }
+    let now = match report {
+        CacheReport::Success(incoming) => incoming
+            .iter()
+            .filter_map(|row| epoch_ms_from_rfc3339(&row.observed_at))
+            .max()
+            .unwrap_or_else(crate::connections::now_epoch_ms),
+        CacheReport::Drift { observed_at } => {
+            epoch_ms_from_rfc3339(observed_at).unwrap_or_else(crate::connections::now_epoch_ms)
+        }
+        CacheReport::Unavailable => crate::connections::now_epoch_ms(),
+    };
+    rows.retain(|row| crate::data_rules::retained(row, now));
     let mut by_identity = BTreeMap::new();
     for row in rows {
         by_identity.insert(identity(&row), row);
@@ -650,11 +683,77 @@ pub fn write_report(
     Err(CacheWriteError::Busy)
 }
 
+pub fn prune_cache(writer: &CacheWriter, now: u64) -> Result<usize, CacheWriteError> {
+    let begun = writer.begin()?;
+    let result = (|| {
+        let (mut rows, suppressions) = read_document_for_surface(begun.text.as_deref(), true)?;
+        let before = rows.len();
+        rows.retain(|row| crate::data_rules::retained(row, now));
+        if rows.len() == before {
+            writer.abort(begun.generation);
+            return Ok(0);
+        }
+        let count = before - rows.len();
+        let text =
+            serde_json::json!({ "version": 2, "snapshots": rows, "suppressions": suppressions })
+                .to_string();
+        writer.commit(&text, begun.generation)?;
+        Ok(count)
+    })();
+    if result.is_err() {
+        writer.abort(begun.generation);
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::native_readers::parse_body;
     use crate::reader_registry::ReaderId;
+
+    #[test]
+    fn retention_and_delayed_accounts_never_alias_anonymous_rows() {
+        let mut anonymous: Snapshot = serde_json::from_str(LEGACY_ROW).unwrap();
+        anonymous.account_id = None;
+        let mut current = anonymous.clone();
+        current.account_id = Some("fixture-current".into());
+        let mut old = current.clone();
+        old.account_id = Some("fixture-old".into());
+        old.observed_at = "2026-08-01T00:00:00.000Z".into();
+        let text = serde_json::json!({"version":2,"snapshots":[anonymous, old]}).to_string();
+        let written = fold(
+            Some(&text),
+            "CLAUDE",
+            Some("fixture-current"),
+            &CacheReport::Success(vec![current.clone()]),
+        )
+        .unwrap();
+        let rows = display_snapshots(Some(&written));
+        assert_eq!(rows.len(), 2);
+        assert!(rows.iter().any(|row| row.account_id.is_none()));
+        assert!(!rows
+            .iter()
+            .any(|row| row.account_id.as_deref() == Some("fixture-old")));
+        let mut delayed = current.clone();
+        delayed.observed_at = "2026-08-16T11:59:00.000Z".into();
+        delayed.value = 10.0;
+        let written = fold(
+            Some(&written),
+            "CLAUDE",
+            Some("fixture-current"),
+            &CacheReport::Success(vec![delayed]),
+        )
+        .unwrap();
+        assert_eq!(
+            display_snapshots(Some(&written))
+                .iter()
+                .find(|row| row.account_id == current.account_id)
+                .unwrap()
+                .value,
+            current.value
+        );
+    }
 
     // Frozen serialization of the existing overspent_extra_usage test row.
     const LEGACY_ROW: &str = r#"{"provider":"CLAUDE","meter":"EXTRA_USAGE","value":100.0,"unit":"PERCENT","window":{"kind":"fixed"},"resetAt":null,"source":"internal_payload","precision":"exact","observedAt":"2026-08-16T12:00:00.000Z","expiresAt":"2026-08-16T12:20:00.000Z","labels":{"credentialOrigin":"official-local-tool","dataInterfaceStatus":"internal-endpoint","automationRisk":"high","verification":"UNVERIFIED"},"usedAmount":62.5,"limitAmount":50.0,"currency":"USD","accountId":"claude-overspend"}"#;
@@ -1031,10 +1130,9 @@ mod tests {
     /// The command line tool files a provider it cannot name under no account
     /// at all, and this build files the same provider under the account it
     /// resolved, so the same subscription used to appear twice in one cache.
-    /// A desktop write for a named account takes the unnamed row of that
-    /// provider with it, which is what makes the two agree.
+    /// An anonymous observation cannot prove which named account emitted it.
     #[test]
-    fn a_named_desktop_write_absorbs_the_unnamed_row_of_the_same_provider() {
+    fn a_named_desktop_write_keeps_unproven_anonymous_identity_separate() {
         let now = epoch_ms_from_rfc3339("2026-09-07T12:00:00.000Z").expect("fixture clock");
         let mut unnamed = parse_body(ReaderId::CodexUsage, &codex_body(now), now, "ignored")
             .expect("readable codex fixture");
@@ -1063,7 +1161,8 @@ mod tests {
         assert!(!rows.is_empty());
         assert!(rows
             .iter()
-            .all(|row| row["accountId"].as_str() == Some("codex-desktop")));
+            .any(|row| row["accountId"].as_str() == Some("codex-desktop")));
+        assert!(rows.iter().any(|row| row.get("accountId").is_none()));
         assert!(rows
             .iter()
             .all(|row| row["writer"].as_str() == Some("desktop")));
@@ -1071,7 +1170,7 @@ mod tests {
 
     #[test]
     fn unavailable_removes_only_the_scoped_remote_rows() {
-        let now = epoch_ms_from_rfc3339("2026-08-16T12:00:00.000Z").expect("fixture clock");
+        let now = crate::connections::now_epoch_ms();
         let mut scoped = parse_body(
             ReaderId::OpenrouterCredits,
             r#"{"data":{"total_credits":20,"total_usage":5}}"#,

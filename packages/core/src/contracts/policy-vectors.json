@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "scope": "L0a1.3 policy contract vectors; implementations are deferred to L1a.",
+  "scope": "Shared desktop and CLI policy vectors, including D1 freshness.",
   "decisions": {
     "attemptCount": "Zero means the first retry. Local exponential delay is capped before additive nonnegative jitter.",
     "retryAfter": "Raw HTTP header, either integer seconds or an HTTP date. Invalid and negative seconds act as absent. Past dates cannot shorten the local delay.",
     "ceilings": "Honor server deadlines up to the safety ceiling: collector 24 hours, request policy 7 days. Above the ceiling, cap the deadline and block until that capped time.",
     "lease": "One lease per acquisition key shared by desktop and CLI. A live lease denies another acquisition even for the same owner. Equality means expired. Takeover means replacing a different owner.",
     "freshness": "Fresh while observedAt <= now < expiresAt. Future observations are unavailable.",
-    "proposedValues": "Pending plan confirmation: native_payload TTL 60 s; documented_api, internal_payload and local_file TTL 300 s; lease 60 s. These are explicit proposed contract values, not claims about existing implementations."
+    "proposedValues": "D1: native_payload cadence 60 s, other sources cadence 900 s. TTL is cadence times 1.2 plus 60 s of latency slack (132 s and 1140 s). Lease remains 60 s."
   },
   "schema": {
     "type": "object",
@@ -857,11 +857,11 @@
         "input": {
           "sourceClass": "native_payload",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:00:59.000Z"
+          "now": "2026-08-07T12:02:11.000Z"
         },
         "expected": {
-          "ttlSeconds": 60,
-          "expiresAt": "2026-08-07T12:01:00.000Z",
+          "ttlSeconds": 132,
+          "expiresAt": "2026-08-07T12:02:12.000Z",
           "availability": "fresh"
         }
       },
@@ -870,11 +870,11 @@
         "input": {
           "sourceClass": "native_payload",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:01:00.000Z"
+          "now": "2026-08-07T12:02:12.000Z"
         },
         "expected": {
-          "ttlSeconds": 60,
-          "expiresAt": "2026-08-07T12:01:00.000Z",
+          "ttlSeconds": 132,
+          "expiresAt": "2026-08-07T12:02:12.000Z",
           "availability": "stale"
         }
       },
@@ -883,11 +883,11 @@
         "input": {
           "sourceClass": "native_payload",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:01:01.000Z"
+          "now": "2026-08-07T12:02:13.000Z"
         },
         "expected": {
-          "ttlSeconds": 60,
-          "expiresAt": "2026-08-07T12:01:00.000Z",
+          "ttlSeconds": 132,
+          "expiresAt": "2026-08-07T12:02:12.000Z",
           "availability": "stale"
         }
       },
@@ -899,8 +899,8 @@
           "now": "2026-08-07T11:59:59.000Z"
         },
         "expected": {
-          "ttlSeconds": 60,
-          "expiresAt": "2026-08-07T12:01:00.000Z",
+          "ttlSeconds": 132,
+          "expiresAt": "2026-08-07T12:02:12.000Z",
           "availability": "unavailable"
         }
       },
@@ -909,11 +909,11 @@
         "input": {
           "sourceClass": "documented_api",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:04:59.000Z"
+          "now": "2026-08-07T12:18:59.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "fresh"
         }
       },
@@ -922,11 +922,11 @@
         "input": {
           "sourceClass": "documented_api",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:05:00.000Z"
+          "now": "2026-08-07T12:19:00.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "stale"
         }
       },
@@ -935,11 +935,11 @@
         "input": {
           "sourceClass": "documented_api",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:05:01.000Z"
+          "now": "2026-08-07T12:19:01.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "stale"
         }
       },
@@ -951,8 +951,8 @@
           "now": "2026-08-07T11:59:59.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "unavailable"
         }
       },
@@ -961,11 +961,11 @@
         "input": {
           "sourceClass": "internal_payload",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:04:59.000Z"
+          "now": "2026-08-07T12:18:59.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "fresh"
         }
       },
@@ -974,11 +974,11 @@
         "input": {
           "sourceClass": "internal_payload",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:05:00.000Z"
+          "now": "2026-08-07T12:19:00.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "stale"
         }
       },
@@ -987,11 +987,11 @@
         "input": {
           "sourceClass": "internal_payload",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:05:01.000Z"
+          "now": "2026-08-07T12:19:01.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "stale"
         }
       },
@@ -1003,8 +1003,8 @@
           "now": "2026-08-07T11:59:59.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "unavailable"
         }
       },
@@ -1013,11 +1013,11 @@
         "input": {
           "sourceClass": "local_file",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:04:59.000Z"
+          "now": "2026-08-07T12:18:59.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "fresh"
         }
       },
@@ -1026,11 +1026,11 @@
         "input": {
           "sourceClass": "local_file",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:05:00.000Z"
+          "now": "2026-08-07T12:19:00.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "stale"
         }
       },
@@ -1039,11 +1039,11 @@
         "input": {
           "sourceClass": "local_file",
           "observedAt": "2026-08-07T12:00:00.000Z",
-          "now": "2026-08-07T12:05:01.000Z"
+          "now": "2026-08-07T12:19:01.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "stale"
         }
       },
@@ -1055,8 +1055,8 @@
           "now": "2026-08-07T11:59:59.000Z"
         },
         "expected": {
-          "ttlSeconds": 300,
-          "expiresAt": "2026-08-07T12:05:00.000Z",
+          "ttlSeconds": 1140,
+          "expiresAt": "2026-08-07T12:19:00.000Z",
           "availability": "unavailable"
         }
       }

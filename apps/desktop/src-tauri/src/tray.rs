@@ -7,7 +7,7 @@ use tauri::{AppHandle, Runtime};
 
 pub const ID: &str = "openlimiter-tray";
 
-const PROVIDER_LIMIT: usize = 8;
+const PROVIDER_LIMIT: usize = 9;
 
 const ICON_UNKNOWN: &[u8] = include_bytes!("../icons/tray-unknown-32.png");
 const ICON_OK: &[u8] = include_bytes!("../icons/tray-ok-32.png");
@@ -78,6 +78,7 @@ fn provider(code: &str) -> Option<(&'static str, &'static str)> {
         "OPENCODE" => Some(("OPENCODE", "OpenCode")),
         "GROK" => Some(("GROK", "Grok")),
         "KIMI" => Some(("KIMI", "Kimi")),
+        "CURSOR" => Some(("CURSOR", "Cursor")),
         _ => None,
     }
 }
@@ -310,6 +311,7 @@ mod tests {
             status("OPENCODE", None),
             status("GROK", None),
             status("KIMI", None),
+            status("CURSOR", None),
         ])
         .expect("every provider is valid");
         assert_eq!(rendered.providers.len(), PROVIDER_LIMIT);

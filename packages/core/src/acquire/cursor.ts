@@ -1,12 +1,12 @@
 // Endpoint facts: research/01-codenotch-harvest.md, Cursor recipe.
 // This implementation does not translate upstream source code.
 import { lstat } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { opaqueAccountId } from "./identity.js";
 import path from "node:path";
 import type { CredentialLookupOptions, CredentialResult } from "./credentials.js";
 
 export function cursorAccountId(authId: string): string {
-  return "cursor-" + createHash("sha256").update("cursor").update(new Uint8Array([0])).update(authId).digest("hex").slice(0, 24);
+  return opaqueAccountId("CURSOR", authId);
 }
 
 export function cursorStatePath(options: CredentialLookupOptions & { homeDirectory: string }): string | null {

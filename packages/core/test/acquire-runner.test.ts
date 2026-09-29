@@ -1,3 +1,4 @@
+import { acquisitionAccountId } from "../src/acquire/identity.js";
 import { describe, expect, it } from "vitest";
 import {
   ACQUISITION_BLOCKED_BACKOFF_SECONDS,
@@ -92,6 +93,7 @@ describe("one acquisition round", () => {
     expect(sent[0]?.headers["chatgpt-account-id"]).toBe("acct-1");
     expect(result.rows).toEqual([{
       provider: "CODEX",
+      accountId: acquisitionAccountId("CODEX", { secret: "fixture", accountId: "acct-1" }),
       detected: true,
       status: "read",
       reason: null,
@@ -416,7 +418,7 @@ describe("one acquisition round", () => {
       schedule: {},
       readCredential: async () => credential(null, "vendor_store")
     });
-    expect(result.rows[0]?.accountId).toBeUndefined();
+    expect(result.rows[0]?.accountId).toBe(acquisitionAccountId("ANTIGRAVITY", { secret: "fixture", accountId: null, origin: "vendor_store" }));
     expect(result.rows[0]?.disclosure).toBe(ACQUISITION_DISCLOSURE.antigravity);
   });
 
@@ -515,11 +517,11 @@ describe("one acquisition round", () => {
 
   it("says how every provider is read, in words with no dashes", () => {
     for (const sentence of Object.values(ACQUISITION_DISCLOSURE)) {
-      expect(sentence).not.toMatch(/[-–—]/u);
+      expect(sentence).not.toMatch(/[-â€“â€”]/u);
       expect(sentence.length).toBeGreaterThan(0);
     }
     for (const sentence of Object.values(CREDENTIAL_FAILURE_SENTENCE)) {
-      expect(sentence).not.toMatch(/[-–—]/u);
+      expect(sentence).not.toMatch(/[-â€“â€”]/u);
     }
     /* Every credential here was issued to somebody else's client, and every
        row says so before a person leans on the number. */

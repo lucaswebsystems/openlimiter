@@ -1,5 +1,7 @@
 import {
   ACQUISITION_OUTCOME_SENTENCE,
+  captureStatuslineAccount,
+  pruneSnapshotCache,
   ACQUISITION_PROVIDERS,
   registerManagedCodexAccount,
   CREDENTIAL_FAILURE_SENTENCE,
@@ -872,7 +874,7 @@ function acquisitionLine(
     .filter((part) => part !== "")
     .join(", ");
   return [
-    row.provider.toLowerCase() + (row.accountId === undefined ? "" : "/" + row.accountId),
+    row.provider.toLowerCase(),
     row.detected ? "yes" : "no",
     row.status,
     row.nextAttemptAt ?? "NONE",
@@ -1135,6 +1137,9 @@ async function ingestStandardInput(
 ): Promise<{ snapshots: Snapshot[] | null; payload: unknown } | null> {
   if (host === "codex" || host === "shell") return null;
   try {
+    const accountId = await captureStatuslineAccount(host === "antigravity" ? "ANTIGRAVITY" : host === "grok" ? "GROK" : "CLAUDE", {
+      environment: dependencies.environment, homeDirectory: dependencies.homeDirectory, platform: dependencies.platform, ...(dependencies.stateDirectory ? { stateDirectory: dependencies.stateDirectory } : {}), now
+    });
     const document = parseJsonText(await dependencies.readStandardInput());
     if (!document.ok) return null;
     const meters = host === "antigravity"
@@ -1150,7 +1155,7 @@ async function ingestStandardInput(
         : STATUSLINE_PROVENANCE;
     /* The host wrote this to our standard input in this session. It is a live
        reading, and it says so. */
-    const incoming = normalizeMeters(withProvenance(meters, provenance));
+    const incoming = normalizeMeters(withProvenance(meters, provenance).map(meter => ({ ...meter, ...(accountId ? { accountId } : {}) })));
     if (incoming.length === 0) return { snapshots: null, payload: document.value };
     try {
       const { merged } = await persistSnapshots(incoming, dependencies.stateDirectory, now);
@@ -2411,6 +2416,9 @@ export async function runCli(
   const command = argumentsList[0] ?? "setup";
   const now = dependencies.now();
   try {
+    if (["snapshot", "statusline", "refresh", "status"].includes(command)) {
+      await pruneSnapshotCache(dependencies.stateDirectory, Date.parse(now)).catch(() => 0);
+    }
     if (command === "--version" || command === "-v" || command === "version") {
       return succeed(packageJson.version);
     }

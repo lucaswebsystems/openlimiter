@@ -481,7 +481,9 @@ impl CacheWriter {
                     .and_then(|v| v.as_str())
                     .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                 {
-                    let (_, expires, _) = freshness_policy(
+                    let (_, expires, _) = crate::data_rules::freshness_for(
+                        row.get("provider").and_then(|v| v.as_str()).unwrap_or(""),
+                        row.get("writer").and_then(|v| v.as_str()).unwrap_or(""),
                         source,
                         observed.timestamp_millis(),
                         observed.timestamp_millis(),
@@ -503,21 +505,7 @@ pub(crate) fn policy_iso(ms: u64) -> String {
         .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
-pub(crate) fn freshness_policy(source: &str, observed: i64, now: i64) -> (u64, i64, &'static str) {
-    let ttl = if source == "native_payload" { 60 } else { 300 };
-    let expires = observed.saturating_add(ttl * 1000);
-    (
-        ttl as u64,
-        expires,
-        if now < observed {
-            "unavailable"
-        } else if now < expires {
-            "fresh"
-        } else {
-            "stale"
-        },
-    )
-}
+pub(crate) use crate::data_rules::freshness_policy;
 
 #[cfg(test)]
 mod tests {

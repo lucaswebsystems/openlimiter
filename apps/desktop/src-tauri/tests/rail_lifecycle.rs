@@ -1,3 +1,5 @@
+#[path = "../src/data_rules.rs"]
+mod data_rules;
 // Use the production Rail and its dependencies, as in lane_plugins.
 #[path = "../src/activity.rs"]
 mod activity;

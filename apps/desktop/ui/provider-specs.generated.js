@@ -179,7 +179,13 @@ export const PROVIDER_SPECS = {
       "acquisitionMethod": "remote_http_internal",
       "d5Review": "Reads the existing local session in place without changing it. Only Cursor receives the cookie pair. Honest OpenLimiter identity, no refresh or impersonation.",
       "maturity": "experimental",
-      "directory": null,
+      "directory": {
+        "order": 9,
+        "rowId": "cursor/editor",
+        "label": "Cursor",
+        "connectorId": "cursor",
+        "access": "automatic"
+      },
       "docsUrl": "https://cursor.com/api/usage-summary",
       "reviewedAt": "2026-09-28",
       "sourceStatus": "provisional",

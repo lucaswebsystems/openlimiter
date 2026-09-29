@@ -134,6 +134,7 @@ pub struct RailAccountViewModel {
 #[serde(rename_all = "camelCase")]
 pub struct RailSnapshot {
     pub accounts: Vec<RailAccountViewModel>,
+    pub flags: Vec<crate::data_rules::ConnectionFlag>,
     pub sessions: Option<Vec<snapshot::SessionDisplay>>,
     pub window: WindowSnapshot,
 }
@@ -146,10 +147,12 @@ fn rail_snapshot<R: Runtime>(
     let now = chrono::Utc::now().timestamp_millis();
     let sessions =
         crate::activity::display_sessions(&app).map(|records| snapshot::sessions(records, now));
-    let accounts = snapshot::accounts(
+    let projection = crate::data_rules::for_app(
+        &app,
         crate::native_snapshot::display_snapshots(read_snapshot_cache(&state).as_deref()),
         now,
     );
+    let accounts = snapshot::accounts(projection.snapshots, now);
     let inner = state.inner.lock().map_err(|_| "Rail state unavailable")?;
     let p = &inner.preferences;
     let id = placement::select(&inner.monitors, &p.monitor_id)
@@ -157,6 +160,7 @@ fn rail_snapshot<R: Runtime>(
         .unwrap_or(&p.monitor_id);
     Ok(RailSnapshot {
         accounts,
+        flags: projection.flags,
         sessions,
         window: WindowSnapshot {
             available: inner.available,

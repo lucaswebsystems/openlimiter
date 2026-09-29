@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { FIXTURE_NOW } from "@openlimiter/connectors";
 import {
   ACQUISITION_STATE_FILE_NAME,
+  opaqueAccountId,
   CACHE_FILE_NAME,
   OPENLIMITER_USER_AGENT,
   REFRESH_LOCK_NAME,
@@ -167,7 +168,7 @@ describe("openlimiter refresh", () => {
      * Assist pool, because this machine profile has no Antigravity credential
      * store. The row says whose login it actually is.
      */
-    expect(result.stdout).toContain("antigravity/gemini-cli-shared yes read");
+    expect(result.stdout).toContain("antigravity yes read");
     expect(result.stdout).toContain("not");
   });
 
@@ -276,6 +277,7 @@ describe("openlimiter refresh", () => {
     const home = await machineWithLogins();
     const desktopRow: Snapshot = {
       provider: "CODEX",
+      accountId: opaqueAccountId("CODEX", SYNTHETIC_CODEX_ACCOUNT),
       meter: "FIVE_HOUR",
       value: 12,
       unit: "PERCENT",
@@ -315,6 +317,7 @@ describe("openlimiter refresh", () => {
      */
     const desktopRow: Snapshot = {
       provider: "CODEX",
+      accountId: opaqueAccountId("CODEX", SYNTHETIC_CODEX_ACCOUNT),
       meter: "FIVE_HOUR",
       value: 7,
       unit: "PERCENT",

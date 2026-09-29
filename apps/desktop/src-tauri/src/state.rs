@@ -17,10 +17,16 @@ const CACHE_FILE_NAME: &str = "openlimiter-cache.json";
 /// The manual quota document, from `packages/connectors/src/manual.ts`.
 const MANUAL_FILE_NAME: &str = "manual.json";
 
+#[cfg(not(test))]
 pub(crate) fn home() -> Option<PathBuf> {
     env::var_os("HOME")
         .or_else(|| env::var_os("USERPROFILE"))
         .map(PathBuf::from)
+}
+
+#[cfg(test)]
+pub(crate) fn home() -> Option<PathBuf> {
+    state_directory()
 }
 
 pub(crate) fn non_empty(name: &str) -> Option<PathBuf> {
@@ -30,7 +36,19 @@ pub(crate) fn non_empty(name: &str) -> Option<PathBuf> {
     }
 }
 
-/// The state directory for this operating system.
+// The state directory for this operating system.
+#[cfg(test)]
+thread_local! {
+    // Every test thread gets an owned root even when a legacy test forgot injection.
+    static TEST_ROOT: crate::test_support::TempDir = crate::test_support::TempDir::new();
+}
+
+#[cfg(test)]
+pub fn state_directory() -> Option<PathBuf> {
+    Some(TEST_ROOT.with(|root| root.path().to_path_buf()))
+}
+
+#[cfg(not(test))]
 pub fn state_directory() -> Option<PathBuf> {
     if cfg!(target_os = "windows") {
         let base = non_empty("LOCALAPPDATA").or_else(home)?;
@@ -74,4 +92,24 @@ fn read_state_file(name: &str) -> Option<String> {
     in `fsx`, and every state file goes through it. */
     let file = state_directory()?.join(name);
     crate::fsx::bounded_read(&file)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn real_state_directory_is_never_resolved_by_tests() {
+        let state = super::state_directory().unwrap();
+        assert!(state
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("openlimiter-desktop-test-"));
+        let account = state.join("accounts/codex/guardfixture");
+        assert!(account.starts_with(&state));
+        assert_eq!(std::fs::read_dir(&state).unwrap().count(), 0);
+        assert_ne!(
+            Some(state),
+            super::home().map(|home| home.join(".local/state/openlimiter"))
+        );
+    }
 }
