@@ -230,7 +230,7 @@ export function IconButton({
   children,
 }: {
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
   /** For a control that toggles a view rather than performing an action. */
   pressed?: boolean;
   children: ReactNode;
@@ -662,6 +662,7 @@ export function Button({
   tone = "ghost",
   onClick,
   disabled = false,
+  type = "button",
   label,
   title,
   className = "",
@@ -670,6 +671,7 @@ export function Button({
   tone?: keyof typeof buttonTone;
   onClick: () => void;
   disabled?: boolean;
+  type?: "button" | "submit" | "reset";
   /** Accessible name, for a control whose text alone is not enough. */
   label?: string;
   /**
@@ -693,7 +695,7 @@ export function Button({
   else if (label !== undefined) naming.title = label;
   return (
     <button
-      type="button"
+      type={type}
       onClick={onClick}
       disabled={disabled}
       {...naming}

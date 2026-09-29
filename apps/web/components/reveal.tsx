@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import {
   MOTION_ARMED,
@@ -25,24 +26,57 @@ import {
  * page shows in full. See lib/motion.ts for the whole contract.
  */
 export function Reveal() {
+  const pathname = usePathname();
+
   useEffect(() => {
     const root = document.documentElement;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const targets = Array.from(
+      document.querySelectorAll<HTMLElement>(`[${REVEAL_ATTR}]:not([${REVEALED_ATTR}])`),
+    );
 
-    /* Not armed: reduced motion, no IntersectionObserver, or a failsafe has
-       already handed the page back. Either way there is nothing to observe.
-       Both armed values count, because this effect can run more than once (a
-       development double mount, a fast refresh) and the previous run will have
-       upgraded the value and then disconnected its own observer on cleanup. */
+    const restoreTargets = () => {
+      targets.forEach((target) => {
+        target.style.removeProperty("opacity");
+        target.style.removeProperty("transform");
+        target.style.removeProperty("visibility");
+        target.setAttribute(REVEALED_ATTR, "");
+      });
+    };
+
+    const handBack = () => {
+      root.removeAttribute(MOTION_ATTR);
+      restoreTargets();
+    };
+
+    if (reducedMotion.matches || !("IntersectionObserver" in window)) {
+      handBack();
+      return;
+    }
+
+    /* The inline script normally arms the page before paint. Client navigation
+       can arrive after that attribute was deliberately removed during cleanup,
+       so rearm here before registering the new route's targets. */
     const armed = root.getAttribute(MOTION_ATTR);
-    if (armed !== MOTION_ARMED && armed !== MOTION_LIVE) return;
+    if (armed !== MOTION_ARMED && armed !== MOTION_LIVE) {
+      root.setAttribute(MOTION_ATTR, MOTION_ARMED);
+    }
 
-    const targets = Array.from(document.querySelectorAll<HTMLElement>(`[${REVEAL_ATTR}]`));
     if (targets.length === 0) {
       root.removeAttribute(MOTION_ATTR);
       return;
     }
+    root.setAttribute(MOTION_ATTR, MOTION_ARMED);
     let disposed = false;
     let release: (() => void) | undefined;
+
+    const onMotionPreferenceChange = (event: MediaQueryListEvent) => {
+      if (!event.matches) return;
+      disposed = true;
+      release?.();
+      handBack();
+    };
+    reducedMotion.addEventListener("change", onMotionPreferenceChange);
 
     void Promise.all([import("gsap"), import("gsap/ScrollTrigger")])
       .then(([gsapModule, triggerModule]) => {
@@ -95,16 +129,17 @@ export function Reveal() {
         release = () => {
           animations.forEach((animation) => animation.kill());
           pins.forEach((pin) => pin.kill());
+          restoreTargets();
         };
       })
-      .catch(() => root.removeAttribute(MOTION_ATTR));
+      .catch(() => handBack());
 
     /* Second failsafe. A page always has something in view, so if nothing at
        all has been reported by now the observer is not working and the page is
        handed straight back rather than left half painted. */
     const guard = window.setTimeout(() => {
       if (document.querySelector(`[${REVEALED_ATTR}]`) === null) {
-        root.removeAttribute(MOTION_ATTR);
+        handBack();
       }
     }, MOTION_FAILSAFE_MS);
 
@@ -112,8 +147,10 @@ export function Reveal() {
       disposed = true;
       window.clearTimeout(guard);
       release?.();
+      reducedMotion.removeEventListener("change", onMotionPreferenceChange);
+      handBack();
     };
-  }, []);
+  }, [pathname]);
 
   return null;
 }

@@ -219,7 +219,13 @@ function CloudKeyForm({
   }, [busy, client, key, label, onAdded, provider]);
 
   return (
-    <div className="mt-4 space-y-3 border-t border-hairline pt-4">
+    <form
+      className="mt-4 space-y-3 border-t border-hairline pt-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm text-muted">
           {t("cloud.form.providerLabel")}
@@ -271,10 +277,14 @@ function CloudKeyForm({
                 : t("cloud.unavailable")}
         </p>
       )}
-      <Button tone="primary" onClick={submit} disabled={busy || key.trim() === "" || label.trim() === ""}>
+      <Button
+        type="submit"
+        tone="primary"
+        disabled={busy || key.trim() === "" || label.trim() === ""}
+      >
         {busy ? t("cloud.form.submitting") : t("cloud.form.submit")}
       </Button>
-    </div>
+    </form>
   );
 }
 
@@ -349,7 +359,7 @@ export function CloudMeterPanel({
 
   return (
     <Panel title={t("cloud.title")} description={t("cloud.lead")}>
-      {state.kind === "loading" && <p className="text-sm text-muted">{t("cloud.unavailable")}</p>}
+      {state.kind === "loading" && <div aria-busy="true" className="min-h-4" />}
 
       {state.kind === "failed" && state.reason === "needsPro" && (
         <div className="space-y-3">
@@ -363,7 +373,12 @@ export function CloudMeterPanel({
       )}
 
       {state.kind === "failed" && state.reason === "unavailable" && (
-        <p className="text-sm text-muted">{t("cloud.unavailable")}</p>
+        <div className="space-y-3">
+          <p className="text-sm text-muted">{t("cloud.unavailable")}</p>
+          <Button tone="ghost" onClick={refresh}>
+            {t("trial.error.retry")}
+          </Button>
+        </div>
       )}
 
       {state.kind === "ready" && (

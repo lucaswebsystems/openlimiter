@@ -46,6 +46,9 @@ const CHANNEL_LABEL: Record<ProAlertChannel, string> = {
   push: "Phone push",
 };
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 function emptyPreference(channel: ProAlertChannel): ProAlertPreference {
   return {
     channel,
@@ -88,9 +91,13 @@ export function NotificationBell({
   const [open, setOpen] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [preferences, setPreferences] = useState<ProAlertPreference[]>([]);
+  const confirmedPreferences = useRef<ProAlertPreference[]>([]);
+  const saveQueue = useRef(Promise.resolve());
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const wrap = useRef<HTMLDivElement | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const panel = useRef<HTMLElement | null>(null);
 
   const watched = useMemo(() => {
     const unique = new Set<string>();
@@ -100,8 +107,29 @@ export function NotificationBell({
 
   useEffect(() => {
     if (!open) return undefined;
+    const node = panel.current;
+    node?.focus();
     const closeOnKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || node === null) return;
+      const focusable = [...node.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)];
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === node)) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first?.focus();
+      }
     };
     const closeOnPointer = (event: MouseEvent) => {
       if (wrap.current !== null && !wrap.current.contains(event.target as Node)) setOpen(false);
@@ -111,8 +139,16 @@ export function NotificationBell({
     return () => {
       document.removeEventListener("keydown", closeOnKey);
       document.removeEventListener("mousedown", closeOnPointer);
+      trigger.current?.focus();
     };
   }, [open]);
+
+  useEffect(() => {
+    setLoadState("idle");
+    setPreferences([]);
+    confirmedPreferences.current = [];
+    setMessage("");
+  }, [client]);
 
   useEffect(() => {
     if (!open || loadState !== "idle") return;
@@ -127,36 +163,48 @@ export function NotificationBell({
         byChannel.get("email") ?? emptyPreference("email"),
         byChannel.get("push") ?? emptyPreference("push"),
       ]);
+      confirmedPreferences.current = [
+        byChannel.get("email") ?? emptyPreference("email"),
+        byChannel.get("push") ?? emptyPreference("push"),
+      ];
       setLoadState("ready");
     });
   }, [client, loadState, open]);
 
-  async function save(next: ProAlertPreference) {
-    setBusy(true);
-    setMessage("");
-    const result = await saveProAlertPreference(
-      client,
-      {
-        channel: next.channel,
-        enabled: next.enabled,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-        quietStart: next.quietStart,
-        quietEnd: next.quietEnd,
-        snoozedUntil: next.snoozedUntil,
-        digestEnabled: next.channel === "email" && next.digestEnabled,
-        detailConsent: next.channel === "email" && next.detailConsentVersion !== null,
-      },
-      readDeviceToken(),
-    );
-    if (result.ok) {
-      setPreferences((current) =>
-        current.map((row) => (row.channel === result.value.channel ? result.value : row)),
+  function save(next: ProAlertPreference) {
+    const run = async () => {
+      setBusy(true);
+      setMessage("");
+      const result = await saveProAlertPreference(
+        client,
+        {
+          channel: next.channel,
+          enabled: next.enabled,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+          quietStart: next.quietStart,
+          quietEnd: next.quietEnd,
+          snoozedUntil: next.snoozedUntil,
+          digestEnabled: next.channel === "email" && next.digestEnabled,
+          detailConsent: next.channel === "email" && next.detailConsentVersion !== null,
+        },
+        readDeviceToken(),
       );
-      setMessage("Alert preferences saved.");
-    } else {
-      setMessage("Alert preferences could not be saved.");
-    }
-    setBusy(false);
+      if (result.ok) {
+        confirmedPreferences.current = confirmedPreferences.current.map((row) =>
+          row.channel === result.value.channel ? result.value : row,
+        );
+        setPreferences((current) =>
+          current.map((row) => (row.channel === result.value.channel ? result.value : row)),
+        );
+        setMessage("Alert preferences saved.");
+      } else {
+        setPreferences(confirmedPreferences.current);
+        setMessage("Alert preferences could not be saved.");
+      }
+      setBusy(false);
+    };
+    saveQueue.current = saveQueue.current.then(run, run);
+    void saveQueue.current;
   }
 
   function update(channel: ProAlertChannel, patch: Partial<ProAlertPreference>) {
@@ -169,6 +217,7 @@ export function NotificationBell({
     <div ref={wrap} className="ol-notification-wrap">
       <button
         type="button"
+        ref={trigger}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label="Open alerts"
@@ -180,10 +229,20 @@ export function NotificationBell({
       </button>
 
       {open && (
-        <section className="ol-menu ol-notification-popover" role="dialog" aria-label="Alerts">
+        <section
+          ref={panel}
+          className="ol-menu ol-notification-popover"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Alerts"
+          tabIndex={-1}
+        >
           <div className="ol-notification-heading">
             <strong>Alerts</strong>
             <span>Pro</span>
+            <button type="button" className="focus-ring" onClick={() => setOpen(false)}>
+              {t("providers.close")}
+            </button>
           </div>
           <p>
             Every alert fires at {PRO_ALERT_THRESHOLDS.join(", ")} percent of a window, and again
@@ -218,7 +277,12 @@ export function NotificationBell({
           )}
           {loadState === "unauthenticated" && <p>Sign in again to read your alert preferences.</p>}
           {(loadState === "unavailable" || loadState === "rateLimited") && (
-            <p>Alert preferences are unavailable right now.</p>
+            <div>
+              <p>Alert preferences are unavailable right now.</p>
+              <button type="button" className="focus-ring mt-2" onClick={() => setLoadState("idle")}>
+                {t("trial.error.retry")}
+              </button>
+            </div>
           )}
 
           {loadState === "ready" && (
@@ -245,10 +309,11 @@ export function NotificationBell({
                         <input
                           type="time"
                           value={preference.quietStart}
+                          disabled={busy}
                           onChange={(event) =>
                             update(preference.channel, { quietStart: event.target.value })
                           }
-                          onBlur={() => void save(preference)}
+                          onBlur={() => save(preference)}
                         />
                       </label>
                       <label>
@@ -256,10 +321,11 @@ export function NotificationBell({
                         <input
                           type="time"
                           value={preference.quietEnd}
+                          disabled={busy}
                           onChange={(event) =>
                             update(preference.channel, { quietEnd: event.target.value })
                           }
-                          onBlur={() => void save(preference)}
+                          onBlur={() => save(preference)}
                         />
                       </label>
                     </div>
