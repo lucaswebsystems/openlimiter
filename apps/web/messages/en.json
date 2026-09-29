@@ -2254,7 +2254,7 @@
         "lead": "Your saved Pro preferences stayed in place, and these are the services that stopped."
       },
       "feature": {
-        "alerts": "Alerts at 60, 80 and 90 percent, and when a window resets.",
+        "alerts": "Email and phone push alerts. Local desktop alerts are free.",
         "history": "Ninety days of history, with a forecast.",
         "phone": "Your bars on your phone, paired by a QR code.",
         "multiAccount": "More than one account for every provider."

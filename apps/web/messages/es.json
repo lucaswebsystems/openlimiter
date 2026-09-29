@@ -2254,7 +2254,7 @@
         "lead": "Tus preferencias guardadas de Pro se conservaron, y estos servicios se detuvieron."
       },
       "feature": {
-        "alerts": "Alertas al 60, 80 y 90 por ciento, y cuando una ventana se reinicia.",
+        "alerts": "Alertas por correo y push en el teléfono. Las alertas locales del escritorio son gratuitas.",
         "history": "Noventa días de historial, con un pronóstico.",
         "phone": "Tus barras en tu teléfono, emparejadas con un código QR.",
         "multiAccount": "Más de una cuenta para cada proveedor."

@@ -361,6 +361,12 @@ async function captureProductDetails(browser, theme, port) {
   try {
     await page.goto(`${origin}/window-${theme}`, { waitUntil: "networkidle" });
     await page.locator(".agents-row").nth(2).waitFor();
+    /* What's New opens once per version over Home; close it as a person would. */
+    const whatsNew = page.locator("dialog.whats-new[open]");
+    if (await whatsNew.waitFor({ timeout: 4000 }).then(() => true, () => false)) {
+      await whatsNew.locator("button").click();
+      await whatsNew.waitFor({ state: "detached" });
+    }
     await page.locator("#agents-mount").scrollIntoViewIfNeeded();
     await shoot("desktop-home");
     await page.setViewportSize({ width: 640, height: 400 });

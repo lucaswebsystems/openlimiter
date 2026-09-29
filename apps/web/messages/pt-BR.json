@@ -2254,7 +2254,7 @@
         "lead": "Suas preferências salvas do Pro foram mantidas, e estes serviços foram interrompidos."
       },
       "feature": {
-        "alerts": "Alertas em 60, 80 e 90 por cento, e quando uma janela reinicia.",
+        "alerts": "Alertas por email e push no celular. Alertas locais do desktop são gratuitos.",
         "history": "Noventa dias de histórico, com uma previsão.",
         "phone": "Suas barras no seu celular, pareadas por um código QR.",
         "multiAccount": "Mais de uma conta para cada provedor."

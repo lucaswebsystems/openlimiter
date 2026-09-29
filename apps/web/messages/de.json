@@ -2254,7 +2254,7 @@
         "lead": "Ihre gespeicherten Pro Einstellungen blieben erhalten, und diese Dienste wurden beendet."
       },
       "feature": {
-        "alerts": "Benachrichtigungen bei 60, 80 und 90 Prozent, und wenn ein Fenster zurückgesetzt wird.",
+        "alerts": "E Mail und Push Benachrichtigungen auf dem Telefon. Lokale Desktop Benachrichtigungen sind kostenlos.",
         "history": "Neunzig Tage Verlauf, mit einer Prognose.",
         "phone": "Ihre Balken auf Ihrem Telefon, gekoppelt per QR Code.",
         "multiAccount": "Mehr als ein Konto für jeden Anbieter."
