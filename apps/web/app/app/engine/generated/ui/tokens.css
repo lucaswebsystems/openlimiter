@@ -157,8 +157,18 @@
   --ol-provider-gemini-blue: #4e82ee;
   --ol-provider-gemini-purple: #8e75b2;
   --ol-provider-gemini-coral: #d96570;
+  --ol-provider-microsoft-red: #f25022;
+  --ol-provider-microsoft-green: #7fba00;
+  --ol-provider-microsoft-blue: #00a4ef;
+  --ol-provider-microsoft-yellow: #ffb900;
+  --ol-window-close: #ff5f57;
+  --ol-window-minimise: #febc2e;
+  --ol-window-zoom: #28c840;
+  --ol-announcement-background: #0969da;
 
   /* Type */
+  --ol-font-heading: var(--ol-font-baloo, "Baloo 2"), ui-sans-serif, system-ui,
+    -apple-system, sans-serif;
   --ol-font-sans: var(--ol-font-inter, "Inter"), ui-sans-serif, system-ui,
     -apple-system, "Segoe UI", sans-serif;
   --ol-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -184,6 +194,12 @@
   --ol-space-5: 1.5rem;
   --ol-space-6: 2rem;
   --ol-space-7: 3rem;
+  --ol-space-8: 4rem;
+  --ol-space-9: 6rem;
+  --ol-section-gap: var(--ol-space-9);
+  --ol-section-heading-gap: var(--ol-space-7);
+  --ol-section-compact-gap: var(--ol-space-7);
+  --ol-reading-width: 48rem;
 
   /* Radius, one soft scale */
   --ol-radius-xs: 0.5rem;
@@ -192,11 +208,15 @@
   --ol-radius-lg: 1.25rem;
   --ol-radius-xl: 1.5rem;
   --ol-radius-pill: 999px;
+  --ol-radius-phone: 2.5rem;
 
   /* Calm elevation */
   --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.035);
   --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.045),
     0 20px 64px rgb(0 0 0 / 0.24);
+  --ol-shadow-sheet: 0 24px 60px -24px rgb(0 0 0 / 0.6);
+  --ol-shadow-floating: 0 8px 20px -10px rgb(0 0 0 / 0.6);
+  --ol-meter-hatched-pattern: var(--ol-band-hatched-pattern);
 
   /* Mechanical motion */
   --ol-motion-fast: 120ms;
@@ -312,7 +332,16 @@
   --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.8);
   --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.9),
     0 18px 60px rgb(17 17 20 / 0.08);
+  --ol-shadow-sheet: 0 24px 60px -24px rgb(17 17 20 / 0.2);
+  --ol-shadow-floating: 0 8px 20px -10px rgb(17 17 20 / 0.2);
   --sheen: rgb(13 22 35 / 0.025);
+}
+
+@media (max-width: 767px) {
+  :root {
+    --ol-section-gap: var(--ol-space-8);
+    --ol-section-heading-gap: var(--ol-space-6);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
