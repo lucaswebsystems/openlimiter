@@ -77,9 +77,8 @@ pub(crate) fn set_test_snapshot_root<R: Runtime>(app: &tauri::AppHandle<R>, root
         .expect("Rail snapshot root is not poisoned") = Some(root);
 }
 
-/// Explicit opt in for unverified macOS/Linux builds without changing Cargo features.
 fn enabled() -> bool {
-    cfg!(windows) || std::env::var_os("OPENLIMITER_RAIL_PREVIEW").is_some_and(|value| value == "1")
+    cfg!(any(windows, target_os = "macos", target_os = "linux"))
 }
 
 #[derive(Debug, Serialize)]
@@ -164,7 +163,7 @@ fn rail_snapshot<R: Runtime>(
         sessions,
         window: WindowSnapshot {
             available: inner.available,
-            preview: !cfg!(windows),
+            preview: false,
             visible: p.visible,
             keep_open: p.keep_open,
             unfolded: inner.behavior.unfolded,
@@ -172,7 +171,12 @@ fn rail_snapshot<R: Runtime>(
             card_open: inner.behavior.card_anchor.is_some(),
             card_anchor: inner.behavior.card_anchor,
             monitor_id: id.into(),
-            offset: p.offset(id),
+            offset: placement::select(&inner.monitors, id)
+                .map(|m| {
+                    (placement::place(m, placement::Edge::Left, 0.0, false).y - m.work.y) as f64
+                        / m.scale
+                })
+                .unwrap_or_default(),
             edge: p.edge,
         },
     })
@@ -199,6 +203,9 @@ fn rail_set_visible<R: Runtime>(app: tauri::AppHandle<R>, visible: bool) -> Resu
 
 #[tauri::command]
 fn rail_set_keep_open(state: tauri::State<'_, RailState>, keep_open: bool) -> Result<(), String> {
+    if keep_open {
+        return Err("The edge panel closes when the pointer leaves".into());
+    }
     let mut inner = state.inner.lock().map_err(|_| "Rail state unavailable")?;
     let mut next = inner.preferences.clone();
     next.keep_open = keep_open;
@@ -207,32 +214,12 @@ fn rail_set_keep_open(state: tauri::State<'_, RailState>, keep_open: bool) -> Re
 
 #[tauri::command]
 fn rail_move_offset(
-    state: tauri::State<'_, RailState>,
+    _state: tauri::State<'_, RailState>,
     offset: f64,
     monitor_id: Option<String>,
 ) -> Result<(), String> {
-    if !offset.is_finite() || !(0.0..=100000.0).contains(&offset) {
-        return Err("invalid Rail offset".into());
-    }
-    let mut inner = state.inner.lock().map_err(|_| "Rail state unavailable")?;
-    let id = monitor_id
-        .as_deref()
-        .unwrap_or(&inner.preferences.monitor_id);
-    if monitor_id.is_some() && !inner.monitors.iter().any(|m| m.id == id) {
-        return Err("Rail monitor is not connected".into());
-    }
-    let monitor = placement::select(&inner.monitors, id).ok_or("no Rail display available")?;
-    let mut next = inner.preferences.clone();
-    next.monitor_id = monitor.id.clone();
-    // Store the actual clamped logical position, retaining other monitors' offsets.
-    let r = placement::place(monitor, next.edge, offset, inner.behavior.unfolded);
-    let actual = match next.edge {
-        placement::Edge::Left => r.y - monitor.work.y,
-        _ => r.x - monitor.work.x,
-    };
-    next.offsets
-        .insert(monitor.id.clone(), actual as f64 / monitor.scale);
-    inner.persist(next)
+    let _ = (offset, monitor_id);
+    Err("The edge tab is fixed to the primary display".into())
 }
 
 #[tauri::command]
@@ -272,7 +259,13 @@ pub fn visibility_menu_item<R: Runtime>(
     let item = tauri::menu::MenuItem::with_id(
         app,
         "rail-toggle",
-        if visible { "Hide Rail" } else { "Show Rail" },
+        if cfg!(target_os = "linux") {
+            "Show OpenLimiter"
+        } else if visible {
+            "Hide edge tab"
+        } else {
+            "Show edge tab"
+        },
         enabled(),
         None::<&str>,
     )?;
@@ -285,7 +278,13 @@ pub fn visibility_menu_item<R: Runtime>(
 fn update_menu<R: Runtime>(app: &tauri::AppHandle<R>, visible: bool) {
     if let Ok(slot) = app.state::<RailMenu<R>>().0.lock() {
         if let Some(item) = slot.as_ref() {
-            let _ = item.set_text(if visible { "Hide Rail" } else { "Show Rail" });
+            let _ = item.set_text(if cfg!(target_os = "linux") {
+                "Show OpenLimiter"
+            } else if visible {
+                "Hide edge tab"
+            } else {
+                "Show edge tab"
+            });
         }
     }
 }
@@ -304,7 +303,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             let preferences = path
                 .as_deref()
                 .and_then(|p| persistence::load(p).ok())
-                .unwrap_or_default();
+                .unwrap_or_default()
+                .edge_tab();
             app.manage(RailState {
                 inner: Mutex::new(Inner {
                     preferences,
@@ -334,29 +334,51 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                     .running
                     .store(false, Ordering::Relaxed);
             }
+            #[cfg(target_os = "linux")]
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::CloseRequested { .. },
+                ..
+            } if label == "main" => {
+                // A registered tray object does not prove GNOME displays it.
+                // Keep a task switcher entry on Linux even without an extension.
+                // Queue after the host's close-to-hide handler has completed.
+                let handle = app.clone();
+                std::thread::spawn(move || {
+                    let app = handle.clone();
+                    let _ = handle.run_on_main_thread(move || {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.set_skip_taskbar(false);
+                            let _ = window.show();
+                            let _ = window.minimize();
+                        }
+                    });
+                });
+            }
             tauri::RunEvent::MenuEvent(event) if event.id().as_ref() == "rail-toggle" => {
                 let app = app.clone();
                 // Menu updates and window operations must run outside plugin dispatch.
                 std::thread::spawn(move || {
-                    let visible = app
-                        .state::<RailState>()
-                        .inner
-                        .lock()
-                        .map(|s| s.preferences.visible)
-                        .unwrap_or(false);
-                    if let Err(error) = set_visible(&app, !visible) {
-                        eprintln!("Rail visibility: {error}");
+                    #[cfg(target_os = "linux")]
+                    {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
                         return;
                     }
-                    // An explicit tray selection is the sole keyboard activation path.
-                    // Hover, resume, settings visibility and periodic topmost never focus.
-                    if !visible {
-                        if let Ok(mut inner) = app.state::<RailState>().inner.lock() {
-                            inner.behavior.keyboard = true;
-                        }
-                        if let Some(window) = app.get_webview_window("rail") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
+                    #[cfg(not(target_os = "linux"))]
+                    {
+                        let visible = app
+                            .state::<RailState>()
+                            .inner
+                            .lock()
+                            .map(|s| s.preferences.visible)
+                            .unwrap_or(false);
+                        if let Err(error) = set_visible(&app, !visible) {
+                            eprintln!("Rail visibility: {error}");
+                            return;
                         }
                     }
                 });

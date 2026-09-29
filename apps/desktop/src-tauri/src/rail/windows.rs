@@ -93,16 +93,24 @@ pub fn escape_down() -> bool {
     unsafe { GetAsyncKeyState(0x1b) < 0 }
 }
 
-pub fn configure(window: HWND) {
+const PLACE_FLAGS: u32 = SWP_NOACTIVATE | SWP_SHOWWINDOW;
+
+fn passive_style(style: isize) -> isize {
+    (style | WS_EX_TOOLWINDOW as isize | WS_EX_NOACTIVATE as isize) & !(WS_EX_APPWINDOW as isize)
+}
+
+pub fn configure(window: HWND) -> Result<(), String> {
     unsafe {
         let style = GetWindowLongPtrW(window, GWL_EXSTYLE);
-        SetWindowLongPtrW(
-            window,
-            GWL_EXSTYLE,
-            (style | WS_EX_TOOLWINDOW as isize | WS_EX_NOACTIVATE as isize)
-                & !(WS_EX_APPWINDOW as isize),
-        );
-        SetWindowPos(
+        SetWindowLongPtrW(window, GWL_EXSTYLE, passive_style(style));
+        let actual = GetWindowLongPtrW(window, GWL_EXSTYLE);
+        if actual & (WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) as isize
+            != (WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) as isize
+            || actual & WS_EX_APPWINDOW as isize != 0
+        {
+            return Err("Edge window nonactivation flags were not applied".into());
+        }
+        if SetWindowPos(
             window,
             HWND_TOPMOST,
             0,
@@ -110,8 +118,12 @@ pub fn configure(window: HWND) {
             0,
             0,
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-        );
+        ) == 0
+        {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
     }
+    Ok(())
 }
 
 pub fn apply(window: HWND, bounds: Rect, visible: bool) -> Result<(), String> {
@@ -128,11 +140,31 @@ pub fn apply(window: HWND, bounds: Rect, visible: bool) -> Result<(), String> {
             bounds.y,
             bounds.width,
             bounds.height,
-            SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            PLACE_FLAGS,
         ) == 0
         {
             return Err(std::io::Error::last_os_error().to_string());
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn both_surfaces_are_nonactivating_tool_windows() {
+        for existing in [0, WS_EX_APPWINDOW as isize, WS_EX_LAYERED as isize] {
+            let style = passive_style(existing);
+            assert_ne!(style & WS_EX_NOACTIVATE as isize, 0);
+            assert_ne!(style & WS_EX_TOOLWINDOW as isize, 0);
+            assert_eq!(style & WS_EX_APPWINDOW as isize, 0);
+            assert_eq!(
+                style & WS_EX_LAYERED as isize,
+                existing & WS_EX_LAYERED as isize
+            );
+        }
+        assert_ne!(PLACE_FLAGS & SWP_NOACTIVATE, 0);
+        assert_ne!(PLACE_FLAGS & SWP_SHOWWINDOW, 0);
+    }
 }

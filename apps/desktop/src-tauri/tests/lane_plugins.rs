@@ -301,7 +301,7 @@ fn rail_controls_allowed_through_production_acl() {
             .build()
             .unwrap();
         for (command, args) in [
-            ("rail_set_keep_open", json!({"keepOpen": true})),
+            ("rail_set_keep_open", json!({"keepOpen": false})),
             ("rail_card_open", json!({"anchor": 24})),
             ("rail_card_close", json!({})),
             ("rail_set_visible", json!({"visible": false})),
@@ -317,7 +317,7 @@ fn rail_controls_allowed_through_production_acl() {
         }
         let snapshot = invoke(&window, "plugin:rail|rail_snapshot").unwrap();
         assert_eq!(snapshot["window"]["visible"], false);
-        assert_eq!(snapshot["window"]["keepOpen"], true);
+        assert_eq!(snapshot["window"]["keepOpen"], false);
         assert_eq!(snapshot["window"]["cardOpen"], false);
         // This reaches validation, proving the ACL granted it; no real monitor
         // is queried or window shown by the mock application.
@@ -327,7 +327,15 @@ fn rail_controls_allowed_through_production_acl() {
                 "plugin:rail|rail_move_offset",
                 InvokeBody::Json(json!({"offset": -1}))
             ),
-            Err(json!("invalid Rail offset"))
+            Err(json!("The edge tab is fixed to the primary display"))
+        );
+        assert_eq!(
+            invoke_body(
+                &window,
+                "plugin:rail|rail_set_keep_open",
+                InvokeBody::Json(json!({"keepOpen": true}))
+            ),
+            Err(json!("The edge panel closes when the pointer leaves"))
         );
     }
 }

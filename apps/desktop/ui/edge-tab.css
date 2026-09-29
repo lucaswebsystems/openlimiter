@@ -1,0 +1,17 @@
+:root { color-scheme: light dark; font: 13px system-ui, sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+body { background: transparent; color: #172234; }
+.edge-tab { position: relative; width: 100%; height: 100%; display: grid; place-items: center; border-radius: 0 8px 8px 0; background: #f4f6fa; }
+.edge-tab img { width: 20px; height: 20px; max-width: 100%; pointer-events: none; }
+.attention { position: absolute; width: 8px; height: 4px; border-radius: 4px; background: #e99324; bottom: 4px; left: calc(50% - 4px); }
+[hidden] { display: none !important; }
+.edge-panel { height: 100%; overflow: auto; padding: 16px; background: #f4f6fa; overflow-wrap: anywhere; }
+.edge-panel h1 { font-size: 16px; margin: 0 0 12px; }
+.edge-panel p { line-height: 1.5; }
+.edge-panel dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.edge-panel dd { margin: 0; }
+@media (prefers-color-scheme: dark) {
+  body { color: #e8edf5; }
+  .edge-tab, .edge-panel { background: #182232; }
+}
