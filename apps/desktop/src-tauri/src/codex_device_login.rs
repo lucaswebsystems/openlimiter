@@ -260,12 +260,7 @@ pub fn managed_home(session_id: &str) -> Option<PathBuf> {
     {
         return None;
     }
-    Some(
-        crate::state::state_directory()?
-            .join("accounts")
-            .join("codex")
-            .join(session_id),
-    )
+    Some(accounts_root()?.join(session_id))
 }
 
 /// Whether the client has written its credential into this folder yet.
@@ -309,14 +304,12 @@ fn is_reparse_point(_path: &Path) -> bool {
 /// refused rather than followed: somebody who can plant one of those at this
 /// path can have the vendor's own client write its credential wherever they
 /// like. The real path is resolved after creation and required to sit inside
-/// the accounts root, which catches a redirection planted higher up the tree
-/// as well as one planted here.
-fn validate_directory_components(path: &Path) -> Result<PathBuf, DeviceLoginFailure> {
-    let mut current = PathBuf::new();
-    for component in path.components() {
-        if matches!(component, std::path::Component::ParentDir) {
-            return Err(DeviceLoginFailure::Storage);
-        }
+/// the accounts root. The resolved state directory is trusted; only its
+/// descendants are checked, since OS ancestors such as macOS /var are links.
+fn validate_directory_components(state: &Path, path: &Path) -> Result<PathBuf, DeviceLoginFailure> {
+    let relative = managed_relative_path(state, path)?;
+    let mut current = state.to_path_buf();
+    for component in relative.components() {
         current.push(component.as_os_str());
         if matches!(component, std::path::Component::Normal(_)) {
             let metadata =
@@ -334,12 +327,23 @@ fn validate_directory_components(path: &Path) -> Result<PathBuf, DeviceLoginFail
     Ok(resolved)
 }
 
-fn validate_existing_directory_prefix(path: &Path) -> Result<(), DeviceLoginFailure> {
-    let mut current = PathBuf::new();
-    for component in path.components() {
-        if matches!(component, std::path::Component::ParentDir) {
-            return Err(DeviceLoginFailure::Storage);
-        }
+fn managed_relative_path<'a>(state: &Path, path: &'a Path) -> Result<&'a Path, DeviceLoginFailure> {
+    if state
+        .components()
+        .chain(path.components())
+        .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
+        return Err(DeviceLoginFailure::Storage);
+    }
+    path.strip_prefix(state)
+        .map_err(|_| DeviceLoginFailure::Storage)
+}
+
+fn validate_existing_directory_prefix(state: &Path, path: &Path) -> Result<(), DeviceLoginFailure> {
+    // Reject traversal before stopping at a missing component.
+    let relative = managed_relative_path(state, path)?;
+    let mut current = state.to_path_buf();
+    for component in relative.components() {
         current.push(component.as_os_str());
         if !matches!(component, std::path::Component::Normal(_)) {
             continue;
@@ -361,18 +365,30 @@ fn validate_existing_directory_prefix(path: &Path) -> Result<(), DeviceLoginFail
 }
 
 fn prepare_managed_home(home: &Path) -> Result<PathBuf, DeviceLoginFailure> {
-    let root = accounts_root().ok_or(DeviceLoginFailure::Storage)?;
+    let state = crate::state::state_directory().ok_or(DeviceLoginFailure::Storage)?;
+    prepare_managed_home_at(&state, home)
+}
+
+fn prepare_managed_home_at(state: &Path, home: &Path) -> Result<PathBuf, DeviceLoginFailure> {
+    managed_relative_path(state, home)?;
+    let root = state.join("accounts").join("codex");
     if home.parent() != Some(root.as_path()) {
         return Err(DeviceLoginFailure::Storage);
     }
-    validate_existing_directory_prefix(&root)?;
+    // Resolve the app's own state directory before inspecting managed children.
+    // It may itself be reached through an OS or user configured directory link.
+    std::fs::create_dir_all(state).map_err(|_| DeviceLoginFailure::Storage)?;
+    let state = std::fs::canonicalize(state).map_err(|_| DeviceLoginFailure::Storage)?;
+    crate::fsx::ensure_private_dir(&state).map_err(|_| DeviceLoginFailure::Storage)?;
+    let root = state.join("accounts").join("codex");
+    validate_existing_directory_prefix(&state, &root)?;
     crate::fsx::ensure_private_dir(&root).map_err(|_| DeviceLoginFailure::Storage)?;
-    let resolved_root = validate_directory_components(&root)?;
-    validate_existing_directory_prefix(home)?;
+    let resolved_root = validate_directory_components(&state, &root)?;
     let home_name = home.file_name().ok_or(DeviceLoginFailure::Storage)?;
     let canonical_home = resolved_root.join(home_name);
+    validate_existing_directory_prefix(&state, &canonical_home)?;
     crate::fsx::ensure_private_dir(&canonical_home).map_err(|_| DeviceLoginFailure::Storage)?;
-    let resolved = validate_directory_components(&canonical_home)?;
+    let resolved = validate_directory_components(&state, &canonical_home)?;
     if !resolved.starts_with(&resolved_root) {
         return Err(DeviceLoginFailure::Storage);
     }
@@ -1346,7 +1362,70 @@ mod tests {
             return;
         }
         assert_eq!(
-            validate_directory_components(&requested).err(),
+            validate_directory_components(dir.path(), &requested).err(),
+            Some(DeviceLoginFailure::Storage)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_state_root_below_a_linked_ancestor_accepts_only_real_managed_children() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new();
+        let ancestor = dir.path().join("real");
+        let alias = dir.path().join("alias");
+        std::fs::create_dir(&ancestor).unwrap();
+        symlink(&ancestor, &alias).unwrap();
+        let state = alias.join("state");
+        let root = state.join("accounts/codex");
+        let home = root.join("session");
+        let resolved = prepare_managed_home_at(&state, &home).expect("OS ancestor is trusted");
+        assert_eq!(resolved, std::fs::canonicalize(&home).unwrap());
+        assert!(resolved.starts_with(std::fs::canonicalize(&root).unwrap()));
+
+        // Even a link into the same accounts root must be refused.
+        let planted = root.join("planted");
+        symlink(&resolved, &planted).unwrap();
+        assert_eq!(
+            prepare_managed_home_at(&state, &planted).err(),
+            Some(DeviceLoginFailure::Storage)
+        );
+    }
+
+    #[test]
+    fn managed_parents_cannot_redirect_even_with_missing_descendants() {
+        for relative in ["accounts", "accounts/codex"] {
+            let state = TempDir::new();
+            let target = TempDir::new();
+            let link = state.path().join(relative);
+            std::fs::create_dir_all(link.parent().unwrap()).unwrap();
+            if !link_dir(target.path(), &link) {
+                continue;
+            }
+            let home = state.path().join("accounts/codex/session");
+            assert_eq!(
+                prepare_managed_home_at(state.path(), &home).err(),
+                Some(DeviceLoginFailure::Storage)
+            );
+            assert_eq!(std::fs::read_dir(target.path()).unwrap().count(), 0);
+            #[cfg(windows)]
+            std::fs::remove_dir(&link).unwrap();
+            #[cfg(unix)]
+            std::fs::remove_file(&link).unwrap();
+        }
+    }
+
+    #[test]
+    fn traversal_is_refused_before_a_missing_component_can_end_validation() {
+        let state = TempDir::new();
+        let path = state.path().join("missing/../accounts/codex/session");
+        assert_eq!(
+            validate_existing_directory_prefix(state.path(), &path).err(),
+            Some(DeviceLoginFailure::Storage)
+        );
+        assert_eq!(
+            prepare_managed_home_at(state.path(), &path).err(),
             Some(DeviceLoginFailure::Storage)
         );
     }

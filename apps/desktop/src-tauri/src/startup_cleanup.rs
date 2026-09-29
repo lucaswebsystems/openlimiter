@@ -10,13 +10,16 @@ use tauri::Manager;
 const MAX_ENTRIES: usize = 4096;
 const STUB: &[u8] = b"{\"stub\":true}";
 
-fn real(path: &Path) -> bool {
-    let mut prefix = PathBuf::new();
-    for part in path.components() {
-        prefix.push(part);
-        if matches!(part, std::path::Component::Prefix(_)) {
-            continue;
+fn real(root: &Path, path: &Path) -> bool {
+    let Ok(relative) = path.strip_prefix(root) else {
+        return false;
+    };
+    let mut prefix = root.to_path_buf();
+    for part in relative.components() {
+        if !matches!(part, std::path::Component::Normal(_)) {
+            return false;
         }
+        prefix.push(part);
         let Ok(meta) = fs::symlink_metadata(&prefix) else {
             return false;
         };
@@ -34,6 +37,31 @@ fn real(path: &Path) -> bool {
     true
 }
 
+// References to missing files still protect their account directory. Resolve
+// the existing ancestor so exclusions use the same canonical path spelling as
+// candidates, including Windows verbatim prefixes and macOS /var aliases.
+fn resolved_reference(path: &Path) -> Option<PathBuf> {
+    if path
+        .components()
+        .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
+        return None;
+    }
+    match fs::canonicalize(path) {
+        Ok(path) => Some(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            // A dangling link is not a missing file and must abort cleanup.
+            if !fs::symlink_metadata(path)
+                .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+            {
+                return None;
+            }
+            Some(resolved_reference(path.parent()?)?.join(path.file_name()?))
+        }
+        Err(_) => None,
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct Counts {
     pub folders: usize,
@@ -42,7 +70,10 @@ pub struct Counts {
 
 pub fn cleanup(root: &Path, references: &[PathBuf], now: SystemTime) -> Counts {
     let mut counts = Counts::default();
-    if !real(root) {
+    if root
+        .components()
+        .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
         return counts;
     }
     let Ok(root) = fs::canonicalize(root) else {
@@ -51,24 +82,20 @@ pub fn cleanup(root: &Path, references: &[PathBuf], now: SystemTime) -> Counts {
     // Missing references are still exclusions. Unresolvable existing references abort deletion.
     let mut protected = BTreeSet::new();
     for reference in references {
-        match fs::canonicalize(reference) {
-            Ok(path) => {
-                protected.insert(path);
-            }
-            Err(_) => {
-                if reference.exists() {
-                    return counts;
-                }
-                protected.insert(reference.clone());
-            }
-        }
+        let Some(path) = resolved_reference(reference) else {
+            return counts;
+        };
+        protected.insert(path);
     }
     let accounts = root.join("accounts").join("codex");
-    if real(&accounts) {
+    if real(&root, &accounts) {
+        let Ok(accounts) = fs::canonicalize(&accounts) else {
+            return counts;
+        };
         if let Ok(entries) = fs::read_dir(&accounts) {
             for entry in entries.take(MAX_ENTRIES).flatten() {
                 let path = entry.path();
-                if !real(&path) || !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+                if !real(&root, &path) || !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
                     continue;
                 }
                 let Ok(path) = fs::canonicalize(&path) else {
@@ -87,7 +114,7 @@ pub fn cleanup(root: &Path, references: &[PathBuf], now: SystemTime) -> Counts {
                     continue;
                 };
                 if children.is_empty() {
-                    if real(&path) && fs::remove_dir(&path).is_ok() {
+                    if real(&root, &path) && fs::remove_dir(&path).is_ok() {
                         counts.folders += 1;
                     }
                 } else if children.len() == 1 {
@@ -95,7 +122,7 @@ pub fn cleanup(root: &Path, references: &[PathBuf], now: SystemTime) -> Counts {
                     let Ok(meta) = fs::symlink_metadata(&file) else {
                         continue;
                     };
-                    if !real(&file) || !meta.is_file() || meta.len() != STUB.len() as u64 {
+                    if !real(&root, &file) || !meta.is_file() || meta.len() != STUB.len() as u64 {
                         continue;
                     }
                     if crate::fsx::bounded_read(&file)
@@ -106,8 +133,8 @@ pub fn cleanup(root: &Path, references: &[PathBuf], now: SystemTime) -> Counts {
                         continue;
                     }
                     // Recheck immediately before unlinking. Never recurse, and never delete a real auth document.
-                    if real(&path)
-                        && real(&file)
+                    if real(&root, &path)
+                        && real(&root, &file)
                         && crate::fsx::bounded_read(&file)
                             .as_deref()
                             .map(str::as_bytes)
@@ -139,7 +166,10 @@ pub fn cleanup(root: &Path, references: &[PathBuf], now: SystemTime) -> Counts {
             let Ok(meta) = fs::symlink_metadata(&path) else {
                 continue;
             };
-            if !real(&path) || !meta.is_file() || meta.len() > crate::fsx::MAX_STATE_FILE_BYTES {
+            if !real(&root, &path)
+                || !meta.is_file()
+                || meta.len() > crate::fsx::MAX_STATE_FILE_BYTES
+            {
                 continue;
             }
             if meta
@@ -160,9 +190,15 @@ pub fn run(app: &tauri::AppHandle) {
     let Some(root) = crate::state::state_directory() else {
         return;
     };
-    if !real(&root) {
+    if root
+        .components()
+        .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
         return;
     }
+    let Ok(root) = fs::canonicalize(root) else {
+        return;
+    };
     let mut references = app
         .state::<crate::provider_detection::DetectionStore>()
         .referenced_paths();
@@ -215,6 +251,64 @@ pub fn run(app: &tauri::AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_missing_credential_reference_still_protects_its_home() {
+        let root = crate::test_support::TempDir::new();
+        // Use the original temp spelling to exercise canonical Windows paths.
+        let state = std::env::temp_dir().join(root.path().file_name().unwrap());
+        let accounts = state.join("accounts/codex");
+        fs::create_dir_all(accounts.join("live")).unwrap();
+        fs::create_dir_all(accounts.join("empty")).unwrap();
+        let reference = accounts.join("live/missing/auth.json");
+        assert_eq!(cleanup(&state, &[reference], SystemTime::now()).folders, 1);
+        assert!(accounts.join("live").is_dir());
+        assert!(!accounts.join("empty").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cleanup_trusts_linked_state_ancestors_but_refuses_managed_links() {
+        use std::os::unix::fs::symlink;
+
+        let dir = crate::test_support::TempDir::new();
+        let ancestor = dir.path().join("real");
+        let alias = dir.path().join("alias");
+        fs::create_dir(&ancestor).unwrap();
+        symlink(&ancestor, &alias).unwrap();
+        let state = alias.join("state");
+        let accounts = state.join("accounts/codex");
+        fs::create_dir_all(accounts.join("empty")).unwrap();
+        fs::create_dir_all(accounts.join("live")).unwrap();
+        let outside = crate::test_support::TempDir::new();
+        fs::write(outside.path().join("auth.json"), STUB).unwrap();
+        symlink(outside.path(), accounts.join("planted")).unwrap();
+        assert_eq!(
+            cleanup(
+                &state,
+                &[accounts.join("live/auth.json")],
+                SystemTime::now()
+            )
+            .folders,
+            1
+        );
+        assert!(accounts.join("live").is_dir());
+        assert!(fs::symlink_metadata(accounts.join("planted"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(outside.path().join("auth.json").exists());
+
+        for relative in ["accounts", "accounts/codex"] {
+            let state = dir.path().join(relative.replace('/', "_"));
+            let link = state.join(relative);
+            fs::create_dir_all(link.parent().unwrap()).unwrap();
+            symlink(outside.path(), &link).unwrap();
+            assert_eq!(cleanup(&state, &[], SystemTime::now()).folders, 0);
+            assert!(outside.path().join("auth.json").exists());
+        }
+    }
+
     #[test]
     fn only_exact_stubs_and_empty_unreferenced_folders_are_removed() {
         let root = crate::test_support::TempDir::new();
