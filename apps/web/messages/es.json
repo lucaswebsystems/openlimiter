@@ -41,10 +41,10 @@
     "failed": "Fallido"
   },
   "desktopRailSettings": {
-    "show": "Mostrar el Rail",
-    "detail": "Mantén el uso y la actividad de los agentes en el borde de tu pantalla.",
-    "unavailable": "La configuración del Rail no está disponible.",
-    "saveFailed": "No se pudo guardar la visibilidad del Rail. Inténtalo de nuevo."
+    "show": "Mostrar la pestaña lateral",
+    "detail": "Una pestaña pequeña en el borde izquierdo de tu pantalla. Pasa el cursor por encima para ver el uso y los agentes.",
+    "unavailable": "La configuración de la pestaña lateral no está disponible.",
+    "saveFailed": "No se pudo guardar la configuración de la pestaña lateral. Inténtalo de nuevo."
   },
   "meta": {
     "title": "OpenLimiter 2.0, límites de codificación con IA y actividad de agentes",

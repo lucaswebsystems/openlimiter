@@ -41,10 +41,10 @@
     "failed": "Fehlgeschlagen"
   },
   "desktopRailSettings": {
-    "show": "Rail anzeigen",
-    "detail": "Nutzung und Agentenaktivität am Rand deines Bildschirms offen halten.",
-    "unavailable": "Die Einstellungen für Rail sind nicht verfügbar.",
-    "saveFailed": "Die Sichtbarkeit der Rail konnte nicht gespeichert werden. Versuche es erneut."
+    "show": "Tab am Bildschirmrand anzeigen",
+    "detail": "Ein kleiner Tab am linken Rand deines Bildschirms. Fahre mit der Maus darüber, um Nutzung und Agenten zu sehen.",
+    "unavailable": "Die Einstellungen für den Tab am Bildschirmrand sind nicht verfügbar.",
+    "saveFailed": "Die Einstellung für den Tab am Bildschirmrand konnte nicht gespeichert werden. Versuche es erneut."
   },
   "meta": {
     "title": "OpenLimiter 2.0, KI Coding Limits und Agentenaktivität",

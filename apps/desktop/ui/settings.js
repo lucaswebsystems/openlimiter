@@ -337,10 +337,10 @@ export function snoozeUntil(minutes, now = Date.now()) {
 const state = { settings: null, pro: null, mount: null };
 
 export const RAIL_SETTINGS_COPY = {
-  show: "Show the Rail",
-  detail: "Keep usage and agent activity at the edge of your screen.",
-  unavailable: "Rail settings are unavailable.",
-  saveFailed: "Could not save Rail visibility. Try again.",
+  show: "Show the edge tab",
+  detail: "A small tab on the left edge of your screen. Hover it to see usage and agents.",
+  unavailable: "Edge tab settings are unavailable.",
+  saveFailed: "Could not save the edge tab setting. Try again.",
 };
 
 function railSettingsMarkup() {

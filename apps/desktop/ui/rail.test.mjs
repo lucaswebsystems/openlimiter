@@ -392,7 +392,7 @@ test("Settings Rail switch still mounts when the notification backend is absent"
   const mount = { innerHTML: "", querySelector: selector => selector === "#rail-visible" ? control : status };
   await renderSettings(mount);
   assert.match(mount.innerHTML, /for="rail-visible"/);
-  assert.match(mount.innerHTML, /Show the Rail/);
+  assert.match(mount.innerHTML, /Show the edge tab/);
   assert.equal(control.disabled, true);
 });
 
