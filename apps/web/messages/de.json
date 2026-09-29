@@ -47,8 +47,8 @@
     "saveFailed": "Die Sichtbarkeit der Rail konnte nicht gespeichert werden. Versuche es erneut."
   },
   "meta": {
-    "title": "OpenLimiter 2.0, KI Coding Limits und Agentenaktivität",
-    "description": "Sieh KI Coding Limits auf deinem Desktop, in deinem Terminal und auf deinem Handy. Verfolge beschäftigte, wartende und fertige Agenten mit kostenlosen lokalen Alerts in OpenLimiter 2.0."
+    "title": "OpenLimiter, KI Programmierlimits und Agentenaktivität",
+    "description": "Sieh KI Programmierlimits auf deinem Desktop, im Terminal und auf dem Telefon. Verfolge beschäftigte, wartende und fertige Agenten mit kostenlosen lokalen Benachrichtigungen."
   },
   "common": {
     "skipToContent": "Zum Inhalt springen",
@@ -77,8 +77,8 @@
     "closeMenu": "Menü schließen"
   },
   "announce": {
-    "message": "OpenLimiter Pro ist da. Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
-    "short": "OpenLimiter Pro ist da",
+    "message": "OpenLimiter Pro ist da. Desktop Benachrichtigungen, Kontozugriff und lokale Meter sind kostenlos. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
+    "short": "Desktop Benachrichtigungen bleiben kostenlos",
     "dismiss": "Diese Ankündigung schließen"
   },
   "footer": {
@@ -110,7 +110,7 @@
       },
       "account": {
         "title": "Das Konto und Pro",
-        "body": "Ein Konto ist kostenlos, und alles, was du lokal siehst, bleibt mit oder ohne Konto kostenlos. Die Anmeldung schaltet die Synchronisierung ein, denn dafür gibt es sie: deine eigenen Prozentwerte zwischen deinen eigenen Geräten zu bewegen. Pro sind fünf Funktionen: jeder Alert, neunzig Tage gehosteter Verlauf mit Prognose, mehr als ein Konto je Anbieter, eine Pro Anzeigevorgabe und das Ausgaben Beta über der kostenlosen Obergrenze. Drei sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung. Die kostenlose Grenze von einem Konto je Anbieter setzt die Desktopanwendung als Richtlinie in offenem Quelltext durch, nicht als Sicherheitsgrenze; das ist ein Versprechen über das Verhalten des Produkts und keine technische Sperre."
+        "body": "Ein Konto ist kostenlos, und alles, was du lokal siehst, bleibt mit oder ohne Konto kostenlos. Die Anmeldung aktiviert die Synchronisierung, weil sie deine eigenen Prozente zwischen deinen eigenen Geräten bewegt. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Das kostenlose Limit von einem aktiven Konto je Anbieter wird von der Desktop Anwendung als Open Source Richtlinie durchgesetzt, nicht als Sicherheitsgrenze."
       },
       "billing": {
         "title": "Abrechnung",
@@ -157,7 +157,7 @@
   "privacy": {
     "title": "Datenschutz",
     "lead": "Was OpenLimiter erhebt, was es niemals erhebt, wohin jedes Stück geht und wie lange es aufbewahrt wird. Geschrieben aus den Datenflüssen, die es im Produkt wirklich gibt, nicht aus einer Vorlage.",
-    "metaDescription": "Wie OpenLimiter mit Daten umgeht. Der lokale Modus erhebt nichts, die Felder von Konto und Synchronisierung sind einzeln aufgeführt, Anbieterschlüssel bleiben im Schlüsselbund des Betriebssystems, und jede Aufbewahrungsfrist ist benannt.",
+    "metaDescription": "Wie OpenLimiter mit Daten umgeht. Der lokale Modus erhebt nichts, Konto und Synchronisierung sind einzeln aufgeführt, lokale Anbieter Zugangsdaten bleiben im Schlüsselbund des Betriebssystems und optionale Cloud API Schlüssel werden nur bei aktivierter Messung verschlüsselt gespeichert.",
     "summary": {
       "title": "Die kurze Fassung",
       "bullets": {
@@ -176,7 +176,7 @@
         "reads": "Konnektoren lesen Dateien, die deine installierten Werkzeuge bereits geschrieben haben, nur lesend. Sie schreiben nie zurück, reparieren nicht und migrieren nicht, was sie öffnen.",
         "credentials": "Anbieterzugangsdaten liegen im Anmeldeinformationsspeicher des Betriebssystems. OpenLimiter kopiert keine davon in einen Cache, einen Export, eine Diagnose oder ein Protokoll.",
         "telemetry": "Die Anwendung sendet keine Telemetrie, keine Nutzung, keine Diagnose, keine Kennungen und keine Prompt Inhalte irgendwohin.",
-        "account": "Für keine lokale Funktion ist eine Anmeldung nötig. Alles, was du lokal siehst, ist kostenlos, und Pro verkauft Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über der kostenlosen Obergrenze."
+        "account": "Für lokale Funktionen ist keine Anmeldung nötig. Lokale Meter und Desktop Benachrichtigungen bleiben kostenlos. Pro ergänzt gehosteten Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben."
       }
     },
     "account": {
@@ -211,7 +211,7 @@
     },
     "alerts": {
       "title": "Alerts auf dem Desktop, per Mail und per Push",
-      "body": "Jeder Alert gehört zu Pro. Er kann dir sagen, wenn ein Fenster sechzig, achtzig oder neunzig Prozent überschreitet und wenn es zurückgesetzt wird. Eine Desktopmeldung zeichnet die Anwendung auf deinem eigenen Rechner, die Mail liefert Resend aus, den Push der Push Dienst deines Browsers oder deines Betriebssystems.",
+      "body": "Desktop Benachrichtigungen sind kostenlos. Pro ergänzt E Mail und Push Benachrichtigungen auf dem Telefon, wenn ein Fenster sechzig, achtzig oder neunzig Prozent erreicht und beim Zurücksetzen. Die Desktop Anwendung zeichnet die Benachrichtigung auf deinem Gerät, Resend liefert E Mails und dein Browser oder Betriebssystem liefert Push.",
       "bullets": {
         "generic": "Voreingestellt trägt eine Nachricht nur den Produktnamen, den Anbieternamen, die Stufe als sechzig, achtzig, neunzig oder Zurücksetzung, eine allgemeine Zeile und einen Link in das angemeldete Produkt. Kein genauer Prozentwert, kein Betrag, kein Modell, kein Projekt, kein Budget und kein Prognosedatum.",
         "detail": "Eine ausführliche E Mail ist eine eigene Einwilligung, die du erteilen musst. Sie darf den genauen Prozentwert, den Betrag, das Budget und das Prognosedatum deiner eigenen Daten ergänzen. Ändern sich die Felder je, ändert sich die Version der Einwilligung, und die Ausführlichkeit steht wieder auf aus, bis du erneut zustimmst.",
@@ -351,7 +351,7 @@
       "title": "Deine Rechte und die Bedienelemente, die sie einlösen",
       "body": "Ein Recht, das du nicht ausüben kannst, ist keines, deshalb ist jeder Punkt unten ein Bedienelement im Produkt und kein Antrag, den du formulieren musst.",
       "bullets": {
-        "export": "Alles exportieren, was der gehostete Dienst über dich hält, als maschinenlesbares Archiv mit einer zugänglichen Tabelle daneben. Anbieterschlüssel sind nie darin, weil sie nie dort waren.",
+        "export": "Exportiere alles, was der gehostete Dienst über dich hält, als maschinenlesbares Archiv mit einer zugänglichen Tabelle daneben. Anbieterschlüssel werden nicht exportiert. Lokale Zugangsdaten bleiben auf deinem Gerät, während ein optionaler Cloud API Schlüssel nur für die Messung gespeichert und beim Abschalten oder auf Wunsch gelöscht wird.",
         "delete": "Dein Konto löschen. Die Produktdaten gehen binnen vierundzwanzig Stunden, verschlüsselte Sicherungskopien verfallen binnen dreißig Tagen, und nichts Lokales wird angerührt.",
         "devices": "Jedes an deinem Konto angemeldete Gerät sehen, auch ein per QR gekoppeltes Telefon, und jedes davon widerrufen. Ein widerrufenes Gerät verliert den gehosteten Zugriff sofort.",
         "channels": "E Mail oder Push getrennt abschalten, jederzeit, ohne das andere zu berühren.",
@@ -439,7 +439,7 @@
     "release": {
       "rail": {
         "title": "Eine ruhige Rail. Eine klare Bitte an dich.",
-        "lead": "OpenLimiter 2.0 stellt deine KI Coding Limits und deine Agentenaktivität an den linken Rand deines Desktops. Lass die Rail während der Arbeit eingeklappt und klappe sie dann auf, um zu sehen, welcher Agent Eingaben braucht. Lokale Meter und Desktop Alerts sind kostenlos, mit einem aktiven Konto je Anbieter.",
+        "lead": "OpenLimiter stellt deine KI Programmierlimits und die Agentenaktivität an den linken Rand deines Desktops. Lass die Rail während der Arbeit eingeklappt und öffne sie, um zu sehen, welcher Agent Eingaben braucht. Lokale Meter und Desktop Benachrichtigungen sind kostenlos, mit einem aktiven Konto je Anbieter.",
         "folded": "Am linken Rand eingeklappt, mit sichtbarer Nutzung und Aktivität.",
         "unfolded": "Klappe die Rail auf, um die Karte zu lesen und die Anwendung des Agenten zu finden.",
         "foldedAlt": "Die echte OpenLimiter Rail am linken Rand eingeklappt, mit synthetischen Anbietermetern und Agentenaktivität.",
@@ -476,7 +476,7 @@
     "title": "Dein Coding Tag an einem Ort",
     "lead": "Lokale Nutzungsmeter und die Agentenliste teilen sich die Desktop Home. Sieh, wie aktuell eine Messung ist, wann ihr Fenster zurückgesetzt wird und welcher unterstützte Agent deine Aufmerksamkeit braucht.",
     "screenshot": {
-      "alt": "Die OpenLimiter 2.0 Desktop Home mit synthetischen Nutzungsmessungen und einer Agentenliste mit wartenden, beschäftigten und fertigen Sitzungen."
+      "alt": "Die Desktop Home von OpenLimiter mit synthetischen Nutzungswerten und einer Agentenliste mit wartenden, beschäftigten und fertigen Sitzungen."
     },
     "caption": "Die echte Desktop Oberfläche ohne grafische Oberfläche gerendert, mit synthetischen Fixtures. Kein persönliches Konto, keine Zugangsdaten und kein echter Nutzungswert erscheinen darin."
   },
@@ -520,11 +520,11 @@
       },
       "openCode": {
         "tag": "liest eine Session, die du schon geöffnet hast",
-        "detail": "Beschreibt die Usage Ansicht hinter einer bestehenden Session. Es trägt das höchste Automatisierungsrisiko der neun und stoppt in dem Moment, in dem diese Session abläuft."
+        "detail": "Liest die OpenCode Nutzung über den experimentellen Adapter und nennt klar die erforderliche Version und Konfiguration."
       },
       "gemini": {
         "tag": "liest Modellquota über die installierte CLI",
-        "detail": "Liest die Quota Antwort über die bereits auf diesem Gerät vorhandene Gemini CLI Session."
+        "detail": "Liest die Gemini CLI Nutzung aus lokalen Sitzungsdaten und zeigt das Providerfenster an, wenn es verfügbar ist."
       },
       "grok": {
         "tag": "liest Abofenster aus der lokalen Session",
@@ -543,19 +543,19 @@
     "surfaces": {
       "statusline": {
         "name": "Claude Code Statusline",
-        "detail": "Eine Zeile neben deinem Prompt: der schlechteste Meter je Provider, mit einem Reason Code davor. Sie fällt auf den Cache zurück und blockiert nie das Tool, das sie aufgerufen hat."
+        "detail": "Liest die Provider Statuszeile lokal und zeigt das aktuelle Quotenfenster ohne gesendete Zugangsdaten."
       },
       "promptHook": {
         "name": "Claude Code Prompt Hook",
-        "detail": "Ein begrenzter Block bei Prompt Submit, eingezäunt in einer expliziten Grenze für nicht vertrauenswürdige Daten. Ist jeder Provider unknown, injiziert er gar nichts."
+        "detail": "Ein begrenzter Hook kann Prompt Ereignisse als nicht vertrauenswürdige Daten erfassen, ohne Provider Aktion bei unbekannter Quelle."
       },
       "shell": {
         "name": "Jede Shell",
-        "detail": "Der ganze Snapshot als Tabelle für dich oder als JSON für ein Skript, direkt aus dem lokalen Cache gelesen, ohne Daemon dazwischen. Der lokale Modus hat null Telemetrie und kein Konto; wenn ein Provider über die Desktop Anwendung verbunden wird, spricht diese Verbindung nur mit dem eigenen Endpoint des Providers, nie mit OpenLimiter."
+        "detail": "Führt Shell Befehle als Quelle der Wahrheit aus, mit ausdrücklichen Berechtigungen, begrenzter Ausgabe und keinem versteckten Netzwerkzugriff."
       },
       "fileWriter": {
         "name": "Jedes Tool, das eine Datei schreiben kann",
-        "detail": "Ein generischer Befehl nimmt eine Payload für jeden Connector, sodass ein Provider ohne Integration trotzdem aus einem Skript gespeist werden kann, das du selbst kontrollierst."
+        "detail": "Schreibt eine lokale Momentaufnahme für deine Werkzeuge, mit ausdrücklichen Pfaden und ohne versteckte Provider Anfrage."
       },
       "ci": {
         "name": "Continuous Integration",
@@ -574,7 +574,7 @@
     "groups": {
       "today": {
         "label": "Ab heute dabei",
-        "note": "Neun Connectors sind in diesem Release dabei"
+        "note": "Acht Connectors sind in dieser Version enthalten"
       },
       "planned": {
         "label": "Geplant",
@@ -700,7 +700,7 @@
   },
   "cliTranscript": {
     "captions": {
-      "demo": "Alle neun Connectors, ein Schema",
+      "demo": "Alle acht Connectors, ein Schema",
       "statusline": "Statusline, Balken dort, wo du ohnehin hinschaust",
       "statuslineNarrow": "Eine Zeile, schlechteste Provider behalten",
       "statuslinePlain": "Die 0.1.0 Zeile, auf Wunsch",
@@ -755,7 +755,7 @@
     "items": {
       "whatLeaves": {
         "question": "Was verlässt meinen Rechner wirklich?",
-        "answer": "Im lokalen Modus verlässt nichts das Gerät für OpenLimiter. Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter, und Zugangsdaten bleiben auf deinem Gerät. Wenn du dich anmeldest, gehen ausgewählte begrenzte quota Aufnahmen an den gehosteten Dienst, damit deine eigenen Geräte sie sehen können. Pro fügt entfernte Alerts, gehosteten Verlauf und Prognosen hinzu. Lokale Alerts sind kostenlos. Anbieterzugangsdaten gehen nie dorthin."
+        "answer": "Im lokalen Modus verlässt nichts dein Gerät für OpenLimiter. Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter, und lokale Zugangsdaten bleiben auf deinem Gerät. Nach der Anmeldung gehen ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst, damit deine eigenen Geräte sie sehen können. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Ein API Schlüssel, den du für Cloud Messung aktivierst, wird für diese Aufgabe verschlüsselt gespeichert und beim Abschalten oder auf Wunsch gelöscht. Desktop Benachrichtigungen sind kostenlos."
       },
       "safeToPoint": {
         "question": "Ist es sicher, es auf meine Tools anzusetzen?",
@@ -787,29 +787,29 @@
       },
       "free": {
         "question": "Ist es kostenlos?",
-        "answer": "Alles, was du siehst, ist kostenlos und bleibt es, unter Apache 2.0. Das OpenLimiter Konto ist kostenlos. Alerts, neunzig Tage Verlauf, Zugriff per Telefon, mehr als ein Konto je Anbieter und Ausgabenverfolgung über $100 pro Kalendermonat je Quelle gehören zu Pro. Synchronisiert werden nur Nutzungsprozente, nie Schlüssel oder Zugangsdaten."
+        "answer": "Alles, was du sehen kannst, ist kostenlos und bleibt es unter Apache 2.0. Das OpenLimiter Konto ist kostenlos. Desktop Benachrichtigungen sind kostenlos. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Nur Nutzungsprozente werden synchronisiert, niemals lokale Anbieter Zugangsdaten."
       },
       "pro": {
         "question": "Was ist OpenLimiter Pro?",
-        "answer": "OpenLimiter Pro kostet $5 im Monat oder $50 im Jahr, die ersten 30 Tage sind kostenlos und ohne Karte. Es kommen fünf Dinge dazu: jeder Alert, als Meldung auf dem Desktop, als Mail und als Push aufs Telefon bei 60, 80 und 90 Prozent und beim Zurücksetzen; neunzig Tage gehosteter Verlauf mit Prognose; mehr als ein Konto je Anbieter; ein Pro Akzent oder eine Dichtevorgabe; und Ausgabenzähler für APIs in einem gekennzeichneten Beta über der kostenlosen Obergrenze von $100 pro Kalendermonat je Quelle. Drei davon sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung. Volle Rückerstattung auf Anfrage innerhalb von 14 Tagen nach jeder Abbuchung."
+        "answer": "OpenLimiter Pro kostet 5 US Dollar im Monat oder 50 US Dollar im Jahr, mit den ersten 30 Tagen kostenlos und ohne Karte. Es ergänzt vier Dinge: Verlauf mit Prognose; E Mail und Push Benachrichtigungen auf dem Telefon bei 60, 80 und 90 Prozent und beim Zurücksetzen; mehr als ein Konto je Anbieter; und Cloud Messung von API Ausgaben für ausdrücklich aktivierte Schlüssel. Desktop Benachrichtigungen, lokale Meter und Kontozugriff bleiben kostenlos. Eine vollständige Rückerstattung kann innerhalb von 14 Tagen nach jeder Abbuchung verlangt werden."
       },
       "alerts": {
         "question": "Bekomme ich Alerts, wenn ein Fenster voll wird?",
-        "answer": "Ja, mit Pro. Jeder Alert gehört zu Pro: eine Desktopmeldung, eine Mail und ein Push aufs Telefon, bei 60, 80 und 90 Prozent eines Fensters und noch einmal, wenn dieses Fenster zurückgesetzt wird. Diese vier Momente sind das Produkt und keine Einstellung. Eine Push Nachricht trägt keine Nutzungsdetails, ein gesperrter Bildschirm zeigt also nie welche."
+        "answer": "Ja. Desktop Benachrichtigungen sind kostenlos. Pro ergänzt E Mail und Push Benachrichtigungen auf dem Telefon bei 60, 80 und 90 Prozent eines Fensters und erneut beim Zurücksetzen. Diese vier Momente sind das Produkt, keine Einstellung. Eine Push Nachricht enthält niemals Nutzungsdetails, daher zeigt ein gesperrter Bildschirm keine."
       },
       "phoneAccess": {
         "question": "Kann ich meine quota auf dem Telefon sehen?",
-        "answer": "Ja, mit Pro. Die Desktopanwendung zeigt einen QR Code, der zwei Minuten lebt, du scannst ihn mit dem Telefon, und du bestätigst die Kopplung zurück auf dem Desktop. Das Telefon hält danach ein Token nur zum Lesen: es kann das Konto nie ändern und nichts hochladen, und ein Widerruf dieses Geräts auf dem Desktop oder auf deiner Kontoseite beendet den Zugriff sofort."
+        "answer": "Ja. Die Desktop Anwendung zeigt einen QR Code, der zwei Minuten gültig ist. Du scannst ihn mit dem Telefon und bestätigst die Kopplung am Desktop. Das Telefon hält danach ein schreibgeschütztes Token. Es kann das Konto nie ändern oder etwas hochladen, und der Widerruf des Geräts am Desktop oder auf deiner Kontoseite beendet den Zugriff sofort. Telefonzugriff braucht kein Pro."
       },
       "spendCeiling": {
-        "question": "Wie viel API Ausgaben erfasst der kostenlose Plan?",
-        "answer": "Bis zu $100 pro Kalendermonat je Quelle, und Pro geht darüber hinaus. Die Ausgabenzähler sind ein gekennzeichnetes Beta, das die Abrechnungsoberfläche des Anbieters selbst liest, also brauchen sie einen Organisations oder Verwaltungsschlüssel, und ein Projektschlüssel funktioniert nicht. Moonshot wird als Guthaben gelesen und nicht als Ausgabe, in drei getrennten Werten, und wird nie zu einer Monatssumme, einer Prognose oder einem Budgetalert."
+        "question": "Was umfasst die Cloud Messung von API Ausgaben?",
+        "answer": "Die Cloud Messung von API Ausgaben ist eine Pro Beta für Schlüssel, die du ausdrücklich aktivierst. Sie liest die eigene Abrechnungsoberfläche des Anbieters und braucht deshalb einen Organisations oder Verwaltungsschlüssel. Ein Projektschlüssel funktioniert nicht. Moonshot wird als Guthaben statt als Ausgabe in drei getrennten Werten gelesen und nie in eine Monatssumme, Prognose oder Budgetwarnung umgewandelt."
       }
     }
   },
   "pricing": {
     "title": "Preise",
-    "lead": "Lokale Meter, lokale Alerts und Kontozugriff sind kostenlos, mit einem aktiven Konto je Anbieter. Pro fügt entfernte Alerts, gehosteten Verlauf, zusätzliche Konten und mehr hinzu.",
+    "lead": "Lokale Meter, Desktop Benachrichtigungen und Kontozugriff sind kostenlos, mit einem aktiven Konto je Anbieter. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
     "plannedChip": "geplant",
     "free": {
       "status": "verfügbar",
@@ -835,14 +835,14 @@
       "perYear": "pro Jahr",
       "trialChip": "30 Tage kostenlos",
       "priceNote": "Die ersten 30 Tage sind kostenlos, ohne Karte. Endet der Zugang, hören die Pro Funktionen auf: die gehosteten sofort, die lokalen fallen auf ein Konto je Anbieter und das Standardthema zurück. Alles, was du vor Pro sehen konntest, bleibt unverändert.",
-      "lead": "Fünf Pro Funktionen. Drei sind gehostete Dienste, zwei sind Schalter in der lokalen Anwendung.",
+      "lead": "Vier Pro Funktionen: Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
       "footnote": "Nach dem Test funktionieren lokale Meter, lokale Alerts und der kostenlose Kontozugriff weiter. Die kostenlose Version behält ein aktives Konto je Anbieter.",
       "lines": {
-        "alerts": "Entfernte Alerts per E Mail und Push aufs Handy. Lokale Desktop Alerts sind kostenlos",
-        "themes": "Ein Pro Akzent oder eine Dichtevorgabe, angewandt in der lokalen Anwendung",
-        "multiSubscription": "Mehr als ein Konto je Anbieter, in der lokalen Anwendung freigeschaltet",
-        "heavyApi": "Ausgabenzähler für APIs, im Beta. Kostenlos werden je Quelle bis zu $100 pro Kalendermonat erfasst, Pro geht darüber hinaus",
-        "history": "Neunzig Tage gehosteter Verlauf, mit einer Prognose bis zu dem Tag, an dem ein Fenster aufgebraucht ist"
+        "alerts": "E Mail und Push Benachrichtigungen auf dem Telefon. Lokale Desktop Benachrichtigungen sind kostenlos",
+        "themes": "Verlauf und Prognosen für synchronisierte Messwerte",
+        "multiSubscription": "Zusätzliche Konten je Anbieter",
+        "heavyApi": "Cloud Messung von API Ausgaben mit ausdrücklich aktivierten Anbieterschlüsseln",
+        "history": "Neunzig Tage gehosteter Verlauf, mit einer Prognose"
       },
       "cta": "Starte deinen kostenlosen Pro Test für 30 Tage",
       "conditions": "Ausgabenzähler benötigen einen Organisationsadminschlüssel. Volle Rückerstattung innerhalb von 14 Tagen, jederzeit kündbar im Stripe Portal. Verkauft von Lucas Costa, Zahlung über Stripe.",
@@ -861,7 +861,7 @@
       },
       "reportsNobody": {
         "title": "Es berichtet niemandem",
-        "detail": "Die Anwendung meldet niemandem etwas. Sie sendet in keinem Modus Telemetrie. Diese Website zählt Seitenaufrufe ohne Cookies, was eine Zahl von Seiten ist und kein Profil von dir. Pro ist freiwillig und erhält ausgewählte begrenzte Quota Momentaufnahmen erst nach der Anmeldung, nie Anbieterzugangsdaten."
+        "detail": "Die Anwendung meldet niemandem etwas. Sie sendet in keinem Modus Telemetrie. Diese Website zählt Seitenaufrufe ohne Cookies, also Seiten statt eines Profils. Pro ist freiwillig und erhält ausgewählte begrenzte Quota Aufnahmen nach der Anmeldung. Einen API Schlüssel erhält es nur, wenn du Cloud Messung ausdrücklich aktivierst, und nur für diese Messaufgabe."
       },
       "unknownStaysUnknown": {
         "title": "Unknown bleibt unknown",
@@ -1036,7 +1036,7 @@
               "node": "Node 24 oder neuer für das Terminal.",
               "npm": "npm wird mit Node geliefert."
             },
-            "local": "Nichts Lokales ist jemals kostenpflichtig. Die Desktopanwendung und das Terminal zeigen Balken ohne Konto. Ein Konto ergänzt nur die Synchronisierung."
+            "local": "Lokale Meter, Desktop Benachrichtigungen und das Terminal bleiben kostenlos. Ein Konto ergänzt die Synchronisierung, und Pro ergänzt gehosteten Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben."
           },
           "terminal": {
             "title": "Terminal",
@@ -1059,7 +1059,7 @@
             "intro": "Balken bleiben dauerhaft kostenlos und benötigen kein Konto.",
             "bullets": {
               "sync": "Ein Konto ergänzt die Synchronisierung: Der aktuelle Prozentsatz jedes Zeitfensters bleibt auf allen angemeldeten Geräten aktuell.",
-              "pro": "Pro ergänzt Verlauf, Benachrichtigungen, das Telefon, mehrere Konten pro Anbieter und die Messung von API Ausgaben in der Cloud.",
+              "pro": "Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung für API Ausgabenschlüssel.",
               "trial": "Jede Pro Funktion bietet eine kostenlose Testphase von 30 Tagen ohne Kreditkarte."
             }
           },
@@ -1145,12 +1145,12 @@
       },
       "providers": {
         "title": "Supported providers",
-        "description": "The nine connectors that ship today: how you connect each one, what it reads, and how likely it is to break.",
-        "lead": "Nine connectors ship today. Each one carries its own honest labels describing where its credentials come from, how official its data interface is, and how likely it is to break.",
+        "description": "Die acht heute verfügbaren Connectoren: wie du jeden verbindest, was er liest und wie wahrscheinlich er ausfällt.",
+        "lead": "Heute gibt es acht Connectoren. Jeder trägt ehrliche Hinweise zur Herkunft seiner Zugangsdaten, zur offiziellen Datenoberfläche und zur Ausfallwahrscheinlichkeit.",
         "sections": {
           "the-nine": {
-            "title": "The nine connectors",
-            "caption": "Connectors that ship today, how you connect each one, and what it reads",
+            "title": "Die acht Connectoren",
+            "caption": "Heute verfügbare Connectoren, ihre Verbindung und ihre Messwerte",
             "columns": {
               "id": "id",
               "connect": "connect",
@@ -1237,7 +1237,7 @@
           },
           "not-yet": {
             "title": "Connectors that do not exist yet",
-            "body": "Only the nine above are real. Anything else you might hope for is not built, is not scheduled, and should not be assumed. If a subscription has no connector, the manual path covers it today with numbers you enter yourself."
+            "body": "Nur die acht oben sind echt. Alles andere, was du erwartest, ist nicht gebaut, nicht geplant und darf nicht vorausgesetzt werden. Wenn ein Abo keinen Connector hat, deckt der manuelle Weg es heute mit deinen eigenen Zahlen ab."
           },
           "api-spend-keys": {
             "title": "Schlüssel für API Ausgaben",
@@ -1330,12 +1330,12 @@
             },
             "what-this-is-not-claiming": {
               "title": "Was diese Seite nicht behauptet",
-              "body": "Nicht, dass alle dreizehn überall auf dem Bildschirm stehen. Die Web App und das Kommandozeilen Tool zeigen weiterhin das einfachere Vokabular der drei Chips oben, weil keines von beiden von sich aus einen Provider live liest. Die dreizehn Zustände sind real und getestet im Core Paket, aus dem dieses Produkt gebaut ist, und sie benennen den allgemeinen Lebenszyklus, den eine Verbindung durchläuft, wo immer ein echter Reader existiert, was heute der Verbindungen Bildschirm der Desktop Anwendung selbst ist, statt dieser Seite."
+              "body": "Nicht alle dreizehn Zustände erscheinen überall. Web App und Befehlszeilenwerkzeug zeigen das einfachere Vokabular mit drei Chips, wenn kein Live Leser verfügbar ist. Die Befehlszeile kann bei einem konfigurierten Leser eine Live Aktualisierung anfordern. Die dreizehn Zustände sind im Kernpaket echt und getestet, und der Connections Bildschirm der Desktop Anwendung zeigt sie im Lebenszyklus einer Verbindung."
             }
           },
           "what-changes": {
             "title": "Was eine echte Verbindung ändert",
-            "intro": "Nichts auf dieser Seite ist ein Datum oder ein Versprechen für die Web App oder das Kommandozeilen Tool, die bei den drei Chips oben bleiben, weil keines von beiden einen Provider live liest. Bekommt ein Provider einen echten Reader, hört die ehrliche Beschreibung davon auf, ein fester Chip zu sein, und wird zu dem der dreizehn Zustände oben, der in diesem Moment tatsächlich passt: gefunden, wartet auf Zugangsdaten, verbindet sich, verbunden, oder, wenn etwas schiefgeht, beeinträchtigt, veraltet, oder braucht einen Blick. Das ist der Grund, das ganze Vokabular hier zu benennen, damit sich der Satz, den jemand liest, nicht ändert, während sich der Zustand darunter bewegt.",
+            "intro": "Nichts auf dieser Seite ist ein Datum oder ein Versprechen. Web App und Befehlszeilenwerkzeug verwenden die drei Chips oben, wenn kein Live Leser verfügbar ist, während ein konfigurierter Befehlszeilenleser einen Anbieter aktualisieren kann. Wenn ein Anbieter einen echten Leser hat, ist seine ehrliche Beschreibung einer der dreizehn passenden Zustände: erkannt, auf Zugangsdaten wartend, verbindend, verbunden oder bei einem Fehler beeinträchtigt, veraltet oder prüfbedürftig.",
             "noReader": "Nicht jeder Provider hat diesen Reader heute; der eigene Verbindungen Bildschirm der Desktop Anwendung ist dort, wo ein echter zuerst auftaucht. Sieh die <roadmap>Roadmap</roadmap> dafür, was geplant ist und was nicht, und <providers>unterstützte Provider</providers> dafür, was jeder Connector gerade jetzt wirklich kann."
           }
         }
@@ -1350,7 +1350,7 @@
             "title": "Was OpenLimiter macht",
             "body": "OpenLimiter vereint jedes Quota Fenster, das ein unterstützter Anbieter bereitstellt, zeigt die Nutzung und den nächsten Reset und gibt dir und deinem Coding Agent begrenzte Routing Empfehlungen. Es ist ein Messgerät und Ratgeber. Es verbraucht nie Quota, ändert keinen Tarif und wählt keinen Anbieter ohne dich.",
             "calloutTitle": "Lokal bleibt kostenlos",
-            "calloutBody": "Das lokale Messgerät, alle lokalen Konnektoren, die Desktop Anwendung und das Kommandozeilen Werkzeug bleiben für immer kostenlos und quelloffen. Der optionale Bezahlplan enthält nur gehostete Warnungen, Verlauf, Prognosen und Agent Routing."
+            "calloutBody": "Der lokale Meter, jeder lokale Connector, die Desktop Anwendung und das Befehlszeilenwerkzeug sind dauerhaft kostenlos und Open Source. Der optionale kostenpflichtige Plan enthält gehosteten Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben. Desktop Benachrichtigungen bleiben kostenlos."
           },
           "discovery": {
             "title": "So funktioniert die Erkennung",
@@ -1365,7 +1365,7 @@
           },
           "providers": {
             "title": "Unterstützte Anbieter und Messungen",
-            "intro": "Die Desktop Anwendung unterstützt fünf Anbieterfamilien. Jede Zeile nennt die Messung und ihre Quelle offen.",
+            "intro": "Die Desktop Anwendung unterstützt acht Anbieter Connectoren. Jede Zeile nennt die Messung und ihre Quelle offen.",
             "caption": "Unterstützte Anbieter Messungen und ihre Quelle",
             "columns": {
               "provider": "Anbieter",
@@ -1602,7 +1602,7 @@
             },
             "opencode": {
               "calloutTitle": "OpenCode is an explicit opt in",
-              "calloutBody": "OpenCode documents no prompt injection event. The adapter uses an undocumented transform, is pinned to the exact version it was inspected against, and does nothing at all unless <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> is set both when installing and when running. It is experimental on purpose, it can stop working at any release, and it is not part of what this version promises."
+              "calloutBody": "OpenCode dokumentiert kein Prompt Injection Ereignis. Der Adapter verwendet eine nicht dokumentierte Transformation, ist auf die genaue Version festgelegt, gegen die er geprüft wurde, und tut überhaupt nichts, sofern <code>OPENLIMITER_EXPERIMENTAL_OPENCODE=1</code> nicht sowohl bei der Installation als auch bei der Ausführung gesetzt ist. Er ist absichtlich experimentell, kann bei jeder Version nicht mehr funktionieren und gehört nicht zu dem, was diese Version verspricht."
             },
             "grok": {
               "title": "Grok Build, and why there is no hook",
@@ -1763,7 +1763,7 @@
           "credentials": {
             "title": "Zugangsdaten",
             "calloutTitle": "Keys gehören in den Zugangsdatenspeicher des Betriebssystems",
-            "calloutBody": "Die einzige Zugangsdaten Art, von der OpenLimiter überhaupt einen Begriff hat, ist ein OpenRouter Key, und der gehört in den Zugangsdatenspeicher deines Betriebssystems. Er darf nie in Repository Dateien, Cache Dateien, Exports, Diagnosen, Fixtures oder Logs auftauchen. Provider Authentifizierungsartefakte werden nur lesend geöffnet und nie umgeschrieben, gesichert, repariert oder migriert.",
+            "calloutBody": "OpenLimiter liest Anbieter Authentifizierungsartefakte lokal und kann einen API Schlüssel für optionale Cloud Messung annehmen. Lokale Zugangsdaten gehören in den Zugangsdaten Speicher des Betriebssystems. Ein Cloud Messschlüssel wird nur an den festen Anbieterendpunkt oder den von dir aktivierten verschlüsselten gehosteten Messdienst gesendet. Keine der beiden Arten darf in Repository Dateien, Cache Dateien, Exporten, Diagnosen, Fixtures oder Logs erscheinen. Anbieterartefakte werden nur lesend geöffnet und nie umgeschrieben, gesichert, repariert oder migriert.",
             "stub": "Der Aufruf der Credential Library liegt hinter einer Schnittstelle, und der Adapter ist in diesem Release gestubbt, <code>openlimiter init</code> kann also keinen Key speichern, bis ein Driver geliefert wird. Nichts sonst auf deinem Rechner wird angefasst."
           },
           "detection": {
@@ -1884,7 +1884,7 @@
               "noServer": "<strong>Der lokale Modus erreicht keinen OpenLimiter Server.</strong> Den Autoren des Projekts wird nichts gesendet, weil es im lokalen Modus keinen Ort dafür gibt. Der gehostete Dienst existiert nur für das kostenlose Konto, für die Synchronisierung und für Pro, und erst nach der Anmeldung.",
               "noTelemetry": "<strong>Es gibt keine Telemetrie.</strong> Kein Befehl sendet Nutzung, Diagnose, Kennungen oder Prompts irgendwohin, in keinem Modus. Quota Zustand verlässt deinen Rechner nur über die Synchronisierung, nur nach der Anmeldung und nur als die begrenzten Werte, die du abschalten kannst.",
               "hookNoNetwork": "<strong>Der Hook stellt keine Netzwerkanfrage.</strong> Er liest den lokalen Cache und sonst nichts.",
-              "noEgress": "<strong>Der lokale Modus sendet nichts an OpenLimiter.</strong> Anbieter Verbindungen sprechen nur mit dem jeweiligen Anbieter. Optionales Pro sendet nach der Anmeldung ausgewählte begrenzte Kontingentdaten an den Dienst, niemals Anbieter Zugangsdaten.",
+              "noEgress": "<strong>Der lokale Modus sendet nichts an OpenLimiter.</strong> Anbieterverbindungen sprechen über eine feste Erlaubnisliste nur mit dem jeweiligen Anbieter. Optionales Pro sendet nach der Anmeldung ausgewählte begrenzte Quota Aufnahmen an den gehosteten Dienst. Ein ausdrücklich für Cloud Messung aktivierter API Schlüssel wird einmal über HTTPS gesendet und für diese Aufgabe verschlüsselt gespeichert. Lokale Anbieter Zugangsdaten verlassen das Gerät nie.",
               "unknownNeverZero": "<strong>Unknown wird nie zu null.</strong> Fehlende, abgelaufene, fehlerhafte und nicht erkannte Eingaben lösen sich alle in unknown auf.",
               "readOnlyArtifacts": "<strong>Provider Authentifizierungsartefakte sind nur lesend.</strong> Sie werden nie umgeschrieben, gesichert, repariert oder migriert."
             }
@@ -1902,7 +1902,7 @@
           },
           "secrets": {
             "title": "Umgang mit Secrets",
-            "intro": "Die einzige Zugangsdaten Art, von der das Projekt überhaupt einen Begriff hat, ist ein OpenRouter Key, und der gehört in den Zugangsdatenspeicher deines Betriebssystems. Er darf nie in Repository Dateien, Cache Dateien, Exports, Diagnosen, Fixtures oder Logs auftauchen. Der Aufruf der Credential Library liegt hinter einer Schnittstelle, und die Tests nutzen nur eine Speicherimplementierung mit einem synthetischen Key.",
+            "intro": "Das Projekt liest Anbieter Authentifizierungsartefakte lokal und kann einen API Schlüssel für optionale Cloud Messung annehmen. Lokale Zugangsdaten gehören in den Zugangsdaten Speicher des Betriebssystems. Ein aktivierter Cloud Schlüssel wird nur an seinen festen Anbieterendpunkt oder den verschlüsselten gehosteten Messdienst gesendet und darf nie in Repository Dateien, Cache Dateien, Exporten, Diagnosen, Fixtures oder Logs erscheinen. Der Aufruf der Zugangsdatenbibliothek liegt hinter einer Schnittstelle und die Tests nutzen nur eine Speicherimplementierung mit einem synthetischen Schlüssel.",
             "local-state": {
               "title": "Lokaler Status",
               "body": "Das Statusverzeichnis wird mit eingeschränkten Berechtigungen angelegt, wo die Plattform das unterstützt, ein Pfad, der sich als symbolischer Link herausstellt, wird abgelehnt statt verfolgt, und jeder Dateiaustausch ist atomar. Sieh <docs>Konfiguration</docs> für die Pfade."
@@ -1914,7 +1914,7 @@
             "bullets": {
               "noOfficialApi": "Die meisten Consumer Abo Provider bieten keine offizielle Quota API. Mehrere Connectors beschreiben deshalb inoffizielle Schnittstellen, die sich ohne Ankündigung ändern oder verschwinden können.",
               "unverified": "Jeder Connector wird als <code>UNVERIFIED</code> ausgeliefert. Nichts hier wurde von einem expliziten Verifier gegen ein echtes Konto bestätigt.",
-              "opencode": "Der OpenCode Connector beschreibt eine authentifizierte Seitenform und trägt hohes Automatisierungsrisiko. Behandle ihn als den zerbrechlichsten der neun.",
+              "opencode": "Der OpenCode Connector beschreibt die Form einer authentifizierten Seite und hat ein hohes Automatisierungsrisiko. Behandle ihn als den fragilsten der acht.",
               "adviceOnly": "OpenLimiter gibt Routingempfehlungen. Es routet Anfragen nicht automatisch, umgeht keine Limits, und ändert nicht, wie dein Agent sich authentifiziert."
             }
           },
@@ -1931,7 +1931,7 @@
           },
           "reporting": {
             "title": "Ein Problem melden",
-            "address": "Meld eine vermutete Schwachstelle privat an <code>security@openlimiter.com</code>. Füg eine knappe Beschreibung, die betroffene Version, Reproduktionsschritte mit synthetischen Daten, und die erwartete Auswirkung bei. Füg keine echten Zugangsdaten oder Provider Kontodaten bei. Diese Adresse ist ein Projektplatzhalter, bis die öffentliche Sicherheitsannahme aktiviert ist.",
+            "address": "Melde eine vermutete Schwachstelle privat an <code>lucas@lucaswebsystems.com</code>. Füge eine knappe Beschreibung, die betroffene Version, Reproduktionsschritte mit synthetischen Daten und die erwartete Auswirkung bei. Füge keine echten Zugangsdaten oder Anbieter Kontodaten bei. Eine Person liest Berichte unter diesem öffentlichen Kontakt.",
             "scope": "Im Umfang: Offenlegung von Secrets, Veränderung von Provider Artefakten, unsicheres Cache Verhalten, Umgehung symbolischer Links, Umgehung von Parser Grenzen, agent context Injection, und unerwarteter Netzwerk Egress. Connector Drift ohne Sicherheitsauswirkung ist ein Kompatibilitätsproblem, eröffne dafür bitte stattdessen eine Connector Anfrage. Die vollständige Richtlinie steht in <policy>SECURITY.md</policy>, die Begründung in <threat>THREAT_MODEL.md</threat>.",
             "supported": "Nur die zuletzt veröffentlichte Version erhält während der anfänglichen Entwicklungsphase Sicherheitskorrekturen."
           }
@@ -1958,9 +1958,9 @@
           },
           "mobile": {
             "title": "Shipped: the phone, planned: a native app",
-            "intro": "The phone pairs from the hub by QR code, with nothing typed, and installs to its home screen from there: Android offers to install it, and iOS uses Share, then Add to Home Screen. That is available today, on Pro.",
+            "intro": "Das Telefon wird im Hub per QR Code gekoppelt, ohne Eingabe, und von dort zum Startbildschirm hinzugefügt: Android bietet die Installation an, iOS verwendet Teilen und danach Zum Home Bildschirm. Telefonzugriff ist heute mit einem kostenlosen Konto verfügbar.",
             "bullets": {
-              "status": "Status: phone pairing and the installable web app are shipped, on Pro.",
+              "status": "Status: Telefon Kopplung und installierbare Web App sind mit einem kostenlosen Konto verfügbar.",
               "dependsOnSync": "A native application in an app store remains planned and does not exist today. The paired, installable web app is what replaces the need for one."
             }
           },
@@ -2009,7 +2009,7 @@
   },
   "proPortal": {
     "title": "OpenLimiter Pro",
-    "lead": "Alles, was du siehst, ist kostenlos. Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über $100 gehören zu Pro.",
+    "lead": "Alles, was du sehen kannst, ist kostenlos. Pro ergänzt Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
     "metaDescription": "Melde dich an, um deinen OpenLimiter Pro Plan, deine Abrechnung und die Geräte zu verwalten, die deine quota lesen.",
     "loading": "Dein Konto wird gelesen.",
     "working": "Läuft",
@@ -2040,14 +2040,14 @@
       "trial": {
         "chip": "Testphase",
         "title": "Du bist in der kostenlosen Testphase",
-        "body": "Alle Pro Dienste sind aktiv: Alerts, neunzig Tage Verlauf mit Prognose, Zugriff per Telefon über QR, zusätzliche Konten und Ausgabenverfolgung über die kostenlose Obergrenze von $100 pro Kalendermonat je Quelle hinaus. Es wurde keine Karte verlangt.",
+        "body": "Alle Pro Dienste sind aktiv: Verlauf mit Prognose, E Mail und Push Benachrichtigungen auf dem Telefon, zusätzliche Konten und Cloud Messung von API Ausgaben für ausdrücklich aktivierte Schlüssel. Es wurde keine Karte verlangt.",
         "daysLeft": "Noch {count, plural, one {# Tag} other {# Tage}} Testphase.",
         "ends": "Sie endet am {date}."
       },
       "active": {
         "chip": "aktiv",
         "title": "Pro ist aktiv",
-        "body": "Alerts, Verlauf, Zugriff per Telefon, zusätzliche Konten und Ausgabenverfolgung über der kostenlosen Obergrenze sind alle aktiv.",
+        "body": "Verlauf, Push und E Mail Benachrichtigungen, zusätzliche Konten und Cloud Messung von API Ausgaben sind alle aktiv.",
         "renewsOn": "Er verlängert sich am {date}.",
         "endsOn": "Er endet am {date} und verlängert sich nicht."
       },
@@ -2097,7 +2097,7 @@
     },
     "trial": {
       "title": "Pro 30 Tage kostenlos starten",
-      "body": "Dreißig Tage mit dem vollständigen Pro Profil: Alerts bei 60, 80 und 90 Prozent und beim Zurücksetzen, Verlauf, Telefonzugriff, mehrere Konten und gehosteter Kontext.",
+      "body": "Dreißig Tage Pro: Verlauf, Push und E Mail Benachrichtigungen auf dem Telefon bei 60, 80 und 90 Prozent und beim Zurücksetzen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
       "start": "Pro 30 Tage kostenlos starten",
       "free": "Keine Kreditkarte erforderlich"
     },
@@ -2116,7 +2116,7 @@
       "history": "Ihr Verlauf wird dreißig Tage aufbewahrt und dann gelöscht.",
       "phone": "Telefon gekoppelt: {status}.",
       "multiAccount": "{count} zusätzliche Konten wurden gestoppt.",
-      "hostedContext": "Gehosteter Kontext: {status}.",
+      "hostedContext": "Cloud Messung von API Ausgaben: {status}.",
       "paired": "ja",
       "notPaired": "nein",
       "on": "aktiv",
@@ -2169,7 +2169,7 @@
         "macos": "Öffnen Sie Terminal, drücken Sie Command und die Leertaste, geben Sie Terminal ein, drücken Sie Enter, fügen Sie den Befehl ein und drücken Sie Enter.",
         "linux": "Öffnen Sie Ihr Terminal, fügen Sie den Befehl ein und drücken Sie Enter."
       },
-      "requirementBefore": "Node 18 oder neuer ist erforderlich. Wenn Sie Node nicht haben, laden Sie es von",
+      "requirementBefore": "Node 24 oder neuer ist erforderlich. Wenn du Node nicht hast, lade es von",
       "nodeLink": "nodejs.org",
       "requirementAfter": ".",
       "nextTitle": "Was passiert danach",
@@ -2221,7 +2221,7 @@
       "label": "Starten Sie Ihre kostenlose Testphase",
       "title": "Pro 30 Tage kostenlos starten",
       "lead": "Mit einem Klick wird Pro mit dem vollständigen empfohlenen Profil gestartet.",
-      "profile": "Das vollständige Pro Profil umfasst Alerts bei 60, 80 und 90 Prozent und beim Zurücksetzen, Verlauf, Telefonzugriff, mehrere Konten und gehosteten Kontext.",
+      "profile": "Das vollständige Pro Profil umfasst Verlauf, Push und E Mail Benachrichtigungen auf dem Telefon bei 60, 80 und 90 Prozent und beim Zurücksetzen, zusätzliche Konten und Cloud Messung von API Ausgaben.",
       "progress": "Schritt {step} von {total}",
       "back": "Zurück",
       "cancel": "Jetzt nicht",
@@ -2247,7 +2247,7 @@
         "title": "Pro wurde aktiviert",
         "ends": "Ihre Testphase endet am {date}.",
         "endsUnknown": "Ihre Testphase läuft 30 Tage.",
-      "lead": "Alerts bei 60, 80 und 90 Prozent und beim Zurücksetzen, Verlauf, Telefonzugriff, mehrere Konten und gehosteter Kontext wurden aktiviert.",
+      "lead": "Verlauf, Push und E Mail Benachrichtigungen bei 60, 80 und 90 Prozent und beim Zurücksetzen, zusätzliche Konten und Cloud Messung von API Ausgaben wurden aktiviert.",
         "bars": "Meine Balken ansehen"
       },
       "error": {
@@ -2262,8 +2262,8 @@
     "pro": {
       "label": "Pro",
       "locked": {
-        "title": "Benachrichtigungen, Verlauf, Telefon und zusätzliche Konten",
-        "lead": "Ihre Balken sind kostenlos und bleiben kostenlos. Diese vier sind Pro."
+        "title": "Verlauf, Benachrichtigungen, zusätzliche Konten und Cloud Messung",
+        "lead": "Deine Balken und Desktop Benachrichtigungen sind kostenlos. Diese Pro Funktionen sind mit einem Test verfügbar."
       },
       "expired": {
         "title": "Pro ist beendet",
@@ -2272,7 +2272,7 @@
       "feature": {
         "alerts": "E Mail und Push Benachrichtigungen auf dem Telefon. Lokale Desktop Benachrichtigungen sind kostenlos.",
         "history": "Neunzig Tage Verlauf, mit einer Prognose.",
-        "phone": "Ihre Balken auf Ihrem Telefon, gekoppelt per QR Code.",
+        "phone": "Cloud API Ausgabenmeter für ausdrücklich aktivierte Schlüssel.",
         "multiAccount": "Mehr als ein Konto für jeden Anbieter."
       },
     "lost": {
@@ -2281,7 +2281,7 @@
         "history": "Ihr Verlauf wird dreißig Tage aufbewahrt und dann gelöscht.",
         "phone": "Telefon gekoppelt: {status}.",
         "multiAccount": "{count} zusätzliche Konten wurden gestoppt.",
-        "hostedContext": "Gehosteter Kontext: {status}.",
+        "hostedContext": "Cloud Messung von API Ausgaben: {status}.",
         "paired": "ja",
         "notPaired": "nein",
         "on": "aktiv",

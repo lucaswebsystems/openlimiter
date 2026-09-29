@@ -19,7 +19,7 @@ import { reveal, revealGroup, revealSm } from "@/lib/motion";
 export const metadata: Metadata = pageMetadata({
   title: "Blog: notes on quota, agents and local tools",
   description:
-    "Notes on how OpenLimiter reads quota locally, what it deliberately does not do, and why the line is drawn where it is.",
+    "Current notes on OpenLimiter's local quota readings, product boundaries, and available Pro features.",
   route: "/blog",
   locale: "en",
   localised: false,

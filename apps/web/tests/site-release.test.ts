@@ -42,6 +42,13 @@ describe("2.0 site release", () => {
   it("distinguishes free local alerts from remote Pro alerts without prose dashes", () => {
     expect(en.pricing.pro.cta).toBe("Start your free 30 day Pro trial");
     expect(en.pricing.pro.lines.alerts).toContain("Local desktop alerts are free");
+    expect(en.announce.message).toContain("Desktop alerts");
+    expect(en.announce.message).not.toContain("$100");
+    expect(en.pricing.pro.lead).toContain("history");
+    expect(en.pricing.pro.lines.heavyApi).not.toContain("$100");
+    expect(en.faq.items.phoneAccess.answer).toContain("does not require Pro");
+    expect(en.docs.pages.providers.description).toContain("eight");
+    expect(en.docs.pages.security.sections.reporting.address).toContain("lucas@lucaswebsystems.com");
     for (const value of JSON.stringify(en.home.release).matchAll(/:"([^"]+)"/g)) {
       expect(value[1]).not.toMatch(/[-\u2010-\u2015]/u);
     }
