@@ -63,12 +63,16 @@ use tauri::{AppHandle, Manager, WindowEvent};
 /// capabilities are unchanged, every request leaves from this process, and a
 /// secret that has entered `connect_provider` can never be read back across
 /// the boundary.
-/// The snapshot cache as text, or nothing when there is nothing to read.
+/// The snapshot cache, projected, as text. A cache that is not there yet reads
+/// as an empty one; a cache that is there but cannot be read or parsed right
+/// now rejects, so the window keeps what it holds instead of drawing nothing.
 #[tauri::command]
-fn read_cache(app: AppHandle) -> Option<String> {
-    let rows = native_snapshot::display_snapshots(state::read_cache().as_deref());
+fn read_cache(app: AppHandle) -> Result<String, String> {
+    let text = state::read_cache_document()?;
+    let rows = native_snapshot::display_snapshots(text.as_deref());
     let projection = data_rules::for_app(&app, rows, chrono::Utc::now().timestamp_millis());
-    serde_json::to_string(&serde_json::json!({ "version": 2, "snapshots": projection.snapshots, "flags": projection.flags })).ok()
+    serde_json::to_string(&serde_json::json!({ "version": 2, "snapshots": projection.snapshots, "flags": projection.flags }))
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

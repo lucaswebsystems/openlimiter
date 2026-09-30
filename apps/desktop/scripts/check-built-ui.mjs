@@ -162,12 +162,13 @@ async function checkMessyViews(browser, origin) {
   if (shots) await mkdir(shots, { recursive: true });
   const failures = [];
   const hidden = ["Kimi", "Antigravity"];
-  const open = async (theme, viewport, entry, { set = "projected", agents = false, clock = false, cardOpen } = {}) => {
+  const open = async (theme, viewport, entry, { set = "projected", agents = false, clock = false, cardOpen, mac = false } = {}) => {
     const fixtures = set === "tall" ? tallFixtures(Date.now()) : set === "empty" ? emptyFixtures() : messyFixtures(Date.now());
     const payload = set === "raw" ? fixtures.raw : fixtures.projected;
     const context = await browser.newContext({ viewport, deviceScaleFactor: shots ? 2 : 1, colorScheme: theme, serviceWorkers: "block" });
     await context.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
     if (clock) await context.clock.install({ time: new Date() });
+    if (mac) await context.addInitScript(() => Object.defineProperty(Navigator.prototype, "platform", { get: () => "MacIntel" }));
     await context.addInitScript(installFixtureStub, { payload, sessions: agents ? fixtures.sessions : [], theme, version, cardOpen });
     const page = await context.newPage();
     const errors = [];
@@ -289,6 +290,18 @@ async function checkMessyViews(browser, origin) {
         await page.waitForSelector("[data-provider-card], .home-provider-card", { timeout: 5000 }).catch(() => {});
         const before = await page.locator("[data-provider-card], .home-provider-card").count();
         await page.evaluate(() => { window.__failCache = true; });
+        // The next poll fails while everything drawn is still fresh: it all stays, and the status says why.
+        await page.clock.fastForward("00:31");
+        await page.waitForTimeout(400);
+        const held = await page.evaluate(() => ({
+          cards: document.querySelectorAll("[data-provider-card], .home-provider-card").length,
+          status: document.getElementById("home-refresh-status")?.textContent ?? "",
+        }));
+        const kept = [
+          ...(held.cards === before ? [] : [`a failed read left ${held.cards} of ${before} still fresh cards`]),
+          ...(held.status === "The saved readings could not be read just now, so only readings that are still fresh are shown." ? []
+            : [`after a failed read the status says "${held.status}"`]),
+        ];
         await page.clock.fastForward("25:00");
         await page.waitForTimeout(400);
         const findings = await page.evaluate(() => {
@@ -302,7 +315,7 @@ async function checkMessyViews(browser, origin) {
           if (document.getElementById("failures")?.textContent.includes("Manual")) out.push("the failure names Manual");
           return out;
         });
-        record(`Home ${theme}, cache read fails after the readings expire`, [...(before ? [] : ["no cards were drawn before the read failed"]), ...findings, ...errors]);
+        record(`Home ${theme}, cache read fails, then the readings expire`, [...(before ? [] : ["no cards were drawn before the read failed"]), ...kept, ...findings, ...errors]);
       } finally { await context.close(); }
     }
     // The panel reports the height its content needs and is sized to it (native
@@ -342,6 +355,49 @@ async function checkMessyViews(browser, origin) {
         }
       } finally { await context.close(); }
     }
+    // macOS draws the panel opaque with the card stretched to the window. The
+    // report must still follow the content down as well as up: sized to a
+    // tall report, a panel whose content shrinks reports less, and grows back.
+    if (theme === "dark") {
+      const { context, page, errors } = await open(theme, { width: 360, height: 480 }, "edge-panel.html", { set: "tall", agents: true, mac: true });
+      try {
+        const findings = [];
+        const latest = () => page.evaluate(() => window.__heights.at(-1));
+        const sizeTo = async height => {
+          const sized = Math.min(Math.max(height, PANEL_MIN), PANEL_MAX);
+          await page.setViewportSize({ width: 360, height: sized });
+          await settle(page);
+          return sized;
+        };
+        // The panel polls every two seconds while open, so a change shows within one poll.
+        const nextReport = (test, before) => page.waitForFunction(([kind, value]) =>
+          kind === "less" ? window.__heights.at(-1) < value : window.__heights.at(-1) > value, [test, before], { timeout: 6000 }).catch(() => {});
+        await settle(page);
+        if (!(await page.evaluate(() => document.documentElement.classList.contains("opaque")))) findings.push("the macOS opaque layout did not apply");
+        const tall = await latest();
+        const frame = await sizeTo(tall);
+        await page.evaluate(short => { window.__cache = short; window.__sessions = []; }, messyFixtures(Date.now()).projected);
+        await nextReport("less", frame);
+        const short = await latest();
+        // Below the window it was sized to: the content needs less, not the window's height again.
+        if (!(short < frame)) findings.push(`sized to ${frame}, the panel reported ${short} after its content shrank`);
+        await sizeTo(short);
+        const fit = await page.evaluate(() => {
+          const scroll = document.getElementById("panel-scroll");
+          const content = document.getElementById("panel-content") ?? scroll;
+          return { overflow: scroll.scrollHeight - scroll.clientHeight, blank: scroll.clientHeight - content.offsetHeight,
+            again: window.__heights.at(-1) };
+        });
+        if (fit.overflow > 1) findings.push(`sized to its shrunken report ${short}, the panel clips ${fit.overflow} pixels`);
+        if (fit.blank > 1) findings.push(`sized to its shrunken report ${short}, the panel leaves ${fit.blank} blank pixels below its content`);
+        if (fit.again !== short) findings.push(`the panel reported ${fit.again} after being sized to ${short}`);
+        await page.evaluate(() => { window.__cache = null; window.__sessions = null; });
+        await nextReport("more", short);
+        const grown = await latest();
+        if (!(grown > short)) findings.push(`sized to ${short}, the panel reported ${grown} after its content grew back`);
+        record(`Edge panel ${theme}, macOS opaque layout, shrinks and grows with its content (${tall}, ${short}, ${grown})`, [...findings, ...errors]);
+      } finally { await context.close(); }
+    }
     // The collapsed tab at its real 24 by 44, magnified for review, with and
     // without its pill (an agent waiting is what lights it here).
     for (const agents of shots ? [false, true] : []) {
@@ -375,8 +431,9 @@ function installFixtureStub({ payload, sessions, theme, version, cardOpen = true
     core: { invoke: async (name, args) => {
       if (name === "plugin:rail|rail_card_height") { window.__heights.push(args.height); return null; }
       if (name === "read_cache") {
-        if (window.__failCache) throw new Error("fixture cache read failure");
-        return JSON.stringify(payload);
+        // What Tauri hands the window for an Err(String): a rejection carrying the sentence.
+        if (window.__failCache) return Promise.reject("The saved readings could not be read.");
+        return JSON.stringify(window.__cache ?? payload);
       }
       if (name === "connection_flags") return payload.flags ?? [];
       if (name === "read_manual") return "";
@@ -387,7 +444,7 @@ function installFixtureStub({ payload, sessions, theme, version, cardOpen = true
       if (name === "plugin:activity|activity_notification_preferences") return {
         sound: "silent", local: { enabled: false, quietHours: null, mutedProviders: [] },
       };
-      if (name === "plugin:rail|rail_snapshot") return { accounts: [], flags: payload.flags ?? [], sessions,
+      if (name === "plugin:rail|rail_snapshot") return { accounts: [], flags: payload.flags ?? [], sessions: window.__sessions ?? sessions,
         window: { available: true, visible: true, unfolded: true, keepOpen: false, offset: 0, cardOpen, cardAnchor: null } };
       if (["list_connections", "disabled_providers", "notification_events"].includes(name)) return [];
       if (name === "list_detected_providers") return { providers: [] };

@@ -104,6 +104,12 @@ html.opaque .p-card {
   scrollbar-width: thin;
 }
 
+/* What the panel measures: the content at its own height, never stretched to
+   the scroller, and holding its children's margins. */
+.p-content {
+  display: flow-root;
+}
+
 .p-agents {
   padding: 0.5rem 0.5rem 0.25rem;
   border-bottom: 1px solid var(--ol-hairline);
