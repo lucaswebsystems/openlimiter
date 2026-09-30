@@ -2,9 +2,10 @@
  * The 2.1 providers are registered everywhere and switched on nowhere.
  *
  * One switch per provider lives in three places, and this suite holds them
- * together: its code in PENDING_PROVIDER_CODES here, `ENABLED` in its Rust
- * module, and `enabled` in its registry spec. It also proves what "switched
- * off" means on this side: never stored, never attributed, never advised on.
+ * together: `enabled` in its descriptor in src/providers (which
+ * PENDING_PROVIDER_CODES follows), `ENABLED` in its Rust module, and `enabled`
+ * in its registry spec. It also proves what "switched off" means on this side:
+ * never stored, never attributed, never advised on.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";

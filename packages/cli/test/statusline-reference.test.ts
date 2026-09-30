@@ -94,6 +94,24 @@ describe("Lucas reference layout", () => {
     expect(render([balance({ value: 4.2, currency: "USD" }), row({ provider: "KIMI", value: 30 })])).toMatch(/^km5h \[███░░░░░░░\] 30%/u);
   });
 
+  it("keeps a legacy OpenRouter credits row and draws balances in both layouts", () => {
+    /* Credits with a money pair and no kind are the used share of that money
+       under the meter contract: the bar layout's OpenRouter cell and the cells
+       layout's bar both keep drawing them, and a balance has a cell in both. */
+    const legacy: Snapshot = row({
+      provider: "OPENROUTER", meter: "CREDITS", unit: "CREDITS", value: 62, window: { kind: "lifetime" },
+      usedAmount: 12.4, limitAmount: 20, currency: "USD", resetAt: null
+    });
+    expect(render([legacy])).toBe("or $7.60");
+    const balance = row({
+      provider: "KIMI", meter: "BALANCE", unit: "CREDITS", kind: "money_balance", value: 12.47,
+      window: { kind: "lifetime" }, resetAt: null
+    });
+    const cells = render([row({}), legacy, balance], { config: { ...DEFAULT_STATUSLINE, style: "cells" } });
+    expect(cells).toMatch(/OPENROUTER:CREDITS \S+ 62(\.0)?%/u);
+    expect(cells).toContain("KIMI:BALANCE 12.47 credits left");
+  });
+
   it("never draws unknown markers, even for a selected provider, and leaves dormant accounts out", () => {
     expect(render([])).toBe("OpenLimiter UNKNOWN");
     const config = { ...DEFAULT_STATUSLINE, visibility: { codex: true } };

@@ -23,11 +23,15 @@ Evidence uses `provider_version`, `account_shape`, `os`, `date`; only
 `VERIFIED_LIVE` may carry it. Live evidence remains optional.
 
 `toWireSampleV3(snapshot)` copies declared metadata. Like the existing CLI,
-it uses `accountId ?? "default"` and the meter as `window_id`. A percent
-reading becomes `usage_percent`, and `usedAmount` becomes `amount`, in its
-original currency. A nonpercent reading needs an explicit amount or
-availability; unit alone never determines its kind or currency. Availability
-suppresses numeric percent, including a placeholder zero. `retry_at` is only
+it uses `accountId ?? "default"` and the meter as `window_id`. The meter
+contract (`meterReading` in `data-rules.ts`) decides the numbers: a used share
+becomes `usage_percent`, and its money pair's `usedAmount` becomes `amount`, in
+its original currency; any other measure (a balance, a spend, a count) becomes
+its own value as `amount` in its stated currency, with `kind` carrying its
+direction. An amount with no currency has no v3 representation until the
+contract carries its unit, and is refused rather than guessed; unit alone never
+determines kind or currency. Availability suppresses numeric percent,
+including a placeholder zero. `retry_at` is only
 valid with `rate_limited`. Staleness is evaluated at conversion time
 (`expiresAt <= now`); the optional second argument supplies an explicit
 clock for deterministic tests and senders.

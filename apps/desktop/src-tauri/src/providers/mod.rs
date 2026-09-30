@@ -1,10 +1,12 @@
 //! The 2.1 providers, one module each, every one registered and switched off.
 //!
-//! A provider lane writes only its own module here, its connector, its fixtures
-//! and its registry spec. Every closed list and every shared function already
-//! names it and reaches into its module for the provider specific answer, so
-//! parallel lanes never edit the same line. `lanes/P1-wiring-checklist.md` in
-//! the launch workspace lists every file and function, in order.
+//! A provider lane writes only its own module here, its connector, its
+//! TypeScript descriptor in packages/core/src/providers, its registry spec, its
+//! fixtures and its tests. Every closed list and every shared function already
+//! names it and reads the provider specific answer from its module or its
+//! descriptor, so parallel lanes never edit the same line.
+//! `lanes/P1-wiring-checklist.md` in the launch workspace lists what a lane
+//! writes, in order.
 
 pub(crate) mod amp;
 pub(crate) mod augment;

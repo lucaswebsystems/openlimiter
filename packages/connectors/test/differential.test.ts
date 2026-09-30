@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { normalizeMeters, type RawMeter } from "@openlimiter/core";
@@ -7,15 +7,38 @@ import { parseCodexPayload } from "../src/codex.js";
 import { parseOpenrouterPayload } from "../src/openrouter.js";
 import { parseKimiPayload } from "../src/kimi.js";
 import { parseCursorPayload } from "../src/cursor.js";
+import { parseSyntheticPayload } from "../src/synthetic.js";
+import { parseZaiPayload } from "../src/zai.js";
+import { parseMinimaxPayload } from "../src/minimax.js";
+import { parseClinePayload } from "../src/cline.js";
+import { parseAugmentPayload } from "../src/augment.js";
+import { parseAmpPayload } from "../src/amp.js";
+import { parseKiloPayload } from "../src/kilo.js";
+import { parseCopilotPayload } from "../src/copilot.js";
 
 const root = resolve(process.cwd(), "packages/connectors/fixtures");
-const providers = ["claude", "codex", "openrouter", "kimi", "cursor"] as const;
-type Provider = typeof providers[number];
+/* The 2.1 providers join when their lane adds a corpus folder: the folder is
+   the registration, and nothing in this file names a case. */
+const wave = {
+  synthetic: parseSyntheticPayload,
+  zai: parseZaiPayload,
+  minimax: parseMinimaxPayload,
+  cline: parseClinePayload,
+  augment: parseAugmentPayload,
+  amp: parseAmpPayload,
+  kilo: parseKiloPayload,
+  copilot: parseCopilotPayload
+};
+const providers = [
+  "claude", "codex", "openrouter", "kimi", "cursor",
+  ...Object.keys(wave).filter((provider) => existsSync(resolve(root, "cases", provider)))
+];
+type Provider = string;
 type Answer = { outcome: "readings" | "rejected"; readings: unknown[] };
 interface Case {
   provider: Provider;
   case: string;
-  reader: "usage" | "credits" | "key";
+  reader: string;
   now: string;
   status: number;
   headers: Record<string, string>;
@@ -25,12 +48,13 @@ interface Case {
 interface Expected {
   expected: Answer;
 }
-const parsers = {
+const parsers: Record<string, (payload: unknown, now: string) => RawMeter[] | null> = {
   claude: parseClaudePayload,
   codex: parseCodexPayload,
   openrouter: parseOpenrouterPayload,
   kimi: parseKimiPayload,
-  cursor: parseCursorPayload
+  cursor: parseCursorPayload,
+  ...wave
 };
 const json = <T>(path: string): T => JSON.parse(readFileSync(path, "utf8")) as T;
 function text(value: unknown): string {
@@ -86,13 +110,14 @@ describe("shared differential provider corpus", () => {
         expect(spec.provider).toBe(provider);
         expect(name).toBe(spec.case + ".json");
         expect(spec.now).toBe("2026-08-07T12:00:00.000Z");
-        expect(spec.reader).toMatch(provider === "openrouter" ? /^(key|credits)$/u : /^usage$/u);
+        expect(spec.reader).toMatch(provider === "openrouter" ? /^(key|credits)$/u
+          : provider in wave ? /^[a-z][a-z_]*$/u : /^usage$/u);
         expect([200, 401, 403, 429]).toContain(spec.status);
         expect(spec.headers).toEqual(spec.status === 429 ? { "retry-after": "120" } : {});
         expect(spec.fixture === undefined).toBe(Object.hasOwn(spec, "body"));
         const body = spec.fixture === undefined ? spec.body : json<unknown>(resolve(root, spec.fixture));
         // Even error bodies reach the parser. No test-only HTTP status shortcut can hide acceptance.
-        const rows = parsers[provider](body, spec.now);
+        const rows = parsers[provider]!(body, spec.now);
         const actual = normalize(rows);
         if (provider === "cursor" && rows !== null) {
           expect(normalizeMeters(rows)).toHaveLength(rows.length);

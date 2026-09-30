@@ -1,5 +1,6 @@
 import {
   PROVIDER_CODES,
+  WAVE_PROVIDERS,
   floorFixed,
   freshness,
   meterAmountText,
@@ -43,17 +44,11 @@ const PROVIDER_CLASS: Record<ProviderCode, "subscription" | "api"> = {
   CURSOR: "subscription",
   MANUAL: "subscription",
   OPENROUTER: "api",
-  /* The 2.1 providers. None is ordered, drawn or advised on while its code
-     is pending, because DEFAULT_PROVIDER_ORDER reads PROVIDER_CODES. */
-  SYNTHETIC: "subscription",
-  ZAI: "subscription",
-  MINIMAX: "subscription",
-  CLINE: "api",
-  AUGMENT: "subscription",
-  AMP: "api",
-  KILO: "api",
-  COPILOT: "subscription"
-};
+  /* The 2.1 providers, from their own descriptors. None is ordered, drawn or
+     advised on while it is switched off, because DEFAULT_PROVIDER_ORDER reads
+     PROVIDER_CODES. */
+  ...Object.fromEntries(WAVE_PROVIDERS.map((provider) => [provider.code, provider.statuslineClass]))
+} as Record<ProviderCode, "subscription" | "api">;
 
 export const DEFAULT_PROVIDER_ORDER: readonly ProviderCode[] = [
   ...PROVIDER_CODES.filter((code) => PROVIDER_CLASS[code] === "subscription"),
@@ -226,6 +221,45 @@ interface Reading {
   state: "fresh" | "stale";
 }
 
+/* What a status line can draw, by the meter contract: a used share (a bar,
+   whatever unit it was stated in) or a balance (its amount). A spend, a count
+   and an amount nobody gave a direction have no cell. */
+function drawable(snapshot: Snapshot): boolean {
+  const measure = meterReading(snapshot)?.measure;
+  return measure === "percent" || measure === "balance";
+}
+
+/* How close a reading is to its limit: a used share, or nothing at all for a
+   balance, which has no percentage to compare and so never outranks one. */
+function pressure(snapshot: Snapshot): number {
+  return meterReading(snapshot)?.usedPercent ?? -1;
+}
+
+/* A balance as a cell: its amount in its own unit, and the word that says it
+   is what is left. */
+function balanceCell(label: string, snapshot: Snapshot, state: "fresh" | "stale"): StatuslineCell {
+  const reading = meterReading(snapshot)!;
+  const text = label + " " + (state === "stale" ? "~" : "") + meterAmountText(reading) + " left";
+  return { plain: text, painted: text, percent: -1 };
+}
+
+/**
+ * The rows of the accounts that are active now, when something authoritative
+ * says which they are: a row of any other account of that provider is a
+ * previous account's leftover and is not drawn. A row with no account cannot
+ * be attributed, so it stays, exactly as before.
+ */
+export function activeAccountRows(
+  snapshots: readonly Snapshot[],
+  active: ReadonlyMap<string, ReadonlySet<string>> | null | undefined
+): Snapshot[] {
+  if (!active) return [...snapshots];
+  return snapshots.filter((snapshot) => {
+    const accounts = active.get(snapshot.provider);
+    return accounts === undefined || snapshot.accountId === undefined || accounts.has(snapshot.accountId);
+  });
+}
+
 function readingsFor(
   snapshots: readonly Snapshot[],
   provider: ProviderCode,
@@ -241,7 +275,7 @@ function readingsFor(
   }
   // Dormant accounts remain in the cache, but cannot displace an active account.
   const readings = providerRows
-    .filter((snapshot) => (snapshot.unit === "PERCENT" || meterReading(snapshot)?.measure === "balance" || isAvailabilitySnapshot(snapshot)) &&
+    .filter((snapshot) => (drawable(snapshot) || isAvailabilitySnapshot(snapshot)) &&
       Date.parse(now) - (latestAccount.get(snapshot.accountId) ?? 0) <= ONE_DAY * 1000)
     .map((snapshot) => ({
       snapshot,
@@ -291,34 +325,22 @@ export function statuslineCells(
   wide?: boolean
 ): readonly StatuslineCell[] {
   const cells: StatuslineCell[] = [];
+  const cell = (label: string, reading: Reading): StatuslineCell =>
+    isAvailabilitySnapshot(reading.snapshot) ? availabilityCell(label, reading.snapshot, now)
+      : meterReading(reading.snapshot)?.measure === "balance" ? balanceCell(label, reading.snapshot, reading.state)
+      : buildCell(label, reading.snapshot, reading.state, color, wide);
   for (const provider of order) {
-    const readings = readingsFor(snapshots.filter((snapshot) => snapshot.unit === "PERCENT" || isAvailabilitySnapshot(snapshot)), provider, now);
+    const readings = readingsFor(snapshots, provider, now);
     if (readings.length === 0) continue;
     if (meters === "all") {
-      for (const reading of readings) {
-        if (isAvailabilitySnapshot(reading.snapshot)) {
-          cells.push(availabilityCell(provider, reading.snapshot, now));
-          continue;
-        }
-        cells.push(buildCell(
-          provider + ":" + reading.snapshot.meter,
-          reading.snapshot,
-          reading.state,
-          color,
-          wide
-        ));
-      }
+      for (const reading of readings) cells.push(cell(provider + ":" + reading.snapshot.meter, reading));
       continue;
     }
     let worst = readings[0]!;
     for (const reading of readings.slice(1)) {
-      if (reading.snapshot.value > worst.snapshot.value) worst = reading;
+      if (pressure(reading.snapshot) > pressure(worst.snapshot)) worst = reading;
     }
-    if (isAvailabilitySnapshot(worst.snapshot)) {
-      cells.push(availabilityCell(provider, worst.snapshot, now));
-      continue;
-    }
-    cells.push(buildCell(provider, worst.snapshot, worst.state, color, wide));
+    cells.push(cell(provider, worst));
   }
   return cells;
 }
@@ -450,15 +472,8 @@ export const PROVIDER_SHORT_TAGS: Readonly<Record<ProviderCode, string>> = {
   OPENCODE: "oc",
   OPENROUTER: "or",
   MANUAL: "mn",
-  SYNTHETIC: "sy",
-  ZAI: "za",
-  MINIMAX: "mm",
-  CLINE: "cn",
-  AUGMENT: "au",
-  AMP: "am",
-  KILO: "kc",
-  COPILOT: "cp"
-};
+  ...Object.fromEntries(WAVE_PROVIDERS.map((provider) => [provider.code, provider.statuslineTag]))
+} as Record<ProviderCode, string>;
 
 export const HOST_PROVIDER: Readonly<Record<StatuslineHost, ProviderCode | null>> = {
   claude: "CLAUDE",
@@ -573,11 +588,9 @@ export function barStyleCells(
     } else {
       /* A balance has no percentage to compare, so any percent outranks it
          and it is chosen only when a provider states nothing else. */
-      const pressure = (reading: Reading): number =>
-        reading.snapshot.unit === "PERCENT" ? reading.snapshot.value : -1;
       let worst = readings[0]!;
       for (const r of readings.slice(1)) {
-        if (pressure(r) > pressure(worst)) worst = r;
+        if (pressure(r.snapshot) > pressure(worst.snapshot)) worst = r;
       }
       selectedReadings = [worst];
     }

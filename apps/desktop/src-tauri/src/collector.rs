@@ -136,7 +136,7 @@ pub async fn collect_core<T: Transport>(
         },
     )
     .await?;
-    let (generation, reader, status, body, retry_after) = match outcome {
+    let (generation, reader, account_id, status, body, retry_after) = match outcome {
         ProbeOutcome::TransportFailure {
             attempt_generation: _,
             failure,
@@ -153,6 +153,7 @@ pub async fn collect_core<T: Transport>(
         ProbeOutcome::Response {
             attempt_generation,
             reader_id,
+            account_id,
             status,
             body,
             retry_after_seconds,
@@ -160,6 +161,7 @@ pub async fn collect_core<T: Transport>(
         } => (
             attempt_generation,
             reader_id,
+            account_id,
             status,
             body,
             retry_after_seconds,
@@ -184,13 +186,16 @@ pub async fn collect_core<T: Transport>(
         ));
     };
     let observed_ms = now_epoch_ms();
-    let Some(snapshots) = parse_body(reader, &body, observed_ms, &record.id) else {
+    /* Filed under the identity of the credential this request sent, the one
+    projection treats as the saved connection's account, never under the
+    connection's own id. */
+    let Some(snapshots) = parse_body(reader, &body, observed_ms, &account_id) else {
         let observed_at = iso_from_epoch_ms(observed_ms).ok_or(CommandFailure::Protocol)?;
         let suppressed = if matches!(mode, CollectionMode::Refresh) {
             commit_report(
                 writer,
                 record.provider_id.code().to_string(),
-                record.id.clone(),
+                account_id.clone(),
                 CacheReport::Drift { observed_at },
             )
             .await
@@ -232,7 +237,7 @@ pub async fn collect_core<T: Transport>(
     let committed = commit_report(
         writer,
         record.provider_id.code().to_string(),
-        record.id.clone(),
+        account_id,
         CacheReport::Success(snapshots),
     )
     .await;
@@ -388,6 +393,85 @@ mod tests {
         assert!(cache.contains("40.0"));
         assert!(cache.contains("92.0"));
         assert!(cache.contains("15.0"));
+    }
+
+    #[tokio::test]
+    async fn saved_key_readings_and_drift_are_filed_under_the_request_credential_identity() {
+        /* The identity a saved key polls under is the one projection treats as
+        active. Filing the rows under the connection's own id made every saved
+        key reading `account_not_connected`. */
+        let dir = TempDir::new();
+        let connections = ConnectionsStore::at(Some(dir.path().to_path_buf()));
+        let secrets = InMemorySecrets::new();
+        let record = connect_core(
+            &connections,
+            &secrets,
+            ConnectProviderInput {
+                provider_id: ProviderId::Openrouter,
+                credential_kind: CredentialKind::OpenrouterManagementKey,
+                account_alias: "fixture account".to_string(),
+                secret: FIXTURE_SECRET.to_string(),
+            },
+        )
+        .expect("fixture connection");
+        let identity = crate::poll_identity::resolve_connection(&record, &secrets);
+        let writer = Arc::new(CacheWriter::at(Some(dir.path().to_path_buf())));
+        async fn collect(
+            connections: &ConnectionsStore,
+            secrets: &InMemorySecrets,
+            writer: &Arc<CacheWriter>,
+            id: &str,
+            body: &[u8],
+        ) {
+            let transport = RecordingTransport::replying(200, body.to_vec(), None);
+            collect_core(
+                connections,
+                secrets,
+                &transport,
+                Arc::clone(writer),
+                id.to_string(),
+                CollectionMode::Refresh,
+            )
+            .await
+            .expect("fixture collection");
+        }
+        collect(
+            &connections,
+            &secrets,
+            &writer,
+            &record.id,
+            include_bytes!("../../../../packages/connectors/fixtures/openrouter.credits.json"),
+        )
+        .await;
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("fixture cache");
+        let rows = crate::native_snapshot::display_snapshots(Some(&cache));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].account_id.as_deref(), Some(identity.account_id()));
+        let active = crate::data_rules::ActiveAccounts::from([(
+            "OPENROUTER".to_string(),
+            std::collections::BTreeSet::from([identity.account_id().to_string()]),
+        )]);
+        let projection = crate::data_rules::project(
+            rows,
+            now_epoch_ms() as i64,
+            &active,
+            &std::collections::BTreeSet::new(),
+        );
+        assert_eq!(projection.snapshots.len(), 1, "{:?}", projection.flags);
+        /* A drift is suppressed under the same identity, so it silences the
+        rows it is about and nothing else. */
+        /* The completion rate bound is about real round trips; this test makes
+        a second one at once on purpose. */
+        connections
+            .update(&record.id, |it| it.last_completion_at = None)
+            .expect("reset the completion clock");
+        collect(&connections, &secrets, &writer, &record.id, br#"{"data":{}}"#).await;
+        let cache = fs::read_to_string(dir.path().join(CACHE_FILE_NAME)).expect("fixture cache");
+        let document: serde_json::Value = serde_json::from_str(&cache).expect("cache document");
+        assert_eq!(
+            document["suppressions"][0]["accountId"].as_str(),
+            Some(identity.account_id())
+        );
     }
 
     #[tokio::test]

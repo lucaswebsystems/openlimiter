@@ -1,12 +1,9 @@
 import type { ConnectionStatus, SnapshotAvailability } from "./connection-state.js";
+import { WAVE_PROVIDERS, type WaveProviderCode } from "./providers/index.js";
 export type { SnapshotAvailability } from "./connection-state.js";
 
-/**
- * The providers this build has switched on: the ones it stores, shows, polls,
- * advises on and names on the status line. Every "which providers are there"
- * question in the product reads this list.
- */
-export const PROVIDER_CODES = [
+/** The providers that shipped before the 2.1 wave, always switched on. */
+const SHIPPED_PROVIDER_CODES = [
   "CLAUDE",
   "OPENROUTER",
   "CODEX",
@@ -15,46 +12,38 @@ export const PROVIDER_CODES = [
   "OPENCODE",
   "GROK",
   "KIMI",
-  "CURSOR",
-  /* 2.1 lane P1a: SYNTHETIC joins on the line below when it is switched on. */
-  /* 2.1 lane P1b: ZAI, MINIMAX and CLINE join on the line below. */
-  /* 2.1 lane P1c: AUGMENT, AMP, KILO and COPILOT join on the line below. */
-  "MANUAL"
+  "CURSOR"
 ] as const;
 
 /**
- * The 2.1 providers: registered in every closed list, switched off.
- *
- * They are part of `ProviderCode`, so every table keyed by provider already
- * names them and the lanes that build them write only their own modules. None
- * of them is stored, displayed or polled while it sits here: the normalizer,
- * the advice policy and the status line read PROVIDER_CODES above, so a row
- * naming one of these is refused like an unknown code, and refused anonymously.
- *
- * Switching one on is one change in three places, listed in the wiring
- * checklist and held together by tests: its code moves from here into
- * PROVIDER_CODES, `ENABLED` flips in its Rust module, and `enabled` flips in its
- * registry spec. Each lane's codes sit under their own comment here and join
- * PROVIDER_CODES under their own comment there, so lanes working in parallel
- * never edit neighbouring lines.
+ * Every provider code the product knows. The 2.1 providers are part of it, so
+ * every table keyed by provider already names them and the lanes that build
+ * them write only their own files.
  */
-export const PENDING_PROVIDER_CODES = [
-  /* 2.1 lane P1a */
-  "SYNTHETIC",
-  /* 2.1 lane P1b */
-  "ZAI",
-  "MINIMAX",
-  "CLINE",
-  /* 2.1 lane P1c */
-  "AUGMENT",
-  "AMP",
-  "KILO",
-  "COPILOT"
-] as const;
+export type ProviderCode = (typeof SHIPPED_PROVIDER_CODES)[number] | WaveProviderCode | "MANUAL";
 
-export type ProviderCode =
-  | (typeof PROVIDER_CODES)[number]
-  | (typeof PENDING_PROVIDER_CODES)[number];
+/**
+ * The providers this build has switched on: the ones it stores, shows, polls,
+ * advises on and names on the status line. Every "which providers are there"
+ * question in the product reads this list. A 2.1 provider joins it when its
+ * own descriptor in `providers/` says `enabled: true`, and nowhere else.
+ */
+export const PROVIDER_CODES: readonly ProviderCode[] = [
+  ...SHIPPED_PROVIDER_CODES,
+  ...WAVE_PROVIDERS.filter((provider) => provider.enabled).map((provider) => provider.code),
+  "MANUAL"
+];
+
+/**
+ * The 2.1 providers still switched off. None of them is stored, displayed or
+ * polled: the normalizer, the advice policy and the status line read
+ * PROVIDER_CODES, so a row naming one of these is refused like an unknown
+ * code, and refused anonymously. Its switch lives in three places, each the
+ * provider lane's own file and held together by tests: `enabled` in its
+ * descriptor here, `ENABLED` in its Rust module, and `enabled` in its spec.
+ */
+export const PENDING_PROVIDER_CODES: readonly ProviderCode[] =
+  WAVE_PROVIDERS.filter((provider) => !provider.enabled).map((provider) => provider.code);
 
 /** Whether a code names a provider this build has switched on. */
 export function isEnabledProviderCode(value: unknown): value is ProviderCode {

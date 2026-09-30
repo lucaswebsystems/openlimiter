@@ -4293,23 +4293,32 @@ mod tests {
     }
 
     #[test]
-    fn the_typescript_pending_list_names_exactly_the_switched_off_providers() {
-        let types = include_str!("../../../../packages/core/src/types.ts");
-        let list = types
-            .split("export const PENDING_PROVIDER_CODES = [")
-            .nth(1)
-            .and_then(|rest| rest.split(']').next())
-            .expect("the pending list");
-        /* Every quoted code, whatever lane comments sit between them. */
-        let pending: BTreeSet<&str> = list.split('"').skip(1).step_by(2).collect();
-        let switched_off: BTreeSet<String> = DetectedProviderId::ALL
+    fn every_typescript_descriptor_agrees_with_its_rust_module() {
+        /* One switch and one cadence per 2.1 provider, stated in the lane's
+        own TypeScript descriptor and its own Rust module, and never apart. */
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../packages/core/src/providers");
+        for provider in DetectedProviderId::ALL
             .into_iter()
-            .filter(|provider| !provider.enabled())
-            .map(|provider| provider.slug().to_uppercase())
-            .collect();
-        assert_eq!(
-            pending.iter().map(|code| code.to_string()).collect::<BTreeSet<_>>(),
-            switched_off
-        );
+            .filter(|provider| provider.footprint().is_some())
+        {
+            let text = fs::read_to_string(root.join(format!("{}.ts", provider.slug())))
+                .expect("a descriptor");
+            let field = |name: &str| {
+                text.split(&format!("{name}: "))
+                    .nth(1)
+                    .and_then(|rest| rest.split([',', '\n']).next())
+                    .map(str::trim)
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            let slug = provider.slug();
+            assert_eq!(field("code"), format!("\"{}\"", slug.to_uppercase()), "{slug}");
+            assert_eq!(field("enabled"), provider.enabled().to_string(), "{slug}");
+            assert_eq!(
+                field("intervalSeconds").parse::<u64>().ok(),
+                Some(crate::request_policy::provider_interval_seconds(provider)),
+                "{slug}"
+            );
+        }
     }
 }

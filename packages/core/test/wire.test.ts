@@ -109,6 +109,19 @@ describe("Snapshot to wire v3", () => {
     expect(wire.usage_percent).toBeUndefined();
   });
 
+  it("carries a balance as its amount, its currency and its direction", () => {
+    const wire = toWireSampleV3({ ...snapshot, unit: "CREDITS", value: 12.34, kind: "money_balance", currency: "USD" });
+    expect(wire).toMatchObject({ amount: 12.34, currency: "USD", kind: "money_balance" });
+    expect(wire).not.toHaveProperty("usage_percent");
+    expect(readWireSample(wire)).toMatchObject({ amount: 12.34, currency: "USD", kind: "money_balance" });
+  });
+
+  it("never turns unlimited into a percentage", () => {
+    const wire = toWireSampleV3({ ...snapshot, value: 0, availability: "unlimited" });
+    expect(wire).not.toHaveProperty("usage_percent");
+    expect(wire.availability).toBe("unlimited");
+  });
+
   it("rejects nonpercent snapshots without an explicit representable amount", () => {
     expect(() => toWireSampleV3({ ...snapshot, unit: "TOKENS", kind: "token_count" })).toThrow("unit has no v2 usage representation");
   });

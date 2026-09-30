@@ -1,3 +1,4 @@
+import { switchedOnWave } from "./names.js";
 export const CONFIGURED_PROVIDERS_STORAGE_KEY =
   "openlimiter-configured-providers-v1";
 export const REMOVED_PROVIDERS_STORAGE_KEY = "openlimiter-removed-providers-v1";
@@ -82,12 +83,9 @@ const ALLOWED = new Set([
   "GROK",
   "KIMI",
   "CURSOR",
-  /* The 2.1 providers join when they are switched on, never before, so a
-     stored list can never name one early. Each lane adds its codes below its
-     own line. */
-  // 2.1 lane P1a
-  // 2.1 lane P1b
-  // 2.1 lane P1c
+  /* A 2.1 provider joins once its registry entry is switched on, never
+     before, so a stored list can never name one early. */
+  ...switchedOnWave().map((provider) => provider.code),
 ]);
 
 function normalized(provider) {

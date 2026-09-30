@@ -358,6 +358,10 @@ pub enum ProbeOutcome {
     Response {
         connection_id: String,
         reader_id: ReaderId,
+        /// The account the credential this request sent names, which every
+        /// reading and suppression from it is filed under. Native only.
+        #[serde(skip)]
+        account_id: String,
         attempt_generation: u64,
         status: u16,
         /// Present only for a status in the 200 range. Every other body is
@@ -732,6 +736,9 @@ pub(crate) async fn probe_core<T: Transport>(
     let secret = secrets.read_secret(&record.id)?;
     let migrated = migrate_codex_credential_if_needed(connections, secrets, &mut record, &secret)?;
     let request_secret = migrated.as_deref().unwrap_or(&secret);
+    let account_id = crate::poll_identity::identity_for_secret(&record, Some(request_secret))
+        .account_id()
+        .to_string();
     let opened = open_attempt(connections, &record.id)?;
     let attempt_generation = opened.attempt_generation;
     let fetched = fetch_endpoint(
@@ -761,6 +768,7 @@ pub(crate) async fn probe_core<T: Transport>(
             Ok(ProbeOutcome::Response {
                 connection_id: record.id,
                 reader_id: route.reader_id,
+                account_id,
                 attempt_generation,
                 status: outcome.status,
                 body: outcome.body,

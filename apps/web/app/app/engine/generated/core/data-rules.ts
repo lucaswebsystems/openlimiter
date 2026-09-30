@@ -6,6 +6,7 @@
  * the script again.
  */
 import { floorFixed } from "./format";
+import { WAVE_PROVIDERS } from "./providers/index";
 import type { Snapshot, SnapshotAmounts, SnapshotCurrency, SnapshotUnit } from "./types";
 
 export const RETENTION_MILLISECONDS = 7 * 86_400_000;
@@ -147,31 +148,18 @@ export function isConnectionNote(reason: string): boolean {
   return (CONNECTION_NOTE_REASONS as readonly string[]).includes(reason);
 }
 
+/*
+ * Seconds between desktop reads, per provider. Rust twin:
+ * request_policy::provider_interval_seconds, held equal by a test in
+ * data_rules.rs. A 2.1 provider states its own in its descriptor.
+ */
+const desktopIntervals: Readonly<Record<string, number>> = {
+  CLAUDE: 900, GEMINI_CLI: 900, ANTIGRAVITY: 600, CODEX: 300, CURSOR: 300, GROK: 300, KIMI: 300, OPENROUTER: 300, OPENCODE: 300,
+  ...Object.fromEntries(WAVE_PROVIDERS.map((provider) => [provider.code, provider.intervalSeconds]))
+};
+
 /** Rust twin: data_rules::freshness_policy. Poll jitter plus bounded request latency. */
 export function freshnessPolicy(input: { sourceClass: string; observedAt: string; now: string; provider?: string; writer?: string }) {
-  /* Rust twin: request_policy::provider_interval_seconds, held equal to this
-     table by a test in data_rules.rs. One provider per line, and each 2.1
-     provider between two that shipped before it, so lanes that change their
-     own cadence in parallel never edit neighbouring lines. */
-  const desktopIntervals: Readonly<Record<string, number>> = {
-    CLAUDE: 900,
-    SYNTHETIC: 900,
-    GEMINI_CLI: 900,
-    ZAI: 900,
-    ANTIGRAVITY: 600,
-    MINIMAX: 900,
-    CODEX: 300,
-    CLINE: 900,
-    CURSOR: 300,
-    AUGMENT: 900,
-    GROK: 300,
-    AMP: 900,
-    KIMI: 300,
-    KILO: 900,
-    OPENROUTER: 300,
-    COPILOT: 900,
-    OPENCODE: 300
-  };
   const interval = input.sourceClass === "native_payload" ? 60
     : input.writer === "desktop" ? desktopIntervals[input.provider ?? ""] ?? 900 : 900;
   const ttlSeconds = interval * 1.2 + 60;
@@ -219,8 +207,14 @@ export function projectSnapshots(rows: readonly Snapshot[], now: string, active?
   const flags = new Map<string, ConnectionFlag>();
   for (const row of rows) {
     const accounts = active?.get(row.provider);
-    const reason = row.availability ?? (accounts !== undefined && (!row.accountId || !accounts.has(row.accountId))
-      ? "account_not_connected" : displayReason(row, now));
+    const foreign = accounts !== undefined && (!row.accountId || !accounts.has(row.accountId));
+    const note = row.availability !== undefined && isConnectionNote(row.availability);
+    /* A note speaks for the account connected now, and only while it is
+       fresh; every other availability stays the flag it always was. */
+    const reason = row.availability !== undefined && !note ? row.availability
+      : foreign ? "account_not_connected"
+      : note ? (freshnessPolicy({ ...row, sourceClass: row.source, now }).availability === "fresh" ? row.availability! : "stale")
+      : displayReason(row, now);
     if (reason === null) snapshots.push({ ...row, expiresAt: freshnessPolicy({ ...row, sourceClass: row.source, now }).expiresAt });
     else flags.set([row.provider, row.accountId, reason].join(":"), {
       provider: row.provider, ...(row.accountId ? { accountId: row.accountId } : {}), reason, fixKind: fixKind(reason)

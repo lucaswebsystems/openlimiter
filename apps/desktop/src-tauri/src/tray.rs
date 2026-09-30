@@ -419,17 +419,15 @@ mod tests {
 
     #[test]
     fn every_supported_provider_reaches_the_tray() {
-        let rendered = view(vec![
-            status("CLAUDE", None),
-            status("OPENROUTER", None),
-            status("CODEX", None),
-            status("ANTIGRAVITY", None),
-            status("GEMINI_CLI", None),
-            status("OPENCODE", None),
-            status("GROK", None),
-            status("KIMI", None),
-            status("CURSOR", None),
-        ])
+        /* Every provider this build has switched on, a 2.1 provider included
+        once its module says so. */
+        let rendered = view(
+            TRAY_PROVIDERS
+                .iter()
+                .filter(|(_, detected)| detected.enabled())
+                .map(|(code, _)| status(code, None))
+                .collect(),
+        )
         .expect("every provider is valid");
         assert_eq!(rendered.providers.len(), PROVIDER_LIMIT);
         assert_eq!(rendered.providers[6].name, "Grok (xAI)");

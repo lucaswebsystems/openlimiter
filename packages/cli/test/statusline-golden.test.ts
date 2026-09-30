@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildAdvice, type Snapshot } from "@openlimiter/core";
+import { PROVIDER_CODES, WAVE_PROVIDERS, buildAdvice, type Snapshot } from "@openlimiter/core";
 import { DEFAULT_STATUSLINE } from "../src/config.js";
 import { renderStatuslineLayout, STATUSLINE_HOSTS, tenBlockBar } from "../src/statusline.js";
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
@@ -15,7 +15,10 @@ import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js
 
 const GOLDEN_DIR = path.join(process.cwd(), "packages/cli/test/golden");
 const WIDTHS = [80, 120, 160] as const;
-const ADVICE = buildAdvice(GOLDEN_SNAPSHOTS, GOLDEN_NOW);
+/* Measured against the providers that shipped before the 2.1 wave, so the
+   golden files do not move when a 2.1 provider is switched on. */
+const ADVICE = buildAdvice(GOLDEN_SNAPSHOTS, GOLDEN_NOW,
+  PROVIDER_CODES.filter((code) => !WAVE_PROVIDERS.some((provider) => provider.code === code)));
 
 describe("account and freshness status line goldens", () => {
   const row = (overrides: Partial<Snapshot> = {}): Snapshot => ({ ...GOLDEN_SNAPSHOTS[0]!, resetAt: null, ...overrides });

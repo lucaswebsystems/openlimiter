@@ -117,11 +117,12 @@ export function attentionFlags(flags, snapshots, removed = []) {
 
 /**
  * Connected: every provider switched on that is measured right now, detected
- * with a login on this computer, connected by a key, or answering with a
- * connection note, and not waiting in Needs attention. `detections` and
- * `connections` are the native reports. A provider that shows no measured row
- * and answered unlimited carries that note, the one place unlimited is shown:
- * never as a meter, because a bar would claim a limit that does not exist.
+ * with a login on this computer, or connected by a key, and not waiting in
+ * Needs attention. `detections` and `connections` are the native reports. A
+ * connected provider that shows no measured row and answered unlimited carries
+ * that note, the one place unlimited is shown: never as a meter, because a bar
+ * would claim a limit that does not exist. The note never connects a provider
+ * on its own; the native rules flag it only for the account connected now.
  */
 export function connectedProviders({ snapshots, detections = null, connections = [], flags = [], removed = [], attention = [] }) {
   const off = switchedOff(flags, removed);
@@ -133,7 +134,6 @@ export function connectedProviders({ snapshots, detections = null, connections =
     ...measured,
     ...(detections?.providers ?? []).filter((entry) => entry.state === "present").map((entry) => providerCode(entry.provider_id)),
     ...connections.filter((entry) => entry.state === "CONNECTED").map((entry) => providerCode(entry.provider)),
-    ...notes.keys(),
   ]);
   return [...codes].filter((code) => code && !off.has(code) && !flagged.has(code))
     .map((code) => ({ code, name: providerName(code), access: providerAccess(code), note: notes.get(code) ?? null }))

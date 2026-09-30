@@ -1,3 +1,4 @@
+import { meterReading } from "../data-rules.js";
 import {
   CONNECTOR_VERIFICATIONS,
   SNAPSHOT_KINDS,
@@ -232,7 +233,18 @@ export function toWireSampleV3(snapshot: Snapshot | LocalWireSample, now = new D
   if ("value" in snapshot) {
     instant(snapshot.expiresAt, "expiresAt");
     instant(now, "now");
-    if (snapshot.unit !== "PERCENT" && snapshot.availability === undefined && snapshot.usedAmount === undefined) {
+    /* The meter contract decides the numbers. An availability carries none; a
+       used share is usage_percent, with its money pair as the amount; any
+       other measure is its own amount in its currency, its direction in its
+       kind. An amount with no currency (credits, requests, tokens) has no v3
+       representation until the sync contract carries its unit. */
+    const reading = snapshot.availability === undefined ? meterReading(snapshot) : null;
+    if (snapshot.availability === undefined && reading === null) fail("kind", "does not agree with the unit");
+    const amount = reading === null ? undefined
+      : reading.money !== null ? { value: reading.money.usedAmount, currency: reading.money.currency }
+      : reading.usedPercent === null && reading.currency !== null ? { value: reading.value, currency: reading.currency }
+      : undefined;
+    if (reading !== null && reading.usedPercent === null && amount === undefined) {
       fail("unit", "has no v2 usage representation; use an explicit amount projection");
     }
     wire = {
@@ -243,9 +255,11 @@ export function toWireSampleV3(snapshot: Snapshot | LocalWireSample, now = new D
       source: snapshot.source, precision: snapshot.precision,
       verification: snapshot.labels.verification
     };
-    if (snapshot.availability === undefined && snapshot.unit === "PERCENT") wire["usage_percent"] = snapshot.value;
-    if (snapshot.usedAmount !== undefined) wire["amount"] = snapshot.usedAmount;
-    if (snapshot.currency !== undefined) wire["currency"] = snapshot.currency;
+    if (reading !== null && reading.usedPercent !== null) wire["usage_percent"] = reading.usedPercent;
+    if (amount !== undefined) {
+      wire["amount"] = amount.value;
+      wire["currency"] = amount.currency;
+    }
     if (snapshot.kind !== undefined) wire["kind"] = snapshot.kind;
     if (snapshot.availability !== undefined) wire["availability"] = snapshot.availability;
     if (snapshot.retryAt !== undefined) wire["retry_at"] = snapshot.retryAt;

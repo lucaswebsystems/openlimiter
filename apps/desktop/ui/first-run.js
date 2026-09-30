@@ -1,5 +1,6 @@
 export const FIRST_RUN_STORAGE_KEY = "openlimiter-first-run-complete-v1";
 
+import { switchedOnWave } from "./names.js";
 import {
   configureProvider,
   readRemovedProviders,
@@ -194,69 +195,6 @@ export const CONNECT_PROVIDERS = Object.freeze([
     line: "Reads your spend from your own OpenRouter key.",
     keyOnly: true,
   }),
-  /*
-   * The 2.1 providers, registered and hidden. `pending` keeps a row out of
-   * this screen, its detection and its controls until the provider's lane
-   * switches it on, which it does here by deleting that one line (a test holds
-   * the pending set equal to PENDING_PROVIDER_CODES in core). No row carries
-   * an install line yet: each lane adds the one the vendor documents.
-   */
-  Object.freeze({
-    code: "SYNTHETIC",
-    name: "Synthetic",
-    line: "Reads your quota from your own Synthetic key.",
-    keyOnly: true,
-    pending: true,
-  }),
-  Object.freeze({
-    code: "ZAI",
-    name: "Z.ai",
-    line: "Reads your quota from your own Z.ai key.",
-    keyOnly: true,
-    pending: true,
-  }),
-  Object.freeze({
-    code: "MINIMAX",
-    name: "MiniMax",
-    line: "Reads your quota from your own MiniMax key.",
-    keyOnly: true,
-    pending: true,
-  }),
-  Object.freeze({
-    code: "CLINE",
-    name: "Cline",
-    line: "Reads the Cline account signed in on this machine.",
-    verifiedOnInstall: true,
-    pending: true,
-  }),
-  Object.freeze({
-    code: "AUGMENT",
-    name: "Augment Code",
-    line: "Reads the Auggie CLI login on this machine.",
-    verifiedOnInstall: true,
-    pending: true,
-  }),
-  Object.freeze({
-    code: "AMP",
-    name: "Amp",
-    line: "Reads the Amp CLI login on this machine.",
-    verifiedOnInstall: true,
-    pending: true,
-  }),
-  Object.freeze({
-    code: "KILO",
-    name: "Kilo Code",
-    line: "Reads the Kilo Code login on this machine.",
-    verifiedOnInstall: true,
-    pending: true,
-  }),
-  Object.freeze({
-    code: "COPILOT",
-    name: "GitHub Copilot",
-    line: "Reads the GitHub Copilot login on this machine.",
-    verifiedOnInstall: true,
-    pending: true,
-  }),
 ]);
 
 /** Every install line in the product, for the check that they stay technical. */
@@ -266,8 +204,21 @@ export const INSTALL_LINES = Object.freeze(
   ),
 );
 
-/* The rows this build shows: every provider but the ones still pending. */
-const PROVIDERS = CONNECT_PROVIDERS.filter((provider) => provider.pending !== true);
+/**
+ * The first run row of each 2.1 provider switched on in a registry, built
+ * from its directory row alone: a key provider is added in Connections, a
+ * command line provider is verified on install, like Grok and Kimi. No
+ * provider writes a row here.
+ */
+export function waveConnectRows(registry) {
+  return switchedOnWave(registry).map(({ code, name, access }) => Object.freeze(access === "key"
+    ? { code, name, line: "Reads your quota from your own " + name + " key.", keyOnly: true }
+    : { code, name, line: "Reads the " + name + " login on this machine.", verifiedOnInstall: true }));
+}
+
+/* The rows this build shows: the providers that shipped before the 2.1 wave,
+   then every 2.1 provider this build has switched on. */
+const PROVIDERS = [...CONNECT_PROVIDERS, ...waveConnectRows()];
 
 /* One sentence for every provider read from a key the person adds. */
 const keyNote = (name) => "Add your " + name + " key in Connections when you want this bar.";
@@ -721,7 +672,7 @@ export function firstRunCopyStrings() {
     strings.push(signInWayFailureSentence({ reason: "unconfigured" }, way.label));
     strings.push(signInWayFailureSentence({ reason: "network" }, way.label));
   }
-  for (const provider of CONNECT_PROVIDERS) {
+  for (const provider of PROVIDERS) {
     strings.push(provider.name, provider.line);
     if (provider.keyOnly === true) strings.push(keyNote(provider.name));
   }

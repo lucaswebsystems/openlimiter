@@ -159,6 +159,22 @@ const fn connection_provider(provider: DetectedProviderId) -> Option<ProviderId>
     }
 }
 
+/// How many detected accounts of a provider may be active: every one on Pro,
+/// none on Free once a saved connection holds the provider, one otherwise.
+pub(crate) fn automatic_account_limit(
+    multi_account: bool,
+    known_providers: &HashSet<DetectedProviderId>,
+    provider: DetectedProviderId,
+) -> usize {
+    if multi_account {
+        usize::MAX
+    } else if known_providers.contains(&provider) {
+        0
+    } else {
+        1
+    }
+}
+
 /// The accounts one automatic pass may read, in one decision.
 ///
 /// Duplicates collapse, because one identity found in two places is one
@@ -167,8 +183,8 @@ const fn connection_provider(provider: DetectedProviderId) -> Option<ProviderId>
 /// bounded by `limit`, the plan's answer from `automatic_account_limit`: one on
 /// Free, none on Free once a saved connection holds the provider, and every
 /// account on Pro. The order is stable, so the same account keeps the slot.
-/// Called by each lane's `run_pass`; until one is switched on, only tests do.
-#[cfg_attr(not(test), allow(dead_code))]
+/// Projection applies the same decision to what it shows, so the account the
+/// Free plan collects is the one account it displays.
 pub(crate) fn automatic_account_ids(
     provider: DetectedProviderId,
     detected: impl IntoIterator<Item = String>,

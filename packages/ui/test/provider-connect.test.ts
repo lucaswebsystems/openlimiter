@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
+import { WAVE_PROVIDERS, isEnabledProviderCode } from "@openlimiter/core";
 import providerSpecs from "../../../provider_specs/provider-specs.json" with { type: "json" };
 import {
   PROVIDER_RECOGNITION_ORDER,
   buildProviderDirectory,
 } from "../src/provider-connect.js";
 
+/* A 2.1 provider's row comes from its own switched on spec. The rows of the
+   providers that shipped before the wave stay pinned exactly around it. */
+const WAVE = new Set(WAVE_PROVIDERS.map((provider) => provider.code.toLowerCase()));
+const isWave = (row: { connectorId: string | null }) => WAVE.has(row.connectorId ?? "");
+
 describe("provider connection directory", () => {
   it("keeps one explicit recognition order for all provider surfaces", () => {
-    expect(PROVIDER_RECOGNITION_ORDER).toEqual([
+    const waveRows = buildProviderDirectory(providerSpecs).filter(isWave);
+    for (const row of waveRows) expect(isEnabledProviderCode(String(row.connectorId).toUpperCase()), row.specId).toBe(true);
+    const waveIds = new Set(waveRows.map((row) => row.specId));
+    expect(PROVIDER_RECOGNITION_ORDER.filter((id) => !waveIds.has(id))).toEqual([
       "openai/codex",
       "anthropic/claude-code",
       "google/gemini-cli",
@@ -21,7 +30,8 @@ describe("provider connection directory", () => {
   });
 
   it("shows only the nine providers with collecting connectors", () => {
-    const rows = buildProviderDirectory(providerSpecs);
+    const all = buildProviderDirectory(providerSpecs);
+    const rows = all.filter((row) => !isWave(row));
 
     expect(rows).toHaveLength(9);
     expect(rows.filter((row) => row.availability === "ready").map((row) => row.displayName))
@@ -36,8 +46,8 @@ describe("provider connection directory", () => {
         "OpenRouter",
         "Cursor",
       ]);
-    expect(rows.some((row) => row.availability === "planned")).toBe(false);
-    expect(rows.some((row) => row.connectorId === "manual")).toBe(false);
+    expect(all.some((row) => row.availability === "planned")).toBe(false);
+    expect(all.some((row) => row.connectorId === "manual")).toBe(false);
   });
 
   it("classifies the nine collecting providers by their real access path", () => {
@@ -105,7 +115,7 @@ describe("provider connection directory", () => {
     });
     const byConnector = new Map(rows.map((row) => [row.connectorId, row]));
 
-    expect(rows).toHaveLength(9);
+    expect(rows.filter((row) => !isWave(row))).toHaveLength(9);
     expect(byConnector.get("claude")).toMatchObject({
       access: "automatic",
       stateLabel: "Connected",

@@ -152,7 +152,8 @@ fn parse_openrouter(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Sna
         account_id,
     );
     if unlimited {
-        snapshot.kind = Some("availability".to_string());
+        /* No kind: an availability is not a measure, and the cache refuses a
+        kind outside its vocabulary. */
         snapshot.availability = Some("unlimited".to_string());
     } else {
         snapshot.used_amount = Some(usage);
@@ -271,7 +272,6 @@ fn parse_codex(body: &str, now_ms: u64, account_id: &str) -> Option<Vec<Snapshot
             labels("official-local-tool", "internal-endpoint", "high"),
             account_id,
         );
-        snapshot.kind = Some("availability".to_string());
         snapshot.availability = Some("unlimited".to_string());
         snapshots.push(snapshot);
     }

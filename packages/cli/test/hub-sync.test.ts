@@ -162,6 +162,16 @@ describe("usageSamplesFromSnapshots", () => {
     expect(rows.find((row) => row.meter === "SEVEN_DAY")?.stale).toBe(true);
   });
 
+  it("reads every row through the meter contract: unlimited is never a 0% usage", () => {
+    const unlimited = usageSnapshot({ meter: "UNLIMITED", value: 0, availability: "unlimited" });
+    const balance = usageSnapshot({ meter: "BALANCE", unit: "CREDITS", value: 12.5, kind: "money_balance", currency: "USD" });
+    const legacy = usageSnapshot({
+      meter: "LEGACY", unit: "CREDITS", value: 62, usedAmount: 12.4, limitAmount: 20, currency: "USD"
+    });
+    const rows = usageSamplesFromSnapshots([usageSnapshot(), unlimited, balance, legacy], NOW);
+    expect(rows.map((row) => [row.meter, row.usage_percent])).toEqual([["FIVE_HOUR", 27.5], ["LEGACY", 62]]);
+  });
+
   it("drops a row outside the 0 to 100 bound rather than repairing it", () => {
     const rows = usageSamplesFromSnapshots([usageSnapshot({ value: 142 })], NOW);
     expect(rows).toHaveLength(0);

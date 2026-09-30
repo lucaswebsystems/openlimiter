@@ -871,9 +871,29 @@ fn usage_samples_from_cache(
     };
     let mut selected: HashMap<(String, String, String), UsageSample> = HashMap::new();
     for snapshot in snapshots {
-        if snapshot.get("unit").and_then(serde_json::Value::as_str) != Some("PERCENT") {
+        /* The meter contract decides what a usage percentage is. An
+        availability (unlimited included) is an answer, never a 0% usage; a
+        balance, a spend or a count is an amount this percentage upload cannot
+        carry, and waits for the negotiated wire v3 (toWireSampleV3 in core
+        already carries it); a legacy credits row with its money pair is the
+        used share it always was. */
+        let number = |key: &str| snapshot.get(key).and_then(serde_json::Value::as_f64);
+        let text = |key: &str| snapshot.get(key).and_then(serde_json::Value::as_str);
+        let measured = crate::data_rules::measure_fields(&crate::data_rules::MeterFields {
+            value: number("value").unwrap_or(f64::NAN),
+            unit: text("unit").unwrap_or_default(),
+            kind: text("kind"),
+            availability: snapshot
+                .get("availability")
+                .is_some_and(|value| !value.is_null()),
+            pair: number("usedAmount").is_some()
+                && number("limitAmount").is_some()
+                && text("currency").is_some(),
+            currency: text("currency"),
+        });
+        let Some(usage_percent) = measured.and_then(|measure| measure.used_percent) else {
             continue;
-        }
+        };
         let Some(provider) = snapshot.get("provider").and_then(serde_json::Value::as_str) else {
             continue;
         };
@@ -887,9 +907,6 @@ fn usage_samples_from_cache(
             .get("accountId")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("default");
-        let Some(usage_percent) = snapshot.get("value").and_then(serde_json::Value::as_f64) else {
-            continue;
-        };
         if !valid_code(provider, 32)
             || !valid_code(window, 48)
             || window == "API_BUDGET_PERCENT"
@@ -2556,6 +2573,47 @@ mod tests {
         /* A provider nobody configured, and a reading that is money rather
         than a percentage, are both absent. */
         assert!(rows.iter().all(|row| row.provider == "CLAUDE"));
+    }
+
+    #[test]
+    fn the_upload_reads_every_row_through_the_meter_contract() {
+        /* Unlimited is an answer, never a 0% usage. A balance, a spend or a
+        count has no place in a percentage upload. A legacy credits row with
+        its money pair is the used share it always was. */
+        let now = time::OffsetDateTime::parse(
+            "2026-09-07T12:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("a clock");
+        let row = |meter: &str, extra: serde_json::Value| {
+            let mut row = serde_json::json!({
+                "provider": "CLAUDE", "meter": meter, "unit": "PERCENT", "value": 0.0,
+                "accountId": "claude-personal", "resetAt": null,
+                "observedAt": "2026-09-07T11:59:00.000Z", "expiresAt": "2026-09-07T12:14:00.000Z"
+            });
+            for (key, value) in extra.as_object().expect("fields") {
+                row[key] = value.clone();
+            }
+            row
+        };
+        let document = serde_json::json!({ "snapshots": [
+            row("UNLIMITED", serde_json::json!({ "availability": "unlimited", "kind": "quota_percent" })),
+            row("BALANCE", serde_json::json!({ "unit": "CREDITS", "value": 12.5, "kind": "money_balance", "currency": "USD" })),
+            row("REQUESTS", serde_json::json!({ "unit": "REQUESTS", "value": 120.0, "kind": "token_count" })),
+            row("LEGACY", serde_json::json!({ "unit": "CREDITS", "value": 62.0,
+                "usedAmount": 12.4, "limitAmount": 20.0, "currency": "USD" })),
+            row("FIVE_HOUR", serde_json::json!({ "value": 27.5, "kind": "quota_percent" }))
+        ]});
+        let configured = HashSet::from(["CLAUDE".to_string()]);
+        let rows =
+            usage_samples_from_cache(&document, &configured, "2026-09-07T12:00:00.000Z", now)
+                .expect("the rows of this cache");
+        assert_eq!(
+            rows.iter()
+                .map(|row| (row.meter.as_str(), row.usage_percent))
+                .collect::<Vec<_>>(),
+            vec![("FIVE_HOUR", Some(27.5)), ("LEGACY", Some(62.0))]
+        );
     }
 
     #[test]

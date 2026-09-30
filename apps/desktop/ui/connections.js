@@ -30,7 +30,6 @@
  */
 import {
   CONNECTION_STATES,
-  PROVIDER_CODES,
   connectionNextAction,
   connectionSentence,
 } from "./engine/core/index.js";
@@ -113,6 +112,8 @@ const session = {
   hasConnected: false,
   /** Whether a person opened the catalogue with Add a tool. */
   catalogueOpen: false,
+  /** The key provider the shared key editor is open for. */
+  keyProvider: null,
 };
 
 /** Wired by initConnections. Nothing here runs before that. */
@@ -145,6 +146,11 @@ function grabElements() {
     claudeNote: document.getElementById("claude-note"),
     claudeBody: document.getElementById("claude-body"),
     catalogueRows: document.getElementById("catalogue-rows"),
+    keyTitle: document.getElementById("key-add-title"),
+    keyAlias: document.getElementById("key-alias"),
+    keySecret: document.getElementById("key-secret"),
+    keySubmit: document.getElementById("key-submit"),
+    keyNote: document.getElementById("key-note"),
   };
 }
 
@@ -937,17 +943,38 @@ function renderClaude() {
   }
 }
 
-const SETUP_TARGETS = {
+/* The providers with an editor of their own in index.html. */
+const OWN_EDITORS = Object.freeze({
   claude: "claude-card",
   openrouter: "openrouter-add",
   codex: "codex-add",
   antigravity: "antigravity-add",
   opencode: "opencode-add",
-  /* The 2.1 key providers' editors, each written by its lane at its own
-     anchor in index.html. A target exists only once core lists the provider
-     as switched on, so a pending provider has no editor to open. */
-  ...Object.fromEntries([["synthetic", "synthetic-add"], ["zai", "zai-add"], ["minimax", "minimax-add"]]
-    .filter(([connector]) => PROVIDER_CODES.includes(connector.toUpperCase()))),
+});
+
+/**
+ * Every other provider read from a key a person holds, from the registry: one
+ * whose entry is switched on (it has a directory row) and reads a key it names
+ * by credential kind. They share the one key editor, so a provider lane
+ * writes no markup and no handler here; its spec is the whole registration.
+ */
+export function keyProviders(registry = PROVIDER_SPECS) {
+  return (registry?.providers ?? []).flatMap((spec) => {
+    const directory = spec?.directory;
+    const credentialKind = spec?.collection?.readers?.[0]?.credentialKind;
+    const connectorId = directory?.connectorId;
+    return directory?.access === "key" && typeof connectorId === "string" && !(connectorId in OWN_EDITORS)
+      && spec.support?.reader === "implemented" && typeof credentialKind === "string"
+      ? [{ connectorId, name: directory.label, credentialKind }]
+      : [];
+  });
+}
+
+const KEY_PROVIDERS = keyProviders();
+
+const SETUP_TARGETS = {
+  ...OWN_EDITORS,
+  ...Object.fromEntries(KEY_PROVIDERS.map((provider) => [provider.connectorId, "key-add"])),
 };
 
 function directoryInitials(name) {
@@ -994,6 +1021,10 @@ export function openProviderConnection(provider) {
      real editor. Anything without one has an honest manual path. */
   if (targetId) {
     session.activeSetup = targetId;
+    if (targetId === "key-add") {
+      session.keyProvider = KEY_PROVIDERS.find((entry) => entry.connectorId === String(provider).toLowerCase()) ?? null;
+      if (el?.keyTitle) el.keyTitle.textContent = session.keyProvider?.name ?? "";
+    }
     render();
     window.setTimeout(() => {
       const target = document.getElementById(targetId);
@@ -1265,8 +1296,19 @@ async function submitOpenrouter() {
   const credentialKind = /management/iu.test(String(kind))
     ? "openrouter_management_key"
     : "openrouter_inference_key";
+  await storeAndTestKey({
+    providerId: "openrouter", credentialKind, alias, secret,
+    note: el.openrouterNote, submit: el.openrouterSubmit, aliasField: el.openrouterAlias,
+  });
+}
+
+/**
+ * Store one key, then test it: the flow every key editor shares. The key
+ * never waits in a field while a request is in flight; the caller cleared it.
+ */
+async function storeAndTestKey({ providerId, credentialKind, alias, secret, note, submit, aliasField }) {
   const connected = await backend.connectProvider({
-    providerId: "openrouter",
+    providerId,
     credentialKind,
     accountAlias: alias,
     secret,
@@ -1274,11 +1316,11 @@ async function submitOpenrouter() {
   if (!connected.ok) {
     if (connected.reason === backend.BACKEND_ABSENT) {
       session.backendPresent = false;
-      setNote(el.openrouterNote, "This build has no connection backend yet.", "bad");
+      setNote(note, "This build has no connection backend yet.", "bad");
     } else {
-      setNote(el.openrouterNote, "Connecting failed. " + connected.message, "bad");
+      setNote(note, "Connecting failed. " + connected.message, "bad");
     }
-    el.openrouterSubmit.disabled = false;
+    submit.disabled = false;
     render();
     return;
   }
@@ -1291,38 +1333,57 @@ async function submitOpenrouter() {
     (returned !== null
       ? session.connections.find((entry) => entry.id === returned)
       : undefined) ??
-    session.connections.filter((entry) => entry.provider === "OPENROUTER").at(-1);
+    session.connections.filter((entry) => entry.provider === providerId.toUpperCase()).at(-1);
   if (record === undefined) {
     setNote(
-      el.openrouterNote,
+      note,
       "The key was stored, and no connection record came back to test.",
       "bad",
     );
-    el.openrouterSubmit.disabled = false;
+    submit.disabled = false;
     render();
     return;
   }
-  setNote(el.openrouterNote, "Stored. Testing the connection now.", "plain");
+  setNote(note, "Stored. Testing the connection now.", "plain");
   const asked = await runTest(record);
   if (asked.absent) {
-    setNote(el.openrouterNote, "This build has no connection backend yet.", "bad");
-    el.openrouterSubmit.disabled = false;
+    setNote(note, "This build has no connection backend yet.", "bad");
+    submit.disabled = false;
     render();
     return;
   }
   const settled = session.connections.find((entry) => entry.id === record.id);
   if (asked.note !== null) {
-    setNote(el.openrouterNote, "The test failed. " + asked.note, "bad");
+    setNote(note, "The test failed. " + asked.note, "bad");
   } else {
     setNote(
-      el.openrouterNote,
+      note,
       "Test finished. " + sentenceFor(settled?.state ?? record.state),
       asked.succeeded ? "ok" : "bad",
     );
   }
-  el.openrouterAlias.value = "";
-  el.openrouterSubmit.disabled = false;
+  aliasField.value = "";
+  submit.disabled = false;
   render();
+}
+
+/** The shared key editor, for whichever key provider it was opened for. */
+async function submitKey() {
+  const provider = session.keyProvider;
+  if (provider === null || !el.keySecret || !el.keySubmit || !el.keyAlias) return;
+  const secret = el.keySecret.value.trim();
+  el.keySecret.value = "";
+  if (secret === "") {
+    setNote(el.keyNote, "Nothing was pasted, so nothing was stored.", "bad");
+    return;
+  }
+  el.keySubmit.disabled = true;
+  setNote(el.keyNote, "Storing the key in the credential store.", "plain");
+  await storeAndTestKey({
+    providerId: provider.connectorId, credentialKind: provider.credentialKind,
+    alias: el.keyAlias.value.trim() || "default", secret,
+    note: el.keyNote, submit: el.keySubmit, aliasField: el.keyAlias,
+  });
 }
 
 async function copyClaudeSnippet() {
@@ -1567,6 +1628,9 @@ export function initConnections(configuration) {
   });
   el.openrouterSubmit.addEventListener("click", () => {
     void submitOpenrouter();
+  });
+  el.keySubmit?.addEventListener("click", () => {
+    void submitKey();
   });
   el.claudeCopy?.addEventListener("click", () => {
     void copyClaudeSnippet();

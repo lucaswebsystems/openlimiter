@@ -62,6 +62,27 @@ export function providerAccess(value) {
   return SPECS.get(code)?.directory?.access ?? (code === "MANUAL" ? "manual" : "automatic");
 }
 
+/**
+ * The 2.1 providers. Each takes its place in this window once its registry
+ * entry is switched on, which is what a directory row with a built reader
+ * means, so no surface here names one and no provider lane edits this file.
+ * A test holds this list equal to WAVE_PROVIDERS in core.
+ */
+export const WAVE_PROVIDER_CODES = Object.freeze([
+  "SYNTHETIC", "ZAI", "MINIMAX", "CLINE", "AUGMENT", "AMP", "KILO", "COPILOT",
+]);
+
+/** The 2.1 providers switched on in a registry, with their directory rows. */
+export function switchedOnWave(registry = PROVIDER_SPECS) {
+  return (registry?.providers ?? []).flatMap((spec) => {
+    const directory = spec?.directory;
+    const code = providerCode(directory?.connectorId);
+    return directory && WAVE_PROVIDER_CODES.includes(code) && spec.support?.reader === "implemented"
+      ? [{ code, name: directory.label, access: directory.access }]
+      : [];
+  });
+}
+
 /** The name the registry's directory gives a provider (the one Connections
     lists), its display name, or the code read out as words. */
 export function providerName(value) {

@@ -18,7 +18,8 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { providerRowMarkup } from "../src/provider-row.js";
 import type { ProviderAccountRowView } from "../src/provider-row.js";
-import { PENDING_PROVIDER_CODES, type ProviderCode } from "@openlimiter/core";
+import type { ProviderCode } from "@openlimiter/core";
+import { OFFICIAL_MARKS } from "../src/marks/official.js";
 
 const MARKS_DIRECTORY = path.join(process.cwd(), "packages", "ui", "src", "marks");
 
@@ -149,14 +150,17 @@ describe("provider marks", () => {
     }
   });
 
-  it("draws no vendor file on the row of a provider that is still switched off", () => {
+  it("draws every vendor file byte for byte as an image, never inline", () => {
     for (const [provider, { file }] of Object.entries(OFFICIAL_BY_PROVIDER)) {
-      if (!(PENDING_PROVIDER_CODES as readonly string[]).includes(provider)) continue;
-      const asset = readFileSync(path.join(MARKS_DIRECTORY, file), "utf8");
+      const bytes = readFileSync(path.join(MARKS_DIRECTORY, file));
       const markup = providerRowMarkup(rowFor(provider as ProviderCode));
-      expect(markup, provider).not.toContain(geometry(asset));
-      expect(markup, provider).not.toContain("<svg");
+      const source = /<image href="data:image\/svg\+xml;base64,([A-Za-z0-9+/=]+)"/u.exec(markup)?.[1];
+      expect(source, provider).toBeDefined();
+      expect(Buffer.from(source!, "base64").equals(bytes), provider).toBe(true);
+      /* Its own markup never reaches the page: an image keeps it apart. */
+      expect(markup, provider).not.toContain(geometry(bytes.toString("utf8")));
     }
+    expect(Object.keys(OFFICIAL_MARKS).sort()).toEqual(Object.keys(OFFICIAL_BY_PROVIDER).sort());
   });
 
   it("records every source and the trademark note", () => {

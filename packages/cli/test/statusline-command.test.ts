@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -37,6 +37,28 @@ async function seeded(): Promise<string> {
 }
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
+});
+
+describe("statusline command and the account signed in now", () => {
+  it("draws only the accounts the desktop says are active, never the one switched away from", async () => {
+    const stateDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-active-"));
+    roots.push(stateDirectory);
+    const weekly = normalizeMeters(parseClaudePayload(payload(), NOW)!)[1]!;
+    await persistSnapshots([
+      { ...weekly, provider: "CODEX", value: 90, accountId: "codex-previous" },
+      { ...weekly, provider: "CODEX", value: 10, accountId: "codex-current" }
+    ], stateDirectory, NOW);
+    await writeFile(path.join(stateDirectory, "openlimiter-active-accounts.json"), JSON.stringify({
+      version: 1, writtenAt: NOW, providers: { CODEX: ["codex-current"] }
+    }));
+    const result = await runCli(["statusline", "--host", "shell"], {
+      stateDirectory, now: () => NOW, environment: { NO_COLOR: "" }, colorOutput: false,
+      readStandardInput: async () => ""
+    });
+    expect(result.stdout).toContain("cx7d");
+    expect(result.stdout).toContain("10%");
+    expect(result.stdout).not.toContain("90%");
+  });
 });
 
 describe("statusline command reference layout", () => {

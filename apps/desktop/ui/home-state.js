@@ -1,4 +1,4 @@
-import { providerCode } from "./names.js";
+import { providerCode, switchedOnWave } from "./names.js";
 
 /*
  * Which providers Home refreshes and reports to the tray.
@@ -9,11 +9,8 @@ import { providerCode } from "./names.js";
  */
 const KNOWN = new Set([
   "CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENROUTER", "OPENCODE", "CURSOR",
-  /* The 2.1 providers join when they are switched on. Each lane adds its codes
-     below its own line. */
-  // 2.1 lane P1a
-  // 2.1 lane P1b
-  // 2.1 lane P1c
+  /* A 2.1 provider joins once its registry entry is switched on. */
+  ...switchedOnWave().map((provider) => provider.code),
 ]);
 
 function code(value) {

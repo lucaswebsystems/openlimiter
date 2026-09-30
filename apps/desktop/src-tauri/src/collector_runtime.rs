@@ -13,6 +13,7 @@ use crate::connections::{now_epoch_ms, ConnectionRecord, ConnectionsStore};
 use crate::credentials::{KeyringStore, SecretStore};
 use crate::net::{ReqwestTransport, Transport};
 use crate::poll_identity::detected_provider;
+use crate::account_identity::automatic_account_limit;
 use crate::poll_identity::{resolve_connection, PollIdentity};
 use crate::provider_detection::DetectedProviderId;
 use crate::request_policy::{provider_interval_seconds, RequestPolicy, BLOCKED_PROVIDER_SECONDS};
@@ -293,20 +294,6 @@ fn collection_plan(
     }
 }
 
-fn automatic_account_limit(
-    multi_account: bool,
-    known_providers: &HashSet<DetectedProviderId>,
-    provider: DetectedProviderId,
-) -> usize {
-    if multi_account {
-        usize::MAX
-    } else if known_providers.contains(&provider) {
-        0
-    } else {
-        1
-    }
-}
-
 fn synchronize_schedule(
     connections: &ConnectionsStore,
     secrets: &impl SecretStore,
@@ -379,9 +366,10 @@ pub async fn run_pass(
     let multi_account = crate::pro::multi_account_enabled(&*secrets);
     let _ = connections.apply_plan(multi_account, &[]);
     let records = connections.list().map(|mut records| {
+        /* Every record, paused ones too: a paused connection still claims its
+        identity from the automatic pass, so projection needs it as well. */
         let identities = records
             .iter()
-            .filter(|record| record.is_active())
             .map(|record| {
                 let identity = resolve_connection(record, &*secrets);
                 (
@@ -398,9 +386,17 @@ pub async fn run_pass(
             .collect();
         if let Some(state) = app.try_state::<crate::data_rules::ConnectionIdentities>() {
             if let Ok(mut held) = state.0.lock() {
-                *held = identities;
+                *held = crate::data_rules::IdentityPlan {
+                    saved: identities,
+                    multi_account,
+                };
             }
         }
+        let _ = crate::data_rules::write_active_accounts(
+            crate::state::state_directory().as_deref(),
+            &crate::data_rules::active_accounts(app),
+            now_epoch_ms(),
+        );
         records.retain(|record| allowed(detected_provider(record.provider_id)));
         if selected.is_some() {
             for record in &mut records {

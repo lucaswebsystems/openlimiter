@@ -6,14 +6,22 @@ import { describe, expect, it } from "vitest";
 import registry from "../../../provider_specs/provider-specs.json" with { type: "json" };
 import legacy from "./provider-connect-legacy.json" with { type: "json" };
 import { buildProviderDirectory, PROVIDER_RECOGNITION_ORDER } from "../src/provider-connect.js";
+import { WAVE_PROVIDERS } from "@openlimiter/core";
+
+/* A 2.1 provider's row joins from its own switched on spec, after the rows
+   pinned here. */
+const WAVE = new Set(WAVE_PROVIDERS.map((provider) => provider.code.toLowerCase()));
 
 describe("generated provider directory", () => {
   it("preserves every field for the existing eight across connection states", () => {
     for (const [state, expected] of Object.entries(legacy)) {
       const states = Object.fromEntries(expected.map((row) => [row.connectorId, state]));
-      expect(buildProviderDirectory(registry, { states }).filter(row => row.connectorId !== "cursor")).toEqual(expected);
+      expect(buildProviderDirectory(registry, { states })
+        .filter(row => row.connectorId !== "cursor" && !WAVE.has(row.connectorId ?? ""))).toEqual(expected);
     }
-    expect(PROVIDER_RECOGNITION_ORDER).toEqual([...legacy.NOT_CONFIGURED.map((row) => row.specId), "cursor/editor"]);
+    const waveIds = new Set(buildProviderDirectory(registry).filter((row) => WAVE.has(row.connectorId ?? "")).map((row) => row.specId));
+    expect(PROVIDER_RECOGNITION_ORDER.filter((id) => !waveIds.has(id)))
+      .toEqual([...legacy.NOT_CONFIGURED.map((row) => row.specId), "cursor/editor"]);
   });
 
   it("takes labels and ordering from the supplied registry", () => {

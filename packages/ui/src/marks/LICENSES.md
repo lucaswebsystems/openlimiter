@@ -79,11 +79,11 @@ rules for our drawings and do not apply to these, because changing a vendor's
 file to meet them would be drawing a mark.
 
 Every source is also recorded in the provider's registry spec, in its `mark`
-block. None of the eight is drawn anywhere yet: the providers are registered
-and switched off, and a row shows a lettered tile until its provider is
-switched on. How a surface then draws the file is that provider's decision,
-and an image of the file is the safe default, because some of these carry
-their own stylesheet or generic ids that would leak into a shared document.
+block. Every surface draws each one as an image of the file, embedded byte
+for byte in `official.ts` by `scripts/embed-official-marks.mjs`, because some
+of these carry their own stylesheet or generic ids that would leak into a
+shared document if drawn inline. The providers are switched off, so no
+surface shows them yet.
 
 | File | Provider | Official source | Where the source is published | SHA256 |
 | --- | --- | --- | --- | --- |

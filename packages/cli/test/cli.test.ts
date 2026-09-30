@@ -14,7 +14,7 @@ import {
   opencodeFixture,
   openrouterFixture
 } from "@openlimiter/connectors";
-import { CACHE_FILE_NAME } from "@openlimiter/core";
+import { CACHE_FILE_NAME, WAVE_PROVIDERS } from "@openlimiter/core";
 import {
   CONFIG_FILE_NAME,
   OperatingSystemCredentialStore,
@@ -63,6 +63,12 @@ afterEach(async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+/* The 2.1 providers this build has switched on. None has a demo reading, so
+   each joins the connector list and the unknown suffix; the ten shipped before
+   the wave and their fixtures stay pinned exactly. */
+const SWITCHED_ON_WAVE: readonly string[] =
+  WAVE_PROVIDERS.filter((provider) => provider.enabled).map((provider) => provider.code);
 
 const payloads = {
   claude: claudeFixture(FIXTURE_NOW),
@@ -122,7 +128,7 @@ describe("CLI", () => {
     const config = JSON.parse(configText) as {
       connectors: { enabled: boolean }[];
     };
-    expect(config.connectors).toHaveLength(10);
+    expect(config.connectors).toHaveLength(10 + SWITCHED_ON_WAVE.length);
     expect(config.connectors.every((connector) => connector.enabled)).toBe(true);
     expect(configText.includes("sk-DEMO-000")).toBe(false);
   });
@@ -231,7 +237,7 @@ describe("CLI", () => {
           "reset_at=2026-01-01T05:00:00.000Z",
         "provider=MANUAL state=fresh usage_percent=35.00 " +
           "reset_at=2026-02-01T00:00:00.000Z",
-        "unknown=GEMINI_CLI,CURSOR",
+        "unknown=" + ["GEMINI_CLI", "CURSOR", ...SWITCHED_ON_WAVE].join(","),
         "</openlimiter_untrusted_data>"
       ].join("\n");
       const hook = await runCli(["hook"], {
@@ -990,7 +996,7 @@ describe("CLI", () => {
     expect(statusline.stdout).toBe(
       "OpenLimiter NEAR_CAP CLAUDE 64.0% OPENROUTER 62.3% CODEX 84.0% " +
       "ANTIGRAVITY 28.0% OPENCODE 92.0% GROK 42.5% KIMI 69.5% MANUAL 35.0% " +
-      "PREFER ANTIGRAVITY UNKNOWN GEMINI_CLI,CURSOR"
+      "PREFER ANTIGRAVITY UNKNOWN " + ["GEMINI_CLI", "CURSOR", ...SWITCHED_ON_WAVE].join(",")
     );
     /* One line, no bar, no dollar figure, no escape code, no failure line. */
     expect(statusline.stdout.split("\n")).toHaveLength(1);
@@ -1183,7 +1189,7 @@ describe("CLI", () => {
       show: [],
       hosts: {}
     });
-    expect(stored.connectors).toHaveLength(10);
+    expect(stored.connectors).toHaveLength(10 + SWITCHED_ON_WAVE.length);
   });
 
   it("reads back style, show and hosts, the three keys this lane added", async () => {

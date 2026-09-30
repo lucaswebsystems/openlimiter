@@ -22,7 +22,7 @@ globalThis.window = {
 };
 globalThis.document = fakeDocument(["needs-attention", "attention-rows", "attention-count", "connections-count",
   "tab-connections", "connected", "connected-rows", "add-tool", "tool-catalogue"]);
-const { attentionRoute, showConnections } = await import("./dist/connections.js");
+const { attentionRoute, keyProviders, showConnections } = await import("./dist/connections.js");
 const { attentionFlags } = await import("./dist/readings.js");
 
 const NOW = Date.parse("2026-09-29T12:00:00.000Z");
@@ -42,6 +42,21 @@ test("a provider with its own connect flow here keeps it; every other one signs 
   }
   assert.equal(attentionRoute({ provider: "KIMI", fixKind: "open_app" }), "rescan");
   assert.equal(attentionRoute({ provider: "GEMINI_CLI", fixKind: "unsupported" }), "none");
+});
+
+test("every key provider switched on shares the one key editor, from its registry entry alone", () => {
+  // Only a provider core has switched on too, with the credential kind it reads.
+  for (const provider of keyProviders()) {
+    assert.equal(PENDING_PROVIDER_CODES.includes(provider.connectorId.toUpperCase()), false, provider.connectorId);
+    assert.match(provider.credentialKind, /^[a-z][a-z_]*$/u);
+  }
+  const spec = (connectorId, access, reader = "implemented", credentialKind = connectorId + "_key") => ({
+    directory: { connectorId, label: connectorId.toUpperCase(), access }, support: { reader },
+    collection: { readers: [{ credentialKind }] },
+  });
+  assert.deepEqual(keyProviders({ providers: [
+    spec("synthetic", "key"), spec("amp", "automatic"), spec("zai", "key", "absent"), spec("openrouter", "key"),
+  ] }), [{ connectorId: "synthetic", name: "SYNTHETIC", credentialKind: "synthetic_key" }]);
 });
 
 test("a pending provider has no editor here until its lane switches it on", () => {

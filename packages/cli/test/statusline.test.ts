@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAdvice, type ProviderCode, type Snapshot } from "@openlimiter/core";
+import { PROVIDER_CODES, WAVE_PROVIDERS, buildAdvice, type ProviderCode, type Snapshot } from "@openlimiter/core";
 import { DEFAULT_STATUSLINE, type StatuslineConfig } from "../src/config.js";
 import { STATUSLINE_BAR_SEGMENTS } from "../src/render.js";
 import {
@@ -22,6 +22,17 @@ const ESCAPE = String.fromCharCode(27);
 
 const NOW = "2026-01-01T00:00:00.000Z";
 const EXPIRES = "2026-01-01T00:01:00.000Z";
+
+/* The 2.1 providers this build has switched on, by status line class. Each
+   takes its place in the default order and the unknown list; the providers
+   that shipped before the wave stay pinned exactly around them. */
+const WAVE_ON = (kind?: "subscription" | "api"): readonly ProviderCode[] => WAVE_PROVIDERS
+  .filter((provider) => provider.enabled && (kind === undefined || provider.statuslineClass === kind))
+  .map((provider) => provider.code);
+/* The providers that shipped before the wave, the universe the layout suites
+   below measure against, so a 2.1 provider switched on moves no layout. */
+const SHIPPED: readonly ProviderCode[] =
+  PROVIDER_CODES.filter((code) => !WAVE_PROVIDERS.some((provider) => provider.code === code));
 
 function reading(overrides: Partial<Snapshot> = {}): Snapshot {
   return {
@@ -114,7 +125,7 @@ function layout(
   wide?: boolean
 ): string {
   return renderStatuslineLayout({
-    advice: buildAdvice(snapshots, NOW),
+    advice: buildAdvice(snapshots, NOW, SHIPPED),
     snapshots,
     now: NOW,
     config: { ...DEFAULT_STATUSLINE, style: "cells", meters: "worst", ...overrides },
@@ -150,8 +161,10 @@ describe("provider ordering", () => {
       "GROK",
       "KIMI",
       "CURSOR",
+      ...WAVE_ON("subscription"),
       "MANUAL",
-      "OPENROUTER"
+      "OPENROUTER",
+      ...WAVE_ON("api")
     ]);
   });
 
@@ -181,7 +194,9 @@ describe("provider ordering", () => {
       "OPENCODE",
       "GROK",
       "KIMI",
-      "CURSOR"
+      "CURSOR",
+      ...WAVE_ON("subscription"),
+      ...WAVE_ON("api")
     ]);
   });
 
@@ -195,8 +210,10 @@ describe("provider ordering", () => {
       "GROK",
       "KIMI",
       "CURSOR",
+      ...WAVE_ON("subscription"),
       "MANUAL",
-      "OPENROUTER"
+      "OPENROUTER",
+      ...WAVE_ON("api")
     ]);
   });
 
@@ -287,14 +304,15 @@ describe("the cell", () => {
 describe("the head", () => {
   it("leads with the reason code and carries the recommendation", () => {
     expect(statuslineHead(buildAdvice(everyProvider, NOW)))
-      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN CURSOR");
+      .toBe("OpenLimiter NEAR_CAP PREFER ANTIGRAVITY UNKNOWN " + ["CURSOR", ...WAVE_ON()].join(","));
   });
 
   it("names the providers it has nothing for", () => {
     const head = statuslineHead(buildAdvice([reading()], NOW));
-    expect(head).toContain(
-      "UNKNOWN OPENROUTER,CODEX,ANTIGRAVITY,GEMINI_CLI,OPENCODE,GROK,KIMI,CURSOR,MANUAL"
-    );
+    expect(head).toContain("UNKNOWN " + [
+      "OPENROUTER", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "OPENCODE", "GROK", "KIMI", "CURSOR",
+      ...WAVE_ON(), "MANUAL"
+    ].join(","));
   });
 
   it("says so plainly when there is nothing bounded at all", () => {
@@ -363,7 +381,7 @@ describe("stacking", () => {
   });
 
   it("counts every dropped cell exactly once", () => {
-    const head = statuslineHead(buildAdvice(everyProvider, NOW));
+    const head = statuslineHead(buildAdvice(everyProvider, NOW, SHIPPED));
     for (const width of [40, 55, 70, 90, 110]) {
       for (const rows of [1, 2] as const) {
         const rendered = layout(everyProvider, { width, rows });
@@ -383,7 +401,7 @@ describe("stacking", () => {
 
   it("keeps the head even when not one cell fits beside it", () => {
     const rendered = layout(everyProvider, { rows: 1, width: 40 });
-    expect(rendered).toBe(statuslineHead(buildAdvice(everyProvider, NOW)));
+    expect(rendered).toBe(statuslineHead(buildAdvice(everyProvider, NOW, SHIPPED)));
   });
 });
 

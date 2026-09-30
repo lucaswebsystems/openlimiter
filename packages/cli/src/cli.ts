@@ -31,6 +31,7 @@ import {
   openrouterSpec,
   readAcquisitionCredential,
   readAcquisitionSchedule,
+  readActiveAccounts,
   readSnapshotCache,
   readWindowsCredentialWith,
   resolveStateDirectory,
@@ -149,6 +150,7 @@ import {
   supportsColor
 } from "./render.js";
 import {
+  activeAccountRows,
   isStatuslineHost,
   renderStatuslineLayout,
   statuslineColor,
@@ -1402,6 +1404,44 @@ async function ingestCommand(
 }
 
 /**
+ * Which accounts are active now, for the terminal.
+ *
+ * The desktop writes its answer (saved connections and the plan's selection,
+ * which the terminal cannot see) while it runs. Without a current one, the
+ * terminal asks each provider's own login which account it names, and only
+ * for a provider whose cached rows name more than one account, the one case
+ * where the answer changes what is drawn.
+ */
+async function terminalActiveAccounts(
+  dependencies: CliDependencies,
+  snapshots: readonly Snapshot[],
+  now: string
+): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
+  const published = await readActiveAccounts(dependencies.stateDirectory, now);
+  if (published !== null) return published;
+  const accounts = new Map<string, Set<string>>();
+  for (const snapshot of snapshots) {
+    if (snapshot.accountId === undefined) continue;
+    const held = accounts.get(snapshot.provider) ?? new Set<string>();
+    held.add(snapshot.accountId);
+    accounts.set(snapshot.provider, held);
+  }
+  const active = new Map<string, ReadonlySet<string>>();
+  for (const [provider, held] of accounts) {
+    if (held.size < 2 || !(ACQUISITION_PROVIDERS as readonly string[]).includes(provider)) continue;
+    const current = await captureStatuslineAccount(provider as AcquisitionProvider, {
+      environment: dependencies.environment,
+      homeDirectory: dependencies.homeDirectory,
+      platform: dependencies.platform,
+      ...(dependencies.stateDirectory ? { stateDirectory: dependencies.stateDirectory } : {}),
+      now
+    }).catch(() => undefined);
+    if (current !== undefined) active.set(provider, new Set([current]));
+  }
+  return active;
+}
+
+/**
  * Draw the statusline.
  *
  * Standard input first, so a host's session payload is ingested and drawn in
@@ -1427,7 +1467,11 @@ async function statuslineCommand(
     ? (hostFlag.toLowerCase() as StatuslineHost)
     : "claude";
   const ingested = await ingestStandardInput(dependencies, now, host);
-  const snapshots = ingested?.snapshots ?? await cachedSnapshots(dependencies.stateDirectory);
+  const cached = ingested?.snapshots ?? await cachedSnapshots(dependencies.stateDirectory);
+  /* The accounts active now, so a previous account's leftovers never stand in
+     for the one signed in: the desktop's own list while it holds the cache,
+     otherwise the login each provider's own tool names on this machine. */
+  const snapshots = activeAccountRows(cached, await terminalActiveAccounts(dependencies, cached, now));
   /*
    * The refresh that keeps the other providers current starts here and is never
    * waited for. This render draws whatever the cache already holds, the child

@@ -23,7 +23,47 @@ import {
 } from "../cache.js";
 import { canonicalJson } from "../normalizer.js";
 import type { Snapshot, SnapshotWriter } from "../types.js";
+import { ACCOUNT_ID_PATTERN } from "../types.js";
 import { DESKTOP_OWNERSHIP_SECONDS } from "./cadence.js";
+
+/** Where the desktop writes the accounts it treats as active. Rust writer:
+    `data_rules::write_active_accounts`. */
+export const ACTIVE_ACCOUNTS_FILE_NAME = "openlimiter-active-accounts.json";
+
+/* Most providers and accounts one active list may name. */
+const MAX_ACTIVE_PROVIDERS = 64;
+const MAX_ACTIVE_ACCOUNTS = 64;
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The accounts the desktop treats as active, as it last wrote them: each
+ * saved connection's identity and the detected accounts the plan selects,
+ * which the terminal cannot see for itself. Only a list the desktop wrote
+ * within its ownership window counts, so a desktop that stopped running stops
+ * deciding; anything missing, stale, future dated or malformed is null.
+ */
+export async function readActiveAccounts(
+  directory = resolveStateDirectory(),
+  now: string
+): Promise<ReadonlyMap<string, ReadonlySet<string>> | null> {
+  const document = await readJsonFileSafely(path.join(directory, ACTIVE_ACCOUNTS_FILE_NAME));
+  if (!document.ok || !isPlainRecord(document.value) || document.value["version"] !== 1) return null;
+  const writtenAt = document.value["writtenAt"];
+  const age = typeof writtenAt === "string" ? Date.parse(now) - Date.parse(writtenAt) : Number.NaN;
+  if (!(age >= 0 && age <= DESKTOP_OWNERSHIP_SECONDS * 1000)) return null;
+  const providers = document.value["providers"];
+  if (!isPlainRecord(providers) || Object.keys(providers).length > MAX_ACTIVE_PROVIDERS) return null;
+  const active = new Map<string, ReadonlySet<string>>();
+  for (const [provider, accounts] of Object.entries(providers)) {
+    if (!Array.isArray(accounts) || accounts.length > MAX_ACTIVE_ACCOUNTS ||
+        !accounts.every((account) => typeof account === "string" && ACCOUNT_ID_PATTERN.test(account))) return null;
+    active.set(provider, new Set(accounts as string[]));
+  }
+  return active;
+}
 
 /**
  * How old the cache may be before a render starts a refresh behind itself.

@@ -48,7 +48,8 @@ export function parseOpenrouterPayload(payload: unknown, now: string): RawMeter[
     return [{
       provider: "OPENROUTER",
       meter: "CREDITS",
-      kind: "availability",
+      /* An availability has no kind: it is not a reading of any measure, and
+         the one kind vocabulary every gate reads has no word for it. */
       availability: "unlimited",
       // Required legacy transport fields; availability carries no percentage.
       value: 0,

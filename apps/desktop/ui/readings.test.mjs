@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { normalizeMetersReport, projectSnapshots } from "../../../packages/core/dist/index.js";
+import { parseOpenrouterPayload } from "../../../packages/connectors/dist/openrouter.js";
 import { messyFixtures, ACCOUNTS } from "./messy-fixtures.mjs";
 import { agentName, meterLabel, providerCode, providerName, READINGS_COPY, say } from "./names.js";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
@@ -250,9 +251,11 @@ test("unlimited is a note on Connected, never a meter and never something to fix
   assert.deepEqual(attentionFlags([unlimited], []), []);
   const connected = connectedProviders({ snapshots: [], detections, flags: [unlimited], attention: [] });
   assert.deepEqual(connected.map((provider) => [provider.code, provider.note]), [["CURSOR", "unlimited"]]);
-  // A key that answered unlimited is connected by that answer alone.
-  assert.deepEqual(connectedProviders({ snapshots: [], flags: [{ ...unlimited, provider: "OPENROUTER" }] })
-    .map((provider) => [provider.code, provider.note]), [["OPENROUTER", "unlimited"]]);
+  // A saved key that answered unlimited carries the note on its Connected row.
+  assert.deepEqual(connectedProviders({
+    snapshots: [], connections: [{ provider: "openrouter", state: "CONNECTED" }],
+    flags: [{ ...unlimited, provider: "OPENROUTER" }],
+  }).map((provider) => [provider.code, provider.note]), [["OPENROUTER", "unlimited"]]);
   // A provider still measuring other windows shows those, with no plan wide note.
   const measured = { ...fixtures.projected.snapshots[0], provider: "CURSOR" };
   assert.deepEqual(connectedProviders({ snapshots: [measured], flags: [unlimited] })
@@ -269,8 +272,29 @@ test("unlimited is a note on Connected, never a meter and never something to fix
   assert.equal(mount.all((node) => node.dataset.note === "unlimited").length, 1);
   assert.deepEqual(leaks(spoken(mount)), []);
   // The unlimited row itself never becomes a meter.
-  const row = { ...fixtures.projected.snapshots[0], provider: "CURSOR", kind: "availability", availability: "unlimited", value: 0 };
+  const row = { ...fixtures.projected.snapshots[0], provider: "CURSOR", availability: "unlimited", value: 0 };
   assert.deepEqual(projectReadings(JSON.stringify({ snapshots: [row], flags: [] }), null, now).snapshots, []);
+});
+
+test("an unlimited key answer reaches Connected as a note through the real parser", () => {
+  const report = normalizeMetersReport(parseOpenrouterPayload({ data: { limit: null, limit_remaining: null, usage: 12.47 } }, now));
+  assert.deepEqual(report.rejected, []);
+  const rows = report.snapshots.map((row) => ({ ...row, accountId: "openrouter-key" }));
+  const projected = projectSnapshots(rows, now, new Map([["OPENROUTER", new Set(["openrouter-key"])]]));
+  assert.deepEqual(projected.snapshots, []);
+  const attention = attentionFlags(projected.flags, projected.snapshots);
+  assert.deepEqual(attention, []);
+  const connected = connectedProviders({
+    snapshots: projected.snapshots, connections: [{ provider: "openrouter", state: "CONNECTED" }],
+    flags: projected.flags, attention,
+  });
+  assert.deepEqual(connected.map((provider) => [provider.code, provider.note]), [["OPENROUTER", "unlimited"]]);
+});
+
+test("an unlimited answer alone never makes a provider Connected", () => {
+  const unlimited = { provider: "OPENROUTER", reason: "unlimited", fixKind: "unsupported" };
+  assert.deepEqual(connectedProviders({ snapshots: [], flags: [unlimited] }), []);
+  assert.deepEqual(connectedProviders({ snapshots: [], detections: { providers: [] }, connections: [], flags: [unlimited] }), []);
 });
 
 test("a fix reads by its route: this window's own flow, or sign in in the tool and check again", () => {

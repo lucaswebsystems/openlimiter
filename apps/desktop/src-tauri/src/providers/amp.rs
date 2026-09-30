@@ -3,8 +3,8 @@
 //! Route: the usage command of the installed Amp CLI, balances kept distinct,
 //! behind the live gate. Identity route: local_cli (see account_identity.rs).
 //! Lane P1c owns this module and fills it in, together with its connector in
-//! packages/connectors/src and its registry spec; the wiring checklist names
-//! every other line it touches.
+//! packages/connectors/src, its descriptor in packages/core/src/providers, its
+//! registry spec, its fixtures and its tests; no shared file changes.
 //!
 //! While ENABLED is false nothing here runs: detection skips the provider,
 //! the routing table refuses its credentials, the collector never calls
@@ -17,16 +17,17 @@ use tauri::AppHandle;
 use crate::poll_identity::PollIdentity;
 use crate::provider_detection::{ConnectionMode, Footprint};
 
-/// The Rust half of this provider's switch. The TypeScript half is its code in
-/// PENDING_PROVIDER_CODES, and the registry half is `enabled` in its spec. A
-/// test in packages/core/test/pending-providers.test.ts holds the three
-/// together, and another in provider_detection.rs holds this one to core.
+/// The Rust half of this provider's switch. The TypeScript half is `enabled` in
+/// its descriptor in packages/core/src/providers, and the registry half is
+/// `enabled` in its spec. A test in
+/// packages/core/test/pending-providers.test.ts holds the three together, and
+/// another in provider_detection.rs holds this module to its descriptor.
 pub(crate) const ENABLED: bool = false;
 
 /// Seconds between background reads once switched on. 900 is what every
 /// surface assumes for a provider that states no cadence; the lane sets the
-/// real one here and beside this provider's code in `desktopIntervals` in
-/// packages/core/src/data-rules.ts.
+/// real one here and as `intervalSeconds` in its descriptor, and a test in
+/// provider_detection.rs holds the two equal.
 pub(crate) const INTERVAL_SECONDS: u64 = 900;
 
 /// Where detection may look. Nothing yet: the lane states the documented

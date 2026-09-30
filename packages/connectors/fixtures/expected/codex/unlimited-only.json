@@ -14,7 +14,7 @@
         "resetAt": null,
         "precision": "exact",
         "source": "internal_payload",
-        "kind": "availability",
+        "kind": null,
         "availability": "unlimited",
         "currency": null,
         "usedAmount": null,
