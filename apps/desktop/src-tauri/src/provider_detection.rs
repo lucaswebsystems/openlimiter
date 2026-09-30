@@ -96,10 +96,20 @@ pub enum DetectedProviderId {
     Grok,
     Kimi,
     Cursor,
+    /* The 2.1 providers, registered and switched off. Each one's detection,
+    cadence and collection live in its own module under `providers/`. */
+    Synthetic,
+    Zai,
+    Minimax,
+    Cline,
+    Augment,
+    Amp,
+    Kilo,
+    Copilot,
 }
 
 impl DetectedProviderId {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 17] = [
         Self::Claude,
         Self::Codex,
         Self::Antigravity,
@@ -109,6 +119,14 @@ impl DetectedProviderId {
         Self::Grok,
         Self::Kimi,
         Self::Cursor,
+        Self::Synthetic,
+        Self::Zai,
+        Self::Minimax,
+        Self::Cline,
+        Self::Augment,
+        Self::Amp,
+        Self::Kilo,
+        Self::Copilot,
     ];
 
     pub(crate) const fn slug(self) -> &'static str {
@@ -122,6 +140,14 @@ impl DetectedProviderId {
             Self::Grok => "grok",
             Self::Kimi => "kimi",
             Self::Cursor => "cursor",
+            Self::Synthetic => "synthetic",
+            Self::Zai => "zai",
+            Self::Minimax => "minimax",
+            Self::Cline => "cline",
+            Self::Augment => "augment",
+            Self::Amp => "amp",
+            Self::Kilo => "kilo",
+            Self::Copilot => "copilot",
         }
     }
 
@@ -136,20 +162,170 @@ impl DetectedProviderId {
             Self::Grok => "Grok",
             Self::Kimi => "Kimi",
             Self::Cursor => "Cursor",
+            Self::Synthetic => "Synthetic",
+            Self::Zai => "Z.ai",
+            Self::Minimax => "MiniMax",
+            Self::Cline => "Cline",
+            Self::Augment => "Augment Code",
+            Self::Amp => "Amp",
+            Self::Kilo => "Kilo Code",
+            Self::Copilot => "GitHub Copilot",
         }
     }
 
-    const fn supports_automatic_collection(self) -> bool {
-        matches!(
-            self,
+    /// Whether this build has switched the provider on.
+    ///
+    /// The Rust half of the one switch: every provider that shipped before the
+    /// 2.1 wave is on, and each 2.1 provider reads `ENABLED` in its own module,
+    /// so its lane flips it there and nowhere else in Rust. A provider that is
+    /// off is never scanned, routed, polled or displayed.
+    pub(crate) const fn enabled(self) -> bool {
+        match self {
             Self::Claude
-                | Self::Codex
-                | Self::Antigravity
-                | Self::GeminiCli
-                | Self::Grok
-                | Self::Kimi
-                | Self::Cursor
-        )
+            | Self::Codex
+            | Self::Antigravity
+            | Self::GeminiCli
+            | Self::Opencode
+            | Self::Openrouter
+            | Self::Grok
+            | Self::Kimi
+            | Self::Cursor => true,
+            Self::Synthetic => crate::providers::synthetic::ENABLED,
+            Self::Zai => crate::providers::zai::ENABLED,
+            Self::Minimax => crate::providers::minimax::ENABLED,
+            Self::Cline => crate::providers::cline::ENABLED,
+            Self::Augment => crate::providers::augment::ENABLED,
+            Self::Amp => crate::providers::amp::ENABLED,
+            Self::Kilo => crate::providers::kilo::ENABLED,
+            Self::Copilot => crate::providers::copilot::ENABLED,
+        }
+    }
+
+    /// Where detection may look for a 2.1 provider, stated in its own module.
+    /// The providers that shipped before keep their paths written out below.
+    pub(crate) const fn footprint(self) -> Option<&'static Footprint> {
+        match self {
+            Self::Claude
+            | Self::Codex
+            | Self::Antigravity
+            | Self::GeminiCli
+            | Self::Opencode
+            | Self::Openrouter
+            | Self::Grok
+            | Self::Kimi
+            | Self::Cursor => None,
+            Self::Synthetic => Some(&crate::providers::synthetic::FOOTPRINT),
+            Self::Zai => Some(&crate::providers::zai::FOOTPRINT),
+            Self::Minimax => Some(&crate::providers::minimax::FOOTPRINT),
+            Self::Cline => Some(&crate::providers::cline::FOOTPRINT),
+            Self::Augment => Some(&crate::providers::augment::FOOTPRINT),
+            Self::Amp => Some(&crate::providers::amp::FOOTPRINT),
+            Self::Kilo => Some(&crate::providers::kilo::FOOTPRINT),
+            Self::Copilot => Some(&crate::providers::copilot::FOOTPRINT),
+        }
+    }
+
+    /// The provider an upper case code names, the way the cache spells it.
+    pub(crate) fn from_code(code: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|provider| provider.slug().to_uppercase().replace('-', "_") == code)
+    }
+
+    const fn supports_automatic_collection(self) -> bool {
+        match self.footprint() {
+            Some(footprint) => footprint.automatic_collection,
+            None => matches!(
+                self,
+                Self::Claude
+                    | Self::Codex
+                    | Self::Antigravity
+                    | Self::GeminiCli
+                    | Self::Grok
+                    | Self::Kimi
+                    | Self::Cursor
+            ),
+        }
+    }
+}
+
+/// Whether a cache row's provider code names a provider this build shows.
+///
+/// A code no provider owns (MANUAL is the one) is not a detected provider and
+/// is judged by the cache vocabulary alone.
+pub(crate) fn code_enabled(code: &str) -> bool {
+    DetectedProviderId::from_code(code).is_none_or(DetectedProviderId::enabled)
+}
+
+/// A directory detection can resolve on every platform. Named by the lanes'
+/// footprints; until they ship, nothing names most of them.
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PathBase {
+    Home,
+    XdgConfig,
+    XdgData,
+    /// `%APPDATA%` on Windows. Nothing elsewhere.
+    Roaming,
+    /// `%LOCALAPPDATA%` on Windows. Nothing elsewhere.
+    Local,
+    /// `~/Library/Application Support` on macOS. Nothing elsewhere.
+    ApplicationSupport,
+    /// A documented environment override naming a directory, such as
+    /// `COPILOT_HOME`. Read once, when the application starts, and never in a
+    /// test build.
+    Environment(&'static str),
+}
+
+/// One path under a base, as detection states it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct FootprintPath {
+    pub base: PathBase,
+    pub relative: &'static [&'static str],
+}
+
+/// Where detection may look for one 2.1 provider, stated by that provider.
+///
+/// Everything a lane needs to make its provider detectable is a value here, in
+/// its own module, so no lane edits the functions below. Paths are only ever
+/// noticed, except a configuration credential, which is read through
+/// `config_credentials.rs` once its rule proves the vendor.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Footprint {
+    /// How a person connects this provider, which decides the recovery offered.
+    pub mode: ConnectionMode,
+    /// Whether detected accounts may show numbers. False until the provider's
+    /// live gate passes, so a detected account is flagged "not measurable yet".
+    pub automatic_collection: bool,
+    /// The vendor's own executable, without a platform suffix.
+    pub executable: Option<&'static str>,
+    /// The npm package whose manifest names that client, for its version.
+    pub package: Option<&'static str>,
+    /// Trusted install roots in the `base/relative` form used above.
+    pub install_roots_windows: &'static [&'static str],
+    pub install_roots_macos: &'static [&'static str],
+    pub install_roots_linux: &'static [&'static str],
+    /// Files and folders that prove the tool is installed. Never read.
+    pub markers: &'static [FootprintPath],
+    /// Documented credential fields in client configurations.
+    pub config_credentials: &'static [(FootprintPath, crate::config_credentials::ConfigCredentialRule)],
+}
+
+impl Footprint {
+    /// A provider detection finds nothing for: the state every 2.1 provider
+    /// starts in.
+    pub(crate) const fn nothing(mode: ConnectionMode) -> Self {
+        Self {
+            mode,
+            automatic_collection: false,
+            executable: None,
+            package: None,
+            install_roots_windows: &[],
+            install_roots_macos: &[],
+            install_roots_linux: &[],
+            markers: &[],
+            config_credentials: &[],
+        }
     }
 }
 
@@ -183,6 +359,8 @@ pub enum IdentityQuality {
     ProviderAccount,
     JwtSubject,
     ProviderSingleton,
+    /// The fingerprint of a key the person holds, never the key.
+    KeyFingerprint,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -232,6 +410,9 @@ pub struct ProviderDetection {
 }
 
 fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
+    if let Some(footprint) = provider.footprint() {
+        return footprint.mode;
+    }
     match provider {
         DetectedProviderId::Claude
         | DetectedProviderId::Codex
@@ -242,6 +423,14 @@ fn connection_mode(provider: DetectedProviderId) -> ConnectionMode {
         | DetectedProviderId::Cursor => ConnectionMode::Automatic,
         DetectedProviderId::Openrouter => ConnectionMode::ApiKey,
         DetectedProviderId::Opencode => ConnectionMode::ManualEntry,
+        DetectedProviderId::Synthetic
+        | DetectedProviderId::Zai
+        | DetectedProviderId::Minimax
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Augment
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Kilo
+        | DetectedProviderId::Copilot => unreachable!(),
     }
 }
 
@@ -252,6 +441,18 @@ fn provider_recovery(
     if state == ProviderPresence::Present {
         return None;
     }
+    let automatic = match state {
+        ProviderPresence::InstalledLoggedOut => Some(RecoveryAction::SignInToCli),
+        ProviderPresence::Absent => Some(RecoveryAction::ManualEntry),
+        ProviderPresence::Present => None,
+    };
+    if let Some(footprint) = provider.footprint() {
+        return match footprint.mode {
+            ConnectionMode::ApiKey => Some(RecoveryAction::ConnectApiKey),
+            ConnectionMode::ManualEntry => Some(RecoveryAction::ManualEntry),
+            ConnectionMode::Automatic => automatic,
+        };
+    }
     match provider {
         DetectedProviderId::Openrouter => Some(RecoveryAction::ConnectApiKey),
         DetectedProviderId::Opencode => Some(RecoveryAction::ManualEntry),
@@ -261,15 +462,30 @@ fn provider_recovery(
         | DetectedProviderId::GeminiCli
         | DetectedProviderId::Grok
         | DetectedProviderId::Kimi
-        | DetectedProviderId::Cursor => match state {
-            ProviderPresence::InstalledLoggedOut => Some(RecoveryAction::SignInToCli),
-            ProviderPresence::Absent => Some(RecoveryAction::ManualEntry),
-            ProviderPresence::Present => None,
-        },
+        | DetectedProviderId::Cursor
+        | DetectedProviderId::Synthetic
+        | DetectedProviderId::Zai
+        | DetectedProviderId::Minimax
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Augment
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Kilo
+        | DetectedProviderId::Copilot => automatic,
     }
 }
 
 fn provider_message(provider: DetectedProviderId, state: ProviderPresence) -> Option<String> {
+    if provider
+        .footprint()
+        .is_some_and(|footprint| footprint.mode == ConnectionMode::ApiKey)
+    {
+        return (state != ProviderPresence::Present).then(|| {
+            format!(
+                "Connect a {} key to collect its quota.",
+                provider.display_name()
+            )
+        });
+    }
     match provider {
         DetectedProviderId::Openrouter => Some(if state == ProviderPresence::Present {
             "OpenRouter collection uses a user provided API key.".to_string()
@@ -336,12 +552,41 @@ struct DiscoveryContext {
     kimi_share_dir: Option<PathBuf>,
     program_files: Vec<PathBuf>,
     path_entries: Vec<PathBuf>,
+    /// Which providers may be scanned: the product's switch, or a test's.
+    enabled: fn(DetectedProviderId) -> bool,
+    /// Where a 2.1 provider is looked for: its module's footprint, or a test's.
+    footprint: fn(DetectedProviderId) -> Option<&'static Footprint>,
+    /// The documented directory overrides footprints name, read at startup.
+    environment: BTreeMap<&'static str, PathBuf>,
 }
 
 fn non_empty_path(name: &str) -> Option<PathBuf> {
     env::var_os(name)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
+}
+
+/// Every environment override a footprint names, resolved once.
+#[cfg(not(test))]
+fn footprint_environment() -> BTreeMap<&'static str, PathBuf> {
+    let mut environment = BTreeMap::new();
+    for footprint in DetectedProviderId::ALL
+        .into_iter()
+        .filter_map(DetectedProviderId::footprint)
+    {
+        let paths = footprint
+            .markers
+            .iter()
+            .chain(footprint.config_credentials.iter().map(|(path, _)| path));
+        for path in paths {
+            if let PathBase::Environment(name) = path.base {
+                if let Some(value) = non_empty_path(name) {
+                    environment.insert(name, value);
+                }
+            }
+        }
+    }
+    environment
 }
 
 impl DiscoveryContext {
@@ -364,6 +609,9 @@ impl DiscoveryContext {
             kimi_share_dir: None,
             program_files: Vec::new(),
             path_entries: Vec::new(),
+            enabled: DetectedProviderId::enabled,
+            footprint: DetectedProviderId::footprint,
+            environment: BTreeMap::new(),
         }
     }
 
@@ -407,6 +655,28 @@ impl DiscoveryContext {
             kimi_share_dir: non_empty_path("KIMI_SHARE_DIR"),
             program_files,
             path_entries,
+            enabled: DetectedProviderId::enabled,
+            footprint: DetectedProviderId::footprint,
+            environment: footprint_environment(),
+        }
+    }
+
+    /// The directory a footprint path starts from, on this platform.
+    fn base(&self, base: PathBase) -> Option<&Path> {
+        match base {
+            PathBase::Home => self.home.as_deref(),
+            PathBase::XdgConfig => self.xdg_config.as_deref(),
+            PathBase::XdgData => self.xdg_data.as_deref(),
+            PathBase::Roaming => (self.platform == DiscoveryPlatform::Windows)
+                .then_some(self.roaming.as_deref())
+                .flatten(),
+            PathBase::Local => (self.platform == DiscoveryPlatform::Windows)
+                .then_some(self.local.as_deref())
+                .flatten(),
+            PathBase::ApplicationSupport => (self.platform == DiscoveryPlatform::Macos)
+                .then_some(self.application_support.as_deref())
+                .flatten(),
+            PathBase::Environment(name) => self.environment.get(name).map(PathBuf::as_path),
         }
     }
 }
@@ -415,6 +685,9 @@ impl DiscoveryContext {
 enum CandidateKind {
     Credential,
     Marker,
+    /// A client configuration that may hold a vendor credential. It proves
+    /// nothing by existing: only a credential its rule proves counts.
+    Config(&'static crate::config_credentials::ConfigCredentialRule),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -438,8 +711,39 @@ fn push_candidate(
     paths.push(CandidatePath { path, kind });
 }
 
+/// A 2.1 provider's paths, exactly as its footprint states them.
+fn footprint_candidates(footprint: &Footprint, context: &DiscoveryContext) -> Vec<CandidatePath> {
+    let mut paths = Vec::new();
+    for marker in footprint.markers {
+        push_candidate(
+            &mut paths,
+            context.base(marker.base),
+            marker.relative,
+            CandidateKind::Marker,
+        );
+    }
+    for (path, rule) in footprint.config_credentials {
+        push_candidate(
+            &mut paths,
+            context.base(path.base),
+            path.relative,
+            CandidateKind::Config(rule),
+        );
+    }
+    let mut unique: Vec<CandidatePath> = Vec::with_capacity(paths.len());
+    for entry in paths {
+        if !unique.contains(&entry) {
+            unique.push(entry);
+        }
+    }
+    unique
+}
+
 fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> Vec<CandidatePath> {
     use CandidateKind::{Credential, Marker};
+    if let Some(footprint) = (context.footprint)(provider) {
+        return footprint_candidates(footprint, context);
+    }
     let mut paths = Vec::new();
     let home = context.home.as_deref();
     if provider == DetectedProviderId::Cursor {
@@ -458,7 +762,15 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
         return paths;
     }
     match provider {
-        DetectedProviderId::Cursor => unreachable!(),
+        DetectedProviderId::Cursor
+        | DetectedProviderId::Synthetic
+        | DetectedProviderId::Zai
+        | DetectedProviderId::Minimax
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Augment
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Kilo
+        | DetectedProviderId::Copilot => unreachable!(),
         DetectedProviderId::Claude => {
             push_candidate(
                 &mut paths,
@@ -664,7 +976,15 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 }
                 DetectedProviderId::Grok
                 | DetectedProviderId::Kimi
-                | DetectedProviderId::Cursor => {}
+                | DetectedProviderId::Cursor
+                | DetectedProviderId::Synthetic
+                | DetectedProviderId::Zai
+                | DetectedProviderId::Minimax
+                | DetectedProviderId::Cline
+                | DetectedProviderId::Augment
+                | DetectedProviderId::Amp
+                | DetectedProviderId::Kilo
+                | DetectedProviderId::Copilot => {}
             }
         }
         DiscoveryPlatform::Macos => {
@@ -679,7 +999,15 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                 DetectedProviderId::GeminiCli
                 | DetectedProviderId::Grok
                 | DetectedProviderId::Kimi
-                | DetectedProviderId::Cursor => {}
+                | DetectedProviderId::Cursor
+                | DetectedProviderId::Synthetic
+                | DetectedProviderId::Zai
+                | DetectedProviderId::Minimax
+                | DetectedProviderId::Cline
+                | DetectedProviderId::Augment
+                | DetectedProviderId::Amp
+                | DetectedProviderId::Kilo
+                | DetectedProviderId::Copilot => {}
                 DetectedProviderId::Claude
                 | DetectedProviderId::Codex
                 | DetectedProviderId::Opencode
@@ -693,7 +1021,15 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         | DetectedProviderId::GeminiCli
                         | DetectedProviderId::Grok
                         | DetectedProviderId::Kimi
-                        | DetectedProviderId::Cursor => {
+                        | DetectedProviderId::Cursor
+                        | DetectedProviderId::Synthetic
+                        | DetectedProviderId::Zai
+                        | DetectedProviderId::Minimax
+                        | DetectedProviderId::Cline
+                        | DetectedProviderId::Augment
+                        | DetectedProviderId::Amp
+                        | DetectedProviderId::Kilo
+                        | DetectedProviderId::Copilot => {
                             unreachable!()
                         }
                     };
@@ -705,7 +1041,15 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                         | DetectedProviderId::GeminiCli
                         | DetectedProviderId::Grok
                         | DetectedProviderId::Kimi
-                        | DetectedProviderId::Cursor => {
+                        | DetectedProviderId::Cursor
+                        | DetectedProviderId::Synthetic
+                        | DetectedProviderId::Zai
+                        | DetectedProviderId::Minimax
+                        | DetectedProviderId::Cline
+                        | DetectedProviderId::Augment
+                        | DetectedProviderId::Amp
+                        | DetectedProviderId::Kilo
+                        | DetectedProviderId::Copilot => {
                             unreachable!()
                         }
                     };
@@ -739,7 +1083,15 @@ fn candidate_paths(provider: DetectedProviderId, context: &DiscoveryContext) -> 
                     DetectedProviderId::Openrouter => "config.json",
                     DetectedProviderId::Grok
                     | DetectedProviderId::Kimi
-                    | DetectedProviderId::Cursor => unreachable!(),
+                    | DetectedProviderId::Cursor
+                    | DetectedProviderId::Synthetic
+                    | DetectedProviderId::Zai
+                    | DetectedProviderId::Minimax
+                    | DetectedProviderId::Cline
+                    | DetectedProviderId::Augment
+                    | DetectedProviderId::Amp
+                    | DetectedProviderId::Kilo
+                    | DetectedProviderId::Copilot => unreachable!(),
                 };
                 push_candidate(
                     &mut paths,
@@ -823,7 +1175,15 @@ fn profile_prefix(provider: DetectedProviderId) -> Option<(&'static str, &'stati
         | DetectedProviderId::Openrouter
         | DetectedProviderId::Grok
         | DetectedProviderId::Kimi
-        | DetectedProviderId::Cursor => None,
+        | DetectedProviderId::Cursor
+        | DetectedProviderId::Synthetic
+        | DetectedProviderId::Zai
+        | DetectedProviderId::Minimax
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Augment
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Kilo
+        | DetectedProviderId::Copilot => None,
     }
 }
 
@@ -905,6 +1265,21 @@ fn install_root_specs(
         | DetectedProviderId::Opencode
         | DetectedProviderId::Openrouter
         | DetectedProviderId::Cursor => &[],
+        DetectedProviderId::Synthetic
+        | DetectedProviderId::Zai
+        | DetectedProviderId::Minimax
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Augment
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Kilo
+        | DetectedProviderId::Copilot => match provider.footprint() {
+            Some(footprint) => match platform {
+                DiscoveryPlatform::Windows => footprint.install_roots_windows,
+                DiscoveryPlatform::Macos => footprint.install_roots_macos,
+                DiscoveryPlatform::Linux => footprint.install_roots_linux,
+            },
+            None => &[],
+        },
     }
 }
 
@@ -1048,6 +1423,19 @@ fn validated_launcher(
 }
 
 fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -> Vec<String> {
+    if let Some(footprint) = provider.footprint() {
+        let Some(base) = footprint.executable else {
+            return Vec::new();
+        };
+        return if platform == DiscoveryPlatform::Windows {
+            [".exe", ".cmd", ".bat"]
+                .into_iter()
+                .map(|suffix| format!("{base}{suffix}"))
+                .collect()
+        } else {
+            vec![base.to_string()]
+        };
+    }
     let base = match provider {
         DetectedProviderId::Claude => "claude",
         DetectedProviderId::Codex => "codex",
@@ -1058,6 +1446,14 @@ fn executable_names(provider: DetectedProviderId, platform: DiscoveryPlatform) -
         DetectedProviderId::Grok => "grok",
         DetectedProviderId::Kimi => "kimi",
         DetectedProviderId::Cursor => "cursor",
+        DetectedProviderId::Synthetic
+        | DetectedProviderId::Zai
+        | DetectedProviderId::Minimax
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Augment
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Kilo
+        | DetectedProviderId::Copilot => unreachable!(),
     };
     if platform == DiscoveryPlatform::Windows {
         [".exe", ".cmd", ".bat"]
@@ -1214,6 +1610,17 @@ fn package_name(provider: DetectedProviderId) -> Option<&'static str> {
         DetectedProviderId::Antigravity
         | DetectedProviderId::Openrouter
         | DetectedProviderId::Cursor => None,
+        DetectedProviderId::Synthetic
+        | DetectedProviderId::Zai
+        | DetectedProviderId::Minimax
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Augment
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Kilo
+        | DetectedProviderId::Copilot => match provider.footprint() {
+            Some(footprint) => footprint.package,
+            None => None,
+        },
     }
 }
 
@@ -1488,7 +1895,15 @@ fn token_object<'a>(
         DetectedProviderId::Openrouter => &["openrouter", "credentials"],
         DetectedProviderId::Grok => &["auth", "credentials"],
         DetectedProviderId::Kimi => &["oauth", "credentials"],
-        DetectedProviderId::Cursor => &[],
+        DetectedProviderId::Cursor
+        | DetectedProviderId::Synthetic
+        | DetectedProviderId::Zai
+        | DetectedProviderId::Minimax
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Augment
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Kilo
+        | DetectedProviderId::Copilot => &[],
     };
     nested_object(account, names).unwrap_or(account)
 }
@@ -1506,7 +1921,15 @@ fn access_token<'a>(
         DetectedProviderId::Openrouter => &["api_key", "apiKey", "key", "OPENROUTER_API_KEY"],
         DetectedProviderId::Grok => &["key", "access_token", "accessToken"],
         DetectedProviderId::Kimi => &["access_token", "accessToken"],
-        DetectedProviderId::Cursor => &[],
+        DetectedProviderId::Cursor
+        | DetectedProviderId::Synthetic
+        | DetectedProviderId::Zai
+        | DetectedProviderId::Minimax
+        | DetectedProviderId::Cline
+        | DetectedProviderId::Augment
+        | DetectedProviderId::Amp
+        | DetectedProviderId::Kilo
+        | DetectedProviderId::Copilot => &[],
     };
     names
         .iter()
@@ -1725,6 +2148,49 @@ fn account_label(provider: DetectedProviderId, email: Option<&str>, account_id: 
 enum CredentialSource {
     File(PathBuf),
     AntigravityKeyring,
+    /// A documented credential field in a client configuration, read only
+    /// once the rule proves the vendor.
+    Config(PathBuf, &'static crate::config_credentials::ConfigCredentialRule),
+}
+
+/// The one credential a proven client configuration holds, with the identity
+/// the account identity contract gives its route: a key is its fingerprint, a
+/// stored token is the account its configuration names (never the token).
+fn parse_config_credential(
+    provider: DetectedProviderId,
+    path: &Path,
+    rule: &crate::config_credentials::ConfigCredentialRule,
+) -> Vec<ParsedCredential> {
+    let Some(found) = crate::config_credentials::read_config_credential(path, rule) else {
+        return Vec::new();
+    };
+    let (identity_material, identity_quality, provider_account_id) =
+        match crate::account_identity::route(provider) {
+            Some(crate::account_identity::AccountRoute::AccountToken) => match found.account {
+                Some(account) => (account.clone(), IdentityQuality::ProviderAccount, Some(account)),
+                None => match jwt_claims(&found.secret).as_ref().and_then(claim_identity) {
+                    Some((value, quality)) => (value.to_string(), quality, None),
+                    None => (
+                        PROVIDER_SINGLETON_MATERIAL.to_string(),
+                        IdentityQuality::ProviderSingleton,
+                        None,
+                    ),
+                },
+            },
+            _ => (
+                crate::account_identity::key_fingerprint_material(&found.secret),
+                IdentityQuality::KeyFingerprint,
+                None,
+            ),
+        };
+    vec![ParsedCredential {
+        token: found.secret,
+        provider_account_id,
+        identity_material,
+        email: None,
+        expires_at_ms: None,
+        identity_quality,
+    }]
 }
 
 fn parse_credential_source(
@@ -1747,6 +2213,7 @@ fn parse_credential_source(
             }]
         }
         CredentialSource::AntigravityKeyring => Vec::new(),
+        CredentialSource::Config(path, rule) => parse_config_credential(provider, path, rule),
     }
 }
 
@@ -1762,6 +2229,40 @@ struct Inventory {
     report: DetectionReport,
     credentials: BTreeMap<(DetectedProviderId, String), CredentialReference>,
     statusline_accounts: BTreeSet<String>,
+    /// The account each command line provider's own client last answered for.
+    /// No file names it, so a scan cannot find it: it is carried from scan to
+    /// scan until the client answers differently. See account_identity.rs.
+    cli_accounts: BTreeMap<DetectedProviderId, String>,
+}
+
+/// Show the account a command line client answered for as detected, keeping
+/// the state it had when it was already shown.
+fn add_cli_account(entry: &mut ProviderDetection, account_id: &str, kept: Option<DetectedAccount>) {
+    let provider = entry.provider_id;
+    if !entry
+        .accounts
+        .iter()
+        .any(|account| account.account_id == account_id)
+    {
+        entry.accounts.push(kept.unwrap_or_else(|| DetectedAccount {
+            account_id: account_id.to_string(),
+            label: account_label(provider, None, account_id),
+            auth_state: DetectedAuthState::ExpiryUnknown,
+            collection_state: DetectedCollectionState::Waiting,
+            identity_quality: IdentityQuality::ProviderAccount,
+            automatic_collection: provider.supports_automatic_collection(),
+            expires_at: None,
+            recovery: None,
+            message: None,
+        }));
+    }
+    set_presence(entry, ProviderPresence::Present);
+}
+
+fn set_presence(entry: &mut ProviderDetection, state: ProviderPresence) {
+    entry.state = state;
+    entry.recovery = provider_recovery(entry.provider_id, state);
+    entry.message = provider_message(entry.provider_id, state);
 }
 
 #[cfg(test)]
@@ -1783,22 +2284,33 @@ fn scan_enabled_inventory(
     let mut providers = Vec::new();
     let mut credentials = BTreeMap::new();
     for provider in DetectedProviderId::ALL {
-        if !switches.enabled(provider) {
+        /* A provider this build has not switched on is never scanned, so it
+        never reaches the report, a flag or a collector. */
+        if !switches.enabled(provider) || !(context.enabled)(provider) {
             continue;
         }
         let mut candidates = candidate_paths(provider, context);
-        candidates.extend(profile_candidates(provider, context.home.as_deref()));
-        let mut seen = BTreeSet::new();
-        candidates.retain(|entry| seen.insert(entry.path.clone()));
+        if (context.footprint)(provider).is_none() {
+            candidates.extend(profile_candidates(provider, context.home.as_deref()));
+            let mut seen = BTreeSet::new();
+            candidates.retain(|entry| seen.insert(entry.path.clone()));
+        }
         let mut installed = executable_present(provider, context);
         let mut accounts = BTreeMap::<String, DetectedAccount>::new();
         let mut sources = Vec::new();
         for candidate in candidates {
-            if safe_path_present(&candidate.path) {
-                installed = true;
-            }
-            if candidate.kind == CandidateKind::Credential {
-                sources.push(CredentialSource::File(candidate.path));
+            match candidate.kind {
+                CandidateKind::Credential => {
+                    installed |= safe_path_present(&candidate.path);
+                    sources.push(CredentialSource::File(candidate.path));
+                }
+                CandidateKind::Marker => installed |= safe_path_present(&candidate.path),
+                /* A client configuration proves nothing by existing: a Claude
+                settings file says nothing about Synthetic until its rule
+                proves a Synthetic credential inside it. */
+                CandidateKind::Config(rule) => {
+                    sources.push(CredentialSource::Config(candidate.path, rule));
+                }
             }
         }
         if provider == DetectedProviderId::Antigravity && context.read_native_credentials {
@@ -1885,6 +2397,7 @@ fn scan_enabled_inventory(
         },
         credentials,
         statusline_accounts,
+        cli_accounts: BTreeMap::new(),
     }
 }
 
@@ -1949,6 +2462,7 @@ impl DetectionStore {
             },
             credentials: BTreeMap::new(),
             statusline_accounts: BTreeSet::new(),
+            cli_accounts: BTreeMap::new(),
         };
         Self {
             switches,
@@ -2025,6 +2539,34 @@ impl DetectionStore {
                 }
             }
         }
+        /* A command line account is the client's answer, not a file, so it
+        outlives the scan with the state it had, for as long as the scan still
+        finds the client. A client whose footprint is gone answers for nobody. */
+        next.cli_accounts = std::mem::take(&mut inventory.cli_accounts);
+        next.cli_accounts.retain(|provider, account_id| {
+            let Some(entry) = next
+                .report
+                .providers
+                .iter_mut()
+                .find(|entry| entry.provider_id == *provider)
+                .filter(|entry| entry.state != ProviderPresence::Absent)
+            else {
+                return false;
+            };
+            let kept = inventory
+                .report
+                .providers
+                .iter()
+                .find(|old| old.provider_id == *provider)
+                .and_then(|old| {
+                    old.accounts
+                        .iter()
+                        .find(|old| old.account_id == *account_id)
+                })
+                .cloned();
+            add_cli_account(entry, account_id, kept);
+            true
+        });
         let report = next.report.clone();
         *inventory = next;
         report
@@ -2038,8 +2580,10 @@ impl DetectionStore {
                     .credentials
                     .values()
                     .filter_map(|reference| match &reference.source {
-                        CredentialSource::File(path) => Some(path.clone()),
-                        _ => None,
+                        CredentialSource::File(path) | CredentialSource::Config(path, _) => {
+                            Some(path.clone())
+                        }
+                        CredentialSource::AntigravityKeyring => None,
                     })
                     .collect()
             })
@@ -2131,14 +2675,80 @@ impl DetectionStore {
         self.inventory
             .read()
             .map(|inventory| {
-                inventory
+                let mut accounts: Vec<String> = inventory
                     .credentials
                     .keys()
                     .filter(|(found, _)| *found == provider)
                     .map(|(_, account)| account.clone())
-                    .collect()
+                    .collect();
+                /* A command line account has no credential here, and is the
+                account signed in all the same. */
+                if let Some(answered) = inventory.cli_accounts.get(&provider) {
+                    if !accounts.contains(answered) {
+                        accounts.push(answered.clone());
+                    }
+                }
+                accounts
             })
             .unwrap_or_default()
+    }
+
+    /// Record the account a command line provider's own client says it is
+    /// signed in to, or `None` when it says nobody is.
+    ///
+    /// For the local CLI route this is the only identity there is. The lane's
+    /// pass asks the client, turns the answer into an id with
+    /// `account_identity::cli_account_id`, records it here, and only then
+    /// writes a reading under it. A different answer is a switch: the old
+    /// account stops being detected at once, so its rows are held back as not
+    /// connected, and the new one starts waiting. The same answer changes
+    /// nothing. A client that could not be asked is not an answer, so nothing
+    /// is recorded for it; a client that is gone is noticed by the next scan,
+    /// which finds none of its footprint and drops the account. A provider on
+    /// another route, or one this build or the person has switched off, is
+    /// ignored.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn record_cli_account(&self, provider: DetectedProviderId, account_id: Option<String>) {
+        if crate::account_identity::route(provider)
+            != Some(crate::account_identity::AccountRoute::LocalCli)
+            || !(self.context.enabled)(provider)
+            || !self.switches.enabled(provider)
+        {
+            return;
+        }
+        let mut guard = self
+            .inventory
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let inventory = &mut *guard;
+        let previous = match &account_id {
+            Some(id) => inventory.cli_accounts.insert(provider, id.clone()),
+            None => inventory.cli_accounts.remove(&provider),
+        };
+        if previous == account_id {
+            return;
+        }
+        let Some(entry) = inventory
+            .report
+            .providers
+            .iter_mut()
+            .find(|entry| entry.provider_id == provider)
+        else {
+            return;
+        };
+        if let Some(previous) =
+            previous.filter(|old| !inventory.credentials.contains_key(&(provider, old.clone())))
+        {
+            entry.accounts.retain(|account| account.account_id != previous);
+        }
+        match account_id {
+            Some(id) => add_cli_account(entry, &id, None),
+            /* The client answered, so it is installed, and nobody is signed in. */
+            None if entry.accounts.is_empty() => {
+                set_presence(entry, ProviderPresence::InstalledLoggedOut);
+            }
+            None => {}
+        }
     }
 
     pub(crate) fn display_account_ids(&self, provider: DetectedProviderId) -> Vec<String> {
@@ -2285,6 +2895,9 @@ impl DetectionStore {
             kimi_share_dir: None,
             program_files: Vec::new(),
             path_entries: vec![home.join("bin")],
+            enabled: DetectedProviderId::enabled,
+            footprint: DetectedProviderId::footprint,
+            environment: BTreeMap::new(),
         };
         let inventory = scan_inventory(&context, now_ms);
         Self {
@@ -2570,6 +3183,9 @@ mod tests {
             kimi_share_dir: Some(home.join("kimi-share")),
             program_files: Vec::new(),
             path_entries: vec![home.join("bin")],
+            enabled: DetectedProviderId::enabled,
+            footprint: DetectedProviderId::footprint,
+            environment: BTreeMap::new(),
         }
     }
 
@@ -2691,6 +3307,12 @@ mod tests {
             let context = context(platform, dir.path());
             for provider in DetectedProviderId::ALL {
                 let candidates = candidate_paths(provider, &context);
+                /* A 2.1 provider is looked for exactly where its own footprint
+                says, and nowhere while that footprint is empty. */
+                if let Some(footprint) = provider.footprint() {
+                    assert_eq!(candidates, footprint_candidates(footprint, &context));
+                    continue;
+                }
                 if provider == DetectedProviderId::Antigravity {
                     assert!(candidates
                         .iter()
@@ -3421,5 +4043,273 @@ mod tests {
         let gemini = provider(&inventory.report, DetectedProviderId::GeminiCli);
         assert_eq!(gemini.state, ProviderPresence::InstalledLoggedOut);
         assert!(gemini.accounts.is_empty());
+    }
+
+    /* The account identity contract, end to end through detection, with
+    fixture footprints standing in for the ones the provider lanes write. */
+
+    const FIXTURE_ENDPOINT: &str = "https://api.vendor.example/anthropic";
+
+    /// A client configuration pointed at a vendor, the shape a lane's rule reads.
+    const FIXTURE_RULE: crate::config_credentials::ConfigCredentialRule =
+        crate::config_credentials::ConfigCredentialRule {
+            container: &["env"],
+            proof: crate::config_credentials::VendorProof::Endpoint {
+                field: "ANTHROPIC_BASE_URL",
+                hosts: &["api.vendor.example"],
+            },
+            credential_field: "ANTHROPIC_AUTH_TOKEN",
+            account_field: None,
+        };
+
+    /// One key route provider read from two client configurations, the way one
+    /// key ends up in two clients.
+    static FIXTURE_KEY_FOOTPRINT: Footprint = Footprint {
+        config_credentials: &[
+            (
+                FootprintPath {
+                    base: PathBase::Home,
+                    relative: &[".client-a", "settings.json"],
+                },
+                FIXTURE_RULE,
+            ),
+            (
+                FootprintPath {
+                    base: PathBase::XdgConfig,
+                    relative: &["client-b", "settings.json"],
+                },
+                FIXTURE_RULE,
+            ),
+        ],
+        ..Footprint::nothing(ConnectionMode::ApiKey)
+    };
+
+    /// One command line provider, installed when its marker is present.
+    static FIXTURE_CLI_FOOTPRINT: Footprint = Footprint {
+        markers: &[FootprintPath {
+            base: PathBase::Home,
+            relative: &[".cli-fixture", "settings.json"],
+        }],
+        ..Footprint::nothing(ConnectionMode::Automatic)
+    };
+
+    fn fixture_footprint(provider: DetectedProviderId) -> Option<&'static Footprint> {
+        match provider {
+            DetectedProviderId::Synthetic => Some(&FIXTURE_KEY_FOOTPRINT),
+            DetectedProviderId::Augment => Some(&FIXTURE_CLI_FOOTPRINT),
+            other => other.footprint(),
+        }
+    }
+
+    /// A store with every 2.1 provider switched on and the fixture footprints.
+    fn fixture_store(home: &Path) -> DetectionStore {
+        let mut store = DetectionStore::for_test_home(home, 1_800_000_000_000);
+        store.context.enabled = |_| true;
+        store.context.footprint = fixture_footprint;
+        store.rescan();
+        store
+    }
+
+    fn vendor_settings(path: &Path, endpoint: &str, key: &str) {
+        write(
+            path,
+            &serde_json::json!({
+                "env": { "ANTHROPIC_BASE_URL": endpoint, "ANTHROPIC_AUTH_TOKEN": key }
+            })
+            .to_string(),
+        );
+    }
+
+    fn detected_account(
+        store: &DetectionStore,
+        provider_id: DetectedProviderId,
+        account_id: &str,
+    ) -> DetectedAccount {
+        provider(&store.report(), provider_id)
+            .accounts
+            .iter()
+            .find(|account| account.account_id == account_id)
+            .cloned()
+            .expect("a detected account")
+    }
+
+    #[test]
+    fn one_key_in_two_client_configurations_is_one_account() {
+        let dir = TempDir::new();
+        let first = dir.path().join(".client-a").join("settings.json");
+        let second = dir.path().join(".config").join("client-b").join("settings.json");
+        vendor_settings(&first, FIXTURE_ENDPOINT, "fixture-key-one");
+        vendor_settings(&second, "https://api.vendor.example", " fixture-key-one\n");
+        let store = fixture_store(dir.path());
+        let one = crate::account_identity::key_account_id(
+            DetectedProviderId::Synthetic,
+            "fixture-key-one",
+        );
+        assert_eq!(
+            store.account_ids(DetectedProviderId::Synthetic),
+            vec![one.clone()]
+        );
+        let report = store.report();
+        let synthetic = provider(&report, DetectedProviderId::Synthetic);
+        assert_eq!(synthetic.state, ProviderPresence::Present);
+        assert_eq!(
+            synthetic.accounts[0].identity_quality,
+            IdentityQuality::KeyFingerprint
+        );
+        /* The key is nowhere in what detection reports, only its fingerprint. */
+        assert!(!serde_json::to_string(&report)
+            .expect("report")
+            .contains("fixture-key-one"));
+        /* A second key is a second account. */
+        vendor_settings(&second, FIXTURE_ENDPOINT, "fixture-key-two");
+        store.rescan();
+        assert_eq!(store.account_ids(DetectedProviderId::Synthetic).len(), 2);
+        /* The same files pointed anywhere else name no account and do not even
+        prove the vendor's client is installed. */
+        vendor_settings(&first, "https://api.anthropic.com", "fixture-anthropic-token");
+        vendor_settings(&second, "https://proxy.example", "fixture-key-two");
+        let report = store.rescan();
+        let synthetic = provider(&report, DetectedProviderId::Synthetic);
+        assert!(synthetic.accounts.is_empty());
+        assert_eq!(synthetic.state, ProviderPresence::Absent);
+        assert!(store
+            .account_ids(DetectedProviderId::Synthetic)
+            .is_empty());
+    }
+
+    #[test]
+    fn a_key_changed_during_a_poll_is_never_read_under_the_old_identity() {
+        let dir = TempDir::new();
+        let settings = dir.path().join(".client-a").join("settings.json");
+        vendor_settings(&settings, FIXTURE_ENDPOINT, "fixture-key-one");
+        let store = fixture_store(dir.path());
+        let one = crate::account_identity::key_account_id(
+            DetectedProviderId::Synthetic,
+            "fixture-key-one",
+        );
+        let two = crate::account_identity::key_account_id(
+            DetectedProviderId::Synthetic,
+            "fixture-key-two",
+        );
+        /* A rescan of the same key keeps what the collector learned about it. */
+        store.mark_ready(DetectedProviderId::Synthetic, &one);
+        store.rescan();
+        assert_eq!(
+            detected_account(&store, DetectedProviderId::Synthetic, &one).collection_state,
+            DetectedCollectionState::Ready
+        );
+        /* The person switches keys while a read is in flight. The credential
+        behind the old identity is gone, so the read is refused rather than sent
+        with the new key under the old account. */
+        vendor_settings(&settings, FIXTURE_ENDPOINT, "fixture-key-two");
+        assert!(matches!(
+            store.read_credential(DetectedProviderId::Synthetic, &one),
+            Err(DetectedCredentialError::Unreadable)
+        ));
+        /* The next scan makes the new key the one account, waiting, and the old
+        identity is no longer detected, so its rows are held back. */
+        store.rescan();
+        assert_eq!(
+            store.account_ids(DetectedProviderId::Synthetic),
+            vec![two.clone()]
+        );
+        assert_eq!(
+            detected_account(&store, DetectedProviderId::Synthetic, &two).collection_state,
+            DetectedCollectionState::Waiting
+        );
+        let secret = store
+            .read_credential(DetectedProviderId::Synthetic, &two)
+            .expect("the new key");
+        assert_eq!(secret.access_token.as_str(), "fixture-key-two");
+        assert!(matches!(
+            store.read_credential(DetectedProviderId::Synthetic, &one),
+            Err(DetectedCredentialError::NotFound)
+        ));
+    }
+
+    #[test]
+    fn a_command_line_answer_is_the_account_and_a_new_answer_is_a_switch() {
+        use crate::account_identity::{cli_account_id, AccountScope};
+        let dir = TempDir::new();
+        let marker = dir.path().join(".cli-fixture").join("settings.json");
+        write(&marker, "{}");
+        let store = fixture_store(dir.path());
+        let cli = DetectedProviderId::Augment;
+        let first = cli_account_id(cli, "fixture-user-1", AccountScope::Personal, true)
+            .expect("first");
+        let second = cli_account_id(cli, "fixture-user-2", AccountScope::Personal, true)
+            .expect("second");
+        assert_eq!(
+            provider(&store.report(), cli).state,
+            ProviderPresence::InstalledLoggedOut
+        );
+        store.record_cli_account(cli, Some(first.clone()));
+        assert_eq!(store.account_ids(cli), vec![first.clone()]);
+        assert_eq!(provider(&store.report(), cli).state, ProviderPresence::Present);
+        /* The same answer, and a rescan, keep the account and its state. */
+        store.mark_ready(cli, &first);
+        store.record_cli_account(cli, Some(first.clone()));
+        store.rescan();
+        assert_eq!(store.account_ids(cli), vec![first.clone()]);
+        assert_eq!(
+            detected_account(&store, cli, &first).collection_state,
+            DetectedCollectionState::Ready
+        );
+        /* A different answer is a switch: only the new account is detected. */
+        store.record_cli_account(cli, Some(second.clone()));
+        assert_eq!(store.account_ids(cli), vec![second.clone()]);
+        let report = store.report();
+        assert_eq!(provider(&report, cli).accounts.len(), 1);
+        assert_eq!(
+            detected_account(&store, cli, &second).collection_state,
+            DetectedCollectionState::Waiting
+        );
+        /* Nobody signed in: nothing is detected, and the client is installed. */
+        store.record_cli_account(cli, None);
+        assert!(store.account_ids(cli).is_empty());
+        assert_eq!(
+            provider(&store.report(), cli).state,
+            ProviderPresence::InstalledLoggedOut
+        );
+        /* A client whose footprint is gone answers for nobody after a scan. */
+        store.record_cli_account(cli, Some(first.clone()));
+        fs::remove_file(&marker).expect("remove the marker");
+        store.rescan();
+        assert!(store.account_ids(cli).is_empty());
+        /* An answer never names an account for a provider on another route, or
+        for one this build has not switched on. */
+        store.record_cli_account(DetectedProviderId::Synthetic, Some(first.clone()));
+        assert!(store
+            .account_ids(DetectedProviderId::Synthetic)
+            .is_empty());
+        let shipped = DetectionStore::for_test_home(dir.path(), 1_800_000_000_000);
+        shipped.record_cli_account(cli, Some(first));
+        assert!(shipped.account_ids(cli).is_empty());
+        assert!(!shipped
+            .report()
+            .providers
+            .iter()
+            .any(|entry| entry.provider_id == cli));
+    }
+
+    #[test]
+    fn the_typescript_pending_list_names_exactly_the_switched_off_providers() {
+        let types = include_str!("../../../../packages/core/src/types.ts");
+        let list = types
+            .split("export const PENDING_PROVIDER_CODES = [")
+            .nth(1)
+            .and_then(|rest| rest.split(']').next())
+            .expect("the pending list");
+        /* Every quoted code, whatever lane comments sit between them. */
+        let pending: BTreeSet<&str> = list.split('"').skip(1).step_by(2).collect();
+        let switched_off: BTreeSet<String> = DetectedProviderId::ALL
+            .into_iter()
+            .filter(|provider| !provider.enabled())
+            .map(|provider| provider.slug().to_uppercase())
+            .collect();
+        assert_eq!(
+            pending.iter().map(|code| code.to_string()).collect::<BTreeSet<_>>(),
+            switched_off
+        );
     }
 }

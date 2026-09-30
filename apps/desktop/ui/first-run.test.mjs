@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { PENDING_PROVIDER_CODES } from "../../../packages/core/dist/index.js";
 import {
   CODEX_SIGN_IN_TIMEOUT_MILLISECONDS,
   CODEX_DEVICE_LINK_FALLBACK,
@@ -873,6 +874,24 @@ test("unknown providers never enter the first run rows", () => {
   });
   assert.equal(result.providers.length, 8);
   assert.equal(result.providers.some((entry) => entry.code === "OTHER"), false);
+});
+
+test("the 2.1 providers wait hidden until their lanes switch them on", () => {
+  const pending = CONNECT_PROVIDERS.filter((provider) => provider.pending === true);
+  // One switch: the rows hidden here are exactly the codes core holds back.
+  assert.deepEqual(pending.map((provider) => provider.code).sort(), [...PENDING_PROVIDER_CODES].sort());
+  for (const provider of pending) assert.equal(provider.install, undefined, provider.code);
+  // A detection that names one is ignored, so no pending row is ever drawn.
+  const result = normalizeDetections({
+    providers: pending.map((provider) => ({ provider_id: provider.code.toLowerCase(), state: "present", accounts: [{}] })),
+  });
+  assert.equal(result.providers.length, 8);
+  assert.equal(result.providers.some((entry) => PENDING_PROVIDER_CODES.includes(entry.code)), false);
+  // Every key provider gets the one key sentence, with its own name.
+  assert.equal(rowAction(providerSpec("OPENROUTER"), { state: "absent" }, {}).note,
+    "Add your OpenRouter key in Connections when you want this bar.");
+  assert.equal(rowAction(providerSpec("ZAI"), { state: "absent" }, {}).note,
+    "Add your Z.ai key in Connections when you want this bar.");
 });
 
 test("accepts the future detector aliases for Grok and Kimi", () => {

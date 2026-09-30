@@ -194,6 +194,69 @@ export const CONNECT_PROVIDERS = Object.freeze([
     line: "Reads your spend from your own OpenRouter key.",
     keyOnly: true,
   }),
+  /*
+   * The 2.1 providers, registered and hidden. `pending` keeps a row out of
+   * this screen, its detection and its controls until the provider's lane
+   * switches it on, which it does here by deleting that one line (a test holds
+   * the pending set equal to PENDING_PROVIDER_CODES in core). No row carries
+   * an install line yet: each lane adds the one the vendor documents.
+   */
+  Object.freeze({
+    code: "SYNTHETIC",
+    name: "Synthetic",
+    line: "Reads your quota from your own Synthetic key.",
+    keyOnly: true,
+    pending: true,
+  }),
+  Object.freeze({
+    code: "ZAI",
+    name: "Z.ai",
+    line: "Reads your quota from your own Z.ai key.",
+    keyOnly: true,
+    pending: true,
+  }),
+  Object.freeze({
+    code: "MINIMAX",
+    name: "MiniMax",
+    line: "Reads your quota from your own MiniMax key.",
+    keyOnly: true,
+    pending: true,
+  }),
+  Object.freeze({
+    code: "CLINE",
+    name: "Cline",
+    line: "Reads the Cline account signed in on this machine.",
+    verifiedOnInstall: true,
+    pending: true,
+  }),
+  Object.freeze({
+    code: "AUGMENT",
+    name: "Augment Code",
+    line: "Reads the Auggie CLI login on this machine.",
+    verifiedOnInstall: true,
+    pending: true,
+  }),
+  Object.freeze({
+    code: "AMP",
+    name: "Amp",
+    line: "Reads the Amp CLI login on this machine.",
+    verifiedOnInstall: true,
+    pending: true,
+  }),
+  Object.freeze({
+    code: "KILO",
+    name: "Kilo Code",
+    line: "Reads the Kilo Code login on this machine.",
+    verifiedOnInstall: true,
+    pending: true,
+  }),
+  Object.freeze({
+    code: "COPILOT",
+    name: "GitHub Copilot",
+    line: "Reads the GitHub Copilot login on this machine.",
+    verifiedOnInstall: true,
+    pending: true,
+  }),
 ]);
 
 /** Every install line in the product, for the check that they stay technical. */
@@ -203,7 +266,11 @@ export const INSTALL_LINES = Object.freeze(
   ),
 );
 
-const PROVIDERS = CONNECT_PROVIDERS;
+/* The rows this build shows: every provider but the ones still pending. */
+const PROVIDERS = CONNECT_PROVIDERS.filter((provider) => provider.pending !== true);
+
+/* One sentence for every provider read from a key the person adds. */
+const keyNote = (name) => "Add your " + name + " key in Connections when you want this bar.";
 
 const KNOWN_CODES_BY_COMPACT = new Map(
   PROVIDERS.map((provider) => [provider.code.replaceAll("_", ""), provider.code]),
@@ -598,7 +665,7 @@ export function rowAction(provider, detection, signals, quota = null) {
     return { kind: "note", note: VERIFIED_ON_INSTALL };
   }
   if (provider.keyOnly === true) {
-    return { kind: "note", note: "Add your OpenRouter key in Connections when you want this bar." };
+    return { kind: "note", note: keyNote(provider.name) };
   }
   if (state === "logged_out" && provider.deviceSignIn === true) {
     return { kind: "signin", label: SIGN_IN };
@@ -643,7 +710,6 @@ export function firstRunCopyStrings() {
     CLAUDE_POLL_NOTE,
     "Run this in your terminal.",
     "Open this in your browser.",
-    "Add your OpenRouter key in Connections when you want this bar.",
     "Sign in inside the CLI, then reopen OpenLimiter.",
     "Connect this one in Connections when you want its bar.",
   ];
@@ -657,6 +723,7 @@ export function firstRunCopyStrings() {
   }
   for (const provider of CONNECT_PROVIDERS) {
     strings.push(provider.name, provider.line);
+    if (provider.keyOnly === true) strings.push(keyNote(provider.name));
   }
   for (const signals of [
     { statuslineWired: true },

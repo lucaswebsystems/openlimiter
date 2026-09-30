@@ -59,6 +59,63 @@ fn row_freshness(row: &Snapshot, observed: i64, now: i64) -> (u64, i64, &'static
     )
 }
 
+/// What one reading's number is: the meter contract. TypeScript twin:
+/// `meterReading` in packages/core/src/data-rules.ts, held to the same answers
+/// by packages/core/src/contracts/meter-vectors.json.
+///
+/// A PERCENT value is the used share, whatever quota kind it names; only
+/// money_balance without a used and limit pair contradicts it. Direction on
+/// any other unit comes from `kind` alone: money_balance is what remains,
+/// spend and token_count are what was used, and no kind means no stated
+/// direction. Only a percent has a used share to draw. Credits with a used and
+/// limit pair and no kind are the shape written before the contract, and keep
+/// reading as the used share they are.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Measure {
+    /// percent, balance, spend, count or amount.
+    pub kind: &'static str,
+    /// used, remaining, or None when the reader never said.
+    pub direction: Option<&'static str>,
+    pub used_percent: Option<f64>,
+    pub currency: Option<String>,
+}
+
+pub(crate) fn measure(row: &Snapshot) -> Option<Measure> {
+    if row.availability.is_some() || row.kind.as_deref() == Some("runtime_info") {
+        return None;
+    }
+    if !row.value.is_finite() || row.value < 0.0 {
+        return None;
+    }
+    let pair = row.used_amount.is_some() && row.limit_amount.is_some() && row.currency.is_some();
+    let percent = |value: f64| Measure {
+        kind: "percent",
+        direction: Some("used"),
+        used_percent: Some(value),
+        currency: if pair { row.currency.clone() } else { None },
+    };
+    let other = |kind: &'static str, direction: Option<&'static str>| Measure {
+        kind,
+        direction,
+        used_percent: None,
+        currency: row.currency.clone(),
+    };
+    if row.unit == "PERCENT" {
+        /* A percent may name the quota it measures, but not what is left,
+        unless the money pair makes it the used share of that money. */
+        let contradicted = row.kind.as_deref() == Some("money_balance") && !pair;
+        return (!contradicted && row.value <= 100.0).then(|| percent(row.value));
+    }
+    match row.kind.as_deref() {
+        None if pair => (row.value <= 100.0).then(|| percent(row.value)),
+        None => Some(other("amount", None)),
+        Some("money_balance") => Some(other("balance", Some("remaining"))),
+        Some("spend") => Some(other("spend", Some("used"))),
+        Some("token_count") => Some(other("count", Some("used"))),
+        Some(_) => None,
+    }
+}
+
 pub(crate) fn reason(row: &Snapshot, now: i64) -> Option<&str> {
     if let Some(reason) = row.availability.as_deref() {
         return Some(reason);
@@ -70,6 +127,10 @@ pub(crate) fn reason(row: &Snapshot, now: i64) -> Option<&str> {
         return Some("placeholder");
     }
     if !row.value.is_finite() || row.value < 0.0 || (row.unit == "PERCENT" && row.value > 100.0) {
+        return Some("quota_unavailable");
+    }
+    // A unit and kind that contradict each other have no reading to draw.
+    if measure(row).is_none() {
         return Some("quota_unavailable");
     }
     let Some(observed) = crate::native_time::epoch_ms_from_rfc3339(&row.observed_at) else {
@@ -172,7 +233,8 @@ pub fn for_app<R: tauri::Runtime>(
     let mut active = ActiveAccounts::new();
     let mut disabled = BTreeSet::new();
     if let Some(store) = app.try_state::<crate::provider_detection::DetectionStore>() {
-        for provider in DetectedProviderId::ALL {
+        /* A switched off provider has no accounts and no switch to flag. */
+        for provider in DetectedProviderId::ALL.into_iter().filter(|p| p.enabled()) {
             let code = provider.slug().to_uppercase().replace('-', "_");
             active.insert(
                 code.clone(),
@@ -275,6 +337,35 @@ mod tests {
     }
 
     #[test]
+    fn the_typescript_freshness_table_states_every_provider_cadence() {
+        /* The TypeScript twin decides freshness for the same rows, so each
+        provider's cadence must be the one this side polls at. */
+        let source = include_str!("../../../../packages/core/src/data-rules.ts");
+        let table = source
+            .split("const desktopIntervals")
+            .nth(1)
+            .and_then(|rest| rest.split_once('{'))
+            .and_then(|(_, rest)| rest.split_once('}'))
+            .map(|(table, _)| table)
+            .expect("the interval table");
+        let stated: BTreeMap<&str, u64> = table
+            .split(',')
+            .filter_map(|entry| entry.split_once(':'))
+            .map(|(code, seconds)| (code.trim(), seconds.trim().parse().expect("seconds")))
+            .collect();
+        let providers = crate::provider_detection::DetectedProviderId::ALL;
+        assert_eq!(stated.len(), providers.len());
+        for provider in providers {
+            let code = provider.slug().to_uppercase().replace('-', "_");
+            assert_eq!(
+                stated.get(code.as_str()).copied(),
+                Some(crate::request_policy::provider_interval_seconds(provider)),
+                "{code}"
+            );
+        }
+    }
+
+    #[test]
     fn active_identity_is_not_inferred_from_recency_and_flags_name_specific_fixes() {
         let now =
             crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
@@ -344,6 +435,79 @@ mod tests {
             );
         }
     }
+    #[test]
+    fn the_meter_contract_matches_the_typescript_vectors() {
+        let vectors: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../packages/core/src/contracts/meter-vectors.json"
+        ))
+        .expect("vectors");
+        for vector in vectors.as_array().expect("a list") {
+            let name = vector["name"].as_str().expect("name");
+            let row: Snapshot = serde_json::from_value(vector["row"].clone()).expect(name);
+            let expected = &vector["expected"];
+            match measure(&row) {
+                None => assert!(expected.is_null(), "{name}"),
+                Some(found) => {
+                    assert_eq!(found.kind, expected["measure"], "{name}");
+                    assert_eq!(
+                        found.direction.map(serde_json::Value::from),
+                        expected["direction"].as_str().map(serde_json::Value::from),
+                        "{name}"
+                    );
+                    assert_eq!(found.used_percent, expected["usedPercent"].as_f64(), "{name}");
+                    assert_eq!(found.currency.as_deref(), expected["currency"].as_str(), "{name}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_contradiction_is_flagged_and_unlimited_stays_a_note() {
+        let now =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let mut balance_percent = measured(Some("fixture-a"));
+        balance_percent.kind = Some("money_balance".into());
+        assert_eq!(reason(&balance_percent, now), Some("quota_unavailable"));
+        let mut balance = measured(Some("fixture-a"));
+        balance.unit = "CREDITS".into();
+        balance.value = 12.5;
+        balance.kind = Some("money_balance".into());
+        assert_eq!(reason(&balance, now), None);
+        assert_eq!(measure(&balance).expect("a balance").direction, Some("remaining"));
+        let mut unlimited = measured(Some("fixture-a"));
+        unlimited.availability = Some("unlimited".into());
+        assert_eq!(measure(&unlimited), None);
+        let projection = project(vec![unlimited], now, &ActiveAccounts::new(), &BTreeSet::new());
+        assert!(projection.snapshots.is_empty());
+        assert_eq!(projection.flags[0].reason, "unlimited");
+    }
+
+    #[test]
+    fn an_account_change_mid_poll_holds_the_old_reading_back() {
+        /* The account identity contract's switching rule: the active identity
+        comes from the credential now, so a read that began under the previous
+        account and landed after the switch is written under that account and
+        held back, never shown as the new one's. */
+        let now =
+            crate::native_time::epoch_ms_from_rfc3339("2026-09-29T12:00:00.000Z").unwrap() as i64;
+        let old_key = crate::account_identity::key_account_id(
+            crate::provider_detection::DetectedProviderId::Synthetic,
+            "fixture-key-old",
+        );
+        let new_key = crate::account_identity::key_account_id(
+            crate::provider_detection::DetectedProviderId::Synthetic,
+            "fixture-key-new",
+        );
+        let mut late = measured(Some(&old_key));
+        late.provider = "CLAUDE".into();
+        late.observed_at = "2026-09-29T12:00:00.000Z".into();
+        let active = BTreeMap::from([("CLAUDE".to_string(), BTreeSet::from([new_key]))]);
+        let projection = project(vec![late], now, &active, &BTreeSet::new());
+        assert!(projection.snapshots.is_empty());
+        assert_eq!(projection.flags[0].reason, "account_not_connected");
+        assert_eq!(projection.flags[0].account_id.as_deref(), Some(old_key.as_str()));
+    }
+
     #[test]
     fn jitter_latency_sleep_failure_and_recovery() {
         for (source, interval) in [

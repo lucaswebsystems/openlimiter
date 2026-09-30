@@ -295,7 +295,15 @@ fn valid_provider(value: &str) -> bool {
             | "XAI"
             | "MOONSHOT"
             | "MANUAL"
-    )
+            | "SYNTHETIC"
+            | "ZAI"
+            | "MINIMAX"
+            | "CLINE"
+            | "AUGMENT"
+            | "AMP"
+            | "KILO"
+            | "COPILOT"
+    ) && crate::provider_detection::code_enabled(value)
 }
 
 fn parse_observed_at(value: &str) -> Option<i64> {

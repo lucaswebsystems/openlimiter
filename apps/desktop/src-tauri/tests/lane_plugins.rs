@@ -40,6 +40,12 @@ mod provider_switches;
 mod reader_registry;
 #[path = "../src/request_policy.rs"]
 mod request_policy;
+#[path = "../src/account_identity.rs"]
+mod account_identity;
+#[path = "../src/config_credentials.rs"]
+mod config_credentials;
+#[path = "../src/providers/mod.rs"]
+mod providers;
 #[path = "../src/state.rs"]
 mod state;
 #[path = "../src/test_support.rs"]

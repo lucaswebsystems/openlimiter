@@ -7,7 +7,14 @@ import { providerCode } from "./names.js";
  * keeps only displayable rows, and the one freshness policy lives in the data
  * rules. This list only answers which providers a person has in play.
  */
-const KNOWN = new Set(["CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENROUTER", "OPENCODE", "CURSOR"]);
+const KNOWN = new Set([
+  "CLAUDE", "CODEX", "ANTIGRAVITY", "GEMINI_CLI", "GROK", "KIMI", "OPENROUTER", "OPENCODE", "CURSOR",
+  /* The 2.1 providers join when they are switched on. Each lane adds its codes
+     below its own line. */
+  // 2.1 lane P1a
+  // 2.1 lane P1b
+  // 2.1 lane P1c
+]);
 
 function code(value) {
   const normalized = providerCode(value);

@@ -1,0 +1,63 @@
+# MiniMax Token Plan. Registered for the 2.1 providers wave, switched off.
+#
+# Route, from the providers research of 2026-09-29: the documented Token Plan
+# quota endpoint, read with the person's own subscription key. The key is
+# entered in the app, or read from a client configuration whose configured
+# endpoint is proven to be MiniMax's own. A generic MiniMax API key is not
+# automatically a Token Plan credential. The documentation describes a five
+# hour and a weekly window. Model entries are never summed unless the answer
+# proves they share one pool.
+#
+# Skeleton: nothing below claims a reader, a meter or a surface, and the
+# compiled registry does not contain it.
+
+provider_id: minimax
+product_id: token-plan
+display_name: MiniMax
+enabled: false
+
+headlineMeter: null
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Documented Token Plan quota endpoint with a key the person holds; no reader yet.
+maturity: planned
+
+source:
+  docs_url: https://platform.minimax.io/subscribe/token-plan
+  reviewed_at: "2026-09-29"
+  source_status: official
+
+mark:
+  file: minimax.svg
+  source_url: https://mintcdn.com/minimax-cac98058/XYzsL2L2ynonu2Q_/logo/light.svg
+
+availability:
+  requires_plan: any
+  appears_after: credential_stored
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: planned
+  last_verified_at: null
+  fixture_ids:
+    - minimax.documented.remains
+
+meters: []

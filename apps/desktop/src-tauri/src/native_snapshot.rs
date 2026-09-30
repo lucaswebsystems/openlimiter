@@ -13,6 +13,10 @@ pub const MAX_CACHE_ENTRIES: usize = 64;
 const MAX_AMOUNT: f64 = 1_000_000.0;
 const MAX_VALUE: f64 = 1_000_000_000_000.0;
 
+/// Every provider code the cache vocabulary names, mirroring `ProviderCode` in
+/// packages/core/src/types.ts. A registered code is not yet a displayed one:
+/// `normalize_snapshot` also asks whether the provider is switched on, so a row
+/// naming a 2.1 provider is dropped until its lane enables it.
 const PROVIDER_CODES: &[&str] = &[
     "CLAUDE",
     "OPENROUTER",
@@ -23,6 +27,14 @@ const PROVIDER_CODES: &[&str] = &[
     "GROK",
     "KIMI",
     "CURSOR",
+    "SYNTHETIC",
+    "ZAI",
+    "MINIMAX",
+    "CLINE",
+    "AUGMENT",
+    "AMP",
+    "KILO",
+    "COPILOT",
     "MANUAL",
 ];
 const VERIFICATIONS: &[&str] = &["UNVERIFIED", "VERIFIED_FIXTURES", "VERIFIED_LIVE"];
@@ -223,7 +235,8 @@ fn is_canonical_iso(value: &str) -> bool {
 }
 
 pub(crate) fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
-    let provider_ok = PROVIDER_CODES.contains(&row.provider.as_str());
+    let provider_ok = PROVIDER_CODES.contains(&row.provider.as_str())
+        && crate::provider_detection::code_enabled(&row.provider);
     let window_ok = ["rolling", "fixed", "lifetime", "unknown"].contains(&row.window.kind.as_str())
         && row
             .window
@@ -315,6 +328,14 @@ pub(crate) fn normalize_snapshot(mut row: Snapshot) -> Option<Snapshot> {
      */
     let amounts_ok = match (&row.used_amount, &row.limit_amount, &row.currency) {
         (None, None, None) => true,
+        /* A balance or a spend may carry its currency alone: it has no
+        denominator to travel in a pair with. The meter contract, in
+        packages/core/src/data-rules.ts and data_rules::measure. */
+        (None, None, Some(currency)) => {
+            matches!(row.kind.as_deref(), Some("money_balance" | "spend"))
+                && row.unit != "PERCENT"
+                && ["USD", "CNY"].contains(&currency.as_str())
+        }
         (Some(used), Some(limit), Some(currency)) => {
             used.is_finite()
                 && limit.is_finite()
@@ -955,12 +976,20 @@ mod tests {
 
     #[test]
     fn local_contract_provider_codes() {
-        /* New providers join this list with their reader, mark and registry
-        entry (relaunch units L1b and L6), never ahead of them. */
+        /* The 2.1 providers are registered here ahead of their readers, and a
+        row naming one is refused until its provider is switched on, the same
+        answer an unknown code gets. Every switched on code still validates. */
         for provider in PROVIDER_CODES {
             let mut row = contract_row();
             row["provider"] = Value::from(*provider);
-            assert_eq!(validate_contract(row).unwrap().provider, *provider);
+            if crate::provider_detection::code_enabled(provider) {
+                assert_eq!(validate_contract(row).unwrap().provider, *provider);
+            } else {
+                assert!(validate_contract(row).is_none(), "{provider} is switched off");
+            }
+        }
+        for wave in ["SYNTHETIC", "ZAI", "MINIMAX", "CLINE", "AUGMENT", "AMP", "KILO", "COPILOT"] {
+            assert!(PROVIDER_CODES.contains(&wave));
         }
         let mut row = contract_row();
         row["provider"] = Value::from("UNRECOGNIZED");

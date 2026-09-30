@@ -21,6 +21,18 @@
 # Business 1900 per user, Enterprise 3900 per user, resetting at
 # 00:00:00 UTC on the first of each calendar month. Free tier states "an
 # allowance of AI credits" without publishing the exact number.
+#
+# 2.1 providers wave, 2026-09-29: registered and switched off (COPILOT is in
+# PENDING_PROVIDER_CODES). The plan's Revision 1 moved the route away from the
+# billing API above: the reader will be the official SDK's account quota call,
+# spoken over the installed Copilot runtime's own headless standard input and
+# output, qualified against explicit runtime versions and behind the live
+# gate. Its quota snapshots carry premium interactions, chat and completions,
+# an entitlement of minus one means unlimited, and the reader never falls back
+# to another account through gh or environment variables. This spec keeps its
+# earlier facts until the Copilot lane restates the route, the meters and the
+# evidence from a captured answer. It stays in the compiled registry as the
+# planned entry it has always been, so no surface or count changes today.
 
 provider_id: github
 product_id: copilot
@@ -41,6 +53,10 @@ source:
   docs_url: https://docs.github.com/en/rest/billing/usage
   reviewed_at: "2026-08-10"
   source_status: official
+
+mark:
+  file: copilot.svg
+  source_url: https://brand.github.com/GitHub_Logos.zip
 
 availability:
   requires_plan: any

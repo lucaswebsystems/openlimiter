@@ -332,6 +332,10 @@ export const PROVIDER_SPECS = {
       "acquisitionMethod": "remote_http_official",
       "d5Review": "Recipe only; no shipped reader.",
       "maturity": "planned",
+      "mark": {
+        "file": "copilot.svg",
+        "sourceUrl": "https://brand.github.com/GitHub_Logos.zip"
+      },
       "directory": null,
       "docsUrl": "https://docs.github.com/en/rest/billing/usage",
       "reviewedAt": "2026-08-10",

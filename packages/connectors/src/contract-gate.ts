@@ -28,18 +28,27 @@
 import {
   type ProviderCode,
   type RawMeter,
+  isEnabledProviderCode,
   normalizeMeters
 } from "@openlimiter/core";
+import { parseAmpPayload } from "./amp.js";
 import { parseAntigravityPayload } from "./antigravity.js";
+import { parseAugmentPayload } from "./augment.js";
 import { parseClaudePayload } from "./claude.js";
+import { parseClinePayload } from "./cline.js";
 import { parseCodexPayload } from "./codex.js";
+import { parseCopilotPayload } from "./copilot.js";
 import { parseCursorPayload } from "./cursor.js";
 import { parseGeminiCliPayload } from "./gemini-cli.js";
 import { parseGrokPayload } from "./grok.js";
+import { parseKiloPayload } from "./kilo.js";
 import { parseKimiPayload } from "./kimi.js";
 import { parseManualPayload } from "./manual.js";
+import { parseMinimaxPayload } from "./minimax.js";
 import { parseOpencodePayload } from "./opencode.js";
 import { parseOpenrouterPayload } from "./openrouter.js";
+import { parseSyntheticPayload } from "./synthetic.js";
+import { parseZaiPayload } from "./zai.js";
 
 /** Why a provider is unknown, in a closed vocabulary a surface can switch on. */
 export type ContractUnknownReason =
@@ -73,7 +82,17 @@ const PARSER_BY_PROVIDER: Readonly<Partial<Record<ProviderCode, Parser>>> = {
   OPENCODE: parseOpencodePayload,
   GROK: parseGrokPayload,
   KIMI: parseKimiPayload,
-  MANUAL: parseManualPayload
+  MANUAL: parseManualPayload,
+  /* The 2.1 parsers, wired now and refused below while their codes are
+     pending, so a switched off provider is unknown rather than misread. */
+  SYNTHETIC: parseSyntheticPayload,
+  ZAI: parseZaiPayload,
+  MINIMAX: parseMinimaxPayload,
+  CLINE: parseClinePayload,
+  AUGMENT: parseAugmentPayload,
+  AMP: parseAmpPayload,
+  KILO: parseKiloPayload,
+  COPILOT: parseCopilotPayload
 };
 
 /** One human sentence per unknown reason, for a surface that wants to say why. */
@@ -102,7 +121,7 @@ export function checkProviderContract(
   payload: unknown,
   now: string
 ): ContractOutcome {
-  const parser = PARSER_BY_PROVIDER[provider];
+  const parser = isEnabledProviderCode(provider) ? PARSER_BY_PROVIDER[provider] : undefined;
   if (parser === undefined) {
     return { status: "unknown", provider, reason: "unknown_provider" };
   }

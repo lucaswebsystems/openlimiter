@@ -665,6 +665,12 @@ pub fn parse_body(
         ReaderId::GrokUsage => parse_grok(body, now_ms, account_id),
         ReaderId::KimiUsage => parse_kimi(body, now_ms, account_id),
         ReaderId::CursorUsage => cursor::parse(body, now_ms, account_id),
+        /* The 2.1 readers answer unsupported (None) from their own modules
+        until each lane writes its parser there. */
+        ReaderId::SyntheticQuotas => crate::providers::synthetic::parse(body, now_ms, account_id),
+        ReaderId::ZaiQuota => crate::providers::zai::parse(body, now_ms, account_id),
+        ReaderId::MinimaxTokenPlan => crate::providers::minimax::parse(body, now_ms, account_id),
+        ReaderId::ClineBalance => crate::providers::cline::parse(body, now_ms, account_id),
     }?;
     // A reading remains live for its provider cadence, not a one minute
     // repaint budget. Explicit only readers retain their existing expiry.

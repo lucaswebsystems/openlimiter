@@ -30,6 +30,7 @@
  */
 import {
   CONNECTION_STATES,
+  PROVIDER_CODES,
   connectionNextAction,
   connectionSentence,
 } from "./engine/core/index.js";
@@ -942,6 +943,11 @@ const SETUP_TARGETS = {
   codex: "codex-add",
   antigravity: "antigravity-add",
   opencode: "opencode-add",
+  /* The 2.1 key providers' editors, each written by its lane at its own
+     anchor in index.html. A target exists only once core lists the provider
+     as switched on, so a pending provider has no editor to open. */
+  ...Object.fromEntries([["synthetic", "synthetic-add"], ["zai", "zai-add"], ["minimax", "minimax-add"]]
+    .filter(([connector]) => PROVIDER_CODES.includes(connector.toUpperCase()))),
 };
 
 function directoryInitials(name) {

@@ -144,7 +144,9 @@ impl From<NetError> for CommandFailure {
 impl From<RouteError> for CommandFailure {
     fn from(error: RouteError) -> Self {
         match error {
-            RouteError::CredentialProviderMismatch => CommandFailure::RouteRefused,
+            RouteError::CredentialProviderMismatch | RouteError::ProviderNotEnabled => {
+                CommandFailure::RouteRefused
+            }
         }
     }
 }
@@ -1637,7 +1639,12 @@ mod tests {
                 }
             }
         }
-        assert_eq!(accepted, crate::reader_registry::ReaderId::ALL.len());
+        /* A switched off provider accepts nothing: its pairings are refused. */
+        let routed = crate::reader_registry::ReaderId::ALL
+            .into_iter()
+            .filter(|reader| reader.provider().enabled())
+            .count();
+        assert_eq!(accepted, routed);
         assert_eq!(
             secrets.stored_count(),
             accepted,

@@ -2,6 +2,8 @@ import {
   PROVIDER_CODES,
   floorFixed,
   freshness,
+  meterAmountText,
+  meterReading,
   type Advice,
   type ProviderCode,
   type Snapshot,
@@ -40,7 +42,17 @@ const PROVIDER_CLASS: Record<ProviderCode, "subscription" | "api"> = {
   KIMI: "subscription",
   CURSOR: "subscription",
   MANUAL: "subscription",
-  OPENROUTER: "api"
+  OPENROUTER: "api",
+  /* The 2.1 providers. None is ordered, drawn or advised on while its code
+     is pending, because DEFAULT_PROVIDER_ORDER reads PROVIDER_CODES. */
+  SYNTHETIC: "subscription",
+  ZAI: "subscription",
+  MINIMAX: "subscription",
+  CLINE: "api",
+  AUGMENT: "subscription",
+  AMP: "api",
+  KILO: "api",
+  COPILOT: "subscription"
 };
 
 export const DEFAULT_PROVIDER_ORDER: readonly ProviderCode[] = [
@@ -229,7 +241,7 @@ function readingsFor(
   }
   // Dormant accounts remain in the cache, but cannot displace an active account.
   const readings = providerRows
-    .filter((snapshot) => (snapshot.unit === "PERCENT" || snapshot.provider === "OPENROUTER" && snapshot.unit === "CREDITS" || isAvailabilitySnapshot(snapshot)) &&
+    .filter((snapshot) => (snapshot.unit === "PERCENT" || meterReading(snapshot)?.measure === "balance" || isAvailabilitySnapshot(snapshot)) &&
       Date.parse(now) - (latestAccount.get(snapshot.accountId) ?? 0) <= ONE_DAY * 1000)
     .map((snapshot) => ({
       snapshot,
@@ -437,7 +449,15 @@ export const PROVIDER_SHORT_TAGS: Readonly<Record<ProviderCode, string>> = {
   CURSOR: "cu",
   OPENCODE: "oc",
   OPENROUTER: "or",
-  MANUAL: "mn"
+  MANUAL: "mn",
+  SYNTHETIC: "sy",
+  ZAI: "za",
+  MINIMAX: "mm",
+  CLINE: "cn",
+  AUGMENT: "au",
+  AMP: "am",
+  KILO: "kc",
+  COPILOT: "cp"
 };
 
 export const HOST_PROVIDER: Readonly<Record<StatuslineHost, ProviderCode | null>> = {
@@ -551,9 +571,13 @@ export function barStyleCells(
     } else if (metersSetting === "all") {
       selectedReadings = readings;
     } else {
+      /* A balance has no percentage to compare, so any percent outranks it
+         and it is chosen only when a provider states nothing else. */
+      const pressure = (reading: Reading): number =>
+        reading.snapshot.unit === "PERCENT" ? reading.snapshot.value : -1;
       let worst = readings[0]!;
       for (const r of readings.slice(1)) {
-        if (r.snapshot.value > worst.snapshot.value) worst = r;
+        if (pressure(r) > pressure(worst)) worst = r;
       }
       selectedReadings = [worst];
     }
@@ -575,12 +599,20 @@ export function barStyleCells(
         continue;
       }
 
-      if (provider === "OPENROUTER" && (snapshot.unit === "CREDITS" ||
-          snapshot.currency === "USD" && snapshot.limitAmount !== undefined && snapshot.usedAmount !== undefined)) {
-        const balance = snapshot.unit === "CREDITS" ? snapshot.value : snapshot.limitAmount! - snapshot.usedAmount!;
-        const amount = (stale ? "~" : "") + "$" + balance.toFixed(2);
-        const band = balance < 1 ? 95 : balance < 5 ? 65 : 0;
-        cells.push({ plain: "or " + amount, painted: "or " + (color ? paintBand(amount, band, "fresh") : amount), percent: band });
+      const measured = meterReading(snapshot);
+      /* Balance cells, for any provider. A priced provider's spend against a
+         dollar limit is shown as what is left of it, which is how OpenRouter
+         has always read; a stated balance is shown as itself. Only a dollar
+         balance is banded, because the thresholds are dollars. */
+      const moneyLeft = PROVIDER_CLASS[provider] === "api" && measured?.measure === "percent" &&
+        measured.money?.currency === "USD" ? measured.money.limitAmount - measured.money.usedAmount : null;
+      if (moneyLeft !== null || measured?.measure === "balance") {
+        const dollars = moneyLeft ?? (measured?.currency === "USD" ? measured.value : null);
+        const amount = (stale ? "~" : "") + (moneyLeft !== null ? "$" + moneyLeft.toFixed(2) : meterAmountText(measured!));
+        const band = dollars === null ? 0 : dollars < 1 ? 95 : dollars < 5 ? 65 : 0;
+        const tag = providerTag || shortTag;
+        cells.push({ plain: tag + " " + amount, painted: tag + " " +
+          (color && dollars !== null ? paintBand(amount, band, "fresh") : amount), percent: band });
         continue;
       }
 

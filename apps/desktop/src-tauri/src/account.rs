@@ -218,7 +218,16 @@ fn normalize_configured_providers(values: Vec<String>) -> Vec<String> {
                     | "OPENCODE"
                     | "GROK"
                     | "KIMI"
-            ) && seen.insert(value.clone())
+                    | "SYNTHETIC"
+                    | "ZAI"
+                    | "MINIMAX"
+                    | "CLINE"
+                    | "AUGMENT"
+                    | "AMP"
+                    | "KILO"
+                    | "COPILOT"
+            ) && crate::provider_detection::code_enabled(&value)
+                && seen.insert(value.clone())
         })
         .collect()
 }

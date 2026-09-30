@@ -180,6 +180,166 @@
     "expected": "opencode-7506a8790bc665292fbac11a"
   },
   {
+    "provider": "SYNTHETIC",
+    "material": "fixture-account-a",
+    "expected": "synthetic-bd99dd8814de00fc7cbd7f8b"
+  },
+  {
+    "provider": "SYNTHETIC",
+    "material": "fixture-account-b",
+    "expected": "synthetic-9274f6d2f75c019ca3201e60"
+  },
+  {
+    "provider": "SYNTHETIC",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "synthetic-ff90c683800c32e8485c56a1"
+  },
+  {
+    "provider": "SYNTHETIC",
+    "material": "fixture-?",
+    "expected": "synthetic-1bbd7ccef64c82963a7e1a31"
+  },
+  {
+    "provider": "ZAI",
+    "material": "fixture-account-a",
+    "expected": "zai-9deec29fa5de30c77e0cd74d"
+  },
+  {
+    "provider": "ZAI",
+    "material": "fixture-account-b",
+    "expected": "zai-4c79407ca5ddc191193dee91"
+  },
+  {
+    "provider": "ZAI",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "zai-65bb4849aa45f220774d596e"
+  },
+  {
+    "provider": "ZAI",
+    "material": "fixture-?",
+    "expected": "zai-55b2ccef2f0680d77daffa0c"
+  },
+  {
+    "provider": "MINIMAX",
+    "material": "fixture-account-a",
+    "expected": "minimax-28f80aa16eaafe29f4e846ae"
+  },
+  {
+    "provider": "MINIMAX",
+    "material": "fixture-account-b",
+    "expected": "minimax-64fc09fe3a908fd88878b24c"
+  },
+  {
+    "provider": "MINIMAX",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "minimax-95621ebc14ab9a86e9854d4e"
+  },
+  {
+    "provider": "MINIMAX",
+    "material": "fixture-?",
+    "expected": "minimax-4cce151a512ac351afbaf72e"
+  },
+  {
+    "provider": "CLINE",
+    "material": "fixture-account-a",
+    "expected": "cline-712b1489406c861cbb49b467"
+  },
+  {
+    "provider": "CLINE",
+    "material": "fixture-account-b",
+    "expected": "cline-e1d892d4d4a1246036d4831b"
+  },
+  {
+    "provider": "CLINE",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "cline-8b1d3ca2e9d723c39ba8eaee"
+  },
+  {
+    "provider": "CLINE",
+    "material": "fixture-?",
+    "expected": "cline-d9495f13a04d85671bede4d7"
+  },
+  {
+    "provider": "AUGMENT",
+    "material": "fixture-account-a",
+    "expected": "augment-d3ce32e5b1f8a0e1c6f6f46b"
+  },
+  {
+    "provider": "AUGMENT",
+    "material": "fixture-account-b",
+    "expected": "augment-002b2c02e7f95c395a8e1259"
+  },
+  {
+    "provider": "AUGMENT",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "augment-0c3ba6137dbdbf64801d5f55"
+  },
+  {
+    "provider": "AUGMENT",
+    "material": "fixture-?",
+    "expected": "augment-83f681a72c807fd7986940d5"
+  },
+  {
+    "provider": "AMP",
+    "material": "fixture-account-a",
+    "expected": "amp-f012ba865ec9e1e6a35efcb2"
+  },
+  {
+    "provider": "AMP",
+    "material": "fixture-account-b",
+    "expected": "amp-111ec80be278e74fa87e2549"
+  },
+  {
+    "provider": "AMP",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "amp-748efe1fed301883b55ef3ac"
+  },
+  {
+    "provider": "AMP",
+    "material": "fixture-?",
+    "expected": "amp-c6c6076cfa8dde2e0a92b0fa"
+  },
+  {
+    "provider": "KILO",
+    "material": "fixture-account-a",
+    "expected": "kilo-4c9f02e618b60c6b6e3cb44c"
+  },
+  {
+    "provider": "KILO",
+    "material": "fixture-account-b",
+    "expected": "kilo-526d39e4b0d20d5a82d9fb69"
+  },
+  {
+    "provider": "KILO",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "kilo-6e6c7dd74edb913067012f8e"
+  },
+  {
+    "provider": "KILO",
+    "material": "fixture-?",
+    "expected": "kilo-8f2c323354671c046396d241"
+  },
+  {
+    "provider": "COPILOT",
+    "material": "fixture-account-a",
+    "expected": "copilot-72279ffa4ed3f3105e9b8760"
+  },
+  {
+    "provider": "COPILOT",
+    "material": "fixture-account-b",
+    "expected": "copilot-ae4143db2aa08e48580a2469"
+  },
+  {
+    "provider": "COPILOT",
+    "material": "one-active-account-without-stable-identity",
+    "expected": "copilot-e424c64f36ea96765dae0f40"
+  },
+  {
+    "provider": "COPILOT",
+    "material": "fixture-?",
+    "expected": "copilot-c9c102c4e8ddbfa996d67951"
+  },
+  {
     "provider": "MANUAL",
     "material": "fixture-account-a",
     "expected": "manual-7aba75a3ff2acc1f07b4436a"

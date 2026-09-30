@@ -121,6 +121,10 @@ mod tests {
             ReaderId::GrokUsage => (ProviderId::Grok, CredentialKind::GrokSession),
             ReaderId::KimiUsage => (ProviderId::Kimi, CredentialKind::KimiSession),
             ReaderId::CursorUsage => (ProviderId::Cursor, CredentialKind::CursorSession),
+            ReaderId::SyntheticQuotas => (ProviderId::Synthetic, CredentialKind::SyntheticKey),
+            ReaderId::ZaiQuota => (ProviderId::Zai, CredentialKind::ZaiKey),
+            ReaderId::MinimaxTokenPlan => (ProviderId::Minimax, CredentialKind::MinimaxKey),
+            ReaderId::ClineBalance => (ProviderId::Cline, CredentialKind::ClineAccountToken),
         };
         ConnectionRecord {
             id: id.to_string(),

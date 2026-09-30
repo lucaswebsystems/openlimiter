@@ -1,0 +1,84 @@
+[
+  {
+    "provider": "SYNTHETIC",
+    "route": "api_key",
+    "input": "fixture-key-a",
+    "material": "api-key-sha256:88c3b4a5c2ff5e783ced011d31b714cdefa21bb4c56b5ddae54ac3eff3aaf39b",
+    "expected": "synthetic-8e4d23dd6a1a2133d9df08d7"
+  },
+  {
+    "provider": "SYNTHETIC",
+    "route": "api_key",
+    "input": "  fixture-key-a\n",
+    "material": "api-key-sha256:88c3b4a5c2ff5e783ced011d31b714cdefa21bb4c56b5ddae54ac3eff3aaf39b",
+    "expected": "synthetic-8e4d23dd6a1a2133d9df08d7"
+  },
+  {
+    "provider": "SYNTHETIC",
+    "route": "api_key",
+    "input": "fixture-key-b",
+    "material": "api-key-sha256:887838b05c36f2a5e3ac7175f50253f7d6e06e542e7b789ad9a4f82f24349b46",
+    "expected": "synthetic-5e92bdc9d940204997738098"
+  },
+  {
+    "provider": "ZAI",
+    "route": "api_key",
+    "input": "fixture-key-a",
+    "material": "api-key-sha256:88c3b4a5c2ff5e783ced011d31b714cdefa21bb4c56b5ddae54ac3eff3aaf39b",
+    "expected": "zai-09befc210532e4c78725ff10"
+  },
+  {
+    "provider": "MINIMAX",
+    "route": "api_key",
+    "input": "fixture-key-a",
+    "material": "api-key-sha256:88c3b4a5c2ff5e783ced011d31b714cdefa21bb4c56b5ddae54ac3eff3aaf39b",
+    "expected": "minimax-794ca0daf5a1475550bb2d57"
+  },
+  {
+    "provider": "CLINE",
+    "route": "account_token",
+    "input": "fixture-account-a",
+    "material": "fixture-account-a",
+    "expected": "cline-712b1489406c861cbb49b467"
+  },
+  {
+    "provider": "AUGMENT",
+    "route": "local_cli",
+    "input": "fixture-user-1",
+    "scope": "personal",
+    "material": "cli-personal:fixture-user-1",
+    "expected": "augment-ba3cd4cebfe8798706436ea4"
+  },
+  {
+    "provider": "AUGMENT",
+    "route": "local_cli",
+    "input": "fixture-user-1",
+    "scope": "organization",
+    "material": "cli-organization:fixture-user-1",
+    "expected": "augment-6aac4598f30aa038f2e88974"
+  },
+  {
+    "provider": "AMP",
+    "route": "local_cli",
+    "input": "fixture-user-1",
+    "scope": "personal",
+    "material": "cli-personal:fixture-user-1",
+    "expected": "amp-403d23f4c14adccaa9067698"
+  },
+  {
+    "provider": "KILO",
+    "route": "local_cli",
+    "input": "fixture-user-2",
+    "scope": "personal",
+    "material": "cli-personal:fixture-user-2",
+    "expected": "kilo-6db800921c03408766969d0a"
+  },
+  {
+    "provider": "COPILOT",
+    "route": "local_cli",
+    "input": "fixture-user-1",
+    "scope": "personal",
+    "material": "cli-personal:fixture-user-1",
+    "expected": "copilot-8709d42cc4595834c38b8661"
+  }
+]

@@ -13,7 +13,10 @@
 import {
   dedupeFailures,
   freshness,
+  isConnectionNote,
   mergeSnapshots,
+  meterAmountText,
+  meterReading,
   normalizeMetersReport,
   projectSnapshots,
   readSuppressions,
@@ -95,7 +98,8 @@ export function holdReadings(snapshots, now) {
  * useful fix. A provider that still shows a measured row is not flagged: an old
  * account's leftovers are storage, not something a person has to act on. A
  * provider switched off is not flagged at all: that was the person's choice,
- * and its switch stays in the catalogue.
+ * and its switch stays in the catalogue. A connection note (unlimited) is an
+ * answer, not a problem, so it is never flagged either: Connected carries it.
  */
 export function attentionFlags(flags, snapshots, removed = []) {
   const shown = new Set(snapshots.map((row) => providerCode(row.provider)));
@@ -103,7 +107,7 @@ export function attentionFlags(flags, snapshots, removed = []) {
   const best = new Map();
   for (const flag of flags) {
     const held = best.get(flag.provider);
-    if (shown.has(flag.provider) || off.has(flag.provider) ||
+    if (shown.has(flag.provider) || off.has(flag.provider) || isConnectionNote(flag.reason) ||
         (held && FIX_KINDS.indexOf(held.fixKind) <= FIX_KINDS.indexOf(flag.fixKind))) continue;
     best.set(flag.provider, flag);
   }
@@ -113,25 +117,33 @@ export function attentionFlags(flags, snapshots, removed = []) {
 
 /**
  * Connected: every provider switched on that is measured right now, detected
- * with a login on this computer, or connected by a key, and not waiting in
- * Needs attention. `detections` and `connections` are the native reports.
+ * with a login on this computer, connected by a key, or answering with a
+ * connection note, and not waiting in Needs attention. `detections` and
+ * `connections` are the native reports. A provider that shows no measured row
+ * and answered unlimited carries that note, the one place unlimited is shown:
+ * never as a meter, because a bar would claim a limit that does not exist.
  */
 export function connectedProviders({ snapshots, detections = null, connections = [], flags = [], removed = [], attention = [] }) {
   const off = switchedOff(flags, removed);
   const flagged = new Set(attention.map((flag) => flag.provider));
+  const measured = new Set(snapshots.map((row) => providerCode(row.provider)));
+  const notes = new Map(flags.filter((flag) => isConnectionNote(flag.reason) && !measured.has(flag.provider))
+    .map((flag) => [flag.provider, flag.reason]));
   const codes = new Set([
-    ...snapshots.map((row) => providerCode(row.provider)),
+    ...measured,
     ...(detections?.providers ?? []).filter((entry) => entry.state === "present").map((entry) => providerCode(entry.provider_id)),
     ...connections.filter((entry) => entry.state === "CONNECTED").map((entry) => providerCode(entry.provider)),
+    ...notes.keys(),
   ]);
   return [...codes].filter((code) => code && !off.has(code) && !flagged.has(code))
-    .map((code) => ({ code, name: providerName(code), access: providerAccess(code) }))
+    .map((code) => ({ code, name: providerName(code), access: providerAccess(code), note: notes.get(code) ?? null }))
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 const SOURCE_KEYS = Object.freeze({ automatic: "sourceLocal", key: "sourceKey", manual: "sourceManual" });
+const NOTE_KEYS = Object.freeze({ unlimited: "unlimitedNote" });
 
-/** Connected rows: mark, name, where the numbers come from, and a green check. */
+/** Connected rows: mark, name, where the numbers come from, any note, and a green check. */
 export function renderConnected(doc, mount, providers) {
   mount.replaceChildren(...providers.map((provider) => {
     const row = node(doc, "div", "q-conn");
@@ -141,6 +153,11 @@ export function renderConnected(doc, mount, providers) {
     const text = node(doc, "div", "q-ftext");
     text.append(node(doc, "div", "q-fname-text", provider.name),
       node(doc, "p", "q-fdetail", say(SOURCE_KEYS[provider.access] ?? "sourceLocal", { name: provider.name })));
+    if (NOTE_KEYS[provider.note]) {
+      const note = node(doc, "p", "q-fdetail", say(NOTE_KEYS[provider.note]));
+      note.dataset.note = provider.note;
+      text.append(note);
+    }
     const status = node(doc, "span", "q-ok");
     status.append(art(doc, "q-sico", CHECK_ICON), node(doc, "span", "", say("connected")));
     row.append(markNode(doc, provider.code), text, status);
@@ -160,19 +177,31 @@ export function timeLeft(resetAt, now) {
   return duration(Math.floor(left / 1000));
 }
 
+/* Which way a number with no bar points, by the meter contract: what is left,
+   or what was used (spent money and counted requests alike). An amount whose
+   reader never said gets no word at all, so nothing is ever inverted. */
+const DIRECTION_KEYS = Object.freeze({ balance: "leftValue", spend: "usedValue", count: "usedValue" });
+
+/*
+ * One window as the meter contract reads it (packages/core/src/data-rules.ts).
+ * Only a used share has a bar and a band: OpenRouter's spend of its limit
+ * stays the percentage it always was, drawn as money. Every other measure is
+ * its amount in its own unit and currency, with its direction, and no bar.
+ */
 function windowView(row, now) {
-  const hasMoney = Number.isFinite(row.usedAmount) && Number.isFinite(row.limitAmount) && typeof row.currency === "string";
-  const unbounded = row.unit === "CREDITS" && !hasMoney;
-  const usedPercent = unbounded ? null : Math.min(100, Math.max(0, row.value));
+  const reading = meterReading(row);
+  const usedPercent = reading?.usedPercent == null ? null : Math.min(100, Math.max(0, reading.usedPercent));
+  const pair = usedPercent === null ? null : reading.money;
   return {
     key: row.meter,
     label: meterLabel(row.meter, row.provider),
     usedPercent,
     band: usedPercent === null ? "none" : bandForPercent(usedPercent),
-    value: hasMoney ? money(row.usedAmount, row.currency)
-      : unbounded ? String(Math.floor(row.value * 100) / 100) : `${Math.floor(usedPercent)}%`,
-    limit: hasMoney ? money(row.limitAmount, row.currency) : null,
-    unbounded,
+    value: pair ? money(pair.usedAmount, pair.currency)
+      : usedPercent === null ? (reading ? meterAmountText(reading) : "") : `${Math.floor(usedPercent)}%`,
+    limit: pair ? money(pair.limitAmount, pair.currency) : null,
+    direction: usedPercent === null ? DIRECTION_KEYS[reading?.measure] ?? null : null,
+    unbounded: usedPercent === null,
     reset: timeLeft(row.resetAt, now),
   };
 }
@@ -277,15 +306,16 @@ function limitRow(doc, window, compact) {
   bar.setAttribute("aria-valuemin", "0");
   bar.setAttribute("aria-valuemax", "100");
   if (window.usedPercent !== null) bar.setAttribute("aria-valuenow", String(Math.floor(window.usedPercent)));
-  bar.setAttribute("aria-valuetext", window.unbounded ? `${window.value} ${say("creditsSpent")}` : say("usedValue", { value: window.value }));
+  bar.setAttribute("aria-valuetext", !window.unbounded ? say("usedValue", { value: window.value })
+    : window.direction ? say(window.direction, { value: window.value }) : window.value);
   const fill = node(doc, "i");
   fill.style?.setProperty("width", `${window.usedPercent ?? 0}%`);
   bar.append(fill);
   const value = node(doc, "span", "q-val");
   if (["yellow", "orange", "red"].includes(window.band)) value.append(art(doc, "q-shape", bandIconSvg(window.band)));
-  value.append(node(doc, "span", "", compact || window.unbounded ? window.value : say("usedValue", { value: window.value })));
+  value.append(node(doc, "span", "", window.unbounded && window.direction ? say(window.direction, { value: window.value })
+    : compact || window.unbounded ? window.value : say("usedValue", { value: window.value })));
   const reset = window.limit !== null ? say("moneyOf", { amount: window.limit })
-    : window.unbounded ? say("creditsSpent")
     : window.reset === null ? ""
     : window.reset === "" ? say(compact ? "now" : "resettingNow")
     : compact ? window.reset : say("resetsInValue", { time: window.reset });

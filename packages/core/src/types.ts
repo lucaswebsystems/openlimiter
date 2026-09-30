@@ -1,6 +1,11 @@
 import type { ConnectionStatus, SnapshotAvailability } from "./connection-state.js";
 export type { SnapshotAvailability } from "./connection-state.js";
 
+/**
+ * The providers this build has switched on: the ones it stores, shows, polls,
+ * advises on and names on the status line. Every "which providers are there"
+ * question in the product reads this list.
+ */
 export const PROVIDER_CODES = [
   "CLAUDE",
   "OPENROUTER",
@@ -11,10 +16,50 @@ export const PROVIDER_CODES = [
   "GROK",
   "KIMI",
   "CURSOR",
+  /* 2.1 lane P1a: SYNTHETIC joins on the line below when it is switched on. */
+  /* 2.1 lane P1b: ZAI, MINIMAX and CLINE join on the line below. */
+  /* 2.1 lane P1c: AUGMENT, AMP, KILO and COPILOT join on the line below. */
   "MANUAL"
 ] as const;
 
-export type ProviderCode = (typeof PROVIDER_CODES)[number];
+/**
+ * The 2.1 providers: registered in every closed list, switched off.
+ *
+ * They are part of `ProviderCode`, so every table keyed by provider already
+ * names them and the lanes that build them write only their own modules. None
+ * of them is stored, displayed or polled while it sits here: the normalizer,
+ * the advice policy and the status line read PROVIDER_CODES above, so a row
+ * naming one of these is refused like an unknown code, and refused anonymously.
+ *
+ * Switching one on is one change in three places, listed in the wiring
+ * checklist and held together by tests: its code moves from here into
+ * PROVIDER_CODES, `ENABLED` flips in its Rust module, and `enabled` flips in its
+ * registry spec. Each lane's codes sit under their own comment here and join
+ * PROVIDER_CODES under their own comment there, so lanes working in parallel
+ * never edit neighbouring lines.
+ */
+export const PENDING_PROVIDER_CODES = [
+  /* 2.1 lane P1a */
+  "SYNTHETIC",
+  /* 2.1 lane P1b */
+  "ZAI",
+  "MINIMAX",
+  "CLINE",
+  /* 2.1 lane P1c */
+  "AUGMENT",
+  "AMP",
+  "KILO",
+  "COPILOT"
+] as const;
+
+export type ProviderCode =
+  | (typeof PROVIDER_CODES)[number]
+  | (typeof PENDING_PROVIDER_CODES)[number];
+
+/** Whether a code names a provider this build has switched on. */
+export function isEnabledProviderCode(value: unknown): value is ProviderCode {
+  return typeof value === "string" && (PROVIDER_CODES as readonly string[]).includes(value);
+}
 export type SnapshotState = "fresh" | "stale" | "unknown";
 export type SnapshotUnit = "PERCENT" | "CREDITS" | "TOKENS" | "REQUESTS";
 export type SnapshotPrecision = "exact" | "estimated" | "manual";
@@ -197,6 +242,11 @@ export interface Snapshot {
   /** Present only when the provider's own documented payload carried money. */
   usedAmount?: number;
   limitAmount?: number;
+  /**
+   * With the pair above, the currency of both. Alone, only on a money_balance
+   * or spend reading that is not a percent, where it is the currency of `value`
+   * itself: a balance has no denominator to travel in a pair with.
+   */
   currency?: SnapshotCurrency;
   /**
    * Which account this reading belongs to, when a source names one.

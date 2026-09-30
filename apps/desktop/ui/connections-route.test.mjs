@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { PENDING_PROVIDER_CODES } from "../../../packages/core/dist/index.js";
 import { messyFixtures } from "./messy-fixtures.mjs";
 import { fakeDocument } from "./test-dom.mjs";
 
@@ -41,6 +42,13 @@ test("a provider with its own connect flow here keeps it; every other one signs 
   }
   assert.equal(attentionRoute({ provider: "KIMI", fixKind: "open_app" }), "rescan");
   assert.equal(attentionRoute({ provider: "GEMINI_CLI", fixKind: "unsupported" }), "none");
+});
+
+test("a pending provider has no editor here until its lane switches it on", () => {
+  for (const provider of ["SYNTHETIC", "ZAI", "MINIMAX"].filter((code) => PENDING_PROVIDER_CODES.includes(code))) {
+    assert.equal(attentionRoute({ provider, fixKind: "sign_in" }), "rescan", provider);
+    assert.equal(attentionRoute({ provider, fixKind: "reconnect" }), "rescan", provider);
+  }
 });
 
 test("Sign in for a tool with no flow here says so and checks again, never opening a web page", async () => {

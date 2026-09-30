@@ -1,4 +1,5 @@
 mod account;
+mod account_identity;
 mod activity;
 mod antigravity_credential;
 mod antigravity_local;
@@ -15,6 +16,7 @@ mod collector;
 mod collector_runtime;
 mod collector_schedule;
 mod commands;
+mod config_credentials;
 mod connections;
 mod credentials;
 mod data_rules;
@@ -35,6 +37,7 @@ mod poll_identity;
 mod pro;
 mod provider_detection;
 mod provider_switches;
+mod providers;
 mod providers_plugin;
 mod rail;
 mod reader_registry;
@@ -119,26 +122,9 @@ fn set_tray_status(
         native_snapshot::display_snapshots(state::read_cache().as_deref()),
         chrono::Utc::now().timestamp_millis(),
     );
-    let mut values = std::collections::BTreeMap::<String, f64>::new();
-    for row in projection
-        .snapshots
-        .into_iter()
-        .filter(|row| row.unit == "PERCENT")
-    {
-        values
-            .entry(row.provider)
-            .and_modify(|value| *value = value.max(row.value))
-            .or_insert(row.value);
-    }
     tray::update(
         &app,
-        values
-            .into_iter()
-            .map(|(provider, value)| tray::ProviderStatus {
-                provider,
-                usage_percent: Some(value),
-            })
-            .collect(),
+        tray::statuses(&projection.snapshots),
         trial_offered.unwrap_or(true),
     )
 }

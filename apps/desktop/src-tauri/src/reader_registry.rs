@@ -42,6 +42,13 @@ pub enum ProviderId {
     Grok,
     Kimi,
     Cursor,
+    /* The 2.1 HTTP providers, routed below and refused while switched off. The
+    command line providers (Augment, Amp, Kilo, Copilot) hold no credential and
+    call no endpoint, so like Claude they have no entry here. */
+    Synthetic,
+    Zai,
+    Minimax,
+    Cline,
 }
 
 impl ProviderId {
@@ -51,7 +58,7 @@ impl ProviderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderId; 7] = [
+    pub const ALL: [ProviderId; 11] = [
         ProviderId::Openrouter,
         ProviderId::Codex,
         ProviderId::Antigravity,
@@ -59,6 +66,10 @@ impl ProviderId {
         ProviderId::Grok,
         ProviderId::Kimi,
         ProviderId::Cursor,
+        ProviderId::Synthetic,
+        ProviderId::Zai,
+        ProviderId::Minimax,
+        ProviderId::Cline,
     ];
 
     /// The uppercase provider code the TypeScript engine speaks, so a record
@@ -73,7 +84,17 @@ impl ProviderId {
             ProviderId::Grok => "GROK",
             ProviderId::Kimi => "KIMI",
             ProviderId::Cursor => "CURSOR",
+            ProviderId::Synthetic => "SYNTHETIC",
+            ProviderId::Zai => "ZAI",
+            ProviderId::Minimax => "MINIMAX",
+            ProviderId::Cline => "CLINE",
         }
+    }
+
+    /// Whether this build has switched the provider on. One switch, read from
+    /// the detected provider it is, so the route table and detection agree.
+    pub const fn enabled(self) -> bool {
+        crate::poll_identity::detected_provider(self).enabled()
     }
 }
 
@@ -91,6 +112,10 @@ pub enum ReaderId {
     GrokUsage,
     KimiUsage,
     CursorUsage,
+    SyntheticQuotas,
+    ZaiQuota,
+    MinimaxTokenPlan,
+    ClineBalance,
 }
 
 /// A source's scheduling shape, without pretending every source has a timer.
@@ -140,7 +165,7 @@ impl ReaderId {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ReaderId; 8] = [
+    pub const ALL: [ReaderId; 12] = [
         ReaderId::OpenrouterKey,
         ReaderId::OpenrouterCredits,
         ReaderId::CodexUsage,
@@ -149,6 +174,10 @@ impl ReaderId {
         ReaderId::GrokUsage,
         ReaderId::KimiUsage,
         ReaderId::CursorUsage,
+        ReaderId::SyntheticQuotas,
+        ReaderId::ZaiQuota,
+        ReaderId::MinimaxTokenPlan,
+        ReaderId::ClineBalance,
     ];
 
     /// Which provider this reader belongs to, so a record's reader and its
@@ -163,6 +192,10 @@ impl ReaderId {
             ReaderId::GrokUsage => ProviderId::Grok,
             ReaderId::KimiUsage => ProviderId::Kimi,
             ReaderId::CursorUsage => ProviderId::Cursor,
+            ReaderId::SyntheticQuotas => ProviderId::Synthetic,
+            ReaderId::ZaiQuota => ProviderId::Zai,
+            ReaderId::MinimaxTokenPlan => ProviderId::Minimax,
+            ReaderId::ClineBalance => ProviderId::Cline,
         }
     }
 
@@ -182,6 +215,11 @@ impl ReaderId {
             | ReaderId::CursorUsage => 300,
             ReaderId::AntigravityQuota => 600,
             ReaderId::OpencodeUsage => 0,
+            /* Each 2.1 reader keeps the cadence its own module states. */
+            ReaderId::SyntheticQuotas => crate::providers::synthetic::INTERVAL_SECONDS,
+            ReaderId::ZaiQuota => crate::providers::zai::INTERVAL_SECONDS,
+            ReaderId::MinimaxTokenPlan => crate::providers::minimax::INTERVAL_SECONDS,
+            ReaderId::ClineBalance => crate::providers::cline::INTERVAL_SECONDS,
         }
     }
 }
@@ -215,6 +253,10 @@ pub enum CredentialKind {
     GrokSession,
     KimiSession,
     CursorSession,
+    SyntheticKey,
+    ZaiKey,
+    MinimaxKey,
+    ClineAccountToken,
 }
 
 impl CredentialKind {
@@ -223,7 +265,7 @@ impl CredentialKind {
     variant at a time, so they are dead code outside a test build and are
     marked as such rather than deleted: the sweep is the security property. */
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [CredentialKind; 8] = [
+    pub const ALL: [CredentialKind; 12] = [
         CredentialKind::OpenrouterInferenceKey,
         CredentialKind::OpenrouterManagementKey,
         CredentialKind::CodexSession,
@@ -232,6 +274,10 @@ impl CredentialKind {
         CredentialKind::GrokSession,
         CredentialKind::KimiSession,
         CredentialKind::CursorSession,
+        CredentialKind::SyntheticKey,
+        CredentialKind::ZaiKey,
+        CredentialKind::MinimaxKey,
+        CredentialKind::ClineAccountToken,
     ];
 
     /// The largest secret of this kind that will be accepted, in bytes.
@@ -257,7 +303,11 @@ impl CredentialKind {
             | CredentialKind::CodexSession
             | CredentialKind::AntigravitySession
             | CredentialKind::GrokSession
-            | CredentialKind::KimiSession => MAX_KEY_SECRET_BYTES,
+            | CredentialKind::KimiSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => MAX_KEY_SECRET_BYTES,
         }
     }
 
@@ -274,6 +324,10 @@ impl CredentialKind {
             CredentialKind::GrokSession => ProviderId::Grok,
             CredentialKind::KimiSession => ProviderId::Kimi,
             CredentialKind::CursorSession => ProviderId::Cursor,
+            CredentialKind::SyntheticKey => ProviderId::Synthetic,
+            CredentialKind::ZaiKey => ProviderId::Zai,
+            CredentialKind::MinimaxKey => ProviderId::Minimax,
+            CredentialKind::ClineAccountToken => ProviderId::Cline,
         }
     }
 }
@@ -312,6 +366,36 @@ pub enum AuthApplication {
     /// path, and the reason OpenCode is permanently labelled an authenticated
     /// scrape.
     BrowserSessionCookie,
+    /* The 2.1 schemes, typed and closed. `net.rs` refuses each one before a
+    request is built until its provider's lane writes the documented header
+    shape there; Z.ai in particular keeps its own documented authorization
+    format rather than a borrowed bearer. */
+    SyntheticKey,
+    ZaiKey,
+    MinimaxKey,
+    ClineAccountToken,
+}
+
+impl AuthApplication {
+    /// Whether this scheme belongs to a provider this build has not switched
+    /// on. `net.rs` refuses a pending scheme before anything is built.
+    pub const fn pending(self) -> bool {
+        match self {
+            AuthApplication::SyntheticKey => !ProviderId::Synthetic.enabled(),
+            AuthApplication::ZaiKey => !ProviderId::Zai.enabled(),
+            AuthApplication::MinimaxKey => !ProviderId::Minimax.enabled(),
+            AuthApplication::ClineAccountToken => !ProviderId::Cline.enabled(),
+            AuthApplication::BearerAuthorization
+            | AuthApplication::ClaudeOauthBearer
+            | AuthApplication::CodexSessionBearer
+            | AuthApplication::AntigravitySessionBearer
+            | AuthApplication::GrokSessionBearer
+            | AuthApplication::KimiSessionBearer
+            | AuthApplication::CursorSessionCookie
+            | AuthApplication::GeminiCliBearer
+            | AuthApplication::BrowserSessionCookie => false,
+        }
+    }
 }
 
 /// Everything a probe needs, and nothing it could be talked out of.
@@ -334,21 +418,44 @@ pub struct ReaderRoute {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RouteError {
     CredentialProviderMismatch,
+    /// The provider is registered and this build has not switched it on.
+    ProviderNotEnabled,
 }
 
 impl fmt::Display for RouteError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("this credential kind does not belong to this provider")
+        formatter.write_str(match self {
+            RouteError::CredentialProviderMismatch => {
+                "this credential kind does not belong to this provider"
+            }
+            RouteError::ProviderNotEnabled => "this provider is not switched on in this build",
+        })
     }
 }
 
 /// The only function in the process that turns identity into an address.
 ///
-/// Exhaustive with no wildcard arm: the provider is matched, and inside each
-/// arm every credential kind is named, so the fifteen wrong pairings are
-/// refused by a match arm somebody wrote rather than by a default nobody read.
-/// Adding a provider or a credential kind fails the build here first.
+/// A provider this build has not switched on routes nowhere: every pairing is
+/// refused before the table is read, so a 2.1 provider's credential can be
+/// neither stored as a connection nor sent while its lane has not enabled it.
 pub const fn reader_route(
+    provider: ProviderId,
+    credential: CredentialKind,
+) -> Result<ReaderRoute, RouteError> {
+    if !provider.enabled() {
+        return Err(RouteError::ProviderNotEnabled);
+    }
+    route_table(provider, credential)
+}
+
+/// Every pairing, decided, including the providers that are switched off.
+///
+/// Exhaustive with no wildcard arm: the provider is matched, and inside each
+/// arm every credential kind is named, so every wrong pairing is refused by a
+/// match arm somebody wrote rather than by a default nobody read. Adding a
+/// provider or a credential kind fails the build here first. The switched off
+/// providers are decided now so their lanes only switch them on.
+pub(crate) const fn route_table(
     provider: ProviderId,
     credential: CredentialKind,
 ) -> Result<ReaderRoute, RouteError> {
@@ -370,7 +477,11 @@ pub const fn reader_route(
             | CredentialKind::OpencodeBrowserSession
             | CredentialKind::GrokSession
             | CredentialKind::KimiSession
-            | CredentialKind::CursorSession => mismatch,
+            | CredentialKind::CursorSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => mismatch,
         },
         ProviderId::Codex => match credential {
             CredentialKind::CodexSession => Ok(ReaderRoute {
@@ -384,7 +495,11 @@ pub const fn reader_route(
             | CredentialKind::OpencodeBrowserSession
             | CredentialKind::GrokSession
             | CredentialKind::KimiSession
-            | CredentialKind::CursorSession => mismatch,
+            | CredentialKind::CursorSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => mismatch,
         },
         ProviderId::Antigravity => match credential {
             CredentialKind::AntigravitySession => Ok(ReaderRoute {
@@ -398,7 +513,11 @@ pub const fn reader_route(
             | CredentialKind::OpencodeBrowserSession
             | CredentialKind::GrokSession
             | CredentialKind::KimiSession
-            | CredentialKind::CursorSession => mismatch,
+            | CredentialKind::CursorSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => mismatch,
         },
         ProviderId::Opencode => match credential {
             CredentialKind::OpencodeBrowserSession => Ok(ReaderRoute {
@@ -412,7 +531,11 @@ pub const fn reader_route(
             | CredentialKind::AntigravitySession
             | CredentialKind::GrokSession
             | CredentialKind::KimiSession
-            | CredentialKind::CursorSession => mismatch,
+            | CredentialKind::CursorSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => mismatch,
         },
         ProviderId::Grok => match credential {
             CredentialKind::GrokSession => Ok(ReaderRoute {
@@ -426,7 +549,11 @@ pub const fn reader_route(
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
             | CredentialKind::KimiSession
-            | CredentialKind::CursorSession => mismatch,
+            | CredentialKind::CursorSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => mismatch,
         },
         ProviderId::Kimi => match credential {
             CredentialKind::KimiSession => Ok(ReaderRoute {
@@ -440,7 +567,11 @@ pub const fn reader_route(
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
             | CredentialKind::GrokSession
-            | CredentialKind::CursorSession => mismatch,
+            | CredentialKind::CursorSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => mismatch,
         },
         ProviderId::Cursor => match credential {
             CredentialKind::CursorSession => Ok(ReaderRoute {
@@ -454,7 +585,83 @@ pub const fn reader_route(
             | CredentialKind::AntigravitySession
             | CredentialKind::OpencodeBrowserSession
             | CredentialKind::GrokSession
-            | CredentialKind::KimiSession => mismatch,
+            | CredentialKind::KimiSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => mismatch,
+        },
+        ProviderId::Synthetic => match credential {
+            CredentialKind::SyntheticKey => Ok(ReaderRoute {
+                reader_id: ReaderId::SyntheticQuotas,
+                endpoint: ProviderEndpoint::SyntheticQuotas,
+                auth: AuthApplication::SyntheticKey,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => mismatch,
+        },
+        ProviderId::Zai => match credential {
+            CredentialKind::ZaiKey => Ok(ReaderRoute {
+                reader_id: ReaderId::ZaiQuota,
+                endpoint: ProviderEndpoint::ZaiQuota,
+                auth: AuthApplication::ZaiKey,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::MinimaxKey
+            | CredentialKind::ClineAccountToken => mismatch,
+        },
+        ProviderId::Minimax => match credential {
+            CredentialKind::MinimaxKey => Ok(ReaderRoute {
+                reader_id: ReaderId::MinimaxTokenPlan,
+                endpoint: ProviderEndpoint::MinimaxTokenPlan,
+                auth: AuthApplication::MinimaxKey,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::ClineAccountToken => mismatch,
+        },
+        ProviderId::Cline => match credential {
+            CredentialKind::ClineAccountToken => Ok(ReaderRoute {
+                reader_id: ReaderId::ClineBalance,
+                endpoint: ProviderEndpoint::ClineBalance,
+                auth: AuthApplication::ClineAccountToken,
+            }),
+            CredentialKind::OpenrouterInferenceKey
+            | CredentialKind::OpenrouterManagementKey
+            | CredentialKind::CodexSession
+            | CredentialKind::AntigravitySession
+            | CredentialKind::OpencodeBrowserSession
+            | CredentialKind::GrokSession
+            | CredentialKind::KimiSession
+            | CredentialKind::CursorSession
+            | CredentialKind::SyntheticKey
+            | CredentialKind::ZaiKey
+            | CredentialKind::MinimaxKey => mismatch,
         },
     }
 }
@@ -465,14 +672,15 @@ mod tests {
 
     #[test]
     fn every_provider_and_credential_pairing_is_decided() {
-        /* Twenty pairings, and each one has exactly one right answer: five
-        route, fifteen are refused. A pairing that neither routed nor was
-        refused would mean a wildcard arm had crept in. */
+        /* Every pairing has exactly one right answer in the table, the
+        switched off providers included: one route per reader, every other
+        pairing refused. A pairing that neither routed nor was refused would
+        mean a wildcard arm had crept in. */
         let mut routed = 0usize;
         let mut refused = 0usize;
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
-                match reader_route(provider, credential) {
+                match route_table(provider, credential) {
                     Ok(route) => {
                         routed += 1;
                         assert_eq!(
@@ -509,7 +717,7 @@ mod tests {
         let mut seen: Vec<ReaderId> = Vec::new();
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
-                if let Ok(route) = reader_route(provider, credential) {
+                if let Ok(route) = route_table(provider, credential) {
                     assert!(
                         !seen.contains(&route.reader_id),
                         "a reader was routed twice"
@@ -528,7 +736,7 @@ mod tests {
         let mut seen: Vec<ProviderEndpoint> = Vec::new();
         for provider in ProviderId::ALL {
             for credential in CredentialKind::ALL {
-                if let Ok(route) = reader_route(provider, credential) {
+                if let Ok(route) = route_table(provider, credential) {
                     assert!(
                         !seen.contains(&route.endpoint),
                         "two credentials reached one endpoint"
@@ -655,7 +863,30 @@ mod tests {
     }
 
     #[test]
+    fn a_switched_off_provider_routes_nowhere_and_a_switched_on_one_reads_the_table() {
+        for provider in ProviderId::ALL {
+            for credential in CredentialKind::ALL {
+                if provider.enabled() {
+                    assert_eq!(
+                        reader_route(provider, credential),
+                        route_table(provider, credential)
+                    );
+                } else {
+                    assert_eq!(
+                        reader_route(provider, credential),
+                        Err(RouteError::ProviderNotEnabled)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn the_route_error_sentence_is_fixed_and_redacted() {
+        assert_eq!(
+            RouteError::ProviderNotEnabled.to_string(),
+            "this provider is not switched on in this build"
+        );
         let sentence = RouteError::CredentialProviderMismatch.to_string();
         for marker in [
             "SECRET-MARKER-4f9a-do-not-echo-1234",

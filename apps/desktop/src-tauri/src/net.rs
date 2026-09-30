@@ -91,6 +91,30 @@ pub const OPENCODE_WORKSPACE_URL_PREFIX: &str = "https://opencode.ai/workspace/"
 /// The suffix of the second constant address, after the workspace handle.
 pub const OPENCODE_WORKSPACE_URL_SUFFIX: &str = "/go";
 
+/* The 2.1 HTTP providers' addresses: typed slots, empty and closed.
+
+Each provider's endpoint variant exists below so the routing table, the
+registry and the tests already name it, and each address is the empty string
+until its lane writes the one documented address here. An empty address is not
+an address: `fetch_endpoint` refuses it before a request is built, so a switched
+off provider cannot reach the network even through a tampered record. A
+provider whose read takes a second constant hop (Cline names the account first,
+then reads its balance) adds that constant beside its own, the way OpenCode
+does above. */
+
+/// Synthetic's documented quota report. Empty until lane P1a fills it.
+pub const SYNTHETIC_QUOTAS_URL: &str = "";
+
+/// Z.ai's coding plan quota report. Empty until lane P1b fills it, together
+/// with its exact regional hosts.
+pub const ZAI_QUOTA_URL: &str = "";
+
+/// MiniMax's Token Plan quota report. Empty until lane P1b fills it.
+pub const MINIMAX_TOKEN_PLAN_URL: &str = "";
+
+/// Cline's hosted account balance. Empty until lane P1b fills it.
+pub const CLINE_BALANCE_URL: &str = "";
+
 /// Every address this process may speak to. Adding a provider means adding a
 /// variant here, in code, in review; nothing at runtime can.
 ///
@@ -128,13 +152,17 @@ pub enum ProviderEndpoint {
     GrokUsage,
     KimiUsage,
     CursorUsage,
+    SyntheticQuotas,
+    ZaiQuota,
+    MinimaxTokenPlan,
+    ClineBalance,
 }
 
 impl ProviderEndpoint {
     /// The whole allowlist, for the tests that prove it closed. The product
     /// itself never needs the list, only a variant at a time.
     #[cfg_attr(not(test), allow(dead_code))]
-    pub const ALL: [ProviderEndpoint; 11] = [
+    pub const ALL: [ProviderEndpoint; 15] = [
         ProviderEndpoint::OpenrouterKey,
         ProviderEndpoint::OpenrouterCredits,
         ProviderEndpoint::CodexUsage,
@@ -146,6 +174,10 @@ impl ProviderEndpoint {
         ProviderEndpoint::GrokUsage,
         ProviderEndpoint::KimiUsage,
         ProviderEndpoint::CursorUsage,
+        ProviderEndpoint::SyntheticQuotas,
+        ProviderEndpoint::ZaiQuota,
+        ProviderEndpoint::MinimaxTokenPlan,
+        ProviderEndpoint::ClineBalance,
     ];
 
     /// The address the first request of this endpoint goes to.
@@ -162,7 +194,17 @@ impl ProviderEndpoint {
             ProviderEndpoint::GrokUsage => GROK_USAGE_URL,
             ProviderEndpoint::KimiUsage => KIMI_USAGE_URL,
             ProviderEndpoint::CursorUsage => CURSOR_USAGE_URL,
+            ProviderEndpoint::SyntheticQuotas => SYNTHETIC_QUOTAS_URL,
+            ProviderEndpoint::ZaiQuota => ZAI_QUOTA_URL,
+            ProviderEndpoint::MinimaxTokenPlan => MINIMAX_TOKEN_PLAN_URL,
+            ProviderEndpoint::ClineBalance => CLINE_BALANCE_URL,
         }
+    }
+
+    /// Whether this slot holds an address at all. An empty slot is closed: it
+    /// is refused before any request is built.
+    pub const fn filled(self) -> bool {
+        !self.url().is_empty()
     }
 
     /// Whether this endpoint's read takes a second hop through a workspace.
@@ -183,6 +225,12 @@ impl ProviderEndpoint {
             | ProviderEndpoint::GrokUsage
             | ProviderEndpoint::KimiUsage
             | ProviderEndpoint::CursorUsage => HttpMethod::Get,
+            /* The documented verb of every 2.1 read is a GET. A lane whose
+            capture says otherwise changes its own line here, in review. */
+            ProviderEndpoint::SyntheticQuotas
+            | ProviderEndpoint::ZaiQuota
+            | ProviderEndpoint::MinimaxTokenPlan
+            | ProviderEndpoint::ClineBalance => HttpMethod::Get,
             ProviderEndpoint::AntigravityQuota
             | ProviderEndpoint::GeminiCliLoad
             | ProviderEndpoint::GeminiCliQuota => HttpMethod::Post,
@@ -204,7 +252,11 @@ impl ProviderEndpoint {
             | ProviderEndpoint::ClaudeOauthUsage
             | ProviderEndpoint::GrokUsage
             | ProviderEndpoint::KimiUsage
-            | ProviderEndpoint::CursorUsage => None,
+            | ProviderEndpoint::CursorUsage
+            | ProviderEndpoint::SyntheticQuotas
+            | ProviderEndpoint::ZaiQuota
+            | ProviderEndpoint::MinimaxTokenPlan
+            | ProviderEndpoint::ClineBalance => None,
         }
     }
 }
@@ -552,6 +604,10 @@ async fn fetch_endpoint_inner<T: Transport>(
     secret: &str,
     provider_account_id: Option<&str>,
 ) -> Result<EndpointOutcome, NetError> {
+    /* An empty slot is closed, and so is a scheme a lane has not written. */
+    if !endpoint.filled() || auth.pending() {
+        return Err(NetError::Protocol);
+    }
     if matches!(
         endpoint,
         ProviderEndpoint::GeminiCliLoad | ProviderEndpoint::GeminiCliQuota
@@ -894,6 +950,10 @@ fn authenticated_builder(
             credential.push_str(secret);
         }
         AuthApplication::BrowserSessionCookie => credential.push_str(secret),
+        AuthApplication::SyntheticKey
+        | AuthApplication::ZaiKey
+        | AuthApplication::MinimaxKey
+        | AuthApplication::ClineAccountToken => return Err(TransportFailure::Protocol),
     }
     let mut header_value = reqwest::header::HeaderValue::from_str(&credential)
         .map_err(|_| TransportFailure::Protocol)?;
@@ -960,6 +1020,10 @@ fn authenticated_builder(
             .header(reqwest::header::COOKIE, header_value)
             .header(reqwest::header::USER_AGENT, OPENCODE_USER_AGENT)
             .header(reqwest::header::ACCEPT, "text/html"),
+        AuthApplication::SyntheticKey
+        | AuthApplication::ZaiKey
+        | AuthApplication::MinimaxKey
+        | AuthApplication::ClineAccountToken => return Err(TransportFailure::Protocol),
     };
     if let Some(body) = request.body {
         builder = builder.body(body.to_string());
@@ -1132,7 +1196,7 @@ mod tests {
     fn every_allowlisted_address_is_https() {
         /* Every address the process can reach, including the one built from a
         workspace handle, and none of them may be plain HTTP. */
-        for endpoint in ProviderEndpoint::ALL {
+        for endpoint in ProviderEndpoint::ALL.into_iter().filter(|endpoint| endpoint.filled()) {
             assert!(endpoint.url().starts_with("https://"));
         }
         let handle = WorkspaceHandle::parse("wrk_abc123").expect("a handle");
@@ -1162,6 +1226,49 @@ mod tests {
             Some(GEMINI_CLI_LOAD_BODY)
         );
         assert_eq!(ProviderEndpoint::GeminiCliQuota.body(), None);
+    }
+
+    #[tokio::test]
+    async fn every_empty_slot_and_unwritten_scheme_is_refused_before_a_request() {
+        let slots = [
+            (ProviderEndpoint::SyntheticQuotas, AuthApplication::SyntheticKey),
+            (ProviderEndpoint::ZaiQuota, AuthApplication::ZaiKey),
+            (ProviderEndpoint::MinimaxTokenPlan, AuthApplication::MinimaxKey),
+            (ProviderEndpoint::ClineBalance, AuthApplication::ClineAccountToken),
+        ];
+        /* A slot is refused while its provider is switched off, filled or not. */
+        for (endpoint, auth) in slots.into_iter().filter(|(_, auth)| auth.pending()) {
+            let transport = RecordingTransport::replying(200, b"{}".to_vec(), None);
+            assert_eq!(
+                fetch_endpoint(&transport, endpoint, auth, "fixture-key", None).await,
+                Err(NetError::Protocol)
+            );
+            /* A filled address cannot be reached with an unwritten scheme either. */
+            assert_eq!(
+                fetch_endpoint(&transport, ProviderEndpoint::OpenrouterKey, auth, "fixture-key", None).await,
+                Err(NetError::Protocol)
+            );
+            assert!(transport.recorded_urls().is_empty());
+        }
+        /* An empty slot is always a switched off provider's: a provider is never
+        switched on without its address. */
+        for endpoint in ProviderEndpoint::ALL.into_iter().filter(|endpoint| !endpoint.filled()) {
+            assert!(slots
+                .iter()
+                .any(|(slot, auth)| *slot == endpoint && auth.pending()));
+        }
+        /* And the builder refuses the scheme even if a request were handed to it. */
+        let client = reqwest::Client::new();
+        for (_, auth) in slots.into_iter().filter(|(_, auth)| auth.pending()) {
+            let request = EndpointRequest {
+                url: OPENROUTER_KEY_URL,
+                method: HttpMethod::Get,
+                auth,
+                provider_account_id: None,
+                body: None,
+            };
+            assert!(authenticated_builder(&client, &request, "fixture-key").is_err());
+        }
     }
 
     #[test]

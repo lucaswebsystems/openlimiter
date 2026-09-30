@@ -121,6 +121,10 @@ pub(crate) const fn detected_provider(provider_id: ProviderId) -> DetectedProvid
         ProviderId::Grok => DetectedProviderId::Grok,
         ProviderId::Kimi => DetectedProviderId::Kimi,
         ProviderId::Cursor => DetectedProviderId::Cursor,
+        ProviderId::Synthetic => DetectedProviderId::Synthetic,
+        ProviderId::Zai => DetectedProviderId::Zai,
+        ProviderId::Minimax => DetectedProviderId::Minimax,
+        ProviderId::Cline => DetectedProviderId::Cline,
     }
 }
 
@@ -128,6 +132,20 @@ pub(crate) fn resolve_connection(
     record: &ConnectionRecord,
     secrets: &impl SecretStore,
 ) -> PollIdentity {
+    let detected = detected_provider(record.provider_id);
+    /* A saved key is its fingerprint, so the key a person saved and the same
+    key found in a client configuration are one account, polled once through
+    the saved connection. See account_identity.rs. */
+    if crate::account_identity::route(detected) == Some(crate::account_identity::AccountRoute::ApiKey) {
+        let account_id = secrets.read_secret(&record.id).ok().map_or_else(
+            || provider_singleton_account_id(detected),
+            |stored| crate::account_identity::key_account_id(detected, &stored),
+        );
+        return PollIdentity {
+            provider_id: record.provider_id,
+            account_id,
+        };
+    }
     let account_id = if record.provider_id == ProviderId::Codex {
         let provider_account_id = record.codex_account_id.clone().or_else(|| {
             let stored = secrets.read_secret(&record.id).ok()?;
@@ -142,7 +160,6 @@ pub(crate) fn resolve_connection(
             },
         )
     } else {
-        let detected = detected_provider(record.provider_id);
         secrets
             .read_secret(&record.id)
             .ok()

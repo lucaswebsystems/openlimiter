@@ -776,6 +776,14 @@ pub const fn provider_interval_seconds(provider: DetectedProviderId) -> u64 {
         | DetectedProviderId::Grok
         | DetectedProviderId::Kimi
         | DetectedProviderId::Cursor => 300,
+        DetectedProviderId::Synthetic => crate::providers::synthetic::INTERVAL_SECONDS,
+        DetectedProviderId::Zai => crate::providers::zai::INTERVAL_SECONDS,
+        DetectedProviderId::Minimax => crate::providers::minimax::INTERVAL_SECONDS,
+        DetectedProviderId::Cline => crate::providers::cline::INTERVAL_SECONDS,
+        DetectedProviderId::Augment => crate::providers::augment::INTERVAL_SECONDS,
+        DetectedProviderId::Amp => crate::providers::amp::INTERVAL_SECONDS,
+        DetectedProviderId::Kilo => crate::providers::kilo::INTERVAL_SECONDS,
+        DetectedProviderId::Copilot => crate::providers::copilot::INTERVAL_SECONDS,
     }
 }
 

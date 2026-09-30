@@ -1,0 +1,65 @@
+# Synthetic. Registered for the 2.1 providers wave, switched off.
+#
+# Route, from the providers research of 2026-09-29: a documented quota API,
+# read with the person's own key. The key is entered in the app and kept in the
+# operating system credential store, or read from a client configuration whose
+# configured endpoint is proven to be Synthetic's own. The answer carries the
+# quota windows with usage, limit and renewal, and a quota query consumes no
+# quota. The reader shows exactly the windows returned and never assumes that
+# a renewal restores the whole allowance.
+#
+# Skeleton: nothing below claims a reader, a meter or a surface, and the
+# compiled registry does not contain it. Its lane states the meters from a
+# captured response, adds the collection, honesty and directory blocks, and
+# sets enabled to true in the same change that switches the provider on.
+
+provider_id: synthetic
+product_id: subscription
+display_name: Synthetic
+enabled: false
+
+headlineMeter: null
+acquisitionSurfaces: []
+displaySurfaces: []
+platforms:
+  - windows
+  - macos
+  - linux
+acquisitionMethod: remote_http_official
+d5Review: Documented quota API with a key the person holds; no reader yet.
+maturity: planned
+
+source:
+  docs_url: https://dev.synthetic.new/docs/synthetic/quotas
+  reviewed_at: "2026-09-29"
+  source_status: official
+
+mark:
+  file: synthetic.svg
+  source_url: https://synthetic.new/favicon.svg
+
+availability:
+  requires_plan: any
+  appears_after: credential_stored
+  absence_is_error: true
+
+support:
+  parser: absent
+  reader: absent
+  auth: absent
+
+connections:
+  - reader: official_remote_api
+    auth_mode: api_key
+    platforms:
+      - windows
+      - macos
+      - linux
+
+verification:
+  verification_status: planned
+  last_verified_at: null
+  fixture_ids:
+    - synthetic.documented.quotas
+
+meters: []
