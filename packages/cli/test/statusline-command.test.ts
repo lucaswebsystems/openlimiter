@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,7 @@ import { parseClaudePayload } from "@openlimiter/connectors";
 import { AGENT_CONTEXT_FILE_NAME } from "@openlimiter/adapters";
 import { runCli } from "../src/cli.js";
 import { persistSnapshots } from "../src/ingest.js";
+import { credentialDocuments } from "./fixtures/acquisition.js";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 const payload = (directory = "/work/Olá projeto") => ({
@@ -57,6 +58,24 @@ describe("statusline command and the account signed in now", () => {
     });
     expect(result.stdout).toContain("cx7d");
     expect(result.stdout).toContain("10%");
+    expect(result.stdout).not.toContain("90%");
+  });
+
+  it("asks the login even when only the previous account is cached, so a switch hides it at once", async () => {
+    /* No desktop list: the terminal asks the login on this machine, which now
+       names an account the cache has no reading for yet. */
+    const stateDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-switch-"));
+    const homeDirectory = await mkdtemp(path.join(await realpath(tmpdir()), "openlimiter-statusline-home-"));
+    roots.push(stateDirectory, homeDirectory);
+    await mkdir(path.join(homeDirectory, ".codex"), { recursive: true });
+    await writeFile(path.join(homeDirectory, ".codex", "auth.json"), JSON.stringify(credentialDocuments.codex));
+    const weekly = normalizeMeters(parseClaudePayload(payload(), NOW)!)[1]!;
+    await persistSnapshots([{ ...weekly, provider: "CODEX", value: 90, accountId: "codex-previous" }], stateDirectory, NOW);
+    const result = await runCli(["statusline", "--host", "shell"], {
+      stateDirectory, homeDirectory, now: () => NOW, environment: { NO_COLOR: "" }, colorOutput: false,
+      readStandardInput: async () => ""
+    });
+    expect(result.exitCode).toBe(0);
     expect(result.stdout).not.toContain("90%");
   });
 });

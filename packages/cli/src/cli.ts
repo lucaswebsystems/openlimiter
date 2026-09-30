@@ -1408,9 +1408,9 @@ async function ingestCommand(
  *
  * The desktop writes its answer (saved connections and the plan's selection,
  * which the terminal cannot see) while it runs. Without a current one, the
- * terminal asks each provider's own login which account it names, and only
- * for a provider whose cached rows name more than one account, the one case
- * where the answer changes what is drawn.
+ * terminal asks each cached provider's own login which account it names, even
+ * with one account cached: a login switched to an account with no reading yet
+ * must hide the previous account's rows, not leave them standing in for it.
  */
 async function terminalActiveAccounts(
   dependencies: CliDependencies,
@@ -1419,16 +1419,10 @@ async function terminalActiveAccounts(
 ): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
   const published = await readActiveAccounts(dependencies.stateDirectory, now);
   if (published !== null) return published;
-  const accounts = new Map<string, Set<string>>();
-  for (const snapshot of snapshots) {
-    if (snapshot.accountId === undefined) continue;
-    const held = accounts.get(snapshot.provider) ?? new Set<string>();
-    held.add(snapshot.accountId);
-    accounts.set(snapshot.provider, held);
-  }
+  const cached = new Set(snapshots.flatMap((snapshot) => snapshot.accountId === undefined ? [] : [snapshot.provider]));
   const active = new Map<string, ReadonlySet<string>>();
-  for (const [provider, held] of accounts) {
-    if (held.size < 2 || !(ACQUISITION_PROVIDERS as readonly string[]).includes(provider)) continue;
+  for (const provider of cached) {
+    if (!(ACQUISITION_PROVIDERS as readonly string[]).includes(provider)) continue;
     const current = await captureStatuslineAccount(provider as AcquisitionProvider, {
       environment: dependencies.environment,
       homeDirectory: dependencies.homeDirectory,

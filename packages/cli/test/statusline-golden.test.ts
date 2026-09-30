@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { PROVIDER_CODES, WAVE_PROVIDERS, buildAdvice, type Snapshot } from "@openlimiter/core";
+import { PROVIDER_CODES, WAVE_PROVIDERS, buildAdvice, projectSnapshots, type Snapshot } from "@openlimiter/core";
 import { DEFAULT_STATUSLINE } from "../src/config.js";
-import { renderStatuslineLayout, STATUSLINE_HOSTS, tenBlockBar } from "../src/statusline.js";
+import { activeAccountRows, renderStatuslineLayout, STATUSLINE_HOSTS, tenBlockBar } from "../src/statusline.js";
 import { GOLDEN_NOW, GOLDEN_SNAPSHOTS } from "./fixtures/statusline-snapshots.js";
 
 /**
@@ -74,6 +74,31 @@ describe("account and freshness status line goldens", () => {
       ...(availability === "rate_limited" ? { retryAt: "2026-01-01T14:05:00.000Z" } : {})
     })])).toBe(expected === null ? "OpenLimiter UNKNOWN" : "cx " + expected);
   });
+  it("says unlimited only while the desktop would: fresh, and for an account active now", () => {
+    const unlimited = row({
+      provider: "CODEX", meter: "ACQUISITION", value: 0, window: { kind: "unknown" }, availability: "unlimited",
+      accountId: "codex-current", source: "internal_payload", observedAt: ago(7200), expiresAt: ago(6000)
+    });
+    const cells = (snapshots: Snapshot[]) => renderStatuslineLayout({
+      advice: buildAdvice(snapshots, GOLDEN_NOW), snapshots, now: GOLDEN_NOW,
+      config: { ...DEFAULT_STATUSLINE, style: "cells", width: 1000, rows: 2 }, color: false, host: "claude"
+    });
+    /* Two hours old: the desktop calls it stale, and neither layout says it. */
+    expect(projectSnapshots([unlimited], GOLDEN_NOW).flags.map((flag) => flag.reason)).toEqual(["stale"]);
+    expect(render([unlimited])).not.toContain("unlimited");
+    expect(cells([unlimited])).not.toContain("unlimited");
+    /* Fresh, it is the answer it always was. */
+    const fresh = { ...unlimited, observedAt: GOLDEN_NOW, expiresAt: "2026-01-01T00:01:00.000Z" };
+    expect(render([fresh])).toBe("cx unlimited");
+    /* An answer naming no account cannot speak for the one active now; an
+       anonymous measured row still stays, as it always did. */
+    const anonymous: Snapshot = { ...fresh };
+    delete anonymous.accountId;
+    const measured = row({ provider: "CODEX", value: 16 });
+    const active = new Map([["CODEX", new Set(["codex-current"])]]);
+    expect(activeAccountRows([anonymous, measured], active)).toEqual([measured]);
+  });
+
   it("leaves an acquisition placeholder out instead of inventing a percentage", () => {
     expect(render([row({ provider: "CODEX", meter: "ACQUISITION", value: 0, window: { kind: "unknown" } })]))
       .toBe("OpenLimiter UNKNOWN");

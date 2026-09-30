@@ -3,6 +3,7 @@ import {
   WAVE_PROVIDERS,
   floorFixed,
   freshness,
+  freshnessPolicy,
   meterAmountText,
   meterReading,
   type Advice,
@@ -246,8 +247,10 @@ function balanceCell(label: string, snapshot: Snapshot, state: "fresh" | "stale"
 /**
  * The rows of the accounts that are active now, when something authoritative
  * says which they are: a row of any other account of that provider is a
- * previous account's leftover and is not drawn. A row with no account cannot
- * be attributed, so it stays, exactly as before.
+ * previous account's leftover and is not drawn. A measured row with no
+ * account cannot be attributed, so it stays, exactly as before; an answer
+ * about an account (unlimited) naming none cannot speak for the active one,
+ * so it goes, as it does on the desktop.
  */
 export function activeAccountRows(
   snapshots: readonly Snapshot[],
@@ -256,7 +259,9 @@ export function activeAccountRows(
   if (!active) return [...snapshots];
   return snapshots.filter((snapshot) => {
     const accounts = active.get(snapshot.provider);
-    return accounts === undefined || snapshot.accountId === undefined || accounts.has(snapshot.accountId);
+    if (accounts === undefined) return true;
+    if (snapshot.accountId === undefined) return snapshot.availability === undefined;
+    return accounts.has(snapshot.accountId);
   });
 }
 
@@ -295,10 +300,12 @@ function readingsFor(
   );
   // Only measured readings are drawn: a provider that cannot be measured right
   // now is left out of the line entirely, exactly as it is left off Home.
-  // Unlimited is an answer, not a failure, so it stays.
+  // Unlimited is an answer, not a failure, so it stays, but only while the one
+  // freshness policy the desktop uses calls it fresh: an old answer is stale.
   return readings.filter((reading) =>
     !isAvailabilitySnapshot(reading.snapshot) ||
-    reading.snapshot.availability === "unlimited" && !measuredAccounts.has(reading.snapshot.accountId)
+    reading.snapshot.availability === "unlimited" && !measuredAccounts.has(reading.snapshot.accountId) &&
+      freshnessPolicy({ ...reading.snapshot, sourceClass: reading.snapshot.source, now }).availability === "fresh"
   );
 }
 

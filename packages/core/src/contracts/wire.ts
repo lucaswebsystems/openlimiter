@@ -234,16 +234,17 @@ export function toWireSampleV3(snapshot: Snapshot | LocalWireSample, now = new D
     instant(snapshot.expiresAt, "expiresAt");
     instant(now, "now");
     /* The meter contract decides the numbers. An availability carries none; a
-       used share is usage_percent, with its money pair as the amount; any
-       other measure is its own amount in its currency, its direction in its
-       kind. An amount with no currency (credits, requests, tokens) has no v3
+       used share is usage_percent, with its money pair's used amount as the
+       amount; any other measure is its own resolved value in its currency, its
+       direction in its kind, so a balance never uploads the money used beside
+       it. An amount with no currency (credits, requests, tokens) has no v3
        representation until the sync contract carries its unit. */
     const reading = snapshot.availability === undefined ? meterReading(snapshot) : null;
     if (snapshot.availability === undefined && reading === null) fail("kind", "does not agree with the unit");
     const amount = reading === null ? undefined
-      : reading.money !== null ? { value: reading.money.usedAmount, currency: reading.money.currency }
-      : reading.usedPercent === null && reading.currency !== null ? { value: reading.value, currency: reading.currency }
-      : undefined;
+      : reading.usedPercent !== null
+        ? reading.money === null ? undefined : { value: reading.money.usedAmount, currency: reading.money.currency }
+      : reading.currency === null ? undefined : { value: reading.value, currency: reading.currency };
     if (reading !== null && reading.usedPercent === null && amount === undefined) {
       fail("unit", "has no v2 usage representation; use an explicit amount projection");
     }

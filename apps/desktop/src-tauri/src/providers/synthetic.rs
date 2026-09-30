@@ -37,12 +37,14 @@ pub(crate) const INTERVAL_SECONDS: u64 = 900;
 /// rules here, and detection reads them from nowhere else.
 pub(crate) const FOOTPRINT: Footprint = Footprint::nothing(ConnectionMode::ApiKey);
 
-/// The documented read: its one https address, its verb, how the key is
-/// presented and, when the address names an account, where the account comes
-/// from. `net.rs` applies exactly this. Empty, and so closed, until the lane
-/// writes the documented values.
+/// The documented read: its one https address, the one API host every address
+/// must sit on, its verb, how the key is presented and, when the address names
+/// an account, where the account comes from (`{account}` only in the path).
+/// `net.rs` applies exactly this. Empty, and so closed, until the lane writes
+/// the documented values.
 pub(crate) const ENDPOINT: crate::net::HttpDescriptor = crate::net::HttpDescriptor {
     url: "",
+    host: "",
     method: crate::net::HttpMethod::Get,
     key: crate::net::KeyHeader::BEARER,
     account: crate::net::AccountLookup::None,
