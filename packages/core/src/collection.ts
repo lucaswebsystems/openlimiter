@@ -1,3 +1,4 @@
+import { retainSnapshots } from "./data-rules.js";
 import { mergeSnapshots, snapshotIdentity, MAX_CACHE_ENTRIES } from "./merge.js";
 import type { ProviderCode, Snapshot } from "./types.js";
 import { PROVIDER_CODES, ACCOUNT_ID_PATTERN } from "./types.js";
@@ -213,12 +214,16 @@ export function applyCollectionReport(
   report: CollectionReport
 ): CacheState {
   if (parseInstant(report.observedAt) === null) return state;
+  state = { ...state, snapshots: retainSnapshots(state.snapshots, Date.parse(report.observedAt)) };
   const belongs = (snapshot: Snapshot): boolean =>
     snapshotBelongsTo(snapshot, report.provider, report.accountId);
   const suppressionMatches = (suppression: CacheSuppression): boolean =>
     suppression.provider === report.provider &&
     collectionIdentity(report.provider, suppression.accountId) ===
       collectionIdentity(report.provider, report.accountId);
+
+  if (state.snapshots.some(row => belongs(row) && Date.parse(row.observedAt) > Date.parse(report.observedAt))) return state;
+  if (state.suppressions.some(entry => suppressionMatches(entry) && Date.parse(entry.suppressedAt) > Date.parse(report.observedAt))) return state;
 
   if (report.ok) {
     /* Rows for this identity are dropped before the merge rather than left for

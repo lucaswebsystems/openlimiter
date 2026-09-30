@@ -921,8 +921,8 @@ mod tests {
             reset_at: Some("2026-08-19T15:00:00.000Z".to_string()),
             source: "internal_payload".to_string(),
             precision: "estimated".to_string(),
-            observed_at: "2026-08-19T12:00:00.000Z".to_string(),
-            expires_at: "2026-08-19T12:20:00.000Z".to_string(),
+            observed_at: crate::native_snapshot::iso_from_epoch_ms(crate::connections::now_epoch_ms()).unwrap(),
+            expires_at: crate::native_snapshot::iso_from_epoch_ms(crate::connections::now_epoch_ms() + 1_200_000).unwrap(),
             labels: ConnectorLabels {
                 credential_origin: "official-local-tool".to_string(),
                 data_interface_status: "internal-endpoint".to_string(),

@@ -14,17 +14,16 @@ import { SiteLink } from "@/components/site-link";
  * desktop application can mint a pairing code: the server contract gives code
  * creation to the desktop, and a code minted anywhere else would be one the
  * desktop never learns about and so can never approve. A hub in a browser
- * therefore has no live code to draw, so the panel says where a code comes
- * from, points at the desktop download, and encodes the pair page itself with
- * no code on it. Scanned on the phone, that page explains the same step where
- * the reader already is.
+ * therefore has no live code to draw. The hub QR opens the signed in web app
+ * entry point instead, while the desktop workflow owns the separate short
+ * lived pairing QR.
  *
  * The QR is generated in the browser by lib/qr.ts, the port of the CLI's own
  * encoder, so no third party package ever touches a pairing address.
  */
 
-/** The address the panel encodes: the pair page, deliberately codeless. */
-const PAIR_PAGE_URL = `${SITE_URL}/app/pair`;
+/** The address the hub can safely encode without a live desktop code. */
+const PHONE_APP_URL = `${SITE_URL}/app`;
 
 /** Modules of light margin around the symbol. Four is the published minimum. */
 const QUIET_ZONE = 4;
@@ -96,7 +95,7 @@ export default function PhoneButton() {
   useEffect(() => {
     if (!open || matrix !== null) return;
     try {
-      setMatrix(encodeQr(PAIR_PAGE_URL));
+      setMatrix(encodeQr(PHONE_APP_URL));
     } catch {
       setMatrix(null);
     }

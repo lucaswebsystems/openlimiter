@@ -1,3 +1,5 @@
+#[path = "../src/data_rules.rs"]
+mod data_rules;
 // Exercise production permissions through IPC, without starting shell services.
 #[path = "../src/activity.rs"]
 mod activity;
@@ -6,42 +8,42 @@ mod providers_plugin;
 #[path = "../src/rail.rs"]
 mod rail;
 // The Rail reads the production cache boundary even in the mock IPC runtime.
-#[path = "../src/native_snapshot.rs"]
-mod native_snapshot;
-#[path = "../src/native_time.rs"]
-mod native_time;
-#[path = "../src/state.rs"]
-mod state;
-#[path = "../src/cache_write.rs"]
-mod cache_write;
-#[path = "../src/fsx.rs"]
-mod fsx;
-#[path = "../src/test_support.rs"]
-mod test_support;
-#[path = "../src/native_readers.rs"]
-mod native_readers;
-#[path = "../src/native_opencode.rs"]
-mod native_opencode;
-#[path = "../src/reader_registry.rs"]
-mod reader_registry;
-#[path = "../src/net.rs"]
-mod net;
-#[path = "../src/credentials.rs"]
-mod credentials;
-#[path = "../src/provider_detection.rs"]
-mod provider_detection;
-#[path = "../src/request_policy.rs"]
-mod request_policy;
-#[path = "../src/poll_identity.rs"]
-mod poll_identity;
-#[path = "../src/connections.rs"]
-mod connections;
 #[path = "../src/antigravity_credential.rs"]
 mod antigravity_credential;
 #[path = "../src/antigravity_local.rs"]
 mod antigravity_local;
+#[path = "../src/cache_write.rs"]
+mod cache_write;
+#[path = "../src/connections.rs"]
+mod connections;
+#[path = "../src/credentials.rs"]
+mod credentials;
+#[path = "../src/fsx.rs"]
+mod fsx;
+#[path = "../src/native_opencode.rs"]
+mod native_opencode;
+#[path = "../src/native_readers.rs"]
+mod native_readers;
+#[path = "../src/native_snapshot.rs"]
+mod native_snapshot;
+#[path = "../src/native_time.rs"]
+mod native_time;
+#[path = "../src/net.rs"]
+mod net;
+#[path = "../src/poll_identity.rs"]
+mod poll_identity;
+#[path = "../src/provider_detection.rs"]
+mod provider_detection;
 #[path = "../src/provider_switches.rs"]
 mod provider_switches;
+#[path = "../src/reader_registry.rs"]
+mod reader_registry;
+#[path = "../src/request_policy.rs"]
+mod request_policy;
+#[path = "../src/state.rs"]
+mod state;
+#[path = "../src/test_support.rs"]
+mod test_support;
 
 use serde_json::{json, Value};
 use std::{fs, path::Path};
@@ -210,7 +212,7 @@ fn assert_rail_snapshot(label: &str) {
     let snapshot = invoke(&window, "plugin:rail|rail_snapshot").unwrap();
     assert_eq!(snapshot["accounts"], json!([]));
     assert_eq!(snapshot["sessions"], json!([]));
-    assert_eq!(snapshot.as_object().unwrap().len(), 3);
+    assert_eq!(snapshot.as_object().unwrap().len(), 4);
     assert_eq!(snapshot["window"]["visible"], true);
     assert_eq!(snapshot["window"]["edge"], "left");
     assert_eq!(snapshot["window"]["keepOpen"], false);
@@ -223,6 +225,7 @@ fn rail_card_window_allowed() {
 
 #[test]
 fn rail_snapshot_reads_seeded_cache_from_test_root() {
+    let observed = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
     let root = test_support::TempDir::new();
     fs::write(
         root.path().join("openlimiter-cache.json"),
@@ -237,7 +240,7 @@ fn rail_snapshot_reads_seeded_cache_from_test_root() {
                 "kind": "quota_percent",
                 "window": { "kind": "rolling", "durationSeconds": 18000 },
                 "resetAt": "2099-09-28T15:00:00.000Z",
-                "observedAt": "2020-09-28T11:57:00.000Z",
+                "observedAt": observed,
                 "expiresAt": "2099-09-28T15:00:00.000Z",
                 "precision": "exact",
                 "source": "internal_payload",
@@ -271,7 +274,7 @@ fn rail_snapshot_reads_seeded_cache_from_test_root() {
             "meaning": "used",
             "windowLabel": "Current session",
             "resetAt": "2099-09-28T15:00:00.000Z",
-            "observedAt": "2020-09-28T11:57:00.000Z",
+            "observedAt": observed,
             "freshness": "fresh",
             "availability": "available",
             "band": "orange",
@@ -298,7 +301,7 @@ fn rail_controls_allowed_through_production_acl() {
             .build()
             .unwrap();
         for (command, args) in [
-            ("rail_set_keep_open", json!({"keepOpen": true})),
+            ("rail_set_keep_open", json!({"keepOpen": false})),
             ("rail_card_open", json!({"anchor": 24})),
             ("rail_card_close", json!({})),
             ("rail_set_visible", json!({"visible": false})),
@@ -314,7 +317,7 @@ fn rail_controls_allowed_through_production_acl() {
         }
         let snapshot = invoke(&window, "plugin:rail|rail_snapshot").unwrap();
         assert_eq!(snapshot["window"]["visible"], false);
-        assert_eq!(snapshot["window"]["keepOpen"], true);
+        assert_eq!(snapshot["window"]["keepOpen"], false);
         assert_eq!(snapshot["window"]["cardOpen"], false);
         // This reaches validation, proving the ACL granted it; no real monitor
         // is queried or window shown by the mock application.
@@ -324,7 +327,15 @@ fn rail_controls_allowed_through_production_acl() {
                 "plugin:rail|rail_move_offset",
                 InvokeBody::Json(json!({"offset": -1}))
             ),
-            Err(json!("invalid Rail offset"))
+            Err(json!("The edge tab is fixed to the primary display"))
+        );
+        assert_eq!(
+            invoke_body(
+                &window,
+                "plugin:rail|rail_set_keep_open",
+                InvokeBody::Json(json!({"keepOpen": true}))
+            ),
+            Err(json!("The edge panel closes when the pointer leaves"))
         );
     }
 }

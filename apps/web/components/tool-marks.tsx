@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 /**
  * Tool marks, and the catalogue of tools the site names.
@@ -144,6 +144,7 @@ export function ClaudeMark({ className }: ToolMarkProps) {
  * from red-orange at top through green to blue at the base.
  */
 export function AntigravityMark({ className = "h-5 w-5" }: ToolMarkProps) {
+  const gradientId = `${useId().replaceAll(":", "")}-antigravity-gradient`;
   return (
     <svg
       viewBox="0 0 24 24"
@@ -152,7 +153,7 @@ export function AntigravityMark({ className = "h-5 w-5" }: ToolMarkProps) {
       focusable="false"
     >
       <defs>
-        <linearGradient id="ol-antigravity-gradient" x1="12" y1="1.8" x2="12" y2="22.4" gradientUnits="userSpaceOnUse">
+        <linearGradient id={gradientId} x1="12" y1="1.8" x2="12" y2="22.4" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="var(--ol-provider-google-red)" />
           <stop offset="0.34" stopColor="var(--ol-provider-google-yellow)" />
           <stop offset="0.66" stopColor="var(--ol-provider-google-green)" />
@@ -161,7 +162,7 @@ export function AntigravityMark({ className = "h-5 w-5" }: ToolMarkProps) {
       </defs>
       <path
         d="M12 1.8C14.8 1.8 17.1 7.8 19.6 14.2C20.5 16.5 21.4 19 21.4 20.2C21.4 21.8 19.8 22.4 17.8 20.6C16.3 16.8 14.1 12.5 12 12.5C9.9 12.5 7.7 16.8 6.2 20.6C4.2 22.4 2.6 21.8 2.6 20.2C2.6 19 3.5 16.5 4.4 14.2C6.9 7.8 9.2 1.8 12 1.8Z"
-        fill="url(#ol-antigravity-gradient)"
+        fill={`url(#${gradientId})`}
       />
     </svg>
   );
@@ -188,16 +189,17 @@ export function XaiMark({ className }: ToolMarkProps) {
 }
 
 export function GeminiMark({ className }: ToolMarkProps) {
+  const gradientId = `${useId().replaceAll(":", "")}-gemini-gradient`;
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="ol-gemini-gradient" x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+        <linearGradient id={gradientId} x1="2" y1="22" x2="22" y2="2" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="var(--ol-provider-gemini-blue)" />
           <stop offset="0.52" stopColor="var(--ol-provider-gemini-purple)" />
           <stop offset="1" stopColor="var(--ol-provider-gemini-coral)" />
         </linearGradient>
       </defs>
-      <path d={GEMINI_PATH} fill="url(#ol-gemini-gradient)" />
+      <path d={GEMINI_PATH} fill={`url(#${gradientId})`} />
     </svg>
   );
 }

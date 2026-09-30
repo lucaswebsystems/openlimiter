@@ -268,6 +268,19 @@ export function blogPostingSchema(post: Post): JsonLdNode {
   };
 }
 
+export function blogBreadcrumbSchema(post: Pick<Post, "slug" | "title">): JsonLdNode {
+  const url = `${SITE_URL}/blog/${post.slug}`;
+  return {
+    "@context": SCHEMA,
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "Blog", item: `${SITE_URL}/blog` },
+      { "@type": "ListItem", position: 3, name: post.title, item: url },
+    ],
+  };
+}
+
 /**
  * The trail above a documentation page, from the same list that draws the
  * sidebar. A page missing from lib/docs.ts gets the two step trail rather than

@@ -3,6 +3,12 @@
   "versionLabel": "Version {version}",
   "dismiss": "Got it",
   "releases": {
+    "2.0.2": {
+      "heading": "One small tab, a clearer Home",
+      "edge": "One small tab on the left edge of your screen replaces the Rail. Hover it to see your limits and agents. On Linux Wayland the tray takes its place.",
+      "home": "Home shows the account you are signed in with now, one card per tool. Anything that cannot be measured waits on Connections with one fix.",
+      "statusline": "The terminal status line leaves out the folder and any provider that cannot be measured right now."
+    },
     "2.0.1": {
       "heading": "Startup fix",
       "startup": "Fixes a freeze at startup on Windows."

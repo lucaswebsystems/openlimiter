@@ -1,0 +1,744 @@
+/*
+ * The quiet list: Home, the edge panel and Needs attention.
+ *
+ * One line per limit, tightest first, thin bars and aligned numbers. Colour
+ * and a shape appear only where something needs a look, so a normal day reads
+ * calm. Every value is a token from tokens.css; the edge panel loads this file
+ * too, so the two surfaces cannot drift apart.
+ */
+
+.q-section + .q-section {
+  margin-top: var(--ol-space-5);
+}
+
+/* A wide window sets Limits and Agents side by side, so a bar never grows
+   as wide as the monitor and stops reading as a proportion. */
+@media (min-width: 1100px) {
+  #panel-meters > .q-section {
+    grid-column: 1 / span 7;
+    align-self: start;
+    margin-top: 0;
+  }
+
+  #panel-meters > .q-section + .q-section {
+    grid-column: 8 / -1;
+  }
+}
+
+.q-head {
+  display: flex;
+  align-items: center;
+  gap: var(--ol-space-2);
+  min-height: 1.75rem;
+  margin-bottom: 0.625rem;
+}
+
+.q-head h2 {
+  margin: 0;
+  color: var(--ol-heading);
+  font-size: 1.125rem;
+  font-weight: var(--ol-weight-semibold);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.q-updated {
+  margin-left: auto;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.q-note {
+  margin: 0 0 var(--ol-space-2);
+  color: var(--ol-soft);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.q-note:empty {
+  display: none;
+}
+
+.q-card {
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-surface);
+}
+
+/* ------------------------------------------------------------ controls */
+
+button.q-iconbtn {
+  display: grid;
+  width: 1.75rem;
+  min-width: 0;
+  height: 1.75rem;
+  min-height: 0;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--ol-hairline-strong);
+  border-radius: var(--ol-radius-xs);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ol-soft);
+  cursor: pointer;
+}
+
+button.q-iconbtn:hover {
+  border-color: var(--ol-control-border);
+  background: var(--ol-raised);
+  color: var(--ol-heading);
+  transform: none;
+}
+
+.q-iconbtn svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.q-iconbtn[aria-busy="true"] svg {
+  animation: q-turn 900ms linear infinite;
+}
+
+@keyframes q-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+button.q-btn {
+  display: inline-flex;
+  min-width: 0;
+  height: 1.875rem;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0 0.75rem;
+  border-radius: var(--ol-radius-xs);
+  box-shadow: none;
+  font: inherit;
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+button.q-btn:hover {
+  transform: none;
+}
+
+.q-btn svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+}
+
+button.q-btn-primary {
+  border: 0;
+  background: var(--ol-primary);
+  color: var(--ol-on-primary);
+}
+
+button.q-btn-primary:hover {
+  background: var(--ol-primary-hover);
+  color: var(--ol-on-primary);
+}
+
+button.q-btn-ghost {
+  border: 1px solid var(--ol-control-border);
+  background: transparent;
+  color: var(--ol-heading);
+}
+
+button.q-btn-ghost:hover {
+  background: var(--ol-raised);
+}
+
+button.q-btn:disabled,
+button.q-iconbtn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+button.q-show {
+  height: 1.75rem;
+  min-height: 0;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--ol-radius-xs);
+  background: var(--ol-band-yellow-fill);
+  box-shadow: none;
+  color: var(--ol-on-band-yellow);
+  font: inherit;
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.q-iconbtn:focus-visible,
+.q-btn:focus-visible,
+.q-show:focus-visible {
+  outline: none;
+  box-shadow: var(--ol-focus-ring);
+}
+
+.q-badge,
+.tab-count {
+  display: inline-grid;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  place-items: center;
+  padding: 0 0.3125rem;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-band-yellow-subtle);
+  color: var(--ol-band-yellow-label);
+  font-size: var(--ol-text-micro);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1;
+}
+
+.tab-count {
+  margin-left: 0.375rem;
+}
+
+/* --------------------------------------------------------------- marks */
+
+.q-mark {
+  display: inline-grid;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+  place-items: center;
+  color: var(--ol-heading);
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-bold);
+  line-height: 1;
+}
+
+.q-mark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A provider with no official artwork shows its initial on a quiet disc. */
+.q-mark:not(:has(svg)) {
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-raised);
+  color: var(--ol-soft);
+  font-size: 0.625rem;
+}
+
+.q-mark[data-provider="CLAUDE"] { color: var(--ol-provider-claude); }
+.q-mark[data-provider="KIMI"] { color: var(--ol-provider-kimi); }
+.q-mark[data-provider="MANUAL"] { color: var(--ol-provider-manual); }
+
+/* -------------------------------------------------------------- limits */
+
+/*
+ * One grid for the whole card. Every group and every line is a subgrid of it,
+ * so a label, a bar, a percentage and a countdown sit in the same four columns
+ * under every provider, however long any one label turns out to be.
+ */
+.q-limits {
+  display: grid;
+  grid-template-columns: fit-content(8.5rem) minmax(3rem, 1fr) max-content max-content;
+  column-gap: 0.875rem;
+}
+
+.q-group,
+.q-row,
+.q-colhead {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 5.5rem minmax(3rem, 1fr) 5.5rem 6.75rem;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+.q-group {
+  padding: var(--ol-space-3) var(--ol-space-4) 0.625rem;
+}
+
+.q-group + .q-group {
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.q-prov {
+  display: flex;
+  min-width: 0;
+  min-height: 1.75rem;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.q-pname {
+  min-width: 0;
+  color: var(--ol-heading);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1.25;
+}
+
+/* A little air above and below each line: a one line label still sits in the
+   row's minimum height, and one that wraps stays clear of the next row's. */
+.q-row {
+  min-height: 2.125rem;
+  padding-block: 0.25rem;
+  padding-left: 1.75rem;
+}
+
+/* A label wraps between words and never inside one: its column can shrink to
+   the longest word and no further. */
+.q-lbl {
+  color: var(--ol-soft);
+  font-size: var(--ol-text-body);
+  line-height: 1.25;
+}
+
+.q-bar {
+  position: relative;
+  display: block;
+  min-width: 0;
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-track);
+}
+
+.q-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--q-fill);
+  transition: width var(--ol-motion-base) var(--ol-ease-out), background-color var(--ol-motion-fast) linear;
+}
+
+.q-row[data-band="green"] { --q-fill: var(--ol-band-green-fill); --q-label: var(--ol-heading); }
+.q-row[data-band="yellow"] { --q-fill: var(--ol-band-yellow-fill); --q-label: var(--ol-band-yellow-label); }
+.q-row[data-band="orange"] { --q-fill: var(--ol-band-orange-fill); --q-label: var(--ol-band-orange-label); }
+.q-row[data-band="red"] { --q-fill: var(--ol-band-red-fill); --q-label: var(--ol-band-red-label); }
+.q-row[data-band="none"] { --q-fill: transparent; --q-label: var(--ol-soft); }
+
+.q-row[data-band="none"] .q-bar {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--ol-hairline-strong);
+}
+
+.q-val {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  color: var(--q-label);
+  font-size: var(--ol-text-body);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.q-shape {
+  display: inline-flex;
+  width: 0.8125rem;
+  height: 0.8125rem;
+  flex: none;
+}
+
+.q-shape svg {
+  width: 100%;
+  height: 100%;
+}
+
+.q-rst {
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* The narrowest window gives the indent back to the label column. */
+@media (max-width: 460px) {
+  .q-limits:not(.q-compact) {
+    column-gap: 0.625rem;
+  }
+
+  .q-limits:not(.q-compact) .q-row {
+    padding-left: 0;
+  }
+}
+
+/* The panel's column form: smaller type, a thinner bar, column headings. */
+.q-compact {
+  column-gap: 0.625rem;
+}
+
+.q-compact .q-group {
+  padding: 0;
+}
+
+.q-compact .q-group + .q-group {
+  margin-top: 0.375rem;
+  border-top: 0;
+}
+
+.q-compact .q-prov {
+  gap: 0.5rem;
+}
+
+.q-compact .q-mark {
+  width: 1rem;
+  height: 1rem;
+}
+
+.q-compact .q-pname {
+  font-size: var(--ol-text-body);
+}
+
+.q-compact .q-row {
+  min-height: 1.625rem;
+  padding-left: 1.5rem;
+}
+
+.q-compact .q-lbl,
+.q-compact .q-val,
+.q-compact .q-rst {
+  font-size: var(--ol-text-caption);
+}
+
+.q-compact .q-bar {
+  height: 0.25rem;
+}
+
+.q-compact .q-shape {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.q-colhead {
+  min-height: 1.375rem;
+  padding-left: 1.5rem;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-micro);
+}
+
+.q-colhead span:nth-child(n + 3) {
+  text-align: right;
+}
+
+/* -------------------------------------------------------------- agents */
+
+.q-agent-list {
+  display: grid;
+  gap: 0.125rem;
+  padding: var(--ol-space-2);
+}
+
+/* On Home the agent marks line up with the limit marks in the card above. */
+.q-agents .q-agent-list {
+  padding: 0.625rem;
+}
+
+.q-agent {
+  display: grid;
+  min-height: 3rem;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.625rem;
+  padding: 0.375rem 0.5rem 0.375rem 0.375rem;
+  border-radius: var(--ol-radius-xs);
+}
+
+.q-agent .q-mark {
+  width: 1rem;
+  height: 1rem;
+  align-self: start;
+  margin-top: 0.1875rem;
+}
+
+.q-ainfo {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.q-aname {
+  color: var(--ol-heading);
+  font-size: var(--ol-text-body);
+  font-weight: var(--ol-weight-semibold);
+  line-height: 1.25rem;
+}
+
+.q-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  font-size: var(--ol-text-caption);
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
+.q-state b {
+  font-weight: var(--ol-weight-semibold);
+}
+
+.q-sico {
+  display: inline-flex;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+}
+
+.q-sico svg {
+  width: 100%;
+  height: 100%;
+}
+
+.q-dot {
+  fill: var(--ol-surface);
+}
+
+.q-atime {
+  padding-left: 0.125rem;
+  color: var(--ol-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.q-atime::before {
+  padding-right: 0.375rem;
+  content: "\00b7";
+}
+
+.q-agent[data-state="waiting"] { background: var(--ol-band-yellow-subtle); }
+.q-agent[data-state="waiting"] .q-dot { fill: var(--ol-band-yellow-subtle); }
+.q-agent[data-state="waiting"] .q-state { color: var(--ol-band-yellow-label); }
+.q-agent[data-state="busy"] .q-state { color: var(--ol-soft); }
+.q-agent[data-state="busy"] .q-sico { color: var(--ol-accent); }
+.q-agent[data-state="done"] .q-state { color: var(--ol-soft); }
+.q-agent[data-state="done"] .q-sico { color: var(--ol-band-green-label); }
+.q-agent[data-state="failed"] .q-state { color: var(--ol-band-red-label); }
+
+/* ------------------------------------------------------ empty and busy */
+
+.q-empty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ol-space-3) 0.875rem;
+  padding: var(--ol-space-4);
+}
+
+.q-emptyico {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  place-items: center;
+  border-radius: var(--ol-radius-xs);
+  background: var(--ol-raised);
+  color: var(--ol-muted);
+}
+
+.q-emptyico svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.q-empty-text {
+  min-width: 12rem;
+  flex: 1 1 12rem;
+}
+
+.q-empty-text b {
+  display: block;
+  color: var(--ol-heading);
+  font-size: var(--ol-text-body);
+  font-weight: var(--ol-weight-semibold);
+}
+
+.q-empty-text p {
+  margin: 0.125rem 0 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.q-skeleton {
+  display: grid;
+  gap: var(--ol-space-3);
+  padding: var(--ol-space-4);
+}
+
+.q-skel {
+  display: block;
+  height: 0.375rem;
+  border-radius: var(--ol-radius-pill);
+  background: var(--ol-skeleton);
+  animation: skeleton-breathe 1500ms ease-in-out infinite;
+}
+
+.q-skel-name {
+  width: 40%;
+  height: 0.75rem;
+}
+
+/* ----------------------------------------------------- needs attention */
+
+.q-flags {
+  display: grid;
+}
+
+.q-flag {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: start;
+  column-gap: 0.75rem;
+  padding: 0.875rem var(--ol-space-4);
+}
+
+.q-flag + .q-flag {
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.q-flag .q-mark {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.0625rem;
+}
+
+.q-ftext {
+  min-width: 0;
+}
+
+.q-fname {
+  display: flex;
+  min-height: 1.375rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem 0.625rem;
+}
+
+.q-fname-text {
+  color: var(--ol-heading);
+  font-size: var(--ol-text-label);
+  font-weight: var(--ol-weight-semibold);
+}
+
+.q-issue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  color: var(--ol-band-yellow-label);
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-semibold);
+}
+
+.q-flag[data-fix-kind="unsupported"] .q-issue {
+  color: var(--ol-muted);
+}
+
+.q-fdetail {
+  margin: 0.0625rem 0 0;
+  color: var(--ol-muted);
+  font-size: var(--ol-text-caption);
+  line-height: var(--ol-leading-body);
+}
+
+.q-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ol-space-2) 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.q-fstatus {
+  color: var(--ol-soft);
+  font-size: var(--ol-text-caption);
+}
+
+/* ----------------------------------------------------------- connected */
+
+.q-conn {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 0.75rem;
+  padding: 0.875rem var(--ol-space-4);
+}
+
+.q-conn + .q-conn {
+  border-top: 1px solid var(--ol-hairline);
+}
+
+.q-conn .q-mark {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.0625rem;
+}
+
+.q-conn .q-fname-text {
+  display: block;
+  line-height: 1.375rem;
+}
+
+.q-ok {
+  display: inline-flex;
+  min-height: 1.375rem;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--ol-band-green-label);
+  font-size: var(--ol-text-caption);
+  font-weight: var(--ol-weight-medium);
+  white-space: nowrap;
+}
+
+/* Connections reads Needs attention, Connected, Add a tool, and folds every
+   other control into the catalogue below it. */
+#panel-connections > .q-section + .q-section {
+  margin-top: var(--ol-space-2);
+}
+
+button.q-add {
+  justify-self: start;
+}
+
+.q-catalogue {
+  display: grid;
+  gap: var(--ol-space-4);
+}
+
+.q-fstatus:empty {
+  display: none;
+}
+
+.q-section[hidden],
+.q-card[hidden],
+.q-empty[hidden],
+.q-agent-list[hidden],
+.q-catalogue[hidden],
+button.q-add[hidden],
+.tab-count[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .q-iconbtn[aria-busy="true"] svg {
+    animation: none;
+  }
+
+  .q-bar > i {
+    transition: none;
+  }
+}

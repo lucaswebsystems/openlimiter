@@ -20,9 +20,14 @@ export interface LiveMeterProps {
 /** The tightest window leads: the one a person is closest to running out of. */
 export function featuredSnapshotOf(snapshots: readonly Snapshot[]): Snapshot | null {
   const withPercent = snapshots.filter(
-    (s) => s.unit === "PERCENT" && typeof s.value === "number",
+    (s) =>
+      s.unit === "PERCENT" &&
+      typeof s.value === "number" &&
+      Number.isFinite(s.value) &&
+      s.value >= 0 &&
+      s.value <= 100,
   );
-  if (withPercent.length === 0) return snapshots[0] ?? null;
+  if (withPercent.length === 0) return null;
   return withPercent.reduce((top, s) => ((s.value as number) > (top.value as number) ? s : top));
 }
 
@@ -152,16 +157,16 @@ export function getBandDetails(usedPercent: number | null, isStale: boolean) {
     band,
     tone,
     ...BAND_PRESENTATION[band],
-    statusLabel: unknown ? "STALE" : `${Math.round(usedPercent)}% USED`,
+    statusLabel: unknown ? "STALE" : `${Math.trunc(usedPercent)}% USED`,
   };
 }
 
-function formatTickingCountdown(resetAt: string | null | undefined, currentMillis: number): string {
-  if (!resetAt) return "Active session";
+function formatTickingCountdown(resetAt: string | null | undefined, currentMillis: number): string | null {
+  if (!resetAt) return null;
   const target = Date.parse(resetAt);
-  if (Number.isNaN(target)) return "Active session";
+  if (Number.isNaN(target)) return null;
   const diffSec = Math.max(0, Math.floor((target - currentMillis) / 1000));
-  if (diffSec <= 0) return "Window reset";
+  if (diffSec <= 0) return null;
 
   const hours = Math.floor(diffSec / 3600);
   const minutes = Math.floor((diffSec % 3600) / 60);
@@ -189,13 +194,14 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
 
   if (featuredSnapshot === null) return null;
 
-  const usedPercent = typeof featuredSnapshot.value === "number" ? featuredSnapshot.value : 0;
-  const isStale =
-    featuredSnapshot.expiresAt !== undefined &&
-    Date.parse(featuredSnapshot.expiresAt) < tickerMillis;
+  const usedPercent = featuredSnapshot.value;
+  const expiresAt = typeof featuredSnapshot.expiresAt === "string"
+    ? Date.parse(featuredSnapshot.expiresAt)
+    : Number.NaN;
+  const isStale = !Number.isFinite(expiresAt) || expiresAt < tickerMillis;
 
   const bandInfo = getBandDetails(usedPercent, isStale);
-  const headroomPercent = Math.max(0, Math.round(100 - usedPercent));
+  const headroomPercent = Math.max(0, Math.trunc(100 - usedPercent));
   const countdownText = formatTickingCountdown(featuredSnapshot.resetAt, tickerMillis);
 
   const providerTitle = providerName(featuredSnapshot.provider);
@@ -291,7 +297,7 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
                 className="font-mono text-sm font-bold tracking-tight tabular-nums"
                 style={{ color: bandInfo.labelVar }}
               >
-                {Math.round(usedPercent)}%
+                {Math.trunc(usedPercent)}%
               </span>
             )}
           </div>
@@ -318,12 +324,14 @@ export function LiveMeter({ snapshots }: LiveMeterProps) {
             <span>
               {isStale
                 ? "Stale snapshot observation"
-                : `${Math.round(usedPercent)}% Used (${headroomPercent}% Headroom Remaining)`}
+                : `${Math.trunc(usedPercent)}% Used (${headroomPercent}% Headroom Remaining)`}
             </span>
-            <span className="flex items-center gap-1.5 font-medium text-heading">
-              <ClockGlyph className="h-3.5 w-3.5 text-muted flex-none" />
-              <span>{countdownText.startsWith("Active") || countdownText.startsWith("Window") ? countdownText : `Resets in ${countdownText}`}</span>
-            </span>
+            {countdownText !== null && (
+              <span className="flex items-center gap-1.5 font-medium text-heading">
+                <ClockGlyph className="h-3.5 w-3.5 text-muted flex-none" />
+                <span>Resets in {countdownText}</span>
+              </span>
+            )}
           </div>
         </div>
       </div>

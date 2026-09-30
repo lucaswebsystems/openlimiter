@@ -3,14 +3,16 @@
  *
  *   node scripts/capture-screenshots.mjs
  *
- * Sixteen files land in apps/web/public/screenshots:
+ * The sixteen PNG captures land in apps/web/public/screenshots, followed by
+ * their density-labelled WebP variants. Set OPENLIMITER_VIDEO_OUT to also
+ * write tight, element-level PNGs for the promo video.
  *
  *   desktop-app.png        the packaged window on a macOS style desk, dark
  *   desktop-app-light.png  the same scene and the same window, light
  *   phone-1..3.png         the web app at phone size, dark, one per view
  *   phone-1..3-light.png   the same three views, light
- *   rail-folded*.png       the real Rail folded, dark and light
- *   rail-unfolded*.png     the real Rail and attention card, dark and light
+ *   edge-tab*.png          the real edge tab on the left edge, dark and light
+ *   edge-panel*.png        the same tab with its real panel open, dark and light
  *   desktop-home*.png      Home with the real Agents list, dark and light
  *   terminal-statusline*.png  real CLI ANSI output, dark and light
  *
@@ -44,9 +46,11 @@
  */
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
-import { readFile, stat, mkdir } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { copyFile, readFile, stat, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import { ansiHtml, assertCaptureSafe, demoSessions } from "./capture-screenshots-sanitize.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -54,6 +58,11 @@ const REPOSITORY = path.resolve(HERE, "..");
 const DESKTOP_DIST = path.join(REPOSITORY, "apps", "desktop", "ui", "dist");
 const OUTPUT = path.join(REPOSITORY, "apps", "web", "public", "screenshots");
 const WALLPAPER = path.join(REPOSITORY, ".media", "images", "image_001.png");
+const README_HOME = path.join(REPOSITORY, "assets", "readme", "openlimiter-2-0-home.png");
+const VIDEO_OUT = process.env.OPENLIMITER_VIDEO_OUT?.trim()
+  ? path.resolve(process.env.OPENLIMITER_VIDEO_OUT)
+  : undefined;
+const execFileAsync = promisify(execFile);
 
 /** Where the built site is already being served. Nothing is started here. */
 const SITE = process.env.OPENLIMITER_SITE ?? "http://127.0.0.1:3111";
@@ -70,6 +79,19 @@ const PHONE = { width: 390, height: 844, scale: 3 };
 /** Geometry lifted from the capture this replaces, so the scene is unchanged. */
 const MENUBAR_HEIGHT = 26;
 const WINDOW = { left: 141, top: 93, width: 998, height: 642, titlebar: 37 };
+
+/**
+ * The edge tab and its panel, placed by the product's own rule
+ * (apps/desktop/src-tauri/src/rail/placement.rs) on a 1512 by 982 work area:
+ * the tab's top 70% down, the panel 4 pixels to its right and as tall as its
+ * content asks, moved up to stay inside the work area. A panel taller than 90%
+ * of the work area scrolls, and a scrolled panel is not captured.
+ */
+const EDGE = { work: { width: 1512, height: 982 }, tab: { width: 24, height: 44 }, panelWidth: 360, gap: 4, minPanel: 160, maxShare: 0.9, slice: 560 };
+
+/* The desktop pictures show one person's three connected tools, so Home, the
+   desk and the edge panel each fit whole, with nothing cut off. */
+const DESKTOP_PROVIDERS = new Set(["CLAUDE", "CODEX", "OPENROUTER"]);
 
 function loadPlaywright() {
   const require = createRequire(path.join(REPOSITORY, "apps/web/package.json"));
@@ -99,6 +121,48 @@ function loadPlaywright() {
     "Playwright is not resolvable from here. Install it, then run this again:\n" +
       "  npm i -g playwright && npx playwright install chromium",
   );
+}
+
+async function assertFfmpegAvailable() {
+  try {
+    await execFileAsync("ffmpeg", ["-hide_banner", "-version"], { windowsHide: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw new Error("WebP capture requires ffmpeg on PATH. Install ffmpeg with libwebp, then run the capture again.");
+    }
+    throw new Error(`Could not start ffmpeg for WebP capture: ${error?.message ?? String(error)}`);
+  }
+}
+
+async function encodeWebp(source, target, scale) {
+  const filter = scale === 1 ? undefined : `scale=trunc(iw*${scale}):trunc(ih*${scale}):flags=lanczos`;
+  const args = ["-hide_banner", "-loglevel", "error", "-y", "-i", source];
+  if (filter !== undefined) args.push("-vf", filter);
+  args.push("-frames:v", "1", "-c:v", "libwebp", "-quality", "88", "-compression_level", "6", target);
+  try {
+    await execFileAsync("ffmpeg", args, { windowsHide: true, maxBuffer: 1024 * 1024 });
+  } catch (error) {
+    const detail = error?.stderr?.trim() || error?.message || String(error);
+    throw new Error(`ffmpeg could not encode ${path.basename(source)} as WebP: ${detail}`);
+  }
+}
+
+async function emitWebpVariants(pngNames) {
+  await assertFfmpegAvailable();
+  const outputs = [];
+  for (const name of pngNames) {
+    const source = path.join(OUTPUT, name);
+    const stem = name.replace(/\.png$/u, "");
+    const variants = name.startsWith("phone-")
+      ? [["3x", 1], ["2x", 2 / 3], ["1x", 1 / 3]]
+      : [["2x", 1], ["1x", 1 / 2]];
+    for (const [density, scale] of variants) {
+      const output = `${stem}@${density}.webp`;
+      await encodeWebp(source, path.join(OUTPUT, output), scale);
+      outputs.push(output);
+    }
+  }
+  return outputs;
 }
 
 /* ------------------------------------------------------------------ *
@@ -305,44 +369,100 @@ export async function windowPage(theme, snapshots, sessions) {
   return html.replace('<script type="module"', stub + '\n    <script type="module"');
 }
 
-export async function railPage(theme, sessions, now) {
-  const html = await readFile(path.join(DESKTOP_DIST, "rail.html"), "utf8");
-  const accounts = [["claude", 42, "green"]].map(([provider, value, band]) => ({ provider, account: "", headlineMeterId: "SESSION",
-    kind: "quota_percent", availability: "available", value, meaning: "used", band,
-    freshness: "fresh", windowLabel: "Session", observedAt: now,
-    resetAt: new Date(Date.parse(now) + 7200000).toISOString() }));
+/**
+ * The edge tab or its panel (`entry`), with the same fixture bridge as the
+ * window: the panel reads read_cache like Home, and both read the sanitized
+ * sessions from rail_snapshot. `?open` draws the tab lifted, as it is while
+ * its panel shows. The panel's height report lands in window.__heights.
+ */
+export async function edgePage(entry, theme, snapshots, sessions) {
+  const html = await readFile(path.join(DESKTOP_DIST, `${entry}.html`), "utf8");
+  const cache = JSON.stringify(JSON.stringify({ version: 2, snapshots }));
   const stub = `<script>
     localStorage.setItem("openlimiter-theme", ${JSON.stringify(theme)});
-    window.__TAURI__ = {core:{invoke:async function(name) {
-      if (name === "plugin:rail|rail_snapshot") return {
-        accounts:${JSON.stringify(accounts)}, sessions:${JSON.stringify(sessions)},
-        window:{unfolded:location.search.includes("unfolded"),keepOpen:false,cardOpen:true,offset:0}
-      };
-      return null;
-    }}};
+    window.__heights = [];
+    window.__TAURI__ = {
+      core: {
+        invoke: async function (name, args) {
+          if (name === "read_cache") return ${cache};
+          if (name === "read_manual") return "";
+          if (name === "plugin:rail|rail_snapshot") return { accounts: [], flags: [], sessions: ${JSON.stringify(sessions)},
+            window: { available: true, visible: true, unfolded: false, keepOpen: false, offset: 0, cardOpen: location.search.includes("open"), cardAnchor: null } };
+          if (name === "plugin:rail|rail_card_height") { window.__heights.push(args.height); return null; }
+          return null;
+        }
+      },
+      event: { listen: function () { return Promise.resolve(function () {}); } }
+    };
   </script>`;
   return html.replace('<script type="module"', stub + '<script type="module"');
 }
 
-export async function terminalPage(theme, snapshots, now) {
+/**
+ * Where the tab and a panel `natural` pixels tall sit on the EDGE work area,
+ * and the left edge slice of it the pictures show, all in CSS pixels.
+ */
+export function edgeLayout(natural) {
+  const { work, tab: size, panelWidth, gap, minPanel, maxShare, slice } = EDGE;
+  const tallest = Math.floor(work.height * maxShare);
+  if (!Number.isFinite(natural) || natural <= 0 || natural > tallest) {
+    throw new Error(`The edge panel asked for ${natural} pixels; past ${tallest} it scrolls, and a clipped panel is not captured.`);
+  }
+  const tab = { left: 0, top: Math.round(work.height * 0.7), ...size };
+  const height = Math.max(natural, minPanel);
+  const panel = { left: tab.width + gap, top: Math.min(tab.top, work.height - height), width: panelWidth, height };
+  // Both windows keep their own transparent inset, so the slice ends at their edges.
+  const top = Math.min(tab.top, panel.top);
+  const bottom = Math.max(tab.top + tab.height, panel.top + panel.height);
+  return { tab, panel, view: { left: 0, top, width: slice, height: bottom - top } };
+}
+
+/** The slice: the wallpaper as the whole work area, the tab, and the panel when `open`. */
+function edgeScene(origin, theme, layout, open) {
+  const { view } = layout;
+  const place = ({ left, top, width, height }) =>
+    `position:absolute;left:${left - view.left}px;top:${top - view.top}px;width:${width}px;height:${height}px;border:0`;
+  return `<!doctype html><html lang="en" style="color-scheme:${theme}"><body style="margin:0;overflow:hidden;background:transparent">
+    <iframe title="desk" src="${origin}/wallpaper" style="${place({ left: 0, top: 0, ...EDGE.work })}"></iframe>
+    <iframe title="tab" src="${origin}/edge-tab-${theme}${open ? "?open" : ""}" style="${place(layout.tab)}"></iframe>
+    ${open ? `<iframe title="panel" src="${origin}/edge-panel-${theme}" style="${place(layout.panel)}"></iframe>` : ""}
+  </body></html>`;
+}
+
+/** Nothing but the desk's photograph, for the edge pictures. */
+async function wallpaperPage() {
+  const wallpaper = `data:image/png;base64,${(await readFile(WALLPAPER)).toString("base64")}`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>wallpaper</title></head>
+    <body style="margin:0;height:100vh;background:url(${wallpaper}) center / cover no-repeat"></body></html>`;
+}
+
+export async function terminalPage(theme, snapshots, now, { wrap = true } = {}) {
   const { renderStatuslineLayout } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/statusline.js")));
   const { DEFAULT_STATUSLINE } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/config.js")));
+  const { parseStatuslineSession } = await import(pathToFileURL(path.join(REPOSITORY, "packages/cli/dist/statusline-ingest.js")));
+  /* Claude Code's own line: both of its windows, then one other provider each. */
   const seen = new Set();
   const rows = snapshots.filter(row => {
-    if (row.unit !== "PERCENT" || row.usedAmount !== undefined || row.provider === "OPENROUTER" || seen.has(row.provider)) return false;
+    if (row.unit !== "PERCENT" || row.usedAmount !== undefined) return false;
+    if (row.provider === "CLAUDE") return true;
+    if (seen.has(row.provider)) return false;
     seen.add(row.provider); return true;
   }).slice(0, 4)
     .map((row, index) => ({ ...row, value: [42, 64, 84, 94][index] }));
-  const output = renderStatuslineLayout({ snapshots: rows, now, config: DEFAULT_STATUSLINE,
-    advice: { inject: false, reason: "UNKNOWN" }, host: "shell", color: true, unicode: true });
-  const body = ansiHtml(output);
+  /* The session a synthetic Claude Code payload describes: model, effort and context window. */
+  const session = parseStatuslineSession({ model: { display_name: "Claude Opus 5.5" }, effort: { level: "high" }, context_window: { used_percentage: 38 } });
+  const output = renderStatuslineLayout({ snapshots: rows, now, config: DEFAULT_STATUSLINE, session,
+    advice: { inject: false, reason: "UNKNOWN" }, host: "claude", color: true, unicode: true });
+  /* A cell keeps together with its separator, so a wrapped line breaks between cells. */
+  const cells = output.split(" | ");
+  const body = cells.map((cell, index) => `<span class="cell">${ansiHtml(cell)}${index < cells.length - 1 ? " |" : ""}</span>`).join(" ");
   for (const band of ["green", "yellow", "orange", "red"]) {
     if (!body.includes(`band-${band}`)) throw new Error(`CLI capture did not render ${band}.`);
   }
   return `<!doctype html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8">
     <link rel="stylesheet" href="engine/ui/tokens.css"><style>
       *{box-sizing:border-box}body{margin:0;padding:44px;background:var(--ol-canvas);color:var(--ol-body);font-family:var(--ol-font-sans)}
-      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+      p{font-size:16px;color:var(--ol-muted)}pre{margin-top:34px;font:19px/2 ui-monospace,monospace;white-space:${wrap ? "pre-wrap" : "pre"};${wrap ? "" : "display:table;width:max-content;max-width:none;"}}.cell{white-space:nowrap}
       ${["green", "yellow", "orange", "red"].map(b => `.band-${b}{color:var(--ol-band-${b}-label)}`).join("")}
     </style></head><body><p>openlimiter statusline</p><pre>${body}</pre></body></html>`;
 }
@@ -360,30 +480,147 @@ async function captureProductDetails(browser, theme, port) {
   };
   try {
     await page.goto(`${origin}/window-${theme}`, { waitUntil: "networkidle" });
-    await page.locator(".agents-row").nth(2).waitFor();
-    /* What's New opens once per version over Home; close it as a person would. */
-    const whatsNew = page.locator("dialog.whats-new[open]");
-    if (await whatsNew.waitFor({ timeout: 4000 }).then(() => true, () => false)) {
-      await whatsNew.locator("button").click();
-      await whatsNew.waitFor({ state: "detached" });
-    }
-    await page.locator("#agents-mount").scrollIntoViewIfNeeded();
+    await page.locator("#agents-mount .q-agent").nth(2).waitFor();
+    await closeWhatsNew(page);
+    const overflow = await page.evaluate(() => document.scrollingElement.scrollHeight - window.innerHeight);
+    if (overflow > 0) throw new Error(`Home runs ${overflow} pixels past the window, so its capture would cut it off.`);
     await shoot("desktop-home");
-    await page.setViewportSize({ width: 640, height: 400 });
-    for (const state of ["folded", "unfolded"]) {
-      const desk = `<iframe src="${origin}/scene-${theme}" style="position:absolute;width:1280px;height:800px;transform:scale(.5);transform-origin:top left;border:0"></iframe>`;
-      const rail = `<iframe src="${origin}/rail-${theme}?${state}" style="position:absolute;left:0;top:12px;width:${state === "folded" ? 8 : 56}px;height:380px;border:0"></iframe>`;
-      const card = state === "unfolded" ? `<iframe src="${origin}/rail-${theme}?card" style="position:absolute;left:72px;top:12px;width:350px;height:380px;border:0"></iframe>` : "";
-      await page.setContent(`<body style="margin:0">${desk}${rail}${card}</body>`);
+    /* The panel reports the height its content needs, and native code sizes
+       the window to it; the pictures place both windows the same way. */
+    await page.goto(`${origin}/edge-panel-${theme}`, { waitUntil: "networkidle" });
+    await page.locator("[data-provider-card]").first().waitFor();
+    const layout = edgeLayout(await page.evaluate(() => window.__heights.at(-1)));
+    await page.setViewportSize({ width: layout.view.width, height: layout.view.height });
+    for (const open of [false, true]) {
+      await page.setContent(edgeScene(origin, theme, layout, open));
+      await page.frameLocator('iframe[title="tab"]').locator(open ? ".edge-tab.open" : ".edge-tab").waitFor();
+      if (open) {
+        const panel = page.frameLocator('iframe[title="panel"]');
+        await panel.locator('.q-agent[data-state="waiting"]').waitFor();
+        await panel.locator("[data-provider-card]").first().waitFor();
+        const clipped = await panel.locator("#panel-scroll").evaluate(scroll => scroll.scrollHeight - scroll.clientHeight);
+        if (clipped > 1) throw new Error(`The edge panel clips ${clipped} pixels at the height it asked for.`);
+      }
       await page.waitForTimeout(500);
-      for (const frame of page.frames().filter(frame => frame.url().includes("/rail-"))) await frame.locator('[data-agent="waiting"]').waitFor();
-      await shoot(`rail-${state}`);
+      await shoot(open ? "edge-panel" : "edge-tab");
     }
     await page.setViewportSize({ width: 1200, height: 300 });
     await page.goto(`${origin}/terminal-${theme}`, { waitUntil: "networkidle" });
     await shoot("terminal-statusline");
   } finally { await context.close(); }
   return names;
+}
+
+/* The desk's window is shorter than Home, so it ends 16 pixels below the
+   Limits card, centred between the menu bar and the bottom of the desk: its
+   lower edge falls in the gap before Agents instead of across a line of text. */
+async function fitWindowToLimits(page) {
+  const home = page.frameLocator("iframe");
+  const content = await home.locator("#provider-rows").evaluate(card => Math.ceil(card.getBoundingClientRect().bottom) + 16);
+  await page.evaluate(({ content, titlebar, menubar, desk }) => {
+    const frame = document.querySelector(".window");
+    frame.style.height = `${content + titlebar}px`;
+    frame.style.top = `${menubar + Math.round((desk - menubar - content - titlebar) / 2)}px`;
+    frame.querySelector("iframe").style.height = `${content}px`;
+  }, { content, titlebar: WINDOW.titlebar, menubar: MENUBAR_HEIGHT, desk: SCENE.height });
+  const next = await home.locator("#agents-title").evaluate(title => title.getBoundingClientRect().top);
+  if (next < content) throw new Error("The desk window would cut the Agents heading.");
+}
+
+/* What's New opens once per version over Home; video frames need the same
+   honest Home state as the marketing captures, without a modal over it. */
+async function closeWhatsNew(page) {
+  const whatsNew = page.locator("dialog.whats-new[open]");
+  if (await whatsNew.waitFor({ timeout: 4000 }).then(() => true, () => false)) {
+    await whatsNew.locator("button").click();
+    await whatsNew.waitFor({ state: "detached" });
+  }
+}
+
+async function assertCapturePageSafe(page) {
+  for (const frame of page.frames()) {
+    assertCaptureSafe(await frame.locator("body").innerText());
+  }
+}
+
+async function captureVideoElement(page, locator, name, options = {}) {
+  await assertCapturePageSafe(page);
+  assertCaptureSafe(await locator.innerText());
+  await locator.screenshot({
+    path: path.join(VIDEO_OUT, name),
+    animations: "disabled",
+    ...options,
+  });
+  return name;
+}
+
+async function captureVideoShots(browser, port) {
+  await mkdir(VIDEO_OUT, { recursive: true });
+  const origin = `http://127.0.0.1:${port}`;
+  const context = await browser.newContext({
+    viewport: { width: 1000, height: 760 },
+    deviceScaleFactor: 2,
+    colorScheme: "dark",
+    reducedMotion: "reduce",
+    serviceWorkers: "block",
+  });
+  await context.route("**/*", route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+  const page = await context.newPage();
+  const written = [];
+  const transparent = { omitBackground: true };
+  try {
+    await page.goto(`${origin}/scene-dark`, { waitUntil: "networkidle" });
+    await page.frameLocator("iframe").locator("#agents-mount .q-agent").nth(2).waitFor();
+    await closeWhatsNew(page.frameLocator("iframe"));
+    await fitWindowToLimits(page);
+    written.push(await captureVideoElement(page, page.locator(".window"), "home-window.png"));
+
+    await page.goto(`${origin}/window-dark`, { waitUntil: "networkidle" });
+    await page.locator("#agents-mount .q-agent").nth(2).waitFor();
+    await closeWhatsNew(page);
+    for (const state of ["busy", "waiting", "done"]) {
+      const row = page.locator(`#agents-mount .q-agent[data-state="${state}"]`);
+      await row.waitFor();
+      written.push(await captureVideoElement(page, row, `agents-row-${state}.png`, transparent));
+    }
+
+    /* The alerts section renders only when the stubbed bridge reports native
+       notifications; without it this optional shot is skipped, not faked. */
+    try {
+      await page.getByRole("tab", { name: "Settings", exact: true }).click();
+      const alerts = page.locator("#settings-mount section[aria-labelledby=\"alerts-title\"]");
+      await alerts.waitFor({ timeout: 8000 });
+      if ((await alerts.innerText()).includes("Desktop alerts stay free")) {
+        written.push(await captureVideoElement(page, alerts, "settings-alerts.png", transparent));
+      } else {
+        process.stdout.write("skip settings-alerts.png: section does not say desktop alerts stay free\n");
+      }
+    } catch {
+      process.stdout.write("skip settings-alerts.png: alerts section not rendered by the stub\n");
+    }
+
+    await page.goto(`${origin}/edge-tab-dark`, { waitUntil: "networkidle" });
+    await page.locator("#attention:not([hidden])").waitFor();
+    written.push(await captureVideoElement(page, page.locator(".edge-tab"), "edge-tab.png", transparent));
+
+    await page.goto(`${origin}/edge-panel-dark`, { waitUntil: "networkidle" });
+    await page.locator('.q-agent[data-state="waiting"]').waitFor();
+    const card = page.locator("#panel-card");
+    const cardText = await card.innerText();
+    if (!cardText.includes("Claude Code") || !cardText.includes("Needs you")) {
+      throw new Error("Video capture requires the edge panel to show Claude Code needing you.");
+    }
+    written.push(await captureVideoElement(page, card, "edge-panel.png", transparent));
+
+    await page.setViewportSize({ width: 2000, height: 760 });
+    for (const theme of ["dark", "light"]) {
+      await page.goto(`${origin}/terminal-line-${theme}`, { waitUntil: "networkidle" });
+      written.push(await captureVideoElement(page, page.locator("pre"), `statusline-${theme}.png`, transparent));
+    }
+  } finally {
+    await context.close();
+  }
+  return written;
 }
 
 /* ------------------------------------------------------------------ *
@@ -471,11 +708,46 @@ const STANDALONE = [
    fixed 1600ms wait stopped being enough when the bundle grew with the locale
    wave, and a capture of the loading skeleton looked like an open sheet over
    a blurred void. Waiting for real content cannot rot the same way. */
+/* Where each view starts: the top of the screen, the provider cards under the
+   headline card, and the end of the screen. */
 const PHONE_VIEWS = [
-  { file: "phone-1", scrollY: 0 },
-  { file: "phone-2", scrollY: 500 },
-  { file: "phone-3", scrollY: 1000 },
+  { file: "phone-1", from: "top" },
+  { file: "phone-2", from: "cards" },
+  { file: "phone-3", from: "end" },
 ];
+
+/**
+ * Runs in the page: the scroll nearest the view's start at which neither edge
+ * of the screen crosses a line of text, shadow roots included, or null.
+ */
+function wholeLinesScroll(from) {
+  const lines = [];
+  const walk = (root) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node.shadowRoot !== null) walk(node.shadowRoot);
+        continue;
+      }
+      if (!node.textContent.trim() || !node.parentElement?.checkVisibility()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const rect of range.getClientRects()) lines.push([rect.top + window.scrollY, rect.bottom + window.scrollY]);
+    }
+  };
+  walk(document.body);
+  const height = window.innerHeight;
+  const end = document.scrollingElement.scrollHeight - height;
+  const card = document.querySelector(".ol-live-meter-card")?.getBoundingClientRect();
+  const target = from === "top" ? 0 : from === "end" ? end : Math.round((card?.bottom ?? 0) + window.scrollY + 8);
+  const cuts = (edge) => lines.some(([top, bottom]) => edge > top + 1 && edge < bottom - 1);
+  for (let offset = 0; offset <= 240; offset++) {
+    for (const y of [target + offset, target - offset]) {
+      if (y >= 0 && y <= end && !cuts(y) && !cuts(y + height)) return y;
+    }
+  }
+  return null;
+}
 
 async function capturePhone(browser, theme, snapshots, now) {
   const context = await browser.newContext({
@@ -540,7 +812,9 @@ async function capturePhone(browser, theme, snapshots, now) {
     await page.locator(".ol-live-meter-card").waitFor();
     if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
     assertCaptureSafe(await deepText(page));
-    await page.evaluate((y) => window.scrollTo(0, y), view.scrollY);
+    const top = await page.evaluate(wholeLinesScroll, view.from);
+    if (top === null) throw new Error(`No scroll position lets ${view.file} show whole lines of text at both edges.`);
+    await page.evaluate((y) => window.scrollTo(0, y), top);
     await page.waitForTimeout(300);
     const name = view.file + (theme === "light" ? "-light" : "") + ".png";
     await page.screenshot({ path: path.join(OUTPUT, name) });
@@ -581,7 +855,10 @@ async function captureDesk(browser, theme, port) {
   await page.goto(`http://127.0.0.1:${String(port)}/scene-${theme}`, {
     waitUntil: "networkidle",
   });
-  await page.frameLocator("iframe").locator(".agents-row").nth(2).waitFor();
+  await page.frameLocator("iframe").locator("#agents-mount .q-agent").nth(2).waitFor();
+  /* The desk shows the window as a person uses it, after What's New is closed. */
+  await closeWhatsNew(page.frameLocator("iframe"));
+  await fitWindowToLimits(page);
   await page.waitForTimeout(1200);
   assertCaptureSafe(await page.frameLocator("iframe").locator("body").innerText());
   const name = theme === "light" ? "desktop-app-light.png" : "desktop-app.png";
@@ -604,11 +881,13 @@ async function main() {
     throw new Error("The fixtures produced no snapshots. Run pnpm build first.");
   }
 
-  const pages = new Map();
+  const desktop = snapshots.filter(row => DESKTOP_PROVIDERS.has(row.provider));
+  const pages = new Map([["/wallpaper", await wallpaperPage()]]);
   for (const theme of ["dark", "light"]) {
-    pages.set("/window-" + theme, await windowPage(theme, snapshots, sessions));
-    pages.set("/rail-" + theme, await railPage(theme, sessions.filter(session => session.state === "waiting"), now));
+    pages.set("/window-" + theme, await windowPage(theme, desktop, sessions));
+    for (const entry of ["edge-tab", "edge-panel"]) pages.set(`/${entry}-${theme}`, await edgePage(entry, theme, desktop, sessions));
     pages.set("/terminal-" + theme, await terminalPage(theme, snapshots, now));
+    pages.set("/terminal-line-" + theme, await terminalPage(theme, snapshots, now, { wrap: false }));
   }
   const { server, port } = await startDesk(pages);
   for (const theme of ["dark", "light"]) {
@@ -622,21 +901,33 @@ async function main() {
     executablePath === undefined || executablePath === "" ? { headless: true } : { headless: true, executablePath },
   );
   const written = [];
+  let video = [];
   try {
     for (const theme of ["dark", "light"]) {
       written.push(await captureDesk(browser, theme, port));
       written.push(...(await captureProductDetails(browser, theme, port)));
       written.push(...(await capturePhone(browser, theme, snapshots, now)));
     }
+    if (VIDEO_OUT !== undefined) video = await captureVideoShots(browser, port);
   } finally {
     await browser.close();
     server.close();
   }
 
+  await copyFile(path.join(OUTPUT, "desktop-home.png"), README_HOME);
+  const webp = await emitWebpVariants(written);
+  written.push(...webp);
+
   for (const name of written.sort()) {
     const info = await stat(path.join(OUTPUT, name));
     process.stdout.write(name.padEnd(24) + String(info.size).padStart(9) + " bytes\n");
   }
+  for (const name of video.sort()) {
+    const info = await stat(path.join(VIDEO_OUT, name));
+    process.stdout.write(`video/${name}`.padEnd(32) + String(info.size).padStart(9) + " bytes\n");
+  }
+  const readmeInfo = await stat(README_HOME);
+  process.stdout.write(`readme/${path.basename(README_HOME)}`.padEnd(32) + String(readmeInfo.size).padStart(9) + " bytes\n");
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

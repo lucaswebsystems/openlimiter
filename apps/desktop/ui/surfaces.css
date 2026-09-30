@@ -182,17 +182,6 @@ button.danger:hover {
   color: var(--ol-band-red-label);
 }
 
-.home-observation, .home-clock {
-  display: flex;
-  align-items: center;
-  gap: var(--ol-space-2);
-}
-.home-observation {
-  justify-content: space-between;
-  color: var(--ol-muted);
-  font-size: var(--ol-text-micro);
-}
-#home-refresh-status:empty { display: none; }
 
 /* ------------------------------------------------------------- the states */
 
@@ -201,47 +190,6 @@ button.danger:hover {
  * says something is happening; a skeleton says what is about to be there, and
  * that is the difference between waiting and being kept waiting.
  */
-.skeleton-row {
-  display: grid;
-  gap: var(--ol-space-3);
-  padding: var(--ol-space-4);
-  border: 1px solid var(--hairline);
-  border-radius: var(--ol-radius-sm);
-  background: var(--surface);
-}
-
-.skeleton-head {
-  display: flex;
-  align-items: center;
-  gap: var(--ol-space-3);
-}
-
-.skeleton-bar {
-  height: var(--ol-meter-height);
-  border-radius: var(--ol-radius-pill);
-  background: var(--ol-skeleton);
-  animation: skeleton-breathe 1500ms ease-in-out infinite;
-}
-
-.skeleton-bar.tile {
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: var(--ol-radius-xs);
-  flex: none;
-}
-
-.skeleton-bar.name {
-  width: 40%;
-  height: 0.75rem;
-}
-
-.skeleton-bar:nth-child(2) {
-  animation-delay: 120ms;
-}
-.skeleton-bar:nth-child(3) {
-  animation-delay: 240ms;
-}
-
 @keyframes skeleton-breathe {
   0%,
   100% {
@@ -301,26 +249,6 @@ button.danger:hover {
   margin: 0;
   color: var(--soft);
   font-size: var(--ol-text-body);
-}
-
-.stale-strip {
-  display: flex;
-  align-items: center;
-  gap: var(--ol-space-2);
-  padding: var(--ol-space-2) var(--ol-space-3);
-  border: 1px solid var(--hairline);
-  border-radius: var(--ol-radius-xs);
-  background: var(--raised);
-  color: var(--ol-band-stale-label);
-  font-size: var(--ol-text-caption);
-}
-
-.stale-swatch {
-  width: 2.5rem;
-  height: var(--ol-mini-meter-height);
-  flex: none;
-  border-radius: var(--ol-radius-pill);
-  background: var(--ol-band-hatched-pattern);
 }
 
 /* ---------------------------------------------------------- the plan cap */
@@ -445,7 +373,7 @@ button.danger:hover {
   gap: var(--ol-space-4);
   padding: var(--ol-space-5);
   border: 1px solid var(--hairline-strong);
-  border-radius: var(--ol-radius-md);
+  border-radius: var(--ol-radius-sm);
   background: var(--surface);
   box-shadow: var(--ol-elev-2);
 }
@@ -932,7 +860,7 @@ select.field:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-bar {
+  .q-skel {
     animation: none;
   }
   .switch,
@@ -1642,18 +1570,24 @@ body > .strip > .strip-top {
   margin-inline: auto;
 }
 
-/* The header rule and the tab underline still run the full width, because a
-   divider that stops short of the edges reads as an unfinished card. */
+/* The header and the tab row run the full width on the page's own
+   background, never an inset box of their own, and line their contents up
+   with the column below. Only the tab row carries a rule: one divider between
+   the chrome and the content, as the concept draws it. */
 body > .strip,
 body > .tabs {
   max-width: none;
-}
-
-body > .tabs {
+  margin-inline: 0;
   padding-inline: max(
     var(--ol-space-4),
-    calc((100% - var(--window-column, 46rem)) / 2)
+    calc((100% - var(--window-column, 46rem)) / 2 + var(--ol-space-4))
   );
+}
+
+body > .strip {
+  border-bottom: 0;
+  background: transparent;
+  backdrop-filter: none;
 }
 
 /*
@@ -1687,21 +1621,5 @@ body > .tabs {
 
   #panel-meters > * {
     grid-column: 1 / -1;
-  }
-
-  .provider-rows {
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    align-items: stretch;
-    gap: var(--ol-space-4);
-  }
-
-  .provider-rows > .home-provider-card {
-    grid-column: span 6;
-    /* The element is the card, so the height has to reach the row it is in
-       and then through the shadow boundary to the card inside it. */
-    display: block;
-    height: 100%;
   }
 }

@@ -103,7 +103,8 @@ export const credentialDocuments = {
   codex: {
     tokens: { access_token: SYNTHETIC_TOKEN, account_id: SYNTHETIC_CODEX_ACCOUNT }
   },
-  gemini: { access_token: SYNTHETIC_TOKEN, token_type: "Bearer" },
+  gemini: {
+    account_id: "fixture-gemini-account", access_token: SYNTHETIC_TOKEN, token_type: "Bearer" },
   grok: {
     "https://auth.x.ai": {
       access_token: SYNTHETIC_TOKEN,

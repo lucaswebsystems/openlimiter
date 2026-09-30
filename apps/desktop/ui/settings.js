@@ -37,6 +37,7 @@ import {
   proService,
   setNotificationSettings,
 } from "./backend.js";
+import { meterLabel, providerName } from "./names.js";
 
 // English catalog for desktop quota alerts. L7 owns translations.
 export const ALERTS_EN = Object.freeze({
@@ -337,10 +338,10 @@ export function snoozeUntil(minutes, now = Date.now()) {
 const state = { settings: null, pro: null, mount: null };
 
 export const RAIL_SETTINGS_COPY = {
-  show: "Show the Rail",
-  detail: "Keep usage and agent activity at the edge of your screen.",
-  unavailable: "Rail settings are unavailable.",
-  saveFailed: "Could not save Rail visibility. Try again.",
+  show: "Show the edge tab",
+  detail: "A small tab on the left edge of your screen. Hover it to see usage and agents.",
+  unavailable: "Edge tab settings are unavailable.",
+  saveFailed: "Could not save the edge tab setting. Try again.",
 };
 
 function railSettingsMarkup() {
@@ -401,10 +402,7 @@ function eventsMarkup(events) {
         escapeText(KIND_LABELS[event.kind] ?? event.kind) +
         '</span><span class="event-body"><strong>' +
         escapeText(
-          (event.provider ?? "") +
-            (event.accountId ? " " + event.accountId : "") +
-            ", " +
-            (event.windowName ?? "")
+          providerName(event.provider) + ", " + meterLabel(event.windowName, event.provider).toLowerCase()
         ) +
         "</strong><span>" +
         escapeText(

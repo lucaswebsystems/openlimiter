@@ -34,11 +34,28 @@ fn spec_id(provider: &str) -> Option<&'static str> {
     })
 }
 
+/// The name every surface shows for a provider code: the registry directory's
+/// label, else its display name. The window's names.js reads the same fields,
+/// so the tray, the edge panel and Home never name one provider two ways.
+pub(crate) fn display_name(provider: &str) -> Option<&'static str> {
+    let id = spec_id(provider)?;
+    let spec = registry()["providers"]
+        .as_array()?
+        .iter()
+        .find(|spec| spec["id"] == id)?;
+    spec["directory"]["label"]
+        .as_str()
+        .or_else(|| spec["displayName"].as_str())
+}
+
 /// Project validated local rows, never credentials, labels or arbitrary cache metadata.
 pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewModel> {
     let specs = registry()["providers"].as_array().expect("provider list");
     let mut groups: BTreeMap<_, Vec<Snapshot>> = BTreeMap::new();
-    for row in rows {
+    for row in rows
+        .into_iter()
+        .filter(|row| crate::data_rules::reason(row, now).is_none())
+    {
         let Some(spec) =
             spec_id(&row.provider).and_then(|id| specs.iter().find(|spec| spec["id"] == id))
         else {
@@ -60,30 +77,32 @@ pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewMode
                 .iter()
                 .find(|spec| Some(spec["id"].as_str().unwrap_or_default()) == spec_id(&provider))
                 .unwrap();
-            let headline = spec["headlineMeter"].as_str().unwrap_or("unknown");
-            let meter = spec["meters"]
-                .as_array()
-                .and_then(|meters| meters.iter().find(|meter| meter["id"] == headline));
-            let code = meter.and_then(|meter| meter["meterCode"].as_str());
-            let selected = code
-                .and_then(|code| {
-                    rows.iter()
-                        .filter(|row| row.meter == code)
-                        .max_by_key(|row| &row.observed_at)
-                })
-                .or_else(|| {
-                    // These native readers name the primary five hour window by duration.
-                    // Never fall back to their weekly meter when primary is absent.
-                    if code == Some("PRIMARY")
-                        && matches!(provider.as_str(), "CODEX" | "ANTIGRAVITY")
-                    {
-                        rows.iter()
-                            .filter(|row| row.meter == "FIVE_HOUR")
-                            .max_by_key(|row| &row.observed_at)
-                    } else {
-                        None
-                    }
-                });
+            // Collapse repeated observations of one window before choosing the tightest.
+            let mut latest = BTreeMap::<&str, &Snapshot>::new();
+            for row in &rows {
+                if latest
+                    .get(row.meter.as_str())
+                    .is_none_or(|old| row.observed_at > old.observed_at)
+                {
+                    latest.insert(&row.meter, row);
+                }
+            }
+            let selected = latest.values().copied().max_by(|left, right| {
+                (left.unit == "PERCENT")
+                    .cmp(&(right.unit == "PERCENT"))
+                    .then_with(|| left.value.total_cmp(&right.value))
+                    .then_with(|| right.meter.cmp(&left.meter))
+            });
+            let meter = selected.and_then(|row| {
+                spec["meters"]
+                    .as_array()?
+                    .iter()
+                    .find(|meter| meter["meterCode"] == row.meter)
+            });
+            let headline = meter
+                .and_then(|meter| meter["id"].as_str())
+                .or_else(|| selected.map(|row| row.meter.as_str()))
+                .unwrap_or("usage");
             let unavailable = rows
                 .iter()
                 .filter(|row| row.availability.is_some())
@@ -102,21 +121,23 @@ pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewMode
                     .map(|_| row.observed_at.clone())
             });
             let freshness = match (reading, observed.as_ref()) {
-                (Some(row), Some(_)) if instant(&row.expires_at).is_some_and(|at| now <= at) => {
-                    "fresh"
-                }
+                (Some(row), Some(_)) if crate::data_rules::reason(row, now).is_none() => "fresh",
                 (Some(_), Some(_)) => "stale",
                 _ => "unknown",
             };
-            // Legacy caches have no kind. Resolve only from the declared headline's
-            // semantics, never from the numeric unit alone.
+            // Legacy measured rows may lack a kind. Eligibility has already rejected
+            // availability placeholders before interpreting their numeric unit.
             let kind = selected
                 .and_then(|row| row.kind.as_deref())
                 .unwrap_or_else(|| {
-                    if meter.is_some_and(|meter| meter["unit"] == "percent_used") {
+                    if meter.is_some_and(|meter| meter["unit"] == "percent_used")
+                        || selected.is_some_and(|row| row.unit == "PERCENT")
+                    {
                         "quota_percent"
+                    } else if selected.is_some_and(|row| row.unit == "CREDITS") {
+                        "money_balance"
                     } else {
-                        "unknown"
+                        "token_count"
                     }
                 });
             let value = selected
@@ -158,7 +179,15 @@ pub(super) fn accounts(rows: Vec<Snapshot>, now: i64) -> Vec<RailAccountViewMode
                 .into(),
                 window_label: meter
                     .and_then(|meter| meter["label"].as_str())
-                    .unwrap_or("Unknown")
+                    .unwrap_or_else(|| {
+                        selected
+                            .map(|row| match row.meter.as_str() {
+                                "FIVE_HOUR" => "Five hours",
+                                "SEVEN_DAY" => "Weekly usage",
+                                _ => "Usage",
+                            })
+                            .unwrap_or("Usage")
+                    })
                     .into(),
                 reset_at: selected.and_then(|row| row.reset_at.clone()),
                 observed_at: observed,
@@ -324,7 +353,7 @@ mod tests {
     }
 
     #[test]
-    fn headline_never_switches_to_weekly_and_latest_observation_wins() {
+    fn headline_uses_tightest_measured_window_and_latest_observation() {
         let mut old = quota("CLAUDE", "FIVE_HOUR", None);
         old["observedAt"] = "2026-09-28T11:50:00.000Z".into();
         old["value"] = 10.into();
@@ -339,25 +368,19 @@ mod tests {
         assert_eq!(value.as_array().unwrap().len(), 1);
         assert_eq!(value[0]["value"], 82.0);
         let value = project(vec![quota("CODEX", "SEVEN_DAY", None)], NOW);
-        assert_eq!(value[0]["headlineMeterId"], "primary");
-        assert_eq!(value[0]["availability"], "quota_unavailable");
-        assert!(value[0]["value"].is_null());
-        assert!(value[0]["resetAt"].is_null());
-        assert!(value[0]["observedAt"].is_null());
+        assert_eq!(value[0]["headlineMeterId"], "SEVEN_DAY");
+        assert_eq!(value[0]["availability"], "available");
+        assert_eq!(value[0]["value"], 82.0);
+        assert_ne!(value[0]["windowLabel"], "Unknown");
     }
 
     #[test]
     fn stale_age_keeps_original_observation_and_future_reading_is_unknown() {
         let rows = vec![quota("CODEX", "FIVE_HOUR", None)];
         let value = project(rows.clone(), "2026-09-28T13:00:00.000Z");
-        assert_eq!(value[0]["freshness"], "stale");
-        assert_eq!(value[0]["band"], "stale");
-        assert_eq!(value[0]["value"], 82.0);
-        assert_eq!(value[0]["observedAt"], "2026-09-28T11:57:00.000Z");
+        assert_eq!(value, serde_json::json!([]));
         let value = project(rows, "2026-09-28T11:00:00.000Z");
-        assert_eq!(value[0]["freshness"], "unknown");
-        assert!(value[0]["observedAt"].is_null());
-        assert!(value[0]["value"].is_null());
+        assert_eq!(value, serde_json::json!([]));
     }
 
     #[test]
@@ -372,9 +395,7 @@ mod tests {
             row["availability"] = availability.into();
             row["value"] = 0.into();
             let value = project(vec![row], NOW);
-            assert_eq!(value[0]["availability"], availability);
-            assert_eq!(value[0]["band"], "stale");
-            assert!(value[0]["value"].is_null());
+            assert_eq!(value, serde_json::json!([]));
         }
         let mut row = quota("OPENROUTER", "CREDITS", None);
         row["kind"] = "money_balance".into();

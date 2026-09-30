@@ -1,18 +1,46 @@
-.agents-panel { padding: 1rem; color: var(--ol-body); }
-.agents-panel h2 { font-size: 1rem; margin: 0 0 .75rem; }
-.agents-list { list-style: none; padding: 0; margin: 0; }
-.agents-row { display: grid; grid-template-columns: 2rem minmax(5rem, 1fr) minmax(5rem, 1fr) auto; align-items: center; gap: .5rem; padding: .75rem 0; border-bottom: 1px solid var(--ol-hairline); }
-.agents-mark { font-weight: 700; border: 1px solid currentColor; border-radius: .4rem; padding: .2rem; text-align: center; }
-.agents-row > button { grid-column: 4; grid-row: 1 / span 2; }
-.agents-row > span:nth-child(4), .agents-row > span:nth-child(5) { font-size: .8rem; }
-.agents-row > span:nth-child(4) { grid-column: 2; }
-.agents-preferences { margin-top: 1rem; }
-.agents-preferences form { display: grid; gap: .65rem; padding-top: .75rem; }
-.agents-preferences label { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-.agents-panel button, .agents-panel select, .agents-panel input { font: inherit; }
-.agents-panel button:focus-visible, .agents-panel summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
-@media (max-width: 520px) {
-  .agents-row { grid-template-columns: 2rem minmax(0, 1fr); }
-  .agents-row > button { grid-column: 2; grid-row: auto; justify-self: start; }
-  .agents-row > span:nth-child(3), .agents-row > span:nth-child(5) { grid-column: 2; }
+/* Home's agent lines are drawn by quiet.css; this is only the local alert
+   preferences under them, kept a quiet disclosure until someone opens it. */
+.agents-preferences {
+  margin-top: var(--ol-space-3);
+  color: var(--ol-soft);
+  font-size: var(--ol-text-caption);
+}
+
+.agents-preferences summary {
+  width: max-content;
+  border-radius: var(--ol-radius-xs);
+  color: var(--ol-muted);
+  cursor: pointer;
+}
+
+.agents-preferences summary:hover {
+  color: var(--ol-heading);
+}
+
+.agents-preferences summary:focus-visible {
+  outline: none;
+  box-shadow: var(--ol-focus-ring);
+}
+
+.agents-preferences form {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: var(--ol-space-2);
+  padding: var(--ol-space-3) var(--ol-space-4);
+  border: 1px solid var(--ol-hairline);
+  border-radius: var(--ol-radius-sm);
+  background: var(--ol-surface);
+}
+
+.agents-preferences label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.agents-preferences button,
+.agents-preferences select,
+.agents-preferences input {
+  font: inherit;
 }

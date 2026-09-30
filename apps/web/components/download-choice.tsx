@@ -2,32 +2,56 @@
 
 import { useEffect, useState } from "react";
 
-type Platform = "windows" | "linux" | "macos";
+export type Platform = "windows" | "linux" | "macos" | "mobile" | "unknown";
 
-function detectedPlatform(): Platform {
-  if (typeof navigator === "undefined") return "windows";
-  const value = `${navigator.platform} ${navigator.userAgent}`.toLowerCase();
-  if (value.includes("mac")) return "macos";
-  if (value.includes("linux") || value.includes("x11")) return "linux";
-  return "windows";
+export function detectedPlatform(
+  signals?: Pick<Navigator, "platform" | "userAgent" | "maxTouchPoints">,
+): Platform {
+  if (signals === undefined) {
+    if (typeof navigator === "undefined") return "unknown";
+    signals = navigator;
+  }
+
+  const platform = signals.platform.toLowerCase();
+  const userAgent = signals.userAgent.toLowerCase();
+  const isIos = /iphone|ipad|ipod/gu.test(userAgent) || (platform === "macintel" && signals.maxTouchPoints > 1);
+  if (isIos || userAgent.includes("android")) return "mobile";
+  if (platform.includes("win") || userAgent.includes("windows")) return "windows";
+  if (platform.includes("mac") || userAgent.includes("mac os")) return "macos";
+  if (platform.includes("linux") || platform.includes("x11") || userAgent.includes("linux")) return "linux";
+  return "unknown";
 }
 
-function OctagonExclamationIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+function WindowsGlyph() {
   return (
-    <svg viewBox="0 0 16 16" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M5 1.5h6l3.5 3.5v6L11 14.5H5L1.5 11V5L5 1.5Z" />
-      <path d="M8 5v3.8M8 11.2v.5" />
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M3 5.4 10.6 4.3v7.2H3V5.4Zm0 13.2 7.6 1.1v-7.1H3v6Zm8.7 1.3L21 21V12.6h-9.3v7.3Zm0-15.8v7.4H21V3l-9.3 1.1Z" />
     </svg>
   );
 }
 
-function ClockGlyph({ className = "h-3.5 w-3.5" }: { className?: string }) {
+function AppleGlyph() {
   return (
-    <svg viewBox="0 0 16 16" className={className} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="8" cy="8" r="6" />
-      <path d="M8 4.5v3.8l2.5 1.5" />
+    <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+      <path d="M16.36 12.72c-.02-2.3 1.88-3.4 1.96-3.46-1.07-1.56-2.73-1.78-3.32-1.8-1.41-.14-2.76.83-3.48.83-.72 0-1.83-.81-3.01-.79-1.55.02-2.98.9-3.77 2.29-1.61 2.79-.41 6.92 1.15 9.18.77 1.11 1.68 2.35 2.87 2.3 1.15-.05 1.59-.74 2.98-.74 1.39 0 1.78.74 3 .72 1.24-.02 2.02-1.12 2.78-2.24.88-1.28 1.24-2.53 1.26-2.6-.03-.01-2.4-.92-2.42-3.69ZM14.1 5.98c.63-.77 1.06-1.83.94-2.9-.91.04-2.02.61-2.67 1.37-.58.68-1.09 1.77-.95 2.81 1.02.08 2.05-.52 2.68-1.28Z" />
     </svg>
   );
+}
+
+function LinuxGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 2.8c-2.5 0-3.8 2-3.8 4.3 0 1.6-.5 2.9-1.3 4.2-1 1.7-1.8 3.4-1.8 5.1 0 2.8 2.3 4.4 6.9 4.4s6.9-1.6 6.9-4.4c0-1.7-.8-3.4-1.8-5.1-.8-1.3-1.3-2.6-1.3-4.2 0-2.3-1.3-4.3-3.8-4.3Z" />
+      <path d="M9.9 7.1v.01M14.1 7.1v.01" strokeWidth="2.3" />
+      <path d="M10.7 9.3c.5.5 2.1.5 2.6 0" />
+    </svg>
+  );
+}
+
+function PlatformGlyph({ platform }: { platform: "windows" | "macos" | "linux" }) {
+  if (platform === "windows") return <WindowsGlyph />;
+  if (platform === "macos") return <AppleGlyph />;
+  return <LinuxGlyph />;
 }
 
 export function DownloadChoice({
@@ -39,12 +63,15 @@ export function DownloadChoice({
   linuxLabel,
   macosLabel,
   otherLabel,
-  smartScreen,
-  openAnyway,
-  linuxNote,
+  windowsSummary,
+  macosSummary,
+  linuxSummary,
   versionLine,
   releaseNotesLabel,
   releaseNotesHref,
+  detectedLabel,
+  previewTitle,
+  previewAlt,
 }: {
   windowsHref: string;
   linuxHref: string;
@@ -54,7 +81,7 @@ export function DownloadChoice({
   linuxLabel: string;
   macosLabel: string;
   otherLabel: string;
-  smartScreen: string;
+  windowsSummary: string;
   /**
    * What a Mac reader has to do the first time, and what they do not get yet.
    *
@@ -62,8 +89,8 @@ export function DownloadChoice({
    * honest if the note is beside the button rather than three sections below
    * it. macOS gets the same treatment Windows already had.
    */
-  openAnyway: string;
-  linuxNote: string;
+  macosSummary: string;
+  linuxSummary: string;
   /**
    * "Version {version}", already rendered by the caller. It sits beside the
    * button grid rather than under the whole component: the product preview
@@ -74,98 +101,82 @@ export function DownloadChoice({
   versionLine: string;
   releaseNotesLabel: string;
   releaseNotesHref: string;
+  detectedLabel: string;
+  previewTitle: string;
+  previewAlt: string;
 }) {
-  const [platform, setPlatform] = useState<Platform>("windows");
-  const [countdownSec, setCountdownSec] = useState(860); // 14m 20s
+  const [platform, setPlatform] = useState<Platform>("unknown");
 
   useEffect(() => {
     setPlatform(detectedPlatform());
-    const interval = window.setInterval(() => {
-      setCountdownSec((prev) => (prev > 1 ? prev - 1 : 860));
-    }, 1000);
-    return () => window.clearInterval(interval);
   }, []);
-
-  const formatCountdown = (totalSec: number) => {
-    const m = Math.floor(totalSec / 60);
-    const s = totalSec % 60;
-    return `${m}m ${s.toString().padStart(2, "0")}s`;
-  };
 
   const targets = [
     {
       id: "windows" as const,
       label: windowsLabel,
       href: windowsHref,
-      note: smartScreen,
+      note: windowsSummary,
     },
     {
       id: "macos" as const,
       label: macosLabel,
       href: macosHref,
-      note: openAnyway,
+      note: macosSummary,
     },
     {
       id: "linux" as const,
       label: linuxLabel,
       href: linuxHref,
-      note: linuxNote,
+      note: linuxSummary,
     },
   ];
 
-  /* Radial SVG calculations for 96% */
-  const radius = 28;
-  const circumference = 2 * Math.PI * radius; // ~175.93
-  const strokeDashoffset = circumference * 0.04; // 96% filled
-
   return (
     <div className="mx-auto flex max-w-4xl flex-col items-center gap-10">
-      {/* OS Download Cards */}
       <div className="flex w-full flex-col items-center rounded-2xl border border-hairline bg-surface p-6 sm:p-8 text-center elev-1">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full text-left">
+        <div className="grid w-full grid-cols-1 items-stretch gap-4 text-center md:grid-cols-3">
           {targets.map((target) => {
             const isDetected = target.id === platform;
             return (
-              <div
+              <article
                 key={target.id}
-                className={`flex flex-col justify-between rounded-xl border p-5 transition-colors ${
+                id={target.id}
+                className={`flex h-full min-h-64 flex-col rounded-xl border p-5 text-center transition-colors ${
                   isDetected
                     ? "border-accent bg-accent-subtle/30"
                     : "border-hairline bg-raised/50 hover:border-hairline-strong"
                 }`}
               >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="heading-face text-sm font-semibold text-heading">
+                <div className="flex h-full flex-col items-center">
+                  <div className="mb-3 flex min-h-8 items-center justify-center gap-2">
+                    <h2 className="heading-face text-sm font-semibold text-heading">
                       {target.id === "windows"
                         ? "Windows"
                         : target.id === "macos"
                           ? "macOS"
                           : "Linux"}
-                    </span>
+                    </h2>
                     {isDetected && (
                       <span className="rounded-full bg-accent px-2 py-0.5 text-2xs font-medium text-on-accent">
-                        Detected
+                        {detectedLabel}
                       </span>
                     )}
                   </div>
                   {target.note && (
-                    <p className="text-xs leading-relaxed text-muted mb-4">
+                    <p className="mx-auto max-w-xs text-sm leading-relaxed text-muted">
                       {target.note}
                     </p>
                   )}
-                </div>
                 <a
                   href={target.href}
-                  className={`focus-ring lift-sm inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
-                    isDetected
-                      ? "bg-accent text-on-accent hover:bg-accent-hover"
-                      : "border border-hairline-strong bg-surface text-heading hover:bg-raised"
-                  }`}
+                  className="focus-ring lift-sm mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent transition-colors hover:bg-accent-hover"
                 >
+                  <PlatformGlyph platform={target.id} />
                   {target.label}
                 </a>
-              </div>
+                </div>
+              </article>
             );
           })}
         </div>
@@ -192,149 +203,25 @@ export function DownloadChoice({
         </div>
       </div>
 
-      {/* Product Preview: Desktop Main Window with Signature Live Meter */}
-      <div className="w-full text-left">
-        <div className="mb-3 flex items-center justify-between px-1">
-          <span className="heading-face text-sm font-semibold text-heading">
-            Desktop Application Preview
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted font-mono">
-            <span className="ol-live-pulse-dot" aria-hidden="true" />
-            <span>Local Native Engine</span>
-          </span>
-        </div>
-
+      <div className="w-full text-center">
+        <h2 className="heading-face mb-3 text-center text-xl font-semibold text-heading">{previewTitle}</h2>
         <div className="elev-2 overflow-hidden rounded-2xl border border-hairline bg-frame">
-          {/* Desktop Titlebar Chrome */}
-          <div className="flex items-center justify-between border-b border-hairline bg-raised/70 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-window-close/90" aria-hidden="true" />
-              <span className="h-3 w-3 rounded-full bg-window-minimise/90" aria-hidden="true" />
-              <span className="h-3 w-3 rounded-full bg-window-zoom/90" aria-hidden="true" />
-            </div>
-            <span className="heading-face text-xs font-semibold text-muted tracking-tight">
-              OpenLimiter Desktop
-            </span>
-            <div className="flex items-center gap-2 font-mono text-2xs text-heading">
-              <span className="ol-live-pulse-dot" aria-hidden="true" />
-              <span>Live Meter</span>
-            </div>
-          </div>
-
-          {/* Window Body: Live Meter & Provider Headroom Summary */}
-          <div className="p-5 sm:p-7 space-y-6 bg-surface">
-            {/* Embedded Live Meter */}
-            <div className="rounded-xl border border-hairline bg-raised/40 p-4 sm:p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-hairline">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface border border-hairline">
-                    <span className="ol-live-pulse-dot" aria-hidden="true" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <strong className="heading-face text-sm font-semibold text-heading">
-                        Google Antigravity
-                      </strong>
-                    </div>
-                    <p className="text-xs text-muted">Gemini 2.5 Pro (5h pool)</p>
-                  </div>
-                </div>
-
-                <div
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold font-mono tracking-wider"
-                  style={{
-                    backgroundColor: "var(--ol-band-red-subtle)",
-                    color: "var(--ol-band-red-label)",
-                    border: "1px solid var(--ol-band-red-fill)",
-                  }}
-                >
-                  <OctagonExclamationIcon className="h-3.5 w-3.5 flex-none" />
-                  <span>96% USED</span>
-                </div>
-              </div>
-
-              {/* Dual Ring + Progress Bar */}
-              <div className="pt-4 flex flex-col sm:flex-row items-center gap-5">
-                <div className="relative flex-none flex items-center justify-center">
-                  <svg className="h-16 w-16 -rotate-90 transform" viewBox="0 0 72 72" aria-hidden="true">
-                    <circle cx="36" cy="36" r={radius} stroke="var(--ol-track)" strokeWidth="5.5" fill="none" />
-                    <circle
-                      cx="36"
-                      cy="36"
-                      r={radius}
-                      stroke="var(--ol-band-red-fill)"
-                      strokeWidth="5.5"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={strokeDashoffset}
-                      strokeLinecap="round"
-                      fill="none"
-                      className="ol-ring-progress"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="font-mono text-xs font-bold" style={{ color: "var(--ol-band-red-label)" }}>
-                      96%
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex-1 w-full flex flex-col gap-2">
-                  <div className="relative w-full h-3.5 rounded-full bg-track overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: "96%",
-                        backgroundColor: "var(--ol-band-red-fill)",
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted font-mono tabular-nums">
-                    <span>96% Used (4% Headroom)</span>
-                    <span className="flex items-center gap-1.5 font-medium text-heading">
-                      <ClockGlyph className="h-3.5 w-3.5 text-muted flex-none" />
-                      <span>Resets in {formatCountdown(countdownSec)}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Provider Grid Snippet */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
-              <div className="rounded-lg border border-hairline bg-raised/30 p-3 flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-sans font-medium text-heading">Claude Code</span>
-                  <span className="font-semibold" style={{ color: "var(--ol-band-green-label)" }}>24%</span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-track overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: "24%", backgroundColor: "var(--ol-band-green-fill)" }} />
-                </div>
-                <span className="text-2xs text-muted">Normal Headroom</span>
-              </div>
-
-              <div className="rounded-lg border border-hairline bg-raised/30 p-3 flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-sans font-medium text-heading">OpenAI Codex</span>
-                  <span className="font-semibold" style={{ color: "var(--ol-band-yellow-label)" }}>68%</span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-track overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: "68%", backgroundColor: "var(--ol-band-yellow-fill)" }} />
-                </div>
-                <span className="text-2xs text-muted">Watch Threshold</span>
-              </div>
-
-              <div className="rounded-lg border border-hairline bg-raised/30 p-3 flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-sans font-medium text-heading">OpenCode</span>
-                  <span className="font-semibold" style={{ color: "var(--ol-band-stale-label)" }}>STALE</span>
-                </div>
-                <div className="h-1.5 w-full rounded-full bg-track overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: "100%", background: "var(--ol-meter-hatched-pattern)" }} />
-                </div>
-                <span className="text-2xs text-muted">Hatched Stale State</span>
-              </div>
-            </div>
-          </div>
+          <picture>
+            <source
+              type="image/webp"
+              srcSet="/screenshots/desktop-home@1x.webp 1x, /screenshots/desktop-home@2x.webp 2x"
+              sizes="(min-width: 1024px) 900px, calc(100vw - 2rem)"
+            />
+            <img
+              src="/screenshots/desktop-home.png"
+              alt={previewAlt}
+              width={2000}
+              height={1520}
+              loading="lazy"
+              sizes="(min-width: 1024px) 900px, calc(100vw - 2rem)"
+              className="h-auto w-full"
+            />
+          </picture>
         </div>
       </div>
     </div>

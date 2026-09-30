@@ -46,6 +46,14 @@
   --ol-solid: #fafafa;
   --ol-solid-hover: #e4e4e7;
   --ol-on-solid: #09090b;
+  /* The mark blue, for a primary button. White on the brand blue measures
+     3.75:1, short of the 4.5:1 a label needs; white on this blue measures
+     4.8:1 and on its hover 6.2:1, in either theme. */
+  --ol-primary: #0866ff;
+  --ol-primary-hover: #0757d9;
+  --ol-on-primary: #ffffff;
+  /* A text link on the surface: 7.4:1 dark, 7.6:1 light. */
+  --ol-link: var(--ol-accent-solid-hover);
 
   /*
    * The five band quota ramp.
@@ -79,6 +87,8 @@
   --ol-band-stale-fill: #72839b;
   --ol-band-stale-label: #929ead;
   --ol-band-stale-subtle: rgb(114 131 155 / 0.14);
+  /* Text on a yellow fill, as on Show app: 7.9:1 dark, 4.6:1 light. */
+  --ol-on-band-yellow: #09090b;
 
   /* Stale is drawn, not tinted. A hatch reads as "no live reading" at a
      glance and survives greyscale, which a desaturated colour does not. */
@@ -111,6 +121,8 @@
   --ol-skeleton-sheen: rgb(121 184 255 / 0.08);
   --ol-backdrop: rgb(0 0 0 / 0.55);
   --ol-meter-stale-mix: 58%;
+  /* A surface floating over the desktop, drawn inside its own window. */
+  --ol-shadow-float: 0 4px 12px rgb(0 0 0 / 0.36);
 
   /* Fixed dark chrome for artwork and the video header in either theme. */
   --ol-fixed-dark-canvas: #080b10;
@@ -157,8 +169,18 @@
   --ol-provider-gemini-blue: #4e82ee;
   --ol-provider-gemini-purple: #8e75b2;
   --ol-provider-gemini-coral: #d96570;
+  --ol-provider-microsoft-red: #f25022;
+  --ol-provider-microsoft-green: #7fba00;
+  --ol-provider-microsoft-blue: #00a4ef;
+  --ol-provider-microsoft-yellow: #ffb900;
+  --ol-window-close: #ff5f57;
+  --ol-window-minimise: #febc2e;
+  --ol-window-zoom: #28c840;
+  --ol-announcement-background: #0969da;
 
   /* Type */
+  --ol-font-heading: var(--ol-font-baloo, "Baloo 2"), ui-sans-serif, system-ui,
+    -apple-system, sans-serif;
   --ol-font-sans: var(--ol-font-inter, "Inter"), ui-sans-serif, system-ui,
     -apple-system, "Segoe UI", sans-serif;
   --ol-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
@@ -184,6 +206,12 @@
   --ol-space-5: 1.5rem;
   --ol-space-6: 2rem;
   --ol-space-7: 3rem;
+  --ol-space-8: 4rem;
+  --ol-space-9: 6rem;
+  --ol-section-gap: var(--ol-space-9);
+  --ol-section-heading-gap: var(--ol-space-7);
+  --ol-section-compact-gap: var(--ol-space-7);
+  --ol-reading-width: 48rem;
 
   /* Radius, one soft scale */
   --ol-radius-xs: 0.5rem;
@@ -192,11 +220,15 @@
   --ol-radius-lg: 1.25rem;
   --ol-radius-xl: 1.5rem;
   --ol-radius-pill: 999px;
+  --ol-radius-phone: 2.5rem;
 
   /* Calm elevation */
   --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.035);
   --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.045),
     0 20px 64px rgb(0 0 0 / 0.24);
+  --ol-shadow-sheet: 0 24px 60px -24px rgb(0 0 0 / 0.6);
+  --ol-shadow-floating: 0 8px 20px -10px rgb(0 0 0 / 0.6);
+  --ol-meter-hatched-pattern: var(--ol-band-hatched-pattern);
 
   /* Mechanical motion */
   --ol-motion-fast: 120ms;
@@ -294,6 +326,9 @@
   --ol-band-stale-fill: #617087;
   --ol-band-stale-label: #46566b;
   --ol-band-stale-subtle: rgb(97 112 135 / 0.12);
+  --ol-on-band-yellow: #ffffff;
+  --ol-link: var(--ol-accent-hover);
+  --ol-shadow-float: 0 4px 12px rgb(13 22 35 / 0.16);
   --ol-band-hatched-pattern: repeating-linear-gradient(
     45deg,
     #617087 0,
@@ -312,7 +347,16 @@
   --ol-elev-1: inset 0 1px 0 rgb(255 255 255 / 0.8);
   --ol-elev-2: inset 0 1px 0 rgb(255 255 255 / 0.9),
     0 18px 60px rgb(17 17 20 / 0.08);
+  --ol-shadow-sheet: 0 24px 60px -24px rgb(17 17 20 / 0.2);
+  --ol-shadow-floating: 0 8px 20px -10px rgb(17 17 20 / 0.2);
   --sheen: rgb(13 22 35 / 0.025);
+}
+
+@media (max-width: 767px) {
+  :root {
+    --ol-section-gap: var(--ol-space-8);
+    --ol-section-heading-gap: var(--ol-space-6);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

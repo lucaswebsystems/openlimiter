@@ -16,6 +16,7 @@
  */
 export * from "./types";
 export * from "./connection-state";
+export * from "./data-rules";
 export * from "./failures";
 export * from "./format";
 export * from "./forecast";

@@ -11,9 +11,9 @@ describe("generated provider directory", () => {
   it("preserves every field for the existing eight across connection states", () => {
     for (const [state, expected] of Object.entries(legacy)) {
       const states = Object.fromEntries(expected.map((row) => [row.connectorId, state]));
-      expect(buildProviderDirectory(registry, { states })).toEqual(expected);
+      expect(buildProviderDirectory(registry, { states }).filter(row => row.connectorId !== "cursor")).toEqual(expected);
     }
-    expect(PROVIDER_RECOGNITION_ORDER).toEqual(legacy.NOT_CONFIGURED.map((row) => row.specId));
+    expect(PROVIDER_RECOGNITION_ORDER).toEqual([...legacy.NOT_CONFIGURED.map((row) => row.specId), "cursor/editor"]);
   });
 
   it("takes labels and ordering from the supplied registry", () => {

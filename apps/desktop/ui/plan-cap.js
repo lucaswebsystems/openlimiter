@@ -29,6 +29,7 @@
  * and the moment a poll lands in that gap is the moment the cap looks broken.
  */
 import { providerMarkMarkup } from "./engine/ui/provider-row.js";
+import { say } from "./names.js";
 import {
   BACKEND_ABSENT,
   listConnections,
@@ -463,8 +464,12 @@ export async function renderPlanCap(mount, options = {}) {
   state.multiAccount = multiAccount;
 
   if (connections.length === 0) {
-    mount.innerHTML =
-      '<p class="note">No account is connected yet. Connect one below and it becomes the active account for its provider.</p>';
+    /* Local tools connect without an account row here, so this never claims
+       that nothing is connected. */
+    const note = document.createElement("p");
+    note.className = "note";
+    note.textContent = say("accountsNone");
+    mount.replaceChildren(note);
     return;
   }
 

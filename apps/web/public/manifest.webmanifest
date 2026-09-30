@@ -35,31 +35,31 @@
   "screenshots": [
     {
       "src": "/screenshots/phone-1.png",
-      "sizes": "780x1688",
+      "sizes": "1170x2532",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Every meter each provider reports, on one screen"
+      "label": "Your tightest limit first, then a card for every provider"
     },
     {
       "src": "/screenshots/phone-2.png",
-      "sizes": "780x1688",
+      "sizes": "1170x2532",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "The bounded block an agent would be handed"
+      "label": "Every provider's limits, with the time until each resets"
     },
     {
       "src": "/screenshots/phone-3.png",
-      "sizes": "780x1688",
+      "sizes": "1170x2532",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Hand it a quota document from the tool or your agent"
+      "label": "More providers, then Pro with a free 30 day trial"
     },
     {
       "src": "/screenshots/desktop-app.png",
       "sizes": "2560x1600",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "The quota dashboard on a desktop"
+      "label": "The desktop app, with your limits tightest first"
     }
   ]
 }
