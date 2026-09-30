@@ -76,7 +76,7 @@ openlimiter terminal uninstall claude`}
               <P>{t("terminal.grammar.intro")}</P>
               <CodeBlock
                 label={t("terminal.grammar.exampleLabel")}
-                code={`5h [██████░░░░] 62% ·3h12m | ~cx7d [########░░] 84% ·6d2h | ag7d [?] | or $12.40`}
+                code={`opus-5-5 high | ctx 38% | 5h [██████░░░░] 62% ·3h12m | 7d [███░░░░░░░] 31% ·4d6h | cx7d [████████░░] ~84% ·6d2h | or $12.40`}
               />
               <Sub id="freshness">{t("terminal.grammar.freshness.title")}</Sub>
               <Bullets

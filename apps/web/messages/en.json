@@ -1,45 +1,4 @@
 {
-  "desktopRail": {
-    "title": "Usage and agents",
-    "loading": "Loading",
-    "empty": "No accounts",
-    "emptyDetail": "No accounts yet. Add an account in Settings.",
-    "signedOut": "Signed out",
-    "unknown": "Unknown",
-    "stale": "Stale",
-    "unlimited": "Unlimited",
-    "sessions": "Agent sessions",
-    "ageUnavailable": "Age unavailable",
-    "fresh": "Fresh",
-    "used": "used",
-    "remaining": "remaining",
-    "busy": "Working",
-    "waiting": "Needs you",
-    "done": "Done",
-    "idle": "Idle",
-    "waitingDetail": "Waiting for your input",
-    "busyDetail": "Agent is working",
-    "doneDetail": "Agent finished",
-    "idleDetail": "Agent is idle",
-    "unknownDetail": "Agent state unknown",
-    "agentsUnavailable": "Agent activity unavailable",
-    "noSessions": "No agent sessions",
-    "unavailable": "Rail unavailable",
-    "keep": "Keep open",
-    "hide": "Hide",
-    "close": "Close card",
-    "reset": "Reset",
-    "resetUnavailable": "Reset unavailable",
-    "resetPending": "Awaiting updated reading",
-    "ageSeconds": "{count} sec ago",
-    "ageMinutes": "{count} min ago",
-    "ageHours": "{count} h ago",
-    "ageDays": "{count} d ago",
-    "estimated": "estimated",
-    "manual": "manual",
-    "cancelled": "Cancelled",
-    "failed": "Failed"
-  },
   "desktopRailSettings": {
     "show": "Show the edge tab",
     "detail": "A small tab on the left edge of your screen. Hover it to see usage and agents.",
@@ -500,24 +459,24 @@
   "home": {
     "release": {
       "rail": {
-        "title": "A quiet Rail. A clear request for you.",
-        "lead": "OpenLimiter puts your AI coding limits and agent activity at the left edge of your desktop. Keep the Rail folded while you work, then unfold it to see which agent needs input. Local meters and desktop alerts are free, with one active account per provider.",
-        "folded": "Folded at the left edge, with usage and activity in view.",
-        "unfolded": "Unfold the Rail to read the card and locate the agent's application.",
-        "foldedAlt": "The real OpenLimiter Rail folded against the left edge with synthetic provider meters and agent activity.",
-        "unfoldedAlt": "The real OpenLimiter Rail unfolded beside a card showing Claude needs input, with a Locate app button."
+        "title": "One small tab. Your limits and agents on hover.",
+        "lead": "OpenLimiter keeps one small tab with its logo on the left edge of your screen, about 70% of the way down. Hover it to open a panel beside it with your limits and your agents. It works the same on Windows, macOS and Linux X11; on Linux Wayland the tray takes its place. Local meters and desktop alerts are free, with one active account per provider.",
+        "folded": "The tab rests on the left edge. A small dot appears when something needs a look, like an agent waiting for you.",
+        "unfolded": "Hover it and the panel opens: agents first, with Show app for the one that needs you, then limits, tightest first, with reset times.",
+        "foldedAlt": "The real OpenLimiter edge tab, a small tab with the OpenLimiter logo and a yellow dot, on the left edge of a desktop with a mountain lake wallpaper.",
+        "unfoldedAlt": "The real OpenLimiter panel open beside the edge tab, with synthetic data: Claude Code needs you and offers Show app, Codex is busy and Cursor is done, then limits for Codex, Claude Code and OpenRouter with bars and reset times, and an Open app link."
       },
       "agents": {
         "title": "Busy, waiting or done. Know when to return.",
         "lead": "The Home Agents list shows activity from supported agent integrations. A waiting agent needs input. A done agent has reported completion. Free local notifications bring you back when there is something to do.",
-        "note": "Locate app brings you to the owning application where the operating system allows it. It does not promise a particular terminal tab. Unknown activity is never shown as success.",
-        "alt": "OpenLimiter desktop Home with Claude waiting, Codex busy and Cursor done in the Agents list, using synthetic sessions."
+        "note": "Show app brings you to the owning application where the operating system allows it. It does not promise a particular terminal tab. Unknown activity is never shown as success.",
+        "alt": "OpenLimiter desktop Home with synthetic data: limits for Codex, Claude Code and OpenRouter, then the Agents list with Claude Code waiting, Codex busy and Cursor done."
       },
       "terminal": {
         "title": "Your limits beside your prompt.",
         "lead": "The terminal status line shows usage, reset times and freshness for supported hosts. Green, yellow, orange and red bands make a filling window easy to spot. Percentages and labels keep the meaning clear without relying on colour.",
         "note": "This is the real CLI renderer with synthetic readings. Status line support depends on the host. See the CLI guide for setup.",
-        "alt": "Real OpenLimiter CLI output with green, yellow, orange and red usage bands, percentages and reset times."
+        "alt": "Real OpenLimiter CLI output for the Claude Code status line: the model, the effort and the context window, then usage cells in green, yellow, orange and red bands with percentages and reset times."
       },
       "phone": {
         "title": "Sign in on your phone. See your computer's readings.",
@@ -531,7 +490,7 @@
     "docsLine": "Both of those are written up in full: <agentContext>what an agent is told</agentContext> and <cli>every command it ships with</cli>.",
     "bridge": {
       "line": "Keep working. See when an agent needs you.",
-      "note": "The Rail and terminal show local readings. Sign in to see synchronized readings on your phone."
+      "note": "The edge tab and terminal show local readings. Sign in to see synchronized readings on your phone."
     }
   },
   "deviceFrame": {
@@ -956,7 +915,7 @@
     },
     "preview": {
       "title": "OpenLimiter desktop application",
-      "alt": "OpenLimiter desktop home screen showing provider meters, the Rail and agent activity"
+      "alt": "OpenLimiter desktop Home showing provider limits and agent activity"
     },
     "versionLine": "Version {version}",
     "releaseNotes": "Release notes",
@@ -1682,18 +1641,18 @@
             },
             "show-hide": {
               "title": "Choosing what shows",
-              "body": "<code>openlimiter terminal show codex</code> and <code>openlimiter terminal hide codex</code> pick which connected providers actually draw a bar, on this machine only. A provider you have not connected has nothing to show."
+              "body": "<code>openlimiter terminal show codex</code> and <code>openlimiter terminal hide codex</code> pick which connected providers actually draw a bar, on this machine only. A provider you have not connected has nothing to show. The folder is left out by default, and <code>openlimiter terminal show dir</code> adds it after the model and effort."
             },
             "grammar": {
               "title": "The grammar",
-              "intro": "One cell per window: an optional freshness mark, a tag, a ten block bar, the percentage, and the reset time. The provider whose own status line this is drops its own tag, since the host already says whose numbers these are; every other provider keeps a short tag ahead of its window code, and a credit balance shows its dollar figure instead of a bar.",
+              "intro": "On Claude Code the line opens with the model, the effort and how full the context window is. Then comes one cell per window: a tag, a ten block bar, the percentage with its freshness mark, and the reset time. The provider whose own status line this is drops its own tag, since the host already says whose numbers these are; every other provider keeps a short tag ahead of its window code, and a credit balance shows its dollar figure instead of a bar.",
               "exampleLabel": "example output, one host's row",
               "freshness": {
                 "title": "The freshness marks",
                 "bullets": {
                   "bare": "No mark: the reading is under three minutes old.",
-                  "tilde": "A leading <code>~</code>: the reading is three to fifteen minutes old.",
-                  "unknown": "<code>[?]</code> in place of the bar: the reading is fifteen minutes old or older, or nothing has been read yet. The cell never disappears, so a provider that cannot be read still shows as unknown rather than looking connected."
+                  "tilde": "A <code>~</code> before the value: the reading is three minutes old or more, or it is an estimate.",
+                  "unknown": "No cell at all: a provider that cannot be measured right now is left out of the line, as it is left off Home. A reading that is only old keeps its cell and carries the <code>~</code>."
                 }
               }
             }

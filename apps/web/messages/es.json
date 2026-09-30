@@ -1,45 +1,4 @@
 {
-  "desktopRail": {
-    "title": "Uso y agentes",
-    "loading": "Cargando",
-    "empty": "No hay cuentas",
-    "emptyDetail": "Aún no hay cuentas. Añade una cuenta en Ajustes.",
-    "signedOut": "Sesión cerrada",
-    "unknown": "Desconocido",
-    "stale": "Desactualizado",
-    "unlimited": "Ilimitado",
-    "sessions": "Sesiones de agentes",
-    "ageUnavailable": "Antigüedad no disponible",
-    "fresh": "Actual",
-    "used": "usado",
-    "remaining": "restante",
-    "busy": "Trabajando",
-    "waiting": "Te necesita",
-    "done": "Hecho",
-    "idle": "Inactivo",
-    "waitingDetail": "Esperando tu entrada",
-    "busyDetail": "El agente está trabajando",
-    "doneDetail": "El agente terminó",
-    "idleDetail": "El agente está inactivo",
-    "unknownDetail": "Estado del agente desconocido",
-    "agentsUnavailable": "Actividad de agentes no disponible",
-    "noSessions": "No hay sesiones de agentes",
-    "unavailable": "Rail no disponible",
-    "keep": "Mantener abierto",
-    "hide": "Ocultar",
-    "close": "Cerrar tarjeta",
-    "reset": "Restablecer",
-    "resetUnavailable": "Restablecimiento no disponible",
-    "resetPending": "Esperando una lectura actualizada",
-    "ageSeconds": "Hace {count} s",
-    "ageMinutes": "Hace {count} min",
-    "ageHours": "Hace {count} h",
-    "ageDays": "Hace {count} d",
-    "estimated": "estimado",
-    "manual": "manual",
-    "cancelled": "Cancelado",
-    "failed": "Fallido"
-  },
   "desktopRailSettings": {
     "show": "Mostrar la pestaña lateral",
     "detail": "Una pestaña pequeña en el borde izquierdo de tu pantalla. Pasa el cursor por encima para ver el uso y los agentes.",
@@ -500,24 +459,24 @@
   "home": {
     "release": {
       "rail": {
-        "title": "Una Rail tranquila. Una petición clara para ti.",
-        "lead": "OpenLimiter coloca tus límites de programación con IA y la actividad de los agentes en el borde izquierdo de tu escritorio. Mantén la Rail plegada mientras trabajas y ábrela para ver qué agente necesita intervención. Los medidores locales y las alertas del escritorio son gratis, con una cuenta activa por proveedor.",
-        "folded": "Plegada en el borde izquierdo, con el uso y la actividad a la vista.",
-        "unfolded": "Despliega la Rail para leer la tarjeta y localizar la aplicación del agente.",
-        "foldedAlt": "La Rail real de OpenLimiter plegada contra el borde izquierdo, con meters sintéticos de proveedores y actividad de agentes.",
-        "unfoldedAlt": "La Rail real de OpenLimiter desplegada junto a una tarjeta que muestra que Claude necesita intervención, con un botón Localizar aplicación."
+        "title": "Una pestaña pequeña. Tus límites y agentes al pasar el cursor.",
+        "lead": "OpenLimiter mantiene una pestaña pequeña con su logotipo en el borde izquierdo de la pantalla, a un 70% de la altura contando desde arriba. Pasa el cursor por encima para abrir a su lado un panel con tus límites y tus agentes. Funciona igual en Windows, macOS y Linux X11; en Linux Wayland, la bandeja ocupa su lugar. Los medidores locales y las alertas del escritorio son gratis, con una cuenta activa por proveedor.",
+        "folded": "La pestaña descansa en el borde izquierdo. Aparece un pequeño punto cuando algo merece un vistazo, como un agente que te espera.",
+        "unfolded": "Al pasar el cursor se abre el panel: primero los agentes, con Mostrar app en el que te espera, y luego los límites, el más justo primero, con su reinicio.",
+        "foldedAlt": "La pestaña real de OpenLimiter, pequeña, con el logotipo de OpenLimiter y un punto amarillo, en el borde izquierdo de un escritorio con un fondo de lago de montaña.",
+        "unfoldedAlt": "El panel real de OpenLimiter abierto junto a la pestaña, con datos sintéticos: Claude Code te necesita y ofrece Mostrar app, Codex está ocupado y Cursor ha terminado; debajo, los límites de Codex, Claude Code y OpenRouter con barras y el tiempo hasta cada reinicio, y un enlace Abrir app."
       },
       "agents": {
         "title": "Ocupado, en espera o terminado. Sabrás cuándo volver.",
         "lead": "La lista de agentes de Home muestra la actividad de las integraciones de agentes compatibles. Un agente en espera necesita intervención. Un agente terminado ha informado que completó su trabajo. Las notificaciones locales gratuitas te traen de vuelta cuando hay algo que hacer.",
-        "note": "Localizar aplicación te lleva a la aplicación responsable cuando el sistema operativo lo permite. No promete una pestaña concreta del terminal. La actividad unknown nunca se muestra como éxito.",
-        "alt": "Home de escritorio de OpenLimiter con Claude en espera, Codex ocupado y Cursor terminado en la lista de agentes, usando sesiones sintéticas."
+        "note": "Mostrar app te lleva a la aplicación responsable cuando el sistema operativo lo permite. No promete una pestaña concreta del terminal. La actividad unknown nunca se muestra como éxito.",
+        "alt": "Home de escritorio de OpenLimiter con datos sintéticos: límites de Codex, Claude Code y OpenRouter, y debajo la lista de agentes con Claude Code en espera, Codex ocupado y Cursor terminado."
       },
       "terminal": {
         "title": "Tus límites junto a tu prompt.",
         "lead": "La statusline del terminal muestra el uso, las horas de reinicio y la vigencia para los hosts compatibles. Las franjas verdes, amarillas, naranjas y rojas hacen fácil detectar una ventana que se está llenando. Los porcentajes y las etiquetas mantienen claro el significado sin depender del color.",
         "note": "Este es el renderer real de la CLI con lecturas sintéticas. La compatibilidad con statusline depende del host. Consulta la guía de la CLI para configurarla.",
-        "alt": "Salida real de la CLI de OpenLimiter con franjas de uso verdes, amarillas, naranjas y rojas, porcentajes y horas de reinicio."
+        "alt": "Salida real de la CLI de OpenLimiter para la línea de estado de Claude Code: el modelo, el esfuerzo y la ventana de contexto, y luego celdas de uso con franjas verdes, amarillas, naranjas y rojas, porcentajes y horas de reinicio."
       },
       "phone": {
         "title": "Inicia sesión en tu teléfono. Consulta las lecturas de tu computadora.",
@@ -531,7 +490,7 @@
     "docsLine": "Ambas cosas están documentadas en detalle: <agentContext>lo que se le dice a un agente</agentContext> y <cli>cada comando con el que se distribuye</cli>.",
     "bridge": {
       "line": "Sigue trabajando. Mira cuándo un agente te necesita.",
-      "note": "La Rail y el terminal muestran lecturas locales. Inicia sesión para ver lecturas sincronizadas en tu teléfono."
+      "note": "La pestaña lateral y el terminal muestran lecturas locales. Inicia sesión para ver lecturas sincronizadas en tu teléfono."
     }
   },
   "deviceFrame": {
@@ -956,7 +915,7 @@
     },
     "preview": {
       "title": "Aplicación de escritorio OpenLimiter",
-      "alt": "Pantalla principal de OpenLimiter con medidores de proveedores, el Rail y actividad de agentes"
+      "alt": "Home de OpenLimiter en el escritorio con los límites de los proveedores y la actividad de los agentes"
     },
     "versionLine": "Versión {version}",
     "releaseNotes": "Notas de la versión",
@@ -1682,18 +1641,18 @@
             },
             "show-hide": {
               "title": "Elegir qué se muestra",
-              "body": "<code>openlimiter terminal show codex</code> y <code>openlimiter terminal hide codex</code> eligen qué proveedores conectados muestran una barra solo en este equipo. Un proveedor que no has conectado no tiene nada que mostrar."
+              "body": "<code>openlimiter terminal show codex</code> y <code>openlimiter terminal hide codex</code> eligen qué proveedores conectados muestran una barra solo en este equipo. Un proveedor que no has conectado no tiene nada que mostrar. La carpeta queda fuera por defecto, y <code>openlimiter terminal show dir</code> la añade tras el modelo y el esfuerzo."
             },
             "grammar": {
               "title": "El formato",
-              "intro": "Una celda por ventana: una marca opcional de actualidad, una etiqueta, una barra de diez bloques, el porcentaje y la hora de reinicio. El proveedor al que pertenece la línea de estado omite su etiqueta, pues el terminal ya indica de quién son las cifras. Los demás conservan una etiqueta corta antes del código de ventana, y un saldo de crédito muestra su importe en dólares en vez de una barra.",
+              "intro": "En Claude Code la línea empieza con el modelo, el esfuerzo y cuánto ocupa la ventana de contexto. Después viene una celda por ventana: una etiqueta, una barra de diez bloques, el porcentaje con su marca de actualidad y la hora de reinicio. El proveedor al que pertenece la línea de estado omite su etiqueta, pues el terminal ya indica de quién son las cifras. Los demás conservan una etiqueta corta antes del código de ventana, y un saldo de crédito muestra su importe en dólares en vez de una barra.",
               "exampleLabel": "Salida de ejemplo, fila de un terminal",
               "freshness": {
                 "title": "Las marcas de actualidad",
                 "bullets": {
                   "bare": "Sin marca: la lectura tiene menos de tres minutos.",
-                  "tilde": "Un <code>~</code> al principio: la lectura tiene entre tres y quince minutos.",
-                  "unknown": "<code>[?]</code> en lugar de la barra: la lectura tiene quince minutos o más, o todavía no se ha leído nada. La celda nunca desaparece, por lo que un proveedor ilegible sigue apareciendo como desconocido en vez de parecer conectado."
+                  "tilde": "Un <code>~</code> antes del valor: la lectura tiene tres minutos o más, o es una estimación.",
+                  "unknown": "Ninguna celda: un proveedor que no se puede medir ahora queda fuera de la línea, igual que queda fuera de Home. Una lectura que solo es antigua conserva su celda y lleva el <code>~</code>."
                 }
               }
             }

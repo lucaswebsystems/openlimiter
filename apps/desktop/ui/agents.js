@@ -1,8 +1,8 @@
 import { agentText } from "./agents.en.js";
 import { agentName, agentProvider, duration, say } from "./names.js";
 
-/* The agents the activity engine names, by the tool each one runs in. The old
-   tile Rail still reads this; everything new asks agentName directly. */
+/* The agents the activity engine names, by the tool each one runs in. The alert
+   mute labels read this; everything new asks agentName directly. */
 const KNOWN_AGENTS = ["claude_code", "codex", "muse", "cursor", "gemini_cli", "kimi", "grok", "antigravity"];
 export const AGENT_NAMES = Object.freeze(Object.fromEntries(KNOWN_AGENTS.map((agent) => [agent, agentName(agent)])));
 

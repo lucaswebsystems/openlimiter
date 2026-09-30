@@ -18,8 +18,8 @@ function readTheme() {
 // Dimensions describe the supplied captures, not an upscaled derivative.
 export const PRODUCT_SHOTS = {
   "desktop-home": { width: 2000, height: 1520, maxWidth: 1000 },
-  "rail-folded": { width: 1280, height: 800, maxWidth: 640 },
-  "rail-unfolded": { width: 1280, height: 800, maxWidth: 640 },
+  "edge-tab": { width: 1120, height: 1076, maxWidth: 560 },
+  "edge-panel": { width: 1120, height: 1076, maxWidth: 560 },
   "terminal-statusline": { width: 2400, height: 600, maxWidth: 1200 },
   "phone-1": { width: 1170, height: 2532, maxWidth: 390 },
   "phone-3": { width: 1170, height: 2532, maxWidth: 390 },

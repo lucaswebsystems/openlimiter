@@ -8,7 +8,7 @@ import { checkImportGraph } from "../scripts/import-graph.mjs";
 import { moduleReferences, rewriteJsonImports } from "../scripts/ui-modules.mjs";
 
 const dist = fileURLToPath(new URL("./dist/", import.meta.url));
-for (const entry of ["index.html", "rail.html", "tray.html"]) {
+for (const entry of ["index.html", "tray.html", "edge-tab.html", "edge-panel.html"]) {
   test(`built ${entry} imports only existing JavaScript`, () => {
     const files = checkImportGraph(dist, [entry]);
     assert.ok(files.size > 3);

@@ -1,9 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { activityClient, agentsModel, AGENT_NAMES, mountAgents, renderAgents, runningLabel } from "./agents.js";
 import { AGENTS_EN } from "./agents.en.js";
 import { fakeDocument, leaks, spoken } from "./test-dom.mjs";
 
+const read = (file) => readFileSync(new URL(file, import.meta.url), "utf8");
 const record = { sessionId: "opaque", agent: "claude_code", state: "waiting", firstObservedAt: "2026-09-28T12:00:00.000Z" };
 const now = () => Date.parse("2026-09-28T12:02:05.000Z");
 const preferences = { local: { enabled: true, quietHours: null, snoozedUntil: null, mutedProviders: [] }, sound: "silent" };
@@ -100,6 +103,48 @@ test("empty, unavailable and recovered are distinct and late reads cannot remoun
   let resolve; const doc = fakeDocument(); const root = doc.createElement("div");
   const dispose = mountAgents(root, { client: { sessions: () => new Promise((r) => { resolve = r; }), preferences: async () => preferences } });
   dispose(); resolve([record]); await settle(); assert.equal(root.children.length, 0);
+});
+
+test("desktop shell mounts the Agents component inside Home and disposes on unload", async () => {
+  const html = read("./index.html");
+  assert.match(html, /href="\.\/agents.css"/);
+  const homeStart = html.indexOf('<section id="panel-meters"');
+  const hostStart = html.indexOf('<div id="agents-mount">');
+  assert.ok(homeStart < hostStart && hostStart < html.indexOf('id="panel-spend"', homeStart));
+  const app = read("./app.js");
+  assert.match(app, /import \{ mountAgents \} from "\.\/agents.js"/);
+  const wiring = app.match(/const disposeAgents = mountAgents\(elements.agentsMount, \{ markFor: officialMark \}\);\s*window.addEventListener\("beforeunload", disposeAgents, \{ once: true \}\);/);
+  assert.ok(wiring);
+  assert.match(html, /<h2 id="agents-title">Agents<\/h2>/);
+  const host = fakeDocument().createElement("div");
+  let dispose;
+  runInNewContext(wiring[0], {
+    elements: { agentsMount: host },
+    officialMark: () => "",
+    mountAgents: (target, options) => mountAgents(target, { ...options, now, client: {
+      sessions: async () => [record],
+      preferences: async () => { throw new Error("unavailable"); },
+    } }),
+    window: { addEventListener: (event, callback) => { assert.equal(event, "beforeunload"); dispose = callback; } },
+  });
+  try {
+    await settle();
+    assert.match(host.textContent, /Claude Code/);
+    assert.match(host.textContent, /Needs you/);
+    assert.match(host.textContent, /Show app/);
+  } finally { dispose(); }
+  assert.equal(host.children.length, 0);
+});
+
+test("the built Home includes the Agents component and its local dependencies", () => {
+  for (const file of ["agents.js", "agents.css"]) {
+    assert.equal(read(`./dist/${file}`), read(`./${file}`), `${file} must be packaged by build-ui`);
+  }
+  // The catalog ships as a JavaScript module: the desktop CSP blocks JSON
+  // module imports (connect-src), so build-ui converts the JSON and rewrites
+  // the import in agents.en.js.
+  assert.match(read("./dist/agents.en.json.js"), /^export default /);
+  assert.match(read("./dist/agents.en.js"), /agents\.en\.json\.js/);
 });
 
 test("catalog prose has no dashes and includes toast and locate results", () => {

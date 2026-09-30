@@ -2,6 +2,18 @@
 
 All notable project changes appear in this file.
 
+## [2.0.2]
+
+### Desktop
+
+- One small tab with the OpenLimiter logo replaces the Rail, on the left edge of the screen about 70% down. Hovering it opens a panel with the limits that can be measured now, tightest first, and the agents that need you, are busy or are done. It works the same on Windows, macOS and Linux X11; Linux Wayland falls back to the tray.
+- Home shows only the account signed in now, one card per tool. Anything that cannot be measured is hidden from Home and listed on Connections under Needs attention, with one fix each: Sign in, Reconnect or Check again.
+- Connections lists Needs attention, then Connected, then an Add a tool button.
+
+### CLI
+
+- The terminal status line goes from the model and effort straight to the context window. The folder is opt in with `openlimiter terminal show dir`, and a provider that cannot be measured right now is left out of the line.
+
 ## [2.0.1]
 
 ### Fixed

@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createElement } from "react";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_SHOTS, ProductShot } from "../components/device-frame";
 import { render, type Mounted } from "./render";
@@ -52,6 +52,13 @@ describe("home product image delivery", () => {
     const img = picture.querySelector("img")!;
     expect([img.width, img.height]).toEqual([1170, 2532]);
     expect(img.alt).toBe("Phone meters");
+  });
+
+  it("shows the edge tab and its panel, and no retired Rail capture is left to serve", () => {
+    expect(Object.keys(PRODUCT_SHOTS)).toEqual(expect.arrayContaining(["edge-tab", "edge-panel"]));
+    const screenshots = path.join(path.dirname(fileURLToPath(import.meta.url)), "../public/screenshots");
+    expect(readdirSync(screenshots).filter((file) => /rail/iu.test(file))).toEqual([]);
+    expect(Object.keys(PRODUCT_SHOTS).filter((name) => /rail/iu.test(name))).toEqual([]);
   });
 
   it("keeps every display cap at or below half the real capture width", () => {

@@ -8,19 +8,37 @@ const manifest = JSON.parse(read("../package.json"));
 const WHATS_NEW_EN = JSON.parse(read("./whats-new.en.json"));
 const whatsNewForVersion = (version) => selectRelease(version, WHATS_NEW_EN);
 
+/* What each recent release says, word for word; the current version is one of them. */
+const NOTES = {
+  "2.0.2": [
+    { key: "edge", text: "One small tab on the left edge of your screen replaces the Rail. Hover it to see your limits and agents. On Linux Wayland the tray takes its place." },
+    { key: "home", text: "Home shows the account you are signed in with now, one card per tool. Anything that cannot be measured waits on Connections with one fix." },
+    { key: "statusline", text: "The terminal status line leaves out the folder and any provider that cannot be measured right now." },
+  ],
+  "2.0.1": [
+    { key: "startup", text: "Fixes a freeze at startup on Windows." },
+  ],
+};
+
 test("the current desktop version has a complete What's New entry", () => {
   const entry = whatsNewForVersion(manifest.version);
   assert.ok(entry, `Missing What's New for ${manifest.version}`);
   assert.equal(entry.versionLabel, `Version ${manifest.version}`);
   assert.ok(entry.heading.trim());
   assert.ok(entry.dismiss.trim());
-  assert.deepEqual(entry.items, [
-    { key: "startup", text: "Fixes a freeze at startup on Windows." },
-  ]);
-  for (const { text } of entry.items) {
-    assert.ok(text.trim());
-    assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
+  assert.deepEqual(entry.items, NOTES[manifest.version]);
+});
+
+test("the 2.0.2 notes name the edge tab, Home and the status line, and 2.0.1 stays available", () => {
+  for (const [version, items] of Object.entries(NOTES)) {
+    const entry = whatsNewForVersion(version);
+    assert.deepEqual(entry.items, items, version);
+    for (const text of [entry.heading, ...items.map(({ text }) => text)]) {
+      assert.ok(text.trim());
+      assert.doesNotMatch(text, /[-\u2010-\u2015]/u);
+    }
   }
+  assert.equal(WHATS_NEW_EN.releases["2.0.2"].heading, "One small tab, a clearer Home");
 });
 
 test("the 2.0.0 release notes remain available", () => {

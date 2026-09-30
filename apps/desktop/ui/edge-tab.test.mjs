@@ -2,8 +2,32 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { edgeSummary, followTheme, renderEdge, startEdge } from "./edge-tab.js";
+import { renderSettings, wireRailVisibility, RAIL_SETTINGS_COPY } from "./settings.js";
 
 const read = file => readFileSync(new URL(file, import.meta.url), "utf8");
+
+/* Enough of an element for the Settings page to wire its edge tab switch into. */
+class Element {
+  dataset = {};
+  children = [];
+  handlers = {};
+  attributes = {};
+  styles = {};
+  classes = new Set();
+  ownText = "";
+  className = "";
+  disabled = false;
+  checked = false;
+  classList = { toggle: (name, on) => on ? this.classes.add(name) : this.classes.delete(name),
+    add: name => this.classes.add(name), remove: name => this.classes.delete(name) };
+  style = { setProperty: (name, value) => { this.styles[name] = value; } };
+  get textContent() { return this.ownText + this.children.map(child => child.textContent).join(""); }
+  set textContent(value) { this.ownText = String(value); this.children = []; }
+  addEventListener(name, handler) { this.handlers[name] = handler; }
+  setAttribute(name, value) { this.attributes[name] = value; }
+  replaceChildren(...children) { this.children = children; }
+  append(...children) { this.children.push(...children); }
+}
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function fixture() {
   const classes = new Set();
@@ -91,6 +115,101 @@ test("a saved theme wins, otherwise the system scheme", () => {
   listeners.change();
   assert.equal(doc.documentElement.dataset.theme, "dark");
   stop();
+});
+
+test("the tab and panel follow the desktop theme, then system light and dark, including storage denial", () => {
+  const doc = { documentElement: { dataset: {} } };
+  let saved = "light";
+  const handlers = {};
+  const media = { matches: false, addEventListener: (_, fn) => { handlers.media = fn; }, removeEventListener() {} };
+  const win = { matchMedia: () => media, localStorage: { getItem: () => saved },
+    addEventListener: (_, fn) => { handlers.storage = fn; }, removeEventListener() {} };
+  const stop = followTheme(doc, win);
+  assert.equal(doc.documentElement.dataset.theme, "light");
+  saved = "dark";
+  handlers.storage();
+  assert.equal(doc.documentElement.dataset.theme, "dark");
+  saved = null;
+  media.matches = true;
+  handlers.media();
+  assert.equal(doc.documentElement.dataset.theme, "light");
+  win.localStorage.getItem = () => { throw new Error("denied"); };
+  media.matches = false;
+  handlers.media();
+  assert.equal(doc.documentElement.dataset.theme, "dark");
+  stop();
+});
+
+test("Settings reads the persisted edge tab visibility and invokes rail_set_visible in both directions", async () => {
+  const control = new Element();
+  const status = new Element();
+  const calls = [];
+  let visible = false;
+  await wireRailVisibility(control, status, async (command, args) => {
+    calls.push([command, args]);
+    if (command.endsWith("rail_set_visible")) visible = args.visible;
+    else return { window: { visible, suppressed: true } };
+  });
+  assert.equal(control.checked, false);
+  assert.equal(control.disabled, false);
+  for (const next of [true, false]) {
+    control.checked = next;
+    await control.handlers.change();
+    assert.equal(control.checked, next);
+    assert.equal(visible, next);
+  }
+  assert.deepEqual(calls.filter(([command]) => command.endsWith("rail_set_visible")), [
+    ["plugin:rail|rail_set_visible", { visible: true }], ["plugin:rail|rail_set_visible", { visible: false }],
+  ]);
+});
+
+test("Settings restores the persisted edge tab state on failure and disables a missing backend", async () => {
+  const control = new Element();
+  const status = new Element();
+  await wireRailVisibility(control, status, async command => {
+    if (command.endsWith("rail_set_visible")) throw new Error("write failed");
+    return { window: { visible: true } };
+  });
+  control.checked = false;
+  await control.handlers.change();
+  assert.equal(control.checked, true);
+  assert.equal(status.textContent, RAIL_SETTINGS_COPY.saveFailed);
+  const absent = new Element();
+  await wireRailVisibility(absent, status, async () => { throw new Error("absent"); });
+  assert.equal(absent.disabled, true);
+  assert.equal(status.textContent, RAIL_SETTINGS_COPY.unavailable);
+});
+
+test("Settings retains the successful edge tab write if the following snapshot read fails", async () => {
+  const control = new Element();
+  const status = new Element();
+  let saved = false;
+  await wireRailVisibility(control, status, async command => {
+    if (command.endsWith("rail_set_visible")) { saved = true; return; }
+    if (saved) throw new Error("snapshot unavailable");
+    return { window: { visible: false } };
+  });
+  control.checked = true;
+  await control.handlers.change();
+  assert.equal(control.checked, true);
+  assert.equal(control.disabled, false);
+});
+
+test("the Settings edge tab switch still mounts when the notification backend is absent", async () => {
+  const control = new Element();
+  const status = new Element();
+  const mount = { innerHTML: "", querySelector: selector => selector === "#rail-visible" ? control : status };
+  await renderSettings(mount);
+  assert.match(mount.innerHTML, /for="rail-visible"/);
+  assert.match(mount.innerHTML, /Show the edge tab/);
+  assert.equal(control.disabled, true);
+});
+
+test("the edge tab switch copy has its catalog keys, no prose dashes and no raw colours", () => {
+  const catalog = JSON.parse(read("../../web/messages/en.json"));
+  assert.deepEqual(catalog.desktopRailSettings, RAIL_SETTINGS_COPY);
+  for (const text of Object.values(RAIL_SETTINGS_COPY)) assert.doesNotMatch(text, /[–—-]/u);
+  assert.doesNotMatch(read("./settings.js"), /#[\da-f]{3,8}\b|rgba?\(|hsla?\(|oklch\(/iu);
 });
 
 test("the tab and the panel are local, CSP compatible documents drawn from tokens", () => {

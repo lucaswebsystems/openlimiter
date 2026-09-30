@@ -8,11 +8,11 @@ export async function ReleaseOverview() {
   const t = await getTranslations("home.release");
   return (
     <div className="space-y-[calc(var(--ol-space-7)*2)] text-center">
-      <section id="rail" {...reveal}>
+      <section id="edge-tab" {...reveal}>
         <SectionHeading title={t("rail.title")} lead={t("rail.lead", { version: CURRENT_VERSION })} />
         <div className="grid gap-6 md:grid-cols-2">
-          {(["folded", "unfolded"] as const).map((state) => (
-            <ProductFigure key={state} name={`rail-${state}`} alt={t(`rail.${state}Alt`)} caption={t(`rail.${state}`)} />
+          {([["folded", "edge-tab"], ["unfolded", "edge-panel"]] as const).map(([state, shot]) => (
+            <ProductFigure key={state} name={shot} alt={t(`rail.${state}Alt`)} caption={t(`rail.${state}`)} />
           ))}
         </div>
       </section>

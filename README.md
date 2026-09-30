@@ -4,7 +4,7 @@
   <img src="assets/brand/openlimiter-lockup.svg" width="344" alt="OpenLimiter">
 </p>
 
-OpenLimiter 2.0 reads usage limits and agent activity from supported AI tools on your computer and shows them in your desktop Rail, tray, terminal, browser and phone.
+OpenLimiter 2.0 reads usage limits and agent activity from supported AI tools on your computer and shows them in a small tab at the edge of your desktop, the tray, your terminal, your browser and your phone.
 
 <p align="center">
   <img src="assets/readme/openlimiter-2-0-home.png" width="522" alt="OpenLimiter Home window showing provider meters and local agent activity">
@@ -50,11 +50,11 @@ The local product is free forever and has zero analytics or tracking. Local read
 
 Every connector remains labelled `UNVERIFIED` until its reviewed registry evidence meets the project verification contract. When a response fails its expected contract, that provider becomes unknown rather than repaired, estimated, or substituted.
 
-Cursor is Experimental until live account verification is complete. The Rail targets Windows 10 and 11; macOS and Linux Rail support is a preview, with the tray available as the fallback. A phone shows the latest synchronized reading, which can be stale when its computer is offline.
+Cursor is Experimental until live account verification is complete. The edge tab works the same on Windows, macOS and Linux X11; on Linux Wayland, which cannot place it, the tray takes its place. A phone shows the latest synchronized reading, which can be stale when its computer is offline.
 
 ## Free core and Pro
 
-The complete local product is open source under Apache 2.0. Free includes local readers and meters, the Rail, agent activity, local alerts, terminal bars, the tray, the command line tool and current reading sync to the browser and phone. Free keeps one active account per provider. Local spend readings have no monthly cap.
+The complete local product is open source under Apache 2.0. Free includes local readers and meters, the edge tab, agent activity, local alerts, terminal bars, the tray, the command line tool and current reading sync to the browser and phone. Free keeps one active account per provider. Local spend readings have no monthly cap.
 
 OpenLimiter Pro costs 5 US dollars a month or 50 US dollars a year, with a 30 day free trial and no card required. It adds history, remote alerts, more than one account per provider and opt in cloud metering for API spend keys. Checkout runs through Stripe, which acts as the payment processor. A full refund is available on request within 14 days of any charge. Local meters and local alerts remain available after a trial ends.
 

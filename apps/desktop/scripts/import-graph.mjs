@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { htmlScripts, moduleReferences } from "./ui-modules.mjs";
 
 /** Check the files the browser can reach, including lazy literal imports. */
-export function checkImportGraph(directory, entries = ["index.html", "rail.html", "tray.html"]) {
+export function checkImportGraph(directory, entries = ["index.html", "tray.html", "edge-tab.html", "edge-panel.html"]) {
   const root = path.resolve(directory);
   const visited = new Set();
   function follow(specifier, importer) {

@@ -13,7 +13,7 @@ const dist = path.join(desktop, "ui", "dist");
 const config = JSON.parse(await readFile(path.join(desktop, "src-tauri", "tauri.conf.json"), "utf8"));
 const csp = config.app.security.csp;
 assert.equal(typeof csp, "string");
-checkImportGraph(dist, ["index.html", "rail.html", "tray.html", "edge-tab.html", "edge-panel.html"]);
+checkImportGraph(dist, ["index.html", "tray.html", "edge-tab.html", "edge-panel.html"]);
 
 // The capture script resolves Playwright locally or from a global installation.
 // Also accept the existing web dev dependency without adding desktop packages.
@@ -56,7 +56,7 @@ const server = createServer(async (request, response) => {
 });
 
 // Same core.invoke and event.listen bridge as scripts/capture-screenshots.mjs,
-// extended with synthetic activity and Rail replies. No native IPC is available.
+// extended with synthetic activity and edge tab snapshot replies. No native IPC is available.
 function installCaptureStub() {
   localStorage.setItem("openlimiter-first-run-complete-v1", "complete");
   localStorage.setItem("openlimiter-configured-providers-v1", JSON.stringify(["CLAUDE"]));
@@ -94,7 +94,7 @@ try {
   const origin = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ headless: true, executablePath, env: process.env });
   process.stdout.write(`Chromium ${browser.version()}, exact desktop CSP\n`);
-  for (const entry of ["index.html", "rail.html", "rail.html?card", "tray.html", "edge-tab.html", "edge-panel.html"]) {
+  for (const entry of ["index.html", "tray.html", "edge-tab.html", "edge-panel.html"]) {
     const context = await browser.newContext({ viewport: { width: 720, height: 800 }, serviceWorkers: "block" });
     const errors = [];
     await context.route("**/*", async route => {
@@ -123,14 +123,10 @@ try {
         // The tray reaches its empty state only after start() loaded every
         // module it imports (1.3.3 shipped it importing a deleted file).
         await page.locator("#tray-empty").waitFor({ state: "visible" });
-      } else if (entry.startsWith("edge-")) {
+      } else {
         // The edge tab and its panel only need to load every module cleanly
         // under the exact CSP; their content is covered by the UI tests.
         await page.waitForLoadState("networkidle");
-      } else {
-        await page.locator('#accounts [data-p="claude"]').waitFor({ state: "visible" });
-        await page.locator('#sessions [data-agent="busy"]').waitFor({ state: "visible" });
-        assert.equal(await page.locator('#accounts [data-p="claude"]').getAttribute("aria-label"), "Claude Code: 42% used (Session)");
       }
       await page.waitForLoadState("networkidle");
       assert.deepEqual(errors, [], `${entry} browser errors`);
