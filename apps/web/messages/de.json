@@ -464,13 +464,13 @@
         "folded": "Der Reiter liegt am linken Rand. Ein kleiner Punkt erscheint, wenn etwas deinen Blick braucht, etwa ein Agent, der auf dich wartet.",
         "unfolded": "Zeigst du darauf, öffnet sich das Panel: erst die Agenten, mit App anzeigen beim wartenden, dann die Limits, das knappste zuerst, mit Rücksetzzeit.",
         "foldedAlt": "Der echte Reiter von OpenLimiter, klein, mit dem OpenLimiter Logo und einem gelben Punkt, am linken Rand eines Desktops mit einem Bergsee als Hintergrundbild.",
-        "unfoldedAlt": "Das echte Panel von OpenLimiter, geöffnet neben dem Reiter, mit synthetischen Daten: Claude Code braucht dich und bietet App anzeigen an, Codex arbeitet und Cursor ist fertig, darunter Limits für Codex, Claude Code und OpenRouter mit Balken und Zeiten bis zum Zurücksetzen sowie ein Link App öffnen."
+        "unfoldedAlt": "Das echte Panel von OpenLimiter, geöffnet neben dem Reiter, mit synthetischen Daten: Claude Code braucht dich und bietet App anzeigen an, Codex arbeitet und Gemini CLI ist fertig, darunter Limits für Codex, Claude Code und OpenRouter mit Balken und Zeiten bis zum Zurücksetzen sowie ein Link App öffnen."
       },
       "agents": {
         "title": "Beschäftigt, wartend oder fertig. Du weißt, wann du zurückkehren musst.",
         "lead": "Die Agentenliste der Home zeigt die Aktivität unterstützter Agentenintegrationen. Ein wartender Agent braucht Eingaben. Ein fertiger Agent hat den Abschluss gemeldet. Kostenlose lokale Benachrichtigungen holen dich zurück, wenn etwas zu tun ist.",
         "note": "App anzeigen bringt dich zur zuständigen Anwendung, wenn das Betriebssystem es erlaubt. Eine bestimmte Registerkarte im Terminal wird nicht versprochen. Unknown Aktivität wird nie als Erfolg angezeigt.",
-        "alt": "OpenLimiter Desktop Home mit synthetischen Daten: Limits für Codex, Claude Code und OpenRouter, darunter die Agentenliste mit Claude Code im Wartezustand, Codex beschäftigt und Cursor fertig."
+        "alt": "OpenLimiter Desktop Home mit synthetischen Daten: Limits für Codex, Claude Code und OpenRouter, darunter die Agentenliste mit Claude Code im Wartezustand, Codex beschäftigt und Gemini CLI fertig."
       },
       "terminal": {
         "title": "Deine Limits neben deinem Prompt.",
@@ -505,15 +505,15 @@
     "shots": {
       "meters": {
         "label": "Meter",
-        "alt": "Die Web App auf einem Handy, oben mit dem Gesamturteil und der Routingempfehlung, darunter einer Karte pro Provider, jede mit Meter Balken, Prozentangabe, Aktualitätsstatus und Reset Countdown."
+        "alt": "Die Web App auf einem Handy, oben mit dem knappsten Limit als Ring, Balken und Countdown bis zum Zurücksetzen, darunter eine Karte pro Provider mit Balken, verbrauchtem Anteil und der Zeit bis zum Zurücksetzen."
       },
       "agentContext": {
         "label": "Agent context",
         "alt": "Die Web App auf einem Handy, mit dem begrenzten Block an Budgetstatus, den ein Coding Agent erhält, eingezäunt in einer Grenze für nicht vertrauenswürdige Daten."
       },
       "connections": {
-        "label": "Verbindungen",
-        "alt": "Die Web App auf einem Handy, mit dem, was heute je Provider ausgelesen werden kann, welche davon nur Importe entgegennehmen, und dem Feld, in das ein Quota Dokument eingefügt oder hineingezogen wird."
+        "label": "Weitere Provider, dann Pro",
+        "alt": "Die Web App auf einem Handy, weiter unten auf demselben Bildschirm: Karten für Antigravity, OpenCode und OpenRouter, dann die Pro Karte mit Verlauf, Benachrichtigungen, zusätzlichen Konten und Cloud Messung sowie einer Schaltfläche, die die kostenlose 30 Tage Pro Testphase ohne Karte startet."
       }
     }
   },
@@ -1364,8 +1364,8 @@
       "zero-setup": {
         "title": "Erkennung ohne Einrichtung",
         "metaTitle": "Erkennung ohne Einrichtung, Datenschutz und Fehlerbehebung",
-        "description": "Wie OpenLimiter lokale Anmeldungen findet, was jeder unterstützte Anbieter meldet, was das Gerät verlässt und wie sich ein unbekannter Zustand beheben lässt.",
-        "lead": "Die Desktop Anwendung sucht nach Anbieterwerkzeugen und Anmeldungen, die auf diesem Gerät bereits vorhanden sind. Sie kann ohne OpenLimiter Konto und ohne kopierte Zugangsdaten beginnen, während jede fehlende oder unsichere Messung sichtbar unbekannt bleibt.",
+        "description": "Wie OpenLimiter lokale Anmeldungen findet, was jeder unterstützte Anbieter meldet, was das Gerät verlässt und wie du einen Anbieter reparierst, der Aufmerksamkeit braucht.",
+        "lead": "Die Desktop Anwendung sucht nach Anbieterwerkzeugen und Anmeldungen, die auf diesem Gerät bereits vorhanden sind. Sie kann ohne OpenLimiter Konto und ohne kopierte Zugangsdaten beginnen. Ein Anbieter, den sie gerade nicht messen kann, wird ausgeblendet statt geschätzt und wartet unter Verbindungen bei Braucht Aufmerksamkeit mit einer Lösung.",
         "sections": {
           "what-it-does": {
             "title": "Was OpenLimiter macht",
@@ -1435,17 +1435,17 @@
             }
           },
           "unknown": {
-            "title": "Wenn ein Anbieter unbekannt zeigt",
-            "intro": "Unbekannt bedeutet, dass keine aktuelle Messung jede Vertragsprüfung bestanden hat. Es bedeutet nicht null Nutzung und beweist nicht, dass das Abonnement leer ist.",
+            "title": "Wenn ein Anbieter Aufmerksamkeit braucht",
+            "intro": "Ein Anbieter, der gerade nicht gemessen werden kann, wird auf Home, im Panel am Rand und in der Terminalzeile ausgeblendet und unter Verbindungen bei Braucht Aufmerksamkeit mit einer Lösung aufgeführt. Ausgeblendet bedeutet nicht null Nutzung und beweist nicht, dass das Abonnement leer ist.",
             "steps": {
-              "login": "Öffne das Anbieter CLI und bestätige, dass es installiert und angemeldet ist. Wenn die Meldung eine abgelaufene Anmeldung nennt, schließe und öffne dieses CLI erneut, damit es seine eigenen Zugangsdaten erneuern kann.",
-              "rescan": "Kehre zu OpenLimiter zurück, suche erneut nach Anbietern und fordere eine Aktualisierung für dieses Konto an.",
-              "wait": "Wenn der Anbieter Anfragen kürzlich begrenzt hat, behalte die Messung aus dem Cache und warte bis zum nächsten Versuch. Wiederholte Klicks umgehen den Rückzug des Anbieters nicht.",
-              "interface": "Prüfe die Quellenbezeichnung. Private Endpunkte und authentifizierte Seiten können sich ohne Hinweis ändern. Eine Vertragsänderung bleibt absichtlich unbekannt, bis der Konnektor aktualisiert ist.",
-              "manual": "Nutze die manuelle Eingabe, wenn automatische Erfassung nicht verfügbar ist. Ein blockierter Anbieter deaktiviert die anderen nicht."
+              "login": "Abgemeldet: Wähle Anmelden. Gehört die Anmeldung zum eigenen Werkzeug des Anbieters, melde dich dort auf diesem Rechner an und wähle dann Erneut prüfen.",
+              "rescan": "Verbindung verloren: Wähle Neu verbinden. Gehört die Verbindung zum eigenen Werkzeug des Anbieters, melde dich dort erneut an und wähle dann Erneut prüfen.",
+              "wait": "Anmeldung muss aufgefrischt werden: Öffne das Werkzeug des Anbieters einmal, damit es seine eigene Anmeldung auffrischt, und wähle dann Erneut prüfen. OpenLimiter frischt die Anmeldung eines Anbieters nie selbst auf.",
+              "interface": "Noch nicht messbar: Der Anbieter meldet kein Kontingent, das OpenLimiter lesen kann, oder seine Antwort hat ihre Form geändert. Es gibt nichts zu drücken, die Zeile sagt das, und der Anbieter bleibt ausgeblendet, bis sein Konnektor aktualisiert ist.",
+              "manual": "Nutze die manuelle Eingabe, wenn automatische Erfassung nicht verfügbar ist. Ein Anbieter, der Aufmerksamkeit braucht, blendet die anderen nie aus."
             },
-            "calloutTitle": "Unbekannt ist ein Sicherheitsergebnis",
-            "calloutBody": "OpenLimiter errät nie einen fehlenden Prozentsatz oder Reset. Ein sichtbares Unbekannt schützt Routing Empfehlungen vor einer plausiblen, aber falschen Zahl."
+            "calloutTitle": "Ausgeblendet ist ein Sicherheitsergebnis",
+            "calloutBody": "OpenLimiter errät nie einen fehlenden Prozentsatz oder Reset. Einen nicht gemessenen Anbieter aus dem Blick zu nehmen schützt dich und deine Routing Empfehlungen vor einer plausiblen, aber falschen Zahl."
           }
         }
       },

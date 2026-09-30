@@ -464,13 +464,13 @@
         "folded": "A aba fica na borda esquerda. Um pequeno ponto aparece quando algo merece uma olhada, como um agente esperando por você.",
         "unfolded": "Passe o mouse e o painel se abre: primeiro os agentes, com Mostrar app no que espera por você, depois os limites, o mais apertado primeiro, com o reinício.",
         "foldedAlt": "A aba real do OpenLimiter, pequena, com o logotipo do OpenLimiter e um ponto amarelo, na borda esquerda de uma área de trabalho com um papel de parede de lago na montanha.",
-        "unfoldedAlt": "O painel real do OpenLimiter aberto ao lado da aba, com dados sintéticos: Claude Code precisa de você e oferece Mostrar app, Codex está ocupado e Cursor terminou; abaixo, os limites de Codex, Claude Code e OpenRouter com barras e o tempo até cada reinício, e um link Abrir app."
+        "unfoldedAlt": "O painel real do OpenLimiter aberto ao lado da aba, com dados sintéticos: Claude Code precisa de você e oferece Mostrar app, Codex está ocupado e Gemini CLI terminou; abaixo, os limites de Codex, Claude Code e OpenRouter com barras e o tempo até cada reinício, e um link Abrir app."
       },
       "agents": {
         "title": "Ocupado, aguardando ou concluído. Saiba quando voltar.",
         "lead": "A lista de agentes da Home mostra a atividade das integrações de agentes compatíveis. Um agente aguardando precisa de entrada. Um agente concluído informou que terminou. As notificações locais gratuitas trazem você de volta quando há algo para fazer.",
         "note": "Mostrar app leva você ao aplicativo responsável quando o sistema operacional permite. Isso não promete uma aba específica do terminal. Atividade unknown nunca aparece como sucesso.",
-        "alt": "A Home do desktop do OpenLimiter com dados sintéticos: limites de Codex, Claude Code e OpenRouter e, abaixo, a lista de agentes com Claude Code aguardando, Codex ocupado e Cursor concluído."
+        "alt": "A Home do desktop do OpenLimiter com dados sintéticos: limites de Codex, Claude Code e OpenRouter e, abaixo, a lista de agentes com Claude Code aguardando, Codex ocupado e Gemini CLI concluído."
       },
       "terminal": {
         "title": "Seus limites ao lado do seu prompt.",
@@ -505,15 +505,15 @@
     "shots": {
       "meters": {
         "label": "Meters",
-        "alt": "O web app num celular, mostrando o veredito geral e a recomendação de roteamento no topo, e um cartão por provedor abaixo, cada um com uma barra de meter, uma porcentagem, um estado de atualização e uma contagem regressiva de reinício."
+        "alt": "O web app num celular, com o limite mais apertado no topo como um anel, uma barra e uma contagem regressiva até o reinício, e abaixo um cartão por provedor com uma barra, a parte usada e o tempo até reiniciar."
       },
       "agentContext": {
         "label": "Agent context",
         "alt": "O web app num celular, mostrando o bloco limitado de estado de orçamento que um agente de codificação recebe, cercado por um limite explícito de dados não confiáveis."
       },
       "connections": {
-        "label": "Conexões",
-        "alt": "O web app num celular, mostrando o que cada provedor pode entregar hoje, quais só aceitam importação, e a caixa em que um documento de quota é colado ou solto."
+        "label": "Mais provedores, depois o Pro",
+        "alt": "O web app num celular, mais abaixo na mesma tela: cartões de Antigravity, OpenCode e OpenRouter, depois o cartão Pro com histórico, alertas, contas extras e medição na nuvem, e um botão que inicia o teste grátis de 30 dias do Pro sem cartão."
       }
     }
   },
@@ -1364,8 +1364,8 @@
       "zero-setup": {
         "title": "Detecção sem configuração",
         "metaTitle": "Detecção sem configuração, privacidade e solução de problemas",
-        "description": "Como o OpenLimiter encontra logins locais, o que cada provedor informa, o que sai do dispositivo e como resolver um estado desconhecido.",
-        "lead": "O aplicativo desktop procura ferramentas e logins de provedores que já existem neste dispositivo. Ele pode começar sem conta OpenLimiter e sem copiar credenciais, enquanto toda leitura ausente ou incerta permanece visivelmente desconhecida.",
+        "description": "Como o OpenLimiter encontra logins locais, o que cada provedor informa, o que sai do dispositivo e como resolver um provedor que precisa de atenção.",
+        "lead": "O aplicativo desktop procura ferramentas e logins de provedores que já existem neste dispositivo. Ele pode começar sem conta OpenLimiter e sem copiar credenciais. Um provedor que ele não consegue medir agora fica oculto em vez de estimado e aguarda em Conexões, em Precisa de atenção, com uma correção.",
         "sections": {
           "what-it-does": {
             "title": "O que o OpenLimiter faz",
@@ -1435,17 +1435,17 @@
             }
           },
           "unknown": {
-            "title": "Quando um provedor mostra desconhecido",
-            "intro": "Desconhecido significa que nenhuma leitura atual passou em todas as verificações de contrato. Não significa uso zero nem prova que a assinatura está vazia.",
+            "title": "Quando um provedor precisa de atenção",
+            "intro": "Um provedor que não pode ser medido agora fica oculto na Home, no painel lateral e na linha do terminal, e aparece em Conexões, em Precisa de atenção, com uma correção. Oculto não significa uso zero nem prova que a assinatura está vazia.",
             "steps": {
-              "login": "Abra o CLI do provedor e confirme que ele está instalado e autenticado. Se a mensagem disser que o login venceu, feche e reabra esse CLI para que ele renove a própria credencial.",
-              "rescan": "Volte ao OpenLimiter, repita a detecção dos provedores e solicite uma atualização para essa conta.",
-              "wait": "Se o provedor limitou chamadas recentemente, mantenha a leitura em cache e aguarde o horário da nova tentativa. Cliques repetidos não ignoram o recuo do provedor.",
-              "interface": "Verifique o rótulo da fonte. Endpoints privados e páginas autenticadas podem mudar sem aviso. Uma mudança de contrato permanece desconhecida de propósito até que o conector seja atualizado.",
-              "manual": "Use a entrada manual quando a coleta automática estiver indisponível. Um provedor bloqueado não desativa os demais."
+              "login": "Sessão encerrada: escolha Entrar. Se o login pertence à ferramenta do próprio provedor, entre nela neste computador e depois escolha Verificar de novo.",
+              "rescan": "Conexão perdida: escolha Reconectar. Se a conexão pertence à ferramenta do próprio provedor, entre nela de novo e depois escolha Verificar de novo.",
+              "wait": "O login precisa ser renovado: abra a ferramenta do provedor uma vez para que ela renove o próprio login e depois escolha Verificar de novo. O OpenLimiter nunca renova sozinho o login de um provedor.",
+              "interface": "Ainda não mensurável: o provedor não informa uma cota que o OpenLimiter consiga ler, ou a resposta dele mudou de formato. Não há nada para apertar, a linha diz isso, e o provedor continua oculto até o conector ser atualizado.",
+              "manual": "Use a entrada manual quando a coleta automática estiver indisponível. Um provedor que precisa de atenção nunca oculta os demais."
             },
-            "calloutTitle": "Desconhecido é um resultado de segurança",
-            "calloutBody": "O OpenLimiter nunca adivinha um percentual ou reset ausente. Um desconhecido visível protege a orientação de roteamento contra um número plausível, porém errado."
+            "calloutTitle": "Oculto é um resultado de segurança",
+            "calloutBody": "O OpenLimiter nunca adivinha um percentual ou reset ausente. Manter fora de vista um provedor sem medição protege você e a orientação de roteamento contra um número plausível, porém errado."
           }
         }
       },

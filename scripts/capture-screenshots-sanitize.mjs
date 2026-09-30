@@ -32,7 +32,7 @@ export function ansiHtml(text) {
 
 export function demoSessions(now) {
   return [
-    ["claude_code", "waiting", 540], ["codex", "busy", 185], ["cursor", "done", 420],
+    ["claude_code", "waiting", 540], ["codex", "busy", 185], ["gemini_cli", "done", 420],
   ].map(([agent, state, elapsedSeconds], index) => ({
     sessionId: `capture-session-${index}`, agent, state, confidence: "explicit",
     firstObservedAt: new Date(Date.parse(now) - elapsedSeconds * 1000).toISOString(),

@@ -2940,21 +2940,21 @@ body:has(.ol-product-shell) .page-overlap > .ol-product-shell {
 }
 
 .ol-lock-list li {
-  display: grid;
-  align-items: baseline;
-  gap: var(--ol-space-3);
   color: var(--ol-soft);
   font-size: var(--ol-text-label);
-  grid-template-columns: auto minmax(0, 1fr);
   line-height: var(--ol-leading-body);
 }
 
+/* The dot flows with its line, so it sits beside the first word however the
+   text is aligned, centred on the phone as much as at the start. */
 .ol-lock-dot {
+  display: inline-block;
   width: 0.375rem;
   height: 0.375rem;
+  margin-inline-end: var(--ol-space-3);
   border-radius: var(--ol-radius-pill);
   background: var(--ol-band-stale-fill);
-  translate: 0 -0.125rem;
+  vertical-align: middle;
 }
 
 .ol-lock-offer {

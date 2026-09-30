@@ -61,6 +61,15 @@ describe("home product image delivery", () => {
     expect(Object.keys(PRODUCT_SHOTS).filter((name) => /rail/iu.test(name))).toEqual([]);
   });
 
+  it("declares every web manifest screenshot at its real size", () => {
+    const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../public");
+    const manifest = JSON.parse(readFileSync(path.join(publicDir, "manifest.webmanifest"), "utf8")) as { screenshots: { src: string; sizes: string }[] };
+    for (const shot of manifest.screenshots) {
+      const png = readFileSync(path.join(publicDir, shot.src));
+      expect(shot.sizes, shot.src).toBe(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`);
+    }
+  });
+
   it("keeps every display cap at or below half the real capture width", () => {
     for (const [name, shot] of Object.entries(PRODUCT_SHOTS)) {
       for (const theme of ["", "-light"]) {

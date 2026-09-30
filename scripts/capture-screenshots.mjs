@@ -708,11 +708,46 @@ const STANDALONE = [
    fixed 1600ms wait stopped being enough when the bundle grew with the locale
    wave, and a capture of the loading skeleton looked like an open sheet over
    a blurred void. Waiting for real content cannot rot the same way. */
+/* Where each view starts: the top of the screen, the provider cards under the
+   headline card, and the end of the screen. */
 const PHONE_VIEWS = [
-  { file: "phone-1", scrollY: 0 },
-  { file: "phone-2", scrollY: 500 },
-  { file: "phone-3", scrollY: 1000 },
+  { file: "phone-1", from: "top" },
+  { file: "phone-2", from: "cards" },
+  { file: "phone-3", from: "end" },
 ];
+
+/**
+ * Runs in the page: the scroll nearest the view's start at which neither edge
+ * of the screen crosses a line of text, shadow roots included, or null.
+ */
+function wholeLinesScroll(from) {
+  const lines = [];
+  const walk = (root) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node.shadowRoot !== null) walk(node.shadowRoot);
+        continue;
+      }
+      if (!node.textContent.trim() || !node.parentElement?.checkVisibility()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const rect of range.getClientRects()) lines.push([rect.top + window.scrollY, rect.bottom + window.scrollY]);
+    }
+  };
+  walk(document.body);
+  const height = window.innerHeight;
+  const end = document.scrollingElement.scrollHeight - height;
+  const card = document.querySelector(".ol-live-meter-card")?.getBoundingClientRect();
+  const target = from === "top" ? 0 : from === "end" ? end : Math.round((card?.bottom ?? 0) + window.scrollY + 8);
+  const cuts = (edge) => lines.some(([top, bottom]) => edge > top + 1 && edge < bottom - 1);
+  for (let offset = 0; offset <= 240; offset++) {
+    for (const y of [target + offset, target - offset]) {
+      if (y >= 0 && y <= end && !cuts(y) && !cuts(y + height)) return y;
+    }
+  }
+  return null;
+}
 
 async function capturePhone(browser, theme, snapshots, now) {
   const context = await browser.newContext({
@@ -777,7 +812,9 @@ async function capturePhone(browser, theme, snapshots, now) {
     await page.locator(".ol-live-meter-card").waitFor();
     if (!syncedReads) throw new Error("Phone capture requires a signed in fixture API read. Rebuild with the documented synthetic API configuration.");
     assertCaptureSafe(await deepText(page));
-    await page.evaluate((y) => window.scrollTo(0, y), view.scrollY);
+    const top = await page.evaluate(wholeLinesScroll, view.from);
+    if (top === null) throw new Error(`No scroll position lets ${view.file} show whole lines of text at both edges.`);
+    await page.evaluate((y) => window.scrollTo(0, y), top);
     await page.waitForTimeout(300);
     const name = view.file + (theme === "light" ? "-light" : "") + ".png";
     await page.screenshot({ path: path.join(OUTPUT, name) });

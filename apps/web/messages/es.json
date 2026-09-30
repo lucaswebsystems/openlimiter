@@ -464,13 +464,13 @@
         "folded": "La pestaña descansa en el borde izquierdo. Aparece un pequeño punto cuando algo merece un vistazo, como un agente que te espera.",
         "unfolded": "Al pasar el cursor se abre el panel: primero los agentes, con Mostrar app en el que te espera, y luego los límites, el más justo primero, con su reinicio.",
         "foldedAlt": "La pestaña real de OpenLimiter, pequeña, con el logotipo de OpenLimiter y un punto amarillo, en el borde izquierdo de un escritorio con un fondo de lago de montaña.",
-        "unfoldedAlt": "El panel real de OpenLimiter abierto junto a la pestaña, con datos sintéticos: Claude Code te necesita y ofrece Mostrar app, Codex está ocupado y Cursor ha terminado; debajo, los límites de Codex, Claude Code y OpenRouter con barras y el tiempo hasta cada reinicio, y un enlace Abrir app."
+        "unfoldedAlt": "El panel real de OpenLimiter abierto junto a la pestaña, con datos sintéticos: Claude Code te necesita y ofrece Mostrar app, Codex está ocupado y Gemini CLI ha terminado; debajo, los límites de Codex, Claude Code y OpenRouter con barras y el tiempo hasta cada reinicio, y un enlace Abrir app."
       },
       "agents": {
         "title": "Ocupado, en espera o terminado. Sabrás cuándo volver.",
         "lead": "La lista de agentes de Home muestra la actividad de las integraciones de agentes compatibles. Un agente en espera necesita intervención. Un agente terminado ha informado que completó su trabajo. Las notificaciones locales gratuitas te traen de vuelta cuando hay algo que hacer.",
         "note": "Mostrar app te lleva a la aplicación responsable cuando el sistema operativo lo permite. No promete una pestaña concreta del terminal. La actividad unknown nunca se muestra como éxito.",
-        "alt": "Home de escritorio de OpenLimiter con datos sintéticos: límites de Codex, Claude Code y OpenRouter, y debajo la lista de agentes con Claude Code en espera, Codex ocupado y Cursor terminado."
+        "alt": "Home de escritorio de OpenLimiter con datos sintéticos: límites de Codex, Claude Code y OpenRouter, y debajo la lista de agentes con Claude Code en espera, Codex ocupado y Gemini CLI terminado."
       },
       "terminal": {
         "title": "Tus límites junto a tu prompt.",
@@ -505,15 +505,15 @@
     "shots": {
       "meters": {
         "label": "Meters",
-        "alt": "La aplicación web en un teléfono, mostrando el veredicto general y la recomendación de enrutamiento arriba, y una tarjeta por proveedor debajo, cada una con una barra de meter, un porcentaje, un estado de vigencia y una cuenta regresiva de reinicio."
+        "alt": "La aplicación web en un teléfono, con el límite más ajustado arriba como un anillo, una barra y una cuenta regresiva hasta su reinicio, y debajo una tarjeta por proveedor con una barra, la parte usada y el tiempo hasta que se reinicia."
       },
       "agentContext": {
         "label": "Agent context",
         "alt": "La aplicación web en un teléfono, mostrando el bloque acotado de estado de presupuesto que recibe un agente de programación, delimitado dentro de un límite de datos no confiables."
       },
       "connections": {
-        "label": "Conexiones",
-        "alt": "La aplicación web en un teléfono, mostrando de dónde se puede leer cada proveedor hoy, cuáles solo aceptan importación, y el cuadro donde se pega o se suelta un documento de quota."
+        "label": "Más proveedores, y luego Pro",
+        "alt": "La aplicación web en un teléfono, más abajo en la misma pantalla: tarjetas de Antigravity, OpenCode y OpenRouter, y luego la tarjeta Pro con historial, alertas, cuentas adicionales y medición en la nube, y un botón que inicia la prueba gratuita de 30 días de Pro sin tarjeta."
       }
     }
   },
@@ -1364,8 +1364,8 @@
       "zero-setup": {
         "title": "Detección sin configuración",
         "metaTitle": "Detección sin configuración, privacidad y solución de problemas",
-        "description": "Cómo OpenLimiter encuentra inicios de sesión locales, qué informa cada proveedor, qué sale del dispositivo y cómo resolver un estado desconocido.",
-        "lead": "La aplicación de escritorio busca herramientas e inicios de sesión de proveedores que ya existen en este dispositivo. Puede comenzar sin una cuenta de OpenLimiter y sin copiar credenciales, mientras cada lectura ausente o incierta permanece visiblemente desconocida.",
+        "description": "Cómo OpenLimiter encuentra inicios de sesión locales, qué informa cada proveedor, qué sale del dispositivo y cómo arreglar un proveedor que necesita atención.",
+        "lead": "La aplicación de escritorio busca herramientas e inicios de sesión de proveedores que ya existen en este dispositivo. Puede comenzar sin una cuenta de OpenLimiter y sin copiar credenciales. Un proveedor que no puede medir ahora se oculta en vez de estimarse, y espera en Conexiones, en Necesita atención, con una solución.",
         "sections": {
           "what-it-does": {
             "title": "Qué hace OpenLimiter",
@@ -1435,17 +1435,17 @@
             }
           },
           "unknown": {
-            "title": "Cuando un proveedor muestra desconocido",
-            "intro": "Desconocido significa que ninguna lectura actual superó todas las verificaciones del contrato. No significa uso cero ni demuestra que la suscripción esté vacía.",
+            "title": "Cuando un proveedor necesita atención",
+            "intro": "Un proveedor que no se puede medir ahora se oculta de Home, del panel lateral y de la línea del terminal, y aparece en Conexiones, en Necesita atención, con una solución. Oculto no significa uso cero ni demuestra que la suscripción esté vacía.",
             "steps": {
-              "login": "Abre el CLI del proveedor y confirma que esté instalado y con sesión iniciada. Si el mensaje dice que el inicio está vencido, cierra y vuelve a abrir ese CLI para que renueve su propia credencial.",
-              "rescan": "Vuelve a OpenLimiter, repite la detección de proveedores y solicita una actualización para esa cuenta.",
-              "wait": "Si el proveedor limitó solicitudes recientemente, conserva la lectura en caché y espera la hora del próximo intento. Los clics repetidos no evitan la espera del proveedor.",
-              "interface": "Revisa la etiqueta de la fuente. Los endpoints privados y las páginas autenticadas pueden cambiar sin aviso. Un cambio de contrato permanece desconocido a propósito hasta que el conector se actualice.",
-              "manual": "Usa la entrada manual cuando la recopilación automática no esté disponible. Un proveedor bloqueado no desactiva los demás."
+              "login": "Sesión cerrada: elige Iniciar sesión. Si el inicio de sesión pertenece a la propia herramienta del proveedor, inicia sesión allí en este equipo y luego elige Comprobar de nuevo.",
+              "rescan": "Conexión perdida: elige Reconectar. Si la conexión pertenece a la propia herramienta del proveedor, vuelve a iniciar sesión allí y luego elige Comprobar de nuevo.",
+              "wait": "El inicio de sesión necesita renovarse: abre una vez la herramienta del proveedor para que renueve su propio inicio de sesión y luego elige Comprobar de nuevo. OpenLimiter nunca renueva por su cuenta el inicio de sesión de un proveedor.",
+              "interface": "Aún no se puede medir: el proveedor no informa una cuota que OpenLimiter pueda leer, o su respuesta cambió de forma. No hay nada que pulsar, la fila lo dice, y el proveedor sigue oculto hasta que se actualice su conector.",
+              "manual": "Usa la entrada manual cuando la recopilación automática no esté disponible. Un proveedor que necesita atención nunca oculta a los demás."
             },
-            "calloutTitle": "Desconocido es un resultado de seguridad",
-            "calloutBody": "OpenLimiter nunca adivina un porcentaje ni un reinicio ausente. Un desconocido visible protege el consejo de enrutamiento frente a un número plausible pero incorrecto."
+            "calloutTitle": "Oculto es un resultado de seguridad",
+            "calloutBody": "OpenLimiter nunca adivina un porcentaje ni un reinicio ausente. Mantener fuera de la vista a un proveedor sin medición te protege a ti y al consejo de enrutamiento frente a un número plausible pero incorrecto."
           }
         }
       },

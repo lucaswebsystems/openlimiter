@@ -464,13 +464,13 @@
         "folded": "The tab rests on the left edge. A small dot appears when something needs a look, like an agent waiting for you.",
         "unfolded": "Hover it and the panel opens: agents first, with Show app for the one that needs you, then limits, tightest first, with reset times.",
         "foldedAlt": "The real OpenLimiter edge tab, a small tab with the OpenLimiter logo and a yellow dot, on the left edge of a desktop with a mountain lake wallpaper.",
-        "unfoldedAlt": "The real OpenLimiter panel open beside the edge tab, with synthetic data: Claude Code needs you and offers Show app, Codex is busy and Cursor is done, then limits for Codex, Claude Code and OpenRouter with bars and reset times, and an Open app link."
+        "unfoldedAlt": "The real OpenLimiter panel open beside the edge tab, with synthetic data: Claude Code needs you and offers Show app, Codex is busy and Gemini CLI is done, then limits for Codex, Claude Code and OpenRouter with bars and reset times, and an Open app link."
       },
       "agents": {
         "title": "Busy, waiting or done. Know when to return.",
         "lead": "The Home Agents list shows activity from supported agent integrations. A waiting agent needs input. A done agent has reported completion. Free local notifications bring you back when there is something to do.",
         "note": "Show app brings you to the owning application where the operating system allows it. It does not promise a particular terminal tab. Unknown activity is never shown as success.",
-        "alt": "OpenLimiter desktop Home with synthetic data: limits for Codex, Claude Code and OpenRouter, then the Agents list with Claude Code waiting, Codex busy and Cursor done."
+        "alt": "OpenLimiter desktop Home with synthetic data: limits for Codex, Claude Code and OpenRouter, then the Agents list with Claude Code waiting, Codex busy and Gemini CLI done."
       },
       "terminal": {
         "title": "Your limits beside your prompt.",
@@ -505,15 +505,15 @@
     "shots": {
       "meters": {
         "label": "Meters",
-        "alt": "The web app on a phone, showing the overall verdict and routing recommendation at the top, then one card per provider below it, each with a meter bar, a percentage, a freshness state and a reset countdown."
+        "alt": "The web app on a phone, with the tightest limit at the top as a ring, a bar and a countdown to its reset, then one card per provider with a bar, the share used and the time until it resets."
       },
       "agentContext": {
         "label": "Agent context",
         "alt": "The web app on a phone, showing the bounded block of budget state a coding agent receives, fenced in an untrusted data boundary."
       },
       "connections": {
-        "label": "Connections",
-        "alt": "The web app on a phone, showing what each provider can be read from today, which ones are import only, and the box a quota document is pasted or dropped into."
+        "label": "More providers, then Pro",
+        "alt": "The web app on a phone, further down the same screen: cards for Antigravity, OpenCode and OpenRouter, then the Pro card with history, alerts, extra accounts and cloud metering, and a button that starts the free 30 day Pro trial with no card needed."
       }
     }
   },
@@ -1364,8 +1364,8 @@
       "zero-setup": {
         "title": "Zero setup detection",
         "metaTitle": "Zero setup detection, privacy and troubleshooting",
-        "description": "How OpenLimiter finds local provider logins, what each supported provider reports, what leaves the device, and how to recover from unknown.",
-        "lead": "The desktop application looks for provider tools and logins already present on this device. It can begin with no OpenLimiter account and no copied credential, while every missing or uncertain reading stays visibly unknown.",
+        "description": "How OpenLimiter finds local provider logins, what each supported provider reports, what leaves the device, and how to fix a provider that needs attention.",
+        "lead": "The desktop application looks for provider tools and logins already present on this device. It can begin with no OpenLimiter account and no copied credential. A provider it cannot measure right now is hidden rather than guessed, and waits on Connections under Needs attention with one fix.",
         "sections": {
           "what-it-does": {
             "title": "What OpenLimiter does",
@@ -1435,17 +1435,17 @@
             }
           },
           "unknown": {
-            "title": "When a provider shows unknown",
-            "intro": "Unknown means no current reading passed every contract check. It is not zero usage and it is not proof that the subscription is empty.",
+            "title": "When a provider needs attention",
+            "intro": "A provider that cannot be measured right now is hidden from Home, the edge panel and the terminal line, and listed on Connections under Needs attention with one fix. Hidden is not zero usage, and it is not proof that the subscription is empty.",
             "steps": {
-              "login": "Open the provider CLI and confirm that it is installed and signed in. If the message says the login is stale, close and reopen that CLI so it can refresh its own credential.",
-              "rescan": "Return to OpenLimiter and rescan providers, then request a refresh for that account.",
-              "wait": "If the provider recently limited requests, leave the cached reading in place and wait for the retry time. Repeated clicks do not bypass provider backoff.",
-              "interface": "Check the source label. Private endpoints and authenticated pages can change without notice. A contract change intentionally stays unknown until the connector is updated.",
-              "manual": "Use manual entry when automatic collection is unavailable. One blocked provider does not disable the others."
+              "login": "Signed out: choose Sign in. When the sign in belongs to the provider's own tool, sign in there on this computer, then choose Check again.",
+              "rescan": "Connection lost: choose Reconnect. When the connection belongs to the provider's own tool, sign in there again, then choose Check again.",
+              "wait": "Sign in needs a refresh: open the provider's tool once so it refreshes its own sign in, then choose Check again. OpenLimiter never refreshes a vendor's sign in itself.",
+              "interface": "Not measurable yet: the provider reports no quota OpenLimiter can read, or its reply changed shape. There is nothing to press, the row says so, and the provider stays hidden until its connector is updated.",
+              "manual": "Use manual entry when automatic collection is unavailable. One provider that needs attention never hides the others."
             },
-            "calloutTitle": "Unknown is a safety result",
-            "calloutBody": "OpenLimiter never guesses a missing percentage or reset. A visible unknown protects routing advice from a plausible but wrong number."
+            "calloutTitle": "Hidden is a safety result",
+            "calloutBody": "OpenLimiter never guesses a missing percentage or reset. Keeping an unmeasured provider out of view protects you and your routing advice from a plausible but wrong number."
           }
         }
       },

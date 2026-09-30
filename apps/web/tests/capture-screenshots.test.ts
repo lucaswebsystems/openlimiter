@@ -61,6 +61,15 @@ describe("synthetic screenshot pipeline", () => {
     }
   });
 
+  it("gives every demo agent its official mark, never a letter fallback", async () => {
+    const dist = new URL("../../desktop/ui/dist/", import.meta.url);
+    const names = await import(new URL("names.js", dist).href);
+    const marks = await import(new URL("engine/ui/provider-row.js", dist).href);
+    for (const { agent } of demoSessions(now)) {
+      expect(String(marks.providerMarkMarkup(names.agentProvider(agent))), agent).toMatch(/^<svg/u);
+    }
+  });
+
   it("places the edge tab and panel by the product's rule and refuses a panel that would scroll", () => {
     // 70% down a 982 pixel work area; a 560 pixel panel moves up to stay inside it.
     const layout = edgeLayout(560);
